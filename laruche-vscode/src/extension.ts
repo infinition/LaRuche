@@ -31,6 +31,9 @@ interface KnownNodeEntry {
 const LOOPBACK_IP = '127.0.0.1';
 const LOCAL_PROBE_TIMEOUT_MS = 2000;
 
+/** The LAN IP address of this machine (detected via local node's status endpoint) */
+let localLanIp: string = '';
+
 /** All nodes known from swarm + mDNS + local probe */
 let knownNodes: KnownNodeEntry[] = [];
 
@@ -95,11 +98,10 @@ export function activate(context: vscode.ExtensionContext) {
     }
     context.subscriptions.push({ dispose: () => discovery.stop() });
 
-    // Probe localhost explicitly (Windows loopback mDNS can be flaky)
-    void checkLocalNode();
-
-    // Start polling
-    void pollStatus();
+    // Probe localhost FIRST before anything else.
+    // This ensures activeNodeOnline is set before mDNS discovery fires,
+    // preventing auto-switch to a remote node when the local one is healthy.
+    void checkLocalNode().then(() => pollStatus());
     pollInterval = setInterval(() => { void pollStatus(); }, 5000);
     context.subscriptions.push({
         dispose: () => { if (pollInterval) { clearInterval(pollInterval); } },
@@ -161,12 +163,12 @@ function onNodeDiscovered(node: DiscoveredLandNode, context: vscode.ExtensionCon
         source: 'mdns',
     });
 
-    // Auto-connect to this node if:
+    // Auto-connect only if:
     // - no manual URL is configured, AND
-    // - the current active node is localhost (first-time) OR offline
+    // - the current active node is offline (not just localhost)
+    // Never auto-switch away from a healthy local node to a remote one.
     const hasManualUrl = !!vscode.workspace.getConfiguration('laruche').get<string>('nodeUrl');
-    const isLocalhost = activeNodeUrl.includes('localhost') || activeNodeUrl.includes('127.0.0.1');
-    if (!hasManualUrl && (isLocalhost || !activeNodeOnline) && node.url !== activeNodeUrl) {
+    if (!hasManualUrl && !activeNodeOnline && node.url !== activeNodeUrl) {
         const testClient = new LaRucheClient(node.url);
         testClient.health().then(ok => {
             if (ok) {
@@ -245,7 +247,16 @@ function endpointKey(url: string): string {
 }
 
 function isSameEndpoint(a: string, b: string): boolean {
-    return endpointKey(a) === endpointKey(b);
+    const keyA = endpointKey(a);
+    const keyB = endpointKey(b);
+    if (keyA === keyB) { return true; }
+
+    // Treat 127.0.0.1:<port> and <localLanIp>:<port> as the same node.
+    if (localLanIp) {
+        const normalize = (key: string) => key.replace(LOOPBACK_IP, localLanIp);
+        if (normalize(keyA) === normalize(keyB)) { return true; }
+    }
+    return false;
 }
 
 function upsertKnownNode(entry: KnownNodeEntry): void {
@@ -259,9 +270,15 @@ function upsertKnownNode(entry: KnownNodeEntry): void {
     }
 
     const previous = knownNodes[existingIdx];
+    // Prefer keeping the local-probe source and 127.0.0.1 URL so the local node
+    // is never removed during stale-swarm cleanup.
+    const keepSource = previous.source === 'local-probe' ? 'local-probe' : normalizedEntry.source;
+    const keepUrl = previous.source === 'local-probe' ? previous.url : normalizedEntry.url;
     knownNodes[existingIdx] = {
         ...previous,
         ...normalizedEntry,
+        url: keepUrl,
+        source: keepSource,
         model: normalizedEntry.model || previous.model,
         capabilities: normalizedEntry.capabilities.length > 0 ? normalizedEntry.capabilities : previous.capabilities,
     };
@@ -307,6 +324,7 @@ async function checkLocalNode(): Promise<void> {
     const isHealthy = await localClient.health(LOCAL_PROBE_TIMEOUT_MS);
     if (!isHealthy) {
         knownNodes = knownNodes.filter(n => !(n.source === 'local-probe' && isSameEndpoint(n.url, localUrl)));
+        localLanIp = '';
         return;
     }
 
@@ -319,6 +337,28 @@ async function checkLocalNode(): Promise<void> {
         nodeName = status.node_name || nodeName;
     } catch {
         // Keep minimal metadata when status endpoint is unavailable.
+    }
+
+    // Detect the LAN IP of the local node via the /swarm endpoint.
+    // The node reports its own LAN IP as `host` in the swarm response.
+    // We need this to deduplicate: 127.0.0.1 and 192.168.x.x are the same node.
+    try {
+        const swarm = await localClient.swarm();
+        if (swarm.nodes.length > 0) {
+            const selfNode = swarm.nodes[0]; // First node is always self
+            const selfHost = parseHostPort(selfNode.host, String(apiPort)).host;
+            if (selfHost !== LOOPBACK_IP && selfHost !== 'localhost') {
+                localLanIp = selfHost;
+            }
+        }
+    } catch {
+        // swarm endpoint may not be available yet at startup
+    }
+
+    // If the active node is localhost, mark it as online immediately so
+    // mDNS auto-connect won't switch away to a remote node.
+    if (isSameEndpoint(activeNodeUrl, localUrl)) {
+        activeNodeOnline = true;
     }
 
     upsertKnownNode({
@@ -356,9 +396,17 @@ async function pollStatus() {
         }
 
         // Remove stale swarm-only entries that no longer exist in latest swarm response.
-        knownNodes = knownNodes.filter(n => n.source !== 'swarm' || seenSwarmEndpoints.has(endpointKey(n.url)));
+        // Use isSameEndpoint so that 127.0.0.1 matches the LAN IP from swarm.
+        knownNodes = knownNodes.filter(n => {
+            if (n.source !== 'swarm') { return true; }
+            for (const ep of seenSwarmEndpoints) {
+                if (isSameEndpoint(n.url, `http://${ep}`)) { return true; }
+            }
+            return false;
+        });
 
-        const nodeCount = dedupedSwarmNodes.length;
+        // Use knownNodes (all sources merged & deduped) for accurate count.
+        const nodeCount = knownNodes.length;
         const tps = swarm.collective_tps.toFixed(1);
         const modelLabel = activeModel ? ` ? ${activeModel}` : '';
         statusBarItem.text = `$(beaker) ${nodeCount} node${nodeCount !== 1 ? 's' : ''} ? ${tps} t/s${modelLabel}`;
@@ -449,20 +497,30 @@ async function cmdShowSwarm() {
         const dedupedSwarmNodes = dedupeSwarmNodes(swarm.nodes);
         const items: vscode.QuickPickItem[] = [];
 
+        // Use knownNodes count (all sources deduplicated) for accurate total.
+        const totalNodes = knownNodes.length;
+
         items.push({
             label: `$(zap) Collective Power`,
-            description: `${dedupedSwarmNodes.length} visible node${dedupedSwarmNodes.length !== 1 ? 's' : ''} | ${swarm.collective_tps.toFixed(1)} t/s | Q:${swarm.collective_queue}`,
+            description: `${totalNodes} visible node${totalNodes !== 1 ? 's' : ''} | ${swarm.collective_tps.toFixed(1)} t/s | Q:${swarm.collective_queue}`,
             detail: `RAM: ${formatMB(swarm.total_ram_mb)} | VRAM: ${formatMB(swarm.total_vram_mb)}`,
         });
 
-        for (const n of dedupedSwarmNodes) {
-            const endpoint = parseHostPort(n.host, "8419");
-            const url = `http://${endpoint.host}:${endpoint.port}`;
+        // Show nodes from knownNodes (deduplicated across all sources).
+        for (const n of knownNodes) {
             const modelLabel = n.model ? ` [${n.model}]` : '';
-            const isActive = isSameEndpoint(activeNodeUrl, url);
+            const isActive = isSameEndpoint(activeNodeUrl, n.url);
+            // Try to find live stats from swarm response for this node.
+            const swarmMatch = dedupedSwarmNodes.find(s => {
+                const ep = parseHostPort(s.host, "8419");
+                return isSameEndpoint(n.url, `http://${ep.host}:${ep.port}`);
+            });
+            const tpsLabel = swarmMatch?.tokens_per_sec?.toFixed(1) || '?';
+            const queueLabel = swarmMatch?.queue_depth || 0;
+            const hostLabel = parseNodeUrl(n.url)?.host || n.url;
             items.push({
-                label: `${isActive ? '$(check) ' : '$(server) '}${n.name || endpoint.host}${modelLabel}`,
-                description: `${endpoint.host} | ${n.tokens_per_sec?.toFixed(1) || '?'} t/s | Q:${n.queue_depth || 0}`,
+                label: `${isActive ? '$(check) ' : '$(server) '}${n.name}${modelLabel}`,
+                description: `${hostLabel} | ${tpsLabel} t/s | Q:${queueLabel}`,
                 detail: `Capabilities: ${n.capabilities.join(', ') || 'none'}`,
             });
         }
@@ -478,27 +536,17 @@ async function cmdShowSwarm() {
 async function cmdSelectNode(context: vscode.ExtensionContext) {
     const items: vscode.QuickPickItem[] = [];
 
-    // Add mDNS-discovered nodes
-    const mdnsNodes = discovery.getNodes();
-    for (const n of mdnsNodes) {
-        const isActive = n.url === activeNodeUrl;
-        items.push({
-            label: `${isActive ? '$(check) ' : '$(remote-explorer) '}${n.name}`,
-            description: `${n.url}${n.model ? ` Â· ${n.model}` : ''}`,
-            detail: `Discovered via LAND Â· ${n.capabilities.join(', ') || 'no capabilities'}`,
-        });
-    }
-
-    // Add swarm nodes (from HTTP)
+    // Show all known nodes (already deduplicated across mDNS, swarm, local-probe).
     for (const n of knownNodes) {
-        if (!mdnsNodes.find(m => isSameEndpoint(m.url, n.url))) {
-            const isActive = n.url === activeNodeUrl;
-            items.push({
-                label: `${isActive ? '$(check) ' : '$(server) '}${n.name}`,
-                description: `${n.url}${n.model ? ` Â· ${n.model}` : ''}`,
-                detail: `Discovered via Swarm Â· ${n.capabilities.join(', ') || 'no capabilities'}`,
-            });
-        }
+        const isActive = isSameEndpoint(n.url, activeNodeUrl);
+        const sourceIcon = n.source === 'local-probe' ? '$(home) ' : n.source === 'mdns' ? '$(remote-explorer) ' : '$(server) ';
+        const icon = isActive ? '$(check) ' : sourceIcon;
+        const sourceLabel = n.source === 'local-probe' ? 'Local' : n.source === 'mdns' ? 'LAND' : 'Swarm';
+        items.push({
+            label: `${icon}${n.name}`,
+            description: `${n.url}${n.model ? ` \u00B7 ${n.model}` : ''}`,
+            detail: `Discovered via ${sourceLabel} \u00B7 ${n.capabilities.join(', ') || 'no capabilities'}`,
+        });
     }
 
     // Always offer manual entry
@@ -527,8 +575,8 @@ async function cmdSelectNode(context: vscode.ExtensionContext) {
             void pollStatus();
         }
     } else {
-        // Extract URL from description
-        const url = selected.description?.split(' Â· ')[0];
+        // Extract URL from description (split on middle dot separator)
+        const url = selected.description?.split(' \u00B7 ')[0];
         if (url) {
             setActiveNode(url, context);
             vscode.window.showInformationMessage(`LaRuche: Switched to ${selected.label.replace(/^\$\([\w-]+\) /, '')}`);

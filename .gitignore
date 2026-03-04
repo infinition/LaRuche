@@ -4,7 +4,7 @@
 
 # Keep Cargo.lock for the workspace/product repo
 # Cargo.lock
-
+/.claude/
 # IDEs
 .idea/
 .vscode/

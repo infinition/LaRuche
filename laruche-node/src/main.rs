@@ -34,8 +34,8 @@ use uuid::Uuid;
 use std::collections::VecDeque;
 
 const DASHBOARD_HTML: &str = include_str!("../../laruche-dashboard/src/templates/dashboard.html");
-const PEER_FETCH_TIMEOUT_MS: u64 = 800;
-const PEER_STALE_SECS: i64 = 15;
+const PEER_FETCH_TIMEOUT_MS: u64 = 2500;
+const PEER_STALE_SECS: i64 = 30;
 const ACTIVITY_LOG_LIMIT: usize = 120;
 
 #[derive(Debug, Clone, Serialize)]
