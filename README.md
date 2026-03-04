@@ -2,106 +2,79 @@
 <img width="3533" height="997" alt="image" src="https://github.com/user-attachments/assets/458f9822-8c9e-44da-896c-20ba238925d3" />
 </div>
 
-
-
-#  LaRuche - Networked Edge AI System
+# LaRuche - Networked Edge AI System
 
 <div align="center">
   <img width="287" height="317" alt="icon-removebg-preview" src="https://github.com/user-attachments/assets/a6a37836-7e97-4203-b041-1edb7ec36263" />
 </div>
 
-**"Branchez l'IA. C'est tout."**
+**"Plug in AI. That's it."**
 
-Branchez le boîtier LaRuche sur votre réseau, et l'IA devient disponible pour tout appareil connecté.
-Zéro configuration, zéro cloud, zéro compromis sur la vie privée.
+Plug a LaRuche node into your local network and AI becomes available to connected devices.
+Zero configuration, zero cloud dependency, and privacy-first by design.
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Réseau Local                             │
-│                                                                 │
-│  ┌──────────┐   LAND Protocol   ┌──────────┐                    │
-│  │ LaRuche  │◄────────────────► │ LaRuche  │  Swarm             │
-│  │  Core    │  _ai-inference    │   Pro    │  Intelligence      │
-│  │ (LLM+RAG)│    ._tcp          │(VLM+Code)│                    │
-│  └────┬─────┘                   └────┬─────┘                    │
-│       │                              │                          │
-│  ┌────┴──────────────────────────────┴────┐                     │
-│  │          LAND (mDNS/DNS-SD)            │                     │
-│  │    Cognitive Manifest + QoS + Auth     │                     │
-│  └────┬──────────┬──────────┬─────────────┘                     │
-│       │          │          │                                   │
-│  ┌────┴───┐ ┌────┴───┐ ┌───┴────┐                               │
-│  │ VS Code│ │  Web   │ │  IoT   │  Clients                      │
-│  │ Plugin │ │  App   │ │ ESP32  │                               │
-│  └────────┘ └────────┘ └────────┘                               │
-└─────────────────────────────────────────────────────────────────┘
+```text
+Local network
+
+  LaRuche Core (LLM/RAG) <---- LAND protocol (mDNS + HTTP) ----> LaRuche Pro (VLM/Code)
+            |                                                           |
+            +---------------------- Swarm intelligence ------------------+
+
+Clients
+  - VS Code extension
+  - Web UI
+  - CLI / SDK
+  - IoT integrations
 ```
 
-## Workspace Structure
+## Workspace structure
 
-```
+```text
 laruche/
-├── land-protocol/     #  Core LAND protocol library
-│   └── src/
-│       ├── lib.rs           # Module exports + constants
-│       ├── capabilities.rs  # Model type differentiation (LLM, VLM, VLA, RAG...)
-│       ├── manifest.rs      # Cognitive Manifest (broadcast data)
-│       ├── discovery.rs     # mDNS broadcaster + listener
-│       ├── auth.rs          # Proof of Proximity authentication
-│       ├── qos.rs           # Quality of Service + priority queue
-│       ├── swarm.rs         # Swarm Intelligence + resilience
-│       └── error.rs         # Error types
-│
-├── laruche-node/      #  LaRuche Node daemon
-│   └── src/main.rs          # API server + LAND broadcast + Ollama bridge
-│
-├── laruche-client/    #  Client SDK (3 lines to use AI)
-│   └── src/lib.rs           # Auto-discover + ask + route by capability
-│
-├── laruche-cli/       #   CLI tool
-│   └── src/main.rs          # discover, ask, chat, status commands
-│
-└── laruche-dashboard/ #  Web monitoring dashboard
-    └── src/
-        ├── main.rs          # Axum web server
-        └── templates/
-            └── dashboard.html  # Cybersecurity dashboard UI
+|-- land-protocol/        # Core LAND protocol library
+|   `-- src/
+|       |-- lib.rs
+|       |-- capabilities.rs
+|       |-- manifest.rs
+|       |-- discovery.rs
+|       |-- auth.rs
+|       |-- qos.rs
+|       |-- swarm.rs
+|       `-- error.rs
+|
+|-- laruche-node/         # Node daemon
+|   `-- src/main.rs
+|
+|-- laruche-client/       # Rust client SDK
+|   `-- src/lib.rs
+|
+|-- laruche-cli/          # CLI tool
+|   `-- src/main.rs
+|
+`-- laruche-dashboard/    # Web dashboard
+    `-- src/
+        |-- main.rs
+        `-- templates/dashboard.html
 ```
 
-## Quick Start
+## Quick start
 
 ### Prerequisites
 
-- **Rust** (1.75+): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-- **Ollama** (for inference backend): `curl -fsSL https://ollama.com/install.sh | sh`
-- **Windows — Option 1 : MSVC (recommandé)**
-  Installer [Build Tools for Visual Studio](https://visualstudio.microsoft.com/visual-cpp-build-tools/) avec le workload **"Développement Desktop en C++"**, puis :
-  ```powershell
-  rustup default stable-x86_64-pc-windows-msvc
-  ```
+- Rust 1.75+
+- Ollama running locally or on your LAN
 
-- **Windows — Option 2 : GNU / MSYS2 (sans Visual Studio)**
-  Installer [MSYS2](https://www.msys2.org/), puis dans un terminal **PowerShell** :
-  ```powershell
-  # 1. Installer les binutils MinGW via MSYS2 (dans le terminal MSYS2)
-  pacman -S mingw-w64-x86_64-binutils
+Windows notes:
 
-  # 2. Ajouter le bin MSYS2 au PATH (adapter le chemin si nécessaire)
-  $env:PATH = "C:\msys64\mingw64\bin;" + $env:PATH
-
-  # 3. Passer Rust sur le toolchain GNU
-  rustup default stable-x86_64-pc-windows-gnu
-  ```
-  Pour rendre le PATH permanent (PowerShell admin) :
-  ```powershell
-  [System.Environment]::SetEnvironmentVariable("Path", "C:\msys64\mingw64\bin;" + [System.Environment]::GetEnvironmentVariable("Path", "Machine"), "Machine")
-  ```
-  > **Note CMD** : Si tu utilises CMD au lieu de PowerShell, remplace `$env:PATH = ...` par :
-  > ```cmd
-  > set PATH=C:\msys64\mingw64\bin;%PATH%
-  > ```
+- Option 1 (recommended): MSVC toolchain
+  - Install Visual Studio Build Tools with "Desktop development with C++"
+  - `rustup default stable-x86_64-pc-windows-msvc`
+- Option 2: GNU/MSYS2
+  - Install MSYS2 and MinGW binutils
+  - Add `C:\msys64\mingw64\bin` to `PATH`
+  - `rustup default stable-x86_64-pc-windows-gnu`
 
 ### 1. Pull a model
 
@@ -109,27 +82,38 @@ laruche/
 ollama pull mistral
 ```
 
-2. Build:
+### 2. Build
 
 ```bash
 cargo check --workspace
 ```
 
-3. Run a node:
+### 3. Run a node
 
 ```bash
 cargo run -p laruche-node
 ```
 
-4. Open dashboard:
+### 4. Open the dashboard
 
 ```text
 http://localhost:8419/dashboard
 ```
 
+## Current implementation notes
+
+- LAND mDNS re-announce is periodic (`2s`) to keep nodes visible.
+- LAND listener stale timeout is `45s` (from `land-protocol`).
+- `/swarm` includes node `port` and merged capabilities (HTTP + mDNS fallback).
+- `/health` returns plain text `OK`.
+- Dashboard keeps transiently missing nodes for `10` polls before removal.
+- VS Code extension uses:
+  - mDNS node-loss grace: `12s`
+  - swarm stale grace: `6` polls
+
 ## Node configuration
 
-The node loads:
+The node loads configuration in this order:
 
 1. `laruche.toml` (or `LARUCHE_CONFIG=<path>`)
 2. Environment variables (override file values)
@@ -142,7 +126,7 @@ The node loads:
 - `LARUCHE_DASH_PORT` (default `8420`)
 - `OLLAMA_URL` (default `http://127.0.0.1:11434`)
 - `LARUCHE_MODEL` (default model name)
-- `LARUCHE_CAP` (primary capability, ex: `llm`)
+- `LARUCHE_CAP` (primary capability, example: `llm`)
 - `LARUCHE_CAP2` + `LARUCHE_MODEL2` (optional second capability/model)
 
 ### Example `laruche.toml`
@@ -170,19 +154,19 @@ model_name = "deepseek-coder"
 
 ### Core endpoints
 
-- `GET /` -> node status (CPU/RAM + queue + capabilities)
-- `GET /health` -> plain text `OK`
-- `GET /nodes` -> discovered peers (mDNS view)
-- `GET /swarm` -> merged swarm state (self + peers, includes node `port`)
-- `GET /models` -> local Ollama models
-- `GET /swarm/models` -> models across swarm
-- `POST /infer` -> inference request
-- `GET /activity` -> recent node activity log
-- `POST /auth/request` -> auth request (POC)
-- `POST /auth/approve` -> approve pending auth (POC)
-- `GET /dashboard` -> embedded dashboard HTML
+- `GET /` - Node status (CPU/RAM, queue, capabilities)
+- `GET /health` - Health check (`OK`)
+- `GET /nodes` - Discovered peers (mDNS view)
+- `GET /swarm` - Collective view (self + peers, with `port`)
+- `GET /models` - Local Ollama models
+- `GET /swarm/models` - Models across swarm
+- `POST /infer` - Inference request
+- `GET /activity` - Recent node activity log
+- `POST /auth/request` - Auth request (POC)
+- `POST /auth/approve` - Approve auth request (POC)
+- `GET /dashboard` - Embedded dashboard
 
-### Inference request
+### Example inference request
 
 ```json
 {
@@ -197,17 +181,15 @@ model_name = "deepseek-coder"
 
 ## VS Code extension
 
-Build extension:
-
 ```bash
 cd laruche-vscode
 npm install
 npm run compile
 ```
 
-Run in extension host with `F5` from VS Code.
+Then launch the Extension Development Host with `F5` from VS Code.
 
-## Client SDK (Rust)
+## Rust client SDK
 
 ```rust
 use laruche_client::{Cap, LaRuche};
@@ -223,4 +205,4 @@ async fn main() {
 ## Notes
 
 - This workspace currently depends on `land-protocol` from GitHub (`workspace.dependencies`).
-- If you are iterating locally on protocol changes, update dependency resolution accordingly before release.
+- If you iterate locally on protocol changes, update dependency resolution before release.
