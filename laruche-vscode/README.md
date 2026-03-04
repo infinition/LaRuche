@@ -27,6 +27,14 @@ Stability protections:
 - Endpoint dedupe (host/port normalization)
 - Grace polls for temporary `/swarm` misses
 
+Current defaults used by the extension:
+
+- mDNS node-loss grace: `12s`
+- Swarm stale grace: `6` polls
+- Local probe timeout: `2000ms`
+- Health endpoint accepted as plain text (`OK`) or JSON-like success
+- `/swarm` node `port` is used when present (no forced `8419`)
+
 ## Commands
 
 - `LaRuche: Ask`
