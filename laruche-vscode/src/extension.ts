@@ -141,19 +141,21 @@ function onNodeDiscovered(node: DiscoveredLandNode, context: vscode.ExtensionCon
     const entry = { url: node.url, name: node.name, model: node.model, capabilities: node.capabilities };
     if (idx >= 0) { knownNodes[idx] = entry; } else { knownNodes.push(entry); }
 
-    // Auto-connect to first discovered node if we're offline or using localhost
+    // Auto-connect to this node if:
+    // - no manual URL is configured, AND
+    // - the current active node is localhost (first-time) OR offline
+    const hasManualUrl = !!vscode.workspace.getConfiguration('laruche').get<string>('nodeUrl');
     const isLocalhost = activeNodeUrl.includes('localhost') || activeNodeUrl.includes('127.0.0.1');
-    if (isLocalhost && !vscode.workspace.getConfiguration('laruche').get<string>('nodeUrl')) {
-        // Try the discovered node
+    if (!hasManualUrl && (isLocalhost || !activeNodeOnline) && node.url !== activeNodeUrl) {
         const testClient = new LaRucheClient(node.url);
         testClient.health().then(ok => {
             if (ok) {
                 setActiveNode(node.url, context);
                 vscode.window.showInformationMessage(
-                    `LaRuche: Connected to ${node.name} via LAND (${node.model || 'default model'})`,
-                    'OK', 'Change Node'
+                    `LaRuche: Connecté à ${node.name} via LAND${node.model ? ` (${node.model})` : ''}`,
+                    'OK', 'Changer de nœud',
                 ).then(choice => {
-                    if (choice === 'Change Node') { cmdSelectNode(context); }
+                    if (choice === 'Changer de nœud') { cmdSelectNode(context); }
                 });
                 pollStatus();
             }
@@ -183,11 +185,15 @@ function onNodeLost(url: string) {
     }
 }
 
+// Track whether the active node is reachable
+let activeNodeOnline = false;
+
 // ======================== Status Polling ========================
 
 async function pollStatus() {
     try {
         const swarm = await client.swarm();
+        activeNodeOnline = true;
 
         // Merge swarm nodes into knownNodes (they come from mDNS on the node side)
         for (const n of swarm.nodes) {
@@ -216,6 +222,7 @@ async function pollStatus() {
         });
         notifyWebviews({ type: 'nodesUpdate', nodes: knownNodes, activeNodeUrl, activeModel });
     } catch {
+        activeNodeOnline = false;
         statusBarItem.text = '$(beaker) LaRuche: offline';
         statusBarItem.tooltip = 'No LaRuche node reachable.\nUse "LaRuche: Select Active Node" to connect.';
         statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
@@ -535,11 +542,19 @@ async function handleWebviewMessage(
             await cmdSelectModel(context);
             break;
 
-        case 'newChat':
+        case 'confirmNewChat': {
+            const answer = await vscode.window.showInformationMessage(
+                'Démarrer une nouvelle conversation ?',
+                { modal: false },
+                'Oui', 'Non',
+            );
+            if (answer !== 'Oui') { break; }
             if (msg.currentHtml && msg.currentHtml.trim().length > 200) {
                 saveChatToHistory(context, msg.currentHtml);
             }
+            webview.postMessage({ type: 'resetChat' });
             break;
+        }
 
         case 'getHistory': {
             const history = getChatHistory(context);
