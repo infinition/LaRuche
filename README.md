@@ -1,10 +1,16 @@
 <div align="center">
-  <img width="287" height="317" alt="icon-removebg-preview" src="https://github.com/user-attachments/assets/a6a37836-7e97-4203-b041-1edb7ec36263" />
+<img width="3533" height="997" alt="image" src="https://github.com/user-attachments/assets/458f9822-8c9e-44da-896c-20ba238925d3" />
 </div>
+
+
 
 #  LaRuche - Networked Edge AI System
 
-> **"Branchez l'IA. C'est tout."**
+<div align="center">
+  <img width="287" height="317" alt="icon-removebg-preview" src="https://github.com/user-attachments/assets/a6a37836-7e97-4203-b041-1edb7ec36263" />
+</div>
+
+**"Branchez l'IA. C'est tout."**
 
 Branchez le boîtier LaRuche sur votre réseau, et l'IA devient disponible pour tout appareil connecté.
 Zéro configuration, zéro cloud, zéro compromis sur la vie privée.
