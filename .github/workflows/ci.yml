@@ -1,0 +1,114 @@
+name: LaRuche CI
+
+on:
+  push:
+    branches: [ main, master ]
+    tags:
+      - 'v*'
+      - '[0-9]+.[0-9]+.[0-9]+'
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build_rust:
+    name: Rust Build & Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+          
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Check Formatting
+        run: cargo fmt --all -- --check
+
+      - name: Build & Check
+        run: cargo check --all-targets
+
+      - name: Run Tests
+        run: cargo test --all-targets
+
+      - name: Lint with Clippy
+        run: cargo clippy -- -D warnings
+
+  build_vscode:
+    name: VS Code Extension Check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: laruche-vscode
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          
+      - name: Install Dependencies
+        run: npm install
+        continue-on-error: true # Boilerplate might need real npm install
+        
+      - name: Check Boilerplate
+        run: |
+          if [ -f "package.json" ]; then
+            echo "VS Code extension package found."
+          else
+            echo "Missing package.json"
+            exit 1
+          fi
+
+  release:
+    name: Create GitHub Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build_rust, build_vscode]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Necessary for changelog generation
+
+      # 1. Build Rust Binaries (Linux)
+      - name: Build Rust (Release)
+        run: cargo build --release
+
+      # 2. Package VS Code Extension
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Package VSIX
+        working-directory: laruche-vscode
+        run: |
+          npm install
+          npx vsce package -o ../laruche.vsix
+
+      # 3. Generate Changelog
+      - name: Build Changelog
+        id: github_release
+        uses: mikepenz/release-changelog-builder-action@v4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 4. Create Release & Upload Assets
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body: ${{ steps.github_release.outputs.changelog }}
+          files: |
+            target/release/laruche-node
+            target/release/laruche
+            target/release/laruche-dashboard
+            laruche.vsix
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

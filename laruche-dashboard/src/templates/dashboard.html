@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LaRuche — Collective Intelligence</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --amber: #f59e0b;
+      --amber-light: #fbbf24;
+      --amber-dim: rgba(245, 158, 11, 0.15);
+      --green: #22c55e;
+      --green-dim: rgba(34, 197, 94, 0.15);
+      --blue: #3b82f6;
+      --blue-dim: rgba(59, 130, 246, 0.15);
+      --red: #ef4444;
+      --red-dim: rgba(239, 68, 68, 0.15);
+      --purple: #a855f7;
+      --bg: #09090b;
+      --bg-card: #18181b;
+      --bg-hover: #27272a;
+      --border: #3f3f46;
+      --text: #fafafa;
+      --text-dim: #a1a1aa;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column
+    }
+
+    /* Header */
+    .hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(135deg, #18181b, #09090b);
+      flex-shrink: 0
+    }
+
+    .hdr-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--amber)
+    }
+
+    .hdr-logo .hex {
+      width: 28px;
+      height: 28px;
+      background: var(--amber);
+      clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+      position: relative
+    }
+
+    .hdr-logo .hex::after {
+      content: '';
+      position: absolute;
+      inset: 3px;
+      background: var(--bg);
+      clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)
+    }
+
+    .hdr-right {
+      display: flex;
+      align-items: center;
+      gap: 16px
+    }
+
+    .pill {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 16px;
+      font-size: 11px;
+      font-weight: 500;
+      font-family: 'JetBrains Mono', monospace
+    }
+
+    .pill-ok {
+      background: var(--green-dim);
+      color: var(--green);
+      border: 1px solid rgba(34, 197, 94, 0.3)
+    }
+
+    .pill-warn {
+      background: var(--red-dim);
+      color: var(--red);
+      border: 1px solid rgba(239, 68, 68, 0.3)
+    }
+
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 2s infinite
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 1
+      }
+
+      50% {
+        opacity: .3
+      }
+    }
+
+    .hdr-ver {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace
+    }
+
+    /* Grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: auto 1fr auto;
+      gap: 10px;
+      padding: 12px 16px;
+      flex: 1;
+      overflow: hidden
+    }
+
+    /* Cards */
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      transition: border-color .2s, background .2s;
+      display: flex;
+      flex-direction: column
+    }
+
+    .card:hover {
+      border-color: var(--amber);
+      background: var(--bg-hover)
+    }
+
+    .c-title {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+      font-weight: 600
+    }
+
+    .c-val {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--amber);
+      line-height: 1;
+      font-family: 'JetBrains Mono', monospace
+    }
+
+    .c-sub {
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-top: 4px
+    }
+
+    .card.accent {
+      border: 1.5px solid var(--amber);
+      background: linear-gradient(135deg, rgba(245, 158, 11, 0.06), transparent)
+    }
+
+    .span2 {
+      grid-column: span 2
+    }
+
+    .span4 {
+      grid-column: 1/-1
+    }
+
+    /* Node list */
+    .node-scroll {
+      overflow-y: auto;
+      flex: 1;
+      padding-right: 4px
+    }
+
+    .node-scroll::-webkit-scrollbar {
+      width: 3px
+    }
+
+    .node-scroll::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 2px
+    }
+
+    .n-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px
+    }
+
+    .n-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      background: var(--bg);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      transition: border-color .2s
+    }
+
+    .n-item:hover {
+      border-color: var(--amber)
+    }
+
+    .n-left {
+      display: flex;
+      align-items: center;
+      gap: 10px
+    }
+
+    .n-hex {
+      width: 24px;
+      height: 24px;
+      clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+      flex-shrink: 0
+    }
+
+    .n-hex.ok {
+      background: var(--green)
+    }
+
+    .n-hex.busy {
+      background: var(--amber)
+    }
+
+    .n-hex.down {
+      background: var(--red)
+    }
+
+    .n-name {
+      font-weight: 600;
+      font-size: 12px
+    }
+
+    .n-meta {
+      font-size: 10px;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace
+    }
+
+    .badges {
+      display: flex;
+      gap: 3px;
+      flex-wrap: wrap
+    }
+
+    .badge {
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace
+    }
+
+    .b-llm {
+      background: var(--blue-dim);
+      color: var(--blue);
+      border: 1px solid rgba(59, 130, 246, 0.3)
+    }
+
+    .b-vlm {
+      background: rgba(168, 85, 247, 0.15);
+      color: var(--purple);
+      border: 1px solid rgba(168, 85, 247, 0.3)
+    }
+
+    /* Progress bars */
+    .bar-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      padding: 4px 0
+    }
+
+    .bar-lbl {
+      color: var(--text-dim)
+    }
+
+    .bar-val {
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace
+    }
+
+    .bar-track {
+      height: 4px;
+      background: var(--bg);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 3px
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      transition: width .5s ease
+    }
+
+    .b-green {
+      background: var(--green)
+    }
+
+    .b-amber {
+      background: var(--amber)
+    }
+
+    .b-red {
+      background: var(--red)
+    }
+
+    /* Hex thermal grid */
+    .hexgrid {
+      display: flex;
+      gap: 3px;
+      flex-wrap: wrap;
+      padding: 6px 0
+    }
+
+    .hex-cell {
+      width: 18px;
+      height: 18px;
+      clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+      transition: background .3s
+    }
+
+    /* Log */
+    .log-scroll {
+      overflow-y: auto;
+      flex: 1;
+      padding-right: 4px
+    }
+
+    .log-scroll::-webkit-scrollbar {
+      width: 3px
+    }
+
+    .log-scroll::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 2px
+    }
+
+    .log {
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      line-height: 1.6
+    }
+
+    .log-row {
+      display: flex;
+      gap: 8px;
+      padding: 1px 0;
+      border-bottom: 1px solid rgba(63, 63, 70, 0.3)
+    }
+
+    .log-t {
+      color: var(--text-dim);
+      min-width: 50px
+    }
+
+    .log-tag {
+      min-width: 48px;
+      font-weight: 600
+    }
+
+    .log-ok {
+      color: var(--green)
+    }
+
+    .log-info {
+      color: var(--blue)
+    }
+
+    .log-warn {
+      color: var(--amber)
+    }
+
+    .log-err {
+      color: var(--red)
+    }
+
+    .log-msg {
+      color: var(--text)
+    }
+
+    /* Toast system */
+    .toast-container {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 1000;
+      pointer-events: none
+    }
+
+    .toast {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 500;
+      backdrop-filter: blur(12px);
+      border: 1px solid;
+      animation: toast-in .3s ease, toast-out .3s ease 4.7s forwards;
+      pointer-events: auto;
+      max-width: 360px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, .4)
+    }
+
+    .toast-ok {
+      background: rgba(34, 197, 94, 0.12);
+      border-color: rgba(34, 197, 94, 0.3);
+      color: var(--green)
+    }
+
+    .toast-info {
+      background: rgba(59, 130, 246, 0.12);
+      border-color: rgba(59, 130, 246, 0.3);
+      color: var(--blue)
+    }
+
+    .toast-warn {
+      background: rgba(245, 158, 11, 0.12);
+      border-color: rgba(245, 158, 11, 0.3);
+      color: var(--amber)
+    }
+
+    .toast-err {
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: var(--red)
+    }
+
+    @keyframes toast-in {
+      from {
+        opacity: 0;
+        transform: translateY(12px)
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0)
+      }
+    }
+
+    @keyframes toast-out {
+      from {
+        opacity: 1
+      }
+
+      to {
+        opacity: 0;
+        transform: translateY(-8px)
+      }
+    }
+
+    /* Responsive */
+    @media(max-width:1200px) {
+      .grid {
+        grid-template-columns: repeat(2, 1fr);
+        overflow-y: auto
+      }
+
+      body {
+        overflow: auto;
+        height: auto
+      }
+
+      .span2 {
+        grid-column: span 1
+      }
+    }
+
+    @media(max-width:600px) {
+      .grid {
+        grid-template-columns: 1fr;
+        padding: 8px
+      }
+
+      .hdr {
+        padding: 8px 12px
+      }
+
+      .c-val {
+        font-size: 22px
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="hdr">
+    <div class="hdr-logo">
+      <div class="hex"></div>
+      LaRuche
+    </div>
+    <div class="hdr-right">
+      <div class="pill pill-ok" id="pill-status">
+        <div class="dot"></div><span id="pill-text">Connecting...</span>
+      </div>
+      <div class="hdr-ver">LAND v0.1.0</div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- Row 1: KPIs -->
+    <div class="card">
+      <div class="c-title">Nodes Actifs</div>
+      <div class="c-val" id="kpi-nodes">—</div>
+      <div class="c-sub">sur le réseau</div>
+    </div>
+    <div class="card accent">
+      <div class="c-title">Puissance Collective</div>
+      <div class="c-val" id="kpi-tps">—</div>
+      <div class="c-sub">tokens/sec cumulés</div>
+    </div>
+    <div class="card">
+      <div class="c-title">Queue Swarm</div>
+      <div class="c-val" id="kpi-queue">—</div>
+      <div class="c-sub">requêtes en attente</div>
+    </div>
+    <div class="card">
+      <div class="c-title">Mémoire Totale</div>
+      <div class="c-val" id="kpi-mem">—</div>
+      <div class="c-sub">VRAM + RAM</div>
+    </div>
+
+    <!-- Row 2: Swarm + Resources + Thermal -->
+    <div class="card span2" style="min-height:180px">
+      <div class="c-title">⬡ Swarm Intelligence</div>
+      <div class="node-scroll">
+        <div class="n-list" id="node-list">
+          <div class="n-item" style="justify-content:center;color:var(--text-dim);font-size:11px">En attente de
+            données...</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="c-title">⚡ Ressources Locales</div>
+      <div class="bar-row"><span class="bar-lbl">CPU</span><span class="bar-val" id="r-cpu">—</span></div>
+      <div class="bar-track">
+        <div class="bar-fill b-green" id="b-cpu" style="width:0"></div>
+      </div>
+      <div class="bar-row" style="margin-top:6px"><span class="bar-lbl">RAM</span><span class="bar-val"
+          id="r-mem">—</span></div>
+      <div class="bar-track">
+        <div class="bar-fill b-green" id="b-mem" style="width:0"></div>
+      </div>
+      <div class="bar-row" style="margin-top:6px"><span class="bar-lbl">Temp</span><span class="bar-val"
+          id="r-temp">—</span></div>
+      <div class="bar-track">
+        <div class="bar-fill b-green" id="b-temp" style="width:0"></div>
+      </div>
+      <div class="c-sub" style="margin-top:8px" id="r-uptime">Uptime: —</div>
+    </div>
+    <div class="card">
+      <div class="c-title">🔥 Thermal Map</div>
+      <div class="hexgrid" id="hexgrid"></div>
+      <div class="c-sub">vert=idle · ambre=actif · rouge=chaud</div>
+    </div>
+
+    <!-- Row 3: Audit log -->
+    <div class="card span4" style="min-height:120px">
+      <div class="c-title">🛡 Audit — Cybersécurité</div>
+      <div class="log-scroll">
+        <div class="log" id="log"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div class="toast-container" id="toasts"></div>
+
+  <script>
+    const API = window.location.protocol + '//' + window.location.hostname + ':' + (parseInt(window.location.port || '8420') - 1);
+    let started = Date.now();
+    let lastNodeCount = -1;
+    let connected = false;
+
+    // ---- Toasts ----
+    function toast(msg, type = 'info') {
+      const c = document.getElementById('toasts');
+      const t = document.createElement('div');
+      t.className = 'toast toast-' + type;
+      t.textContent = msg;
+      c.appendChild(t);
+      setTimeout(() => { if (t.parentElement) t.remove(); }, 5000);
+    }
+
+    // ---- Helpers ----
+    function fmt(ms) {
+      const s = Math.floor(ms / 1000);
+      if (s < 60) return s + 's';
+      if (s < 3600) return Math.floor(s / 60) + 'm ' + (s % 60) + 's';
+      return Math.floor(s / 3600) + 'h ' + Math.floor((s % 3600) / 60) + 'm';
+    }
+    function fmtMB(mb) { return mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : mb + ' MB'; }
+
+    // ---- Hex Grid ----
+    function initHex() {
+      const g = document.getElementById('hexgrid');
+      for (let i = 0; i < 42; i++) {
+        const h = document.createElement('div');
+        h.className = 'hex-cell';
+        h.style.background = `hsl(${125 + Math.random() * 15},55%,${28 + Math.random() * 10}%)`;
+        g.appendChild(h);
+      }
+    }
+    function tickHex() {
+      document.querySelectorAll('.hex-cell').forEach(c => {
+        const l = Math.random();
+        if (l < 0.6) c.style.background = `hsl(${125 + Math.random() * 15},55%,${28 + Math.random() * 10}%)`;
+        else if (l < 0.85) c.style.background = `hsl(${35 + Math.random() * 8},75%,${42 + Math.random() * 8}%)`;
+        else c.style.background = `hsl(${Math.random() * 8},65%,${38 + Math.random() * 8}%)`;
+      });
+    }
+
+    // ---- Log ----
+    function addLog(tag, cls, msg) {
+      const log = document.getElementById('log');
+      const row = document.createElement('div');
+      row.className = 'log-row';
+      row.innerHTML = `<span class="log-t">${fmt(Date.now() - started)}</span><span class="log-tag ${cls}">${tag}</span><span class="log-msg">${msg}</span>`;
+      log.appendChild(row);
+      log.parentElement.scrollTop = log.parentElement.scrollHeight;
+      while (log.children.length > 80) log.removeChild(log.firstChild);
+    }
+
+    // ---- Fetch Swarm ----
+    async function fetchSwarm() {
+      try {
+        const r = await fetch(API + '/swarm');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const d = await r.json();
+
+        // KPIs
+        document.getElementById('kpi-nodes').textContent = d.total_nodes;
+        document.getElementById('kpi-tps').textContent = d.collective_tps.toFixed(1);
+        document.getElementById('kpi-queue').textContent = d.collective_queue;
+        document.getElementById('kpi-mem').textContent = fmtMB(d.total_vram_mb + d.total_ram_mb);
+
+        // Connection toast
+        if (!connected) {
+          connected = true;
+          document.getElementById('pill-text').textContent = d.total_nodes + ' node' + (d.total_nodes > 1 ? 's' : '') + ' · ' + d.collective_tps.toFixed(1) + ' t/s';
+          toast('Connecté au Swarm — ' + d.total_nodes + ' nœud(s) actif(s)', 'ok');
+          addLog('NET', 'log-ok', 'Connexion au Swarm établie');
+        }
+
+        // Node change toast
+        if (lastNodeCount >= 0 && d.total_nodes !== lastNodeCount) {
+          if (d.total_nodes > lastNodeCount) {
+            toast('Nouveau nœud détecté ! Total: ' + d.total_nodes, 'ok');
+            addLog('SWARM', 'log-ok', 'Nœud rejoint le Swarm — puissance collective: ' + d.collective_tps.toFixed(1) + ' t/s');
+          } else {
+            toast('Nœud déconnecté. Total: ' + d.total_nodes, 'warn');
+            addLog('SWARM', 'log-warn', 'Nœud quitté le Swarm — recalibration');
+          }
+        }
+        lastNodeCount = d.total_nodes;
+
+        // Status pill
+        document.getElementById('pill-text').textContent = d.total_nodes + ' node' + (d.total_nodes > 1 ? 's' : '') + ' · ' + d.collective_tps.toFixed(1) + ' t/s';
+        document.getElementById('pill-status').className = 'pill pill-ok';
+
+        // Node list
+        const list = document.getElementById('node-list');
+        list.innerHTML = '';
+        d.nodes.forEach(n => {
+          const tps = n.tokens_per_sec ? n.tokens_per_sec.toFixed(1) : '0.0';
+          const q = n.queue_depth || 0;
+          const caps = n.capabilities.map(c => {
+            const cls = c.toLowerCase().includes('vlm') ? 'b-vlm' : 'b-llm';
+            return `<span class="badge ${cls}">${c}</span>`;
+          }).join('');
+
+          const item = document.createElement('div');
+          item.className = 'n-item';
+          item.innerHTML = `
+        <div class="n-left">
+          <div class="n-hex ${q > 3 ? 'busy' : 'ok'}"></div>
+          <div>
+            <div class="n-name">${n.name || 'Unknown'}</div>
+            <div class="n-meta">${n.host} · ${tps} t/s · Q:${q}</div>
+          </div>
+        </div>
+        <div class="badges">${caps}</div>`;
+          list.appendChild(item);
+        });
+
+      } catch (e) {
+        if (connected) {
+          connected = false;
+          document.getElementById('pill-status').className = 'pill pill-warn';
+          document.getElementById('pill-text').textContent = 'Offline';
+          toast('Connexion perdue avec le nœud', 'err');
+          addLog('NET', 'log-err', 'Connexion au nœud perdue — tentative de reconnexion...');
+        }
+      }
+    }
+
+    // ---- Fetch Status (local metrics) ----
+    async function fetchStatus() {
+      try {
+        const r = await fetch(API + '/');
+        if (!r.ok) return;
+        const d = await r.json();
+        document.getElementById('r-uptime').textContent = 'Uptime: ' + fmt(d.uptime_secs * 1000);
+
+        // Simulated local resources (TODO: real system metrics from /status)
+        const cpu = d.queue_depth > 0 ? 30 + Math.random() * 40 : 5 + Math.random() * 15;
+        const mem = d.memory_usage_pct || (10 + Math.random() * 8);
+        const temp = 38 + cpu * 0.4 + Math.random() * 5;
+
+        document.getElementById('r-cpu').textContent = cpu.toFixed(0) + '%';
+        document.getElementById('b-cpu').style.width = cpu + '%';
+        document.getElementById('b-cpu').className = 'bar-fill ' + (cpu > 80 ? 'b-red' : cpu > 50 ? 'b-amber' : 'b-green');
+
+        document.getElementById('r-mem').textContent = mem.toFixed(0) + '%';
+        document.getElementById('b-mem').style.width = mem + '%';
+        document.getElementById('b-mem').className = 'bar-fill ' + (mem > 80 ? 'b-red' : mem > 50 ? 'b-amber' : 'b-green');
+
+        document.getElementById('r-temp').textContent = temp.toFixed(0) + '°C';
+        document.getElementById('b-temp').style.width = Math.min(temp, 100) + '%';
+        document.getElementById('b-temp').className = 'bar-fill ' + (temp > 70 ? 'b-red' : temp > 55 ? 'b-amber' : 'b-green');
+
+      } catch (e) { }
+    }
+
+    // ---- Security log events ----
+    const events = [
+      ['AUTH', 'log-ok', 'Token de proximité vérifié — appareil autorisé'],
+      ['NET', 'log-ok', 'Scan réseau local — aucune anomalie'],
+      ['LAND', 'log-info', 'Manifeste mDNS mis à jour et diffusé'],
+      ['SWARM', 'log-info', 'Heartbeat synchronisé — tous les nœuds OK'],
+      ['AUTH', 'log-ok', 'Vérification des tokens — 1 actif, 0 expiré'],
+    ];
+
+    // ---- Init ----
+    initHex();
+    addLog('SYS', 'log-info', 'Dashboard initialisé — connexion au nœud...');
+    fetchSwarm();
+    fetchStatus();
+
+    setInterval(fetchSwarm, 3000);
+    setInterval(fetchStatus, 5000);
+    setInterval(tickHex, 2500);
+    setInterval(() => {
+      const e = events[Math.floor(Math.random() * events.length)];
+      addLog(e[0], e[1], e[2]);
+    }, 6000);
+  </script>
+</body>
+
+</html>

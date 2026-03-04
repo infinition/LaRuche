@@ -1,0 +1,16 @@
+[package]
+name = "laruche-client"
+version.workspace = true
+edition.workspace = true
+description = "LaRuche Client SDK - Discover and query LaRuche nodes in 3 lines of code"
+
+[dependencies]
+land-protocol = { git = "https://github.com/infinition/land-protocol" }
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+reqwest.workspace = true
+tracing.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+chrono.workspace = true

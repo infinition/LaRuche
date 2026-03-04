@@ -1,0 +1,19 @@
+[package]
+name = "laruche-cli"
+version.workspace = true
+edition.workspace = true
+description = "LaRuche CLI - Command line tool for interacting with LaRuche nodes"
+
+[[bin]]
+name = "laruche"
+path = "src/main.rs"
+
+[dependencies]
+land-protocol = { git = "https://github.com/infinition/land-protocol" }
+laruche-client = { path = "../laruche-client" }
+tokio.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+reqwest.workspace = true

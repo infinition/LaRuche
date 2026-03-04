@@ -1,0 +1,49 @@
+[workspace]
+resolver = "2"
+members = [
+    "laruche-node",
+    "laruche-client",
+    "laruche-cli",
+    "laruche-dashboard",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["LaRuche Team"]
+license = "MPL-2.0"
+description = "LaRuche - Networked Edge AI System with LAND Protocol"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# mDNS/DNS-SD discovery
+mdns-sd = "0.11"
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+# Error handling
+thiserror = "2"
+anyhow = "1"
+# UUID for node identity
+uuid = { version = "1", features = ["v4", "serde"] }
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+# HTTP client (for Ollama)
+reqwest = { version = "0.12", features = ["json"] }
+# Web framework (dashboard)
+axum = { version = "0.7", features = ["ws"] }
+tower-http = { version = "0.5", features = ["cors", "fs"] }
+# Compression for manifest
+flate2 = "1"
+# Crypto for auth tokens
+blake3 = "1"
+rand = "0.8"
+base64 = "0.22"
+local-ip-address = "0.6"
+
+[patch."https://github.com/infinition/land-protocol"]
+land-protocol = { path = "../land-protocol" }
