@@ -5,7 +5,7 @@
 //!
 //! ## Quick Start
 //!
-//! ```rust
+//! ```no_run
 //! use laruche_client::LaRuche;
 //!
 //! #[tokio::main]
@@ -18,22 +18,20 @@
 //!
 //! ## With capability routing
 //!
-//! ```rust
-//! use laruche_client::{LaRuche, Capability};
+//! ```no_run
+//! use laruche_client::{Cap, LaRuche};
 //!
+//! # #[tokio::main]
+//! # async fn main() {
 //! let laruche = LaRuche::discover().await.unwrap();
-//!
-//! // Route to a code-specialized model
-//! let code = laruche.ask_with(
-//!     "Write a Python function to sort a list",
-//!     Capability::Code,
-//! ).await.unwrap();
-//!
-//! // Route to an audio model
-//! let transcript = laruche.transcribe(audio_bytes).await.unwrap();
+//! let code = laruche
+//!     .ask_with("Write a Python function to sort a list", Cap::Code)
+//!     .await
+//!     .unwrap();
+//! println!("{}", code.text);
+//! # }
 //! ```
 
-use land_protocol::capabilities::Capability;
 use land_protocol::discovery::{DiscoveredNode, LandListener};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
@@ -93,6 +91,7 @@ pub struct LaRuche {
 }
 
 // Re-export for convenience
+pub use land_protocol::capabilities::Capability;
 pub use land_protocol::capabilities::Capability as Cap;
 
 impl LaRuche {
@@ -134,6 +133,22 @@ impl LaRuche {
     pub fn connect(url: &str) -> Self {
         use land_protocol::manifest::PartialManifest;
 
+        let normalized_url = if url.contains("://") {
+            url.to_string()
+        } else {
+            format!("http://{url}")
+        };
+        let parsed = reqwest::Url::parse(&normalized_url).ok();
+        let host = parsed
+            .as_ref()
+            .and_then(|u| u.host_str())
+            .unwrap_or("127.0.0.1")
+            .to_string();
+        let port = parsed
+            .as_ref()
+            .and_then(|u| u.port_or_known_default())
+            .unwrap_or(land_protocol::DEFAULT_API_PORT);
+
         let manifest = PartialManifest {
             protocol_version: None,
             node_id: None,
@@ -142,12 +157,7 @@ impl LaRuche {
             tokens_per_sec: None,
             memory_usage_pct: None,
             queue_depth: None,
-            port: Some(
-                url.split(':')
-                    .last()
-                    .and_then(|p| p.parse().ok())
-                    .unwrap_or(land_protocol::DEFAULT_API_PORT),
-            ),
+            port: Some(port),
             dashboard_port: None,
             capabilities: Vec::new(),
             temperature_c: None,
@@ -155,13 +165,7 @@ impl LaRuche {
             peer_count: 0,
             is_coordinator: false,
             model: None,
-            host: url
-                .replace("http://", "")
-                .replace("https://", "")
-                .split(':')
-                .next()
-                .unwrap_or("127.0.0.1")
-                .to_string(),
+            host,
         };
 
         Self {
@@ -181,9 +185,15 @@ impl LaRuche {
 
     /// Ask LaRuche a question (uses best available LLM node).
     ///
-    /// ```rust
-    /// let response = laruche.ask("Explain quantum computing").await?;
+    /// ```no_run
+    /// use laruche_client::LaRuche;
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() {
+    /// let laruche = LaRuche::discover().await.unwrap();
+    /// let response = laruche.ask("Explain quantum computing").await.unwrap();
     /// println!("{}", response.text);
+    /// # }
     /// ```
     pub async fn ask(&self, prompt: &str) -> Result<LaRucheResponse, LaRucheError> {
         self.ask_with(prompt, Capability::Llm).await

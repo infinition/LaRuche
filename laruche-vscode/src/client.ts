@@ -15,6 +15,7 @@ export interface NodeInfo {
     node_id: string | null;
     name: string | null;
     host: string;
+    port?: number | null;
     capabilities: string[];
     /** Primary model running on this node (from LAND TXT broadcast) */
     model: string | null;
@@ -85,7 +86,7 @@ export class LaRucheClient {
             const options: http.RequestOptions = {
                 hostname: url.hostname,
                 port: url.port,
-                path: url.pathname,
+                path: `${url.pathname}${url.search}`,
                 method,
                 headers: { 'Content-Type': 'application/json' },
                 timeout: timeoutMs,
@@ -96,10 +97,15 @@ export class LaRucheClient {
                 res.on('data', chunk => { data += chunk; });
                 res.on('end', () => {
                     if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+                        const payload = data.trim();
+                        if (!payload) {
+                            resolve(undefined as T);
+                            return;
+                        }
                         try {
-                            resolve(JSON.parse(data) as T);
+                            resolve(JSON.parse(payload) as T);
                         } catch {
-                            reject(new Error(`Invalid JSON response: ${data.slice(0, 200)}`));
+                            resolve(payload as unknown as T);
                         }
                     } else {
                         reject(new Error(`HTTP ${res.statusCode}: ${data.slice(0, 200)}`));
@@ -178,7 +184,10 @@ export class LaRucheClient {
 
     async health(timeoutMs: number = 3000): Promise<boolean> {
         try {
-            await this.request<string>('/health', 'GET', undefined, timeoutMs);
+            const response = await this.request<unknown>('/health', 'GET', undefined, timeoutMs);
+            if (typeof response === 'string') {
+                return response.trim().toLowerCase() === 'ok';
+            }
             return true;
         } catch {
             return false;
