@@ -31,7 +31,17 @@ use tokio::sync::RwLock;
 use tracing::{error, info};
 use uuid::Uuid;
 
+use std::collections::VecDeque;
+
 const DASHBOARD_HTML: &str = include_str!("../../laruche-dashboard/src/templates/dashboard.html");
+
+#[derive(Debug, Clone, Serialize)]
+struct ActivityLogEntry {
+    timestamp: String,
+    level: String,
+    tag: String,
+    message: String,
+}
 
 struct AppState {
     manifest: RwLock<CognitiveManifest>,
@@ -40,6 +50,7 @@ struct AppState {
     listener: RwLock<LandListener>,
     config: NodeConfig,
     sys: RwLock<System>,
+    activity_log: RwLock<VecDeque<ActivityLogEntry>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -367,6 +378,24 @@ async fn post_infer(
                     manifest.performance.avg_latency_ms = latency as f32;
                 }
 
+                // Log activity
+                let prompt_preview: String = req.prompt.chars().take(40).collect();
+                let log_msg = format!(
+                    "Inférence {} - {} tokens en {}ms - \"{}...\"",
+                    model, eval_count, latency, prompt_preview.replace('\n', " ")
+                );
+                
+                let mut activity = state.activity_log.write().await;
+                if activity.len() >= 50 {
+                    activity.pop_front();
+                }
+                activity.push_back(ActivityLogEntry {
+                    timestamp: chrono::Utc::now().to_rfc3339(),
+                    level: "log-ok".into(),
+                    tag: "INFER".into(),
+                    message: log_msg,
+                });
+
                 Ok(Json(InferenceResponse {
                     response: response_text,
                     model,
@@ -462,6 +491,19 @@ async fn post_auth_approve(
     }
 }
 
+#[derive(Debug, Serialize)]
+struct ActivityResponse {
+    logs: Vec<ActivityLogEntry>,
+}
+
+/// GET /activity - Recent inference and system activity
+async fn get_activity(State(state): State<Arc<AppState>>) -> Json<ActivityResponse> {
+    let logs = state.activity_log.read().await;
+    Json(ActivityResponse {
+        logs: logs.iter().cloned().collect(),
+    })
+}
+
 async fn health() -> &'static str {
     "OK"
 }
@@ -535,6 +577,7 @@ async fn main() -> Result<()> {
         listener: RwLock::new(listener),
         config: config.clone(),
         sys: RwLock::new(sys),
+        activity_log: RwLock::new(VecDeque::with_capacity(50)),
     });
 
     let app = Router::new()
@@ -543,6 +586,7 @@ async fn main() -> Result<()> {
         .route("/nodes", get(get_nodes))
         .route("/swarm", get(get_swarm))
         .route("/models", get(get_models))
+        .route("/activity", get(get_activity))
         .route("/infer", post(post_infer))
         .route("/auth/request", post(post_auth_request))
         .route("/auth/approve", post(post_auth_approve))
