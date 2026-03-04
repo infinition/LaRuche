@@ -18,7 +18,15 @@
         "Other"
     ],
     "keywords": [
-        "ai", "copilot", "local", "llm", "edge", "land-protocol", "laruche", "mdns", "offline"
+        "ai",
+        "copilot",
+        "local",
+        "llm",
+        "edge",
+        "land-protocol",
+        "laruche",
+        "mdns",
+        "offline"
     ],
     "activationEvents": [
         "onStartupFinished"
@@ -26,22 +34,83 @@
     "main": "./dist/extension.js",
     "contributes": {
         "commands": [
-            { "command": "laruche.ask", "title": "Ask LaRuche", "icon": "$(comment-discussion)", "category": "LaRuche" },
-            { "command": "laruche.explainSelection", "title": "Explain Selection", "icon": "$(lightbulb)", "category": "LaRuche" },
-            { "command": "laruche.refactorSelection", "title": "Refactor Selection", "icon": "$(edit)", "category": "LaRuche" },
-            { "command": "laruche.openChat", "title": "Open Chat Panel", "icon": "$(comment-discussion)", "category": "LaRuche" },
-            { "command": "laruche.showSwarm", "title": "Show Swarm Status", "icon": "$(server)", "category": "LaRuche" },
-            { "command": "laruche.selectNode", "title": "Select Active Node", "icon": "$(remote-explorer)", "category": "LaRuche" },
-            { "command": "laruche.selectModel", "title": "Select Active Model", "icon": "$(symbol-namespace)", "category": "LaRuche" },
-            { "command": "laruche.agentEdit", "title": "Agent: Edit File", "icon": "$(wand)", "category": "LaRuche" },
-            { "command": "laruche.undoLastEdit", "title": "Agent: Undo Last Edit", "icon": "$(discard)", "category": "LaRuche" },
-            { "command": "laruche.agentHistory", "title": "Agent: Edit History", "icon": "$(history)", "category": "LaRuche" }
+            {
+                "command": "laruche.ask",
+                "title": "Ask LaRuche",
+                "icon": "$(comment-discussion)",
+                "category": "LaRuche"
+            },
+            {
+                "command": "laruche.explainSelection",
+                "title": "Explain Selection",
+                "icon": "$(lightbulb)",
+                "category": "LaRuche"
+            },
+            {
+                "command": "laruche.refactorSelection",
+                "title": "Refactor Selection",
+                "icon": "$(edit)",
+                "category": "LaRuche"
+            },
+            {
+                "command": "laruche.openChat",
+                "title": "Open Chat Panel",
+                "icon": "$(comment-discussion)",
+                "category": "LaRuche"
+            },
+            {
+                "command": "laruche.showSwarm",
+                "title": "Show Swarm Status",
+                "icon": "$(server)",
+                "category": "LaRuche"
+            },
+            {
+                "command": "laruche.selectNode",
+                "title": "Select Active Node",
+                "icon": "$(remote-explorer)",
+                "category": "LaRuche"
+            },
+            {
+                "command": "laruche.selectModel",
+                "title": "Select Active Model",
+                "icon": "$(symbol-namespace)",
+                "category": "LaRuche"
+            },
+            {
+                "command": "laruche.agentEdit",
+                "title": "Agent: Edit File",
+                "icon": "$(wand)",
+                "category": "LaRuche"
+            },
+            {
+                "command": "laruche.undoLastEdit",
+                "title": "Agent: Undo Last Edit",
+                "icon": "$(discard)",
+                "category": "LaRuche"
+            },
+            {
+                "command": "laruche.agentHistory",
+                "title": "Agent: Edit History",
+                "icon": "$(history)",
+                "category": "LaRuche"
+            }
         ],
         "menus": {
             "editor/context": [
-                { "command": "laruche.explainSelection", "when": "editorHasSelection", "group": "laruche@1" },
-                { "command": "laruche.refactorSelection", "when": "editorHasSelection", "group": "laruche@2" },
-                { "command": "laruche.agentEdit", "group": "laruche@3" }
+                {
+                    "command": "laruche.explainSelection",
+                    "when": "editorHasSelection",
+                    "group": "laruche@1"
+                },
+                {
+                    "command": "laruche.refactorSelection",
+                    "when": "editorHasSelection",
+                    "group": "laruche@2"
+                },
+                {
+                    "command": "laruche.agentEdit",
+                    "group": "laruche@3"
+                }
             ]
         },
         "keybindings": [
@@ -73,7 +142,11 @@
                 "laruche.agentMode": {
                     "type": "string",
                     "default": "ask",
-                    "enum": ["auto", "ask", "readonly"],
+                    "enum": [
+                        "auto",
+                        "ask",
+                        "readonly"
+                    ],
                     "enumDescriptions": [
                         "Apply changes automatically without confirmation",
                         "Show diff and ask before applying (recommended)",
@@ -85,12 +158,20 @@
         },
         "viewsContainers": {
             "activitybar": [
-                { "id": "laruche", "title": "LaRuche", "icon": "$(beaker)" }
+                {
+                    "id": "laruche",
+                    "title": "LaRuche",
+                    "icon": "$(beaker)"
+                }
             ]
         },
         "views": {
             "laruche": [
-                { "type": "webview", "id": "laruche.chatView", "name": "Chat" }
+                {
+                    "type": "webview",
+                    "id": "laruche.chatView",
+                    "name": "Chat"
+                }
             ]
         }
     },
@@ -105,8 +186,11 @@
         "bonjour-service": "^1.2.1"
     },
     "devDependencies": {
-        "@types/vscode": "^1.85.0",
         "@types/node": "20.x",
+        "@types/vscode": "^1.85.0",
+        "@typescript-eslint/eslint-plugin": "^8.56.1",
+        "@typescript-eslint/parser": "^8.56.1",
+        "eslint": "^10.0.2",
         "ts-loader": "^9.5.1",
         "typescript": "^5.3.3",
         "webpack": "^5.89.0",
