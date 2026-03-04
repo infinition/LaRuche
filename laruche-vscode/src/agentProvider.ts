@@ -14,9 +14,16 @@ interface EditRecord {
 export class AgentProvider {
     private editHistory: EditRecord[] = [];
     private client: LaRucheClient;
+    /** Optional model override (e.g. 'deepseek-coder'). Empty = node default. */
+    private model: string | undefined;
 
-    constructor(client: LaRucheClient) {
+    constructor(client: LaRucheClient, model?: string) {
         this.client = client;
+        this.model = model || undefined;
+    }
+
+    setModel(model: string | undefined): void {
+        this.model = model || undefined;
     }
 
     getMode(): AgentMode {
@@ -28,36 +35,44 @@ export class AgentProvider {
     }
 
     /**
-     * Run the agent on the current file with the given instructions.
-     * Depending on the agent mode:
-     * - auto: apply changes immediately
-     * - ask: show diff and ask for confirmation
-     * - readonly: show suggestion without applying
+     * Run the agent on the active file.
+     *
+     * The agent sends the full file + instructions to the model and expects a
+     * diff in the format:
+     *
+     *   <<<<
+     *   [lines to remove — must match exactly]
+     *   ====
+     *   [replacement lines]
+     *   >>>>
+     *
+     * Multiple blocks are supported. Falls back to full-file replacement if the
+     * model returns the whole file instead of diff blocks.
      */
     async run(editor: vscode.TextEditor, instructions: string): Promise<void> {
         const doc = editor.document;
         const originalContent = doc.getText();
-        const fileName = doc.fileName;
+        const fileName = vscode.workspace.asRelativePath(doc.uri);
         const language = doc.languageId;
 
-        // Build prompt with file context
-        const prompt = `Act as an expert software developer. You will receive a file and instructions.
-Your task is to emit a diff of the required changes.
+        const prompt = `You are an expert software developer making precise edits to a file.
 
-Format your response EXACTLY like this:
+Return ONLY the changed sections using this diff format:
 <<<<
-[exact lines to be removed, including whitespace]
+[exact existing lines to replace, including all whitespace]
 ====
 [new replacement lines]
 >>>>
 
-You can specify multiple <<<< ==== >>>> blocks.
-IMPORTANT: Include enough context lines in the <<<< block so the search matches exactly one place in the file.
-DO NOT return the entire file, only the blocks that change.
+Rules:
+- You MAY emit multiple <<<< ==== >>>> blocks for multiple changes.
+- Include 2-3 lines of surrounding context in the <<<< block so it matches exactly ONE location.
+- Do NOT return the entire file.
+- Do NOT add markdown fences or explanations outside the diff blocks.
+- If no changes are needed, respond with: NO_CHANGES
 
 File: ${fileName}
 Language: ${language}
-
 Instructions: ${instructions}
 
 Current file content:
@@ -65,44 +80,78 @@ Current file content:
 ${originalContent}
 \`\`\`
 
-Diff blocks:`;
+Diff:`;
 
         const mode = this.getMode();
 
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Window,
-            title: `LaRuche Agent (${mode})`,
+            title: `LaRuche Agent (${mode})${this.model ? ` · ${this.model}` : ''}`,
             cancellable: true,
         }, async (progress, token) => {
-            progress.report({ message: 'Analyzing...' });
+            progress.report({ message: 'Analyzing…' });
 
             try {
-                const resp = await this.client.infer(prompt, 'code');
+                const resp = await this.client.infer(prompt, 'code', this.model);
+
+                if (token.isCancellationRequested) { return; }
+
+                const rawResponse = resp.response.trim();
+
+                if (rawResponse === 'NO_CHANGES' || rawResponse.toUpperCase().includes('NO_CHANGES')) {
+                    vscode.window.showInformationMessage('LaRuche Agent: No changes needed.');
+                    return;
+                }
 
                 let newContent = originalContent;
-                const blockRegex = /<<<<\n([\s\S]*?)\n====\n([\s\S]*?)\n>>>>/g;
-                let match;
                 let blocksApplied = 0;
+                let blocksFailed = 0;
 
-                while ((match = blockRegex.exec(resp.response)) !== null) {
+                // Parse all <<<< ==== >>>> blocks
+                // Use a flexible regex that handles CRLF and trailing whitespace variations
+                const blockRegex = /<<<<\r?\n([\s\S]*?)\r?\n====\r?\n([\s\S]*?)\r?\n>>>>/g;
+                let match: RegExpExecArray | null;
+
+                while ((match = blockRegex.exec(rawResponse)) !== null) {
                     const search = match[1];
                     const replace = match[2];
+
                     if (newContent.includes(search)) {
                         newContent = newContent.replace(search, replace);
                         blocksApplied++;
                     } else {
-                        vscode.window.showWarningMessage('LaRuche Agent: A diff block failed to match the file exactly.');
+                        // Try with normalized line endings
+                        const searchNorm = search.replace(/\r\n/g, '\n');
+                        const contentNorm = newContent.replace(/\r\n/g, '\n');
+                        if (contentNorm.includes(searchNorm)) {
+                            newContent = newContent.replace(/\r\n/g, '\n').replace(searchNorm, replace);
+                            blocksApplied++;
+                        } else {
+                            blocksFailed++;
+                        }
                     }
                 }
 
-                // Fallback if the model didn't use blocks and just outputted the full file
+                if (blocksFailed > 0) {
+                    vscode.window.showWarningMessage(
+                        `LaRuche Agent: ${blocksFailed} diff block(s) failed to match — the model may have produced imprecise context.`,
+                    );
+                }
+
+                // Fallback: if no diff blocks found, check if the model returned the full file
                 if (blocksApplied === 0) {
-                    let cleaned = resp.response
-                        .replace(/^```\w*\n?/, '')
-                        .replace(/\n?```\s*$/, '')
+                    const cleaned = rawResponse
+                        .replace(/^```[\w-]*\r?\n?/, '')
+                        .replace(/\r?\n?```\s*$/, '')
                         .trim();
 
-                    if (cleaned.length > 50 && !cleaned.includes('<<<<')) {
+                    // Heuristic: if it looks like a full file (≥50 chars, no diff markers)
+                    if (cleaned.length >= 50 && !cleaned.includes('<<<<')) {
+                        const proceed = await vscode.window.showWarningMessage(
+                            'LaRuche Agent: Model returned full file instead of diff. Apply as full replacement?',
+                            'Apply', 'Cancel',
+                        );
+                        if (proceed !== 'Apply') { return; }
                         newContent = cleaned;
                     } else {
                         vscode.window.showInformationMessage('LaRuche Agent: No applicable changes generated.');
@@ -110,14 +159,17 @@ Diff blocks:`;
                     }
                 }
 
-                if (token.isCancellationRequested) { return; }
+                if (newContent === originalContent) {
+                    vscode.window.showInformationMessage('LaRuche Agent: Content unchanged after applying diff.');
+                    return;
+                }
 
                 switch (mode) {
                     case 'auto':
                         await this.applyEdit(doc, originalContent, newContent, instructions);
                         vscode.window.showInformationMessage(
-                            `LaRuche Agent: Changes applied (${resp.tokens_generated} tokens)`,
-                            'Undo'
+                            `LaRuche Agent: ${blocksApplied || 1} change(s) applied (${resp.tokens_generated} tokens · ${resp.model})`,
+                            'Undo',
                         ).then(choice => {
                             if (choice === 'Undo') { this.undoLast(); }
                         });
@@ -128,25 +180,23 @@ Diff blocks:`;
                         break;
 
                     case 'readonly':
-                        await this.showSuggestion(doc, originalContent, newContent, language, resp.tokens_generated);
+                        await this.showSuggestion(doc, newContent, language, resp.tokens_generated);
                         break;
                 }
             } catch (err: any) {
-                vscode.window.showErrorMessage(`LaRuche Agent: ${err.message}`);
+                if (!token.isCancellationRequested) {
+                    vscode.window.showErrorMessage(`LaRuche Agent: ${err.message}`);
+                }
             }
         });
     }
 
-    /**
-     * Apply an edit directly to the document.
-     */
     private async applyEdit(
         doc: vscode.TextDocument,
         originalContent: string,
         newContent: string,
-        prompt: string
+        prompt: string,
     ): Promise<void> {
-        // Record for undo
         this.editHistory.push({
             uri: doc.uri,
             originalContent,
@@ -156,133 +206,93 @@ Diff blocks:`;
         });
 
         const edit = new vscode.WorkspaceEdit();
-        const fullRange = new vscode.Range(
-            doc.positionAt(0),
-            doc.positionAt(doc.getText().length)
-        );
+        const fullRange = new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length));
         edit.replace(doc.uri, fullRange, newContent);
         await vscode.workspace.applyEdit(edit);
     }
 
-    /**
-     * Show a diff view and ask the user to accept or reject.
-     */
     private async showDiffAndAsk(
         doc: vscode.TextDocument,
         originalContent: string,
         newContent: string,
         instructions: string,
-        tokens: number
+        tokens: number,
     ): Promise<void> {
-        // Create a temp document with the suggestion
-        const suggestedUri = vscode.Uri.parse(
-            `untitled:${doc.fileName}.suggested`
-        );
         const suggestedDoc = await vscode.workspace.openTextDocument({
             content: newContent,
             language: doc.languageId,
         });
 
-        // Show diff
         await vscode.commands.executeCommand(
             'vscode.diff',
             doc.uri,
             suggestedDoc.uri,
-            `LaRuche Agent: ${instructions.substring(0, 50)}... (${tokens} tokens)`,
-            { preview: true }
+            `LaRuche Agent: ${instructions.slice(0, 50)}… (${tokens} tokens)`,
+            { preview: true },
         );
 
-        // Ask user
         const choice = await vscode.window.showInformationMessage(
-            `LaRuche Agent: Apply these changes?`,
+            'LaRuche Agent: Apply these changes?',
             { modal: false },
-            'Accept', 'Reject'
+            'Accept', 'Reject',
         );
 
         if (choice === 'Accept') {
             await this.applyEdit(doc, originalContent, newContent, instructions);
-            vscode.window.showInformationMessage(
-                'LaRuche Agent: Changes applied!',
-                'Undo'
-            ).then(c => {
-                if (c === 'Undo') { this.undoLast(); }
-            });
+            vscode.window.showInformationMessage('LaRuche Agent: Changes applied!', 'Undo')
+                .then(c => { if (c === 'Undo') { this.undoLast(); } });
         } else {
-            vscode.window.showInformationMessage('LaRuche Agent: Changes rejected.');
+            vscode.window.showInformationMessage('LaRuche Agent: Changes discarded.');
         }
     }
 
-    /**
-     * Show suggestion in a read-only side panel.
-     */
     private async showSuggestion(
         doc: vscode.TextDocument,
-        originalContent: string,
         newContent: string,
         language: string,
-        tokens: number
+        tokens: number,
     ): Promise<void> {
-        const suggestedDoc = await vscode.workspace.openTextDocument({
-            content: newContent,
-            language,
-        });
-
+        const suggestedDoc = await vscode.workspace.openTextDocument({ content: newContent, language });
         await vscode.commands.executeCommand(
             'vscode.diff',
             doc.uri,
             suggestedDoc.uri,
-            `LaRuche Suggestion (readonly, ${tokens} tokens)`,
-            { preview: true }
+            `LaRuche Suggestion (readonly · ${tokens} tokens)`,
+            { preview: true },
         );
-
-        vscode.window.showInformationMessage(
-            'LaRuche Agent (readonly): Suggestion shown in diff view. No changes applied.'
-        );
+        vscode.window.showInformationMessage('LaRuche Agent (readonly): Diff shown — no changes applied.');
     }
 
-    /**
-     * Undo the last edit made by the agent.
-     */
     async undoLast(): Promise<void> {
         const last = this.editHistory.pop();
         if (!last) {
             vscode.window.showWarningMessage('LaRuche Agent: Nothing to undo.');
             return;
         }
-
         try {
             const doc = await vscode.workspace.openTextDocument(last.uri);
             const edit = new vscode.WorkspaceEdit();
-            const fullRange = new vscode.Range(
-                doc.positionAt(0),
-                doc.positionAt(doc.getText().length)
-            );
+            const fullRange = new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length));
             edit.replace(last.uri, fullRange, last.originalContent);
             await vscode.workspace.applyEdit(edit);
-
             vscode.window.showInformationMessage('LaRuche Agent: Edit undone.');
         } catch (err: any) {
             vscode.window.showErrorMessage(`LaRuche Agent: Failed to undo — ${err.message}`);
         }
     }
 
-    /**
-     * Show the edit history as a Quick Pick for selective undo.
-     */
     async showHistory(): Promise<void> {
         if (this.editHistory.length === 0) {
             vscode.window.showInformationMessage('LaRuche Agent: No edit history.');
             return;
         }
 
-        const items = this.editHistory.map((r, i) => ({
-            label: `$(history) ${r.prompt.substring(0, 60)}...`,
+        const items = [...this.editHistory].reverse().map((r, i) => ({
+            label: `$(history) ${r.prompt.slice(0, 60)}`,
             description: new Date(r.timestamp).toLocaleTimeString(),
             detail: vscode.workspace.asRelativePath(r.uri),
-            index: i,
+            index: this.editHistory.length - 1 - i,
         }));
-
-        items.reverse(); // Most recent first
 
         const selected = await vscode.window.showQuickPick(items, {
             title: 'LaRuche Agent — Edit History',
@@ -294,10 +304,7 @@ Diff blocks:`;
             try {
                 const doc = await vscode.workspace.openTextDocument(record.uri);
                 const edit = new vscode.WorkspaceEdit();
-                const fullRange = new vscode.Range(
-                    doc.positionAt(0),
-                    doc.positionAt(doc.getText().length)
-                );
+                const fullRange = new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length));
                 edit.replace(record.uri, fullRange, record.originalContent);
                 await vscode.workspace.applyEdit(edit);
                 this.editHistory.splice(selected.index, 1);
