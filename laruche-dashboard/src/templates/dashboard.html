@@ -159,7 +159,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" style="min-height:200px">
     <div class="c-title">⚡ Ressources Locales</div>
     <div class="bar-row"><span class="bar-lbl">CPU</span><span class="bar-val" id="r-cpu">—</span></div>
     <div class="bar-track"><div class="bar-fill b-green" id="b-cpu" style="width:0"></div></div>
@@ -169,6 +169,14 @@
     <div class="bar-track"><div class="bar-fill b-amber" id="b-tps" style="width:0"></div></div>
     <div class="bar-row" style="margin-top:6px"><span class="bar-lbl">Queue</span><span class="bar-val" id="r-queue">0</span></div>
     <div class="c-sub" style="margin-top:8px" id="r-uptime">Uptime: —</div>
+  </div>
+
+  <div class="card" style="min-height:200px">
+    <div class="c-title">🌐 Ressources Swarm</div>
+    <div class="bar-row"><span class="bar-lbl">RAM Totale</span><span class="bar-val" id="s-ram">—</span></div>
+    <div class="bar-row" style="margin-top:6px"><span class="bar-lbl">VRAM Totale</span><span class="bar-val" id="s-vram">—</span></div>
+    <div class="bar-row" style="margin-top:6px"><span class="bar-lbl">TPS Cumulés</span><span class="bar-val" id="s-tps">—</span></div>
+    <div class="bar-row" style="margin-top:6px"><span class="bar-lbl">Queue Globale</span><span class="bar-val" id="s-queue">—</span></div>
   </div>
 
   <!-- Row 3: Audit log -->
@@ -181,9 +189,17 @@
 <div class="toast-container" id="toasts"></div>
 
 <script>
-  const API = window.location.protocol + '//' + window.location.hostname + ':' + (window.location.port || '8419');
+  let apiUrl = window.location.protocol + '//' + window.location.hostname + ':' + (window.location.port || '8419');
+  // If we are served correctly but dashboard port is 8420, default to API port 8419
+  if (window.location.port === '8420') {
+    apiUrl = window.location.protocol + '//' + window.location.hostname + ':8419';
+  }
+  const API = apiUrl;
+  
   let started = Date.now();
   let lastNodeCount = -1;
+  let lastModelCount = -1;
+  let lastActivityTs = '';
   let connected = false;
   let maxTps = 1; // for tps bar scaling
 
@@ -240,6 +256,11 @@
       document.getElementById('kpi-tps').textContent = d.collective_tps.toFixed(1);
       document.getElementById('kpi-queue').textContent = d.collective_queue;
 
+      document.getElementById('s-ram').textContent = d.total_ram_mb > 0 ? fmtMB(d.total_ram_mb) : '—';
+      document.getElementById('s-vram').textContent = d.total_vram_mb > 0 ? fmtMB(d.total_vram_mb) : '—';
+      document.getElementById('s-tps').textContent = d.collective_tps.toFixed(1) + ' t/s';
+      document.getElementById('s-queue').textContent = d.collective_queue;
+
       const statusText = d.total_nodes + ' node' + (d.total_nodes > 1 ? 's' : '') + ' · ' + d.collective_tps.toFixed(1) + ' t/s';
 
       if (!connected) {
@@ -263,10 +284,15 @@
       document.getElementById('pill-text').textContent = statusText;
       document.getElementById('pill-status').className = 'pill pill-ok';
 
-      // Node list
+      // Node list deduplicated
       const list = document.getElementById('node-list');
       list.innerHTML = '';
+      const seenNodes = new Set();
       d.nodes.forEach(n => {
+        const id = n.node_id || n.host;
+        if (seenNodes.has(id)) return;
+        seenNodes.add(id);
+
         const tps = n.tokens_per_sec ? n.tokens_per_sec.toFixed(1) : '0.0';
         const q = n.queue_depth || 0;
         const caps = (n.capabilities || []).map(c =>
@@ -365,8 +391,33 @@
         list.appendChild(item);
       });
 
-      addLog('OLLAMA', 'log-info', d.models.length + ' modèle(s) disponibles · défaut: ' + d.default_model);
+      if (d.models.length !== lastModelCount) {
+        addLog('OLLAMA', 'log-info', d.models.length + ' modèle(s) disponibles · défaut: ' + d.default_model);
+        lastModelCount = d.models.length;
+      }
     } catch (e) { /* Ollama may not be running */ }
+  }
+
+  // ── Activity fetch ──
+  async function fetchActivity() {
+    try {
+      const r = await fetch(API + '/activity');
+      if (!r.ok) return;
+      const d = await r.json();
+      
+      let newLogs = false;
+      d.logs.forEach(log => {
+        if (log.timestamp > lastActivityTs) {
+          addLog(log.tag, log.level, log.message);
+          lastActivityTs = log.timestamp;
+          newLogs = true;
+        }
+      });
+      // Ensure we start keeping track right away
+      if (!lastActivityTs && d.logs.length > 0) {
+          lastActivityTs = d.logs[d.logs.length - 1].timestamp;
+      }
+    } catch (e) { }
   }
 
   // ── Init ──
@@ -375,9 +426,11 @@
   fetchSwarm();
   fetchStatus();
   fetchModels();
+  fetchActivity();
 
   setInterval(fetchSwarm, 3000);
   setInterval(fetchStatus, 5000);
+  setInterval(fetchActivity, 2000);
   // Refresh model list every 30s (models don't change often)
   setInterval(fetchModels, 30000);
 </script>
