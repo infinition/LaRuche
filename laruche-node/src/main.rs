@@ -444,27 +444,51 @@ async fn get_swarm(State(state): State<Arc<AppState>>) -> Json<SwarmResponse> {
             .manifest
             .port
             .unwrap_or(land_protocol::DEFAULT_API_PORT);
-        let Some(peer_status) = fetch_peer_status(&http, &node.manifest.host, peer_port).await
-        else {
-            continue;
-        };
 
-        total_tps += peer_status.tokens_per_sec;
-        total_queue += peer_status.queue_depth as u32;
-        total_ram += peer_status.memory_total_mb;
-        total_vram += peer_status.vram_total_mb.unwrap_or(0);
+        if let Some(peer_status) = fetch_peer_status(&http, &node.manifest.host, peer_port).await {
+            total_tps += peer_status.tokens_per_sec;
+            total_queue += peer_status.queue_depth as u32;
+            total_ram += peer_status.memory_total_mb;
+            total_vram += peer_status.vram_total_mb.unwrap_or(0);
 
-        node_infos.push(DiscoveredNodeInfo {
-            node_id: node.manifest.node_id.map(|id| id.to_string()),
-            name: Some(peer_status.node_name),
-            host: node.manifest.host.clone(),
-            capabilities: peer_status.capabilities,
-            model: node.manifest.model.clone(),
-            tokens_per_sec: Some(peer_status.tokens_per_sec),
-            queue_depth: Some(peer_status.queue_depth as u32),
-            memory_total_mb: Some(peer_status.memory_total_mb),
-            vram_total_mb: peer_status.vram_total_mb,
-        });
+            node_infos.push(DiscoveredNodeInfo {
+                node_id: node.manifest.node_id.map(|id| id.to_string()),
+                name: Some(peer_status.node_name),
+                host: node.manifest.host.clone(),
+                capabilities: peer_status.capabilities,
+                model: node.manifest.model.clone(),
+                tokens_per_sec: Some(peer_status.tokens_per_sec),
+                queue_depth: Some(peer_status.queue_depth as u32),
+                memory_total_mb: Some(peer_status.memory_total_mb),
+                vram_total_mb: peer_status.vram_total_mb,
+            });
+        } else {
+            // Keep nodes visible in /swarm when discovered via mDNS, even if peer HTTP status
+            // is temporarily unreachable.
+            if let Some(tps) = node.manifest.tokens_per_sec {
+                total_tps += tps;
+            }
+            if let Some(queue_depth) = node.manifest.queue_depth {
+                total_queue += queue_depth;
+            }
+
+            node_infos.push(DiscoveredNodeInfo {
+                node_id: node.manifest.node_id.map(|id| id.to_string()),
+                name: node.manifest.node_name.clone(),
+                host: node.manifest.host.clone(),
+                capabilities: node
+                    .manifest
+                    .capabilities
+                    .iter()
+                    .map(|c| c.to_string())
+                    .collect(),
+                model: node.manifest.model.clone(),
+                tokens_per_sec: node.manifest.tokens_per_sec,
+                queue_depth: node.manifest.queue_depth,
+                memory_total_mb: None,
+                vram_total_mb: None,
+            });
+        }
     }
 
     Json(SwarmResponse {
