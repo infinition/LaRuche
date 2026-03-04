@@ -41,8 +41,19 @@ export class AgentProvider {
         const language = doc.languageId;
 
         // Build prompt with file context
-        const prompt = `You are a code editor agent. You receive a file and instructions.
-Return ONLY the complete modified file content. No explanations, no markdown fences, no comments about changes.
+        const prompt = `Act as an expert software developer. You will receive a file and instructions.
+Your task is to emit a diff of the required changes.
+
+Format your response EXACTLY like this:
+<<<<
+[exact lines to be removed, including whitespace]
+====
+[new replacement lines]
+>>>>
+
+You can specify multiple <<<< ==== >>>> blocks.
+IMPORTANT: Include enough context lines in the <<<< block so the search matches exactly one place in the file.
+DO NOT return the entire file, only the blocks that change.
 
 File: ${fileName}
 Language: ${language}
@@ -54,7 +65,7 @@ Current file content:
 ${originalContent}
 \`\`\`
 
-Return the complete modified file:`;
+Diff blocks:`;
 
         const mode = this.getMode();
 
@@ -67,13 +78,37 @@ Return the complete modified file:`;
 
             try {
                 const resp = await this.client.infer(prompt, 'code');
-                let newContent = resp.response;
 
-                // Strip markdown fences if present
-                newContent = newContent
-                    .replace(/^```\w*\n?/, '')
-                    .replace(/\n?```\s*$/, '')
-                    .trim();
+                let newContent = originalContent;
+                const blockRegex = /<<<<\n([\s\S]*?)\n====\n([\s\S]*?)\n>>>>/g;
+                let match;
+                let blocksApplied = 0;
+
+                while ((match = blockRegex.exec(resp.response)) !== null) {
+                    const search = match[1];
+                    const replace = match[2];
+                    if (newContent.includes(search)) {
+                        newContent = newContent.replace(search, replace);
+                        blocksApplied++;
+                    } else {
+                        vscode.window.showWarningMessage('LaRuche Agent: A diff block failed to match the file exactly.');
+                    }
+                }
+
+                // Fallback if the model didn't use blocks and just outputted the full file
+                if (blocksApplied === 0) {
+                    let cleaned = resp.response
+                        .replace(/^```\w*\n?/, '')
+                        .replace(/\n?```\s*$/, '')
+                        .trim();
+
+                    if (cleaned.length > 50 && !cleaned.includes('<<<<')) {
+                        newContent = cleaned;
+                    } else {
+                        vscode.window.showInformationMessage('LaRuche Agent: No applicable changes generated.');
+                        return;
+                    }
+                }
 
                 if (token.isCancellationRequested) { return; }
 
