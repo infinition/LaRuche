@@ -66,6 +66,32 @@ laruche/
 
 - **Rust** (1.75+): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
 - **Ollama** (for inference backend): `curl -fsSL https://ollama.com/install.sh | sh`
+- **Windows — Option 1 : MSVC (recommandé)**
+  Installer [Build Tools for Visual Studio](https://visualstudio.microsoft.com/visual-cpp-build-tools/) avec le workload **"Développement Desktop en C++"**, puis :
+  ```powershell
+  rustup default stable-x86_64-pc-windows-msvc
+  ```
+
+- **Windows — Option 2 : GNU / MSYS2 (sans Visual Studio)**
+  Installer [MSYS2](https://www.msys2.org/), puis dans un terminal **PowerShell** :
+  ```powershell
+  # 1. Installer les binutils MinGW via MSYS2 (dans le terminal MSYS2)
+  pacman -S mingw-w64-x86_64-binutils
+
+  # 2. Ajouter le bin MSYS2 au PATH (adapter le chemin si nécessaire)
+  $env:PATH = "C:\msys64\mingw64\bin;" + $env:PATH
+
+  # 3. Passer Rust sur le toolchain GNU
+  rustup default stable-x86_64-pc-windows-gnu
+  ```
+  Pour rendre le PATH permanent (PowerShell admin) :
+  ```powershell
+  [System.Environment]::SetEnvironmentVariable("Path", "C:\msys64\mingw64\bin;" + [System.Environment]::GetEnvironmentVariable("Path", "Machine"), "Machine")
+  ```
+  > **Note CMD** : Si tu utilises CMD au lieu de PowerShell, remplace `$env:PATH = ...` par :
+  > ```cmd
+  > set PATH=C:\msys64\mingw64\bin;%PATH%
+  > ```
 
 ### 1. Pull a model
 
@@ -74,6 +100,10 @@ ollama pull mistral
 ```
 
 ### 2. Build the project
+
+```bash
+cargo fetch
+```
 
 ```bash
 cargo build --release
