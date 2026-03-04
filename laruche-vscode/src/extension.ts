@@ -18,8 +18,21 @@ let pollInterval: NodeJS.Timeout | undefined;
 let activeNodeUrl: string = '';
 /** Active model override (empty = node default) */
 let activeModel: string = '';
-/** All nodes known from swarm + mDNS */
-let knownNodes: Array<{ url: string; name: string; model?: string; capabilities: string[] }> = [];
+type KnownNodeSource = 'mdns' | 'swarm' | 'local-probe';
+
+interface KnownNodeEntry {
+    url: string;
+    name: string;
+    model?: string;
+    capabilities: string[];
+    source: KnownNodeSource;
+}
+
+const LOOPBACK_IP = '127.0.0.1';
+const LOCAL_PROBE_TIMEOUT_MS = 2000;
+
+/** All nodes known from swarm + mDNS + local probe */
+let knownNodes: KnownNodeEntry[] = [];
 
 // ======================== Activation ========================
 
@@ -82,9 +95,12 @@ export function activate(context: vscode.ExtensionContext) {
     }
     context.subscriptions.push({ dispose: () => discovery.stop() });
 
+    // Probe localhost explicitly (Windows loopback mDNS can be flaky)
+    void checkLocalNode();
+
     // Start polling
-    pollStatus();
-    pollInterval = setInterval(pollStatus, 5000);
+    void pollStatus();
+    pollInterval = setInterval(() => { void pollStatus(); }, 5000);
     context.subscriptions.push({
         dispose: () => { if (pollInterval) { clearInterval(pollInterval); } },
     });
@@ -136,10 +152,14 @@ function setActiveModel(model: string, context: vscode.ExtensionContext) {
 function onNodeDiscovered(node: DiscoveredLandNode, context: vscode.ExtensionContext) {
     console.log(`LaRuche: Discovered node via LAND: ${node.name} @ ${node.url}`);
 
-    // Add to known nodes
-    const idx = knownNodes.findIndex(n => n.url === node.url);
-    const entry = { url: node.url, name: node.name, model: node.model, capabilities: node.capabilities };
-    if (idx >= 0) { knownNodes[idx] = entry; } else { knownNodes.push(entry); }
+    // Add to known nodes (dedup by endpoint)
+    upsertKnownNode({
+        url: node.url,
+        name: node.name,
+        model: node.model,
+        capabilities: node.capabilities,
+        source: 'mdns',
+    });
 
     // Auto-connect to this node if:
     // - no manual URL is configured, AND
@@ -157,7 +177,7 @@ function onNodeDiscovered(node: DiscoveredLandNode, context: vscode.ExtensionCon
                 ).then(choice => {
                     if (choice === 'Changer de nœud') { cmdSelectNode(context); }
                 });
-                pollStatus();
+                void pollStatus();
             }
         }).catch(() => { /* ignore */ });
     }
@@ -166,7 +186,7 @@ function onNodeDiscovered(node: DiscoveredLandNode, context: vscode.ExtensionCon
 }
 
 function onNodeLost(url: string) {
-    knownNodes = knownNodes.filter(n => n.url !== url);
+    removeKnownNodeByUrl(url);
     notifyWebviews({ type: 'nodesUpdate', nodes: knownNodes, activeNodeUrl, activeModel });
 
     if (url === activeNodeUrl) {
@@ -188,31 +208,114 @@ function onNodeLost(url: string) {
 // Track whether the active node is reachable
 let activeNodeOnline = false;
 
+function normalizeHost(host: string): string {
+    const lowered = host.toLowerCase();
+    return lowered === 'localhost' ? LOOPBACK_IP : lowered;
+}
+
+function parseNodeUrl(url: string): { host: string; port: string } | undefined {
+    try {
+        const parsed = new URL(url);
+        const port = parsed.port || (parsed.protocol === 'https:' ? '443' : '80');
+        return { host: normalizeHost(parsed.hostname), port };
+    } catch {
+        return undefined;
+    }
+}
+
+function endpointKey(url: string): string {
+    const parsed = parseNodeUrl(url);
+    return parsed ? `${parsed.host}:${parsed.port}` : url;
+}
+
+function isSameEndpoint(a: string, b: string): boolean {
+    return endpointKey(a) === endpointKey(b);
+}
+
+function upsertKnownNode(entry: KnownNodeEntry): void {
+    const capabilities = [...new Set((entry.capabilities || []).filter(Boolean))].sort();
+    const normalizedEntry: KnownNodeEntry = { ...entry, capabilities };
+
+    const existingIdx = knownNodes.findIndex(n => isSameEndpoint(n.url, normalizedEntry.url));
+    if (existingIdx < 0) {
+        knownNodes.push(normalizedEntry);
+        return;
+    }
+
+    const previous = knownNodes[existingIdx];
+    knownNodes[existingIdx] = {
+        ...previous,
+        ...normalizedEntry,
+        model: normalizedEntry.model || previous.model,
+        capabilities: normalizedEntry.capabilities.length > 0 ? normalizedEntry.capabilities : previous.capabilities,
+    };
+}
+
+function removeKnownNodeByUrl(url: string): void {
+    knownNodes = knownNodes.filter(n => !isSameEndpoint(n.url, url));
+}
+
+async function checkLocalNode(): Promise<void> {
+    const apiPort = vscode.workspace.getConfiguration('laruche').get<number>('apiPort', 8419);
+    const localUrl = `http://${LOOPBACK_IP}:${apiPort}`;
+    const localClient = new LaRucheClient(localUrl);
+
+    const isHealthy = await localClient.health(LOCAL_PROBE_TIMEOUT_MS);
+    if (!isHealthy) {
+        knownNodes = knownNodes.filter(n => !(n.source === 'local-probe' && isSameEndpoint(n.url, localUrl)));
+        return;
+    }
+
+    let capabilities: string[] = [];
+    let nodeName = 'localhost';
+
+    try {
+        const status = await localClient.status();
+        capabilities = status.capabilities || [];
+        nodeName = status.node_name || nodeName;
+    } catch {
+        // Keep minimal metadata when status endpoint is unavailable.
+    }
+
+    upsertKnownNode({
+        url: localUrl,
+        name: nodeName,
+        capabilities,
+        source: 'local-probe',
+    });
+}
+
 // ======================== Status Polling ========================
 
 async function pollStatus() {
+    await checkLocalNode();
+
     try {
         const swarm = await client.swarm();
         activeNodeOnline = true;
 
-        // Merge swarm nodes into knownNodes (they come from mDNS on the node side)
+        const seenSwarmEndpoints = new Set<string>();
+
+        // Merge swarm nodes into knownNodes and refresh stale entries.
         for (const n of swarm.nodes) {
             const url = `http://${n.host}:8419`;
-            const existing = knownNodes.find(k => k.url === url || k.name === n.name);
-            if (!existing) {
-                knownNodes.push({
-                    url,
-                    name: n.name || n.host,
-                    model: n.model ?? undefined,
-                    capabilities: n.capabilities,
-                });
-            }
+            seenSwarmEndpoints.add(endpointKey(url));
+            upsertKnownNode({
+                url,
+                name: n.name || n.host,
+                model: n.model ?? undefined,
+                capabilities: n.capabilities,
+                source: 'swarm',
+            });
         }
+
+        // Remove stale swarm-only entries that no longer exist in latest swarm response.
+        knownNodes = knownNodes.filter(n => n.source !== 'swarm' || seenSwarmEndpoints.has(endpointKey(n.url)));
 
         const nodeCount = swarm.total_nodes;
         const tps = swarm.collective_tps.toFixed(1);
-        const modelLabel = activeModel ? ` · ${activeModel}` : '';
-        statusBarItem.text = `$(beaker) ${nodeCount} node${nodeCount !== 1 ? 's' : ''} · ${tps} t/s${modelLabel}`;
+        const modelLabel = activeModel ? ` ? ${activeModel}` : '';
+        statusBarItem.text = `$(beaker) ${nodeCount} node${nodeCount !== 1 ? 's' : ''} ? ${tps} t/s${modelLabel}`;
         statusBarItem.tooltip = buildSwarmTooltip(swarm);
         statusBarItem.backgroundColor = undefined;
 
@@ -226,6 +329,7 @@ async function pollStatus() {
         statusBarItem.text = '$(beaker) LaRuche: offline';
         statusBarItem.tooltip = 'No LaRuche node reachable.\nUse "LaRuche: Select Active Node" to connect.';
         statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+        notifyWebviews({ type: 'nodesUpdate', nodes: knownNodes, activeNodeUrl, activeModel });
     }
 }
 
@@ -340,7 +444,7 @@ async function cmdSelectNode(context: vscode.ExtensionContext) {
 
     // Add swarm nodes (from HTTP)
     for (const n of knownNodes) {
-        if (!mdnsNodes.find(m => m.url === n.url)) {
+        if (!mdnsNodes.find(m => isSameEndpoint(m.url, n.url))) {
             const isActive = n.url === activeNodeUrl;
             items.push({
                 label: `${isActive ? '$(check) ' : '$(server) '}${n.name}`,
@@ -373,7 +477,7 @@ async function cmdSelectNode(context: vscode.ExtensionContext) {
         if (url) {
             setActiveNode(url.trim(), context);
             vscode.window.showInformationMessage(`LaRuche: Connected to ${url}`);
-            pollStatus();
+            void pollStatus();
         }
     } else {
         // Extract URL from description
@@ -381,7 +485,7 @@ async function cmdSelectNode(context: vscode.ExtensionContext) {
         if (url) {
             setActiveNode(url, context);
             vscode.window.showInformationMessage(`LaRuche: Switched to ${selected.label.replace(/^\$\([\w-]+\) /, '')}`);
-            pollStatus();
+            void pollStatus();
         }
     }
 }

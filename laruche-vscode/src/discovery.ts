@@ -1,5 +1,5 @@
 /**
- * LandDiscovery — mDNS-based node discovery for the LAND protocol.
+ * LandDiscovery - mDNS-based node discovery for the LAND protocol.
  *
  * Listens for `_ai-inference._tcp.local.` service announcements and
  * maintains a live map of reachable LaRuche nodes.
@@ -35,6 +35,7 @@ const LAND_SERVICE_TYPE = 'ai-inference';
 const REBROWSE_INTERVAL_MS = 15000;
 
 export class LandDiscovery {
+    // Keyed by primary IPv4 to enforce strict deduplication: 1 IP = 1 node.
     private nodes = new Map<string, DiscoveredLandNode>();
     private bonjour: any = null;
     private browser: any = null;
@@ -101,27 +102,62 @@ export class LandDiscovery {
                 txt: service.txt,
             }));
 
-            const node = this.parseService(service);
+            const ip = this.extractPrimaryIPv4(service);
+            if (!ip) {
+                console.warn(`LaRuche: Ignoring mDNS service without IPv4: ${service.name}`);
+                return;
+            }
+
+            const node = this.parseService(service, ip);
             if (!node) {
                 console.warn('LaRuche: Could not parse mDNS service:', service.name);
                 return;
             }
-            const existing = this.nodes.get(node.url);
-            this.nodes.set(node.url, node);
+
+            const existing = this.nodes.get(ip);
+            this.nodes.set(ip, node);
+
+            // Same IP rediscovered with a different endpoint: replace old entry.
+            if (existing && existing.url !== node.url) {
+                console.log(`LaRuche: LAND node replaced for IP ${ip}: ${existing.url} -> ${node.url}`);
+                this.onLost(existing.url);
+                this.onFound(node);
+                return;
+            }
+
             if (!existing) {
-                console.log(`LaRuche: LAND node discovered: ${node.name} @ ${node.url}`);
+                console.log(`LaRuche: LAND node discovered: ${node.name} @ ${node.url} (ip: ${ip})`);
+                this.onFound(node);
+                return;
+            }
+
+            if (!this.sameNode(existing, node)) {
+                console.log(`LaRuche: LAND node updated for IP ${ip}: ${node.name} @ ${node.url}`);
                 this.onFound(node);
             }
         });
 
         this.browser.on('down', (service: any) => {
+            const ip = this.extractPrimaryIPv4(service);
+            if (ip) {
+                const existing = this.nodes.get(ip);
+                if (existing) {
+                    console.log(`LaRuche: mDNS service DOWN (ip: ${ip}) -> ${existing.url}`);
+                    this.nodes.delete(ip);
+                    this.onLost(existing.url);
+                    return;
+                }
+            }
+
+            // Fallback when DOWN event has no IPv4 but does include host/port.
             const host = this.extractHost(service);
             const port = (service.port as number) || 8419;
             const url = `http://${host}:${port}`;
-            console.log(`LaRuche: mDNS service DOWN: ${url}`);
-            if (this.nodes.has(url)) {
-                this.nodes.delete(url);
-                this.onLost(url);
+            const entry = this.findByUrl(url);
+            if (entry) {
+                console.log(`LaRuche: mDNS service DOWN (fallback url): ${url}`);
+                this.nodes.delete(entry.ip);
+                this.onLost(entry.node.url);
             }
         });
     }
@@ -164,7 +200,36 @@ export class LandDiscovery {
     }
 
     getNode(url: string): DiscoveredLandNode | undefined {
-        return this.nodes.get(url);
+        return Array.from(this.nodes.values()).find(node => node.url === url);
+    }
+
+    private findByUrl(url: string): { ip: string; node: DiscoveredLandNode } | undefined {
+        for (const [ip, node] of this.nodes.entries()) {
+            if (node.url === url) {
+                return { ip, node };
+            }
+        }
+        return undefined;
+    }
+
+    private sameNode(a: DiscoveredLandNode, b: DiscoveredLandNode): boolean {
+        if (a.name !== b.name) { return false; }
+        if (a.host !== b.host) { return false; }
+        if (a.port !== b.port) { return false; }
+        if (a.url !== b.url) { return false; }
+        if (a.model !== b.model) { return false; }
+        if (a.tokensPerSec !== b.tokensPerSec) { return false; }
+        if (a.tier !== b.tier) { return false; }
+        if (a.capabilities.length !== b.capabilities.length) { return false; }
+        return a.capabilities.every((cap, i) => cap === b.capabilities[i]);
+    }
+
+    private extractPrimaryIPv4(service: any): string | undefined {
+        const addresses = service.addresses as string[] | undefined;
+        if (!addresses || addresses.length === 0) {
+            return undefined;
+        }
+        return addresses.find((a: string) => /^\d+\.\d+\.\d+\.\d+$/.test(a));
     }
 
     private extractHost(service: any): string {
@@ -182,8 +247,8 @@ export class LandDiscovery {
         return host ? host.replace(/\.local\.?$/, '') : 'localhost';
     }
 
-    private parseService(service: any): DiscoveredLandNode | null {
-        const host = this.extractHost(service);
+    private parseService(service: any, hostOverride?: string): DiscoveredLandNode | null {
+        const host = hostOverride ?? this.extractHost(service);
         const port = (service.port as number) || 8419;
         const url = `http://${host}:${port}`;
 
@@ -201,7 +266,7 @@ export class LandDiscovery {
             }
         }
 
-        // Method 2: Some mDNS libraries flatten TXT differently —
+        // Method 2: Some mDNS libraries flatten TXT differently -
         // also check for bare capability flags like "llm", "code", "vlm" etc.
         const knownCaps = ['llm', 'vlm', 'vla', 'rag', 'audio', 'image', 'embed', 'code'];
         for (const cap of knownCaps) {
@@ -209,6 +274,8 @@ export class LandDiscovery {
                 capabilities.push(cap);
             }
         }
+
+        capabilities.sort();
 
         const tpsRaw = txt['tps'];
         const tokensPerSec = tpsRaw ? parseFloat(tpsRaw) : undefined;
