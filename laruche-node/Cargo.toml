@@ -1,0 +1,24 @@
+[package]
+name = "laruche-node"
+version.workspace = true
+edition.workspace = true
+description = "LaRuche Node - AI inference daemon with LAND protocol"
+
+[[bin]]
+name = "laruche-node"
+path = "src/main.rs"
+
+[dependencies]
+land-protocol = { git = "https://github.com/infinition/land-protocol" }
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+reqwest.workspace = true
+axum.workspace = true
+tower-http.workspace = true
+local-ip-address.workspace = true

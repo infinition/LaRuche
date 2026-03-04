@@ -1,0 +1,46 @@
+# =============================================================
+#  LaRuche - Docker Compose (Full Stack)
+# =============================================================
+# Usage: docker compose up
+# Note: Uses host networking for mDNS discovery
+
+version: "3.8"
+
+services:
+  ollama:
+    image: ollama/ollama:latest
+    network_mode: host
+    volumes:
+      - ollama-data:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]  # Remove if no GPU
+
+  laruche-node:
+    build: .
+    network_mode: host  # Required for mDNS multicast
+    depends_on:
+      - ollama
+    environment:
+      LARUCHE_NAME: laruche-main
+      LARUCHE_TIER: core
+      LARUCHE_MODEL: mistral
+      LARUCHE_PORT: "8419"
+      LARUCHE_DASH_PORT: "8420"
+      OLLAMA_URL: http://127.0.0.1:11434
+    restart: unless-stopped
+
+  laruche-dashboard:
+    build: .
+    network_mode: host
+    command: laruche-dashboard
+    depends_on:
+      - laruche-node
+    environment:
+      LARUCHE_DASH_PORT: "8420"
+    restart: unless-stopped
+
+volumes:
+  ollama-data:
