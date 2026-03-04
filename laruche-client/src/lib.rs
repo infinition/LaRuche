@@ -169,6 +169,7 @@ impl LaRuche {
                 manifest,
                 discovered_at: chrono::Utc::now(),
                 last_seen: chrono::Utc::now(),
+                service_fullname: "direct".to_string(),
             }],
             http: reqwest::Client::builder()
                 .timeout(Duration::from_secs(60))
@@ -197,10 +198,7 @@ impl LaRuche {
         capability: Capability,
     ) -> Result<LaRucheResponse, LaRucheError> {
         let node = self.find_best_node(capability)?;
-        let url = node
-            .manifest
-            .api_url()
-            .ok_or(LaRucheError::NoNodeFound)?;
+        let url = node.manifest.api_url().ok_or(LaRucheError::NoNodeFound)?;
 
         let body = serde_json::json!({
             "prompt": prompt,

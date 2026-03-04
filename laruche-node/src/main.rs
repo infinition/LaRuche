@@ -11,7 +11,7 @@
 
 use anyhow::Result;
 use axum::{
-    extract::State,
+    extract::{ConnectInfo, State},
     http::StatusCode,
     response::{Html, Json},
     routing::{get, post},
@@ -25,7 +25,7 @@ use land_protocol::{
     qos::{QosPolicy, RequestQueue},
 };
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
 use sysinfo::System;
 use tokio::sync::RwLock;
 use tracing::{error, info};
@@ -34,6 +34,9 @@ use uuid::Uuid;
 use std::collections::VecDeque;
 
 const DASHBOARD_HTML: &str = include_str!("../../laruche-dashboard/src/templates/dashboard.html");
+const PEER_FETCH_TIMEOUT_MS: u64 = 800;
+const PEER_STALE_SECS: i64 = 15;
+const ACTIVITY_LOG_LIMIT: usize = 120;
 
 #[derive(Debug, Clone, Serialize)]
 struct ActivityLogEntry {
@@ -133,6 +136,8 @@ struct NodeStatus {
     cpu_usage_pct: f32,
     memory_used_mb: u64,
     memory_total_mb: u64,
+    vram_used_mb: Option<u64>,
+    vram_total_mb: Option<u64>,
     queue_depth: usize,
     uptime_secs: u64,
     swarm: SwarmStatus,
@@ -177,6 +182,8 @@ struct DiscoveredNodeInfo {
     model: Option<String>,
     tokens_per_sec: Option<f32>,
     queue_depth: Option<u32>,
+    memory_total_mb: Option<u64>,
+    vram_total_mb: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -192,17 +199,120 @@ struct AuthPendingResponse {
     expires_in_secs: i64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct OllamaModelInfo {
     name: String,
     size_gb: f64,
     digest: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct ModelsResponse {
     models: Vec<OllamaModelInfo>,
     default_model: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct PeerStatusResponse {
+    node_name: String,
+    capabilities: Vec<String>,
+    tokens_per_sec: f32,
+    queue_depth: usize,
+    memory_total_mb: u64,
+    vram_total_mb: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+struct SwarmModelInfo {
+    host: String,
+    node_name: String,
+    node_id: Option<String>,
+    name: String,
+    size_gb: f64,
+    digest: String,
+    is_default: bool,
+    is_local: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct SwarmModelsResponse {
+    total_hosts: usize,
+    models: Vec<SwarmModelInfo>,
+}
+
+fn preview_text(input: &str, max_chars: usize) -> String {
+    let flat = input.replace(['\n', '\r'], " ");
+    let truncated: String = flat.chars().take(max_chars).collect();
+    if flat.chars().count() > max_chars {
+        format!("{truncated}...")
+    } else {
+        truncated
+    }
+}
+
+fn is_stale(last_seen: chrono::DateTime<chrono::Utc>) -> bool {
+    (chrono::Utc::now() - last_seen).num_seconds() > PEER_STALE_SECS
+}
+
+async fn fetch_peer_status(
+    client: &reqwest::Client,
+    host: &str,
+    port: u16,
+) -> Option<PeerStatusResponse> {
+    let url = format!("http://{host}:{port}/");
+    match client.get(url).send().await {
+        Ok(resp) if resp.status().is_success() => resp.json::<PeerStatusResponse>().await.ok(),
+        _ => None,
+    }
+}
+
+async fn fetch_models_from_node(
+    client: &reqwest::Client,
+    host: &str,
+    port: u16,
+) -> Option<ModelsResponse> {
+    let url = format!("http://{host}:{port}/models");
+    match client.get(url).send().await {
+        Ok(resp) if resp.status().is_success() => resp.json::<ModelsResponse>().await.ok(),
+        _ => None,
+    }
+}
+
+async fn fetch_local_models(
+    ollama_url: &str,
+    default_model: &str,
+) -> Result<ModelsResponse, StatusCode> {
+    let client = reqwest::Client::new();
+    let url = format!("{ollama_url}/api/tags");
+
+    match client.get(&url).send().await {
+        Ok(resp) => match resp.json::<serde_json::Value>().await {
+            Ok(body) => {
+                let models: Vec<OllamaModelInfo> = body["models"]
+                    .as_array()
+                    .unwrap_or(&vec![])
+                    .iter()
+                    .map(|m| OllamaModelInfo {
+                        name: m["name"].as_str().unwrap_or("unknown").to_string(),
+                        size_gb: m["size"].as_f64().unwrap_or(0.0) / 1_073_741_824.0,
+                        digest: m["digest"]
+                            .as_str()
+                            .unwrap_or("")
+                            .chars()
+                            .take(12)
+                            .collect(),
+                    })
+                    .collect();
+
+                Ok(ModelsResponse {
+                    models,
+                    default_model: default_model.to_string(),
+                })
+            }
+            Err(_) => Err(StatusCode::BAD_GATEWAY),
+        },
+        Err(_) => Err(StatusCode::SERVICE_UNAVAILABLE),
+    }
 }
 
 // ======================== Handlers ========================
@@ -236,6 +346,8 @@ async fn get_status(State(state): State<Arc<AppState>>) -> Json<NodeStatus> {
         cpu_usage_pct: cpu_pct,
         memory_used_mb: used_mem_kb / 1024,
         memory_total_mb: total_mem_kb / 1024,
+        vram_used_mb: manifest.resources.vram_used_mb,
+        vram_total_mb: manifest.resources.vram_total_mb,
         queue_depth: queue.depth(),
         uptime_secs: manifest.uptime_secs,
         swarm: SwarmStatus {
@@ -265,10 +377,17 @@ async fn get_nodes(State(state): State<Arc<AppState>>) -> Json<DiscoveredNodesRe
             node_id: n.manifest.node_id.map(|id| id.to_string()),
             name: n.manifest.node_name.clone(),
             host: n.manifest.host.clone(),
-            capabilities: n.manifest.capabilities.iter().map(|c| c.to_string()).collect(),
+            capabilities: n
+                .manifest
+                .capabilities
+                .iter()
+                .map(|c| c.to_string())
+                .collect(),
             model: n.manifest.model.clone(),
             tokens_per_sec: n.manifest.tokens_per_sec,
             queue_depth: n.manifest.queue_depth,
+            memory_total_mb: None,
+            vram_total_mb: None,
         })
         .collect();
 
@@ -282,13 +401,21 @@ async fn get_swarm(State(state): State<Arc<AppState>>) -> Json<SwarmResponse> {
     let manifest = state.manifest.read().await;
     let queue = state.queue.read().await;
     let sys = state.sys.read().await;
+    let http = reqwest::Client::builder()
+        .timeout(Duration::from_millis(PEER_FETCH_TIMEOUT_MS))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
 
     let total_mem_mb = sys.total_memory() / 1024;
-    let local_model = state.config.capabilities.first().map(|c| c.model_name.clone());
+    let local_model = state
+        .config
+        .capabilities
+        .first()
+        .map(|c| c.model_name.clone());
 
     let mut total_tps = manifest.performance.tokens_per_sec;
-    let total_vram = manifest.resources.vram_total_mb.unwrap_or(0);
-    let total_ram = total_mem_mb;
+    let mut total_vram = manifest.resources.vram_total_mb.unwrap_or(0);
+    let mut total_ram = total_mem_mb;
     let mut total_queue = queue.depth() as u32;
 
     let mut node_infos = vec![DiscoveredNodeInfo {
@@ -299,6 +426,8 @@ async fn get_swarm(State(state): State<Arc<AppState>>) -> Json<SwarmResponse> {
         model: local_model,
         tokens_per_sec: Some(manifest.performance.tokens_per_sec),
         queue_depth: Some(queue.depth() as u32),
+        memory_total_mb: Some(total_mem_mb),
+        vram_total_mb: manifest.resources.vram_total_mb,
     }];
 
     for node in nodes.values() {
@@ -307,17 +436,34 @@ async fn get_swarm(State(state): State<Arc<AppState>>) -> Json<SwarmResponse> {
         {
             continue;
         }
-        total_tps += node.manifest.tokens_per_sec.unwrap_or(0.0);
-        total_queue += node.manifest.queue_depth.unwrap_or(0);
+        if is_stale(node.last_seen) {
+            continue;
+        }
+
+        let peer_port = node
+            .manifest
+            .port
+            .unwrap_or(land_protocol::DEFAULT_API_PORT);
+        let Some(peer_status) = fetch_peer_status(&http, &node.manifest.host, peer_port).await
+        else {
+            continue;
+        };
+
+        total_tps += peer_status.tokens_per_sec;
+        total_queue += peer_status.queue_depth as u32;
+        total_ram += peer_status.memory_total_mb;
+        total_vram += peer_status.vram_total_mb.unwrap_or(0);
 
         node_infos.push(DiscoveredNodeInfo {
             node_id: node.manifest.node_id.map(|id| id.to_string()),
-            name: node.manifest.node_name.clone(),
+            name: Some(peer_status.node_name),
             host: node.manifest.host.clone(),
-            capabilities: node.manifest.capabilities.iter().map(|c| c.to_string()).collect(),
+            capabilities: peer_status.capabilities,
             model: node.manifest.model.clone(),
-            tokens_per_sec: node.manifest.tokens_per_sec,
-            queue_depth: node.manifest.queue_depth,
+            tokens_per_sec: Some(peer_status.tokens_per_sec),
+            queue_depth: Some(peer_status.queue_depth as u32),
+            memory_total_mb: Some(peer_status.memory_total_mb),
+            vram_total_mb: peer_status.vram_total_mb,
         });
     }
 
@@ -335,11 +481,15 @@ async fn get_swarm(State(state): State<Arc<AppState>>) -> Json<SwarmResponse> {
 /// POST /infer - Inference endpoint (proxies to Ollama)
 async fn post_infer(
     State(state): State<Arc<AppState>>,
+    connect_info: Option<ConnectInfo<SocketAddr>>,
     Json(req): Json<InferenceRequest>,
 ) -> Result<Json<InferenceResponse>, StatusCode> {
     let config = &state.config;
     let model = req.model.unwrap_or_else(|| config.default_model.clone());
     let start = std::time::Instant::now();
+    let requester_ip = connect_info
+        .map(|ConnectInfo(addr)| addr.ip().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
 
     let client = reqwest::Client::new();
     let ollama_req = serde_json::json!({
@@ -378,15 +528,16 @@ async fn post_infer(
                     manifest.performance.avg_latency_ms = latency as f32;
                 }
 
-                // Log activity
-                let prompt_preview: String = req.prompt.chars().take(40).collect();
+                // Log activity with requester IP and a short response preview.
+                let prompt_preview = preview_text(&req.prompt, 60);
+                let response_preview = preview_text(&response_text, 100);
                 let log_msg = format!(
-                    "Inférence {} - {} tokens en {}ms - \"{}...\"",
-                    model, eval_count, latency, prompt_preview.replace('\n', " ")
+                    "Inference {} <- {} | {} tokens in {}ms | prompt: \"{}\" | response: \"{}\"",
+                    model, requester_ip, eval_count, latency, prompt_preview, response_preview
                 );
-                
+
                 let mut activity = state.activity_log.write().await;
-                if activity.len() >= 50 {
+                if activity.len() >= ACTIVITY_LOG_LIMIT {
                     activity.pop_front();
                 }
                 activity.push_back(ActivityLogEntry {
@@ -418,37 +569,94 @@ async fn post_infer(
 async fn get_models(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<ModelsResponse>, StatusCode> {
-    let client = reqwest::Client::new();
-    let url = format!("{}/api/tags", state.config.ollama_url);
+    fetch_local_models(&state.config.ollama_url, &state.config.default_model)
+        .await
+        .map(Json)
+}
 
-    match client.get(&url).send().await {
-        Ok(resp) => match resp.json::<serde_json::Value>().await {
-            Ok(body) => {
-                let models: Vec<OllamaModelInfo> = body["models"]
-                    .as_array()
-                    .unwrap_or(&vec![])
-                    .iter()
-                    .map(|m| OllamaModelInfo {
-                        name: m["name"].as_str().unwrap_or("unknown").to_string(),
-                        size_gb: m["size"].as_f64().unwrap_or(0.0) / 1_073_741_824.0,
-                        digest: m["digest"]
-                            .as_str()
-                            .unwrap_or("")
-                            .chars()
-                            .take(12)
-                            .collect(),
-                    })
-                    .collect();
+/// GET /swarm/models - Aggregate models across local node and discovered peers
+async fn get_swarm_models(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<SwarmModelsResponse>, StatusCode> {
+    let listener = state.listener.read().await;
+    let nodes = listener.get_nodes().await;
+    let manifest = state.manifest.read().await;
 
-                Ok(Json(ModelsResponse {
-                    models,
-                    default_model: state.config.default_model.clone(),
-                }))
-            }
-            Err(_) => Err(StatusCode::BAD_GATEWAY),
-        },
-        Err(_) => Err(StatusCode::SERVICE_UNAVAILABLE),
+    let http = reqwest::Client::builder()
+        .timeout(Duration::from_millis(PEER_FETCH_TIMEOUT_MS))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
+
+    let mut models: Vec<SwarmModelInfo> = Vec::new();
+    let mut hosts = HashSet::new();
+
+    let local_models =
+        fetch_local_models(&state.config.ollama_url, &state.config.default_model).await?;
+    hosts.insert(manifest.api_endpoint.host.clone());
+    for m in local_models.models {
+        let is_default =
+            m.name == local_models.default_model || m.name.starts_with(&local_models.default_model);
+        models.push(SwarmModelInfo {
+            host: manifest.api_endpoint.host.clone(),
+            node_name: manifest.node_name.clone(),
+            node_id: Some(manifest.node_id.to_string()),
+            name: m.name,
+            size_gb: m.size_gb,
+            digest: m.digest,
+            is_default,
+            is_local: true,
+        });
     }
+
+    for node in nodes.values() {
+        if node.manifest.node_id == Some(manifest.node_id)
+            || node.manifest.host == manifest.api_endpoint.host
+            || is_stale(node.last_seen)
+        {
+            continue;
+        }
+
+        let peer_port = node
+            .manifest
+            .port
+            .unwrap_or(land_protocol::DEFAULT_API_PORT);
+        let Some(peer_models) = fetch_models_from_node(&http, &node.manifest.host, peer_port).await
+        else {
+            continue;
+        };
+
+        hosts.insert(node.manifest.host.clone());
+        for m in peer_models.models {
+            let is_default = m.name == peer_models.default_model
+                || m.name.starts_with(&peer_models.default_model);
+            models.push(SwarmModelInfo {
+                host: node.manifest.host.clone(),
+                node_name: node
+                    .manifest
+                    .node_name
+                    .clone()
+                    .unwrap_or_else(|| node.manifest.host.clone()),
+                node_id: node.manifest.node_id.map(|id| id.to_string()),
+                name: m.name,
+                size_gb: m.size_gb,
+                digest: m.digest,
+                is_default,
+                is_local: false,
+            });
+        }
+    }
+
+    models.sort_by(|a, b| {
+        a.name
+            .cmp(&b.name)
+            .then_with(|| a.host.cmp(&b.host))
+            .then_with(|| a.node_name.cmp(&b.node_name))
+    });
+
+    Ok(Json(SwarmModelsResponse {
+        total_hosts: hosts.len(),
+        models,
+    }))
 }
 
 /// POST /auth/request - Request device authorization
@@ -577,7 +785,7 @@ async fn main() -> Result<()> {
         listener: RwLock::new(listener),
         config: config.clone(),
         sys: RwLock::new(sys),
-        activity_log: RwLock::new(VecDeque::with_capacity(50)),
+        activity_log: RwLock::new(VecDeque::with_capacity(ACTIVITY_LOG_LIMIT)),
     });
 
     let app = Router::new()
@@ -585,6 +793,7 @@ async fn main() -> Result<()> {
         .route("/health", get(health))
         .route("/nodes", get(get_nodes))
         .route("/swarm", get(get_swarm))
+        .route("/swarm/models", get(get_swarm_models))
         .route("/models", get(get_models))
         .route("/activity", get(get_activity))
         .route("/infer", post(post_infer))
@@ -609,6 +818,7 @@ async fn main() -> Result<()> {
             }
 
             {
+                let queue_depth = update_state.queue.read().await.depth() as u32;
                 let mut manifest = update_state.manifest.write().await;
                 manifest.uptime_secs = start_time.elapsed().as_secs();
                 manifest.timestamp = chrono::Utc::now();
@@ -617,6 +827,7 @@ async fn main() -> Result<()> {
                 manifest.resources.memory_used_mb = sys.used_memory() / 1024;
                 manifest.resources.memory_total_mb = sys.total_memory() / 1024;
                 manifest.resources.cpu_usage_pct = sys.global_cpu_usage();
+                manifest.performance.queue_depth = queue_depth;
             }
         }
     });
@@ -629,7 +840,11 @@ async fn main() -> Result<()> {
     );
 
     let listener_tcp = tokio::net::TcpListener::bind(&addr).await?;
-    axum::serve(listener_tcp, app).await?;
+    axum::serve(
+        listener_tcp,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
 
     Ok(())
 }
@@ -671,8 +886,7 @@ fn load_config() -> Result<NodeConfig> {
             Ok("max") => HardwareTier::Max,
             _ => HardwareTier::Core,
         },
-        ollama_url: std::env::var("OLLAMA_URL")
-            .unwrap_or_else(|_| "http://127.0.0.1:11434".into()),
+        ollama_url: std::env::var("OLLAMA_URL").unwrap_or_else(|_| "http://127.0.0.1:11434".into()),
         default_model: std::env::var("LARUCHE_MODEL").unwrap_or_else(|_| "mistral".into()),
         api_port: std::env::var("LARUCHE_PORT")
             .ok()
