@@ -1,32 +1,109 @@
-﻿# LaRuche
+<div align="center">
+<img width="3533" height="997" alt="image" src="https://github.com/user-attachments/assets/458f9822-8c9e-44da-896c-20ba238925d3" />
+</div>
 
-Local-first AI node + swarm stack built on the LAND protocol.
 
-## What is in this repo
 
-- `laruche-node`: main daemon (HTTP API, Ollama bridge, LAND mDNS announce/listen)
-- `laruche-dashboard`: standalone dashboard binary (HTML UI)
-- `laruche-client`: Rust SDK (`discover`, `connect`, `ask`, capability routing)
-- `laruche-cli`: CLI wrapper for quick usage
-- `laruche-vscode`: VS Code extension (chat, code actions, node/model selection)
+#  LaRuche - Networked Edge AI System
 
-## Runtime behavior (current)
+<div align="center">
+  <img width="287" height="317" alt="icon-removebg-preview" src="https://github.com/user-attachments/assets/a6a37836-7e97-4203-b041-1edb7ec36263" />
+</div>
 
-- Node announces itself on LAND (`_ai-inference._tcp.local.`).
-- Node re-announces mDNS metadata every `2s`.
-- LAND listener stale timeout is `45s` (in `land-protocol`).
-- Dashboard keeps transiently missing nodes for `10` swarm polls before removing.
-- `/swarm` now returns `host` + `port` per node.
-- Capability labels are normalized (`llm`, `code`, etc.), not `capability:llm` in API payloads.
+**"Branchez l'IA. C'est tout."**
 
-## Prerequisites
+Branchez le boîtier LaRuche sur votre réseau, et l'IA devient disponible pour tout appareil connecté.
+Zéro configuration, zéro cloud, zéro compromis sur la vie privée.
 
-- Rust stable toolchain
-- Ollama running locally or reachable from the node (`OLLAMA_URL`)
+## Architecture
 
-## Quick start
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Réseau Local                             │
+│                                                                 │
+│  ┌──────────┐   LAND Protocol   ┌──────────┐                    │
+│  │ LaRuche  │◄────────────────► │ LaRuche  │  Swarm             │
+│  │  Core    │  _ai-inference    │   Pro    │  Intelligence      │
+│  │ (LLM+RAG)│    ._tcp          │(VLM+Code)│                    │
+│  └────┬─────┘                   └────┬─────┘                    │
+│       │                              │                          │
+│  ┌────┴──────────────────────────────┴────┐                     │
+│  │          LAND (mDNS/DNS-SD)            │                     │
+│  │    Cognitive Manifest + QoS + Auth     │                     │
+│  └────┬──────────┬──────────┬─────────────┘                     │
+│       │          │          │                                   │
+│  ┌────┴───┐ ┌────┴───┐ ┌───┴────┐                               │
+│  │ VS Code│ │  Web   │ │  IoT   │  Clients                      │
+│  │ Plugin │ │  App   │ │ ESP32  │                               │
+│  └────────┘ └────────┘ └────────┘                               │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-1. Pull a model:
+## Workspace Structure
+
+```
+laruche/
+├── land-protocol/     #  Core LAND protocol library
+│   └── src/
+│       ├── lib.rs           # Module exports + constants
+│       ├── capabilities.rs  # Model type differentiation (LLM, VLM, VLA, RAG...)
+│       ├── manifest.rs      # Cognitive Manifest (broadcast data)
+│       ├── discovery.rs     # mDNS broadcaster + listener
+│       ├── auth.rs          # Proof of Proximity authentication
+│       ├── qos.rs           # Quality of Service + priority queue
+│       ├── swarm.rs         # Swarm Intelligence + resilience
+│       └── error.rs         # Error types
+│
+├── laruche-node/      #  LaRuche Node daemon
+│   └── src/main.rs          # API server + LAND broadcast + Ollama bridge
+│
+├── laruche-client/    #  Client SDK (3 lines to use AI)
+│   └── src/lib.rs           # Auto-discover + ask + route by capability
+│
+├── laruche-cli/       #   CLI tool
+│   └── src/main.rs          # discover, ask, chat, status commands
+│
+└── laruche-dashboard/ #  Web monitoring dashboard
+    └── src/
+        ├── main.rs          # Axum web server
+        └── templates/
+            └── dashboard.html  # Cybersecurity dashboard UI
+```
+
+## Quick Start
+
+### Prerequisites
+
+- **Rust** (1.75+): `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- **Ollama** (for inference backend): `curl -fsSL https://ollama.com/install.sh | sh`
+- **Windows — Option 1 : MSVC (recommandé)**
+  Installer [Build Tools for Visual Studio](https://visualstudio.microsoft.com/visual-cpp-build-tools/) avec le workload **"Développement Desktop en C++"**, puis :
+  ```powershell
+  rustup default stable-x86_64-pc-windows-msvc
+  ```
+
+- **Windows — Option 2 : GNU / MSYS2 (sans Visual Studio)**
+  Installer [MSYS2](https://www.msys2.org/), puis dans un terminal **PowerShell** :
+  ```powershell
+  # 1. Installer les binutils MinGW via MSYS2 (dans le terminal MSYS2)
+  pacman -S mingw-w64-x86_64-binutils
+
+  # 2. Ajouter le bin MSYS2 au PATH (adapter le chemin si nécessaire)
+  $env:PATH = "C:\msys64\mingw64\bin;" + $env:PATH
+
+  # 3. Passer Rust sur le toolchain GNU
+  rustup default stable-x86_64-pc-windows-gnu
+  ```
+  Pour rendre le PATH permanent (PowerShell admin) :
+  ```powershell
+  [System.Environment]::SetEnvironmentVariable("Path", "C:\msys64\mingw64\bin;" + [System.Environment]::GetEnvironmentVariable("Path", "Machine"), "Machine")
+  ```
+  > **Note CMD** : Si tu utilises CMD au lieu de PowerShell, remplace `$env:PATH = ...` par :
+  > ```cmd
+  > set PATH=C:\msys64\mingw64\bin;%PATH%
+  > ```
+
+### 1. Pull a model
 
 ```bash
 ollama pull mistral
