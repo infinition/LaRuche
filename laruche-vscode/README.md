@@ -20,7 +20,7 @@ Right-click on selected code to access:
 
 ### Swarm Status
 The status bar shows your collective AI power in real-time:
-
+ 
 - Number of active nodes on your network.
 - Combined tokens per second.
 - Click to see detailed Swarm status with per-node metrics.
