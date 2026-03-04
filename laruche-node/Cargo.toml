@@ -9,7 +9,7 @@ name = "laruche-node"
 path = "src/main.rs"
 
 [dependencies]
-land-protocol = { git = "https://github.com/infinition/land-protocol" }
+land-protocol.workspace = true
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
