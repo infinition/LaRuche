@@ -244,6 +244,36 @@ function openChatPanel(context: vscode.ExtensionContext) {
 
     chatPanel.webview.onDidReceiveMessage(async (msg) => {
         if (msg.type === 'ask') {
+            if (msg.mode === 'edit') {
+                const editor = vscode.window.activeTextEditor;
+                if (!editor) {
+                    chatPanel?.webview.postMessage({
+                        type: 'error',
+                        text: 'No active editor found. Please open a file to edit.',
+                    });
+                    return;
+                }
+
+                chatPanel?.webview.postMessage({
+                    type: 'status',
+                    text: 'Agent processing request...',
+                });
+
+                // Fire and forget agent run, it handles its own progress UI
+                agent.run(editor, msg.prompt).then(() => {
+                    chatPanel?.webview.postMessage({
+                        type: 'status',
+                        text: 'Ready',
+                    });
+                }).catch((err: any) => {
+                    chatPanel?.webview.postMessage({
+                        type: 'error',
+                        text: err.message,
+                    });
+                });
+                return;
+            }
+
             try {
                 const resp = await client.infer(msg.prompt);
                 chatPanel?.webview.postMessage({
@@ -282,6 +312,35 @@ class ChatViewProvider implements vscode.WebviewViewProvider {
 
         webviewView.webview.onDidReceiveMessage(async (msg) => {
             if (msg.type === 'ask') {
+                if (msg.mode === 'edit') {
+                    const editor = vscode.window.activeTextEditor;
+                    if (!editor) {
+                        webviewView.webview.postMessage({
+                            type: 'error',
+                            text: 'No active editor found. Please open a file to edit.',
+                        });
+                        return;
+                    }
+
+                    webviewView.webview.postMessage({
+                        type: 'status',
+                        text: 'Agent processing request...',
+                    });
+
+                    agent.run(editor, msg.prompt).then(() => {
+                        webviewView.webview.postMessage({
+                            type: 'status',
+                            text: 'Ready',
+                        });
+                    }).catch((err: any) => {
+                        webviewView.webview.postMessage({
+                            type: 'error',
+                            text: err.message,
+                        });
+                    });
+                    return;
+                }
+
                 try {
                     const resp = await client.infer(msg.prompt);
                     webviewView.webview.postMessage({
