@@ -30,12 +30,15 @@ interface KnownNodeEntry {
 
 const LOOPBACK_IP = '127.0.0.1';
 const LOCAL_PROBE_TIMEOUT_MS = 2000;
+const SWARM_STALE_GRACE_POLLS = 3;
 
 /** The LAN IP address of this machine (detected via local node's status endpoint) */
 let localLanIp: string = '';
 
 /** All nodes known from swarm + mDNS + local probe */
 let knownNodes: KnownNodeEntry[] = [];
+/** Missed swarm refreshes for swarm-only nodes (keyed by endpoint host:port) */
+let swarmMissedPolls = new Map<string, number>();
 
 // ======================== Activation ========================
 
@@ -270,10 +273,16 @@ function upsertKnownNode(entry: KnownNodeEntry): void {
     }
 
     const previous = knownNodes[existingIdx];
-    // Prefer keeping the local-probe source and 127.0.0.1 URL so the local node
-    // is never removed during stale-swarm cleanup.
-    const keepSource = previous.source === 'local-probe' ? 'local-probe' : normalizedEntry.source;
-    const keepUrl = previous.source === 'local-probe' ? previous.url : normalizedEntry.url;
+    // Prefer keeping local-probe and mDNS identities so transient swarm gaps
+    // do not make discovered nodes disappear.
+    const keepSource =
+        previous.source === 'local-probe' || previous.source === 'mdns'
+            ? previous.source
+            : normalizedEntry.source;
+    const keepUrl =
+        previous.source === 'local-probe' || previous.source === 'mdns'
+            ? previous.url
+            : normalizedEntry.url;
     knownNodes[existingIdx] = {
         ...previous,
         ...normalizedEntry,
@@ -286,6 +295,7 @@ function upsertKnownNode(entry: KnownNodeEntry): void {
 
 function removeKnownNodeByUrl(url: string): void {
     knownNodes = knownNodes.filter(n => !isSameEndpoint(n.url, url));
+    swarmMissedPolls.delete(endpointKey(url));
 }
 
 type SwarmNode = SwarmData['nodes'][number];
@@ -399,10 +409,18 @@ async function pollStatus() {
         // Use isSameEndpoint so that 127.0.0.1 matches the LAN IP from swarm.
         knownNodes = knownNodes.filter(n => {
             if (n.source !== 'swarm') { return true; }
+
             for (const ep of seenSwarmEndpoints) {
-                if (isSameEndpoint(n.url, `http://${ep}`)) { return true; }
+                if (isSameEndpoint(n.url, `http://${ep}`)) {
+                    swarmMissedPolls.set(endpointKey(n.url), 0);
+                    return true;
+                }
             }
-            return false;
+
+            const key = endpointKey(n.url);
+            const misses = (swarmMissedPolls.get(key) ?? 0) + 1;
+            swarmMissedPolls.set(key, misses);
+            return misses < SWARM_STALE_GRACE_POLLS;
         });
 
         // Use knownNodes (all sources merged & deduped) for accurate count.
