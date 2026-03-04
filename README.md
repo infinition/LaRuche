@@ -1,3 +1,7 @@
+<div align="center">
+  <img width="287" height="317" alt="icon-removebg-preview" src="https://github.com/user-attachments/assets/a6a37836-7e97-4203-b041-1edb7ec36263" />
+</div>
+
 #  LaRuche - Networked Edge AI System
 
 > **"Branchez l'IA. C'est tout."**
