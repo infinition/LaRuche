@@ -111,15 +111,39 @@ cargo build --release
 
 ### 3. Start the LaRuche node
 
+With defaults (auto-detects network, uses Ollama on localhost):
 ```bash
-# With defaults (auto-detects network, uses Ollama on localhost)
 cargo run -p laruche-node
+```
 
-# With a specific model
+With a specific model — **Linux / macOS:**
+```bash
 LARUCHE_NAME=laruche-salon LARUCHE_MODEL=mistral cargo run -p laruche-node
+```
 
-# With TWO capabilities on the same node (e.g. Mistral for chat + DeepSeek for code)
+**Windows PowerShell:**
+```powershell
+$env:LARUCHE_NAME="laruche-salon"; $env:LARUCHE_MODEL="mistral"; cargo run -p laruche-node
+```
+
+**Windows CMD:**
+```cmd
+set LARUCHE_NAME=laruche-salon && set LARUCHE_MODEL=mistral && cargo run -p laruche-node
+```
+
+With TWO capabilities on the same node — **Linux / macOS:**
+```bash
 LARUCHE_CAP=llm LARUCHE_MODEL=mistral LARUCHE_CAP2=code LARUCHE_MODEL2=deepseek-coder cargo run -p laruche-node
+```
+
+**Windows PowerShell:**
+```powershell
+$env:LARUCHE_CAP="llm"; $env:LARUCHE_MODEL="mistral"; $env:LARUCHE_CAP2="code"; $env:LARUCHE_MODEL2="deepseek-coder"; cargo run -p laruche-node
+```
+
+**Windows CMD:**
+```cmd
+set LARUCHE_CAP=llm && set LARUCHE_MODEL=mistral && set LARUCHE_CAP2=code && set LARUCHE_MODEL2=deepseek-coder && cargo run -p laruche-node
 ```
 
 ### 4. Use the CLI
@@ -133,9 +157,21 @@ cargo run -p laruche-cli -- ask "Explique-moi la photosynthèse"
 
 # Interactive chat
 cargo run -p laruche-cli -- chat
+```
 
-# Or connect directly (skip discovery)
+Connect directly (skip discovery) — **Linux / macOS:**
+```bash
 LARUCHE_URL=http://localhost:8419 cargo run -p laruche-cli -- ask "Hello"
+```
+
+**Windows PowerShell:**
+```powershell
+$env:LARUCHE_URL="http://localhost:8419"; cargo run -p laruche-cli -- ask "Hello"
+```
+
+**Windows CMD:**
+```cmd
+set LARUCHE_URL=http://localhost:8419 && cargo run -p laruche-cli -- ask "Hello"
 ```
 
 ### 5. Open the Dashboard
@@ -296,8 +332,9 @@ async fn main() {
 
 ## Multi-Node Setup (Swarm)
 
-Start nodes on different machines on the same network:
+Start nodes on different machines on the same network.
 
+**Linux / macOS:**
 ```bash
 # Machine A
 LARUCHE_NAME=laruche-salon LARUCHE_MODEL=mistral cargo run -p laruche-node
@@ -307,6 +344,30 @@ LARUCHE_NAME=laruche-bureau LARUCHE_MODEL=codellama LARUCHE_CAP=code cargo run -
 
 # Machine C (with vision)
 LARUCHE_NAME=laruche-lab LARUCHE_MODEL=llava LARUCHE_CAP=vlm cargo run -p laruche-node
+```
+
+**Windows PowerShell:**
+```powershell
+# Machine A
+$env:LARUCHE_NAME="laruche-salon"; $env:LARUCHE_MODEL="mistral"; cargo run -p laruche-node
+
+# Machine B
+$env:LARUCHE_NAME="laruche-bureau"; $env:LARUCHE_MODEL="codellama"; $env:LARUCHE_CAP="code"; cargo run -p laruche-node
+
+# Machine C (with vision)
+$env:LARUCHE_NAME="laruche-lab"; $env:LARUCHE_MODEL="llava"; $env:LARUCHE_CAP="vlm"; cargo run -p laruche-node
+```
+
+**Windows CMD:**
+```cmd
+REM Machine A
+set LARUCHE_NAME=laruche-salon && set LARUCHE_MODEL=mistral && cargo run -p laruche-node
+
+REM Machine B
+set LARUCHE_NAME=laruche-bureau && set LARUCHE_MODEL=codellama && set LARUCHE_CAP=code && cargo run -p laruche-node
+
+REM Machine C (with vision)
+set LARUCHE_NAME=laruche-lab && set LARUCHE_MODEL=llava && set LARUCHE_CAP=vlm && cargo run -p laruche-node
 ```
 
 They discover each other automatically via LAND. The CLI and SDK
@@ -326,24 +387,42 @@ route requests to the best node for each capability.
 - [ ] Tensor sharding over Ethernet (Swarm Intelligence)
 - [ ] LaRuche Resilience (failover, hot-swap, mirroring)
 - [ ] NFC hardware integration
-- [ ] VS Code extension
+- [x] VS Code extension (auto-discovery, chat, agent, node/model picker)
 - [ ] Home Assistant plugin
 - [ ] Mobile app (iOS/Android)
 - [ ] LAND v1.0 specification (RFC)
 
 ### Dépannage réseau (mDNS)
 
-Si le CLI ne trouve pas votre nœud automatiquement :
+Si le CLI ou l'extension VS Code ne trouve pas votre nœud automatiquement :
 
-1.  **Vérifiez le Firewall :** La découverte utilise le port UDP **5353**.
-    ```bash
-    sudo ufw allow 5353/udp
-    ```
-2.  **IP Locale :** Les nœuds détectent désormais automatiquement votre IP locale. Vérifiez dans les logs du nœud que l'IP affichée est correcte.
-3.  **Variable d'environnement :** En dernier recours, forcez la connexion :
-    ```bash
-    export LARUCHE_URL=http://<IP_DU_NODE>:8419
-    ```
+1. **Vérifiez le Firewall :** La découverte mDNS utilise le port UDP **5353**.
+
+   Linux:
+   ```bash
+   sudo ufw allow 5353/udp
+   ```
+   Windows — autorisez dans le Pare-feu Windows Defender (règle entrante UDP 5353), ou via PowerShell (admin) :
+   ```powershell
+   New-NetFirewallRule -DisplayName "mDNS LaRuche" -Direction Inbound -Protocol UDP -LocalPort 5353 -Action Allow
+   ```
+
+2. **IP Locale :** Les nœuds détectent automatiquement votre IP locale. Vérifiez dans les logs du nœud que l'IP affichée est correcte.
+
+3. **Forcer la connexion** en dernier recours :
+
+   Linux / macOS:
+   ```bash
+   export LARUCHE_URL=http://<IP_DU_NODE>:8419
+   ```
+   Windows PowerShell:
+   ```powershell
+   $env:LARUCHE_URL="http://<IP_DU_NODE>:8419"
+   ```
+   Windows CMD:
+   ```cmd
+   set LARUCHE_URL=http://<IP_DU_NODE>:8419
+   ```
 
 ## 📜 Licence
 

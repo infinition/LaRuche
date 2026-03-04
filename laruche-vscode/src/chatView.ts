@@ -554,9 +554,12 @@ inputEl.addEventListener('keydown', e => {
 
 // ── New chat / History ──
 function newChat() {
-    if (!confirm('Démarrer une nouvelle conversation ?')) return;
-    vscode.postMessage({ type: 'newChat', currentHtml: messagesEl.innerHTML });
-    messagesEl.innerHTML = \`<div class="msg-container assistant"><div class="msg assistant">Bienvenue ! Je suis votre assistant LaRuche local.<div class="meta"><span>LaRuche v0.2.0</span><span>LAND Protocol</span></div></div></div>\`;
+    // VS Code webviews don't support confirm() — use extension-side dialog
+    vscode.postMessage({ type: 'confirmNewChat', currentHtml: messagesEl.innerHTML });
+}
+
+function _doResetChat() {
+    messagesEl.innerHTML = '<div class="msg-container assistant"><div class="msg assistant">Bienvenue ! Je suis votre assistant LaRuche local.<div class="meta"><span>LaRuche v0.2.0</span><span>LAND Protocol</span></div></div></div>';
     attachments = [];
     updateAttachmentUI();
     saveState();
@@ -710,28 +713,32 @@ function updateAttachmentUI() {
 }
 
 // ── Markdown renderer ──
+// Safe unique placeholder prefix (won't appear in normal text or HTML)
+const _PFX = '~~LR_';
+const _SFX = '_LR~~';
+
 function renderMarkdown(text) {
-    // 1. Extract fenced code blocks → placeholders (to protect them from other replacements)
+    // 1. Extract fenced code blocks first → store aside
     const codeBlocks = [];
-    text = text.replace(/\`\`\`([\w-]*)\n?([\s\S]*?)\`\`\`/g, (_, lang, code) => {
+    text = text.replace(/\`\`\`([\w-]*)\n?([\s\S]*?)\`\`\`/g, function(_, lang, code) {
         const idx = codeBlocks.length;
-        const langLabel = lang ? \`<span class="lang-label">\${escHtml(lang)}</span>\` : '';
-        codeBlocks.push(\`<div class="code-block">\${langLabel}<pre><code>\${escHtml(code.trim())}</code></pre></div>\`);
-        return \`\x00CODE\${idx}\x00\`;
+        const label = lang ? '<span class="lang-label">' + escHtml(lang) + '</span>' : '';
+        codeBlocks.push('<div class="code-block">' + label + '<pre><code>' + escHtml(code.trim()) + '</code></pre></div>');
+        return _PFX + 'CB' + idx + _SFX;
     });
 
-    // 2. Extract inline code → placeholders
+    // 2. Extract inline code
     const inlineCodes = [];
-    text = text.replace(/\`([^\`\n]+)\`/g, (_, c) => {
+    text = text.replace(/\`([^\`\n]+)\`/g, function(_, c) {
         const idx = inlineCodes.length;
-        inlineCodes.push(\`<code>\${escHtml(c)}</code>\`);
-        return \`\x00INLINE\${idx}\x00\`;
+        inlineCodes.push('<code>' + escHtml(c) + '</code>');
+        return _PFX + 'IC' + idx + _SFX;
     });
 
-    // 3. Escape remaining HTML
+    // 3. Escape remaining HTML (safe against injection)
     text = escHtml(text);
 
-    // 4. Apply markdown transformations
+    // 4. Markdown → HTML
     // Headers
     text = text.replace(/^### (.+)$/gm, '<h3>$1</h3>');
     text = text.replace(/^## (.+)$/gm, '<h2>$1</h2>');
@@ -739,26 +746,31 @@ function renderMarkdown(text) {
     // Bold / italic
     text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
     text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
-    // Blockquotes
+    // Blockquotes (escaped as &gt; after escapeHtml)
     text = text.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
-    // Unordered lists — convert items then group consecutive ones
-    text = text.replace(/^[-*] (.+)$/gm, '<li class="ul-item">$1</li>');
-    text = text.replace(/(<li class="ul-item">[\s\S]*?<\/li>)(\n(?!<li class="ul-item">)|$)/g,
-        (m) => m.replace(/<li class="ul-item">/g, '<li>'));
-    text = text.replace(/((?:<li>.*?<\/li>\n?)+)/g, '<ul>$1</ul>');
+    // Unordered lists
+    text = text.replace(/^[-*] (.+)$/gm, '<||LI||>$1</||LI||>');
+    text = text.replace(/((?:<\|\|LI\|\|>.*<\/\|\|LI\|\|>\n?)+)/g, function(m) {
+        return '<ul>' + m.replace(/<\|\|LI\|\|>/g, '<li>').replace(/<\/\|\|LI\|\|>/g, '</li>') + '</ul>';
+    });
     // Ordered lists
-    text = text.replace(/^\d+\. (.+)$/gm, '<li class="ol-item">$1</li>');
-    text = text.replace(/((?:<li class="ol-item">.*?<\/li>\n?)+)/g,
-        (m) => '<ol>' + m.replace(/<li class="ol-item">/g, '<li>') + '</ol>');
-    // Line breaks (only between non-block elements)
+    text = text.replace(/^\d+\. (.+)$/gm, '<||OLI||>$1</||OLI||>');
+    text = text.replace(/((?:<\|\|OLI\|\|>.*<\/\|\|OLI\|\|>\n?)+)/g, function(m) {
+        return '<ol>' + m.replace(/<\|\|OLI\|\|>/g, '<li>').replace(/<\/\|\|OLI\|\|>/g, '</li>') + '</ol>';
+    });
+    // Line breaks
     text = text.replace(/\n/g, '<br>');
-    // Remove <br> immediately inside / around block elements
-    text = text.replace(/<br>(<\/?(?:ul|ol|li|h[123]|pre|blockquote))/g, '$1');
-    text = text.replace(/(<\/(?:ul|ol|li|h[123]|pre|blockquote)>)<br>/g, '$1');
+    // Clean up <br> around block elements
+    text = text.replace(/<br>(<\/?(?:ul|ol|li|h[1-3]|blockquote))/g, '$1');
+    text = text.replace(/(<\/(?:ul|ol|li|h[1-3]|blockquote)>)<br>/g, '$1');
 
-    // 5. Restore placeholders
-    codeBlocks.forEach((block, i) => { text = text.replace(\`\x00CODE\${i}\x00\`, block); });
-    inlineCodes.forEach((ic, i) => { text = text.replace(\`\x00INLINE\${i}\x00\`, ic); });
+    // 5. Restore code placeholders (no null bytes, safe string markers)
+    codeBlocks.forEach(function(block, i) {
+        text = text.replace(_PFX + 'CB' + i + _SFX, block);
+    });
+    inlineCodes.forEach(function(ic, i) {
+        text = text.replace(_PFX + 'IC' + i + _SFX, ic);
+    });
 
     return text;
 }
@@ -831,6 +843,10 @@ window.addEventListener('message', event => {
             messagesEl.innerHTML = msg.html;
             messagesEl.scrollTop = messagesEl.scrollHeight;
             saveState();
+            break;
+
+        case 'resetChat':
+            _doResetChat();
             break;
 
         case 'nodesUpdate':
