@@ -70,11 +70,11 @@ Diff blocks:`;
         const mode = this.getMode();
 
         await vscode.window.withProgress({
-            location: vscode.ProgressLocation.Notification,
+            location: vscode.ProgressLocation.Window,
             title: `LaRuche Agent (${mode})`,
             cancellable: true,
         }, async (progress, token) => {
-            progress.report({ message: 'Analyzing code...' });
+            progress.report({ message: 'Analyzing...' });
 
             try {
                 const resp = await this.client.infer(prompt, 'code');
