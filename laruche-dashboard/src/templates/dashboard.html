@@ -181,7 +181,7 @@
     .res-track { flex:1; height:6px; background:rgba(255,255,255,.06); border-radius:3px; overflow:hidden; }
     .res-fill { height:100%; border-radius:3px; transition:width .5s ease; }
     .res-val { font-size:10px; font-weight:600; font-family:'JetBrains Mono',monospace; min-width:56px; text-align:right; }
-    .fill-green { background:var(--green); } .fill-amber { background:var(--amber); } .fill-red { background:var(--red); }
+    .fill-green { background:var(--green); } .fill-amber { background:var(--amber); } .fill-red { background:var(--red); } .fill-blue { background:var(--blue); }
     .res-divider { border:none; border-top:1px solid var(--border); margin:6px 0; }
     .res-stat { display:flex; justify-content:space-between; font-size:9px; padding:2px 0; }
     .res-stat-label { color:var(--text-dim); }
@@ -410,7 +410,7 @@
   let logCount = 0;
 
   /* Stable node tracking */
-  const NODE_GRACE_POLLS = 5;
+  const NODE_GRACE_POLLS = 10;
   let stableNodes = new Map();
 
   /* Debounce node count */
@@ -518,7 +518,8 @@
     var incomingIds = new Set();
     for (var i = 0; i < incomingNodes.length; i++) {
       var n = incomingNodes[i];
-      var id = n.node_id || n.host;
+      var endpointId = n.host + ':' + (n.port || 8419);
+      var id = n.node_id || endpointId;
       incomingIds.add(id);
       stableNodes.set(id, { node: n, missedPolls: 0 });
     }
@@ -626,6 +627,9 @@
         var caps = normalizedCaps.map(function(c) {
           return '<span class="badge ' + capBadge(c) + '">' + esc(c) + '</span>';
         }).join('');
+        if (!caps) {
+          caps = '<span class="badge b-rag">none</span>';
+        }
 
         var cpuMeta = (n.cpu_usage_pct != null) ? (n.cpu_usage_pct.toFixed(0) + '% CPU') : '';
         var ramMeta = (n.memory_usage_pct != null)
@@ -635,6 +639,7 @@
         var metaSuffix = perfMeta ? (' · ' + perfMeta) : '';
 
         var modelHtml = n.model ? '<div class="n-model">\u25C8 ' + esc(n.model) + '</div>' : '';
+        var hostLabel = n.host + ((n.port && n.port !== 8419) ? (':' + n.port) : '');
 
         var item = document.createElement('div');
         item.className = 'n-item';
@@ -643,7 +648,7 @@
           '<div class="n-info">' +
             '<div class="n-name">' + esc(n.name || 'Unknown') + '</div>' +
             modelHtml +
-            '<div class="n-meta">' + esc(n.host) + ' \u00B7 ' + tps + ' t/s \u00B7 Q:' + q + metaSuffix + '</div>' +
+            '<div class="n-meta">' + esc(hostLabel) + ' \u00B7 ' + tps + ' t/s \u00B7 Q:' + q + metaSuffix + '</div>' +
           '</div>' +
           '<div class="n-right"><div class="badges">' + caps + '</div></div>';
         list.appendChild(item);

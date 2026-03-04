@@ -25,7 +25,7 @@ use land_protocol::{
     qos::{QosPolicy, RequestQueue},
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, net::SocketAddr, sync::Arc, time::Duration};
+use std::{collections::HashSet, fs, net::SocketAddr, sync::Arc, time::Duration};
 use sysinfo::System;
 use tokio::sync::RwLock;
 use tracing::{error, info};
@@ -34,8 +34,8 @@ use uuid::Uuid;
 use std::collections::VecDeque;
 
 const DASHBOARD_HTML: &str = include_str!("../../laruche-dashboard/src/templates/dashboard.html");
-const PEER_FETCH_TIMEOUT_MS: u64 = 2500;
-const PEER_STALE_SECS: i64 = 30;
+const PEER_FETCH_TIMEOUT_MS: u64 = 4000;
+const PEER_STALE_SECS: i64 = 45;
 const MDNS_REANNOUNCE_INTERVAL_SECS: u64 = 2;
 const ACTIVITY_LOG_LIMIT: usize = 120;
 
@@ -74,6 +74,17 @@ struct CapabilityConfig {
     model_name: String,
     model_size: Option<String>,
     quantization: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+struct NodeConfigFile {
+    node_name: Option<String>,
+    tier: Option<HardwareTier>,
+    ollama_url: Option<String>,
+    default_model: Option<String>,
+    api_port: Option<u16>,
+    dashboard_port: Option<u16>,
+    capabilities: Option<Vec<CapabilityConfig>>,
 }
 
 impl Default for NodeConfig {
@@ -178,6 +189,7 @@ struct DiscoveredNodeInfo {
     node_id: Option<String>,
     name: Option<String>,
     host: String,
+    port: Option<u16>,
     capabilities: Vec<String>,
     /// Primary model running on this node (from LAND TXT record)
     model: Option<String>,
@@ -275,6 +287,31 @@ fn normalize_capabilities(caps: Vec<String>) -> Vec<String> {
     normalized
 }
 
+fn merge_capabilities(primary: Vec<String>, fallback: Vec<String>) -> Vec<String> {
+    let mut merged = normalize_capabilities(primary);
+    for cap in normalize_capabilities(fallback) {
+        if !merged.contains(&cap) {
+            merged.push(cap);
+        }
+    }
+    merged.sort();
+    merged.dedup();
+    merged
+}
+
+fn format_host_for_url(host: &str) -> String {
+    if host.contains(':') && !host.starts_with('[') && !host.ends_with(']') {
+        format!("[{host}]")
+    } else {
+        host.to_string()
+    }
+}
+
+fn endpoint_url(host: &str, port: u16, path: &str) -> String {
+    let safe_host = format_host_for_url(host);
+    format!("http://{safe_host}:{port}{path}")
+}
+
 fn is_stale(last_seen: chrono::DateTime<chrono::Utc>) -> bool {
     (chrono::Utc::now() - last_seen).num_seconds() > PEER_STALE_SECS
 }
@@ -284,7 +321,7 @@ async fn fetch_peer_status(
     host: &str,
     port: u16,
 ) -> Option<PeerStatusResponse> {
-    let url = format!("http://{host}:{port}/");
+    let url = endpoint_url(host, port, "/");
     match client.get(url).send().await {
         Ok(resp) if resp.status().is_success() => resp.json::<PeerStatusResponse>().await.ok(),
         _ => None,
@@ -296,7 +333,7 @@ async fn fetch_models_from_node(
     host: &str,
     port: u16,
 ) -> Option<ModelsResponse> {
-    let url = format!("http://{host}:{port}/models");
+    let url = endpoint_url(host, port, "/models");
     match client.get(url).send().await {
         Ok(resp) if resp.status().is_success() => resp.json::<ModelsResponse>().await.ok(),
         _ => None,
@@ -365,7 +402,7 @@ async fn get_status(State(state): State<Arc<AppState>>) -> Json<NodeStatus> {
         node_name: manifest.node_name.clone(),
         tier: format!("{:?}", manifest.hardware_tier).to_lowercase(),
         protocol_version: manifest.protocol_version.clone(),
-        capabilities: manifest.capabilities.to_flags(),
+        capabilities: normalize_capabilities(manifest.capabilities.to_flags()),
         tokens_per_sec: manifest.performance.tokens_per_sec,
         memory_usage_pct: mem_pct,
         cpu_usage_pct: cpu_pct,
@@ -402,6 +439,7 @@ async fn get_nodes(State(state): State<Arc<AppState>>) -> Json<DiscoveredNodesRe
             node_id: n.manifest.node_id.map(|id| id.to_string()),
             name: n.manifest.node_name.clone(),
             host: n.manifest.host.clone(),
+            port: n.manifest.port,
             capabilities: normalize_capabilities(
                 n.manifest
                     .capabilities
@@ -458,6 +496,7 @@ async fn get_swarm(State(state): State<Arc<AppState>>) -> Json<SwarmResponse> {
         node_id: Some(manifest.node_id.to_string()),
         name: Some(manifest.node_name.clone()),
         host: manifest.api_endpoint.host.clone(),
+        port: Some(manifest.api_endpoint.port),
         capabilities: normalize_capabilities(manifest.capabilities.to_flags()),
         model: local_model,
         tokens_per_sec: Some(manifest.performance.tokens_per_sec),
@@ -494,7 +533,15 @@ async fn get_swarm(State(state): State<Arc<AppState>>) -> Json<SwarmResponse> {
                 node_id: node.manifest.node_id.map(|id| id.to_string()),
                 name: Some(peer_status.node_name),
                 host: node.manifest.host.clone(),
-                capabilities: normalize_capabilities(peer_status.capabilities),
+                port: Some(peer_port),
+                capabilities: merge_capabilities(
+                    peer_status.capabilities,
+                    node.manifest
+                        .capabilities
+                        .iter()
+                        .map(|c| c.to_string())
+                        .collect(),
+                ),
                 model: node.manifest.model.clone(),
                 tokens_per_sec: Some(peer_status.tokens_per_sec),
                 queue_depth: Some(peer_status.queue_depth as u32),
@@ -518,6 +565,7 @@ async fn get_swarm(State(state): State<Arc<AppState>>) -> Json<SwarmResponse> {
                 node_id: node.manifest.node_id.map(|id| id.to_string()),
                 name: node.manifest.node_name.clone(),
                 host: node.manifest.host.clone(),
+                port: node.manifest.port,
                 capabilities: normalize_capabilities(
                     node.manifest
                         .capabilities
@@ -927,27 +975,30 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-fn load_config() -> Result<NodeConfig> {
-    let config_path = std::env::var("LARUCHE_CONFIG").unwrap_or_else(|_| "laruche.toml".into());
-    if std::path::Path::new(&config_path).exists() {
-        info!(path = %config_path, "Loaded config from file");
+fn parse_tier(value: &str) -> Option<HardwareTier> {
+    match value.to_ascii_lowercase().as_str() {
+        "nano" => Some(HardwareTier::Nano),
+        "core" => Some(HardwareTier::Core),
+        "pro" => Some(HardwareTier::Pro),
+        "max" => Some(HardwareTier::Max),
+        _ => None,
     }
+}
 
-    // Support up to 2 capabilities via env vars:
-    //   LARUCHE_CAP=llm  LARUCHE_MODEL=mistral
-    //   LARUCHE_CAP2=code LARUCHE_MODEL2=deepseek-coder  (optional)
-    let mut capabilities = vec![CapabilityConfig {
-        capability: std::env::var("LARUCHE_CAP").unwrap_or_else(|_| "llm".into()),
-        model_name: std::env::var("LARUCHE_MODEL").unwrap_or_else(|_| "mistral".into()),
-        model_size: Some("7B".into()),
-        quantization: Some("Q4_K_M".into()),
+fn parse_env_capabilities(default_model: &str) -> Option<Vec<CapabilityConfig>> {
+    let cap1 = std::env::var("LARUCHE_CAP").ok()?;
+    let model1 = std::env::var("LARUCHE_MODEL").unwrap_or_else(|_| default_model.to_string());
+
+    let mut caps = vec![CapabilityConfig {
+        capability: cap1,
+        model_name: model1,
+        model_size: None,
+        quantization: None,
     }];
 
-    if let (Ok(cap2), Ok(model2)) = (
-        std::env::var("LARUCHE_CAP2"),
-        std::env::var("LARUCHE_MODEL2"),
-    ) {
-        capabilities.push(CapabilityConfig {
+    if let Ok(cap2) = std::env::var("LARUCHE_CAP2") {
+        let model2 = std::env::var("LARUCHE_MODEL2").unwrap_or_else(|_| default_model.to_string());
+        caps.push(CapabilityConfig {
             capability: cap2,
             model_name: model2,
             model_size: None,
@@ -955,25 +1006,83 @@ fn load_config() -> Result<NodeConfig> {
         });
     }
 
-    Ok(NodeConfig {
-        node_name: std::env::var("LARUCHE_NAME")
-            .unwrap_or_else(|_| format!("laruche-{}", &Uuid::new_v4().to_string()[..6])),
-        tier: match std::env::var("LARUCHE_TIER").as_deref() {
-            Ok("nano") => HardwareTier::Nano,
-            Ok("pro") => HardwareTier::Pro,
-            Ok("max") => HardwareTier::Max,
-            _ => HardwareTier::Core,
-        },
-        ollama_url: std::env::var("OLLAMA_URL").unwrap_or_else(|_| "http://127.0.0.1:11434".into()),
-        default_model: std::env::var("LARUCHE_MODEL").unwrap_or_else(|_| "mistral".into()),
-        api_port: std::env::var("LARUCHE_PORT")
-            .ok()
-            .and_then(|p| p.parse().ok())
-            .unwrap_or(land_protocol::DEFAULT_API_PORT),
-        dashboard_port: std::env::var("LARUCHE_DASH_PORT")
-            .ok()
-            .and_then(|p| p.parse().ok())
-            .unwrap_or(land_protocol::DEFAULT_DASHBOARD_PORT),
-        capabilities,
-    })
+    Some(caps)
+}
+
+fn load_config() -> Result<NodeConfig> {
+    let config_path = std::env::var("LARUCHE_CONFIG").unwrap_or_else(|_| "laruche.toml".into());
+    let mut config = NodeConfig::default();
+
+    if std::path::Path::new(&config_path).exists() {
+        let raw = fs::read_to_string(&config_path)?;
+        let file_cfg: NodeConfigFile = toml::from_str(&raw)?;
+
+        if let Some(v) = file_cfg.node_name {
+            config.node_name = v;
+        }
+        if let Some(v) = file_cfg.tier {
+            config.tier = v;
+        }
+        if let Some(v) = file_cfg.ollama_url {
+            config.ollama_url = v;
+        }
+        if let Some(v) = file_cfg.default_model {
+            config.default_model = v;
+        }
+        if let Some(v) = file_cfg.api_port {
+            config.api_port = v;
+        }
+        if let Some(v) = file_cfg.dashboard_port {
+            config.dashboard_port = v;
+        }
+        if let Some(v) = file_cfg.capabilities {
+            config.capabilities = v;
+        }
+
+        info!(path = %config_path, "Loaded config file");
+    }
+
+    if let Ok(v) = std::env::var("LARUCHE_NAME") {
+        config.node_name = v;
+    }
+    if let Ok(v) = std::env::var("LARUCHE_TIER") {
+        if let Some(tier) = parse_tier(&v) {
+            config.tier = tier;
+        }
+    }
+    if let Ok(v) = std::env::var("OLLAMA_URL") {
+        config.ollama_url = v;
+    }
+    if let Ok(v) = std::env::var("LARUCHE_MODEL") {
+        config.default_model = v;
+    }
+    if let Ok(v) = std::env::var("LARUCHE_PORT") {
+        if let Ok(port) = v.parse::<u16>() {
+            config.api_port = port;
+        }
+    }
+    if let Ok(v) = std::env::var("LARUCHE_DASH_PORT") {
+        if let Ok(port) = v.parse::<u16>() {
+            config.dashboard_port = port;
+        }
+    }
+
+    if let Some(caps) = parse_env_capabilities(&config.default_model) {
+        config.capabilities = caps;
+    }
+
+    if config.capabilities.is_empty() {
+        config.capabilities = vec![CapabilityConfig {
+            capability: "llm".into(),
+            model_name: config.default_model.clone(),
+            model_size: Some("7B".into()),
+            quantization: Some("Q4_K_M".into()),
+        }];
+    }
+
+    for cap in &mut config.capabilities {
+        cap.capability = normalize_capability_label(&cap.capability);
+    }
+
+    Ok(config)
 }

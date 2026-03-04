@@ -33,10 +33,13 @@ export type NodeLostCallback = (url: string) => void;
 const LAND_SERVICE_TYPE = 'ai-inference';
 /** Re-browse interval to catch missed mDNS announcements (ms) */
 const REBROWSE_INTERVAL_MS = 15000;
+/** Grace period before emitting node lost (absorbs transient mDNS DOWN events) */
+const NODE_LOST_GRACE_MS = 12000;
 
 export class LandDiscovery {
-    // Keyed by primary IPv4 to enforce strict deduplication: 1 IP = 1 node.
+    // Keyed by service endpoint (IPv4 when available, otherwise host:port fallback).
     private nodes = new Map<string, DiscoveredLandNode>();
+    private pendingNodeLost = new Map<string, ReturnType<typeof setTimeout>>();
     private bonjour: any = null;
     private browser: any = null;
     private active = false;
@@ -103,61 +106,54 @@ export class LandDiscovery {
             }));
 
             const ip = this.extractPrimaryIPv4(service);
-            if (!ip) {
-                console.warn(`LaRuche: Ignoring mDNS service without IPv4: ${service.name}`);
-                return;
-            }
-
             const node = this.parseService(service, ip);
             if (!node) {
                 console.warn('LaRuche: Could not parse mDNS service:', service.name);
                 return;
             }
 
-            const existing = this.nodes.get(ip);
-            this.nodes.set(ip, node);
+            const key = this.serviceKey(service, node, ip);
+            this.clearPendingRemoval(key);
+            const existing = this.nodes.get(key);
+            this.nodes.set(key, node);
 
-            // Same IP rediscovered with a different endpoint: replace old entry.
+            // Same service key rediscovered with a different endpoint: replace old entry.
             if (existing && existing.url !== node.url) {
-                console.log(`LaRuche: LAND node replaced for IP ${ip}: ${existing.url} -> ${node.url}`);
+                console.log(`LaRuche: LAND node replaced (${key}): ${existing.url} -> ${node.url}`);
                 this.onLost(existing.url);
                 this.onFound(node);
                 return;
             }
 
             if (!existing) {
-                console.log(`LaRuche: LAND node discovered: ${node.name} @ ${node.url} (ip: ${ip})`);
+                console.log(`LaRuche: LAND node discovered: ${node.name} @ ${node.url} (key: ${key})`);
                 this.onFound(node);
                 return;
             }
 
             if (!this.sameNode(existing, node)) {
-                console.log(`LaRuche: LAND node updated for IP ${ip}: ${node.name} @ ${node.url}`);
+                console.log(`LaRuche: LAND node updated (${key}): ${node.name} @ ${node.url}`);
                 this.onFound(node);
             }
         });
 
         this.browser.on('down', (service: any) => {
-            const ip = this.extractPrimaryIPv4(service);
-            if (ip) {
-                const existing = this.nodes.get(ip);
-                if (existing) {
-                    console.log(`LaRuche: mDNS service DOWN (ip: ${ip}) -> ${existing.url}`);
-                    this.nodes.delete(ip);
-                    this.onLost(existing.url);
-                    return;
-                }
+            const key = this.serviceKey(service);
+            const existing = this.nodes.get(key);
+            if (existing) {
+                console.log(`LaRuche: mDNS service DOWN (${key}) -> grace ${NODE_LOST_GRACE_MS}ms`);
+                this.scheduleNodeRemoval(key, existing.url);
+                return;
             }
 
-            // Fallback when DOWN event has no IPv4 but does include host/port.
+            // Fallback when DOWN event uses a slightly different key shape.
             const host = this.extractHost(service);
             const port = (service.port as number) || 8419;
-            const url = `http://${host}:${port}`;
+            const url = this.formatHttpUrl(host, port);
             const entry = this.findByUrl(url);
             if (entry) {
-                console.log(`LaRuche: mDNS service DOWN (fallback url): ${url}`);
-                this.nodes.delete(entry.ip);
-                this.onLost(entry.node.url);
+                console.log(`LaRuche: mDNS service DOWN (fallback ${entry.key}) -> grace ${NODE_LOST_GRACE_MS}ms`);
+                this.scheduleNodeRemoval(entry.key, entry.node.url);
             }
         });
     }
@@ -185,6 +181,10 @@ export class LandDiscovery {
             clearInterval(this.rebrowseTimer);
             this.rebrowseTimer = null;
         }
+        for (const timer of this.pendingNodeLost.values()) {
+            clearTimeout(timer);
+        }
+        this.pendingNodeLost.clear();
         try {
             if (this.browser) { this.browser.stop(); this.browser = null; }
             if (this.bonjour) { this.bonjour.destroy(); this.bonjour = null; }
@@ -203,10 +203,10 @@ export class LandDiscovery {
         return Array.from(this.nodes.values()).find(node => node.url === url);
     }
 
-    private findByUrl(url: string): { ip: string; node: DiscoveredLandNode } | undefined {
-        for (const [ip, node] of this.nodes.entries()) {
+    private findByUrl(url: string): { key: string; node: DiscoveredLandNode } | undefined {
+        for (const [key, node] of this.nodes.entries()) {
             if (node.url === url) {
-                return { ip, node };
+                return { key, node };
             }
         }
         return undefined;
@@ -240,17 +240,61 @@ export class LandDiscovery {
             if (ipv4) { return ipv4; }
             // Fallback to first non-link-local address
             const nonLinkLocal = addresses.find((a: string) => !a.startsWith('fe80'));
-            return nonLinkLocal ?? addresses[0];
+            return (nonLinkLocal ?? addresses[0]).split('%')[0];
         }
         // Strip .local. suffix from hostname
         const host = service.host as string | undefined;
         return host ? host.replace(/\.local\.?$/, '') : 'localhost';
     }
 
+    private formatHttpUrl(host: string, port: number): string {
+        const needsBracket = host.includes(':') && !host.startsWith('[') && !host.endsWith(']');
+        const safeHost = needsBracket ? `[${host}]` : host;
+        return `http://${safeHost}:${port}`;
+    }
+
+    private serviceKey(service: any, node?: DiscoveredLandNode, ipv4?: string): string {
+        if (ipv4 && node) {
+            return `${ipv4}:${node.port}`;
+        }
+        if (ipv4) {
+            const port = (service.port as number) || 8419;
+            return `${ipv4}:${port}`;
+        }
+        if (node) {
+            return `${node.host}:${node.port}`.toLowerCase();
+        }
+        const host = this.extractHost(service).toLowerCase();
+        const port = (service.port as number) || 8419;
+        return `${host}:${port}`;
+    }
+
+    private clearPendingRemoval(key: string): void {
+        const timer = this.pendingNodeLost.get(key);
+        if (timer) {
+            clearTimeout(timer);
+            this.pendingNodeLost.delete(key);
+        }
+    }
+
+    private scheduleNodeRemoval(key: string, url: string): void {
+        this.clearPendingRemoval(key);
+        const timer = setTimeout(() => {
+            this.pendingNodeLost.delete(key);
+            const existing = this.nodes.get(key);
+            if (!existing || existing.url !== url) {
+                return;
+            }
+            this.nodes.delete(key);
+            this.onLost(url);
+        }, NODE_LOST_GRACE_MS);
+        this.pendingNodeLost.set(key, timer);
+    }
+
     private parseService(service: any, hostOverride?: string): DiscoveredLandNode | null {
         const host = hostOverride ?? this.extractHost(service);
         const port = (service.port as number) || 8419;
-        const url = `http://${host}:${port}`;
+        const url = this.formatHttpUrl(host, port);
 
         // TXT records are key-value pairs. bonjour-service exposes them as `service.txt`
         const txt = (service.txt as Record<string, string | undefined>) || {};
