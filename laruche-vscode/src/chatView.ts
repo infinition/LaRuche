@@ -249,6 +249,23 @@ const btnEdit = document.getElementById('mode-edit');
 
 let currentMode = 'chat';
 
+// Restore previous state if available
+const previousState = vscode.getState();
+if (previousState && previousState.messagesHtml) {
+    messagesEl.innerHTML = previousState.messagesHtml;
+    // Keep the welcome message if empty
+    if (!messagesEl.innerHTML.trim()) {
+        messagesEl.innerHTML = \`<div class="msg assistant">Bienvenue! Je suis votre assistant LaRuche local. Posez-moi une question ou envoyez du code a analyser.<div class="meta"><span>LaRuche v0.1.0</span><span>LAND Protocol</span></div></div>\`;
+    }
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function saveState() {
+    vscode.setState({ messagesHtml: messagesEl.innerHTML });
+}
+
+let currentMessageDiv = null;
+
 function setMode(mode) {
     currentMode = mode;
     if (mode === 'chat') {
@@ -309,6 +326,7 @@ function addMessage(role, content, meta) {
     
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
+    saveState();
 }
 
 // Handle messages from extension
