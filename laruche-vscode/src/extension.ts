@@ -209,7 +209,7 @@ function onNodeLost(url: string) {
 let activeNodeOnline = false;
 
 function normalizeHost(host: string): string {
-    const lowered = host.toLowerCase();
+    const lowered = host.trim().toLowerCase();
     return lowered === 'localhost' ? LOOPBACK_IP : lowered;
 }
 
@@ -220,6 +220,22 @@ function parseNodeUrl(url: string): { host: string; port: string } | undefined {
         return { host: normalizeHost(parsed.hostname), port };
     } catch {
         return undefined;
+    }
+}
+
+function parseHostPort(hostOrUrl: string, defaultPort: string = "8419"): { host: string; port: string } {
+    const raw = hostOrUrl.trim();
+    if (!raw) {
+        return { host: LOOPBACK_IP, port: defaultPort };
+    }
+    try {
+        const asUrl = raw.includes('://') ? new URL(raw) : new URL(`http://${raw}`);
+        return {
+            host: normalizeHost(asUrl.hostname),
+            port: asUrl.port || defaultPort,
+        };
+    } catch {
+        return { host: normalizeHost(raw), port: defaultPort };
     }
 }
 
@@ -258,7 +274,8 @@ function removeKnownNodeByUrl(url: string): void {
 type SwarmNode = SwarmData['nodes'][number];
 
 function swarmNodeEndpointKey(node: SwarmNode): string {
-    return `${normalizeHost(node.host)}:8419`;
+    const endpoint = parseHostPort(node.host, "8419");
+    return `${endpoint.host}:${endpoint.port}`;
 }
 
 function swarmNodeScore(node: SwarmNode): number {
@@ -326,11 +343,12 @@ async function pollStatus() {
 
         // Merge swarm nodes into knownNodes and refresh stale entries.
         for (const n of dedupedSwarmNodes) {
-            const url = `http://${n.host}:8419`;
-            seenSwarmEndpoints.add(endpointKey(url));
+            const endpoint = parseHostPort(n.host, "8419");
+            const url = `http://${endpoint.host}:${endpoint.port}`;
+            seenSwarmEndpoints.add(`${endpoint.host}:${endpoint.port}`);
             upsertKnownNode({
                 url,
-                name: n.name || n.host,
+                name: n.name || endpoint.host,
                 model: n.model ?? undefined,
                 capabilities: n.capabilities,
                 source: 'swarm',
@@ -438,12 +456,13 @@ async function cmdShowSwarm() {
         });
 
         for (const n of dedupedSwarmNodes) {
-            const url = `http://${n.host}:8419`;
+            const endpoint = parseHostPort(n.host, "8419");
+            const url = `http://${endpoint.host}:${endpoint.port}`;
             const modelLabel = n.model ? ` [${n.model}]` : '';
             const isActive = isSameEndpoint(activeNodeUrl, url);
             items.push({
-                label: `${isActive ? '$(check) ' : '$(server) '}${n.name || 'Unknown'}${modelLabel}`,
-                description: `${n.host} | ${n.tokens_per_sec?.toFixed(1) || '?'} t/s | Q:${n.queue_depth || 0}`,
+                label: `${isActive ? '$(check) ' : '$(server) '}${n.name || endpoint.host}${modelLabel}`,
+                description: `${endpoint.host} | ${n.tokens_per_sec?.toFixed(1) || '?'} t/s | Q:${n.queue_depth || 0}`,
                 detail: `Capabilities: ${n.capabilities.join(', ') || 'none'}`,
             });
         }
