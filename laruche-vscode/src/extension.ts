@@ -534,6 +534,71 @@ async function handleWebviewMessage(
         case 'selectModel':
             await cmdSelectModel(context);
             break;
+
+        case 'newChat':
+            if (msg.currentHtml && msg.currentHtml.trim().length > 200) {
+                saveChatToHistory(context, msg.currentHtml);
+            }
+            break;
+
+        case 'getHistory': {
+            const history = getChatHistory(context);
+            if (history.length === 0) {
+                vscode.window.showInformationMessage('LaRuche: Aucun historique de conversation.');
+                return;
+            }
+            const histItems = history.map((h: any, i: number) => ({
+                label: `$(history) ${h.title}`,
+                description: new Date(h.timestamp).toLocaleString(),
+                index: i,
+            }));
+            const sel = await vscode.window.showQuickPick(histItems, {
+                title: 'LaRuche — Historique des conversations',
+                placeHolder: 'Sélectionnez une conversation à charger',
+            });
+            if (sel) {
+                webview.postMessage({ type: 'loadChat', html: history[(sel as any).index].html });
+            }
+            break;
+        }
+
+        case 'upload': {
+            const fileUri = await vscode.window.showOpenDialog({
+                canSelectMany: false,
+                openLabel: 'Joindre',
+                filters: {
+                    'Fichiers': ['png', 'jpg', 'jpeg', 'gif', 'txt', 'md', 'js', 'ts', 'py', 'rs', 'html', 'css', 'json', 'toml', 'yaml', 'yml'],
+                },
+            });
+            if (!fileUri || !fileUri[0]) { break; }
+            const uri = fileUri[0];
+            const fileName = uri.path.split('/').pop() || 'file';
+            const ext = fileName.split('.').pop()?.toLowerCase() || '';
+            try {
+                const data = await vscode.workspace.fs.readFile(uri);
+                const isImage = ['png', 'jpg', 'jpeg', 'gif'].includes(ext);
+                if (isImage) {
+                    const b64 = Buffer.from(data).toString('base64');
+                    webview.postMessage({
+                        type: 'fileContent',
+                        name: fileName,
+                        fileType: `image/${ext}`,
+                        data: `data:image/${ext};base64,${b64}`,
+                        content: `[Image: ${fileName}]`,
+                    });
+                } else {
+                    webview.postMessage({
+                        type: 'fileContent',
+                        name: fileName,
+                        fileType: 'text/plain',
+                        content: Buffer.from(data).toString('utf8').slice(0, 40000),
+                    });
+                }
+            } catch (err: any) {
+                vscode.window.showErrorMessage(`LaRuche: Erreur lecture fichier — ${err.message}`);
+            }
+            break;
+        }
     }
 }
 
@@ -608,4 +673,26 @@ function notifyWebviews(msg: object) {
 
 function formatMB(mb: number): string {
     return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`;
+}
+
+// ======================== Chat History ========================
+
+function saveChatToHistory(context: vscode.ExtensionContext, html: string) {
+    const history = context.globalState.get<any[]>('laruche.chatHistory', []);
+
+    // Extract first user message text as title (works with msg-container structure)
+    let title = 'Conversation ' + new Date().toLocaleTimeString();
+    const match = html.match(/class="msg user"[^>]*>([\s\S]*?)<\/div>/);
+    if (match) {
+        const raw = match[1].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+        if (raw.length > 0) { title = raw.slice(0, 55) + (raw.length > 55 ? '…' : ''); }
+    }
+
+    history.push({ title, html, timestamp: Date.now() });
+    if (history.length > 20) { history.shift(); }
+    context.globalState.update('laruche.chatHistory', history);
+}
+
+function getChatHistory(context: vscode.ExtensionContext): any[] {
+    return [...(context.globalState.get<any[]>('laruche.chatHistory', []))].reverse();
 }
