@@ -8,7 +8,8 @@
       "Bash(xxd)",
       "Bash(MSYSTEM=MINGW64 PATH=\"/c/DEV/MSYS2/mingw64/bin:$PATH\" cargo build)",
       "Bash(MSYSTEM=MINGW64 PATH=\"/c/DEV/MSYS2/mingw64/bin:$PATH\" cargo check)",
-      "Bash(cargo check)"
+      "Bash(cargo check)",
+      "Bash(taskkill //F //IM laruche-node.exe)"
     ]
   }
 }
