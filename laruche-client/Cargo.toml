@@ -5,7 +5,7 @@ edition.workspace = true
 description = "LaRuche Client SDK - Discover and query LaRuche nodes in 3 lines of code"
 
 [dependencies]
-land-protocol = { git = "https://github.com/infinition/land-protocol" }
+land-protocol.workspace = true
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true

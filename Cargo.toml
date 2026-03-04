@@ -15,6 +15,7 @@ license = "MPL-2.0"
 description = "LaRuche - Networked Edge AI System with LAND Protocol"
 
 [workspace.dependencies]
+land-protocol = { git = "https://github.com/infinition/land-protocol" }
 # Async runtime
 tokio = { version = "1", features = ["full"] }
 # Serialization
@@ -46,6 +47,3 @@ base64 = "0.22"
 local-ip-address = "0.6"
 # System metrics (CPU, RAM, temperature)
 sysinfo = "0.32"
-
-[patch."https://github.com/infinition/land-protocol"]
-land-protocol = { path = "../land-protocol" }
