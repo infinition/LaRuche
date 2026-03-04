@@ -155,6 +155,27 @@ export class LaRucheClient {
         return this.request<InferResponse>('/infer', 'POST', body, 600000);
     }
 
+    /**
+     * Run inference with a shorter timeout suitable for interactive chat.
+     * Defaults to 120s instead of 10min.
+     */
+    async inferChat(
+        prompt: string,
+        capability: string = 'llm',
+        model?: string,
+        timeoutMs: number = 120000,
+    ): Promise<InferResponse> {
+        const body: Record<string, unknown> = {
+            prompt,
+            capability,
+            qos: 'normal',
+        };
+        if (model) {
+            body['model'] = model;
+        }
+        return this.request<InferResponse>('/infer', 'POST', body, timeoutMs);
+    }
+
     async health(): Promise<boolean> {
         try {
             await this.request<string>('/health', 'GET', undefined, 3000);
@@ -164,3 +185,4 @@ export class LaRucheClient {
         }
     }
 }
+

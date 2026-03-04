@@ -478,7 +478,7 @@ function openChatPanel(context: vscode.ExtensionContext) {
 class ChatViewProvider implements vscode.WebviewViewProvider {
     private view: vscode.WebviewView | undefined;
 
-    constructor(private readonly context: vscode.ExtensionContext) {}
+    constructor(private readonly context: vscode.ExtensionContext) { }
 
     postMessage(msg: object): void {
         this.view?.webview.postMessage(msg);
@@ -643,7 +643,7 @@ async function handleChatAsk(
     const capability = msg.capability || 'llm';
 
     try {
-        const resp = await client.infer(msg.prompt, capability, modelOverride);
+        const resp = await client.inferChat(msg.prompt, capability, modelOverride);
         webview.postMessage({
             type: 'response',
             text: resp.response,
@@ -666,7 +666,7 @@ async function askAndShow(prompt: string) {
         cancellable: false,
     }, async () => {
         try {
-            const resp = await client.infer(prompt, 'llm', activeModel || undefined);
+            const resp = await client.inferChat(prompt, 'llm', activeModel || undefined);
             const doc = await vscode.workspace.openTextDocument({
                 content: resp.response,
                 language: 'markdown',
