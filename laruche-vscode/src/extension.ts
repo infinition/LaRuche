@@ -172,10 +172,10 @@ function onNodeDiscovered(node: DiscoveredLandNode, context: vscode.ExtensionCon
             if (ok) {
                 setActiveNode(node.url, context);
                 vscode.window.showInformationMessage(
-                    `LaRuche: Connecté à ${node.name} via LAND${node.model ? ` (${node.model})` : ''}`,
-                    'OK', 'Changer de nœud',
+                    `LaRuche: ConnectÃ© Ã  ${node.name} via LAND${node.model ? ` (${node.model})` : ''}`,
+                    'OK', 'Changer de nÅ“ud',
                 ).then(choice => {
-                    if (choice === 'Changer de nœud') { cmdSelectNode(context); }
+                    if (choice === 'Changer de nÅ“ud') { cmdSelectNode(context); }
                 });
                 void pollStatus();
             }
@@ -190,7 +190,7 @@ function onNodeLost(url: string) {
     notifyWebviews({ type: 'nodesUpdate', nodes: knownNodes, activeNodeUrl, activeModel });
 
     if (url === activeNodeUrl) {
-        // Our active node disappeared — try to fall back to another
+        // Our active node disappeared â€” try to fall back to another
         const fallback = knownNodes[0];
         if (fallback) {
             activeNodeUrl = fallback.url;
@@ -255,6 +255,33 @@ function removeKnownNodeByUrl(url: string): void {
     knownNodes = knownNodes.filter(n => !isSameEndpoint(n.url, url));
 }
 
+type SwarmNode = SwarmData['nodes'][number];
+
+function swarmNodeEndpointKey(node: SwarmNode): string {
+    return `${normalizeHost(node.host)}:8419`;
+}
+
+function swarmNodeScore(node: SwarmNode): number {
+    let score = 0;
+    if (node.model) { score += 8; }
+    if (node.capabilities && node.capabilities.length > 0) { score += 4 + node.capabilities.length; }
+    if (node.name) { score += 2; }
+    if ((node.tokens_per_sec ?? 0) > 0) { score += 1; }
+    return score;
+}
+
+function dedupeSwarmNodes(nodes: SwarmNode[]): SwarmNode[] {
+    const byEndpoint = new Map<string, SwarmNode>();
+    for (const node of nodes) {
+        const key = swarmNodeEndpointKey(node);
+        const existing = byEndpoint.get(key);
+        if (!existing || swarmNodeScore(node) >= swarmNodeScore(existing)) {
+            byEndpoint.set(key, node);
+        }
+    }
+    return Array.from(byEndpoint.values());
+}
+
 async function checkLocalNode(): Promise<void> {
     const apiPort = vscode.workspace.getConfiguration('laruche').get<number>('apiPort', 8419);
     const localUrl = `http://${LOOPBACK_IP}:${apiPort}`;
@@ -292,12 +319,13 @@ async function pollStatus() {
 
     try {
         const swarm = await client.swarm();
+        const dedupedSwarmNodes = dedupeSwarmNodes(swarm.nodes);
         activeNodeOnline = true;
 
         const seenSwarmEndpoints = new Set<string>();
 
         // Merge swarm nodes into knownNodes and refresh stale entries.
-        for (const n of swarm.nodes) {
+        for (const n of dedupedSwarmNodes) {
             const url = `http://${n.host}:8419`;
             seenSwarmEndpoints.add(endpointKey(url));
             upsertKnownNode({
@@ -312,11 +340,11 @@ async function pollStatus() {
         // Remove stale swarm-only entries that no longer exist in latest swarm response.
         knownNodes = knownNodes.filter(n => n.source !== 'swarm' || seenSwarmEndpoints.has(endpointKey(n.url)));
 
-        const nodeCount = swarm.total_nodes;
+        const nodeCount = dedupedSwarmNodes.length;
         const tps = swarm.collective_tps.toFixed(1);
         const modelLabel = activeModel ? ` ? ${activeModel}` : '';
         statusBarItem.text = `$(beaker) ${nodeCount} node${nodeCount !== 1 ? 's' : ''} ? ${tps} t/s${modelLabel}`;
-        statusBarItem.tooltip = buildSwarmTooltip(swarm);
+        statusBarItem.tooltip = buildSwarmTooltip(swarm, nodeCount);
         statusBarItem.backgroundColor = undefined;
 
         notifyWebviews({
@@ -332,10 +360,9 @@ async function pollStatus() {
         notifyWebviews({ type: 'nodesUpdate', nodes: knownNodes, activeNodeUrl, activeModel });
     }
 }
-
-function buildSwarmTooltip(swarm: SwarmData): string {
+function buildSwarmTooltip(swarm: SwarmData, nodeCount: number = swarm.total_nodes): string {
     const lines = [
-        `Swarm: ${swarm.total_nodes} nodes | ${swarm.collective_tps.toFixed(1)} tok/s`,
+        `Swarm: ${nodeCount} nodes | ${swarm.collective_tps.toFixed(1)} tok/s`,
         `Queue: ${swarm.collective_queue} | RAM: ${formatMB(swarm.total_ram_mb)}`,
         `Active node: ${activeNodeUrl}`,
         activeModel ? `Active model: ${activeModel}` : 'Model: node default',
@@ -401,20 +428,22 @@ async function cmdRefactorSelection() {
 async function cmdShowSwarm() {
     try {
         const swarm = await client.swarm();
+        const dedupedSwarmNodes = dedupeSwarmNodes(swarm.nodes);
         const items: vscode.QuickPickItem[] = [];
 
         items.push({
             label: `$(zap) Collective Power`,
-            description: `${swarm.total_nodes} nodes · ${swarm.collective_tps.toFixed(1)} t/s · Q:${swarm.collective_queue}`,
+            description: `${dedupedSwarmNodes.length} visible node${dedupedSwarmNodes.length !== 1 ? 's' : ''} | ${swarm.collective_tps.toFixed(1)} t/s | Q:${swarm.collective_queue}`,
             detail: `RAM: ${formatMB(swarm.total_ram_mb)} | VRAM: ${formatMB(swarm.total_vram_mb)}`,
         });
 
-        for (const n of swarm.nodes) {
+        for (const n of dedupedSwarmNodes) {
+            const url = `http://${n.host}:8419`;
             const modelLabel = n.model ? ` [${n.model}]` : '';
-            const isActive = activeNodeUrl.includes(n.host);
+            const isActive = isSameEndpoint(activeNodeUrl, url);
             items.push({
                 label: `${isActive ? '$(check) ' : '$(server) '}${n.name || 'Unknown'}${modelLabel}`,
-                description: `${n.host} · ${n.tokens_per_sec?.toFixed(1) || '?'} t/s · Q:${n.queue_depth || 0}`,
+                description: `${n.host} | ${n.tokens_per_sec?.toFixed(1) || '?'} t/s | Q:${n.queue_depth || 0}`,
                 detail: `Capabilities: ${n.capabilities.join(', ') || 'none'}`,
             });
         }
@@ -424,10 +453,9 @@ async function cmdShowSwarm() {
             placeHolder: 'Your local AI collective',
         });
     } catch (err: any) {
-        vscode.window.showErrorMessage(`LaRuche: Cannot reach node — ${err.message}`);
+        vscode.window.showErrorMessage(`LaRuche: Cannot reach node - ${err.message}`);
     }
 }
-
 async function cmdSelectNode(context: vscode.ExtensionContext) {
     const items: vscode.QuickPickItem[] = [];
 
@@ -437,8 +465,8 @@ async function cmdSelectNode(context: vscode.ExtensionContext) {
         const isActive = n.url === activeNodeUrl;
         items.push({
             label: `${isActive ? '$(check) ' : '$(remote-explorer) '}${n.name}`,
-            description: `${n.url}${n.model ? ` · ${n.model}` : ''}`,
-            detail: `Discovered via LAND · ${n.capabilities.join(', ') || 'no capabilities'}`,
+            description: `${n.url}${n.model ? ` Â· ${n.model}` : ''}`,
+            detail: `Discovered via LAND Â· ${n.capabilities.join(', ') || 'no capabilities'}`,
         });
     }
 
@@ -448,8 +476,8 @@ async function cmdSelectNode(context: vscode.ExtensionContext) {
             const isActive = n.url === activeNodeUrl;
             items.push({
                 label: `${isActive ? '$(check) ' : '$(server) '}${n.name}`,
-                description: `${n.url}${n.model ? ` · ${n.model}` : ''}`,
-                detail: `Discovered via Swarm · ${n.capabilities.join(', ') || 'no capabilities'}`,
+                description: `${n.url}${n.model ? ` Â· ${n.model}` : ''}`,
+                detail: `Discovered via Swarm Â· ${n.capabilities.join(', ') || 'no capabilities'}`,
             });
         }
     }
@@ -462,7 +490,7 @@ async function cmdSelectNode(context: vscode.ExtensionContext) {
     });
 
     const selected = await vscode.window.showQuickPick(items, {
-        title: 'LaRuche — Select Active Node',
+        title: 'LaRuche â€” Select Active Node',
         placeHolder: items.length === 1 ? 'No nodes discovered yet' : 'Choose which node to use',
     });
 
@@ -481,7 +509,7 @@ async function cmdSelectNode(context: vscode.ExtensionContext) {
         }
     } else {
         // Extract URL from description
-        const url = selected.description?.split(' · ')[0];
+        const url = selected.description?.split(' Â· ')[0];
         if (url) {
             setActiveNode(url, context);
             vscode.window.showInformationMessage(`LaRuche: Switched to ${selected.label.replace(/^\$\([\w-]+\) /, '')}`);
@@ -497,8 +525,8 @@ async function cmdSelectModel(context: vscode.ExtensionContext) {
         const resp: ModelsResponse = await client.models();
         modelItems = resp.models.map(m => ({
             label: `$(symbol-namespace) ${m.name}`,
-            description: `${m.size_gb.toFixed(1)} GB · ${m.digest}`,
-            detail: m.name === resp.default_model ? '★ Default model' : undefined,
+            description: `${m.size_gb.toFixed(1)} GB Â· ${m.digest}`,
+            detail: m.name === resp.default_model ? 'â˜… Default model' : undefined,
         }));
     } catch {
         vscode.window.showWarningMessage('LaRuche: Could not fetch model list from node. Enter manually.');
@@ -507,11 +535,11 @@ async function cmdSelectModel(context: vscode.ExtensionContext) {
     modelItems.unshift({
         label: '$(circle-slash) Node default',
         description: 'Use the model configured on the node',
-        detail: activeModel ? `Currently: ${activeModel} — clear this to use node default` : 'Currently active',
+        detail: activeModel ? `Currently: ${activeModel} â€” clear this to use node default` : 'Currently active',
     });
 
     const selected = await vscode.window.showQuickPick(modelItems, {
-        title: `LaRuche — Select Model (node: ${activeNodeUrl})`,
+        title: `LaRuche â€” Select Model (node: ${activeNodeUrl})`,
         placeHolder: 'Choose the model to use for all requests',
     });
 
@@ -538,7 +566,7 @@ async function cmdAgentEdit() {
 
     const mode = agent.getMode();
     const instructions = await vscode.window.showInputBox({
-        prompt: `LaRuche Agent [${mode}]${activeModel ? ` · ${activeModel}` : ''}: What should I do?`,
+        prompt: `LaRuche Agent [${mode}]${activeModel ? ` Â· ${activeModel}` : ''}: What should I do?`,
         placeHolder: 'Add error handling, refactor the loop, fix the bug on line 42...',
     });
 
@@ -648,7 +676,7 @@ async function handleWebviewMessage(
 
         case 'confirmNewChat': {
             const answer = await vscode.window.showInformationMessage(
-                'Démarrer une nouvelle conversation ?',
+                'DÃ©marrer une nouvelle conversation ?',
                 { modal: false },
                 'Oui', 'Non',
             );
@@ -672,8 +700,8 @@ async function handleWebviewMessage(
                 index: i,
             }));
             const sel = await vscode.window.showQuickPick(histItems, {
-                title: 'LaRuche — Historique des conversations',
-                placeHolder: 'Sélectionnez une conversation à charger',
+                title: 'LaRuche â€” Historique des conversations',
+                placeHolder: 'SÃ©lectionnez une conversation Ã  charger',
             });
             if (sel) {
                 webview.postMessage({ type: 'loadChat', html: history[(sel as any).index].html });
@@ -714,7 +742,7 @@ async function handleWebviewMessage(
                     });
                 }
             } catch (err: any) {
-                vscode.window.showErrorMessage(`LaRuche: Erreur lecture fichier — ${err.message}`);
+                vscode.window.showErrorMessage(`LaRuche: Erreur lecture fichier â€” ${err.message}`);
             }
             break;
         }
@@ -777,7 +805,7 @@ async function askAndShow(prompt: string) {
             });
             await vscode.window.showTextDocument(doc, vscode.ViewColumn.Beside);
             vscode.window.showInformationMessage(
-                `LaRuche: ${resp.tokens_generated} tokens · ${(resp.latency_ms / 1000).toFixed(1)}s · ${resp.model} @ ${resp.node_name}`,
+                `LaRuche: ${resp.tokens_generated} tokens Â· ${(resp.latency_ms / 1000).toFixed(1)}s Â· ${resp.model} @ ${resp.node_name}`,
             );
         } catch (err: any) {
             vscode.window.showErrorMessage(`LaRuche: ${err.message}`);
@@ -804,7 +832,7 @@ function saveChatToHistory(context: vscode.ExtensionContext, html: string) {
     const match = html.match(/class="msg user"[^>]*>([\s\S]*?)<\/div>/);
     if (match) {
         const raw = match[1].replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
-        if (raw.length > 0) { title = raw.slice(0, 55) + (raw.length > 55 ? '…' : ''); }
+        if (raw.length > 0) { title = raw.slice(0, 55) + (raw.length > 55 ? 'â€¦' : ''); }
     }
 
     history.push({ title, html, timestamp: Date.now() });
