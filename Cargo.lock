@@ -934,6 +934,7 @@ dependencies = [
 [[package]]
 name = "land-protocol"
 version = "0.1.0"
+source = "git+https://github.com/infinition/land-protocol#62a583100c6c2e1fdc3a8f5e9e7f4d039b907622"
 dependencies = [
  "base64",
  "blake3",
