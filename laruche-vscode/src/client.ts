@@ -176,9 +176,9 @@ export class LaRucheClient {
         return this.request<InferResponse>('/infer', 'POST', body, timeoutMs);
     }
 
-    async health(): Promise<boolean> {
+    async health(timeoutMs: number = 3000): Promise<boolean> {
         try {
-            await this.request<string>('/health', 'GET', undefined, 3000);
+            await this.request<string>('/health', 'GET', undefined, timeoutMs);
             return true;
         } catch {
             return false;
