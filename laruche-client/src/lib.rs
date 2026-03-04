@@ -154,6 +154,7 @@ impl LaRuche {
             in_swarm: false,
             peer_count: 0,
             is_coordinator: false,
+            model: None,
             host: url
                 .replace("http://", "")
                 .replace("https://", "")

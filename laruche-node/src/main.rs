@@ -1,11 +1,13 @@
 //! LaRuche Node Daemon
 //!
 //! The main process that runs on each LaRuche box. It:
-//! 1. Broadcasts its Cognitive Manifest via LAND
+//! 1. Broadcasts its Cognitive Manifest via LAND (mDNS)
 //! 2. Listens for peer nodes (swarm)
 //! 3. Exposes an inference API (proxying to Ollama)
 //! 4. Manages authentication via Proof of Proximity
 //! 5. Runs the web dashboard
+//! 6. Exposes /models to list available Ollama models
+//! 7. Reports real system metrics (CPU, RAM) via sysinfo
 
 use anyhow::Result;
 use axum::{
@@ -24,44 +26,30 @@ use land_protocol::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use sysinfo::System;
 use tokio::sync::RwLock;
-use tracing::{info, error};
+use tracing::{error, info};
 use uuid::Uuid;
 
-// Embed the dashboard HTML at compile time
 const DASHBOARD_HTML: &str = include_str!("../../laruche-dashboard/src/templates/dashboard.html");
 
-/// Shared application state.
 struct AppState {
     manifest: RwLock<CognitiveManifest>,
     auth: RwLock<ProximityAuth>,
     queue: RwLock<RequestQueue>,
     listener: RwLock<LandListener>,
     config: NodeConfig,
+    sys: RwLock<System>,
 }
 
-/// Node configuration (loaded from config file or env vars).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct NodeConfig {
-    /// Human-friendly name for this node
     node_name: String,
-
-    /// Hardware tier
     tier: HardwareTier,
-
-    /// Ollama backend URL
     ollama_url: String,
-
-    /// Default model to use
     default_model: String,
-
-    /// API listen port
     api_port: u16,
-
-    /// Dashboard listen port
     dashboard_port: u16,
-
-    /// Available capabilities
     capabilities: Vec<CapabilityConfig>,
 }
 
@@ -128,7 +116,12 @@ struct NodeStatus {
     protocol_version: String,
     capabilities: Vec<String>,
     tokens_per_sec: f32,
+    /// Real memory usage % from sysinfo
     memory_usage_pct: f32,
+    /// Real CPU usage % from sysinfo
+    cpu_usage_pct: f32,
+    memory_used_mb: u64,
+    memory_total_mb: u64,
     queue_depth: usize,
     uptime_secs: u64,
     swarm: SwarmStatus,
@@ -169,6 +162,8 @@ struct DiscoveredNodeInfo {
     name: Option<String>,
     host: String,
     capabilities: Vec<String>,
+    /// Primary model running on this node (from LAND TXT record)
+    model: Option<String>,
     tokens_per_sec: Option<f32>,
     queue_depth: Option<u32>,
 }
@@ -186,15 +181,38 @@ struct AuthPendingResponse {
     expires_in_secs: i64,
 }
 
+#[derive(Debug, Serialize)]
+struct OllamaModelInfo {
+    name: String,
+    size_gb: f64,
+    digest: String,
+}
+
+#[derive(Debug, Serialize)]
+struct ModelsResponse {
+    models: Vec<OllamaModelInfo>,
+    default_model: String,
+}
+
 // ======================== Handlers ========================
 
-/// GET / - Node status
+/// GET / - Node status with real system metrics
 async fn get_status(State(state): State<Arc<AppState>>) -> Json<NodeStatus> {
     let manifest = state.manifest.read().await;
     let auth = state.auth.read().await;
     let queue = state.queue.read().await;
     let listener = state.listener.read().await;
+    let sys = state.sys.read().await;
     let nodes = listener.get_nodes().await;
+
+    let cpu_pct = sys.global_cpu_usage();
+    let used_mem_kb = sys.used_memory();
+    let total_mem_kb = sys.total_memory();
+    let mem_pct = if total_mem_kb > 0 {
+        (used_mem_kb as f32 / total_mem_kb as f32) * 100.0
+    } else {
+        0.0
+    };
 
     Json(NodeStatus {
         node_id: manifest.node_id.to_string(),
@@ -203,9 +221,10 @@ async fn get_status(State(state): State<Arc<AppState>>) -> Json<NodeStatus> {
         protocol_version: manifest.protocol_version.clone(),
         capabilities: manifest.capabilities.to_flags(),
         tokens_per_sec: manifest.performance.tokens_per_sec,
-        memory_usage_pct: if manifest.resources.memory_total_mb > 0 {
-            (manifest.resources.memory_used_mb as f32 / manifest.resources.memory_total_mb as f32) * 100.0
-        } else { 0.0 },
+        memory_usage_pct: mem_pct,
+        cpu_usage_pct: cpu_pct,
+        memory_used_mb: used_mem_kb / 1024,
+        memory_total_mb: total_mem_kb / 1024,
         queue_depth: queue.depth(),
         uptime_secs: manifest.uptime_secs,
         swarm: SwarmStatus {
@@ -219,64 +238,73 @@ async fn get_status(State(state): State<Arc<AppState>>) -> Json<NodeStatus> {
     })
 }
 
-/// GET /nodes - List discovered nodes on the network
+/// GET /nodes - List discovered nodes on the network (peers only)
 async fn get_nodes(State(state): State<Arc<AppState>>) -> Json<DiscoveredNodesResponse> {
     let listener = state.listener.read().await;
     let nodes = listener.get_nodes().await;
     let manifest = state.manifest.read().await;
 
-    let node_list: Vec<DiscoveredNodeInfo> = nodes.values()
-        .filter(|n| n.manifest.node_id != Some(manifest.node_id) && n.manifest.host != manifest.api_endpoint.host)
-        .map(|n| {
-        DiscoveredNodeInfo {
+    let node_list: Vec<DiscoveredNodeInfo> = nodes
+        .values()
+        .filter(|n| {
+            n.manifest.node_id != Some(manifest.node_id)
+                && n.manifest.host != manifest.api_endpoint.host
+        })
+        .map(|n| DiscoveredNodeInfo {
             node_id: n.manifest.node_id.map(|id| id.to_string()),
             name: n.manifest.node_name.clone(),
             host: n.manifest.host.clone(),
             capabilities: n.manifest.capabilities.iter().map(|c| c.to_string()).collect(),
+            model: n.manifest.model.clone(),
             tokens_per_sec: n.manifest.tokens_per_sec,
             queue_depth: n.manifest.queue_depth,
-        }
-    }).collect();
+        })
+        .collect();
 
     Json(DiscoveredNodesResponse { nodes: node_list })
 }
 
-/// GET /swarm - Collective intelligence status
+/// GET /swarm - Collective intelligence status (all nodes including self)
 async fn get_swarm(State(state): State<Arc<AppState>>) -> Json<SwarmResponse> {
     let listener = state.listener.read().await;
     let nodes = listener.get_nodes().await;
     let manifest = state.manifest.read().await;
     let queue = state.queue.read().await;
+    let sys = state.sys.read().await;
+
+    let total_mem_mb = sys.total_memory() / 1024;
+    let local_model = state.config.capabilities.first().map(|c| c.model_name.clone());
 
     let mut total_tps = manifest.performance.tokens_per_sec;
-    let mut total_vram = manifest.resources.vram_total_mb.unwrap_or(0);
-    let mut total_ram = manifest.resources.memory_total_mb;
+    let total_vram = manifest.resources.vram_total_mb.unwrap_or(0);
+    let total_ram = total_mem_mb;
     let mut total_queue = queue.depth() as u32;
-    
+
     let mut node_infos = vec![DiscoveredNodeInfo {
         node_id: Some(manifest.node_id.to_string()),
         name: Some(manifest.node_name.clone()),
         host: manifest.api_endpoint.host.clone(),
         capabilities: manifest.capabilities.to_flags(),
+        model: local_model,
         tokens_per_sec: Some(manifest.performance.tokens_per_sec),
         queue_depth: Some(queue.depth() as u32),
     }];
 
     for node in nodes.values() {
-        if node.manifest.node_id == Some(manifest.node_id) || node.manifest.host == manifest.api_endpoint.host {
-            continue; // Skip the local node or zombies on the same IP
+        if node.manifest.node_id == Some(manifest.node_id)
+            || node.manifest.host == manifest.api_endpoint.host
+        {
+            continue;
         }
-
         total_tps += node.manifest.tokens_per_sec.unwrap_or(0.0);
-        total_vram += 0; // Partial manifest doesn't have vram yet
-        total_ram += 0; 
         total_queue += node.manifest.queue_depth.unwrap_or(0);
-        
+
         node_infos.push(DiscoveredNodeInfo {
             node_id: node.manifest.node_id.map(|id| id.to_string()),
             name: node.manifest.node_name.clone(),
             host: node.manifest.host.clone(),
             capabilities: node.manifest.capabilities.iter().map(|c| c.to_string()).collect(),
+            model: node.manifest.model.clone(),
             tokens_per_sec: node.manifest.tokens_per_sec,
             queue_depth: node.manifest.queue_depth,
         });
@@ -293,7 +321,7 @@ async fn get_swarm(State(state): State<Arc<AppState>>) -> Json<SwarmResponse> {
     })
 }
 
-/// POST /infer - Inference endpoint
+/// POST /infer - Inference endpoint (proxies to Ollama)
 async fn post_infer(
     State(state): State<Arc<AppState>>,
     Json(req): Json<InferenceRequest>,
@@ -302,7 +330,6 @@ async fn post_infer(
     let model = req.model.unwrap_or_else(|| config.default_model.clone());
     let start = std::time::Instant::now();
 
-    // Call Ollama backend
     let client = reqwest::Client::new();
     let ollama_req = serde_json::json!({
         "model": model,
@@ -330,12 +357,14 @@ async fn post_infer(
                 let eval_count = body["eval_count"].as_u64().unwrap_or(0) as u32;
                 let latency = start.elapsed().as_millis() as u64;
 
-                // Update manifest performance metrics
                 if let Ok(mut manifest) = state.manifest.try_write() {
-                    let eval_duration = body["eval_duration"].as_f64().unwrap_or(1.0) / 1_000_000_000.0;
+                    let eval_duration =
+                        body["eval_duration"].as_f64().unwrap_or(1.0) / 1_000_000_000.0;
                     if eval_duration > 0.0 {
-                        manifest.performance.tokens_per_sec = eval_count as f32 / eval_duration as f32;
+                        manifest.performance.tokens_per_sec =
+                            eval_count as f32 / eval_duration as f32;
                     }
+                    manifest.performance.avg_latency_ms = latency as f32;
                 }
 
                 Ok(Json(InferenceResponse {
@@ -356,6 +385,43 @@ async fn post_infer(
     }
 }
 
+/// GET /models - List available Ollama models on this node
+async fn get_models(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<ModelsResponse>, StatusCode> {
+    let client = reqwest::Client::new();
+    let url = format!("{}/api/tags", state.config.ollama_url);
+
+    match client.get(&url).send().await {
+        Ok(resp) => match resp.json::<serde_json::Value>().await {
+            Ok(body) => {
+                let models: Vec<OllamaModelInfo> = body["models"]
+                    .as_array()
+                    .unwrap_or(&vec![])
+                    .iter()
+                    .map(|m| OllamaModelInfo {
+                        name: m["name"].as_str().unwrap_or("unknown").to_string(),
+                        size_gb: m["size"].as_f64().unwrap_or(0.0) / 1_073_741_824.0,
+                        digest: m["digest"]
+                            .as_str()
+                            .unwrap_or("")
+                            .chars()
+                            .take(12)
+                            .collect(),
+                    })
+                    .collect();
+
+                Ok(Json(ModelsResponse {
+                    models,
+                    default_model: state.config.default_model.clone(),
+                }))
+            }
+            Err(_) => Err(StatusCode::BAD_GATEWAY),
+        },
+        Err(_) => Err(StatusCode::SERVICE_UNAVAILABLE),
+    }
+}
+
 /// POST /auth/request - Request device authorization
 async fn post_auth_request(
     State(state): State<Arc<AppState>>,
@@ -369,12 +435,12 @@ async fn post_auth_request(
 
     let mut auth = state.auth.write().await;
     let pending = auth.request_auth(Uuid::new_v4(), req.device_name, circle);
-
     let expires_in = (pending.expires_at - chrono::Utc::now()).num_seconds();
 
     Json(AuthPendingResponse {
         request_id: pending.request_id.to_string(),
-        message: "En attente d'approbation physique. Appuyez sur le bouton du boîtier LaRuche.".into(),
+        message: "En attente d'approbation physique. Appuyez sur le bouton du boîtier LaRuche."
+            .into(),
         expires_in_secs: expires_in,
     })
 }
@@ -396,12 +462,10 @@ async fn post_auth_approve(
     }
 }
 
-/// GET /health - Health check
 async fn health() -> &'static str {
     "OK"
 }
 
-/// GET /dashboard - Embedded dashboard
 async fn dashboard() -> Html<&'static str> {
     Html(DASHBOARD_HTML)
 }
@@ -410,7 +474,6 @@ async fn dashboard() -> Html<&'static str> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Init tracing
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -418,7 +481,6 @@ async fn main() -> Result<()> {
         )
         .init();
 
-    // Load config (from file or defaults)
     let config = load_config()?;
 
     info!(
@@ -436,16 +498,14 @@ async fn main() -> Result<()> {
 
     info!(name = %config.node_name, tier = ?config.tier, "Starting LaRuche node");
 
-    // Build manifest
     let local_ip = land_protocol::get_local_ip();
     info!(ip = %local_ip, "Detected local IP");
-    
+
     let mut manifest = CognitiveManifest::new(config.node_name.clone(), config.tier);
     manifest.api_endpoint.host = local_ip;
     manifest.api_endpoint.port = config.api_port;
     manifest.api_endpoint.dashboard_port = config.dashboard_port;
 
-    // Register capabilities
     for cap_config in &config.capabilities {
         if let Some(cap) = Capability::from_flag(&cap_config.capability) {
             manifest.capabilities.add(CapabilityInfo {
@@ -459,53 +519,64 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Start LAND broadcaster
     let mut broadcaster = LandBroadcaster::new()?;
     broadcaster.register(&manifest)?;
 
-    // Start LAND listener (discover peers)
     let mut listener = LandListener::new()?;
     let _discovered_nodes = listener.start()?;
 
-    // Build app state
+    let mut sys = System::new_all();
+    sys.refresh_all();
+
     let state = Arc::new(AppState {
         manifest: RwLock::new(manifest),
         auth: RwLock::new(ProximityAuth::new()),
         queue: RwLock::new(RequestQueue::new(QosPolicy::default())),
         listener: RwLock::new(listener),
         config: config.clone(),
+        sys: RwLock::new(sys),
     });
 
-    // Build API router
     let app = Router::new()
         .route("/", get(get_status))
         .route("/health", get(health))
         .route("/nodes", get(get_nodes))
         .route("/swarm", get(get_swarm))
+        .route("/models", get(get_models))
         .route("/infer", post(post_infer))
         .route("/auth/request", post(post_auth_request))
         .route("/auth/approve", post(post_auth_approve))
         .route("/dashboard", get(dashboard))
-        .layer(
-            tower_http::cors::CorsLayer::permissive()
-        )
+        .layer(tower_http::cors::CorsLayer::permissive())
         .with_state(state.clone());
 
-    // Spawn manifest update loop (refresh metrics every 5 seconds)
+    // Background: refresh real metrics every 5s
     let update_state = state.clone();
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
         let start_time = std::time::Instant::now();
         loop {
             interval.tick().await;
-            let mut manifest = update_state.manifest.write().await;
-            manifest.uptime_secs = start_time.elapsed().as_secs();
-            manifest.timestamp = chrono::Utc::now();
-            // TODO: Read actual system metrics (CPU, RAM, temp)
+
+            {
+                let mut sys = update_state.sys.write().await;
+                sys.refresh_cpu_usage();
+                sys.refresh_memory();
+            }
+
+            {
+                let mut manifest = update_state.manifest.write().await;
+                manifest.uptime_secs = start_time.elapsed().as_secs();
+                manifest.timestamp = chrono::Utc::now();
+
+                let sys = update_state.sys.read().await;
+                manifest.resources.memory_used_mb = sys.used_memory() / 1024;
+                manifest.resources.memory_total_mb = sys.total_memory() / 1024;
+                manifest.resources.cpu_usage_pct = sys.global_cpu_usage();
+            }
         }
     });
 
-    // Start server
     let addr = format!("0.0.0.0:{}", config.api_port);
     info!(addr = %addr, "LaRuche API server starting");
     info!(
@@ -520,17 +591,34 @@ async fn main() -> Result<()> {
 }
 
 fn load_config() -> Result<NodeConfig> {
-    // Try to load from laruche.toml, fall back to defaults
     let config_path = std::env::var("LARUCHE_CONFIG").unwrap_or_else(|_| "laruche.toml".into());
-
     if std::path::Path::new(&config_path).exists() {
-        let _content = std::fs::read_to_string(&config_path)?;
-        // Simple TOML-like parsing for POC (use toml crate in production)
         info!(path = %config_path, "Loaded config from file");
     }
 
-    // For POC, use env vars or defaults
-    let config = NodeConfig {
+    // Support up to 2 capabilities via env vars:
+    //   LARUCHE_CAP=llm  LARUCHE_MODEL=mistral
+    //   LARUCHE_CAP2=code LARUCHE_MODEL2=deepseek-coder  (optional)
+    let mut capabilities = vec![CapabilityConfig {
+        capability: std::env::var("LARUCHE_CAP").unwrap_or_else(|_| "llm".into()),
+        model_name: std::env::var("LARUCHE_MODEL").unwrap_or_else(|_| "mistral".into()),
+        model_size: Some("7B".into()),
+        quantization: Some("Q4_K_M".into()),
+    }];
+
+    if let (Ok(cap2), Ok(model2)) = (
+        std::env::var("LARUCHE_CAP2"),
+        std::env::var("LARUCHE_MODEL2"),
+    ) {
+        capabilities.push(CapabilityConfig {
+            capability: cap2,
+            model_name: model2,
+            model_size: None,
+            quantization: None,
+        });
+    }
+
+    Ok(NodeConfig {
         node_name: std::env::var("LARUCHE_NAME")
             .unwrap_or_else(|_| format!("laruche-{}", &Uuid::new_v4().to_string()[..6])),
         tier: match std::env::var("LARUCHE_TIER").as_deref() {
@@ -541,8 +629,7 @@ fn load_config() -> Result<NodeConfig> {
         },
         ollama_url: std::env::var("OLLAMA_URL")
             .unwrap_or_else(|_| "http://127.0.0.1:11434".into()),
-        default_model: std::env::var("LARUCHE_MODEL")
-            .unwrap_or_else(|_| "mistral".into()),
+        default_model: std::env::var("LARUCHE_MODEL").unwrap_or_else(|_| "mistral".into()),
         api_port: std::env::var("LARUCHE_PORT")
             .ok()
             .and_then(|p| p.parse().ok())
@@ -551,15 +638,6 @@ fn load_config() -> Result<NodeConfig> {
             .ok()
             .and_then(|p| p.parse().ok())
             .unwrap_or(land_protocol::DEFAULT_DASHBOARD_PORT),
-        capabilities: vec![
-            CapabilityConfig {
-                capability: std::env::var("LARUCHE_CAP").unwrap_or_else(|_| "llm".into()),
-                model_name: std::env::var("LARUCHE_MODEL").unwrap_or_else(|_| "mistral-7b".into()),
-                model_size: Some("7B".into()),
-                quantization: Some("Q4_K_M".into()),
-            },
-        ],
-    };
-
-    Ok(config)
+        capabilities,
+    })
 }

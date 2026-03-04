@@ -16,6 +16,8 @@ export interface NodeInfo {
     name: string | null;
     host: string;
     capabilities: string[];
+    /** Primary model running on this node (from LAND TXT broadcast) */
+    model: string | null;
     tokens_per_sec: number | null;
     queue_depth: number | null;
 }
@@ -36,8 +38,22 @@ export interface NodeStatus {
     capabilities: string[];
     tokens_per_sec: number;
     memory_usage_pct: number;
+    cpu_usage_pct: number;
+    memory_used_mb: number;
+    memory_total_mb: number;
     queue_depth: number;
     uptime_secs: number;
+}
+
+export interface OllamaModel {
+    name: string;
+    size_gb: number;
+    digest: string;
+}
+
+export interface ModelsResponse {
+    models: OllamaModel[];
+    default_model: string;
 }
 
 export class LaRucheClient {
@@ -47,7 +63,20 @@ export class LaRucheClient {
         this.baseUrl = baseUrl.replace(/\/$/, '');
     }
 
-    private request<T>(path: string, method: string = 'GET', body?: object): Promise<T> {
+    getBaseUrl(): string {
+        return this.baseUrl;
+    }
+
+    setBaseUrl(url: string): void {
+        this.baseUrl = url.replace(/\/$/, '');
+    }
+
+    private request<T>(
+        path: string,
+        method: string = 'GET',
+        body?: object,
+        timeoutMs: number = 10000,
+    ): Promise<T> {
         return new Promise((resolve, reject) => {
             const url = new URL(this.baseUrl + path);
             const isHttps = url.protocol === 'https:';
@@ -59,21 +88,21 @@ export class LaRucheClient {
                 path: url.pathname,
                 method,
                 headers: { 'Content-Type': 'application/json' },
-                timeout: 600000, // 10 minutes for slow local models
+                timeout: timeoutMs,
             };
 
             const req = lib.request(options, (res) => {
                 let data = '';
-                res.on('data', chunk => data += chunk);
+                res.on('data', chunk => { data += chunk; });
                 res.on('end', () => {
                     if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
                         try {
                             resolve(JSON.parse(data) as T);
                         } catch {
-                            reject(new Error(`Invalid JSON: ${data}`));
+                            reject(new Error(`Invalid JSON response: ${data.slice(0, 200)}`));
                         }
                     } else {
-                        reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+                        reject(new Error(`HTTP ${res.statusCode}: ${data.slice(0, 200)}`));
                     }
                 });
             });
@@ -81,7 +110,7 @@ export class LaRucheClient {
             req.on('error', reject);
             req.on('timeout', () => {
                 req.destroy();
-                reject(new Error('Request timeout'));
+                reject(new Error(`Request timeout after ${timeoutMs}ms`));
             });
 
             if (body) {
@@ -92,24 +121,43 @@ export class LaRucheClient {
     }
 
     async status(): Promise<NodeStatus> {
-        return this.request<NodeStatus>('/');
+        return this.request<NodeStatus>('/', 'GET', undefined, 5000);
     }
 
     async swarm(): Promise<SwarmData> {
-        return this.request<SwarmData>('/swarm');
+        return this.request<SwarmData>('/swarm', 'GET', undefined, 5000);
     }
 
-    async infer(prompt: string, capability: string = 'llm'): Promise<InferResponse> {
-        return this.request<InferResponse>('/infer', 'POST', {
+    async models(): Promise<ModelsResponse> {
+        return this.request<ModelsResponse>('/models', 'GET', undefined, 5000);
+    }
+
+    /**
+     * Run inference on the node.
+     * @param prompt The prompt to send.
+     * @param capability Capability type ('llm', 'code', 'vlm', ...).
+     * @param model Optional model override. Uses node default if not specified.
+     */
+    async infer(
+        prompt: string,
+        capability: string = 'llm',
+        model?: string,
+    ): Promise<InferResponse> {
+        const body: Record<string, unknown> = {
             prompt,
             capability,
             qos: 'normal',
-        });
+        };
+        if (model) {
+            body['model'] = model;
+        }
+        // Long timeout for slow local models (up to 10 minutes)
+        return this.request<InferResponse>('/infer', 'POST', body, 600000);
     }
 
     async health(): Promise<boolean> {
         try {
-            const resp = await this.request<string>('/health');
+            await this.request<string>('/health', 'GET', undefined, 3000);
             return true;
         } catch {
             return false;

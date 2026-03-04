@@ -115,8 +115,11 @@ cargo build --release
 # With defaults (auto-detects network, uses Ollama on localhost)
 cargo run -p laruche-node
 
-# With custom configuration
+# With a specific model
 LARUCHE_NAME=laruche-salon LARUCHE_MODEL=mistral cargo run -p laruche-node
+
+# With TWO capabilities on the same node (e.g. Mistral for chat + DeepSeek for code)
+LARUCHE_CAP=llm LARUCHE_MODEL=mistral LARUCHE_CAP2=code LARUCHE_MODEL2=deepseek-coder cargo run -p laruche-node
 ```
 
 ### 4. Use the CLI
@@ -137,9 +140,85 @@ LARUCHE_URL=http://localhost:8419 cargo run -p laruche-cli -- ask "Hello"
 
 ### 5. Open the Dashboard
 
+The dashboard is embedded in the node — no separate process needed:
+
+```
+http://localhost:8419/dashboard
+```
+
+It shows: active nodes, models per node, real CPU/RAM metrics, collective t/s, and a live event log.
+
+## VS Code Extension
+
+### Installation
+
 ```bash
-cargo run -p laruche-dashboard
-# Open http://localhost:8420 in your browser
+cd laruche-vscode
+npm install        # installs bonjour-service + dev deps
+npm run compile    # or: npm run watch
+```
+
+Then press **F5** in VS Code to launch the Extension Development Host.
+
+### Features
+
+| Feature | Description |
+|---|---|
+| **Auto-discovery** | Finds LaRuche nodes on the LAN via LAND protocol (mDNS) — no URL needed |
+| **Node picker** | `Ctrl+Shift+P` → `LaRuche: Select Active Node` — switch between nodes |
+| **Model picker** | `Ctrl+Shift+P` → `LaRuche: Select Active Model` — choose Mistral, DeepSeek, etc. |
+| **Chat** | Sidebar chat with markdown rendering, node/model shown in header |
+| **File attach** | 📎 button attaches the active editor file as context |
+| **Agent (Edit)** | `Ctrl+Shift+L` — sends file + instructions, applies diff-based edits |
+| **Agent modes** | `auto` (apply immediately), `ask` (show diff first), `readonly` (suggest only) |
+| **Explain/Refactor** | Right-click selection → LaRuche context menu |
+| **Swarm status** | Status bar: `⬡ 3 nodes · 45 t/s · mistral` |
+
+### How discovery works
+
+The extension uses **bonjour-service** (pure-JS mDNS) to listen for `_ai-inference._tcp.local.`
+announcements. When a LaRuche node starts, it broadcasts itself every 2 seconds.
+The extension connects automatically — no IP address needed.
+
+Fallback priority:
+1. Manual URL in `laruche.nodeUrl` setting
+2. First node discovered via LAND mDNS
+3. `localhost:8419`
+
+### Configuration
+
+| Setting | Default | Description |
+|---|---|---|
+| `laruche.nodeUrl` | `""` | Override URL (bypasses auto-discovery) |
+| `laruche.model` | `""` | Preferred model (empty = node default) |
+| `laruche.agentMode` | `"ask"` | Agent mode: `auto`, `ask`, `readonly` |
+
+## Node API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | Node status + real CPU/RAM metrics |
+| GET | `/health` | Health check |
+| GET | `/nodes` | Discovered peer nodes (via LAND) |
+| GET | `/swarm` | Collective swarm status (all nodes + models) |
+| GET | `/models` | Available Ollama models on this node |
+| POST | `/infer` | Run inference (`model` field optional override) |
+| GET | `/dashboard` | Embedded web dashboard |
+| POST | `/auth/request` | Request Proof-of-Proximity auth |
+| POST | `/auth/approve` | Approve pending auth (POC button) |
+
+### Multi-model inference
+
+The `/infer` endpoint now accepts a `model` field to override the node's default:
+
+```bash
+curl -X POST http://localhost:8419/infer \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Write a binary search in Rust",
+    "capability": "code",
+    "model": "deepseek-coder"
+  }'
 ```
 
 ## LAND Protocol
