@@ -2,441 +2,756 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>LaRuche — Collective Intelligence</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
+    /* ── Design tokens ── */
     :root {
-      --amber: #f59e0b; --amber-light: #fbbf24; --amber-dim: rgba(245,158,11,.15);
-      --green: #22c55e; --green-dim: rgba(34,197,94,.15);
-      --blue: #3b82f6; --blue-dim: rgba(59,130,246,.15);
-      --red: #ef4444; --red-dim: rgba(239,68,68,.15);
-      --purple: #a855f7;
-      --bg: #09090b; --bg-card: #18181b; --bg-hover: #27272a;
-      --border: #3f3f46; --text: #fafafa; --text-dim: #a1a1aa;
+      --amber: #f59e0b; --amber-light: #fbbf24; --amber-dim: rgba(245,158,11,.12);
+      --green: #22c55e; --green-dim: rgba(34,197,94,.12);
+      --blue: #3b82f6; --blue-dim: rgba(59,130,246,.12);
+      --red: #ef4444; --red-dim: rgba(239,68,68,.12);
+      --purple: #a855f7; --purple-dim: rgba(168,85,247,.12);
+      --cyan: #06b6d4;
+      --bg: #09090b; --bg-card: rgba(24,24,27,.85); --bg-hover: #27272a;
+      --border: #2a2a2e; --text: #fafafa; --text-dim: #71717a; --text-mid: #a1a1aa;
+      --hex-size: 90px;
+      --glow: 0 0 20px rgba(245,158,11,.15);
     }
-    * { margin:0; padding:0; box-sizing:border-box; }
-    body { font-family:'Inter',sans-serif; background:var(--bg); color:var(--text); height:100vh; overflow:hidden; display:flex; flex-direction:column; }
+    @property --gauge { syntax:'<number>'; inherits:false; initial-value:0; }
+
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    html, body { height:100%; overflow:hidden; }
+    body {
+      font-family:'Inter',sans-serif; background:var(--bg); color:var(--text);
+      display:flex; flex-direction:column;
+    }
 
     /* ── Header ── */
-    .hdr { display:flex; align-items:center; justify-content:space-between; padding:10px 20px; border-bottom:1px solid var(--border); background:linear-gradient(135deg,#18181b,#09090b); flex-shrink:0; }
-    .hdr-logo { display:flex; align-items:center; gap:10px; font-weight:700; font-size:16px; color:var(--amber); }
-    .hdr-logo .hex { width:28px; height:28px; background:var(--amber); clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%); position:relative; }
-    .hdr-logo .hex::after { content:''; position:absolute; inset:3px; background:var(--bg); clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%); }
-    .hdr-right { display:flex; align-items:center; gap:16px; }
-    .pill { display:flex; align-items:center; gap:5px; padding:3px 10px; border-radius:16px; font-size:11px; font-weight:500; font-family:'JetBrains Mono',monospace; }
+    .hdr {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:6px 16px; border-bottom:1px solid var(--border);
+      background:linear-gradient(135deg,#111113,#09090b); flex-shrink:0; z-index:10;
+    }
+    .hdr-logo { display:flex; align-items:center; gap:8px; font-weight:700; font-size:15px; color:var(--amber); }
+    .hdr-logo .hex-icon {
+      width:24px; height:24px; background:var(--amber);
+      clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+      position:relative;
+    }
+    .hdr-logo .hex-icon::after {
+      content:''; position:absolute; inset:2px; background:var(--bg);
+      clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+    }
+    .hdr-right { display:flex; align-items:center; gap:12px; }
+    .pill {
+      display:flex; align-items:center; gap:5px; padding:2px 10px;
+      border-radius:12px; font-size:10px; font-weight:600;
+      font-family:'JetBrains Mono',monospace;
+    }
     .pill-ok { background:var(--green-dim); color:var(--green); border:1px solid rgba(34,197,94,.3); }
     .pill-warn { background:var(--red-dim); color:var(--red); border:1px solid rgba(239,68,68,.3); }
-    .dot { width:6px; height:6px; border-radius:50%; background:currentColor; animation:pulse 2s infinite; }
-    .hdr-ver { font-size:11px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; }
+    .dot { width:5px; height:5px; border-radius:50%; background:currentColor; animation:pulse 2s infinite; }
+    .hdr-ver { font-size:10px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
-    /* ── Grid ── */
-    .grid { display:grid; grid-template-columns:repeat(4,1fr); grid-template-rows:auto 1fr auto; gap:10px; padding:12px 16px; flex:1; overflow:hidden; }
-    .card { background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:14px; transition:border-color .2s,background .2s; display:flex; flex-direction:column; overflow:hidden; }
-    .card:hover { border-color:var(--amber); background:var(--bg-hover); }
-    .c-title { font-size:10px; text-transform:uppercase; letter-spacing:1.2px; color:var(--text-dim); margin-bottom:6px; font-weight:600; }
-    .c-val { font-size:28px; font-weight:700; color:var(--amber); line-height:1; font-family:'JetBrains Mono',monospace; }
-    .c-sub { font-size:10px; color:var(--text-dim); margin-top:4px; }
-    .card.accent { border:1.5px solid var(--amber); background:linear-gradient(135deg,rgba(245,158,11,.06),transparent); }
-    .span2 { grid-column:span 2; }
-    .span4 { grid-column:1/-1; }
+    /* ── Main layout ── */
+    .main { display:flex; flex-direction:column; flex:1; overflow:hidden; padding:8px; gap:8px; }
 
-    /* ── Node list ── */
-    .node-scroll { overflow-y:auto; flex:1; padding-right:4px; }
-    .node-scroll::-webkit-scrollbar { width:3px; }
-    .node-scroll::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
-    .n-list { display:flex; flex-direction:column; gap:6px; }
-    .n-item { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:var(--bg); border-radius:8px; border:1px solid var(--border); transition:border-color .2s; }
-    .n-item:hover { border-color:var(--amber); }
-    .n-left { display:flex; align-items:center; gap:10px; flex:1; min-width:0; }
-    .n-hex { width:22px; height:22px; clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%); flex-shrink:0; }
+    /* ── Honeycomb KPI row ── */
+    .honeycomb {
+      display:flex; justify-content:center; align-items:center;
+      gap:6px; flex-shrink:0; padding:4px 0;
+    }
+    .hex-gauge {
+      width:var(--hex-size); height:calc(var(--hex-size) * 1.155);
+      position:relative; cursor:default;
+      transition:transform .2s;
+    }
+    .hex-gauge:hover { transform:scale(1.08); }
+    /* Offset every other hex for honeycomb feel */
+    .hex-gauge:nth-child(even) { margin-top:calc(var(--hex-size) * 0.577); }
+    .hex-outer {
+      position:absolute; inset:0;
+      clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+      background:conic-gradient(var(--gauge-color,var(--amber)) calc(var(--gauge) * 1%), var(--border) 0);
+      transition:--gauge .6s ease;
+    }
+    .hex-inner {
+      position:absolute; inset:4px;
+      clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+      background:var(--bg-card);
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      gap:2px;
+    }
+    .hex-val {
+      font-size:18px; font-weight:700; font-family:'JetBrains Mono',monospace;
+      color:var(--text); line-height:1;
+    }
+    .hex-label {
+      font-size:8px; text-transform:uppercase; letter-spacing:1px;
+      color:var(--text-dim); font-weight:600;
+    }
+    .hex-sub {
+      font-size:8px; color:var(--text-mid); font-family:'JetBrains Mono',monospace;
+    }
+
+    /* ── Panels row ── */
+    .panels {
+      display:grid; grid-template-columns:2fr 1fr 1fr;
+      gap:8px; flex:1; overflow:hidden; min-height:0;
+    }
+    .panel {
+      background:var(--bg-card); border:1px solid var(--border); border-radius:8px;
+      display:flex; flex-direction:column; overflow:hidden;
+      transition:border-color .2s;
+    }
+    .panel:hover { border-color:rgba(245,158,11,.3); }
+    .panel-hdr {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:8px 10px; border-bottom:1px solid var(--border); flex-shrink:0;
+    }
+    .panel-title {
+      font-size:10px; text-transform:uppercase; letter-spacing:1.2px;
+      color:var(--text-dim); font-weight:600;
+    }
+    .panel-badge {
+      font-size:9px; font-family:'JetBrains Mono',monospace;
+      padding:1px 6px; border-radius:8px; font-weight:600;
+    }
+    .panel-body {
+      flex:1; overflow-y:auto; padding:6px 8px; min-height:0;
+    }
+    .panel-body::-webkit-scrollbar { width:3px; }
+    .panel-body::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+    /* ── Node items ── */
+    .n-item {
+      display:flex; align-items:center; gap:8px;
+      padding:6px 8px; border-radius:6px; border:1px solid var(--border);
+      margin-bottom:4px; transition:border-color .2s, background .15s;
+    }
+    .n-item:hover { border-color:var(--amber); background:rgba(245,158,11,.04); }
+    .n-hex {
+      width:18px; height:18px; flex-shrink:0;
+      clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+    }
     .n-hex.ok { background:var(--green); } .n-hex.busy { background:var(--amber); } .n-hex.down { background:var(--red); }
-    .n-info { min-width:0; }
-    .n-name { font-weight:600; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .n-model { font-size:10px; color:var(--amber); font-family:'JetBrains Mono',monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .n-meta { font-size:10px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; }
-    .badges { display:flex; gap:3px; flex-wrap:wrap; flex-shrink:0; }
-    .badge { padding:2px 6px; border-radius:3px; font-size:9px; text-transform:uppercase; letter-spacing:.5px; font-weight:600; font-family:'JetBrains Mono',monospace; }
-    .b-llm { background:var(--blue-dim); color:var(--blue); border:1px solid rgba(59,130,246,.3); }
-    .b-vlm { background:rgba(168,85,247,.15); color:var(--purple); border:1px solid rgba(168,85,247,.3); }
-    .b-code { background:rgba(34,197,94,.12); color:var(--green); border:1px solid rgba(34,197,94,.3); }
-    .b-rag { background:rgba(245,158,11,.12); color:var(--amber); border:1px solid rgba(245,158,11,.3); }
+    .n-info { flex:1; min-width:0; }
+    .n-name { font-weight:600; font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .n-model { font-size:9px; color:var(--amber); font-family:'JetBrains Mono',monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .n-meta { font-size:9px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; }
+    .n-right { display:flex; align-items:center; gap:4px; flex-shrink:0; }
+    .badges { display:flex; gap:2px; flex-wrap:wrap; }
+    .badge {
+      padding:1px 5px; border-radius:3px; font-size:8px;
+      text-transform:uppercase; letter-spacing:.5px; font-weight:600;
+      font-family:'JetBrains Mono',monospace;
+    }
+    .b-llm { background:var(--blue-dim); color:var(--blue); border:1px solid rgba(59,130,246,.25); }
+    .b-vlm { background:var(--purple-dim); color:var(--purple); border:1px solid rgba(168,85,247,.25); }
+    .b-code { background:var(--green-dim); color:var(--green); border:1px solid rgba(34,197,94,.25); }
+    .b-rag { background:var(--amber-dim); color:var(--amber); border:1px solid rgba(245,158,11,.25); }
 
-    /* ── Progress bars ── */
-    .bar-row { display:flex; justify-content:space-between; align-items:center; font-size:11px; padding:4px 0; }
-    .bar-lbl { color:var(--text-dim); }
-    .bar-val { font-weight:600; font-family:'JetBrains Mono',monospace; }
-    .bar-track { height:4px; background:var(--bg); border-radius:2px; overflow:hidden; margin-top:3px; }
-    .bar-fill { height:100%; border-radius:2px; transition:width .5s ease; }
-    .b-green { background:var(--green); } .b-amber { background:var(--amber); } .b-red { background:var(--red); }
+    /* ── Model items ── */
+    .model-item {
+      display:flex; align-items:center; gap:6px;
+      padding:5px 8px; border-radius:6px; border:1px solid var(--border);
+      margin-bottom:3px; font-size:10px;
+    }
+    .model-item.default { border-color:rgba(245,158,11,.35); }
+    .model-name {
+      font-family:'JetBrains Mono',monospace; color:var(--text);
+      flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+    .model-size { color:var(--text-dim); font-family:'JetBrains Mono',monospace; font-size:9px; flex-shrink:0; }
+    .model-host {
+      color:var(--blue); border:1px solid rgba(59,130,246,.3); background:var(--blue-dim);
+      border-radius:3px; padding:1px 5px; font-size:8px; font-family:'JetBrains Mono',monospace; flex-shrink:0;
+    }
+    .model-default-tag {
+      font-size:8px; color:var(--amber); border:1px solid rgba(245,158,11,.35);
+      border-radius:3px; padding:1px 5px; flex-shrink:0;
+    }
 
-    /* ── Models panel ── */
-    .model-list { display:flex; flex-direction:column; gap:4px; flex:1; overflow-y:auto; }
-    .model-item { display:flex; align-items:center; justify-content:space-between; gap:6px; padding:5px 8px; background:var(--bg); border-radius:6px; border:1px solid var(--border); font-size:11px; }
-    .model-item.default { border-color:rgba(245,158,11,.4); }
-    .model-name { font-family:'JetBrains Mono',monospace; color:var(--text); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
-    .model-size { color:var(--text-dim); font-family:'JetBrains Mono',monospace; font-size:10px; flex-shrink:0; }
-    .model-host { color:var(--blue); border:1px solid rgba(59,130,246,.35); background:var(--blue-dim); border-radius:3px; padding:1px 5px; font-size:9px; font-family:'JetBrains Mono',monospace; flex-shrink:0; }
-    .model-default-tag { font-size:9px; color:var(--amber); border:1px solid rgba(245,158,11,.4); border-radius:3px; padding:1px 5px; flex-shrink:0; }
+    /* ── Resource bars ── */
+    .res-row { display:flex; align-items:center; gap:6px; padding:4px 0; }
+    .res-label { font-size:9px; color:var(--text-dim); min-width:36px; text-transform:uppercase; font-weight:600; }
+    .res-track { flex:1; height:6px; background:rgba(255,255,255,.06); border-radius:3px; overflow:hidden; }
+    .res-fill { height:100%; border-radius:3px; transition:width .5s ease; }
+    .res-val { font-size:10px; font-weight:600; font-family:'JetBrains Mono',monospace; min-width:56px; text-align:right; }
+    .fill-green { background:var(--green); } .fill-amber { background:var(--amber); } .fill-red { background:var(--red); }
+    .res-divider { border:none; border-top:1px solid var(--border); margin:6px 0; }
+    .res-stat { display:flex; justify-content:space-between; font-size:9px; padding:2px 0; }
+    .res-stat-label { color:var(--text-dim); }
+    .res-stat-val { font-family:'JetBrains Mono',monospace; font-weight:600; }
 
-    /* ── Thermal grid ── */
-    .hexgrid { display:flex; gap:3px; flex-wrap:wrap; padding:6px 0; }
-    .hex-cell { width:18px; height:18px; clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%); transition:background .3s; }
-
-    /* ── Log ── */
-    .log-scroll { overflow-y:auto; flex:1; padding-right:4px; }
-    .log-scroll::-webkit-scrollbar { width:3px; }
-    .log-scroll::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
-    .log { font-size:11px; font-family:'JetBrains Mono',monospace; line-height:1.6; }
-    .log-row { display:flex; gap:8px; padding:1px 0; border-bottom:1px solid rgba(63,63,70,.3); }
-    .log-t { color:var(--text-dim); min-width:50px; }
-    .log-tag { min-width:54px; font-weight:600; }
+    /* ── Log strip ── */
+    .log-strip {
+      background:var(--bg-card); border:1px solid var(--border); border-radius:8px;
+      flex-shrink:0; display:flex; flex-direction:column;
+      max-height:140px; min-height:60px; overflow:hidden;
+    }
+    .log-strip .panel-hdr { padding:4px 10px; }
+    .log-body {
+      flex:1; overflow-y:auto; padding:2px 8px; min-height:0;
+      font-size:10px; font-family:'JetBrains Mono',monospace; line-height:1.5;
+    }
+    .log-body::-webkit-scrollbar { width:3px; }
+    .log-body::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+    .log-row { display:flex; gap:6px; padding:1px 0; border-bottom:1px solid rgba(63,63,70,.2); }
+    .log-t { color:var(--text-dim); min-width:40px; flex-shrink:0; }
+    .log-tag { min-width:44px; font-weight:600; flex-shrink:0; }
     .log-ok { color:var(--green); } .log-info { color:var(--blue); } .log-warn { color:var(--amber); } .log-err { color:var(--red); }
-    .log-msg { color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .log-msg { color:var(--text-mid); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
     /* ── Toasts ── */
-    .toast-container { position:fixed; bottom:16px; right:16px; display:flex; flex-direction:column; gap:8px; z-index:1000; pointer-events:none; }
-    .toast { display:flex; align-items:center; gap:8px; padding:10px 16px; border-radius:8px; font-size:12px; font-weight:500; backdrop-filter:blur(12px); border:1px solid; animation:toast-in .3s ease, toast-out .3s ease 4.7s forwards; pointer-events:auto; max-width:380px; box-shadow:0 8px 24px rgba(0,0,0,.4); }
+    .toast-container { position:fixed; bottom:12px; right:12px; display:flex; flex-direction:column; gap:6px; z-index:1000; pointer-events:none; }
+    .toast {
+      display:flex; align-items:center; gap:8px; padding:8px 14px;
+      border-radius:8px; font-size:11px; font-weight:500;
+      backdrop-filter:blur(12px); border:1px solid;
+      animation:toast-in .3s ease, toast-out .3s ease 4.7s forwards;
+      pointer-events:auto; max-width:360px; box-shadow:0 8px 24px rgba(0,0,0,.5);
+    }
     .toast-ok { background:rgba(34,197,94,.12); border-color:rgba(34,197,94,.3); color:var(--green); }
     .toast-info { background:rgba(59,130,246,.12); border-color:rgba(59,130,246,.3); color:var(--blue); }
     .toast-warn { background:rgba(245,158,11,.12); border-color:rgba(245,158,11,.3); color:var(--amber); }
     .toast-err { background:rgba(239,68,68,.12); border-color:rgba(239,68,68,.3); color:var(--red); }
     @keyframes toast-in { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
     @keyframes toast-out { from{opacity:1} to{opacity:0;transform:translateY(-8px)} }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
 
-    /* ── Responsive ── */
-    @media(max-width:1200px) { .grid{grid-template-columns:repeat(2,1fr);overflow-y:auto} body{overflow:auto;height:auto} .span2{grid-column:span 1} }
-    @media(max-width:600px) { .grid{grid-template-columns:1fr;padding:8px} .hdr{padding:8px 12px} .c-val{font-size:22px} }
+    /* ── Mobile tabs ── */
+    .mob-tabs {
+      display:none; flex-shrink:0;
+      border-bottom:1px solid var(--border); background:var(--bg-card);
+    }
+    .mob-tabs button {
+      flex:1; background:none; border:none; color:var(--text-dim);
+      font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:1px;
+      padding:8px 0; cursor:pointer; border-bottom:2px solid transparent;
+      font-family:'Inter',sans-serif; transition:color .2s, border-color .2s;
+    }
+    .mob-tabs button.active { color:var(--amber); border-bottom-color:var(--amber); }
+
+    /* ── Responsive: tablet ── */
+    @media (max-width:960px) {
+      :root { --hex-size:72px; }
+      .panels { grid-template-columns:1fr 1fr; }
+      .panels .panel:first-child { grid-column:1/-1; }
+      .hex-gauge:nth-child(even) { margin-top:calc(var(--hex-size) * 0.577); }
+    }
+
+    /* ── Responsive: mobile ── */
+    @media (max-width:600px) {
+      :root { --hex-size:60px; }
+      body { overflow-y:auto; height:auto; }
+      .main { padding:4px; gap:4px; }
+      .honeycomb { gap:2px; flex-wrap:wrap; padding:2px 0; }
+      .hex-gauge:nth-child(even) { margin-top:calc(var(--hex-size) * 0.45); }
+      .hex-val { font-size:14px; }
+      .hex-label { font-size:7px; }
+      .mob-tabs { display:flex; }
+      .panels { grid-template-columns:1fr; flex:none; }
+      .panels .panel { display:none; }
+      .panels .panel.mob-active { display:flex; min-height:200px; }
+      .log-strip { max-height:100px; }
+    }
   </style>
 </head>
 <body>
 
+<!-- ── Header ── -->
 <div class="hdr">
-  <div class="hdr-logo"><div class="hex"></div>LaRuche</div>
+  <div class="hdr-logo"><div class="hex-icon"></div>LaRuche</div>
   <div class="hdr-right">
-    <div class="pill pill-ok" id="pill-status"><div class="dot"></div><span id="pill-text">Connecting…</span></div>
+    <div class="pill pill-ok" id="pill-status"><div class="dot"></div><span id="pill-text">Connecting\u2026</span></div>
     <div class="hdr-ver">LAND v0.1.0</div>
   </div>
 </div>
 
-<div class="grid">
-  <!-- Row 1: KPIs -->
-  <div class="card">
-    <div class="c-title">Nodes Actifs</div>
-    <div class="c-val" id="kpi-nodes">—</div>
-    <div class="c-sub">sur le réseau local</div>
-  </div>
-  <div class="card accent">
-    <div class="c-title">Puissance Collective</div>
-    <div class="c-val" id="kpi-tps">—</div>
-    <div class="c-sub">tokens/sec cumulés</div>
-  </div>
-  <div class="card">
-    <div class="c-title">Queue Swarm</div>
-    <div class="c-val" id="kpi-queue">—</div>
-    <div class="c-sub">requêtes en attente</div>
-  </div>
-  <div class="card">
-    <div class="c-title">Uptime</div>
-    <div class="c-val" id="kpi-uptime">—</div>
-    <div class="c-sub" id="kpi-model">modèle actif</div>
+<!-- ── Main ── -->
+<div class="main">
+
+  <!-- Honeycomb KPIs -->
+  <div class="honeycomb" id="honeycomb">
+    <div class="hex-gauge" id="hg-nodes" title="Active nodes in swarm">
+      <div class="hex-outer" style="--gauge:0;--gauge-color:var(--green)"></div>
+      <div class="hex-inner"><span class="hex-val" id="kpi-nodes">&mdash;</span><span class="hex-label">Nodes</span></div>
+    </div>
+    <div class="hex-gauge" id="hg-tps" title="Collective tokens/sec">
+      <div class="hex-outer" style="--gauge:0;--gauge-color:var(--amber)"></div>
+      <div class="hex-inner"><span class="hex-val" id="kpi-tps">&mdash;</span><span class="hex-label">t/s</span></div>
+    </div>
+    <div class="hex-gauge" id="hg-cpu" title="Local CPU usage">
+      <div class="hex-outer" style="--gauge:0;--gauge-color:var(--green)"></div>
+      <div class="hex-inner"><span class="hex-val" id="kpi-cpu">&mdash;</span><span class="hex-label">CPU</span></div>
+    </div>
+    <div class="hex-gauge" id="hg-ram" title="Local RAM usage">
+      <div class="hex-outer" style="--gauge:0;--gauge-color:var(--green)"></div>
+      <div class="hex-inner"><span class="hex-val" id="kpi-ram">&mdash;</span><span class="hex-label">RAM</span></div>
+    </div>
+    <div class="hex-gauge" id="hg-queue" title="Swarm queue depth">
+      <div class="hex-outer" style="--gauge:0;--gauge-color:var(--blue)"></div>
+      <div class="hex-inner"><span class="hex-val" id="kpi-queue">&mdash;</span><span class="hex-label">Queue</span></div>
+    </div>
+    <div class="hex-gauge" id="hg-uptime" title="Node uptime">
+      <div class="hex-outer" style="--gauge:0;--gauge-color:var(--cyan)"></div>
+      <div class="hex-inner"><span class="hex-val" id="kpi-uptime">&mdash;</span><span class="hex-label">Uptime</span></div>
+    </div>
   </div>
 
-  <!-- Row 2: Swarm + Resources + Models + Thermal -->
-  <div class="card span2" style="min-height:200px">
-    <div class="c-title">⬡ Swarm Intelligence</div>
-    <div class="node-scroll">
-      <div class="n-list" id="node-list">
-        <div class="n-item" style="justify-content:center;color:var(--text-dim);font-size:11px">En attente de données…</div>
+  <!-- Mobile tabs -->
+  <div class="mob-tabs" id="mob-tabs">
+    <button class="active" data-tab="0">Swarm</button>
+    <button data-tab="1">Models</button>
+    <button data-tab="2">Resources</button>
+  </div>
+
+  <!-- Panels -->
+  <div class="panels" id="panels">
+    <!-- Swarm panel -->
+    <div class="panel mob-active" id="panel-swarm">
+      <div class="panel-hdr">
+        <span class="panel-title">&olarr; Swarm Intelligence</span>
+        <span class="panel-badge" id="swarm-badge" style="background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.3)">0 nodes</span>
+      </div>
+      <div class="panel-body">
+        <div id="node-list">
+          <div style="font-size:10px;color:var(--text-dim);text-align:center;padding:12px">En attente de donn&eacute;es&hellip;</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Models panel -->
+    <div class="panel" id="panel-models">
+      <div class="panel-hdr">
+        <span class="panel-title">&diamondsuit; Models</span>
+        <span class="panel-badge" id="model-badge" style="background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.3)">0</span>
+      </div>
+      <div class="panel-body">
+        <div id="model-list">
+          <div style="font-size:10px;color:var(--text-dim);text-align:center;padding:12px">Chargement&hellip;</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Resources panel -->
+    <div class="panel" id="panel-resources">
+      <div class="panel-hdr">
+        <span class="panel-title">&zigrarr; Resources</span>
+      </div>
+      <div class="panel-body">
+        <!-- Local resources -->
+        <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;font-weight:600">Local</div>
+        <div class="res-row">
+          <span class="res-label">CPU</span>
+          <div class="res-track"><div class="res-fill fill-green" id="b-cpu" style="width:0"></div></div>
+          <span class="res-val" id="r-cpu">&mdash;</span>
+        </div>
+        <div class="res-row">
+          <span class="res-label">RAM</span>
+          <div class="res-track"><div class="res-fill fill-green" id="b-mem" style="width:0"></div></div>
+          <span class="res-val" id="r-mem">&mdash;</span>
+        </div>
+        <div class="res-row">
+          <span class="res-label">t/s</span>
+          <div class="res-track"><div class="res-fill fill-amber" id="b-tps" style="width:0"></div></div>
+          <span class="res-val" id="r-tps">&mdash;</span>
+        </div>
+        <div class="res-row">
+          <span class="res-label">Queue</span>
+          <div class="res-track"><div class="res-fill fill-blue" id="b-queue" style="width:0"></div></div>
+          <span class="res-val" id="r-queue">0</span>
+        </div>
+
+        <hr class="res-divider">
+
+        <!-- Swarm totals -->
+        <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;font-weight:600">Swarm</div>
+        <div class="res-stat"><span class="res-stat-label">RAM Totale</span><span class="res-stat-val" id="s-ram">&mdash;</span></div>
+        <div class="res-stat"><span class="res-stat-label">VRAM Totale</span><span class="res-stat-val" id="s-vram">&mdash;</span></div>
+        <div class="res-stat"><span class="res-stat-label">TPS Cumul&eacute;s</span><span class="res-stat-val" id="s-tps">&mdash;</span></div>
+        <div class="res-stat"><span class="res-stat-label">Queue Globale</span><span class="res-stat-val" id="s-queue">&mdash;</span></div>
       </div>
     </div>
   </div>
 
-  <div class="card" style="min-height:200px">
-    <div class="c-title">◈ Modèles disponibles</div>
-    <div class="model-list" id="model-list">
-      <div style="font-size:11px;color:var(--text-dim);text-align:center;padding:8px">Chargement…</div>
+  <!-- Log strip -->
+  <div class="log-strip">
+    <div class="panel-hdr">
+      <span class="panel-title">&shield; Audit</span>
+      <span class="panel-badge" id="log-badge" style="background:var(--blue-dim);color:var(--blue);border:1px solid rgba(59,130,246,.3)">0</span>
     </div>
+    <div class="log-body" id="log-body"><div id="log"></div></div>
   </div>
 
-  <div class="card" style="min-height:200px">
-    <div class="c-title">⚡ Ressources Locales</div>
-    <div class="bar-row"><span class="bar-lbl">CPU</span><span class="bar-val" id="r-cpu">—</span></div>
-    <div class="bar-track"><div class="bar-fill b-green" id="b-cpu" style="width:0"></div></div>
-    <div class="bar-row" style="margin-top:6px"><span class="bar-lbl">RAM</span><span class="bar-val" id="r-mem">—</span></div>
-    <div class="bar-track"><div class="bar-fill b-green" id="b-mem" style="width:0"></div></div>
-    <div class="bar-row" style="margin-top:6px"><span class="bar-lbl">t/s</span><span class="bar-val" id="r-tps">—</span></div>
-    <div class="bar-track"><div class="bar-fill b-amber" id="b-tps" style="width:0"></div></div>
-    <div class="bar-row" style="margin-top:6px"><span class="bar-lbl">Queue</span><span class="bar-val" id="r-queue">0</span></div>
-    <div class="c-sub" style="margin-top:8px" id="r-uptime">Uptime: —</div>
-  </div>
-
-  <div class="card" style="min-height:200px">
-    <div class="c-title">🌐 Ressources Swarm</div>
-    <div class="bar-row"><span class="bar-lbl">RAM Totale</span><span class="bar-val" id="s-ram">—</span></div>
-    <div class="bar-row" style="margin-top:6px"><span class="bar-lbl">VRAM Totale</span><span class="bar-val" id="s-vram">—</span></div>
-    <div class="bar-row" style="margin-top:6px"><span class="bar-lbl">TPS Cumulés</span><span class="bar-val" id="s-tps">—</span></div>
-    <div class="bar-row" style="margin-top:6px"><span class="bar-lbl">Queue Globale</span><span class="bar-val" id="s-queue">—</span></div>
-  </div>
-
-  <!-- Row 3: Audit log -->
-  <div class="card span4" style="min-height:120px">
-    <div class="c-title">🛡 Audit — Activité réseau &amp; inférences</div>
-    <div class="log-scroll"><div class="log" id="log"></div></div>
-  </div>
 </div>
 
 <div class="toast-container" id="toasts"></div>
 
 <script>
+  /* ── API base ── */
   let apiUrl = window.location.protocol + '//' + window.location.hostname + ':' + (window.location.port || '8419');
-  // If we are served correctly but dashboard port is 8420, default to API port 8419
   if (window.location.port === '8420') {
     apiUrl = window.location.protocol + '//' + window.location.hostname + ':8419';
   }
   const API = apiUrl;
-  
+
+  /* ── State ── */
   let started = Date.now();
   let lastNodeCount = -1;
   let lastModelCount = -1;
   let lastActivityTs = '';
+  let activityInitialized = false;
   let connected = false;
-  let maxTps = 1; // for tps bar scaling
+  let maxTps = 1;
+  let logCount = 0;
 
-  // ── Toasts ──
-  function toast(msg, type = 'info') {
+  /* Stable node tracking */
+  const NODE_GRACE_POLLS = 3;
+  let stableNodes = new Map();
+
+  /* Debounce node count */
+  let pendingNodeCount = -1;
+  let pendingNodeCountHits = 0;
+
+  /* Log auto-scroll: only if user is at bottom */
+  let logUserScrolled = false;
+  const logBody = document.getElementById('log-body');
+  logBody.addEventListener('scroll', () => {
+    const atBottom = logBody.scrollHeight - logBody.scrollTop - logBody.clientHeight < 20;
+    logUserScrolled = !atBottom;
+  });
+
+  /* ── Mobile tabs ── */
+  document.getElementById('mob-tabs').addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const idx = parseInt(btn.dataset.tab);
+    document.querySelectorAll('#mob-tabs button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const panels = document.querySelectorAll('#panels .panel');
+    panels.forEach((p, i) => {
+      p.classList.toggle('mob-active', i === idx);
+    });
+  });
+
+  /* ── Toasts ── */
+  function toast(msg, type) {
+    type = type || 'info';
     const c = document.getElementById('toasts');
     const t = document.createElement('div');
     t.className = 'toast toast-' + type;
     t.textContent = msg;
     c.appendChild(t);
-    setTimeout(() => { if (t.parentElement) t.remove(); }, 5100);
+    setTimeout(function() { if (t.parentElement) t.remove(); }, 5100);
   }
 
-  // ── Helpers ──
+  /* ── Helpers ── */
   function fmt(ms) {
-    const s = Math.floor(ms / 1000);
+    var s = Math.floor(ms / 1000);
     if (s < 60) return s + 's';
-    if (s < 3600) return Math.floor(s / 60) + 'm ' + (s % 60) + 's';
-    return Math.floor(s / 3600) + 'h ' + Math.floor((s % 3600) / 60) + 'm';
+    if (s < 3600) return Math.floor(s / 60) + 'm';
+    var h = Math.floor(s / 3600);
+    var m = Math.floor((s % 3600) / 60);
+    return h + 'h' + (m > 0 ? m + 'm' : '');
   }
   function fmtMB(mb) { return mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : mb + ' MB'; }
   function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
-
-  // ── Log ──
-  function addLog(tag, cls, msg) {
-    const log = document.getElementById('log');
-    const row = document.createElement('div');
-    row.className = 'log-row';
-
-    const t = document.createElement('span');
-    t.className = 'log-t';
-    t.textContent = fmt(Date.now() - started);
-
-    const tagEl = document.createElement('span');
-    tagEl.className = 'log-tag ' + cls;
-    tagEl.textContent = tag;
-
-    const msgEl = document.createElement('span');
-    msgEl.className = 'log-msg';
-    msgEl.textContent = msg;
-
-    row.appendChild(t);
-    row.appendChild(tagEl);
-    row.appendChild(msgEl);
-    log.appendChild(row);
-    log.parentElement.scrollTop = log.parentElement.scrollHeight;
-    while (log.children.length > 100) log.removeChild(log.firstChild);
+  function esc(s) {
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
   }
 
-  // ── Badge color by capability ──
+  /* ── Log ── */
+  function addLog(tag, cls, msg) {
+    var log = document.getElementById('log');
+    var row = document.createElement('div');
+    row.className = 'log-row';
+    row.innerHTML =
+      '<span class="log-t">' + fmt(Date.now() - started) + '</span>' +
+      '<span class="log-tag ' + cls + '">' + esc(tag) + '</span>' +
+      '<span class="log-msg">' + esc(msg) + '</span>';
+    log.appendChild(row);
+    while (log.children.length > 100) log.removeChild(log.firstChild);
+    logCount = Math.min(logCount + 1, 100);
+    document.getElementById('log-badge').textContent = logCount;
+    /* Auto-scroll only if user hasn't scrolled up */
+    if (!logUserScrolled) {
+      logBody.scrollTop = logBody.scrollHeight;
+    }
+  }
+
+  /* ── Badge color by capability ── */
   function capBadge(cap) {
-    const c = cap.toLowerCase();
+    var c = cap.toLowerCase();
     if (c.includes('vlm') || c.includes('vla')) return 'b-vlm';
     if (c.includes('code')) return 'b-code';
     if (c.includes('rag') || c.includes('embed')) return 'b-rag';
     return 'b-llm';
   }
 
-  // ── Swarm fetch ──
+  /* ── Set hex gauge value ── */
+  function setGauge(id, pct, color) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var outer = el.querySelector('.hex-outer');
+    if (outer) {
+      outer.style.setProperty('--gauge', clamp(pct, 0, 100));
+      if (color) outer.style.setProperty('--gauge-color', color);
+    }
+  }
+  function gaugeColor(pct) {
+    if (pct > 80) return 'var(--red)';
+    if (pct > 50) return 'var(--amber)';
+    return 'var(--green)';
+  }
+
+  /* ── Stable node tracking ── */
+  function updateStableNodes(incomingNodes) {
+    var incomingIds = new Set();
+    for (var i = 0; i < incomingNodes.length; i++) {
+      var n = incomingNodes[i];
+      var id = n.node_id || n.host;
+      incomingIds.add(id);
+      stableNodes.set(id, { node: n, missedPolls: 0 });
+    }
+    for (var entry of stableNodes) {
+      var sid = entry[0];
+      var data = entry[1];
+      if (!incomingIds.has(sid)) {
+        data.missedPolls++;
+        if (data.missedPolls >= NODE_GRACE_POLLS) {
+          console.log('[LaRuche] Node removed after', NODE_GRACE_POLLS, 'missed polls:', sid);
+          stableNodes.delete(sid);
+        }
+      }
+    }
+    var result = [];
+    for (var e of stableNodes.values()) {
+      result.push(e.node);
+    }
+    return result;
+  }
+
+  /* ── Fetch: Swarm ── */
   async function fetchSwarm() {
     try {
-      const r = await fetch(API + '/swarm');
+      var r = await fetch(API + '/swarm');
       if (!r.ok) throw new Error('HTTP ' + r.status);
-      const d = await r.json();
+      var d = await r.json();
+      console.log('[LaRuche] /swarm: total_nodes=' + d.total_nodes, 'nodes:', d.nodes.map(function(n) { return (n.name || n.host) + ' (' + (n.node_id || '?') + ')'; }));
 
-      document.getElementById('kpi-nodes').textContent = d.total_nodes;
+      var stableNodeList = updateStableNodes(d.nodes);
+      var stableCount = stableNodeList.length;
+
+      /* KPI hexes */
+      document.getElementById('kpi-nodes').textContent = stableCount;
       document.getElementById('kpi-tps').textContent = d.collective_tps.toFixed(1);
       document.getElementById('kpi-queue').textContent = d.collective_queue;
 
-      document.getElementById('s-ram').textContent = d.total_ram_mb > 0 ? fmtMB(d.total_ram_mb) : '—';
-      document.getElementById('s-vram').textContent = d.total_vram_mb > 0 ? fmtMB(d.total_vram_mb) : '—';
+      /* Node gauge: fill based on count (1=33%, 2=66%, 3+=100%) */
+      setGauge('hg-nodes', Math.min(stableCount * 33, 100), 'var(--green)');
+      /* TPS gauge: normalized to max observed */
+      if (d.collective_tps > maxTps) maxTps = d.collective_tps;
+      setGauge('hg-tps', (d.collective_tps / maxTps) * 100, 'var(--amber)');
+      /* Queue gauge */
+      setGauge('hg-queue', Math.min(d.collective_queue * 10, 100), d.collective_queue > 5 ? 'var(--red)' : 'var(--blue)');
+
+      /* Swarm resources */
+      document.getElementById('s-ram').textContent = d.total_ram_mb > 0 ? fmtMB(d.total_ram_mb) : '\u2014';
+      document.getElementById('s-vram').textContent = d.total_vram_mb > 0 ? fmtMB(d.total_vram_mb) : '\u2014';
       document.getElementById('s-tps').textContent = d.collective_tps.toFixed(1) + ' t/s';
       document.getElementById('s-queue').textContent = d.collective_queue;
 
-      const statusText = d.total_nodes + ' node' + (d.total_nodes > 1 ? 's' : '') + ' · ' + d.collective_tps.toFixed(1) + ' t/s';
+      /* Swarm badge */
+      document.getElementById('swarm-badge').textContent = stableCount + ' node' + (stableCount > 1 ? 's' : '');
+
+      var statusText = stableCount + ' node' + (stableCount > 1 ? 's' : '') + ' \u00B7 ' + d.collective_tps.toFixed(1) + ' t/s';
 
       if (!connected) {
         connected = true;
         document.getElementById('pill-status').className = 'pill pill-ok';
-        toast('Swarm connecté — ' + d.total_nodes + ' nœud(s)', 'ok');
-        addLog('NET', 'log-ok', 'Connexion au Swarm établie · ' + statusText);
+        toast('Swarm connect\u00E9 \u2014 ' + stableCount + ' n\u0153ud(s)', 'ok');
+        addLog('NET', 'log-ok', 'Connexion au Swarm \u00E9tablie \u00B7 ' + statusText);
+        lastNodeCount = stableCount;
       }
 
-      if (lastNodeCount >= 0 && d.total_nodes !== lastNodeCount) {
-        if (d.total_nodes > lastNodeCount) {
-          toast('Nouveau nœud LAND détecté ! Total: ' + d.total_nodes, 'ok');
-          addLog('LAND', 'log-ok', 'Nœud rejoint le Swarm via mDNS — puissance: ' + d.collective_tps.toFixed(1) + ' t/s');
+      /* Debounced node count change */
+      if (lastNodeCount >= 0 && stableCount !== lastNodeCount) {
+        if (stableCount === pendingNodeCount) {
+          pendingNodeCountHits++;
         } else {
-          toast('Nœud déconnecté. Total: ' + d.total_nodes, 'warn');
-          addLog('LAND', 'log-warn', 'Nœud quitté le Swarm — recalibration automatique');
+          pendingNodeCount = stableCount;
+          pendingNodeCountHits = 1;
         }
+        if (pendingNodeCountHits >= 2) {
+          if (stableCount > lastNodeCount) {
+            toast('Nouveau n\u0153ud LAND d\u00E9tect\u00E9 ! Total: ' + stableCount, 'ok');
+            addLog('LAND', 'log-ok', 'N\u0153ud rejoint le Swarm via mDNS \u2014 puissance: ' + d.collective_tps.toFixed(1) + ' t/s');
+          } else {
+            toast('N\u0153ud d\u00E9connect\u00E9. Total: ' + stableCount, 'warn');
+            addLog('LAND', 'log-warn', 'N\u0153ud quitt\u00E9 le Swarm \u2014 recalibration automatique');
+          }
+          lastNodeCount = stableCount;
+          pendingNodeCount = -1;
+          pendingNodeCountHits = 0;
+        }
+      } else {
+        pendingNodeCount = -1;
+        pendingNodeCountHits = 0;
       }
-      lastNodeCount = d.total_nodes;
 
       document.getElementById('pill-text').textContent = statusText;
       document.getElementById('pill-status').className = 'pill pill-ok';
 
-      // Node list deduplicated
-      const list = document.getElementById('node-list');
+      /* Render node list */
+      var list = document.getElementById('node-list');
       list.innerHTML = '';
-      const seenNodes = new Set();
-      d.nodes.forEach(n => {
-        const id = n.node_id || n.host;
-        if (seenNodes.has(id)) return;
-        seenNodes.add(id);
+      for (var i = 0; i < stableNodeList.length; i++) {
+        var n = stableNodeList[i];
+        var tps = n.tokens_per_sec ? n.tokens_per_sec.toFixed(1) : '0.0';
+        var q = n.queue_depth || 0;
+        var caps = (n.capabilities || []).map(function(c) {
+          return '<span class="badge ' + capBadge(c) + '">' + esc(c) + '</span>';
+        }).join('');
+        var modelHtml = n.model ? '<div class="n-model">\u25C8 ' + esc(n.model) + '</div>' : '';
 
-        const tps = n.tokens_per_sec ? n.tokens_per_sec.toFixed(1) : '0.0';
-        const q = n.queue_depth || 0;
-        const caps = (n.capabilities || []).map(c =>
-          '<span class="badge ' + capBadge(c) + '">' + c + '</span>'
-        ).join('');
-        const modelHtml = n.model ? '<div class="n-model">◈ ' + n.model + '</div>' : '';
-
-        const item = document.createElement('div');
+        var item = document.createElement('div');
         item.className = 'n-item';
         item.innerHTML =
-          '<div class="n-left">' +
-            '<div class="n-hex ' + (q > 3 ? 'busy' : 'ok') + '"></div>' +
-            '<div class="n-info">' +
-              '<div class="n-name">' + (n.name || 'Unknown') + '</div>' +
-              modelHtml +
-              '<div class="n-meta">' + n.host + ' · ' + tps + ' t/s · Q:' + q + '</div>' +
-            '</div>' +
+          '<div class="n-hex ' + (q > 3 ? 'busy' : 'ok') + '"></div>' +
+          '<div class="n-info">' +
+            '<div class="n-name">' + esc(n.name || 'Unknown') + '</div>' +
+            modelHtml +
+            '<div class="n-meta">' + esc(n.host) + ' \u00B7 ' + tps + ' t/s \u00B7 Q:' + q + '</div>' +
           '</div>' +
-          '<div class="badges">' + caps + '</div>';
+          '<div class="n-right"><div class="badges">' + caps + '</div></div>';
         list.appendChild(item);
-      });
-
+      }
     } catch (e) {
+      console.warn('[LaRuche] /swarm failed:', e.message);
       if (connected) {
         connected = false;
         document.getElementById('pill-status').className = 'pill pill-warn';
         document.getElementById('pill-text').textContent = 'Offline';
-        toast('Connexion perdue avec le nœud', 'err');
-        addLog('NET', 'log-err', 'Nœud inaccessible — tentative de reconnexion…');
+        toast('Connexion perdue avec le n\u0153ud', 'err');
+        addLog('NET', 'log-err', 'N\u0153ud inaccessible \u2014 tentative de reconnexion\u2026');
       }
     }
   }
 
-  // ── Status + real metrics fetch ──
+  /* ── Fetch: Status ── */
   async function fetchStatus() {
     try {
-      const r = await fetch(API + '/');
+      var r = await fetch(API + '/');
       if (!r.ok) return;
-      const d = await r.json();
+      var d = await r.json();
 
-      // Real CPU
-      const cpu = d.cpu_usage_pct ?? 0;
+      /* CPU */
+      var cpu = d.cpu_usage_pct || 0;
+      document.getElementById('kpi-cpu').textContent = cpu.toFixed(0) + '%';
       document.getElementById('r-cpu').textContent = cpu.toFixed(0) + '%';
       document.getElementById('b-cpu').style.width = clamp(cpu, 0, 100) + '%';
-      document.getElementById('b-cpu').className = 'bar-fill ' + (cpu > 80 ? 'b-red' : cpu > 50 ? 'b-amber' : 'b-green');
+      document.getElementById('b-cpu').className = 'res-fill ' + (cpu > 80 ? 'fill-red' : cpu > 50 ? 'fill-amber' : 'fill-green');
+      setGauge('hg-cpu', cpu, gaugeColor(cpu));
 
-      // Real RAM
-      const mem = d.memory_usage_pct ?? 0;
-      const memLabel = d.memory_used_mb ? fmtMB(d.memory_used_mb) + ' / ' + fmtMB(d.memory_total_mb) : mem.toFixed(0) + '%';
+      /* RAM */
+      var mem = d.memory_usage_pct || 0;
+      var memLabel = d.memory_used_mb ? fmtMB(d.memory_used_mb) + '/' + fmtMB(d.memory_total_mb) : mem.toFixed(0) + '%';
+      document.getElementById('kpi-ram').textContent = mem.toFixed(0) + '%';
       document.getElementById('r-mem').textContent = memLabel;
       document.getElementById('b-mem').style.width = clamp(mem, 0, 100) + '%';
-      document.getElementById('b-mem').className = 'bar-fill ' + (mem > 80 ? 'b-red' : mem > 50 ? 'b-amber' : 'b-green');
+      document.getElementById('b-mem').className = 'res-fill ' + (mem > 80 ? 'fill-red' : mem > 50 ? 'fill-amber' : 'fill-green');
+      setGauge('hg-ram', mem, gaugeColor(mem));
 
-      // Tokens/sec
-      const tps = d.tokens_per_sec ?? 0;
+      /* TPS */
+      var tps = d.tokens_per_sec || 0;
       if (tps > maxTps) maxTps = tps;
       document.getElementById('r-tps').textContent = tps.toFixed(1) + ' t/s';
       document.getElementById('b-tps').style.width = clamp((tps / maxTps) * 100, 0, 100) + '%';
 
-      // Queue
-      document.getElementById('r-queue').textContent = d.queue_depth ?? 0;
+      /* Queue */
+      var q = d.queue_depth || 0;
+      document.getElementById('r-queue').textContent = q;
+      document.getElementById('b-queue').style.width = clamp(q * 10, 0, 100) + '%';
 
-      // Uptime
+      /* Uptime */
       document.getElementById('kpi-uptime').textContent = fmt(d.uptime_secs * 1000);
-      document.getElementById('r-uptime').textContent = 'Uptime: ' + fmt(d.uptime_secs * 1000);
-
-      // Capabilities → active model
-      const caps = d.capabilities || [];
-      document.getElementById('kpi-model').textContent = caps.length ? caps.join(', ') : '—';
+      /* Uptime gauge: fills over 24h */
+      var uptimePct = Math.min((d.uptime_secs / 86400) * 100, 100);
+      setGauge('hg-uptime', uptimePct, 'var(--cyan)');
 
     } catch (e) { /* node may be starting */ }
   }
 
-  // ── Models fetch ──
+  /* ── Fetch: Models ── */
   async function fetchModels() {
     try {
-      const r = await fetch(API + '/swarm/models');
+      var r = await fetch(API + '/swarm/models');
       if (!r.ok) return;
-      const d = await r.json();
-      const list = document.getElementById('model-list');
+      var d = await r.json();
+      var list = document.getElementById('model-list');
       list.innerHTML = '';
 
       if (!d.models || d.models.length === 0) {
-        list.innerHTML = '<div style="font-size:11px;color:var(--text-dim);text-align:center;padding:8px">Aucun modele detecte sur le swarm</div>';
+        list.innerHTML = '<div style="font-size:10px;color:var(--text-dim);text-align:center;padding:8px">Aucun mod\u00E8le</div>';
+        document.getElementById('model-badge').textContent = '0';
         return;
       }
 
-      d.models.forEach(m => {
-        const hostLabel = m.node_name ? (m.node_name + ' @ ' + m.host) : m.host;
-        const item = document.createElement('div');
+      document.getElementById('model-badge').textContent = d.models.length;
+
+      d.models.forEach(function(m) {
+        var hostLabel = m.node_name ? (m.node_name + ' @ ' + m.host) : m.host;
+        var item = document.createElement('div');
         item.className = 'model-item' + (m.is_default ? ' default' : '');
         item.innerHTML =
-          '<span class="model-name" title="' + m.name + '">' + m.name + '</span>' +
-          '<span class="model-size">' + m.size_gb.toFixed(1) + ' GB</span>' +
-          '<span class="model-host" title="' + hostLabel + '">' + hostLabel + '</span>' +
-          (m.is_default ? '<span class="model-default-tag">default</span>' : '');
+          '<span class="model-name" title="' + esc(m.name) + '">' + esc(m.name) + '</span>' +
+          '<span class="model-size">' + m.size_gb.toFixed(1) + 'G</span>' +
+          '<span class="model-host" title="' + esc(hostLabel) + '">' + esc(hostLabel) + '</span>' +
+          (m.is_default ? '<span class="model-default-tag">def</span>' : '');
         list.appendChild(item);
       });
 
-      if (d.models.length !== lastModelCount) {
+      if (lastModelCount >= 0 && d.models.length !== lastModelCount) {
         addLog('OLLAMA', 'log-info', d.models.length + ' model(s) sur ' + d.total_hosts + ' node(s)');
-        lastModelCount = d.models.length;
       }
+      lastModelCount = d.models.length;
     } catch (e) { /* models endpoint may be unavailable */ }
   }
 
-  // Activity fetch
+  /* ── Fetch: Activity ── */
   async function fetchActivity() {
     try {
-      const r = await fetch(API + '/activity');
+      var r = await fetch(API + '/activity');
       if (!r.ok) return;
-      const d = await r.json();
-      
-      let newLogs = false;
-      d.logs.forEach(log => {
+      var d = await r.json();
+
+      if (!activityInitialized) {
+        if (d.logs && d.logs.length > 0) {
+          lastActivityTs = d.logs[d.logs.length - 1].timestamp;
+        }
+        activityInitialized = true;
+        console.log('[LaRuche] Activity initialized, lastTs=' + lastActivityTs);
+        return;
+      }
+
+      d.logs.forEach(function(log) {
         if (log.timestamp > lastActivityTs) {
           addLog(log.tag, log.level, log.message);
           lastActivityTs = log.timestamp;
-          newLogs = true;
         }
       });
-      // Ensure we start keeping track right away
-      if (!lastActivityTs && d.logs.length > 0) {
-          lastActivityTs = d.logs[d.logs.length - 1].timestamp;
-      }
-    } catch (e) { }
+    } catch (e) { /* activity endpoint may be unavailable */ }
   }
 
-  // ── Init ──
-  addLog('SYS', 'log-info', 'Dashboard initialisé — connexion au nœud LAND…');
+  /* ── Init ── */
+  addLog('SYS', 'log-info', 'Dashboard initialis\u00E9 \u2014 connexion au n\u0153ud LAND\u2026');
+  console.log('[LaRuche] Dashboard starting, API=' + API);
 
   fetchSwarm();
   fetchStatus();
@@ -446,9 +761,7 @@
   setInterval(fetchSwarm, 3000);
   setInterval(fetchStatus, 5000);
   setInterval(fetchActivity, 2000);
-  // Refresh model list every 30s (models don't change often)
   setInterval(fetchModels, 30000);
 </script>
 </body>
 </html>
-
