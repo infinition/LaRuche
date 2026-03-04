@@ -115,18 +115,33 @@ async fn cmd_discover() -> Result<()> {
         let name = node.manifest.node_name.as_deref().unwrap_or("unknown");
         let host = &node.manifest.host;
         let port = node.manifest.port.unwrap_or(0);
-        let caps: Vec<String> = node.manifest.capabilities.iter().map(|c| c.to_string()).collect();
-        let tps = node.manifest.tokens_per_sec.map(|t| format!("{t:.1}")).unwrap_or("-".into());
+        let caps: Vec<String> = node
+            .manifest
+            .capabilities
+            .iter()
+            .map(|c| c.to_string())
+            .collect();
+        let tps = node
+            .manifest
+            .tokens_per_sec
+            .map(|t| format!("{t:.1}"))
+            .unwrap_or("-".into());
 
         println!("│   {name}");
         println!("│     Host: {host}:{port}");
         println!("│     Capabilities: [{}]", caps.join(", "));
         println!("│     Speed: {tps} tokens/sec");
-        println!("│     Tier: {}", node.manifest.tier.as_deref().unwrap_or("unknown"));
+        println!(
+            "│     Tier: {}",
+            node.manifest.tier.as_deref().unwrap_or("unknown")
+        );
         println!("├─────────────────────────────────────────────────────┤");
     }
 
-    println!("│  Total: {} node(s)                                  │", laruche.node_count());
+    println!(
+        "│  Total: {} node(s)                                  │",
+        laruche.node_count()
+    );
     println!("└─────────────────────────────────────────────────────┘");
 
     Ok(())

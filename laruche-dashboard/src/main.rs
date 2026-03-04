@@ -5,11 +5,7 @@
 //! cybersecurity monitoring, and swarm visualization.
 
 use anyhow::Result;
-use axum::{
-    response::Html,
-    routing::get,
-    Router,
-};
+use axum::{response::Html, routing::get, Router};
 use tracing::info;
 
 const DASHBOARD_HTML: &str = include_str!("templates/dashboard.html");

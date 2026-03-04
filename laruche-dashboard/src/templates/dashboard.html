@@ -72,10 +72,11 @@
 
     /* ── Models panel ── */
     .model-list { display:flex; flex-direction:column; gap:4px; flex:1; overflow-y:auto; }
-    .model-item { display:flex; align-items:center; justify-content:space-between; padding:5px 8px; background:var(--bg); border-radius:6px; border:1px solid var(--border); font-size:11px; }
+    .model-item { display:flex; align-items:center; justify-content:space-between; gap:6px; padding:5px 8px; background:var(--bg); border-radius:6px; border:1px solid var(--border); font-size:11px; }
     .model-item.default { border-color:rgba(245,158,11,.4); }
     .model-name { font-family:'JetBrains Mono',monospace; color:var(--text); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; }
     .model-size { color:var(--text-dim); font-family:'JetBrains Mono',monospace; font-size:10px; flex-shrink:0; }
+    .model-host { color:var(--blue); border:1px solid rgba(59,130,246,.35); background:var(--blue-dim); border-radius:3px; padding:1px 5px; font-size:9px; font-family:'JetBrains Mono',monospace; flex-shrink:0; }
     .model-default-tag { font-size:9px; color:var(--amber); border:1px solid rgba(245,158,11,.4); border-radius:3px; padding:1px 5px; flex-shrink:0; }
 
     /* ── Thermal grid ── */
@@ -228,9 +229,22 @@
     const log = document.getElementById('log');
     const row = document.createElement('div');
     row.className = 'log-row';
-    row.innerHTML = '<span class="log-t">' + fmt(Date.now() - started) + '</span>' +
-      '<span class="log-tag ' + cls + '">' + tag + '</span>' +
-      '<span class="log-msg">' + msg + '</span>';
+
+    const t = document.createElement('span');
+    t.className = 'log-t';
+    t.textContent = fmt(Date.now() - started);
+
+    const tagEl = document.createElement('span');
+    tagEl.className = 'log-tag ' + cls;
+    tagEl.textContent = tag;
+
+    const msgEl = document.createElement('span');
+    msgEl.className = 'log-msg';
+    msgEl.textContent = msg;
+
+    row.appendChild(t);
+    row.appendChild(tagEl);
+    row.appendChild(msgEl);
     log.appendChild(row);
     log.parentElement.scrollTop = log.parentElement.scrollHeight;
     while (log.children.length > 100) log.removeChild(log.firstChild);
@@ -369,36 +383,37 @@
   // ── Models fetch ──
   async function fetchModels() {
     try {
-      const r = await fetch(API + '/models');
+      const r = await fetch(API + '/swarm/models');
       if (!r.ok) return;
       const d = await r.json();
       const list = document.getElementById('model-list');
       list.innerHTML = '';
 
       if (!d.models || d.models.length === 0) {
-        list.innerHTML = '<div style="font-size:11px;color:var(--text-dim);text-align:center;padding:8px">Aucun modèle Ollama détecté</div>';
+        list.innerHTML = '<div style="font-size:11px;color:var(--text-dim);text-align:center;padding:8px">Aucun modele detecte sur le swarm</div>';
         return;
       }
 
       d.models.forEach(m => {
-        const isDefault = m.name === d.default_model || m.name.startsWith(d.default_model);
+        const hostLabel = m.node_name ? (m.node_name + ' @ ' + m.host) : m.host;
         const item = document.createElement('div');
-        item.className = 'model-item' + (isDefault ? ' default' : '');
+        item.className = 'model-item' + (m.is_default ? ' default' : '');
         item.innerHTML =
           '<span class="model-name" title="' + m.name + '">' + m.name + '</span>' +
           '<span class="model-size">' + m.size_gb.toFixed(1) + ' GB</span>' +
-          (isDefault ? '<span class="model-default-tag">default</span>' : '');
+          '<span class="model-host" title="' + hostLabel + '">' + hostLabel + '</span>' +
+          (m.is_default ? '<span class="model-default-tag">default</span>' : '');
         list.appendChild(item);
       });
 
       if (d.models.length !== lastModelCount) {
-        addLog('OLLAMA', 'log-info', d.models.length + ' modèle(s) disponibles · défaut: ' + d.default_model);
+        addLog('OLLAMA', 'log-info', d.models.length + ' model(s) sur ' + d.total_hosts + ' node(s)');
         lastModelCount = d.models.length;
       }
-    } catch (e) { /* Ollama may not be running */ }
+    } catch (e) { /* models endpoint may be unavailable */ }
   }
 
-  // ── Activity fetch ──
+  // Activity fetch
   async function fetchActivity() {
     try {
       const r = await fetch(API + '/activity');
@@ -436,3 +451,4 @@
 </script>
 </body>
 </html>
+
