@@ -410,7 +410,7 @@
   let logCount = 0;
 
   /* Stable node tracking */
-  const NODE_GRACE_POLLS = 3;
+  const NODE_GRACE_POLLS = 5;
   let stableNodes = new Map();
 
   /* Debounce node count */
@@ -465,6 +465,9 @@
     d.textContent = s;
     return d.innerHTML;
   }
+  function normalizeCap(cap) {
+    return String(cap || '').toLowerCase().replace(/^capability:/, '').trim();
+  }
 
   /* ── Log ── */
   function addLog(tag, cls, msg) {
@@ -487,7 +490,7 @@
 
   /* ── Badge color by capability ── */
   function capBadge(cap) {
-    var c = cap.toLowerCase();
+    var c = normalizeCap(cap);
     if (c.includes('vlm') || c.includes('vla')) return 'b-vlm';
     if (c.includes('code')) return 'b-code';
     if (c.includes('rag') || c.includes('embed')) return 'b-rag';
@@ -615,9 +618,22 @@
         var n = stableNodeList[i];
         var tps = n.tokens_per_sec ? n.tokens_per_sec.toFixed(1) : '0.0';
         var q = n.queue_depth || 0;
-        var caps = (n.capabilities || []).map(function(c) {
+        var normalizedCaps = [];
+        (n.capabilities || []).forEach(function(c) {
+          var cc = normalizeCap(c);
+          if (cc && normalizedCaps.indexOf(cc) === -1) normalizedCaps.push(cc);
+        });
+        var caps = normalizedCaps.map(function(c) {
           return '<span class="badge ' + capBadge(c) + '">' + esc(c) + '</span>';
         }).join('');
+
+        var cpuMeta = (n.cpu_usage_pct != null) ? (n.cpu_usage_pct.toFixed(0) + '% CPU') : '';
+        var ramMeta = (n.memory_usage_pct != null)
+          ? (n.memory_usage_pct.toFixed(0) + '% RAM')
+          : ((n.memory_total_mb != null) ? (fmtMB(n.memory_total_mb) + ' RAM') : '');
+        var perfMeta = [cpuMeta, ramMeta].filter(Boolean).join(' · ');
+        var metaSuffix = perfMeta ? (' · ' + perfMeta) : '';
+
         var modelHtml = n.model ? '<div class="n-model">\u25C8 ' + esc(n.model) + '</div>' : '';
 
         var item = document.createElement('div');
@@ -627,7 +643,7 @@
           '<div class="n-info">' +
             '<div class="n-name">' + esc(n.name || 'Unknown') + '</div>' +
             modelHtml +
-            '<div class="n-meta">' + esc(n.host) + ' \u00B7 ' + tps + ' t/s \u00B7 Q:' + q + '</div>' +
+            '<div class="n-meta">' + esc(n.host) + ' \u00B7 ' + tps + ' t/s \u00B7 Q:' + q + metaSuffix + '</div>' +
           '</div>' +
           '<div class="n-right"><div class="badges">' + caps + '</div></div>';
         list.appendChild(item);

@@ -36,6 +36,7 @@ use std::collections::VecDeque;
 const DASHBOARD_HTML: &str = include_str!("../../laruche-dashboard/src/templates/dashboard.html");
 const PEER_FETCH_TIMEOUT_MS: u64 = 2500;
 const PEER_STALE_SECS: i64 = 30;
+const MDNS_REANNOUNCE_INTERVAL_SECS: u64 = 2;
 const ACTIVITY_LOG_LIMIT: usize = 120;
 
 #[derive(Debug, Clone, Serialize)]
@@ -182,7 +183,10 @@ struct DiscoveredNodeInfo {
     model: Option<String>,
     tokens_per_sec: Option<f32>,
     queue_depth: Option<u32>,
+    memory_used_mb: Option<u64>,
     memory_total_mb: Option<u64>,
+    memory_usage_pct: Option<f32>,
+    cpu_usage_pct: Option<f32>,
     vram_total_mb: Option<u64>,
 }
 
@@ -218,7 +222,10 @@ struct PeerStatusResponse {
     capabilities: Vec<String>,
     tokens_per_sec: f32,
     queue_depth: usize,
+    memory_used_mb: u64,
     memory_total_mb: u64,
+    memory_usage_pct: f32,
+    cpu_usage_pct: f32,
     vram_total_mb: Option<u64>,
 }
 
@@ -248,6 +255,24 @@ fn preview_text(input: &str, max_chars: usize) -> String {
     } else {
         truncated
     }
+}
+
+fn normalize_capability_label(raw: &str) -> String {
+    raw.strip_prefix("capability:")
+        .unwrap_or(raw)
+        .trim()
+        .to_lowercase()
+}
+
+fn normalize_capabilities(caps: Vec<String>) -> Vec<String> {
+    let mut normalized: Vec<String> = caps
+        .into_iter()
+        .map(|c| normalize_capability_label(&c))
+        .filter(|c| !c.is_empty())
+        .collect();
+    normalized.sort();
+    normalized.dedup();
+    normalized
 }
 
 fn is_stale(last_seen: chrono::DateTime<chrono::Utc>) -> bool {
@@ -377,16 +402,20 @@ async fn get_nodes(State(state): State<Arc<AppState>>) -> Json<DiscoveredNodesRe
             node_id: n.manifest.node_id.map(|id| id.to_string()),
             name: n.manifest.node_name.clone(),
             host: n.manifest.host.clone(),
-            capabilities: n
-                .manifest
-                .capabilities
-                .iter()
-                .map(|c| c.to_string())
-                .collect(),
+            capabilities: normalize_capabilities(
+                n.manifest
+                    .capabilities
+                    .iter()
+                    .map(|c| c.to_string())
+                    .collect(),
+            ),
             model: n.manifest.model.clone(),
             tokens_per_sec: n.manifest.tokens_per_sec,
             queue_depth: n.manifest.queue_depth,
+            memory_used_mb: None,
             memory_total_mb: None,
+            memory_usage_pct: n.manifest.memory_usage_pct,
+            cpu_usage_pct: None,
             vram_total_mb: None,
         })
         .collect();
@@ -407,6 +436,13 @@ async fn get_swarm(State(state): State<Arc<AppState>>) -> Json<SwarmResponse> {
         .unwrap_or_else(|_| reqwest::Client::new());
 
     let total_mem_mb = sys.total_memory() / 1024;
+    let used_mem_mb = sys.used_memory() / 1024;
+    let local_mem_pct = if total_mem_mb > 0 {
+        (used_mem_mb as f32 / total_mem_mb as f32) * 100.0
+    } else {
+        0.0
+    };
+    let local_cpu_pct = sys.global_cpu_usage();
     let local_model = state
         .config
         .capabilities
@@ -422,11 +458,14 @@ async fn get_swarm(State(state): State<Arc<AppState>>) -> Json<SwarmResponse> {
         node_id: Some(manifest.node_id.to_string()),
         name: Some(manifest.node_name.clone()),
         host: manifest.api_endpoint.host.clone(),
-        capabilities: manifest.capabilities.to_flags(),
+        capabilities: normalize_capabilities(manifest.capabilities.to_flags()),
         model: local_model,
         tokens_per_sec: Some(manifest.performance.tokens_per_sec),
         queue_depth: Some(queue.depth() as u32),
+        memory_used_mb: Some(used_mem_mb),
         memory_total_mb: Some(total_mem_mb),
+        memory_usage_pct: Some(local_mem_pct),
+        cpu_usage_pct: Some(local_cpu_pct),
         vram_total_mb: manifest.resources.vram_total_mb,
     }];
 
@@ -455,11 +494,14 @@ async fn get_swarm(State(state): State<Arc<AppState>>) -> Json<SwarmResponse> {
                 node_id: node.manifest.node_id.map(|id| id.to_string()),
                 name: Some(peer_status.node_name),
                 host: node.manifest.host.clone(),
-                capabilities: peer_status.capabilities,
+                capabilities: normalize_capabilities(peer_status.capabilities),
                 model: node.manifest.model.clone(),
                 tokens_per_sec: Some(peer_status.tokens_per_sec),
                 queue_depth: Some(peer_status.queue_depth as u32),
+                memory_used_mb: Some(peer_status.memory_used_mb),
                 memory_total_mb: Some(peer_status.memory_total_mb),
+                memory_usage_pct: Some(peer_status.memory_usage_pct),
+                cpu_usage_pct: Some(peer_status.cpu_usage_pct),
                 vram_total_mb: peer_status.vram_total_mb,
             });
         } else {
@@ -476,16 +518,20 @@ async fn get_swarm(State(state): State<Arc<AppState>>) -> Json<SwarmResponse> {
                 node_id: node.manifest.node_id.map(|id| id.to_string()),
                 name: node.manifest.node_name.clone(),
                 host: node.manifest.host.clone(),
-                capabilities: node
-                    .manifest
-                    .capabilities
-                    .iter()
-                    .map(|c| c.to_string())
-                    .collect(),
+                capabilities: normalize_capabilities(
+                    node.manifest
+                        .capabilities
+                        .iter()
+                        .map(|c| c.to_string())
+                        .collect(),
+                ),
                 model: node.manifest.model.clone(),
                 tokens_per_sec: node.manifest.tokens_per_sec,
                 queue_depth: node.manifest.queue_depth,
+                memory_used_mb: None,
                 memory_total_mb: None,
+                memory_usage_pct: node.manifest.memory_usage_pct,
+                cpu_usage_pct: None,
                 vram_total_mb: None,
             });
         }
@@ -828,11 +874,12 @@ async fn main() -> Result<()> {
         .layer(tower_http::cors::CorsLayer::permissive())
         .with_state(state.clone());
 
-    // Background: refresh real metrics every 5s + re-announce mDNS
+    // Background: refresh real metrics + re-announce mDNS
     let update_state = state.clone();
     let bg_broadcaster = broadcaster.clone();
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+        let mut interval =
+            tokio::time::interval(std::time::Duration::from_secs(MDNS_REANNOUNCE_INTERVAL_SECS));
         let start_time = std::time::Instant::now();
         loop {
             interval.tick().await;
