@@ -611,7 +611,7 @@
   <div class="toast-container" id="toasts"></div>
 
   <script>
-    const API = window.location.protocol + '//' + window.location.hostname + ':' + (parseInt(window.location.port || '8420') - 1);
+    const API = window.location.protocol + '//' + window.location.hostname + ':' + (window.location.port || '8419');
     let started = Date.now();
     let lastNodeCount = -1;
     let connected = false;

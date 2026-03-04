@@ -163,7 +163,41 @@ body {
 .input-area textarea:focus {
     border-color: var(--amber);
 }
-.input-area button {
+.mode-toggle {
+    display: flex;
+    gap: 0;
+    margin-bottom: 8px;
+    background: var(--bg-input);
+    border-radius: 6px;
+    padding: 2px;
+    width: fit-content;
+}
+.mode-toggle button {
+    background: transparent;
+    color: var(--text-dim);
+    border: none;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.mode-toggle button.active {
+    background: var(--bg);
+    color: var(--amber);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+.input-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+.input-row {
+    display: flex;
+    gap: 8px;
+}
+.input-area button.send-btn {
     background: var(--amber);
     color: #000;
     border: none;
@@ -192,8 +226,16 @@ body {
 </div>
 <div class="thinking" id="thinking">LaRuche reflechit</div>
 <div class="input-area">
-    <textarea id="input" placeholder="Posez une question..." rows="1"></textarea>
-    <button id="send" onclick="sendMessage()">Envoyer</button>
+    <div class="input-container">
+        <div class="mode-toggle">
+            <button id="mode-chat" class="active" onclick="setMode('chat')">Chat</button>
+            <button id="mode-edit" onclick="setMode('edit')">Agent (Edit)</button>
+        </div>
+        <div class="input-row">
+            <textarea id="input" placeholder="Posez une question..." rows="1"></textarea>
+            <button id="send" class="send-btn" onclick="sendMessage()">Envoyer</button>
+        </div>
+    </div>
 </div>
 <script>
 const vscode = acquireVsCodeApi();
@@ -202,6 +244,23 @@ const inputEl = document.getElementById('input');
 const sendBtn = document.getElementById('send');
 const thinkingEl = document.getElementById('thinking');
 const statusEl = document.getElementById('status-text');
+const btnChat = document.getElementById('mode-chat');
+const btnEdit = document.getElementById('mode-edit');
+
+let currentMode = 'chat';
+
+function setMode(mode) {
+    currentMode = mode;
+    if (mode === 'chat') {
+        btnChat.classList.add('active');
+        btnEdit.classList.remove('active');
+        inputEl.placeholder = "Posez une question...";
+    } else {
+        btnEdit.classList.add('active');
+        btnChat.classList.remove('active');
+        inputEl.placeholder = "Instructions pour le fichier actif...";
+    }
+}
 
 // Auto-resize textarea
 inputEl.addEventListener('input', () => {
@@ -227,7 +286,7 @@ function sendMessage() {
     sendBtn.disabled = true;
     thinkingEl.classList.add('visible');
     
-    vscode.postMessage({ type: 'ask', prompt: text });
+    vscode.postMessage({ type: 'ask', mode: currentMode, prompt: text });
 }
 
 function addMessage(role, content, meta) {

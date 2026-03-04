@@ -223,8 +223,11 @@ async fn get_status(State(state): State<Arc<AppState>>) -> Json<NodeStatus> {
 async fn get_nodes(State(state): State<Arc<AppState>>) -> Json<DiscoveredNodesResponse> {
     let listener = state.listener.read().await;
     let nodes = listener.get_nodes().await;
+    let manifest = state.manifest.read().await;
 
-    let node_list: Vec<DiscoveredNodeInfo> = nodes.values().map(|n| {
+    let node_list: Vec<DiscoveredNodeInfo> = nodes.values()
+        .filter(|n| n.manifest.node_id != Some(manifest.node_id) && n.manifest.host != manifest.api_endpoint.host)
+        .map(|n| {
         DiscoveredNodeInfo {
             node_id: n.manifest.node_id.map(|id| id.to_string()),
             name: n.manifest.node_name.clone(),
@@ -260,6 +263,10 @@ async fn get_swarm(State(state): State<Arc<AppState>>) -> Json<SwarmResponse> {
     }];
 
     for node in nodes.values() {
+        if node.manifest.node_id == Some(manifest.node_id) || node.manifest.host == manifest.api_endpoint.host {
+            continue; // Skip the local node or zombies on the same IP
+        }
+
         total_tps += node.manifest.tokens_per_sec.unwrap_or(0.0);
         total_vram += 0; // Partial manifest doesn't have vram yet
         total_ram += 0; 
@@ -302,7 +309,7 @@ async fn post_infer(
         "prompt": req.prompt,
         "stream": false,
         "options": {
-            "num_predict": req.max_tokens.unwrap_or(256),
+            "num_predict": req.max_tokens.unwrap_or(4096),
             "temperature": req.temperature.unwrap_or(0.7),
         }
     });

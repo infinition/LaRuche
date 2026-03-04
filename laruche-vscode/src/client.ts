@@ -59,7 +59,7 @@ export class LaRucheClient {
                 path: url.pathname,
                 method,
                 headers: { 'Content-Type': 'application/json' },
-                timeout: 120000,
+                timeout: 600000, // 10 minutes for slow local models
             };
 
             const req = lib.request(options, (res) => {
