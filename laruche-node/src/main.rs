@@ -771,6 +771,7 @@ async fn main() -> Result<()> {
 
     let mut broadcaster = LandBroadcaster::new()?;
     broadcaster.register(&manifest)?;
+    let broadcaster = Arc::new(broadcaster);
 
     let mut listener = LandListener::new()?;
     let _discovered_nodes = listener.start()?;
@@ -803,8 +804,9 @@ async fn main() -> Result<()> {
         .layer(tower_http::cors::CorsLayer::permissive())
         .with_state(state.clone());
 
-    // Background: refresh real metrics every 5s
+    // Background: refresh real metrics every 5s + re-announce mDNS
     let update_state = state.clone();
+    let bg_broadcaster = broadcaster.clone();
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
         let start_time = std::time::Instant::now();
@@ -828,6 +830,11 @@ async fn main() -> Result<()> {
                 manifest.resources.memory_total_mb = sys.total_memory() / 1024;
                 manifest.resources.cpu_usage_pct = sys.global_cpu_usage();
                 manifest.performance.queue_depth = queue_depth;
+
+                // Re-announce via mDNS so listeners refresh last_seen
+                if let Err(e) = bg_broadcaster.update(&manifest) {
+                    tracing::warn!("mDNS re-announce failed: {}", e);
+                }
             }
         }
     });
