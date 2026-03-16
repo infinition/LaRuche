@@ -1,421 +1,4 @@
-import * as vscode from 'vscode';
 
-// ── Nonce helper (required for VS Code webview CSP) ──────────────────────────
-function getNonce(): string {
-    let text = '';
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    for (let i = 0; i < 32; i++) {
-        text += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return text;
-}
-
-export function getChatHtml(webview: vscode.Webview): string {
-    const nonce = getNonce();
-    return /*html*/`<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="
-    default-src 'none';
-    style-src 'unsafe-inline';
-    script-src 'nonce-${nonce}';
-    img-src data: https: ${webview.cspSource};
-    media-src data: https:;
-">
-<style>
-:root {
-    --amber: #f59e0b;
-    --amber-dim: rgba(245,158,11,.12);
-    --green: #22c55e;
-    --bg: #1e1e1e;
-    --bg-input: #2d2d2d;
-    --bg-msg-user: #1e3a2e;
-    --bg-msg-ai: #1c1917;
-    --bg-toolbar: #252525;
-    --text: #cccccc;
-    --text-dim: #777;
-    --border: #3e3e3e;
-    --code-bg: #0d0d0d;
-    --btn-hover: rgba(121,121,121,.31);
-}
-* { margin:0; padding:0; box-sizing:border-box; }
-body {
-    font-family: var(--vscode-font-family,'Segoe UI',sans-serif);
-    font-size: 13px;
-    background: var(--bg);
-    color: var(--text);
-    height: 100vh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-/* ── Header ── */
-.header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 14px;
-    border-bottom: 1px solid var(--border);
-    font-weight: 600;
-    color: var(--amber);
-    font-size: 13px;
-    flex-shrink: 0;
-    background: linear-gradient(135deg, #252525, #1e1e1e);
-}
-.hex {
-    width: 18px; height: 18px;
-    background: var(--amber);
-    clip-path: polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
-    flex-shrink: 0;
-}
-.header-actions { display: flex; gap: 2px; margin-left: 4px; }
-.icon-btn {
-    background: transparent;
-    border: none;
-    color: var(--text-dim);
-    cursor: pointer;
-    padding: 4px;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all .2s;
-}
-.icon-btn:hover { background: var(--btn-hover); color: var(--text); }
-.icon-btn svg { width: 14px; height: 14px; fill: currentColor; }
-.header-right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
-.status-dot {
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--green);
-    animation: pulse 2s infinite;
-}
-.status-dot.offline { background: #ef4444; animation: none; }
-#status-text { font-size: 10px; color: var(--text-dim); font-weight: 400; }
-
-/* ── Toolbar ── */
-.toolbar {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 14px;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg-toolbar);
-    flex-shrink: 0;
-    flex-wrap: wrap;
-}
-.toolbar-pill {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 8px;
-    border-radius: 4px;
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-    font-size: 10px;
-    color: var(--text-dim);
-    cursor: pointer;
-    transition: border-color .15s, color .15s;
-    white-space: nowrap;
-    max-width: 160px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.toolbar-pill:hover { border-color: var(--amber); color: var(--amber); }
-.toolbar-pill .icon { opacity: .6; }
-.toolbar-sep { color: var(--border); font-size: 16px; line-height: 1; }
-
-/* ── Messages ── */
-.messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 10px 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-.messages::-webkit-scrollbar { width: 4px; }
-.messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
-
-.msg-container {
-    display: flex;
-    flex-direction: column;
-    position: relative;
-}
-.msg-container.user { align-self: flex-end; max-width: 95%; }
-.msg-container.assistant { align-self: flex-start; max-width: 95%; }
-
-.msg {
-    padding: 10px 13px;
-    border-radius: 10px;
-    line-height: 1.55;
-    word-break: break-word;
-}
-.msg.user {
-    background: var(--bg-msg-user);
-    border: 1px solid rgba(34,197,94,.2);
-    border-bottom-right-radius: 3px;
-}
-.msg.assistant {
-    background: var(--bg-msg-ai);
-    border: 1px solid var(--border);
-    border-bottom-left-radius: 3px;
-}
-.msg.system-msg {
-    align-self: center;
-    background: transparent;
-    border: 1px dashed var(--border);
-    font-size: 11px;
-    color: var(--text-dim);
-    padding: 4px 10px;
-    border-radius: 20px;
-}
-.copy-btn {
-    position: absolute;
-    top: 4px; right: 4px;
-    opacity: 0;
-    pointer-events: none;
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-    padding: 4px;
-    border-radius: 4px;
-    z-index: 10;
-    cursor: pointer;
-    color: var(--text-dim);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.msg-container:hover .copy-btn { opacity: 1; pointer-events: auto; }
-.copy-btn:hover { color: var(--text); }
-.copy-btn svg { width: 12px; height: 12px; fill: currentColor; }
-
-.msg .meta {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    font-size: 10px;
-    color: var(--text-dim);
-    margin-top: 6px;
-    padding-top: 5px;
-    border-top: 1px solid rgba(255,255,255,.06);
-}
-.meta span { display: flex; align-items: center; gap: 2px; }
-.meta .model-tag { color: var(--amber); }
-
-/* Markdown */
-.msg p { margin: 4px 0; }
-.msg h1,.msg h2,.msg h3 { color: var(--amber); margin: 8px 0 4px; font-size: 13px; font-weight: 700; }
-.msg ul,.msg ol { margin: 4px 0 4px 18px; }
-.msg li { margin: 2px 0; }
-.msg strong { color: #e5e5e5; font-weight: 600; }
-.msg em { color: #d4d4d4; font-style: italic; }
-.msg code {
-    background: rgba(255,255,255,.08);
-    padding: 1px 5px;
-    border-radius: 3px;
-    font-family: 'Cascadia Code','Fira Code',monospace;
-    font-size: 11.5px;
-}
-.msg .code-block { position: relative; margin: 8px 0; }
-.msg .lang-label {
-    display: block;
-    background: #161616;
-    color: var(--text-dim);
-    font-size: 10px;
-    padding: 3px 10px;
-    border-radius: 6px 6px 0 0;
-    border: 1px solid #2a2a2a;
-    border-bottom: none;
-    font-family: 'Cascadia Code','Fira Code',monospace;
-    letter-spacing: .5px;
-}
-.msg pre {
-    background: var(--code-bg);
-    padding: 10px 12px;
-    border-radius: 0 6px 6px 6px;
-    overflow-x: auto;
-    border: 1px solid #2a2a2a;
-    font-family: 'Cascadia Code','Fira Code',monospace;
-    font-size: 11.5px;
-    line-height: 1.45;
-    margin: 0;
-}
-.msg .code-block:not(:has(.lang-label)) pre { border-radius: 6px; }
-.msg pre code { background: none; padding: 0; }
-.msg blockquote {
-    border-left: 3px solid var(--amber);
-    margin: 6px 0;
-    padding: 4px 10px;
-    color: var(--text-dim);
-    font-style: italic;
-    background: rgba(245,158,11,.05);
-    border-radius: 0 4px 4px 0;
-}
-
-/* Attachments */
-.attachment-preview { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 14px 0; }
-.attachment-item {
-    display: flex; align-items: center; gap: 5px;
-    padding: 3px 8px;
-    background: var(--amber-dim);
-    border: 1px solid rgba(245,158,11,.3);
-    border-radius: 4px;
-    font-size: 10px; color: var(--amber);
-}
-.attachment-item img { max-width: 40px; max-height: 40px; border-radius: 2px; }
-.attachment-item .remove { cursor: pointer; color: #ef4444; margin-left: 4px; font-size: 12px; }
-.file-badge {
-    display: inline-flex; align-items: center; gap: 5px;
-    padding: 2px 7px;
-    background: var(--amber-dim);
-    border: 1px solid rgba(245,158,11,.3);
-    border-radius: 4px;
-    font-size: 10px; color: var(--amber);
-    margin-bottom: 5px;
-}
-
-/* Thinking */
-.thinking {
-    align-self: flex-start;
-    padding: 10px 14px;
-    background: var(--bg-msg-ai);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    border-bottom-left-radius: 3px;
-    color: var(--amber);
-    font-size: 12px;
-    display: none;
-    font-style: italic;
-    margin: 0 14px;
-}
-.thinking.visible { display: block; }
-.thinking::after { content: '…'; animation: dots 1.5s steps(3,end) infinite; }
-@keyframes dots { 0%,33%{content:'.'} 34%,66%{content:'..'} 67%,100%{content:'…'} }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
-@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
-
-/* Input */
-.input-wrap { border-top: 1px solid var(--border); flex-shrink: 0; background: var(--bg-toolbar); }
-.mode-row { display: flex; align-items: center; gap: 4px; padding: 5px 14px 0; }
-.mode-btn {
-    background: transparent; color: var(--text-dim); border: none;
-    padding: 3px 10px; font-size: 10px; font-weight: 600;
-    border-radius: 4px; cursor: pointer; transition: all .15s; letter-spacing: .3px;
-}
-.mode-btn.active { background: var(--bg-input); color: var(--amber); border: 1px solid var(--border); }
-.mode-btn:not(.active):hover { color: var(--text); }
-.input-row { display: flex; gap: 5px; padding: 6px 14px 10px; align-items: flex-end; }
-.input-wrapper {
-    flex: 1; position: relative; display: flex;
-    background: var(--bg-input);
-    border: 1px solid var(--border);
-    border-radius: 7px; overflow: hidden;
-}
-.input-wrapper:focus-within { border-color: var(--amber); }
-textarea#input {
-    flex: 1; background: transparent; border: none;
-    padding: 7px 10px; color: var(--text);
-    font-family: inherit; font-size: 13px;
-    resize: none; outline: none;
-    min-height: 36px; max-height: 120px; line-height: 1.45;
-}
-.btn-icon {
-    background: transparent; border: 1px solid var(--border); border-radius: 7px;
-    color: var(--text-dim); font-size: 14px;
-    width: 34px; height: 34px;
-    display: flex; align-items: center; justify-content: center;
-    cursor: pointer; transition: border-color .15s, color .15s;
-    flex-shrink: 0; user-select: none;
-}
-.btn-icon:hover { border-color: var(--amber); color: var(--amber); }
-.btn-voice {
-    background: transparent; border: none;
-    color: var(--text-dim); cursor: pointer;
-    padding: 6px 8px; display: flex; align-items: center;
-    align-self: flex-end; transition: color .15s; flex-shrink: 0;
-}
-.btn-voice:hover { color: var(--text); }
-.btn-voice.recording { color: #ef4444; animation: blink 1s infinite; }
-.btn-voice svg { width: 14px; height: 14px; fill: currentColor; }
-.btn-send {
-    background: var(--amber); color: #000; border: none;
-    border-radius: 7px; padding: 0 14px;
-    font-weight: 700; font-size: 13px; height: 34px;
-    cursor: pointer; flex-shrink: 0; transition: opacity .15s;
-}
-.btn-send:hover { opacity: .85; }
-.btn-send:disabled { opacity: .35; cursor: not-allowed; }
-</style>
-</head>
-<body>
-
-<div class="header">
-    <div class="hex"></div>
-    LaRuche
-    <div class="header-actions">
-        <button class="icon-btn" id="btn-new-chat" title="Nouvelle conversation">
-            <svg viewBox="0 0 24 24"><path d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z"/></svg>
-        </button>
-        <button class="icon-btn" id="btn-history" title="Historique">
-            <svg viewBox="0 0 24 24"><path d="M13.5,8H12V13L16.28,15.54L17,14.33L13.5,12.25V8M13,3A9,9 0 0,0 4,12H1L4.96,16.03L9,12H6A7,7 0 0,1 13,5A7,7 0 0,1 20,12A7,7 0 0,1 13,19C11.07,19 9.32,18.21 8.06,16.94L6.64,18.36C8.27,20 10.5,21 13,21A9,9 0 0,0 22,12A9,9 0 0,0 13,3Z"/></svg>
-        </button>
-    </div>
-    <div class="header-right">
-        <div class="status-dot" id="status-dot"></div>
-        <span id="status-text">Connexion…</span>
-    </div>
-</div>
-
-<div class="toolbar">
-    <div class="toolbar-pill" id="node-pill" title="Changer de nœud">
-        <span class="icon">⬡</span>
-        <span id="node-label">découverte…</span>
-    </div>
-    <span class="toolbar-sep">·</span>
-    <div class="toolbar-pill" id="model-pill" title="Changer de modèle">
-        <span class="icon">◈</span>
-        <span id="model-label">défaut</span>
-    </div>
-</div>
-
-<div class="messages" id="messages">
-    <div class="msg-container assistant">
-        <div class="msg assistant">
-            Bienvenue ! Je suis votre assistant LaRuche local.<br><br>
-            <strong>Chat</strong> — posez-moi une question.<br>
-            <strong>Agent</strong> — donnez-moi des instructions sur le fichier actif.<br>
-            <strong>📎</strong> — fichier actif · <strong>📁</strong> — importer un fichier.
-            <div class="meta"><span>LaRuche v0.2.0</span><span>LAND Protocol</span></div>
-        </div>
-    </div>
-</div>
-
-<div class="thinking" id="thinking">LaRuche réfléchit</div>
-<div id="attachment-preview" class="attachment-preview"></div>
-
-<div class="input-wrap">
-    <div class="mode-row">
-        <button class="mode-btn active" id="btn-chat">Chat</button>
-        <button class="mode-btn" id="btn-edit">Agent (Edit)</button>
-    </div>
-    <div class="input-row">
-        <div class="btn-icon" id="btn-upload" title="Importer un fichier (dialog)">📁</div>
-        <div class="input-wrapper">
-            <textarea id="input" rows="1" placeholder="Posez une question…"></textarea>
-            <button id="voice-btn" class="btn-voice" title="Dictée vocale">
-                <svg viewBox="0 0 24 24"><path d="M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z"/></svg>
-            </button>
-        </div>
-        <div class="btn-icon" id="btn-attach" title="Attacher le fichier actif">📎</div>
-        <button class="btn-send" id="btn-send">→</button>
-    </div>
-</div>
-
-<script nonce="${nonce}">
 (function() {
 'use strict';
 
@@ -560,9 +143,9 @@ function sendMessage() {
     if (attachments.length > 0) {
         var parts = attachments.map(function(a) {
             if (a.type && a.type.startsWith('image/')) { return '[Image: ' + a.name + ']'; }
-            return 'File: ' + a.name + '\\n---\\n' + a.content;
-        }).join('\\n\\n');
-        combinedPrompt = text ? text + '\\n\\nContexte:\\n' + parts : parts;
+            return 'File: ' + a.name + '\n---\n' + a.content;
+        }).join('\n\n');
+        combinedPrompt = text ? text + '\n\nContexte:\n' + parts : parts;
     }
 
     inputEl.value = '';
@@ -651,16 +234,16 @@ function addRawMessage(role, htmlContent, metaHtml) {
 function sanitizeAgentText(text) {
     if (!text) { return text; }
     // Strip <tool_call>...</tool_call> blocks
-    var cleaned = text.replace(new RegExp('<tool_call>[\\\\s\\\\S]*?<\\\\/tool_call>', 'g'), '');
+    var cleaned = text.replace(/<tool_call>[sS]*?</tool_call>/g, '');
     // Strip code blocks containing tool calls (use RegExp constructor to avoid backtick in template)
     var t = String.fromCharCode(96);
-    cleaned = cleaned.replace(new RegExp(t+t+t+'(?:json)?[\\\\s\\\\S]*?'+t+t+t, 'g'), function(m) {
+    cleaned = cleaned.replace(new RegExp(t+t+t+'(?:json)?[\\s\\S]*?'+t+t+t, 'g'), function(m) {
         return (m.indexOf('"name"') !== -1 && m.indexOf('"args"') !== -1) ? '' : m;
     });
     // Strip bare JSON tool call objects
-    cleaned = cleaned.replace(new RegExp('\\\\{\\\\s*"name"\\\\s*:\\\\s*"\\\\w+"\\\\s*,\\\\s*"args"\\\\s*:\\\\{[^}]*\\\\}\\\\s*\\\\}', 'g'), '');
+    cleaned = cleaned.replace(/{s*"name"s*:s*"w+"s*,s*"args"s*:s*{[^}]*}s*}/g, '');
     // Strip <tool_result> blocks
-    cleaned = cleaned.replace(new RegExp('<tool_result[\\\\s\\\\S]*?<\\\\/tool_result>', 'g'), '');
+    cleaned = cleaned.replace(/<tool_result[sS]*?</tool_result>/g, '');
     return cleaned.trim();
 }
 function addMessage(role, text, metaHtml) {
@@ -698,7 +281,7 @@ function renderMarkdown(text) {
     var codeBlocks = [], inlineCodes = [];
 
     // 1. Fenced code blocks (Remplacement sécurisé pour le contexte Webview)
-    text = text.replace(/\\\`\\\`\\\`([\\w-]*)\\n?([\\s\\S]*?)\\\`\\\`\\\`/g, function(_, lang, code) {
+    text = text.replace(/\`\`\`([\w-]*)\n?([\s\S]*?)\`\`\`/g, function(_, lang, code) {
         var idx = codeBlocks.length;
         var label = lang ? '<span class="lang-label">' + escHtml(lang) + '</span>' : '';
         codeBlocks.push('<div class="code-block">' + label + '<pre><code>' + escHtml(code.trim()) + '</code></pre></div>');
@@ -706,7 +289,7 @@ function renderMarkdown(text) {
     });
     
     // 2. Inline code
-    text = text.replace(/\\\`([^\\\`\\n]+)\\\`/g, function(_, c) {
+    text = text.replace(/\`([^\`\n]+)\`/g, function(_, c) {
         var idx = inlineCodes.length;
         inlineCodes.push('<code>' + escHtml(c) + '</code>');
         return PFX + 'IC' + idx + SFX;
@@ -720,23 +303,23 @@ function renderMarkdown(text) {
     text = text.replace(/^## (.+)$/gm, '<h2>$1</h2>');
     text = text.replace(/^# (.+)$/gm, '<h1>$1</h1>');
 
-    text = text.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');
-    text = text.replace(/\\*(.+?)\\*/g, '<em>$1</em>');
+    text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
 
     text = text.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
     text = text.replace(/^[-*] (.+)$/gm, '<li>$1</li>');
-    text = text.replace(/((?:<li>.*<\\/li>\\n?)+)/g, function(m) {
+    text = text.replace(/((?:<li>.*<\/li>\n?)+)/g, function(m) {
         return '<ul>' + m + '</ul>';
     });
     
-    text = text.replace(/^\\d+\\. (.+)$/gm, '<li class="ol-li">$1</li>');
-    text = text.replace(/((?:<li class="ol-li">.*<\\/li>\\n?)+)/g, function(m) {
+    text = text.replace(/^\d+\. (.+)$/gm, '<li class="ol-li">$1</li>');
+    text = text.replace(/((?:<li class="ol-li">.*<\/li>\n?)+)/g, function(m) {
         return '<ol>' + m.replace(/ class="ol-li"/g, '') + '</ol>';
     });
 
-    text = text.replace(/\\n/g, '<br>');
-    text = text.replace(/<br>(<\\/?(ul|ol|li|h[1-3]|blockquote))/g, '$1');
-    text = text.replace(/(<\\/(?:ul|ol|li|h[1-3]|blockquote)>)<br>/g, '$1');
+    text = text.replace(/\n/g, '<br>');
+    text = text.replace(/<br>(<\/?(ul|ol|li|h[1-3]|blockquote))/g, '$1');
+    text = text.replace(/(<\/(?:ul|ol|li|h[1-3]|blockquote)>)<br>/g, '$1');
 
     // 5. Restore
     codeBlocks.forEach(function(b, i) { text = text.split(PFX + 'CB' + i + SFX).join(b); });
@@ -801,7 +384,7 @@ window.addEventListener('message', function (event) {
                 if (sendBtn.disabled) {
                     thinkingEl.classList.remove('visible');
                     sendBtn.disabled = false;
-                    addMessage('assistant', '⚠ Timeout : l\\'agent ne répond plus.');
+                    addMessage('assistant', '⚠ Timeout : l\'agent ne répond plus.');
                 }
             }, SAFETY_TIMEOUT_MS);
             break;
@@ -890,7 +473,3 @@ setTimeout(function () { _dbg.style.display = 'none'; }, 5000);
 }
 
 }) (); // end IIFE
-</script>
-    </body>
-    </html>`;
-}

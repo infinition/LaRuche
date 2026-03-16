@@ -8,6 +8,8 @@ export interface SwarmData {
     collective_queue: number;
     total_vram_mb: number;
     total_ram_mb: number;
+    estimated_speedup: number;
+    sharding_possible: boolean;
     nodes: NodeInfo[];
 }
 

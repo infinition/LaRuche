@@ -150,22 +150,10 @@ impl LaRuche {
             .unwrap_or(land_protocol::DEFAULT_API_PORT);
 
         let manifest = PartialManifest {
-            protocol_version: None,
-            node_id: None,
             node_name: Some("direct".into()),
-            tier: None,
-            tokens_per_sec: None,
-            memory_usage_pct: None,
-            queue_depth: None,
             port: Some(port),
-            dashboard_port: None,
-            capabilities: Vec::new(),
-            temperature_c: None,
-            in_swarm: false,
-            peer_count: 0,
-            is_coordinator: false,
-            model: None,
             host,
+            ..PartialManifest::default()
         };
 
         Self {
