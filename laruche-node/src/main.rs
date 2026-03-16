@@ -25,10 +25,10 @@ use land_protocol::{
     qos::{QosPolicy, RequestQueue},
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, fs, net::SocketAddr, sync::Arc, time::Duration};
+use std::{collections::HashMap, collections::HashSet, fs, net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 use sysinfo::System;
 use tokio::sync::RwLock;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
 use std::collections::VecDeque;
@@ -39,12 +39,63 @@ const PEER_STALE_SECS: i64 = 45;
 const MDNS_REANNOUNCE_INTERVAL_SECS: u64 = 2;
 const ACTIVITY_LOG_LIMIT: usize = 120;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct ActivityLogEntry {
     timestamp: String,
     level: String,
     tag: String,
     message: String,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    full_prompt: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    full_response: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    model_used: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    tokens_generated: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    latency_ms: Option<u64>,
+}
+
+/// Persistent state saved to disk (survives restarts)
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct PersistentState {
+    /// Legacy single default model (kept for backward-compatible deserialization)
+    #[serde(default)]
+    default_model: Option<String>,
+    /// Per-capability default models (new format)
+    #[serde(default)]
+    default_models: Option<HashMap<String, String>>,
+    #[serde(default)]
+    activity_log: Vec<ActivityLogEntry>,
+    #[serde(default)]
+    saved_at: String,
+}
+
+const METRICS_HISTORY_LIMIT: usize = 360; // ~1 hour at 10s intervals
+const NODE_EVENTS_LIMIT: usize = 200;
+
+#[derive(Debug, Clone, Serialize)]
+struct MetricsSnapshot {
+    epoch_ms: u64,
+    cpu_pct: f32,
+    ram_pct: f32,
+    tokens_per_sec: f32,
+    queue_depth: u32,
+    node_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+struct NodeEvent {
+    epoch_ms: u64,
+    event_type: String,
+    node_name: String,
+}
+
+#[derive(Debug, Serialize)]
+struct MetricsHistoryResponse {
+    snapshots: Vec<MetricsSnapshot>,
+    events: Vec<NodeEvent>,
 }
 
 struct AppState {
@@ -53,8 +104,19 @@ struct AppState {
     queue: RwLock<RequestQueue>,
     listener: RwLock<LandListener>,
     config: NodeConfig,
+    /// Per-capability default models (e.g. "llm" → "mistral", "code" → "qwen3-coder:30b")
+    /// The "llm" key is the universal fallback for unspecified capabilities.
+    default_models: RwLock<HashMap<String, String>>,
     sys: RwLock<System>,
     activity_log: RwLock<VecDeque<ActivityLogEntry>>,
+    /// Path to laruche-state.json for persistence
+    state_file_path: PathBuf,
+    /// Time-series metrics for charts
+    metrics_history: RwLock<VecDeque<MetricsSnapshot>>,
+    /// Node connect/disconnect events
+    node_events: RwLock<VecDeque<NodeEvent>>,
+    /// Track known node IDs for event detection
+    known_node_ids: RwLock<HashSet<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,7 +177,6 @@ impl Default for NodeConfig {
 struct InferenceRequest {
     prompt: String,
     model: Option<String>,
-    #[allow(dead_code)]
     capability: Option<String>,
     #[allow(dead_code)]
     #[serde(default = "default_qos")]
@@ -256,12 +317,76 @@ struct SwarmModelInfo {
     digest: String,
     is_default: bool,
     is_local: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    capability: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
 struct SwarmModelsResponse {
     total_hosts: usize,
     models: Vec<SwarmModelInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    default_models: Option<HashMap<String, String>>,
+}
+
+/// Infer a LAND capability from a model name using heuristics.
+/// Falls back to "llm" if no specific pattern is matched.
+fn infer_capability_from_model_name(name: &str) -> String {
+    let lower = name.to_lowercase();
+    if lower.contains("coder") || lower.contains("codestral") || lower.contains("deepseek-coder")
+        || lower.contains("starcoder") || lower.contains("code")
+    {
+        return "code".into();
+    }
+    if lower.contains("llava") || lower.contains("bakllava") || lower.contains("moondream")
+        || lower.contains("minicpm-v") || lower.contains("vision")
+    {
+        return "vlm".into();
+    }
+    if lower.contains("whisper") || lower.contains("audio") {
+        return "audio".into();
+    }
+    if lower.contains("nomic-embed") || lower.contains("mxbai-embed")
+        || lower.contains("all-minilm") || lower.contains("embed")
+    {
+        return "embed".into();
+    }
+    if lower.contains("stable-diffusion") || lower.contains("sdxl") || lower.contains("dall") {
+        return "image".into();
+    }
+    "llm".into()
+}
+
+/// Resolve capability for a model: first check CapabilityConfig mappings, then heuristic.
+fn resolve_model_capability(model_name: &str, capabilities: &[CapabilityConfig]) -> String {
+    // Check if any capability config explicitly maps this model
+    for cap in capabilities {
+        let cap_model = cap.model_name.to_lowercase();
+        let check = model_name.to_lowercase();
+        if check == cap_model || check.starts_with(&format!("{}:", cap_model)) || cap_model.starts_with(&check) {
+            return normalize_capability_label(&cap.capability);
+        }
+    }
+    infer_capability_from_model_name(model_name)
+}
+
+/// Read the "llm" default model from the per-capability map, falling back to config.
+async fn get_llm_default(state: &AppState) -> String {
+    let dm = state.default_models.read().await;
+    dm.get("llm")
+        .cloned()
+        .unwrap_or_else(|| state.config.default_model.clone())
+}
+
+/// Resolve a model for a given capability from the per-capability map.
+async fn resolve_model_for_capability(state: &AppState, capability: Option<&str>) -> String {
+    let cap = normalize_capability_label(capability.unwrap_or("llm"));
+    let defaults = state.default_models.read().await;
+    defaults
+        .get(&cap)
+        .or_else(|| defaults.get("llm"))
+        .cloned()
+        .unwrap_or_else(|| state.config.default_model.clone())
 }
 
 fn preview_text(input: &str, max_chars: usize) -> String {
@@ -486,11 +611,7 @@ async fn get_swarm(State(state): State<Arc<AppState>>) -> Json<SwarmResponse> {
         0.0
     };
     let local_cpu_pct = sys.global_cpu_usage();
-    let local_model = state
-        .config
-        .capabilities
-        .first()
-        .map(|c| c.model_name.clone());
+    let local_model = Some(get_llm_default(&state).await);
 
     let mut total_tps = manifest.performance.tokens_per_sec;
     let mut total_vram = manifest.resources.vram_total_mb.unwrap_or(0);
@@ -615,7 +736,10 @@ async fn post_infer(
     Json(req): Json<InferenceRequest>,
 ) -> Result<Json<InferenceResponse>, StatusCode> {
     let config = &state.config;
-    let model = req.model.unwrap_or_else(|| config.default_model.clone());
+    let model = match req.model {
+        Some(m) if !m.trim().is_empty() => m,
+        _ => resolve_model_for_capability(&state, req.capability.as_deref()).await,
+    };
     let start = std::time::Instant::now();
     let requester_ip = connect_info
         .map(|ConnectInfo(addr)| addr.ip().to_string())
@@ -675,6 +799,11 @@ async fn post_infer(
                     level: "log-ok".into(),
                     tag: "INFER".into(),
                     message: log_msg,
+                    full_prompt: Some(req.prompt.clone()),
+                    full_response: Some(response_text.clone()),
+                    model_used: Some(model.clone()),
+                    tokens_generated: Some(eval_count),
+                    latency_ms: Some(latency),
                 });
 
                 Ok(Json(InferenceResponse {
@@ -699,7 +828,8 @@ async fn post_infer(
 async fn get_models(
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<ModelsResponse>, StatusCode> {
-    fetch_local_models(&state.config.ollama_url, &state.config.default_model)
+    let dm = get_llm_default(&state).await;
+    fetch_local_models(&state.config.ollama_url, &dm)
         .await
         .map(Json)
 }
@@ -720,12 +850,14 @@ async fn get_swarm_models(
     let mut models: Vec<SwarmModelInfo> = Vec::new();
     let mut hosts = HashSet::new();
 
+    let dm = get_llm_default(&state).await;
     let local_models =
-        fetch_local_models(&state.config.ollama_url, &state.config.default_model).await?;
+        fetch_local_models(&state.config.ollama_url, &dm).await?;
     hosts.insert(manifest.api_endpoint.host.clone());
     for m in local_models.models {
         let is_default =
             m.name == local_models.default_model || m.name.starts_with(&local_models.default_model);
+        let cap = resolve_model_capability(&m.name, &state.config.capabilities);
         models.push(SwarmModelInfo {
             host: manifest.api_endpoint.host.clone(),
             node_name: manifest.node_name.clone(),
@@ -735,6 +867,7 @@ async fn get_swarm_models(
             digest: m.digest,
             is_default,
             is_local: true,
+            capability: Some(cap),
         });
     }
 
@@ -759,6 +892,7 @@ async fn get_swarm_models(
         for m in peer_models.models {
             let is_default = m.name == peer_models.default_model
                 || m.name.starts_with(&peer_models.default_model);
+            let peer_cap = infer_capability_from_model_name(&m.name);
             models.push(SwarmModelInfo {
                 host: node.manifest.host.clone(),
                 node_name: node
@@ -772,20 +906,26 @@ async fn get_swarm_models(
                 digest: m.digest,
                 is_default,
                 is_local: false,
+                capability: Some(peer_cap),
             });
         }
     }
 
     models.sort_by(|a, b| {
-        a.name
-            .cmp(&b.name)
+        a.capability
+            .cmp(&b.capability)
+            .then_with(|| a.name.cmp(&b.name))
             .then_with(|| a.host.cmp(&b.host))
             .then_with(|| a.node_name.cmp(&b.node_name))
     });
 
+    // Read per-capability default models directly from runtime state
+    let default_models = state.default_models.read().await.clone();
+
     Ok(Json(SwarmModelsResponse {
         total_hosts: hosts.len(),
         models,
+        default_models: Some(default_models),
     }))
 }
 
@@ -827,6 +967,78 @@ async fn post_auth_approve(
         }))),
         None => Err(StatusCode::NOT_FOUND),
     }
+}
+
+#[derive(Debug, Deserialize)]
+struct SetDefaultModelRequest {
+    model: String,
+    #[serde(default)]
+    capability: Option<String>,
+}
+
+/// POST /config/default_model - Change the runtime default model
+async fn post_set_default_model(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<SetDefaultModelRequest>,
+) -> Json<serde_json::Value> {
+    let model_name = req.model.trim().to_string();
+    if model_name.is_empty() {
+        return Json(serde_json::json!({ "status": "error", "message": "model name cannot be empty" }));
+    }
+
+    let capability = normalize_capability_label(
+        req.capability.as_deref().unwrap_or("llm"),
+    );
+
+    let prev = {
+        let mut dm = state.default_models.write().await;
+        let prev = dm.get(&capability).cloned().unwrap_or_default();
+        dm.insert(capability.clone(), model_name.clone());
+        prev
+    };
+
+    // Log the change
+    let cap_label = if capability == "llm" { "".into() } else { format!(" ({capability})") };
+    let mut activity = state.activity_log.write().await;
+    if activity.len() >= ACTIVITY_LOG_LIMIT {
+        activity.pop_front();
+    }
+    activity.push_back(ActivityLogEntry {
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        level: "log-ok".into(),
+        tag: "MODEL".into(),
+        message: format!("Default{cap_label} model changed: {} → {}", prev, model_name),
+        full_prompt: None,
+        full_response: None,
+        model_used: None,
+        tokens_generated: None,
+        latency_ms: None,
+    });
+
+    info!(capability = %capability, prev = %prev, new = %model_name, "Default model changed via API");
+
+    // Persist state immediately after model change
+    let save_ref = state.clone();
+    tokio::spawn(async move { save_persistent_state(&save_ref).await });
+
+    Json(serde_json::json!({
+        "status": "ok",
+        "capability": capability,
+        "default_model": model_name,
+        "previous": prev,
+    }))
+}
+
+/// GET /config/default_model - Get the current runtime default model(s)
+async fn get_default_model(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let dm = state.default_models.read().await;
+    let llm_default = dm.get("llm").cloned().unwrap_or_else(|| state.config.default_model.clone());
+    Json(serde_json::json!({
+        "default_model": llm_default,
+        "default_models": *dm,
+    }))
 }
 
 #[derive(Debug, Serialize)]
@@ -909,14 +1121,53 @@ async fn main() -> Result<()> {
     let mut sys = System::new_all();
     sys.refresh_all();
 
+    // Load persistent state (activity log, default model) from previous session
+    let state_file_path = resolve_state_file_path();
+    let persistent = load_persistent_state(&state_file_path);
+
+    // Build initial per-capability default models map:
+    // 1) Start from config capabilities
+    // 2) Overlay with persisted runtime choices from last session
+    let mut initial_defaults: HashMap<String, String> = HashMap::new();
+    for cap in &config.capabilities {
+        let cap_name = normalize_capability_label(&cap.capability);
+        initial_defaults.entry(cap_name).or_insert_with(|| cap.model_name.clone());
+    }
+    // Ensure "llm" is always present
+    initial_defaults
+        .entry("llm".into())
+        .or_insert_with(|| config.default_model.clone());
+    // Overlay persisted state (takes priority — user's runtime choices)
+    if let Some(persisted_map) = persistent.default_models {
+        for (k, v) in persisted_map {
+            if !v.is_empty() {
+                initial_defaults.insert(k, v);
+            }
+        }
+    } else if let Some(dm) = persistent.default_model.filter(|m| !m.is_empty()) {
+        // Legacy migration: single default_model → "llm" entry
+        initial_defaults.insert("llm".into(), dm);
+    }
+
+    // Pre-populate activity log from persistent state
+    let mut initial_log = VecDeque::with_capacity(ACTIVITY_LOG_LIMIT);
+    for entry in persistent.activity_log.into_iter().rev().take(ACTIVITY_LOG_LIMIT) {
+        initial_log.push_front(entry);
+    }
+
     let state = Arc::new(AppState {
         manifest: RwLock::new(manifest),
         auth: RwLock::new(ProximityAuth::new()),
         queue: RwLock::new(RequestQueue::new(QosPolicy::default())),
         listener: RwLock::new(listener),
+        default_models: RwLock::new(initial_defaults),
         config: config.clone(),
         sys: RwLock::new(sys),
-        activity_log: RwLock::new(VecDeque::with_capacity(ACTIVITY_LOG_LIMIT)),
+        activity_log: RwLock::new(initial_log),
+        state_file_path,
+        metrics_history: RwLock::new(VecDeque::with_capacity(METRICS_HISTORY_LIMIT)),
+        node_events: RwLock::new(VecDeque::with_capacity(NODE_EVENTS_LIMIT)),
+        known_node_ids: RwLock::new(HashSet::new()),
     });
 
     let app = Router::new()
@@ -930,6 +1181,8 @@ async fn main() -> Result<()> {
         .route("/infer", post(post_infer))
         .route("/auth/request", post(post_auth_request))
         .route("/auth/approve", post(post_auth_approve))
+        .route("/config/default_model", get(get_default_model).post(post_set_default_model))
+        .route("/metrics/history", get(get_metrics_history))
         .route("/dashboard", get(dashboard))
         .layer(
             tower_http::cors::CorsLayer::new()
@@ -939,20 +1192,27 @@ async fn main() -> Result<()> {
         )
         .with_state(state.clone());
 
-    // Background: refresh real metrics + re-announce mDNS
+    // Background: refresh real metrics + re-announce mDNS + periodic save
     let update_state = state.clone();
     let bg_broadcaster = broadcaster.clone();
     tokio::spawn(async move {
         let mut interval =
             tokio::time::interval(std::time::Duration::from_secs(MDNS_REANNOUNCE_INTERVAL_SECS));
         let start_time = std::time::Instant::now();
+        let mut tick_count: u64 = 0;
         loop {
             interval.tick().await;
+            tick_count += 1;
 
             {
                 let mut sys = update_state.sys.write().await;
                 sys.refresh_cpu_usage();
                 sys.refresh_memory();
+            }
+
+            // Periodic save every 60 seconds (30 ticks at 2s interval)
+            if tick_count % 30 == 0 {
+                save_persistent_state(&update_state).await;
             }
 
             {
@@ -972,6 +1232,76 @@ async fn main() -> Result<()> {
                     tracing::warn!("mDNS re-announce failed: {}", e);
                 }
             }
+
+            // Collect metrics snapshot every 5 ticks (10 seconds)
+            if tick_count % 5 == 0 {
+                let manifest = update_state.manifest.read().await;
+                let sys = update_state.sys.read().await;
+                let queue_depth = update_state.queue.read().await.depth() as u32;
+                let total_mem = sys.total_memory();
+                let used_mem = sys.used_memory();
+                let ram_pct = if total_mem > 0 { (used_mem as f32 / total_mem as f32) * 100.0 } else { 0.0 };
+
+                // Count nodes from listener
+                let listener = update_state.listener.read().await;
+                let nodes = listener.get_nodes().await;
+                let node_count = nodes.len() + 1; // +1 for self
+
+                let snapshot = MetricsSnapshot {
+                    epoch_ms: chrono::Utc::now().timestamp_millis() as u64,
+                    cpu_pct: sys.global_cpu_usage(),
+                    ram_pct,
+                    tokens_per_sec: manifest.performance.tokens_per_sec,
+                    queue_depth,
+                    node_count,
+                };
+
+                let mut history = update_state.metrics_history.write().await;
+                if history.len() >= METRICS_HISTORY_LIMIT {
+                    history.pop_front();
+                }
+                history.push_back(snapshot);
+
+                // Detect node connect/disconnect events
+                let current_ids: HashSet<String> = nodes.keys().map(|k| k.to_string()).collect();
+                let mut known = update_state.known_node_ids.write().await;
+                let now_ms = chrono::Utc::now().timestamp_millis() as u64;
+
+                // New nodes (connected)
+                for id in current_ids.difference(&known) {
+                    if let Some(node) = nodes.get(id.as_str()) {
+                        let name = node.manifest.node_name.clone().unwrap_or_else(|| id.clone());
+                        let mut events = update_state.node_events.write().await;
+                        if events.len() >= NODE_EVENTS_LIMIT { events.pop_front(); }
+                        events.push_back(NodeEvent {
+                            epoch_ms: now_ms,
+                            event_type: "connected".into(),
+                            node_name: name,
+                        });
+                    }
+                }
+                // Removed nodes (disconnected)
+                for id in known.difference(&current_ids) {
+                    let mut events = update_state.node_events.write().await;
+                    if events.len() >= NODE_EVENTS_LIMIT { events.pop_front(); }
+                    events.push_back(NodeEvent {
+                        epoch_ms: now_ms,
+                        event_type: "disconnected".into(),
+                        node_name: id.clone(),
+                    });
+                }
+                *known = current_ids;
+            }
+        }
+    });
+
+    // Graceful shutdown: save state on Ctrl+C
+    let shutdown_state = state.clone();
+    tokio::spawn(async move {
+        if tokio::signal::ctrl_c().await.is_ok() {
+            info!("Shutting down — saving persistent state...");
+            save_persistent_state(&shutdown_state).await;
+            std::process::exit(0);
         }
     });
 
@@ -1024,6 +1354,80 @@ fn parse_env_capabilities(default_model: &str) -> Option<Vec<CapabilityConfig>> 
     }
 
     Some(caps)
+}
+
+/// GET /metrics/history - Time-series metrics for dashboard charts
+async fn get_metrics_history(
+    State(state): State<Arc<AppState>>,
+) -> Json<MetricsHistoryResponse> {
+    let snapshots = state.metrics_history.read().await;
+    let events = state.node_events.read().await;
+    Json(MetricsHistoryResponse {
+        snapshots: snapshots.iter().cloned().collect(),
+        events: events.iter().cloned().collect(),
+    })
+}
+
+// ── Persistence ──────────────────────────────────────────────────────
+
+fn resolve_state_file_path() -> PathBuf {
+    if let Ok(dir) = std::env::var("LARUCHE_DATA_DIR") {
+        PathBuf::from(dir).join("laruche-state.json")
+    } else {
+        PathBuf::from("laruche-state.json")
+    }
+}
+
+fn load_persistent_state(path: &std::path::Path) -> PersistentState {
+    match std::fs::read_to_string(path) {
+        Ok(raw) => {
+            match serde_json::from_str::<PersistentState>(&raw) {
+                Ok(s) => {
+                    info!(path = %path.display(), entries = s.activity_log.len(), "Loaded persistent state");
+                    s
+                }
+                Err(e) => {
+                    warn!(path = %path.display(), error = %e, "Failed to parse state file, starting fresh");
+                    PersistentState::default()
+                }
+            }
+        }
+        Err(_) => {
+            info!(path = %path.display(), "No state file found, starting fresh");
+            PersistentState::default()
+        }
+    }
+}
+
+async fn save_persistent_state(state: &Arc<AppState>) {
+    let logs = state.activity_log.read().await;
+    let dm = state.default_models.read().await;
+    let llm_default = dm.get("llm").cloned();
+    let persistent = PersistentState {
+        default_model: llm_default, // backward compat
+        default_models: Some(dm.clone()),
+        activity_log: logs.iter().cloned().collect(),
+        saved_at: chrono::Utc::now().to_rfc3339(),
+    };
+    drop(logs);
+    drop(dm);
+
+    let json = match serde_json::to_string_pretty(&persistent) {
+        Ok(j) => j,
+        Err(e) => {
+            warn!(error = %e, "Failed to serialize state");
+            return;
+        }
+    };
+
+    let tmp_path = state.state_file_path.with_extension("json.tmp");
+    if let Err(e) = tokio::fs::write(&tmp_path, &json).await {
+        warn!(error = %e, "Failed to write state temp file");
+        return;
+    }
+    if let Err(e) = tokio::fs::rename(&tmp_path, &state.state_file_path).await {
+        warn!(error = %e, "Failed to rename state file");
+    }
 }
 
 fn load_config() -> Result<NodeConfig> {

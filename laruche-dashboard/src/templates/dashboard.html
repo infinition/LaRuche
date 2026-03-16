@@ -74,7 +74,9 @@
       position:relative; cursor:default;
       transition:transform .2s;
     }
+    .hex-gauge { cursor:pointer; }
     .hex-gauge:hover { transform:scale(1.08); }
+    .hex-gauge.active-chart { filter:drop-shadow(0 0 8px var(--amber)); }
     /* Offset every other hex for honeycomb feel */
     .hex-gauge:nth-child(even) { margin-top:calc(var(--hex-size) * 0.577); }
     .hex-outer {
@@ -103,8 +105,44 @@
     }
 
     /* ── Panels row ── */
+    /* ── Stats history chart card ── */
+    .stats-card {
+      display:none; background:var(--bg-card); border:1px solid var(--border); border-radius:8px;
+      overflow:hidden; flex-shrink:0;
+    }
+    .stats-card.active { display:flex; flex-direction:column; animation:stats-slide .3s ease; }
+    @keyframes stats-slide { from { max-height:0; opacity:0; } to { max-height:260px; opacity:1; } }
+    .stats-card-hdr {
+      display:flex; align-items:center; gap:8px; padding:6px 10px;
+      border-bottom:1px solid var(--border); flex-shrink:0;
+    }
+    .stats-card-title { font-size:11px; font-weight:700; color:var(--text-mid); }
+    .stats-pills { display:flex; gap:3px; margin-left:auto; }
+    .stats-pill {
+      padding:2px 8px; border-radius:10px; font-size:9px; font-weight:600;
+      cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--text-dim);
+      font-family:'JetBrains Mono',monospace; transition:all .2s;
+    }
+    .stats-pill:hover { border-color:var(--amber); color:var(--text); }
+    .stats-pill.active { background:rgba(245,158,11,.12); color:var(--amber); border-color:rgba(245,158,11,.4); }
+    .stats-close {
+      background:none; border:none; color:var(--text-dim); cursor:pointer;
+      font-size:16px; padding:0 4px; line-height:1;
+    }
+    .stats-close:hover { color:var(--text); }
+    .stats-card-body { height:200px; padding:4px; position:relative; }
+    .stats-card-body canvas { width:100%; height:100%; display:block; }
+    .stats-reset-zoom {
+      display:none; position:absolute; top:8px; right:12px; z-index:2;
+      padding:2px 8px; font-size:9px; font-weight:600; font-family:'JetBrains Mono',monospace;
+      background:rgba(245,158,11,.15); color:var(--amber); border:1px solid rgba(245,158,11,.4);
+      border-radius:8px; cursor:pointer; transition:all .2s;
+    }
+    .stats-reset-zoom:hover { background:rgba(245,158,11,.3); }
+    .stats-reset-zoom.visible { display:block; }
+
     .panels {
-      display:grid; grid-template-columns:2fr 1fr 1fr;
+      display:grid; grid-template-columns:1fr 1fr 1fr;
       gap:8px; flex:1; overflow:hidden; min-height:0;
     }
     .panel {
@@ -167,6 +205,19 @@
     .b-vlm { background:var(--purple-dim); color:var(--purple); border:1px solid rgba(168,85,247,.25); }
     .b-code { background:var(--green-dim); color:var(--green); border:1px solid rgba(34,197,94,.25); }
     .b-rag { background:var(--amber-dim); color:var(--amber); border:1px solid rgba(245,158,11,.25); }
+    .b-audio { background:var(--cyan-dim); color:var(--cyan); border:1px solid rgba(6,182,212,.25); }
+    .b-image { background:var(--red-dim); color:var(--red); border:1px solid rgba(239,68,68,.25); }
+    .b-embed { background:var(--amber-dim); color:var(--amber); border:1px solid rgba(245,158,11,.25); }
+    /* Capability group header in models list */
+    .cap-group-hdr {
+      display:flex; align-items:center; gap:6px; padding:4px 0 2px;
+      margin-top:4px; font-size:9px; font-weight:700; text-transform:uppercase;
+      letter-spacing:1px; color:var(--text-dim);
+    }
+    .cap-group-hdr::before, .cap-group-hdr::after {
+      content:''; flex:1; height:1px; background:var(--border);
+    }
+    .cap-group-hdr .badge { font-size:8px; padding:1px 6px; }
 
     /* ── Node detail (expanded) ── */
     .n-detail {
@@ -197,9 +248,16 @@
     .model-item {
       display:flex; align-items:center; gap:6px;
       padding:5px 8px; border-radius:6px; border:1px solid var(--border);
-      margin-bottom:3px; font-size:10px;
+      margin-bottom:3px; font-size:10px; cursor:pointer;
+      transition:border-color .2s, background .15s;
     }
-    .model-item.default { border-color:rgba(245,158,11,.35); }
+    .model-item:hover { border-color:rgba(245,158,11,.3); background:rgba(245,158,11,.04); }
+    .model-item.default { border-color:rgba(245,158,11,.5); background:rgba(245,158,11,.06); }
+    .model-priority {
+      font-size:9px; color:var(--text-dim); font-family:'JetBrains Mono',monospace;
+      min-width:16px; text-align:center; flex-shrink:0; font-weight:600;
+    }
+    .model-item.default .model-priority { color:var(--amber); }
     .model-name {
       font-family:'JetBrains Mono',monospace; color:var(--text);
       flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
@@ -213,6 +271,14 @@
       font-size:8px; color:var(--amber); border:1px solid rgba(245,158,11,.35);
       border-radius:3px; padding:1px 5px; flex-shrink:0;
     }
+    .model-arrows {
+      display:flex; flex-direction:column; gap:0; flex-shrink:0;
+    }
+    .model-arrows button {
+      background:none; border:none; color:var(--text-dim); cursor:pointer;
+      font-size:8px; padding:0 3px; line-height:1; transition:color .15s;
+    }
+    .model-arrows button:hover { color:var(--amber); }
 
     /* ── Resource bars ── */
     .res-row { display:flex; align-items:center; gap:6px; padding:4px 0; }
@@ -271,46 +337,102 @@
     .shard-legend-item { display:flex; align-items:center; gap:3px; color:var(--text-dim); }
     .shard-legend-dot { width:8px; height:8px; border-radius:2px; flex-shrink:0; }
 
-    /* ── Log strip ── */
+    /* ── Bottom row: Audit + Inference side by side ── */
+    .bottom-row {
+      display:grid; grid-template-columns:1fr 1fr;
+      gap:8px; flex:1; min-height:120px; overflow:hidden;
+    }
+
+    /* ── Log / Audit panel ── */
     .log-strip {
       background:var(--bg-card); border:1px solid var(--border); border-radius:8px;
-      flex-shrink:0; display:flex; flex-direction:column;
-      max-height:140px; min-height:60px; overflow:hidden;
+      flex:1; display:flex; flex-direction:column;
+      min-height:100px; overflow:hidden;
     }
     .log-strip .panel-hdr { padding:4px 10px; }
     .log-body {
       flex:1; overflow-y:auto; padding:2px 8px; min-height:0;
-      font-size:10px; font-family:'JetBrains Mono',monospace; line-height:1.5;
+      font-size:10px; font-family:'JetBrains Mono',monospace; line-height:1.6;
     }
     .log-body::-webkit-scrollbar { width:3px; }
     .log-body::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
-    .log-row { display:flex; gap:6px; padding:1px 0; border-bottom:1px solid rgba(63,63,70,.2); }
-    .log-t { color:var(--text-dim); min-width:40px; flex-shrink:0; }
+    .log-row { display:flex; gap:6px; padding:2px 0; border-bottom:1px solid rgba(63,63,70,.2); align-items:baseline; }
+    .log-t { color:var(--text-dim); min-width:62px; flex-shrink:0; font-size:9px; }
     .log-tag { min-width:44px; font-weight:600; flex-shrink:0; }
     .log-ok { color:var(--green); } .log-info { color:var(--blue); } .log-warn { color:var(--amber); } .log-err { color:var(--red); }
-    .log-msg { color:var(--text-mid); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .log-msg { color:var(--text-mid); white-space:pre-wrap; word-break:break-word; line-height:1.5; }
+    /* Syntax highlighting in log messages */
+    .log-msg .hl-ip { color:var(--cyan); font-weight:500; }
+    .log-msg .hl-tok { color:var(--amber); font-weight:500; }
+    .log-msg .hl-sys { color:var(--purple); font-style:italic; }
+    .log-msg .hl-model { color:var(--green); font-weight:500; }
+    .log-msg .hl-prompt { color:var(--text); opacity:.8; }
+
+    /* ── Audit log popover (hover/click on INFER entries) ── */
+    .log-row[data-infer-id] { cursor:pointer; transition:background .15s; }
+    .log-row[data-infer-id]:hover { background:rgba(245,158,11,.04); }
+    .log-popover {
+      position:fixed; z-index:200;
+      background:var(--bg-card); border:1px solid var(--amber); border-radius:8px;
+      backdrop-filter:blur(16px); box-shadow:0 8px 32px rgba(0,0,0,.6);
+      max-width:520px; width:90vw; max-height:340px;
+      display:flex; flex-direction:column; overflow:hidden;
+      opacity:0; transition:opacity .15s ease;
+      pointer-events:none;
+    }
+    .log-popover.visible { opacity:1; pointer-events:auto; }
+    .log-popover.pinned { border-color:var(--green); }
+    .log-popover-hdr {
+      display:flex; justify-content:space-between; align-items:center;
+      padding:6px 10px; border-bottom:1px solid var(--border); flex-shrink:0;
+    }
+    .log-popover-hdr .pop-meta { font-size:9px; color:var(--text-dim); }
+    .log-popover-hdr .pop-meta span { margin-right:8px; }
+    .log-popover-hdr .pop-meta .pop-model { color:var(--green); font-weight:600; }
+    .log-popover-hdr .pop-meta .pop-tok { color:var(--amber); }
+    .log-popover-close {
+      background:none; border:none; color:var(--text-dim); cursor:pointer;
+      font-size:14px; padding:0 4px; line-height:1;
+    }
+    .log-popover-close:hover { color:var(--text); }
+    .log-popover-body { overflow-y:auto; padding:6px 10px; flex:1; min-height:0; }
+    .log-popover-section { margin-bottom:8px; }
+    .log-popover-section:last-child { margin-bottom:0; }
+    .pop-label {
+      font-size:8px; text-transform:uppercase; letter-spacing:1px; color:var(--text-dim);
+      font-weight:700; margin-bottom:3px;
+    }
+    .pop-content {
+      font-size:10px; font-family:'JetBrains Mono',monospace; color:var(--text-mid);
+      white-space:pre-wrap; word-break:break-word; line-height:1.5;
+      max-height:120px; overflow-y:auto;
+      padding:4px 6px; background:rgba(255,255,255,.02); border-radius:4px;
+    }
+    .pop-content .hl-sys { color:var(--purple); font-style:italic; }
 
     /* ── Inference test panel ── */
     .infer-panel {
       background:var(--bg-card); border:1px solid var(--border); border-radius:8px;
-      flex-shrink:0; overflow:hidden;
+      display:flex; flex-direction:column; overflow:hidden;
     }
     .infer-panel .panel-hdr { padding:4px 10px; }
-    .infer-body { padding:6px 10px; display:flex; flex-direction:column; gap:6px; }
-    .infer-input-row { display:flex; gap:6px; }
+    .infer-body { padding:6px 10px; display:flex; flex-direction:column; gap:6px; flex:1; overflow:hidden; }
+    .infer-input-row { display:flex; gap:6px; align-items:flex-end; }
     .infer-input {
       flex:1; background:rgba(255,255,255,.04); border:1px solid var(--border);
-      border-radius:6px; padding:6px 10px; color:var(--text);
+      border-radius:6px; padding:8px 10px; color:var(--text);
       font-family:'JetBrains Mono',monospace; font-size:11px;
       outline:none; transition:border-color .2s;
+      resize:vertical; min-height:36px; max-height:120px;
     }
     .infer-input:focus { border-color:var(--amber); }
     .infer-input::placeholder { color:var(--text-dim); }
     .infer-btn {
       background:var(--amber-dim); color:var(--amber); border:1px solid rgba(245,158,11,.3);
-      border-radius:6px; padding:6px 14px; font-size:10px; font-weight:700;
+      border-radius:6px; padding:8px 14px; font-size:10px; font-weight:700;
       font-family:'JetBrains Mono',monospace; text-transform:uppercase;
       letter-spacing:.5px; cursor:pointer; transition:all .2s; flex-shrink:0;
+      align-self:stretch;
     }
     .infer-btn:hover { background:rgba(245,158,11,.2); border-color:var(--amber); }
     .infer-btn:disabled { opacity:.4; cursor:not-allowed; }
@@ -318,9 +440,9 @@
     .infer-result {
       display:none; background:rgba(0,0,0,.3); border:1px solid var(--border);
       border-radius:6px; padding:8px 10px;
-      font-family:'JetBrains Mono',monospace; font-size:10px;
-      color:var(--text-mid); line-height:1.5;
-      max-height:100px; overflow-y:auto; white-space:pre-wrap; word-break:break-word;
+      font-family:'JetBrains Mono',monospace; font-size:11px;
+      color:var(--text-mid); line-height:1.6;
+      flex:1; min-height:40px; overflow-y:auto; white-space:pre-wrap; word-break:break-word;
     }
     .infer-result.active { display:block; }
     .infer-result::-webkit-scrollbar { width:3px; }
@@ -370,6 +492,7 @@
       .panels { grid-template-columns:1fr 1fr; }
       .panels .panel:first-child { grid-column:1/-1; }
       .hex-gauge:nth-child(even) { margin-top:calc(var(--hex-size) * 0.577); }
+      .bottom-row { grid-template-columns:1fr; }
     }
 
     /* ── Responsive: mobile ── */
@@ -385,7 +508,8 @@
       .panels { grid-template-columns:1fr; flex:none; }
       .panels .panel { display:none; }
       .panels .panel.mob-active { display:flex; min-height:200px; }
-      .log-strip { max-height:100px; }
+      .bottom-row { grid-template-columns:1fr; min-height:auto; }
+      .log-strip { min-height:80px; max-height:120px; flex:none; }
       /* Inference panel mobile */
       .infer-input-row { flex-direction:column; }
       .infer-btn { width:100%; text-align:center; }
@@ -434,6 +558,25 @@
     <div class="hex-gauge" id="hg-uptime" title="Node uptime">
       <div class="hex-outer" style="--gauge:0;--gauge-color:var(--cyan)"></div>
       <div class="hex-inner"><span class="hex-val" id="kpi-uptime">&mdash;</span><span class="hex-label">Uptime</span></div>
+    </div>
+  </div>
+
+  <!-- Stats history chart card (toggles on hex click) -->
+  <div class="stats-card" id="stats-card">
+    <div class="stats-card-hdr">
+      <span class="stats-card-title">&#x1F4CA; Metrics History</span>
+      <div class="stats-pills" id="stats-pills">
+        <button class="stats-pill active" data-metric="all">All</button>
+        <button class="stats-pill" data-metric="cpu">CPU</button>
+        <button class="stats-pill" data-metric="ram">RAM</button>
+        <button class="stats-pill" data-metric="tps">T/S</button>
+        <button class="stats-pill" data-metric="queue">Queue</button>
+      </div>
+      <button class="stats-close" id="stats-close">&times;</button>
+    </div>
+    <div class="stats-card-body">
+      <canvas id="stats-canvas"></canvas>
+      <button class="stats-reset-zoom" id="stats-reset-zoom" title="Reset zoom">&#x1F50D; Reset</button>
     </div>
   </div>
 
@@ -532,32 +675,35 @@
     </div>
   </div>
 
-  <!-- Log strip -->
-  <div class="log-strip">
-    <div class="panel-hdr">
-      <span class="panel-title">&shield; Audit</span>
-      <span class="panel-badge" id="log-badge" style="background:var(--blue-dim);color:var(--blue);border:1px solid rgba(59,130,246,.3)">0</span>
+  <!-- Bottom: Audit + Inference side by side -->
+  <div class="bottom-row">
+    <!-- Audit Log -->
+    <div class="log-strip">
+      <div class="panel-hdr">
+        <span class="panel-title">&#x1F6E1; Audit</span>
+        <span class="panel-badge" id="log-badge" style="background:var(--blue-dim);color:var(--blue);border:1px solid rgba(59,130,246,.3)">0</span>
+      </div>
+      <div class="log-body" id="log-body"><div id="log"></div></div>
     </div>
-    <div class="log-body" id="log-body"><div id="log"></div></div>
-  </div>
 
-  <!-- Quick Inference Test -->
-  <div class="infer-panel" id="infer-panel">
-    <div class="panel-hdr">
-      <span class="panel-title">&#x26A1; Quick Inference</span>
-      <span class="panel-badge" id="infer-badge" style="background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.3)">/infer</span>
-    </div>
-    <div class="infer-body">
-      <div class="infer-input-row">
-        <input type="text" class="infer-input" id="infer-input" placeholder="Type a prompt and press Enter&hellip;" autocomplete="off" spellcheck="false">
-        <button class="infer-btn" id="infer-btn">Send</button>
+    <!-- Quick Inference Test -->
+    <div class="infer-panel" id="infer-panel">
+      <div class="panel-hdr">
+        <span class="panel-title">&#x26A1; Quick Inference</span>
+        <span class="panel-badge" id="infer-badge" style="background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.3)">/infer</span>
       </div>
-      <div class="infer-meta" id="infer-meta">
-        <span class="latency" id="infer-latency"></span>
-        <span class="tokens" id="infer-tokens"></span>
-        <span class="model-used" id="infer-model"></span>
+      <div class="infer-body">
+        <div class="infer-input-row">
+          <textarea class="infer-input" id="infer-input" placeholder="Type a prompt and press Enter&hellip;" autocomplete="off" spellcheck="false" rows="2"></textarea>
+          <button class="infer-btn" id="infer-btn">Send</button>
+        </div>
+        <div class="infer-meta" id="infer-meta">
+          <span class="latency" id="infer-latency"></span>
+          <span class="tokens" id="infer-tokens"></span>
+          <span class="model-used" id="infer-model"></span>
+        </div>
+        <div class="infer-result" id="infer-result"></div>
       </div>
-      <div class="infer-result" id="infer-result"></div>
     </div>
   </div>
 
@@ -579,8 +725,28 @@
   let lastModelCount = -1;
   let lastActivityTs = '';
   let activityInitialized = false;
+  /* Popover state for INFER log entries */
+  let inferDetailMap = new Map();
+  let inferDetailCounter = 0;
+  let activePopover = null;
+  let popoverHoverTimer = null;
+  let popoverPinned = false;
   let connected = false;
   let maxTps = 1;
+  /* Stats chart state */
+  let statsCardOpen = false;
+  let statsMetric = 'all';
+  let metricsHistory = [];
+  let nodeEvents = [];
+  let statsRefreshTimer = null;
+  let chartCrosshairX = -1;
+  let viewTMin = null;   // null = full range
+  let viewTMax = null;
+  let isPanning = false;
+  let panStartX = 0;
+  let panStartTMin = 0;
+  let panStartTMax = 0;
+  let lastPinchDist = 0;
   let logCount = 0;
   let expandedNodes = new Set();
 
@@ -669,30 +835,174 @@
   }
 
   /* ── Log ── */
-  function addLog(tag, cls, msg) {
+  function fmtTime(d) {
+    var hh = String(d.getHours()).padStart(2,'0');
+    var mm = String(d.getMinutes()).padStart(2,'0');
+    var ss = String(d.getSeconds()).padStart(2,'0');
+    return hh + ':' + mm + ':' + ss;
+  }
+
+  function highlightMsg(raw) {
+    /* Escape first */
+    var s = esc(raw);
+    /* Highlight IPs: 192.168.x.x etc */
+    s = s.replace(/\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?::\d+)?)\b/g, '<span class="hl-ip">$1</span>');
+    /* Highlight token counts: "405 tokens", "18 tokens", "500 tokens" */
+    s = s.replace(/\b(\d+)\s*(tokens?\b)/gi, '<span class="hl-tok">$1 $2</span>');
+    /* Highlight token rates: "95.3 t/s", "0.0 t/s" */
+    s = s.replace(/(\d+\.?\d*)\s*(t\/s)/g, '<span class="hl-tok">$1 $2</span>');
+    /* Highlight latency: "in 5932ms", "in 508ms" */
+    s = s.replace(/\b(in\s+\d+m?s)/gi, '<span class="hl-tok">$1</span>');
+    /* Highlight model names after "via " */
+    s = s.replace(/(via\s+)([^\s,]+)/g, '$1<span class="hl-model">$2</span>');
+    /* Highlight [System]: ... prompts */
+    s = s.replace(/(\[System\]:?\s*)([^|]*)/g, '<span class="hl-sys">$1</span><span class="hl-prompt">$2</span>');
+    /* Highlight response: "..." */
+    s = s.replace(/(response:\s*&quot;)([^&]*)(&quot;)/g, '$1<span class="hl-prompt">$2</span>$3');
+    return s;
+  }
+
+  function addLog(tag, cls, msg, serverTs, detail) {
     var log = document.getElementById('log');
+    var ts;
+    if (serverTs) {
+      try { ts = fmtTime(new Date(serverTs)); } catch(e) { ts = fmtTime(new Date()); }
+    } else {
+      ts = fmtTime(new Date());
+    }
     var row = document.createElement('div');
     row.className = 'log-row';
+    /* If this is an INFER entry with full details, make it hoverable/clickable */
+    if (detail && detail.full_prompt) {
+      var id = ++inferDetailCounter;
+      inferDetailMap.set(id, detail);
+      row.setAttribute('data-infer-id', id);
+    }
     row.innerHTML =
-      '<span class="log-t">' + fmt(Date.now() - started) + '</span>' +
+      '<span class="log-t">' + ts + '</span>' +
       '<span class="log-tag ' + cls + '">' + esc(tag) + '</span>' +
-      '<span class="log-msg">' + esc(msg) + '</span>';
+      '<span class="log-msg">' + highlightMsg(msg) + '</span>';
     log.appendChild(row);
-    while (log.children.length > 100) log.removeChild(log.firstChild);
-    logCount = Math.min(logCount + 1, 100);
+    while (log.children.length > 200) {
+      var removed = log.firstChild;
+      if (removed && removed.dataset && removed.dataset.inferId) {
+        inferDetailMap.delete(parseInt(removed.dataset.inferId));
+      }
+      log.removeChild(removed);
+    }
+    logCount = Math.min(logCount + 1, 200);
     document.getElementById('log-badge').textContent = logCount;
-    /* Auto-scroll only if user hasn't scrolled up */
     if (!logUserScrolled) {
       logBody.scrollTop = logBody.scrollHeight;
     }
   }
+
+  /* ── INFER Popover ── */
+  function showInferPopover(anchorEl, detail) {
+    hideInferPopover();
+    var pop = document.createElement('div');
+    pop.className = 'log-popover';
+    pop.innerHTML =
+      '<div class="log-popover-hdr">' +
+        '<div class="pop-meta">' +
+          (detail.model_used ? '<span class="pop-model">' + esc(detail.model_used) + '</span>' : '') +
+          (detail.tokens_generated ? '<span class="pop-tok">' + detail.tokens_generated + ' tokens</span>' : '') +
+          (detail.latency_ms ? '<span>' + detail.latency_ms + 'ms</span>' : '') +
+        '</div>' +
+        '<button class="log-popover-close">&times;</button>' +
+      '</div>' +
+      '<div class="log-popover-body">' +
+        '<div class="log-popover-section"><div class="pop-label">PROMPT</div>' +
+          '<div class="pop-content">' + esc(detail.full_prompt || '') + '</div></div>' +
+        '<div class="log-popover-section"><div class="pop-label">RESPONSE</div>' +
+          '<div class="pop-content">' + esc(detail.full_response || '(empty)') + '</div></div>' +
+      '</div>';
+
+    document.body.appendChild(pop);
+    activePopover = pop;
+
+    /* Position near the anchor */
+    var rect = anchorEl.getBoundingClientRect();
+    var popH = 300, popW = Math.min(520, window.innerWidth * 0.9);
+    var top = rect.bottom + 4;
+    if (top + popH > window.innerHeight) top = rect.top - popH - 4;
+    if (top < 4) top = 4;
+    var left = Math.min(rect.left, window.innerWidth - popW - 8);
+    if (left < 4) left = 4;
+    pop.style.top = top + 'px';
+    pop.style.left = left + 'px';
+
+    requestAnimationFrame(function() { pop.classList.add('visible'); });
+
+    pop.querySelector('.log-popover-close').addEventListener('click', function(e) {
+      e.stopPropagation();
+      hideInferPopover();
+    });
+    pop.addEventListener('mouseenter', function() { clearTimeout(popoverHoverTimer); });
+    pop.addEventListener('mouseleave', function() {
+      if (!popoverPinned) popoverHoverTimer = setTimeout(hideInferPopover, 200);
+    });
+  }
+
+  function hideInferPopover() {
+    if (activePopover) {
+      activePopover.remove();
+      activePopover = null;
+      popoverPinned = false;
+    }
+    clearTimeout(popoverHoverTimer);
+  }
+
+  /* Event delegation on log body for popover */
+  (function() {
+    var body = document.getElementById('log-body');
+    body.addEventListener('mouseenter', function(e) {
+      var row = e.target.closest('.log-row[data-infer-id]');
+      if (!row || popoverPinned) return;
+      clearTimeout(popoverHoverTimer);
+      popoverHoverTimer = setTimeout(function() {
+        var id = parseInt(row.dataset.inferId);
+        var detail = inferDetailMap.get(id);
+        if (detail) showInferPopover(row, detail);
+      }, 300);
+    }, true);
+    body.addEventListener('mouseleave', function(e) {
+      var row = e.target.closest('.log-row[data-infer-id]');
+      if (!row || popoverPinned) return;
+      clearTimeout(popoverHoverTimer);
+      popoverHoverTimer = setTimeout(hideInferPopover, 200);
+    }, true);
+    body.addEventListener('click', function(e) {
+      var row = e.target.closest('.log-row[data-infer-id]');
+      if (!row) { hideInferPopover(); return; }
+      var id = parseInt(row.dataset.inferId);
+      var detail = inferDetailMap.get(id);
+      if (!detail) return;
+      if (popoverPinned && activePopover) {
+        hideInferPopover();
+      } else {
+        showInferPopover(row, detail);
+        popoverPinned = true;
+        if (activePopover) activePopover.classList.add('pinned');
+      }
+    });
+    /* Click outside dismisses pinned popover */
+    document.addEventListener('click', function(e) {
+      if (activePopover && popoverPinned && !activePopover.contains(e.target) && !e.target.closest('.log-row[data-infer-id]')) {
+        hideInferPopover();
+      }
+    });
+  })();
 
   /* ── Badge color by capability ── */
   function capBadge(cap) {
     var c = normalizeCap(cap);
     if (c.includes('vlm') || c.includes('vla')) return 'b-vlm';
     if (c.includes('code')) return 'b-code';
-    if (c.includes('rag') || c.includes('embed')) return 'b-rag';
+    if (c.includes('audio')) return 'b-audio';
+    if (c.includes('image')) return 'b-image';
+    if (c === 'embed') return 'b-embed';
+    if (c.includes('rag')) return 'b-rag';
     return 'b-llm';
   }
 
@@ -1104,6 +1414,80 @@
     } catch (e) { /* node may be starting */ }
   }
 
+  /* ── Model priority (persisted in localStorage + backend) ── */
+  /* Per-capability preferred models map: { "llm": "mistral", "code": "qwen3-coder:30b", ... } */
+  var preferredModels = JSON.parse(localStorage.getItem('laruche_preferred_models') || '{}');
+  /* Backward compat: migrate old single preferredModel if exists */
+  (function() {
+    var old = localStorage.getItem('laruche_preferred_model');
+    if (old && !preferredModels['llm']) {
+      preferredModels['llm'] = old;
+      localStorage.setItem('laruche_preferred_models', JSON.stringify(preferredModels));
+      localStorage.removeItem('laruche_preferred_model');
+    }
+  })();
+  var modelPriority = JSON.parse(localStorage.getItem('laruche_model_priority') || '[]');
+
+  /* Sync preferred models from backend (authoritative for LAND clients) */
+  fetch('/config/default_model').then(function(r) { return r.json(); }).then(function(d) {
+    if (d.default_models) {
+      preferredModels = d.default_models;
+      localStorage.setItem('laruche_preferred_models', JSON.stringify(preferredModels));
+    } else if (d.default_model) {
+      preferredModels['llm'] = d.default_model;
+      localStorage.setItem('laruche_preferred_models', JSON.stringify(preferredModels));
+    }
+  }).catch(function() {});
+
+  function setPreferredModel(name, capability) {
+    capability = capability || 'llm';
+    preferredModels[capability] = name;
+    localStorage.setItem('laruche_preferred_models', JSON.stringify(preferredModels));
+    var capLabel = capability === 'llm' ? '' : ' (' + capability + ')';
+    toast('Default' + capLabel + ' model: ' + name, 'ok');
+    addLog('MODEL', 'log-ok', 'Default ' + capability + ' model set to ' + name);
+    fetchModels(); /* re-render */
+    /* Persist to backend so LAND protocol clients (Bjorn, VSCode etc.) use it too */
+    fetch('/config/default_model', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: name, capability: capability })
+    }).catch(function() { /* silent */ });
+  }
+
+  function moveModelPriority(name, dir) {
+    var idx = modelPriority.indexOf(name);
+    if (idx < 0) return;
+    var newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= modelPriority.length) return;
+    /* Swap */
+    var tmp = modelPriority[newIdx];
+    modelPriority[newIdx] = modelPriority[idx];
+    modelPriority[idx] = tmp;
+    localStorage.setItem('laruche_model_priority', JSON.stringify(modelPriority));
+    fetchModels(); /* re-render */
+  }
+
+  function sortModelsByPriority(models) {
+    /* Build priority map — if user has set a priority, use it; otherwise keep server order */
+    if (modelPriority.length === 0) {
+      /* Initialize priority from server order */
+      modelPriority = models.map(function(m) { return m.name; });
+      localStorage.setItem('laruche_model_priority', JSON.stringify(modelPriority));
+      return models;
+    }
+    /* Add any new models not yet in priority list */
+    models.forEach(function(m) {
+      if (modelPriority.indexOf(m.name) < 0) modelPriority.push(m.name);
+    });
+    /* Sort by priority index */
+    var pMap = {};
+    modelPriority.forEach(function(n, i) { pMap[n] = i; });
+    return models.slice().sort(function(a, b) {
+      return (pMap[a.name] || 999) - (pMap[b.name] || 999);
+    });
+  }
+
   /* ── Fetch: Models ── */
   async function fetchModels() {
     try {
@@ -1121,16 +1505,62 @@
 
       document.getElementById('model-badge').textContent = d.models.length;
 
-      d.models.forEach(function(m) {
-        var hostLabel = m.node_name ? (m.node_name + ' @ ' + m.host) : m.host;
-        var item = document.createElement('div');
-        item.className = 'model-item' + (m.is_default ? ' default' : '');
-        item.innerHTML =
-          '<span class="model-name" title="' + esc(m.name) + '">' + esc(m.name) + '</span>' +
-          '<span class="model-size">' + m.size_gb.toFixed(1) + 'G</span>' +
-          '<span class="model-host" title="' + esc(hostLabel) + '">' + esc(hostLabel) + '</span>' +
-          (m.is_default ? '<span class="model-default-tag">def</span>' : '');
-        list.appendChild(item);
+      var defaultModels = d.default_models || {};
+      var sortedModels = sortModelsByPriority(d.models);
+
+      /* Group models by capability */
+      var groups = {};
+      var groupOrder = [];
+      sortedModels.forEach(function(m) {
+        var cap = (m.capability || 'llm').toLowerCase();
+        if (!groups[cap]) { groups[cap] = []; groupOrder.push(cap); }
+        groups[cap].push(m);
+      });
+
+      var globalIdx = 0;
+      groupOrder.forEach(function(cap) {
+        /* Section header if more than one group */
+        if (groupOrder.length > 1) {
+          var hdr = document.createElement('div');
+          hdr.className = 'cap-group-hdr';
+          hdr.innerHTML = '<span class="badge ' + capBadge(cap) + '">' + esc(cap.toUpperCase()) + '</span>';
+          list.appendChild(hdr);
+        }
+
+        groups[cap].forEach(function(m) {
+          globalIdx++;
+          var hostLabel = m.node_name ? (m.node_name + ' @ ' + m.host) : m.host;
+          var capDefault = preferredModels[cap];
+          var isPreferred = capDefault ? (m.name === capDefault) : m.is_default;
+          var item = document.createElement('div');
+          item.className = 'model-item' + (isPreferred ? ' default' : '');
+          item.title = 'Click to set as default ' + cap + ' model';
+          item.innerHTML =
+            '<span class="model-priority">' + globalIdx + '</span>' +
+            '<span class="model-name" title="' + esc(m.name) + '">' + esc(m.name) + '</span>' +
+            '<span class="model-size">' + m.size_gb.toFixed(1) + 'G</span>' +
+            '<span class="model-host" title="' + esc(hostLabel) + '">' + esc(hostLabel) + '</span>' +
+            (isPreferred ? '<span class="model-default-tag">def</span>' : '') +
+            '<div class="model-arrows">' +
+              '<button title="Move up" data-dir="-1" data-model="' + esc(m.name) + '">\u25B2</button>' +
+              '<button title="Move down" data-dir="1" data-model="' + esc(m.name) + '">\u25BC</button>' +
+            '</div>';
+          item.addEventListener('click', function(e) {
+            if (e.target.closest('.model-arrows')) return;
+            setPreferredModel(m.name, cap);
+          });
+          list.appendChild(item);
+        });
+      });
+
+      /* Arrow button events (delegation) */
+      list.addEventListener('click', function(e) {
+        var btn = e.target.closest('.model-arrows button');
+        if (!btn) return;
+        e.stopPropagation();
+        var name = btn.dataset.model;
+        var dir = parseInt(btn.dataset.dir);
+        moveModelPriority(name, dir);
       });
 
       if (lastModelCount >= 0 && d.models.length !== lastModelCount) {
@@ -1148,17 +1578,24 @@
       var d = await r.json();
 
       if (!activityInitialized) {
+        /* Show the last 30 persisted entries on first load */
+        var recent = (d.logs || []).slice(-30);
+        recent.forEach(function(log) {
+          var detail = (log.full_prompt || log.full_response) ? log : null;
+          addLog(log.tag, log.level, log.message, log.timestamp, detail);
+        });
         if (d.logs && d.logs.length > 0) {
           lastActivityTs = d.logs[d.logs.length - 1].timestamp;
         }
         activityInitialized = true;
-        console.log('[LaRuche] Activity initialized, lastTs=' + lastActivityTs);
+        console.log('[LaRuche] Activity initialized with ' + recent.length + ' persisted entries');
         return;
       }
 
       d.logs.forEach(function(log) {
         if (log.timestamp > lastActivityTs) {
-          addLog(log.tag, log.level, log.message);
+          var detail = (log.full_prompt || log.full_response) ? log : null;
+          addLog(log.tag, log.level, log.message, log.timestamp, detail);
           lastActivityTs = log.timestamp;
         }
       });
@@ -1171,6 +1608,12 @@
   var inferResult = document.getElementById('infer-result');
   var inferMeta = document.getElementById('infer-meta');
   var inferRunning = false;
+
+  /* Auto-resize textarea */
+  inferInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+  });
 
   async function runInference() {
     var prompt = inferInput.value.trim();
@@ -1187,10 +1630,12 @@
     var t0 = performance.now();
 
     try {
+      var inferPayload = { prompt: prompt, capability: 'llm' };
+      if (preferredModels['llm']) inferPayload.model = preferredModels['llm'];
       var r = await fetch(API + '/infer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: prompt })
+        body: JSON.stringify(inferPayload)
       });
 
       var elapsed = performance.now() - t0;
@@ -1246,6 +1691,429 @@
       e.preventDefault();
       runInference();
     }
+  });
+
+  /* ── Stats History Chart ── */
+  const statsCard  = document.getElementById('stats-card');
+  const statsCanvas = document.getElementById('stats-canvas');
+  const statsPills  = document.getElementById('stats-pills');
+  const statsClose  = document.getElementById('stats-close');
+
+  const CHART_COLORS = {
+    cpu:   { line: '#22c55e', fill: 'rgba(34,197,94,.10)' },
+    ram:   { line: '#f59e0b', fill: 'rgba(245,158,11,.10)' },
+    tps:   { line: '#fbbf24', fill: 'rgba(251,191,36,.10)' },
+    queue: { line: '#a855f7', fill: 'rgba(168,85,247,.10)' },
+  };
+  const METRIC_KEYS = ['cpu', 'ram', 'tps', 'queue'];
+  const METRIC_LABELS = { cpu: 'CPU %', ram: 'RAM %', tps: 'Tokens/s', queue: 'Queue' };
+  const METRIC_FIELDS = { cpu: 'cpu_pct', ram: 'ram_pct', tps: 'tokens_per_sec', queue: 'queue_depth' };
+
+  function toggleStatsCard(metric) {
+    if (statsCardOpen && statsMetric === metric) {
+      closeStatsCard(); return;
+    }
+    statsMetric = metric || 'all';
+    statsCardOpen = true;
+    statsCard.classList.add('active');
+    // highlight active hex
+    document.querySelectorAll('.hex-gauge').forEach(h => h.classList.remove('active-chart'));
+    var hexMap = { cpu:'hg-cpu', ram:'hg-ram', tps:'hg-tps', queue:'hg-queue', nodes:'hg-nodes' };
+    if (hexMap[metric]) {
+      var el = document.getElementById(hexMap[metric]);
+      if (el) el.classList.add('active-chart');
+    }
+    // update pill active state
+    statsPills.querySelectorAll('.stats-pill').forEach(function(p) {
+      p.classList.toggle('active', p.dataset.metric === statsMetric);
+    });
+    fetchMetricsHistory();
+    if (statsRefreshTimer) clearInterval(statsRefreshTimer);
+    statsRefreshTimer = setInterval(fetchMetricsHistory, 5000);
+  }
+
+  function closeStatsCard() {
+    statsCardOpen = false;
+    statsCard.classList.remove('active');
+    document.querySelectorAll('.hex-gauge').forEach(h => h.classList.remove('active-chart'));
+    if (statsRefreshTimer) { clearInterval(statsRefreshTimer); statsRefreshTimer = null; }
+    viewTMin = null; viewTMax = null;
+  }
+
+  // Hex click handlers
+  document.getElementById('hg-cpu').addEventListener('click', function() { toggleStatsCard('cpu'); });
+  document.getElementById('hg-ram').addEventListener('click', function() { toggleStatsCard('ram'); });
+  document.getElementById('hg-tps').addEventListener('click', function() { toggleStatsCard('tps'); });
+  document.getElementById('hg-queue').addEventListener('click', function() { toggleStatsCard('queue'); });
+  document.getElementById('hg-nodes').addEventListener('click', function() { toggleStatsCard('all'); });
+  document.getElementById('hg-uptime').addEventListener('click', function() { toggleStatsCard('all'); });
+
+  statsClose.addEventListener('click', closeStatsCard);
+
+  // Pill click handlers
+  statsPills.addEventListener('click', function(e) {
+    var pill = e.target.closest('.stats-pill');
+    if (!pill) return;
+    statsMetric = pill.dataset.metric;
+    statsPills.querySelectorAll('.stats-pill').forEach(function(p) {
+      p.classList.toggle('active', p.dataset.metric === statsMetric);
+    });
+    renderChart();
+  });
+
+  async function fetchMetricsHistory() {
+    try {
+      var res = await fetch(API + '/metrics/history');
+      if (!res.ok) return;
+      var data = await res.json();
+      metricsHistory = data.snapshots || [];
+      nodeEvents = data.events || [];
+      renderChart();
+    } catch (e) { /* silent */ }
+  }
+
+  function renderChart() {
+    var canvas = statsCanvas;
+    var rect = canvas.parentElement.getBoundingClientRect();
+    var dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    var ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+    var W = rect.width, H = rect.height;
+
+    ctx.clearRect(0, 0, W, H);
+
+    if (metricsHistory.length < 2) {
+      ctx.fillStyle = '#71717a';
+      ctx.font = '11px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('En attente de données…', W / 2, H / 2);
+      return;
+    }
+
+    var pad = { top: 8, right: 10, bottom: 22, left: 38 };
+    var cW = W - pad.left - pad.right;
+    var cH = H - pad.top - pad.bottom;
+
+    var dataMin = metricsHistory[0].epoch_ms;
+    var dataMax = metricsHistory[metricsHistory.length - 1].epoch_ms;
+    var tMin = viewTMin !== null ? viewTMin : dataMin;
+    var tMax = viewTMax !== null ? viewTMax : dataMax;
+    var tRange = tMax - tMin || 1;
+
+    // Update reset-zoom button visibility
+    var resetBtn = document.getElementById('stats-reset-zoom');
+    if (resetBtn) resetBtn.className = 'stats-reset-zoom' + (viewTMin !== null ? ' visible' : '');
+
+    // Determine which metrics to show
+    var keys = statsMetric === 'all' ? METRIC_KEYS : [statsMetric];
+
+    // Compute Y range (auto-scale per VISIBLE data only)
+    var yMax = 1;
+    keys.forEach(function(k) {
+      var field = METRIC_FIELDS[k];
+      metricsHistory.forEach(function(s) {
+        if (s.epoch_ms < tMin || s.epoch_ms > tMax) return;
+        var v = s[field] || 0;
+        if (v > yMax) yMax = v;
+      });
+    });
+    yMax = Math.ceil(yMax * 1.15); // 15% headroom
+    if (yMax < 10) yMax = 10;
+
+    // Grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,.06)';
+    ctx.lineWidth = 1;
+    var gridLines = 4;
+    for (var gi = 0; gi <= gridLines; gi++) {
+      var gy = pad.top + cH - (gi / gridLines) * cH;
+      ctx.beginPath(); ctx.moveTo(pad.left, gy); ctx.lineTo(pad.left + cW, gy); ctx.stroke();
+      // Y labels
+      ctx.fillStyle = '#71717a';
+      ctx.font = '9px JetBrains Mono, monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(Math.round((gi / gridLines) * yMax), pad.left - 4, gy + 3);
+    }
+
+    // Time axis labels
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#71717a';
+    ctx.font = '9px JetBrains Mono, monospace';
+    var tLabels = 6;
+    for (var ti = 0; ti <= tLabels; ti++) {
+      var tt = tMin + (ti / tLabels) * tRange;
+      var tx = pad.left + (ti / tLabels) * cW;
+      var d = new Date(tt);
+      var lbl = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+      ctx.fillText(lbl, tx, H - 4);
+    }
+
+    // Node events — vertical markers
+    nodeEvents.forEach(function(ev) {
+      var ex = pad.left + ((ev.epoch_ms - tMin) / tRange) * cW;
+      if (ex < pad.left || ex > pad.left + cW) return;
+      ctx.strokeStyle = ev.event_type === 'connected' ? 'rgba(34,197,94,.5)' : 'rgba(239,68,68,.5)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(ex, pad.top); ctx.lineTo(ex, pad.top + cH); ctx.stroke();
+      ctx.setLineDash([]);
+      // Small label
+      ctx.fillStyle = ev.event_type === 'connected' ? '#22c55e' : '#ef4444';
+      ctx.font = '8px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      var evLabel = (ev.event_type === 'connected' ? '+ ' : '- ') + ev.node_name;
+      ctx.fillText(evLabel, ex + 2, pad.top + 10);
+    });
+
+    // Clip to chart area for zoom/pan
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(pad.left, pad.top, cW, cH);
+    ctx.clip();
+
+    // Draw data lines
+    keys.forEach(function(k) {
+      var col = CHART_COLORS[k];
+      var field = METRIC_FIELDS[k];
+      ctx.strokeStyle = col.line;
+      ctx.lineWidth = 1.5;
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      var pts = [];
+      metricsHistory.forEach(function(s, i) {
+        var x = pad.left + ((s.epoch_ms - tMin) / tRange) * cW;
+        var v = s[field] || 0;
+        var y = pad.top + cH - (v / yMax) * cH;
+        pts.push({ x: x, y: y, v: v });
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      // Fill area
+      ctx.fillStyle = col.fill;
+      ctx.beginPath();
+      pts.forEach(function(p, i) { i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); });
+      ctx.lineTo(pts[pts.length - 1].x, pad.top + cH);
+      ctx.lineTo(pts[0].x, pad.top + cH);
+      ctx.closePath();
+      ctx.fill();
+    });
+
+    // End clip region
+    ctx.restore();
+
+    // Crosshair if hovered (not while panning)
+    if (!isPanning && chartCrosshairX >= pad.left && chartCrosshairX <= pad.left + cW) {
+      ctx.strokeStyle = 'rgba(255,255,255,.2)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(chartCrosshairX, pad.top); ctx.lineTo(chartCrosshairX, pad.top + cH); ctx.stroke();
+
+      // Tooltip — find closest snapshot
+      var hoverT = tMin + ((chartCrosshairX - pad.left) / cW) * tRange;
+      var closest = metricsHistory[0], minDist = Infinity;
+      metricsHistory.forEach(function(s) {
+        var dist = Math.abs(s.epoch_ms - hoverT);
+        if (dist < minDist) { minDist = dist; closest = s; }
+      });
+
+      // Tooltip box
+      var lines = [];
+      keys.forEach(function(k) {
+        var v = closest[METRIC_FIELDS[k]] || 0;
+        var unit = (k === 'cpu' || k === 'ram') ? '%' : '';
+        lines.push(METRIC_LABELS[k] + ': ' + (typeof v === 'number' ? v.toFixed(1) : v) + unit);
+      });
+      var tt = new Date(closest.epoch_ms);
+      var timeStr = ('0'+tt.getHours()).slice(-2)+':'+('0'+tt.getMinutes()).slice(-2)+':'+('0'+tt.getSeconds()).slice(-2);
+      lines.unshift(timeStr);
+
+      ctx.font = '9px JetBrains Mono, monospace';
+      var maxW = 0;
+      lines.forEach(function(l) { var m = ctx.measureText(l).width; if (m > maxW) maxW = m; });
+      var boxW = maxW + 12, boxH = lines.length * 13 + 8;
+      var bx = chartCrosshairX + 8;
+      if (bx + boxW > W - 4) bx = chartCrosshairX - boxW - 8;
+      var by = pad.top + 4;
+
+      ctx.fillStyle = 'rgba(9,9,11,.9)';
+      ctx.strokeStyle = 'rgba(245,158,11,.4)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      if (ctx.roundRect) { ctx.roundRect(bx, by, boxW, boxH, 4); }
+      else { ctx.rect(bx, by, boxW, boxH); }
+      ctx.fill(); ctx.stroke();
+
+      ctx.fillStyle = '#fafafa';
+      ctx.textAlign = 'left';
+      lines.forEach(function(l, i) {
+        ctx.fillStyle = i === 0 ? '#fbbf24' : '#a1a1aa';
+        ctx.fillText(l, bx + 6, by + 12 + i * 13);
+      });
+    }
+  }
+
+  // ── Zoom / Pan helpers ──
+  function chartResetZoom() {
+    viewTMin = null; viewTMax = null;
+    if (metricsHistory.length >= 2) renderChart();
+  }
+
+  function chartDataRange() {
+    if (metricsHistory.length < 2) return { min: 0, max: 1 };
+    return { min: metricsHistory[0].epoch_ms, max: metricsHistory[metricsHistory.length - 1].epoch_ms };
+  }
+
+  function chartClampView() {
+    var d = chartDataRange();
+    var fullRange = d.max - d.min;
+    if (fullRange <= 0) return;
+    var range = viewTMax - viewTMin;
+    if (range >= fullRange * 0.98) { viewTMin = null; viewTMax = null; return; }
+    if (range < 5000) { var mid = (viewTMin + viewTMax) / 2; viewTMin = mid - 2500; viewTMax = mid + 2500; }
+    if (viewTMin < d.min) { viewTMax += (d.min - viewTMin); viewTMin = d.min; }
+    if (viewTMax > d.max) { viewTMin -= (viewTMax - d.max); viewTMax = d.max; }
+    if (viewTMin < d.min) viewTMin = d.min;
+  }
+
+  // Reset zoom button
+  document.getElementById('stats-reset-zoom').addEventListener('click', function(e) {
+    e.stopPropagation();
+    chartResetZoom();
+  });
+
+  // Wheel zoom (centered on cursor)
+  statsCanvas.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    if (metricsHistory.length < 2) return;
+    var d = chartDataRange();
+    var rect = statsCanvas.getBoundingClientRect();
+    var pad = { left: 38, right: 10 };
+    var cW = rect.width - pad.left - pad.right;
+    var mx = e.clientX - rect.left - pad.left;
+    var ratio = Math.max(0, Math.min(1, mx / cW));
+
+    var curMin = viewTMin !== null ? viewTMin : d.min;
+    var curMax = viewTMax !== null ? viewTMax : d.max;
+    var curRange = curMax - curMin;
+    var factor = e.deltaY > 0 ? 1.25 : 0.8;
+    var newRange = curRange * factor;
+
+    if (newRange >= (d.max - d.min) * 0.98) { chartResetZoom(); return; }
+    if (newRange < 5000) newRange = 5000;
+
+    var pivot = curMin + ratio * curRange;
+    viewTMin = pivot - ratio * newRange;
+    viewTMax = pivot + (1 - ratio) * newRange;
+    chartClampView();
+    renderChart();
+  }, { passive: false });
+
+  // Mouse pan (drag)
+  statsCanvas.addEventListener('mousedown', function(e) {
+    if (e.button !== 0) return;
+    if (metricsHistory.length < 2) return;
+    var d = chartDataRange();
+    isPanning = true;
+    panStartX = e.clientX;
+    panStartTMin = viewTMin !== null ? viewTMin : d.min;
+    panStartTMax = viewTMax !== null ? viewTMax : d.max;
+    statsCanvas.style.cursor = 'grabbing';
+    e.preventDefault();
+  });
+
+  statsCanvas.addEventListener('mousemove', function(e) {
+    var rect = statsCanvas.getBoundingClientRect();
+    if (isPanning) {
+      var pad = { left: 38, right: 10 };
+      var cW = rect.width - pad.left - pad.right;
+      var panRange = panStartTMax - panStartTMin;
+      var dx = e.clientX - panStartX;
+      var dt = -(dx / cW) * panRange;
+      viewTMin = panStartTMin + dt;
+      viewTMax = panStartTMax + dt;
+      chartClampView();
+      if (viewTMin === null) { panStartTMin = chartDataRange().min; panStartTMax = chartDataRange().max; }
+      if (metricsHistory.length >= 2) renderChart();
+    } else {
+      chartCrosshairX = e.clientX - rect.left;
+      if (metricsHistory.length >= 2) renderChart();
+    }
+  });
+
+  window.addEventListener('mouseup', function() {
+    if (isPanning) {
+      isPanning = false;
+      statsCanvas.style.cursor = '';
+    }
+  });
+
+  statsCanvas.addEventListener('mouseleave', function() {
+    chartCrosshairX = -1;
+    if (!isPanning && metricsHistory.length >= 2) renderChart();
+  });
+
+  // Double-click to reset zoom
+  statsCanvas.addEventListener('dblclick', function(e) {
+    e.preventDefault();
+    chartResetZoom();
+  });
+
+  // Touch: 1 finger = pan, 2 fingers = pinch zoom
+  statsCanvas.addEventListener('touchstart', function(e) {
+    if (metricsHistory.length < 2) return;
+    if (e.touches.length === 1) {
+      var d = chartDataRange();
+      isPanning = true;
+      panStartX = e.touches[0].clientX;
+      panStartTMin = viewTMin !== null ? viewTMin : d.min;
+      panStartTMax = viewTMax !== null ? viewTMax : d.max;
+    } else if (e.touches.length === 2) {
+      isPanning = false;
+      var dx = e.touches[0].clientX - e.touches[1].clientX;
+      var dy = e.touches[0].clientY - e.touches[1].clientY;
+      lastPinchDist = Math.sqrt(dx * dx + dy * dy);
+    }
+    e.preventDefault();
+  }, { passive: false });
+
+  statsCanvas.addEventListener('touchmove', function(e) {
+    if (metricsHistory.length < 2) return;
+    if (e.touches.length === 1 && isPanning) {
+      var rect = statsCanvas.getBoundingClientRect();
+      var pad = { left: 38, right: 10 };
+      var cW = rect.width - pad.left - pad.right;
+      var panRange = panStartTMax - panStartTMin;
+      var dx = e.touches[0].clientX - panStartX;
+      var dt = -(dx / cW) * panRange;
+      viewTMin = panStartTMin + dt;
+      viewTMax = panStartTMax + dt;
+      chartClampView();
+      renderChart();
+    } else if (e.touches.length === 2) {
+      var dx2 = e.touches[0].clientX - e.touches[1].clientX;
+      var dy2 = e.touches[0].clientY - e.touches[1].clientY;
+      var dist = Math.sqrt(dx2 * dx2 + dy2 * dy2);
+      if (lastPinchDist > 0) {
+        var d = chartDataRange();
+        var curMin = viewTMin !== null ? viewTMin : d.min;
+        var curMax = viewTMax !== null ? viewTMax : d.max;
+        var factor = lastPinchDist / dist;
+        var mid = (curMin + curMax) / 2;
+        var halfNew = ((curMax - curMin) * factor) / 2;
+        viewTMin = mid - halfNew;
+        viewTMax = mid + halfNew;
+        chartClampView();
+        renderChart();
+      }
+      lastPinchDist = dist;
+    }
+    e.preventDefault();
+  }, { passive: false });
+
+  statsCanvas.addEventListener('touchend', function() {
+    isPanning = false;
+    lastPinchDist = 0;
   });
 
   /* ── Init ── */
