@@ -90,7 +90,10 @@ struct NodeConfigFile {
 impl Default for NodeConfig {
     fn default() -> Self {
         Self {
-            node_name: format!("laruche-{}", &Uuid::new_v4().to_string()[..6]),
+            node_name: {
+                let id = Uuid::new_v4().to_string();
+                format!("laruche-{}", &id[..6])
+            },
             tier: HardwareTier::Core,
             ollama_url: "http://127.0.0.1:11434".into(),
             default_model: "mistral".into(),
@@ -170,6 +173,8 @@ struct SwarmResponse {
     collective_queue: u32,
     total_vram_mb: u64,
     total_ram_mb: u64,
+    estimated_speedup: f32,
+    sharding_possible: bool,
     nodes: Vec<DiscoveredNodeInfo>,
 }
 
@@ -585,6 +590,11 @@ async fn get_swarm(State(state): State<Arc<AppState>>) -> Json<SwarmResponse> {
         }
     }
 
+    // Estimate speedup: ~85% efficiency per additional node
+    let n = node_infos.len() as f32;
+    let estimated_speedup = if n <= 1.0 { 1.0 } else { 1.0 + (n - 1.0) * 0.85 };
+    let sharding_possible = node_infos.len() >= 2 && total_vram > 0;
+
     Json(SwarmResponse {
         swarm_id: "collective-1".into(),
         total_nodes: node_infos.len(),
@@ -592,6 +602,8 @@ async fn get_swarm(State(state): State<Arc<AppState>>) -> Json<SwarmResponse> {
         collective_queue: total_queue,
         total_vram_mb: total_vram,
         total_ram_mb: total_ram,
+        estimated_speedup,
+        sharding_possible,
         nodes: node_infos,
     })
 }
@@ -830,8 +842,8 @@ async fn get_activity(State(state): State<Arc<AppState>>) -> Json<ActivityRespon
     })
 }
 
-async fn health() -> &'static str {
-    "OK"
+async fn health() -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "status": "ok" }))
 }
 
 async fn dashboard() -> Html<&'static str> {
@@ -919,7 +931,12 @@ async fn main() -> Result<()> {
         .route("/auth/request", post(post_auth_request))
         .route("/auth/approve", post(post_auth_approve))
         .route("/dashboard", get(dashboard))
-        .layer(tower_http::cors::CorsLayer::permissive())
+        .layer(
+            tower_http::cors::CorsLayer::new()
+                .allow_origin(tower_http::cors::AllowOrigin::any())
+                .allow_methods(tower_http::cors::Any)
+                .allow_headers(tower_http::cors::Any),
+        )
         .with_state(state.clone());
 
     // Background: refresh real metrics + re-announce mDNS
@@ -1042,32 +1059,40 @@ fn load_config() -> Result<NodeConfig> {
         info!(path = %config_path, "Loaded config file");
     }
 
+    // Environment variables override config file values (with warnings)
     if let Ok(v) = std::env::var("LARUCHE_NAME") {
+        info!(env = "LARUCHE_NAME", value = %v, "Env override: node_name");
         config.node_name = v;
     }
     if let Ok(v) = std::env::var("LARUCHE_TIER") {
         if let Some(tier) = parse_tier(&v) {
+            info!(env = "LARUCHE_TIER", value = %v, "Env override: tier");
             config.tier = tier;
         }
     }
     if let Ok(v) = std::env::var("OLLAMA_URL") {
+        info!(env = "OLLAMA_URL", value = %v, "Env override: ollama_url");
         config.ollama_url = v;
     }
     if let Ok(v) = std::env::var("LARUCHE_MODEL") {
+        info!(env = "LARUCHE_MODEL", value = %v, "Env override: default_model");
         config.default_model = v;
     }
     if let Ok(v) = std::env::var("LARUCHE_PORT") {
         if let Ok(port) = v.parse::<u16>() {
+            info!(env = "LARUCHE_PORT", value = %v, "Env override: api_port");
             config.api_port = port;
         }
     }
     if let Ok(v) = std::env::var("LARUCHE_DASH_PORT") {
         if let Ok(port) = v.parse::<u16>() {
+            info!(env = "LARUCHE_DASH_PORT", value = %v, "Env override: dashboard_port");
             config.dashboard_port = port;
         }
     }
 
     if let Some(caps) = parse_env_capabilities(&config.default_model) {
+        info!("Env override: capabilities from LARUCHE_CAP/LARUCHE_MODEL");
         config.capabilities = caps;
     }
 

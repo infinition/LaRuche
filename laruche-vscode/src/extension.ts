@@ -2,7 +2,7 @@
 import { LaRucheClient, SwarmData, ModelsResponse } from './client';
 import { LandDiscovery, DiscoveredLandNode } from './discovery';
 import { getChatHtml } from './chatView';
-import { AgentProvider } from './agentProvider';
+import { AgentProvider, AgentAttachment } from './agentProvider';
 
 // ======================== State ========================
 
@@ -775,6 +775,7 @@ async function handleWebviewMessage(
             if (msg.currentHtml && msg.currentHtml.trim().length > 200) {
                 saveChatToHistory(context, msg.currentHtml);
             }
+            agent.clearConversation();
             webview.postMessage({ type: 'resetChat' });
             break;
         }
@@ -846,15 +847,36 @@ async function handleChatAsk(
     context: vscode.ExtensionContext,
 ): Promise<void> {
     if (msg.mode === 'edit') {
-        const editor = vscode.window.activeTextEditor;
-        if (!editor) {
-            webview.postMessage({ type: 'error', text: 'No active editor. Open a file to use Agent mode.' });
-            return;
+        // Build attachments from the message
+        const attachments: AgentAttachment[] = [];
+        if (msg.attachments && Array.isArray(msg.attachments)) {
+            for (const att of msg.attachments) {
+                if (att.content) {
+                    attachments.push({
+                        name: att.name || 'unknown',
+                        content: att.content,
+                        language: att.language,
+                    });
+                }
+            }
         }
+
         webview.postMessage({ type: 'status', text: 'Agent working...' });
+
+        // Progress callback — forward all agent events to the webview
+        const onProgress = (progressMsg: object) => {
+            webview.postMessage(progressMsg);
+        };
+
         try {
-            await agent.run(editor, msg.prompt);
-            webview.postMessage({ type: 'agentDone', text: 'Agent finished.' });
+            const result = await agent.runAgentLoop(msg.prompt, attachments, onProgress);
+            webview.postMessage({
+                type: 'agentDone',
+                text: result.finalText,
+                model: result.model,
+                tokens: result.totalTokens,
+                iterations: result.iterations,
+            });
         } catch (err: any) {
             webview.postMessage({ type: 'error', text: err.message });
         }

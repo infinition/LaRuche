@@ -13,7 +13,7 @@
       --blue: #3b82f6; --blue-dim: rgba(59,130,246,.12);
       --red: #ef4444; --red-dim: rgba(239,68,68,.12);
       --purple: #a855f7; --purple-dim: rgba(168,85,247,.12);
-      --cyan: #06b6d4;
+      --cyan: #06b6d4; --cyan-dim: rgba(6,182,212,.12);
       --bg: #09090b; --bg-card: rgba(24,24,27,.85); --bg-hover: #27272a;
       --border: #2a2a2e; --text: #fafafa; --text-dim: #71717a; --text-mid: #a1a1aa;
       --hex-size: 90px;
@@ -52,6 +52,11 @@
     }
     .pill-ok { background:var(--green-dim); color:var(--green); border:1px solid rgba(34,197,94,.3); }
     .pill-warn { background:var(--red-dim); color:var(--red); border:1px solid rgba(239,68,68,.3); }
+    .pill-swarm {
+      background:var(--purple-dim); color:var(--purple); border:1px solid rgba(168,85,247,.3);
+      display:none;
+    }
+    .pill-swarm.active { display:flex; }
     .dot { width:5px; height:5px; border-radius:50%; background:currentColor; animation:pulse 2s infinite; }
     .hdr-ver { font-size:10px; color:var(--text-dim); font-family:'JetBrains Mono',monospace; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
@@ -126,13 +131,22 @@
     .panel-body::-webkit-scrollbar { width:3px; }
     .panel-body::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
 
-    /* ── Node items ── */
+    /* ── Node items (expandable) ── */
     .n-item {
-      display:flex; align-items:center; gap:8px;
-      padding:6px 8px; border-radius:6px; border:1px solid var(--border);
+      display:flex; flex-direction:column;
+      padding:0; border-radius:6px; border:1px solid var(--border);
       margin-bottom:4px; transition:border-color .2s, background .15s;
+      overflow:hidden;
     }
     .n-item:hover { border-color:var(--amber); background:rgba(245,158,11,.04); }
+    .n-item-row {
+      display:flex; align-items:center; gap:8px;
+      padding:6px 8px; cursor:pointer; user-select:none;
+    }
+    .n-item-row .expand-icon {
+      font-size:8px; color:var(--text-dim); transition:transform .2s; flex-shrink:0; margin-left:-2px;
+    }
+    .n-item.expanded .n-item-row .expand-icon { transform:rotate(90deg); }
     .n-hex {
       width:18px; height:18px; flex-shrink:0;
       clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
@@ -153,6 +167,31 @@
     .b-vlm { background:var(--purple-dim); color:var(--purple); border:1px solid rgba(168,85,247,.25); }
     .b-code { background:var(--green-dim); color:var(--green); border:1px solid rgba(34,197,94,.25); }
     .b-rag { background:var(--amber-dim); color:var(--amber); border:1px solid rgba(245,158,11,.25); }
+
+    /* ── Node detail (expanded) ── */
+    .n-detail {
+      display:none; padding:4px 8px 8px 34px;
+      border-top:1px solid var(--border);
+      background:rgba(0,0,0,.2);
+    }
+    .n-item.expanded .n-detail { display:block; }
+    .n-detail-row { display:flex; align-items:center; gap:6px; padding:3px 0; }
+    .n-detail-label {
+      font-size:8px; color:var(--text-dim); min-width:40px; text-transform:uppercase;
+      font-weight:600; font-family:'JetBrains Mono',monospace;
+    }
+    .n-detail-track { flex:1; height:5px; background:rgba(255,255,255,.06); border-radius:3px; overflow:hidden; }
+    .n-detail-fill { height:100%; border-radius:3px; transition:width .5s ease; }
+    .n-detail-val {
+      font-size:9px; font-weight:600; font-family:'JetBrains Mono',monospace;
+      min-width:48px; text-align:right; color:var(--text-mid);
+    }
+    .n-detail-stat {
+      display:flex; justify-content:space-between; font-size:9px; padding:2px 0;
+      font-family:'JetBrains Mono',monospace;
+    }
+    .n-detail-stat-label { color:var(--text-dim); }
+    .n-detail-stat-val { color:var(--text-mid); font-weight:600; }
 
     /* ── Model items ── */
     .model-item {
@@ -181,11 +220,56 @@
     .res-track { flex:1; height:6px; background:rgba(255,255,255,.06); border-radius:3px; overflow:hidden; }
     .res-fill { height:100%; border-radius:3px; transition:width .5s ease; }
     .res-val { font-size:10px; font-weight:600; font-family:'JetBrains Mono',monospace; min-width:56px; text-align:right; }
-    .fill-green { background:var(--green); } .fill-amber { background:var(--amber); } .fill-red { background:var(--red); } .fill-blue { background:var(--blue); }
+    .fill-green { background:var(--green); } .fill-amber { background:var(--amber); } .fill-red { background:var(--red); } .fill-blue { background:var(--blue); } .fill-purple { background:var(--purple); } .fill-cyan { background:var(--cyan); }
     .res-divider { border:none; border-top:1px solid var(--border); margin:6px 0; }
     .res-stat { display:flex; justify-content:space-between; font-size:9px; padding:2px 0; }
     .res-stat-label { color:var(--text-dim); }
     .res-stat-val { font-family:'JetBrains Mono',monospace; font-weight:600; }
+
+    /* ── Tensor Sharding / Swarm Power ── */
+    .shard-section {
+      margin-top:6px; padding:8px; background:rgba(168,85,247,.04);
+      border:1px solid rgba(168,85,247,.15); border-radius:6px;
+      display:none;
+    }
+    .shard-section.active { display:block; }
+    .shard-hdr {
+      display:flex; align-items:center; justify-content:space-between;
+      margin-bottom:6px;
+    }
+    .shard-title {
+      font-size:9px; text-transform:uppercase; letter-spacing:1px;
+      color:var(--purple); font-weight:700;
+    }
+    .shard-speedup {
+      font-size:10px; font-family:'JetBrains Mono',monospace;
+      font-weight:700; color:var(--amber);
+    }
+    .shard-bar-container {
+      display:flex; flex-direction:column; gap:3px;
+    }
+    .shard-layer-row {
+      display:flex; align-items:center; gap:4px;
+    }
+    .shard-layer-label {
+      font-size:7px; color:var(--text-dim); min-width:42px;
+      font-family:'JetBrains Mono',monospace; font-weight:600;
+    }
+    .shard-layer-bar {
+      flex:1; height:10px; display:flex; border-radius:3px; overflow:hidden; gap:1px;
+    }
+    .shard-segment {
+      height:100%; transition:width .5s ease;
+      position:relative;
+    }
+    .shard-segment:first-child { border-radius:3px 0 0 3px; }
+    .shard-segment:last-child { border-radius:0 3px 3px 0; }
+    .shard-legend {
+      display:flex; flex-wrap:wrap; gap:6px; margin-top:6px;
+      font-size:8px; font-family:'JetBrains Mono',monospace;
+    }
+    .shard-legend-item { display:flex; align-items:center; gap:3px; color:var(--text-dim); }
+    .shard-legend-dot { width:8px; height:8px; border-radius:2px; flex-shrink:0; }
 
     /* ── Log strip ── */
     .log-strip {
@@ -205,6 +289,51 @@
     .log-tag { min-width:44px; font-weight:600; flex-shrink:0; }
     .log-ok { color:var(--green); } .log-info { color:var(--blue); } .log-warn { color:var(--amber); } .log-err { color:var(--red); }
     .log-msg { color:var(--text-mid); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+    /* ── Inference test panel ── */
+    .infer-panel {
+      background:var(--bg-card); border:1px solid var(--border); border-radius:8px;
+      flex-shrink:0; overflow:hidden;
+    }
+    .infer-panel .panel-hdr { padding:4px 10px; }
+    .infer-body { padding:6px 10px; display:flex; flex-direction:column; gap:6px; }
+    .infer-input-row { display:flex; gap:6px; }
+    .infer-input {
+      flex:1; background:rgba(255,255,255,.04); border:1px solid var(--border);
+      border-radius:6px; padding:6px 10px; color:var(--text);
+      font-family:'JetBrains Mono',monospace; font-size:11px;
+      outline:none; transition:border-color .2s;
+    }
+    .infer-input:focus { border-color:var(--amber); }
+    .infer-input::placeholder { color:var(--text-dim); }
+    .infer-btn {
+      background:var(--amber-dim); color:var(--amber); border:1px solid rgba(245,158,11,.3);
+      border-radius:6px; padding:6px 14px; font-size:10px; font-weight:700;
+      font-family:'JetBrains Mono',monospace; text-transform:uppercase;
+      letter-spacing:.5px; cursor:pointer; transition:all .2s; flex-shrink:0;
+    }
+    .infer-btn:hover { background:rgba(245,158,11,.2); border-color:var(--amber); }
+    .infer-btn:disabled { opacity:.4; cursor:not-allowed; }
+    .infer-btn.running { animation:pulse 1s infinite; }
+    .infer-result {
+      display:none; background:rgba(0,0,0,.3); border:1px solid var(--border);
+      border-radius:6px; padding:8px 10px;
+      font-family:'JetBrains Mono',monospace; font-size:10px;
+      color:var(--text-mid); line-height:1.5;
+      max-height:100px; overflow-y:auto; white-space:pre-wrap; word-break:break-word;
+    }
+    .infer-result.active { display:block; }
+    .infer-result::-webkit-scrollbar { width:3px; }
+    .infer-result::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+    .infer-meta {
+      display:none; font-size:9px; font-family:'JetBrains Mono',monospace;
+      color:var(--text-dim);
+    }
+    .infer-meta.active { display:flex; gap:10px; }
+    .infer-meta span { display:flex; align-items:center; gap:3px; }
+    .infer-meta .latency { color:var(--green); }
+    .infer-meta .tokens { color:var(--blue); }
+    .infer-meta .model-used { color:var(--amber); }
 
     /* ── Toasts ── */
     .toast-container { position:fixed; bottom:12px; right:12px; display:flex; flex-direction:column; gap:6px; z-index:1000; pointer-events:none; }
@@ -257,6 +386,11 @@
       .panels .panel { display:none; }
       .panels .panel.mob-active { display:flex; min-height:200px; }
       .log-strip { max-height:100px; }
+      /* Inference panel mobile */
+      .infer-input-row { flex-direction:column; }
+      .infer-btn { width:100%; text-align:center; }
+      .infer-result { max-height:80px; }
+      .infer-meta { flex-wrap:wrap; }
     }
   </style>
 </head>
@@ -266,7 +400,8 @@
 <div class="hdr">
   <div class="hdr-logo"><div class="hex-icon"></div>LaRuche</div>
   <div class="hdr-right">
-    <div class="pill pill-ok" id="pill-status"><div class="dot"></div><span id="pill-text">Connecting\u2026</span></div>
+    <div class="pill pill-swarm" id="pill-swarm"><div class="dot"></div><span id="pill-swarm-text"></span></div>
+    <div class="pill pill-ok" id="pill-status"><div class="dot"></div><span id="pill-text">Connecting&hellip;</span></div>
     <div class="hdr-ver">LAND v0.1.0</div>
   </div>
 </div>
@@ -321,6 +456,15 @@
         <div id="node-list">
           <div style="font-size:10px;color:var(--text-dim);text-align:center;padding:12px">En attente de donn&eacute;es&hellip;</div>
         </div>
+        <!-- Tensor Sharding Visualization -->
+        <div class="shard-section" id="shard-section">
+          <div class="shard-hdr">
+            <span class="shard-title">&#x2B21; Tensor Sharding</span>
+            <span class="shard-speedup" id="shard-speedup"></span>
+          </div>
+          <div class="shard-bar-container" id="shard-layers"></div>
+          <div class="shard-legend" id="shard-legend"></div>
+        </div>
       </div>
     </div>
 
@@ -355,6 +499,16 @@
           <div class="res-track"><div class="res-fill fill-green" id="b-mem" style="width:0"></div></div>
           <span class="res-val" id="r-mem">&mdash;</span>
         </div>
+        <div class="res-row" id="vram-row" style="display:none">
+          <span class="res-label">VRAM</span>
+          <div class="res-track"><div class="res-fill fill-purple" id="b-vram" style="width:0"></div></div>
+          <span class="res-val" id="r-vram">&mdash;</span>
+        </div>
+        <div class="res-row" id="temp-row" style="display:none">
+          <span class="res-label">Temp</span>
+          <div class="res-track"><div class="res-fill fill-cyan" id="b-temp" style="width:0"></div></div>
+          <span class="res-val" id="r-temp">&mdash;</span>
+        </div>
         <div class="res-row">
           <span class="res-label">t/s</span>
           <div class="res-track"><div class="res-fill fill-amber" id="b-tps" style="width:0"></div></div>
@@ -387,6 +541,26 @@
     <div class="log-body" id="log-body"><div id="log"></div></div>
   </div>
 
+  <!-- Quick Inference Test -->
+  <div class="infer-panel" id="infer-panel">
+    <div class="panel-hdr">
+      <span class="panel-title">&#x26A1; Quick Inference</span>
+      <span class="panel-badge" id="infer-badge" style="background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.3)">/infer</span>
+    </div>
+    <div class="infer-body">
+      <div class="infer-input-row">
+        <input type="text" class="infer-input" id="infer-input" placeholder="Type a prompt and press Enter&hellip;" autocomplete="off" spellcheck="false">
+        <button class="infer-btn" id="infer-btn">Send</button>
+      </div>
+      <div class="infer-meta" id="infer-meta">
+        <span class="latency" id="infer-latency"></span>
+        <span class="tokens" id="infer-tokens"></span>
+        <span class="model-used" id="infer-model"></span>
+      </div>
+      <div class="infer-result" id="infer-result"></div>
+    </div>
+  </div>
+
 </div>
 
 <div class="toast-container" id="toasts"></div>
@@ -408,6 +582,7 @@
   let connected = false;
   let maxTps = 1;
   let logCount = 0;
+  let expandedNodes = new Set();
 
   /* Stable node tracking */
   const NODE_GRACE_POLLS = 10;
@@ -416,6 +591,12 @@
   /* Debounce node count */
   let pendingNodeCount = -1;
   let pendingNodeCountHits = 0;
+
+  /* Node colors for sharding visualization */
+  const NODE_COLORS = [
+    '#22c55e', '#3b82f6', '#f59e0b', '#a855f7', '#06b6d4',
+    '#ef4444', '#ec4899', '#14b8a6', '#f97316', '#8b5cf6'
+  ];
 
   /* Log auto-scroll: only if user is at bottom */
   let logUserScrolled = false;
@@ -469,6 +650,24 @@
     return String(cap || '').toLowerCase().replace(/^capability:/, '').trim();
   }
 
+  /* ── Estimated swarm speedup ── */
+  function estimateSpeedup(nodes) {
+    /* Simple model: speedup is based on combined TPS relative to best single node TPS */
+    if (nodes.length <= 1) return 1.0;
+    var bestSingleTps = 0;
+    var totalTps = 0;
+    for (var i = 0; i < nodes.length; i++) {
+      var t = nodes[i].tokens_per_sec || 0;
+      totalTps += t;
+      if (t > bestSingleTps) bestSingleTps = t;
+    }
+    if (bestSingleTps <= 0) {
+      /* Fallback: estimate based on node count with diminishing returns */
+      return 1 + (nodes.length - 1) * 0.85;
+    }
+    return totalTps / bestSingleTps;
+  }
+
   /* ── Log ── */
   function addLog(tag, cls, msg) {
     var log = document.getElementById('log');
@@ -512,6 +711,11 @@
     if (pct > 50) return 'var(--amber)';
     return 'var(--green)';
   }
+  function tempColor(temp) {
+    if (temp > 85) return 'fill-red';
+    if (temp > 65) return 'fill-amber';
+    return 'fill-cyan';
+  }
 
   /* ── Stable node tracking ── */
   function updateStableNodes(incomingNodes) {
@@ -539,6 +743,143 @@
       result.push(e.node);
     }
     return result;
+  }
+
+  /* ── Toggle node expansion ── */
+  function toggleNodeExpand(nodeId) {
+    if (expandedNodes.has(nodeId)) {
+      expandedNodes.delete(nodeId);
+    } else {
+      expandedNodes.add(nodeId);
+    }
+    /* Re-render will happen on next poll; for instant feedback, toggle the class directly */
+    var el = document.querySelector('[data-node-id="' + CSS.escape(nodeId) + '"]');
+    if (el) el.classList.toggle('expanded');
+  }
+
+  /* ── Build node detail HTML ── */
+  function buildNodeDetail(n) {
+    var html = '';
+    /* CPU bar */
+    if (n.cpu_usage_pct != null) {
+      var cpuPct = clamp(n.cpu_usage_pct, 0, 100);
+      var cpuFill = cpuPct > 80 ? 'fill-red' : cpuPct > 50 ? 'fill-amber' : 'fill-green';
+      html += '<div class="n-detail-row">' +
+        '<span class="n-detail-label">CPU</span>' +
+        '<div class="n-detail-track"><div class="n-detail-fill ' + cpuFill + '" style="width:' + cpuPct + '%"></div></div>' +
+        '<span class="n-detail-val">' + cpuPct.toFixed(0) + '%</span></div>';
+    }
+    /* Memory bar */
+    if (n.memory_usage_pct != null) {
+      var memPct = clamp(n.memory_usage_pct, 0, 100);
+      var memFill = memPct > 80 ? 'fill-red' : memPct > 50 ? 'fill-amber' : 'fill-green';
+      var memLabel = n.memory_used_mb ? fmtMB(n.memory_used_mb) + '/' + fmtMB(n.memory_total_mb) : memPct.toFixed(0) + '%';
+      html += '<div class="n-detail-row">' +
+        '<span class="n-detail-label">RAM</span>' +
+        '<div class="n-detail-track"><div class="n-detail-fill ' + memFill + '" style="width:' + memPct + '%"></div></div>' +
+        '<span class="n-detail-val">' + esc(memLabel) + '</span></div>';
+    } else if (n.memory_total_mb != null) {
+      html += '<div class="n-detail-stat"><span class="n-detail-stat-label">RAM Total</span>' +
+        '<span class="n-detail-stat-val">' + fmtMB(n.memory_total_mb) + '</span></div>';
+    }
+    /* VRAM bar */
+    if (n.vram_usage_pct != null) {
+      var vramPct = clamp(n.vram_usage_pct, 0, 100);
+      var vramFill = vramPct > 80 ? 'fill-red' : vramPct > 50 ? 'fill-amber' : 'fill-purple';
+      var vramLabel = n.vram_used_mb ? fmtMB(n.vram_used_mb) + '/' + fmtMB(n.vram_total_mb) : vramPct.toFixed(0) + '%';
+      html += '<div class="n-detail-row">' +
+        '<span class="n-detail-label">VRAM</span>' +
+        '<div class="n-detail-track"><div class="n-detail-fill ' + vramFill + '" style="width:' + vramPct + '%"></div></div>' +
+        '<span class="n-detail-val">' + esc(vramLabel) + '</span></div>';
+    } else if (n.vram_total_mb != null && n.vram_total_mb > 0) {
+      html += '<div class="n-detail-stat"><span class="n-detail-stat-label">VRAM Total</span>' +
+        '<span class="n-detail-stat-val">' + fmtMB(n.vram_total_mb) + '</span></div>';
+    }
+    /* Temperature */
+    if (n.temperature_c != null) {
+      var temp = n.temperature_c;
+      var tFill = tempColor(temp);
+      var tPct = clamp((temp / 100) * 100, 0, 100);
+      html += '<div class="n-detail-row">' +
+        '<span class="n-detail-label">Temp</span>' +
+        '<div class="n-detail-track"><div class="n-detail-fill ' + tFill + '" style="width:' + tPct + '%"></div></div>' +
+        '<span class="n-detail-val">' + temp.toFixed(0) + '&deg;C</span></div>';
+    } else if (n.gpu_temperature_c != null) {
+      var gTemp = n.gpu_temperature_c;
+      var gtFill = tempColor(gTemp);
+      var gtPct = clamp((gTemp / 100) * 100, 0, 100);
+      html += '<div class="n-detail-row">' +
+        '<span class="n-detail-label">GPU</span>' +
+        '<div class="n-detail-track"><div class="n-detail-fill ' + gtFill + '" style="width:' + gtPct + '%"></div></div>' +
+        '<span class="n-detail-val">' + gTemp.toFixed(0) + '&deg;C</span></div>';
+    }
+    /* TPS & Queue stats */
+    var tps = n.tokens_per_sec ? n.tokens_per_sec.toFixed(1) : '0.0';
+    html += '<div class="n-detail-stat"><span class="n-detail-stat-label">Tokens/sec</span><span class="n-detail-stat-val">' + tps + ' t/s</span></div>';
+    html += '<div class="n-detail-stat"><span class="n-detail-stat-label">Queue</span><span class="n-detail-stat-val">' + (n.queue_depth || 0) + '</span></div>';
+
+    if (!html) {
+      html = '<div style="font-size:9px;color:var(--text-dim);padding:2px 0">No detailed metrics available</div>';
+    }
+    return html;
+  }
+
+  /* ── Render tensor sharding visualization ── */
+  function renderSharding(nodes) {
+    var section = document.getElementById('shard-section');
+    if (nodes.length < 2) {
+      section.classList.remove('active');
+      return;
+    }
+    section.classList.add('active');
+
+    var speedup = estimateSpeedup(nodes);
+    document.getElementById('shard-speedup').textContent =
+      speedup.toFixed(1) + 'x with ' + nodes.length + ' nodes';
+
+    /* Build simulated layer distribution based on node VRAM/RAM capacity */
+    var nodeWeights = [];
+    var totalWeight = 0;
+    for (var i = 0; i < nodes.length; i++) {
+      var w = nodes[i].vram_total_mb || nodes[i].memory_total_mb || 1024;
+      nodeWeights.push(w);
+      totalWeight += w;
+    }
+
+    /* Normalize weights to percentages */
+    var nodePcts = nodeWeights.map(function(w) { return (w / totalWeight) * 100; });
+
+    /* Build layer groups (simulated: attention, feedforward, embedding, output) */
+    var layerGroups = ['Attention', 'FFN', 'Embedding', 'Output'];
+    var layersEl = document.getElementById('shard-layers');
+    layersEl.innerHTML = '';
+
+    for (var g = 0; g < layerGroups.length; g++) {
+      var row = document.createElement('div');
+      row.className = 'shard-layer-row';
+      var segmentsHtml = '';
+      for (var j = 0; j < nodes.length; j++) {
+        var color = NODE_COLORS[j % NODE_COLORS.length];
+        segmentsHtml += '<div class="shard-segment" style="width:' + nodePcts[j].toFixed(1) + '%;background:' + color + ';opacity:' + (0.6 + (g % 2) * 0.15) + '"></div>';
+      }
+      row.innerHTML =
+        '<span class="shard-layer-label">' + layerGroups[g] + '</span>' +
+        '<div class="shard-layer-bar">' + segmentsHtml + '</div>';
+      layersEl.appendChild(row);
+    }
+
+    /* Legend */
+    var legendEl = document.getElementById('shard-legend');
+    legendEl.innerHTML = '';
+    for (var k = 0; k < nodes.length; k++) {
+      var color = NODE_COLORS[k % NODE_COLORS.length];
+      var name = nodes[k].name || ('Node ' + (k + 1));
+      legendEl.innerHTML +=
+        '<div class="shard-legend-item">' +
+        '<div class="shard-legend-dot" style="background:' + color + '"></div>' +
+        esc(name) + ' (' + nodePcts[k].toFixed(0) + '%)' +
+        '</div>';
+    }
   }
 
   /* ── Fetch: Swarm ── */
@@ -573,6 +914,17 @@
 
       /* Swarm badge */
       document.getElementById('swarm-badge').textContent = stableCount + ' node' + (stableCount > 1 ? 's' : '');
+
+      /* Swarm power pill in header */
+      var pillSwarm = document.getElementById('pill-swarm');
+      if (stableCount > 1) {
+        var speedup = estimateSpeedup(stableNodeList);
+        document.getElementById('pill-swarm-text').textContent =
+          'Swarm: ' + stableCount + ' nodes \u00B7 ' + speedup.toFixed(1) + 'x speedup';
+        pillSwarm.classList.add('active');
+      } else {
+        pillSwarm.classList.remove('active');
+      }
 
       var statusText = stableCount + ' node' + (stableCount > 1 ? 's' : '') + ' \u00B7 ' + d.collective_tps.toFixed(1) + ' t/s';
 
@@ -617,6 +969,7 @@
       list.innerHTML = '';
       for (var i = 0; i < stableNodeList.length; i++) {
         var n = stableNodeList[i];
+        var nodeId = n.node_id || (n.host + ':' + (n.port || 8419));
         var tps = n.tokens_per_sec ? n.tokens_per_sec.toFixed(1) : '0.0';
         var q = n.queue_depth || 0;
         var normalizedCaps = [];
@@ -635,30 +988,44 @@
         var ramMeta = (n.memory_usage_pct != null)
           ? (n.memory_usage_pct.toFixed(0) + '% RAM')
           : ((n.memory_total_mb != null) ? (fmtMB(n.memory_total_mb) + ' RAM') : '');
-        var perfMeta = [cpuMeta, ramMeta].filter(Boolean).join(' · ');
-        var metaSuffix = perfMeta ? (' · ' + perfMeta) : '';
+        var tempMeta = (n.temperature_c != null) ? (n.temperature_c.toFixed(0) + '\u00B0C') :
+                       (n.gpu_temperature_c != null) ? (n.gpu_temperature_c.toFixed(0) + '\u00B0C') : '';
+        var perfMeta = [cpuMeta, ramMeta, tempMeta].filter(Boolean).join(' \u00B7 ');
+        var metaSuffix = perfMeta ? (' \u00B7 ' + perfMeta) : '';
 
         var modelHtml = n.model ? '<div class="n-model">\u25C8 ' + esc(n.model) + '</div>' : '';
         var hostLabel = n.host + ((n.port && n.port !== 8419) ? (':' + n.port) : '');
 
+        var isExpanded = expandedNodes.has(nodeId);
+
         var item = document.createElement('div');
-        item.className = 'n-item';
+        item.className = 'n-item' + (isExpanded ? ' expanded' : '');
+        item.setAttribute('data-node-id', nodeId);
         item.innerHTML =
-          '<div class="n-hex ' + (q > 3 ? 'busy' : 'ok') + '"></div>' +
-          '<div class="n-info">' +
-            '<div class="n-name">' + esc(n.name || 'Unknown') + '</div>' +
-            modelHtml +
-            '<div class="n-meta">' + esc(hostLabel) + ' \u00B7 ' + tps + ' t/s \u00B7 Q:' + q + metaSuffix + '</div>' +
+          '<div class="n-item-row" onclick="toggleNodeExpand(\'' + esc(nodeId.replace(/'/g, "\\'")) + '\')">' +
+            '<span class="expand-icon">\u25B6</span>' +
+            '<div class="n-hex ' + (q > 3 ? 'busy' : 'ok') + '"></div>' +
+            '<div class="n-info">' +
+              '<div class="n-name">' + esc(n.name || 'Unknown') + '</div>' +
+              modelHtml +
+              '<div class="n-meta">' + esc(hostLabel) + ' \u00B7 ' + tps + ' t/s \u00B7 Q:' + q + metaSuffix + '</div>' +
+            '</div>' +
+            '<div class="n-right"><div class="badges">' + caps + '</div></div>' +
           '</div>' +
-          '<div class="n-right"><div class="badges">' + caps + '</div></div>';
+          '<div class="n-detail">' + buildNodeDetail(n) + '</div>';
         list.appendChild(item);
       }
+
+      /* Render tensor sharding */
+      renderSharding(stableNodeList);
+
     } catch (e) {
       console.warn('[LaRuche] /swarm failed:', e.message);
       if (connected) {
         connected = false;
         document.getElementById('pill-status').className = 'pill pill-warn';
         document.getElementById('pill-text').textContent = 'Offline';
+        document.getElementById('pill-swarm').classList.remove('active');
         toast('Connexion perdue avec le n\u0153ud', 'err');
         addLog('NET', 'log-err', 'N\u0153ud inaccessible \u2014 tentative de reconnexion\u2026');
       }
@@ -688,6 +1055,34 @@
       document.getElementById('b-mem').style.width = clamp(mem, 0, 100) + '%';
       document.getElementById('b-mem').className = 'res-fill ' + (mem > 80 ? 'fill-red' : mem > 50 ? 'fill-amber' : 'fill-green');
       setGauge('hg-ram', mem, gaugeColor(mem));
+
+      /* VRAM (show row if data available) */
+      var vramRow = document.getElementById('vram-row');
+      if (d.vram_usage_pct != null || d.vram_used_mb != null || d.vram_total_mb != null) {
+        vramRow.style.display = '';
+        var vramPct = d.vram_usage_pct || (d.vram_total_mb > 0 ? ((d.vram_used_mb || 0) / d.vram_total_mb) * 100 : 0);
+        var vramLabel = d.vram_used_mb != null && d.vram_total_mb != null
+          ? fmtMB(d.vram_used_mb) + '/' + fmtMB(d.vram_total_mb)
+          : vramPct.toFixed(0) + '%';
+        document.getElementById('r-vram').textContent = vramLabel;
+        document.getElementById('b-vram').style.width = clamp(vramPct, 0, 100) + '%';
+        document.getElementById('b-vram').className = 'res-fill ' + (vramPct > 80 ? 'fill-red' : vramPct > 50 ? 'fill-amber' : 'fill-purple');
+      } else {
+        vramRow.style.display = 'none';
+      }
+
+      /* Temperature (show row if data available) */
+      var tempRow = document.getElementById('temp-row');
+      var tempVal = d.temperature_c != null ? d.temperature_c : (d.gpu_temperature_c != null ? d.gpu_temperature_c : null);
+      if (tempVal != null) {
+        tempRow.style.display = '';
+        var tPct = clamp((tempVal / 100) * 100, 0, 100);
+        document.getElementById('r-temp').textContent = tempVal.toFixed(0) + '\u00B0C';
+        document.getElementById('b-temp').style.width = tPct + '%';
+        document.getElementById('b-temp').className = 'res-fill ' + tempColor(tempVal);
+      } else {
+        tempRow.style.display = 'none';
+      }
 
       /* TPS */
       var tps = d.tokens_per_sec || 0;
@@ -769,6 +1164,89 @@
       });
     } catch (e) { /* activity endpoint may be unavailable */ }
   }
+
+  /* ── Quick Inference ── */
+  var inferInput = document.getElementById('infer-input');
+  var inferBtn = document.getElementById('infer-btn');
+  var inferResult = document.getElementById('infer-result');
+  var inferMeta = document.getElementById('infer-meta');
+  var inferRunning = false;
+
+  async function runInference() {
+    var prompt = inferInput.value.trim();
+    if (!prompt || inferRunning) return;
+
+    inferRunning = true;
+    inferBtn.disabled = true;
+    inferBtn.classList.add('running');
+    inferBtn.textContent = '\u2026';
+    inferResult.textContent = '';
+    inferResult.classList.add('active');
+    inferMeta.classList.remove('active');
+
+    var t0 = performance.now();
+
+    try {
+      var r = await fetch(API + '/infer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: prompt })
+      });
+
+      var elapsed = performance.now() - t0;
+
+      if (!r.ok) {
+        var errText = '';
+        try { errText = await r.text(); } catch(e) {}
+        inferResult.textContent = 'Error ' + r.status + (errText ? ': ' + errText : '');
+        inferResult.style.color = 'var(--red)';
+        addLog('INFER', 'log-err', 'Inference failed: HTTP ' + r.status);
+        return;
+      }
+
+      var d = await r.json();
+      var response = d.response || d.text || d.content || d.message || JSON.stringify(d);
+
+      inferResult.textContent = response;
+      inferResult.style.color = 'var(--text-mid)';
+
+      /* Show metadata */
+      document.getElementById('infer-latency').textContent = '\u23F1 ' + (elapsed / 1000).toFixed(2) + 's';
+      if (d.tokens_generated || d.eval_count) {
+        var tokCount = d.tokens_generated || d.eval_count;
+        var tokRate = d.tokens_per_sec || d.eval_rate || (tokCount / (elapsed / 1000));
+        document.getElementById('infer-tokens').textContent = tokCount + ' tok @ ' + tokRate.toFixed(1) + ' t/s';
+      } else {
+        document.getElementById('infer-tokens').textContent = '';
+      }
+      if (d.model) {
+        document.getElementById('infer-model').textContent = '\u25C8 ' + d.model;
+      } else {
+        document.getElementById('infer-model').textContent = '';
+      }
+      inferMeta.classList.add('active');
+
+      addLog('INFER', 'log-ok', 'Response in ' + (elapsed / 1000).toFixed(2) + 's' + (d.model ? ' via ' + d.model : ''));
+
+    } catch (e) {
+      inferResult.textContent = 'Network error: ' + e.message;
+      inferResult.style.color = 'var(--red)';
+      addLog('INFER', 'log-err', 'Inference error: ' + e.message);
+    } finally {
+      inferRunning = false;
+      inferBtn.disabled = false;
+      inferBtn.classList.remove('running');
+      inferBtn.textContent = 'Send';
+    }
+  }
+
+  inferBtn.addEventListener('click', runInference);
+  inferInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      runInference();
+    }
+  });
 
   /* ── Init ── */
   addLog('SYS', 'log-info', 'Dashboard initialis\u00E9 \u2014 connexion au n\u0153ud LAND\u2026');
