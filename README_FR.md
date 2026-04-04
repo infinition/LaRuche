@@ -18,7 +18,7 @@ Zero configuration, zero cloud impose, et confidentialite au coeur.
 ```text
 Reseau local
 
-  LaRuche Core (LLM/RAG) <---- protocole LAND (mDNS + HTTP) ----> LaRuche Pro (VLM/Code)
+  LaRuche Core (LLM/RAG) <---- protocole Miel (mDNS + HTTP) ----> LaRuche Pro (VLM/Code)
             |                                                             |
             +----------------------- intelligence Swarm -------------------+
 
@@ -33,7 +33,7 @@ Clients
 
 ```text
 laruche/
-|-- land-protocol/        # Bibliotheque coeur LAND
+|-- miel-protocol/        # Bibliotheque coeur Miel
 |   `-- src/
 |       |-- lib.rs
 |       |-- capabilities.rs
@@ -102,8 +102,8 @@ http://localhost:8419/dashboard
 
 ## Notes d'implementation actuelles
 
-- Re-annonce mDNS LAND periodique (`2s`) pour garder les noeuds visibles.
-- Timeout stale du listener LAND a `45s` (depuis `land-protocol`).
+- Re-annonce mDNS Miel periodique (`2s`) pour garder les noeuds visibles.
+- Timeout stale du listener Miel a `45s` (depuis `miel-protocol`).
 - `/swarm` inclut `port` par noeud et fusionne les capabilities (HTTP + fallback mDNS).
 - `/health` renvoie le texte `OK`.
 - Le dashboard conserve un noeud transitoirement manquant pendant `10` polls.
@@ -204,5 +204,5 @@ async fn main() {
 
 ## Notes
 
-- Ce workspace depend actuellement de `land-protocol` via GitHub (`workspace.dependencies`).
+- Ce workspace depend actuellement de `miel-protocol` via GitHub (`workspace.dependencies`).
 - Si vous iterez localement sur le protocole, mettez a jour la resolution des dependances avant release.

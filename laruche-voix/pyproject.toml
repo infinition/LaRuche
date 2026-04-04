@@ -1,0 +1,24 @@
+[project]
+name = "laruche-voix"
+version = "0.1.0"
+description = "LaRuche Voice Services - STT/TTS nodes for the Miel network"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "zeroconf>=0.136",
+    "torch>=2.4",
+    "transformers>=4.45",
+    "soundfile>=0.12",
+    "numpy>=1.26",
+    "edge-tts>=6.1",
+    "pyttsx3>=2.90",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+kokoro = ["kokoro>=0.9"]
+
+[project.scripts]
+laruche-stt = "src.stt_service:main"
+laruche-tts = "src.tts_service:main"

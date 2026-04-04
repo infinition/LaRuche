@@ -5,7 +5,7 @@ edition.workspace = true
 description = "LaRuche Client SDK - Discover and query LaRuche nodes in 3 lines of code"
 
 [dependencies]
-land-protocol.workspace = true
+miel-protocol.workspace = true
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true

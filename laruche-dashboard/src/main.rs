@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
     let port: u16 = std::env::var("LARUCHE_DASH_PORT")
         .ok()
         .and_then(|p| p.parse().ok())
-        .unwrap_or(land_protocol::DEFAULT_DASHBOARD_PORT);
+        .unwrap_or(miel_protocol::DEFAULT_DASHBOARD_PORT);
 
     let app = Router::new()
         .route("/", get(dashboard))

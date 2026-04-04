@@ -1,10 +1,12 @@
 [workspace]
 resolver = "2"
 members = [
+    "miel-protocol",
     "laruche-node",
     "laruche-client",
     "laruche-cli",
     "laruche-dashboard",
+    "laruche-essaim",
 ]
 
 [workspace.package]
@@ -12,10 +14,10 @@ version = "0.1.0"
 edition = "2021"
 authors = ["LaRuche Team"]
 license = "MPL-2.0"
-description = "LaRuche - Networked Edge AI System with LAND Protocol"
+description = "LaRuche - Networked Edge AI System with Miel Protocol"
 
 [workspace.dependencies]
-land-protocol = { git = "https://github.com/infinition/land-protocol" }
+miel-protocol = { path = "miel-protocol" }
 # Async runtime
 tokio = { version = "1", features = ["full"] }
 # Serialization
@@ -34,7 +36,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 # Time
 chrono = { version = "0.4", features = ["serde"] }
 # HTTP client (for Ollama)
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "multipart"] }
 # Web framework (dashboard)
 axum = { version = "0.7", features = ["ws"] }
 tower-http = { version = "0.5", features = ["cors", "fs"] }

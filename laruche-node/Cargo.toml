@@ -2,14 +2,14 @@
 name = "laruche-node"
 version.workspace = true
 edition.workspace = true
-description = "LaRuche Node - AI inference daemon with LAND protocol"
+description = "LaRuche Node - AI inference daemon with Miel protocol"
 
 [[bin]]
 name = "laruche-node"
 path = "src/main.rs"
 
 [dependencies]
-land-protocol.workspace = true
+miel-protocol.workspace = true
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -24,3 +24,6 @@ tower-http.workspace = true
 local-ip-address.workspace = true
 sysinfo.workspace = true
 toml = "0.8"
+laruche-essaim = { path = "../laruche-essaim" }
+futures-util = "0.3"
+which = "7"

@@ -17,7 +17,7 @@ echo "  ██║     ██╔══██║██╔══██╗██║ 
 echo "  ███████╗██║  ██║██║  ██║╚██████╔╝╚██████╗██║  ██║███████╗"
 echo "  ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝"
 echo -e "${NC}"
-echo "  Quick Setup - LAND Protocol v0.1.0"
+echo "  Quick Setup - Miel Protocol v0.1.0"
 echo ""
 
 # Check Rust
