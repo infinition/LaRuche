@@ -1,0 +1,1974 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>LaRuche - Essaim</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  :root {
+    --amber: #f59e0b;
+    --amber-dim: #b45309;
+    --amber-glow: rgba(245, 158, 11, 0.15);
+    --bg: #09090b;
+    --bg-card: rgba(24,24,27,.85);
+    --bg-panel: #111113;
+    --bg-input: rgba(39,39,42,.6);
+    --bg-hover: rgba(245,158,11,0.08);
+    --border: #2a2a2e;
+    --border-light: #3a3a3e;
+    --text: #fafafa;
+    --text-dim: #a1a1aa;
+    --text-muted: #52525b;
+    --green: #22c55e;
+    --green-dim: rgba(34,197,94,0.15);
+    --red: #ef4444;
+    --red-dim: rgba(239,68,68,0.15);
+    --blue: #3b82f6;
+    --blue-dim: rgba(59,130,246,0.15);
+    --purple: #a855f7;
+    --purple-dim: rgba(168,85,247,0.15);
+    --radius: 8px;
+    --radius-msg: 16px;
+    --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    --mono: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', monospace;
+    --sidebar-width: 340px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --transition-fast: 0.15s ease;
+    --transition-med: 0.25s ease;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+  }
+
+  /* ===== Header ===== */
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px;
+    padding-left: calc(16px + var(--safe-left));
+    padding-right: calc(16px + var(--safe-right));
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-card);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    flex-shrink: 0; z-index: 10;
+  }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .header-title { font-size: 15px; font-weight: 600; }
+  .logo { font-size: 20px; }
+
+  .status-indicator {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--red);
+    display: inline-block; transition: background var(--transition-fast);
+    flex-shrink: 0;
+  }
+  .status-dot.connected { background: var(--green); }
+  .status-dot.reconnecting { background: var(--amber); animation: pulse 1.5s infinite; }
+  .status-text {
+    font-size: 11px; color: var(--text-muted);
+    transition: color var(--transition-fast);
+  }
+  .status-dot.connected + .status-text { color: var(--green); }
+  .status-dot.reconnecting + .status-text { color: var(--amber); }
+
+  .header-right { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--text-dim); }
+  .header-right a { color: var(--amber); text-decoration: none; transition: opacity var(--transition-fast); }
+  .model-select {
+    background: var(--bg-input); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-size: 12px; padding: 4px 8px; outline: none;
+    max-width: 160px; cursor: pointer;
+  }
+  .model-select:focus { border-color: var(--amber); }
+  .header-right a:hover { opacity: 0.8; }
+
+  /* Auto-TTS toggle */
+  .auto-tts-toggle {
+    display: flex; align-items: center; gap: 5px; cursor: pointer;
+    padding: 4px 8px; border-radius: var(--radius);
+    border: 1px solid var(--border); background: none;
+    color: var(--text-muted); font-size: 12px;
+    transition: all var(--transition-fast);
+    user-select: none;
+  }
+  .auto-tts-toggle:hover { border-color: var(--amber); color: var(--amber); }
+  .auto-tts-toggle.active {
+    border-color: var(--amber); color: var(--amber);
+    background: var(--amber-glow);
+  }
+  .auto-tts-toggle .toggle-icon { font-size: 14px; }
+
+  /* ===== Main layout: sidebar + chat ===== */
+  .main {
+    flex: 1; display: flex; overflow: hidden;
+  }
+
+  /* ===== Left Sidebar -- Agent Panel ===== */
+  .sidebar {
+    width: var(--sidebar-width); min-width: var(--sidebar-width);
+    border-right: 1px solid var(--border);
+    background: var(--bg-panel);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-header {
+    padding: 10px 12px; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--amber); border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  /* -- Plan / TodoList -- */
+  .plan-section {
+    border-bottom: 1px solid var(--border);
+    max-height: 180px; overflow-y: auto;
+  }
+  .plan-section:empty { display: none; }
+  .plan-title {
+    padding: 8px 12px 4px; font-size: 10px; font-weight: 600;
+    text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px;
+  }
+  .plan-item {
+    padding: 4px 12px; font-size: 12px; display: flex; align-items: center; gap: 6px;
+  }
+  .plan-dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  }
+  .plan-dot.pending { background: var(--text-muted); }
+  .plan-dot.in_progress { background: var(--amber); animation: pulse 1.5s infinite; }
+  .plan-dot.done { background: var(--green); }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .plan-text { color: var(--text-dim); }
+  .plan-text.done { text-decoration: line-through; color: var(--text-muted); }
+
+  /* -- Activity feed -- */
+  .activity-feed {
+    flex: 1; overflow-y: auto; padding: 8px 0;
+  }
+  .activity-item {
+    padding: 6px 12px; font-size: 12px; border-bottom: 1px solid rgba(42,42,46,0.5);
+    transition: background var(--transition-fast);
+  }
+  .activity-item:last-child { border-bottom: none; }
+  .activity-item:hover { background: rgba(255,255,255,0.02); }
+
+  .activity-header {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 3px;
+    cursor: default;
+  }
+  .activity-icon {
+    width: 18px; height: 18px; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; flex-shrink: 0;
+  }
+  .activity-icon.thinking { background: var(--purple-dim); color: var(--purple); }
+  .activity-icon.tool-call { background: var(--blue-dim); color: var(--blue); }
+  .activity-icon.tool-ok { background: var(--green-dim); color: var(--green); }
+  .activity-icon.tool-err { background: var(--red-dim); color: var(--red); }
+  .activity-icon.status { background: rgba(82,82,91,0.2); color: var(--text-muted); }
+
+  .activity-label {
+    font-size: 11px; font-weight: 600;
+    letter-spacing: 0.2px; flex: 1;
+  }
+  .activity-label.thinking { color: var(--purple); }
+  .activity-label.tool-call { color: var(--blue); }
+  .activity-label.tool-ok { color: var(--green); }
+  .activity-label.tool-err { color: var(--red); }
+  .activity-label.status { color: var(--text-muted); }
+
+  .activity-time {
+    font-size: 9px; color: var(--text-muted); font-family: var(--mono);
+    flex-shrink: 0;
+  }
+
+  .activity-body {
+    color: var(--text-dim); font-family: var(--mono); font-size: 11px;
+    max-height: 120px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+    padding-left: 24px;
+  }
+
+  /* Collapsible tool results */
+  .activity-item.collapsible .activity-header { cursor: pointer; }
+  .activity-item.collapsible .activity-header::after {
+    content: '\25B6'; font-size: 8px; color: var(--text-muted);
+    transition: transform var(--transition-fast);
+  }
+  .activity-item.collapsible.expanded .activity-header::after {
+    transform: rotate(90deg);
+  }
+  .activity-item.collapsible .activity-body {
+    display: none;
+  }
+  .activity-item.collapsible.expanded .activity-body {
+    display: block;
+  }
+
+  /* -- Sessions list -- */
+  .sessions-section {
+    border-top: 1px solid var(--border);
+    max-height: 200px; overflow-y: auto;
+  }
+  .session-item {
+    padding: 8px 12px; font-size: 12px; cursor: pointer;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid rgba(42,42,46,0.3);
+    transition: all var(--transition-fast);
+    min-height: 36px;
+  }
+  .session-item:hover { background: var(--bg-hover); }
+  .session-item.active {
+    border-left: 2px solid var(--amber);
+    background: var(--amber-glow);
+  }
+  .session-title {
+    color: var(--text-dim); flex: 1; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  .session-item.active .session-title { color: var(--text); }
+  .session-delete {
+    color: var(--text-muted); cursor: pointer; font-size: 16px;
+    padding: 2px 6px; border-radius: 4px;
+    transition: all var(--transition-fast);
+    opacity: 0;
+  }
+  .session-item:hover .session-delete { opacity: 1; }
+  .session-delete:hover { color: var(--red); background: var(--red-dim); }
+  .new-session-btn {
+    width: calc(100% - 24px); padding: 8px; font-size: 11px; background: none;
+    border: 1px dashed var(--border); border-radius: var(--radius); color: var(--text-dim);
+    cursor: pointer; margin: 6px 12px;
+    transition: all var(--transition-fast);
+  }
+  .new-session-btn:hover { border-color: var(--amber); color: var(--amber); background: var(--amber-glow); }
+
+  /* ===== Chat area ===== */
+  .chat-panel {
+    flex: 1; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .chat-container {
+    flex: 1; overflow-y: auto; padding: 20px;
+    padding-left: calc(20px + var(--safe-left));
+    padding-right: calc(20px + var(--safe-right));
+    display: flex; flex-direction: column; gap: 16px;
+    scroll-behavior: smooth;
+  }
+
+  /* Message wrapper with avatar */
+  .message-row {
+    display: flex; gap: 10px; max-width: 80%;
+    animation: msgIn 0.25s ease-out;
+  }
+  .message-row.user { align-self: flex-end; flex-direction: row-reverse; }
+  .message-row.assistant { align-self: flex-start; }
+  .message-row.error-row { align-self: center; max-width: 90%; }
+
+  @keyframes msgIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; flex-shrink: 0; margin-top: 2px;
+  }
+  .avatar.user-avatar {
+    background: var(--amber); color: var(--bg);
+    font-weight: 700; font-size: 13px;
+  }
+  .avatar.assistant-avatar {
+    background: var(--bg-card); border: 1px solid var(--border);
+    font-size: 16px;
+  }
+
+  .message-wrapper { flex: 1; min-width: 0; }
+
+  .message {
+    padding: 12px 16px; border-radius: var(--radius-msg);
+    line-height: 1.6; font-size: 14px; word-wrap: break-word;
+    white-space: pre-wrap; position: relative;
+  }
+  .message.user {
+    background: var(--amber); color: var(--bg);
+    border-bottom-right-radius: 4px;
+  }
+  .message.assistant {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-bottom-left-radius: 4px;
+  }
+  .message.assistant .cursor {
+    display: inline-block; width: 2px; height: 14px; background: var(--amber);
+    animation: blink 0.8s infinite; vertical-align: text-bottom; margin-left: 2px;
+  }
+  @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
+
+  /* Message timestamp on hover */
+  .msg-timestamp {
+    font-size: 10px; color: var(--text-muted); margin-top: 4px;
+    opacity: 0; transition: opacity var(--transition-fast);
+    font-family: var(--mono);
+  }
+  .message-row:hover .msg-timestamp { opacity: 1; }
+  .message-row.user .msg-timestamp { text-align: right; }
+
+  /* Typing indicator */
+  .typing-indicator {
+    display: flex; align-items: center; gap: 4px;
+    padding: 4px 0;
+  }
+  .typing-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--text-muted);
+    animation: typingBounce 1.4s infinite ease-in-out;
+  }
+  .typing-dot:nth-child(1) { animation-delay: 0s; }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-6px); opacity: 1; }
+  }
+
+  /* Markdown rendered content */
+  .message.assistant.rendered { white-space: normal; }
+  .message.assistant h1, .message.assistant h2, .message.assistant h3,
+  .message.assistant h4, .message.assistant h5 {
+    margin: 10px 0 6px; font-size: 15px; color: var(--amber);
+  }
+  .message.assistant h1 { font-size: 18px; }
+  .message.assistant h2 { font-size: 16px; }
+  .message.assistant ul, .message.assistant ol {
+    margin: 4px 0 4px 20px;
+  }
+  .message.assistant li { margin: 2px 0; }
+  .message.assistant p { margin: 4px 0; }
+  .message.assistant code {
+    background: rgba(0,0,0,0.35); padding: 1px 5px; border-radius: 3px;
+    font-family: var(--mono); font-size: 12px;
+  }
+  .message.assistant pre {
+    background: rgba(0,0,0,0.4); padding: 10px 12px; border-radius: 6px;
+    overflow-x: auto; margin: 8px 0; font-size: 12px; line-height: 1.4;
+    position: relative;
+  }
+  .message.assistant pre code {
+    background: none; padding: 0; font-size: 12px;
+  }
+  .message.assistant blockquote {
+    border-left: 3px solid var(--amber-dim); padding-left: 10px;
+    margin: 6px 0; color: var(--text-dim);
+  }
+  .message.assistant strong { color: var(--text); }
+  .message.assistant a { color: var(--amber); }
+  .message.assistant table {
+    border-collapse: collapse; margin: 6px 0; font-size: 12px;
+  }
+  .message.assistant th, .message.assistant td {
+    border: 1px solid var(--border); padding: 4px 8px;
+  }
+  .message.assistant th { background: rgba(245,158,11,0.1); }
+
+  /* Error message */
+  .message.error {
+    background: var(--red-dim);
+    border: 1px solid rgba(239,68,68,0.3); color: var(--red); font-size: 13px;
+    border-radius: var(--radius-msg);
+  }
+  .error-actions {
+    display: flex; gap: 8px; margin-top: 8px;
+  }
+  .retry-btn {
+    background: none; border: 1px solid rgba(239,68,68,0.4); border-radius: var(--radius);
+    color: var(--red); font-size: 11px; padding: 4px 12px; cursor: pointer;
+    transition: all var(--transition-fast);
+  }
+  .retry-btn:hover { background: var(--red-dim); border-color: var(--red); }
+
+  /* Message actions bar */
+  .msg-actions {
+    display: flex; gap: 6px; margin-top: 8px;
+    padding-top: 6px; border-top: 1px solid rgba(42,42,46,0.4);
+  }
+  .msg-action-btn {
+    background: none; border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text-muted); font-size: 11px; padding: 3px 10px; cursor: pointer;
+    display: flex; align-items: center; gap: 4px;
+    transition: all var(--transition-fast);
+  }
+  .msg-action-btn:hover { color: var(--amber); border-color: var(--amber); }
+  .msg-action-btn.playing { color: var(--green); border-color: var(--green); }
+  .msg-action-btn.copied { color: var(--green); border-color: var(--green); }
+
+  /* Welcome / empty state */
+  .welcome {
+    align-self: center; text-align: center; color: var(--text-dim);
+    padding: 60px 20px; max-width: 500px;
+  }
+  .welcome h2 { font-size: 24px; color: var(--amber); margin-bottom: 8px; }
+  .welcome p { font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
+  .suggested-prompts {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .suggested-prompt {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 16px;
+    color: var(--text-dim); font-size: 13px; cursor: pointer;
+    text-align: left; transition: all var(--transition-fast);
+  }
+  .suggested-prompt:hover {
+    border-color: var(--amber); color: var(--text);
+    background: var(--amber-glow);
+  }
+
+  /* Timeout warning */
+  .timeout-warning {
+    align-self: center; display: flex; align-items: center; gap: 8px;
+    padding: 8px 16px; border-radius: var(--radius);
+    background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3);
+    color: var(--amber); font-size: 12px;
+    animation: msgIn 0.25s ease-out;
+  }
+
+  /* Input area */
+  .input-area {
+    padding: 12px 16px;
+    padding-left: calc(16px + var(--safe-left));
+    padding-right: calc(16px + var(--safe-right));
+    padding-bottom: calc(12px + var(--safe-bottom));
+    border-top: 1px solid var(--border);
+    background: var(--bg-card);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    display: flex; gap: 8px; flex-shrink: 0;
+    align-items: flex-end;
+  }
+  .input-area textarea {
+    flex: 1; background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text); font-family: var(--font);
+    font-size: 16px; padding: 10px 12px; resize: none; outline: none;
+    max-height: 120px; min-height: 44px; line-height: 1.4;
+    transition: border-color var(--transition-fast);
+  }
+  .input-area textarea:focus { border-color: var(--amber); }
+  .input-area textarea::placeholder { color: var(--text-dim); }
+
+  .send-btn {
+    background: var(--amber); border: none; border-radius: var(--radius);
+    color: var(--bg); font-weight: 600; font-size: 14px; padding: 0 18px;
+    cursor: pointer; flex-shrink: 0; height: 44px;
+    transition: all var(--transition-fast);
+  }
+  .send-btn:hover { opacity: 0.85; transform: scale(1.02); }
+  .send-btn:active { transform: scale(0.98); }
+  .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .mic-btn {
+    background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text-dim); font-size: 18px;
+    width: 48px; height: 48px; min-width: 48px; min-height: 48px;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    transition: all var(--transition-fast);
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .mic-btn:hover { border-color: var(--amber); color: var(--amber); }
+  .mic-btn.recording {
+    background: var(--red-dim); border-color: var(--red); color: var(--red);
+    animation: pulse-mic 1s infinite;
+  }
+  @keyframes pulse-mic {
+    0%,100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+    50% { box-shadow: 0 0 0 10px rgba(239,68,68,0); }
+  }
+
+  /* Approval dialog */
+  .approval-dialog {
+    display: flex; gap: 12px; padding: 12px 16px; margin: 4px 0;
+    background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3);
+    border-radius: var(--radius); max-width: 85%;
+  }
+  .approval-icon { font-size: 24px; flex-shrink: 0; }
+  .approval-content { flex: 1; }
+  .approval-title { font-weight: 600; font-size: 13px; color: var(--amber); margin-bottom: 4px; }
+  .approval-detail { font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
+  .approval-args {
+    font-family: var(--mono); font-size: 11px; background: rgba(0,0,0,0.3);
+    padding: 6px 8px; border-radius: 4px; max-height: 100px; overflow-y: auto;
+    color: var(--text-dim); margin-bottom: 8px;
+  }
+  .approval-buttons { display: flex; gap: 8px; }
+  .approval-btn {
+    padding: 5px 16px; border: none; border-radius: 6px; font-size: 12px;
+    font-weight: 600; cursor: pointer;
+  }
+  .approval-btn.approve { background: var(--green); color: #000; }
+  .approval-btn.deny { background: var(--red); color: #fff; }
+  .approval-btn:hover { opacity: 0.85; }
+
+  /* Upload button */
+  .upload-btn {
+    background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text-dim); font-size: 18px; width: 42px; height: 42px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    transition: all var(--transition-fast);
+  }
+  .upload-btn:hover { border-color: var(--amber); color: var(--amber); }
+
+  /* Drop zone overlay */
+  .drop-zone {
+    position: absolute; inset: 0; z-index: 50;
+    background: rgba(245,158,11,0.1); border: 2px dashed var(--amber);
+    display: flex; align-items: center; justify-content: center;
+    border-radius: var(--radius);
+  }
+  .drop-zone-text { color: var(--amber); font-size: 16px; font-weight: 600; }
+
+  /* Attachment preview bar */
+  .attachment-preview {
+    padding: 6px 16px; border-top: 1px solid var(--border); background: var(--bg-panel);
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  }
+  .attachment-chip {
+    display: flex; align-items: center; gap: 4px; padding: 3px 8px;
+    background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px;
+    font-size: 11px; color: var(--text-dim);
+  }
+  .attachment-chip .remove {
+    cursor: pointer; color: var(--text-muted); font-size: 14px; margin-left: 2px;
+  }
+  .attachment-chip .remove:hover { color: var(--red); }
+
+  /* Sidebar toggle button (visible on mobile) */
+  .sidebar-toggle {
+    display: none;
+    background: none; border: none; color: var(--text-dim); font-size: 22px;
+    cursor: pointer; padding: 4px 8px; border-radius: 4px;
+    transition: color var(--transition-fast);
+    min-width: 40px; min-height: 40px;
+    align-items: center; justify-content: center;
+  }
+  .sidebar-toggle:hover { color: var(--amber); }
+
+  /* Overlay behind sidebar on mobile */
+  .sidebar-overlay {
+    display: none;
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    z-index: 19;
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+  }
+
+  /* Auto-reconnect banner */
+  .reconnect-banner {
+    display: none;
+    align-items: center; justify-content: center; gap: 8px;
+    padding: 6px 16px;
+    background: rgba(245,158,11,0.1);
+    border-bottom: 1px solid rgba(245,158,11,0.2);
+    font-size: 12px; color: var(--amber);
+    flex-shrink: 0;
+  }
+  .reconnect-banner.visible { display: flex; }
+  .reconnect-spinner {
+    width: 12px; height: 12px; border: 2px solid var(--amber);
+    border-top-color: transparent; border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Scrollbars */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border-light); }
+
+  /* ===== Mobile responsive ===== */
+  @media (max-width: 768px) {
+    :root { --sidebar-width: 300px; }
+
+    .sidebar-toggle { display: flex; }
+
+    .sidebar {
+      position: fixed; left: 0; top: 0; bottom: 0;
+      z-index: 20;
+      transform: translateX(-100%);
+      transition: transform var(--transition-med);
+      box-shadow: 4px 0 24px rgba(0,0,0,0.6);
+    }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar-overlay.open { display: block; }
+
+    .header { padding: 8px 12px; }
+    .header-title { font-size: 14px; }
+    .header-right { gap: 8px; font-size: 11px; }
+    #modelInfo { display: none; }
+
+    .chat-container { padding: 12px; gap: 12px; }
+    .message-row { max-width: 92%; }
+    .message { font-size: 14px; padding: 10px 14px; }
+    .message.assistant pre { font-size: 11px; padding: 6px 8px; }
+    .avatar { width: 28px; height: 28px; font-size: 12px; }
+
+    .input-area { padding: 8px 10px; gap: 6px; }
+    .input-area textarea { font-size: 16px; padding: 10px 12px; min-height: 44px; }
+    .send-btn { padding: 0 14px; font-size: 13px; height: 48px; }
+    .mic-btn { width: 48px; height: 48px; font-size: 18px; }
+
+    .welcome { padding: 30px 16px; }
+    .welcome h2 { font-size: 20px; }
+    .welcome p { font-size: 13px; }
+    .suggested-prompt { font-size: 12px; padding: 8px 12px; }
+
+    .session-item { min-height: 44px; padding: 10px 12px; }
+    .session-delete { opacity: 1; }
+
+    .auto-tts-toggle span:not(.toggle-icon) { display: none; }
+    .auto-tts-toggle { padding: 4px 6px; }
+  }
+
+  /* Small phones */
+  @media (max-width: 400px) {
+    :root { --sidebar-width: 100vw; }
+    .header-right a { font-size: 10px; }
+    .message-row { max-width: 96%; }
+    .send-btn span { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">&#x2630;</button>
+    <span class="logo">&#x1F41D;</span>
+    <span class="header-title">Essaim</span>
+    <div class="status-indicator">
+      <span class="status-dot" id="statusDot"></span>
+      <span class="status-text" id="statusText">Deconnecte</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <button class="auto-tts-toggle" id="autoTtsToggle" onclick="toggleAutoTts()" title="Lecture automatique des reponses">
+      <span class="toggle-icon">&#x1F50A;</span>
+      <span>Auto-TTS</span>
+    </button>
+    <select id="modelSelect" class="model-select" onchange="changeModel(this.value)" title="Changer de modele">
+      <option value="">Chargement...</option>
+    </select>
+    <a href="/dashboard">Dashboard</a>
+  </div>
+</div>
+
+<div class="reconnect-banner" id="reconnectBanner">
+  <div class="reconnect-spinner"></div>
+  <span>Reconnexion en cours...</span>
+</div>
+
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+<div class="main">
+  <!-- Left Sidebar: Agent Panel -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <span>Agent</span>
+      <span id="iterationBadge" style="font-size:10px;color:var(--text-muted)"></span>
+    </div>
+
+    <!-- TodoList / Plan -->
+    <div class="plan-section" id="planSection">
+      <div class="plan-title">Plan</div>
+    </div>
+
+    <!-- Activity Feed (thinking, tool calls, results) -->
+    <div class="activity-feed" id="activityFeed"></div>
+
+    <!-- Sessions -->
+    <div class="sessions-section" id="sessionsSection">
+      <div class="sidebar-header">Sessions</div>
+      <button class="new-session-btn" onclick="newSession()">+ Nouvelle conversation</button>
+      <div id="sessionsList"></div>
+    </div>
+  </div>
+
+  <!-- Right: Chat -->
+  <div class="chat-panel">
+    <div class="chat-container" id="chatContainer">
+      <div class="welcome" id="welcomeScreen">
+        <h2>&#x1F41D; Essaim</h2>
+        <p>Agent IA propulse par LaRuche.<br>Posez votre question ou donnez une instruction.</p>
+        <div class="suggested-prompts">
+          <div class="suggested-prompt" onclick="useSuggestion(this)">Explique-moi l'architecture du projet</div>
+          <div class="suggested-prompt" onclick="useSuggestion(this)">Quels fichiers ont ete modifies recemment ?</div>
+          <div class="suggested-prompt" onclick="useSuggestion(this)">Analyse les erreurs dans les logs</div>
+          <div class="suggested-prompt" onclick="useSuggestion(this)">Cree un plan d'action pour optimiser les performances</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="dropZone" class="drop-zone" style="display:none">
+      <div class="drop-zone-text">Deposer le fichier ici</div>
+    </div>
+    <div id="attachmentPreview" class="attachment-preview" style="display:none"></div>
+    <div class="input-area">
+      <button class="mic-btn" id="micBtn" title="Cliquer pour enregistrer / arreter">&#x1F3A4;</button>
+      <label class="upload-btn" title="Joindre un fichier">
+        <input type="file" id="fileInput" style="display:none" accept="image/*,.pdf,.txt,.md,.json,.csv,.py,.rs,.js,.ts" multiple>
+        &#x1F4CE;
+      </label>
+      <textarea id="userInput" placeholder="Ecrivez votre message... (@fichier pour citer)" rows="1"></textarea>
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()"><span>Envoyer</span> &#x27A4;</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== DOM refs =====
+const chatContainer = document.getElementById('chatContainer');
+const userInput = document.getElementById('userInput');
+const sendBtn = document.getElementById('sendBtn');
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const modelInfo = document.getElementById('modelInfo');
+const activityFeed = document.getElementById('activityFeed');
+const planSection = document.getElementById('planSection');
+const sessionsList = document.getElementById('sessionsList');
+const iterationBadge = document.getElementById('iterationBadge');
+const reconnectBanner = document.getElementById('reconnectBanner');
+const sidebar = document.getElementById('sidebar');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+
+// ===== State =====
+let ws = null;
+let sessionId = null;
+let currentAssistantMsg = null;
+let currentAssistantRow = null;
+let isStreaming = false;
+let autoTtsEnabled = false;
+let lastUserMessage = '';
+let responseTimeout = null;
+let reconnectAttempts = 0;
+let typingIndicatorEl = null;
+
+// ===== WebSocket =====
+function connectWS() {
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${protocol}//${location.host}/ws/chat`);
+
+  ws.onopen = () => {
+    statusDot.classList.add('connected');
+    statusDot.classList.remove('reconnecting');
+    statusText.textContent = 'Connecte';
+    sendBtn.disabled = false;
+    reconnectBanner.classList.remove('visible');
+    reconnectAttempts = 0;
+  };
+
+  ws.onclose = () => {
+    statusDot.classList.remove('connected');
+    statusText.textContent = 'Deconnecte';
+    sendBtn.disabled = true;
+    scheduleReconnect();
+  };
+
+  ws.onerror = () => {
+    statusDot.classList.remove('connected');
+    statusText.textContent = 'Erreur';
+  };
+
+  ws.onmessage = (e) => handleEvent(JSON.parse(e.data));
+}
+
+function scheduleReconnect() {
+  reconnectAttempts++;
+  const delay = Math.min(2000 * Math.pow(1.5, reconnectAttempts - 1), 30000);
+  statusDot.classList.add('reconnecting');
+  statusText.textContent = 'Reconnexion...';
+  reconnectBanner.classList.add('visible');
+  setTimeout(connectWS, delay);
+}
+
+function handleEvent(data) {
+  switch (data.type) {
+    case 'session':
+      sessionId = data.session_id;
+      loadSessions();
+      break;
+
+    case 'token':
+      clearResponseTimeout();
+      if (!currentAssistantMsg) {
+        removeTypingIndicator();
+        const result = addMessage('assistant', '');
+        currentAssistantRow = result.row;
+        currentAssistantMsg = result.msgEl;
+        currentAssistantMsg._rawBuf = '';
+        currentAssistantMsg._inToolTag = false;
+      }
+      currentAssistantMsg._rawBuf += data.text;
+      streamToken(currentAssistantMsg, data.text);
+      break;
+
+    case 'thinking':
+      addActivity('thinking', 'Reflexion', data.text, false);
+      break;
+
+    case 'tool_call':
+      addActivity('tool-call', 'Outil: ' + data.name, JSON.stringify(data.args, null, 2), true);
+      break;
+
+    case 'tool_result':
+      addActivity(
+        data.success ? 'tool-ok' : 'tool-err',
+        data.name + (data.success ? ' OK' : ' ERR'),
+        data.result.substring(0, 600),
+        true
+      );
+      break;
+
+    case 'plan':
+      updatePlan(data.items);
+      break;
+
+    case 'approval_request':
+      showApprovalDialog(data.tool_call_id, data.name, data.args);
+      break;
+
+    case 'status':
+      addActivity('status', 'Statut', data.message, false);
+      iterationBadge.textContent = data.message;
+      break;
+
+    case 'done':
+      clearResponseTimeout();
+      removeTypingIndicator();
+      if (currentAssistantMsg) {
+        finalizeMessage(currentAssistantMsg);
+      }
+      currentAssistantMsg = null;
+      currentAssistantRow = null;
+      isStreaming = false;
+      sendBtn.disabled = false;
+      userInput.disabled = false;
+      userInput.focus();
+      iterationBadge.textContent = '';
+      loadSessions();
+      break;
+
+    case 'error':
+      clearResponseTimeout();
+      removeTypingIndicator();
+      addErrorMessage(data.message);
+      currentAssistantMsg = null;
+      currentAssistantRow = null;
+      isStreaming = false;
+      sendBtn.disabled = false;
+      userInput.disabled = false;
+      iterationBadge.textContent = '';
+      break;
+  }
+}
+
+// ===== Response timeout =====
+function startResponseTimeout() {
+  clearResponseTimeout();
+  responseTimeout = setTimeout(() => {
+    if (isStreaming && !currentAssistantMsg) {
+      const warning = document.createElement('div');
+      warning.className = 'timeout-warning';
+      warning.innerHTML = '&#x26A0; La reponse prend plus de temps que prevu...';
+      chatContainer.appendChild(warning);
+      scrollToBottom();
+    }
+  }, 30000);
+}
+
+function clearResponseTimeout() {
+  if (responseTimeout) {
+    clearTimeout(responseTimeout);
+    responseTimeout = null;
+  }
+  // Remove any timeout warnings
+  chatContainer.querySelectorAll('.timeout-warning').forEach(el => el.remove());
+}
+
+// ===== Chat =====
+async function sendMessage(text) {
+  const msg = text || userInput.value.trim();
+  if (!msg || !ws || ws.readyState !== WebSocket.OPEN || isStreaming) return;
+
+  const welcome = document.getElementById('welcomeScreen');
+  if (welcome) welcome.remove();
+
+  // Append file contents if any
+  const fileData = await getFileContentsForPrompt();
+  const fullMsg = msg + fileData.text;
+
+  addMessage('user', msg + (fileData.text ? ' [+ fichiers joints]' : ''));
+  // Add a separator in activity feed instead of clearing
+  if (activityFeed.children.length > 0) {
+    const sep = document.createElement('div');
+    sep.style.cssText = 'border-top:1px solid var(--border);margin:6px 0;';
+    activityFeed.appendChild(sep);
+  }
+  lastUserMessage = msg;
+
+  const payload = { type: 'message', text: fullMsg };
+  if (sessionId) payload.session_id = sessionId;
+  if (currentModelName) payload.model = currentModelName;
+  if (fileData.images.length > 0) payload.images = fileData.images;
+  ws.send(JSON.stringify(payload));
+
+  userInput.value = '';
+  userInput.style.height = 'auto';
+  isStreaming = true;
+  sendBtn.disabled = true;
+  userInput.disabled = true;
+
+  showTypingIndicator();
+  startResponseTimeout();
+}
+
+function useSuggestion(el) {
+  const text = el.textContent;
+  userInput.value = text;
+  sendMessage(text);
+}
+
+function addMessage(role, text) {
+  const row = document.createElement('div');
+  row.className = 'message-row ' + (role === 'error' ? 'error-row' : role);
+
+  if (role !== 'error') {
+    const avatar = document.createElement('div');
+    if (role === 'user') {
+      avatar.className = 'avatar user-avatar';
+      avatar.textContent = 'U';
+    } else {
+      avatar.className = 'avatar assistant-avatar';
+      avatar.textContent = '\u{1F41D}';
+    }
+    row.appendChild(avatar);
+  }
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'message-wrapper';
+
+  const msg = document.createElement('div');
+  msg.className = 'message ' + role;
+  msg.textContent = text;
+
+  if (role === 'assistant') {
+    const cursor = document.createElement('span');
+    cursor.className = 'cursor';
+    msg.appendChild(cursor);
+  }
+
+  wrapper.appendChild(msg);
+
+  // Timestamp
+  const ts = document.createElement('div');
+  ts.className = 'msg-timestamp';
+  ts.textContent = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  wrapper.appendChild(ts);
+
+  row.appendChild(wrapper);
+  chatContainer.appendChild(row);
+  scrollToBottom();
+
+  return { row: row, msgEl: msg };
+}
+
+function addErrorMessage(text) {
+  const row = document.createElement('div');
+  row.className = 'message-row error-row';
+  row.style.maxWidth = '90%';
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'message-wrapper';
+
+  const msg = document.createElement('div');
+  msg.className = 'message error';
+
+  const errorText = document.createElement('div');
+  errorText.textContent = text;
+  msg.appendChild(errorText);
+
+  const actions = document.createElement('div');
+  actions.className = 'error-actions';
+  const retryBtn = document.createElement('button');
+  retryBtn.className = 'retry-btn';
+  retryBtn.textContent = '\u21BB Reessayer';
+  retryBtn.onclick = () => {
+    row.remove();
+    if (lastUserMessage) {
+      sendMessage(lastUserMessage);
+    }
+  };
+  actions.appendChild(retryBtn);
+  msg.appendChild(actions);
+
+  wrapper.appendChild(msg);
+  row.appendChild(wrapper);
+  chatContainer.appendChild(row);
+  scrollToBottom();
+}
+
+// Typing indicator
+function showTypingIndicator() {
+  removeTypingIndicator();
+  const row = document.createElement('div');
+  row.className = 'message-row assistant';
+  row.id = 'typingIndicator';
+
+  const avatar = document.createElement('div');
+  avatar.className = 'avatar assistant-avatar';
+  avatar.textContent = '\u{1F41D}';
+  row.appendChild(avatar);
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'message-wrapper';
+
+  const msg = document.createElement('div');
+  msg.className = 'message assistant';
+  msg.innerHTML = '<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>';
+
+  wrapper.appendChild(msg);
+  row.appendChild(wrapper);
+  chatContainer.appendChild(row);
+  typingIndicatorEl = row;
+  scrollToBottom();
+}
+
+function removeTypingIndicator() {
+  if (typingIndicatorEl) {
+    typingIndicatorEl.remove();
+    typingIndicatorEl = null;
+  }
+  const existing = document.getElementById('typingIndicator');
+  if (existing) existing.remove();
+}
+
+// Stream a token chunk to the message -- skip <tool_call> and <plan> content
+function streamToken(el, text) {
+  const buf = el._rawBuf;
+  if (!el._inToolTag) {
+    // Check for <tool_call> or <plan> tags
+    if (buf.lastIndexOf('<tool_call>') !== -1 && buf.lastIndexOf('</tool_call>') === -1) {
+      el._inToolTag = true;
+      return;
+    }
+    if (buf.lastIndexOf('<plan>') !== -1 && buf.lastIndexOf('</plan>') === -1) {
+      el._inToolTag = true;
+      return;
+    }
+    const lt = buf.lastIndexOf('<');
+    if (lt !== -1 && lt > buf.length - 13) {
+      const tail = buf.substring(lt);
+      if ('<tool_call>'.startsWith(tail) && tail.length > 1) {
+        return;
+      }
+    }
+    const cursor = el.querySelector('.cursor');
+    if (cursor) {
+      el.insertBefore(document.createTextNode(text), cursor);
+    } else {
+      el.appendChild(document.createTextNode(text));
+    }
+    scrollToBottom();
+  } else {
+    if (buf.includes('</tool_call>')) {
+      el._inToolTag = false;
+    }
+  }
+}
+
+// Convert raw streamed text to rendered Markdown (called on 'done')
+function finalizeMessage(el) {
+  const cursor = el.querySelector('.cursor');
+  if (cursor) cursor.remove();
+
+  let text = el._rawBuf || '';
+  // Strip tool_call and plan blocks
+  text = text.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '');
+  text = text.replace(/<plan>[\s\S]*?<\/plan>/g, '');
+  const pi = text.indexOf('<tool_call>');
+  if (pi !== -1) text = text.substring(0, pi);
+  const pp = text.indexOf('<plan>');
+  if (pp !== -1) text = text.substring(0, pp);
+  text = text.trim();
+
+  if (!text) return;
+
+  // Render Markdown
+  if (typeof marked !== 'undefined') {
+    marked.setOptions({ breaks: true, gfm: true });
+    el.innerHTML = marked.parse(text);
+    el.classList.add('rendered');
+  }
+
+  // Add action buttons
+  const actions = document.createElement('div');
+  actions.className = 'msg-actions';
+
+  // TTS button
+  const ttsBtn = document.createElement('button');
+  ttsBtn.className = 'msg-action-btn';
+  ttsBtn.innerHTML = '&#x1F50A; Lire';
+  ttsBtn.onclick = () => speakText(text, ttsBtn);
+  actions.appendChild(ttsBtn);
+
+  // Copy button
+  const copyBtn = document.createElement('button');
+  copyBtn.className = 'msg-action-btn';
+  copyBtn.innerHTML = '&#x1F4CB; Copier';
+  copyBtn.onclick = () => copyMessage(text, copyBtn);
+  actions.appendChild(copyBtn);
+
+  el.appendChild(actions);
+  scrollToBottom();
+
+  // Auto-TTS
+  if (autoTtsEnabled) {
+    speakText(text, ttsBtn);
+  }
+}
+
+function copyMessage(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    btn.classList.add('copied');
+    btn.innerHTML = '&#x2713; Copie';
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = '&#x1F4CB; Copier';
+    }, 2000);
+  }).catch(() => {});
+}
+
+function scrollToBottom() {
+  requestAnimationFrame(() => {
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+  });
+}
+
+// ===== Sidebar: Activity Feed =====
+function addActivity(type, label, body, collapsible) {
+  const div = document.createElement('div');
+  div.className = 'activity-item' + (collapsible ? ' collapsible' : '');
+
+  const iconMap = {
+    'thinking': '\u{1F4AD}',
+    'tool-call': '\u{1F527}',
+    'tool-ok': '\u2713',
+    'tool-err': '\u2717',
+    'status': '\u2022',
+  };
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  const header = document.createElement('div');
+  header.className = 'activity-header';
+  header.innerHTML =
+    '<div class="activity-icon ' + type + '">' + (iconMap[type] || '\u2022') + '</div>' +
+    '<div class="activity-label ' + type + '">' + esc(label) + '</div>' +
+    '<div class="activity-time">' + timeStr + '</div>';
+
+  if (collapsible) {
+    header.onclick = () => div.classList.toggle('expanded');
+  }
+
+  div.appendChild(header);
+
+  if (body) {
+    const bodyEl = document.createElement('div');
+    bodyEl.className = 'activity-body';
+    bodyEl.textContent = body;
+    div.appendChild(bodyEl);
+  }
+
+  // Track elapsed time for tool calls
+  if (type === 'tool-call') {
+    div._startTime = Date.now();
+    div._toolName = label;
+  }
+
+  activityFeed.appendChild(div);
+  activityFeed.scrollTop = activityFeed.scrollHeight;
+
+  // Update elapsed time on tool-ok/tool-err for the matching tool
+  if (type === 'tool-ok' || type === 'tool-err') {
+    const items = activityFeed.querySelectorAll('.activity-item');
+    for (let i = items.length - 1; i >= 0; i--) {
+      if (items[i]._startTime) {
+        const elapsed = Date.now() - items[i]._startTime;
+        const timeEl = items[i].querySelector('.activity-time');
+        if (timeEl) {
+          timeEl.textContent = formatElapsed(elapsed);
+          timeEl.style.color = elapsed > 5000 ? 'var(--amber)' : 'var(--text-muted)';
+        }
+        items[i]._startTime = null;
+        break;
+      }
+    }
+  }
+}
+
+function formatElapsed(ms) {
+  if (ms < 1000) return ms + 'ms';
+  return (ms / 1000).toFixed(1) + 's';
+}
+
+function clearActivity() {
+  activityFeed.innerHTML = '';
+  planSection.innerHTML = '<div class="plan-title">Plan</div>';
+}
+
+// ===== Sidebar: Plan/TodoList =====
+function updatePlan(items) {
+  planSection.innerHTML = '<div class="plan-title">Plan</div>';
+  items.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'plan-item';
+    const dotClass = item.status || 'pending';
+    const textClass = item.status === 'done' ? 'done' : '';
+    div.innerHTML = '<span class="plan-dot ' + dotClass + '"></span><span class="plan-text ' + textClass + '">' + esc(item.task) + '</span>';
+    planSection.appendChild(div);
+  });
+}
+
+// ===== Sidebar: Sessions =====
+function loadSessions() {
+  fetch('/api/sessions').then(r => r.json()).then(sessions => {
+    sessionsList.innerHTML = '';
+    sessions.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+    sessions.forEach(s => {
+      const div = document.createElement('div');
+      div.className = 'session-item' + (s.id === sessionId ? ' active' : '');
+      div.innerHTML = '<span class="session-title">' + esc(s.title || 'Sans titre') + '</span><span class="session-delete" onclick="event.stopPropagation();deleteSession(\'' + s.id + '\')">&times;</span>';
+      div.onclick = () => switchSession(s.id);
+      sessionsList.appendChild(div);
+    });
+  }).catch(() => {});
+}
+
+function newSession() {
+  sessionId = null;
+  chatContainer.innerHTML = '';
+  const welcome = document.createElement('div');
+  welcome.className = 'welcome';
+  welcome.id = 'welcomeScreen';
+  welcome.innerHTML = '<h2>&#x1F41D; Essaim</h2>' +
+    '<p>Agent IA propulse par LaRuche.<br>Posez votre question ou donnez une instruction.</p>' +
+    '<div class="suggested-prompts">' +
+    '<div class="suggested-prompt" onclick="useSuggestion(this)">Explique-moi l\'architecture du projet</div>' +
+    '<div class="suggested-prompt" onclick="useSuggestion(this)">Quels fichiers ont ete modifies recemment ?</div>' +
+    '<div class="suggested-prompt" onclick="useSuggestion(this)">Analyse les erreurs dans les logs</div>' +
+    '<div class="suggested-prompt" onclick="useSuggestion(this)">Cree un plan d\'action pour optimiser les performances</div>' +
+    '</div>';
+  chatContainer.appendChild(welcome);
+  clearActivity();
+  loadSessions();
+  closeSidebarMobile();
+}
+
+function switchSession(id) {
+  sessionId = id;
+  chatContainer.innerHTML = '';
+  clearActivity();
+
+  // Load messages from server
+  fetch(`/api/sessions/${id}/messages`)
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (!data || !data.messages) return;
+      data.messages.forEach(msg => {
+        if (msg.role === 'user') {
+          addMessage('user', msg.text);
+        } else if (msg.role === 'assistant' && msg.text && msg.text.trim()) {
+          const result = addMessage('assistant', '');
+          const el = result.msgEl;
+          if (typeof marked !== 'undefined') {
+            marked.setOptions({ breaks: true, gfm: true });
+            el.innerHTML = marked.parse(msg.text);
+            el.classList.add('rendered');
+          } else {
+            el.textContent = msg.text;
+          }
+          // Add action buttons
+          const actions = document.createElement('div');
+          actions.className = 'msg-actions';
+          const ttsBtn = document.createElement('button');
+          ttsBtn.className = 'msg-action-btn';
+          ttsBtn.innerHTML = '&#x1F50A; Lire';
+          ttsBtn.onclick = () => speakText(msg.text, ttsBtn);
+          actions.appendChild(ttsBtn);
+          const copyBtn = document.createElement('button');
+          copyBtn.className = 'msg-action-btn';
+          copyBtn.innerHTML = '&#x1F4CB; Copier';
+          copyBtn.onclick = () => copyMessage(msg.text, copyBtn);
+          actions.appendChild(copyBtn);
+          el.appendChild(actions);
+        }
+      });
+      scrollToBottom();
+    })
+    .catch(() => {});
+  loadSessions();
+  closeSidebarMobile();
+}
+
+function deleteSession(id) {
+  fetch('/api/sessions/' + id, { method: 'DELETE' }).then(() => {
+    if (id === sessionId) newSession();
+    else loadSessions();
+  });
+}
+
+// ===== Utils =====
+function esc(t) { const d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+
+userInput.addEventListener('input', () => {
+  userInput.style.height = 'auto';
+  userInput.style.height = Math.min(userInput.scrollHeight, 120) + 'px';
+});
+
+userInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+// Load available models into dropdown
+let currentModelName = '';
+fetch('/models').then(r => r.json()).then(data => {
+  const select = document.getElementById('modelSelect');
+  select.innerHTML = '';
+  if (data.models && data.models.length > 0) {
+    data.models.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.name;
+      opt.textContent = m.name + (m.is_default ? ' (default)' : '');
+      if (m.is_default) opt.selected = true;
+      select.appendChild(opt);
+    });
+    currentModelName = select.value;
+  } else {
+    select.innerHTML = '<option>No models</option>';
+  }
+}).catch(() => {});
+
+// ===== Approval dialog =====
+function showApprovalDialog(toolCallId, toolName, args) {
+  // Show inline approval in chat
+  const row = document.createElement('div');
+  row.className = 'approval-dialog';
+  row.innerHTML = `
+    <div class="approval-icon">&#x26A0;</div>
+    <div class="approval-content">
+      <div class="approval-title">Autorisation requise</div>
+      <div class="approval-detail">L'agent veut executer <strong>${esc(toolName)}</strong></div>
+      <pre class="approval-args">${esc(JSON.stringify(args, null, 2))}</pre>
+      <div class="approval-buttons">
+        <button class="approval-btn approve" onclick="respondApproval('${toolCallId}', true, this)">Autoriser</button>
+        <button class="approval-btn deny" onclick="respondApproval('${toolCallId}', false, this)">Refuser</button>
+      </div>
+    </div>
+  `;
+  chatContainer.appendChild(row);
+  scrollToBottom();
+  addActivity('status', 'Approval', `En attente: ${toolName}`, false);
+}
+
+function respondApproval(toolCallId, approved, btn) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'approval', tool_call_id: toolCallId, approved }));
+  }
+  // Update UI
+  const dialog = btn.closest('.approval-dialog');
+  if (dialog) {
+    const buttons = dialog.querySelector('.approval-buttons');
+    buttons.innerHTML = approved
+      ? '<span style="color:var(--green)">&#x2713; Autorise</span>'
+      : '<span style="color:var(--red)">&#x2717; Refuse</span>';
+  }
+}
+
+function changeModel(name) {
+  currentModelName = name;
+  const select = document.getElementById('modelSelect');
+  select.disabled = true;
+  select.title = 'Chargement du modele...';
+  addActivity('status', 'Model', `Prechargement de ${name}...`, false);
+
+  // Update default model on server
+  fetch('/config/default_model', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ capability: 'llm', model: name }),
+  }).catch(() => {});
+
+  // Preload the model in Ollama (send empty generate to warm it up)
+  fetch('/api/preload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: name }),
+  }).then(r => r.json()).then(data => {
+    select.disabled = false;
+    select.title = 'Changer de modele';
+    if (data.status === 'loaded') {
+      addActivity('status', 'Model', `${name} pret (${data.elapsed_ms}ms)`, false);
+    } else {
+      addActivity('tool-err', 'Model', data.error || 'Echec du prechargement', false);
+    }
+  }).catch(() => {
+    select.disabled = false;
+    select.title = 'Changer de modele';
+  });
+}
+
+connectWS();
+loadSessions();
+
+// ===== Auto-TTS toggle =====
+function toggleAutoTts() {
+  autoTtsEnabled = !autoTtsEnabled;
+  const btn = document.getElementById('autoTtsToggle');
+  btn.classList.toggle('active', autoTtsEnabled);
+  btn.title = autoTtsEnabled ? 'Lecture automatique activee' : 'Lecture automatique desactivee';
+}
+
+// ===== TTS: Read message aloud =====
+const TTS_URL = 'http://127.0.0.1:8422';
+let currentTtsAudio = null;
+let currentTtsUtterance = null;
+
+function cleanTextForTTS(text) {
+  let clean = text;
+  // Remove code blocks entirely (```...```)
+  clean = clean.replace(/```[\s\S]*?```/g, '');
+  // Remove inline code
+  clean = clean.replace(/`[^`]+`/g, '');
+  // Remove images ![alt](url)
+  clean = clean.replace(/!\[([^\]]*)\]\([^)]+\)/g, '');
+  // Convert links [text](url) to just text
+  clean = clean.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+  // Remove bold/italic markers (must be done in order: bold first, then italic)
+  clean = clean.replace(/\*\*\*([^*]+)\*\*\*/g, '$1');  // ***bold italic***
+  clean = clean.replace(/\*\*([^*]+)\*\*/g, '$1');       // **bold**
+  clean = clean.replace(/__([^_]+)__/g, '$1');            // __bold__
+  clean = clean.replace(/\*([^*]+)\*/g, '$1');            // *italic*
+  clean = clean.replace(/_([^_]+)_/g, '$1');              // _italic_
+  clean = clean.replace(/~~([^~]+)~~/g, '$1');            // ~~strikethrough~~
+  // Remove ALL remaining asterisks, underscores used as formatting
+  clean = clean.replace(/\*/g, '');
+  clean = clean.replace(/_/g, ' ');
+  // Remove headers markers
+  clean = clean.replace(/^#{1,6}\s*/gm, '');
+  // Remove bullet points and list markers
+  clean = clean.replace(/^[\s]*[-+]\s+/gm, '. ');
+  clean = clean.replace(/^[\s]*\d+[\.\)]\s+/gm, '. ');
+  // Remove horizontal rules
+  clean = clean.replace(/^[-]{3,}$/gm, '');
+  // Remove blockquote markers
+  clean = clean.replace(/^>\s*/gm, '');
+  // Remove HTML tags
+  clean = clean.replace(/<[^>]+>/g, '');
+  // Remove table syntax (pipes, dashes)
+  clean = clean.replace(/\|/g, ', ');
+  clean = clean.replace(/^[\s]*[-:]+[\s]*$/gm, '');
+  // Replace multiple newlines with period+space for pauses
+  clean = clean.replace(/\n{2,}/g, '. ');
+  clean = clean.replace(/\n/g, ' ');
+  // Clean up multiple spaces and periods
+  clean = clean.replace(/\s{2,}/g, ' ');
+  clean = clean.replace(/[.,]{2,}/g, '.');
+  clean = clean.replace(/\.\s*\./g, '.');
+  clean = clean.trim();
+  // Remove leading period
+  if (clean.startsWith('.')) clean = clean.substring(1).trim();
+  return clean;
+}
+
+async function speakText(text, btn) {
+  // If already playing, stop
+  if (btn && btn.classList.contains('playing')) {
+    stopAllTts();
+    btn.classList.remove('playing');
+    btn.innerHTML = '&#x1F50A; Lire';
+    return;
+  }
+
+  const cleanText = cleanTextForTTS(text);
+  if (!cleanText) return;
+
+  if (btn) {
+    btn.classList.add('playing');
+    btn.innerHTML = '&#x23F9; Stop';
+  }
+
+  try {
+    const resp = await fetch(TTS_URL + '/synthesize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: cleanText }),
+    });
+
+    if (!resp.ok) {
+      speakBrowser(cleanText, btn);
+      return;
+    }
+
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    currentTtsAudio = new Audio(url);
+    currentTtsAudio.onended = () => {
+      if (btn) {
+        btn.classList.remove('playing');
+        btn.innerHTML = '&#x1F50A; Lire';
+      }
+      currentTtsAudio = null;
+    };
+    currentTtsAudio.onerror = () => {
+      if (btn) {
+        btn.classList.remove('playing');
+        btn.innerHTML = '&#x1F50A; Lire';
+      }
+      currentTtsAudio = null;
+    };
+    currentTtsAudio.play();
+  } catch (e) {
+    speakBrowser(cleanText, btn);
+  }
+}
+
+function speakBrowser(text, btn) {
+  if ('speechSynthesis' in window) {
+    speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'fr-FR';
+    utter.rate = 1.0;
+    currentTtsUtterance = utter;
+    utter.onend = () => {
+      if (btn) {
+        btn.classList.remove('playing');
+        btn.innerHTML = '&#x1F50A; Lire';
+      }
+      currentTtsUtterance = null;
+    };
+    utter.onerror = () => {
+      if (btn) {
+        btn.classList.remove('playing');
+        btn.innerHTML = '&#x1F50A; Lire';
+      }
+      currentTtsUtterance = null;
+    };
+    speechSynthesis.speak(utter);
+  } else {
+    if (btn) {
+      btn.classList.remove('playing');
+      btn.innerHTML = '&#x1F50A; Lire';
+    }
+    addActivity('tool-err', 'TTS', 'No TTS available', false);
+  }
+}
+
+function stopAllTts() {
+  if (currentTtsAudio) {
+    currentTtsAudio.pause();
+    currentTtsAudio.currentTime = 0;
+    currentTtsAudio = null;
+  }
+  if ('speechSynthesis' in window) {
+    speechSynthesis.cancel();
+  }
+  currentTtsUtterance = null;
+}
+
+// ===== Voice: Push-to-talk =====
+const micBtn = document.getElementById('micBtn');
+let audioWs = null;
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+
+function connectAudioWS() {
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  audioWs = new WebSocket(`${protocol}//${location.host}/ws/audio`);
+  audioWs.binaryType = 'arraybuffer';
+
+  audioWs.onmessage = (e) => {
+    if (e.data instanceof ArrayBuffer) {
+      playAudio(e.data);
+    } else {
+      const data = JSON.parse(e.data);
+      if (data.type === 'transcript') {
+        addMessage('user', data.text);
+        addActivity('status', 'Voice', 'Transcription: ' + data.text, false);
+      } else if (data.type === 'response') {
+        const result = addMessage('assistant', '');
+        result.msgEl.classList.add('rendered');
+        if (typeof marked !== 'undefined') {
+          result.msgEl.innerHTML = marked.parse(data.text);
+        } else {
+          result.msgEl.textContent = data.text;
+        }
+      } else if (data.type === 'error') {
+        addActivity('tool-err', 'Voice Error', data.message, false);
+      } else if (data.type === 'ready') {
+        addActivity('status', 'Voice', 'Audio pipeline ready', false);
+      }
+    }
+  };
+}
+
+async function toggleMic() {
+  if (isRecording) {
+    stopRecording();
+  } else {
+    await startRecording();
+  }
+}
+
+let audioContext = null;
+let audioStream = null;
+let scriptNode = null;
+let recordedSamples = [];
+
+async function startRecording() {
+  try {
+    audioStream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+    });
+
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    audioContext = new AudioCtx();
+    const source = audioContext.createMediaStreamSource(audioStream);
+
+    scriptNode = audioContext.createScriptProcessor(4096, 1, 1);
+    recordedSamples = [];
+
+    scriptNode.onaudioprocess = (e) => {
+      const data = e.inputBuffer.getChannelData(0);
+      recordedSamples.push(new Float32Array(data));
+    };
+
+    source.connect(scriptNode);
+    scriptNode.connect(audioContext.destination);
+
+    isRecording = true;
+    micBtn.classList.add('recording');
+    addActivity('status', 'Voice', 'Recording...', false);
+  } catch (e) {
+    addActivity('tool-err', 'Mic Error', e.message, false);
+  }
+}
+
+function stopRecording() {
+  if (!isRecording) return;
+  isRecording = false;
+  micBtn.classList.remove('recording');
+
+  if (scriptNode) { scriptNode.disconnect(); scriptNode = null; }
+  if (audioStream) { audioStream.getTracks().forEach(t => t.stop()); audioStream = null; }
+
+  if (recordedSamples.length > 0) {
+    const sampleRate = audioContext ? audioContext.sampleRate : 16000;
+    const totalLength = recordedSamples.reduce((acc, s) => acc + s.length, 0);
+    const pcm = new Float32Array(totalLength);
+    let offset = 0;
+    for (const chunk of recordedSamples) {
+      pcm.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    let finalPcm = pcm;
+    let finalRate = sampleRate;
+    if (sampleRate !== 16000) {
+      const ratio = 16000 / sampleRate;
+      const newLen = Math.round(pcm.length * ratio);
+      finalPcm = new Float32Array(newLen);
+      for (let i = 0; i < newLen; i++) {
+        const srcIdx = i / ratio;
+        const idx0 = Math.floor(srcIdx);
+        const idx1 = Math.min(idx0 + 1, pcm.length - 1);
+        const frac = srcIdx - idx0;
+        finalPcm[i] = pcm[idx0] * (1 - frac) + pcm[idx1] * frac;
+      }
+      finalRate = 16000;
+    }
+
+    const wavBlob = encodeWAV(finalPcm, finalRate);
+    sendAudio(wavBlob);
+    addActivity('status', 'Voice', 'Recorded ' + (totalLength / sampleRate).toFixed(1) + 's @ ' + sampleRate + 'Hz', false);
+  }
+
+  if (audioContext) { audioContext.close(); audioContext = null; }
+  recordedSamples = [];
+}
+
+function encodeWAV(samples, sampleRate) {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+
+  const writeStr = (o, s) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)); };
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  writeStr(36, 'data');
+  view.setUint32(40, samples.length * 2, true);
+
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(44 + i * 2, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+
+  return new Blob([buffer], { type: 'audio/wav' });
+}
+
+function sendAudio(blob) {
+  if (!audioWs || audioWs.readyState !== WebSocket.OPEN) {
+    connectAudioWS();
+    setTimeout(() => sendAudio(blob), 500);
+    return;
+  }
+  blob.arrayBuffer().then(buf => {
+    audioWs.send(buf);
+    addActivity('status', 'Voice', 'Audio sent, waiting for transcription...', false);
+  });
+}
+
+function playAudio(arrayBuffer) {
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  audioCtx.decodeAudioData(arrayBuffer, (buffer) => {
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioCtx.destination);
+    source.start(0);
+    addActivity('status', 'Voice', 'Playing response audio', false);
+  }).catch(e => {
+    addActivity('tool-err', 'Audio Error', 'Failed to decode audio: ' + e.message, false);
+  });
+}
+
+// Push-to-talk: Space key (desktop) + touch hold (mobile/iOS)
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && !isRecording && document.activeElement !== userInput) {
+    e.preventDefault();
+    startRecording();
+  }
+});
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'Space' && isRecording) {
+    e.preventDefault();
+    stopRecording();
+  }
+});
+
+// ===== File upload =====
+const fileInput = document.getElementById('fileInput');
+const dropZone = document.getElementById('dropZone');
+const attachmentPreview = document.getElementById('attachmentPreview');
+let pendingFiles = [];
+
+fileInput.addEventListener('change', () => {
+  for (const f of fileInput.files) addPendingFile(f);
+  fileInput.value = '';
+});
+
+function addPendingFile(file) {
+  if (file.size > 5 * 1024 * 1024) {
+    addActivity('tool-err', 'Upload', 'File too large (max 5MB): ' + file.name, false);
+    return;
+  }
+  pendingFiles.push(file);
+  renderAttachments();
+}
+
+function removePendingFile(idx) {
+  pendingFiles.splice(idx, 1);
+  renderAttachments();
+}
+
+function renderAttachments() {
+  if (pendingFiles.length === 0) {
+    attachmentPreview.style.display = 'none';
+    return;
+  }
+  attachmentPreview.style.display = 'flex';
+  attachmentPreview.innerHTML = pendingFiles.map((f, i) =>
+    `<span class="attachment-chip">${esc(f.name)} <span class="remove" onclick="removePendingFile(${i})">&times;</span></span>`
+  ).join('');
+}
+
+// Drag & drop on chat area
+const chatPanel = document.querySelector('.chat-panel');
+chatPanel.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.display = 'flex'; });
+chatPanel.addEventListener('dragleave', (e) => {
+  if (!chatPanel.contains(e.relatedTarget)) dropZone.style.display = 'none';
+});
+chatPanel.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.style.display = 'none';
+  for (const f of e.dataTransfer.files) addPendingFile(f);
+});
+
+// Include file contents in the message sent to the agent
+async function getFileContentsForPrompt() {
+  if (pendingFiles.length === 0) return { text: '', images: [] };
+  let parts = [];
+  let images = [];
+  for (const f of pendingFiles) {
+    if (f.type.startsWith('image/')) {
+      // Convert image to base64 for Ollama multimodal
+      try {
+        const buf = await f.arrayBuffer();
+        const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+        images.push(b64);
+        parts.push(`[Image: ${f.name}]`);
+      } catch {
+        parts.push(`[Image: ${f.name} - could not read]`);
+      }
+    } else {
+      try {
+        const text = await f.text();
+        const truncated = text.substring(0, 8000);
+        parts.push(`[File: ${f.name}]\n${truncated}${text.length > 8000 ? '\n...(truncated)' : ''}`);
+      } catch {
+        parts.push(`[File: ${f.name} - could not read]`);
+      }
+    }
+  }
+  pendingFiles = [];
+  renderAttachments();
+  return { text: parts.length > 0 ? '\n\n' + parts.join('\n\n') : '', images };
+}
+
+// Mic button: simple click toggle on PC + touch on mobile
+micBtn.addEventListener('click', (e) => {
+  e.preventDefault();
+  toggleMic();
+});
+// Touch: prevent double-fire from click+touch on mobile
+micBtn.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  toggleMic();
+}, { passive: false });
+
+// ===== Sidebar toggle (mobile) =====
+function toggleSidebar() {
+  sidebar.classList.toggle('open');
+  sidebarOverlay.classList.toggle('open');
+}
+
+function closeSidebarMobile() {
+  if (window.innerWidth <= 768) {
+    sidebar.classList.remove('open');
+    sidebarOverlay.classList.remove('open');
+  }
+}
+
+// ===== Swipe right to open sidebar (mobile) =====
+let touchStartX = 0;
+let touchStartY = 0;
+let touchTracking = false;
+
+document.addEventListener('touchstart', (e) => {
+  const touch = e.touches[0];
+  if (touch.clientX < 30 && !sidebar.classList.contains('open')) {
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    touchTracking = true;
+  }
+}, { passive: true });
+
+document.addEventListener('touchmove', (e) => {
+  if (!touchTracking) return;
+  const touch = e.touches[0];
+  const dx = touch.clientX - touchStartX;
+  const dy = Math.abs(touch.clientY - touchStartY);
+  if (dx > 60 && dy < 40) {
+    touchTracking = false;
+    toggleSidebar();
+  }
+}, { passive: true });
+
+document.addEventListener('touchend', () => {
+  touchTracking = false;
+}, { passive: true });
+
+connectAudioWS();
+
+// ===== Check voice services availability =====
+let sttAvailable = false;
+let ttsAvailable = false;
+
+function checkVoiceStatus() {
+  fetch('/api/voice/status')
+    .then(r => r.json())
+    .then(data => {
+      sttAvailable = data.stt && data.stt.available;
+      ttsAvailable = data.tts && data.tts.available;
+
+      // Grey out mic button if no STT
+      if (!sttAvailable) {
+        micBtn.style.opacity = '0.3';
+        micBtn.style.pointerEvents = 'none';
+        micBtn.title = 'STT non disponible (lancer laruche-voix STT)';
+      } else {
+        micBtn.style.opacity = '1';
+        micBtn.style.pointerEvents = 'auto';
+        micBtn.title = 'Cliquer pour enregistrer / arreter';
+      }
+
+      // Grey out auto-TTS toggle if no TTS
+      const autoTtsBtn = document.getElementById('autoTtsToggle');
+      if (autoTtsBtn) {
+        if (!ttsAvailable) {
+          autoTtsBtn.style.opacity = '0.3';
+          autoTtsBtn.title = 'TTS non disponible (lancer laruche-voix TTS)';
+        } else {
+          autoTtsBtn.style.opacity = '1';
+          autoTtsBtn.title = 'Lecture automatique des reponses';
+        }
+      }
+    })
+    .catch(() => {
+      sttAvailable = false;
+      ttsAvailable = false;
+    });
+}
+
+// Check every 15 seconds
+checkVoiceStatus();
+setInterval(checkVoiceStatus, 15000);
+</script>
+</body>
+</html>

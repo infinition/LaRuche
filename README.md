@@ -18,7 +18,7 @@ Zero configuration, zero cloud dependency, and privacy-first by design.
 ```text
 Local network
 
-  LaRuche Core (LLM/RAG) <---- LAND protocol (mDNS + HTTP) ----> LaRuche Pro (VLM/Code)
+  LaRuche Core (LLM/RAG) <---- Miel protocol (mDNS + HTTP) ----> LaRuche Pro (VLM/Code)
             |                                                           |
             +---------------------- Swarm intelligence ------------------+
 
@@ -33,7 +33,7 @@ Clients
 
 ```text
 laruche/
-|-- land-protocol/        # Core LAND protocol library
+|-- miel-protocol/        # Core Miel protocol library
 |   `-- src/
 |       |-- lib.rs
 |       |-- capabilities.rs
@@ -102,8 +102,8 @@ http://localhost:8419/dashboard
 
 ## Current implementation notes
 
-- LAND mDNS re-announce is periodic (`2s`) to keep nodes visible.
-- LAND listener stale timeout is `45s` (from `land-protocol`).
+- Miel mDNS re-announce is periodic (`2s`) to keep nodes visible.
+- Miel listener stale timeout is `45s` (from `miel-protocol`).
 - `/swarm` includes node `port` and merged capabilities (HTTP + mDNS fallback).
 - `/health` returns plain text `OK`.
 - Dashboard keeps transiently missing nodes for `10` polls before removal.
@@ -204,5 +204,5 @@ async fn main() {
 
 ## Notes
 
-- This workspace currently depends on `land-protocol` from GitHub (`workspace.dependencies`).
+- This workspace currently depends on `miel-protocol` from GitHub (`workspace.dependencies`).
 - If you iterate locally on protocol changes, update dependency resolution before release.

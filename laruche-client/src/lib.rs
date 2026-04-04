@@ -32,7 +32,7 @@
 //! # }
 //! ```
 
-use land_protocol::discovery::{DiscoveredNode, LandListener};
+use miel_protocol::discovery::{DiscoveredNode, MielListener};
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use thiserror::Error;
@@ -49,7 +49,7 @@ pub enum LaRucheError {
     Connection(#[from] reqwest::Error),
 
     #[error("Discovery error: {0}")]
-    Discovery(#[from] land_protocol::error::LandError),
+    Discovery(#[from] miel_protocol::error::MielError),
 
     #[error("API error: {status} - {message}")]
     Api { status: u16, message: String },
@@ -87,12 +87,12 @@ pub struct LaRucheResponse {
 pub struct LaRuche {
     nodes: Vec<DiscoveredNode>,
     http: reqwest::Client,
-    _listener: LandListener,
+    _listener: MielListener,
 }
 
 // Re-export for convenience
-pub use land_protocol::capabilities::Capability;
-pub use land_protocol::capabilities::Capability as Cap;
+pub use miel_protocol::capabilities::Capability;
+pub use miel_protocol::capabilities::Capability as Cap;
 
 impl LaRuche {
     /// Discover LaRuche nodes on the local network.
@@ -105,7 +105,7 @@ impl LaRuche {
 
     /// Discover with a custom timeout.
     pub async fn discover_timeout(timeout: Duration) -> Result<Self, LaRucheError> {
-        let mut listener = LandListener::new()?;
+        let mut listener = MielListener::new()?;
         let nodes_map = listener.start()?;
 
         // Wait for discovery
@@ -131,7 +131,7 @@ impl LaRuche {
 
     /// Connect to a specific LaRuche node by URL (skip discovery).
     pub fn connect(url: &str) -> Self {
-        use land_protocol::manifest::PartialManifest;
+        use miel_protocol::manifest::PartialManifest;
 
         let normalized_url = if url.contains("://") {
             url.to_string()
@@ -147,7 +147,7 @@ impl LaRuche {
         let port = parsed
             .as_ref()
             .and_then(|u| u.port_or_known_default())
-            .unwrap_or(land_protocol::DEFAULT_API_PORT);
+            .unwrap_or(miel_protocol::DEFAULT_API_PORT);
 
         let manifest = PartialManifest {
             node_name: Some("direct".into()),
@@ -167,7 +167,7 @@ impl LaRuche {
                 .timeout(Duration::from_secs(60))
                 .build()
                 .unwrap(),
-            _listener: LandListener::new().unwrap(),
+            _listener: MielListener::new().unwrap(),
         }
     }
 

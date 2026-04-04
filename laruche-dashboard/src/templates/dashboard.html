@@ -208,6 +208,8 @@
     .b-audio { background:var(--cyan-dim); color:var(--cyan); border:1px solid rgba(6,182,212,.25); }
     .b-image { background:var(--red-dim); color:var(--red); border:1px solid rgba(239,68,68,.25); }
     .b-embed { background:var(--amber-dim); color:var(--amber); border:1px solid rgba(245,158,11,.25); }
+    .b-tts { background:rgba(236,72,153,.12); color:#ec4899; border:1px solid rgba(236,72,153,.25); }
+    .b-agent { background:rgba(245,158,11,.12); color:var(--amber); border:1px solid rgba(245,158,11,.35); }
     /* Capability group header in models list */
     .cap-group-hdr {
       display:flex; align-items:center; gap:6px; padding:4px 0 2px;
@@ -526,7 +528,8 @@
   <div class="hdr-right">
     <div class="pill pill-swarm" id="pill-swarm"><div class="dot"></div><span id="pill-swarm-text"></span></div>
     <div class="pill pill-ok" id="pill-status"><div class="dot"></div><span id="pill-text">Connecting&hellip;</span></div>
-    <div class="hdr-ver">LAND v0.1.0</div>
+    <a href="/chat" style="background:var(--amber);color:#000;padding:4px 12px;border-radius:6px;text-decoration:none;font-size:12px;font-weight:600;margin-right:8px">&#x1F41D; Essaim Agent</a>
+    <div class="hdr-ver">Miel v0.2.0</div>
   </div>
 </div>
 
@@ -690,6 +693,7 @@
     <div class="infer-panel" id="infer-panel">
       <div class="panel-hdr">
         <span class="panel-title">&#x26A1; Quick Inference</span>
+        <a href="/chat" class="panel-badge" style="background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.3);text-decoration:none;cursor:pointer" title="Open full Agent chat">&#x1F41D; Agent mode</a>
         <span class="panel-badge" id="infer-badge" style="background:var(--amber-dim);color:var(--amber);border:1px solid rgba(245,158,11,.3)">/infer</span>
       </div>
       <div class="infer-body">
@@ -999,10 +1003,12 @@
     var c = normalizeCap(cap);
     if (c.includes('vlm') || c.includes('vla')) return 'b-vlm';
     if (c.includes('code')) return 'b-code';
-    if (c.includes('audio')) return 'b-audio';
+    if (c.includes('audio') || c === 'stt') return 'b-audio';
+    if (c === 'tts') return 'b-tts';
     if (c.includes('image')) return 'b-image';
     if (c === 'embed') return 'b-embed';
     if (c.includes('rag')) return 'b-rag';
+    if (c === 'agent') return 'b-agent';
     return 'b-llm';
   }
 
@@ -1256,11 +1262,11 @@
         }
         if (pendingNodeCountHits >= 2) {
           if (stableCount > lastNodeCount) {
-            toast('Nouveau n\u0153ud LAND d\u00E9tect\u00E9 ! Total: ' + stableCount, 'ok');
-            addLog('LAND', 'log-ok', 'N\u0153ud rejoint le Swarm via mDNS \u2014 puissance: ' + d.collective_tps.toFixed(1) + ' t/s');
+            toast('Nouveau n\u0153ud Miel d\u00E9tect\u00E9 ! Total: ' + stableCount, 'ok');
+            addLog('Miel', 'log-ok', 'N\u0153ud rejoint le Swarm via mDNS \u2014 puissance: ' + d.collective_tps.toFixed(1) + ' t/s');
           } else {
             toast('N\u0153ud d\u00E9connect\u00E9. Total: ' + stableCount, 'warn');
-            addLog('LAND', 'log-warn', 'N\u0153ud quitt\u00E9 le Swarm \u2014 recalibration automatique');
+            addLog('Miel', 'log-warn', 'N\u0153ud quitt\u00E9 le Swarm \u2014 recalibration automatique');
           }
           lastNodeCount = stableCount;
           pendingNodeCount = -1;
@@ -1428,7 +1434,7 @@
   })();
   var modelPriority = JSON.parse(localStorage.getItem('laruche_model_priority') || '[]');
 
-  /* Sync preferred models from backend (authoritative for LAND clients) */
+  /* Sync preferred models from backend (authoritative for Miel clients) */
   fetch('/config/default_model').then(function(r) { return r.json(); }).then(function(d) {
     if (d.default_models) {
       preferredModels = d.default_models;
@@ -1447,7 +1453,7 @@
     toast('Default' + capLabel + ' model: ' + name, 'ok');
     addLog('MODEL', 'log-ok', 'Default ' + capability + ' model set to ' + name);
     fetchModels(); /* re-render */
-    /* Persist to backend so LAND protocol clients (Bjorn, VSCode etc.) use it too */
+    /* Persist to backend so Miel protocol clients (Bjorn, VSCode etc.) use it too */
     fetch('/config/default_model', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2117,7 +2123,7 @@
   });
 
   /* ── Init ── */
-  addLog('SYS', 'log-info', 'Dashboard initialis\u00E9 \u2014 connexion au n\u0153ud LAND\u2026');
+  addLog('SYS', 'log-info', 'Dashboard initialis\u00E9 \u2014 connexion au n\u0153ud Miel\u2026');
   console.log('[LaRuche] Dashboard starting, API=' + API);
 
   fetchSwarm();

@@ -15,7 +15,7 @@ use std::io::{self, BufRead, Write};
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt()
-        .with_env_filter("laruche_client=info,land_protocol=info")
+        .with_env_filter("laruche_client=info,miel_protocol=info")
         .init();
 
     let args: Vec<String> = std::env::args().collect();
@@ -53,7 +53,7 @@ fn print_banner() {
   LAND Protocol v{}
 "#,
         env!("CARGO_PKG_VERSION"),
-        land_protocol::PROTOCOL_VERSION,
+        miel_protocol::PROTOCOL_VERSION,
     );
 }
 
