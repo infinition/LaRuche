@@ -19,7 +19,7 @@ export interface NodeInfo {
     host: string;
     port?: number | null;
     capabilities: string[];
-    /** Primary model running on this node (from LAND TXT broadcast) */
+    /** Primary model running on this node (from Miel TXT broadcast) */
     model: string | null;
     tokens_per_sec: number | null;
     queue_depth: number | null;
@@ -57,6 +57,12 @@ export interface OllamaModel {
 export interface ModelsResponse {
     models: OllamaModel[];
     default_model: string;
+}
+
+export interface ProviderConfig {
+    provider: string;
+    model: string;
+    api_base?: string;
 }
 
 export class LaRucheClient {
@@ -182,6 +188,11 @@ export class LaRucheClient {
             body['model'] = model;
         }
         return this.request<InferResponse>('/infer', 'POST', body, timeoutMs);
+    }
+
+    /** Fetch the current LLM provider configuration from the node. */
+    async getProviderConfig(): Promise<ProviderConfig> {
+        return this.request<ProviderConfig>('/api/config/provider', 'GET', undefined, 5000);
     }
 
     async health(timeoutMs: number = 3000): Promise<boolean> {

@@ -11,9 +11,17 @@ path = "src/main.rs"
 [dependencies]
 miel-protocol.workspace = true
 laruche-client = { path = "../laruche-client" }
+laruche-essaim = { path = "../laruche-essaim" }
 tokio.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 anyhow.workspace = true
 reqwest.workspace = true
+chrono.workspace = true
+crossterm = "0.28"
+futures-util = "0.3"
+ratatui = "0.29"
+unicode-width = "0.2"
+tokio-tungstenite = "0.26"

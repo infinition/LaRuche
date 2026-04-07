@@ -1,5 +1,5 @@
 /**
- * LandDiscovery - mDNS-based node discovery for the LAND protocol.
+ * MielDiscovery - mDNS-based node discovery for the Miel protocol.
  *
  * Listens for `_ai-inference._tcp.local.` service announcements and
  * maintains a live map of reachable LaRuche nodes.
@@ -15,7 +15,7 @@
  * URL manually.
  */
 
-export interface DiscoveredLandNode {
+export interface DiscoveredMielNode {
     name: string;
     host: string;
     port: number;
@@ -26,19 +26,19 @@ export interface DiscoveredLandNode {
     tier?: string;
 }
 
-export type NodeFoundCallback = (node: DiscoveredLandNode) => void;
+export type NodeFoundCallback = (node: DiscoveredMielNode) => void;
 export type NodeLostCallback = (url: string) => void;
 
-/** LAND protocol service type */
-const LAND_SERVICE_TYPE = 'ai-inference';
+/** Miel protocol service type */
+const MIEL_SERVICE_TYPE = 'ai-inference';
 /** Re-browse interval to catch missed mDNS announcements (ms) */
 const REBROWSE_INTERVAL_MS = 15000;
 /** Grace period before emitting node lost (absorbs transient mDNS DOWN events) */
 const NODE_LOST_GRACE_MS = 12000;
 
-export class LandDiscovery {
+export class MielDiscovery {
     // Keyed by service endpoint (IPv4 when available, otherwise host:port fallback).
-    private nodes = new Map<string, DiscoveredLandNode>();
+    private nodes = new Map<string, DiscoveredMielNode>();
     private pendingNodeLost = new Map<string, ReturnType<typeof setTimeout>>();
     private bonjour: any = null;
     private browser: any = null;
@@ -51,7 +51,7 @@ export class LandDiscovery {
     ) { }
 
     /**
-     * Start mDNS browsing for LAND nodes.
+     * Start mDNS browsing for Miel nodes.
      * Returns true if discovery started successfully.
      */
     start(): boolean {
@@ -75,12 +75,12 @@ export class LandDiscovery {
             // send announcements that may be missed by the initial query.
             // Re-creating the browser forces fresh PTR queries on the network.
             this.rebrowseTimer = setInterval(() => {
-                console.log('LaRuche: Periodic LAND re-browse...');
+                console.log('LaRuche: Periodic Miel re-browse...');
                 this.restartBrowsing();
             }, REBROWSE_INTERVAL_MS);
 
             this.active = true;
-            console.log('LaRuche: LAND mDNS discovery started (type: _ai-inference._tcp)');
+            console.log('LaRuche: Miel mDNS discovery started (type: _ai-inference._tcp)');
             return true;
         } catch (err) {
             console.warn('LaRuche: mDNS discovery unavailable:', err);
@@ -89,12 +89,12 @@ export class LandDiscovery {
     }
 
     /**
-     * Start or restart the mDNS browser for LAND services.
+     * Start or restart the mDNS browser for Miel services.
      */
     private startBrowsing(): void {
-        // LAND protocol service type: _ai-inference._tcp.local.
+        // Miel protocol service type: _ai-inference._tcp.local.
         // bonjour-service prepends _ and appends ._tcp.local. automatically.
-        this.browser = this.bonjour.find({ type: LAND_SERVICE_TYPE });
+        this.browser = this.bonjour.find({ type: MIEL_SERVICE_TYPE });
 
         this.browser.on('up', (service: any) => {
             console.log('LaRuche: mDNS service UP:', JSON.stringify({
@@ -119,20 +119,20 @@ export class LandDiscovery {
 
             // Same service key rediscovered with a different endpoint: replace old entry.
             if (existing && existing.url !== node.url) {
-                console.log(`LaRuche: LAND node replaced (${key}): ${existing.url} -> ${node.url}`);
+                console.log(`LaRuche: Miel node replaced (${key}): ${existing.url} -> ${node.url}`);
                 this.onLost(existing.url);
                 this.onFound(node);
                 return;
             }
 
             if (!existing) {
-                console.log(`LaRuche: LAND node discovered: ${node.name} @ ${node.url} (key: ${key})`);
+                console.log(`LaRuche: Miel node discovered: ${node.name} @ ${node.url} (key: ${key})`);
                 this.onFound(node);
                 return;
             }
 
             if (!this.sameNode(existing, node)) {
-                console.log(`LaRuche: LAND node updated (${key}): ${node.name} @ ${node.url}`);
+                console.log(`LaRuche: Miel node updated (${key}): ${node.name} @ ${node.url}`);
                 this.onFound(node);
             }
         });
@@ -195,15 +195,15 @@ export class LandDiscovery {
         return this.active;
     }
 
-    getNodes(): DiscoveredLandNode[] {
+    getNodes(): DiscoveredMielNode[] {
         return Array.from(this.nodes.values());
     }
 
-    getNode(url: string): DiscoveredLandNode | undefined {
+    getNode(url: string): DiscoveredMielNode | undefined {
         return Array.from(this.nodes.values()).find(node => node.url === url);
     }
 
-    private findByUrl(url: string): { key: string; node: DiscoveredLandNode } | undefined {
+    private findByUrl(url: string): { key: string; node: DiscoveredMielNode } | undefined {
         for (const [key, node] of this.nodes.entries()) {
             if (node.url === url) {
                 return { key, node };
@@ -212,7 +212,7 @@ export class LandDiscovery {
         return undefined;
     }
 
-    private sameNode(a: DiscoveredLandNode, b: DiscoveredLandNode): boolean {
+    private sameNode(a: DiscoveredMielNode, b: DiscoveredMielNode): boolean {
         if (a.name !== b.name) { return false; }
         if (a.host !== b.host) { return false; }
         if (a.port !== b.port) { return false; }
@@ -253,7 +253,7 @@ export class LandDiscovery {
         return `http://${safeHost}:${port}`;
     }
 
-    private serviceKey(service: any, node?: DiscoveredLandNode, ipv4?: string): string {
+    private serviceKey(service: any, node?: DiscoveredMielNode, ipv4?: string): string {
         if (ipv4 && node) {
             return `${ipv4}:${node.port}`;
         }
@@ -291,7 +291,7 @@ export class LandDiscovery {
         this.pendingNodeLost.set(key, timer);
     }
 
-    private parseService(service: any, hostOverride?: string): DiscoveredLandNode | null {
+    private parseService(service: any, hostOverride?: string): DiscoveredMielNode | null {
         const host = hostOverride ?? this.extractHost(service);
         const port = (service.port as number) || 8419;
         const url = this.formatHttpUrl(host, port);
@@ -299,11 +299,11 @@ export class LandDiscovery {
         // TXT records are key-value pairs. bonjour-service exposes them as `service.txt`
         const txt = (service.txt as Record<string, string | undefined>) || {};
 
-        // LAND protocol TXT capabilities use the format "capability:llm"
+        // Miel protocol TXT capabilities use the format "capability:llm"
         // The Rust node broadcasts them as top-level TXT keys
         const capabilities: string[] = [];
 
-        // Method 1: Look for "capability:X" keys (LAND protocol format from Rust mdns-sd)
+        // Method 1: Look for "capability:X" keys (Miel protocol format from Rust mdns-sd)
         for (const key of Object.keys(txt)) {
             if (key.startsWith('capability:')) {
                 capabilities.push(key.replace('capability:', ''));

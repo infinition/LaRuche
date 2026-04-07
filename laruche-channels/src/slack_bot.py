@@ -33,15 +33,21 @@ app = App(token=BOT_TOKEN)
 
 
 def query_agent(text: str) -> str:
-    """Synchronous query to LaRuche agent."""
+    """Synchronous query to LaRuche agent (full tools + memory)."""
+    import re
     try:
         resp = httpx.post(
-            f"{LARUCHE_URL}/infer",
-            json={"prompt": text, "capability": "llm", "max_tokens": 4096, "temperature": 0.7},
+            f"{LARUCHE_URL}/api/webhook",
+            json={"prompt": text},
             timeout=120,
         )
         if resp.status_code == 200:
-            return resp.json().get("response", "No response")
+            data = resp.json()
+            if data.get("error"): return f"Error: {data['error']}"
+            response = data.get("response", "")
+            response = re.sub(r'<tool_call>[\s\S]*?</tool_call>', '', response)
+            response = re.sub(r'<plan>[\s\S]*?</plan>', '', response)
+            return response.strip() or "Done."
         return f"Error: {resp.status_code}"
     except Exception as e:
         return f"Error: {e}"

@@ -2,7 +2,7 @@ use crate::abeille::{Abeille, ContextExecution, NiveauDanger, ResultatAbeille};
 use anyhow::Result;
 use async_trait::async_trait;
 
-/// Search the web using DuckDuckGo HTML (no API key needed).
+/// Search the web using Brave Search (no API key needed).
 pub struct WebSearch;
 
 #[async_trait]
@@ -43,34 +43,23 @@ impl Abeille for WebSearch {
             .ok_or_else(|| anyhow::anyhow!("Missing 'query' argument"))?;
 
         let client = reqwest::Client::builder()
-            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
             .build()?;
 
-        // Use DuckDuckGo HTML-only search (no JS required, no API key)
-        let url = format!(
-            "https://html.duckduckgo.com/html/?q={}",
-            urlencoding::encode(query)
-        );
+        // Try Brave Search first, fallback to DuckDuckGo Lite
+        let results = search_brave(&client, query).await
+            .or_else(|_| Ok::<Vec<SearchResult>, anyhow::Error>(vec![]))
+            .unwrap_or_default();
 
-        let response = match tokio::time::timeout(
-            std::time::Duration::from_secs(10),
-            client.get(&url).send(),
-        )
-        .await
-        {
-            Ok(Ok(r)) => r,
-            Ok(Err(e)) => return Ok(ResultatAbeille::err(format!("HTTP error: {}", e))),
-            Err(_) => return Ok(ResultatAbeille::err("Search timed out after 10 seconds")),
+        let results = if results.is_empty() {
+            search_ddg_lite(&client, query).await.unwrap_or_default()
+        } else {
+            results
         };
-
-        let html = response.text().await.unwrap_or_default();
-
-        // Parse results from DuckDuckGo HTML
-        let results = parse_ddg_results(&html);
 
         if results.is_empty() {
             return Ok(ResultatAbeille::ok(format!(
-                "No results found for: {}",
+                "No results found for: {}\nTry a different query or use web_fetch with a specific URL.",
                 query
             )));
         }
@@ -96,99 +85,156 @@ struct SearchResult {
     snippet: String,
 }
 
-/// Parse search results from DuckDuckGo HTML response.
-/// This is a simple parser — no external HTML parsing dependency needed.
-fn parse_ddg_results(html: &str) -> Vec<SearchResult> {
+/// Search using Brave Search HTML scraping.
+async fn search_brave(client: &reqwest::Client, query: &str) -> Result<Vec<SearchResult>> {
+    let url = format!(
+        "https://search.brave.com/search?q={}&source=web",
+        urlencoding::encode(query)
+    );
+
+    let response = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        client.get(&url).send(),
+    ).await??;
+
+    let html = response.text().await?;
     let mut results = Vec::new();
 
-    // DuckDuckGo HTML results are in <a class="result__a"> tags
-    // and snippets in <a class="result__snippet"> tags
+    // Brave uses data-pos attributes and specific class patterns
+    // Parse <a> tags within result snippets
     let mut pos = 0;
-    while let Some(result_start) = html[pos..].find("class=\"result__a\"") {
-        let abs_start = pos + result_start;
+    while results.len() < 10 {
+        // Find snippet blocks
+        let snippet_marker = "snippet-description";
+        let Some(snippet_start) = html[pos..].find(snippet_marker) else { break; };
+        let abs_snippet = pos + snippet_start;
 
-        // Extract title and URL from the <a> tag
-        let title;
-        let url;
+        // Look backwards for the title/URL
+        let search_back = if abs_snippet > 500 { abs_snippet - 500 } else { 0 };
+        let block = &html[search_back..abs_snippet + 500.min(html.len() - abs_snippet)];
 
-        // Find href
-        if let Some(href_start) = html[..abs_start].rfind("href=\"") {
-            let href_begin = href_start + 6;
-            if let Some(href_end) = html[href_begin..].find('"') {
-                let raw_url = &html[href_begin..href_begin + href_end];
-                // DuckDuckGo wraps URLs — extract the actual URL
-                url = extract_ddg_url(raw_url);
-            } else {
-                pos = abs_start + 20;
-                continue;
-            }
-        } else {
-            pos = abs_start + 20;
-            continue;
-        }
+        // Extract title from <a class="heading-..."> or <span class="title">
+        let title = extract_between(block, "heading-serpresult", "</a>")
+            .or_else(|| extract_between(block, "title", "</span>"))
+            .map(|s| strip_html_tags(&s))
+            .unwrap_or_default();
 
-        // Find title text (between > and </a>)
-        if let Some(tag_end) = html[abs_start..].find('>') {
-            let text_start = abs_start + tag_end + 1;
-            if let Some(close) = html[text_start..].find("</a>") {
-                title = strip_html_tags(&html[text_start..text_start + close]);
-            } else {
-                pos = abs_start + 20;
-                continue;
-            }
-        } else {
-            pos = abs_start + 20;
-            continue;
-        }
+        // Extract URL from href
+        let url_str = extract_href(block).unwrap_or_default();
 
-        // Find snippet
-        let snippet = if let Some(snip_start) = html[abs_start..].find("class=\"result__snippet\"") {
-            let snip_abs = abs_start + snip_start;
-            if let Some(tag_end) = html[snip_abs..].find('>') {
-                let text_start = snip_abs + tag_end + 1;
-                if let Some(close) = html[text_start..].find("</a>") {
-                    strip_html_tags(&html[text_start..text_start + close])
-                } else {
-                    String::new()
-                }
-            } else {
-                String::new()
-            }
-        } else {
-            String::new()
-        };
+        // Extract snippet
+        let snippet = extract_after_tag(&html[abs_snippet..], ">", "<")
+            .map(|s| strip_html_tags(&s))
+            .unwrap_or_default();
 
-        if !title.trim().is_empty() && !url.is_empty() {
+        if !title.is_empty() && !url_str.is_empty() && url_str.starts_with("http") {
             results.push(SearchResult {
                 title: title.trim().to_string(),
-                url,
+                url: url_str,
                 snippet: snippet.trim().to_string(),
             });
         }
 
-        pos = abs_start + 20;
-
-        if results.len() >= 10 {
-            break;
-        }
+        pos = abs_snippet + 100;
     }
 
-    results
+    Ok(results)
 }
 
-fn extract_ddg_url(raw: &str) -> String {
-    // DuckDuckGo HTML wraps URLs like: //duckduckgo.com/l/?uddg=https%3A%2F%2F...
-    if let Some(uddg_start) = raw.find("uddg=") {
-        let encoded = &raw[uddg_start + 5..];
-        let encoded = encoded.split('&').next().unwrap_or(encoded);
-        urlencoding::decode(encoded)
-            .unwrap_or_else(|_| encoded.into())
-            .into_owned()
-    } else if raw.starts_with("http") {
-        raw.to_string()
-    } else {
-        raw.to_string()
+/// Fallback: DuckDuckGo Lite (simpler HTML, more reliable than full DDG)
+async fn search_ddg_lite(client: &reqwest::Client, query: &str) -> Result<Vec<SearchResult>> {
+    let url = format!(
+        "https://lite.duckduckgo.com/lite/?q={}",
+        urlencoding::encode(query)
+    );
+
+    let response = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        client.get(&url).send(),
+    ).await??;
+
+    let html = response.text().await?;
+    let mut results = Vec::new();
+
+    // DDG Lite has a simple table structure
+    // Links are in <a rel="nofollow" href="...">title</a>
+    // Snippets are in <td class="result-snippet">
+    let mut pos = 0;
+    while results.len() < 10 {
+        let Some(link_start) = html[pos..].find("rel=\"nofollow\"") else { break; };
+        let abs_link = pos + link_start;
+
+        // Get href
+        let href_start = html[..abs_link].rfind("href=\"").map(|i| i + 6);
+        let url_str = if let Some(hs) = href_start {
+            if let Some(he) = html[hs..].find('"') {
+                html[hs..hs + he].to_string()
+            } else { String::new() }
+        } else { String::new() };
+
+        // Get title (text between > and </a>)
+        let title = if let Some(tag_end) = html[abs_link..].find('>') {
+            let text_start = abs_link + tag_end + 1;
+            if let Some(close) = html[text_start..].find("</a>") {
+                strip_html_tags(&html[text_start..text_start + close])
+            } else { String::new() }
+        } else { String::new() };
+
+        // Get snippet (next result-snippet td)
+        let snippet = if let Some(snip_start) = html[abs_link..].find("result-snippet") {
+            let snip_abs = abs_link + snip_start;
+            if let Some(td_end) = html[snip_abs..].find('>') {
+                let text_start = snip_abs + td_end + 1;
+                if let Some(close) = html[text_start..].find("</td>") {
+                    strip_html_tags(&html[text_start..text_start + close])
+                } else { String::new() }
+            } else { String::new() }
+        } else { String::new() };
+
+        // Extract real URL from DDG redirect (//duckduckgo.com/l/?uddg=ENCODED_URL)
+        let final_url = if url_str.contains("uddg=") {
+            let uddg_start = url_str.find("uddg=").unwrap() + 5;
+            let encoded = url_str[uddg_start..].split('&').next().unwrap_or("");
+            urlencoding::decode(encoded).unwrap_or_else(|_| encoded.into()).into_owned()
+        } else if url_str.starts_with("//") {
+            format!("https:{}", url_str)
+        } else {
+            url_str.clone()
+        };
+
+        if !title.trim().is_empty() && (final_url.starts_with("http") || url_str.contains("uddg=")) {
+            results.push(SearchResult {
+                title: title.trim().to_string(),
+                url: final_url,
+                snippet: snippet.trim().to_string(),
+            });
+        }
+
+        pos = abs_link + 50;
     }
+
+    Ok(results)
+}
+
+fn extract_between(html: &str, class_marker: &str, end_tag: &str) -> Option<String> {
+    let start = html.find(class_marker)?;
+    let after = &html[start..];
+    let tag_end = after.find('>')?;
+    let text_start = start + tag_end + 1;
+    let close = html[text_start..].find(end_tag)?;
+    Some(html[text_start..text_start + close].to_string())
+}
+
+fn extract_after_tag(html: &str, open: &str, close: &str) -> Option<String> {
+    let start = html.find(open)? + open.len();
+    let end = html[start..].find(close)?;
+    Some(html[start..start + end].to_string())
+}
+
+fn extract_href(html: &str) -> Option<String> {
+    let start = html.find("href=\"")? + 6;
+    let end = html[start..].find('"')?;
+    Some(html[start..start + end].to_string())
 }
 
 fn strip_html_tags(html: &str) -> String {
@@ -202,7 +248,6 @@ fn strip_html_tags(html: &str) -> String {
             _ => {}
         }
     }
-    // Decode common HTML entities
     result
         .replace("&amp;", "&")
         .replace("&lt;", "<")

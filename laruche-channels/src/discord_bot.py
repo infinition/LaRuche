@@ -18,9 +18,26 @@ except ImportError:
 
 import httpx
 
-BOT_TOKEN = os.environ.get("DISCORD_BOT_TOKEN", "")
 LARUCHE_URL = os.environ.get("LARUCHE_URL", "http://127.0.0.1:8419")
+BOT_TOKEN = os.environ.get("DISCORD_BOT_TOKEN", "")
 ALLOWED_CHANNEL_IDS = os.environ.get("DISCORD_ALLOWED_CHANNELS", "").split(",")
+
+if not BOT_TOKEN:
+    for p in ["channels-config.json", "../channels-config.json"]:
+        if os.path.exists(p):
+            try:
+                dc = json.load(open(p)).get("discord", {})
+                BOT_TOKEN = dc.get("bot_token", "")
+                if dc.get("allowed_channels"): ALLOWED_CHANNEL_IDS = dc["allowed_channels"].split(",")
+                if BOT_TOKEN: print(f"[Discord] Loaded token from {p}"); break
+            except: pass
+    if not BOT_TOKEN:
+        try:
+            dc = httpx.get(f"{LARUCHE_URL}/api/config/channels", timeout=5).json().get("discord", {})
+            BOT_TOKEN = dc.get("bot_token", "")
+            if dc.get("allowed_channels"): ALLOWED_CHANNEL_IDS = dc["allowed_channels"].split(",")
+            if BOT_TOKEN: print("[Discord] Loaded token from LaRuche API")
+        except: pass
 
 if not BOT_TOKEN:
     print("[Discord] ERROR: Set DISCORD_BOT_TOKEN environment variable")
@@ -32,17 +49,18 @@ client = discord.Client(intents=intents)
 
 
 async def query_agent(text: str) -> str:
-    """Send a message to the LaRuche agent."""
+    """Send a message to the LaRuche agent (full tools + memory)."""
+    import re
     async with httpx.AsyncClient(timeout=120) as http:
         try:
-            resp = await http.post(f"{LARUCHE_URL}/infer", json={
-                "prompt": text,
-                "capability": "llm",
-                "max_tokens": 4096,
-                "temperature": 0.7,
-            })
+            resp = await http.post(f"{LARUCHE_URL}/api/webhook", json={"prompt": text})
             if resp.status_code == 200:
-                return resp.json().get("response", "No response")
+                data = resp.json()
+                if data.get("error"): return f"Error: {data['error']}"
+                response = data.get("response", "")
+                response = re.sub(r'<tool_call>[\s\S]*?</tool_call>', '', response)
+                response = re.sub(r'<plan>[\s\S]*?</plan>', '', response)
+                return response.strip() or "Done."
             return f"Error: {resp.status_code}"
         except Exception as e:
             return f"Error: {e}"

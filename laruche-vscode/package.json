@@ -1,8 +1,8 @@
 {
     "name": "laruche-vscode",
     "displayName": "LaRuche - Local AI Copilot",
-    "description": "Local Edge AI Copilot powered by the LAND Protocol. Zero cloud, zero API keys. Auto-discovers nodes via mDNS.",
-    "version": "0.2.3",
+    "description": "Local Edge AI Agent powered by the Miel Protocol + Essaim engine. Zero cloud, zero API keys. Auto-discovers nodes via mDNS.",
+    "version": "0.3.0",
     "publisher": "infinition",
     "repository": {
         "type": "git",
@@ -23,7 +23,8 @@
         "local",
         "llm",
         "edge",
-        "land-protocol",
+        "miel-protocol",
+        "essaim",
         "laruche",
         "mdns",
         "offline"

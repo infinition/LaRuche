@@ -38,6 +38,9 @@ pub struct Session {
     pub updated_at: DateTime<Utc>,
     pub model: String,
     pub title: Option<String>,
+    /// Owner user ID (None = legacy/anonymous session, visible to all)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_id: Option<Uuid>,
     #[serde(skip)]
     file_path: Option<PathBuf>,
 }
@@ -52,6 +55,7 @@ impl Session {
             updated_at: Utc::now(),
             model: model.to_string(),
             title: None,
+            user_id: None,
             file_path: None,
         }
     }
@@ -287,6 +291,17 @@ impl Session {
 
     pub fn is_empty(&self) -> bool {
         self.messages.is_empty()
+    }
+
+    /// Fork (branch) a session: creates a copy with a new ID and all messages so far.
+    pub fn fork(&self, model: &str, dir: &Path) -> Self {
+        let mut forked = self.clone();
+        forked.id = Uuid::new_v4();
+        forked.file_path = Some(dir.join(format!("{}.json", forked.id)));
+        forked.title = self.title.as_ref().map(|t| format!("{} (fork)", t));
+        forked.created_at = Utc::now();
+        forked.model = model.to_string();
+        forked
     }
 
     /// Estimate the total token count of the session.
