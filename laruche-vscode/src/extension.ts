@@ -1,6 +1,6 @@
 ﻿import * as vscode from 'vscode';
-import { LaRucheClient, SwarmData, ModelsResponse } from './client';
-import { LandDiscovery, DiscoveredLandNode } from './discovery';
+import { LaRucheClient, SwarmData, ModelsResponse, ProviderConfig } from './client';
+import { MielDiscovery, DiscoveredMielNode } from './discovery';
 import { getChatHtml } from './chatView';
 import { AgentProvider, AgentAttachment } from './agentProvider';
 
@@ -8,7 +8,7 @@ import { AgentProvider, AgentAttachment } from './agentProvider';
 
 let client: LaRucheClient;
 let agent: AgentProvider;
-let discovery: LandDiscovery;
+let discovery: MielDiscovery;
 let statusBarItem: vscode.StatusBarItem;
 let chatPanel: vscode.WebviewPanel | undefined;
 let sidebarProvider: ChatViewProvider | undefined;
@@ -18,6 +18,8 @@ let pollInterval: NodeJS.Timeout | undefined;
 let activeNodeUrl: string = '';
 /** Active model override (empty = node default) */
 let activeModel: string = '';
+/** Current LLM provider info from node */
+let activeProvider: string = '';
 type KnownNodeSource = 'mdns' | 'swarm' | 'local-probe';
 
 interface KnownNodeEntry {
@@ -43,7 +45,7 @@ let swarmMissedPolls = new Map<string, number>();
 // ======================== Activation ========================
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('LaRuche extension activated (v0.2.0)');
+    console.log('LaRuche extension activated (v0.3.0)');
 
     // Restore persisted state
     activeNodeUrl = context.workspaceState.get<string>('laruche.activeNodeUrl', '');
@@ -88,14 +90,14 @@ export function activate(context: vscode.ExtensionContext) {
         }),
     );
 
-    // Start mDNS discovery (LAND protocol)
-    discovery = new LandDiscovery(
-        (node: DiscoveredLandNode) => onNodeDiscovered(node, context),
+    // Start mDNS discovery (Miel protocol)
+    discovery = new MielDiscovery(
+        (node: DiscoveredMielNode) => onNodeDiscovered(node, context),
         (url: string) => onNodeLost(url),
     );
     const mdnsStarted = discovery.start();
     if (mdnsStarted) {
-        console.log('LaRuche: LAND mDNS discovery started');
+        console.log('LaRuche: Miel mDNS discovery started');
     } else {
         console.log('LaRuche: mDNS unavailable, using configured/localhost URL');
     }
@@ -154,8 +156,8 @@ function setActiveModel(model: string, context: vscode.ExtensionContext) {
 
 // ======================== mDNS Callbacks ========================
 
-function onNodeDiscovered(node: DiscoveredLandNode, context: vscode.ExtensionContext) {
-    console.log(`LaRuche: Discovered node via LAND: ${node.name} @ ${node.url}`);
+function onNodeDiscovered(node: DiscoveredMielNode, context: vscode.ExtensionContext) {
+    console.log(`LaRuche: Discovered node via Miel: ${node.name} @ ${node.url}`);
 
     // Add to known nodes (dedup by endpoint)
     upsertKnownNode({
@@ -177,7 +179,7 @@ function onNodeDiscovered(node: DiscoveredLandNode, context: vscode.ExtensionCon
             if (ok) {
                 setActiveNode(node.url, context);
                 vscode.window.showInformationMessage(
-                    `LaRuche: Connecte a ${node.name} via LAND${node.model ? ` (${node.model})` : ''}`,
+                    `LaRuche: Connecte a ${node.name} via Miel${node.model ? ` (${node.model})` : ''}`,
                     'OK', 'Changer de noeud',
                 ).then(choice => {
                     if (choice === 'Changer de noeud') { cmdSelectNode(context); }
@@ -432,8 +434,14 @@ async function pollStatus() {
         // Use knownNodes (all sources merged & deduped) for accurate count.
         const nodeCount = knownNodes.length;
         const tps = swarm.collective_tps.toFixed(1);
+        // Fetch provider config (non-blocking, best-effort)
+        client.getProviderConfig().then((pc: ProviderConfig) => {
+            activeProvider = pc.provider || 'ollama';
+        }).catch(() => { /* ignore */ });
+
         const modelLabel = activeModel ? ` | ${activeModel}` : '';
-        statusBarItem.text = `$(beaker) ${nodeCount} node${nodeCount !== 1 ? 's' : ''} | ${tps} t/s${modelLabel}`;
+        const providerLabel = activeProvider && activeProvider !== 'ollama' ? ` [${activeProvider}]` : '';
+        statusBarItem.text = `$(beaker) ${nodeCount} node${nodeCount !== 1 ? 's' : ''} | ${tps} t/s${modelLabel}${providerLabel}`;
         statusBarItem.tooltip = buildSwarmTooltip(swarm, nodeCount);
         statusBarItem.backgroundColor = undefined;
 
@@ -565,7 +573,7 @@ async function cmdSelectNode(context: vscode.ExtensionContext) {
         const isActive = isSameEndpoint(n.url, activeNodeUrl);
         const sourceIcon = n.source === 'local-probe' ? '$(home) ' : n.source === 'mdns' ? '$(remote-explorer) ' : '$(server) ';
         const icon = isActive ? '$(check) ' : sourceIcon;
-        const sourceLabel = n.source === 'local-probe' ? 'Local' : n.source === 'mdns' ? 'LAND' : 'Swarm';
+        const sourceLabel = n.source === 'local-probe' ? 'Local' : n.source === 'mdns' ? 'Miel' : 'Swarm';
         items.push({
             label: `${icon}${n.name}`,
             description: `${n.url}${n.model ? ` \u00B7 ${n.model}` : ''}`,

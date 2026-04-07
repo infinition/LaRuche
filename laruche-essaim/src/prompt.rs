@@ -92,7 +92,10 @@ pub fn build_system_prompt(
          - Reponds en francais sauf si l'utilisateur parle dans une autre langue.\n\
          - Sois concis et utile.\n\
          - Si tu ne sais pas quelque chose, dis-le honnetement.\n\
-         - Pour les taches complexes, decompose en etapes, montre ton plan, et utilise les outils disponibles.\n",
+         - Pour les taches complexes, decompose en etapes, montre ton plan, et utilise les outils disponibles.\n\
+         - Pour la recherche web : utilise web_deep_search pour des recherches approfondies. \
+         Si web_search ne donne pas assez de details, utilise web_fetch pour visiter les URLs des resultats.\n\
+         - Quand tu trouves des informations importantes, utilise knowledge_add pour les memoriser.\n",
     );
 
     prompt

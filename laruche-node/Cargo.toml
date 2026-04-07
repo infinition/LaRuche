@@ -27,3 +27,13 @@ toml = "0.8"
 laruche-essaim = { path = "../laruche-essaim" }
 futures-util = "0.3"
 which = "7"
+axum-server.workspace = true
+crossterm = "0.28"
+ratatui = "0.29"
+qrcode = "0.14"
+blake3.workspace = true
+rand.workspace = true
+base64.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+tray-icon = "0.19"

@@ -15,6 +15,9 @@ pub struct KnowledgeEntry {
     pub source: Option<String>,
     pub embedding: Vec<f32>,
     pub created_at: String,
+    /// Owner user ID. None = global (admin-managed), visible to all.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_id: Option<uuid::Uuid>,
 }
 
 /// The knowledge base — stores entries with embeddings for vector search.
@@ -64,6 +67,10 @@ impl KnowledgeBase {
 
     /// Add a text to the knowledge base (generates embedding via Ollama).
     pub async fn add(&mut self, text: &str, source: Option<&str>) -> Result<String> {
+        self.add_with_user(text, source, None).await
+    }
+
+    pub async fn add_with_user(&mut self, text: &str, source: Option<&str>, user_id: Option<uuid::Uuid>) -> Result<String> {
         let embedding = self.get_embedding(text).await?;
         let id = uuid::Uuid::new_v4().to_string()[..8].to_string();
 
@@ -73,10 +80,27 @@ impl KnowledgeBase {
             source: source.map(|s| s.to_string()),
             embedding,
             created_at: chrono::Utc::now().to_rfc3339(),
+            user_id,
         });
 
         self.save()?;
         Ok(id)
+    }
+
+    /// Update an existing entry's text (re-generates embedding).
+    pub async fn update(&mut self, id: &str, new_text: &str, new_source: Option<&str>) -> Result<bool> {
+        let embedding = self.get_embedding(new_text).await?;
+        if let Some(entry) = self.entries.iter_mut().find(|e| e.id == id) {
+            entry.text = new_text.to_string();
+            entry.embedding = embedding;
+            if let Some(src) = new_source {
+                entry.source = Some(src.to_string());
+            }
+            self.save()?;
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
     /// Search for the most relevant entries given a query.

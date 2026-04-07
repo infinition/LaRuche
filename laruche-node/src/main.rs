@@ -8,6 +8,15 @@
 //! 5. Runs the web dashboard
 //! 6. Exposes /models to list available Ollama models
 //! 7. Reports real system metrics (CPU, RAM) via sysinfo
+//! 8. Exposes MCP server for external AI clients
+//! 9. Discord & Slack channel integrations
+
+mod auth_user;
+mod mcp;
+mod profiles;
+mod sync;
+mod systray;
+mod tui;
 
 use anyhow::Result;
 use axum::{
@@ -40,8 +49,7 @@ use laruche_essaim::{
 
 use std::collections::VecDeque;
 
-const DASHBOARD_HTML: &str = include_str!("../../laruche-dashboard/src/templates/dashboard.html");
-const CHATBOT_HTML: &str = include_str!("../../laruche-dashboard/src/templates/chatbot.html");
+const SPA_HTML: &str = include_str!("../../laruche-dashboard/src/templates/spa.html");
 const PEER_FETCH_TIMEOUT_MS: u64 = 4000;
 const PEER_STALE_SECS: i64 = 45;
 const MDNS_REANNOUNCE_INTERVAL_SECS: u64 = 2;
@@ -63,6 +71,9 @@ struct ActivityLogEntry {
     tokens_generated: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
     latency_ms: Option<u64>,
+    /// Owner user ID (for filtering: users see only their own logs, admin sees all)
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    user_id: Option<Uuid>,
 }
 
 /// Persistent state saved to disk (survives restarts)
@@ -78,6 +89,9 @@ struct PersistentState {
     activity_log: Vec<ActivityLogEntry>,
     #[serde(default)]
     saved_at: String,
+    /// BLAKE3 cookie secret (base64), shared across cluster
+    #[serde(default)]
+    cookie_secret: Option<String>,
 }
 
 const METRICS_HISTORY_LIMIT: usize = 360; // ~1 hour at 10s intervals
@@ -91,6 +105,10 @@ struct MetricsSnapshot {
     tokens_per_sec: f32,
     queue_depth: u32,
     node_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    gpu_pct: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    vram_pct: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -127,9 +145,22 @@ struct AppState {
     known_node_ids: RwLock<HashSet<String>>,
     /// Essaim agent engine
     essaim_registry: Arc<AbeilleRegistry>,
-    essaim_config: EssaimConfig,
+    essaim_config: RwLock<EssaimConfig>,
     essaim_sessions: RwLock<HashMap<Uuid, Session>>,
     essaim_cron: RwLock<CronScheduler>,
+    essaim_kb: Arc<tokio::sync::RwLock<laruche_essaim::rag::KnowledgeBase>>,
+    /// Active channel bots (keyed by channel name)
+    channel_handles: RwLock<HashMap<String, tokio::task::JoinHandle<()>>>,
+    /// Provider profiles (multi-provider support)
+    profiles: RwLock<profiles::ProfilesConfig>,
+    /// Path to provider-profiles.json
+    profiles_path: PathBuf,
+    /// Registered users
+    users: RwLock<HashMap<Uuid, auth_user::User>>,
+    /// Pending login challenges (ephemeral, 60s TTL)
+    auth_challenges: RwLock<HashMap<Uuid, auth_user::AuthChallenge>>,
+    /// BLAKE3 key for signing auth cookies (shared across cluster)
+    cookie_secret: [u8; 32],
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -141,6 +172,15 @@ struct NodeConfig {
     api_port: u16,
     dashboard_port: u16,
     capabilities: Vec<CapabilityConfig>,
+    /// LLM provider: "ollama" (default), "openai", "anthropic"
+    #[serde(default)]
+    provider: String,
+    /// API key for cloud providers
+    #[serde(default)]
+    api_key: String,
+    /// API base URL override
+    #[serde(default)]
+    api_base: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -160,6 +200,9 @@ struct NodeConfigFile {
     api_port: Option<u16>,
     dashboard_port: Option<u16>,
     capabilities: Option<Vec<CapabilityConfig>>,
+    provider: Option<String>,
+    api_key: Option<String>,
+    api_base: Option<String>,
 }
 
 impl Default for NodeConfig {
@@ -180,6 +223,9 @@ impl Default for NodeConfig {
                 model_size: Some("7B".into()),
                 quantization: Some("Q4_K_M".into()),
             }],
+            provider: "ollama".into(),
+            api_key: String::new(),
+            api_base: None,
         }
     }
 }
@@ -227,6 +273,8 @@ struct NodeStatus {
     memory_total_mb: u64,
     vram_used_mb: Option<u64>,
     vram_total_mb: Option<u64>,
+    gpu_usage_pct: Option<f32>,
+    temperature_c: Option<f32>,
     queue_depth: usize,
     uptime_secs: u64,
     swarm: SwarmStatus,
@@ -385,6 +433,13 @@ fn resolve_model_capability(model_name: &str, capabilities: &[CapabilityConfig])
 
 /// Read the "llm" default model from the per-capability map, falling back to config.
 async fn get_llm_default(state: &AppState) -> String {
+    // First check profiles (new system)
+    let profiles = state.profiles.read().await;
+    if !profiles.active_model.model.is_empty() {
+        return profiles.active_model.model.clone();
+    }
+    drop(profiles);
+    // Fallback to old default_models
     let dm = state.default_models.read().await;
     dm.get("llm")
         .cloned()
@@ -553,6 +608,8 @@ async fn get_status(State(state): State<Arc<AppState>>) -> Json<NodeStatus> {
         memory_total_mb: total_mem_kb / 1024,
         vram_used_mb: manifest.resources.vram_used_mb,
         vram_total_mb: manifest.resources.vram_total_mb,
+        gpu_usage_pct: manifest.resources.accelerator_usage_pct,
+        temperature_c: manifest.resources.temperature_c,
         queue_depth: queue.depth(),
         uptime_secs: manifest.uptime_secs,
         swarm: SwarmStatus {
@@ -869,6 +926,7 @@ async fn post_infer(
                     model_used: Some(model.clone()),
                     tokens_generated: Some(eval_count),
                     latency_ms: Some(latency),
+                    user_id: None,
                 });
 
                 Ok(Json(InferenceResponse {
@@ -973,6 +1031,32 @@ async fn get_swarm_models(
                 is_local: false,
                 capability: Some(peer_cap),
             });
+        }
+    }
+
+    // Add cloud provider models from profiles (non-Ollama)
+    {
+        let profiles = state.profiles.read().await;
+        let active = &profiles.active_model;
+        for (pid, profile) in &profiles.profiles {
+            if profile.provider == "ollama" {
+                continue; // already listed above
+            }
+            for model_name in &profile.models {
+                let is_def = pid == &active.profile_id && model_name == &active.model;
+                let cap = resolve_model_capability(model_name, &state.config.capabilities);
+                models.push(SwarmModelInfo {
+                    host: profile.provider.clone(),
+                    node_name: profile.name.clone(),
+                    node_id: None,
+                    name: model_name.clone(),
+                    size_gb: 0.0,
+                    digest: String::new(),
+                    is_default: is_def,
+                    is_local: false,
+                    capability: Some(cap),
+                });
+            }
         }
     }
 
@@ -1116,9 +1200,16 @@ async fn post_set_default_model(
         model_used: None,
         tokens_generated: None,
         latency_ms: None,
+        user_id: None,
     });
 
     info!(capability = %capability, prev = %prev, new = %model_name, "Default model changed via API");
+
+    // Also sync to essaim_config so the inference engine uses the new model
+    if capability == "llm" {
+        let mut ec = state.essaim_config.write().await;
+        ec.model = model_name.clone();
+    }
 
     // Persist state immediately after model change
     let save_ref = state.clone();
@@ -1149,12 +1240,28 @@ struct ActivityResponse {
     logs: Vec<ActivityLogEntry>,
 }
 
-/// GET /activity - Recent inference and system activity
-async fn get_activity(State(state): State<Arc<AppState>>) -> Json<ActivityResponse> {
+/// GET /activity - Recent activity (filtered by user; admin sees all)
+async fn get_activity(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Json<ActivityResponse> {
+    let caller = auth_user::extract_user_from_headers(&headers, &state.cookie_secret);
+    let is_admin = if let Some(uid) = caller {
+        state.users.read().await.get(&uid).map(|u| u.role == auth_user::UserRole::Admin).unwrap_or(false)
+    } else { false };
+
     let logs = state.activity_log.read().await;
-    Json(ActivityResponse {
-        logs: logs.iter().cloned().collect(),
-    })
+    let filtered: Vec<ActivityLogEntry> = logs.iter().filter(|entry| {
+        if is_admin { return true; }
+        // System logs (no user_id) — visible to admin only, hide from regular users
+        // User's own logs — visible to that user
+        match (&entry.user_id, &caller) {
+            (None, _) => entry.tag != "agent", // show system logs (heartbeat, model) but not other users' agent chats
+            (Some(log_uid), Some(caller_uid)) => log_uid == caller_uid,
+            (Some(_), None) => false, // not authenticated
+        }
+    }).cloned().collect();
+    Json(ActivityResponse { logs: filtered })
 }
 
 async fn health() -> Json<serde_json::Value> {
@@ -1195,14 +1302,8 @@ async fn api_voice_status(
     }))
 }
 
-async fn dashboard() -> Html<&'static str> {
-    Html(DASHBOARD_HTML)
-}
-
-// ======================== Chatbot / Essaim ========================
-
-async fn chatbot_page() -> Html<&'static str> {
-    Html(CHATBOT_HTML)
+async fn spa_page() -> Html<&'static str> {
+    Html(SPA_HTML)
 }
 
 async fn api_list_tools(
@@ -1214,10 +1315,16 @@ async fn api_list_tools(
 /// List all sessions with metadata.
 async fn api_list_sessions(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
 ) -> Json<serde_json::Value> {
+    let caller = auth_user::extract_user_from_headers(&headers, &state.cookie_secret);
     let sessions = state.essaim_sessions.read().await;
     let list: Vec<serde_json::Value> = sessions
         .values()
+        .filter(|s| {
+            // Show: user's own sessions + legacy sessions (no owner)
+            s.user_id.is_none() || s.user_id == caller
+        })
         .map(|s| {
             serde_json::json!({
                 "id": s.id.to_string(),
@@ -1233,31 +1340,45 @@ async fn api_list_sessions(
     Json(serde_json::json!(list))
 }
 
-/// Delete a session by ID.
+/// Delete a session by ID (with ownership check).
 async fn api_delete_session(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> StatusCode {
+    let caller = auth_user::extract_user_from_headers(&headers, &state.cookie_secret);
     if let Ok(uuid) = Uuid::parse_str(&id) {
         let mut sessions = state.essaim_sessions.write().await;
+        // Check ownership before deleting
+        if let Some(session) = sessions.get(&uuid) {
+            if session.user_id.is_some() && session.user_id != caller {
+                warn!(session_id = %uuid, "Unauthorized session delete attempt");
+                return StatusCode::FORBIDDEN;
+            }
+        }
         if sessions.remove(&uuid).is_some() {
-            // Also delete the file
             let path = std::path::PathBuf::from("sessions").join(format!("{}.json", uuid));
             let _ = std::fs::remove_file(path);
+            info!(session_id = %uuid, "Session deleted");
             return StatusCode::OK;
         }
     }
     StatusCode::NOT_FOUND
 }
 
-/// GET /api/sessions/:id/messages — get session messages for history display.
+/// GET /api/sessions/:id/messages — get session messages (with ownership check).
 async fn api_get_session_messages(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    let caller = auth_user::extract_user_from_headers(&headers, &state.cookie_secret);
     let uuid = Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
     let sessions = state.essaim_sessions.read().await;
     match sessions.get(&uuid) {
+        Some(session) if session.user_id.is_some() && session.user_id != caller => {
+            Err(StatusCode::FORBIDDEN)
+        }
         Some(session) => {
             let messages: Vec<serde_json::Value> = session.messages.iter().map(|m| {
                 match m {
@@ -1295,15 +1416,37 @@ async fn api_get_session_messages(
                 "messages": messages,
             })))
         }
-        None => Err(StatusCode::NOT_FOUND),
+        None => {
+            // Fallback: try loading from disk
+            drop(sessions);
+            let path = std::path::Path::new("sessions").join(format!("{}.json", id));
+            if let Ok(session) = Session::charger(&path) {
+                let messages: Vec<serde_json::Value> = session.messages.iter().map(|m| {
+                    match m {
+                        laruche_essaim::Message::User(t) => serde_json::json!({"role":"user","text":t}),
+                        laruche_essaim::Message::UserMultimodal { text, .. } => serde_json::json!({"role":"user","text":text}),
+                        laruche_essaim::Message::Assistant(t) => serde_json::json!({"role":"assistant","text":t}),
+                        laruche_essaim::Message::Observation { tool, result } => serde_json::json!({"role":"tool","tool":tool,"text":result}),
+                        laruche_essaim::Message::System(t) => serde_json::json!({"role":"system","text":t}),
+                        laruche_essaim::Message::ToolCall { name, args } => serde_json::json!({"role":"tool_call","tool":name,"args":args}),
+                    }
+                }).collect();
+                state.essaim_sessions.write().await.insert(uuid, session);
+                Ok(Json(serde_json::json!({"session_id":id,"messages":messages})))
+            } else {
+                Err(StatusCode::NOT_FOUND)
+            }
+        }
     }
 }
 
 /// GET /api/sessions/search?q=query — search across all sessions.
 async fn api_search_sessions(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Json<serde_json::Value> {
+    let caller = auth_user::extract_user_from_headers(&headers, &state.cookie_secret);
     let query = params.get("q").map(|s| s.to_lowercase()).unwrap_or_default();
     if query.is_empty() {
         return Json(serde_json::json!([]));
@@ -1313,6 +1456,8 @@ async fn api_search_sessions(
     let mut results = Vec::new();
 
     for session in sessions.values() {
+        // Only search user's own sessions + legacy
+        if session.user_id.is_some() && session.user_id != caller { continue; }
         for msg in &session.messages {
             let text = match msg {
                 laruche_essaim::Message::User(t) | laruche_essaim::Message::Assistant(t) => t.clone(),
@@ -1340,13 +1485,20 @@ async fn api_search_sessions(
 }
 
 /// GET /api/sessions/:id/export — export a session as Markdown.
+// TODO: Add PDF export support (e.g. via printpdf or headless Chrome).
+//       For now, only Markdown export is implemented.
 async fn api_export_session(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<String, StatusCode> {
+    let caller = auth_user::extract_user_from_headers(&headers, &state.cookie_secret);
     let uuid = Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
     let sessions = state.essaim_sessions.read().await;
     let session = sessions.get(&uuid).ok_or(StatusCode::NOT_FOUND)?;
+    if session.user_id.is_some() && session.user_id != caller {
+        return Err(StatusCode::FORBIDDEN);
+    }
 
     let mut md = format!(
         "# {}\n\n*Session: {} | Model: {} | Date: {}*\n\n---\n\n",
@@ -1394,6 +1546,39 @@ async fn api_export_session(
     Ok(md)
 }
 
+/// POST /api/sessions/:id/fork — fork (branch) a session (with ownership check).
+async fn api_fork_session(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let caller = auth_user::extract_user_from_headers(&headers, &state.cookie_secret);
+    let uuid = Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let sessions_dir = std::path::Path::new("sessions");
+    let current_model = state.essaim_config.read().await.model.clone();
+
+    let mut sessions = state.essaim_sessions.write().await;
+    let original = sessions.get(&uuid).ok_or(StatusCode::NOT_FOUND)?;
+    if original.user_id.is_some() && original.user_id != caller {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let mut forked = original.fork(&current_model, sessions_dir);
+    // Inherit user_id from parent
+    forked.user_id = caller;
+    let forked_id = forked.id;
+
+    if let Err(e) = forked.sauvegarder() {
+        tracing::warn!(error = %e, "Failed to save forked session");
+    }
+
+    sessions.insert(forked_id, forked);
+
+    Ok(Json(serde_json::json!({
+        "id": forked_id.to_string(),
+        "message": "Session forked successfully",
+    })))
+}
+
 /// GET /api/cron — list scheduled tasks.
 async fn api_list_cron(
     State(state): State<Arc<AppState>>,
@@ -1418,8 +1603,14 @@ async fn api_list_cron(
 /// Body: {"name": "...", "prompt": "...", "cron_expr": "*/5 * * * *"} or {"fire_at": "ISO8601"}
 async fn api_create_cron(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Admin only — cron tasks execute agent prompts
+    let users = state.users.read().await;
+    let (_, is_admin) = auth_user::check_admin(&headers, &state.cookie_secret, &users);
+    drop(users);
+    if !is_admin { return Err(StatusCode::FORBIDDEN); }
     let name = body["name"].as_str().unwrap_or("Unnamed task").to_string();
     let prompt = body["prompt"].as_str().ok_or(StatusCode::BAD_REQUEST)?.to_string();
     let cron_expr = body["cron_expr"].as_str().map(|s| s.to_string());
@@ -1468,8 +1659,9 @@ async fn api_doctor(
     let mut checks = Vec::new();
 
     // Check Ollama connectivity
+    let ec = state.essaim_config.read().await;
     let ollama_ok = reqwest::Client::new()
-        .get(format!("{}/api/tags", state.essaim_config.ollama_url))
+        .get(format!("{}/api/tags", ec.ollama_url))
         .timeout(std::time::Duration::from_secs(5))
         .send()
         .await
@@ -1478,16 +1670,17 @@ async fn api_doctor(
     checks.push(serde_json::json!({
         "name": "Ollama",
         "status": if ollama_ok { "ok" } else { "error" },
-        "detail": if ollama_ok { format!("Connected to {}", state.essaim_config.ollama_url) }
-                  else { format!("Cannot reach {}", state.essaim_config.ollama_url) },
+        "detail": if ollama_ok { format!("Connected to {}", ec.ollama_url) }
+                  else { format!("Cannot reach {}", ec.ollama_url) },
     }));
 
     // Check model availability
     checks.push(serde_json::json!({
         "name": "Model",
         "status": "ok",
-        "detail": format!("Default model: {}", state.essaim_config.model),
+        "detail": format!("Default model: {}", ec.model),
     }));
+    let _ = ec;
 
     // Check Miel network
     let listener = state.listener.read().await;
@@ -1551,6 +1744,15 @@ async fn api_doctor(
         "detail": if chrome_found { "Available for browser_navigate/screenshot" } else { "Not found — browser tools disabled" },
     }));
 
+    // Check TLS configuration
+    let tls_configured = std::env::var("LARUCHE_TLS_CERT").is_ok()
+        && std::env::var("LARUCHE_TLS_KEY").is_ok();
+    checks.push(serde_json::json!({
+        "name": "TLS/HTTPS",
+        "status": if tls_configured { "ok" } else { "warning" },
+        "detail": if tls_configured { "TLS enabled" } else { "Not configured — using plain HTTP" },
+    }));
+
     // Abeilles count
     checks.push(serde_json::json!({
         "name": "Abeilles (Tools)",
@@ -1569,14 +1771,1211 @@ async fn api_doctor(
 }
 
 /// GET /api/onboarding — guided setup checklist.
+/// GET /api/config/channels — read channel configuration.
+async fn api_get_channels_config() -> Json<serde_json::Value> {
+    let path = std::path::Path::new("channels-config.json");
+    if path.exists() {
+        if let Ok(content) = std::fs::read_to_string(path) {
+            if let Ok(config) = serde_json::from_str::<serde_json::Value>(&content) {
+                return Json(config);
+            }
+        }
+    }
+    Json(serde_json::json!({
+        "telegram": {"bot_token": "", "allowed_chats": "", "enabled": false},
+        "discord": {"bot_token": "", "allowed_channels": "", "enabled": false},
+        "slack": {"bot_token": "", "app_token": "", "enabled": false},
+    }))
+}
+
+/// POST /api/config/channels — save channel configuration.
+async fn api_save_channels_config(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<serde_json::Value>,
+) -> StatusCode {
+    let users = state.users.read().await;
+    let (_, is_admin) = auth_user::check_admin(&headers, &state.cookie_secret, &users);
+    drop(users);
+    if !is_admin { return StatusCode::FORBIDDEN; }
+    let path = std::path::Path::new("channels-config.json");
+    match serde_json::to_string_pretty(&body) {
+        Ok(json) => {
+            if std::fs::write(path, json).is_ok() {
+                StatusCode::OK
+            } else {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+        }
+        Err(_) => StatusCode::BAD_REQUEST,
+    }
+}
+
+/// GET /api/config/provider — get current LLM provider settings.
+async fn api_get_provider_config(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let ec = state.essaim_config.read().await;
+    Json(serde_json::json!({
+        "provider": ec.provider,
+        "api_key_set": !ec.api_key.is_empty(),
+        "api_base": ec.api_base,
+        "model": ec.model,
+        "ollama_url": ec.ollama_url,
+    }))
+}
+
+/// POST /api/config/provider — update LLM provider settings at runtime.
+async fn api_save_provider_config(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let mut cg = state.essaim_config.write().await;
+    if let Some(provider) = body["provider"].as_str() {
+        let p = provider.to_lowercase();
+        if matches!(p.as_str(), "ollama" | "openai" | "anthropic") {
+            cg.provider = p;
+        }
+    }
+    if let Some(key) = body["api_key"].as_str() {
+        cg.api_key = key.to_string();
+    }
+    if body.get("api_base").is_some() {
+        cg.api_base = body["api_base"]
+            .as_str()
+            .map(|s| s.to_string())
+            .filter(|s| !s.is_empty());
+    }
+    if let Some(model) = body["model"].as_str() {
+        if !model.is_empty() {
+            cg.model = model.to_string();
+        }
+    }
+    if let Some(url) = body["ollama_url"].as_str() {
+        if !url.is_empty() {
+            cg.ollama_url = url.to_string();
+        }
+    }
+    let result = serde_json::json!({
+        "status": "ok",
+        "provider": cg.provider,
+        "model": cg.model,
+    });
+    drop(cg);
+    Json(result)
+}
+
+// ======================== Provider Profiles API ========================
+
+/// GET /api/profiles — list all profiles.
+async fn api_get_profiles(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Require auth to access profiles (contain API keys)
+    auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let cfg = state.profiles.read().await;
+    // Mask API keys: show only last 4 chars
+    let mut profiles_map = serde_json::to_value(&cfg.profiles).unwrap_or_default();
+    if let Some(obj) = profiles_map.as_object_mut() {
+        for (_id, profile) in obj.iter_mut() {
+            if let Some(key) = profile.get("api_key").and_then(|k| k.as_str()) {
+                if key.len() > 4 {
+                    let masked = format!("{}...{}", &key[..4], &key[key.len()-4..]);
+                    profile["api_key"] = serde_json::json!(masked);
+                }
+            }
+        }
+    }
+    Ok(Json(serde_json::json!({
+        "profiles": profiles_map,
+        "active_model": cfg.active_model,
+    })))
+}
+
+/// POST /api/profiles — create or update a profile (auth required).
+async fn api_upsert_profile(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let id = match body["id"].as_str() {
+        Some(id) if !id.is_empty() => id.to_string(),
+        _ => return Ok(Json(serde_json::json!({"error": "missing id"}))),
+    };
+    let provider = body["provider"].as_str().unwrap_or("ollama").to_string();
+    let name = body["name"].as_str().unwrap_or(&id).to_string();
+    let base_url = body["base_url"].as_str().unwrap_or("").to_string();
+    let api_key = body["api_key"].as_str().unwrap_or("").to_string();
+    let models: Vec<String> = body["models"]
+        .as_array()
+        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+        .unwrap_or_default();
+
+    let profile = profiles::ProviderProfile {
+        provider,
+        name: name.clone(),
+        base_url,
+        api_key,
+        models,
+    };
+
+    let mut cfg = state.profiles.write().await;
+    cfg.profiles.insert(id.clone(), profile);
+
+    // Auto-discover Ollama models if provider is ollama
+    if cfg.profiles.get(&id).map(|p| p.provider.as_str()) == Some("ollama") {
+        let base = cfg.profiles[&id].base_url.clone();
+        drop(cfg);
+        let models = profiles::discover_ollama_models(&base).await;
+        let mut cfg = state.profiles.write().await;
+        if !models.is_empty() {
+            if let Some(p) = cfg.profiles.get_mut(&id) {
+                p.models = models;
+            }
+        }
+        let _ = profiles::save_profiles(&state.profiles_path, &cfg);
+        drop(cfg);
+    } else {
+        let _ = profiles::save_profiles(&state.profiles_path, &cfg);
+        drop(cfg);
+    }
+
+    // Sync essaim config from active profile
+    sync_essaim_from_profiles(&state).await;
+
+    Ok(Json(serde_json::json!({"status": "ok", "id": id, "name": name})))
+}
+
+/// DELETE /api/profiles/:id — delete a profile (auth required).
+async fn api_delete_profile(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let mut cfg = state.profiles.write().await;
+    if cfg.profiles.remove(&id).is_some() {
+        // If we deleted the active profile, fall back to first available
+        if cfg.active_model.profile_id == id {
+            if let Some(first_id) = cfg.profiles.keys().next().cloned() {
+                let first_model = cfg.profiles[&first_id]
+                    .models
+                    .first()
+                    .cloned()
+                    .unwrap_or_default();
+                cfg.active_model = profiles::ActiveModel {
+                    profile_id: first_id,
+                    model: first_model,
+                };
+            }
+        }
+        let _ = profiles::save_profiles(&state.profiles_path, &cfg);
+        drop(cfg);
+        sync_essaim_from_profiles(&state).await;
+        Ok(Json(serde_json::json!({"status": "ok"})))
+    } else {
+        Ok(Json(serde_json::json!({"error": "profile not found"})))
+    }
+}
+
+/// GET /api/profiles/models — unified model list across all profiles.
+async fn api_get_unified_models(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    // Refresh Ollama models before returning
+    let mut cfg = state.profiles.write().await;
+    profiles::refresh_ollama_profiles(&mut cfg).await;
+    let _ = profiles::save_profiles(&state.profiles_path, &cfg);
+    let models = profiles::build_unified_models(&cfg);
+    let active = cfg.active_model.clone();
+    drop(cfg);
+    Json(serde_json::json!({
+        "models": models,
+        "active": active,
+    }))
+}
+
+/// POST /api/profiles/active — set the active model.
+async fn api_set_active_model(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let profile_id = match body["profile_id"].as_str() {
+        Some(id) => id.to_string(),
+        None => return Json(serde_json::json!({"error": "missing profile_id"})),
+    };
+    let model = match body["model"].as_str() {
+        Some(m) => m.to_string(),
+        None => return Json(serde_json::json!({"error": "missing model"})),
+    };
+
+    let mut cfg = state.profiles.write().await;
+    if !cfg.profiles.contains_key(&profile_id) {
+        return Json(serde_json::json!({"error": "profile not found"}));
+    }
+    cfg.active_model = profiles::ActiveModel {
+        profile_id: profile_id.clone(),
+        model: model.clone(),
+    };
+    let _ = profiles::save_profiles(&state.profiles_path, &cfg);
+    drop(cfg);
+
+    // Sync to essaim config
+    sync_essaim_from_profiles(&state).await;
+
+    Json(serde_json::json!({"status": "ok", "profile_id": profile_id, "model": model}))
+}
+
+/// Sync the active profile into EssaimConfig so brain.rs picks it up.
+async fn sync_essaim_from_profiles(state: &Arc<AppState>) {
+    let cfg = state.profiles.read().await;
+    let (provider, model, api_key, api_base, ollama_url) =
+        profiles::active_to_essaim_fields(&cfg);
+    drop(cfg);
+
+    let mut ec = state.essaim_config.write().await;
+    ec.provider = provider;
+    ec.model = model;
+    ec.api_key = api_key;
+    ec.api_base = api_base;
+    ec.ollama_url = ollama_url;
+}
+
+// ======================== Auth Endpoints ========================
+
+/// POST /api/auth/enroll — Create a new user identity.
+async fn api_auth_enroll(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<(axum::http::StatusCode, axum::http::HeaderMap, Json<serde_json::Value>), StatusCode> {
+    let display_name = body["display_name"]
+        .as_str()
+        .unwrap_or("Utilisateur")
+        .trim();
+    if display_name.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    // First user ever registered becomes admin, others are regular users
+    let role = {
+        let users = state.users.read().await;
+        if users.is_empty() {
+            auth_user::UserRole::Admin
+        } else {
+            auth_user::UserRole::User
+        }
+    };
+    let password = body["password"].as_str().filter(|p| !p.is_empty());
+    let user = auth_user::create_user(display_name, role, password);
+    let users_dir = std::path::Path::new("users");
+    if let Err(e) = auth_user::save_user(&user, users_dir) {
+        warn!(error = %e, "Failed to save user");
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    // Build permanent auth link QR
+    let manifest = state.manifest.read().await;
+    let host = manifest.api_endpoint.host.clone();
+    let port = manifest.api_endpoint.port;
+    drop(manifest);
+
+    let auth_url = auth_user::build_auth_link(&host, port, user.id, &user.auth_secret);
+    let qr_svg = auth_user::generate_qr_svg(&auth_url);
+
+    // Set auth cookie
+    let cookie_value = auth_user::create_auth_cookie(user.id, &state.cookie_secret);
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(
+        axum::http::header::SET_COOKIE,
+        format!(
+            "laruche_auth={}; HttpOnly; Path=/; SameSite=Lax; Max-Age=2592000",
+            cookie_value
+        )
+        .parse()
+        .unwrap(),
+    );
+
+    // Store user in memory
+    state.users.write().await.insert(user.id, user.clone());
+    // Sync to peers
+    let sync_state = state.clone();
+    let sync_user = user.clone();
+    tokio::spawn(async move { sync::push_user_to_peers(&sync_user, &sync_state).await; });
+
+    info!(user_id = %user.id, name = %user.display_name, "New user enrolled");
+
+    Ok((
+        axum::http::StatusCode::OK,
+        headers,
+        Json(serde_json::json!({
+            "user_id": user.id.to_string(),
+            "display_name": user.display_name,
+            "role": user.role,
+            "qr_svg": qr_svg,
+            "auth_url": auth_url,
+        })),
+    ))
+}
+
+/// GET /api/auth/me — Return current user info (from cookie).
+async fn api_auth_me(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let user_id = auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let users = state.users.read().await;
+    let user = users.get(&user_id).ok_or(StatusCode::UNAUTHORIZED)?;
+    Ok(Json(serde_json::json!({
+        "user_id": user.id.to_string(),
+        "display_name": user.display_name,
+        "role": user.role,
+        "created_at": user.created_at.to_rfc3339(),
+    })))
+}
+
+/// GET /api/auth/challenge — Generate ephemeral login QR.
+async fn api_auth_challenge(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    // Cleanup expired challenges
+    {
+        let mut challenges = state.auth_challenges.write().await;
+        challenges.retain(|_, c| !c.is_expired());
+    }
+
+    let challenge = auth_user::AuthChallenge::new();
+    let challenge_id = challenge.challenge_id;
+
+    let manifest = state.manifest.read().await;
+    let host = manifest.api_endpoint.host.clone();
+    let port = manifest.api_endpoint.port;
+    drop(manifest);
+    let scan_url = auth_user::build_challenge_url(&host, port, challenge_id);
+
+    let qr_svg = auth_user::generate_qr_svg(&scan_url);
+
+    state.auth_challenges.write().await.insert(challenge_id, challenge);
+
+    Json(serde_json::json!({
+        "challenge_id": challenge_id.to_string(),
+        "qr_svg": qr_svg,
+        "expires_in": 60,
+    }))
+}
+
+/// GET /api/auth/status/:id — Poll challenge status.
+async fn api_auth_status(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Json<serde_json::Value> {
+    let challenge_id = match Uuid::parse_str(&id) {
+        Ok(u) => u,
+        Err(_) => return Json(serde_json::json!({"status": "invalid"})),
+    };
+
+    let challenges = state.auth_challenges.read().await;
+    match challenges.get(&challenge_id) {
+        Some(c) if c.is_expired() => {
+            Json(serde_json::json!({"status": "expired"}))
+        }
+        Some(c) if c.resolved_user_id.is_some() => {
+            let user_id = c.resolved_user_id.unwrap();
+            let users = state.users.read().await;
+            let display_name = users
+                .get(&user_id)
+                .map(|u| u.display_name.clone())
+                .unwrap_or_default();
+            let token = auth_user::create_auth_cookie(user_id, &state.cookie_secret);
+            Json(serde_json::json!({
+                "status": "authenticated",
+                "token": token,
+                "user_id": user_id.to_string(),
+                "display_name": display_name,
+            }))
+        }
+        Some(_) => {
+            Json(serde_json::json!({"status": "pending"}))
+        }
+        None => {
+            Json(serde_json::json!({"status": "not_found"}))
+        }
+    }
+}
+
+/// GET /auth/scan/:challenge_id — Phone scans this to resolve challenge.
+async fn auth_scan_challenge(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(challenge_id_str): axum::extract::Path<String>,
+    headers: axum::http::HeaderMap,
+) -> axum::response::Html<String> {
+    let challenge_id = match Uuid::parse_str(&challenge_id_str) {
+        Ok(u) => u,
+        Err(_) => return axum::response::Html("<h1>Invalid challenge</h1>".into()),
+    };
+
+    // Extract user from phone's cookie
+    let user_id = match auth_user::extract_user_from_headers(&headers, &state.cookie_secret) {
+        Some(uid) => uid,
+        None => {
+            return axum::response::Html(format!(
+                r#"<!DOCTYPE html>
+<html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{{background:#1a1a2e;color:#e0e0e0;font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}}
+.card{{background:#16213e;padding:2rem;border-radius:16px;text-align:center;max-width:320px}}
+h2{{color:#ffbf00}}</style></head>
+<body><div class="card">
+<h2>Non authentifie</h2>
+<p>Ouvrez d'abord votre lien d'enrollment sur ce telephone.</p>
+</div></body></html>"#
+            ));
+        }
+    };
+
+    // Resolve the challenge
+    let mut challenges = state.auth_challenges.write().await;
+    if let Some(challenge) = challenges.get_mut(&challenge_id) {
+        if challenge.is_expired() {
+            return axum::response::Html(format!(
+                r#"<!DOCTYPE html>
+<html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{{background:#1a1a2e;color:#e0e0e0;font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}}
+.card{{background:#16213e;padding:2rem;border-radius:16px;text-align:center;max-width:320px}}
+h2{{color:#ef4444}}</style></head>
+<body><div class="card">
+<h2>QR expire</h2>
+<p>Retournez sur le navigateur et rafraichissez le QR code.</p>
+</div></body></html>"#
+            ));
+        }
+        challenge.resolved_user_id = Some(user_id);
+    }
+    drop(challenges);
+
+    let users = state.users.read().await;
+    let display_name = users
+        .get(&user_id)
+        .map(|u| u.display_name.clone())
+        .unwrap_or_else(|| "Utilisateur".into());
+
+    info!(user_id = %user_id, name = %display_name, "Login challenge resolved via QR scan");
+
+    axum::response::Html(format!(
+        r#"<!DOCTYPE html>
+<html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{{background:#1a1a2e;color:#e0e0e0;font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}}
+.card{{background:#16213e;padding:2rem;border-radius:16px;text-align:center;max-width:320px}}
+h2{{color:#22c55e}}.check{{font-size:3rem;margin-bottom:1rem}}</style></head>
+<body><div class="card">
+<div class="check">&#x2714;</div>
+<h2>Connecte !</h2>
+<p>Bienvenue <strong>{}</strong>.<br>Vous pouvez fermer cet onglet.</p>
+</div></body></html>"#,
+        display_name
+    ))
+}
+
+/// GET /auth/link/:user_id/:secret — Permanent auth link (from enrollment QR).
+async fn auth_permanent_link(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path((user_id_str, secret)): axum::extract::Path<(String, String)>,
+) -> Result<(axum::http::StatusCode, axum::http::HeaderMap, axum::response::Html<String>), StatusCode> {
+    let user_id = Uuid::parse_str(&user_id_str).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let users = state.users.read().await;
+    let user = users.get(&user_id).ok_or(StatusCode::NOT_FOUND)?;
+
+    if user.auth_secret != secret {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let display_name = user.display_name.clone();
+    drop(users);
+
+    // Set auth cookie on this device (phone)
+    let cookie_value = auth_user::create_auth_cookie(user_id, &state.cookie_secret);
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(
+        axum::http::header::SET_COOKIE,
+        format!(
+            "laruche_auth={}; HttpOnly; Path=/; SameSite=Lax; Max-Age=2592000",
+            cookie_value
+        )
+        .parse()
+        .unwrap(),
+    );
+
+    // Also check if there's a pending challenge to resolve
+    // (phone scans enrollment QR which also resolves any open challenge)
+    {
+        let mut challenges = state.auth_challenges.write().await;
+        for (_, challenge) in challenges.iter_mut() {
+            if !challenge.is_expired() && challenge.resolved_user_id.is_none() {
+                challenge.resolved_user_id = Some(user_id);
+                break; // resolve the first pending one
+            }
+        }
+    }
+
+    info!(user_id = %user_id, name = %display_name, "Auth via permanent link");
+
+    Ok((
+        axum::http::StatusCode::OK,
+        headers,
+        axum::response::Html(format!(
+            r#"<!DOCTYPE html>
+<html><head><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>body{{background:#1a1a2e;color:#e0e0e0;font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}}
+.card{{background:#16213e;padding:2rem;border-radius:16px;text-align:center;max-width:320px}}
+h2{{color:#ffbf00}}.bee{{font-size:3rem;margin-bottom:1rem}}</style></head>
+<body><div class="card">
+<div class="bee">&#x1F41D;</div>
+<h2>Identite confirmee</h2>
+<p>Bienvenue <strong>{}</strong>.<br>Ce telephone est maintenant votre cle d'acces LaRuche.</p>
+</div></body></html>"#,
+            display_name
+        )),
+    ))
+}
+
+/// POST /api/auth/logout — Clear auth cookie.
+async fn api_auth_logout() -> (axum::http::StatusCode, axum::http::HeaderMap) {
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert(
+        axum::http::header::SET_COOKIE,
+        "laruche_auth=; HttpOnly; Path=/; SameSite=Lax; Max-Age=0"
+            .parse()
+            .unwrap(),
+    );
+    (axum::http::StatusCode::OK, headers)
+}
+
+/// POST /api/auth/login — Login with display_name + password.
+async fn api_auth_login(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<(axum::http::StatusCode, axum::http::HeaderMap, Json<serde_json::Value>), StatusCode> {
+    let name = body["display_name"].as_str().unwrap_or("").trim();
+    let password = body["password"].as_str().unwrap_or("");
+    if name.is_empty() || password.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let users = state.users.read().await;
+    let user = auth_user::find_user_by_name(&users, name).ok_or(StatusCode::UNAUTHORIZED)?;
+
+    match &user.password_hash {
+        Some(hash) if auth_user::verify_password(password, hash) => {
+            let cookie_value = auth_user::create_auth_cookie(user.id, &state.cookie_secret);
+            let mut headers = axum::http::HeaderMap::new();
+            headers.insert(
+                axum::http::header::SET_COOKIE,
+                format!("laruche_auth={}; HttpOnly; Path=/; SameSite=Lax; Max-Age=2592000", cookie_value)
+                    .parse().unwrap(),
+            );
+            info!(user_id = %user.id, name = %user.display_name, "Login via password");
+            Ok((
+                axum::http::StatusCode::OK,
+                headers,
+                Json(serde_json::json!({
+                    "user_id": user.id.to_string(),
+                    "display_name": user.display_name,
+                    "role": user.role,
+                })),
+            ))
+        }
+        _ => {
+            warn!(name = %name, "Failed login attempt");
+            Err(StatusCode::UNAUTHORIZED)
+        }
+    }
+}
+
+/// POST /api/auth/password — Set or change password (requires auth).
+async fn api_auth_set_password(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let user_id = auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let password = body["password"].as_str().unwrap_or("");
+    if password.len() < 4 {
+        return Ok(Json(serde_json::json!({"error": "Password must be at least 4 characters"})));
+    }
+
+    let mut users = state.users.write().await;
+    if let Some(user) = users.get_mut(&user_id) {
+        user.password_hash = Some(auth_user::hash_password(password));
+        let users_dir = std::path::Path::new("users");
+        let _ = auth_user::save_user(user, users_dir);
+        info!(user_id = %user_id, "Password set/changed");
+        Ok(Json(serde_json::json!({"status": "ok"})))
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
+}
+
+/// POST /api/auth/model — Set per-user preferred model (doesn't touch global config).
+async fn api_auth_set_model(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let user_id = auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let model = body["model"].as_str().unwrap_or("").to_string();
+    let provider = body["provider"].as_str().map(|s| s.to_string());
+
+    let mut users = state.users.write().await;
+    if let Some(user) = users.get_mut(&user_id) {
+        user.preferred_model = if model.is_empty() { None } else { Some(model.clone()) };
+        user.preferred_provider = provider;
+        let users_dir = std::path::Path::new("users");
+        let _ = auth_user::save_user(user, users_dir);
+        Ok(Json(serde_json::json!({"status": "ok", "model": model})))
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
+}
+
+// ======================== Knowledge Endpoints ========================
+
+/// GET /api/knowledge — list knowledge base entries.
+async fn api_list_knowledge(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Json<serde_json::Value> {
+    let caller = auth_user::extract_user_from_headers(&headers, &state.cookie_secret);
+    let is_admin = if let Some(uid) = caller {
+        state.users.read().await.get(&uid).map(|u| u.role == auth_user::UserRole::Admin).unwrap_or(false)
+    } else { false };
+    let kb = state.essaim_kb.read().await;
+    let entries: Vec<serde_json::Value> = kb.entries.iter()
+        .filter(|e| {
+            // Admin sees all, users see global + own
+            is_admin || e.user_id.is_none() || e.user_id == caller
+        })
+        .map(|e| {
+        serde_json::json!({
+            "id": e.id,
+            "text": e.text,
+            "source": e.source,
+            "created_at": e.created_at,
+            "user_id": e.user_id,
+        })
+    }).collect();
+    Json(serde_json::json!({
+        "count": entries.len(),
+        "entries": entries,
+    }))
+}
+
+/// POST /api/knowledge — add a knowledge entry.
+async fn api_add_knowledge(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let caller = auth_user::extract_user_from_headers(&headers, &state.cookie_secret);
+    let text = body["text"].as_str().ok_or(StatusCode::BAD_REQUEST)?;
+    let source = body["source"].as_str();
+    // Admin entries are global (user_id=None), user entries are private
+    let is_admin = if let Some(uid) = caller {
+        state.users.read().await.get(&uid).map(|u| u.role == auth_user::UserRole::Admin).unwrap_or(false)
+    } else { false };
+    let entry_user_id = if is_admin { None } else { caller };
+
+    let mut kb = state.essaim_kb.write().await;
+    match kb.add_with_user(text, source, entry_user_id).await {
+        Ok(id) => Ok(Json(serde_json::json!({"id": id, "status": "added"}))),
+        Err(e) => Ok(Json(serde_json::json!({"error": e.to_string()}))),
+    }
+}
+
+/// PUT /api/knowledge/:id — update a knowledge entry.
+async fn api_update_knowledge(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let text = body["text"].as_str().unwrap_or("");
+    let source = body["source"].as_str();
+    if text.is_empty() {
+        return Json(serde_json::json!({"error": "text is required"}));
+    }
+    let mut kb = state.essaim_kb.write().await;
+    match kb.update(&id, text, source).await {
+        Ok(true) => Json(serde_json::json!({"status": "updated", "id": id})),
+        Ok(false) => Json(serde_json::json!({"error": "Entry not found"})),
+        Err(e) => Json(serde_json::json!({"error": e.to_string()})),
+    }
+}
+
+/// DELETE /api/knowledge/:id — remove a knowledge entry.
+async fn api_delete_knowledge(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> StatusCode {
+    let mut kb = state.essaim_kb.write().await;
+    if kb.remove(&id) { StatusCode::OK } else { StatusCode::NOT_FOUND }
+}
+
+/// POST /api/channels/start — start a channel bot.
+/// Body: {"channel": "telegram"}
+async fn api_start_channel(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let channel = body["channel"].as_str().unwrap_or("");
+
+    // Check if already running
+    {
+        let handles = state.channel_handles.read().await;
+        if handles.contains_key(channel) {
+            return Json(serde_json::json!({"status": "already_running", "channel": channel}));
+        }
+    }
+
+    // Load config
+    let config_path = std::path::Path::new("channels-config.json");
+    let config: serde_json::Value = if config_path.exists() {
+        std::fs::read_to_string(config_path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
+    } else {
+        return Json(serde_json::json!({"status": "error", "message": "No channels-config.json found. Configure in Settings > Channels."}));
+    };
+
+    match channel {
+        "telegram" => {
+            let token = config["telegram"]["bot_token"].as_str().unwrap_or("").to_string();
+            let allowed = config["telegram"]["allowed_chats"].as_str().unwrap_or("").to_string();
+            if token.is_empty() {
+                return Json(serde_json::json!({"status": "error", "message": "No Telegram bot token configured"}));
+            }
+            let state_clone = state.clone();
+            let handle = tokio::spawn(async move {
+                run_telegram_bot(&token, &allowed, &state_clone).await;
+            });
+            state.channel_handles.write().await.insert("telegram".into(), handle);
+            info!("Telegram bot started");
+            Json(serde_json::json!({"status": "started", "channel": "telegram"}))
+        }
+        _ => Json(serde_json::json!({"status": "error", "message": format!("Unknown channel: {}", channel)})),
+    }
+}
+
+/// POST /api/channels/stop — stop a channel bot.
+async fn api_stop_channel(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let channel = body["channel"].as_str().unwrap_or("");
+    let mut handles = state.channel_handles.write().await;
+    if let Some(handle) = handles.remove(channel) {
+        handle.abort();
+        info!(channel = channel, "Channel bot stopped");
+        Json(serde_json::json!({"status": "stopped", "channel": channel}))
+    } else {
+        Json(serde_json::json!({"status": "not_running", "channel": channel}))
+    }
+}
+
+/// GET /api/channels/status — check which channels are running.
+async fn api_channels_status(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let handles = state.channel_handles.read().await;
+    let running: Vec<&String> = handles.keys().collect();
+    Json(serde_json::json!({"running": running}))
+}
+
+/// Telegram bot — runs as a background task within the server.
+async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState>) {
+    let api = format!("https://api.telegram.org/bot{}", token);
+    let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(60)).build().unwrap();
+    let allowed: Vec<String> = allowed_chats.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+
+    let mut offset: i64 = 0;
+    let mut processed_ids: std::collections::HashSet<i64> = std::collections::HashSet::new();
+    info!("Telegram bot polling started");
+
+    loop {
+        let url = format!("{}/getUpdates?offset={}&timeout=30", api, offset);
+        match client.get(&url).send().await {
+            Ok(resp) => {
+                if let Ok(data) = resp.json::<serde_json::Value>().await {
+                    if let Some(updates) = data["result"].as_array() {
+                        // Advance offset immediately to prevent duplicate processing
+                        if let Some(last) = updates.last() {
+                            offset = last["update_id"].as_i64().unwrap_or(0) + 1;
+                            // Confirm offset with Telegram (quick call, no wait)
+                            let _ = client.get(format!("{}/getUpdates?offset={}&timeout=0", api, offset))
+                                .send().await;
+                        }
+
+                        for update in updates {
+                            let update_id = update["update_id"].as_i64().unwrap_or(0);
+                            if processed_ids.contains(&update_id) { continue; }
+                            processed_ids.insert(update_id);
+                            // Keep set small — only remember last 100
+                            if processed_ids.len() > 100 {
+                                let min = *processed_ids.iter().min().unwrap_or(&0);
+                                processed_ids.remove(&min);
+                            }
+
+                            let chat_id = update["message"]["chat"]["id"].as_i64().unwrap_or(0);
+                            let text = update["message"]["text"].as_str().unwrap_or("");
+                            let user = update["message"]["from"]["first_name"].as_str().unwrap_or("?");
+
+                            if text.is_empty() || chat_id == 0 { continue; }
+
+                            // Check allowlist
+                            if !allowed.is_empty() && !allowed.contains(&chat_id.to_string()) {
+                                let _ = client.post(format!("{}/sendMessage", api))
+                                    .json(&serde_json::json!({"chat_id": chat_id, "text": "Access denied."}))
+                                    .send().await;
+                                continue;
+                            }
+
+                            info!(user = user, chat_id = chat_id, text = &text[..text.len().min(50)], "Telegram message");
+
+                            // Get or create LaRuche user for this Telegram chat_id
+                            let tg_user_id = {
+                                let tg_name = format!("telegram:{}", chat_id);
+                                let users = state.users.read().await;
+                                if let Some(u) = auth_user::find_user_by_name(&users, &tg_name) {
+                                    u.id
+                                } else {
+                                    drop(users);
+                                    let display = format!("{} (Telegram)", user);
+                                    let new_user = auth_user::create_user(&display, auth_user::UserRole::User, None);
+                                    let uid = new_user.id;
+                                    let _ = auth_user::save_user(&new_user, std::path::Path::new("users"));
+                                    state.users.write().await.insert(uid, new_user);
+                                    info!(chat_id = chat_id, user_id = %uid, "Auto-created Telegram user");
+                                    uid
+                                }
+                            };
+
+                            // Send typing
+                            let _ = client.post(format!("{}/sendChatAction", api))
+                                .json(&serde_json::json!({"chat_id": chat_id, "action": "typing"}))
+                                .send().await;
+
+                            // Query agent with current default model
+                            let current_model = get_llm_default(state).await;
+                            let sessions_dir = std::path::Path::new("sessions");
+                            let session_id = Uuid::new_v4();
+                            let mut session = Session::new_with_id(session_id, &current_model, sessions_dir);
+                            session.user_id = Some(tg_user_id);
+                            let (tx, _rx) = broadcast::channel::<ChatEvent>(64);
+
+                            let mut config = state.essaim_config.read().await.clone();
+                            config.model = current_model;
+
+                            let result = boucle_react(
+                                text,
+                                &mut session,
+                                &state.essaim_registry,
+                                &config,
+                                &tx,
+                            ).await;
+
+                            let response = match result {
+                                Ok(r) => {
+                                    // Clean tags
+                                    let mut clean = r;
+                                    while let Some(s) = clean.find("<tool_call>") {
+                                        if let Some(e) = clean.find("</tool_call>") { clean = format!("{}{}", &clean[..s], &clean[e+"</tool_call>".len()..]); }
+                                        else { clean.truncate(s); break; }
+                                    }
+                                    while let Some(s) = clean.find("<plan>") {
+                                        if let Some(e) = clean.find("</plan>") { clean = format!("{}{}", &clean[..s], &clean[e+"</plan>".len()..]); }
+                                        else { clean.truncate(s); break; }
+                                    }
+                                    clean.trim().to_string()
+                                }
+                                Err(e) => format!("Error: {}", e),
+                            };
+
+                            // Send response (split if > 4000 chars)
+                            let chunks: Vec<String> = response.chars().collect::<Vec<_>>()
+                                .chunks(4000).map(|c| c.iter().collect()).collect();
+                            for chunk in chunks {
+                                let _ = client.post(format!("{}/sendMessage", api))
+                                    .json(&serde_json::json!({
+                                        "chat_id": chat_id,
+                                        "text": chunk,
+                                        "parse_mode": "Markdown",
+                                    }))
+                                    .send().await;
+                            }
+
+                            info!(user = user, response_len = response.len(), "Telegram replied");
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                warn!(error = %e, "Telegram polling error");
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            }
+        }
+    }
+}
+
+/// Helper: run agent query and return cleaned response text.
+async fn run_agent_query(state: &Arc<AppState>, text: &str) -> String {
+    let current_model = get_llm_default(state).await;
+    let sessions_dir = std::path::Path::new("sessions");
+    let session_id = Uuid::new_v4();
+    let mut session = Session::new_with_id(session_id, &current_model, sessions_dir);
+    let (tx, _rx) = broadcast::channel::<ChatEvent>(64);
+
+    let mut config = state.essaim_config.read().await.clone();
+    config.model = current_model;
+
+    let result = boucle_react(
+        text,
+        &mut session,
+        &state.essaim_registry,
+        &config,
+        &tx,
+    ).await;
+
+    match result {
+        Ok(r) => {
+            let mut clean = r;
+            while let Some(s) = clean.find("<tool_call>") {
+                if let Some(e) = clean.find("</tool_call>") {
+                    clean = format!("{}{}", &clean[..s], &clean[e + "</tool_call>".len()..]);
+                } else {
+                    clean.truncate(s);
+                    break;
+                }
+            }
+            while let Some(s) = clean.find("<plan>") {
+                if let Some(e) = clean.find("</plan>") {
+                    clean = format!("{}{}", &clean[..s], &clean[e + "</plan>".len()..]);
+                } else {
+                    clean.truncate(s);
+                    break;
+                }
+            }
+            clean.trim().to_string()
+        }
+        Err(e) => format!("Error: {}", e),
+    }
+}
+
+// ======================== Discord Webhook ========================
+
+/// POST /api/channels/discord/webhook — receive Discord Interactions (slash commands).
+/// Discord sends interactions as POST requests to the configured endpoint URL.
+/// Interaction types:
+///   1 = PING (verification), 2 = APPLICATION_COMMAND (slash command),
+///   3 = MESSAGE_COMPONENT, 4 = APPLICATION_COMMAND_AUTOCOMPLETE
+async fn api_discord_webhook(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let interaction_type = body["type"].as_u64().unwrap_or(0);
+
+    match interaction_type {
+        // Type 1: PING — Discord verification handshake
+        1 => {
+            info!("Discord: PING received (verification)");
+            Json(serde_json::json!({"type": 1}))
+        }
+        // Type 2: APPLICATION_COMMAND — slash command
+        2 => {
+            let command_name = body["data"]["name"].as_str().unwrap_or("");
+            let user = body["member"]["user"]["username"]
+                .as_str()
+                .or_else(|| body["user"]["username"].as_str())
+                .unwrap_or("unknown");
+
+            // Extract the user's input from the command options
+            let input = body["data"]["options"]
+                .as_array()
+                .and_then(|opts| {
+                    opts.iter()
+                        .find(|o| o["name"].as_str() == Some("prompt") || o["name"].as_str() == Some("message"))
+                        .and_then(|o| o["value"].as_str())
+                })
+                .unwrap_or("");
+
+            if input.is_empty() {
+                return Json(serde_json::json!({
+                    "type": 4,
+                    "data": {
+                        "content": "Please provide a prompt. Usage: `/ask <your question>`"
+                    }
+                }));
+            }
+
+            info!(user = user, command = command_name, input = &input[..input.len().min(50)], "Discord slash command");
+
+            // Run agent query
+            let response = run_agent_query(&state, input).await;
+
+            // Truncate if needed (Discord max: 2000 chars)
+            let truncated = if response.len() > 1990 {
+                format!("{}...", &response[..1990])
+            } else {
+                response
+            };
+
+            // Type 4 = CHANNEL_MESSAGE_WITH_SOURCE
+            Json(serde_json::json!({
+                "type": 4,
+                "data": {
+                    "content": truncated
+                }
+            }))
+        }
+        // Unknown interaction type
+        _ => {
+            warn!(interaction_type = interaction_type, "Discord: unknown interaction type");
+            Json(serde_json::json!({"type": 1}))
+        }
+    }
+}
+
+// ======================== Slack Events ========================
+
+/// POST /api/channels/slack/events — receive Slack Events API callbacks.
+/// Handles:
+///   - `url_verification` challenge (required by Slack during setup)
+///   - `event_callback` with `message` and `app_mention` events
+async fn api_slack_events(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let event_type = body["type"].as_str().unwrap_or("");
+
+    match event_type {
+        // Slack URL verification challenge
+        "url_verification" => {
+            let challenge = body["challenge"].as_str().unwrap_or("");
+            info!("Slack: URL verification challenge");
+            Json(serde_json::json!({"challenge": challenge}))
+        }
+        // Actual event callbacks
+        "event_callback" => {
+            let event = &body["event"];
+            let event_subtype = event["type"].as_str().unwrap_or("");
+            let subtype = event["subtype"].as_str();
+
+            // Ignore bot messages to prevent loops
+            if event.get("bot_id").is_some() || subtype == Some("bot_message") {
+                return Json(serde_json::json!({"ok": true}));
+            }
+
+            let text = event["text"].as_str().unwrap_or("");
+            let channel = event["channel"].as_str().unwrap_or("");
+            let user = event["user"].as_str().unwrap_or("unknown");
+
+            if text.is_empty() || channel.is_empty() {
+                return Json(serde_json::json!({"ok": true}));
+            }
+
+            match event_subtype {
+                "message" | "app_mention" => {
+                    info!(user = user, channel = channel, event_type = event_subtype, text = &text[..text.len().min(50)], "Slack event");
+
+                    // Strip bot mention (e.g., "<@U123456> what is Rust?" -> "what is Rust?")
+                    let clean_text = if text.starts_with('<') {
+                        text.find('>').map(|i| text[i + 1..].trim()).unwrap_or(text)
+                    } else {
+                        text
+                    };
+
+                    if clean_text.is_empty() {
+                        return Json(serde_json::json!({"ok": true}));
+                    }
+
+                    // Run agent query
+                    let response = run_agent_query(&state, clean_text).await;
+
+                    // Post reply via Slack API
+                    let config_path = std::path::Path::new("channels-config.json");
+                    if let Ok(content) = std::fs::read_to_string(config_path) {
+                        if let Ok(config) = serde_json::from_str::<serde_json::Value>(&content) {
+                            let bot_token = config["slack"]["bot_token"].as_str().unwrap_or("");
+                            if !bot_token.is_empty() {
+                                let http = reqwest::Client::new();
+                                let _ = http
+                                    .post("https://slack.com/api/chat.postMessage")
+                                    .header("Authorization", format!("Bearer {}", bot_token))
+                                    .json(&serde_json::json!({
+                                        "channel": channel,
+                                        "text": response,
+                                    }))
+                                    .send()
+                                    .await;
+                                info!(channel = channel, response_len = response.len(), "Slack replied");
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    // Ignore other event types
+                }
+            }
+
+            Json(serde_json::json!({"ok": true}))
+        }
+        _ => {
+            warn!(event_type = event_type, "Slack: unknown event type");
+            Json(serde_json::json!({"ok": true}))
+        }
+    }
+}
+
+/// GET /api/cwd — get current working directory.
+async fn api_get_cwd() -> Json<serde_json::Value> {
+    let cwd = std::env::current_dir().unwrap_or_default().display().to_string();
+    Json(serde_json::json!({"cwd": cwd}))
+}
+
+/// POST /api/cwd — set current working directory.
+async fn api_set_cwd(
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let path = body["cwd"].as_str().unwrap_or("");
+    if path.is_empty() {
+        return Json(serde_json::json!({"error": "cwd is required"}));
+    }
+    let p = std::path::Path::new(path);
+    if !p.exists() || !p.is_dir() {
+        return Json(serde_json::json!({"error": format!("Directory not found: {}", path)}));
+    }
+    match std::env::set_current_dir(p) {
+        Ok(()) => {
+            info!(cwd = path, "Working directory changed");
+            Json(serde_json::json!({"cwd": path, "status": "ok"}))
+        }
+        Err(e) => Json(serde_json::json!({"error": e.to_string()})),
+    }
+}
+
 async fn api_onboarding(
     State(state): State<Arc<AppState>>,
 ) -> Json<serde_json::Value> {
     let mut steps = Vec::new();
 
     // 1. Ollama installed?
+    let ec = state.essaim_config.read().await;
     let ollama_ok = reqwest::Client::new()
-        .get(format!("{}/api/tags", state.essaim_config.ollama_url))
+        .get(format!("{}/api/tags", ec.ollama_url))
         .timeout(std::time::Duration::from_secs(3))
         .send().await
         .map(|r| r.status().is_success()).unwrap_or(false);
@@ -1591,8 +2990,9 @@ async fn api_onboarding(
     steps.push(serde_json::json!({
         "step": 2, "title": "Modele LLM",
         "done": ollama_ok,
-        "instruction": format!("Modele actuel: {}. Pour Gemma 4: ollama pull gemma4:e4b", state.essaim_config.model),
+        "instruction": format!("Modele actuel: {}. Pour Gemma 4: ollama pull gemma4:e4b", ec.model),
     }));
+    let _ = ec;
 
     // 3. Embedding model for RAG?
     steps.push(serde_json::json!({
@@ -1736,9 +3136,10 @@ async fn api_preload(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
+    let default_model = state.essaim_config.read().await.model.clone();
     let model = body["model"]
         .as_str()
-        .unwrap_or(&state.essaim_config.model)
+        .unwrap_or(&default_model)
         .to_string();
 
     info!(model = %model, "Preloading model into Ollama");
@@ -1802,16 +3203,16 @@ async fn api_webhook(
     let prompt = body["prompt"].as_str().ok_or(StatusCode::BAD_REQUEST)?;
     let model_override = body["model"].as_str().map(|s| s.to_string());
 
+    // Use current dynamic default model, not initial config
+    let current_model = get_llm_default(&state).await;
     let sessions_dir = std::path::Path::new("sessions");
     let session_id = uuid::Uuid::new_v4();
-    let mut session = Session::new_with_id(session_id, &state.essaim_config.model, sessions_dir);
+    let mut session = Session::new_with_id(session_id, &current_model, sessions_dir);
 
-    let mut config = state.essaim_config.clone();
-    if let Some(model) = model_override {
-        config.model = model;
-    }
+    let mut config = state.essaim_config.read().await.clone();
+    config.model = model_override.unwrap_or(current_model);
 
-    let (tx, _rx) = broadcast::channel::<ChatEvent>(64);
+    let (tx, mut rx) = broadcast::channel::<ChatEvent>(256);
 
     let result = boucle_react(
         prompt,
@@ -1822,15 +3223,45 @@ async fn api_webhook(
     )
     .await;
 
+    // Collect events for the response
+    drop(tx);
+    let mut tools_used: Vec<serde_json::Value> = Vec::new();
+    let mut plan_items: Vec<serde_json::Value> = Vec::new();
+    while let Ok(event) = rx.try_recv() {
+        match event {
+            ChatEvent::ToolCall { name, args, .. } => {
+                tools_used.push(serde_json::json!({"name": name, "args": args}));
+            }
+            ChatEvent::ToolResult { name, success, elapsed_ms, .. } => {
+                if let Some(last) = tools_used.last_mut() {
+                    if last["name"].as_str() == Some(&name) {
+                        last["success"] = serde_json::json!(success);
+                        last["elapsed_ms"] = serde_json::json!(elapsed_ms);
+                    }
+                }
+            }
+            ChatEvent::Plan { items } => {
+                plan_items = items.iter().map(|i| serde_json::json!({"task": i.task, "status": i.status})).collect();
+            }
+            _ => {}
+        }
+    }
+
     // Save session
     session.auto_title();
     let _ = session.sauvegarder();
+    // Sync to peers
+    let sync_state = state.clone();
+    let sync_session = session.clone();
+    tokio::spawn(async move { sync::push_session_to_peers(&sync_session, &sync_state).await; });
     state.essaim_sessions.write().await.insert(session_id, session);
 
     match result {
         Ok(response) => Ok(Json(serde_json::json!({
             "response": response,
             "session_id": session_id.to_string(),
+            "tools_used": tools_used,
+            "plan": plan_items,
         }))),
         Err(e) => Ok(Json(serde_json::json!({
             "error": e.to_string(),
@@ -1846,11 +3277,13 @@ async fn api_webhook(
 async fn ws_chat_handler(
     ws: WebSocketUpgrade,
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
 ) -> axum::response::Response {
-    ws.on_upgrade(move |socket| ws_chat_connection(socket, state))
+    let user_id = auth_user::extract_user_from_headers(&headers, &state.cookie_secret);
+    ws.on_upgrade(move |socket| ws_chat_connection(socket, state, user_id))
 }
 
-async fn ws_chat_connection(socket: ws::WebSocket, state: Arc<AppState>) {
+async fn ws_chat_connection(socket: ws::WebSocket, state: Arc<AppState>, auth_user_id: Option<Uuid>) {
     use futures_util::{SinkExt, StreamExt};
 
     let (mut sender, mut receiver) = socket.split();
@@ -1886,14 +3319,19 @@ async fn ws_chat_connection(socket: ws::WebSocket, state: Arc<AppState>) {
             .and_then(|s| Uuid::parse_str(s).ok());
 
         let sessions_dir = std::path::Path::new("sessions");
+        let current_model_ws = state.essaim_config.read().await.model.clone();
         let mut sessions = state.essaim_sessions.write().await;
         let session_id = session_id.unwrap_or_else(|| {
             let id = Uuid::new_v4();
-            sessions.insert(id, Session::new_with_id(id, &state.essaim_config.model, sessions_dir));
+            let mut s = Session::new_with_id(id, &current_model_ws, sessions_dir);
+            s.user_id = auth_user_id;
+            sessions.insert(id, s);
             id
         });
         if !sessions.contains_key(&session_id) {
-            sessions.insert(session_id, Session::new_with_id(session_id, &state.essaim_config.model, sessions_dir));
+            let mut s = Session::new_with_id(session_id, &current_model_ws, sessions_dir);
+            s.user_id = auth_user_id;
+            sessions.insert(session_id, s);
         }
         drop(sessions);
 
@@ -1923,18 +3361,20 @@ async fn ws_chat_connection(socket: ws::WebSocket, state: Arc<AppState>) {
 
         // Extract session, run ReAct, then put it back
         let state_clone = state.clone();
+        let ws_user_id = auth_user_id;
         let user_text_clone = user_text.clone();
         let tx_clone = tx.clone();
         let react_handle = tokio::spawn(async move {
             let sessions_dir = std::path::Path::new("sessions");
+            let ec_snapshot = state_clone.essaim_config.read().await.clone();
             let mut session = {
                 let mut sessions = state_clone.essaim_sessions.write().await;
                 sessions.remove(&session_id).unwrap_or_else(|| {
-                    Session::new_with_id(session_id, &state_clone.essaim_config.model, sessions_dir)
+                    Session::new_with_id(session_id, &ec_snapshot.model, sessions_dir)
                 })
             };
 
-            let mut config = state_clone.essaim_config.clone();
+            let mut config = ec_snapshot;
             if let Some(ref model) = model_override {
                 config.model = model.clone();
             }
@@ -1962,9 +3402,10 @@ async fn ws_chat_connection(socket: ws::WebSocket, state: Arc<AppState>) {
                     message: format!("Agent chat: {}", preview_text(&user_text_clone, 60)),
                     full_prompt: Some(user_text_clone.clone()),
                     full_response: result.as_ref().ok().map(|r| preview_text(r, 200)),
-                    model_used: Some(state_clone.essaim_config.model.clone()),
+                    model_used: Some(config.model.clone()),
                     tokens_generated: None,
                     latency_ms: None,
+                    user_id: ws_user_id,
                 });
             }
 
@@ -1979,6 +3420,10 @@ async fn ws_chat_connection(socket: ws::WebSocket, state: Arc<AppState>) {
             if let Err(e) = session.sauvegarder() {
                 tracing::warn!(error = %e, "Failed to save session");
             }
+            // Sync to peers
+            let sync_s = session.clone();
+            let sync_st = state_clone.clone();
+            tokio::spawn(async move { sync::push_session_to_peers(&sync_s, &sync_st).await; });
 
             // Put session back
             let mut sessions = state_clone.essaim_sessions.write().await;
@@ -2126,14 +3571,15 @@ async fn ws_audio_connection(socket: ws::WebSocket, state: Arc<AppState>) {
 
                 // Step 2: Run through ReAct agent
                 let sessions_dir = std::path::Path::new("sessions");
-                let mut session = Session::new_with_path(&state.essaim_config.model, sessions_dir);
+                let audio_config = state.essaim_config.read().await.clone();
+                let mut session = Session::new_with_path(&audio_config.model, sessions_dir);
                 let (tx, _rx) = broadcast::channel::<ChatEvent>(64);
 
                 let agent_result = boucle_react(
                     &transcript,
                     &mut session,
                     &state.essaim_registry,
-                    &state.essaim_config,
+                    &audio_config,
                     &tx,
                 ).await;
 
@@ -2200,12 +3646,30 @@ async fn ws_audio_connection(socket: ws::WebSocket, state: Arc<AppState>) {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "laruche_node=info,miel_protocol=info".into()),
-        )
-        .init();
+    let use_tui = !std::env::args().any(|a| a == "--no-tui");
+
+    let tui_log_rx = if use_tui {
+        // Layered subscriber: TUI captures logs + optional stderr fallback
+        use tracing_subscriber::layer::SubscriberExt;
+        use tracing_subscriber::util::SubscriberInitExt;
+        let (tui_buf, rx) = tui::TuiLogBuffer::new();
+        let tui_layer = tui::TuiTracingLayer::new(tui_buf.sender());
+        let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| "laruche_node=info,miel_protocol=info,laruche_essaim=info".into());
+        tracing_subscriber::registry()
+            .with(env_filter)
+            .with(tui_layer)
+            .init();
+        Some(rx)
+    } else {
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                tracing_subscriber::EnvFilter::try_from_default_env()
+                    .unwrap_or_else(|_| "laruche_node=info,miel_protocol=info".into()),
+            )
+            .init();
+        None
+    };
 
     let config = load_config()?;
 
@@ -2299,12 +3763,52 @@ async fn main() -> Result<()> {
         initial_log.push_front(entry);
     }
 
+    // Load provider profiles (multi-provider support)
+    let profiles_path = PathBuf::from("provider-profiles.json");
+    let mut profiles_cfg = profiles::load_profiles(&profiles_path);
+
+    // Migrate old single-provider config into profiles if no profiles exist beyond default
+    if profiles_cfg.profiles.len() <= 1 && !config.provider.is_empty() && config.provider != "ollama" {
+        let migrated_id = format!("{}-migrated", config.provider);
+        profiles_cfg.profiles.insert(
+            migrated_id.clone(),
+            profiles::ProviderProfile {
+                provider: config.provider.clone(),
+                name: config.provider.clone(),
+                base_url: config.api_base.clone().unwrap_or_else(|| match config.provider.as_str() {
+                    "openai" => "https://api.openai.com".to_string(),
+                    "anthropic" => "https://api.anthropic.com".to_string(),
+                    _ => String::new(),
+                }),
+                api_key: config.api_key.clone(),
+                models: vec![config.default_model.clone()],
+            },
+        );
+        profiles_cfg.active_model = profiles::ActiveModel {
+            profile_id: migrated_id,
+            model: config.default_model.clone(),
+        };
+        let _ = profiles::save_profiles(&profiles_path, &profiles_cfg);
+        info!("Migrated legacy provider config into profiles");
+    }
+
+    // Auto-discover Ollama models for ollama profiles at startup
+    profiles::refresh_ollama_profiles(&mut profiles_cfg).await;
+    let _ = profiles::save_profiles(&profiles_path, &profiles_cfg);
+
+    // Derive EssaimConfig from active profile
+    let (prof_provider, prof_model, prof_api_key, prof_api_base, prof_ollama_url) =
+        profiles::active_to_essaim_fields(&profiles_cfg);
+
     // Initialize Essaim (agent engine)
     let mut essaim_registry = AbeilleRegistry::new();
     enregistrer_abeilles_builtin(&mut essaim_registry);
     let essaim_config = EssaimConfig {
-        ollama_url: config.ollama_url.clone(),
-        model: config.default_model.clone(),
+        ollama_url: prof_ollama_url,
+        model: prof_model,
+        provider: prof_provider,
+        api_key: prof_api_key,
+        api_base: prof_api_base,
         ..EssaimConfig::default()
     };
 
@@ -2343,7 +3847,7 @@ async fn main() -> Result<()> {
                 if entry.path().extension().map_or(false, |e| e == "json") {
                     match Session::charger(&entry.path()) {
                         Ok(session) => {
-                            info!(session_id = %session.id, title = ?session.title, "Loaded session");
+                            tracing::debug!(session_id = %session.id, title = ?session.title, "Loaded session");
                             loaded_sessions.insert(session.id, session);
                         }
                         Err(e) => {
@@ -2355,6 +3859,26 @@ async fn main() -> Result<()> {
         }
     }
     info!(count = loaded_sessions.len(), "Sessions loaded from disk");
+
+    // Load users from disk
+    let users_dir = std::path::Path::new("users");
+    let loaded_users = auth_user::load_all_users(users_dir);
+    if !loaded_users.is_empty() {
+        info!(count = loaded_users.len(), "Users loaded from disk");
+    }
+
+    // Load or generate cookie secret (persisted in laruche-state.json)
+    let cookie_secret = if let Some(ref hex) = persistent.cookie_secret {
+        auth_user::cookie_secret_from_base64(hex).unwrap_or_else(|| {
+            let s = auth_user::generate_cookie_secret();
+            info!("Generated new cookie secret (stored was invalid)");
+            s
+        })
+    } else {
+        let s = auth_user::generate_cookie_secret();
+        info!("Generated new cookie secret");
+        s
+    };
 
     let state = Arc::new(AppState {
         manifest: RwLock::new(manifest),
@@ -2370,13 +3894,21 @@ async fn main() -> Result<()> {
         node_events: RwLock::new(VecDeque::with_capacity(NODE_EVENTS_LIMIT)),
         known_node_ids: RwLock::new(HashSet::new()),
         essaim_registry: Arc::new(essaim_registry),
-        essaim_config,
+        essaim_config: RwLock::new(essaim_config),
         essaim_sessions: RwLock::new(loaded_sessions),
         essaim_cron: RwLock::new(CronScheduler::new(std::path::Path::new("cron-tasks.json"))),
+        essaim_kb: kb.clone(),
+        channel_handles: RwLock::new(HashMap::new()),
+        profiles: RwLock::new(profiles_cfg),
+        profiles_path,
+        users: RwLock::new(loaded_users),
+        auth_challenges: RwLock::new(HashMap::new()),
+        cookie_secret,
     });
 
     let app = Router::new()
-        .route("/", get(get_status))
+        .route("/", get(spa_page))
+        .route("/api/status", get(get_status))
         .route("/health", get(health))
         .route("/nodes", get(get_nodes))
         .route("/swarm", get(get_swarm))
@@ -2388,25 +3920,59 @@ async fn main() -> Result<()> {
         .route("/auth/approve", post(post_auth_approve))
         .route("/config/default_model", get(get_default_model).post(post_set_default_model))
         .route("/metrics/history", get(get_metrics_history))
-        .route("/dashboard", get(dashboard))
-        .route("/chat", get(chatbot_page))
+        .route("/dashboard", get(spa_page))
+        .route("/chat", get(spa_page))
+        .route("/control", get(spa_page))
+        .route("/app", get(spa_page))
         .route("/ws/chat", get(ws_chat_handler))
         .route("/ws/audio", get(ws_audio_handler))
         .route("/api/tools", get(api_list_tools))
         .route("/api/sessions", get(api_list_sessions))
         .route("/api/sessions/search", get(api_search_sessions))
-        .route("/api/sessions/{id}/messages", get(api_get_session_messages))
+        .route("/api/sessions/:id/messages", get(api_get_session_messages))
         .route("/api/voice/status", get(api_voice_status))
         .route("/api/webhook", post(api_webhook))
         .route("/api/preload", post(api_preload))
         .route("/api/rpc", post(api_rpc))
         .route("/api/files/suggest", get(api_files_suggest))
         .route("/api/onboarding", get(api_onboarding))
+        .route("/api/cwd", get(api_get_cwd).post(api_set_cwd))
+        .route("/api/config/channels", get(api_get_channels_config).post(api_save_channels_config))
+        .route("/api/config/provider", get(api_get_provider_config).post(api_save_provider_config))
+        .route("/api/profiles", get(api_get_profiles).post(api_upsert_profile))
+        .route("/api/profiles/models", get(api_get_unified_models))
+        .route("/api/profiles/active", post(api_set_active_model))
+        .route("/api/profiles/:id", axum::routing::delete(api_delete_profile))
+        .route("/api/channels/start", post(api_start_channel))
+        .route("/api/channels/stop", post(api_stop_channel))
+        .route("/api/channels/status", get(api_channels_status))
+        .route("/api/knowledge", get(api_list_knowledge).post(api_add_knowledge))
+        .route("/api/knowledge/:id", axum::routing::delete(api_delete_knowledge).put(api_update_knowledge))
         .route("/api/doctor", get(api_doctor))
-        .route("/api/sessions/{id}/export", get(api_export_session))
-        .route("/api/sessions/{id}", axum::routing::delete(api_delete_session))
+        .route("/api/sessions/:id/export", get(api_export_session))
+        .route("/api/sessions/:id/fork", post(api_fork_session))
+        .route("/api/sessions/:id", axum::routing::delete(api_delete_session))
         .route("/api/cron", get(api_list_cron).post(api_create_cron))
-        .route("/api/cron/{id}", axum::routing::delete(api_delete_cron))
+        .route("/api/cron/:id", axum::routing::delete(api_delete_cron))
+        .route("/api/mcp", post(mcp::api_mcp_handler))
+        .route("/api/channels/discord/webhook", post(api_discord_webhook))
+        .route("/api/channels/slack/events", post(api_slack_events))
+        // Auth routes
+        .route("/api/auth/enroll", post(api_auth_enroll))
+        .route("/api/auth/me", get(api_auth_me))
+        .route("/api/auth/challenge", get(api_auth_challenge))
+        .route("/api/auth/status/:id", get(api_auth_status))
+        .route("/api/auth/logout", post(api_auth_logout))
+        .route("/api/auth/login", post(api_auth_login))
+        .route("/api/auth/password", post(api_auth_set_password))
+        .route("/api/auth/model", post(api_auth_set_model))
+        .route("/auth/scan/:id", get(auth_scan_challenge))
+        .route("/auth/link/:user_id/:secret", get(auth_permanent_link))
+        .route("/login", get(spa_page))
+        // Internal sync routes (peer-to-peer)
+        .route("/api/internal/sync/session", post(sync::handle_session_sync))
+        .route("/api/internal/sync/user", post(sync::handle_user_sync))
+        .route("/api/internal/sync/bulk", get(sync::handle_bulk_sync))
         .layer(
             tower_http::cors::CorsLayer::new()
                 .allow_origin(tower_http::cors::AllowOrigin::any())
@@ -2450,6 +4016,23 @@ async fn main() -> Result<()> {
                 manifest.resources.cpu_usage_pct = sys.global_cpu_usage();
                 manifest.performance.queue_depth = queue_depth;
 
+                // GPU/VRAM metrics via nvidia-smi (every 10 ticks = 20 seconds)
+                if tick_count % 10 == 0 {
+                    if let Ok(output) = std::process::Command::new("nvidia-smi")
+                        .args(["--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu", "--format=csv,noheader,nounits"])
+                        .output()
+                    {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        let parts: Vec<&str> = stdout.trim().split(',').map(|s| s.trim()).collect();
+                        if parts.len() >= 4 {
+                            manifest.resources.accelerator_usage_pct = parts[0].parse::<f32>().ok();
+                            manifest.resources.vram_used_mb = parts[1].parse::<u64>().ok();
+                            manifest.resources.vram_total_mb = parts[2].parse::<u64>().ok();
+                            manifest.resources.temperature_c = parts[3].parse::<f32>().ok();
+                        }
+                    }
+                }
+
                 // Re-announce via mDNS so listeners refresh last_seen
                 if let Err(e) = bg_broadcaster.update(&manifest) {
                     tracing::warn!("mDNS re-announce failed: {}", e);
@@ -2470,6 +4053,12 @@ async fn main() -> Result<()> {
                 let nodes = listener.get_nodes().await;
                 let node_count = nodes.len() + 1; // +1 for self
 
+                let gpu_pct = manifest.resources.accelerator_usage_pct;
+                let vram_pct = match (manifest.resources.vram_used_mb, manifest.resources.vram_total_mb) {
+                    (Some(used), Some(total)) if total > 0 => Some((used as f32 / total as f32) * 100.0),
+                    _ => None,
+                };
+
                 let snapshot = MetricsSnapshot {
                     epoch_ms: chrono::Utc::now().timestamp_millis() as u64,
                     cpu_pct: sys.global_cpu_usage(),
@@ -2477,6 +4066,8 @@ async fn main() -> Result<()> {
                     tokens_per_sec: manifest.performance.tokens_per_sec,
                     queue_depth,
                     node_count,
+                    gpu_pct,
+                    vram_pct,
                 };
 
                 let mut history = update_state.metrics_history.write().await;
@@ -2501,6 +4092,13 @@ async fn main() -> Result<()> {
                             event_type: "connected".into(),
                             node_name: name,
                         });
+                        // Bulk sync from new peer
+                        let peer_host = node.manifest.host.clone();
+                        let peer_port = node.manifest.port.unwrap_or(miel_protocol::DEFAULT_API_PORT);
+                        let sync_state = update_state.clone();
+                        tokio::spawn(async move {
+                            sync::fetch_bulk_from_peer(&peer_host, peer_port, &sync_state).await;
+                        });
                     }
                 }
                 // Removed nodes (disconnected)
@@ -2518,6 +4116,21 @@ async fn main() -> Result<()> {
         }
     });
 
+    // Background: Auth challenge cleanup (every 30 seconds)
+    let challenge_state = state.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+            let mut challenges = challenge_state.auth_challenges.write().await;
+            let before = challenges.len();
+            challenges.retain(|_, c| !c.is_expired());
+            let removed = before - challenges.len();
+            if removed > 0 {
+                tracing::debug!(removed, "Expired auth challenges cleaned up");
+            }
+        }
+    });
+
     // Background: Ollama heartbeat (every 60 seconds)
     let heartbeat_state = state.clone();
     tokio::spawn(async move {
@@ -2529,7 +4142,7 @@ async fn main() -> Result<()> {
         let mut was_down = false;
         loop {
             interval.tick().await;
-            let url = format!("{}/api/tags", heartbeat_state.essaim_config.ollama_url);
+            let url = format!("{}/api/tags", heartbeat_state.essaim_config.read().await.ollama_url);
             match client.get(&url).send().await {
                 Ok(resp) if resp.status().is_success() => {
                     if was_down {
@@ -2543,6 +4156,7 @@ async fn main() -> Result<()> {
                             message: "Ollama recovered".into(),
                             full_prompt: None, full_response: None,
                             model_used: None, tokens_generated: None, latency_ms: None,
+                            user_id: None,
                         });
                         was_down = false;
                     }
@@ -2559,6 +4173,7 @@ async fn main() -> Result<()> {
                             message: "Ollama is not responding".into(),
                             full_prompt: None, full_response: None,
                             model_used: None, tokens_generated: None, latency_ms: None,
+                            user_id: None,
                         });
                         was_down = true;
                     }
@@ -2579,14 +4194,17 @@ async fn main() -> Result<()> {
             };
             for (task_id, prompt) in due_tasks {
                 info!(task_id = %task_id, "Executing scheduled task");
+                let current_model = get_llm_default(&cron_state).await;
                 let sessions_dir = std::path::Path::new("sessions");
-                let mut session = Session::new_with_path(&cron_state.essaim_config.model, sessions_dir);
+                let mut session = Session::new_with_path(&current_model, sessions_dir);
                 let (tx, _rx) = broadcast::channel::<ChatEvent>(64);
+                let mut cron_config = cron_state.essaim_config.read().await.clone();
+                cron_config.model = current_model;
                 let result = boucle_react(
                     &prompt,
                     &mut session,
                     &cron_state.essaim_registry,
-                    &cron_state.essaim_config,
+                    &cron_config,
                     &tx,
                 ).await;
                 match &result {
@@ -2608,9 +4226,10 @@ async fn main() -> Result<()> {
                     message: format!("Cron task: {}", preview_text(&prompt, 60)),
                     full_prompt: Some(prompt),
                     full_response: result.ok().map(|r| preview_text(&r, 200)),
-                    model_used: Some(cron_state.essaim_config.model.clone()),
+                    model_used: Some(cron_config.model.clone()),
                     tokens_generated: None,
                     latency_ms: None,
+                    user_id: None,
                 });
             }
         }
@@ -2627,22 +4246,109 @@ async fn main() -> Result<()> {
     });
 
     let addr = format!("0.0.0.0:{}", config.api_port);
-    info!(addr = %addr, "LaRuche API server starting");
-    info!(
-        dashboard = format!("http://localhost:{}/dashboard", config.api_port),
-        "Embedded Dashboard available at"
-    );
-    info!(
-        chatbot = format!("http://localhost:{}/chat", config.api_port),
-        "Essaim Chatbot available at"
-    );
+    info!("LaRuche ready → http://localhost:{}", config.api_port);
 
-    let listener_tcp = tokio::net::TcpListener::bind(&addr).await?;
-    axum::serve(
-        listener_tcp,
-        app.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .await?;
+    // Sync essaim config from active profile at startup
+    sync_essaim_from_profiles(&state).await;
+
+    // Auto-start channels if configured
+    {
+        let config_path = std::path::Path::new("channels-config.json");
+        if config_path.exists() {
+            if let Ok(content) = std::fs::read_to_string(config_path) {
+                if let Ok(channels_config) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if let Some(tg_token) = channels_config["telegram"]["bot_token"].as_str() {
+                        if !tg_token.is_empty() && channels_config["telegram"]["enabled"].as_bool().unwrap_or(false) {
+                            let allowed = channels_config["telegram"]["allowed_chats"].as_str().unwrap_or("").to_string();
+                            let token = tg_token.to_string();
+                            let state_for_tg = state.clone();
+                            let handle = tokio::spawn(async move {
+                                run_telegram_bot(&token, &allowed, &state_for_tg).await;
+                            });
+                            state.channel_handles.write().await.insert("telegram".into(), handle);
+                            info!("Telegram bot auto-started from config");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // TLS support: if LARUCHE_TLS_CERT and LARUCHE_TLS_KEY are set, use HTTPS
+    let tls_cert = std::env::var("LARUCHE_TLS_CERT").ok();
+    let tls_key = std::env::var("LARUCHE_TLS_KEY").ok();
+
+    if use_tui {
+        // Spawn server in background, run TUI in foreground
+        let tui_state = state.clone();
+        tokio::spawn(async move {
+            if let (Some(cert_path), Some(key_path)) = (tls_cert, tls_key) {
+                info!(cert = %cert_path, key = %key_path, "TLS enabled — starting HTTPS server");
+                let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert_path, &key_path)
+                    .await
+                    .expect("Failed to load TLS certificate/key");
+                let _ = axum_server::bind_rustls(addr.parse().expect("Invalid bind address"), tls_config)
+                    .serve(app.into_make_service_with_connect_info::<SocketAddr>())
+                    .await;
+            } else {
+                let listener_tcp = tokio::net::TcpListener::bind(&addr).await.expect("Failed to bind");
+                let _ = axum::serve(
+                    listener_tcp,
+                    app.into_make_service_with_connect_info::<SocketAddr>(),
+                )
+                .await;
+            }
+        });
+
+        // Run TUI (blocks until user presses 'q')
+        if let Some(rx) = tui_log_rx {
+            tui::run_tui(tui_state.clone(), rx).await?;
+        }
+
+        // TUI exited — save state and shutdown
+        save_persistent_state(&tui_state).await;
+    } else {
+        // --no-tui mode: spawn server + system tray (Windows)
+        let (tray_shutdown_tx, tray_shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+
+        // Spawn systray on a dedicated OS thread (requires win32 message pump)
+        let tray_port = config.api_port;
+        std::thread::spawn(move || {
+            systray::run_systray(tray_port, tray_shutdown_tx);
+        });
+
+        // Spawn HTTP server
+        tokio::spawn(async move {
+            if let (Some(cert_path), Some(key_path)) = (tls_cert, tls_key) {
+                info!(cert = %cert_path, key = %key_path, "TLS enabled — starting HTTPS server");
+                let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert_path, &key_path)
+                    .await
+                    .expect("Failed to load TLS certificate/key");
+                let _ = axum_server::bind_rustls(addr.parse().expect("Invalid bind address"), tls_config)
+                    .serve(app.into_make_service_with_connect_info::<SocketAddr>())
+                    .await;
+            } else {
+                let listener_tcp = tokio::net::TcpListener::bind(&addr).await.expect("Failed to bind");
+                let _ = axum::serve(
+                    listener_tcp,
+                    app.into_make_service_with_connect_info::<SocketAddr>(),
+                )
+                .await;
+            }
+        });
+
+        // Wait for either Ctrl+C or tray "Quit"
+        let save_state = state.clone();
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {
+                info!("Ctrl+C received — shutting down...");
+            }
+            _ = tray_shutdown_rx => {
+                info!("Quit from system tray — shutting down...");
+            }
+        }
+        save_persistent_state(&save_state).await;
+    }
 
     Ok(())
 }
@@ -2733,6 +4439,7 @@ async fn save_persistent_state(state: &Arc<AppState>) {
         default_models: Some(dm.clone()),
         activity_log: logs.iter().cloned().collect(),
         saved_at: chrono::Utc::now().to_rfc3339(),
+        cookie_secret: Some(auth_user::cookie_secret_to_base64(&state.cookie_secret)),
     };
     drop(logs);
     drop(dm);
@@ -2784,6 +4491,15 @@ fn load_config() -> Result<NodeConfig> {
         if let Some(v) = file_cfg.capabilities {
             config.capabilities = v;
         }
+        if let Some(v) = file_cfg.provider {
+            config.provider = v;
+        }
+        if let Some(v) = file_cfg.api_key {
+            config.api_key = v;
+        }
+        if let Some(v) = file_cfg.api_base {
+            config.api_base = Some(v);
+        }
 
         info!(path = %config_path, "Loaded config file");
     }
@@ -2818,6 +4534,19 @@ fn load_config() -> Result<NodeConfig> {
             info!(env = "LARUCHE_DASH_PORT", value = %v, "Env override: dashboard_port");
             config.dashboard_port = port;
         }
+    }
+
+    if let Ok(v) = std::env::var("LARUCHE_PROVIDER") {
+        info!(env = "LARUCHE_PROVIDER", value = %v, "Env override: provider");
+        config.provider = v;
+    }
+    if let Ok(v) = std::env::var("LARUCHE_API_KEY") {
+        info!(env = "LARUCHE_API_KEY", "Env override: api_key (redacted)");
+        config.api_key = v;
+    }
+    if let Ok(v) = std::env::var("LARUCHE_API_BASE") {
+        info!(env = "LARUCHE_API_BASE", value = %v, "Env override: api_base");
+        config.api_base = Some(v);
     }
 
     if let Some(caps) = parse_env_capabilities(&config.default_model) {

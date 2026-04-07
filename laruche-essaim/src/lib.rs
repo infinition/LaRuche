@@ -17,6 +17,7 @@ pub mod abeilles;
 pub mod brain;
 pub mod cron;
 pub mod prompt;
+pub mod providers;
 pub mod rag;
 pub mod session;
 pub mod streaming;

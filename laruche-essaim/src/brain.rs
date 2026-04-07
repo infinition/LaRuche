@@ -10,7 +10,7 @@
 use crate::abeille::{AbeilleRegistry, ContextExecution, NiveauDanger};
 use crate::prompt::build_system_prompt;
 use crate::session::Session;
-use crate::streaming::ollama_chat_stream;
+use crate::providers::provider_chat_stream;
 use anyhow::Result;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -48,6 +48,25 @@ pub struct EssaimConfig {
     pub context_max_messages: usize,
     /// Context compaction threshold ratio (default: 0.75)
     pub compaction_threshold: f32,
+    /// Cost per 1k input tokens in USD (default: 0.0)
+    #[serde(default)]
+    pub cost_per_1k_input: f32,
+    /// Cost per 1k output tokens in USD (default: 0.0)
+    #[serde(default)]
+    pub cost_per_1k_output: f32,
+    /// LLM provider: "ollama" (default), "openai", "anthropic"
+    #[serde(default = "default_provider")]
+    pub provider: String,
+    /// API key for cloud providers (empty for Ollama)
+    #[serde(default)]
+    pub api_key: String,
+    /// API base URL override (e.g., for OpenAI-compatible servers)
+    #[serde(default)]
+    pub api_base: Option<String>,
+}
+
+fn default_provider() -> String {
+    "ollama".to_string()
 }
 
 impl Default for EssaimConfig {
@@ -62,6 +81,11 @@ impl Default for EssaimConfig {
             custom_instructions: None,
             context_max_messages: 30,
             compaction_threshold: 0.75,
+            cost_per_1k_input: 0.0,
+            cost_per_1k_output: 0.0,
+            provider: "ollama".to_string(),
+            api_key: String::new(),
+            api_base: None,
         }
     }
 }
@@ -125,6 +149,14 @@ pub enum ChatEvent {
         from_model: String,
         to_model: String,
         reason: String,
+    },
+
+    /// Token usage and cost estimate
+    #[serde(rename = "usage")]
+    Usage {
+        input_tokens: u32,
+        output_tokens: u32,
+        cost_usd: f32,
     },
 }
 
@@ -269,16 +301,19 @@ pub async fn boucle_react_multimodal(
             });
         }
 
-        // Build messages for Ollama
+        // Build messages for LLM
         let messages = session.build_ollama_messages(&system_prompt);
 
         // Stream LLM response — with failover on error
-        let stream_result = ollama_chat_stream(
-            &config.ollama_url,
+        let stream_result = provider_chat_stream(
+            &config.provider,
             &current_model,
             &messages,
             config.temperature,
             config.max_tokens,
+            &config.api_key,
+            config.api_base.as_deref(),
+            &config.ollama_url,
         )
         .await;
 
@@ -304,12 +339,15 @@ pub async fn boucle_react_multimodal(
                         failover_attempted = true;
 
                         // Retry with fallback
-                        match ollama_chat_stream(
-                            &config.ollama_url,
+                        match provider_chat_stream(
+                            &config.provider,
                             &current_model,
                             &messages,
                             config.temperature,
                             config.max_tokens,
+                            &config.api_key,
+                            config.api_base.as_deref(),
+                            &config.ollama_url,
                         )
                         .await
                         {
@@ -369,6 +407,18 @@ pub async fn boucle_react_multimodal(
         if tool_calls.is_empty() {
             // STOP REASON: end_turn — model finished naturally
             session.ajouter_assistant(&response_text);
+
+            // Emit Usage event with estimated tokens and cost
+            let input_tokens = session.estimated_tokens() as u32;
+            let output_tokens = (response_text.len() / 4) as u32;
+            let cost_usd = (input_tokens as f32 / 1000.0) * config.cost_per_1k_input
+                + (output_tokens as f32 / 1000.0) * config.cost_per_1k_output;
+            let _ = tx.send(ChatEvent::Usage {
+                input_tokens,
+                output_tokens,
+                cost_usd,
+            });
+
             let _ = tx.send(ChatEvent::Done {
                 full_response: response_text.clone(),
             });

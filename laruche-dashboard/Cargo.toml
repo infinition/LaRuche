@@ -2,20 +2,9 @@
 name = "laruche-dashboard"
 version.workspace = true
 edition.workspace = true
-description = "LaRuche Dashboard - Web UI for monitoring and managing LaRuche nodes"
+description = "LaRuche Dashboard - HTML templates for the web UI (embedded in laruche-node)"
 
-[[bin]]
-name = "laruche-dashboard"
-path = "src/main.rs"
+# No [[bin]] — this crate only hosts HTML templates included by laruche-node via include_str!
+# The standalone dashboard binary has been removed; the SPA is served directly by laruche-node.
 
 [dependencies]
-miel-protocol.workspace = true
-laruche-client = { path = "../laruche-client" }
-tokio.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-axum.workspace = true
-tower-http.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
-anyhow.workspace = true

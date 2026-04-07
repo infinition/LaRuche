@@ -389,7 +389,7 @@ textarea#input {
             <strong>Chat</strong> — posez-moi une question.<br>
             <strong>Agent</strong> — donnez-moi des instructions sur le fichier actif.<br>
             <strong>📎</strong> — fichier actif · <strong>📁</strong> — importer un fichier.
-            <div class="meta"><span>LaRuche v0.2.0</span><span>LAND Protocol</span></div>
+            <div class="meta"><span>LaRuche v0.2.0</span><span>Miel Protocol</span></div>
         </div>
     </div>
 </div>
