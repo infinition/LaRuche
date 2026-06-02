@@ -4,6 +4,8 @@
 
 # LaRuche + L'Essaim
 
+[![License](https://img.shields.io/badge/License-MPL%202.0-brightgreen.svg)](LICENSE) ![Rust](https://img.shields.io/badge/Rust-000000?style=flat&logo=rust&logoColor=white) ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat&logo=docker&logoColor=white) [![Ci](https://github.com/infinition/LaRuche/actions/workflows/ci.yml/badge.svg)](https://github.com/infinition/LaRuche/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/infinition/LaRuche?style=flat)](https://github.com/infinition/LaRuche/releases) [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/infinition)
+
 <div align="center">
   <img width="287" height="317" alt="icon-removebg-preview" src="https://github.com/user-attachments/assets/a6a37836-7e97-4203-b041-1edb7ec36263" />
 </div>
@@ -429,6 +431,18 @@ LaRuche/
   laruche-channels/      # Legacy Python channel bots (Telegram now native Rust)
   plugins/               # Custom tool plugins (JSON)
 ```
+
+## Star History
+
+<a href="https://www.star-history.com/?repos=infinition%2FLaRuche&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=infinition/LaRuche&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=infinition/LaRuche&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=infinition/LaRuche&type=date&legend=top-left" />
+ </picture>
+</a>
+
+---
 
 ## License
 
