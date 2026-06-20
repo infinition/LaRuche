@@ -121,7 +121,7 @@ mod tests {
         let task = kanban_board
             .write()
             .await
-            .create("Traiter".into(), "Description".into(), None);
+            .create("Traiter".into(), "Description".into(), None, None, None);
         let tool = KanbanNext { kanban_board };
 
         let response = tool
@@ -137,8 +137,8 @@ mod tests {
         let kanban_board = board();
         let (parent, child) = {
             let mut board = kanban_board.write().await;
-            let parent = board.create("Parent".into(), "".into(), None);
-            let child = board.create("Child".into(), "".into(), None);
+            let parent = board.create("Parent".into(), "".into(), None, None, None);
+            let child = board.create("Child".into(), "".into(), None, None, None);
             assert!(board.add_dependency(child.id, parent.id));
             (parent, child)
         };
