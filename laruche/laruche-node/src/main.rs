@@ -7716,8 +7716,20 @@ async fn main() -> Result<()> {
                 let sessions_dir = std::path::Path::new("sessions");
                 let mut session = Session::new_with_path(&current_model, sessions_dir);
                 let (tx, _rx) = broadcast::channel::<ChatEvent>(64);
+                let (w_profile, w_model) = {
+                    let reg = watcher_state.watchers.read().await;
+                    reg.list()
+                        .into_iter()
+                        .find(|w| w.id == watcher_id)
+                        .map(|w| (w.profile_id.clone(), w.model.clone()))
+                        .unwrap_or((None, None))
+                };
                 let mut config = watcher_state.essaim_config.read().await.clone();
-                config.model = current_model;
+                if let Some(pid) = w_profile {
+                    appliquer_profil(&watcher_state, &mut config, &pid, w_model.as_deref()).await;
+                } else {
+                    config.model = current_model;
+                }
 
                 let full_prompt = format!("[CONTEXT: {}]\n\n{}", context, prompt);
                 let result = boucle_react_memoire(
@@ -7790,7 +7802,12 @@ async fn main() -> Result<()> {
                 let mut session = Session::new_with_path(&current_model, sessions_dir);
                 let (tx, _rx) = broadcast::channel::<ChatEvent>(64);
                 let mut config = kanban_state.essaim_config.read().await.clone();
-                config.model = current_model;
+                if let Some(pid) = &kanban_task.profile_id {
+                    appliquer_profil(&kanban_state, &mut config, pid, kanban_task.model.as_deref())
+                        .await;
+                } else {
+                    config.model = current_model;
+                }
 
                 let prompt = format!(
                     "[KANBAN TASK: {}]\n{}",
