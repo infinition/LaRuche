@@ -1,0 +1,21 @@
+{
+  "b18f9fd6-af19-46c8-8495-fcbfec974dbc": {
+    "id": "b18f9fd6-af19-46c8-8495-fcbfec974dbc",
+    "title": "REcherche brokenswork",
+    "description": "Fait une recherche web sur l'actualité du jeu Les chevalier de baphomet (broken sword) et livrer un .md détaillé sur le bureau et notifier sur telegram.",
+    "status": "Todo",
+    "blocks": [],
+    "blocked_by": [],
+    "created_at": "2026-06-20T14:16:22.358092400Z"
+  },
+  "96180ea2-028f-412f-beb6-b123fe20d6ba": {
+    "id": "96180ea2-028f-412f-beb6-b123fe20d6ba",
+    "title": "test ok",
+    "description": "",
+    "status": "Done",
+    "blocks": [],
+    "blocked_by": [],
+    "created_at": "2026-06-20T00:49:50.332812900Z",
+    "result": "C'est noté. Le test est validé. Si vous avez d'autres tâches ou si vous avez besoin d'aide pour autre chose, n'hésitez pas à me le faire savoir !"
+  }
+}

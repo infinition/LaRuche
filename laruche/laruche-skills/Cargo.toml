@@ -1,0 +1,15 @@
+[package]
+name = "laruche-skills"
+version.workspace = true
+edition.workspace = true
+description = "Skills OKF de LaRuche - parser Markdown/YAML et stockage via MemoireCognitive"
+license.workspace = true
+
+[dependencies]
+laruche-memoire.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true

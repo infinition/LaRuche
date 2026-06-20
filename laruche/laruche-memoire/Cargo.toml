@@ -1,0 +1,17 @@
+[package]
+name = "laruche-memoire"
+version.workspace = true
+edition.workspace = true
+description = "Mémoire cognitive de LaRuche — trait MemoireCognitive + backends (sidecar paradigm, natif Rust)"
+license.workspace = true
+
+[dependencies]
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+reqwest.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+async-trait = "0.1"
+rusqlite = { version = "0.32", features = ["bundled"] }
+chrono.workspace = true

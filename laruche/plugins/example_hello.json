@@ -1,0 +1,19 @@
+{
+  "name": "example_hello",
+  "description": "Example plugin: says hello (delete this file to remove)",
+  "parameters": {
+    "properties": {
+      "name": {
+        "description": "Name to greet",
+        "type": "string"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "type": "object"
+  },
+  "command": "echo Hello, {{name}}!",
+  "danger": "safe",
+  "timeout_secs": 5
+}

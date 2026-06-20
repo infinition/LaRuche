@@ -1,0 +1,17 @@
+[package]
+name = "laruche-kanban"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+tempfile = "3.27.0"

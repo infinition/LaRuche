@@ -1,0 +1,27 @@
+# Rust
+target/
+**/target/
+
+# Node
+node_modules/
+**/node_modules/
+**/dist/
+
+# Données / mémoire locale
+.paradigm/
+*.brain
+sessions/
+users/
+
+# OS / éditeurs
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+
+# Backups main.rs (réparation relais)
+laruche/laruche-node/src/main.rs.broken
+laruche/laruche-node/src/main.rs.merged
+laruche/laruche-node/src/main.rs.staged_version
+*.corrupted-*

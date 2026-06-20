@@ -1,0 +1,10 @@
+[package]
+name = "laruche-dashboard"
+version.workspace = true
+edition.workspace = true
+description = "LaRuche Dashboard - HTML templates for the web UI (embedded in laruche-node)"
+
+# No [[bin]] — this crate only hosts HTML templates included by laruche-node via include_str!
+# The standalone dashboard binary has been removed; the SPA is served directly by laruche-node.
+
+[dependencies]

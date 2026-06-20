@@ -1,0 +1,200 @@
+{
+    "name": "laruche-vscode",
+    "displayName": "LaRuche - Local AI Copilot",
+    "description": "Local Edge AI Agent powered by the Miel Protocol + Essaim engine. Zero cloud, zero API keys. Auto-discovers nodes via mDNS.",
+    "version": "0.3.0",
+    "publisher": "infinition",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/infinition/LaRuche"
+    },
+    "icon": "media/icon.png",
+    "engines": {
+        "vscode": "^1.85.0"
+    },
+    "categories": [
+        "Machine Learning",
+        "Programming Languages",
+        "Other"
+    ],
+    "keywords": [
+        "ai",
+        "copilot",
+        "local",
+        "llm",
+        "edge",
+        "miel-protocol",
+        "essaim",
+        "laruche",
+        "mdns",
+        "offline"
+    ],
+    "activationEvents": [
+        "onStartupFinished"
+    ],
+    "main": "./dist/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "laruche.ask",
+                "title": "Ask LaRuche",
+                "icon": "$(comment-discussion)",
+                "category": "LaRuche"
+            },
+            {
+                "command": "laruche.explainSelection",
+                "title": "Explain Selection",
+                "icon": "$(lightbulb)",
+                "category": "LaRuche"
+            },
+            {
+                "command": "laruche.refactorSelection",
+                "title": "Refactor Selection",
+                "icon": "$(edit)",
+                "category": "LaRuche"
+            },
+            {
+                "command": "laruche.openChat",
+                "title": "Open Chat Panel",
+                "icon": "$(comment-discussion)",
+                "category": "LaRuche"
+            },
+            {
+                "command": "laruche.showSwarm",
+                "title": "Show Swarm Status",
+                "icon": "$(server)",
+                "category": "LaRuche"
+            },
+            {
+                "command": "laruche.selectNode",
+                "title": "Select Active Node",
+                "icon": "$(remote-explorer)",
+                "category": "LaRuche"
+            },
+            {
+                "command": "laruche.selectModel",
+                "title": "Select Active Model",
+                "icon": "$(symbol-namespace)",
+                "category": "LaRuche"
+            },
+            {
+                "command": "laruche.agentEdit",
+                "title": "Agent: Edit File",
+                "icon": "$(wand)",
+                "category": "LaRuche"
+            },
+            {
+                "command": "laruche.undoLastEdit",
+                "title": "Agent: Undo Last Edit",
+                "icon": "$(discard)",
+                "category": "LaRuche"
+            },
+            {
+                "command": "laruche.agentHistory",
+                "title": "Agent: Edit History",
+                "icon": "$(history)",
+                "category": "LaRuche"
+            }
+        ],
+        "menus": {
+            "editor/context": [
+                {
+                    "command": "laruche.explainSelection",
+                    "when": "editorHasSelection",
+                    "group": "laruche@1"
+                },
+                {
+                    "command": "laruche.refactorSelection",
+                    "when": "editorHasSelection",
+                    "group": "laruche@2"
+                },
+                {
+                    "command": "laruche.agentEdit",
+                    "group": "laruche@3"
+                }
+            ]
+        },
+        "keybindings": [
+            {
+                "command": "laruche.agentEdit",
+                "key": "ctrl+shift+l",
+                "mac": "cmd+shift+l",
+                "when": "editorTextFocus"
+            }
+        ],
+        "configuration": {
+            "title": "LaRuche",
+            "properties": {
+                "laruche.nodeUrl": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Direct URL to a LaRuche node (e.g. http://192.168.1.10:8419). Leave empty for auto-discovery via LAND protocol (mDNS)."
+                },
+                "laruche.apiPort": {
+                    "type": "number",
+                    "default": 8419,
+                    "description": "Default API port for LaRuche nodes (used for localhost fallback)."
+                },
+                "laruche.model": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Preferred model name (e.g. mistral, deepseek-coder). Leave empty to use node default."
+                },
+                "laruche.agentMode": {
+                    "type": "string",
+                    "default": "ask",
+                    "enum": [
+                        "auto",
+                        "ask",
+                        "readonly"
+                    ],
+                    "enumDescriptions": [
+                        "Apply changes automatically without confirmation",
+                        "Show diff and ask before applying (recommended)",
+                        "Show suggestions in diff view without modifying files"
+                    ],
+                    "description": "Agent edit mode."
+                }
+            }
+        },
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "laruche",
+                    "title": "LaRuche",
+                    "icon": "media/laruche.svg"
+                }
+            ]
+        },
+        "views": {
+            "laruche": [
+                {
+                    "type": "webview",
+                    "id": "laruche.chatView",
+                    "name": "Chat"
+                }
+            ]
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run package",
+        "compile": "webpack",
+        "watch": "webpack --watch",
+        "package": "webpack --mode production --devtool hidden-source-map",
+        "lint": "eslint src --ext ts"
+    },
+    "dependencies": {
+        "bonjour-service": "^1.2.1"
+    },
+    "devDependencies": {
+        "@types/node": "20.x",
+        "@types/vscode": "^1.85.0",
+        "@typescript-eslint/eslint-plugin": "^8.56.1",
+        "@typescript-eslint/parser": "^8.56.1",
+        "eslint": "^10.0.2",
+        "ts-loader": "^9.5.1",
+        "typescript": "^5.3.3",
+        "webpack": "^5.89.0",
+        "webpack-cli": "^5.1.4"
+    }
+}

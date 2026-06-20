@@ -1,0 +1,45 @@
+[package]
+name = "laruche-node"
+version.workspace = true
+edition.workspace = true
+description = "LaRuche Node - AI inference daemon with Miel protocol"
+
+[[bin]]
+name = "laruche-node"
+path = "src/main.rs"
+
+[dependencies]
+laruche-events.workspace = true
+miel-protocol.workspace = true
+tokio.workspace = true
+async-trait = "0.1"
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+reqwest.workspace = true
+axum.workspace = true
+tower-http.workspace = true
+local-ip-address.workspace = true
+sysinfo.workspace = true
+toml = "0.8"
+laruche-essaim = { path = "../laruche-essaim" }
+laruche-skills = { path = "../laruche-skills" }
+laruche-memoire.workspace = true
+futures-util = "0.3"
+which = "7"
+axum-server.workspace = true
+crossterm = "0.28"
+ratatui = "0.29"
+qrcode = "0.14"
+blake3.workspace = true
+rand.workspace = true
+base64.workspace = true
+laruche-watchers.workspace = true
+laruche-kanban = { version = "0.2.0", path = "../laruche-kanban" }
+
+[target.'cfg(windows)'.dependencies]
+tray-icon = "0.19"

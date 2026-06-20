@@ -1,0 +1,379 @@
+//! [`NativeBackend`] — implémentation 100 % Rust, en mémoire vive, du trait
+//! [`MemoireCognitive`]. C'est l'**amorce de P3** : pas de Node, pas de sidecar.
+//!
+//! Stockage simple (HashMap node → items) avec un retrieval lexical par mots-clés.
+//! Suffisant pour un POC fonctionnel et pour démontrer que `brain.rs` est totalement
+//! agnostique du backend. Le moteur cognitif complet (FTS5 + embeddings + activation)
+//! viendra remplacer ce store, derrière la même interface.
+
+use crate::{ContextPack, MemoireCognitive, MemoryItem, SearchOpts};
+use anyhow::{anyhow, Result};
+use async_trait::async_trait;
+use serde_json::{json, Value};
+use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
+
+/// Découpe en mots-clés normalisés (minuscule, alphanumérique, longueur > 2).
+fn tokenize(s: &str) -> Vec<String> {
+    s.to_lowercase()
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|t| t.len() > 2)
+        .map(|t| t.to_string())
+        .collect()
+}
+
+fn node_parent_id(node_id: &str) -> Option<String> {
+    let trimmed = node_id.trim_matches('.');
+    trimmed
+        .rfind('.')
+        .map(|idx| trimmed[..idx].to_string())
+        .filter(|s| !s.is_empty())
+}
+
+fn node_label(node_id: &str) -> String {
+    node_id
+        .trim_matches('.')
+        .rsplit('.')
+        .next()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(node_id)
+        .to_string()
+}
+
+fn node_json(node_id: &str) -> Value {
+    json!({
+        "id": node_id,
+        "node_id": node_id,
+        "label": node_label(node_id),
+        "one_liner": node_parent_id(node_id)
+            .map(|p| format!("Sous-noeud de {p}"))
+            .unwrap_or_else(|| "Noeud racine".to_string()),
+        "parent_id": node_parent_id(node_id),
+        "importance": 0.5
+    })
+}
+
+fn collect_node_ids(store: &HashMap<String, Vec<StoredItem>>) -> HashSet<String> {
+    let mut ids = HashSet::new();
+    for node in store.keys() {
+        let mut current = Some(node.as_str());
+        while let Some(id) = current {
+            ids.insert(id.to_string());
+            current = id
+                .rfind('.')
+                .map(|idx| &id[..idx])
+                .filter(|s| !s.is_empty());
+        }
+    }
+    ids
+}
+
+#[derive(Clone)]
+struct StoredItem {
+    id: String,
+    content: String,
+    #[allow(dead_code)]
+    tags: Vec<String>,
+    #[allow(dead_code)]
+    source: Option<String>,
+    proposed: bool,
+    deleted: bool,
+}
+
+/// Backend mémoire natif (en RAM). Cloner via `Arc`.
+#[derive(Default)]
+pub struct NativeBackend {
+    store: Mutex<HashMap<String, Vec<StoredItem>>>,
+    counter: AtomicU64,
+}
+
+impl NativeBackend {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    fn next_id(&self) -> String {
+        format!("itm_{}", self.counter.fetch_add(1, Ordering::Relaxed))
+    }
+
+    fn insert(&self, item: MemoryItem, proposed: bool) -> String {
+        let id = self.next_id();
+        let mut store = self.store.lock().unwrap();
+        store
+            .entry(item.node_id.clone())
+            .or_default()
+            .push(StoredItem {
+                id: id.clone(),
+                content: item.content,
+                tags: item.tags,
+                source: item.source,
+                proposed,
+                deleted: false,
+            });
+        id
+    }
+}
+
+#[async_trait]
+impl MemoireCognitive for NativeBackend {
+    async fn search(&self, query: &str, opts: SearchOpts) -> Result<ContextPack> {
+        let limit = opts.limit.unwrap_or(8) as usize;
+        let qtok = tokenize(query);
+
+        let store = self.store.lock().unwrap();
+        // (score, node, content)
+        let mut hits: Vec<(usize, String, String, String)> = Vec::new();
+        for (node, list) in store.iter() {
+            for it in list {
+                if it.proposed || it.deleted {
+                    continue; // les items proposés sont exclus de la recherche (comme paradigm)
+                }
+                let ctok = tokenize(&format!("{} {}", node, it.content));
+                // Recouvrement lexical tolérant aux préfixes (code/coder, aime/aiment…).
+                // NB : un vrai matching sémantique (embeddings) viendra avec le moteur cognitif.
+                let score = qtok
+                    .iter()
+                    .filter(|q| {
+                        ctok.iter()
+                            .any(|c| c.starts_with(q.as_str()) || q.starts_with(c.as_str()))
+                    })
+                    .count();
+                if score > 0 {
+                    hits.push((score, it.id.clone(), node.clone(), it.content.clone()));
+                }
+            }
+        }
+        hits.sort_by(|a, b| b.0.cmp(&a.0));
+        hits.truncate(limit);
+
+        let mut seen = HashSet::new();
+        let nodes: Vec<Value> = hits
+            .iter()
+            .filter_map(|(_, _, n, _)| seen.insert(n.clone()).then(|| node_json(n)))
+            .collect();
+        let items: Vec<Value> = hits
+            .iter()
+            .map(|(_, id, n, c)| json!({ "id": id, "node_id": n, "content": c }))
+            .collect();
+
+        Ok(ContextPack {
+            raw: json!({ "nodes": nodes, "items": items }),
+        })
+    }
+
+    async fn write(&self, item: MemoryItem) -> Result<Value> {
+        let node = item.node_id.clone();
+        let id = self.insert(item, false);
+        Ok(json!({ "ok": true, "item_id": id, "node_id": node }))
+    }
+
+    async fn propose_write(&self, item: MemoryItem) -> Result<Value> {
+        let node = item.node_id.clone();
+        let id = self.insert(item, true);
+        Ok(json!({ "ok": true, "item_id": id, "node_id": node, "status": "proposed" }))
+    }
+
+    async fn read_node(&self, node_id: &str) -> Result<Value> {
+        let store = self.store.lock().unwrap();
+        let all_nodes = collect_node_ids(&store);
+        let mut children: Vec<Value> = all_nodes
+            .iter()
+            .filter(|id| node_parent_id(id).as_deref() == Some(node_id))
+            .map(|id| node_json(id))
+            .collect();
+        children.sort_by(|a, b| {
+            a["id"]
+                .as_str()
+                .unwrap_or_default()
+                .cmp(b["id"].as_str().unwrap_or_default())
+        });
+        let items: Vec<Value> = store
+            .get(node_id)
+            .map(|list| {
+                list.iter()
+                    .filter(|it| !it.proposed && !it.deleted)
+                    .map(|it| json!({ "id": it.id, "node_id": node_id, "content": it.content }))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let mut node = node_json(node_id);
+        node["children"] = json!(children);
+        node["items"] = json!(items);
+        Ok(node)
+    }
+
+    async fn update_item(&self, item_id: &str, content: &str) -> Result<Value> {
+        let mut store = self.store.lock().unwrap();
+        for (node_id, list) in store.iter_mut() {
+            if let Some(it) = list.iter_mut().find(|it| it.id == item_id && !it.deleted) {
+                it.content = content.to_string();
+                return Ok(
+                    json!({ "ok": true, "item_id": item_id, "node_id": node_id, "content": content }),
+                );
+            }
+        }
+        Err(anyhow!("item inconnu: {item_id}"))
+    }
+
+    async fn move_item(&self, item_id: &str, node_id: &str) -> Result<Value> {
+        let mut store = self.store.lock().unwrap();
+        let mut found: Option<(String, StoredItem)> = None;
+        for (current_node, list) in store.iter_mut() {
+            if let Some(pos) = list.iter().position(|it| it.id == item_id && !it.deleted) {
+                found = Some((current_node.clone(), list.remove(pos)));
+                break;
+            }
+        }
+        let Some((from, item)) = found else {
+            return Err(anyhow!("item inconnu: {item_id}"));
+        };
+        store.entry(node_id.to_string()).or_default().push(item);
+        Ok(json!({ "ok": true, "item_id": item_id, "node_id": node_id, "from": from }))
+    }
+
+    async fn delete_item(&self, item_id: &str, reason: Option<&str>) -> Result<Value> {
+        let mut store = self.store.lock().unwrap();
+        for (node_id, list) in store.iter_mut() {
+            if let Some(it) = list.iter_mut().find(|it| it.id == item_id && !it.deleted) {
+                it.deleted = true;
+                return Ok(json!({
+                    "ok": true,
+                    "item_id": item_id,
+                    "node_id": node_id,
+                    "status": "deleted",
+                    "reason": reason.unwrap_or("delete_via_laruche")
+                }));
+            }
+        }
+        Err(anyhow!("item inconnu: {item_id}"))
+    }
+
+    async fn review_item(
+        &self,
+        item_id: &str,
+        action: &str,
+        reason: Option<&str>,
+    ) -> Result<Value> {
+        let mut store = self.store.lock().unwrap();
+        for (node_id, list) in store.iter_mut() {
+            if let Some(it) = list.iter_mut().find(|it| it.id == item_id && !it.deleted) {
+                if !it.proposed {
+                    return Err(anyhow!("item non propose: {item_id}"));
+                }
+                match action {
+                    "accept" => {
+                        it.proposed = false;
+                        return Ok(
+                            json!({ "ok": true, "item_id": item_id, "node_id": node_id, "status": "active" }),
+                        );
+                    }
+                    "reject" => {
+                        it.deleted = true;
+                        return Ok(json!({
+                            "ok": true,
+                            "item_id": item_id,
+                            "node_id": node_id,
+                            "status": "deleted",
+                            "reason": reason.unwrap_or("reject_via_laruche")
+                        }));
+                    }
+                    _ => return Err(anyhow!("action de revue invalide: {action}")),
+                }
+            }
+        }
+        Err(anyhow!("item inconnu: {item_id}"))
+    }
+
+    async fn list_proposed(&self, limit: Option<u8>) -> Result<Value> {
+        let store = self.store.lock().unwrap();
+        let mut items = Vec::new();
+        for (node_id, list) in store.iter() {
+            for it in list {
+                if it.proposed && !it.deleted {
+                    items.push(json!({
+                        "id": it.id,
+                        "node_id": node_id,
+                        "content": it.content,
+                        "source": it.source,
+                        "status": "proposed",
+                    }));
+                }
+            }
+        }
+        items.truncate(limit.unwrap_or(50) as usize);
+        Ok(json!({ "count": items.len(), "items": items }))
+    }
+
+    async fn suggest_nodes(&self, query: &str, limit: Option<u8>) -> Result<Value> {
+        let store = self.store.lock().unwrap();
+        let all_nodes = collect_node_ids(&store);
+        let q = query.to_lowercase();
+        let mut nodes: Vec<Value> = all_nodes
+            .iter()
+            .filter(|id| q.is_empty() || id.to_lowercase().contains(&q))
+            .map(|id| {
+                let mut node = node_json(id);
+                node["item_count"] = json!(store
+                    .get(id)
+                    .map(|items| {
+                        items
+                            .iter()
+                            .filter(|it| !it.proposed && !it.deleted)
+                            .count()
+                    })
+                    .unwrap_or(0));
+                node
+            })
+            .collect();
+        nodes.sort_by(|a, b| {
+            a["id"]
+                .as_str()
+                .unwrap_or_default()
+                .cmp(b["id"].as_str().unwrap_or_default())
+        });
+        nodes.truncate(limit.unwrap_or(12) as usize);
+        Ok(json!({ "nodes": nodes }))
+    }
+
+    async fn dream(&self) -> Result<Value> {
+        // Heuristique POC : repère les doublons exacts par nœud.
+        let store = self.store.lock().unwrap();
+        let mut duplicates = 0u64;
+        let mut suggestions = Vec::new();
+        for (node_id, list) in store.iter() {
+            let mut seen = HashSet::new();
+            let mut active_count = 0u64;
+            for it in list {
+                if it.proposed || it.deleted {
+                    continue;
+                }
+                active_count += 1;
+                if !seen.insert(it.content.clone()) {
+                    duplicates += 1;
+                    suggestions.push(json!({
+                        "kind": "duplicate",
+                        "severity": "medium",
+                        "node_id": node_id,
+                        "count": 2,
+                        "message": format!("Doublon exact dans {node_id}: {}", it.content.chars().take(80).collect::<String>())
+                    }));
+                }
+            }
+            if active_count > 12 {
+                suggestions.push(json!({
+                    "kind": "overloaded",
+                    "severity": "low",
+                    "node_id": node_id,
+                    "count": active_count,
+                    "message": format!("{node_id} contient {active_count} items actifs; envisager des sous-noeuds.")
+                }));
+            }
+        }
+        Ok(json!({ "suggestions": suggestions, "duplicates": duplicates, "orphan_items": 0 }))
+    }
+
+    async fn health(&self) -> Result<bool> {
+        Ok(true)
+    }
+}
