@@ -48,14 +48,20 @@ Chaque briefing détaillé est un `.md` à la racine de `laruche/`. Statut à **
 - Events WS : `skill_applied`, `skill_proposed` (+ token, tool_call, tool_result, etc.)
 
 ## 5. CHANTIERS RUST restants (prochain Claude/Codex) — par priorité
-### P1 — Parité provider Watcher + Kanban (même pattern que cron)
+### P1 — ✅ FAIT (2026-06-20) — Parité provider Watcher + Kanban
+Daemons watcher (~main.rs) + kanban résolvent provider/clé/base_url/modèle via `appliquer_profil(profile_id)` (watcher via `registry.list()`, kanban via `kanban_task.profile_id`). Reste UI Gemini : sélecteurs provider dans les forms watcher/kanban (même contrat que cron).
+
+#### (référence) P1 d'origine — pattern
 But : `profile_id` par tâche watcher/kanban, résolu via `appliquer_profil`.
 - `laruche-watchers/src/lib.rs` struct `Watcher` (l.21) : ajouter `#[serde(default)] pub profile_id: Option<String>` (+ `pub model: Option<String>`). Mettre à jour les **3 littéraux** : `lib.rs:222`, `laruche-node/src/abeilles_local.rs:270`, `laruche-node/src/main.rs:2853` (create handler — lire `body["profile_id"]`).
 - `laruche-kanban/src/lib.rs` struct `KanbanTask` (l.20) : idem ; littéral `lib.rs:121` ; la fn `create()` (l.104) ne prend pas profile_id → ajouter un param ou un setter (appelée par l'abeille kanban_create + l'API).
 - Daemons à câbler (réutiliser `appliquer_profil`) : watcher ~`main.rs:7207`, kanban ~`main.rs:7280` (aujourd'hui ils font juste `config.model = current_model`).
 - Briefing Gemini ensuite : mêmes sélecteurs Provider dans les forms watcher/kanban.
 
-### P2 — Section MCP dans Settings (l'utilisateur l'a demandée)
+### P2 — ✅ DÉJÀ FAIT (relais) — Section MCP dans Settings
+Endpoints présents : `GET /api/mcp/servers` (api_mcp_list_servers), `POST /api/mcp/servers/:name` (api_mcp_save_server, recharge la registry), `DELETE /api/mcp/servers/:name` (api_mcp_delete_server, recharge). UI Gemini branchée (spa.html appelle ces 3). Rien à faire.
+
+#### (référence) P2 d'origine
 État : serveurs MCP chargés de `mcp_servers.json` au boot (`mcp_client.rs:242 charger_mcp_servers`, struct `McpServerConfig` l.232). **Aucun CRUD UI.** `/api/mcp` = serveur MCP exposé, PAS la config.
 - À créer (Rust) : `GET /api/mcp/servers` (lit le fichier), `POST /api/mcp/servers` (ajoute/maj + recharge dans la registry), `DELETE /api/mcp/servers/:name` (retire + recharge). Attention au hot-reload de la registry (Arc partagé).
 - Briefing Gemini : Settings > MCP (liste + ajouter {name, command, args/url} + supprimer + test connexion).
@@ -63,7 +69,10 @@ But : `profile_id` par tâche watcher/kanban, résolu via `appliquer_profil`.
 ### P3 — Fermer la boucle réseau « miel » distant
 Le provider `"miel"` route en OpenAI vers un node distant, MAIS le node n'expose aujourd'hui que `/infer` (style Ollama), pas `/v1/chat/completions`. → **Exposer un endpoint chat OpenAI-compatible sur `laruche-node`** pour qu'un node consomme réellement le LLM d'un autre. (Les backends LOCAUX llama.cpp/vllm marchent déjà.)
 
-### P4 — public_proxy → annonce mDNS conditionnelle
+### P4 — ✅ FAIT (2026-06-20) — re-annonce mDNS périodique
+Boucle 120s qui ré-annonce le manifeste (`MielBroadcaster::update`) avec les modèles RÉELS : agent=LLM actif, backends OpenAI-compat locaux détectés, providers `public_proxy`. Corrige aussi l'annonce du modèle figé (mistral). Près du dispatcher kanban dans `main`.
+
+#### (référence) P4 d'origine
 Aujourd'hui le manifeste mDNS est construit 1× au boot. Pour qu'un provider passé `public_proxy` (ou un backend lancé à chaud) soit annoncé : **re-register périodique** du manifeste (boucle qui reconstruit + ré-annonce toutes les N min). Pré-requis pour que le mesh voie les providers public-proxy.
 
 ### P6 — ⭐ Moteurs d'inférence CUSTOM auto-annoncés sur Miel (demande utilisateur)
@@ -94,7 +103,7 @@ Problème : choisir un LLM (dashboard « Services du mesh » / `POST /api/models
 - ✅ FAIT (Claude) : la session est rendue **visible + persistée dès l'envoi** (snapshot avec message user inséré dans `essaim_sessions` + `sauvegarder()` disque, dans le spawn react de `ws_chat` ~main.rs:6085). Survit au F5 ; apparaît dans Sessions avant la réponse.
 - ✅ DÉJÀ le cas : l'agent tourne dans un `tokio::spawn` détaché du WS → un F5 ne l'arrête pas.
 - RESTE Gemini : **notification cliquable** → poller `GET /api/events?since=` (events `AgentStarted`/`SessionFinished` avec `session_id` déjà émis) → toast qui ouvre la session.
-- RESTE Claude (follow-up + gros) : **live re-attach** — stocker un `broadcast::Sender` PAR session (pas par connexion WS) ; à la reconnexion WS sur un `session_id` en cours, s'abonner au flux existant pour revoir les tokens en direct après F5. Aujourd'hui le stream est par-connexion → perdu au F5 (mais le résultat final est bien écrit dans la session).
+- **Live re-attach : FONDATION DÉJÀ EN PLACE (relais)** — `Session` a un champ `event_tx: Option<broadcast::Sender<ChatEvent>>` (session.rs:81, `#[serde(skip)]`), et le handler WS (main.rs ~6003-6014) **réutilise/`subscribe()`** ce sender si la session existe → une reconnexion sur le même `session_id` reçoit le flux EN DIRECT. RESTE = UI Gemini : à la reconnexion / ouverture d'une session "running", renvoyer le `session_id` au WS pour s'abonner (le backend fait le reste). + exposer un flag "running" dans la liste si besoin.
 
 ### P5 — Divers (notés dans LARUCHE_V2.md §0.3)
 - `cargo test --workspace` complet (jamais fait).
