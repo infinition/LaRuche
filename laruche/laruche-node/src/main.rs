@@ -7763,6 +7763,76 @@ async fn main() -> Result<()> {
         }
     });
 
+    // Background: re-annonce mDNS périodique (P4) — reflète les modèles RÉELS (actif +
+    // backends locaux détectés + providers public_proxy), capte les backends lancés à chaud,
+    // et corrige l'annonce du modèle par défaut figé.
+    let mdns_broadcaster = broadcaster.clone();
+    let mdns_state = state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(120));
+        interval.tick().await; // saute le tick immédiat
+        loop {
+            interval.tick().await;
+            let mut manifest = mdns_state.manifest.read().await.clone();
+            manifest.capabilities = Default::default();
+            // Agent = modèle LLM actif.
+            let active_model = get_llm_default(&mdns_state).await;
+            manifest.capabilities.add(CapabilityInfo {
+                capability: Capability::Agent,
+                model_name: active_model,
+                model_size: None,
+                quantization: None,
+                max_context_length: Some(8192),
+            });
+            // Backends OpenAI-compatibles locaux détectés → llm/code/…
+            for m in local_inference::detecter_modeles_openai_compat(
+                &local_inference::backends_openai_compat_par_defaut(),
+            )
+            .await
+            {
+                let cap = resolve_model_capability(&m.name, &mdns_state.config.capabilities);
+                if let Some(c) = Capability::from_flag(&cap) {
+                    manifest.capabilities.add(CapabilityInfo {
+                        capability: c,
+                        model_name: m.name,
+                        model_size: None,
+                        quantization: None,
+                        max_context_length: Some(8192),
+                    });
+                }
+            }
+            // Providers public_proxy → annoncés sur le mesh (passerelle ; clé jamais diffusée).
+            {
+                let pcfg = mdns_state.profiles.read().await;
+                for (_, p) in pcfg
+                    .profiles
+                    .iter()
+                    .filter(|(_, p)| p.visibilite == profiles::Visibilite::PublicProxy)
+                {
+                    for model in &p.models {
+                        let cap = resolve_model_capability(model, &mdns_state.config.capabilities);
+                        if let Some(c) = Capability::from_flag(&cap) {
+                            manifest.capabilities.add(CapabilityInfo {
+                                capability: c,
+                                model_name: model.clone(),
+                                model_size: None,
+                                quantization: None,
+                                max_context_length: Some(8192),
+                            });
+                        }
+                    }
+                }
+            }
+            {
+                let mut m = mdns_state.manifest.write().await;
+                *m = manifest.clone();
+            }
+            if let Err(e) = mdns_broadcaster.update(&manifest) {
+                tracing::warn!(error = %e, "re-annonce mDNS échouée");
+            }
+        }
+    });
+
     // Background: Kanban Dispatcher (every 5 seconds)
     let kanban_state = state.clone();
     tokio::spawn(async move {
