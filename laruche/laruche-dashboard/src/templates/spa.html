@@ -313,6 +313,15 @@ body {
   border-color: var(--amber);
   color: var(--amber);
 }
+.feed-step-body {
+  max-height: 55vh;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+}
+.feed-step-body::-webkit-scrollbar { width: 4px; }
+.feed-step-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+.feed-step-body::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
 .plan-section { border-bottom:1px solid var(--border); max-height:180px; overflow-y:auto; }
 .plan-section:empty { display:none; }
 .plan-title { padding:8px 12px 4px; font-size:10px; font-weight:600; text-transform:uppercase; color:var(--text-muted); letter-spacing:.5px; }
@@ -3465,7 +3474,10 @@ LaRuche.Chat = (function(){
     var h=document.createElement('div');h.className='feed-step-head';
     h.innerHTML='<span class="feed-step-caret">▾</span><span class="feed-step-title">'+LaRuche.Utils.esc(label||_feedTurnTitle||('Cycle '+_feedStepN))+'</span><span class="feed-step-state">EN COURS</span><span class="feed-step-meta"></span>';
     h.onclick=function(){card.classList.toggle('expanded');};
-    var b=document.createElement('div');b.className='feed-step-body';card.appendChild(h);card.appendChild(b);af.appendChild(card);
+    var b=document.createElement('div');b.className='feed-step-body';
+    b._lrFollow=true;
+    b.addEventListener('scroll', function(){ b._lrFollow = feedAtBottom(b); });
+    card.appendChild(h);card.appendChild(b);af.appendChild(card);
     _feedBody=b;_feedPrevCard=card;pruneFeedHistory(af);followFeed(af,follow);
   }
   function humanToolName(name){
@@ -3505,7 +3517,10 @@ LaRuche.Chat = (function(){
     item.appendChild(line);
     if(body!==undefined&&body!==null&&body!==''){var bodyEl=document.createElement('pre');bodyEl.className='act-body';if(options.terminal){item.dataset.command=options.command||body;setTerminalContent(bodyEl,item.dataset.command,'');}else bodyEl.textContent=body;item.appendChild(bodyEl);if(collapsible)line.onclick=function(){item.classList.toggle('open');};}
     if(options.live)_feedPendingTools.push(item);
-    (_feedBody||af).appendChild(item);updateFeedMeta();followFeed(af,follow);
+    (_feedBody||af).appendChild(item);
+    updateFeedMeta();
+    if (_feedBody && _feedBody._lrFollow) { _feedBody.scrollTop = _feedBody.scrollHeight; }
+    followFeed(af,follow);
     LaRuche.Console.log('info','Chat','['+type+'] '+label);return item;
   }
   function updateFeedMeta(){if(!_feedPrevCard||!_feedBody)return;var meta=_feedPrevCard.querySelector('.feed-step-meta');if(meta){var tools=_feedBody.querySelectorAll('.act-major').length;meta.textContent=tools?(tools+' action'+(tools>1?'s':'')):'';}}
