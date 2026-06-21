@@ -14,6 +14,7 @@
 mod abeilles_local;
 mod auth_user;
 mod local_inference;
+mod missions;
 mod mcp;
 mod profiles;
 mod sync;
@@ -182,6 +183,8 @@ struct AppState {
     default_models: RwLock<HashMap<String, String>>,
     /// Sélection de service par capacité (avec source), pour le routing voix/code/vision.
     capability_selection: RwLock<HashMap<String, CapabilitySelection>>,
+    /// Missions au long cours (« La Reine ») — métadonnée ; le savoir vit dans la carte cognitive.
+    missions: RwLock<missions::MissionStore>,
     sys: RwLock<System>,
     activity_log: RwLock<VecDeque<ActivityLogEntry>>,
     /// Path to laruche-state.json for persistence
@@ -2745,6 +2748,95 @@ async fn api_delete_cron(
 }
 
 /// POST /api/cron/:id/run — exécute immédiatement le prompt d'un cron (spawn).
+// ─── Missions (« La Reine ») ────────────────────────────────────────────────
+/// GET /api/missions — liste les missions au long cours.
+async fn api_list_missions(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    Json(serde_json::json!(state.missions.read().await.list()))
+}
+
+/// POST /api/missions — crée une mission. Body: {objective, slug?, cadence?}.
+async fn api_create_mission(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let objective = body["objective"].as_str().unwrap_or_default().trim().to_string();
+    if objective.is_empty() {
+        return Json(serde_json::json!({"error": "objective requis"}));
+    }
+    let slug = body["slug"]
+        .as_str()
+        .map(missions::slugify)
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| missions::slugify(&objective));
+    let cadence = body["cadence"]
+        .as_str()
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string());
+    let m = missions::Mission {
+        slug: slug.clone(),
+        objective,
+        cadence,
+        status: "active".to_string(),
+        iterations: 0,
+        last_run: None,
+        created_at: chrono::Utc::now().to_rfc3339(),
+    };
+    state.missions.write().await.upsert(m);
+    Json(serde_json::json!({"status": "ok", "slug": slug}))
+}
+
+/// POST /api/missions/:slug/run — exécute UNE itération : l'agent lit l'état capitalisé en
+/// mémoire (`missions.<slug>`), avance d'une étape et y écrit ses trouvailles.
+async fn api_run_mission(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(slug): axum::extract::Path<String>,
+) -> Json<serde_json::Value> {
+    let Some(mission) = state.missions.read().await.get(&slug) else {
+        return Json(serde_json::json!({"error": "mission introuvable"}));
+    };
+    // État déjà capitalisé (résumé des items du sous-arbre mission).
+    let node_id = format!("missions.{}", slug);
+    let etat = match state.memoire.read_node(&node_id).await {
+        Ok(v) => v["items"]
+            .as_array()
+            .map(|its| {
+                its.iter()
+                    .filter_map(|i| i["content"].as_str())
+                    .take(25)
+                    .collect::<Vec<_>>()
+                    .join("\n- ")
+            })
+            .unwrap_or_default(),
+        Err(_) => String::new(),
+    };
+    let prompt = missions::prompt_iteration(&mission, &etat);
+    let iteration = mission.iterations + 1;
+    let run_state = state.clone();
+    let slug2 = slug.clone();
+    tokio::spawn(async move {
+        let cfg = run_state.essaim_config.read().await.clone();
+        let sessions_dir = std::path::Path::new("sessions");
+        let mut session = Session::new_with_path(&cfg.model, sessions_dir);
+        let (tx, mut rx) = broadcast::channel::<ChatEvent>(64);
+        tokio::spawn(async move { while rx.recv().await.is_ok() {} });
+        let _ = boucle_react_memoire(
+            &prompt,
+            &mut session,
+            &run_state.essaim_registry,
+            &cfg,
+            &tx,
+            run_state.memoire.clone(),
+        )
+        .await;
+        run_state
+            .missions
+            .write()
+            .await
+            .mark_run(&slug2, chrono::Utc::now().to_rfc3339());
+    });
+    Json(serde_json::json!({"status": "started", "slug": slug, "iteration": iteration}))
+}
+
 async fn api_run_cron(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -7059,6 +7151,9 @@ async fn main() -> Result<()> {
         capability_selection: RwLock::new(
             persistent.capability_selection.clone().unwrap_or_default(),
         ),
+        missions: RwLock::new(missions::MissionStore::new(std::path::Path::new(
+            "missions.json",
+        ))),
         config: config.clone(),
         sys: RwLock::new(sys),
         activity_log: RwLock::new(initial_log),
@@ -7186,6 +7281,11 @@ async fn main() -> Result<()> {
             "/api/capabilities/selection",
             get(api_capabilities_selection),
         )
+        .route(
+            "/api/missions",
+            get(api_list_missions).post(api_create_mission),
+        )
+        .route("/api/missions/:slug/run", post(api_run_mission))
         .route(
             "/api/profiles/:id",
             axum::routing::delete(api_delete_profile),

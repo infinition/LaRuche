@@ -849,9 +849,90 @@ pre:hover .code-copy-btn { opacity:1; }
 .memory-write button:hover { background:rgba(245,158,11,.18); }
 .memory-audit pre { white-space:pre-wrap; word-break:break-word; color:var(--text-dim); font-family:var(--mono); font-size:11px; line-height:1.4; }
 
+/* ── Obsidian-style memory (LOT 1-4) ───────────────────────────── */
+.mem2-layout { flex:1; display:grid; grid-template-columns:280px minmax(0,1fr); overflow:hidden; background:var(--bg); }
+.mem2-side { border-right:1px solid var(--border); background:var(--bg-panel); display:flex; flex-direction:column; min-width:0; }
+.mem2-main { display:flex; flex-direction:column; min-width:0; background:var(--bg); }
+.mem2-side-hdr { padding:10px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; }
+.mem2-side-hdr .mem2-title { font-size:11px; font-weight:700; color:var(--amber); text-transform:uppercase; letter-spacing:.5px; flex:1; }
+.mem2-stats { font-size:10px; color:var(--text-muted); font-family:var(--mono); white-space:nowrap; }
+.mem2-search { padding:8px 10px; border-bottom:1px solid var(--border); display:flex; gap:6px; }
+.mem2-search input { flex:1; background:var(--bg-input); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:7px 9px; font-size:12px; outline:none; }
+.mem2-search input:focus { border-color:var(--amber); }
+.mem2-tree { flex:1; overflow:auto; padding:6px 4px; }
+.mem2-row { display:flex; align-items:center; gap:5px; padding:4px 6px; font-size:12px; cursor:pointer; border-radius:5px; color:var(--text-dim); user-select:none; }
+.mem2-row:hover { background:var(--bg-hover); }
+.mem2-row.active { background:var(--amber-glow); color:var(--amber); }
+.mem2-caret { width:12px; flex-shrink:0; color:var(--text-muted); font-size:9px; text-align:center; transition:transform .12s; }
+.mem2-label { font-family:var(--mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; }
+.mem2-count { font-size:9px; color:var(--text-muted); background:var(--bg-input); border-radius:8px; padding:1px 6px; }
+.mem2-toolbar { height:46px; flex-shrink:0; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; padding:0 14px; }
+.mem2-crumb { font-family:var(--mono); font-size:13px; color:var(--text); font-weight:600; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mem2-crumb .seg { color:var(--text-muted); }
+.mem2-crumb .seg.cur { color:var(--amber); }
+.mem2-tbtn { border:1px solid var(--border); border-radius:6px; background:var(--bg-input); color:var(--text-dim); padding:6px 10px; font-size:11px; cursor:pointer; white-space:nowrap; }
+.mem2-tbtn:hover { border-color:var(--amber); color:var(--amber); }
+.mem2-tbtn.on { border-color:var(--amber); color:var(--amber); background:var(--amber-glow); }
+.mem2-body { flex:1; overflow:auto; min-height:0; }
+.mem2-scroll { max-width:860px; margin:0 auto; padding:22px 30px 80px; }
+.mem2-empty { color:var(--text-muted); font-size:13px; text-align:center; padding:60px 18px; }
+.mem2-children { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:22px; }
+.mem2-chip { border:1px solid var(--border); border-radius:18px; background:var(--bg-input); color:var(--text-dim); padding:5px 12px; font-size:11px; font-family:var(--mono); cursor:pointer; }
+.mem2-chip:hover { border-color:var(--amber); color:var(--amber); background:var(--amber-glow); }
+.mem2-item { border:1px solid var(--border); border-radius:10px; background:var(--bg-panel); margin-bottom:14px; overflow:hidden; }
+.mem2-item-bar { display:flex; align-items:center; gap:8px; padding:7px 12px; border-bottom:1px solid var(--border); background:rgba(245,158,11,.04); }
+.mem2-item-id { font-family:var(--mono); font-size:10px; color:var(--amber); }
+.mem2-item-meta { font-size:10px; color:var(--text-muted); margin-left:auto; }
+.mem2-item-acts { display:flex; gap:5px; }
+.mem2-iact { border:1px solid var(--border); border-radius:5px; background:var(--bg-input); color:var(--text-muted); padding:3px 8px; font-size:10px; cursor:pointer; }
+.mem2-iact:hover { border-color:var(--amber); color:var(--amber); }
+.mem2-iact.danger:hover { border-color:var(--red); color:var(--red); background:rgba(239,68,68,.12); }
+.mem2-md { padding:12px 16px; color:var(--text); font-size:13.5px; line-height:1.62; word-wrap:break-word; }
+.mem2-edit { padding:12px 16px; display:flex; flex-direction:column; gap:8px; }
+.mem2-edit textarea { width:100%; min-height:140px; background:var(--bg-input); border:1px solid var(--amber); color:var(--text); border-radius:6px; padding:10px; font-family:var(--mono); font-size:12.5px; line-height:1.5; resize:vertical; outline:none; }
+.mem2-edit-acts { display:flex; gap:8px; }
+.mem2-add { border:1px dashed var(--border); border-radius:10px; padding:14px; margin-top:6px; }
+.mem2-add textarea { width:100%; min-height:80px; background:var(--bg-input); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:10px; font-family:var(--mono); font-size:12.5px; resize:vertical; outline:none; }
+.mem2-add textarea:focus { border-color:var(--amber); }
+.mem2-btn-primary { border:1px solid var(--amber); border-radius:6px; background:var(--amber-glow); color:var(--amber); padding:7px 14px; font-size:12px; font-weight:700; cursor:pointer; }
+.mem2-btn-primary:hover { background:rgba(245,158,11,.2); }
+.mem2-btn-ghost { border:1px solid var(--border); border-radius:6px; background:var(--bg-input); color:var(--text-dim); padding:7px 14px; font-size:12px; cursor:pointer; }
+.mem2-btn-ghost:hover { border-color:var(--amber); color:var(--amber); }
+.mem2-graph-wrap { flex:1; min-height:0; overflow:hidden; }
+#mem2Graph { width:100%; height:100%; display:block; cursor:grab; }
+/* Rendu markdown (adapte de scriptorium, palette ambre/ruche) */
+.mem2-md h1,.mem2-md h2,.mem2-md h3,.mem2-md h4,.mem2-md h5,.mem2-md h6 { color:var(--amber-light); font-weight:700; line-height:1.3; margin:1.1em 0 .5em; }
+.mem2-md h1 { font-size:1.55em; border-bottom:1px solid var(--border); padding-bottom:.25em; }
+.mem2-md h2 { font-size:1.32em; border-bottom:1px solid var(--border); padding-bottom:.2em; }
+.mem2-md h3 { font-size:1.15em; } .mem2-md h4 { font-size:1.04em; }
+.mem2-md p { margin:.55em 0; }
+.mem2-md ul,.mem2-md ol { margin:.5em 0; padding-left:1.5em; }
+.mem2-md li { margin:.2em 0; }
+.mem2-md blockquote { border-left:3px solid var(--amber); margin:.7em 0; padding:.2em 0 .2em 1em; color:var(--text-dim); background:rgba(245,158,11,.05); border-radius:0 6px 6px 0; }
+.mem2-md code { font-family:var(--mono); font-size:.88em; background:var(--bg-input); border:1px solid var(--border); border-radius:4px; padding:1px 5px; color:var(--amber-light); }
+.mem2-md pre { background:#0c0c0e; border:1px solid var(--border); border-radius:8px; padding:12px 14px; overflow:auto; margin:.8em 0; }
+.mem2-md pre code { background:none; border:none; padding:0; color:var(--text); font-size:12.5px; line-height:1.5; }
+.mem2-md a { color:var(--amber); text-decoration:none; border-bottom:1px dotted var(--amber-dim); }
+.mem2-md a:hover { border-bottom-style:solid; }
+.mem2-md strong { color:var(--text); font-weight:700; }
+.mem2-md em { font-style:italic; }
+.mem2-md del { color:var(--text-muted); }
+.mem2-md mark { background:rgba(245,158,11,.28); color:var(--amber-light); border-radius:3px; padding:0 3px; }
+.mem2-md hr { border:none; border-top:1px solid var(--border); margin:1.1em 0; }
+.mem2-md table { border-collapse:collapse; margin:.8em 0; font-size:.92em; width:100%; }
+.mem2-md th,.mem2-md td { border:1px solid var(--border); padding:6px 10px; text-align:left; }
+.mem2-md th { background:rgba(245,158,11,.08); color:var(--amber-light); font-weight:700; }
+.mem2-md img { max-width:100%; border-radius:8px; }
+.mem2-wikilink { color:var(--amber); cursor:pointer; font-family:var(--mono); font-size:.92em; background:rgba(245,158,11,.1); border-radius:4px; padding:1px 5px; border:1px solid var(--amber-dim); }
+.mem2-wikilink:hover { background:var(--amber-glow); border-color:var(--amber); }
+.mem2-wikilink.dead { color:var(--text-muted); border-color:var(--border); background:var(--bg-input); }
+
 @media (max-width: 900px) {
   .memory-layout { grid-template-columns:1fr; grid-template-rows:auto minmax(280px,1fr) minmax(220px,35vh); overflow:auto; }
   .memory-side, .memory-detail { border:0; border-bottom:1px solid var(--border); min-height:220px; }
+  .mem2-layout { grid-template-columns:1fr; grid-template-rows:minmax(160px,30vh) minmax(280px,1fr); overflow:auto; }
+  .mem2-side { border-right:0; border-bottom:1px solid var(--border); }
+  .mem2-scroll { padding:16px 14px 60px; }
 }
 
 /* ============================== */
