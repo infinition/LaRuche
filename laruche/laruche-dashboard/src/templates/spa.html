@@ -268,20 +268,28 @@ body {
   flex-direction: column;
 }
 .agent-header-block .sidebar-header.agent-header {
-  padding: 10px 12px 2px;
+  padding: 10px 12px 0;
   border-bottom: none;
   min-height: auto;
-  flex-wrap: wrap;
-  gap: 6px;
 }
 .agent-title-area {
   display: flex; align-items: center; gap: 8px; min-width: 0;
 }
+.agent-sub-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 12px 8px;
+  gap: 12px;
+}
+.agent-header-block .agent-header-actions {
+  display: flex; align-items: center; gap: 8px; margin: 0; min-width: 0;
+}
 .agent-header-block .feed-usage-bar {
-  padding: 4px 12px 8px;
+  padding: 0;
   color: var(--text-dim);
   font-family: var(--mono);
   font-size: 9.5px;
+  margin-left: auto;
+  text-align: right;
 }
 .agent-header-block .feed-details-toggle {
   background: var(--bg-input);
@@ -1353,15 +1361,17 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
               <span>Agent</span>
               <span class="feed-live-status" id="feedLiveStatus" aria-live="polite"><span class="feed-live-dot"></span><span id="feedLiveText">En attente</span></span>
             </span>
-            <span class="agent-header-actions">
+          </div>
+          <div class="agent-sub-row">
+            <div class="agent-header-actions">
               <label class="feed-details-toggle" title="Détails des logs">
                 <input type="checkbox" id="feedDetailsToggle" onchange="this.parentElement.classList.toggle('active', this.checked); window.lrToggleFeedDetails(this.checked)">
                 &#x1F441;
               </label>
               <span id="iterationBadge" class="iteration-badge"></span>
-            </span>
+            </div>
+            <div class="feed-usage-bar" id="feedUsage" aria-live="polite"></div>
           </div>
-          <div class="feed-usage-bar" id="feedUsage" aria-live="polite"></div>
         </div>
         <div class="plan-section" id="planSection"><div class="plan-title">Plan</div></div>
         <div class="agent-feed-wrap">
