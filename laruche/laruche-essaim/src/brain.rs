@@ -1161,40 +1161,32 @@ async fn indexer_abeilles_memoire(
     memoire: &Arc<dyn MemoireCognitive>,
 ) -> Result<()> {
     let root = memoire.read_node("tools.abeilles").await?;
-    let already_indexed = root["items"]
-        .as_array()
-        .map(|items| {
-            items.iter().any(|item| {
-                item["content"]
-                    .as_str()
-                    .map(|content| content.contains("Index Abeilles LaRuche"))
-                    .unwrap_or(false)
-            })
-        })
-        .unwrap_or(false);
-    if already_indexed {
-        return Ok(());
+    // Réconciliation INCRÉMENTALE : on relève les abeilles déjà indexées (sous-nœuds
+    // tools.abeilles.<nom>) et on n'écrit QUE celles qui manquent. Ainsi toute nouvelle
+    // abeille ajoutée au code est indexée au prochain démarrage, sans dupliquer les
+    // existantes — y compris sur une mémoire persistante (sqlite).
+    let mut deja: std::collections::HashSet<String> = std::collections::HashSet::new();
+    if let Some(children) = root["children"].as_array() {
+        for child in children {
+            if let Some(id) = child["id"].as_str().or_else(|| child["node_id"].as_str()) {
+                if let Some(name) = id.strip_prefix("tools.abeilles.") {
+                    deja.insert(name.to_string());
+                }
+            }
+        }
     }
 
     let schema = registry.schema_complet();
     let Some(tools) = schema.as_array() else {
         return Ok(());
     };
-    let _ = memoire
-        .write(
-            MemoryItem::new(
-                "tools.abeilles",
-                format!(
-                    "Index Abeilles LaRuche: {} outil(s) disponibles.",
-                    tools.len()
-                ),
-            )
-            .with_source("tool-registry"),
-        )
-        .await;
 
+    let mut ajoutes = 0usize;
     for tool in tools {
         let name = tool["name"].as_str().unwrap_or("unknown");
+        if deja.contains(name) {
+            continue; // déjà indexée → pas de doublon
+        }
         let description = tool["description"].as_str().unwrap_or("");
         let content = format!(
             "Abeille `{name}`: {description}\nSchema: {}",
@@ -1204,6 +1196,22 @@ async fn indexer_abeilles_memoire(
             .write(
                 MemoryItem::new(format!("tools.abeilles.{name}"), content)
                     .with_source("tool-registry"),
+            )
+            .await;
+        ajoutes += 1;
+    }
+
+    if ajoutes > 0 {
+        let _ = memoire
+            .write(
+                MemoryItem::new(
+                    "tools.abeilles",
+                    format!(
+                        "Index Abeilles LaRuche: {} outil(s) ({ajoutes} ajoutee(s) ce demarrage).",
+                        tools.len()
+                    ),
+                )
+                .with_source("tool-registry"),
             )
             .await;
     }
