@@ -1049,7 +1049,15 @@ pub async fn boucle_react_memoire_multimodal(
     }
     // Levier 2 — outils sémantiques : ne garder que le noyau + les Abeilles pertinentes pour
     // l'intention (au lieu d'injecter ~30 schémas à chaque tour). Vide pour un « Salut ».
-    let abeilles_pertinentes = recuperer_abeilles_pertinentes(&memoire, prompt_utilisateur, 6).await;
+    let mut abeilles_pertinentes =
+        recuperer_abeilles_pertinentes(&memoire, prompt_utilisateur, 6).await;
+    // Filet anti-échec du retrieval lexical (FR↔EN, accents) : force l'injection des outils
+    // nommés explicitement + la boîte mémoire quand l'intention est « voir/ranger sa mémoire ».
+    for t in outils_forces_par_intention(registry, prompt_utilisateur) {
+        if !abeilles_pertinentes.contains(&t) {
+            abeilles_pertinentes.push(t);
+        }
+    }
     {
         // Transparence (UI) : la liste réellement injectée = noyau + récupérées.
         let mut injectes: Vec<String> = SEMANTIC_CORE.iter().map(|s| s.to_string()).collect();
@@ -1447,6 +1455,64 @@ fn yaml_frontmatter_field(markdown: &str, key: &str) -> Option<String> {
 /// Levier 2 — récupère les NOMS d'Abeilles pertinentes pour l'intention, depuis la carte
 /// cognitive (`tools.abeilles.*`, indexées par `indexer_abeilles_memoire`). Vide si rien de
 /// pertinent (ex. salutation) → seul le noyau sera injecté.
+/// Outils à injecter d'office, indépendamment du retrieval sémantique (qui rate sur FR↔EN
+/// et les accents). (1) Tout outil dont le **nom exact** apparaît dans le prompt
+/// (« utilise memory_tree »). (2) La **boîte à outils mémoire** dès que l'intention parle de
+/// voir/ranger/nettoyer/fusionner la mémoire ou les nœuds. Ne renvoie que des noms réellement
+/// enregistrés.
+fn outils_forces_par_intention(registry: &AbeilleRegistry, prompt: &str) -> Vec<String> {
+    let p = prompt.to_lowercase();
+    let noms = registry.noms();
+    let mut forces: Vec<String> = Vec::new();
+
+    // (1) Outils cités explicitement par leur nom.
+    for nom in &noms {
+        if p.contains(nom.to_lowercase().as_str()) {
+            forces.push(nom.clone());
+        }
+    }
+
+    // (2) Intention de gestion de la mémoire cognitive.
+    const MOTS_MEMOIRE: &[&str] = &[
+        "memoire",
+        "mémoire",
+        "node",
+        "noeud",
+        "nœud",
+        "carte cognitive",
+        "range",
+        "ranger",
+        "rangé",
+        "nettoie",
+        "nettoy",
+        "fusionn",
+        "organise",
+        "rganise", // (ré)organise / reorganise
+        "souvenir",
+    ];
+    if MOTS_MEMOIRE.iter().any(|m| p.contains(m)) {
+        const BOITE_MEMOIRE: &[&str] = &[
+            "memory_tree",
+            "memory_search",
+            "memory_write",
+            "memory_create_node",
+            "memory_update_node",
+            "memory_delete_node",
+            "memory_move_item",
+            "memory_update_item",
+            "memory_delete",
+            "memory_stats",
+        ];
+        for t in BOITE_MEMOIRE {
+            if noms.iter().any(|n| n.as_str() == *t) {
+                forces.push((*t).to_string());
+            }
+        }
+    }
+
+    forces
+}
+
 async fn recuperer_abeilles_pertinentes(
     memoire: &Arc<dyn MemoireCognitive>,
     query: &str,
