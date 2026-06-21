@@ -6791,6 +6791,178 @@ var m = document.getElementById('kanban-model')?document.getElementById('kanban-
     loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, createKanbanTask:createKanbanTask, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
+/* ── Timeline (planning global cron + missions + watchers) ── */
+LaRuche.Timeline = (function(){
+  var DOW = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+
+  // Parse un champ cron (5 champs) en liste de valeurs autorisees [min,max].
+  function parseField(field, min, max){
+    var out = [];
+    String(field).split(',').forEach(function(part){
+      var step = 1, range = part;
+      var sl = part.split('/');
+      if(sl.length===2){ range = sl[0]; step = parseInt(sl[1],10)||1; }
+      var lo, hi;
+      if(range==='*' || range===''){ lo=min; hi=max; }
+      else if(range.indexOf('-')!==-1){ var pr=range.split('-'); lo=parseInt(pr[0],10); hi=parseInt(pr[1],10); }
+      else { lo=hi=parseInt(range,10); }
+      if(isNaN(lo)) return;
+      if(isNaN(hi)) hi=lo;
+      for(var v=lo; v<=hi; v+=step){ if(v>=min && v<=max) out.push(v); }
+    });
+    return out.length ? out : null;
+  }
+
+  // Prochaine occurrence (ms epoch) d'une expression cron 5 champs, ou null.
+  function nextCron(expr, fromMs){
+    if(!expr) return null;
+    var p = String(expr).trim().split(/\s+/);
+    if(p.length < 5) return null;
+    var mins = parseField(p[0],0,59), hours = parseField(p[1],0,23),
+        doms = parseField(p[2],1,31), mons = parseField(p[3],1,12), dows = parseField(p[4],0,6);
+    if(!mins||!hours||!doms||!mons||!dows) return null;
+    var domRestricted = (p[2]!=='*'), dowRestricted = (p[4]!=='*');
+    var d = new Date(fromMs||Date.now());
+    d.setSeconds(0,0); d.setMinutes(d.getMinutes()+1);
+    for(var guard=0; guard<525600; guard++){ // <= 1 an de minutes
+      if(mons.indexOf(d.getMonth()+1)===-1){ d.setMonth(d.getMonth()+1,1); d.setHours(0,0,0,0); continue; }
+      var domOk = doms.indexOf(d.getDate())!==-1, dowOk = dows.indexOf(d.getDay())!==-1;
+      var dayOk = (domRestricted && dowRestricted) ? (domOk||dowOk) : (domOk && dowOk);
+      if(!dayOk){ d.setDate(d.getDate()+1); d.setHours(0,0,0,0); continue; }
+      if(hours.indexOf(d.getHours())===-1){ d.setHours(d.getHours()+1,0,0,0); continue; }
+      if(mins.indexOf(d.getMinutes())===-1){ d.setMinutes(d.getMinutes()+1,0,0); continue; }
+      return d.getTime();
+    }
+    return null;
+  }
+
+  // Libelle humain approximatif d'une expression cron.
+  function humanCron(expr){
+    if(!expr) return 'manuel';
+    var p = String(expr).trim().split(/\s+/);
+    if(p.length < 5) return expr;
+    var m=p[0], h=p[1], dom=p[2], mon=p[3], dow=p[4];
+    function hhmm(){ var hh=parseInt(h,10), mm=parseInt(m,10); if(isNaN(hh)||isNaN(mm)) return null; return ('0'+hh).slice(-2)+'h'+('0'+mm).slice(-2); }
+    if(m.indexOf('/')===0 || m.indexOf('*/')===0){ var st=m.split('/')[1]; return 'toutes les '+st+' min'; }
+    if(h==='*' && m!=='*'){ return 'a la minute '+m+' de chaque heure'; }
+    if(dom==='*' && dow==='*' && mon==='*'){ var t=hhmm(); return t?('chaque jour a '+t):('chaque jour'); }
+    if(dow!=='*' && dom==='*'){ var t2=hhmm(); var days=dow.split(',').map(function(x){var n=parseInt(x,10);return isNaN(n)?x:DOW[n%7];}).join(', '); return 'chaque '+days+(t2?(' a '+t2):''); }
+    if(dom!=='*'){ var t3=hhmm(); return 'le '+dom+' du mois'+(t3?(' a '+t3):''); }
+    return expr;
+  }
+
+  function fmtWhen(ms){
+    if(!ms) return '—';
+    var d = new Date(ms), now = new Date();
+    var sameDay = d.toDateString()===now.toDateString();
+    var tom = new Date(now.getTime()+86400000);
+    var time = ('0'+d.getHours()).slice(-2)+'h'+('0'+d.getMinutes()).slice(-2);
+    if(sameDay) return "Aujourd'hui "+time;
+    if(d.toDateString()===tom.toDateString()) return 'Demain '+time;
+    return d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'})+' '+time;
+  }
+
+  function bucketOf(ms){
+    if(!ms) return 'later';
+    var now = new Date();
+    var endToday = new Date(now); endToday.setHours(23,59,59,999);
+    var endWeek = new Date(now.getTime()+7*86400000);
+    if(ms <= endToday.getTime()) return 'today';
+    if(ms <= endWeek.getTime()) return 'week';
+    return 'later';
+  }
+
+  async function gather(){
+    var crons=[], missions=[], watchers=[];
+    try{ crons = await fetch('/api/cron').then(function(r){return r.json();}); }catch(e){}
+    try{ missions = await fetch('/api/missions').then(function(r){return r.json();}); }catch(e){}
+    try{ watchers = await fetch('/api/watchers').then(function(r){return r.json();}); }catch(e){}
+    var now = Date.now();
+    var events = [];
+    (crons||[]).forEach(function(c){
+      if(c.enabled===false) return;
+      var nx = nextCron(c.cron_expr, now);
+      events.push({kind:'cron', name:c.name||'(cron sans nom)', expr:c.cron_expr||'', human:humanCron(c.cron_expr),
+        next:nx, last:c.last_run||null, runs:c.run_count||0, status:c.last_status||'', icon:'⏰', color:'var(--amber)'});
+    });
+    (missions||[]).forEach(function(mi){
+      var cad = mi.cadence || mi.cron_expr || mi.schedule || '';
+      var nx = cad ? nextCron(cad, now) : null;
+      events.push({kind:'mission', name:mi.objective||mi.title||mi.slug||'(mission)', expr:cad, human:cad?humanCron(cad):'a la demande',
+        next:nx, last:mi.last_run||mi.updated_at||null, runs:mi.run_count||0, status:mi.status||'', icon:'👑', color:'var(--purple)'});
+    });
+    return { events:events, watchers:(watchers||[]) };
+  }
+
+  function eventRow(e){
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-panel);margin-bottom:8px">'+
+      '<div style="font-size:18px;width:24px;text-align:center">'+e.icon+'</div>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+LaRuche.Utils.esc(e.name)+
+          ' <span style="font-size:9px;border:1px solid '+e.color+';color:'+e.color+';padding:1px 5px;border-radius:8px;margin-left:6px">'+(e.kind==='cron'?'Cron':'Mission')+'</span></div>'+
+        '<div style="font-size:11px;color:var(--text-dim)">'+LaRuche.Utils.esc(e.human)+(e.expr?(' · <code style="color:var(--text-dim)">'+LaRuche.Utils.esc(e.expr)+'</code>'):'')+
+          ' · dernier : '+(e.last?LaRuche.Utils.esc(String(e.last).substring(0,16).replace('T',' ')):'jamais')+'</div>'+
+      '</div>'+
+      '<div style="text-align:right;white-space:nowrap"><div style="font-weight:600;color:'+e.color+';font-size:12px">'+fmtWhen(e.next)+'</div>'+
+        '<div style="font-size:10px;color:var(--text-dim)">'+(e.runs||0)+' run(s)'+(e.status?(' · '+LaRuche.Utils.esc(e.status)):'')+'</div></div>'+
+      '</div>';
+  }
+
+  function section(title, rows){
+    return '<div style="margin-bottom:18px"><div style="font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">'+title+'</div>'+
+      (rows||'<div style="color:var(--text-dim);font-size:11px;padding:4px 0">Rien de prevu.</div>')+'</div>';
+  }
+
+  function ensureBtnStyle(){
+    if(document.getElementById('lr-tlbtn-style')) return;
+    var s=document.createElement('style'); s.id='lr-tlbtn-style';
+    s.textContent='.tl-btn{background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:4px 12px;cursor:pointer;font-size:11px}.tl-btn:hover{border-color:var(--amber);color:var(--amber)}';
+    document.head.appendChild(s);
+  }
+
+  async function render(el){
+    if(!el) return;
+    ensureBtnStyle();
+    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">Chargement du planning...</div>';
+    var data = await gather();
+    var ev = data.events.slice().sort(function(a,b){ return (a.next||Infinity)-(b.next||Infinity); });
+
+    var buckets = {today:[], week:[], later:[], none:[]};
+    ev.forEach(function(e){
+      if(!e.next){ buckets.none.push(e); return; }
+      buckets[bucketOf(e.next)].push(e);
+    });
+    function rowsOf(arr){ return arr.length ? arr.map(eventRow).join('') : null; }
+
+    var watcherRows = (data.watchers||[]).map(function(w){
+      return '<div style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-panel);margin-bottom:8px">'+
+        '<div style="font-size:18px;width:24px;text-align:center">👁</div>'+
+        '<div style="flex:1;min-width:0"><div style="font-weight:600;color:#fff">'+LaRuche.Utils.esc(w.name||'(watcher)')+
+          ' <span style="font-size:9px;border:1px solid var(--cyan);color:var(--cyan);padding:1px 5px;border-radius:8px;margin-left:6px">'+LaRuche.Utils.esc(w.watcher_type||'monitor')+'</span></div>'+
+          '<div style="font-size:11px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">cible : '+LaRuche.Utils.esc(w.target||'')+'</div></div>'+
+        '<div style="text-align:right"><div style="font-size:11px;color:var(--green)">● surveillance</div><div style="font-size:10px;color:var(--text-dim)">'+(w.run_count||0)+' decl.</div></div>'+
+        '</div>';
+    }).join('');
+
+    var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'+
+      '<span style="color:var(--text-dim);font-size:12px">'+ev.length+' planification(s) · '+(data.watchers||[]).length+' monitor(s)</span>'+
+      '<button class="tl-btn" onclick="LaRuche.Timeline.reload()">↻ Rafraichir</button></div>';
+    html += section("Aujourd'hui", rowsOf(buckets.today));
+    html += section('Cette semaine', rowsOf(buckets.week));
+    html += section('A venir', rowsOf(buckets.later));
+    if(buckets.none.length) html += section('Sans planning (a la demande)', rowsOf(buckets.none));
+    html += section('Monitors actifs (surveillance continue)', watcherRows||null);
+    el.innerHTML = html;
+  }
+
+  function reload(){
+    var el = document.getElementById('autoContent');
+    if(el) render(el);
+  }
+
+  return { render:render, reload:reload, nextCron:nextCron, humanCron:humanCron };
+})();
+
 /* ── Automatisations (Cron · Watchers · Kanban · Blueprints · Timeline) ── */
 LaRuche.Automations = (function(){
   var currentTab = 'timeline';
