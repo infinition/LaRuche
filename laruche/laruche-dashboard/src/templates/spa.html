@@ -1821,7 +1821,6 @@ LaRuche.refreshAll = function(parts) {
     // Panneau "Services du mesh" + recap capacites + sélecteurs voix (Dashboard.fetchModels
     // re-lit /swarm/models ET /api/capabilities/selection, et met à jour les voix).
     if((want('mesh') || want('capabilities') || want('voice')) && LaRuche.Dashboard && LaRuche.Dashboard.fetchModels) LaRuche.Dashboard.fetchModels();
-    if(want('capabilities') && LaRuche.Header && LaRuche.Header.fetchCapabilities) LaRuche.Header.fetchCapabilities();
     // Statut voix (STT/TTS selectionne)
     if(want('voice') && LaRuche.Voice && LaRuche.Voice.refreshStatus) LaRuche.Voice.refreshStatus();
     // Onglet Settings courant (profils, cron, watchers, kanban...) si visible
@@ -2388,26 +2387,6 @@ LaRuche.Header = (function(){
     loadPermissionMode();
     setInterval(fetchContextStats, 1500);
     fetchContextStats();
-    setInterval(fetchCapabilities, 10000);
-    fetchCapabilities();
-  }
-
-  async function fetchCapabilities(){
-    try{
-      var selData = await fetch('/api/capabilities/selection').then(r=>r.json()).catch(e=>({selection:{}}));
-      var serverPreferred = selData.selection || {};
-      var recapText = "";
-      var caps = Object.keys(serverPreferred);
-      if(caps.length > 0) {
-        recapText += caps.map(function(c) {
-          return serverPreferred[c].model;
-        }).join(' · ');
-      } else {
-        recapText += "Auto";
-      }
-      var recapEl = document.getElementById('sessionCapsRecap');
-      if(recapEl) recapEl.textContent = recapText;
-    } catch(e) {}
   }
 
   async function fetchContextStats(){
@@ -2495,6 +2474,8 @@ LaRuche.Header = (function(){
 
       currentModelName = active.model || '';
       currentProfileId = active.profile_id || '';
+      var recapEl = document.getElementById('sessionCapsRecap');
+      if (recapEl) recapEl.textContent = currentModelName || 'Auto';
     }).catch(function(){});
   }
 
@@ -2589,7 +2570,7 @@ LaRuche.Header = (function(){
     }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
   }
 
-  return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, changeModel:changeModel, getModel:getModel, getProfileId:getProfileId, setModel:setModel, loadModels:loadModels, changePermissionMode:changePermissionMode, loadPermissionMode:loadPermissionMode, fetchCapabilities:fetchCapabilities };
+  return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, changeModel:changeModel, getModel:getModel, getProfileId:getProfileId, setModel:setModel, loadModels:loadModels, changePermissionMode:changePermissionMode, loadPermissionMode:loadPermissionMode };
 })();
 
 /* ── WS (Chat WebSocket) ──────────────────────────────────────── */
