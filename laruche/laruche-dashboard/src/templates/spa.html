@@ -948,7 +948,7 @@ pre:hover .code-copy-btn { opacity:1; }
 
 /* ── Obsidian-style memory (LOT 1-4) ───────────────────────────── */
 .mem2-layout { flex:1; display:grid; grid-template-columns:280px minmax(0,1fr); overflow:hidden; background:var(--bg); }
-.mem2-side { border-right:1px solid var(--border); background:var(--bg-panel); display:flex; flex-direction:column; min-width:0; }
+.mem2-side { border-right:1px solid var(--border); background:var(--bg-panel); display:flex; flex-direction:column; min-width:0; min-height:0; overflow:hidden; }
 .mem2-main { display:flex; flex-direction:column; min-width:0; background:var(--bg); }
 .mem2-side-hdr { padding:10px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; }
 .mem2-side-hdr .mem2-title { font-size:11px; font-weight:700; color:var(--amber); text-transform:uppercase; letter-spacing:.5px; flex:1; }
@@ -956,13 +956,37 @@ pre:hover .code-copy-btn { opacity:1; }
 .mem2-search { padding:8px 10px; border-bottom:1px solid var(--border); display:flex; gap:6px; }
 .mem2-search input { flex:1; background:var(--bg-input); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:7px 9px; font-size:12px; outline:none; }
 .mem2-search input:focus { border-color:var(--amber); }
-.mem2-tree { flex:1; overflow:auto; padding:6px 4px; }
+.mem2-tree { flex:1; overflow-y:auto; overflow-x:hidden; min-height:0; padding:6px 4px; }
 .mem2-row { display:flex; align-items:center; gap:5px; padding:4px 6px; font-size:12px; cursor:pointer; border-radius:5px; color:var(--text-dim); user-select:none; }
 .mem2-row:hover { background:var(--bg-hover); }
 .mem2-row.active { background:var(--amber-glow); color:var(--amber); }
 .mem2-caret { width:12px; flex-shrink:0; color:var(--text-muted); font-size:9px; text-align:center; transition:transform .12s; }
+.mem2-icon { width:14px; height:14px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; color:var(--text-muted); opacity:.85; }
+.mem2-row.active .mem2-icon { color:var(--amber); opacity:1; }
+.mem2-icon svg { width:13px; height:13px; display:block; }
+.mem2-lock { flex-shrink:0; display:inline-flex; align-items:center; color:var(--amber-dim); font-size:10px; opacity:.8; }
+.mem2-lock svg { width:11px; height:11px; display:block; }
 .mem2-label { font-family:var(--mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; }
 .mem2-count { font-size:9px; color:var(--text-muted); background:var(--bg-input); border-radius:8px; padding:1px 6px; }
+.mem2-sysgroup { border-bottom:1px solid var(--border); margin-bottom:4px; padding-bottom:4px; }
+.mem2-grouplabel { font-size:9px; font-weight:700; color:var(--amber); text-transform:uppercase; letter-spacing:.6px; padding:6px 8px 2px; opacity:.75; }
+.mem2-iact[disabled] { opacity:.4; cursor:not-allowed; }
+.mem2-iact[disabled]:hover { border-color:var(--border); color:var(--text-muted); }
+.mem2-protnote { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--amber-dim); background:rgba(245,158,11,.06); border:1px solid var(--amber-dim); border-radius:8px; padding:8px 12px; margin-bottom:14px; }
+.mem2-protnote svg { width:13px; height:13px; flex-shrink:0; }
+.mem2-syseditor { display:flex; flex-direction:column; gap:12px; }
+.mem2-syseditor-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.mem2-syseditor-head h3 { font-size:15px; color:var(--amber-light); font-weight:700; margin:0; display:flex; align-items:center; gap:8px; }
+.mem2-syseditor textarea { width:100%; min-height:320px; background:var(--bg-input); border:1px solid var(--amber); color:var(--text); border-radius:8px; padding:14px; font-family:var(--mono); font-size:13px; line-height:1.55; resize:vertical; outline:none; }
+.mem2-syseditor textarea:focus { border-color:var(--amber-light); }
+.mem2-syseditor-acts { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.mem2-syseditor-note { font-size:11px; color:var(--text-muted); font-style:italic; }
+.mem2-toggle { display:inline-flex; align-items:center; gap:8px; font-size:12px; color:var(--text-dim); cursor:pointer; user-select:none; margin-left:auto; }
+.mem2-toggle input { display:none; }
+.mem2-toggle-track { width:38px; height:20px; border-radius:11px; background:var(--bg-input); border:1px solid var(--border); position:relative; transition:background .15s,border-color .15s; }
+.mem2-toggle-track::after { content:''; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:var(--text-muted); transition:transform .15s,background .15s; }
+.mem2-toggle input:checked + .mem2-toggle-track { background:var(--amber-glow); border-color:var(--amber); }
+.mem2-toggle input:checked + .mem2-toggle-track::after { transform:translateX(18px); background:var(--amber); }
 .mem2-toolbar { height:46px; flex-shrink:0; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; padding:0 14px; }
 .mem2-crumb { font-family:var(--mono); font-size:13px; color:var(--text); font-weight:600; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .mem2-crumb .seg { color:var(--text-muted); }
@@ -4994,7 +5018,9 @@ LaRuche.Memory = (function(){
         id:id,
         label:n.label || prev.label || id.split('.').pop(),
         one_liner:n.one_liner || n.summary || prev.one_liner || '',
-        count:(n.item_count != null ? n.item_count : (n.count != null ? n.count : prev.count))
+        count:(n.item_count != null ? n.item_count : (n.count != null ? n.count : prev.count)),
+        parent_id:(n.parent_id != null ? n.parent_id : prev.parent_id),
+        protected:(n.protected != null ? n.protected : prev.protected)
       };
     });
   }
@@ -5056,6 +5082,57 @@ LaRuche.Memory = (function(){
     }).catch(function(e){ LaRuche.Toast.show('Lecture noeud: '+e, 'err'); });
   }
 
+  /* ---- helpers icones / protection ---- */
+  // True si l'agent ne doit pas muter ce noeud (cadenas).
+  function isProtected(id){
+    var meta = nodes[id] || {};
+    if(meta.protected) return true;
+    // securite cote UI : tout ce qui est system.* ou tools/tools.* est gere par le systeme
+    if(id === 'system' || id === 'tools') return true;
+    if(id.indexOf('system.') === 0 || id.indexOf('tools.') === 0) return true;
+    return false;
+  }
+  // tools.* est strictement lecture seule (pas d'edition admin non plus)
+  function isReadOnly(id){
+    return id === 'tools' || id.indexOf('tools.') === 0;
+  }
+  // system.prompt / system.soul : editables par l'admin via l'editeur dedie
+  function isSystemEditor(id){
+    return id === 'system.prompt' || id === 'system.soul';
+  }
+
+  // SVG inline (heritent currentColor)
+  var SVG = {
+    folder:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+    file:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>',
+    tools:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 1 5.4-5.4l-2.5 2.5-2-2z"/></svg>',
+    system:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>',
+    prompt:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg>',
+    soul:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z"/><path d="M18 16l.7 1.8L20.5 18.5l-1.8.7L18 21l-.7-1.8L15.5 18.5l1.8-.7z"/></svg>',
+    lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
+  };
+
+  // Icone d'un noeud de l'arbre selon son id et s'il a des enfants.
+  function nodeIcon(id, hasKids){
+    if(id === 'system') return SVG.system;
+    if(id === 'system.prompt') return SVG.prompt;
+    if(id === 'system.soul') return SVG.soul;
+    if(id === 'tools' || id.indexOf('tools.') === 0) return SVG.tools;
+    return hasKids ? SVG.folder : SVG.file;
+  }
+
+  // Ordre racine : SYSTEM puis tools en premier, le reste alphabetique.
+  function rootOrder(a, b){
+    function rank(seg){
+      if(seg === 'system') return 0;
+      if(seg === 'tools') return 1;
+      return 2;
+    }
+    var ra = rank(a), rb = rank(b);
+    if(ra !== rb) return ra - rb;
+    return a < b ? -1 : (a > b ? 1 : 0);
+  }
+
   /* ---- arbre repliable (Obsidian-like) ---- */
   function buildTree() {
     var root = { children:{} };
@@ -5070,28 +5147,47 @@ LaRuche.Memory = (function(){
     return root;
   }
 
+  function rowHtml(c, depth){
+    var kids = Object.keys(c.children).length;
+    var open = !!expanded[c.id];
+    var caret = kids ? (open ? '▾' : '▸') : '·';
+    var meta = nodes[c.id] || {};
+    var locked = isProtected(c.id);
+    var html = '<div class="mem2-row'+(current===c.id?' active':'')+'" style="padding-left:'+(6+depth*13)+'px" data-node="'+esc(c.id)+'">'+
+      '<span class="mem2-caret" data-toggle="'+esc(c.id)+'">'+caret+'</span>'+
+      '<span class="mem2-icon">'+nodeIcon(c.id, kids>0)+'</span>'+
+      '<span class="mem2-label">'+esc(c.seg)+'</span>'+
+      (locked ? '<span class="mem2-lock" title="Gere par le systeme">'+SVG.lock+'</span>' : '')+
+      (meta.count != null ? '<span class="mem2-count">'+meta.count+'</span>' : (kids?'<span class="mem2-count">'+kids+'</span>':''))+
+    '</div>';
+    if(kids && open) html += treeHtml(c, depth+1);
+    return html;
+  }
+
   function treeHtml(node, depth) {
     var html = '';
-    Object.keys(node.children).sort().forEach(function(k){
-      var c = node.children[k];
-      var kids = Object.keys(c.children).length;
-      var open = !!expanded[c.id];
-      var caret = kids ? (open ? '▾' : '▸') : '·';
-      var meta = nodes[c.id] || {};
-      html += '<div class="mem2-row'+(current===c.id?' active':'')+'" style="padding-left:'+(6+depth*13)+'px" data-node="'+esc(c.id)+'">'+
-        '<span class="mem2-caret" data-toggle="'+esc(c.id)+'">'+caret+'</span>'+
-        '<span class="mem2-label">'+esc(c.seg)+'</span>'+
-        (meta.count != null ? '<span class="mem2-count">'+meta.count+'</span>' : (kids?'<span class="mem2-count">'+kids+'</span>':''))+
-      '</div>';
-      if(kids && open) html += treeHtml(c, depth+1);
-    });
+    var keys = Object.keys(node.children);
+    keys.sort(depth===0 ? rootOrder : undefined);
+    keys.forEach(function(k){ html += rowHtml(node.children[k], depth); });
     return html;
   }
 
   function renderTree() {
     var el = document.getElementById('mem2Tree'); if(!el) return;
     if(!Object.keys(nodes).length) { el.innerHTML = '<div class="mem2-empty">Aucun noeud</div>'; return; }
-    el.innerHTML = treeHtml(buildTree(), 0);
+    var root = buildTree();
+    // Groupe SYSTEM en tete (system + tools), separe visuellement du reste.
+    var sysKeys = Object.keys(root.children).filter(function(k){ return k==='system' || k==='tools'; }).sort(rootOrder);
+    var otherKeys = Object.keys(root.children).filter(function(k){ return k!=='system' && k!=='tools'; }).sort();
+    var html = '';
+    if(sysKeys.length){
+      html += '<div class="mem2-sysgroup">'+
+        '<div class="mem2-grouplabel">Systeme</div>'+
+        sysKeys.map(function(k){ return rowHtml(root.children[k], 0); }).join('')+
+      '</div>';
+    }
+    html += otherKeys.map(function(k){ return rowHtml(root.children[k], 0); }).join('');
+    el.innerHTML = html;
     el.querySelectorAll('.mem2-caret').forEach(function(c){
       c.onclick = function(e){ e.stopPropagation(); var id=c.dataset.toggle; expanded[id]=!expanded[id]; renderTree(); };
     });
@@ -5120,7 +5216,17 @@ LaRuche.Memory = (function(){
     setCrumb();
     var el = document.getElementById('mem2Doc'); if(!el) return;
     if(!currentNode){ el.innerHTML = '<div class="mem2-empty">Selectionnez un noeud dans l\'arborescence pour afficher ses souvenirs.</div>'; return; }
+    var nodeId = currentNode.node_id || '';
+    // Editeur dedie pour le system prompt et la SOUL.
+    if(isSystemEditor(nodeId)){ renderSystemEditor(el, nodeId); return; }
     var html = '';
+    var locked = isProtected(nodeId);
+    var readOnly = isReadOnly(nodeId);
+    if(locked){
+      html += '<div class="mem2-protnote">'+SVG.lock+
+        '<span>Noeud gere par le systeme. L\'agent ne peut pas le modifier'+
+        (readOnly ? ' (lecture seule).' : '.')+'</span></div>';
+    }
     var children = currentNode.children || [];
     if(children.length){
       html += '<div class="mem2-children">'+children.map(function(c){
@@ -5129,7 +5235,6 @@ LaRuche.Memory = (function(){
       }).join('')+'</div>';
     }
     var items = currentNode.items || [];
-    var nodeId = currentNode.node_id || '';
     var isSearch = nodeId.indexOf('recherche:')===0;
     if(!items.length){
       html += '<div class="mem2-empty">Aucun souvenir dans ce noeud.</div>';
@@ -5138,23 +5243,31 @@ LaRuche.Memory = (function(){
         var id = it.id || '';
         var node = it.node_id || it.node || nodeId;
         var content = it.content || it.text || '';
+        var dis = locked ? ' disabled title="Gere par le systeme"' : '';
+        var acts = '';
+        if(id){
+          acts = '<span class="mem2-item-acts">';
+          // L'edition reste possible sauf en lecture seule (tools.*).
+          if(!readOnly) acts += '<button class="mem2-iact" data-act="edit" data-id="'+esc(id)+'">Editer</button>';
+          // Mutations destructives cote agent : desactivees si protege.
+          acts += '<button class="mem2-iact" data-act="move" data-id="'+esc(id)+'" data-node="'+esc(node)+'"'+dis+'>Deplacer</button>'+
+            '<button class="mem2-iact danger" data-act="delete" data-id="'+esc(id)+'"'+dis+'>Suppr</button>'+
+          '</span>';
+        }
         return '<div class="mem2-item" data-itemwrap="'+esc(id)+'">'+
           '<div class="mem2-item-bar">'+
             '<span class="mem2-item-id">'+esc(id || '(sans id)')+'</span>'+
+            (locked ? '<span class="mem2-lock" title="Gere par le systeme">'+SVG.lock+'</span>' : '')+
             '<span class="mem2-item-meta">'+esc(node)+'</span>'+
-            (id ? '<span class="mem2-item-acts">'+
-              '<button class="mem2-iact" data-act="edit" data-id="'+esc(id)+'">Editer</button>'+
-              '<button class="mem2-iact" data-act="move" data-id="'+esc(id)+'" data-node="'+esc(node)+'">Deplacer</button>'+
-              '<button class="mem2-iact danger" data-act="delete" data-id="'+esc(id)+'">Suppr</button>'+
-            '</span>' : '')+
+            acts+
           '</div>'+
           '<div class="mem2-md" data-md="'+esc(id)+'">'+LaRuche.MD.render(content)+'</div>'+
           '<div class="mem2-rawholder" data-raw="'+esc(id)+'" style="display:none">'+esc(content)+'</div>'+
         '</div>';
       }).join('');
     }
-    // bloc ajout (sauf en mode recherche)
-    if(!isSearch && nodeId){
+    // bloc ajout (sauf recherche, noeud protege ou lecture seule)
+    if(!isSearch && nodeId && !locked){
       html += '<div class="mem2-add">'+
         '<textarea id="mem2AddText" placeholder="Nouveau souvenir (markdown, [[liens]] supportes)..."></textarea>'+
         '<div style="margin-top:8px"><button class="mem2-btn-primary" id="mem2AddBtn">Ajouter a '+esc(nodeId)+'</button></div>'+
@@ -5176,6 +5289,104 @@ LaRuche.Memory = (function(){
     });
     var addBtn = document.getElementById('mem2AddBtn');
     if(addBtn) addBtn.onclick = function(){ addItem(nodeId); };
+  }
+
+  /* ---- editeur System Prompt / SOUL ---- */
+  var SOUL_TEMPLATE = '---\ntype: soul\nenabled: false\n---\nTon de voix direct et chaleureux, sans bla-bla.\nTutoiement, humour leger, va droit au but.\n';
+
+  // Parse un frontmatter OKF minimal -> { enabled:bool, hasFm:bool, body:str }
+  function parseSoul(content){
+    content = content || '';
+    var m = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n?([\s\S]*)$/);
+    if(!m) return { enabled:true, hasFm:false, body:content, fm:{} };
+    var fm = {};
+    m[1].split('\n').forEach(function(line){
+      var kv = line.match(/^\s*([A-Za-z0-9_-]+)\s*:\s*(.*)\s*$/);
+      if(kv) fm[kv[1].toLowerCase()] = kv[2].trim();
+    });
+    var enabled = String(fm.enabled || '').toLowerCase() !== 'false';
+    return { enabled:enabled, hasFm:true, body:m[2], fm:fm };
+  }
+
+  // Reconstruit le contenu SOUL avec frontmatter selon enabled + corps.
+  function buildSoul(enabled, body){
+    return '---\ntype: soul\nenabled: '+(enabled?'true':'false')+'\n---\n'+(body || '');
+  }
+
+  function renderSystemEditor(el, nodeId){
+    var isSoul = (nodeId === 'system.soul');
+    var items = (currentNode && currentNode.items) || [];
+    // dernier item = contenu courant
+    var last = items.length ? items[items.length-1] : null;
+    var rawContent = last ? (last.content || last.text || '') : '';
+    var taValue = rawContent, soulEnabled = false;
+    if(isSoul){
+      if(!rawContent){ taValue = SOUL_TEMPLATE; soulEnabled = false; }
+      else {
+        var parsed = parseSoul(rawContent);
+        soulEnabled = parsed.enabled;
+        taValue = rawContent; // on garde le frontmatter visible/editable
+      }
+    }
+    var title = isSoul ? 'SOUL — personnalite' : 'System Prompt';
+    var icon = isSoul ? SVG.soul : SVG.prompt;
+    var html = '<div class="mem2-syseditor">'+
+      '<div class="mem2-syseditor-head">'+
+        '<h3>'+icon+esc(title)+'</h3>'+
+        (isSoul ? '<label class="mem2-toggle"><input type="checkbox" id="mem2SoulToggle"'+(soulEnabled?' checked':'')+'><span class="mem2-toggle-track"></span><span>'+(soulEnabled?'Activee':'Desactivee')+'</span></label>' : '')+
+      '</div>'+
+      '<div class="mem2-protnote">'+SVG.lock+'<span>Gere par le systeme : l\'agent ne peut pas modifier ce contenu. Edition reservee a l\'administrateur ici.</span></div>'+
+      '<textarea id="mem2SysText" spellcheck="false" placeholder="'+(isSoul?'Personnalite (format OKF avec frontmatter)...':'System prompt...')+'">'+esc(taValue)+'</textarea>'+
+      '<div class="mem2-syseditor-acts">'+
+        '<button class="mem2-btn-primary" id="mem2SysSave">Enregistrer</button>'+
+        '<button class="mem2-btn-ghost" id="mem2SysRestore">Restaurer le defaut</button>'+
+      '</div>'+
+      '<div class="mem2-syseditor-note">Le format des appels d\'outils et des plans reste gere par le systeme et n\'est pas editable ici.</div>'+
+    '</div>';
+    el.innerHTML = html;
+
+    var ta = document.getElementById('mem2SysText');
+    var toggle = document.getElementById('mem2SoulToggle');
+
+    if(isSoul && toggle){
+      var lbl = toggle.parentNode.querySelector('span:last-child');
+      toggle.onchange = function(){
+        if(lbl) lbl.textContent = toggle.checked ? 'Activee' : 'Desactivee';
+        // synchronise le frontmatter dans le textarea (conserve le corps)
+        var p = parseSoul(ta.value);
+        ta.value = buildSoul(toggle.checked, p.body);
+      };
+    }
+
+    document.getElementById('mem2SysSave').onclick = function(){
+      var content = ta.value;
+      if(isSoul){
+        // garantit un frontmatter coherent avec le toggle
+        var p = parseSoul(content);
+        content = buildSoul(toggle ? toggle.checked : p.enabled, p.body);
+      } else {
+        content = content.trim();
+        if(!content){ LaRuche.Toast.show('Contenu requis','warn'); return; }
+      }
+      postJson('/api/memory/write', {node_id:nodeId, content:content, source:'ui-admin'}).then(function(d){
+        if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Ecriture impossible','err'); return; }
+        LaRuche.Toast.show((isSoul?'SOUL':'System prompt')+' enregistre','ok');
+        loadNode(nodeId); loadStats();
+      }).catch(function(e){ LaRuche.Toast.show('Ecriture: '+e,'err'); });
+    };
+
+    document.getElementById('mem2SysRestore').onclick = function(){
+      if(!window.confirm('Restaurer le '+(isSoul?'SOUL':'system prompt')+' par defaut ? Le contenu actuel sera supprime.')) return;
+      var ids = items.map(function(it){ return it.id; }).filter(Boolean);
+      if(!ids.length){ LaRuche.Toast.show('Deja au defaut (aucun item)','ok'); loadNode(nodeId); return; }
+      Promise.all(ids.map(function(id){ return postJson('/api/memory/delete', {item_id:id, reason:'ui-admin-restore'}); }))
+        .then(function(res){
+          var bad = res.filter(function(d){ return d && (d.status==='error'||d.error); });
+          if(bad.length){ LaRuche.Toast.show('Suppression partielle: '+(bad[0].error||'?'),'err'); }
+          else LaRuche.Toast.show('Defaut restaure','ok');
+          loadNode(nodeId); loadStats();
+        }).catch(function(e){ LaRuche.Toast.show('Restauration: '+e,'err'); });
+    };
   }
 
   /* ---- CRUD ---- */
