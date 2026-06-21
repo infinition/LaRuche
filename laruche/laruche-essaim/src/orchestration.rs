@@ -5,7 +5,7 @@
 
 /// Assemble le contenu de skills OKF en tête d'un prompt (10.B).
 /// `skills` : paires `(nom, corps_markdown)` déjà chargées depuis la mémoire OKF
-/// (`tools.skills.<slug>`). Le corps inclut idéalement le frontmatter retiré et
+/// (`capacities.skills.<slug>`). Le corps inclut idéalement le frontmatter retiré et
 /// seulement la connaissance procédurale. Ordre préservé.
 pub fn assembler_prompt_skills(base_prompt: &str, skills: &[(String, String)]) -> String {
     if skills.is_empty() {

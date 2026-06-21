@@ -1408,7 +1408,7 @@ async fn trouver_skill_existant(
     }
 
     let description = yaml_frontmatter_field(okf, "description").unwrap_or_default();
-    let query = format!("tools.skills {name} {description}");
+    let query = format!("capacities.skills {name} {description}");
     let pack = memoire
         .search(
             &query,
@@ -1427,7 +1427,7 @@ fn skill_hit_from_items(items: Option<&Vec<serde_json::Value>>) -> Option<SkillH
             .get("node_id")
             .or_else(|| item.get("node"))
             .and_then(serde_json::Value::as_str)?;
-        if !node_id.starts_with("tools.skills.") {
+        if !node_id.starts_with("capacities.skills.") {
             return None;
         }
         let content = item
@@ -1482,7 +1482,7 @@ fn yaml_frontmatter_field(markdown: &str, key: &str) -> Option<String> {
 }
 
 /// Récupère les skills OKF pertinents pour la requête (rappel automatique de la
-/// boucle d'apprentissage) : items sous `tools.skills.*` (frontmatter `type: skill`)
+/// boucle d'apprentissage) : items sous `capacities.skills.*` (frontmatter `type: skill`)
 /// proches du prompt utilisateur.
 /// Levier 2 — récupère les NOMS d'Abeilles pertinentes pour l'intention, depuis la carte
 /// cognitive (`tools.abeilles.*`, indexées par `indexer_abeilles_memoire`). Vide si rien de

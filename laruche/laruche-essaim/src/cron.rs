@@ -28,7 +28,7 @@ pub struct ScheduledTask {
     /// Profil provider à utiliser pour ce run (résout provider + modèle + clé + base_url).
     #[serde(default)]
     pub profile_id: Option<String>,
-    /// Skills (noms OKF sous `tools.skills.*`) à injecter dans le prompt au run.
+    /// Skills (noms OKF sous `capacities.skills.*`) à injecter dans le prompt au run.
     #[serde(default)]
     pub skills: Vec<String>,
     /// Cron expression (5-field) for recurring tasks, or None for one-shot.

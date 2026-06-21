@@ -2,7 +2,9 @@
   "mcpServers": {
     "laruche-computer-use": {
       "command": "python",
-      "args": ["plugins/mcp_computer_use.py"]
+      "args": [
+        "plugins/mcp_computer_use.py"
+      ]
     }
   }
 }

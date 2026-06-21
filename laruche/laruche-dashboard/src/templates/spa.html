@@ -6969,6 +6969,8 @@ LaRuche.Settings = (function(){
   }
   function toggleSkill(name){ fetch(LaRuche.API.base+'/api/skills/'+encodeURIComponent(name)+'/toggle',{method:'POST'}).then(function(r){return r.json();}).then(function(d){ LaRuche.Toast.show('Skill '+(d.enabled?'activé':'désactivé'),'ok'); }); }
   function deleteSkill(name){ fetch(LaRuche.API.base+'/api/skills/'+encodeURIComponent(name),{method:'DELETE'}).then(function(){ LaRuche.Settings.refreshTab&&LaRuche.Settings.refreshTab(); }); }
+  var PLUGIN_TEMPLATE = '{\n  "name": "mon_plugin",\n  "description": "Description de mon plugin",\n  "danger": "safe",\n  "parameters": {\n    "type": "object",\n    "properties": {},\n    "required": []\n  },\n  "command": "echo {{arg}}"\n}';
+  function newPlugin(){ pluginEditor('nouveau_plugin', PLUGIN_TEMPLATE); }
   function newSkill(){ skillEditor('', SKILL_TEMPLATE); }
   function viewSkill(name){ fetch(LaRuche.API.base+'/api/skills/'+encodeURIComponent(name)).then(function(r){return r.json();}).then(function(d){ skillEditor(name, d.content||''); }); }
   function skillEditor(name, content){
@@ -6990,6 +6992,38 @@ LaRuche.Settings = (function(){
         if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
         LaRuche.Toast.show('Skill « '+d.name+' » enregistré','ok');
         var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove();
+        LaRuche.Settings.refreshTab&&LaRuche.Settings.refreshTab();
+      }).catch(function(){ LaRuche.Toast.show('Échec','err'); });
+  }
+
+  function viewPlugin(name){ fetch(LaRuche.API.base+'/api/plugins/'+encodeURIComponent(name)).then(function(r){return r.json();}).then(function(d){ pluginEditor(name, d.content||''); }).catch(function(){ LaRuche.Toast.show('Fichier non trouvé','err'); }); }
+  function pluginEditor(name, content){
+    var ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center';
+    ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
+    ov.innerHTML='<div style="width:680px;max-width:94vw;height:80vh;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
+      '<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--amber)">Éditer Plugin : '+LaRuche.Utils.esc(name)+' <span style="color:var(--text-dim);font-size:10px;font-weight:normal">— JSON (rechargé au save)</span></div>'+
+      '<textarea id="plEditor" data-name="'+LaRuche.Utils.esc(name)+'" class="form-input" style="flex:1;margin:12px;font-family:var(--mono);font-size:12px;resize:none" spellcheck="false">'+LaRuche.Utils.esc(content)+'</textarea>'+
+      '<div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
+      '<button class="tl-btn" onclick="this.closest(\'div[style*=fixed]\').remove()">Annuler</button>'+
+      '<button class="settings-save-btn" onclick="LaRuche.Settings.savePlugin(this)">Enregistrer</button></div></div>';
+    document.body.appendChild(ov);
+  }
+  function savePlugin(btn){
+    var ta=document.getElementById('plEditor');
+    var content=ta.value; var name=ta.dataset.name;
+    fetch(LaRuche.API.base+'/api/plugins/'+encodeURIComponent(name),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:content})})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
+        LaRuche.Toast.show('Plugin « '+d.name+' » enregistré','ok');
+        var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove();
+        LaRuche.Settings.refreshTab&&LaRuche.Settings.refreshTab();
+      }).catch(function(){ LaRuche.Toast.show('Échec','err'); });
+  }
+  function deletePlugin(name){
+    fetch(LaRuche.API.base+'/api/plugins/'+encodeURIComponent(name),{method:'DELETE'})
+      .then(function(r){return r.json();}).then(function(d){
+        LaRuche.Toast.show('Plugin supprimé','ok');
         LaRuche.Settings.refreshTab&&LaRuche.Settings.refreshTab();
       }).catch(function(){ LaRuche.Toast.show('Échec','err'); });
   }
@@ -7399,7 +7433,7 @@ var m = document.getElementById('kanban-model')?document.getElementById('kanban-
   }
 
   return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, enter:enter, leave:leave, createCron:createCron, createWatcher:createWatcher, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, createKanbanTask:createKanbanTask, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder : composant "human-friendly" reutilisable (missions + cron) ── */
@@ -7980,21 +8014,7 @@ LaRuche.Capabilities = (function(){
         });
       });
     } catch(e){}
-    // Plugins (best-effort : endpoint optionnel)
-    try {
-      var pr = await fetch('/api/plugins');
-      if(pr.ok){
-        var plugins = await pr.json();
-        var list = Array.isArray(plugins)?plugins:(plugins.plugins||[]);
-        (list||[]).forEach(function(p){
-          rows.push({
-            family:'plugin', name:(p.name||p.id||'plugin'),
-            origin:(p.origin==='Builtin'?'natif':'custom'),
-            desc:(p.description||''), enabled:(p.enabled!==false), raw:p
-          });
-        });
-      }
-    } catch(e){}
+
     // Tri alphabetique par nom a l'interieur de chaque famille
     var famOrder = {abeille:0, skill:1, mcp:2, plugin:3};
     rows.sort(function(a,b){
@@ -8033,6 +8053,12 @@ LaRuche.Capabilities = (function(){
       var editMcp = '<button class="tl-btn" onclick="LaRuche.Capabilities.editMcp('+i+')">Editer</button>';
       var delMcp = '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.Settings.deleteMcpServer(\''+LaRuche.Utils.esc(r.mcpName)+'\');setTimeout(LaRuche.Capabilities.refresh,600)">Retirer</button>';
       return editMcp+' '+delMcp;
+    }
+    if(r.family==='plugin'){
+      var togP = '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:'+(r.enabled?'var(--green)':'var(--red)')+'"><input type="checkbox" '+(r.enabled?'checked':'')+' onchange="LaRuche.Settings.toggleTool(\''+LaRuche.Utils.esc(r.name)+'\',this.checked);setTimeout(LaRuche.Capabilities.refresh,300)">'+(r.enabled?'ON':'OFF')+'</label>';
+      var editP = '<button class="tl-btn" onclick="LaRuche.Settings.viewPlugin(\''+LaRuche.Utils.esc(r.name)+'\')">Editer</button>';
+      var delP = '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(\'Supprimer le plugin '+LaRuche.Utils.esc(r.name)+' ?\')){LaRuche.Settings.deletePlugin(\''+LaRuche.Utils.esc(r.name)+'\');setTimeout(LaRuche.Capabilities.refresh,300)}">Suppr</button>';
+      return togP+' '+editP+' '+delP;
     }
     return '<span style="color:var(--text-dim);font-size:10px">—</span>';
   }
@@ -8096,6 +8122,9 @@ LaRuche.Capabilities = (function(){
     var extraActions = '';
     if(currentFamily==='all' || currentFamily==='skill'){
       extraActions += '<button class="settings-save-btn" onclick="LaRuche.Settings.newSkill()">+ Nouveau skill</button>';
+    }
+    if(currentFamily==='all' || currentFamily==='plugin'){
+      extraActions += ' <button class="settings-save-btn" onclick="LaRuche.Settings.newPlugin()">+ Nouveau plugin</button>';
     }
     if(currentFamily==='all' || currentFamily==='abeille'){
       extraActions = '<button onclick="LaRuche.Capabilities.toggleAll(true)" style="background:rgba(16,185,129,0.15);color:var(--green);border:1px solid var(--green);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600">Tout activer</button>'+

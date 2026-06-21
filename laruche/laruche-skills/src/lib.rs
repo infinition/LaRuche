@@ -2,7 +2,7 @@
 //!
 //! Un skill est un document Markdown avec frontmatter YAML (`type: skill`) et un corps
 //! structure en paradigmes + etapes. Le stockage reste dans la memoire cognitive via
-//! `tools.skills.<nom>`; cette crate ne cree aucun store.
+//! `capacities.skills.<nom>`; cette crate ne cree aucun store.
 
 use anyhow::{anyhow, Result};
 use laruche_memoire::{MemoireCognitive, MemoryItem, SearchOpts};
@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 
-pub const SKILLS_ROOT_NODE: &str = "tools.skills";
+pub const SKILLS_ROOT_NODE: &str = "capacities.skills";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SkillMeta {

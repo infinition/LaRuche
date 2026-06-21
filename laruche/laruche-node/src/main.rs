@@ -3323,13 +3323,13 @@ async fn api_update_cron(
     Json(serde_json::json!({"status": "ok"}))
 }
 
-// ─── Skills (OKF en mémoire, tools.skills.*) — page Settings ────────────────
+// ─── Skills (OKF en mémoire, capacities.skills.*) — page Settings ────────────────
 
 /// GET /api/skills — liste les skills (nom, description, enabled).
 async fn api_list_skills(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let disabled = state.essaim_config.read().await.disabled_skills.clone();
     let mut out: Vec<serde_json::Value> = Vec::new();
-    if let Ok(root) = state.memoire.read_node("tools.skills").await {
+    if let Ok(root) = state.memoire.read_node("capacities.skills").await {
         if let Some(children) = root["children"].as_array() {
             for child in children {
                 let id = child["id"].as_str().or_else(|| child["node_id"].as_str());
@@ -6973,6 +6973,52 @@ async fn ws_audio_connection(socket: ws::WebSocket, state: Arc<AppState>) {
     }
 }
 
+// ======================== Plugins API ========================
+
+async fn api_plugin_get(
+    axum::extract::Path(name): axum::extract::Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let path = std::path::Path::new("plugins").join(format!("{}.json", name));
+    if !path.exists() {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    let content = tokio::fs::read_to_string(&path).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(serde_json::json!({ "content": content })))
+}
+
+async fn api_plugin_save(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(name): axum::extract::Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let content = body["content"].as_str().ok_or(StatusCode::BAD_REQUEST)?;
+    let path = std::path::Path::new("plugins").join(format!("{}.json", name));
+    tokio::fs::create_dir_all("plugins").await.ok();
+    tokio::fs::write(&path, content).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    // Reload plugins
+    let plugins_dir = std::path::Path::new("plugins");
+    laruche_essaim::abeilles::plugins::charger_plugins(plugins_dir, &state.essaim_registry);
+    
+    Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
+}
+
+async fn api_plugin_delete(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(name): axum::extract::Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let path = std::path::Path::new("plugins").join(format!("{}.json", name));
+    if path.exists() {
+        tokio::fs::remove_file(&path).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+    
+    // Reload plugins
+    let plugins_dir = std::path::Path::new("plugins");
+    laruche_essaim::abeilles::plugins::charger_plugins(plugins_dir, &state.essaim_registry);
+    
+    Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
+}
+
 // ======================== Main ========================
 
 /// GET /api/mcp/servers
@@ -7777,6 +7823,7 @@ async fn main() -> Result<()> {
         .route("/api/mcp", post(mcp::api_mcp_handler))
         .route("/api/mcp/servers", get(api_mcp_list_servers))
         .route("/api/mcp/servers/:name", post(api_mcp_save_server).delete(api_mcp_delete_server))
+        .route("/api/plugins/:name", get(api_plugin_get).post(api_plugin_save).delete(api_plugin_delete))
         .route("/api/channels/discord/webhook", post(api_discord_webhook))
         .route("/api/channels/slack/events", post(api_slack_events))
         // Auth routes
@@ -8117,7 +8164,7 @@ async fn main() -> Result<()> {
                 tokio::spawn(async move { while let Ok(_) = rx.recv().await {} });
 
                 // Lot 10.B — injection des skills attachés : charge chaque SKILL.md OKF
-                // depuis tools.skills.<nom> et l'assemble en tête du prompt (skills
+                // depuis capacities.skills.<nom> et l'assemble en tête du prompt (skills
                 // désactivés via le slider de la page Skills = sautés).
                 let disabled_sk = cron_config.disabled_skills.clone();
                 let mut skills_charges: Vec<(String, String)> = Vec::new();
