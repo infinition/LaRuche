@@ -420,16 +420,23 @@ impl MemoireCognitive for NativeBackend {
 
     async fn delete_node(&self, node_id: &str) -> Result<Value> {
         let id = node_id.trim_matches('.').to_string();
-        let Some(parent) = node_parent_id(&id) else {
-            return Err(anyhow!("impossible de supprimer un noeud racine: {id}"));
-        };
-        let mut store = self.store.lock().unwrap();
-        // Rattache les items du noeud au parent.
-        if let Some(items) = store.remove(&id) {
-            store.entry(parent.clone()).or_default().extend(items);
+        if id.is_empty() {
+            return Err(anyhow!("node_id vide"));
         }
-        // Re-parent les sous-noeuds (préfixe `id.`) sous le parent.
+        // Racine (pas de parent) → relocalise tout le sous-arbre sous `orphans.<id>` (rien perdu).
+        // Sinon → items + sous-nœuds remontent au parent (on retire le segment du nœud).
+        let (cible_self, prefix_dest, racine) = match node_parent_id(&id) {
+            Some(parent) => (parent.clone(), parent, false),
+            None => {
+                let dest = format!("orphans.{id}");
+                (dest.clone(), dest, true)
+            }
+        };
         let prefix = format!("{id}.");
+        let mut store = self.store.lock().unwrap();
+        if let Some(items) = store.remove(&id) {
+            store.entry(cible_self.clone()).or_default().extend(items);
+        }
         let descendants: Vec<String> = store
             .keys()
             .filter(|k| k.starts_with(&prefix))
@@ -437,13 +444,27 @@ impl MemoireCognitive for NativeBackend {
             .collect();
         for child in descendants {
             if let Some(items) = store.remove(&child) {
-                // `projects.x.sub` → `projects.sub` (le segment `x` saute).
                 let suffix = child.strip_prefix(&prefix).unwrap_or(&child);
-                let new_id = format!("{parent}.{suffix}");
+                // racine: orphans.<id>.suffix ; non-racine: parent.suffix
+                let new_id = format!("{prefix_dest}.{suffix}");
                 store.entry(new_id).or_default().extend(items);
             }
         }
-        Ok(json!({ "deleted": id, "moved_to": parent }))
+        // Métadonnées : suit le même remap.
+        {
+            let mut meta = self.meta.lock().unwrap();
+            if let Some(m) = meta.remove(&id) {
+                meta.insert(cible_self.clone(), m);
+            }
+            let keys: Vec<String> = meta.keys().filter(|k| k.starts_with(&prefix)).cloned().collect();
+            for k in keys {
+                if let Some(m) = meta.remove(&k) {
+                    let suffix = k.strip_prefix(&prefix).unwrap_or(&k);
+                    meta.insert(format!("{prefix_dest}.{suffix}"), m);
+                }
+            }
+        }
+        Ok(json!({ "deleted": id, "moved_to": cible_self, "racine": racine }))
     }
 
     async fn create_node(

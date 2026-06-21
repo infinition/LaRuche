@@ -1996,6 +1996,44 @@ async fn api_memory_node_update(
     }
 }
 
+/// POST /api/memory/node/move — reparente un nœud (drag&drop dans l'arbre). body
+/// `{node_id, new_parent}` ; `new_parent` vide ⇒ nœud racine. Déplace tout le sous-arbre
+/// (renommage d'id). Refuse les nœuds système et les cycles (déplacer dans son propre sous-arbre).
+async fn api_memory_node_move(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let old = body["node_id"]
+        .as_str()
+        .map(|s| s.trim().trim_matches('.'))
+        .filter(|s| !s.is_empty())
+        .ok_or(StatusCode::BAD_REQUEST)?;
+    let new_parent = body["new_parent"].as_str().unwrap_or("").trim().trim_matches('.');
+    let last = old.rsplit('.').next().unwrap_or(old);
+    let new_id = if new_parent.is_empty() {
+        last.to_string()
+    } else {
+        format!("{new_parent}.{last}")
+    };
+    let prot = |s: &str| {
+        s == "system" || s == "capacities" || s.starts_with("system.") || s.starts_with("capacities.")
+    };
+    if prot(old) || prot(&new_id) {
+        return Ok(Json(serde_json::json!({ "status": "error", "error": "noeud systeme non deplacable" })));
+    }
+    if new_id == old || new_id.starts_with(&format!("{old}.")) {
+        return Ok(Json(serde_json::json!({ "status": "error", "error": "deplacement invalide (cycle ou identique)" })));
+    }
+    match state.memoire.renommer_sous_arbre(old, &new_id).await {
+        Ok(n) => Ok(Json(
+            serde_json::json!({ "status": "ok", "result": { "moved_to": new_id, "nodes": n } }),
+        )),
+        Err(e) => Ok(Json(
+            serde_json::json!({ "status": "error", "error": e.to_string() }),
+        )),
+    }
+}
+
 async fn api_memory_move(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
@@ -7520,6 +7558,7 @@ async fn main() -> Result<()> {
         .route("/api/memory/delete", post(api_memory_delete))
         .route("/api/memory/node/create", post(api_memory_node_create))
         .route("/api/memory/node/update", post(api_memory_node_update))
+        .route("/api/memory/node/move", post(api_memory_node_move))
         .route("/api/memory/node/delete", post(api_memory_node_delete))
         .route("/api/memory/move", post(api_memory_move))
         .route("/api/memory/review", post(api_memory_review))
