@@ -258,6 +258,40 @@ body {
   color:var(--amber); border-bottom:1px solid var(--border);
   display:flex; justify-content:space-between; align-items:center;
 }
+/* Agent Header Panel Refactoring */
+.agent-header-block {
+  background: rgba(0, 0, 0, 0.2);
+  border-top: 1px solid rgba(245, 158, 11, 0.15);
+  border-bottom: 1px solid rgba(245, 158, 11, 0.05);
+  margin: 12px 0 8px;
+  display: flex;
+  flex-direction: column;
+}
+.agent-header-block .sidebar-header.agent-header {
+  padding: 10px 12px 2px;
+  border-bottom: none;
+  min-height: auto;
+}
+.agent-header-block .feed-usage-bar {
+  padding: 2px 12px 8px;
+  color: var(--amber);
+  opacity: 0.65;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.5px;
+}
+.agent-header-block .feed-details-toggle {
+  background: rgba(255,255,255,0.04);
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.08);
+  transition: all 0.2s;
+}
+.agent-header-block .feed-details-toggle:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.15);
+  color: var(--text);
+}
 .plan-section { border-bottom:1px solid var(--border); max-height:180px; overflow-y:auto; }
 .plan-section:empty { display:none; }
 .plan-title { padding:8px 12px 4px; font-size:10px; font-weight:600; text-transform:uppercase; color:var(--text-muted); letter-spacing:.5px; }
@@ -1303,17 +1337,19 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
           </div>
           <div id="headerContextUsage" class="ctx-mini-pill" title="Usage du contexte">CTX: 0%</div>
         </div>
-<div class="sidebar-header agent-header">
-          <span>Agent</span>
-          <span class="agent-header-actions">
-            <span class="feed-live-status" id="feedLiveStatus" aria-live="polite"><span class="feed-live-dot"></span><span id="feedLiveText">En attente</span></span>
-            <label class="feed-details-toggle" title="Afficher les détails techniques">
-              <input type="checkbox" id="feedDetailsToggle" onchange="window.lrToggleFeedDetails(this.checked)"> détails
-            </label>
-            <span id="iterationBadge" class="iteration-badge"></span>
-          </span>
+        <div class="agent-header-block">
+          <div class="sidebar-header agent-header">
+            <span>Agent</span>
+            <span class="agent-header-actions">
+              <span class="feed-live-status" id="feedLiveStatus" aria-live="polite"><span class="feed-live-dot"></span><span id="feedLiveText">En attente</span></span>
+              <label class="feed-details-toggle" title="Afficher les détails techniques">
+                <input type="checkbox" id="feedDetailsToggle" onchange="window.lrToggleFeedDetails(this.checked)"> détails
+              </label>
+              <span id="iterationBadge" class="iteration-badge"></span>
+            </span>
+          </div>
+          <div class="feed-usage-bar" id="feedUsage" aria-live="polite"></div>
         </div>
-        <div class="feed-usage-bar" id="feedUsage" aria-live="polite"></div>
         <div class="plan-section" id="planSection"><div class="plan-title">Plan</div></div>
         <div class="agent-feed-wrap">
           <div class="activity-feed compact" id="activityFeed" aria-live="polite" aria-label="Activité de l'agent"></div>
