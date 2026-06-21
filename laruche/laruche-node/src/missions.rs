@@ -120,6 +120,8 @@ pub fn prompt_iteration(mission: &Mission, etat_actuel: &str) -> String {
          OBJECTIF : {objective}\n\
          Itération n°{iter}.\n\n\
          Déjà capitalisé en mémoire sous `{node}` :\n{etat}\n\n\
+         Si l'état ci-dessus contient des « questions ouvertes » non résolues, traite-les EN PRIORITÉ. \
+         Sinon, identifie l'angle le plus important encore non couvert. \
          Fais LA prochaine étape la plus utile pour faire AVANCER le dossier (recherche web approfondie, \
          analyse, recoupement de sources). Puis OBLIGATOIREMENT :\n\
          1) écris les NOUVEAUX faits/sources durables via memory_write sous le node_id `{node}.findings` \
