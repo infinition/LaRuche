@@ -2378,6 +2378,23 @@ LaRuche.Header = (function(){
   function init() {
     loadModels();
     loadPermissionMode();
+    setInterval(fetchContextStats, 1500);
+    fetchContextStats();
+  }
+
+  async function fetchContextStats(){
+    try{
+      var r=await fetch('/api/context/stats');
+      if(!r.ok)return;
+      var d=await r.json();
+      var el = document.getElementById('headerContextUsage');
+      if(el) {
+        var pct = Math.round((d.ratio||0)*100);
+        el.style.setProperty('--value', pct);
+        var num = document.getElementById('headerContextNum');
+        if(num) num.textContent = pct;
+      }
+    }catch(e){}
   }
 
   function loadPermissionMode() {
@@ -4283,21 +4300,6 @@ LaRuche.Dashboard = (function(){
     }
   }
 
-  async function fetchContextStats(){
-    try{
-      var r=await fetch(LaRuche.API.base+'/api/context/stats');
-      if(!r.ok)return;
-      var d=await r.json();
-      var el = document.getElementById('headerContextUsage');
-      if(el) {
-        var pct = Math.round((d.ratio||0)*100);
-        el.style.setProperty('--value', pct);
-        var num = document.getElementById('headerContextNum');
-        if(num) num.textContent = pct;
-      }
-    }catch(e){}
-  }
-
   async function fetchStatus(){
     try{
       var r=await fetch(LaRuche.API.base+'/api/status');if(!r.ok)return;var d=await r.json();
@@ -4601,7 +4603,6 @@ LaRuche.Dashboard = (function(){
     fetchSwarm();fetchStatus();fetchModels();fetchActivity();
     pollTimers.push(setInterval(fetchSwarm,3000));
     pollTimers.push(setInterval(fetchStatus,5000));
-    pollTimers.push(setInterval(fetchContextStats,5000));
     pollTimers.push(setInterval(fetchActivity,2000));
     pollTimers.push(setInterval(fetchModels,15000));
     addLog('SYS','log-info','Dashboard initialise');
