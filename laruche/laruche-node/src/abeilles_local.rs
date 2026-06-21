@@ -23,15 +23,15 @@ impl Abeille for AbeilleCronCreate {
     }
 
     fn description(&self) -> &str {
-        "CrÃ©e une tÃ¢che planifiÃ©e (cron ou fire_at) qui exÃ©cutera un prompt spÃ©cifiÃ©."
+        "Crée une tâche planifiée (cron ou fire_at) qui exécutera un prompt spécifié."
     }
 
     fn schema(&self) -> Value {
         json!({
             "type": "object",
             "properties": {
-                "name": { "type": "string", "description": "Nom de la tÃ¢che" },
-                "prompt": { "type": "string", "description": "Le prompt Ã  exÃ©cuter" },
+                "name": { "type": "string", "description": "Nom de la tâche" },
+                "prompt": { "type": "string", "description": "Le prompt à exécuter" },
                 "cron_expr": { "type": "string", "description": "Expression cron (ex: '*/5 * * * *')" },
                 "fire_at": { "type": "string", "description": "Date ISO8601 (ex: '2026-12-31T23:59:00Z')" }
             },
@@ -49,7 +49,7 @@ impl Abeille for AbeilleCronCreate {
             Some(p) => p.to_string(),
             None => {
                 return Ok(ResultatAbeille::err(
-                    "Le paramÃ¨tre 'prompt' est requis.".to_string(),
+                    "Le paramètre 'prompt' est requis.".to_string(),
                 ))
             }
         };
@@ -62,7 +62,7 @@ impl Abeille for AbeilleCronCreate {
 
         if cron_expr.is_none() && fire_at.is_none() {
             return Ok(ResultatAbeille::err(
-                "Vous devez spÃ©cifier soit 'cron_expr' soit 'fire_at'.".to_string(),
+                "Vous devez spécifier soit 'cron_expr' soit 'fire_at'.".to_string(),
             ));
         }
 
@@ -98,7 +98,7 @@ impl Abeille for AbeilleCronCreate {
         };
 
         Ok(ResultatAbeille::ok(format!(
-            "TÃ¢che cron crÃ©Ã©e avec l'ID {}",
+            "Tâche cron créée avec l'ID {}",
             id
         )))
     }
@@ -119,7 +119,7 @@ impl Abeille for AbeilleCronList {
     }
 
     fn description(&self) -> &str {
-        "Liste les tÃ¢ches planifiÃ©es."
+        "Liste les tâches planifiées."
     }
 
     fn schema(&self) -> Value {
@@ -170,7 +170,7 @@ impl Abeille for AbeilleCronDelete {
     }
 
     fn description(&self) -> &str {
-        "Supprime une tÃ¢che planifiÃ©e par son ID."
+        "Supprime une tâche planifiée par son ID."
     }
 
     fn schema(&self) -> Value {
@@ -192,7 +192,7 @@ impl Abeille for AbeilleCronDelete {
             Some(i) => i,
             None => {
                 return Ok(ResultatAbeille::err(
-                    "Le paramÃ¨tre 'id' est requis.".to_string(),
+                    "Le paramètre 'id' est requis.".to_string(),
                 ))
             }
         };
@@ -200,11 +200,11 @@ impl Abeille for AbeilleCronDelete {
         if let Ok(uuid) = Uuid::parse_str(id_str) {
             let mut cron = self.cron_store.write().await;
             if cron.remove(&uuid) {
-                return Ok(ResultatAbeille::ok(format!("TÃ¢che {} supprimÃ©e", uuid)));
+                return Ok(ResultatAbeille::ok(format!("Tâche {} supprimée", uuid)));
             }
         }
         Ok(ResultatAbeille::err(
-            "TÃ¢che non trouvÃ©e ou ID invalide".to_string(),
+            "Tâche non trouvée ou ID invalide".to_string(),
         ))
     }
 }
@@ -224,7 +224,7 @@ impl Abeille for AbeilleWatcherCreate {
     }
 
     fn description(&self) -> &str {
-        "CrÃ©e un watcher (surveille un fichier, une URL ou des logs) qui dÃ©clenchera un prompt si une condition est remplie."
+        "Crée un watcher (surveille un fichier, une URL ou des logs) qui déclenchera un prompt si une condition est remplie."
     }
 
     fn schema(&self) -> Value {
@@ -233,9 +233,9 @@ impl Abeille for AbeilleWatcherCreate {
             "properties": {
                 "name": { "type": "string" },
                 "watcher_type": { "type": "string", "description": "'file', 'url' ou 'log'" },
-                "target": { "type": "string", "description": "Le fichier ou URL Ã  surveiller" },
-                "condition": { "type": "string", "description": "Condition pour dÃ©clencher" },
-                "prompt": { "type": "string", "description": "Le prompt Ã  exÃ©cuter" }
+                "target": { "type": "string", "description": "Le fichier ou URL à surveiller" },
+                "condition": { "type": "string", "description": "Condition pour déclencher" },
+                "prompt": { "type": "string", "description": "Le prompt à exécuter" }
             },
             "required": ["name", "watcher_type", "target", "prompt"]
         })
@@ -254,7 +254,7 @@ impl Abeille for AbeilleWatcherCreate {
             Some(p) => p.to_string(),
             None => {
                 return Ok(ResultatAbeille::err(
-                    "Le paramÃ¨tre 'prompt' est requis.".to_string(),
+                    "Le paramètre 'prompt' est requis.".to_string(),
                 ))
             }
         };
@@ -291,7 +291,7 @@ impl Abeille for AbeilleWatcherCreate {
         registry.add(watcher);
 
         Ok(ResultatAbeille::ok(format!(
-            "Watcher crÃ©Ã© avec l'ID {}",
+            "Watcher créé avec l'ID {}",
             id
         )))
     }
@@ -385,7 +385,7 @@ impl Abeille for AbeilleWatcherDelete {
             Some(i) => i,
             None => {
                 return Ok(ResultatAbeille::err(
-                    "Le paramÃ¨tre 'id' est requis.".to_string(),
+                    "Le paramètre 'id' est requis.".to_string(),
                 ))
             }
         };
@@ -393,11 +393,11 @@ impl Abeille for AbeilleWatcherDelete {
         if let Ok(uuid) = Uuid::parse_str(id_str) {
             let mut registry = self.watcher_store.write().await;
             if registry.remove(&uuid) {
-                return Ok(ResultatAbeille::ok(format!("Watcher {} supprimÃ©", uuid)));
+                return Ok(ResultatAbeille::ok(format!("Watcher {} supprimé", uuid)));
             }
         }
         Ok(ResultatAbeille::err(
-            "Watcher non trouvÃ© ou ID invalide".to_string(),
+            "Watcher non trouvé ou ID invalide".to_string(),
         ))
     }
 }
