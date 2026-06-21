@@ -1940,6 +1940,62 @@ async fn api_memory_delete(
     }
 }
 
+async fn api_memory_node_delete(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let node_id = body["node_id"]
+        .as_str()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .ok_or(StatusCode::BAD_REQUEST)?;
+    match state.memoire.delete_node(node_id).await {
+        Ok(value) => Ok(Json(serde_json::json!({ "status": "ok", "result": value }))),
+        Err(e) => Ok(Json(
+            serde_json::json!({ "status": "error", "error": e.to_string() }),
+        )),
+    }
+}
+
+async fn api_memory_node_create(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let node_id = body["node_id"].as_str().unwrap_or("");
+    let label = body["label"].as_str().unwrap_or("");
+    let one_liner = body["one_liner"].as_str();
+    let importance = body["importance"].as_f64().map(|f| f as f32);
+    if node_id.is_empty() || label.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    match state.memoire.create_node(node_id, label, one_liner, importance).await {
+        Ok(value) => Ok(Json(serde_json::json!({ "status": "ok", "result": value }))),
+        Err(e) => Ok(Json(
+            serde_json::json!({ "status": "error", "error": e.to_string() }),
+        )),
+    }
+}
+
+async fn api_memory_node_update(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let node_id = body["node_id"].as_str().unwrap_or("");
+    if node_id.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let label = body["label"].as_str();
+    let one_liner = body["one_liner"].as_str();
+    let importance = body["importance"].as_f64().map(|f| f as f32);
+    
+    match state.memoire.update_node(node_id, label, one_liner, importance).await {
+        Ok(value) => Ok(Json(serde_json::json!({ "status": "ok", "result": value }))),
+        Err(e) => Ok(Json(
+            serde_json::json!({ "status": "error", "error": e.to_string() }),
+        )),
+    }
+}
+
 async fn api_memory_move(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
@@ -7455,6 +7511,9 @@ async fn main() -> Result<()> {
         .route("/api/memory/write", post(api_memory_write))
         .route("/api/memory/update", post(api_memory_update))
         .route("/api/memory/delete", post(api_memory_delete))
+        .route("/api/memory/node/create", post(api_memory_node_create))
+        .route("/api/memory/node/update", post(api_memory_node_update))
+        .route("/api/memory/node/delete", post(api_memory_node_delete))
         .route("/api/memory/move", post(api_memory_move))
         .route("/api/memory/review", post(api_memory_review))
         .route("/api/memory/dream", post(api_memory_dream))
