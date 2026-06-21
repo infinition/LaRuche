@@ -6983,12 +6983,10 @@ async fn main() -> Result<()> {
             "nomic-embed-text", // Default embedding model — user should pull it
         ),
     ));
-    essaim_registry.enregistrer(Box::new(
-        laruche_essaim::abeilles::knowledge::KnowledgeAdd { kb: kb.clone() },
-    ));
-    essaim_registry.enregistrer(Box::new(
-        laruche_essaim::abeilles::knowledge::KnowledgeSearch { kb: kb.clone() },
-    ));
+    // Fix A — knowledge_add/knowledge_search RETIRÉS : c'était un 2e système de mémoire
+    // (KnowledgeBase plate/RAG) en DOUBLON de la carte cognitive. Tout passe désormais par
+    // memory_write / memory_search (la mémoire cognitive = le différenciateur de LaRuche).
+    let _ = &kb; // kb conservé pour rag.rs (RAG hérité), mais plus exposé comme outil agent.
 
     // Load existing sessions from disk
     let mut loaded_sessions: HashMap<Uuid, Session> = HashMap::new();
