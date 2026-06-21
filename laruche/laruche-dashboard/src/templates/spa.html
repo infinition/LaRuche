@@ -4827,258 +4827,197 @@ LaRuche.SessionsPage = (function(){
 })();
 
 /* ── Settings Page Module ─────────────────────────────────────── */
-/* --- Memory Page Module -------------------------------------------------- */
+/* --- Rendu Markdown inline (repris de scriptorium, sans dependances) ----- */
+LaRuche.MD = (function(){
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+  function inline(s){
+    var stash = [];
+    function stashPush(html){ var tok='\x00X'+stash.length+'\x00'; stash.push(html); return tok; }
+    // Wikilinks: [[node_id]] ou [[node_id|alias]]  -> navigation memoire
+    s = s.replace(/\[\[([^\[\]\n|]+)(?:\|([^\[\]\n]+))?\]\]/g, function(m, name, alias){
+      var label = (alias || name).trim();
+      var target = name.trim();
+      return stashPush('<span class="mem2-wikilink" data-wikilink="'+esc(target)+'">'+esc(label)+'</span>');
+    });
+    // Images
+    s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(m, alt, url){
+      return stashPush('<img alt="'+esc(alt)+'" src="'+esc(url)+'"/>');
+    });
+    // Liens
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(m, text, url){
+      return stashPush('<a href="'+esc(url)+'" target="_blank" rel="noopener">'+esc(text)+'</a>');
+    });
+    s = esc(s);
+    s = s.replace(/\x00IC(\d+)\x00/g, function(m){ return m; });
+    s = s.replace(/==([^=\n]+)==/g, '<mark>$1</mark>');
+    s = s.replace(/\*\*([^\*\n]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/__([^_\n]+)__/g, '<strong>$1</strong>');
+    s = s.replace(/(^|[^\*])\*([^\*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+    s = s.replace(/(^|[^_])_([^_\n]+)_(?!_)/g, '$1<em>$2</em>');
+    s = s.replace(/~~([^~\n]+)~~/g, '<del>$1</del>');
+    s = s.replace(/\n/g, '<br/>');
+    s = s.replace(/\x00X(\d+)\x00/g, function(m, n){ return stash[+n] || ''; });
+    return s;
+  }
+
+  function render(src){
+    if(!src) return '';
+    var codeBlocks = [];
+    src = String(src).replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, function(m, lang, code){
+      codeBlocks.push({lang:lang, code:code});
+      return '\x00CB'+(codeBlocks.length-1)+'\x00';
+    });
+    var inlineCodes = [];
+    src = src.replace(/`([^`\n]+)`/g, function(m, c){ inlineCodes.push(c); return '\x00IC'+(inlineCodes.length-1)+'\x00'; });
+    var lines = src.split('\n'), html='', i=0;
+    while(i < lines.length){
+      var line = lines[i];
+      var h = line.match(/^(#{1,6})\s+(.*)$/);
+      if(h){ html += '<h'+h[1].length+'>'+inline(h[2])+'</h'+h[1].length+'>'; i++; continue; }
+      if(/^(---+|\*\*\*+|___+)\s*$/.test(line)){ html += '<hr/>'; i++; continue; }
+      if(/^>\s?/.test(line)){
+        var bq=[]; while(i<lines.length && /^>\s?/.test(lines[i])){ bq.push(lines[i].replace(/^>\s?/,'')); i++; }
+        html += '<blockquote>'+render(bq.join('\n'))+'</blockquote>'; continue;
+      }
+      if(/^\s*[\-\*\+]\s+/.test(line)){
+        var ul=[]; while(i<lines.length && /^\s*[\-\*\+]\s+/.test(lines[i])){ ul.push(lines[i].replace(/^\s*[\-\*\+]\s+/,'')); i++; }
+        html += '<ul>'+ul.map(function(b){return '<li>'+inline(b)+'</li>';}).join('')+'</ul>'; continue;
+      }
+      if(/^\s*\d+\.\s+/.test(line)){
+        var ol=[]; while(i<lines.length && /^\s*\d+\.\s+/.test(lines[i])){ ol.push(lines[i].replace(/^\s*\d+\.\s+/,'')); i++; }
+        html += '<ol>'+ol.map(function(b){return '<li>'+inline(b)+'</li>';}).join('')+'</ol>'; continue;
+      }
+      var cb = line.match(/^\x00CB(\d+)\x00$/);
+      if(cb){ html += '<pre><code>'+esc(codeBlocks[+cb[1]].code)+'</code></pre>'; i++; continue; }
+      if(i+1 < lines.length && /\|/.test(line) && /^[\s\|:\-]+$/.test(lines[i+1]) && /\|/.test(lines[i+1])){
+        var hcells = line.split('|').slice(1,-1).map(function(s){return s.trim();});
+        var rows=[]; i+=2;
+        while(i<lines.length && /\|/.test(lines[i])){ rows.push(lines[i].split('|').slice(1,-1).map(function(s){return s.trim();})); i++; }
+        html += '<table><thead><tr>'+hcells.map(function(c){return '<th>'+inline(c)+'</th>';}).join('')+'</tr></thead><tbody>'+
+          rows.map(function(r){return '<tr>'+r.map(function(c){return '<td>'+inline(c)+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>';
+        continue;
+      }
+      if(line.trim()===''){ i++; continue; }
+      var buf=[];
+      while(i<lines.length && lines[i].trim()!=='' && !/^(#{1,6}\s|>\s?|[\-\*\+]\s+|\d+\.\s+|---+|\*\*\*+|___+|\x00CB)/.test(lines[i])){ buf.push(lines[i]); i++; }
+      html += '<p>'+inline(buf.join('\n'))+'</p>';
+    }
+    html = html.replace(/\x00IC(\d+)\x00/g, function(m, n){ return '<code>'+esc(inlineCodes[+n])+'</code>'; });
+    return html;
+  }
+
+  // Cable les liens [[node]] d'un conteneur deja rendu vers un callback de navigation.
+  function wireWikilinks(container, onNav){
+    if(!container) return;
+    container.querySelectorAll('.mem2-wikilink').forEach(function(el){
+      el.onclick = function(e){ e.preventDefault(); e.stopPropagation(); onNav(el.dataset.wikilink); };
+    });
+  }
+
+  return { render:render, wireWikilinks:wireWikilinks };
+})();
+
+/* --- Memory Page Module (drive mem2-* : arbre Obsidian + markdown + CRUD) - */
 LaRuche.Memory = (function(){
-  var nodes = [];
-  var items = [];
-  var active = {};
+  var nodes = {};        // id -> {id,label,one_liner,count}
+  var expanded = {};     // node id -> bool
   var loaded = false;
-  var suggestTimer = null;
+  var current = null;    // node id actif
+  var currentNode = null;// dernier objet node charge (items/children)
+  var view = 'tree';     // 'tree' (document) | 'graph'
+  var searchTimer = null;
 
   function init() {
-    var input = document.getElementById('memorySearchInput');
-    if(input) input.addEventListener('keydown', function(e){
-      if(e.key === 'Enter') { e.preventDefault(); search(); }
+    var input = document.getElementById('mem2Search');
+    if(input) input.addEventListener('input', function(){
+      clearTimeout(searchTimer);
+      var q = input.value.trim();
+      searchTimer = setTimeout(function(){ q ? doSearch(q) : refreshTree(); }, 220);
     });
-    if(input) input.addEventListener('input', function(){ queueSuggest(input.value); });
-    var writeNode = document.getElementById('memoryWriteNode');
-    if(writeNode) writeNode.addEventListener('input', function(){ queueSuggest(writeNode.value); });
-    var dreamBtn = document.getElementById('memoryDreamBtn');
-    if(dreamBtn) dreamBtn.addEventListener('click', triggerDream);
   }
 
-  function addThoughtMessage(phase, kind, text) {
-    var container = document.getElementById('chatContainer');
-    var row = document.createElement('div');
-    row.className = 'message-row tool-row';
-    var wrapper = document.createElement('div');
-    wrapper.className = 'message-wrapper';
-    var msg = document.createElement('div');
-    msg.className = 'message tool';
-    msg.style.background = 'rgba(245, 158, 11, 0.1)';
-    msg.style.border = '1px solid var(--amber-dim)';
-    msg.innerHTML = '<details open style="outline:none;"><summary class="tool-msg-head" style="cursor:pointer; display:flex; justify-content:space-between; list-style:none;"><span style="color:var(--amber)">[Pensée - '+LaRuche.Utils.esc(phase)+']</span><span>'+LaRuche.Utils.esc(kind)+'</span></summary>'+
-      '<div style="color:var(--text-dim);font-style:italic; padding-top:8px; white-space:pre-wrap;">'+LaRuche.Utils.esc((text||''))+'</div></details>';
-    wrapper.appendChild(msg);
-    row.appendChild(wrapper);
-    container.appendChild(row);
-    scrollToBottom();
-  }
-
-  function addToolMessage(name, result, success, elapsedMs) {
-    var container = document.getElementById('chatContainer');
-    var row = document.createElement('div');
-    row.className = 'message-row tool-row';
-    var wrapper = document.createElement('div');
-    wrapper.className = 'message-wrapper';
-    var msg = document.createElement('div');
-    msg.className = 'message tool'+(success?'':' err');
-    var elapsed = elapsedMs != null ? ' · '+elapsedMs+' ms' : '';
-    msg.innerHTML = '<div class="tool-msg-head"><span class="tool-msg-status '+(success?'':'err')+'">'+(success?'OK':'ERR')+'</span><span>'+LaRuche.Utils.esc(name)+elapsed+'</span></div>'+
-      '<div>'+LaRuche.Utils.esc((result||'').substring(0,2000))+'</div>';
-    wrapper.appendChild(msg);
-    row.appendChild(wrapper);
-    container.appendChild(row);
-    scrollToBottom();
-  }
-
-  function enter() {
-    if(!loaded) loadTree();
-    else renderAll();
-  }
-
+  function enter() { setView('tree'); if(!loaded) loadTree(); else renderTree(); }
   function leave() {}
 
-  var expanded = {};
+  function esc(t){ return LaRuche.Utils.esc(t); }
 
-  function mergeNodes(incoming) {
-    var byId = {};
-    nodes.forEach(function(n){ byId[n.id || n.label] = n; });
-    (incoming || []).forEach(function(n){
-      var id = n.id || n.node_id || n.label || 'node';
-      byId[id] = { id:id, label:n.label || id, one_liner:n.one_liner || n.summary || '' };
+  function mergeNodes(list){
+    (list || []).forEach(function(n){
+      var id = n.id || n.node_id || n.label; if(!id) return;
+      var prev = nodes[id] || {};
+      nodes[id] = {
+        id:id,
+        label:n.label || prev.label || id.split('.').pop(),
+        one_liner:n.one_liner || n.summary || prev.one_liner || '',
+        count:(n.item_count != null ? n.item_count : (n.count != null ? n.count : prev.count))
+      };
     });
-    nodes = Object.keys(byId).map(function(k){ return byId[k]; });
   }
 
+  /* ---- chargement ---- */
   function loadTree() {
-    fetch('/api/memory/tree').then(function(r){return r.json();}).then(function(data){
+    fetch(LaRuche.API.base+'/api/memory/tree').then(function(r){return r.json();}).then(function(data){
       loaded = true;
       mergeNodes(data.nodes || []);
-      document.getElementById('memoryHealth').textContent = data.health ? 'ok' : 'down';
-      document.getElementById('memoryHealth').style.color = data.health ? 'var(--green)' : 'var(--red)';
-      document.getElementById('memoryAudit').innerHTML = '<pre>'+LaRuche.Utils.esc(JSON.stringify(data.audit || {}, null, 2))+'</pre>';
-      renderAll();
-      refreshSuggestions('');
-      loadProposed();
+      renderTree();
+      loadStats();
     }).catch(function(e){
-      document.getElementById('memoryNodeList').innerHTML = '<div class="memory-empty">Memoire indisponible</div>';
+      var t = document.getElementById('mem2Tree');
+      if(t) t.innerHTML = '<div class="mem2-empty">Memoire indisponible</div>';
       LaRuche.Toast.show('Memoire indisponible: '+e, 'err');
     });
   }
 
-  function queueSuggest(q) {
-    clearTimeout(suggestTimer);
-    suggestTimer = setTimeout(function(){ refreshSuggestions(q || ''); }, 180);
-  }
+  function refreshTree() { renderTree(); }
 
-  function refreshSuggestions(q) {
-    fetch('/api/memory/suggest?q='+encodeURIComponent(q || '')+'&limit=20').then(function(r){return r.json();}).then(function(data){
-      var raw = data.result || data;
-      mergeNodes(raw.nodes || []);
-      var dl = document.getElementById('memoryNodeSuggestions');
-      if(dl) {
-        dl.innerHTML = (raw.nodes || []).map(function(n){
-          var id = n.id || n.node_id || n.label;
-          return '<option value="'+LaRuche.Utils.esc(id)+'">'+LaRuche.Utils.esc((n.one_liner || n.label || '') + (n.item_count != null ? ' · '+n.item_count : ''))+'</option>';
-        }).join('');
-      }
-      renderNodeList();
-      renderSvg();
+  function loadStats() {
+    fetch(LaRuche.API.base+'/api/memory/stats').then(function(r){return r.json();}).then(function(d){
+      var el = document.getElementById('mem2Stats'); if(!el) return;
+      if(d.error) { el.textContent = '--'; return; }
+      var items = d.items != null ? d.items : (d.item_count != null ? d.item_count : '?');
+      var nn = d.nodes != null ? d.nodes : (d.node_count != null ? d.node_count : Object.keys(nodes).length);
+      el.textContent = items+' items · '+nn+' noeuds';
     }).catch(function(){});
   }
 
-  function loadProposed() {
-    fetch('/api/memory/proposed?limit=20').then(function(r){return r.json();}).then(function(data){
-      var raw = data.result || {};
-      var proposed = raw.items || [];
-      var audit = document.getElementById('memoryAudit');
-      if(!audit) return;
-      if(!proposed.length) return;
-      audit.innerHTML = '<div class="memory-empty" style="text-align:left">Propositions en attente</div>' + proposed.map(function(it){
-        return '<div class="memory-item" data-item="'+LaRuche.Utils.esc(it.id)+'">'+
-          '<div class="memory-item-node">'+LaRuche.Utils.esc(it.node_id || '')+' · '+LaRuche.Utils.esc(it.id || '')+'</div>'+
-          LaRuche.Utils.esc(it.content || '')+
-          '<div class="memory-item-actions">'+
-            '<button class="memory-mini-btn" data-review="accept" data-id="'+LaRuche.Utils.esc(it.id)+'">Accepter</button>'+
-            '<button class="memory-mini-btn danger" data-review="reject" data-id="'+LaRuche.Utils.esc(it.id)+'">Rejeter</button>'+
-          '</div></div>';
-      }).join('');
-      audit.querySelectorAll('[data-review]').forEach(function(btn){
-        btn.onclick = function(){ reviewItem(btn.dataset.id, btn.dataset.review); };
-      });
-    }).catch(function(){});
-  }
-
-  function postJson(url, payload) {
-    return fetch(url, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(payload)
-    }).then(function(r){return r.json();});
-  }
-
-  function search() {
-    var input = document.getElementById('memorySearchInput');
-    var q = (input.value || '').trim();
-    if(!q) return;
-    fetch('/api/memory/search?q='+encodeURIComponent(q)+'&limit=12').then(function(r){return r.json();}).then(function(data){
+  function doSearch(q) {
+    fetch(LaRuche.API.base+'/api/memory/search?q='+encodeURIComponent(q)+'&limit=20').then(function(r){return r.json();}).then(function(data){
       if(data.error) { LaRuche.Toast.show(data.error, 'err'); return; }
       var raw = data.raw || {};
-      items = raw.items || raw.evidence || [];
-      active = {};
-      (raw.nodes || []).forEach(function(n){ var id = n.id || n.node_id || n.label; if(id) active[id] = 1; });
       mergeNodes(raw.nodes || []);
-      document.getElementById('memorySummary').textContent = items.length+' souvenir(s) pour "'+q+'"';
-      renderAll();
-    }).catch(function(e){ LaRuche.Toast.show('Recherche memoire: '+e, 'err'); });
+      // affiche les souvenirs trouves directement a droite
+      currentNode = { node_id:'recherche: '+q, items:(raw.items || []), children:[] };
+      current = null;
+      renderTree();
+      renderDoc();
+    }).catch(function(e){ LaRuche.Toast.show('Recherche: '+e, 'err'); });
   }
 
   function loadNode(id) {
-    id = String(id || '').trim();
-    if(!id) return;
-    fetch('/api/memory/node/'+encodeURIComponent(id)).then(function(r){return r.json();}).then(function(data){
+    id = String(id || '').trim(); if(!id) return;
+    fetch(LaRuche.API.base+'/api/memory/node/'+encodeURIComponent(id)).then(function(r){return r.json();}).then(function(data){
       if(data.status === 'error' || data.error) { LaRuche.Toast.show(data.error || 'Noeud indisponible', 'err'); return; }
       var node = data.node || data;
-      var nodeId = node.id || node.node_id || id;
-      var children = node.children || [];
-      items = node.items || [];
-      active = {};
-      active[nodeId] = 1;
-      mergeNodes([node].concat(children));
-      document.getElementById('memorySearchInput').value = nodeId;
-      document.getElementById('memorySummary').textContent = nodeId+' · '+children.length+' enfant(s) · '+items.length+' item(s)';
-      renderAll();
-    }).catch(function(e){ LaRuche.Toast.show('Lecture noeud memoire: '+e, 'err'); });
+      node.node_id = node.node_id || node.id || id;
+      currentNode = node;
+      current = node.node_id;
+      mergeNodes([{id:node.node_id, label:node.label, one_liner:node.one_liner}].concat(node.children || []));
+      // ouvre les ancetres dans l'arbre
+      var parts = current.split('.'); var acc='';
+      parts.forEach(function(p){ acc = acc ? acc+'.'+p : p; expanded[acc] = true; });
+      renderTree();
+      renderDoc();
+      if(view === 'graph') renderGraph();
+    }).catch(function(e){ LaRuche.Toast.show('Lecture noeud: '+e, 'err'); });
   }
 
-  function write() {
-    var node = (document.getElementById('memoryWriteNode').value || '').trim();
-    var content = (document.getElementById('memoryWriteContent').value || '').trim();
-    if(!node || !content) { LaRuche.Toast.show('node_id et contenu requis', 'warn'); return; }
-    fetch('/api/memory/write', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({node_id:node, content:content, source:'ui-memory'})
-    }).then(function(r){return r.json();}).then(function(data){
-      if(data.status === 'error' || data.error) { LaRuche.Toast.show(data.error || 'Erreur memoire', 'err'); return; }
-      document.getElementById('memoryWriteContent').value = '';
-      active[node] = 1;
-      mergeNodes([{id:node, label:node, one_liner:'Ajoute depuis UI'}]);
-      document.getElementById('memorySearchInput').value = content;
-      LaRuche.Toast.show('Souvenir memorise', 'ok');
-      loadNode(node);
-      loadTree();
-    }).catch(function(e){ LaRuche.Toast.show('Ecriture memoire: '+e, 'err'); });
-  }
-
-  function editItem(id) {
-    var current = items.find(function(it){ return String(it.id || '') === String(id || ''); });
-    var next = window.prompt('Modifier le souvenir', current ? (current.content || current.text || '') : '');
-    if(next == null) return;
-    next = next.trim();
-    if(!next) { LaRuche.Toast.show('Contenu requis', 'warn'); return; }
-    postJson('/api/memory/update', {item_id:id, content:next}).then(function(data){
-      if(data.status === 'error' || data.error) { LaRuche.Toast.show(data.error || 'Update memoire impossible', 'err'); return; }
-      LaRuche.Toast.show('Souvenir mis a jour', 'ok');
-      if(current) { current.content = next; }
-      renderItems();
-    }).catch(function(e){ LaRuche.Toast.show('Update memoire: '+e, 'err'); });
-  }
-
-  function deleteItem(id) {
-    if(!window.confirm('Supprimer ce souvenir ?')) return;
-    postJson('/api/memory/delete', {item_id:id, reason:'ui-memory'}).then(function(data){
-      if(data.status === 'error' || data.error) { LaRuche.Toast.show(data.error || 'Suppression impossible', 'err'); return; }
-      items = items.filter(function(it){ return String(it.id || '') !== String(id || ''); });
-      LaRuche.Toast.show('Souvenir supprime', 'ok');
-      renderItems();
-      loadTree();
-    }).catch(function(e){ LaRuche.Toast.show('Suppression memoire: '+e, 'err'); });
-  }
-
-  function moveItem(id) {
-    var current = items.find(function(it){ return String(it.id || '') === String(id || ''); });
-    var nextNode = window.prompt('Deplacer vers node_id', current ? (current.node_id || '') : '');
-    if(nextNode == null) return;
-    nextNode = nextNode.trim();
-    if(!nextNode) { LaRuche.Toast.show('node_id requis', 'warn'); return; }
-    postJson('/api/memory/move', {item_id:id, node_id:nextNode}).then(function(data){
-      if(data.status === 'error' || data.error) { LaRuche.Toast.show(data.error || 'Deplacement impossible', 'err'); return; }
-      if(current) current.node_id = nextNode;
-      mergeNodes([{id:nextNode, label:nextNode}]);
-      LaRuche.Toast.show('Souvenir deplace', 'ok');
-      renderAll();
-    }).catch(function(e){ LaRuche.Toast.show('Deplacement memoire: '+e, 'err'); });
-  }
-
-  function reviewItem(id, action) {
-    postJson('/api/memory/review', {item_id:id, action:action, reason:'ui-memory'}).then(function(data){
-      if(data.status === 'error' || data.error) { LaRuche.Toast.show(data.error || 'Revue impossible', 'err'); return; }
-      LaRuche.Toast.show(action === 'accept' ? 'Proposition acceptee' : 'Proposition rejetee', 'ok');
-      loadProposed();
-      loadTree();
-    }).catch(function(e){ LaRuche.Toast.show('Revue memoire: '+e, 'err'); });
-  }
-
-  function renderAll() { renderNodeList(); renderItems(); renderSvg(); }
-
+  /* ---- arbre repliable (Obsidian-like) ---- */
   function buildTree() {
     var root = { children:{} };
-    nodes.forEach(function(n){
-      var id = n.id || n.label; if(!id) return;
+    Object.keys(nodes).forEach(function(id){
       var cur = root, path = '';
-      String(id).split('.').forEach(function(p){
+      id.split('.').forEach(function(p){
         path = path ? path+'.'+p : p;
         if(!cur.children[p]) cur.children[p] = { children:{}, id:path, seg:p };
         cur = cur.children[p];
@@ -5087,149 +5026,268 @@ LaRuche.Memory = (function(){
     return root;
   }
 
-  function treeLevelHtml(node, depth) {
+  function treeHtml(node, depth) {
     var html = '';
     Object.keys(node.children).sort().forEach(function(k){
       var c = node.children[k];
       var kids = Object.keys(c.children).length;
-      var open = depth === 0 ? (expanded[c.id] !== false) : !!expanded[c.id];
+      var open = !!expanded[c.id];
       var caret = kids ? (open ? '▾' : '▸') : '·';
-      html += '<div class="memory-tree-row'+(active[c.id]?' active':'')+'" style="padding-left:'+(6+depth*14)+'px" data-node="'+LaRuche.Utils.esc(c.id)+'">'+
-        '<span class="memory-tree-caret" data-toggle="'+LaRuche.Utils.esc(c.id)+'">'+caret+'</span>'+
-        '<span class="memory-tree-label">'+LaRuche.Utils.esc(c.seg)+'</span>'+
-        (kids ? '<span class="memory-tree-count">'+kids+'</span>' : '')+
+      var meta = nodes[c.id] || {};
+      html += '<div class="mem2-row'+(current===c.id?' active':'')+'" style="padding-left:'+(6+depth*13)+'px" data-node="'+esc(c.id)+'">'+
+        '<span class="mem2-caret" data-toggle="'+esc(c.id)+'">'+caret+'</span>'+
+        '<span class="mem2-label">'+esc(c.seg)+'</span>'+
+        (meta.count != null ? '<span class="mem2-count">'+meta.count+'</span>' : (kids?'<span class="mem2-count">'+kids+'</span>':''))+
       '</div>';
-      if(kids && open) html += treeLevelHtml(c, depth+1);
+      if(kids && open) html += treeHtml(c, depth+1);
     });
     return html;
   }
 
-  function renderNodeList() {
-    var el = document.getElementById('memoryNodeList');
-    if(!nodes.length) { el.innerHTML = '<div class="memory-empty">Aucun noeud</div>'; return; }
-    el.innerHTML = treeLevelHtml(buildTree(), 0);
-    el.querySelectorAll('.memory-tree-caret').forEach(function(c){
-      c.onclick = function(e){
-        e.stopPropagation();
-        var id = c.dataset.toggle;
-        var cur = (typeof expanded[id] === 'undefined') ? (id.indexOf('.') < 0) : expanded[id];
-        expanded[id] = !cur;
-        renderNodeList();
-      };
+  function renderTree() {
+    var el = document.getElementById('mem2Tree'); if(!el) return;
+    if(!Object.keys(nodes).length) { el.innerHTML = '<div class="mem2-empty">Aucun noeud</div>'; return; }
+    el.innerHTML = treeHtml(buildTree(), 0);
+    el.querySelectorAll('.mem2-caret').forEach(function(c){
+      c.onclick = function(e){ e.stopPropagation(); var id=c.dataset.toggle; expanded[id]=!expanded[id]; renderTree(); };
     });
-    el.querySelectorAll('.memory-tree-row').forEach(function(row){
+    el.querySelectorAll('.mem2-row').forEach(function(row){
       row.onclick = function(){ loadNode(row.dataset.node); };
     });
   }
 
-  // Sous-ensemble FOCALISÉ pour la carte : nœud actif + parent + enfants + voisins (pas tout).
-  function focusNodes() {
-    var byId = {}; nodes.forEach(function(n){ var id=n.id||n.label; if(id) byId[id]=n; });
-    var ids = Object.keys(byId);
-    var focusId = Object.keys(active)[0];
-    if(!focusId) {
-      var roots = ids.filter(function(id){ return id.indexOf('.') < 0; }).map(function(id){ return byId[id]; });
-      return roots.length ? roots : ids.slice(0, 12).map(function(id){ return byId[id]; });
-    }
-    var set = {}; set[focusId] = 1;
-    var parent = focusId.indexOf('.') >= 0 ? focusId.slice(0, focusId.lastIndexOf('.')) : null;
-    if(parent && byId[parent]) set[parent] = 1;
-    ids.forEach(function(id){
-      var p = id.indexOf('.') >= 0 ? id.slice(0, id.lastIndexOf('.')) : null;
-      if(p === focusId) set[id] = 1;          // enfants
-      if(parent && p === parent) set[id] = 1; // voisins
+  /* ---- panneau document (markdown + CRUD) ---- */
+  function setCrumb() {
+    var el = document.getElementById('mem2Crumb'); if(!el) return;
+    if(!currentNode){ el.textContent = 'Memoire cognitive'; return; }
+    var id = currentNode.node_id || '';
+    if(id.indexOf('recherche:')===0){ el.textContent = id; return; }
+    var parts = id.split('.'), acc='', html='';
+    parts.forEach(function(p, idx){
+      acc = acc ? acc+'.'+p : p;
+      var cls = idx===parts.length-1 ? 'seg cur' : 'seg';
+      html += (idx?'<span class="seg"> / </span>':'')+'<span class="'+cls+'" data-crumb="'+esc(acc)+'">'+esc(p)+'</span>';
     });
-    return Object.keys(set).slice(0, 14).map(function(id){ return byId[id] || {id:id, label:id}; });
+    el.innerHTML = html;
+    el.querySelectorAll('[data-crumb]').forEach(function(s){ s.onclick=function(){ loadNode(s.dataset.crumb); }; });
   }
 
-  function renderItems() {
-    var el = document.getElementById('memoryResults');
-    document.getElementById('memoryItemCount').textContent = String(items.length || 0);
-    if(!items.length) { el.innerHTML = '<div class="memory-empty">Aucun item trouve.</div>'; return; }
-    el.innerHTML = items.map(function(it){
-      var node = it.node_id || it.node || it.id || '';
-      var id = it.id || '';
-      var content = it.content || it.text || JSON.stringify(it);
-      return '<div class="memory-item">'+
-        (node ? '<div class="memory-item-node">'+LaRuche.Utils.esc(node)+(id ? ' · '+LaRuche.Utils.esc(id) : '')+'</div>' : '')+
-        LaRuche.Utils.esc(content)+
-        (id ? '<div class="memory-item-actions">'+
-          '<button class="memory-mini-btn" data-action="edit" data-id="'+LaRuche.Utils.esc(id)+'">Editer</button>'+
-          '<button class="memory-mini-btn" data-action="move" data-id="'+LaRuche.Utils.esc(id)+'">Deplacer</button>'+
-          '<button class="memory-mini-btn danger" data-action="delete" data-id="'+LaRuche.Utils.esc(id)+'">Supprimer</button>'+
-        '</div>' : '')+
+  function renderDoc() {
+    setCrumb();
+    var el = document.getElementById('mem2Doc'); if(!el) return;
+    if(!currentNode){ el.innerHTML = '<div class="mem2-empty">Selectionnez un noeud dans l\'arborescence pour afficher ses souvenirs.</div>'; return; }
+    var html = '';
+    var children = currentNode.children || [];
+    if(children.length){
+      html += '<div class="mem2-children">'+children.map(function(c){
+        var id = c.node_id || c.id || c.label;
+        return '<span class="mem2-chip" data-chip="'+esc(id)+'">'+esc((c.label || id))+'</span>';
+      }).join('')+'</div>';
+    }
+    var items = currentNode.items || [];
+    var nodeId = currentNode.node_id || '';
+    var isSearch = nodeId.indexOf('recherche:')===0;
+    if(!items.length){
+      html += '<div class="mem2-empty">Aucun souvenir dans ce noeud.</div>';
+    } else {
+      html += items.map(function(it){
+        var id = it.id || '';
+        var node = it.node_id || it.node || nodeId;
+        var content = it.content || it.text || '';
+        return '<div class="mem2-item" data-itemwrap="'+esc(id)+'">'+
+          '<div class="mem2-item-bar">'+
+            '<span class="mem2-item-id">'+esc(id || '(sans id)')+'</span>'+
+            '<span class="mem2-item-meta">'+esc(node)+'</span>'+
+            (id ? '<span class="mem2-item-acts">'+
+              '<button class="mem2-iact" data-act="edit" data-id="'+esc(id)+'">Editer</button>'+
+              '<button class="mem2-iact" data-act="move" data-id="'+esc(id)+'" data-node="'+esc(node)+'">Deplacer</button>'+
+              '<button class="mem2-iact danger" data-act="delete" data-id="'+esc(id)+'">Suppr</button>'+
+            '</span>' : '')+
+          '</div>'+
+          '<div class="mem2-md" data-md="'+esc(id)+'">'+LaRuche.MD.render(content)+'</div>'+
+          '<div class="mem2-rawholder" data-raw="'+esc(id)+'" style="display:none">'+esc(content)+'</div>'+
+        '</div>';
+      }).join('');
+    }
+    // bloc ajout (sauf en mode recherche)
+    if(!isSearch && nodeId){
+      html += '<div class="mem2-add">'+
+        '<textarea id="mem2AddText" placeholder="Nouveau souvenir (markdown, [[liens]] supportes)..."></textarea>'+
+        '<div style="margin-top:8px"><button class="mem2-btn-primary" id="mem2AddBtn">Ajouter a '+esc(nodeId)+'</button></div>'+
       '</div>';
-    }).join('');
-    el.querySelectorAll('[data-action]').forEach(function(btn){
-      btn.onclick = function(){
-        if(btn.dataset.action === 'edit') editItem(btn.dataset.id);
-        if(btn.dataset.action === 'move') moveItem(btn.dataset.id);
-        if(btn.dataset.action === 'delete') deleteItem(btn.dataset.id);
+    }
+    el.innerHTML = html;
+    // wikilinks
+    LaRuche.MD.wireWikilinks(el, loadNode);
+    // chips enfants
+    el.querySelectorAll('[data-chip]').forEach(function(c){ c.onclick=function(){ loadNode(c.dataset.chip); }; });
+    // actions items
+    el.querySelectorAll('[data-act]').forEach(function(b){
+      b.onclick = function(){
+        var act=b.dataset.act, id=b.dataset.id;
+        if(act==='edit') startEdit(id);
+        else if(act==='delete') deleteItem(id);
+        else if(act==='move') moveItem(id, b.dataset.node);
       };
     });
+    var addBtn = document.getElementById('mem2AddBtn');
+    if(addBtn) addBtn.onclick = function(){ addItem(nodeId); };
   }
 
-  function shortLabel(label) {
-    label = String(label || '');
-    return label.length > 16 ? label.slice(0, 15)+'...' : label;
+  /* ---- CRUD ---- */
+  function postJson(url, payload) {
+    return fetch(LaRuche.API.base+url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)}).then(function(r){return r.json();});
   }
 
-  function hexPoints(cx, cy, r) {
-    var pts = [];
-    for(var i=0;i<6;i++){
-      var a = Math.PI / 180 * (60 * i - 30);
-      pts.push((cx + r * Math.cos(a)).toFixed(1)+','+(cy + r * Math.sin(a)).toFixed(1));
-    }
-    return pts.join(' ');
+  function startEdit(id) {
+    var wrap = document.querySelector('[data-itemwrap="'+CSS.escape(id)+'"]'); if(!wrap) return;
+    if(wrap.querySelector('.mem2-edit')) return; // deja en edition
+    var raw = wrap.querySelector('[data-raw="'+CSS.escape(id)+'"]');
+    var md = wrap.querySelector('[data-md="'+CSS.escape(id)+'"]');
+    var cur = raw ? raw.textContent : '';
+    if(md) md.style.display = 'none';
+    var box = document.createElement('div');
+    box.className = 'mem2-edit';
+    box.innerHTML = '<textarea>'+esc(cur)+'</textarea>'+
+      '<div class="mem2-edit-acts">'+
+        '<button class="mem2-btn-primary" data-save>Enregistrer</button>'+
+        '<button class="mem2-btn-ghost" data-cancel>Annuler</button>'+
+        '<button class="mem2-btn-ghost" data-preview>Apercu</button>'+
+      '</div>';
+    wrap.appendChild(box);
+    var ta = box.querySelector('textarea');
+    ta.focus();
+    box.querySelector('[data-cancel]').onclick = function(){ box.remove(); if(md) md.style.display=''; };
+    box.querySelector('[data-preview]').onclick = function(){
+      if(md){ md.innerHTML = LaRuche.MD.render(ta.value); md.style.display = (md.style.display==='none'?'':'none'); LaRuche.MD.wireWikilinks(md, loadNode); }
+    };
+    box.querySelector('[data-save]').onclick = function(){
+      var next = ta.value.trim();
+      if(!next){ LaRuche.Toast.show('Contenu requis','warn'); return; }
+      postJson('/api/memory/update', {item_id:id, content:next}).then(function(d){
+        if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Update impossible','err'); return; }
+        LaRuche.Toast.show('Souvenir mis a jour','ok');
+        // maj local
+        if(currentNode && currentNode.items){
+          currentNode.items.forEach(function(it){ if(String(it.id)===String(id)) it.content = next; });
+        }
+        renderDoc();
+      }).catch(function(e){ LaRuche.Toast.show('Update: '+e,'err'); });
+    };
   }
 
-  function renderSvg() {
-    var svg = document.getElementById('memorySvg');
-    if(!svg) return;
-    var shown = focusNodes();
-    if(!shown.length) shown = [{id:'memoire',label:'memoire',one_liner:''}];
-    var cols = Math.max(3, Math.ceil(Math.sqrt(shown.length)));
-    var gapX = 150, gapY = 126, r = 54;
-    var startX = 120, startY = 95;
-    var html = '<defs><filter id="memGlow"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
-    shown.forEach(function(n, idx){
-      var row = Math.floor(idx / cols);
-      var col = idx % cols;
-      var x = startX + col * gapX + (row % 2 ? gapX / 2 : 0);
-      var y = startY + row * gapY;
-      var id = n.id || n.label;
-      var isActive = !!active[id];
-      var fill = isActive ? 'rgba(245,158,11,.42)' : 'rgba(24,24,27,.88)';
-      var stroke = isActive ? 'var(--amber)' : 'var(--border-light)';
-      var filter = isActive ? ' filter="url(#memGlow)"' : '';
-      html += '<g class="memory-hex" data-node="'+LaRuche.Utils.esc(id)+'" style="cursor:pointer">'+
-        '<polygon points="'+hexPoints(x,y,r)+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+(isActive?3:1.5)+'"'+filter+'></polygon>'+
-        '<text x="'+x+'" y="'+(y-4)+'" text-anchor="middle" fill="var(--text)" font-size="13" font-family="Segoe UI, sans-serif" font-weight="700">'+LaRuche.Utils.esc(shortLabel(id))+'</text>'+
-        '<text x="'+x+'" y="'+(y+17)+'" text-anchor="middle" fill="var(--text-muted)" font-size="10" font-family="Cascadia Code, monospace">'+(isActive?'active':'latent')+'</text>'+
-      '</g>';
-    });
-    svg.innerHTML = html;
-    svg.querySelectorAll('.memory-hex').forEach(function(g){
-      g.addEventListener('click', function(){ loadNode(g.dataset.node); });
-    });
+  function deleteItem(id) {
+    if(!window.confirm('Supprimer ce souvenir ?')) return;
+    postJson('/api/memory/delete', {item_id:id, reason:'ui-memory'}).then(function(d){
+      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Suppression impossible','err'); return; }
+      if(currentNode && currentNode.items) currentNode.items = currentNode.items.filter(function(it){ return String(it.id)!==String(id); });
+      LaRuche.Toast.show('Souvenir supprime','ok');
+      renderDoc(); loadStats();
+    }).catch(function(e){ LaRuche.Toast.show('Suppression: '+e,'err'); });
+  }
+
+  function moveItem(id, fromNode) {
+    var next = window.prompt('Deplacer vers node_id', fromNode || '');
+    if(next == null) return; next = next.trim();
+    if(!next){ LaRuche.Toast.show('node_id requis','warn'); return; }
+    postJson('/api/memory/move', {item_id:id, node_id:next}).then(function(d){
+      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Deplacement impossible','err'); return; }
+      mergeNodes([{id:next, label:next}]);
+      LaRuche.Toast.show('Souvenir deplace vers '+next,'ok');
+      if(current) loadNode(current); else renderDoc();
+    }).catch(function(e){ LaRuche.Toast.show('Deplacement: '+e,'err'); });
+  }
+
+  function addItem(nodeId) {
+    var ta = document.getElementById('mem2AddText'); if(!ta) return;
+    var content = ta.value.trim();
+    if(!content){ LaRuche.Toast.show('Contenu requis','warn'); return; }
+    postJson('/api/memory/write', {node_id:nodeId, content:content, source:'ui-memory'}).then(function(d){
+      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Ecriture impossible','err'); return; }
+      LaRuche.Toast.show('Souvenir memorise','ok');
+      loadNode(nodeId); loadStats();
+    }).catch(function(e){ LaRuche.Toast.show('Ecriture: '+e,'err'); });
+  }
+
+  /* ---- vues / toolbar ---- */
+  function setView(v) {
+    view = v;
+    var body = document.getElementById('mem2Body');
+    var gwrap = document.getElementById('mem2GraphWrap');
+    var bt = document.getElementById('mem2ViewTree');
+    var bg = document.getElementById('mem2ViewGraph');
+    if(bt) bt.classList.toggle('on', v==='tree');
+    if(bg) bg.classList.toggle('on', v==='graph');
+    if(v==='graph'){ if(body) body.style.display='none'; if(gwrap) gwrap.style.display=''; renderGraph(); }
+    else { if(gwrap) gwrap.style.display='none'; if(body) body.style.display='block'; }
+  }
+
+  function exportOkf() {
+    fetch(LaRuche.API.base+'/api/memory/export_okf?dir=okf-export').then(function(r){return r.json();}).then(function(res){
+      if(res.ok) LaRuche.Toast.show('OKF exporte ('+(res.files!=null?res.files+' fichiers, ':'')+'dir: '+res.dir+')','ok');
+      else LaRuche.Toast.show('Erreur export: '+(res.error||'?'),'err');
+    }).catch(function(e){ LaRuche.Toast.show('Export: '+e,'err'); });
+  }
+
+  function importOkf() {
+    if(!window.confirm('Importer le bundle OKF depuis le dossier okf-export ?')) return;
+    fetch(LaRuche.API.base+'/api/memory/import_okf?dir=okf-export', {method:'POST'}).then(function(r){return r.json();}).then(function(res){
+      if(res.ok){ LaRuche.Toast.show('OKF importe','ok'); loaded=false; nodes={}; loadTree(); }
+      else LaRuche.Toast.show('Erreur import: '+(res.error||'?'),'err');
+    }).catch(function(e){ LaRuche.Toast.show('Import: '+e,'err'); });
   }
 
   function triggerDream() {
-    fetch(LaRuche.API.base+'/api/memory/dream', {method:'POST'})
-      .then(function(r){
-        if(r.ok) LaRuche.Toast.show('Consolidation declenchee en arriere-plan', 'ok');
-        else LaRuche.Toast.show('Erreur de consolidation', 'err');
-      })
-      .catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+    fetch(LaRuche.API.base+'/api/memory/dream', {method:'POST'}).then(function(r){
+      if(r.ok) LaRuche.Toast.show('Consolidation declenchee en arriere-plan','ok');
+      else LaRuche.Toast.show('Erreur de consolidation','err');
+    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e,'err'); });
+  }
+
+  /* ---- vue graphe (bonus A4) ---- */
+  function hexPoints(cx, cy, r){
+    var pts=[]; for(var i=0;i<6;i++){ var a=Math.PI/180*(60*i-30); pts.push((cx+r*Math.cos(a)).toFixed(1)+','+(cy+r*Math.sin(a)).toFixed(1)); }
+    return pts.join(' ');
+  }
+  function shortLabel(s){ s=String(s||''); return s.length>16 ? s.slice(0,15)+'…' : s; }
+
+  function renderGraph() {
+    var svg = document.getElementById('mem2Graph'); if(!svg) return;
+    var ids = Object.keys(nodes);
+    if(!ids.length){ svg.innerHTML='<text x="500" y="350" text-anchor="middle" fill="var(--text-muted)" font-size="16">Aucun noeud</text>'; return; }
+    var cols = Math.max(3, Math.ceil(Math.sqrt(ids.length)));
+    var gapX=170, gapY=140, r=52, startX=120, startY=90;
+    var html = '<defs><filter id="mem2Glow"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
+    // liens parent->enfant
+    var pos = {};
+    ids.forEach(function(id, idx){
+      var row=Math.floor(idx/cols), col=idx%cols;
+      pos[id] = { x:startX+col*gapX+(row%2?gapX/2:0), y:startY+row*gapY };
+    });
+    ids.forEach(function(id){
+      var p = id.indexOf('.')>=0 ? id.slice(0,id.lastIndexOf('.')) : null;
+      if(p && pos[p]) html += '<line x1="'+pos[p].x+'" y1="'+pos[p].y+'" x2="'+pos[id].x+'" y2="'+pos[id].y+'" stroke="var(--border-light)" stroke-width="1"/>';
+    });
+    ids.forEach(function(id){
+      var x=pos[id].x, y=pos[id].y, isActive=current===id;
+      var fill=isActive?'rgba(245,158,11,.42)':'rgba(24,24,27,.9)';
+      var stroke=isActive?'var(--amber)':'var(--border-light)';
+      html += '<g class="mem2-gnode" data-node="'+esc(id)+'" style="cursor:pointer">'+
+        '<polygon points="'+hexPoints(x,y,r)+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+(isActive?3:1.5)+'"'+(isActive?' filter="url(#mem2Glow)"':'')+'></polygon>'+
+        '<text x="'+x+'" y="'+(y+4)+'" text-anchor="middle" fill="var(--text)" font-size="12" font-weight="700">'+esc(shortLabel(id.split('.').pop()))+'</text>'+
+      '</g>';
+    });
+    svg.innerHTML = html;
+    svg.querySelectorAll('.mem2-gnode').forEach(function(g){ g.addEventListener('click', function(){ loadNode(g.dataset.node); }); });
   }
 
   return {
     init:init, enter:enter, leave:leave,
-    search:search, write:write, loadNode:loadNode,
-    editItem:editItem, deleteItem:deleteItem, moveItem:moveItem, reviewItem:reviewItem,
-    triggerDream:triggerDream
+    loadNode:loadNode, setView:setView,
+    exportOkf:exportOkf, importOkf:importOkf, triggerDream:triggerDream
   };
 })();
+
 
 LaRuche.Settings = (function(){
   var currentTab = 'general';
