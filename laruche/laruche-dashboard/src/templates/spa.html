@@ -902,31 +902,6 @@ pre:hover .code-copy-btn { opacity:1; }
 .dash-mob-tabs button.active { color:var(--amber); border-bottom-color:var(--amber); }
 
 /* ============================== */
-/* SESSIONS PAGE                  */
-/* ============================== */
-.sessions-page-layout { flex:1; display:flex; flex-direction:column; overflow:hidden; padding:16px; gap:12px; }
-.sessions-toolbar { display:flex; gap:8px; align-items:center; flex-shrink:0; }
-.sessions-toolbar input {
-  flex:1; background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius);
-  color:var(--text); font-size:14px; padding:10px 14px; outline:none; transition:border-color var(--transition-fast);
-}
-.sessions-toolbar input:focus { border-color:var(--amber); }
-.sessions-toolbar input::placeholder { color:var(--text-dim); }
-.sessions-table-wrap { flex:1; overflow-y:auto; }
-.sessions-table { width:100%; border-collapse:collapse; font-size:13px; }
-.sessions-table th { text-align:left; padding:8px 10px; color:var(--text-dim); border-bottom:1px solid var(--border); font-size:11px; text-transform:uppercase; letter-spacing:.5px; position:sticky; top:0; background:var(--bg); }
-.sessions-table td { padding:8px 10px; border-bottom:1px solid rgba(42,42,46,.3); }
-.sessions-table tr:hover td { background:rgba(245,158,11,.04); }
-.sessions-table .s-actions { display:flex; gap:6px; }
-.sessions-table .s-btn { background:none; border:1px solid var(--border); border-radius:4px; padding:3px 10px; cursor:pointer; font-size:11px; transition:all var(--transition-fast); }
-.s-btn-open { color:var(--amber); border-color:rgba(245,158,11,.3); }
-.s-btn-open:hover { background:var(--amber-glow); border-color:var(--amber); }
-.s-btn-export { color:var(--blue); border-color:rgba(59,130,246,.3); }
-.s-btn-export:hover { background:var(--blue-dim); border-color:var(--blue); }
-.s-btn-del { color:var(--red); border-color:rgba(239,68,68,.3); }
-.s-btn-del:hover { background:var(--red-dim); border-color:var(--red); }
-
-/* ============================== */
 /* MEMORY PAGE                    */
 /* ============================== */
 .memory-layout { flex:1; display:grid; grid-template-columns:260px minmax(0,1fr) 320px; overflow:hidden; background:var(--bg); }
@@ -5541,7 +5516,6 @@ LaRuche.Settings = (function(){
     switch(tab) {
       case 'general': loadGeneral(el); break;
       case 'providers': loadProviders(el); break;
-      case 'sessions': loadSessionsTab(el); break;
       case 'tools': loadTools(el); break;
       case 'channels': loadChannels(el); break;
       case 'knowledge': loadKnowledge(el); break;
@@ -5829,16 +5803,6 @@ LaRuche.Settings = (function(){
         LaRuche.Toast.show('Error: '+(d.error||'?'),'err');
       }
     });
-  }
-
-  async function loadSessionsTab(el) {
-    var sessions=[];try{sessions=await fetch('/api/sessions').then(function(r){return r.json();});}catch(e){}
-    if(!sessions.length){el.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px">No sessions</div>';return;}
-    sessions.sort(function(a,b){return new Date(b.updated_at)-new Date(a.updated_at);});
-    el.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:12px"><tr><th style="text-align:left;padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">Title</th><th style="padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">Msgs</th><th style="padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">Actions</th></tr>'+sessions.map(function(s){
-      var cleanTitle = (s.title||'').split(/\[SYSTEM\]/i)[0].trim() || 'Sans titre';
-      return '<tr><td style="padding:6px;border-bottom:1px solid rgba(42,42,46,.3)">'+LaRuche.Utils.esc(cleanTitle)+'</td><td style="padding:6px;text-align:center;border-bottom:1px solid rgba(42,42,46,.3)">'+(s.messages||'-')+'</td><td style="padding:6px;text-align:center;border-bottom:1px solid rgba(42,42,46,.3)"><button onclick="fetch(\'/api/sessions/'+s.id+'/export\').then(function(r){return r.text()}).then(function(md){var a=document.createElement(\'a\');a.href=URL.createObjectURL(new Blob([md]));a.download=\'session.md\';a.click()})" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">Export</button> <button onclick="fetch(\'/api/sessions/'+s.id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">Del</button></td></tr>';
-    }).join('')+'</table>';
   }
 
   async function loadTools(el) {
