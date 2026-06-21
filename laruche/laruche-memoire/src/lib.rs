@@ -165,6 +165,30 @@ pub trait MemoireCognitive: Send + Sync {
         Err(anyhow!("memory_delete_node unsupported by this backend"))
     }
 
+    /// Crée un nœud (le parent, s'il existe, est créé au besoin). `node_id` pointé
+    /// snake_case, ex. `projects.football_bot`. Audité. Défaut : non supporté.
+    async fn create_node(
+        &self,
+        _node_id: &str,
+        _label: &str,
+        _one_liner: Option<&str>,
+        _importance: Option<f32>,
+    ) -> Result<Value> {
+        Err(anyhow!("memory_create_node unsupported by this backend"))
+    }
+
+    /// Met à jour le label / one-liner / importance d'un nœud existant (renommer un nœud
+    /// générique en nœud parlant). Audité. Défaut : non supporté.
+    async fn update_node(
+        &self,
+        _node_id: &str,
+        _label: Option<&str>,
+        _one_liner: Option<&str>,
+        _importance: Option<f32>,
+    ) -> Result<Value> {
+        Err(anyhow!("memory_update_node unsupported by this backend"))
+    }
+
     /// Passe de consolidation (doublons, périmés, surchargés, orphelins). N'applique rien.
     async fn update_item(&self, _item_id: &str, _content: &str) -> Result<Value> {
         Err(anyhow!("memory_update_item unsupported by this backend"))

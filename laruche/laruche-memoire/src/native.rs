@@ -81,11 +81,39 @@ struct StoredItem {
     deleted: bool,
 }
 
+/// Métadonnées explicites d'un nœud (label/one_liner/importance) posées par
+/// `create_node`/`update_node`. Sinon le label est dérivé du node_id.
+#[derive(Clone, Default)]
+struct NodeMeta {
+    label: Option<String>,
+    one_liner: Option<String>,
+    importance: Option<f32>,
+}
+
 /// Backend mémoire natif (en RAM). Cloner via `Arc`.
 #[derive(Default)]
 pub struct NativeBackend {
     store: Mutex<HashMap<String, Vec<StoredItem>>>,
+    meta: Mutex<HashMap<String, NodeMeta>>,
     counter: AtomicU64,
+}
+
+/// Applique les métadonnées explicites (si présentes) sur un `node_json` dérivé.
+fn overlay_meta(mut node: Value, meta: &HashMap<String, NodeMeta>) -> Value {
+    if let Some(id) = node.get("id").and_then(Value::as_str) {
+        if let Some(m) = meta.get(id) {
+            if let Some(l) = &m.label {
+                node["label"] = json!(l);
+            }
+            if let Some(o) = &m.one_liner {
+                node["one_liner"] = json!(o);
+            }
+            if let Some(i) = m.importance {
+                node["importance"] = json!(i);
+            }
+        }
+    }
+    node
 }
 
 impl NativeBackend {
@@ -176,11 +204,12 @@ impl MemoireCognitive for NativeBackend {
 
     async fn read_node(&self, node_id: &str) -> Result<Value> {
         let store = self.store.lock().unwrap();
+        let meta = self.meta.lock().unwrap();
         let all_nodes = collect_node_ids(&store);
         let mut children: Vec<Value> = all_nodes
             .iter()
             .filter(|id| node_parent_id(id).as_deref() == Some(node_id))
-            .map(|id| node_json(id))
+            .map(|id| overlay_meta(node_json(id), &meta))
             .collect();
         children.sort_by(|a, b| {
             a["id"]
@@ -197,7 +226,7 @@ impl MemoireCognitive for NativeBackend {
                     .collect()
             })
             .unwrap_or_default();
-        let mut node = node_json(node_id);
+        let mut node = overlay_meta(node_json(node_id), &meta);
         node["children"] = json!(children);
         node["items"] = json!(items);
         Ok(node)
@@ -375,9 +404,10 @@ impl MemoireCognitive for NativeBackend {
 
     async fn list_nodes(&self) -> Result<Value> {
         let store = self.store.lock().unwrap();
+        let meta = self.meta.lock().unwrap();
         let mut nodes: Vec<Value> = collect_node_ids(&store)
             .iter()
-            .map(|id| node_json(id))
+            .map(|id| overlay_meta(node_json(id), &meta))
             .collect();
         nodes.sort_by(|a, b| {
             a["id"]
@@ -414,6 +444,53 @@ impl MemoireCognitive for NativeBackend {
             }
         }
         Ok(json!({ "deleted": id, "moved_to": parent }))
+    }
+
+    async fn create_node(
+        &self,
+        node_id: &str,
+        label: &str,
+        one_liner: Option<&str>,
+        importance: Option<f32>,
+    ) -> Result<Value> {
+        let id = node_id.trim_matches('.').to_string();
+        if id.is_empty() {
+            return Err(anyhow!("node_id vide"));
+        }
+        // Crée une entrée vide → le nœud devient énumérable même sans items.
+        self.store.lock().unwrap().entry(id.clone()).or_default();
+        self.meta.lock().unwrap().insert(
+            id.clone(),
+            NodeMeta {
+                label: Some(label.to_string()),
+                one_liner: one_liner.map(|s| s.to_string()),
+                importance,
+            },
+        );
+        Ok(json!({ "created": id, "label": label, "parent_id": node_parent_id(node_id) }))
+    }
+
+    async fn update_node(
+        &self,
+        node_id: &str,
+        label: Option<&str>,
+        one_liner: Option<&str>,
+        importance: Option<f32>,
+    ) -> Result<Value> {
+        let id = node_id.trim_matches('.').to_string();
+        let mut meta = self.meta.lock().unwrap();
+        let entry = meta.entry(id.clone()).or_default();
+        if let Some(l) = label {
+            entry.label = Some(l.to_string());
+        }
+        if let Some(o) = one_liner {
+            entry.one_liner = Some(o.to_string());
+        }
+        if let Some(i) = importance {
+            entry.importance = Some(i);
+        }
+        let m = meta.clone();
+        Ok(overlay_meta(node_json(&id), &m))
     }
 
     async fn health(&self) -> Result<bool> {

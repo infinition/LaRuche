@@ -210,6 +210,8 @@ const CORE_TOOL_NAMES: &[&str] = &[
     "memory_suggest_nodes",
     "memory_tree",
     "memory_delete_node",
+    "memory_create_node",
+    "memory_update_node",
     "skill_list",
     "skill_view",
     "file_read",

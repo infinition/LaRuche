@@ -537,3 +537,112 @@ impl Abeille for MemoireDeleteNode {
         }
     }
 }
+
+/// Crée un nouveau nœud dans la carte cognitive.
+pub struct MemoireCreateNode {
+    pub mem: Arc<dyn MemoireCognitive>,
+}
+
+#[async_trait]
+impl Abeille for MemoireCreateNode {
+    fn nom(&self) -> &str {
+        "memory_create_node"
+    }
+    fn description(&self) -> &str {
+        "Cree un noeud dans la carte cognitive (le parent est cree au besoin). node_id pointe \
+         en snake_case, ex. projects.football_bot. A utiliser pour ranger la memoire : creer un \
+         noeud parlant avant d'y deplacer des items (memory_move_item) ou fusionner des doublons."
+    }
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "node_id": { "type": "string", "description": "Noeud pointe, ex. projects.football_bot" },
+                "label": { "type": "string", "description": "Nom lisible du noeud" },
+                "one_liner": { "type": "string", "description": "Resume court (optionnel)" },
+                "importance": { "type": "number", "description": "0..1 (optionnel)" }
+            },
+            "required": ["node_id", "label"]
+        })
+    }
+    fn niveau_danger(&self) -> NiveauDanger {
+        NiveauDanger::Safe
+    }
+    async fn executer(
+        &self,
+        args: serde_json::Value,
+        _ctx: &ContextExecution,
+    ) -> Result<ResultatAbeille> {
+        let node_id = args["node_id"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("'node_id' manquant"))?;
+        let label = args["label"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("'label' manquant"))?;
+        let one_liner = args["one_liner"].as_str();
+        let importance = args["importance"].as_f64().map(|v| v as f32);
+        match self
+            .mem
+            .create_node(node_id, label, one_liner, importance)
+            .await
+        {
+            Ok(_) => Ok(ResultatAbeille::ok(format!("Noeud cree: {node_id} ({label})"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Echec create_node: {e}"))),
+        }
+    }
+}
+
+/// Renomme / met à jour les métadonnées d'un nœud existant.
+pub struct MemoireUpdateNode {
+    pub mem: Arc<dyn MemoireCognitive>,
+}
+
+#[async_trait]
+impl Abeille for MemoireUpdateNode {
+    fn nom(&self) -> &str {
+        "memory_update_node"
+    }
+    fn description(&self) -> &str {
+        "Met a jour le label, le resume (one_liner) ou l'importance d'un noeud existant. \
+         A utiliser pour RENOMMER un noeud generique (ex. projects.1) en noeud parlant, \
+         sans perdre ses items."
+    }
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "node_id": { "type": "string", "description": "Noeud pointe a modifier" },
+                "label": { "type": "string", "description": "Nouveau nom lisible (optionnel)" },
+                "one_liner": { "type": "string", "description": "Nouveau resume court (optionnel)" },
+                "importance": { "type": "number", "description": "0..1 (optionnel)" }
+            },
+            "required": ["node_id"]
+        })
+    }
+    fn niveau_danger(&self) -> NiveauDanger {
+        NiveauDanger::Safe
+    }
+    async fn executer(
+        &self,
+        args: serde_json::Value,
+        _ctx: &ContextExecution,
+    ) -> Result<ResultatAbeille> {
+        let node_id = args["node_id"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("'node_id' manquant"))?;
+        let label = args["label"].as_str();
+        let one_liner = args["one_liner"].as_str();
+        let importance = args["importance"].as_f64().map(|v| v as f32);
+        match self
+            .mem
+            .update_node(node_id, label, one_liner, importance)
+            .await
+        {
+            Ok(v) => Ok(ResultatAbeille::ok(format!(
+                "Noeud mis a jour: {}",
+                serde_json::to_string(&v).unwrap_or_default()
+            ))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Echec update_node: {e}"))),
+        }
+    }
+}

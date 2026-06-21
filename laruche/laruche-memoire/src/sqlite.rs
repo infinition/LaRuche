@@ -876,6 +876,79 @@ impl MemoireCognitive for SqliteBackend {
         Ok(json!({"deleted": id, "moved_to": parent, "removed": removed}))
     }
 
+    async fn create_node(
+        &self,
+        node_id: &str,
+        label: &str,
+        one_liner: Option<&str>,
+        importance: Option<f32>,
+    ) -> Result<Value> {
+        let id = node_id.trim_matches('.').to_string();
+        if id.is_empty() {
+            return Err(anyhow::anyhow!("node_id vide"));
+        }
+        let conn = self.conn.lock().unwrap();
+        // Crée la chaîne de parents au besoin.
+        if let Some(parent) = node_parent_id(&id) {
+            ensure_node(&conn, &parent)?;
+        }
+        let parent_id = node_parent_id(&id);
+        conn.execute(
+            "INSERT INTO nodes(id,parent_id,label,one_liner,importance,created_at)
+             VALUES(?1,?2,?3,?4,?5,?6)
+             ON CONFLICT(id) DO UPDATE SET label=excluded.label,
+               one_liner=excluded.one_liner, importance=excluded.importance",
+            rusqlite::params![
+                id,
+                parent_id,
+                label,
+                one_liner.unwrap_or(""),
+                importance.unwrap_or(0.5),
+                now()
+            ],
+        )?;
+        conn.execute(
+            "INSERT INTO mutations(op,node_id,content,ts) VALUES('create_node',?1,?2,?3)",
+            rusqlite::params![id, label, now()],
+        )?;
+        Ok(json!({"created": id, "label": label, "parent_id": parent_id}))
+    }
+
+    async fn update_node(
+        &self,
+        node_id: &str,
+        label: Option<&str>,
+        one_liner: Option<&str>,
+        importance: Option<f32>,
+    ) -> Result<Value> {
+        let id = node_id.trim_matches('.').to_string();
+        let conn = self.conn.lock().unwrap();
+        ensure_node(&conn, &id)?;
+        if let Some(label) = label {
+            conn.execute(
+                "UPDATE nodes SET label=?1 WHERE id=?2",
+                rusqlite::params![label, id],
+            )?;
+        }
+        if let Some(one_liner) = one_liner {
+            conn.execute(
+                "UPDATE nodes SET one_liner=?1 WHERE id=?2",
+                rusqlite::params![one_liner, id],
+            )?;
+        }
+        if let Some(importance) = importance {
+            conn.execute(
+                "UPDATE nodes SET importance=?1 WHERE id=?2",
+                rusqlite::params![importance, id],
+            )?;
+        }
+        conn.execute(
+            "INSERT INTO mutations(op,node_id,content,ts) VALUES('update_node',?1,?2,?3)",
+            rusqlite::params![id, label.unwrap_or(""), now()],
+        )?;
+        node_json(&conn, &id)
+    }
+
     async fn health(&self) -> Result<bool> {
         let conn = self.conn.lock().unwrap();
         Ok(conn
