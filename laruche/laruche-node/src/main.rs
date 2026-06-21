@@ -1825,6 +1825,11 @@ async fn api_list_tools(State(state): State<Arc<AppState>>) -> Json<serde_json::
                                 serde_json::to_value(abeille.niveau_danger())
                                     .unwrap_or_else(|_| serde_json::json!("safe")),
                             );
+                            obj.insert(
+                                "origin".to_string(),
+                                serde_json::to_value(abeille.origin())
+                                    .unwrap_or_else(|_| serde_json::json!("builtin")),
+                            );
                         }
                     }
                 }

@@ -7949,10 +7949,10 @@ LaRuche.Capabilities = (function(){
       (tools||[]).forEach(function(t){
         rows.push({
           family:'abeille', name:t.name,
-          origin:(t.origin==='Custom')?'custom':'natif',
+          origin:(t.origin==='custom' || t.origin==='Custom')?'custom':'natif',
           desc:(t.description||''), enabled:(t.enabled!==false),
           danger:(t.danger||'safe'), raw:t,
-          editable:false, immutable:(t.origin!=='Custom')
+          editable:false, immutable:(t.origin!=='custom' && t.origin!=='Custom')
         });
       });
     } catch(e){}
