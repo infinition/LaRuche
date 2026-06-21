@@ -219,6 +219,7 @@ body {
   margin-left: auto; margin-right: -5px;
   width: 40px; height: 40px;
   display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
 }
 .honey-gauge {
   --value: 0; position: relative; width: 96px; height: 110px;
@@ -2380,6 +2381,26 @@ LaRuche.Header = (function(){
     loadPermissionMode();
     setInterval(fetchContextStats, 1500);
     fetchContextStats();
+    setInterval(fetchCapabilities, 10000);
+    fetchCapabilities();
+  }
+
+  async function fetchCapabilities(){
+    try{
+      var selData = await fetch('/api/capabilities/selection').then(r=>r.json()).catch(e=>({selection:{}}));
+      var serverPreferred = selData.selection || {};
+      var recapText = "Pour cette discussion : ";
+      var caps = Object.keys(serverPreferred);
+      if(caps.length > 0) {
+        recapText += caps.map(function(c) {
+          return c.toUpperCase() + '=' + serverPreferred[c].model;
+        }).join(' · ');
+      } else {
+        recapText += "Auto (aucun modele force)";
+      }
+      var recapEl = document.getElementById('sessionCapsRecap');
+      if(recapEl) recapEl.textContent = recapText;
+    } catch(e) {}
   }
 
   async function fetchContextStats(){
@@ -4381,21 +4402,6 @@ LaRuche.Dashboard = (function(){
 
   async function fetchModels(){
     try{
-      var selData = await fetch(LaRuche.API.base+'/api/capabilities/selection').then(r=>r.json()).catch(e=>({selection:{}}));
-      var serverPreferred = selData.selection || {};
-      
-      var recapText = "Pour cette discussion : ";
-      var caps = Object.keys(serverPreferred);
-      if(caps.length > 0) {
-        recapText += caps.map(function(c) {
-          return c.toUpperCase() + '=' + serverPreferred[c].model;
-        }).join(' · ');
-      } else {
-        recapText += "Auto (aucun modele force)";
-      }
-      var recapEl = document.getElementById('sessionCapsRecap');
-      if(recapEl) recapEl.textContent = recapText;
-
       var r=await fetch(LaRuche.API.base+'/swarm/models');if(!r.ok)return;var d=await r.json();
       var list=document.getElementById('model-list');list.innerHTML='';
       
