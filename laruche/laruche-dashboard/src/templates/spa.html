@@ -1363,8 +1363,13 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   <div class="page" id="page-chat">
     <div class="chat-layout">
       <div class="chat-sidebar" id="chatSidebar">
-        <!-- Discreet LLM Bubble -->
-        <div id="sessionCapsRecap" style="text-align:center;font-size:11px;font-weight:600;color:var(--amber);background:rgba(255, 191, 58, 0.05);padding:4px 12px;border-radius:12px;margin: 8px auto; width: fit-content; border: 1px solid rgba(255, 191, 58, 0.15); box-shadow: 0 2px 8px rgba(0,0,0,0.2);">Chargement...</div>
+        <!-- Discreet LLM Bubble (with select overlay) -->
+        <div style="position: relative; margin: 8px auto; width: fit-content;">
+          <div id="sessionCapsRecap" style="text-align:center;font-size:11px;font-weight:600;color:var(--amber);background:rgba(255, 191, 58, 0.05);padding:4px 12px;border-radius:12px;border: 1px solid rgba(255, 191, 58, 0.15); box-shadow: 0 2px 8px rgba(0,0,0,0.2); cursor: pointer;">Chargement...</div>
+          <select id="modelSelect" onchange="LaRuche.Header.changeModel(this.value)" style="opacity:0; position:absolute; inset:0; width:100%; height:100%; cursor:pointer;">
+            <option value="">Chargement...</option>
+          </select>
+        </div>
 
         <!-- New compact global controls for chat -->
         <div class="sidebar-controls">
@@ -1382,12 +1387,7 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
                <input type="checkbox" class="ctrl-toggle" id="noThinkToggle" onchange="LaRuche.Chat.toggleNoThink(this.checked)">
                <span class="icon">&#x1F9E0;</span>
              </label>
-             <div class="ctrl-icon-btn" title="Modele LLM (Cliquez pour choisir)">
-               <span class="icon">&#x1F916;</span>
-               <select id="modelSelect" onchange="LaRuche.Header.changeModel(this.value)">
-                 <option value="">Chargement...</option>
-               </select>
-             </div>
+
              <div class="ctrl-icon-btn" title="Permissions des outils (Cliquez pour choisir)">
                <span class="icon">&#x1F6E1;</span>
                <select id="permModeSelect" onchange="LaRuche.Header.changePermissionMode(this.value)">
@@ -2503,6 +2503,9 @@ LaRuche.Header = (function(){
     var modelName = value.substring(slashIdx + 1);
     currentModelName = modelName;
     currentProfileId = profileId;
+
+    var recapEl = document.getElementById('sessionCapsRecap');
+    if (recapEl) recapEl.textContent = modelName;
 
     var select = document.getElementById('modelSelect');
     select.disabled = true;
