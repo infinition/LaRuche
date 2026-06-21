@@ -10,6 +10,17 @@ use async_trait::async_trait;
 use laruche_memoire::{MemoireCognitive, MemoryItem, SearchOpts};
 use std::sync::Arc;
 
+/// Nœuds gérés UNIQUEMENT par le système : `tools.*` (projection du registre d'abeilles/skills,
+/// régénérée au démarrage) et `system.*` (nœuds internes). L'agent peut les LIRE (search/tree)
+/// mais pas les MUTER : sinon « ranger sa mémoire » casserait la sélection sémantique d'outils.
+fn noeud_reserve(node_id: &str) -> bool {
+    let id = node_id.trim().trim_matches('.');
+    id == "tools"
+        || id == "system"
+        || id.starts_with("tools.")
+        || id.starts_with("system.")
+}
+
 /// Recherche cognitive dans la mémoire.
 pub struct MemoireSearch {
     pub mem: Arc<dyn MemoireCognitive>,
@@ -257,6 +268,11 @@ impl Abeille for MemoireMoveItem {
         let node_id = args["node_id"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("'node_id' manquant"))?;
+        if noeud_reserve(node_id) {
+            return Ok(ResultatAbeille::err(format!(
+                "Refus: impossible de deplacer un item vers `{node_id}` (noeud systeme reserve)."
+            )));
+        }
         match self.mem.move_item(item_id, node_id).await {
             Ok(_) => Ok(ResultatAbeille::ok(format!(
                 "Memoire deplacee: {item_id} -> {node_id}"
@@ -528,6 +544,12 @@ impl Abeille for MemoireDeleteNode {
         let node_id = args["node_id"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("'node_id' manquant"))?;
+        if noeud_reserve(node_id) {
+            return Ok(ResultatAbeille::err(format!(
+                "Refus: `{node_id}` est un noeud systeme (tools.*/system.*), gere automatiquement. \
+                 Ne range que ta memoire (people/projects/decisions...)."
+            )));
+        }
         match self.mem.delete_node(node_id).await {
             Ok(v) => Ok(ResultatAbeille::ok(format!(
                 "Noeud supprime/fusionne: {}",
@@ -581,6 +603,11 @@ impl Abeille for MemoireCreateNode {
             .ok_or_else(|| anyhow::anyhow!("'label' manquant"))?;
         let one_liner = args["one_liner"].as_str();
         let importance = args["importance"].as_f64().map(|v| v as f32);
+        if noeud_reserve(node_id) {
+            return Ok(ResultatAbeille::err(format!(
+                "Refus: `{node_id}` est sous un prefixe systeme (tools.*/system.*) reserve."
+            )));
+        }
         match self
             .mem
             .create_node(node_id, label, one_liner, importance)
@@ -633,6 +660,11 @@ impl Abeille for MemoireUpdateNode {
         let label = args["label"].as_str();
         let one_liner = args["one_liner"].as_str();
         let importance = args["importance"].as_f64().map(|v| v as f32);
+        if noeud_reserve(node_id) {
+            return Ok(ResultatAbeille::err(format!(
+                "Refus: `{node_id}` est un noeud systeme (tools.*/system.*), non modifiable."
+            )));
+        }
         match self
             .mem
             .update_node(node_id, label, one_liner, importance)
