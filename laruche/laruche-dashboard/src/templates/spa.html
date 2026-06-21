@@ -1760,6 +1760,50 @@ LaRuche.Console = (function(){
   var lastEventId = 0;
   var pollTimer = null;
 
+  // P8 : ouvre la session liee a un event (onglet Chat + re-attach flux live).
+  function openSession(sid) {
+    if(!sid) return;
+    LaRuche.Router.go('chat');
+    setTimeout(function(){ if(LaRuche.Chat && LaRuche.Chat.switchSession) LaRuche.Chat.switchSession(sid); }, 120);
+  }
+
+  // P8 : notification/toast cliquable pour les events porteurs d'un session_id/task_id.
+  function notifyEvent(ev) {
+    if(!ev || !ev.payload) return;
+    var pl = ev.payload;
+    var sid = pl.session_id || pl.task_session_id || null;
+    var tid = pl.task_id || null;
+    switch(ev.kind) {
+      case 'SessionFinished': {
+        var preview = pl.preview || 'Réponse terminée';
+        LaRuche.Toast.show('Agent terminé: ' + String(preview).substring(0, 60) + '…', 'ok', 8000,
+          sid ? function(){ openSession(sid); } : null);
+        break;
+      }
+      case 'AgentStarted': {
+        // payload: {session_id, prompt} (chat) ou {task_id, prompt} (cron)
+        var label = pl.prompt || pl.preview || 'Agent démarré';
+        LaRuche.Toast.show('Agent démarré: ' + String(label).substring(0, 60), 'info', 6000,
+          sid ? function(){ openSession(sid); } : null);
+        break;
+      }
+      case 'WatcherFired': {
+        // payload: {watcher_id, prompt, context}
+        var wname = pl.prompt || pl.watcher_id || 'Watcher';
+        LaRuche.Toast.show('Watcher déclenché: ' + String(wname).substring(0, 50), 'info', 7000,
+          sid ? function(){ openSession(sid); } : null);
+        break;
+      }
+      case 'KanbanTask': {
+        // payload: {task_id, title}
+        var ktitle = pl.title || ('Tâche ' + (tid || '')) ;
+        LaRuche.Toast.show('Kanban: ' + String(ktitle).substring(0, 55), 'info', 7000,
+          sid ? function(){ openSession(sid); } : null);
+        break;
+      }
+    }
+  }
+
   function pollEvents() {
     fetch(LaRuche.API.base+'/api/events?since='+lastEventId).then(function(r){return r.json();}).then(function(evts){
       if(!evts || !evts.length) return;
@@ -1767,14 +1811,7 @@ LaRuche.Console = (function(){
         if(ev.id > lastEventId) lastEventId = ev.id;
         var p = typeof ev.payload === 'object' ? JSON.stringify(ev.payload) : ev.payload;
         log('event', ev.actor || 'system', '['+ev.kind+'] ' + p);
-        // Global notification for completed sessions
-        if(ev.kind === 'SessionFinished' && ev.payload) {
-          var sid = ev.payload.session_id;
-          var preview = ev.payload.preview || 'Réponse terminée';
-          LaRuche.Toast.show('Agent terminé: ' + preview.substring(0, 60) + '...', 'ok', 8000, function(){
-            window.location.hash = '#chat?session=' + sid;
-          });
-        }
+        notifyEvent(ev);
       });
     }).catch(function(){});
   }
@@ -2324,7 +2361,50 @@ LaRuche.WS = (function(){
   function isOpen() { return ws && ws.readyState===WebSocket.OPEN; }
   function close() { if(ws){ ws.onclose=null; ws.close(); ws=null; } reconnectAttempts=0; }
 
-  return { connect:connect, send:send, isOpen:isOpen, close:close };
+  /* P8 — Re-attach au flux live d'une session en cours.
+   * On ouvre une connexion WS SECONDAIRE dediee (le serveur, sur reception de
+   * {type:"subscribe",session_id}, bloque la socket dans une boucle de relais des
+   * events ChatEvent de cette session : on ne peut donc PAS reutiliser la socket
+   * principale du chat). Si la session n'est plus en cours, le serveur ne renvoie
+   * rien d'actif et on referme apres un court delai. Sur 'done'/'error' on referme. */
+  var attachWs = null;
+  var attachTimer = null;
+  function reattach(sessionId) {
+    if(!sessionId) return;
+    // Fermer une eventuelle re-attache precedente
+    detach();
+    try {
+      var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      attachWs = new WebSocket(protocol+'//'+location.host+'/ws/chat');
+    } catch(e){ return; }
+    attachWs.onopen = function(){
+      try { attachWs.send(JSON.stringify({type:'subscribe', session_id:sessionId})); } catch(e){}
+      // Filet de securite : si aucun event live n'arrive (session deja terminee),
+      // on referme la socket inutile au bout de 8 s. Reinitialise a chaque event.
+      armIdleClose();
+    };
+    attachWs.onmessage = function(e){
+      armIdleClose();
+      var data; try { data = JSON.parse(e.data); } catch(err){ return; }
+      // On ignore l'ack 'session' (deja gere par switchSession) ; on relaie le reste
+      // au pipeline de rendu du chat (tokens, tool_call, done, ...).
+      if(data.type === 'session') return;
+      if(LaRuche.Chat && LaRuche.Chat.handleEvent) LaRuche.Chat.handleEvent(data);
+      if(data.type === 'done' || data.type === 'error') detach();
+    };
+    attachWs.onclose = function(){ if(attachTimer){clearTimeout(attachTimer);attachTimer=null;} };
+    attachWs.onerror = function(){ detach(); };
+  }
+  function armIdleClose(){
+    if(attachTimer) clearTimeout(attachTimer);
+    attachTimer = setTimeout(function(){ detach(); }, 8000);
+  }
+  function detach() {
+    if(attachTimer){ clearTimeout(attachTimer); attachTimer=null; }
+    if(attachWs){ try{ attachWs.onclose=null; attachWs.close(); }catch(e){} attachWs=null; }
+  }
+
+  return { connect:connect, send:send, isOpen:isOpen, close:close, reattach:reattach, detach:detach };
 })();
 
 /* ── Chat Module ──────────────────────────────────────────────── */
@@ -2399,7 +2479,7 @@ LaRuche.Chat = (function(){
 
   function handleEvent(data) {
     switch(data.type) {
-      case 'session': sessionId = data.session_id; loadSessions(); break;
+      case 'session': sessionId = data.session_id; loadSessions(); refreshSessionsPage(); break;
       case 'token':
         clearResponseTimeout();
         if(!currentAssistantMsg) {
@@ -2569,7 +2649,7 @@ LaRuche.Chat = (function(){
         if(_feedPrevCard){_feedPrevCard.classList.remove('running');var doneState=_feedPrevCard.querySelector('.feed-step-state');if(doneState)doneState.textContent='TERMINÉ';}
         var detailsAtEnd=document.getElementById('feedDetailsToggle');
         if(detailsAtEnd&&detailsAtEnd.checked){detailsAtEnd.checked=false;window.lrToggleFeedDetails(false);}
-        loadSessions();
+        loadSessions(); refreshSessionsPage();
         break;
       case 'error':
         clearResponseTimeout(); removeTypingIndicator();
@@ -2618,6 +2698,9 @@ LaRuche.Chat = (function(){
       steerMessage.row.classList.add('pending');
       return;
     }
+    // P8 — si on etait re-attache en lecture seule a une session en cours, on coupe
+    // la socket secondaire : le nouveau tour passe par la socket principale du chat.
+    if(LaRuche.WS && LaRuche.WS.detach) LaRuche.WS.detach();
     var welcome = document.getElementById('welcomeScreen');
     if(welcome) welcome.remove();
     var fileData = await getFileContentsForPrompt();
@@ -3287,8 +3370,17 @@ LaRuche.Chat = (function(){
     }).catch(function(){});
   }
 
+  // P8 — re-fetch la liste de l'onglet SESSIONS s'il est affiche (session visible des l'envoi).
+  function refreshSessionsPage() {
+    if(LaRuche.Router && LaRuche.Router.current && LaRuche.Router.current() === 'sessions' &&
+       LaRuche.SessionsPage && LaRuche.SessionsPage.enter) {
+      LaRuche.SessionsPage.enter();
+    }
+  }
+
   function newSession() {
     sessionId=null;
+    if(LaRuche.WS && LaRuche.WS.detach) LaRuche.WS.detach();
     var container=document.getElementById('chatContainer');
     container.innerHTML='';
     var welcome=document.createElement('div'); welcome.className='welcome'; welcome.id='welcomeScreen';
@@ -3364,6 +3456,9 @@ LaRuche.Chat = (function(){
       scrollToBottom();
     }).catch(function(){});
     loadSessions(); closeSidebarMobile();
+    // P8 — re-attach au flux live si la session est encore en cours (le serveur
+    // ne renvoie des tokens que si un run est actif ; sinon la socket se referme).
+    if(LaRuche.WS && LaRuche.WS.reattach) LaRuche.WS.reattach(id);
   }
 
   function deleteSession(id) {
