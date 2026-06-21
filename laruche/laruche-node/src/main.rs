@@ -3590,16 +3590,24 @@ async fn api_get_provider_config(State(state): State<Arc<AppState>>) -> Json<ser
     }))
 }
 
-async fn api_get_context_stats(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+async fn api_get_context_stats(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Json<serde_json::Value> {
     let ec = state.essaim_config.read().await;
     let max = ec.context_max_messages;
 
     let sessions = state.essaim_sessions.read().await;
-    let messages = sessions
-        .values()
-        .next()
-        .map(|s| s.messages.len() as u32)
-        .unwrap_or(0);
+    let session_id = params.get("session_id");
+    let messages = if let Some(sid_str) = session_id {
+        if let Ok(sid) = uuid::Uuid::parse_str(sid_str) {
+            sessions.get(&sid).map(|s| s.messages.len() as u32).unwrap_or(0)
+        } else {
+            0
+        }
+    } else {
+        0
+    };
     let ratio = if max > 0 {
         messages as f32 / max as f32
     } else {

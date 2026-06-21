@@ -1361,9 +1361,11 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 
   <!-- ====== CHAT PAGE ====== -->
   <div class="page" id="page-chat">
-    <div id="sessionCapsRecap" style="text-align:center;font-size:10px;color:var(--text-dim);background:var(--bg-panel);padding:2px 0;border-bottom:1px solid var(--border);">Pour cette discussion : Chargement...</div>
     <div class="chat-layout">
       <div class="chat-sidebar" id="chatSidebar">
+        <!-- Discreet LLM Bubble -->
+        <div id="sessionCapsRecap" style="text-align:center;font-size:11px;font-weight:600;color:var(--amber);background:rgba(255, 191, 58, 0.05);padding:4px 12px;border-radius:12px;margin: 8px auto; width: fit-content; border: 1px solid rgba(255, 191, 58, 0.15); box-shadow: 0 2px 8px rgba(0,0,0,0.2);">Chargement...</div>
+
         <!-- New compact global controls for chat -->
         <div class="sidebar-controls">
           <div style="display:flex; gap:6px; align-items:center;">
@@ -1816,6 +1818,7 @@ LaRuche.refreshAll = function(parts) {
     // Panneau "Services du mesh" + recap capacites + sélecteurs voix (Dashboard.fetchModels
     // re-lit /swarm/models ET /api/capabilities/selection, et met à jour les voix).
     if((want('mesh') || want('capabilities') || want('voice')) && LaRuche.Dashboard && LaRuche.Dashboard.fetchModels) LaRuche.Dashboard.fetchModels();
+    if(want('capabilities') && LaRuche.Header && LaRuche.Header.fetchCapabilities) LaRuche.Header.fetchCapabilities();
     // Statut voix (STT/TTS selectionne)
     if(want('voice') && LaRuche.Voice && LaRuche.Voice.refreshStatus) LaRuche.Voice.refreshStatus();
     // Onglet Settings courant (profils, cron, watchers, kanban...) si visible
@@ -2390,14 +2393,14 @@ LaRuche.Header = (function(){
     try{
       var selData = await fetch('/api/capabilities/selection').then(r=>r.json()).catch(e=>({selection:{}}));
       var serverPreferred = selData.selection || {};
-      var recapText = "Pour cette discussion : ";
+      var recapText = "";
       var caps = Object.keys(serverPreferred);
       if(caps.length > 0) {
         recapText += caps.map(function(c) {
-          return c.toUpperCase() + '=' + serverPreferred[c].model;
+          return serverPreferred[c].model;
         }).join(' · ');
       } else {
-        recapText += "Auto (aucun modele force)";
+        recapText += "Auto";
       }
       var recapEl = document.getElementById('sessionCapsRecap');
       if(recapEl) recapEl.textContent = recapText;
@@ -2406,7 +2409,10 @@ LaRuche.Header = (function(){
 
   async function fetchContextStats(){
     try{
-      var r=await fetch('/api/context/stats');
+      var sid = (window.LaRuche && LaRuche.Chat && typeof LaRuche.Chat.getSessionId === 'function') ? LaRuche.Chat.getSessionId() : null;
+      var url = '/api/context/stats';
+      if(sid) url += '?session_id=' + encodeURIComponent(sid);
+      var r=await fetch(url);
       if(!r.ok)return;
       var d=await r.json();
       var el = document.getElementById('headerContextUsage');
@@ -2577,7 +2583,7 @@ LaRuche.Header = (function(){
     }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
   }
 
-  return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, changeModel:changeModel, getModel:getModel, getProfileId:getProfileId, setModel:setModel, loadModels:loadModels, changePermissionMode:changePermissionMode, loadPermissionMode:loadPermissionMode };
+  return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, changeModel:changeModel, getModel:getModel, getProfileId:getProfileId, setModel:setModel, loadModels:loadModels, changePermissionMode:changePermissionMode, loadPermissionMode:loadPermissionMode, fetchCapabilities:fetchCapabilities };
 })();
 
 /* ── WS (Chat WebSocket) ──────────────────────────────────────── */
