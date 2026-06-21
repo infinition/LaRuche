@@ -7947,12 +7947,13 @@ LaRuche.Capabilities = (function(){
     try {
       var tools = await fetch('/api/tools').then(function(r){return r.json();});
       (tools||[]).forEach(function(t){
+        var isPlugin = (t.origin==='custom' || t.origin==='Custom');
         rows.push({
-          family:'abeille', name:t.name,
-          origin:(t.origin==='custom' || t.origin==='Custom')?'custom':'natif',
+          family: isPlugin ? 'plugin' : 'abeille', name:t.name,
+          origin: isPlugin ? 'custom' : 'natif',
           desc:(t.description||''), enabled:(t.enabled!==false),
           danger:(t.danger||'safe'), raw:t,
-          editable:false, immutable:(t.origin!=='custom' && t.origin!=='Custom')
+          editable:false, immutable:!isPlugin
         });
       });
     } catch(e){}
