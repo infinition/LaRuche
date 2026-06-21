@@ -1476,36 +1476,33 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 
   <!-- ====== MEMORY PAGE ====== -->
   <div class="page" id="page-memory">
-    <div class="memory-layout">
-      <div class="memory-side">
-        <div class="memory-section-hdr"><span>Carte cognitive</span><span id="memoryHealth">--</span></div>
-        <div class="memory-search">
-          <input id="memorySearchInput" type="text" list="memoryNodeSuggestions" placeholder="Rechercher dans la memoire..." spellcheck="false">
-          <button class="memory-icon-btn" onclick="LaRuche.Memory.search()" title="Rechercher">&#x2315;</button>
+    <div class="mem2-layout">
+      <div class="mem2-side">
+        <div class="mem2-side-hdr">
+          <span class="mem2-title">Memoire</span>
+          <span class="mem2-stats" id="mem2Stats">--</span>
+        </div>
+        <div class="mem2-search">
+          <input id="mem2Search" type="text" placeholder="Rechercher..." spellcheck="false">
         </div>
         <datalist id="memoryNodeSuggestions"></datalist>
-        <div class="memory-node-list" id="memoryNodeList"></div>
+        <div class="mem2-tree" id="mem2Tree"><div class="mem2-empty">Chargement...</div></div>
       </div>
-      <div class="memory-map">
-        <div class="memory-map-toolbar">
-          <span id="memorySummary">Memoire cognitive</span>
-          <button onclick="LaRuche.Memory.triggerDream()" id="memoryDreamBtn" style="background:var(--amber);color:var(--bg);border:none;border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;font-weight:bold;margin-left:auto;">Consolider</button>
+      <div class="mem2-main">
+        <div class="mem2-toolbar">
+          <span class="mem2-crumb" id="mem2Crumb">Memoire cognitive</span>
+          <button class="mem2-tbtn" id="mem2ViewTree" onclick="LaRuche.Memory.setView('tree')" title="Vue document">Document</button>
+          <button class="mem2-tbtn" id="mem2ViewGraph" onclick="LaRuche.Memory.setView('graph')" title="Vue graphe">Graphe</button>
+          <button class="mem2-tbtn" onclick="LaRuche.Memory.exportOkf()" title="Exporter en bundle OKF">Export OKF</button>
+          <button class="mem2-tbtn" onclick="LaRuche.Memory.importOkf()" title="Importer un bundle OKF">Import OKF</button>
+          <button class="mem2-tbtn" onclick="LaRuche.Memory.triggerDream()" title="Consolider la memoire">Consolider</button>
         </div>
-        <div class="memory-map-wrap">
-          <svg id="memorySvg" viewBox="0 0 900 620" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="mem2-body" id="mem2Body" style="display:block;">
+          <div class="mem2-scroll" id="mem2Doc"><div class="mem2-empty">Selectionnez un noeud dans l'arborescence pour afficher ses souvenirs.</div></div>
         </div>
-      </div>
-      <div class="memory-detail">
-        <div class="memory-section-hdr"><span>Souvenirs</span><span id="memoryItemCount">0</span></div>
-        <div class="memory-results" id="memoryResults"><div class="memory-empty">Lancez une recherche pour afficher les items.</div></div>
-        <div class="memory-section-hdr"><span>Ecriture</span></div>
-        <div class="memory-write">
-          <input id="memoryWriteNode" type="text" list="memoryNodeSuggestions" placeholder="node_id, ex. projects.laruche">
-          <textarea id="memoryWriteContent" placeholder="Fait durable a memoriser"></textarea>
-          <button onclick="LaRuche.Memory.write()">Memoriser</button>
+        <div class="mem2-graph-wrap" id="mem2GraphWrap" style="display:none;">
+          <svg id="mem2Graph" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet"></svg>
         </div>
-        <div class="memory-section-hdr"><span>Audit</span></div>
-        <div class="memory-audit" id="memoryAudit"><pre>{}</pre></div>
       </div>
     </div>
   </div>

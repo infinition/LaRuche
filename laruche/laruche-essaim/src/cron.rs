@@ -188,7 +188,7 @@ impl CronScheduler {
 }
 
 /// Simple cron check: does this cron expression match "now" and hasn't fired this minute?
-fn should_fire_cron(expr: &str, last_run: Option<DateTime<Utc>>, now: DateTime<Utc>) -> bool {
+pub fn should_fire_cron(expr: &str, last_run: Option<DateTime<Utc>>, now: DateTime<Utc>) -> bool {
     let local_now = now.with_timezone(&Local);
 
     // Parse 5-field cron: minute hour dom month dow
