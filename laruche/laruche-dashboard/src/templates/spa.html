@@ -260,9 +260,9 @@ body {
 }
 /* Agent Header Panel Refactoring */
 .agent-header-block {
-  background: rgba(0, 0, 0, 0.2);
-  border-top: 1px solid rgba(245, 158, 11, 0.15);
-  border-bottom: 1px solid rgba(245, 158, 11, 0.05);
+  background: rgba(255, 255, 255, 0.015);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
   margin: 12px 0 8px;
   display: flex;
   flex-direction: column;
@@ -271,26 +271,36 @@ body {
   padding: 10px 12px 2px;
   border-bottom: none;
   min-height: auto;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.agent-title-area {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
 }
 .agent-header-block .feed-usage-bar {
-  padding: 2px 12px 8px;
-  color: var(--amber);
-  opacity: 0.65;
+  padding: 4px 12px 8px;
+  color: var(--text-dim);
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: 0.5px;
 }
 .agent-header-block .feed-details-toggle {
-  background: rgba(255,255,255,0.04);
-  padding: 3px 6px;
-  border-radius: 4px;
-  border: 1px solid rgba(255,255,255,0.08);
+  background: var(--bg-input);
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
   transition: all 0.2s;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
 }
+.agent-header-block .feed-details-toggle input { display: none; }
 .agent-header-block .feed-details-toggle:hover {
-  background: rgba(255,255,255,0.08);
-  border-color: rgba(255,255,255,0.15);
-  color: var(--text);
+  border-color: var(--amber); color: var(--amber);
+}
+.agent-header-block .feed-details-toggle.active {
+  background: var(--amber-glow);
+  border-color: var(--amber);
+  color: var(--amber);
 }
 .plan-section { border-bottom:1px solid var(--border); max-height:180px; overflow-y:auto; }
 .plan-section:empty { display:none; }
@@ -1339,11 +1349,14 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
         </div>
         <div class="agent-header-block">
           <div class="sidebar-header agent-header">
-            <span>Agent</span>
-            <span class="agent-header-actions">
+            <span class="agent-title-area">
+              <span>Agent</span>
               <span class="feed-live-status" id="feedLiveStatus" aria-live="polite"><span class="feed-live-dot"></span><span id="feedLiveText">En attente</span></span>
-              <label class="feed-details-toggle" title="Afficher les détails techniques">
-                <input type="checkbox" id="feedDetailsToggle" onchange="window.lrToggleFeedDetails(this.checked)"> détails
+            </span>
+            <span class="agent-header-actions">
+              <label class="feed-details-toggle" title="Détails des logs">
+                <input type="checkbox" id="feedDetailsToggle" onchange="this.parentElement.classList.toggle('active', this.checked); window.lrToggleFeedDetails(this.checked)">
+                &#x1F441;
               </label>
               <span id="iterationBadge" class="iteration-badge"></span>
             </span>
