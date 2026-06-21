@@ -5100,10 +5100,12 @@ LaRuche.Memory = (function(){
       currentNode = node;
       current = node.node_id;
       mergeNodes([{id:node.node_id, label:node.label, one_liner:node.one_liner}].concat(node.children || []));
-      // ouvre les ancetres dans l'arbre
-      var parts = current.split('.'); var acc='';
-      parts.forEach(function(p){ acc = acc ? acc+'.'+p : p; expanded[acc] = true; });
-      renderTree();
+      // ouvre les ancetres dans l'arbre (seulement si action utilisateur)
+      if (!silent) {
+        var parts = current.split('.'); var acc='';
+        parts.forEach(function(p){ acc = acc ? acc+'.'+p : p; expanded[acc] = true; });
+        renderTree();
+      }
       renderDoc();
       if(view === 'graph') renderGraph();
     }).catch(function(e){ if(!silent) LaRuche.Toast.show('Lecture noeud: '+e, 'err'); });
@@ -5570,10 +5572,18 @@ LaRuche.Memory = (function(){
     svg.querySelectorAll('.mem2-gnode').forEach(function(g){ g.addEventListener('click', function(){ loadNode(g.dataset.node); }); });
   }
 
+  function toggleAll(forceOpen) {
+    Object.keys(nodes).forEach(function(id) {
+      expanded[id] = forceOpen;
+    });
+    renderTree();
+  }
+
   return {
     init:init, enter:enter, leave:leave,
     loadNode:loadNode, setView:setView,
-    exportOkf:exportOkf, importOkf:importOkf, triggerDream:triggerDream
+    exportOkf:exportOkf, importOkf:importOkf, triggerDream:triggerDream,
+    toggleAll:toggleAll
   };
 })();
 
@@ -5735,14 +5745,7 @@ LaRuche.Missions = (function(){
     } catch(e){ LaRuche.Toast.show('Export: '+e,'err'); }
   }
 
-  function toggleAll(forceOpen) {
-    Object.keys(nodes).forEach(function(id) {
-      expanded[id] = forceOpen;
-    });
-    renderTree();
-  }
-
-  return { init:init, enter:enter, leave:leave, refresh:refresh, create:create, toggleAll:toggleAll };
+  return { init:init, enter:enter, leave:leave, refresh:refresh, create:create };
 })();
 
 
