@@ -95,6 +95,11 @@ pub struct EssaimConfig {
     /// donc cache de préfixe réutilisable (astuce third-party). À combiner avec `dynamic_tool_selection`.
     #[serde(default)]
     pub stable_toolset: bool,
+    /// Levier 2 — outils jugés pertinents pour CE tour (récupérés sémantiquement depuis la
+    /// carte cognitive `tools.abeilles.*`). Si `Some`, on injecte le noyau minimal + ceux-ci,
+    /// au lieu des ~30 schémas. `None` = comportement historique. Rempli par tour, non persisté.
+    #[serde(skip)]
+    pub relevant_tools: Option<Vec<String>>,
     /// Modèle auxiliaire pour les tâches de fond (curation/extraction). `None` = même modèle.
     /// Pointer un petit modèle rapide évite de concurrencer le KV-cache du chat principal.
     #[serde(default)]
@@ -142,6 +147,7 @@ impl Default for EssaimConfig {
             dynamic_tool_selection: false,
             tool_selection_limit: default_tool_selection_limit(),
             stable_toolset: false,
+            relevant_tools: None,
             aux_model: None,
             permission_mode: default_permission_mode(),
             permission_rules: Vec::new(),
@@ -172,6 +178,17 @@ fn filtered_tool_schema(registry: &AbeilleRegistry, config: &EssaimConfig) -> se
 }
 
 /// Events emitted during the ReAct loop — sent to the WebSocket client.
+/// Levier 2 — noyau MINIMAL toujours injecté (stable, cacheable). Le reste est récupéré
+/// sémantiquement par intention via `relevant_tools`. Garde l'agent capable de chercher en
+/// mémoire, demander, enchaîner un pipeline, gérer ses tâches, lire un skill — sans bloat.
+const SEMANTIC_CORE: &[&str] = &[
+    "memory_search",
+    "clarify",
+    "run_script",
+    "todo",
+    "skill_view",
+];
+
 const CORE_TOOL_NAMES: &[&str] = &[
     "memory_search",
     "memory_write",
@@ -252,6 +269,24 @@ pub fn schema_outils_pour_prompt(
     let serde_json::Value::Array(tools) = enabled else {
         return enabled;
     };
+
+    // Levier 2 — sélection SÉMANTIQUE : noyau minimal + outils récupérés par intention
+    // (depuis la carte cognitive). Pour un « Salut » → seulement le noyau. Pour « cherche sur
+    // le web » → noyau + web_*. Coût contexte constant, capacités illimitées.
+    if let Some(relevant) = &config.relevant_tools {
+        let keep: HashSet<&str> = SEMANTIC_CORE
+            .iter()
+            .copied()
+            .chain(relevant.iter().map(String::as_str))
+            .collect();
+        return serde_json::Value::Array(
+            tools
+                .into_iter()
+                .filter(|t| tool_name(t).map(|n| keep.contains(n)).unwrap_or(false))
+                .collect(),
+        );
+    }
+
     if tools.len() <= config.tool_selection_limit {
         return serde_json::Value::Array(tools);
     }
@@ -993,6 +1028,9 @@ pub async fn boucle_react_memoire_multimodal(
     if let Err(e) = indexer_abeilles_memoire(registry, &memoire).await {
         tracing::warn!(error = %e, "indexation mÃ©moire des Abeilles ignorÃ©e");
     }
+    // Levier 2 — outils sémantiques : ne garder que le noyau + les Abeilles pertinentes pour
+    // l'intention (au lieu d'injecter ~30 schémas à chaque tour). Vide pour un « Salut ».
+    cfg.relevant_tools = Some(recuperer_abeilles_pertinentes(&memoire, prompt_utilisateur, 6).await);
     // Pré-récupération → contexte ÉPHÉMÈRE trailing (PAS dans le system prompt :
     // garde le préfixe stable → cache de préfixe chaud, astuce third-party).
     let ephemeral = match memoire
@@ -1350,6 +1388,48 @@ fn yaml_frontmatter_field(markdown: &str, key: &str) -> Option<String> {
 /// Récupère les skills OKF pertinents pour la requête (rappel automatique de la
 /// boucle d'apprentissage) : items sous `tools.skills.*` (frontmatter `type: skill`)
 /// proches du prompt utilisateur.
+/// Levier 2 — récupère les NOMS d'Abeilles pertinentes pour l'intention, depuis la carte
+/// cognitive (`tools.abeilles.*`, indexées par `indexer_abeilles_memoire`). Vide si rien de
+/// pertinent (ex. salutation) → seul le noyau sera injecté.
+async fn recuperer_abeilles_pertinentes(
+    memoire: &Arc<dyn MemoireCognitive>,
+    query: &str,
+    limit: usize,
+) -> Vec<String> {
+    let pack = match memoire
+        .search(
+            query,
+            SearchOpts {
+                depth: Some(2),
+                limit: Some(12),
+            },
+        )
+        .await
+    {
+        Ok(p) => p,
+        Err(_) => return Vec::new(),
+    };
+    let mut out: Vec<String> = Vec::new();
+    if let Some(items) = pack.raw["items"].as_array() {
+        for item in items {
+            let node_id = item
+                .get("node_id")
+                .or_else(|| item.get("node"))
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("");
+            if let Some(name) = node_id.strip_prefix("tools.abeilles.") {
+                if !name.is_empty() && !out.iter().any(|n| n == name) {
+                    out.push(name.to_string());
+                    if out.len() >= limit {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
 async fn recuperer_skills_pertinents(
     memoire: &Arc<dyn MemoireCognitive>,
     query: &str,
