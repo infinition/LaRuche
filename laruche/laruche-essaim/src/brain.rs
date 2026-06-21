@@ -178,15 +178,25 @@ fn filtered_tool_schema(registry: &AbeilleRegistry, config: &EssaimConfig) -> se
 }
 
 /// Events emitted during the ReAct loop — sent to the WebSocket client.
-/// Levier 2 — noyau MINIMAL toujours injecté (stable, cacheable). Le reste est récupéré
-/// sémantiquement par intention via `relevant_tools`. Garde l'agent capable de chercher en
-/// mémoire, demander, enchaîner un pipeline, gérer ses tâches, lire un skill — sans bloat.
+/// Levier 2 — noyau d'ESSENTIELS toujours injecté (stable, cacheable). Couvre ~90% des
+/// tâches courantes pour que l'agent ne soit JAMAIS bloqué (mémoire, web, shell, fichiers,
+/// contrôle). La queue dynamique (`relevant_tools`) ajoute les outils de niche par intention
+/// (cron, watcher, git, lsp, calendrier, image, mixture…). 12 outils vs ~30 avant.
 const SEMANTIC_CORE: &[&str] = &[
+    // Mémoire & contrôle de boucle
     "memory_search",
+    "memory_write",
     "clarify",
-    "run_script",
     "todo",
+    "run_script",
     "skill_view",
+    // Action courante — toujours utile (sinon l'agent ne peut rien faire)
+    "web_deep_search",
+    "shell_exec",
+    "file_read",
+    "file_write",
+    "file_edit",
+    "file_list",
 ];
 
 const CORE_TOOL_NAMES: &[&str] = &[
@@ -1412,12 +1422,14 @@ async fn recuperer_abeilles_pertinentes(
     query: &str,
     limit: usize,
 ) -> Vec<String> {
+    // Scopé au sous-arbre des outils pour que les abeilles ne soient pas évincées par le
+    // contenu mémoire (notes, projets…) dans le classement.
     let pack = match memoire
         .search(
-            query,
+            &format!("tools.abeilles {query}"),
             SearchOpts {
                 depth: Some(2),
-                limit: Some(12),
+                limit: Some(20),
             },
         )
         .await
