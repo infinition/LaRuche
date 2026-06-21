@@ -1365,11 +1365,11 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   </div>
   <div class="header-nav" id="headerNav">
     <a href="#chat" data-page="chat">Chat</a>
+    <a href="#memory" data-page="memory">&#x1F9E0; Memoire</a>
+    <a href="#missions" data-page="missions">&#x1F451; Missions</a>
+    <a href="#automations" data-page="automations">&#x2699; Automatisations</a>
+    <a href="#capabilities" data-page="capabilities">&#x1F6E0; Capacites</a>
     <a href="#dashboard" data-page="dashboard">Dashboard</a>
-    <a href="#sessions" data-page="sessions">Sessions</a>
-    <a href="#memory" data-page="memory">Memoire</a>
-    <a href="#missions" data-page="missions">Missions</a>
-    <a href="#skills" data-page="skills">Skills</a>
     <a href="#settings" data-page="settings">Settings</a>
   </div>
   <div class="header-right">
@@ -1657,21 +1657,6 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
     </div>
   </div>
 
-  <!-- ====== SESSIONS PAGE ====== -->
-  <div class="page" id="page-sessions">
-    <div class="sessions-page-layout">
-      <div class="sessions-toolbar">
-        <input type="text" id="sessionsSearch" placeholder="Rechercher une session..." oninput="LaRuche.SessionsPage.search(this.value)">
-      </div>
-      <div class="sessions-table-wrap">
-        <table class="sessions-table">
-          <thead><tr><th>Titre</th><th>Messages</th><th>Mis a jour</th><th>Actions</th></tr></thead>
-          <tbody id="sessionsTableBody"></tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
   <!-- ====== MEMORY PAGE ====== -->
   <div class="page" id="page-memory">
     <div class="mem2-layout">
@@ -1710,7 +1695,7 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
     <div class="mis-layout">
       <div class="mis-side">
         <div class="mis-side-hdr">
-          <span class="mis-title">&#x1F451; La Reine</span>
+          <span class="mis-title">&#x1F451; Missions</span>
           <button class="mem2-tbtn" onclick="LaRuche.Missions.refresh()" title="Rafraichir">&#x21BB;</button>
         </div>
         <div class="mis-create">
@@ -1733,20 +1718,39 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
       <div class="settings-tabs-bar" id="settingsTabsBar">
         <button class="settings-tab-btn active" data-tab="general">General</button>
         <button class="settings-tab-btn" data-tab="providers">Providers</button>
-        <button class="settings-tab-btn" data-tab="sessions">Sessions</button>
-        <button class="settings-tab-btn" data-tab="tools">Abeilles</button>
-        <button class="settings-tab-btn" data-tab="skills">Skills</button>
         <button class="settings-tab-btn" data-tab="channels">Channels</button>
-        <button class="settings-tab-btn" data-tab="knowledge">Knowledge</button>
-        <button class="settings-tab-btn" data-tab="network">Network</button>
-        <button class="settings-tab-btn" data-tab="cron">Cron</button>
-        <button class="settings-tab-btn" data-tab="cron-timeline">Timeline</button>
-        <button class="settings-tab-btn" data-tab="blueprints">Blueprints</button>
-        <button class="settings-tab-btn" data-tab="watchers">Watchers</button>
-        <button class="settings-tab-btn" data-tab="kanban">Kanban</button>
+        <button class="settings-tab-btn" data-tab="network">Reseau</button>
         <button class="settings-tab-btn" data-tab="onboarding">Onboarding</button>
       </div>
       <div class="settings-content" id="settingsContent"></div>
+    </div>
+  </div>
+
+  <!-- ====== AUTOMATISATIONS PAGE ====== -->
+  <div class="page" id="page-automations">
+    <div class="settings-page-layout">
+      <div class="settings-tabs-bar" id="autoTabsBar">
+        <button class="settings-tab-btn active" data-tab="timeline">Timeline</button>
+        <button class="settings-tab-btn" data-tab="cron">Cron</button>
+        <button class="settings-tab-btn" data-tab="watchers">Watchers</button>
+        <button class="settings-tab-btn" data-tab="kanban">Kanban</button>
+        <button class="settings-tab-btn" data-tab="blueprints">Blueprints</button>
+      </div>
+      <div class="settings-content" id="autoContent"></div>
+    </div>
+  </div>
+
+  <!-- ====== CAPACITES PAGE ====== -->
+  <div class="page" id="page-capabilities">
+    <div class="settings-page-layout">
+      <div class="settings-tabs-bar" id="capTabsBar">
+        <button class="settings-tab-btn active" data-tab="all">Tout</button>
+        <button class="settings-tab-btn" data-tab="abeille">Abeilles</button>
+        <button class="settings-tab-btn" data-tab="skill">Skills</button>
+        <button class="settings-tab-btn" data-tab="mcp">MCP</button>
+        <button class="settings-tab-btn" data-tab="plugin">Plugins</button>
+      </div>
+      <div class="settings-content" id="capContent"></div>
     </div>
   </div>
 
@@ -1826,39 +1830,14 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 <!-- ============================== -->
 <div class="mobile-tabs" id="mobileTabs">
   <a href="#chat" data-page="chat"><span class="tab-icon">&#x1F4AC;</span>Chat</a>
-  <a href="#dashboard" data-page="dashboard"><span class="tab-icon">&#x1F4CA;</span>Dash</a>
-  <a href="#sessions" data-page="sessions"><span class="tab-icon">&#x1F4C2;</span>Sessions</a>
-  <a href="#memory" data-page="memory"><span class="tab-icon">&#x2B22;</span>Memoire</a>
-  <a href="#missions" data-page="missions"><span class="tab-icon">&#x1F451;</span>Reine</a>
-  <a href="#skills" data-page="skills"><span class="tab-icon">&#x1F9E0;</span>Skills</a>
-  <a href="#settings" data-page="settings"><span class="tab-icon">&#x2699;</span>Config</a>
+  <a href="#memory" data-page="memory"><span class="tab-icon">&#x1F9E0;</span>Memoire</a>
+  <a href="#missions" data-page="missions"><span class="tab-icon">&#x1F451;</span>Missions</a>
+  <a href="#automations" data-page="automations"><span class="tab-icon">&#x2699;</span>Automatisations</a>
+  <a href="#capabilities" data-page="capabilities"><span class="tab-icon">&#x1F6E0;</span>Capacites</a>
+  <a href="#dashboard" data-page="dashboard"><span class="tab-icon">&#x1F4CA;</span>Dashboard</a>
+  <a href="#settings" data-page="settings"><span class="tab-icon">&#x2699;</span>Settings</a>
 </div>
 
-
-<!-- ============================== -->
-<!-- SKILLS PAGE                    -->
-<!-- ============================== -->
-<div class="page" id="page-skills">
-  <div class="dash-panels" style="display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:16px; height:100%; overflow:auto;">
-    <div class="panel" style="display:flex; flex-direction:column; gap:12px;">
-      <div class="panel-header" style="display:flex; justify-content:space-between; align-items:center;">
-        <h3>Liste des Skills</h3>
-        <button class="btn btn-primary" onclick="LaRuche.Skills.newSkill()">+ Nouveau</button>
-      </div>
-      <div id="skills-list" style="display:flex; flex-direction:column; gap:8px; overflow-y:auto; flex:1;">
-        <!-- Filled by JS -->
-      </div>
-    </div>
-    <div class="panel" style="display:flex; flex-direction:column; gap:12px;">
-      <div class="panel-header">
-        <h3>Skills proposes (Revue)</h3>
-      </div>
-      <div id="proposed-skills-list" style="display:flex; flex-direction:column; gap:8px; overflow-y:auto; flex:1;">
-        <!-- Filled by JS -->
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- TOAST CONTAINER -->
 <div class="toast-container" id="toasts"></div>
@@ -2385,7 +2364,7 @@ LaRuche.Auth = (function(){
 /* ── Router ────────────────────────────────────────────────────── */
 LaRuche.Router = (function(){
   var currentPage = null;
-  var pages = ['chat','dashboard','sessions','memory','missions','skills','settings','console','login'];
+  var pages = ['chat','dashboard','memory','missions','automations','capabilities','settings','console','login'];
   var modules = {};
 
   function go(page) {
@@ -2829,8 +2808,8 @@ LaRuche.Chat = (function(){
         break;
       case 'skill_proposed':
         LaRuche.Toast.show('✨ Skill né : ' + data.name, 'ok');
-        if (location.hash === '#skills') {
-          LaRuche.Skills.loadProposedSkills();
+        if (location.hash === '#capabilities' && LaRuche.Capabilities && LaRuche.Capabilities.refresh) {
+          LaRuche.Capabilities.refresh();
         }
         break;
 
@@ -3747,11 +3726,10 @@ LaRuche.Chat = (function(){
     }).catch(function(){});
   }
 
-  // P8 — re-fetch la liste de l'onglet SESSIONS s'il est affiche (session visible des l'envoi).
+  // P8 — re-fetch la liste de l'historique si l'overlay du Chat est ouvert.
   function refreshSessionsPage() {
-    if(LaRuche.Router && LaRuche.Router.current && LaRuche.Router.current() === 'sessions' &&
-       LaRuche.SessionsPage && LaRuche.SessionsPage.enter) {
-      LaRuche.SessionsPage.enter();
+    if(LaRuche.Chat && LaRuche.Chat.refreshHistoryOverlay) {
+      LaRuche.Chat.refreshHistoryOverlay();
     }
   }
 
@@ -5554,12 +5532,9 @@ LaRuche.Settings = (function(){
     try{provCfg=await fetch('/api/config/provider').then(function(r){return r.json();});}catch(e){}
     try{ctxStats=await fetch('/api/context/stats').then(function(r){return r.json();});}catch(e){}
     try{ctxCfg=await fetch('/api/config/compaction').then(function(r){return r.json();});}catch(e){}
-    var pct = Math.round((ctxStats.ratio||0)*100);
     el.innerHTML = '<div class="settings-grid">'+
-      '<div class="settings-card"><div class="settings-card-title">Contexte</div>'+
+      '<div class="settings-card"><div class="settings-card-title">Contexte &amp; compaction</div>'+
       '<div class="settings-row" style="flex-direction:column;align-items:stretch;gap:4px;">'+
-      '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);"><span>Usage ('+(ctxStats.messages||0)+'/'+(ctxStats.max||0)+')</span><span>'+pct+'%</span></div>'+
-      '<div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-bottom:8px;"><div style="height:100%;background:'+(pct>90?'var(--red)':pct>75?'var(--amber)':'var(--green)')+';width:'+pct+'%;transition:width 0.3s ease;"></div></div>'+
       '<div class="settings-row" style="padding:0;"><span class="settings-label">Max Messages</span><input type="number" id="cfgCtxMax" class="form-input" style="width:80px;padding:2px 6px;" value="'+(ctxCfg.context_max_messages||50)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Seuil Compaction</span><input type="number" id="cfgCtxThresh" class="form-input" style="width:80px;padding:2px 6px;" step="0.05" value="'+(ctxCfg.compaction_threshold||0.75)+'"></div>'+
       '<button class="form-btn" onclick="LaRuche.Settings.saveContextCfg()" style="margin-top:8px;">Sauvegarder</button></div>'+
@@ -6812,13 +6787,230 @@ var m = document.getElementById('kanban-model')?document.getElementById('kanban-
     }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
   }
 
-  return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, enter:enter, leave:leave, createCron:createCron, createWatcher:createWatcher, refreshTab:refreshTab, saveChannels:saveChannels, saveContextCfg:saveContextCfg, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, createKanbanTask:createKanbanTask, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+  return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, enter:enter, leave:leave, createCron:createCron, createWatcher:createWatcher, refreshTab:refreshTab,
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, createKanbanTask:createKanbanTask, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+})();
+
+/* ── Automatisations (Cron · Watchers · Kanban · Blueprints · Timeline) ── */
+LaRuche.Automations = (function(){
+  var currentTab = 'timeline';
+  function init() {
+    var bar = document.getElementById('autoTabsBar');
+    if(!bar) return;
+    bar.addEventListener('click', function(e){
+      var btn = e.target.closest('.settings-tab-btn');
+      if(!btn) return;
+      currentTab = btn.dataset.tab;
+      bar.querySelectorAll('.settings-tab-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.tab===currentTab); });
+      loadTab(currentTab);
+    });
+  }
+  function loadTab(tab){
+    var el = document.getElementById('autoContent');
+    if(!el) return;
+    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">Chargement...</div>';
+    var S = LaRuche.Settings;
+    switch(tab){
+      case 'timeline': (LaRuche.Timeline && LaRuche.Timeline.render) ? LaRuche.Timeline.render(el) : S.loadCronTimeline(el); break;
+      case 'cron': S.loadCron(el); break;
+      case 'watchers': S.loadWatchers(el); break;
+      case 'kanban': S.loadKanban(el); break;
+      case 'blueprints': S.loadBlueprints(el); break;
+    }
+  }
+  function enter(){ loadTab(currentTab); }
+  function leave(){}
+  function refresh(){ loadTab(currentTab); }
+  return { init:init, enter:enter, leave:leave, refresh:refresh };
+})();
+
+/* ── Capacités (Abeilles · Skills · MCP · Plugins) — tableau unifié ── */
+LaRuche.Capabilities = (function(){
+  var currentFamily = 'all';
+  function init(){
+    var bar = document.getElementById('capTabsBar');
+    if(!bar) return;
+    bar.addEventListener('click', function(e){
+      var btn = e.target.closest('.settings-tab-btn');
+      if(!btn) return;
+      currentFamily = btn.dataset.tab;
+      bar.querySelectorAll('.settings-tab-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.tab===currentFamily); });
+      render();
+    });
+  }
+  function enter(){ render(); }
+  function leave(){}
+  function refresh(){ render(); }
+
+  function familyLabel(f){ return ({abeille:'Abeille',skill:'Skill',mcp:'MCP',plugin:'Plugin'})[f]||f; }
+
+  async function gather(){
+    var rows = [];
+    // Abeilles (outils natifs/custom)
+    try {
+      var tools = await fetch('/api/tools').then(function(r){return r.json();});
+      (tools||[]).forEach(function(t){
+        rows.push({
+          family:'abeille', name:t.name,
+          origin:(t.origin==='Custom')?'custom':'natif',
+          desc:(t.description||''), enabled:(t.enabled!==false),
+          danger:(t.danger||'safe'), raw:t,
+          editable:false, immutable:(t.origin!=='Custom')
+        });
+      });
+    } catch(e){}
+    // Skills
+    try {
+      var skills = await fetch('/api/skills').then(function(r){return r.json();});
+      (skills||[]).forEach(function(s){
+        rows.push({
+          family:'skill', name:s.name, origin:'custom',
+          desc:(s.description||''), enabled:!!s.enabled, raw:s, editable:true
+        });
+      });
+    } catch(e){}
+    // MCP servers
+    try {
+      var mcp = await fetch('/api/mcp/servers').then(function(r){return r.json();});
+      var srv = (mcp&&mcp.mcpServers)||{};
+      Object.keys(srv).forEach(function(k){
+        var s = srv[k];
+        rows.push({
+          family:'mcp', name:k, origin:'custom',
+          desc:((s.command||'')+' '+((s.args||[]).join(' '))).trim(),
+          enabled:true, raw:s, mcpName:k
+        });
+      });
+    } catch(e){}
+    // Plugins (best-effort : endpoint optionnel)
+    try {
+      var pr = await fetch('/api/plugins');
+      if(pr.ok){
+        var plugins = await pr.json();
+        var list = Array.isArray(plugins)?plugins:(plugins.plugins||[]);
+        (list||[]).forEach(function(p){
+          rows.push({
+            family:'plugin', name:(p.name||p.id||'plugin'),
+            origin:(p.origin==='Builtin'?'natif':'custom'),
+            desc:(p.description||''), enabled:(p.enabled!==false), raw:p
+          });
+        });
+      }
+    } catch(e){}
+    return rows;
+  }
+
+  function badge(txt, color){
+    return '<span style="font-size:9px;border:1px solid '+color+';color:'+color+';padding:2px 6px;border-radius:8px;white-space:nowrap">'+LaRuche.Utils.esc(txt)+'</span>';
+  }
+
+  function rowActions(r){
+    if(r.family==='abeille'){
+      var tog = '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:'+(r.enabled?'var(--green)':'var(--red)')+'"><input type="checkbox" '+(r.enabled?'checked':'')+' onchange="LaRuche.Settings.toggleTool(\''+LaRuche.Utils.esc(r.name)+'\',this.checked);setTimeout(LaRuche.Capabilities.refresh,300)">'+(r.enabled?'ON':'OFF')+'</label>';
+      var view = '<button class="tl-btn" onclick="LaRuche.Utils.openMediaModal(\'text\', JSON.stringify('+JSON.stringify(r.raw).replace(/'/g,"\\'")+', null, 2))">Voir</button>';
+      var del = r.immutable ? '' : '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(\'Supprimer '+LaRuche.Utils.esc(r.name)+' ?\')){fetch(\'/api/tools/\'+encodeURIComponent(\''+LaRuche.Utils.esc(r.name)+'\'),{method:\'DELETE\'}).then(LaRuche.Capabilities.refresh)}">Suppr</button>';
+      return tog+' '+view+' '+del;
+    }
+    if(r.family==='skill'){
+      var tog2 = '<label class="lr-switch"><input type="checkbox" '+(r.enabled?'checked':'')+' onchange="LaRuche.Settings.toggleSkill(\''+LaRuche.Utils.esc(r.name)+'\');setTimeout(LaRuche.Capabilities.refresh,300)"><span class="lr-slider"></span></label>';
+      var edit = '<button class="tl-btn" onclick="LaRuche.Settings.viewSkill(\''+LaRuche.Utils.esc(r.name)+'\')">Editer</button>';
+      var del2 = '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(\'Supprimer '+LaRuche.Utils.esc(r.name)+' ?\')){LaRuche.Settings.deleteSkill(\''+LaRuche.Utils.esc(r.name)+'\');setTimeout(LaRuche.Capabilities.refresh,300)}">Suppr</button>';
+      return tog2+' '+edit+' '+del2;
+    }
+    if(r.family==='mcp'){
+      return '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.Settings.deleteMcpServer(\''+LaRuche.Utils.esc(r.mcpName)+'\');setTimeout(LaRuche.Capabilities.refresh,600)">Retirer</button>';
+    }
+    return '<span style="color:var(--text-dim);font-size:10px">—</span>';
+  }
+
+  async function render(){
+    var el = document.getElementById('capContent');
+    if(!el) return;
+    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">Chargement...</div>';
+    ensureSwitchStyle();
+    var rows = await gather();
+    var filtered = (currentFamily==='all') ? rows : rows.filter(function(r){ return r.family===currentFamily; });
+
+    var counts = {all:rows.length, abeille:0, skill:0, mcp:0, plugin:0};
+    rows.forEach(function(r){ counts[r.family] = (counts[r.family]||0)+1; });
+    document.querySelectorAll('#capTabsBar .settings-tab-btn').forEach(function(b){
+      var f=b.dataset.tab; var base=b.textContent.replace(/\s*\(\d+\)$/,'');
+      var c = f==='all'?counts.all:counts[f];
+      b.textContent = base + (typeof c==='number' ? ' ('+c+')' : '');
+    });
+
+    // Barre d'ajout MCP (visible sur Tout + MCP)
+    var mcpAdd = '';
+    if(currentFamily==='all' || currentFamily==='mcp'){
+      mcpAdd = '<div style="border:1px solid var(--border);border-radius:6px;padding:10px;background:var(--bg-panel);margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:end">'+
+        '<div style="flex:1;min-width:120px"><label class="form-label">Nom serveur MCP</label><input id="capMcpName" class="form-input" placeholder="ex: local-sqlite"></div>'+
+        '<div style="flex:1;min-width:120px"><label class="form-label">Commande</label><input id="capMcpCmd" class="form-input" placeholder="ex: node"></div>'+
+        '<div style="flex:2;min-width:160px"><label class="form-label">Arguments</label><input id="capMcpArgs" class="form-input" placeholder="ex: src/index.js --db db.sqlite"></div>'+
+        '<button class="settings-save-btn" onclick="LaRuche.Capabilities.addMcp()">+ Ajouter serveur MCP</button>'+
+        '</div>';
+    }
+
+    var head = '<thead><tr>'+
+      ['Nom','Type','Origine','Description','Statut','Actions'].map(function(h){
+        return '<th style="text-align:left;padding:8px;color:var(--text-dim);border-bottom:1px solid var(--border);font-weight:600">'+h+'</th>';
+      }).join('')+'</tr></thead>';
+
+    var body = filtered.map(function(r){
+      var typeColor = ({abeille:'var(--amber)',skill:'var(--cyan)',mcp:'var(--purple)',plugin:'var(--green)'})[r.family]||'var(--text-dim)';
+      var originColor = (r.origin==='natif')?'var(--text-dim)':'var(--purple)';
+      var statut = r.enabled
+        ? '<span style="color:var(--green);font-size:10px;font-weight:bold">● actif</span>'
+        : '<span style="color:var(--red);font-size:10px;font-weight:bold">○ inactif</span>';
+      return '<tr style="border-bottom:1px solid rgba(42,42,46,.4)">'+
+        '<td style="padding:8px;font-weight:600;color:#fff">'+LaRuche.Utils.esc(r.name)+'</td>'+
+        '<td style="padding:8px">'+badge(familyLabel(r.family), typeColor)+'</td>'+
+        '<td style="padding:8px">'+badge(r.origin, originColor)+'</td>'+
+        '<td style="padding:8px;color:var(--text-dim);font-size:11px;max-width:360px">'+LaRuche.Utils.esc((r.desc||'').substring(0,200))+'</td>'+
+        '<td style="padding:8px">'+statut+'</td>'+
+        '<td style="padding:8px;white-space:nowrap">'+rowActions(r)+'</td>'+
+        '</tr>';
+    }).join('');
+
+    var extraActions = '';
+    if(currentFamily==='all' || currentFamily==='skill'){
+      extraActions = '<button class="settings-save-btn" onclick="LaRuche.Settings.newSkill()">+ Nouveau skill</button>';
+    }
+
+    el.innerHTML = mcpAdd +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
+        '<span style="color:var(--text-dim);font-size:12px">'+filtered.length+' capacite(s)'+(currentFamily==='all'?' — abeilles natives = immuables':'')+'</span>'+
+        extraActions+
+      '</div>'+
+      (filtered.length ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+head+'<tbody>'+body+'</tbody></table></div>'
+                       : '<div style="text-align:center;color:var(--text-muted);padding:30px">Aucune capacite dans cette famille.</div>');
+  }
+
+  function addMcp(){
+    var n=(document.getElementById('capMcpName')||{}).value, c=(document.getElementById('capMcpCmd')||{}).value, a=(document.getElementById('capMcpArgs')||{}).value;
+    n=(n||'').trim(); c=(c||'').trim(); a=(a||'').trim();
+    if(!n||!c){ LaRuche.Toast.show('Nom et commande requis','err'); return; }
+    fetch('/api/mcp/servers/'+encodeURIComponent(n),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:c,args:(a?a.split(' '):[])})})
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Serveur MCP ajoute','ok'); render(); } else LaRuche.Toast.show('Echec ajout MCP','err'); });
+  }
+
+  function ensureSwitchStyle(){
+    if(document.getElementById('lr-switch-style')) return;
+    var st=document.createElement('style'); st.id='lr-switch-style';
+    st.textContent='.lr-switch{position:relative;display:inline-block;width:38px;height:20px;flex:0 0 auto;vertical-align:middle}.lr-switch input{display:none}'+
+      '.lr-slider{position:absolute;inset:0;background:#444;border-radius:20px;transition:.2s;cursor:pointer}'+
+      '.lr-slider:before{content:"";position:absolute;height:14px;width:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}'+
+      '.lr-switch input:checked+.lr-slider{background:var(--amber)}.lr-switch input:checked+.lr-slider:before{transform:translateX(18px)}';
+    document.head.appendChild(st);
+  }
+
+  return { init:init, enter:enter, leave:leave, refresh:refresh, addMcp:addMcp };
 })();
 
 /* ── Register all page modules ── */
 LaRuche.Router.register('chat', LaRuche.Chat);
+LaRuche.Router.register('automations', LaRuche.Automations);
+LaRuche.Router.register('capabilities', LaRuche.Capabilities);
 LaRuche.Router.register('dashboard', LaRuche.Dashboard);
-LaRuche.Router.register('sessions', LaRuche.SessionsPage);
 LaRuche.Router.register('memory', LaRuche.Memory);
 LaRuche.Router.register('missions', LaRuche.Missions);
 LaRuche.Router.register('settings', LaRuche.Settings);
