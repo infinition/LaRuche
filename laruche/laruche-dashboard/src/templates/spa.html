@@ -404,7 +404,8 @@ body {
 .activity-item.collapsible.expanded .activity-header::after { transform:rotate(90deg); }
 .activity-item.collapsible .activity-body { display:none; }
 .activity-item.collapsible.expanded .activity-body { display:block; }
-.sessions-list-sidebar { border-top:1px solid var(--border); max-height:200px; overflow-y:auto; }
+.sessions-list-sidebar { border-top:1px solid var(--border); display:flex; flex-direction:column; max-height:200px; overflow:hidden; }
+.sessions-list-sidebar > #sessionsSidebarList { flex:1; overflow-y:auto; overflow-x:hidden; }
 .session-item {
   padding:8px 12px; font-size:12px; cursor:pointer;
   display:flex; justify-content:space-between; align-items:center;
@@ -1435,8 +1436,10 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
           <button class="feed-jump" id="feedJump" type="button" onclick="window.lrFeedJump()" aria-label="Afficher les nouvelles activités">↓ <span>nouvelles activités</span></button>
         </div>
         <div class="sessions-list-sidebar" id="sessionsSidebarSection">
-          <div class="sidebar-header">Sessions</div>
-          <button class="new-session-btn" onclick="LaRuche.Chat.newSession()">+ Nouvelle conversation</button>
+          <div class="sidebar-header" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>Sessions</span>
+            <button onclick="LaRuche.Chat.newSession()" title="Nouvelle conversation" style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:18px; line-height:1; transition:color 0.2s;" onmouseover="this.style.color='var(--amber)'" onmouseout="this.style.color='var(--text-dim)'">+</button>
+          </div>
           <div id="sessionsSidebarList"></div>
         </div>
       </div>
@@ -3681,7 +3684,14 @@ LaRuche.Chat = (function(){
       sessions.forEach(function(s){
         var div=document.createElement('div');
         div.className='session-item'+(s.id===sessionId?' active':'');
-        div.innerHTML='<span class="session-title">'+LaRuche.Utils.esc(s.title||'Sans titre')+'</span><span class="session-delete" onclick="event.stopPropagation();LaRuche.Chat.deleteSession(\''+s.id+'\')">&times;</span>';
+        var cleanTitle = (s.title||'').split(/\[SYSTEM\]/i)[0].trim() || 'Sans titre';
+        if(cleanTitle.length > 55) cleanTitle = cleanTitle.substring(0, 52) + '...';
+        var hash = 0;
+        var sid = s.id || '';
+        for (var i = 0; i < sid.length; i++) hash = sid.charCodeAt(i) + ((hash << 5) - hash);
+        var hue = Math.abs(hash) % 360;
+        var color = 'hsl('+hue+', 75%, 65%)';
+        div.innerHTML='<div style="display:flex; align-items:center; flex:1; min-width:0; overflow:hidden;"><div style="width:6px; height:6px; border-radius:50%; background:'+color+'; margin-right:8px; flex-shrink:0; box-shadow: 0 0 6px '+color+'80;"></div><span class="session-title" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'+LaRuche.Utils.esc(cleanTitle)+'</span></div><span class="session-delete" onclick="event.stopPropagation();LaRuche.Chat.deleteSession(\''+s.id+'\')">&times;</span>';
         div.onclick=function(){switchSession(s.id);};
         list.appendChild(div);
       });
@@ -4742,8 +4752,9 @@ LaRuche.SessionsPage = (function(){
     sessions.forEach(function(s){
       var tr = document.createElement('tr');
       var updated = s.updated_at ? new Date(s.updated_at).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}) : '-';
+      var cleanTitle = (s.title||'').split(/\[SYSTEM\]/i)[0].trim() || 'Sans titre';
       tr.innerHTML =
-        '<td>'+LaRuche.Utils.esc(s.title||'Sans titre')+'</td>'+
+        '<td>'+LaRuche.Utils.esc(cleanTitle)+'</td>'+
         '<td style="text-align:center">'+(s.messages||'-')+'</td>'+
         '<td>'+updated+'</td>'+
         '<td><div class="s-actions">'+
@@ -5547,7 +5558,10 @@ LaRuche.Settings = (function(){
     var sessions=[];try{sessions=await fetch('/api/sessions').then(function(r){return r.json();});}catch(e){}
     if(!sessions.length){el.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px">No sessions</div>';return;}
     sessions.sort(function(a,b){return new Date(b.updated_at)-new Date(a.updated_at);});
-    el.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:12px"><tr><th style="text-align:left;padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">Title</th><th style="padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">Msgs</th><th style="padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">Actions</th></tr>'+sessions.map(function(s){return '<tr><td style="padding:6px;border-bottom:1px solid rgba(42,42,46,.3)">'+LaRuche.Utils.esc(s.title||'Sans titre')+'</td><td style="padding:6px;text-align:center;border-bottom:1px solid rgba(42,42,46,.3)">'+(s.messages||'-')+'</td><td style="padding:6px;text-align:center;border-bottom:1px solid rgba(42,42,46,.3)"><button onclick="fetch(\'/api/sessions/'+s.id+'/export\').then(function(r){return r.text()}).then(function(md){var a=document.createElement(\'a\');a.href=URL.createObjectURL(new Blob([md]));a.download=\'session.md\';a.click()})" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">Export</button> <button onclick="fetch(\'/api/sessions/'+s.id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">Del</button></td></tr>';}).join('')+'</table>';
+    el.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:12px"><tr><th style="text-align:left;padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">Title</th><th style="padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">Msgs</th><th style="padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">Actions</th></tr>'+sessions.map(function(s){
+      var cleanTitle = (s.title||'').split(/\[SYSTEM\]/i)[0].trim() || 'Sans titre';
+      return '<tr><td style="padding:6px;border-bottom:1px solid rgba(42,42,46,.3)">'+LaRuche.Utils.esc(cleanTitle)+'</td><td style="padding:6px;text-align:center;border-bottom:1px solid rgba(42,42,46,.3)">'+(s.messages||'-')+'</td><td style="padding:6px;text-align:center;border-bottom:1px solid rgba(42,42,46,.3)"><button onclick="fetch(\'/api/sessions/'+s.id+'/export\').then(function(r){return r.text()}).then(function(md){var a=document.createElement(\'a\');a.href=URL.createObjectURL(new Blob([md]));a.download=\'session.md\';a.click()})" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">Export</button> <button onclick="fetch(\'/api/sessions/'+s.id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">Del</button></td></tr>';
+    }).join('')+'</table>';
   }
 
   async function loadTools(el) {
