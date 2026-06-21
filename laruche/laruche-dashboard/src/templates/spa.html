@@ -964,6 +964,10 @@ pre:hover .code-copy-btn { opacity:1; }
 .node-actions button { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px 4px; font-size: 10px; border-radius: 3px; }
 .node-actions button:hover { background: rgba(255,255,255,0.1); color: var(--text); }
 .mem2-row.drag-over { background: rgba(245,158,11,0.2) !important; outline: 1px dashed var(--amber); }
+.mem2-tree.editmode .mem2-row { cursor: grab; }
+.mem2-tree.editmode .mem2-row[draggable="true"]:active { cursor: grabbing; }
+.mem2-tree.editmode { outline: 1px dashed var(--amber-dim); outline-offset: -3px; border-radius:6px; }
+.mem2-tree.editmode.drag-over-root { background: rgba(245,158,11,0.07); outline: 1px dashed var(--amber); }
 .mem2-row.active { background:var(--amber-glow); color:var(--amber); }
 .mem2-caret { width:12px; flex-shrink:0; color:var(--text-muted); font-size:9px; text-align:center; transition:transform .12s; }
 .mem2-icon { width:14px; height:14px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; color:var(--text-muted); opacity:.85; }
@@ -1700,6 +1704,10 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
           <input id="mem2Search" type="text" placeholder="Rechercher..." spellcheck="false" style="flex:1;">
           <button onclick="LaRuche.Memory.toggleAll(true)" title="Tout déplier" style="background:var(--bg-hover);border:1px solid var(--border);color:var(--text-muted);border-radius:4px;cursor:pointer;padding:0 8px;">+</button>
           <button onclick="LaRuche.Memory.toggleAll(false)" title="Tout plier" style="background:var(--bg-hover);border:1px solid var(--border);color:var(--text-muted);border-radius:4px;cursor:pointer;padding:0 8px;">-</button>
+        </div>
+        <div class="mem2-search" style="display:flex; gap:5px; margin-top:4px;">
+          <button class="mem2-tbtn" id="mem2EditMode" onclick="LaRuche.Memory.toggleEditMode()" title="Activer le déplacement des dossiers par glisser-déposer" style="flex:1;">Mode édition</button>
+          <button class="mem2-tbtn" id="mem2NewRoot" onclick="LaRuche.Memory.createRoot()" title="Créer un dossier racine" style="display:none;">+ Racine</button>
         </div>
         <datalist id="memoryNodeSuggestions"></datalist>
         <div class="mem2-tree" id="mem2Tree"><div class="mem2-empty">Chargement...</div></div>
@@ -5006,6 +5014,9 @@ LaRuche.Memory = (function(){
   var currentNode = null;// dernier objet node charge (items/children)
   var view = 'tree';     // 'tree' (document) | 'graph'
   var searchTimer = null;
+  var editMode = false;  // mode edition : noeuds draggables (reparent) + creer racine
+  var springTimer = null;// spring-loaded : timer d'auto-ouverture au survol pendant un drag
+  var springId = null;   // noeud actuellement en attente d'auto-ouverture
 
   function init() {
     var input = document.getElementById('mem2Search');
@@ -5195,7 +5206,12 @@ LaRuche.Memory = (function(){
     var caret = kids ? (open ? '▾' : '▸') : '·';
     var meta = nodes[c.id] || {};
     var locked = isProtected(c.id);
-    var html = '<div class="mem2-row'+(current===c.id?' active':'')+'" style="padding-left:'+(6+depth*13)+'px" data-node="'+esc(c.id)+'">'+
+    // En mode edition, les noeuds NON proteges deviennent draggables (reparent).
+    // Type dataTransfer DISTINCT des items (application/x-node) pour ne pas confondre.
+    var nodeDrag = (editMode && !locked)
+      ? ' draggable="true" ondragstart="event.dataTransfer.setData(\'application/x-node\',\''+esc(c.id)+'\');event.dataTransfer.effectAllowed=\'move\'"'
+      : '';
+    var html = '<div class="mem2-row'+(current===c.id?' active':'')+'"'+nodeDrag+' style="padding-left:'+(6+depth*13)+'px" data-node="'+esc(c.id)+'">'+
       '<span class="mem2-caret" data-toggle="'+esc(c.id)+'">'+caret+'</span>'+
       '<span class="mem2-icon">'+nodeIcon(c.id, kids>0)+'</span>'+
       '<span class="mem2-label">'+esc(c.seg)+'</span>'+
@@ -5236,19 +5252,155 @@ LaRuche.Memory = (function(){
     }
     html += otherKeys.map(function(k){ return rowHtml(root.children[k], 0); }).join('');
     el.innerHTML = html;
+    el.classList.toggle('editmode', editMode);
     el.querySelectorAll('.mem2-caret').forEach(function(c){
       c.onclick = function(e){ e.stopPropagation(); var id=c.dataset.toggle; expanded[id]=!expanded[id]; renderTree(); };
     });
     el.querySelectorAll('.mem2-row').forEach(function(row){
-      row.onclick = function(e){ 
+      row.onclick = function(e){
         if(!e.target.closest('.mem2-caret')) {
           var id = row.dataset.node;
           expanded[id] = !expanded[id];
           renderTree();
         }
-        loadNode(row.dataset.node); 
+        loadNode(row.dataset.node);
       };
+      wireRowDnd(row);
     });
+    wireRootDnd(el);
+  }
+
+  /* ---- drag & drop : items vers noeuds + reparent noeuds (mode edition) ---- */
+  function clearSpring(){ if(springTimer){ clearTimeout(springTimer); springTimer=null; } springId=null; }
+
+  function wireRowDnd(row){
+    var targetId = row.dataset.node;
+    row.addEventListener('dragover', function(e){
+      // Refuse de survoler un noeud protege comme cible de drop.
+      if(isProtected(targetId)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      try { e.dataTransfer.dropEffect = 'move'; } catch(_){}
+      row.classList.add('drag-over');
+      // Spring-loaded : auto-ouvre un noeud REPLIE qui a des enfants apres ~600ms.
+      var hasChildren = Object.keys(nodes).some(function(id){ return id.indexOf(targetId+'.')===0; });
+      if(hasChildren && !expanded[targetId]){
+        if(springId !== targetId){
+          clearSpring();
+          springId = targetId;
+          springTimer = setTimeout(function(){
+            expanded[targetId] = true;
+            springTimer = null; springId = null;
+            renderTree();
+          }, 600);
+        }
+      } else {
+        clearSpring();
+      }
+    });
+    row.addEventListener('dragleave', function(e){
+      row.classList.remove('drag-over');
+      if(springId === targetId) clearSpring();
+    });
+    row.addEventListener('drop', function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      row.classList.remove('drag-over');
+      clearSpring();
+      var dt = e.dataTransfer;
+      var nodeId = dt.getData('application/x-node');
+      var itemId = dt.getData('text/plain');
+      if(isProtected(targetId)){
+        LaRuche.Toast.show('Noeud systeme : depot interdit', 'err');
+        return;
+      }
+      if(nodeId){
+        // node-drag : reparenter le sous-arbre nodeId sous targetId
+        reparentNode(nodeId, targetId);
+      } else if(itemId){
+        // item-drag : deplacer l'item vers targetId
+        dropItem(itemId, targetId);
+      }
+    });
+  }
+
+  function wireRootDnd(el){
+    el.addEventListener('dragover', function(e){
+      // Zone vide / racine : uniquement en mode edition pour un node-drag.
+      if(!editMode) return;
+      if(e.target.closest('.mem2-row')) return; // un noeud gere son propre dragover
+      var types = e.dataTransfer.types || [];
+      var hasNode = Array.prototype.indexOf.call(types, 'application/x-node') >= 0;
+      if(!hasNode) return;
+      e.preventDefault();
+      try { e.dataTransfer.dropEffect = 'move'; } catch(_){}
+      el.classList.add('drag-over-root');
+    });
+    el.addEventListener('dragleave', function(e){
+      if(e.target === el) el.classList.remove('drag-over-root');
+    });
+    el.addEventListener('drop', function(e){
+      el.classList.remove('drag-over-root');
+      if(!editMode) return;
+      if(e.target.closest('.mem2-row')) return; // le noeud cible a deja gere le drop
+      var nodeId = e.dataTransfer.getData('application/x-node');
+      if(!nodeId) return;
+      e.preventDefault();
+      clearSpring();
+      reparentNode(nodeId, ''); // racine
+    });
+  }
+
+  // Deplace un ITEM vers un noeud (POST /api/memory/move {item_id, node_id}).
+  function dropItem(itemId, nodeId){
+    if(isProtected(nodeId)){ LaRuche.Toast.show('Noeud systeme : depot interdit', 'err'); return; }
+    postJson('/api/memory/move', {item_id:itemId, node_id:nodeId}).then(function(d){
+      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Deplacement impossible','err'); return; }
+      mergeNodes([{id:nodeId, label:nodeId.split('.').pop()}]);
+      LaRuche.Toast.show('Souvenir deplace vers '+nodeId, 'ok');
+      loadTree(false);
+      if(current) loadNode(current, true);
+    }).catch(function(e){ LaRuche.Toast.show('Deplacement: '+e, 'err'); });
+  }
+
+  // Reparente un NOEUD (sous-arbre) (POST /api/memory/node/move {node_id, new_parent}).
+  function reparentNode(nodeId, newParent){
+    if(nodeId === newParent){ return; }
+    if(isProtected(nodeId)){ LaRuche.Toast.show('Noeud systeme : non deplacable', 'err'); return; }
+    if(newParent && isProtected(newParent)){ LaRuche.Toast.show('Cible systeme : depot interdit', 'err'); return; }
+    if(newParent && (newParent === nodeId || newParent.indexOf(nodeId+'.') === 0)){
+      LaRuche.Toast.show('Impossible : cible dans le sous-arbre', 'err'); return;
+    }
+    postJson('/api/memory/node/move', {node_id:nodeId, new_parent:newParent||''}).then(function(d){
+      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Reparentage impossible','err'); return; }
+      LaRuche.Toast.show(newParent ? ('Dossier deplace sous '+newParent) : 'Dossier promu en racine', 'ok');
+      loaded=false; nodes={}; current=null; loadTree(false);
+    }).catch(function(e){ LaRuche.Toast.show('Reparentage: '+e, 'err'); });
+  }
+
+  /* ---- mode edition (toggle) + creation de racine ---- */
+  function toggleEditMode(){
+    editMode = !editMode;
+    var btn = document.getElementById('mem2EditMode');
+    var nr = document.getElementById('mem2NewRoot');
+    if(btn) btn.classList.toggle('on', editMode);
+    if(nr) nr.style.display = editMode ? '' : 'none';
+    clearSpring();
+    renderTree();
+    LaRuche.Toast.show(editMode ? 'Mode edition active : glissez les dossiers' : 'Mode edition desactive', 'ok');
+  }
+
+  function createRoot(){
+    var label = window.prompt('Nom du nouveau dossier racine :');
+    if(!label) return;
+    label = label.trim(); if(!label) return;
+    var slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    if(!slug){ LaRuche.Toast.show('Nom invalide', 'err'); return; }
+    postJson('/api/memory/node/create', {node_id:slug, label:label}).then(function(d){
+      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Creation impossible','err'); return; }
+      LaRuche.Toast.show('Racine "'+slug+'" creee', 'ok');
+      loadTree(false);
+    }).catch(function(e){ LaRuche.Toast.show('Creation: '+e, 'err'); });
   }
 
   /* ---- panneau document (markdown + CRUD) ---- */
@@ -5709,7 +5861,8 @@ LaRuche.Memory = (function(){
     loadNode:loadNode, setView:setView,
     exportOkf:exportOkf, importOkf:importOkf, triggerDream:triggerDream,
     toggleAll:toggleAll, deleteNode:deleteNode, renameNode:renameNode,
-    createSubnode:createSubnode, moveItem:moveItem
+    createSubnode:createSubnode, moveItem:moveItem,
+    toggleEditMode:toggleEditMode, createRoot:createRoot
   };
 })();
 
