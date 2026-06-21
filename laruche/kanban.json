@@ -2,6 +2,8 @@
   "b18f9fd6-af19-46c8-8495-fcbfec974dbc": {
     "id": "b18f9fd6-af19-46c8-8495-fcbfec974dbc",
     "title": "REcherche brokenswork",
+    "profile_id": null,
+    "model": null,
     "description": "Fait une recherche web sur l'actualité du jeu Les chevalier de baphomet (broken sword) et livrer un .md détaillé sur le bureau et notifier sur telegram.",
     "status": "Todo",
     "blocks": [],
@@ -11,6 +13,8 @@
   "96180ea2-028f-412f-beb6-b123fe20d6ba": {
     "id": "96180ea2-028f-412f-beb6-b123fe20d6ba",
     "title": "test ok",
+    "profile_id": null,
+    "model": null,
     "description": "",
     "status": "Done",
     "blocks": [],

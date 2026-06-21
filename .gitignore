@@ -30,3 +30,11 @@ laruche/laruche-node/src/main.rs.staged_version
 *.db
 *.db-wal
 *.db-shm
+
+# État runtime (généré par le node, pas du source)
+laruche/kanban.json
+laruche/laruche-state.json
+laruche/watchers.json
+laruche/cron-tasks.json
+laruche/provider-profiles.json
+laruche/channels-config.json
