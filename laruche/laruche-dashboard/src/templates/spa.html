@@ -5105,10 +5105,14 @@ LaRuche.Memory = (function(){
       currentNode = node;
       current = node.node_id;
       mergeNodes([{id:node.node_id, label:node.label, one_liner:node.one_liner}].concat(node.children || []));
-      // ouvre les ancetres dans l'arbre (seulement si action utilisateur)
+      // ouvre les ANCETRES dans l'arbre (pas le noeud lui-meme : sinon un clic pour
+      // replier le rouvre aussitot). L'etat plie/deplie du noeud reste pilote par le clic.
       if (!silent) {
         var parts = current.split('.'); var acc='';
-        parts.forEach(function(p){ acc = acc ? acc+'.'+p : p; expanded[acc] = true; });
+        for (var i = 0; i < parts.length - 1; i++) {
+          acc = acc ? acc + '.' + parts[i] : parts[i];
+          expanded[acc] = true;
+        }
         renderTree();
       }
       renderDoc();
@@ -5535,12 +5539,63 @@ LaRuche.Memory = (function(){
     }).catch(function(e){ LaRuche.Toast.show('Export: '+e,'err'); });
   }
 
+  // Parse un .md/.okf : node_id depuis le frontmatter `id:` (sinon derive du nom de fichier),
+  // items depuis les puces `- ...` du corps (suffixe _(source: ...)_ retire). Reprend le format
+  // produit par l'export OKF du backend.
+  function parseOkfMarkdown(text, filename){
+    var base = String(filename||'note').replace(/\.[^.]+$/, '');
+    var slug = base.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'') || 'note';
+    var nodeId = 'knowledge.' + slug; // defaut si pas d'id en frontmatter
+    var lines = String(text||'').split(/\r?\n/);
+    var front = 0, items = [];
+    for(var i=0;i<lines.length;i++){
+      var ln = lines[i];
+      if(ln.trim() === '---'){ front++; continue; }
+      if(front === 1){
+        var m = ln.trim().match(/^id:\s*(.+)$/);
+        if(m){ var v = m[1].trim().replace(/^["']|["']$/g,'').trim(); if(v) nodeId = v; }
+      } else if(front >= 2 && /^\s*-\s+/.test(ln)){
+        var c = ln.replace(/^\s*-\s+/, '').split('  _(source:')[0].trim();
+        if(c) items.push(c);
+      }
+    }
+    if(!items.length){ // ni puces : importer le corps entier comme un seul item
+      var body = String(text||'').replace(/^---[\s\S]*?---/, '').trim();
+      if(body) items.push(body.slice(0, 4000));
+    }
+    return { nodeId: nodeId, items: items };
+  }
+
+  // Import direct de fichiers .md/.okf choisis par l'utilisateur (pas un dossier serveur).
   function importOkf() {
-    if(!window.confirm('Importer le bundle OKF depuis le dossier okf-export ?')) return;
-    fetch(LaRuche.API.base+'/api/memory/import_okf?dir=okf-export', {method:'POST'}).then(function(r){return r.json();}).then(function(res){
-      if(res.ok){ LaRuche.Toast.show('OKF importe','ok'); loaded=false; nodes={}; loadTree(); }
-      else LaRuche.Toast.show('Erreur import: '+(res.error||'?'),'err');
-    }).catch(function(e){ LaRuche.Toast.show('Import: '+e,'err'); });
+    var inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = '.md,.markdown,.okf,.txt'; inp.multiple = true;
+    inp.onchange = function(){
+      var files = Array.prototype.slice.call(inp.files || []);
+      if(!files.length) return;
+      var done = 0, written = 0, errors = 0;
+      function finish(){
+        if(done < files.length) return;
+        LaRuche.Toast.show('Import: '+written+' item(s)'+(errors?(', '+errors+' erreur(s)'):''), errors?'err':'ok');
+        loaded=false; nodes={}; loadTree();
+      }
+      files.forEach(function(file){
+        var reader = new FileReader();
+        reader.onload = function(){
+          var parsed = parseOkfMarkdown(String(reader.result||''), file.name);
+          if(!parsed.items.length){ done++; finish(); return; }
+          Promise.all(parsed.items.map(function(content){
+            return fetch(LaRuche.API.base+'/api/memory/write', {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({node_id: parsed.nodeId, content: content})
+            }).then(function(r){ if(r.ok) written++; else errors++; }).catch(function(){ errors++; });
+          })).then(function(){ done++; finish(); });
+        };
+        reader.onerror = function(){ errors++; done++; finish(); };
+        reader.readAsText(file);
+      });
+    };
+    inp.click();
   }
 
   function triggerDream() {

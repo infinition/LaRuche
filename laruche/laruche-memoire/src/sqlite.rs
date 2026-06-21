@@ -27,6 +27,28 @@ fn now() -> i64 {
         .unwrap_or(0)
 }
 
+/// Convertit un node_id pointé en chemin de dossiers sûr (un segment par niveau),
+/// en remplaçant les caractères interdits dans un nom de fichier Windows (`< > : " | ? * / \`
+/// et caractères de contrôle) par `_`. Évite que des nœuds pollués (ex. `a|b`) cassent l'export.
+fn safe_path_segments(id: &str) -> String {
+    id.split('.')
+        .map(|seg| {
+            seg.chars()
+                .map(|c| {
+                    if matches!(c, '<' | '>' | ':' | '"' | '|' | '?' | '*' | '/' | '\\')
+                        || c.is_control()
+                    {
+                        '_'
+                    } else {
+                        c
+                    }
+                })
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 /// Échappe une valeur pour un scalaire YAML entre guillemets (frontmatter OKF).
 fn yaml_q(s: &str) -> String {
     format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
@@ -759,7 +781,7 @@ impl MemoireCognitive for SqliteBackend {
         let mut files = 0usize;
         for (id, label, one_liner) in &nodes {
             // node_id pointé → arborescence de dossiers (OKF), un index.md par node.
-            let node_dir = dir.join(id.replace('.', "/"));
+            let node_dir = dir.join(safe_path_segments(id));
             std::fs::create_dir_all(&node_dir)?;
 
             let mut istmt = conn.prepare(
@@ -799,7 +821,7 @@ impl MemoireCognitive for SqliteBackend {
             "timestamp: {ts}\n---\n\n# LaRuche — bundle OKF\n\n"
         ));
         for (id, label, _) in &nodes {
-            root.push_str(&format!("- [{label}]({}/index.md)\n", id.replace('.', "/")));
+            root.push_str(&format!("- [{label}]({}/index.md)\n", safe_path_segments(id)));
         }
         std::fs::write(dir.join("index.md"), root)?;
         files += 1;
