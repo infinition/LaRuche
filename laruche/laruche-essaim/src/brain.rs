@@ -1206,6 +1206,17 @@ async fn indexer_abeilles_memoire(
     Ok(())
 }
 
+/// Fix C — valide un node_id avant écriture mémoire : non vide, sans '|' ni espace, dernier
+/// segment ≠ placeholder 'x', et hiérarchique (préfixe.nom — pas un nœud racine comme "system").
+fn node_id_valide(node_id: &str) -> bool {
+    let id = node_id.trim();
+    if id.is_empty() || id.contains('|') || id.contains(' ') || !id.contains('.') {
+        return false;
+    }
+    let last = id.rsplit('.').next().unwrap_or("");
+    !last.is_empty() && last != "x"
+}
+
 async fn curer_memoire(
     user: &str,
     assistant: &str,
@@ -1215,7 +1226,9 @@ async fn curer_memoire(
     let sys = "Tu es un extracteur de mémoire. À partir de l'échange, renvoie UNIQUEMENT un \
         tableau JSON des faits DURABLES à mémoriser (préférences stables, décisions, infos \
         persistantes sur l'utilisateur ou les projets). Chaque élément : \
-        {\"node_id\":\"people.x|projects.x|decisions.x\",\"content\":\"...\"}. \
+        {\"node_id\":\"<prefixe>.<nom>\",\"content\":\"...\"} ou <prefixe> vaut people, projects \
+        ou decisions (ex. people.fabien, projects.laruche, decisions.archi). Le node_id ne doit \
+        contenir NI espace NI le caractere '|', et n'utilise JAMAIS 'x' comme nom (ce sont des exemples). \
         Si rien de durable, renvoie []. Aucun texte hors du JSON.";
     let messages = vec![
         serde_json::json!({ "role": "system", "content": sys }),
@@ -1240,7 +1253,9 @@ async fn curer_memoire(
     if let Some(js) = extraire_json_array(&out) {
         if let Ok(items) = serde_json::from_str::<Vec<MemFact>>(&js) {
             for f in items {
-                if f.node_id.trim().is_empty() || f.content.trim().is_empty() {
+                // Fix C — garde-fou anti-pollution : rejette les node_id vides, les
+                // placeholders (people.x|projects.x|...), les '|'/espaces et les noms 'x'.
+                if !node_id_valide(&f.node_id) || f.content.trim().is_empty() {
                     continue;
                 }
                 let _ = memoire
@@ -1672,7 +1687,10 @@ pub async fn boucle_react_multimodal_ext(
     // seul au lieu d'exiger un "continue" de l'utilisateur. Borné pour la sûreté.
     let mut last_plan: Vec<PlanItem> = Vec::new();
     let mut auto_continue_count = 0usize;
-    const AUTO_CONTINUE_MAX: usize = 12;
+    // Fix B — borné à 6 (était 12) : évite que l'agent sur-planifie en ~12 étapes et
+    // boucle en deep-research bien après avoir la réponse. 6 auto-continuations suffisent
+    // pour une tâche multi-étapes légitime sans runaway.
+    const AUTO_CONTINUE_MAX: usize = 6;
     // Garde-fou anti-boucle (astuce third-party `tool_guardrails`) : compte les appels d'outils
     // identiques (nom+args) pour avertir puis stopper si le modèle tourne en rond.
     let mut tool_call_counts: std::collections::HashMap<String, u32> =
