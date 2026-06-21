@@ -2571,6 +2571,29 @@ LaRuche.Chat = (function(){
         addActivity('tool-err','Orientation non appliquée',data.message||'Le run est terminé.',true);
         if(data.reason==='queue_full') LaRuche.Toast.show(data.message||'Trop d’orientations en attente.','warn');
         break;
+      case 'tools_selected':
+        if (window.localStorage.getItem('laruche_hide_transparency') === 'true') break;
+        var tChip = document.createElement('div');
+        tChip.className = 'transparency-chip tools-chip';
+        tChip.style.cssText = 'display:inline-block; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.2); color:var(--amber); padding:2px 8px; border-radius:12px; font-size:10px; margin-top:4px; margin-bottom:4px; margin-right:6px; cursor:pointer; font-family:var(--mono); transition:all 0.2s;';
+        tChip.innerHTML = '🛠️ ' + (data.tools ? data.tools.length : 0) + ' outils';
+        tChip.title = data.tools ? data.tools.join(', ') : '';
+        tChip.dataset.tools = data.tools ? data.tools.join(', ') : 'Aucun';
+        tChip.dataset.len = data.tools ? data.tools.length : 0;
+        tChip.onclick = function() {
+            if (this.textContent.indexOf('outils') !== -1) {
+                this.textContent = '🛠️ ' + this.dataset.tools;
+            } else {
+                this.textContent = '🛠️ ' + this.dataset.len + ' outils';
+            }
+        };
+        if (!currentAssistantMsg) {
+          var r = addMessage('assistant','');
+          currentAssistantRow = r.row; currentAssistantMsg = r.msgEl;
+          currentAssistantMsg._rawBuf = ''; currentAssistantMsg._inToolTag = false;
+        }
+        currentAssistantMsg.appendChild(tChip);
+        break;
       case 'thought':
         setFeedLive('thinking');
         addActivity('thinking',thoughtLabel(data.phase||'',data.kind||''),data.text,false);
@@ -2603,6 +2626,19 @@ LaRuche.Chat = (function(){
       case 'approval_request': showApprovalDialog(data.tool_call_id,data.name,data.args); break;
       case 'status':
         var statusMessage=data.message||'';
+        var memMatch = statusMessage.match(/Mémoire\s*:\s*(\d+)\s*souvenir/i);
+        if (memMatch && window.localStorage.getItem('laruche_hide_transparency') !== 'true') {
+           var mChip = document.createElement('div');
+           mChip.className = 'transparency-chip mem-chip';
+           mChip.style.cssText = 'display:inline-block; background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.2); color:var(--purple); padding:2px 8px; border-radius:12px; font-size:10px; margin-top:4px; margin-bottom:4px; margin-right:6px; font-family:var(--mono);';
+           mChip.innerHTML = '🧠 ' + memMatch[1] + ' souvenirs';
+           if (!currentAssistantMsg) {
+             var r = addMessage('assistant','');
+             currentAssistantRow = r.row; currentAssistantMsg = r.msgEl;
+             currentAssistantMsg._rawBuf = ''; currentAssistantMsg._inToolTag = false;
+           }
+           currentAssistantMsg.appendChild(mChip);
+        }
         if(statusMessage.indexOf('__tool_output__|')===0){
           var markerFirst=statusMessage.indexOf('|');
           var markerSecond=statusMessage.indexOf('|',markerFirst+1);
@@ -5008,6 +5044,7 @@ LaRuche.Settings = (function(){
       '<div class="settings-row"><span class="settings-label">Secrets</span><span class="settings-value">17 patterns</span></div>'+
       '<div class="settings-row"><span class="settings-label">Protocol</span><span class="settings-value">Miel v'+(doc.version||'0.2.0')+'</span></div></div>'+
       '<div class="settings-card"><div class="settings-card-title">System</div>'+
+      '<div class="settings-row"><span class="settings-label">Afficher la transparence (outils/mémoire)</span><label class="lr-switch"><input type="checkbox" id="cfgTransparence" onchange="window.localStorage.setItem(\'laruche_hide_transparency\', this.checked ? \'false\' : \'true\')" \'+(window.localStorage.getItem(\'laruche_hide_transparency\') !== \'true\' ? \'checked\' : \'\')+\'><span class="lr-slider"></span></label></div>'+
       ((doc.checks||[]).map(function(c){return '<div class="settings-row"><span class="settings-label">'+c.name+'</span><span style="color:'+(c.status==='ok'?'var(--green)':'var(--red)')+'">'+c.status+'</span></div>';}).join('')||'<div class="settings-row"><span class="settings-label">Status</span><span class="settings-value">OK</span></div>')+
       '</div></div>';
   }
