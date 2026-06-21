@@ -553,22 +553,22 @@ pre:hover .code-copy-btn { opacity:1; }
 .input-area textarea:focus { border-color:var(--amber); }
 .input-area textarea::placeholder { color:var(--text-dim); }
 .cwd-bar {
-  display:flex; align-items:center; gap:6px; padding:4px 16px 8px;
-  font-size:11px; color:var(--text-muted);
+  display:flex; align-items:center; gap:6px; padding:2px 16px 4px;
+  font-size:10px; color:var(--text-dim); opacity: 0.6; transition: opacity 0.2s;
 }
-.cwd-icon { font-size:13px; cursor:default; }
+.cwd-bar:hover, .cwd-bar:focus-within { opacity: 1; }
+.cwd-icon { font-size:12px; cursor:default; opacity: 0.5; }
 .cwd-input {
-  flex:1; background:none; border:none; border-bottom:1px solid transparent;
-  color:var(--text-dim); font-family:var(--mono); font-size:11px;
-  padding:2px 0; outline:none;
+  flex:1; background:none; border:none; border-bottom:1px dashed transparent;
+  color:var(--text-dim); font-family:var(--mono); font-size:10px;
+  padding:0; outline:none; transition: all 0.2s;
 }
-.cwd-input:hover { border-bottom-color:var(--border); }
-.cwd-input:focus { border-bottom-color:var(--amber); color:var(--text); }
+.cwd-input:hover, .cwd-input:focus { border-bottom-color:var(--text-dim); color:var(--text-muted); }
 .cwd-btn {
-  background:none; border:1px solid var(--border); border-radius:4px;
-  color:var(--text-muted); font-size:10px; padding:1px 8px; cursor:pointer;
+  background:none; border:none; border-radius:4px; opacity: 0.5;
+  color:var(--text-muted); font-size:10px; padding:2px 4px; cursor:pointer; transition: opacity 0.2s;
 }
-.cwd-btn:hover { border-color:var(--amber); color:var(--amber); }
+.cwd-btn:hover { opacity: 1; color: var(--amber); }
 .send-btn {
   background:var(--amber); border:none; border-radius:var(--radius);
   color:var(--bg); font-weight:600; font-size:14px; padding:0 18px;
@@ -577,21 +577,18 @@ pre:hover .code-copy-btn { opacity:1; }
 .send-btn:hover { opacity:.85; transform:scale(1.02); }
 .send-btn:active { transform:scale(.98); }
 .send-btn:disabled { opacity:.4; cursor:not-allowed; transform:none; }
-.mic-btn {
+.input-action-btn {
   background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius);
-  color:var(--text-dim); font-size:18px; width:48px; height:48px; min-width:48px; min-height:48px;
-  cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  color:var(--text-dim); font-size:18px; width:40px; height:40px; min-width:40px; min-height:40px;
+  cursor:pointer; position:relative; padding:0; margin:0; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
   transition:all var(--transition-fast); -webkit-touch-callout:none; user-select:none;
 }
-.mic-btn:hover { border-color:var(--amber); color:var(--amber); }
+.input-action-btn:hover { border-color:var(--amber); color:var(--amber); }
 .mic-btn.recording { background:var(--red-dim); border-color:var(--red); color:var(--red); animation:pulse-mic 1s infinite; }
-.upload-btn {
-  background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius);
-  color:var(--text-dim); font-size:18px; width:42px; height:42px; cursor:pointer;
-  display:flex; align-items:center; justify-content:center; flex-shrink:0;
-  transition:all var(--transition-fast);
-}
-.upload-btn:hover { border-color:var(--amber); color:var(--amber); }
+.code-toggle-label input, .input-action-btn input[type="file"] { display:none; }
+.code-toggle-label.active { border-color:var(--amber); color:var(--amber); background:var(--amber-glow); }
+.code-toggle-label .icon { position:relative; }
 .drop-zone { position:absolute; inset:0; z-index:50; background:rgba(245,158,11,.1); border:2px dashed var(--amber); display:flex; align-items:center; justify-content:center; border-radius:var(--radius); }
 .drop-zone-text { color:var(--amber); font-size:16px; font-weight:600; }
 .attachment-preview { padding:6px 16px; border-top:1px solid var(--border); background:var(--bg-panel); display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
@@ -1345,15 +1342,15 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
         <div id="dropZone" class="drop-zone" style="display:none"><div class="drop-zone-text">Deposer le fichier ici</div></div>
         <div id="attachmentPreview" class="attachment-preview" style="display:none"></div>
         <div class="input-area">
-          <button class="mic-btn" id="micBtn" title="Cliquer pour enregistrer / arreter">&#x1F3A4;</button>
+          <button class="input-action-btn mic-btn" id="micBtn" title="Cliquer pour enregistrer / arreter">&#x1F3A4;</button>
           <div class="honey-wave" id="honeyWave" style="display:none"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
-          <label class="upload-btn" title="Joindre un fichier">
+          <label class="input-action-btn upload-btn" title="Joindre un fichier">
             <input type="file" id="fileInput" style="display:none" accept="image/*,.pdf,.txt,.md,.json,.csv,.py,.rs,.js,.ts" multiple>
             &#x1F4CE;
           </label>
-          <label class="think-toggle" title="Mode Coding (envoie le message au modele de code au lieu du LLM de chat)" style="margin-right:8px;">
-            <input type="checkbox" id="codingModeToggle">
-            <span>Code</span>
+          <label class="input-action-btn code-toggle-label" title="Mode Coding (envoie au modèle de code)">
+            <input type="checkbox" id="codingModeToggle" onchange="this.parentElement.classList.toggle('active', this.checked)">
+            <span class="icon">&#x1F4BB;</span>
           </label>
           <textarea id="userInput" placeholder="Ecrivez votre message..." rows="1"></textarea>
           <button class="send-btn" id="sendBtn" onclick="LaRuche.Chat.sendMessage()"><span>Envoyer</span> &#x27A4;</button>
