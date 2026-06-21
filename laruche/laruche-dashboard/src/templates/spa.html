@@ -959,6 +959,11 @@ pre:hover .code-copy-btn { opacity:1; }
 .mem2-tree { flex:1; overflow-y:auto; overflow-x:hidden; min-height:0; padding:6px 4px; }
 .mem2-row { display:flex; align-items:center; gap:5px; padding:4px 6px; font-size:12px; cursor:pointer; border-radius:5px; color:var(--text-dim); user-select:none; }
 .mem2-row:hover { background:var(--bg-hover); }
+.node-actions { display: none; gap: 3px; margin-left: auto; align-items: center; }
+.mem2-row:hover .node-actions { display: flex; }
+.node-actions button { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 2px 4px; font-size: 10px; border-radius: 3px; }
+.node-actions button:hover { background: rgba(255,255,255,0.1); color: var(--text); }
+.mem2-row.drag-over { background: rgba(245,158,11,0.2) !important; outline: 1px dashed var(--amber); }
 .mem2-row.active { background:var(--amber-glow); color:var(--amber); }
 .mem2-caret { width:12px; flex-shrink:0; color:var(--text-muted); font-size:9px; text-align:center; transition:transform .12s; }
 .mem2-icon { width:14px; height:14px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; color:var(--text-muted); opacity:.85; }
@@ -5188,6 +5193,11 @@ LaRuche.Memory = (function(){
       '<span class="mem2-label">'+esc(c.seg)+'</span>'+
       (locked ? '<span class="mem2-lock" title="Gere par le systeme">'+SVG.lock+'</span>' : '')+
       (meta.count != null ? '<span class="mem2-count">'+meta.count+'</span>' : (kids?'<span class="mem2-count">'+kids+'</span>':''))+
+      '<span class="node-actions">'+
+        '<button title="Ajouter un sous-dossier" onclick="event.stopPropagation();LaRuche.Memory.createSubnode(\''+esc(c.id)+'\')">➕</button>'+
+        (!locked ? '<button title="Renommer" onclick="event.stopPropagation();LaRuche.Memory.renameNode(\''+esc(c.id)+'\',\''+esc(c.seg)+'\')">✏️</button>'+
+        '<button title="Supprimer" onclick="event.stopPropagation();LaRuche.Memory.deleteNode(\''+esc(c.id)+'\')">❌</button>' : '')+
+      '</span>'+
     '</div>';
     if(kids && open) html += treeHtml(c, depth+1);
     return html;
@@ -5290,7 +5300,7 @@ LaRuche.Memory = (function(){
             '<button class="mem2-iact danger" data-act="delete" data-id="'+esc(id)+'"'+dis+'>Suppr</button>'+
           '</span>';
         }
-        return '<div class="mem2-item" data-itemwrap="'+esc(id)+'">'+
+        return '<div class="mem2-item" draggable="true" ondragstart="event.dataTransfer.setData(\'text/plain\',\''+esc(id)+'\')" data-itemwrap="'+esc(id)+'">'+
           '<div class="mem2-item-bar">'+
             '<span class="mem2-item-id">'+esc(id || '(sans id)')+'</span>'+
             (locked ? '<span class="mem2-lock" title="Gere par le systeme">'+SVG.lock+'</span>' : '')+
@@ -5572,6 +5582,61 @@ LaRuche.Memory = (function(){
     svg.querySelectorAll('.mem2-gnode').forEach(function(g){ g.addEventListener('click', function(){ loadNode(g.dataset.node); }); });
   }
 
+  function deleteNode(id) {
+    if(!window.confirm('Voulez-vous vraiment supprimer le dossier "'+id+'" et tout son contenu de maniere irreversible ?')) return;
+    fetch(LaRuche.API.base+'/api/memory/node/delete', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({node_id:id})
+    }).then(function(r){return r.json();}).then(function(d){
+      if(d.error) { LaRuche.Toast.show(d.error, 'err'); return; }
+      LaRuche.Toast.show('Dossier supprime', 'ok');
+      loadTree(false);
+      if(current === id) current = null;
+      renderTree();
+      renderDoc();
+    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+  }
+
+  function renameNode(id, oldLabel) {
+    var newLabel = window.prompt('Nouveau nom pour le dossier:', oldLabel);
+    if(!newLabel || newLabel === oldLabel) return;
+    fetch(LaRuche.API.base+'/api/memory/node/update', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({node_id:id, label:newLabel})
+    }).then(function(r){return r.json();}).then(function(d){
+      if(d.error) { LaRuche.Toast.show(d.error, 'err'); return; }
+      loadTree(false);
+    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+  }
+
+  function createSubnode(parentId) {
+    var label = window.prompt('Nom du nouveau sous-dossier:');
+    if(!label) return;
+    // Generate an ID based on label (lowercase, no spaces)
+    var slug = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    if(!slug) return;
+    var newId = parentId + '.' + slug;
+    fetch(LaRuche.API.base+'/api/memory/node/create', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({node_id:newId, label:label})
+    }).then(function(r){return r.json();}).then(function(d){
+      if(d.error) { LaRuche.Toast.show(d.error, 'err'); return; }
+      expanded[parentId] = true;
+      loadTree(false);
+    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+  }
+
+  function moveItem(itemId, newParentId) {
+    fetch(LaRuche.API.base+'/api/memory/move', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({item_id:itemId, target_node_id:newParentId})
+    }).then(function(r){return r.json();}).then(function(d){
+      if(d.error) { LaRuche.Toast.show(d.error, 'err'); return; }
+      LaRuche.Toast.show('Souvenir deplace avec succes', 'ok');
+      if(current) loadNode(current, true);
+    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+  }
+
   function toggleAll(forceOpen) {
     Object.keys(nodes).forEach(function(id) {
       expanded[id] = forceOpen;
@@ -5583,7 +5648,8 @@ LaRuche.Memory = (function(){
     init:init, enter:enter, leave:leave,
     loadNode:loadNode, setView:setView,
     exportOkf:exportOkf, importOkf:importOkf, triggerDream:triggerDream,
-    toggleAll:toggleAll
+    toggleAll:toggleAll, deleteNode:deleteNode, renameNode:renameNode,
+    createSubnode:createSubnode, moveItem:moveItem
   };
 })();
 
