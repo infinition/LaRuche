@@ -153,6 +153,12 @@ pub trait MemoireCognitive: Send + Sync {
     /// Lit un nœud, ses enfants directs et ses items.
     async fn read_node(&self, node_id: &str) -> Result<Value>;
 
+    /// Liste TOUS les nœuds de la carte cognitive (pour l'arbre Mémoire type Obsidian).
+    /// Chaque nœud : `{id, node_id, parent_id?, label, one_liner}`. Défaut : vide.
+    async fn list_nodes(&self) -> Result<Value> {
+        Ok(serde_json::json!([]))
+    }
+
     /// Passe de consolidation (doublons, périmés, surchargés, orphelins). N'applique rien.
     async fn update_item(&self, _item_id: &str, _content: &str) -> Result<Value> {
         Err(anyhow!("memory_update_item unsupported by this backend"))

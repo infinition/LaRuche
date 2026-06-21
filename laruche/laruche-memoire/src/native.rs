@@ -373,6 +373,21 @@ impl MemoireCognitive for NativeBackend {
         Ok(json!({ "suggestions": suggestions, "duplicates": duplicates, "orphan_items": 0 }))
     }
 
+    async fn list_nodes(&self) -> Result<Value> {
+        let store = self.store.lock().unwrap();
+        let mut nodes: Vec<Value> = collect_node_ids(&store)
+            .iter()
+            .map(|id| node_json(id))
+            .collect();
+        nodes.sort_by(|a, b| {
+            a["id"]
+                .as_str()
+                .unwrap_or_default()
+                .cmp(b["id"].as_str().unwrap_or_default())
+        });
+        Ok(json!(nodes))
+    }
+
     async fn health(&self) -> Result<bool> {
         Ok(true)
     }

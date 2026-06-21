@@ -839,6 +839,24 @@ impl MemoireCognitive for SqliteBackend {
         Ok(imported)
     }
 
+    async fn list_nodes(&self) -> Result<Value> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt =
+            conn.prepare("SELECT id, parent_id, label, one_liner FROM nodes ORDER BY id")?;
+        let rows = stmt.query_map([], |r| {
+            let id: String = r.get(0)?;
+            Ok(json!({
+                "id": id.clone(),
+                "node_id": id,
+                "parent_id": r.get::<_, Option<String>>(1)?,
+                "label": r.get::<_, String>(2)?,
+                "one_liner": r.get::<_, String>(3)?,
+            }))
+        })?;
+        let nodes: Vec<Value> = rows.filter_map(|r| r.ok()).collect();
+        Ok(json!(nodes))
+    }
+
     async fn health(&self) -> Result<bool> {
         let conn = self.conn.lock().unwrap();
         Ok(conn

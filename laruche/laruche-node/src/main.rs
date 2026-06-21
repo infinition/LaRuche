@@ -2039,16 +2039,27 @@ async fn api_memory_tree(State(state): State<Arc<AppState>>) -> Json<serde_json:
         .dream()
         .await
         .unwrap_or_else(|e| serde_json::json!({ "error": e.to_string() }));
-    Json(serde_json::json!({
-        "health": health,
-        "nodes": [
+    // Vraie arborescence depuis le backend (l'UI Obsidian reconstruit la hiérarchie sur les
+    // ids pointés). Fallback sur les racines de base si le backend ne liste pas (sidecar).
+    let mut nodes = state
+        .memoire
+        .list_nodes()
+        .await
+        .unwrap_or_else(|_| serde_json::json!([]));
+    if nodes.as_array().map(|a| a.is_empty()).unwrap_or(true) {
+        nodes = serde_json::json!([
             { "id": "people", "label": "People", "one_liner": "Personnes et preferences" },
             { "id": "projects", "label": "Projects", "one_liner": "Projets actifs" },
             { "id": "decisions", "label": "Decisions", "one_liner": "Choix durables" },
             { "id": "tools.abeilles", "label": "Abeilles", "one_liner": "Outils et capacites" },
+            { "id": "missions", "label": "Missions", "one_liner": "Recherches au long cours" },
             { "id": "sessions", "label": "Sessions", "one_liner": "Contexte conversationnel" },
             { "id": "knowledge", "label": "Knowledge", "one_liner": "Savoirs importes" }
-        ],
+        ]);
+    }
+    Json(serde_json::json!({
+        "health": health,
+        "nodes": nodes,
         "review": dream.get("suggestions").cloned().unwrap_or_else(|| serde_json::json!([])),
         "audit": dream
     }))
