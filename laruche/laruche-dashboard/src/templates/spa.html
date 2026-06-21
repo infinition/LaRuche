@@ -5999,17 +5999,64 @@ LaRuche.Missions = (function(){
     fetch(LaRuche.API.base+'/api/missions/'+encodeURIComponent(slug)+'/dossier').then(function(r){return r.json();}).then(function(d){
       if(d.error){ main.innerHTML = '<div class="mem2-empty">'+esc(d.error)+'</div>'; return; }
       var md = d.markdown || '';
+      var mObj = list.filter(function(m){return m.slug===slug;})[0] || {};
+      var curObjective = d.objective || mObj.objective || '';
+      var curCadence = mObj.cadence || d.cadence || '';
+      var curStatus = mObj.status || d.status || 'active';
+      function statOpt(v,lbl){ return '<option value="'+v+'"'+(curStatus===v?' selected':'')+'>'+lbl+'</option>'; }
       main.innerHTML =
         '<div class="mis-dossier-bar">'+
-          '<span class="mis-dossier-title">Dossier &middot; '+esc(d.objective || slug)+'</span>'+
-          '<button class="mem2-tbtn" id="misExportBtn">Exporter</button>'+
+          '<span class="mis-dossier-title">Dossier &middot; '+esc(curObjective || slug)+'</span>'+
+          '<span><button class="mem2-tbtn" id="misEditBtn">Modifier</button> '+
+          '<button class="mem2-tbtn" id="misExportBtn">Exporter</button></span>'+
+        '</div>'+
+        '<div id="misEditBox" style="display:none;border:1px solid var(--amber);border-radius:8px;padding:12px;margin-bottom:14px;background:rgba(245,158,11,.06)">'+
+          '<div style="font-weight:600;color:var(--amber);margin-bottom:8px">Modifier la mission</div>'+
+          '<label class="form-label" style="font-size:10px;color:var(--text-dim)">Objectif</label>'+
+          '<textarea class="form-input" id="misEditObj" rows="3" style="width:100%;margin-bottom:10px">'+esc(curObjective)+'</textarea>'+
+          '<label class="form-label" style="font-size:10px;color:var(--text-dim)">Cadence</label>'+
+          '<div id="misEditCadence" style="margin-bottom:10px"></div>'+
+          '<label class="form-label" style="font-size:10px;color:var(--text-dim)">Statut</label>'+
+          '<select class="form-input" id="misEditStatus" style="margin-bottom:12px">'+statOpt('active','Active')+statOpt('paused','En pause')+statOpt('done','Terminee')+'</select>'+
+          '<div style="display:flex;gap:8px"><button class="mem2-btn-primary" id="misEditSave">Enregistrer</button>'+
+          '<button class="mem2-tbtn" id="misEditCancel">Annuler</button></div>'+
         '</div>'+
         '<div class="mis-dossier-body mem2-md" id="misDossierMd"></div>';
       var body = document.getElementById('misDossierMd');
       body.innerHTML = LaRuche.MD.render(md);
       LaRuche.MD.wireWikilinks(body, function(node){ LaRuche.Router.go('memory'); setTimeout(function(){ LaRuche.Memory.loadNode(node); }, 60); });
       document.getElementById('misExportBtn').onclick = function(){ exportDossier(slug, md); };
+      var _cadBuilderId = null;
+      document.getElementById('misEditBtn').onclick = function(){
+        var box=document.getElementById('misEditBox');
+        var open = box.style.display==='none';
+        box.style.display = open?'block':'none';
+        if(open && !_cadBuilderId && LaRuche.CronBuilder){
+          _cadBuilderId = LaRuche.CronBuilder.mount('misEditCadence', { value: curCadence });
+        }
+      };
+      document.getElementById('misEditCancel').onclick = function(){ document.getElementById('misEditBox').style.display='none'; };
+      document.getElementById('misEditSave').onclick = function(){
+        var objective = (document.getElementById('misEditObj').value||'').trim();
+        var status = document.getElementById('misEditStatus').value;
+        var cadence = _cadBuilderId ? LaRuche.CronBuilder.getValue(_cadBuilderId) : curCadence;
+        saveMissionEdit(slug, { objective:objective, cadence:cadence||'', status:status });
+      };
     }).catch(function(e){ main.innerHTML = '<div class="mem2-empty">Erreur: '+esc(e)+'</div>'; });
+  }
+
+  function saveMissionEdit(slug, payload) {
+    fetch(LaRuche.API.base+'/api/missions/'+encodeURIComponent(slug), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
+      .then(function(r){return r.json().catch(function(){return {};});}).then(function(d){
+        if(d && d.error){ LaRuche.Toast.show(d.error,'err'); return; }
+        LaRuche.Toast.show('Mission mise a jour','ok');
+        // refresh liste + dossier
+        fetch(LaRuche.API.base+'/api/missions').then(function(r){return r.json();}).then(function(data){
+          list = Array.isArray(data) ? data : (data.missions || []);
+          renderList();
+          openDossier(slug);
+        }).catch(function(){ openDossier(slug); });
+      }).catch(function(e){ LaRuche.Toast.show('Enregistrement: '+e,'err'); });
   }
 
   function exportDossier(slug, md) {
@@ -6693,6 +6740,7 @@ LaRuche.Settings = (function(){
     }
   }
 
+  var _ncCronBuilderId = null;
   async function loadCron(el) {
     var tasks=[];try{tasks=await fetch('/api/cron').then(function(r){return r.json();});}catch(e){}
     var profilesResp={profiles:{}};try{profilesResp=await fetch('/api/profiles').then(function(r){return r.json();});}catch(e){}
@@ -6708,7 +6756,7 @@ LaRuche.Settings = (function(){
       '<div id="newCronForm" style="display:none" class="settings-card">'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Name</label><input id="ncName" class="form-input"></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Prompt</label><input id="ncPrompt" class="form-input"></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Cron</label><input id="ncCron" class="form-input" placeholder="*/5 * * * *"></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Cadence (cron)</label><div id="ncCronBuilder"></div></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Canal de feedback</label><select id="ncChannel" class="form-input"><option value="">None (Activity Log)</option><option value="telegram">Telegram</option><option value="discord">Discord</option></select></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Provider</label><select id="ncProfileId" class="form-input" onchange="LaRuche.Settings.updateCronModelSelect()">'+profOpts+'</select></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Mod&egrave;le</label><select id="ncModel" class="form-input"><option value="">D&eacute;faut du provider</option></select></div>'+
@@ -6722,6 +6770,8 @@ LaRuche.Settings = (function(){
           if(t.profile_id && t.model) effProv += " (" + t.model + ")";
           return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.Utils.esc(t.name)+'</div><div class="settings-row"><span class="settings-label">Schedule</span><span class="settings-value">'+(t.cron_expr||t.fire_at||'-')+'</span></div><div class="settings-row"><span class="settings-label">Runs</span><span class="settings-value">'+(t.run_count||0)+'</span></div><div class="settings-row"><span class="settings-label">Channel</span><span class="settings-value">'+LaRuche.Utils.esc(t.channel||'None')+'</span></div><div class="settings-row"><span class="settings-label">Provider/Model</span><span class="settings-value">'+LaRuche.Utils.esc(effProv)+'</span></div><button onclick="fetch(\'/api/cron/'+t.id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;margin-top:6px">Delete</button></div>';
       }).join('');
+    // Builder cron human-friendly pour le formulaire de creation.
+    if(LaRuche.CronBuilder){ _ncCronBuilderId = LaRuche.CronBuilder.mount('ncCronBuilder', { value:'' }); }
   }
   
   function updateCronModelSelect() {
@@ -6740,7 +6790,7 @@ LaRuche.Settings = (function(){
   function createCron() {
     var name=document.getElementById('ncName').value;
     var prompt=document.getElementById('ncPrompt').value;
-    var cron=document.getElementById('ncCron').value;
+    var cron=(_ncCronBuilderId && LaRuche.CronBuilder) ? LaRuche.CronBuilder.getValue(_ncCronBuilderId) : '';
     var channel=document.getElementById('ncChannel').value;
     var profile_id=document.getElementById('ncProfileId').value;
     var model=document.getElementById('ncModel').value;
@@ -7005,33 +7055,35 @@ LaRuche.Settings = (function(){
   async function refreshKanbanCols(){
     var host=document.getElementById('kanbanCols'); if(!host)return;
     var tasks=await fetch(LaRuche.API.base+'/api/kanban').then(function(r){return r.json();}).catch(function(){return [];});
-    var sig=JSON.stringify(tasks); if(sig===_kanbanLast) return; _kanbanLast=sig;
+    var sig=_kanbanView+'|'+JSON.stringify(tasks); if(sig===_kanbanLast) return; _kanbanLast=sig;
     var cols=['Triage','Todo','Ready','Running','Blocked','Done','Archived'];
-    var html='<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:10px;min-height:400px">';
-    cols.forEach(function(c){
-      html+='<div style="flex:0 0 250px;background:rgba(30,30,32,0.8);border:1px solid var(--amber-dim);border-radius:6px;display:flex;flex-direction:column" ondragover="LaRuche.Settings.kanbanDragOver(event)" ondrop="LaRuche.Settings.kanbanDrop(event,\''+c+'\')">';
-      var colTasks=tasks.filter(function(t){return t.status===c;});
-      html+='<div style="padding:10px;font-weight:600;color:var(--amber);border-bottom:1px solid var(--border);text-align:center">'+c+(colTasks.length?(' ('+colTasks.length+')'):'')+'</div>';
-      html+='<div style="flex:1;padding:8px;display:flex;flex-direction:column;gap:8px">';
-      colTasks.forEach(function(t){
-        html+='<div draggable="true" ondragstart="LaRuche.Settings.kanbanDragStart(event,\''+t.id+'\')" style="background:#2a2a2e;border:1px solid var(--border);border-radius:4px;padding:8px;cursor:grab">';
-        html+='<div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:4px">'+LaRuche.Utils.esc(t.title)+'</div>';
-        html+='<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">'+LaRuche.Utils.esc(t.description||'')+'</div>';
-        // P1 : provider effectif de la tache (si choisi)
-        if(t.profile_id || t.model){
-          var kProv = (t.profile_id && _profiles[t.profile_id]) ? (_profiles[t.profile_id].name||t.profile_id) : (t.profile_id||'');
-          if(t.model) kProv += (kProv?' ':'') + '(' + t.model + ')';
-          if(kProv) html+='<div style="font-size:10px;color:var(--amber);margin-bottom:6px">⚙ '+LaRuche.Utils.esc(kProv)+'</div>';
-        }
-        if(t.result) html+='<div style="font-size:10px;color:var(--green);margin-bottom:6px">Résultat: '+LaRuche.Utils.esc((t.result||'').substring(0,60))+'…</div>';
-        html+='<div style="display:flex;justify-content:space-between;align-items:center">';
-        html+='<span style="font-size:9px;color:var(--text-muted);font-family:var(--mono)">'+t.id.split('-')[0]+'</span>';
-        html+='<span><button onclick="LaRuche.Settings.editKanbanTask(\''+t.id+'\')" style="background:none;border:none;color:var(--amber);cursor:pointer;font-size:10px">Éditer</button> <button onclick="LaRuche.Settings.deleteKanbanTask(\''+t.id+'\')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:10px">Suppr</button></span>';
+    var html;
+    if(_kanbanView==='rows'){
+      // Mode horizontal condense : chaque statut = une bande, cartes en flex-wrap, hauteur = contenu.
+      html='<div style="display:flex;flex-direction:column;gap:10px">';
+      cols.forEach(function(c){
+        var colTasks=tasks.filter(function(t){return t.status===c;});
+        html+='<div style="background:rgba(30,30,32,0.8);border:1px solid var(--amber-dim);border-radius:6px;overflow:hidden" ondragover="LaRuche.Settings.kanbanDragOver(event)" ondrop="LaRuche.Settings.kanbanDrop(event,\''+c+'\')">';
+        html+='<div style="padding:6px 10px;font-weight:600;color:var(--amber);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><span>'+c+'</span><span style="font-size:10px;color:var(--text-dim)">'+colTasks.length+'</span></div>';
+        html+='<div style="padding:8px;display:flex;flex-wrap:wrap;gap:8px;min-height:36px">';
+        if(!colTasks.length){ html+='<span style="font-size:10px;color:var(--text-muted);align-self:center">—</span>'; }
+        colTasks.forEach(function(t){ html+='<div style="flex:0 0 230px;max-width:230px">'+kanbanCardHtml(t)+'</div>'; });
         html+='</div></div>';
       });
-      html+='</div></div>';
-    });
-    html+='</div>';
+      html+='</div>';
+    } else {
+      // Mode colonnes (existant).
+      html='<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:10px;min-height:400px">';
+      cols.forEach(function(c){
+        html+='<div style="flex:0 0 250px;background:rgba(30,30,32,0.8);border:1px solid var(--amber-dim);border-radius:6px;display:flex;flex-direction:column" ondragover="LaRuche.Settings.kanbanDragOver(event)" ondrop="LaRuche.Settings.kanbanDrop(event,\''+c+'\')">';
+        var colTasks=tasks.filter(function(t){return t.status===c;});
+        html+='<div style="padding:10px;font-weight:600;color:var(--amber);border-bottom:1px solid var(--border);text-align:center">'+c+(colTasks.length?(' ('+colTasks.length+')'):'')+'</div>';
+        html+='<div style="flex:1;padding:8px;display:flex;flex-direction:column;gap:8px">';
+        colTasks.forEach(function(t){ html+=kanbanCardHtml(t); });
+        html+='</div></div>';
+      });
+      html+='</div>';
+    }
     host.innerHTML=html;
   }
 
@@ -7347,7 +7399,7 @@ var m = document.getElementById('kanban-model')?document.getElementById('kanban-
   }
 
   return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, enter:enter, leave:leave, createCron:createCron, createWatcher:createWatcher, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, createKanbanTask:createKanbanTask, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, createKanbanTask:createKanbanTask, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder : composant "human-friendly" reutilisable (missions + cron) ── */
