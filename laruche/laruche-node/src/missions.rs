@@ -75,6 +75,14 @@ impl MissionStore {
         self.save();
     }
 
+    pub fn remove(&mut self, slug: &str) -> bool {
+        let existed = self.missions.remove(slug).is_some();
+        if existed {
+            self.save();
+        }
+        existed
+    }
+
     pub fn mark_run(&mut self, slug: &str, when: String) {
         if let Some(m) = self.missions.get_mut(slug) {
             m.iterations += 1;

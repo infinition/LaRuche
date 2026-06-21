@@ -2842,6 +2842,103 @@ async fn api_run_mission(
     Json(serde_json::json!({"status": "started", "slug": slug, "iteration": iteration}))
 }
 
+/// Contenus (items) d'un nœud mémoire.
+fn items_of(node: &serde_json::Value) -> Vec<String> {
+    node["items"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|i| i["content"].as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// GET /api/missions/:slug/dossier — assemble le DOSSIER de la mission (synthèse + trouvailles
+/// + questions ouvertes, depuis la carte cognitive) en markdown prêt à lire/exporter.
+async fn api_mission_dossier(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(slug): axum::extract::Path<String>,
+) -> Json<serde_json::Value> {
+    let Some(mission) = state.missions.read().await.get(&slug) else {
+        return Json(serde_json::json!({"error": "mission introuvable"}));
+    };
+    let base = format!("missions.{}", slug);
+    let read = |suffix: &str| {
+        let n = format!("{base}.{suffix}");
+        let mem = state.memoire.clone();
+        async move { mem.read_node(&n).await.ok().as_ref().map(items_of).unwrap_or_default() }
+    };
+    let synthese = read("synthese").await;
+    let findings = read("findings").await;
+    let questions = read("questions").await;
+
+    let mut md = format!("# Mission : {}\n\n", mission.objective);
+    md.push_str(&format!(
+        "_Itérations : {} · statut : {}_\n\n",
+        mission.iterations, mission.status
+    ));
+    if let Some(s) = synthese.last() {
+        md.push_str(&format!("## Synthèse\n\n{}\n\n", s));
+    }
+    if !findings.is_empty() {
+        md.push_str("## Trouvailles\n\n");
+        for f in &findings {
+            md.push_str(&format!("- {}\n", f));
+        }
+        md.push('\n');
+    }
+    if !questions.is_empty() {
+        md.push_str("## Questions ouvertes\n\n");
+        for q in &questions {
+            md.push_str(&format!("- {}\n", q));
+        }
+    }
+    Json(serde_json::json!({
+        "slug": slug,
+        "objective": mission.objective,
+        "iterations": mission.iterations,
+        "findings": findings.len(),
+        "questions": questions.len(),
+        "markdown": md,
+    }))
+}
+
+/// POST /api/missions/:slug — met à jour une mission (status pause/active/done, objectif, cadence).
+async fn api_update_mission(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(slug): axum::extract::Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let mut store = state.missions.write().await;
+    let Some(mut m) = store.get(&slug) else {
+        return Json(serde_json::json!({"error": "mission introuvable"}));
+    };
+    if let Some(s) = body["status"].as_str() {
+        m.status = s.to_string();
+    }
+    if let Some(o) = body["objective"].as_str().filter(|o| !o.trim().is_empty()) {
+        m.objective = o.to_string();
+    }
+    if body.get("cadence").is_some() {
+        m.cadence = body["cadence"]
+            .as_str()
+            .filter(|c| !c.trim().is_empty())
+            .map(String::from);
+    }
+    store.upsert(m);
+    Json(serde_json::json!({"status": "ok", "slug": slug}))
+}
+
+/// DELETE /api/missions/:slug — supprime une mission (la métadonnée ; le savoir reste en mémoire).
+async fn api_delete_mission(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(slug): axum::extract::Path<String>,
+) -> Json<serde_json::Value> {
+    let ok = state.missions.write().await.remove(&slug);
+    Json(serde_json::json!({"status": if ok {"ok"} else {"not_found"}, "slug": slug}))
+}
+
 async fn api_run_cron(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -7299,6 +7396,11 @@ async fn main() -> Result<()> {
             get(api_list_missions).post(api_create_mission),
         )
         .route("/api/missions/:slug/run", post(api_run_mission))
+        .route("/api/missions/:slug/dossier", get(api_mission_dossier))
+        .route(
+            "/api/missions/:slug",
+            post(api_update_mission).delete(api_delete_mission),
+        )
         .route(
             "/api/profiles/:id",
             axum::routing::delete(api_delete_profile),
