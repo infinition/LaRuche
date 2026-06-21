@@ -5121,14 +5121,16 @@ LaRuche.Memory = (function(){
   function isProtected(id){
     var meta = nodes[id] || {};
     if(meta.protected) return true;
-    // securite cote UI : tout ce qui est system.* ou tools/tools.* est gere par le systeme
-    if(id === 'system' || id === 'tools') return true;
-    if(id.indexOf('system.') === 0 || id.indexOf('tools.') === 0) return true;
+    // securite cote UI : tout ce qui est system.* ou capacities/capacities.* est gere par le systeme
+    if(id === 'system' || id === 'capacities' || id === 'tools') return true;
+    if(id.indexOf('system.') === 0 || id.indexOf('capacities.') === 0 || id.indexOf('tools.') === 0) return true;
     return false;
   }
-  // tools.* est strictement lecture seule (pas d'edition admin non plus)
+  // Projections d'outils = strictement lecture seule. capacities.skills reste editable (admin).
   function isReadOnly(id){
-    return id === 'tools' || id.indexOf('tools.') === 0;
+    if(id === 'capacities.skills' || id.indexOf('capacities.skills.') === 0) return false;
+    return id === 'capacities' || id === 'tools'
+      || id.indexOf('capacities.') === 0 || id.indexOf('tools.') === 0;
   }
   // system.prompt / system.soul : editables par l'admin via l'editeur dedie
   function isSystemEditor(id){
@@ -5151,15 +5153,17 @@ LaRuche.Memory = (function(){
     if(id === 'system') return SVG.system;
     if(id === 'system.prompt') return SVG.prompt;
     if(id === 'system.soul') return SVG.soul;
-    if(id === 'tools' || id.indexOf('tools.') === 0) return SVG.tools;
+    if(id === 'capacities.skills' || id.indexOf('capacities.skills.') === 0) return SVG.file;
+    if(id === 'capacities' || id.indexOf('capacities.') === 0
+       || id === 'tools' || id.indexOf('tools.') === 0) return SVG.tools;
     return '<span style="color:var(--amber)">'+SVG.folder+'</span>';
   }
 
-  // Ordre racine : SYSTEM puis tools en premier, le reste alphabetique.
+  // Ordre racine : SYSTEM puis CAPACITIES en premier, le reste alphabetique.
   function rootOrder(a, b){
     function rank(seg){
       if(seg === 'system') return 0;
-      if(seg === 'tools') return 1;
+      if(seg === 'capacities' || seg === 'tools') return 1;
       return 2;
     }
     var ra = rank(a), rb = rank(b);
@@ -5215,9 +5219,10 @@ LaRuche.Memory = (function(){
     var el = document.getElementById('mem2Tree'); if(!el) return;
     if(!Object.keys(nodes).length) { el.innerHTML = '<div class="mem2-empty">Aucun noeud</div>'; return; }
     var root = buildTree();
-    // Groupe SYSTEM en tete (system + tools), separe visuellement du reste.
-    var sysKeys = Object.keys(root.children).filter(function(k){ return k==='system' || k==='tools'; }).sort(rootOrder);
-    var otherKeys = Object.keys(root.children).filter(function(k){ return k!=='system' && k!=='tools'; }).sort();
+    // Groupe SYSTEM en tete (system + capacities), separe visuellement du reste.
+    var isSys = function(k){ return k==='system' || k==='capacities' || k==='tools'; };
+    var sysKeys = Object.keys(root.children).filter(isSys).sort(rootOrder);
+    var otherKeys = Object.keys(root.children).filter(function(k){ return !isSys(k); }).sort();
     var html = '';
     if(sysKeys.length){
       html += '<div class="mem2-sysgroup">'+
@@ -6672,14 +6677,14 @@ LaRuche.Settings = (function(){
       }
     }).catch(function(){});
   }
-  // ── Page Skills (OKF en mémoire, tools.skills.*) ──────────────────
+  // ── Page Skills (OKF en mémoire, capacities.skills.*) ──────────────────
   var SKILL_TEMPLATE='---\ntype: skill\nname: mon-skill\ndescription: "Ce que ce skill apprend a faire."\nallowed-tools: []\n---\n\n# Mon Skill\n\n## Quand l\'utiliser\n- ...\n\n## Procedure\n1. ...\n';
   async function loadSkills(el){
     var skills=await fetch(LaRuche.API.base+'/api/skills').then(function(r){return r.json();}).catch(function(){return [];});
     var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
       '<div style="color:var(--text-dim);font-size:12px">Connaissances procédurales (OKF). Activées = injectables dans le contexte / attachables aux crons.</div>'+
       '<button class="settings-save-btn" onclick="LaRuche.Settings.newSkill()">+ Nouveau skill</button></div>';
-    if(!skills.length){ html+='<div style="color:var(--text-dim);padding:20px">Aucun skill. L\'agent peut en créer (memory_write tools.skills.*) ou clique « + Nouveau skill ».</div>'; }
+    if(!skills.length){ html+='<div style="color:var(--text-dim);padding:20px">Aucun skill. L\'agent peut en créer (memory_write capacities.skills.*) ou clique « + Nouveau skill ».</div>'; }
     html+='<div class="settings-grid">';
     skills.forEach(function(s){
       html+='<div class="settings-card">'+

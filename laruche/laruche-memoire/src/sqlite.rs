@@ -949,6 +949,65 @@ impl MemoireCognitive for SqliteBackend {
         node_json(&conn, &id)
     }
 
+    async fn renommer_sous_arbre(&self, old_prefix: &str, new_prefix: &str) -> Result<usize> {
+        let old = old_prefix.trim_matches('.');
+        let new = new_prefix.trim_matches('.');
+        if old.is_empty() || new.is_empty() {
+            return Ok(0);
+        }
+        let like = format!("{old}.%");
+        let oldlen = old.len() as i64;
+        let conn = self.conn.lock().unwrap();
+        // Items : node_id `old(.suite)` → `new(.suite)`.
+        conn.execute(
+            "UPDATE items SET node_id = ?1 || substr(node_id, ?2+1) WHERE node_id = ?3 OR node_id LIKE ?4",
+            rusqlite::params![new, oldlen, old, like],
+        )?;
+        // Index FTS (mêmes lignes, colonne node_id).
+        let _ = conn.execute(
+            "UPDATE items_fts SET node_id = ?1 || substr(node_id, ?2+1) WHERE node_id = ?3 OR node_id LIKE ?4",
+            rusqlite::params![new, oldlen, old, like],
+        );
+        // Nœuds : parent_id d'abord (sinon on perd la cible après renommage des id).
+        conn.execute(
+            "UPDATE nodes SET parent_id = ?1 || substr(parent_id, ?2+1) WHERE parent_id = ?3 OR parent_id LIKE ?4",
+            rusqlite::params![new, oldlen, old, like],
+        )?;
+        let moved = conn.execute(
+            "UPDATE nodes SET id = ?1 || substr(id, ?2+1) WHERE id = ?3 OR id LIKE ?4",
+            rusqlite::params![new, oldlen, old, like],
+        )?;
+        if moved > 0 {
+            conn.execute(
+                "INSERT INTO mutations(op,node_id,content,ts) VALUES('rename_subtree',?1,?2,?3)",
+                rusqlite::params![old, new, now()],
+            )?;
+        }
+        Ok(moved)
+    }
+
+    async fn supprimer_sous_arbre(&self, prefix: &str) -> Result<usize> {
+        let p = prefix.trim_matches('.');
+        if p.is_empty() {
+            return Ok(0);
+        }
+        let like = format!("{p}.%");
+        let conn = self.conn.lock().unwrap();
+        let _ = conn.execute(
+            "DELETE FROM items_fts WHERE node_id = ?1 OR node_id LIKE ?2",
+            rusqlite::params![p, like],
+        );
+        conn.execute(
+            "DELETE FROM items WHERE node_id = ?1 OR node_id LIKE ?2",
+            rusqlite::params![p, like],
+        )?;
+        let removed = conn.execute(
+            "DELETE FROM nodes WHERE id = ?1 OR id LIKE ?2",
+            rusqlite::params![p, like],
+        )?;
+        Ok(removed)
+    }
+
     async fn health(&self) -> Result<bool> {
         let conn = self.conn.lock().unwrap();
         Ok(conn

@@ -189,6 +189,19 @@ pub trait MemoireCognitive: Send + Sync {
         Err(anyhow!("memory_update_node unsupported by this backend"))
     }
 
+    /// Migration : renomme tout le sous-arbre `old_prefix.*` (et le nœud `old_prefix`) vers
+    /// `new_prefix.*`, en préservant items et hiérarchie. Renvoie le nb de nœuds déplacés.
+    /// Idempotent (no-op si plus rien sous `old_prefix`). Défaut : non supporté.
+    async fn renommer_sous_arbre(&self, _old_prefix: &str, _new_prefix: &str) -> Result<usize> {
+        Err(anyhow!("renommer_sous_arbre unsupported by this backend"))
+    }
+
+    /// Migration : supprime définitivement tout le sous-arbre `prefix.*` (et le nœud `prefix`).
+    /// Pour purger une projection régénérable. Renvoie le nb de nœuds supprimés. Défaut : 0.
+    async fn supprimer_sous_arbre(&self, _prefix: &str) -> Result<usize> {
+        Ok(0)
+    }
+
     /// Passe de consolidation (doublons, périmés, surchargés, orphelins). N'applique rien.
     async fn update_item(&self, _item_id: &str, _content: &str) -> Result<Value> {
         Err(anyhow!("memory_update_item unsupported by this backend"))

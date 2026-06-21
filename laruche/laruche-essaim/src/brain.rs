@@ -1189,24 +1189,32 @@ fn extraire_json_array(s: &str) -> Option<String> {
 }
 
 /// Post-curation : un appel LLM auxiliaire extrait les faits durables → mémoire.
-/// Indexe (réconcilie) le registre d'abeilles dans la carte cognitive sous `tools.abeilles.*`.
-/// Incrémental : n'écrit que les abeilles absentes. Appelé au démarrage du serveur ET au
-/// 1er tour de chat (filet), pour que toute nouvelle abeille du code remonte en mémoire.
+/// Famille de capacité d'un outil selon son origine (builtin/custom/mcp).
+fn famille_capacite(origin: &str) -> &'static str {
+    match origin {
+        "custom" => "capacities.plugins",
+        "mcp" => "capacities.mcp",
+        _ => "capacities.tools", // builtin + défaut
+    }
+}
+
+/// Indexe (réconcilie) le registre d'outils dans la carte cognitive sous `capacities.*`,
+/// routé par origine : builtin→`capacities.tools`, custom→`capacities.plugins`, mcp→`capacities.mcp`.
+/// Incrémental : n'écrit que les outils absents. Appelé au démarrage ET au 1er tour de chat
+/// (filet), pour que tout nouvel outil du code remonte en mémoire.
 pub async fn indexer_abeilles_memoire(
     registry: &AbeilleRegistry,
     memoire: &Arc<dyn MemoireCognitive>,
 ) -> Result<()> {
-    let root = memoire.read_node("tools.abeilles").await?;
-    // Réconciliation INCRÉMENTALE : on relève les abeilles déjà indexées (sous-nœuds
-    // tools.abeilles.<nom>) et on n'écrit QUE celles qui manquent. Ainsi toute nouvelle
-    // abeille ajoutée au code est indexée au prochain démarrage, sans dupliquer les
-    // existantes — y compris sur une mémoire persistante (sqlite).
+    // Réconciliation INCRÉMENTALE : ids déjà indexés sous les 3 familles d'outils.
     let mut deja: std::collections::HashSet<String> = std::collections::HashSet::new();
-    if let Some(children) = root["children"].as_array() {
-        for child in children {
-            if let Some(id) = child["id"].as_str().or_else(|| child["node_id"].as_str()) {
-                if let Some(name) = id.strip_prefix("tools.abeilles.") {
-                    deja.insert(name.to_string());
+    for parent in ["capacities.tools", "capacities.plugins", "capacities.mcp"] {
+        if let Ok(node) = memoire.read_node(parent).await {
+            if let Some(children) = node["children"].as_array() {
+                for child in children {
+                    if let Some(id) = child["id"].as_str().or_else(|| child["node_id"].as_str()) {
+                        deja.insert(id.to_string());
+                    }
                 }
             }
         }
@@ -1220,19 +1228,18 @@ pub async fn indexer_abeilles_memoire(
     let mut ajoutes = 0usize;
     for tool in tools {
         let name = tool["name"].as_str().unwrap_or("unknown");
-        if deja.contains(name) {
-            continue; // déjà indexée → pas de doublon
+        let origin = tool["origin"].as_str().unwrap_or("builtin");
+        let node_id = format!("{}.{name}", famille_capacite(origin));
+        if deja.contains(&node_id) {
+            continue; // déjà indexé → pas de doublon
         }
         let description = tool["description"].as_str().unwrap_or("");
         let content = format!(
-            "Abeille `{name}`: {description}\nSchema: {}",
+            "Outil `{name}` ({origin}): {description}\nSchema: {}",
             serde_json::to_string(tool).unwrap_or_default()
         );
         let _ = memoire
-            .write(
-                MemoryItem::new(format!("tools.abeilles.{name}"), content)
-                    .with_source("tool-registry"),
-            )
+            .write(MemoryItem::new(node_id, content).with_source("tool-registry"))
             .await;
         ajoutes += 1;
     }
@@ -1241,9 +1248,9 @@ pub async fn indexer_abeilles_memoire(
         let _ = memoire
             .write(
                 MemoryItem::new(
-                    "tools.abeilles",
+                    "capacities.tools",
                     format!(
-                        "Index Abeilles LaRuche: {} outil(s) ({ajoutes} ajoutee(s) ce demarrage).",
+                        "Index capacites LaRuche: {} outil(s) ({ajoutes} ajoute(s) ce demarrage).",
                         tools.len()
                     ),
                 )
@@ -1591,7 +1598,7 @@ async fn recuperer_abeilles_pertinentes(
     // contenu mémoire (notes, projets…) dans le classement.
     let pack = match memoire
         .search(
-            &format!("tools.abeilles {query}"),
+            &format!("capacities {query}"),
             SearchOpts {
                 depth: Some(2),
                 limit: Some(20),
@@ -1610,7 +1617,11 @@ async fn recuperer_abeilles_pertinentes(
                 .or_else(|| item.get("node"))
                 .and_then(serde_json::Value::as_str)
                 .unwrap_or("");
-            if let Some(name) = node_id.strip_prefix("tools.abeilles.") {
+            // Outils = familles capacities.tools / capacities.plugins / capacities.mcp (pas skills).
+            let name = ["capacities.tools.", "capacities.plugins.", "capacities.mcp."]
+                .iter()
+                .find_map(|p| node_id.strip_prefix(p));
+            if let Some(name) = name {
                 if !name.is_empty() && !out.iter().any(|n| n == name) {
                     out.push(name.to_string());
                     if out.len() >= limit {
@@ -1630,7 +1641,7 @@ async fn recuperer_skills_pertinents(
 ) -> Vec<(String, String)> {
     let pack = match memoire
         .search(
-            &format!("tools.skills {query}"),
+            &format!("capacities.skills {query}"),
             SearchOpts {
                 depth: Some(2),
                 limit: Some(8),
@@ -1649,7 +1660,7 @@ async fn recuperer_skills_pertinents(
                 .or_else(|| item.get("node"))
                 .and_then(serde_json::Value::as_str)
                 .unwrap_or("");
-            if !node_id.starts_with("tools.skills.") {
+            if !node_id.starts_with("capacities.skills.") {
                 continue;
             }
             let content = item
@@ -1661,7 +1672,7 @@ async fn recuperer_skills_pertinents(
                 continue;
             }
             let name = yaml_frontmatter_field(content, "name")
-                .unwrap_or_else(|| node_id.trim_start_matches("tools.skills.").to_string());
+                .unwrap_or_else(|| node_id.trim_start_matches("capacities.skills.").to_string());
             if out.iter().any(|(n, _)| n == &name) {
                 continue;
             }
@@ -1779,9 +1790,9 @@ fn skill_node_id(name: &str) -> String {
     }
     let slug = slug.trim_matches('_');
     if slug.is_empty() {
-        "tools.skills".to_string()
+        "capacities.skills".to_string()
     } else {
-        format!("tools.skills.{slug}")
+        format!("capacities.skills.{slug}")
     }
 }
 

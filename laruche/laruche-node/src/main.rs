@@ -2107,7 +2107,7 @@ async fn api_memory_tree(State(state): State<Arc<AppState>>) -> Json<serde_json:
             { "id": "people", "label": "People", "one_liner": "Personnes et preferences" },
             { "id": "projects", "label": "Projects", "one_liner": "Projets actifs" },
             { "id": "decisions", "label": "Decisions", "one_liner": "Choix durables" },
-            { "id": "tools.abeilles", "label": "Abeilles", "one_liner": "Outils et capacites" },
+            { "id": "capacities", "label": "Capacites", "one_liner": "Outils, plugins, MCP, skills" },
             { "id": "missions", "label": "Missions", "one_liner": "Recherches au long cours" },
             { "id": "sessions", "label": "Sessions", "one_liner": "Contexte conversationnel" },
             { "id": "knowledge", "label": "Knowledge", "one_liner": "Savoirs importes" }
@@ -2118,10 +2118,12 @@ async fn api_memory_tree(State(state): State<Arc<AppState>>) -> Json<serde_json:
     if let Some(arr) = nodes.as_array_mut() {
         for n in arr.iter_mut() {
             if let Some(id) = n.get("id").and_then(|v| v.as_str()) {
-                let prot = id == "tools"
+                let prot = id == "capacities"
                     || id == "system"
-                    || id.starts_with("tools.")
-                    || id.starts_with("system.");
+                    || id == "tools"
+                    || id.starts_with("capacities.")
+                    || id.starts_with("system.")
+                    || id.starts_with("tools.");
                 n["protected"] = serde_json::json!(prot);
             }
         }
@@ -7307,37 +7309,42 @@ async fn main() -> Result<()> {
         },
     ));
 
-    // Indexe le registre d'abeilles dans la carte cognitive (tools.abeilles.*) DÈS le
-    // démarrage — incrémental — pour que tout nouvel outil soit visible en mémoire et
-    // récupérable sémantiquement, sans attendre le premier message de chat.
+    // Migration `tools.* → capacities.*` (idempotente, jouée à chaque boot mais no-op après).
+    // Les skills forgés (vraies données) sont PRÉSERVÉS ; tools.abeilles (simple projection)
+    // est purgé puis recréé par l'indexeur sous capacities.tools/plugins/mcp.
+    match memoire
+        .renommer_sous_arbre("tools.skills", "capacities.skills")
+        .await
+    {
+        Ok(n) if n > 0 => tracing::info!(noeuds = n, "migration skills -> capacities.skills"),
+        Ok(_) => {}
+        Err(e) => tracing::warn!(error = %e, "migration skills ignoree (backend sans support)"),
+    }
+    let _ = memoire.supprimer_sous_arbre("tools").await; // purge la projection legacy restante
+
+    // Nœuds de la carte (fichiers .md virtuels). Créés vides si absents (idempotent).
+    // `capacities.*` = écosystème d'outils (protégé) ; `system.*` = socle prompt/SOUL éditable.
+    for (id, label, desc) in [
+        ("capacities", "Capacites", "Ecosysteme : outils, plugins, MCP, skills"),
+        ("capacities.tools", "Outils", "Abeilles natives (builtin)"),
+        ("capacities.plugins", "Plugins", "Outils custom (plugins JSON)"),
+        ("capacities.mcp", "MCP", "Outils servis par des serveurs MCP"),
+        ("capacities.skills", "Skills", "Procedures OKF apprises"),
+        ("system", "Systeme", "Configuration noyau (prompt, soul)"),
+        ("system.prompt", "System Prompt", "Socle de personnalite editable (vide = defaut code)"),
+        ("system.soul", "SOUL", "Couche de personnalisation injectable (frontmatter enabled)"),
+    ] {
+        let _ = memoire.create_node(id, label, Some(desc), Some(1.0)).await;
+    }
+
+    // Indexe le registre d'outils dans la carte (capacities.*) DÈS le démarrage — incrémental —
+    // pour que tout nouvel outil soit visible en mémoire et récupérable sémantiquement.
+    // (Les outils MCP, chargés plus bas, seront indexés au 1er tour de chat via le même appel.)
     if let Err(e) =
         laruche_essaim::brain::indexer_abeilles_memoire(&essaim_registry, &memoire).await
     {
-        tracing::warn!(error = %e, "indexation abeilles au demarrage ignoree");
+        tracing::warn!(error = %e, "indexation outils au demarrage ignoree");
     }
-
-    // Nœuds système éditables (fichiers .md virtuels) : socle de prompt + SOUL. Créés vides
-    // si absents (idempotent) pour qu'ils apparaissent sous SYSTEM dans l'UI Mémoire.
-    // Vide ⇒ l'agent utilise le prompt par défaut codé. SOUL désactivé tant qu'aucun corps.
-    let _ = memoire
-        .create_node("system", "Systeme", Some("Configuration noyau (prompt, soul)"), Some(1.0))
-        .await;
-    let _ = memoire
-        .create_node(
-            "system.prompt",
-            "System Prompt",
-            Some("Socle de personnalite editable (vide = defaut code)"),
-            Some(1.0),
-        )
-        .await;
-    let _ = memoire
-        .create_node(
-            "system.soul",
-            "SOUL",
-            Some("Couche de personnalisation injectable (frontmatter enabled)"),
-            Some(1.0),
-        )
-        .await;
 
     // Load MCP servers
     let (_count, mcp_clients) =

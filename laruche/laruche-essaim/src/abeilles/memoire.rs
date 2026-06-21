@@ -15,10 +15,12 @@ use std::sync::Arc;
 /// mais pas les MUTER : sinon « ranger sa mémoire » casserait la sélection sémantique d'outils.
 fn noeud_reserve(node_id: &str) -> bool {
     let id = node_id.trim().trim_matches('.');
-    id == "tools"
+    id == "capacities"
         || id == "system"
-        || id.starts_with("tools.")
+        || id == "tools" // legacy (avant migration capacities)
+        || id.starts_with("capacities.")
         || id.starts_with("system.")
+        || id.starts_with("tools.")
 }
 
 /// Recherche cognitive dans la mémoire.

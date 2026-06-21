@@ -155,8 +155,12 @@ pub fn enregistrer_delegation(
 
 fn skill_node_id(name: &str) -> String {
     let trimmed = name.trim();
-    if trimmed.starts_with("tools.skills.") {
+    if trimmed.starts_with("capacities.skills.") {
         return trimmed.to_string();
+    }
+    // Tolère un node_id legacy (tools.skills.*) → le remappe vers capacities.skills.*.
+    if let Some(rest) = trimmed.strip_prefix("tools.skills.") {
+        return format!("capacities.skills.{rest}");
     }
     let mut slug = trimmed
         .to_lowercase()
@@ -168,9 +172,9 @@ fn skill_node_id(name: &str) -> String {
     }
     let slug = slug.trim_matches('_');
     if slug.is_empty() {
-        "tools.skills".to_string()
+        "capacities.skills".to_string()
     } else {
-        format!("tools.skills.{slug}")
+        format!("capacities.skills.{slug}")
     }
 }
 
@@ -185,7 +189,7 @@ impl Abeille for SkillList {
     }
 
     fn description(&self) -> &str {
-        "Liste les skills OKF stockes dans la memoire cognitive sous tools.skills.*."
+        "Liste les skills OKF stockes dans la memoire cognitive sous capacities.skills.*."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -207,7 +211,7 @@ impl Abeille for SkillList {
         _ctx: &ContextExecution,
     ) -> Result<ResultatAbeille> {
         let limit = args["limit"].as_u64().unwrap_or(50) as usize;
-        let root = match self.mem.read_node("tools.skills").await {
+        let root = match self.mem.read_node("capacities.skills").await {
             Ok(root) => root,
             Err(e) => {
                 return Ok(ResultatAbeille::err(format!(
@@ -234,7 +238,7 @@ impl Abeille for SkillList {
                     let text = pack.to_prompt_text();
                     if text.trim().is_empty() {
                         Ok(ResultatAbeille::ok(
-                            "Aucun skill OKF trouve sous tools.skills.",
+                            "Aucun skill OKF trouve sous capacities.skills.",
                         ))
                     } else {
                         Ok(ResultatAbeille::ok(format!("Skills trouves:\n{text}")))
@@ -246,7 +250,7 @@ impl Abeille for SkillList {
             }
         } else {
             Ok(ResultatAbeille::ok(format!(
-                "Skills OKF sous tools.skills:\n{}",
+                "Skills OKF sous capacities.skills:\n{}",
                 lines.join("\n")
             )))
         }
@@ -264,14 +268,14 @@ impl Abeille for SkillView {
     }
 
     fn description(&self) -> &str {
-        "Lit un skill OKF par nom depuis tools.skills.<nom> et renvoie son Markdown complet."
+        "Lit un skill OKF par nom depuis capacities.skills.<nom> et renvoie son Markdown complet."
     }
 
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "name": { "type": "string", "description": "Nom du skill ou node_id tools.skills.<nom>" }
+                "name": { "type": "string", "description": "Nom du skill ou node_id capacities.skills.<nom>" }
             },
             "required": ["name"]
         })

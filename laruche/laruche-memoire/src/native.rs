@@ -493,6 +493,73 @@ impl MemoireCognitive for NativeBackend {
         Ok(overlay_meta(node_json(&id), &m))
     }
 
+    async fn renommer_sous_arbre(&self, old_prefix: &str, new_prefix: &str) -> Result<usize> {
+        let old = old_prefix.trim_matches('.');
+        let new = new_prefix.trim_matches('.');
+        if old.is_empty() || new.is_empty() {
+            return Ok(0);
+        }
+        let dot = format!("{old}.");
+        let remap = |k: &str| -> Option<String> {
+            if k == old {
+                Some(new.to_string())
+            } else {
+                k.strip_prefix(&dot).map(|rest| format!("{new}.{rest}"))
+            }
+        };
+        let mut moved = 0usize;
+        {
+            let mut store = self.store.lock().unwrap();
+            let keys: Vec<String> = store.keys().cloned().collect();
+            for k in keys {
+                if let Some(nk) = remap(&k) {
+                    if let Some(items) = store.remove(&k) {
+                        store.entry(nk).or_default().extend(items);
+                        moved += 1;
+                    }
+                }
+            }
+        }
+        {
+            let mut meta = self.meta.lock().unwrap();
+            let keys: Vec<String> = meta.keys().cloned().collect();
+            for k in keys {
+                if let Some(nk) = remap(&k) {
+                    if let Some(m) = meta.remove(&k) {
+                        meta.insert(nk, m);
+                    }
+                }
+            }
+        }
+        Ok(moved)
+    }
+
+    async fn supprimer_sous_arbre(&self, prefix: &str) -> Result<usize> {
+        let p = prefix.trim_matches('.');
+        if p.is_empty() {
+            return Ok(0);
+        }
+        let dot = format!("{p}.");
+        let matches = |k: &str| k == p || k.starts_with(&dot);
+        let mut removed = 0usize;
+        {
+            let mut store = self.store.lock().unwrap();
+            let keys: Vec<String> = store.keys().filter(|k| matches(k)).cloned().collect();
+            for k in keys {
+                store.remove(&k);
+                removed += 1;
+            }
+        }
+        {
+            let mut meta = self.meta.lock().unwrap();
+            let keys: Vec<String> = meta.keys().filter(|k| matches(k)).cloned().collect();
+            for k in keys {
+                meta.remove(&k);
+            }
+        }
+        Ok(removed)
+    }
+
     async fn health(&self) -> Result<bool> {
         Ok(true)
     }
