@@ -2939,6 +2939,71 @@ async fn api_delete_mission(
     Json(serde_json::json!({"status": if ok {"ok"} else {"not_found"}, "slug": slug}))
 }
 
+/// Orbite niveau 2 — DÉCOMPOSE une mission en tâches kanban parallèles (une par question
+/// ouverte, sinon un angle à couvrir). Le dispatcher kanban les exécute (recherche), chaque
+/// tâche écrivant ses trouvailles dans le sous-arbre de la mission. Les skills sont forgés
+/// automatiquement (background_review) à chaque tour. Réutilise tout l'existant.
+async fn decomposer_mission(
+    state: &Arc<AppState>,
+    mission: &missions::Mission,
+    max_tasks: usize,
+) -> usize {
+    let base = format!("missions.{}", mission.slug);
+    let questions = state
+        .memoire
+        .read_node(&format!("{base}.questions"))
+        .await
+        .ok()
+        .as_ref()
+        .map(items_of)
+        .unwrap_or_default();
+    let cibles: Vec<String> = if questions.is_empty() {
+        vec![format!(
+            "Couvrir l'angle clé le plus important encore non traité de l'objectif : {}",
+            mission.objective
+        )]
+    } else {
+        questions.into_iter().take(max_tasks).collect()
+    };
+    let mut board = state.kanban_board.write().await;
+    let mut n = 0;
+    for q in cibles {
+        let desc = format!(
+            "Mission « {obj} ». Traite cette question de recherche : « {q} ».\n\
+             Fais une recherche web approfondie, puis écris tes trouvailles SOURCÉES via memory_write \
+             sous le node_id `{base}.findings` (un fait = un item clair). Sois rigoureux et factuel.",
+            obj = mission.objective,
+            q = q,
+            base = base
+        );
+        let task = board.create(
+            format!("Mission {} — recherche", mission.slug),
+            desc,
+            None,
+            None,
+            None,
+        );
+        board.change_status(task.id, laruche_kanban::TaskStatus::Ready);
+        n += 1;
+        if n >= max_tasks {
+            break;
+        }
+    }
+    n
+}
+
+/// POST /api/missions/:slug/decompose — éclate la mission en tâches kanban parallèles.
+async fn api_decompose_mission(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(slug): axum::extract::Path<String>,
+) -> Json<serde_json::Value> {
+    let Some(mission) = state.missions.read().await.get(&slug) else {
+        return Json(serde_json::json!({"error": "mission introuvable"}));
+    };
+    let n = decomposer_mission(&state, &mission, 4).await;
+    Json(serde_json::json!({"status": "ok", "slug": slug, "tasks_created": n}))
+}
+
 async fn api_run_cron(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -7397,6 +7462,10 @@ async fn main() -> Result<()> {
         )
         .route("/api/missions/:slug/run", post(api_run_mission))
         .route("/api/missions/:slug/dossier", get(api_mission_dossier))
+        .route(
+            "/api/missions/:slug/decompose",
+            post(api_decompose_mission),
+        )
         .route(
             "/api/missions/:slug",
             post(api_update_mission).delete(api_delete_mission),
