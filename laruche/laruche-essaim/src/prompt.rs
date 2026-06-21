@@ -6,13 +6,27 @@
 /// 3. dynamic/custom context.
 pub fn build_system_prompt(
     tools_schema: &serde_json::Value,
+    persona_override: Option<&str>,
     custom_instructions: Option<&str>,
 ) -> String {
     let mut prompt = String::new();
-    prompt.push_str(&section_identite_stable());
-    prompt.push_str(&section_outils(tools_schema));
-    prompt.push_str(&section_planification());
-    prompt.push_str(&section_comportement());
+    match persona_override {
+        // Socle éditable (nœud `system.prompt`) : remplace l'identité/comportement codés en
+        // dur. Le PROTOCOLE machine-critique (format <tool_call>, liste d'outils, <plan>) est
+        // TOUJOURS ré-attaché ensuite — non éditable — pour ne jamais casser le tool-calling.
+        Some(o) if !o.trim().is_empty() => {
+            prompt.push_str(o.trim());
+            prompt.push_str("\n\n");
+            prompt.push_str(&section_outils(tools_schema));
+            prompt.push_str(&section_planification());
+        }
+        _ => {
+            prompt.push_str(&section_identite_stable());
+            prompt.push_str(&section_outils(tools_schema));
+            prompt.push_str(&section_planification());
+            prompt.push_str(&section_comportement());
+        }
+    }
     if let Some(instructions) = custom_instructions {
         prompt.push_str(&section_contexte_dynamique(instructions));
     }
@@ -113,7 +127,7 @@ mod tests {
     #[test]
     fn prompt_place_sections_stables_avant_outils_et_custom() {
         let tools = serde_json::json!([{"name":"file_read","description":"read","parameters":{}}]);
-        let prompt = build_system_prompt(&tools, Some("custom volatile"));
+        let prompt = build_system_prompt(&tools, None, Some("custom volatile"));
 
         let env = prompt.find("## Environnement").unwrap();
         let outils = prompt.find("## Outils disponibles").unwrap();

@@ -2057,6 +2057,19 @@ async fn api_memory_tree(State(state): State<Arc<AppState>>) -> Json<serde_json:
             { "id": "knowledge", "label": "Knowledge", "one_liner": "Savoirs importes" }
         ]);
     }
+    // Marque les nœuds gérés par le système (tools.*/system.*) : l'UI affiche un 🔒 et
+    // l'agent ne peut pas les muter (garde-fou `noeud_reserve`). L'admin peut les éditer.
+    if let Some(arr) = nodes.as_array_mut() {
+        for n in arr.iter_mut() {
+            if let Some(id) = n.get("id").and_then(|v| v.as_str()) {
+                let prot = id == "tools"
+                    || id == "system"
+                    || id.starts_with("tools.")
+                    || id.starts_with("system.");
+                n["protected"] = serde_json::json!(prot);
+            }
+        }
+    }
     Json(serde_json::json!({
         "health": health,
         "nodes": nodes,
@@ -7246,6 +7259,29 @@ async fn main() -> Result<()> {
     {
         tracing::warn!(error = %e, "indexation abeilles au demarrage ignoree");
     }
+
+    // Nœuds système éditables (fichiers .md virtuels) : socle de prompt + SOUL. Créés vides
+    // si absents (idempotent) pour qu'ils apparaissent sous SYSTEM dans l'UI Mémoire.
+    // Vide ⇒ l'agent utilise le prompt par défaut codé. SOUL désactivé tant qu'aucun corps.
+    let _ = memoire
+        .create_node("system", "Systeme", Some("Configuration noyau (prompt, soul)"), Some(1.0))
+        .await;
+    let _ = memoire
+        .create_node(
+            "system.prompt",
+            "System Prompt",
+            Some("Socle de personnalite editable (vide = defaut code)"),
+            Some(1.0),
+        )
+        .await;
+    let _ = memoire
+        .create_node(
+            "system.soul",
+            "SOUL",
+            Some("Couche de personnalisation injectable (frontmatter enabled)"),
+            Some(1.0),
+        )
+        .await;
 
     // Load MCP servers
     let (_count, mcp_clients) =

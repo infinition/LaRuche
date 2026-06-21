@@ -100,6 +100,10 @@ pub struct EssaimConfig {
     /// au lieu des ~30 schémas. `None` = comportement historique. Rempli par tour, non persisté.
     #[serde(skip)]
     pub relevant_tools: Option<Vec<String>>,
+    /// Socle de personnalité éditable (nœud `system.prompt`). Si `Some`+non vide, remplace
+    /// l'identité/comportement codés en dur (le protocole reste verrouillé). Rempli par tour.
+    #[serde(skip)]
+    pub system_prompt_override: Option<String>,
     /// Modèle auxiliaire pour les tâches de fond (curation/extraction). `None` = même modèle.
     /// Pointer un petit modèle rapide évite de concurrencer le KV-cache du chat principal.
     #[serde(default)]
@@ -148,6 +152,7 @@ impl Default for EssaimConfig {
             tool_selection_limit: default_tool_selection_limit(),
             stable_toolset: false,
             relevant_tools: None,
+            system_prompt_override: None,
             aux_model: None,
             permission_mode: default_permission_mode(),
             permission_rules: Vec::new(),
@@ -1069,6 +1074,15 @@ pub async fn boucle_react_memoire_multimodal(
         let _ = tx.send(ChatEvent::ToolsSelected { tools: injectes });
     }
     cfg.relevant_tools = Some(abeilles_pertinentes);
+
+    // Socle système éditable + SOUL : ils vivent dans la carte cognitive sous `system.*`
+    // (fichiers .md virtuels, format OKF avec frontmatter `enabled`). Chargés par tour ;
+    // si absents/désactivés → on retombe sur le prompt par défaut codé.
+    cfg.system_prompt_override = charger_doc_systeme(&memoire, "system.prompt").await;
+    if let Some(soul) = charger_doc_systeme(&memoire, "system.soul").await {
+        cfg.custom_instructions = Some(soul);
+    }
+
     // Pré-récupération → contexte ÉPHÉMÈRE trailing (PAS dans le system prompt :
     // garde le préfixe stable → cache de préfixe chaud, astuce third-party).
     let ephemeral = match memoire
@@ -1104,6 +1118,17 @@ pub async fn boucle_react_memoire_multimodal(
     // Rappel automatique des skills appris (boucle d'apprentissage) : injectés dans le
     // contexte trailing avec la mémoire, et signalés via SkillApplied.
     let ephemeral = augmenter_ephemere_avec_skills(&memoire, prompt_utilisateur, ephemeral, tx).await;
+
+    // Date/heure courante injectée dans le contexte VOLATILE (trailing) — pas dans le préfixe
+    // stable, pour ne pas invalider le prefix-cache à chaque tour. Pratique standard : sans
+    // ça le LLM ne sait pas « quel jour on est » (crons, « demain », fraîcheur des souvenirs).
+    let ephemeral = {
+        let entete = format!("[Date et heure actuelles : {}]", horodatage_local());
+        Some(match ephemeral {
+            Some(e) => format!("{entete}\n{e}"),
+            None => entete,
+        })
+    };
 
     // Snapshot du nombre d'outils déjà appelés (pour mesurer la complexité de CE tour).
     let tools_avant = compter_tool_calls(session);
@@ -1513,6 +1538,50 @@ fn outils_forces_par_intention(registry: &AbeilleRegistry, prompt: &str) -> Vec<
     forces
 }
 
+/// Horodatage local lisible pour injection dans le prompt (ex. « 21/06/2026 14:32 »).
+/// Format neutre (pas de noms de jour/mois → évite l'anglais dans un prompt FR).
+fn horodatage_local() -> String {
+    chrono::Local::now().format("%d/%m/%Y %H:%M").to_string()
+}
+
+/// Sépare le frontmatter OKF (`--- ... ---`) du corps et lit le flag `enabled`
+/// (défaut activé). Renvoie `(actif, corps)`.
+fn parser_frontmatter_enabled(content: &str) -> (bool, String) {
+    let c = content.trim_start();
+    if let Some(rest) = c.strip_prefix("---") {
+        if let Some(end) = rest.find("\n---") {
+            let fm = &rest[..end];
+            let body = &rest[end + 4..];
+            let desactive = fm.lines().any(|l| {
+                let l = l.trim().to_lowercase().replace(' ', "");
+                l == "enabled:false" || l == "active:false"
+            });
+            return (!desactive, body.trim_start_matches('\n').to_string());
+        }
+    }
+    (true, content.to_string())
+}
+
+/// Charge un document système (`system.prompt`, `system.soul`) depuis la carte cognitive :
+/// prend le dernier item du nœud, lit son frontmatter. Renvoie le corps si activé et non vide.
+async fn charger_doc_systeme(
+    memoire: &Arc<dyn MemoireCognitive>,
+    node_id: &str,
+) -> Option<String> {
+    let node = memoire.read_node(node_id).await.ok()?;
+    let items = node.get("items")?.as_array()?;
+    let content = items
+        .iter()
+        .rev()
+        .find_map(|it| it.get("content").and_then(|c| c.as_str()))?;
+    let (actif, corps) = parser_frontmatter_enabled(content);
+    if actif && !corps.trim().is_empty() {
+        Some(corps.trim().to_string())
+    } else {
+        None
+    }
+}
+
 async fn recuperer_abeilles_pertinentes(
     memoire: &Arc<dyn MemoireCognitive>,
     query: &str,
@@ -1757,7 +1826,11 @@ pub async fn boucle_react_multimodal_ext(
     session.ajouter_user_multimodal(prompt_utilisateur, attachments);
 
     let tool_schema = schema_outils_pour_prompt(registry, config, prompt_utilisateur);
-    let system_prompt = build_system_prompt(&tool_schema, config.custom_instructions.as_deref());
+    let system_prompt = build_system_prompt(
+        &tool_schema,
+        config.system_prompt_override.as_deref(),
+        config.custom_instructions.as_deref(),
+    );
 
     // Track which model we're using (for failover)
     let mut current_model = config.model.clone();
