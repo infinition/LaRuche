@@ -468,6 +468,11 @@ pub enum ChatEvent {
     /// file de revue (`GET /api/memory/proposed`).
     #[serde(rename = "skill_proposed")]
     SkillProposed { name: String },
+
+    /// Levier 2 — outils réellement injectés pour CE tour (noyau + récupérés par intention).
+    /// L'UI affiche la transparence : « N outils choisis pour ton intention » (vs ~30 avant).
+    #[serde(rename = "tools_selected")]
+    ToolsSelected { tools: Vec<String> },
     /// Aperçu du payload réellement envoyé au LLM (debug — icône 👁 dans l'UI).
     #[serde(rename = "prompt_debug")]
     PromptDebug {
@@ -1030,7 +1035,18 @@ pub async fn boucle_react_memoire_multimodal(
     }
     // Levier 2 — outils sémantiques : ne garder que le noyau + les Abeilles pertinentes pour
     // l'intention (au lieu d'injecter ~30 schémas à chaque tour). Vide pour un « Salut ».
-    cfg.relevant_tools = Some(recuperer_abeilles_pertinentes(&memoire, prompt_utilisateur, 6).await);
+    let abeilles_pertinentes = recuperer_abeilles_pertinentes(&memoire, prompt_utilisateur, 6).await;
+    {
+        // Transparence (UI) : la liste réellement injectée = noyau + récupérées.
+        let mut injectes: Vec<String> = SEMANTIC_CORE.iter().map(|s| s.to_string()).collect();
+        for t in &abeilles_pertinentes {
+            if !injectes.contains(t) {
+                injectes.push(t.clone());
+            }
+        }
+        let _ = tx.send(ChatEvent::ToolsSelected { tools: injectes });
+    }
+    cfg.relevant_tools = Some(abeilles_pertinentes);
     // Pré-récupération → contexte ÉPHÉMÈRE trailing (PAS dans le system prompt :
     // garde le préfixe stable → cache de préfixe chaud, astuce third-party).
     let ephemeral = match memoire
