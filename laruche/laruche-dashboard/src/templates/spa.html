@@ -5143,7 +5143,7 @@ LaRuche.Memory = (function(){
     if(id === 'system.prompt') return SVG.prompt;
     if(id === 'system.soul') return SVG.soul;
     if(id === 'tools' || id.indexOf('tools.') === 0) return SVG.tools;
-    return hasKids ? SVG.folder : SVG.file;
+    return hasKids ? '<span style="color:var(--amber)">'+SVG.folder+'</span>' : SVG.file;
   }
 
   // Ordre racine : SYSTEM puis tools en premier, le reste alphabetique.
