@@ -7238,6 +7238,15 @@ async fn main() -> Result<()> {
         },
     ));
 
+    // Indexe le registre d'abeilles dans la carte cognitive (tools.abeilles.*) DÈS le
+    // démarrage — incrémental — pour que tout nouvel outil soit visible en mémoire et
+    // récupérable sémantiquement, sans attendre le premier message de chat.
+    if let Err(e) =
+        laruche_essaim::brain::indexer_abeilles_memoire(&essaim_registry, &memoire).await
+    {
+        tracing::warn!(error = %e, "indexation abeilles au demarrage ignoree");
+    }
+
     // Load MCP servers
     let (_count, mcp_clients) =
         charger_mcp_servers(std::path::Path::new("mcp_servers.json"), &essaim_registry).await;

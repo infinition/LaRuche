@@ -1156,7 +1156,10 @@ fn extraire_json_array(s: &str) -> Option<String> {
 }
 
 /// Post-curation : un appel LLM auxiliaire extrait les faits durables → mémoire.
-async fn indexer_abeilles_memoire(
+/// Indexe (réconcilie) le registre d'abeilles dans la carte cognitive sous `tools.abeilles.*`.
+/// Incrémental : n'écrit que les abeilles absentes. Appelé au démarrage du serveur ET au
+/// 1er tour de chat (filet), pour que toute nouvelle abeille du code remonte en mémoire.
+pub async fn indexer_abeilles_memoire(
     registry: &AbeilleRegistry,
     memoire: &Arc<dyn MemoireCognitive>,
 ) -> Result<()> {
