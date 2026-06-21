@@ -843,6 +843,9 @@ pre:hover .code-copy-btn { opacity:1; }
 .log-body::-webkit-scrollbar { width:3px; }
 .log-body::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
 .log-row { display:flex; gap:6px; padding:2px 0; border-bottom:1px solid rgba(63,63,70,.2); align-items:baseline; }
+.log-body.hide-agent-chat .log-row[data-tag="agent"] .log-msg { color: transparent !important; user-select: none; position: relative; }
+.log-body.hide-agent-chat .log-row[data-tag="agent"] .log-msg * { color: transparent !important; }
+.log-body.hide-agent-chat .log-row[data-tag="agent"] .log-msg::before { content: '****'; color: var(--text-dim); position: absolute; left: 0; }
 .log-t { color:var(--text-dim); min-width:62px; flex-shrink:0; font-size:9px; }
 .log-tag { min-width:44px; font-weight:600; flex-shrink:0; }
 .log-ok { color:var(--green); } .log-info { color:var(--blue); } .log-warn { color:var(--amber); } .log-err { color:var(--red); }
@@ -1590,11 +1593,12 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
       </div>
       <div class="dash-bottom">
         <div class="log-strip">
-          <div class="panel-hdr">
+          <div class="panel-hdr" style="justify-content:flex-start; align-items:center; display:flex; gap:8px;">
             <span class="panel-title">&#x1F6E1; Audit</span>
             <span class="panel-badge" id="log-badge" style="background:var(--blue-dim);color:var(--blue);border:1px solid rgba(59,130,246,.3)">0</span>
+            <button id="toggleAgentChatBtn" onclick="window.lrToggleAgentChat()" style="margin-left:auto; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:2px 8px; font-size:10px; cursor:pointer;" title="Afficher/Masquer le contenu des chats">Afficher Chats</button>
           </div>
-          <div class="log-body" id="log-body"><div id="log"></div></div>
+          <div class="log-body hide-agent-chat" id="log-body"><div id="log"></div></div>
         </div>
         <div class="console-panel" style="flex:1; display:flex; flex-direction:column; background:var(--bg-panel); border:1px solid var(--border); border-radius:8px; overflow:hidden">
           <div class="panel-hdr">
@@ -4245,6 +4249,7 @@ LaRuche.Dashboard = (function(){
     if(serverTs){try{ts=LaRuche.Utils.fmtTime(new Date(serverTs));}catch(e){ts=LaRuche.Utils.fmtTime(new Date());}}
     else ts=LaRuche.Utils.fmtTime(new Date());
     var row=document.createElement('div');row.className='log-row';
+    row.setAttribute('data-tag', (tag || '').toLowerCase());
     if(detail&&detail.full_prompt){var id=++inferDetailCounter;inferDetailMap.set(id,detail);row.setAttribute('data-infer-id',id);}
     row.innerHTML='<span class="log-t">'+ts+'</span><span class="log-tag '+cls+'">'+esc(tag)+'</span><span class="log-msg">'+highlightMsg(msg)+'</span>';
     log.appendChild(row);
@@ -6611,6 +6616,23 @@ LaRuche.Router.register('login', LaRuche.Auth);
   }
   animate();
 })();
+
+  window.lrToggleAgentChat = function() {
+    var logBody = document.getElementById('log-body');
+    var btn = document.getElementById('toggleAgentChatBtn');
+    if(!logBody || !btn) return;
+    if(logBody.classList.contains('hide-agent-chat')) {
+      logBody.classList.remove('hide-agent-chat');
+      btn.textContent = 'Masquer Chats';
+      btn.style.color = 'var(--text)';
+      btn.style.background = 'rgba(255,255,255,0.05)';
+    } else {
+      logBody.classList.add('hide-agent-chat');
+      btn.textContent = 'Afficher Chats';
+      btn.style.color = 'var(--text-dim)';
+      btn.style.background = 'none';
+    }
+  };
 
 /* ── Boot ── */
 (function(){
