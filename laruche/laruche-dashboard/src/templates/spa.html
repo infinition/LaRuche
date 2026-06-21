@@ -6904,10 +6904,16 @@ LaRuche.Capabilities = (function(){
     return '<span style="font-size:9px;border:1px solid '+color+';color:'+color+';padding:2px 6px;border-radius:8px;white-space:nowrap">'+LaRuche.Utils.esc(txt)+'</span>';
   }
 
-  function rowActions(r){
+  function viewRaw(i){
+    var rows = window._capRows || [];
+    var r = rows[i]; if(!r) return;
+    LaRuche.Utils.openMediaModal('text', JSON.stringify(r.raw, null, 2));
+  }
+
+  function rowActions(r, i){
     if(r.family==='abeille'){
       var tog = '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:'+(r.enabled?'var(--green)':'var(--red)')+'"><input type="checkbox" '+(r.enabled?'checked':'')+' onchange="LaRuche.Settings.toggleTool(\''+LaRuche.Utils.esc(r.name)+'\',this.checked);setTimeout(LaRuche.Capabilities.refresh,300)">'+(r.enabled?'ON':'OFF')+'</label>';
-      var view = '<button class="tl-btn" onclick="LaRuche.Utils.openMediaModal(\'text\', JSON.stringify('+JSON.stringify(r.raw).replace(/'/g,"\\'")+', null, 2))">Voir</button>';
+      var view = '<button class="tl-btn" onclick="LaRuche.Capabilities.viewRaw('+i+')">Voir</button>';
       var del = r.immutable ? '' : '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(\'Supprimer '+LaRuche.Utils.esc(r.name)+' ?\')){fetch(\'/api/tools/\'+encodeURIComponent(\''+LaRuche.Utils.esc(r.name)+'\'),{method:\'DELETE\'}).then(LaRuche.Capabilities.refresh)}">Suppr</button>';
       return tog+' '+view+' '+del;
     }
@@ -6930,6 +6936,7 @@ LaRuche.Capabilities = (function(){
     ensureSwitchStyle();
     var rows = await gather();
     var filtered = (currentFamily==='all') ? rows : rows.filter(function(r){ return r.family===currentFamily; });
+    window._capRows = filtered;
 
     var counts = {all:rows.length, abeille:0, skill:0, mcp:0, plugin:0};
     rows.forEach(function(r){ counts[r.family] = (counts[r.family]||0)+1; });
@@ -6955,7 +6962,7 @@ LaRuche.Capabilities = (function(){
         return '<th style="text-align:left;padding:8px;color:var(--text-dim);border-bottom:1px solid var(--border);font-weight:600">'+h+'</th>';
       }).join('')+'</tr></thead>';
 
-    var body = filtered.map(function(r){
+    var body = filtered.map(function(r, i){
       var typeColor = ({abeille:'var(--amber)',skill:'var(--cyan)',mcp:'var(--purple)',plugin:'var(--green)'})[r.family]||'var(--text-dim)';
       var originColor = (r.origin==='natif')?'var(--text-dim)':'var(--purple)';
       var statut = r.enabled
@@ -6967,7 +6974,7 @@ LaRuche.Capabilities = (function(){
         '<td style="padding:8px">'+badge(r.origin, originColor)+'</td>'+
         '<td style="padding:8px;color:var(--text-dim);font-size:11px;max-width:360px">'+LaRuche.Utils.esc((r.desc||'').substring(0,200))+'</td>'+
         '<td style="padding:8px">'+statut+'</td>'+
-        '<td style="padding:8px;white-space:nowrap">'+rowActions(r)+'</td>'+
+        '<td style="padding:8px;white-space:nowrap">'+rowActions(r, i)+'</td>'+
         '</tr>';
     }).join('');
 
@@ -7003,7 +7010,7 @@ LaRuche.Capabilities = (function(){
     document.head.appendChild(st);
   }
 
-  return { init:init, enter:enter, leave:leave, refresh:refresh, addMcp:addMcp };
+  return { init:init, enter:enter, leave:leave, refresh:refresh, addMcp:addMcp, viewRaw:viewRaw };
 })();
 
 /* ── Register all page modules ── */
