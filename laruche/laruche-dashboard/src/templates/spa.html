@@ -1049,6 +1049,42 @@ pre:hover .code-copy-btn { opacity:1; }
 .mem2-wikilink:hover { background:var(--amber-glow); border-color:var(--amber); }
 .mem2-wikilink.dead { color:var(--text-muted); border-color:var(--border); background:var(--bg-input); }
 
+/* ============================== */
+/* MISSIONS (La Reine)            */
+/* ============================== */
+.mis-layout { flex:1; display:grid; grid-template-columns:340px minmax(0,1fr); overflow:hidden; background:var(--bg); }
+.mis-side { border-right:1px solid var(--border); background:var(--bg-panel); display:flex; flex-direction:column; min-width:0; }
+.mis-side-hdr { padding:10px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; }
+.mis-side-hdr .mis-title { font-size:12px; font-weight:700; color:var(--amber); flex:1; }
+.mis-create { padding:10px 12px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:7px; }
+.mis-create textarea { width:100%; min-height:58px; background:var(--bg-input); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:8px; font-family:var(--font); font-size:12px; resize:vertical; outline:none; }
+.mis-create textarea:focus, .mis-create input:focus { border-color:var(--amber); }
+.mis-create input { width:100%; background:var(--bg-input); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:6px 8px; font-family:var(--mono); font-size:11px; outline:none; }
+.mis-list { flex:1; overflow:auto; padding:8px; display:flex; flex-direction:column; gap:8px; }
+.mis-card { border:1px solid var(--border); border-radius:8px; background:var(--bg-card); padding:10px; cursor:pointer; transition:border-color var(--transition-fast); }
+.mis-card:hover { border-color:var(--amber); }
+.mis-card.active { border-color:var(--amber); background:var(--amber-glow); }
+.mis-card-obj { font-size:12.5px; font-weight:600; color:var(--text); line-height:1.35; margin-bottom:6px; word-break:break-word; }
+.mis-card-meta { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:10px; color:var(--text-muted); font-family:var(--mono); }
+.mis-badge { border-radius:8px; padding:1px 7px; font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; }
+.mis-badge.active { background:rgba(34,197,94,.14); color:var(--green); border:1px solid rgba(34,197,94,.3); }
+.mis-badge.paused { background:rgba(245,158,11,.14); color:var(--amber); border:1px solid rgba(245,158,11,.3); }
+.mis-badge.done { background:rgba(120,120,130,.18); color:var(--text-dim); border:1px solid var(--border); }
+.mis-card-acts { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+.mis-act { border:1px solid var(--border); border-radius:5px; background:var(--bg-input); color:var(--text-dim); padding:3px 9px; font-size:10px; cursor:pointer; }
+.mis-act:hover { border-color:var(--amber); color:var(--amber); }
+.mis-act.danger:hover { border-color:var(--red); color:var(--red); background:rgba(239,68,68,.12); }
+.mis-act.run { border-color:rgba(245,158,11,.4); color:var(--amber); }
+.mis-main { display:flex; flex-direction:column; min-width:0; background:var(--bg); overflow:auto; }
+.mis-dossier-bar { height:46px; flex-shrink:0; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; padding:0 16px; position:sticky; top:0; background:var(--bg); z-index:2; }
+.mis-dossier-title { font-size:13px; font-weight:600; color:var(--text); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mis-dossier-body { max-width:860px; margin:0 auto; padding:22px 30px 80px; width:100%; }
+
+@media (max-width:900px) {
+  .mis-layout { grid-template-columns:1fr; grid-template-rows:minmax(220px,42vh) minmax(280px,1fr); overflow:auto; }
+  .mis-side { border-right:0; border-bottom:1px solid var(--border); }
+}
+
 @media (max-width: 900px) {
   .memory-layout { grid-template-columns:1fr; grid-template-rows:auto minmax(280px,1fr) minmax(220px,35vh); overflow:auto; }
   .memory-side, .memory-detail { border:0; border-bottom:1px solid var(--border); min-height:220px; }
@@ -1332,6 +1368,7 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
     <a href="#dashboard" data-page="dashboard">Dashboard</a>
     <a href="#sessions" data-page="sessions">Sessions</a>
     <a href="#memory" data-page="memory">Memoire</a>
+    <a href="#missions" data-page="missions">Missions</a>
     <a href="#skills" data-page="skills">Skills</a>
     <a href="#settings" data-page="settings">Settings</a>
   </div>
@@ -1668,6 +1705,28 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
     </div>
   </div>
 
+  <!-- ====== MISSIONS PAGE (La Reine) ====== -->
+  <div class="page" id="page-missions">
+    <div class="mis-layout">
+      <div class="mis-side">
+        <div class="mis-side-hdr">
+          <span class="mis-title">&#x1F451; La Reine</span>
+          <button class="mem2-tbtn" onclick="LaRuche.Missions.refresh()" title="Rafraichir">&#x21BB;</button>
+        </div>
+        <div class="mis-create">
+          <textarea id="misObjective" placeholder="Objectif de la mission de recherche..."></textarea>
+          <input id="misCadence" type="text" placeholder="Cadence cron (optionnel) ex: 0 9 * * 1" spellcheck="false">
+          <input id="misSlug" type="text" placeholder="Slug (optionnel)" spellcheck="false">
+          <button class="mem2-btn-primary" onclick="LaRuche.Missions.create()">Creer la mission</button>
+        </div>
+        <div class="mis-list" id="misList"><div class="mem2-empty">Chargement...</div></div>
+      </div>
+      <div class="mis-main" id="misMain">
+        <div class="mem2-empty">Selectionnez une mission pour voir son dossier, ou creez-en une.</div>
+      </div>
+    </div>
+  </div>
+
   <!-- ====== SETTINGS PAGE ====== -->
   <div class="page" id="page-settings">
     <div class="settings-page-layout">
@@ -1770,6 +1829,7 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   <a href="#dashboard" data-page="dashboard"><span class="tab-icon">&#x1F4CA;</span>Dash</a>
   <a href="#sessions" data-page="sessions"><span class="tab-icon">&#x1F4C2;</span>Sessions</a>
   <a href="#memory" data-page="memory"><span class="tab-icon">&#x2B22;</span>Memoire</a>
+  <a href="#missions" data-page="missions"><span class="tab-icon">&#x1F451;</span>Reine</a>
   <a href="#skills" data-page="skills"><span class="tab-icon">&#x1F9E0;</span>Skills</a>
   <a href="#settings" data-page="settings"><span class="tab-icon">&#x2699;</span>Config</a>
 </div>
@@ -2325,7 +2385,7 @@ LaRuche.Auth = (function(){
 /* ── Router ────────────────────────────────────────────────────── */
 LaRuche.Router = (function(){
   var currentPage = null;
-  var pages = ['chat','dashboard','sessions','memory','skills','settings','console','login'];
+  var pages = ['chat','dashboard','sessions','memory','missions','skills','settings','console','login'];
   var modules = {};
 
   function go(page) {
@@ -5288,6 +5348,167 @@ LaRuche.Memory = (function(){
   };
 })();
 
+/* --- Missions Page Module (La Reine : recherche au long cours) ----------- */
+LaRuche.Missions = (function(){
+  var list = [];
+  var current = null; // slug du dossier affiche
+  var loaded = false;
+
+  function esc(t){ return LaRuche.Utils.esc(t); }
+
+  function init() {}
+  function enter() { if(!loaded) refresh(); }
+  function leave() {}
+
+  function refresh() {
+    fetch(LaRuche.API.base+'/api/missions').then(function(r){return r.json();}).then(function(data){
+      loaded = true;
+      list = Array.isArray(data) ? data : (data.missions || []);
+      renderList();
+    }).catch(function(e){
+      var el = document.getElementById('misList');
+      if(el) el.innerHTML = '<div class="mem2-empty">Missions indisponibles</div>';
+      LaRuche.Toast.show('Missions indisponibles: '+e, 'err');
+    });
+  }
+
+  function fmtDate(s) {
+    if(!s) return 'jamais';
+    try { var d = new Date(s); if(isNaN(d)) return s; return d.toLocaleString(); } catch(e){ return s; }
+  }
+
+  function renderList() {
+    var el = document.getElementById('misList'); if(!el) return;
+    if(!list.length){ el.innerHTML = '<div class="mem2-empty">Aucune mission. Creez-en une.</div>'; return; }
+    el.innerHTML = list.map(function(m){
+      var status = m.status || 'active';
+      var cad = m.cadence ? ('<span title="cadence cron">&#x23F1; '+esc(m.cadence)+'</span>') : '<span>manuel</span>';
+      return '<div class="mis-card'+(current===m.slug?' active':'')+'" data-slug="'+esc(m.slug)+'">'+
+        '<div class="mis-card-obj">'+esc(m.objective || m.slug)+'</div>'+
+        '<div class="mis-card-meta">'+
+          '<span class="mis-badge '+esc(status)+'">'+esc(status)+'</span>'+
+          '<span>&#x21BB; '+(m.iterations!=null?m.iterations:0)+' iter.</span>'+
+          cad+
+          '<span>derniere: '+esc(fmtDate(m.last_run))+'</span>'+
+        '</div>'+
+        '<div class="mis-card-acts">'+
+          '<button class="mis-act run" data-act="run" data-slug="'+esc(m.slug)+'">Lancer une iteration</button>'+
+          '<button class="mis-act" data-act="dossier" data-slug="'+esc(m.slug)+'">Dossier</button>'+
+          (status==='active'
+            ? '<button class="mis-act" data-act="pause" data-slug="'+esc(m.slug)+'">Pause</button>'
+            : '<button class="mis-act" data-act="resume" data-slug="'+esc(m.slug)+'">Reprendre</button>')+
+          '<button class="mis-act" data-act="done" data-slug="'+esc(m.slug)+'">Terminer</button>'+
+          '<button class="mis-act danger" data-act="delete" data-slug="'+esc(m.slug)+'">Suppr</button>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+    el.querySelectorAll('.mis-card').forEach(function(card){
+      card.onclick = function(e){ if(e.target.closest('[data-act]')) return; openDossier(card.dataset.slug); };
+    });
+    el.querySelectorAll('[data-act]').forEach(function(b){
+      b.onclick = function(e){
+        e.stopPropagation();
+        var act=b.dataset.act, slug=b.dataset.slug;
+        if(act==='run') runMission(slug);
+        else if(act==='dossier') openDossier(slug);
+        else if(act==='pause') setStatus(slug,'paused');
+        else if(act==='resume') setStatus(slug,'active');
+        else if(act==='done') setStatus(slug,'done');
+        else if(act==='delete') deleteMission(slug);
+      };
+    });
+  }
+
+  function create() {
+    var objective = (document.getElementById('misObjective').value || '').trim();
+    var cadence = (document.getElementById('misCadence').value || '').trim();
+    var slug = (document.getElementById('misSlug').value || '').trim();
+    if(!objective){ LaRuche.Toast.show('Objectif requis','warn'); return; }
+    var body = { objective:objective };
+    if(cadence) body.cadence = cadence;
+    if(slug) body.slug = slug;
+    fetch(LaRuche.API.base+'/api/missions', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
+        LaRuche.Toast.show('Mission creee: '+(d.slug||''),'ok');
+        document.getElementById('misObjective').value='';
+        document.getElementById('misCadence').value='';
+        document.getElementById('misSlug').value='';
+        refresh();
+      }).catch(function(e){ LaRuche.Toast.show('Creation: '+e,'err'); });
+  }
+
+  function runMission(slug) {
+    fetch(LaRuche.API.base+'/api/missions/'+encodeURIComponent(slug)+'/run', {method:'POST'})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
+        LaRuche.Toast.show('Iteration '+(d.iteration!=null?'#'+d.iteration+' ':'')+'lancee (en arriere-plan)','ok');
+        setTimeout(refresh, 1200);
+      }).catch(function(e){ LaRuche.Toast.show('Run: '+e,'err'); });
+  }
+
+  function setStatus(slug, status) {
+    fetch(LaRuche.API.base+'/api/missions/'+encodeURIComponent(slug), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:status})})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
+        LaRuche.Toast.show('Statut: '+status,'ok');
+        refresh();
+      }).catch(function(e){ LaRuche.Toast.show('Statut: '+e,'err'); });
+  }
+
+  function deleteMission(slug) {
+    if(!window.confirm('Supprimer la mission "'+slug+'" ? (le savoir reste en memoire)')) return;
+    fetch(LaRuche.API.base+'/api/missions/'+encodeURIComponent(slug), {method:'DELETE'})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d && d.error){ LaRuche.Toast.show(d.error,'err'); return; }
+        LaRuche.Toast.show('Mission supprimee','ok');
+        if(current===slug){ current=null; renderMainEmpty(); }
+        refresh();
+      }).catch(function(e){ LaRuche.Toast.show('Suppression: '+e,'err'); });
+  }
+
+  function renderMainEmpty() {
+    var main = document.getElementById('misMain'); if(!main) return;
+    main.innerHTML = '<div class="mem2-empty">Selectionnez une mission pour voir son dossier, ou creez-en une.</div>';
+  }
+
+  /* ---- B2 : vue Dossier (markdown) ---- */
+  function openDossier(slug) {
+    current = slug;
+    renderList();
+    var main = document.getElementById('misMain'); if(!main) return;
+    main.innerHTML = '<div class="mem2-empty">Chargement du dossier...</div>';
+    fetch(LaRuche.API.base+'/api/missions/'+encodeURIComponent(slug)+'/dossier').then(function(r){return r.json();}).then(function(d){
+      if(d.error){ main.innerHTML = '<div class="mem2-empty">'+esc(d.error)+'</div>'; return; }
+      var md = d.markdown || '';
+      main.innerHTML =
+        '<div class="mis-dossier-bar">'+
+          '<span class="mis-dossier-title">Dossier &middot; '+esc(d.objective || slug)+'</span>'+
+          '<button class="mem2-tbtn" id="misExportBtn">Exporter</button>'+
+        '</div>'+
+        '<div class="mis-dossier-body mem2-md" id="misDossierMd"></div>';
+      var body = document.getElementById('misDossierMd');
+      body.innerHTML = LaRuche.MD.render(md);
+      LaRuche.MD.wireWikilinks(body, function(node){ LaRuche.Router.go('memory'); setTimeout(function(){ LaRuche.Memory.loadNode(node); }, 60); });
+      document.getElementById('misExportBtn').onclick = function(){ exportDossier(slug, md); };
+    }).catch(function(e){ main.innerHTML = '<div class="mem2-empty">Erreur: '+esc(e)+'</div>'; });
+  }
+
+  function exportDossier(slug, md) {
+    try {
+      var blob = new Blob([md], {type:'text/markdown;charset=utf-8'});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = 'dossier-'+slug+'.md';
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+      LaRuche.Toast.show('Dossier exporte','ok');
+    } catch(e){ LaRuche.Toast.show('Export: '+e,'err'); }
+  }
+
+  return { init:init, enter:enter, leave:leave, refresh:refresh, create:create };
+})();
+
 
 LaRuche.Settings = (function(){
   var currentTab = 'general';
@@ -6599,6 +6820,7 @@ LaRuche.Router.register('chat', LaRuche.Chat);
 LaRuche.Router.register('dashboard', LaRuche.Dashboard);
 LaRuche.Router.register('sessions', LaRuche.SessionsPage);
 LaRuche.Router.register('memory', LaRuche.Memory);
+LaRuche.Router.register('missions', LaRuche.Missions);
 LaRuche.Router.register('settings', LaRuche.Settings);
 LaRuche.Router.register('login', LaRuche.Auth);
 
