@@ -125,6 +125,8 @@ pub fn enregistrer_memoire(
     registry.enregistrer(Box::new(memoire::MemoireListProposed { mem: mem.clone() }));
     registry.enregistrer(Box::new(memoire::MemoireStats { mem: mem.clone() }));
     registry.enregistrer(Box::new(memoire::MemoireMutations { mem: mem.clone() }));
+    registry.enregistrer(Box::new(memoire::MemoireTree { mem: mem.clone() }));
+    registry.enregistrer(Box::new(memoire::MemoireDeleteNode { mem: mem.clone() }));
     registry.enregistrer(Box::new(SkillList { mem: mem.clone() }));
     registry.enregistrer(Box::new(SkillView { mem: mem.clone() }));
     registry.enregistrer(Box::new(memoire::MemoireSuggestNodes { mem }));

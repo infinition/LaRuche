@@ -1108,6 +1108,30 @@ pre:hover .code-copy-btn { opacity:1; }
 .settings-tab-btn:hover { color:var(--text); }
 .settings-tab-btn.active { color:var(--amber); border-bottom-color:var(--amber); }
 .settings-content { flex:1; overflow-y:auto; padding:16px; }
+
+/* ── Historique overlay (Chat absorbe Sessions) ── */
+.history-overlay { position:fixed; inset:0; background:rgba(0,0,0,.6); backdrop-filter:blur(2px); z-index:10000; display:none; align-items:flex-start; justify-content:center; padding:60px 16px; }
+.history-overlay.open { display:flex; animation:fadeIn .15s ease; }
+.history-panel { width:640px; max-width:96vw; max-height:80vh; background:var(--bg-panel,#16161a); border:1px solid var(--amber); border-radius:12px; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 12px 40px rgba(0,0,0,.5); }
+.history-head { display:flex; justify-content:space-between; align-items:center; padding:12px 16px; border-bottom:1px solid var(--border); }
+.history-title { font-weight:600; color:var(--amber); font-size:14px; }
+.history-close { background:none; border:none; color:var(--text-dim); font-size:22px; line-height:1; cursor:pointer; }
+.history-close:hover { color:var(--red); }
+.history-search { padding:10px 16px; border-bottom:1px solid var(--border); }
+.history-search input { width:100%; background:var(--bg-lighter,#1e1e22); border:1px solid var(--border); border-radius:8px; padding:8px 12px; color:var(--text); font-family:var(--font); font-size:13px; }
+.history-search input:focus { outline:none; border-color:var(--amber); }
+.history-list { flex:1; overflow-y:auto; padding:8px 12px 14px; }
+.history-item { display:flex; align-items:center; gap:10px; padding:10px; border:1px solid var(--border); border-radius:8px; margin-bottom:8px; transition:border-color var(--transition-fast); }
+.history-item:hover { border-color:var(--amber-dim,rgba(255,191,58,.4)); }
+.history-item .hi-main { flex:1; min-width:0; cursor:pointer; }
+.history-item .hi-title { font-weight:600; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.history-item .hi-meta { font-size:11px; color:var(--text-dim); margin-top:2px; }
+.history-item .hi-actions { display:flex; gap:6px; flex:0 0 auto; }
+.history-item .hi-btn { background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:6px; padding:3px 9px; font-size:10px; cursor:pointer; }
+.history-item .hi-btn:hover { border-color:var(--amber); color:var(--amber); }
+.history-item .hi-btn.del { }
+.history-item .hi-btn.del:hover { border-color:var(--red); color:var(--red); }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
 .settings-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:12px; }
 .settings-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:14px; }
 .settings-card-title { font-size:12px; font-weight:600; color:var(--amber); margin-bottom:8px; }
@@ -1476,9 +1500,12 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
           <button class="feed-jump" id="feedJump" type="button" onclick="window.lrFeedJump()" aria-label="Afficher les nouvelles activités">↓ <span>nouvelles activités</span></button>
         </div>
         <div class="sessions-list-sidebar" id="sessionsSidebarSection">
-          <div class="sidebar-header" style="display:flex; justify-content:space-between; align-items:center;">
-            <span>Sessions</span>
-            <button onclick="LaRuche.Chat.newSession()" title="Nouvelle conversation" style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:18px; line-height:1; transition:color 0.2s;" onmouseover="this.style.color='var(--amber)'" onmouseout="this.style.color='var(--text-dim)'">+</button>
+          <div class="sidebar-header" style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+            <span>Conversations</span>
+            <span style="display:flex; gap:6px; align-items:center;">
+              <button onclick="LaRuche.Chat.openHistory()" title="Historique &amp; recherche" style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:15px; line-height:1; transition:color 0.2s;" onmouseover="this.style.color='var(--amber)'" onmouseout="this.style.color='var(--text-dim)'">&#x1F551;</button>
+              <button onclick="LaRuche.Chat.newSession()" title="Nouvelle conversation" style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:18px; line-height:1; transition:color 0.2s;" onmouseover="this.style.color='var(--amber)'" onmouseout="this.style.color='var(--text-dim)'">+</button>
+            </span>
           </div>
           <div id="sessionsSidebarList"></div>
         </div>
@@ -1838,6 +1865,22 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   <a href="#settings" data-page="settings"><span class="tab-icon">&#x2699;</span>Settings</a>
 </div>
 
+
+<!-- ============================== -->
+<!-- HISTORIQUE OVERLAY (Chat)      -->
+<!-- ============================== -->
+<div class="history-overlay" id="historyOverlay" onclick="if(event.target===this)LaRuche.Chat.closeHistory()">
+  <div class="history-panel">
+    <div class="history-head">
+      <span class="history-title">&#x1F551; Historique des conversations</span>
+      <button class="history-close" onclick="LaRuche.Chat.closeHistory()" title="Fermer">&times;</button>
+    </div>
+    <div class="history-search">
+      <input type="text" id="historySearch" placeholder="Rechercher une conversation..." spellcheck="false" oninput="LaRuche.Chat.searchHistory(this.value)">
+    </div>
+    <div class="history-list" id="historyList"></div>
+  </div>
+</div>
 
 <!-- TOAST CONTAINER -->
 <div class="toast-container" id="toasts"></div>
@@ -3819,7 +3862,99 @@ LaRuche.Chat = (function(){
   function deleteSession(id) {
     fetch('/api/sessions/'+id,{method:'DELETE'}).then(function(){
       if(id===sessionId) newSession(); else loadSessions();
+      refreshHistoryOverlay();
     });
+  }
+
+  /* ── Historique overlay (absorbe l'ancien onglet Sessions) ── */
+  var _historySessions = [];
+  function openHistory(){
+    var ov = document.getElementById('historyOverlay');
+    if(!ov) return;
+    ov.classList.add('open');
+    var search = document.getElementById('historySearch');
+    if(search) search.value = '';
+    loadHistory();
+  }
+  function closeHistory(){
+    var ov = document.getElementById('historyOverlay');
+    if(ov) ov.classList.remove('open');
+  }
+  function isHistoryOpen(){
+    var ov = document.getElementById('historyOverlay');
+    return !!(ov && ov.classList.contains('open'));
+  }
+  function refreshHistoryOverlay(){ if(isHistoryOpen()) loadHistory(); }
+  function loadHistory(){
+    fetch('/api/sessions').then(function(r){return r.json();}).then(function(sessions){
+      _historySessions = (sessions||[]).slice();
+      _historySessions.sort(function(a,b){return new Date(b.updated_at)-new Date(a.updated_at);});
+      renderHistory(_historySessions);
+    }).catch(function(){ renderHistory([]); });
+  }
+  function searchHistory(q){
+    q = (q||'').toLowerCase().trim();
+    if(!q){ renderHistory(_historySessions); return; }
+    fetch('/api/sessions/search?q='+encodeURIComponent(q)).then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(results){ renderHistory(results); })
+      .catch(function(){
+        renderHistory(_historySessions.filter(function(s){ return (s.title||'').toLowerCase().indexOf(q)!==-1; }));
+      });
+  }
+  function renderHistory(sessions){
+    var list = document.getElementById('historyList');
+    if(!list) return;
+    if(!sessions || !sessions.length){ list.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:30px">Aucune conversation.</div>'; return; }
+    list.innerHTML='';
+    sessions.forEach(function(s){
+      var cleanTitle = (s.title||'').split(/\[SYSTEM\]/i)[0].trim() || 'Sans titre';
+      var updated = s.updated_at ? new Date(s.updated_at).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}) : '-';
+      var item = document.createElement('div');
+      item.className = 'history-item';
+      item.innerHTML =
+        '<div class="hi-main">'+
+          '<div class="hi-title">'+LaRuche.Utils.esc(cleanTitle)+'</div>'+
+          '<div class="hi-meta">MAJ : '+updated+(s.messages?(' · '+s.messages+' msg'):'')+'</div>'+
+        '</div>'+
+        '<div class="hi-actions">'+
+          '<button class="hi-btn open">Ouvrir</button>'+
+          '<button class="hi-btn export">Exporter</button>'+
+          '<button class="hi-btn del">Supprimer</button>'+
+        '</div>';
+      item.querySelector('.hi-main').onclick = function(){ closeHistory(); switchSession(s.id); };
+      item.querySelector('.open').onclick = function(){ closeHistory(); switchSession(s.id); };
+      item.querySelector('.export').onclick = function(){ exportSessionMd(s.id, cleanTitle); };
+      item.querySelector('.del').onclick = function(){ if(confirm('Supprimer « '+cleanTitle+' » ?')) deleteSession(s.id); };
+      list.appendChild(item);
+    });
+  }
+  // Export client-side d'une conversation en .md depuis ses messages charges.
+  function exportSessionMd(id, title){
+    fetch('/api/sessions/'+id+'/messages').then(function(r){ return r.ok?r.json():null; }).then(function(data){
+      var msgs = (data && data.messages) ? data.messages : [];
+      var lines = ['# '+(title||'Conversation '+id), ''];
+      msgs.forEach(function(m){
+        var who = m.role==='user' ? '## 🧑 Utilisateur'
+                : m.role==='assistant' ? '## 🐝 LaRuche'
+                : m.role==='tool' ? '### 🔧 Outil ('+(m.tool||'?')+')'
+                : m.role==='tool_call' ? '### ➡️ Appel outil ('+(m.tool||'?')+')'
+                : m.role==='thought' ? '### 💭 Réflexion'
+                : null;
+        if(!who) return;
+        var txt = (m.text||'').trim();
+        if(m.role==='tool_call' && m.args){ try{ txt = '```json\n'+JSON.stringify(m.args,null,2)+'\n```'; }catch(e){} }
+        if(!txt) return;
+        lines.push(who, '', txt, '');
+      });
+      var blob = new Blob([lines.join('\n')], {type:'text/markdown'});
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      var safe = (title||'conversation').replace(/[^a-z0-9-_]+/gi,'_').substring(0,40);
+      a.download = safe + '.md';
+      a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+      LaRuche.Toast.show('Conversation exportée','ok');
+    }).catch(function(){ LaRuche.Toast.show('Échec export','err'); });
   }
 
   function showApprovalDialog(toolCallId, toolName, args) {
@@ -3942,7 +4077,9 @@ LaRuche.Chat = (function(){
     respondApproval:respondApproval, toggleSidebar:toggleSidebar,
     removePendingFile:removePendingFile, loadSessions:loadSessions,
     getSessionId:getSessionId, switchSession:switchSession,
-    browseCwd:browseCwd, loadCwd:loadCwd, toggleNoThink:toggleNoThink
+    browseCwd:browseCwd, loadCwd:loadCwd, toggleNoThink:toggleNoThink,
+    openHistory:openHistory, closeHistory:closeHistory, searchHistory:searchHistory,
+    refreshHistoryOverlay:refreshHistoryOverlay, exportSessionMd:exportSessionMd
   };
 })();
 
@@ -4756,112 +4893,6 @@ LaRuche.Dashboard = (function(){
   }
 
   return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, enter:enter, leave:leave, toggleNodeExpand:toggleNodeExpand, useMeshModel:useMeshModel, fetchModels:fetchModels, FetchModels:fetchModels };
-})();
-
-/* ── Sessions Page Module ─────────────────────────────────────── */
-LaRuche.SessionsPage = (function(){
-  var allSessions = [];
-
-  function init() {}
-
-  function enter() { loadSessions(); }
-  function leave() {}
-
-  function loadSessions() {
-    fetch('/api/sessions').then(function(r){return r.json();}).then(function(sessions){
-      allSessions = sessions;
-      allSessions.sort(function(a,b){return new Date(b.updated_at)-new Date(a.updated_at);});
-      renderSessions(allSessions);
-    }).catch(function(){});
-  }
-
-  function renderSessions(sessions) {
-    var tbody = document.getElementById('sessionsTableBody');
-    tbody.innerHTML = '';
-    if(!sessions.length){tbody.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:20px">Aucune session</td></tr>';return;}
-    sessions.forEach(function(s){
-      var tr = document.createElement('tr');
-      var updated = s.updated_at ? new Date(s.updated_at).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}) : '-';
-      var cleanTitle = (s.title||'').split(/\[SYSTEM\]/i)[0].trim() || 'Sans titre';
-      tr.innerHTML =
-        '<td>'+LaRuche.Utils.esc(cleanTitle)+'</td>'+
-        '<td style="text-align:center">'+(s.messages||'-')+'</td>'+
-        '<td>'+updated+'</td>'+
-        '<td><div class="s-actions">'+
-          '<button class="s-btn s-btn-open" data-id="'+s.id+'">Ouvrir</button>'+
-          '<button class="s-btn s-btn-export" data-id="'+s.id+'">Export</button>'+
-          '<button class="s-btn s-btn-del" data-id="'+s.id+'">Supprimer</button>'+
-        '</div></td>';
-      tr.querySelector('.s-btn-open').onclick = function(){ LaRuche.Router.go('chat'); setTimeout(function(){LaRuche.Chat.switchSession(s.id);},100); };
-      tr.querySelector('.s-btn-export').onclick = function(){ fetch('/api/sessions/'+s.id+'/export').then(function(r){return r.text();}).then(function(md){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([md]));a.download='session-'+s.id+'.md';a.click();}); };
-      tr.querySelector('.s-btn-del').onclick = function(){ fetch('/api/sessions/'+s.id,{method:'DELETE'}).then(function(){loadSessions();LaRuche.Chat.loadSessions();}); };
-      tbody.appendChild(tr);
-    });
-  }
-
-  function search(q) {
-    q = q.toLowerCase().trim();
-    if(!q){renderSessions(allSessions);return;}
-    // Try server-side search first
-    fetch('/api/sessions/search?q='+encodeURIComponent(q)).then(function(r){return r.json();}).then(function(results){
-      renderSessions(results);
-    }).catch(function(){
-      // Fallback: client-side filter
-      var filtered = allSessions.filter(function(s){return (s.title||'').toLowerCase().includes(q);});
-      renderSessions(filtered);
-    });
-  }
-
-    async function loadBlueprints(el) {
-    var bps=[];try{bps=await fetch('/api/blueprints').then(function(r){return r.json();});}catch(e){}
-    if(!bps.length){el.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px">Aucun blueprint disponible</div>';return;}
-    
-    window._blueprints = bps;
-    el.innerHTML = '<div style="margin-bottom:12px;color:var(--amber);font-size:12px;">Sélectionnez un blueprint pour l\'instancier en tant que tâche cron.</div>' +
-      bps.map(function(b, idx) {
-        return '<div class="settings-card" style="margin-bottom:12px;cursor:pointer;" onclick="LaRuche.Settings.openBlueprintForm('+idx+')">' +
-          '<div class="settings-card-title">'+LaRuche.Utils.esc(b.title||b.id)+'</div>' +
-          '<div style="font-size:12px;color:var(--text-dim);margin-top:4px;">'+LaRuche.Utils.esc(b.description||'')+'</div>' +
-          '<div id="bpForm_'+idx+'" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);" onclick="event.stopPropagation()">' +
-            (b.slots||[]).map(function(slot){
-              return '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.Utils.esc(slot.label||slot.name)+'</label><input id="bpInput_'+idx+'_'+slot.name+'" class="form-input" placeholder="'+LaRuche.Utils.esc(slot.placeholder||'')+'"></div>';
-            }).join('') +
-            '<button class="settings-save-btn" style="margin-top:8px" onclick="LaRuche.Settings.instanciateBlueprint('+idx+')">Instancier</button>' +
-          '</div>' +
-        '</div>';
-      }).join('');
-  }
-
-  function openBlueprintForm(idx) {
-    var form = document.getElementById('bpForm_'+idx);
-    if (form.style.display === 'none') {
-      form.style.display = 'block';
-    } else {
-      form.style.display = 'none';
-    }
-  }
-
-  function instanciateBlueprint(idx) {
-    var b = window._blueprints[idx];
-    var slotsData = {};
-    (b.slots||[]).forEach(function(slot){
-      slotsData[slot.name] = document.getElementById('bpInput_'+idx+'_'+slot.name).value;
-    });
-    fetch('/api/blueprints/'+b.id+'/instancier', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(slotsData)
-    }).then(function(res) {
-      if(res.ok) {
-        LaRuche.Toast.show('Blueprint instancié avec succès', 'ok');
-        document.getElementById('bpForm_'+idx).style.display = 'none';
-      } else {
-        LaRuche.Toast.show('Erreur d\'instanciation', 'err');
-      }
-    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
-  }
-
-  return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, enter:enter, leave:leave, search:search };
 })();
 
 /* ── Settings Page Module ─────────────────────────────────────── */

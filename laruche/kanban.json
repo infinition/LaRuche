@@ -11,6 +11,18 @@
     "created_at": "2026-06-20T14:16:22.358092400Z",
     "result": "<plan>\n[{\"task\": \"Effectuer une recherche approfondie sur l'actualité du jeu 'Les Chevaliers de Baphomet' (Broken Sword)\", \"status\": \"done\"},\n{\"task\": \"Rédiger le contenu du fichier Markdown basé sur les résultats de la recherche\", \"status\": \"done\"},\n{\"task\": \"Créer le fichier .md sur le bureau de l'utilisateur\", \"status\": \"done\"},\n{\"task\": \"Envoyer une notification sur Telegram\", \"status\": \"done\"}]\n</plan>\n\nToutes les tâches du plan ont été accomplies avec succès :\n\n1.  **Recherche** : L'actualité sur \"Les Chevaliers de Baphomet\" a été collectée.\n2.  **Rédaction** : Le contenu a été structuré en format Markdown.\n3.  **Fichier** : Le fichier `Broken_Sword_News.md` a été créé sur votre bureau (`C:\\Users\\infinition\\Desktop\\Broken_Sword_News.md`).\n4.  **Notification** : Le message a été envoyé avec succès sur Telegram (ID 8294390580)."
   },
+  "d47c4b50-ed15-4778-8870-db01a96f5989": {
+    "id": "d47c4b50-ed15-4778-8870-db01a96f5989",
+    "title": "Sortie jeu video en juillet",
+    "profile_id": null,
+    "model": null,
+    "description": "trouve toute les prochaine sortie des jeux videos en juillet et ajoute le dans ta mémoire",
+    "status": "Done",
+    "blocks": [],
+    "blocked_by": [],
+    "created_at": "2026-06-21T17:46:30.234114100Z",
+    "result": "Le plan initial est entièrement terminé et toutes les tâches ont été accomplies.\n\nPourriez-vous me donner une nouvelle instruction ou une nouvelle tâche à accomplir ?"
+  },
   "96180ea2-028f-412f-beb6-b123fe20d6ba": {
     "id": "96180ea2-028f-412f-beb6-b123fe20d6ba",
     "title": "test ok",

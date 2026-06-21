@@ -857,6 +857,25 @@ impl MemoireCognitive for SqliteBackend {
         Ok(json!(nodes))
     }
 
+    async fn delete_node(&self, node_id: &str) -> Result<Value> {
+        let id = node_id.trim_matches('.').to_string();
+        let Some(parent) = node_parent_id(&id) else {
+            return Err(anyhow::anyhow!("impossible de supprimer un noeud racine: {id}"));
+        };
+        let conn = self.conn.lock().unwrap();
+        ensure_node(&conn, &parent)?;
+        conn.execute(
+            "UPDATE items SET node_id=?1 WHERE node_id=?2",
+            rusqlite::params![parent, id],
+        )?;
+        conn.execute(
+            "UPDATE nodes SET parent_id=?1 WHERE parent_id=?2",
+            rusqlite::params![parent, id],
+        )?;
+        let removed = conn.execute("DELETE FROM nodes WHERE id=?1", rusqlite::params![id])?;
+        Ok(json!({"deleted": id, "moved_to": parent, "removed": removed}))
+    }
+
     async fn health(&self) -> Result<bool> {
         let conn = self.conn.lock().unwrap();
         Ok(conn

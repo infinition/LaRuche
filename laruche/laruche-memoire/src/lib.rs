@@ -159,6 +159,12 @@ pub trait MemoireCognitive: Send + Sync {
         Ok(serde_json::json!([]))
     }
 
+    /// Supprime un nœud ; ses items (et sous-nœuds) sont rattachés au parent. Pour
+    /// fusionner/nettoyer des nœuds en double ou génériques. Audité. Défaut : non supporté.
+    async fn delete_node(&self, _node_id: &str) -> Result<Value> {
+        Err(anyhow!("memory_delete_node unsupported by this backend"))
+    }
+
     /// Passe de consolidation (doublons, périmés, surchargés, orphelins). N'applique rien.
     async fn update_item(&self, _item_id: &str, _content: &str) -> Result<Value> {
         Err(anyhow!("memory_update_item unsupported by this backend"))

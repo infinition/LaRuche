@@ -459,3 +459,81 @@ impl Abeille for MemoireMutations {
         }
     }
 }
+
+/// Arbre complet de la carte cognitive (tous les nœuds). Pour auditer/ranger sa mémoire.
+pub struct MemoireTree {
+    pub mem: Arc<dyn MemoireCognitive>,
+}
+
+#[async_trait]
+impl Abeille for MemoireTree {
+    fn nom(&self) -> &str {
+        "memory_tree"
+    }
+    fn description(&self) -> &str {
+        "Enumere TOUS les noeuds de la carte cognitive (arbre complet : id, parent, label). \
+         A utiliser pour auditer/ranger sa memoire : reperer les noeuds en double, generiques \
+         (projects.1, decisions.1) ou fragmentes avant de les fusionner avec memory_delete_node."
+    }
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({ "type": "object", "properties": {} })
+    }
+    fn niveau_danger(&self) -> NiveauDanger {
+        NiveauDanger::Safe
+    }
+    async fn executer(
+        &self,
+        _args: serde_json::Value,
+        _ctx: &ContextExecution,
+    ) -> Result<ResultatAbeille> {
+        match self.mem.list_nodes().await {
+            Ok(v) => Ok(ResultatAbeille::ok(serde_json::to_string_pretty(&v)?)),
+            Err(e) => Ok(ResultatAbeille::err(format!("Echec arbre memoire: {e}"))),
+        }
+    }
+}
+
+/// Supprime un nœud entier ; ses items et sous-nœuds remontent au parent (fusion).
+pub struct MemoireDeleteNode {
+    pub mem: Arc<dyn MemoireCognitive>,
+}
+
+#[async_trait]
+impl Abeille for MemoireDeleteNode {
+    fn nom(&self) -> &str {
+        "memory_delete_node"
+    }
+    fn description(&self) -> &str {
+        "Supprime un noeud entier de la carte cognitive : ses items (et sous-noeuds) sont \
+         rattaches au noeud parent. La primitive de FUSION : pour nettoyer un noeud en double, \
+         generique ou fragmente sans perdre son contenu. Donne le node_id pointe (ex. projects.1)."
+    }
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "node_id": { "type": "string", "description": "Noeud pointe a supprimer, ex. projects.1" }
+            },
+            "required": ["node_id"]
+        })
+    }
+    fn niveau_danger(&self) -> NiveauDanger {
+        NiveauDanger::NeedsApproval
+    }
+    async fn executer(
+        &self,
+        args: serde_json::Value,
+        _ctx: &ContextExecution,
+    ) -> Result<ResultatAbeille> {
+        let node_id = args["node_id"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("'node_id' manquant"))?;
+        match self.mem.delete_node(node_id).await {
+            Ok(v) => Ok(ResultatAbeille::ok(format!(
+                "Noeud supprime/fusionne: {}",
+                serde_json::to_string(&v).unwrap_or_default()
+            ))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Echec delete_node: {e}"))),
+        }
+    }
+}

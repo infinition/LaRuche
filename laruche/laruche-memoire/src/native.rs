@@ -388,6 +388,34 @@ impl MemoireCognitive for NativeBackend {
         Ok(json!(nodes))
     }
 
+    async fn delete_node(&self, node_id: &str) -> Result<Value> {
+        let id = node_id.trim_matches('.').to_string();
+        let Some(parent) = node_parent_id(&id) else {
+            return Err(anyhow!("impossible de supprimer un noeud racine: {id}"));
+        };
+        let mut store = self.store.lock().unwrap();
+        // Rattache les items du noeud au parent.
+        if let Some(items) = store.remove(&id) {
+            store.entry(parent.clone()).or_default().extend(items);
+        }
+        // Re-parent les sous-noeuds (préfixe `id.`) sous le parent.
+        let prefix = format!("{id}.");
+        let descendants: Vec<String> = store
+            .keys()
+            .filter(|k| k.starts_with(&prefix))
+            .cloned()
+            .collect();
+        for child in descendants {
+            if let Some(items) = store.remove(&child) {
+                // `projects.x.sub` → `projects.sub` (le segment `x` saute).
+                let suffix = child.strip_prefix(&prefix).unwrap_or(&child);
+                let new_id = format!("{parent}.{suffix}");
+                store.entry(new_id).or_default().extend(items);
+            }
+        }
+        Ok(json!({ "deleted": id, "moved_to": parent }))
+    }
+
     async fn health(&self) -> Result<bool> {
         Ok(true)
     }
