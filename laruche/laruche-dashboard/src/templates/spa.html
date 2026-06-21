@@ -4404,6 +4404,8 @@ LaRuche.Dashboard = (function(){
   async function fetchModels(){
     try{
       var r=await fetch(LaRuche.API.base+'/swarm/models');if(!r.ok)return;var d=await r.json();
+      var selData = await fetch('/api/capabilities/selection').then(r=>r.json()).catch(e=>({selection:{}}));
+      var serverPreferred = selData.selection || {};
       var list=document.getElementById('model-list');list.innerHTML='';
       
       var sourcesSet = new Set();
