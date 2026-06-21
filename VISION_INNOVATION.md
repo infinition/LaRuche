@@ -80,3 +80,74 @@ abeilles-en-mémoire). L3 demande un protocole de sync mais transforme le produi
 - **L4** : panneau « Sources » sous chaque réponse (les items mémoire cités) + un onglet « Requête mémoire » (champ → `GET /api/memory/query`).
 - **L1** : indicateur « contexte : N souvenirs actifs / M en mémoire » dans le header (au lieu de CTX %).
 Tous = `spa.html` + endpoints fournis par Claude. Briefings détaillés à la demande.
+
+---
+
+## CHANTIER PARKÉ — Context Compiler (Levier 1, version produit)
+> Gardé sous le coude. À faire AVANT le refacto orchestration (prouve L1, moins risqué, buildable sur l'existant).
+
+Un **Tiny LLM routeur** (= l'`aux_model` déjà présent) compile le contexte de CHAQUE tour substantiel :
+il voit tout (outils + candidats mémoire), **raisonne** sur la pertinence, et ne laisse passer au gros
+modèle QUE l'essentiel (3-5 outils de niche + souvenirs utiles), **nettoie le superflu**.
+- Bloate le petit modèle (cheap), garde le gros (cher) lean.
+- Meilleur que les embeddings (il comprend « internet »→web là où le retrieval FR↔EN rate).
+- Pièges gérés : latence (skip les tours triviaux), cache (noyau stable + queue routée), filet (`tool_search`).
+- Hybride final : **noyau stable** (fait) + **routeur** (Idée 1) + **tool_search/carte de catégories** (Idée 2, fallback).
+
+---
+
+# ARCHITECTURE D'ORCHESTRATION — « La Reine » (le substrat central) ⭐⭐⭐⭐⭐
+
+> Le vrai saut. Aujourd'hui cron/watcher/kanban = **daemons parallèles**. Demain : **tout orbite la carte
+> cognitive**. Une MISSION devient un **processus long-vécu qui VIT dans la mémoire**, avancé par des
+> itérations d'agent, avec **`dream` comme moteur de progrès** (pas juste du nettoyage).
+
+## Thèse
+third-party/third-party consolident + forgent des skills au niveau **session** (réactif). LaRuche va faire du
+**long-horizon piloté par objectif** : une mission qui s'approfondit sur des **semaines**, **capitalise**
+dans un graphe structuré, **s'auto-étend** via dream, et **apprend** (skills). = un agent qui *mène une thèse*,
+pas un agent qui *répond*.
+
+## 1. Missions = nœuds persistants (`missions.<slug>`)
+Première classe dans la carte cognitive : `{objectif, statut (active/pausée/done), cadence (cron), itérations,
+synthèse}` + sous-arbres `findings.*` / `questions.*` / `sources.*` / `contradictions.*`.
+
+## 2. La Reine = orchestrateur unique (la boucle qui « marche » le graphe)
+Par tick :
+1. Lit les missions **actives & dues**.
+2. Assemble l'état de la mission → demande à l'agent « **prochaine itération ?** » → crée des **tâches kanban**.
+3. **Dispatche** (réutilise le dispatcher kanban) → tours d'agent (contexte working-set) → **findings écrits
+   dans le sous-arbre de la mission** (capitalisés, dédupliqués).
+4. Lance **`dream` scopé à la mission** → consolide + détecte **trous & contradictions** → génère de
+   **NOUVELLES questions/tâches** (la mission s'auto-étend).
+5. **Régénère la synthèse** (le dossier).
+6. **Forge des skills** depuis les patterns réussis (l'agent devient meilleur sur le sujet à chaque itération).
+7. Met à jour l'état, planifie le prochain tick.
+
+## 3. L'orbite enfin réalisée
+`watcher` (events → nœuds) → **déclenche** mission → `kanban` (tâches) → `agent` (tours) →
+`mémoire` (capitalisation) → `dream` (moteur de progrès) → `skill` (compétence apprise) → **boucle**.
+Tout passe par la carte cognitive = l'état d'orchestration. Plus de daemons isolés.
+
+## 4. La démo qui bluffe
+> *« Mission ton agent sur un sujet (ex. veille scientifique). Reviens dans un mois : il a construit un
+> **dossier structuré, sourcé, qui s'approfondit tout seul chaque semaine**, résout ses propres
+> contradictions, et est devenu **expert** du sujet. »*
+Le dossier **EST** le sous-arbre de la carte → **visualisable** (nid d'abeille), **citable** (Levier 4),
+**exportable** (OKF). Aucun concurrent ne fait de la **recherche autonome long-horizon capitalisante**.
+
+## 5. Build incrémental (réutilise TOUT l'existant)
+- **P1** : type `Mission` (nœud map) + CRUD + un cron qui « tick » une mission.
+- **P2** : la Reine = boucle mission → plan → kanban (dispatcher existant) → findings en mémoire.
+- **P3** : `dream` scopé mission = moteur (trous/contradictions → nouvelles tâches).
+- **P4** : synthèse régénérée + forge de skills.
+- **P5** : UI « dossier » (nid d'abeille de la mission) + déclencheurs (cron hebdo / watcher).
+
+## 6. Pourquoi ça démarque
+| | third-party / third-party | LaRuche « Reine » |
+|---|---|---|
+| Consolidation | au niveau session | **long-horizon, capitalisante** |
+| Skills | post-tour | **appris sur des semaines, par mission** |
+| Sortie | réponses | **dossier structuré qui s'approfondit seul** |
+| Moteur | réactif | **dream pilote le progrès** (gaps→tâches) |
+| Substrat | mémoire = annexe | **mémoire = l'orchestrateur** |
