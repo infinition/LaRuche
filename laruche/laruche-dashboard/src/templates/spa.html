@@ -283,6 +283,9 @@ body {
 .agent-header-block .agent-header-actions {
   display: flex; align-items: center; gap: 8px; margin: 0; min-width: 0;
 }
+.agent-header-block .iteration-badge {
+  max-width: none; overflow: visible;
+}
 .agent-header-block .feed-usage-bar {
   padding: 0;
   color: var(--text-dim);
@@ -3398,7 +3401,7 @@ LaRuche.Chat = (function(){
     if(!_feedTimer)_feedTimer=setInterval(function(){
       if(!_feedLiveStartedAt)return;
       var seconds=Math.max(1,Math.floor((Date.now()-_feedLiveStartedAt)/1000));
-      text.textContent=(status.classList.contains('tool')?'Exécution en cours':'Réflexion en cours')+' · '+seconds+' s';
+      text.innerHTML=(status.classList.contains('tool')?'Exécution en cours':'Réflexion en cours')+' <span style="color:var(--green)">· '+seconds+' s</span>';
     },1000);
   }
   function ensureFeedStyle(){
