@@ -116,7 +116,9 @@ pub fn prompt_iteration(mission: &Mission, etat_actuel: &str) -> String {
          analyse, recoupement de sources). Puis OBLIGATOIREMENT :\n\
          1) écris les NOUVEAUX faits/sources durables via memory_write sous le node_id `{node}.findings` \
          (un fait = un item clair, sourcé) ;\n\
-         2) note les questions encore ouvertes via memory_write sous `{node}.questions`.\n\
+         2) note les questions encore ouvertes via memory_write sous `{node}.questions` ;\n\
+         3) mets à jour la SYNTHÈSE du dossier via memory_write sous `{node}.synthese` (un état des \
+         lieux global, lisible, intégrant cette itération).\n\
          Ne répète PAS ce qui est déjà connu ci-dessus. Sois rigoureux, sourcé, et conclus par un court \
          bilan de ce que cette itération a ajouté.",
         objective = mission.objective,

@@ -2785,16 +2785,10 @@ async fn api_create_mission(
     Json(serde_json::json!({"status": "ok", "slug": slug}))
 }
 
-/// POST /api/missions/:slug/run — exécute UNE itération : l'agent lit l'état capitalisé en
-/// mémoire (`missions.<slug>`), avance d'une étape et y écrit ses trouvailles.
-async fn api_run_mission(
-    State(state): State<Arc<AppState>>,
-    axum::extract::Path(slug): axum::extract::Path<String>,
-) -> Json<serde_json::Value> {
-    let Some(mission) = state.missions.read().await.get(&slug) else {
-        return Json(serde_json::json!({"error": "mission introuvable"}));
-    };
-    // État déjà capitalisé (résumé des items du sous-arbre mission).
+/// Lance UNE itération de mission (réutilisé par l'API ET le daemon de cadence) : l'agent lit
+/// l'état capitalisé sous `missions.<slug>`, avance d'une étape et y écrit ses trouvailles.
+async fn lancer_iteration_mission(state: Arc<AppState>, mission: missions::Mission) -> u32 {
+    let slug = mission.slug.clone();
     let node_id = format!("missions.{}", slug);
     let etat = match state.memoire.read_node(&node_id).await {
         Ok(v) => v["items"]
@@ -2812,7 +2806,6 @@ async fn api_run_mission(
     let prompt = missions::prompt_iteration(&mission, &etat);
     let iteration = mission.iterations + 1;
     let run_state = state.clone();
-    let slug2 = slug.clone();
     tokio::spawn(async move {
         let cfg = run_state.essaim_config.read().await.clone();
         let sessions_dir = std::path::Path::new("sessions");
@@ -2832,8 +2825,20 @@ async fn api_run_mission(
             .missions
             .write()
             .await
-            .mark_run(&slug2, chrono::Utc::now().to_rfc3339());
+            .mark_run(&slug, chrono::Utc::now().to_rfc3339());
     });
+    iteration
+}
+
+/// POST /api/missions/:slug/run — déclenche UNE itération.
+async fn api_run_mission(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(slug): axum::extract::Path<String>,
+) -> Json<serde_json::Value> {
+    let Some(mission) = state.missions.read().await.get(&slug) else {
+        return Json(serde_json::json!({"error": "mission introuvable"}));
+    };
+    let iteration = lancer_iteration_mission(state.clone(), mission).await;
     Json(serde_json::json!({"status": "started", "slug": slug, "iteration": iteration}))
 }
 
@@ -7937,6 +7942,40 @@ async fn main() -> Result<()> {
             }
             if let Err(e) = mdns_broadcaster.update(&manifest) {
                 tracing::warn!(error = %e, "re-annonce mDNS échouée");
+            }
+        }
+    });
+
+    // Background: tick des MISSIONS au long cours (« La Reine ») — toutes les 60s, lance une
+    // itération des missions actives dont la cadence cron est due (ex. recherche hebdo).
+    let mission_state = state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        interval.tick().await; // saute le tick immédiat
+        loop {
+            interval.tick().await;
+            let now = chrono::Utc::now();
+            let dues: Vec<missions::Mission> = {
+                let store = mission_state.missions.read().await;
+                store
+                    .list()
+                    .into_iter()
+                    .filter(|m| {
+                        m.status == "active"
+                            && m.cadence.as_deref().is_some_and(|c| {
+                                let last = m
+                                    .last_run
+                                    .as_deref()
+                                    .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+                                    .map(|d| d.with_timezone(&chrono::Utc));
+                                laruche_essaim::cron::should_fire_cron(c, last, now)
+                            })
+                    })
+                    .collect()
+            };
+            for mission in dues {
+                tracing::info!(mission = %mission.slug, "Itération de mission (cadence)");
+                lancer_iteration_mission(mission_state.clone(), mission).await;
             }
         }
     });
