@@ -215,6 +215,30 @@ body {
   background: var(--bg-input); border: 1px solid var(--border); color: var(--text-dim);
   cursor: default; margin-left: auto;
 }
+.honey-gauge-container {
+  margin-left: auto; margin-right: -5px;
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+}
+.honey-gauge {
+  --value: 0; position: relative; width: 96px; height: 110px;
+  filter: drop-shadow(0 0 8px rgba(246, 164, 0, 0.16)) drop-shadow(0 0 14px rgba(246, 164, 0, 0.08));
+  transform: scale(0.35); transform-origin: center center;
+}
+.hex-shell, .hex-core { position: absolute; clip-path: polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%); overflow: hidden; }
+.hex-shell { inset: 0; background: linear-gradient(180deg, rgba(255,191,58,0.07), rgba(255,191,58,0.02)); border: 1px solid var(--stroke, rgba(255, 191, 58, 0.18)); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02), 0 0 0 1px rgba(255,191,58,0.04); }
+.hex-core { inset: 7px; background: rgba(255, 191, 58, 0.03); border: 1px solid rgba(255, 191, 58, 0.08); }
+.honey-fill { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--value) * 1%); background: linear-gradient(180deg, #ffbf3a 0%, #f6a400 45%, #d88700 100%); box-shadow: inset 0 8px 16px rgba(255,255,255,0.10), inset 0 -10px 18px rgba(108,67,8,0.22), 0 0 16px rgba(246,164,0,0.14); transition: height 0.45s ease; }
+.honey-fill::before, .honey-fill::after { content: ""; position: absolute; left: -15%; width: 130%; border-radius: 50%; }
+.honey-fill::before { top: -7px; height: 14px; background: rgba(255, 210, 90, 0.94); animation: waveA 3.6s ease-in-out infinite; }
+.honey-fill::after { top: -9px; height: 12px; background: rgba(255, 236, 170, 0.34); animation: waveB 5s ease-in-out infinite; }
+.shine { position: absolute; top: 15px; left: 22px; width: 10px; height: 46px; border-radius: 999px; background: linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.02)); transform: rotate(12deg); z-index: 3; pointer-events: none; }
+.percent-wrap { position: absolute; inset: 0; display: grid; place-items: center; z-index: 4; pointer-events: none; }
+.percent { min-width: 52px; height: 34px; padding: 0 8px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; gap: 1px; background: rgba(5, 6, 7, 0.42); backdrop-filter: blur(1px); box-shadow: 0 0 0 1px rgba(255, 210, 120, 0.08), 0 2px 10px rgba(0,0,0,0.18); }
+.percent .num { font-size: 28px; line-height: 1; font-weight: 900; color: #fff6da; letter-spacing: -0.04em; text-shadow: 0 0 6px rgba(246,164,0,0.20), 0 1px 2px rgba(0,0,0,0.45); }
+.percent .symbol { font-size: 13px; line-height: 1; font-weight: 800; color: #ffe09a; transform: translateY(1px); opacity: 0.95; text-shadow: 0 0 4px rgba(246,164,0,0.16), 0 1px 2px rgba(0,0,0,0.45); }
+@keyframes waveA { 0%, 100% { transform: translateX(0) scaleX(1); border-radius: 42% 58% 55% 45% / 45% 42% 58% 55%; } 50% { transform: translateX(-5px) scaleX(1.03); border-radius: 56% 44% 48% 52% / 55% 47% 53% 45%; } }
+@keyframes waveB { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(7px); } }
 
 /* ============================== */
 /* MOBILE BOTTOM TAB BAR          */
@@ -1367,7 +1391,21 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
                </select>
              </div>
           </div>
-          <div id="headerContextUsage" class="ctx-mini-pill" title="Usage du contexte">CTX: 0%</div>
+          <div class="honey-gauge-container" title="Usage du contexte">
+            <div class="honey-gauge" id="headerContextUsage" style="--value: 0;">
+              <div class="hex-shell"></div>
+              <div class="hex-core">
+                <div class="honey-fill"></div>
+              </div>
+              <div class="shine"></div>
+              <div class="percent-wrap">
+                <div class="percent">
+                  <span class="num" id="headerContextNum">0</span>
+                  <span class="symbol">%</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         <div class="agent-header-block">
           <div class="sidebar-header agent-header">
@@ -4253,10 +4291,9 @@ LaRuche.Dashboard = (function(){
       var el = document.getElementById('headerContextUsage');
       if(el) {
         var pct = Math.round((d.ratio||0)*100);
-        el.textContent = 'CTX: ' + pct + '%';
-        if(pct > 90) el.style.color = 'var(--red)';
-        else if(pct > 75) el.style.color = 'var(--amber)';
-        else el.style.color = 'var(--text-dim)';
+        el.style.setProperty('--value', pct);
+        var num = document.getElementById('headerContextNum');
+        if(num) num.textContent = pct;
       }
     }catch(e){}
   }
