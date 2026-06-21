@@ -218,13 +218,14 @@ body {
 .honey-gauge-container {
   margin-left: auto; margin-right: -5px;
   width: 40px; height: 40px;
+  position: relative;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
 .honey-gauge {
-  --value: 0; position: relative; width: 96px; height: 110px;
+  --value: 0; position: absolute; top: 50%; left: 50%; width: 96px; height: 110px;
   filter: drop-shadow(0 0 8px rgba(246, 164, 0, 0.16)) drop-shadow(0 0 14px rgba(246, 164, 0, 0.08));
-  transform: scale(0.35); transform-origin: center center;
+  transform: translate(-50%, -50%) scale(0.35); transform-origin: center center;
 }
 .hex-shell, .hex-core { position: absolute; clip-path: polygon(50% 0%, 95% 25%, 95% 75%, 50% 100%, 5% 75%, 5% 25%); overflow: hidden; }
 .hex-shell { inset: 0; background: linear-gradient(180deg, rgba(255,191,58,0.07), rgba(255,191,58,0.02)); border: 1px solid var(--stroke, rgba(255, 191, 58, 0.18)); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02), 0 0 0 1px rgba(255,191,58,0.04); }
@@ -2411,7 +2412,7 @@ LaRuche.Header = (function(){
       var el = document.getElementById('headerContextUsage');
       if(el) {
         var pct = Math.round((d.ratio||0)*100);
-        el.style.setProperty('--value', pct);
+        el.style.setProperty('--value', Math.min(100, Math.max(0, pct)));
         var num = document.getElementById('headerContextNum');
         if(num) num.textContent = pct;
       }
