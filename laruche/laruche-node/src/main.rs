@@ -656,47 +656,119 @@ async fn fetch_local_models(
     }
 }
 
-#[derive(Debug, Serialize)]
-struct BlueprintMock {
-    id: String,
-    title: String,
-    description: String,
-    slots: Vec<BlueprintSlotMock>,
+// ── Blueprints : modèles d'automatisations cron paramétrés ──────────────────────
+// Catalogue intégré (laruche_essaim::blueprints::catalogue) + blueprints CRÉÉS par
+// l'utilisateur, persistés dans `blueprints.json`.
+
+fn load_user_blueprints() -> Vec<laruche_essaim::blueprints::Blueprint> {
+    std::fs::read_to_string("blueprints.json")
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
 }
-#[derive(Debug, Serialize)]
-struct BlueprintSlotMock {
-    name: String,
-    label: String,
-    placeholder: String,
+
+fn save_user_blueprints(bps: &[laruche_essaim::blueprints::Blueprint]) -> std::io::Result<()> {
+    std::fs::write(
+        "blueprints.json",
+        serde_json::to_string_pretty(bps).unwrap_or_else(|_| "[]".into()),
+    )
 }
-async fn get_blueprints() -> Json<Vec<BlueprintMock>> {
-    // Note: The user requested to use `laruche_essaim::blueprints::catalogue()`
-    // However, that module does not exist yet. Mocking the response.
-    Json(vec![BlueprintMock {
-        id: "veille".into(),
-        title: "Veille Technologique".into(),
-        description: "Surveille un sujet et fait un résumé".into(),
-        slots: vec![
-            BlueprintSlotMock {
-                name: "sujet".into(),
-                label: "Sujet".into(),
-                placeholder: "ex: Rust".into(),
-            },
-            BlueprintSlotMock {
-                name: "cron_expr".into(),
-                label: "Fréquence (Cron)".into(),
-                placeholder: "0 8 * * *".into(),
-            },
-        ],
-    }])
+
+/// GET /api/blueprints — catalogue intégré + blueprints utilisateur.
+async fn get_blueprints() -> Json<Vec<laruche_essaim::blueprints::Blueprint>> {
+    let mut all = laruche_essaim::blueprints::catalogue();
+    all.extend(load_user_blueprints());
+    Json(all)
 }
-async fn instancier_blueprint(
-    Path(_id): Path<String>,
-    Json(_slots): Json<serde_json::Value>,
+
+/// POST /api/blueprints — crée (ou met à jour) un blueprint utilisateur. Body = Blueprint
+/// {id, title, schedule_template, prompt_template, slots:[{name,label,default}]}.
+async fn api_create_blueprint(
+    Json(mut bp): Json<laruche_essaim::blueprints::Blueprint>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    // Note: this should actually instantiate the blueprint and save to CronScheduler
-    // Mocking success.
-    Ok(Json(serde_json::json!({"status": "ok"})))
+    if bp.id.trim().is_empty() {
+        // dérive un id depuis le titre
+        let slug: String = bp
+            .title
+            .to_lowercase()
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+            .collect();
+        let slug = slug.trim_matches('-').to_string();
+        bp.id = if slug.is_empty() {
+            format!("bp-{}", Uuid::new_v4())
+        } else {
+            slug
+        };
+    }
+    // Interdit d'écraser un blueprint intégré.
+    if laruche_essaim::blueprints::catalogue()
+        .iter()
+        .any(|b| b.id == bp.id)
+    {
+        return Err(StatusCode::CONFLICT);
+    }
+    let mut users = load_user_blueprints();
+    users.retain(|b| b.id != bp.id); // upsert
+    users.push(bp.clone());
+    save_user_blueprints(&users).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(Json(serde_json::json!({ "status": "ok", "id": bp.id })))
+}
+
+/// DELETE /api/blueprints/:id — supprime un blueprint utilisateur (les intégrés sont immuables).
+async fn api_delete_blueprint(Path(id): Path<String>) -> Json<serde_json::Value> {
+    let mut users = load_user_blueprints();
+    let before = users.len();
+    users.retain(|b| b.id != id);
+    let removed = before - users.len();
+    let _ = save_user_blueprints(&users);
+    Json(serde_json::json!({ "status": "ok", "removed": removed }))
+}
+
+/// POST /api/blueprints/:id/instancier — instancie un blueprint en un VRAI cron.
+/// Body = valeurs des slots : `{ "<slot>": "<valeur>", ... }` (ou `{slots:{...}}`).
+async fn instancier_blueprint(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let mut all = laruche_essaim::blueprints::catalogue();
+    all.extend(load_user_blueprints());
+    let Some(bp) = all.into_iter().find(|b| b.id == id) else {
+        return Err(StatusCode::NOT_FOUND);
+    };
+    // Accepte {slots:{...}} ou un objet plat de valeurs.
+    let src = body.get("slots").filter(|v| v.is_object()).unwrap_or(&body);
+    let mut valeurs: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    if let Some(obj) = src.as_object() {
+        for (k, v) in obj {
+            if let Some(s) = v.as_str() {
+                valeurs.insert(k.clone(), s.to_string());
+            }
+        }
+    }
+    let (name, cron_expr, prompt) = laruche_essaim::blueprints::instancier(&bp, &valeurs);
+    let task = ScheduledTask {
+        id: Uuid::new_v4(),
+        name,
+        prompt,
+        cron_expr: Some(cron_expr),
+        fire_at: None,
+        channel: None,
+        provider: None,
+        model: None,
+        profile_id: None,
+        skills: vec![],
+        enabled: true,
+        created_at: chrono::Utc::now(),
+        last_run: None,
+        run_count: 0,
+    };
+    let cron_id = {
+        let mut cron = state.essaim_cron.write().await;
+        cron.add(task)
+    };
+    Ok(Json(serde_json::json!({ "status": "ok", "cron_id": cron_id })))
 }
 
 // ======================== Handlers ========================
@@ -7519,7 +7591,8 @@ async fn main() -> Result<()> {
     let app = Router::new()
         .route("/", get(spa_page))
         .route("/api/status", get(get_status))
-        .route("/api/blueprints", get(get_blueprints))
+        .route("/api/blueprints", get(get_blueprints).post(api_create_blueprint))
+        .route("/api/blueprints/:id", axum::routing::delete(api_delete_blueprint))
         .route("/api/blueprints/:id/instancier", post(instancier_blueprint))
         .route("/api/events", get(api_get_events))
         .route("/api/events/export", get(api_export_events))

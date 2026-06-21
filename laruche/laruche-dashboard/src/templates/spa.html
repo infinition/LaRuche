@@ -6945,7 +6945,36 @@ LaRuche.Settings = (function(){
   }
 
   var _kanbanTimer=null, _kanbanLast='';
+  var _kanbanView=(function(){ try{ return localStorage.getItem('lr_kanban_view')||'cols'; }catch(e){ return 'cols'; } })();
   var _profiles={}; // P1 : cache des profils pour les selecteurs Provider (kanban/watcher)
+
+  function setKanbanView(mode){
+    _kanbanView = mode;
+    try{ localStorage.setItem('lr_kanban_view', mode); }catch(e){}
+    var tg=document.getElementById('kanbanViewToggle'); if(tg) tg.innerHTML = kanbanToggleInner();
+    _kanbanLast=''; refreshKanbanCols();
+  }
+  function kanbanToggleInner(){
+    return '<button class="tl-btn" style="border-radius:0'+(_kanbanView==='cols'?';background:var(--amber);color:#000':'')+'" onclick="LaRuche.Settings.setKanbanView(\'cols\')">Colonnes</button>'+
+      '<button class="tl-btn" style="border-radius:0'+(_kanbanView==='rows'?';background:var(--amber);color:#000':'')+'" onclick="LaRuche.Settings.setKanbanView(\'rows\')">Horizontal</button>';
+  }
+  // Carte kanban (HTML) — partagee entre mode colonnes et mode horizontal.
+  function kanbanCardHtml(t){
+    var h='<div draggable="true" ondragstart="LaRuche.Settings.kanbanDragStart(event,\''+t.id+'\')" style="background:#2a2a2e;border:1px solid var(--border);border-radius:4px;padding:8px;cursor:grab">';
+    h+='<div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:4px">'+LaRuche.Utils.esc(t.title)+'</div>';
+    h+='<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">'+LaRuche.Utils.esc(t.description||'')+'</div>';
+    if(t.profile_id || t.model){
+      var kProv = (t.profile_id && _profiles[t.profile_id]) ? (_profiles[t.profile_id].name||t.profile_id) : (t.profile_id||'');
+      if(t.model) kProv += (kProv?' ':'') + '(' + t.model + ')';
+      if(kProv) h+='<div style="font-size:10px;color:var(--amber);margin-bottom:6px">⚙ '+LaRuche.Utils.esc(kProv)+'</div>';
+    }
+    if(t.result) h+='<div style="font-size:10px;color:var(--green);margin-bottom:6px">Résultat: '+LaRuche.Utils.esc((t.result||'').substring(0,60))+'…</div>';
+    h+='<div style="display:flex;justify-content:space-between;align-items:center">';
+    h+='<span style="font-size:9px;color:var(--text-muted);font-family:var(--mono)">'+t.id.split('-')[0]+'</span>';
+    h+='<span><button onclick="LaRuche.Settings.editKanbanTask(\''+t.id+'\')" style="background:none;border:none;color:var(--amber);cursor:pointer;font-size:10px">Éditer</button> <button onclick="LaRuche.Settings.deleteKanbanTask(\''+t.id+'\')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:10px">Suppr</button></span>';
+    h+='</div></div>';
+    return h;
+  }
   async function loadKanban(el) {
     // P1 : profils pour le selecteur Provider de la tache kanban.
     var profilesResp={profiles:{}};try{profilesResp=await fetch('/api/profiles').then(function(r){return r.json();});}catch(e){}
@@ -6960,6 +6989,7 @@ LaRuche.Settings = (function(){
       '<div style="flex:1;min-width:130px"><label class="form-label">Provider</label><select class="form-input" id="kanban-profile" onchange="LaRuche.Settings.updateKanbanModelSelect()">'+profOpts+'</select></div>' +
       '<div style="flex:1;min-width:130px"><label class="form-label">Mod&egrave;le</label><select class="form-input" id="kanban-model"><option value="">(Par défaut)</option></select></div>' +
       '<button class="form-btn" onclick="LaRuche.Settings.createKanbanTask()">Créer</button></div>' +
+      '<div style="display:flex;justify-content:flex-end;margin-bottom:10px"><div id="kanbanViewToggle" style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">'+kanbanToggleInner()+'</div></div>' +
       '<div id="kanbanCols"></div>';
     _kanbanLast='';
     await refreshKanbanCols();
@@ -7320,6 +7350,155 @@ var m = document.getElementById('kanban-model')?document.getElementById('kanban-
     loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, createKanbanTask:createKanbanTask, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
+/* ── CronBuilder : composant "human-friendly" reutilisable (missions + cron) ── */
+LaRuche.CronBuilder = (function(){
+  var DOW = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+  var instances = {}; // id -> config
+
+  function ensureStyle(){
+    if(document.getElementById('lr-cb-style')) return;
+    var s=document.createElement('style'); s.id='lr-cb-style';
+    s.textContent='.cb-wrap{border:1px solid var(--border);border-radius:8px;padding:10px;background:rgba(20,20,22,0.5)}'+
+      '.cb-row{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:8px}'+
+      '.cb-field{display:flex;flex-direction:column;gap:3px}'+
+      '.cb-field label{font-size:10px;color:var(--text-dim)}'+
+      '.cb-wrap select.form-input,.cb-wrap input.form-input{padding:5px 7px}'+
+      '.cb-num{width:72px}'+
+      '.cb-preview{font-size:11px;color:var(--text-dim);display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:4px}'+
+      '.cb-preview b{color:var(--amber);font-weight:600}'+
+      '.cb-preview code{color:var(--cyan);background:rgba(0,0,0,.3);padding:1px 6px;border-radius:4px;font-family:var(--mono,monospace)}'+
+      '.cb-expert-toggle{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:10px;text-decoration:underline;padding:0;margin-left:auto}'+
+      '.cb-expert-toggle:hover{color:var(--amber)}';
+    document.head.appendChild(s);
+  }
+
+  // Lit l'etat des controles d'une instance et produit l'expression cron 5 champs.
+  function buildExpr(id){
+    var cfg = instances[id]; if(!cfg) return '';
+    if(cfg.expert){
+      var raw=document.getElementById(id+'_raw'); return raw?(raw.value||'').trim():'';
+    }
+    function val(suf, dflt){ var e=document.getElementById(id+'_'+suf); return e?e.value:dflt; }
+    var preset = val('preset','daily');
+    var hh = parseInt(val('hh','9'),10); if(isNaN(hh))hh=0;
+    var mm = parseInt(val('mm','0'),10); if(isNaN(mm))mm=0;
+    var n = parseInt(val('n','1'),10); if(isNaN(n)||n<1)n=1;
+    var dow = val('dow','1');
+    var dom = parseInt(val('dom','1'),10); if(isNaN(dom)||dom<1)dom=1; if(dom>31)dom=31;
+    switch(preset){
+      case 'daily':   return mm+' '+hh+' * * *';
+      case 'weekly':  return mm+' '+hh+' * * '+dow;
+      case 'hours':   return '0 */'+n+' * * *';
+      case 'minutes': return '*/'+n+' * * * *';
+      case 'monthly': return mm+' '+hh+' '+dom+' * *';
+      default:        return mm+' '+hh+' * * *';
+    }
+  }
+
+  function humanOf(id){
+    var expr = buildExpr(id);
+    if(!expr) return 'aucune cadence (manuel)';
+    // Reutilise le rendu humain de la Timeline si dispo.
+    if(LaRuche.Timeline && LaRuche.Timeline.humanCron) return LaRuche.Timeline.humanCron(expr);
+    return expr;
+  }
+
+  function refresh(id){
+    var cfg = instances[id]; if(!cfg) return;
+    var prevEl=document.getElementById(id+'_humanPrev'), codeEl=document.getElementById(id+'_codePrev');
+    var expr = buildExpr(id);
+    if(prevEl) prevEl.textContent = expr ? humanOf(id) : 'aucune cadence (manuel)';
+    if(codeEl) codeEl.textContent = expr || '—';
+    // Affiche/cache les champs selon le preset (mode simple).
+    if(!cfg.expert){
+      var preset=(document.getElementById(id+'_preset')||{}).value||'daily';
+      function show(suf, on){ var w=document.getElementById(id+'_w_'+suf); if(w) w.style.display = on?'':'none'; }
+      show('time', preset==='daily'||preset==='weekly'||preset==='monthly');
+      show('dow', preset==='weekly');
+      show('dom', preset==='monthly');
+      show('n', preset==='hours'||preset==='minutes');
+      var nl=document.getElementById(id+'_nlabel');
+      if(nl) nl.textContent = preset==='hours'?'heures':'minutes';
+    }
+    if(typeof cfg.onChange==='function') cfg.onChange(expr);
+  }
+
+  function toggleExpert(id){
+    var cfg=instances[id]; if(!cfg) return;
+    cfg.expert = !cfg.expert;
+    var simple=document.getElementById(id+'_simple'), expert=document.getElementById(id+'_expert');
+    if(cfg.expert && simple){ // bascule simple -> expert : pre-remplit l'expression
+      var raw=document.getElementById(id+'_raw'); if(raw) raw.value = buildExpr(id);
+    }
+    if(simple) simple.style.display = cfg.expert?'none':'';
+    if(expert) expert.style.display = cfg.expert?'':'none';
+    var t=document.getElementById(id+'_expertBtn'); if(t) t.textContent = cfg.expert?'Mode simple':'Mode expert';
+    refresh(id);
+  }
+
+  // Devine un preset depuis une expression existante (best-effort) pour pre-remplir.
+  function parseInitial(expr){
+    var def={preset:'daily',hh:9,mm:0,n:1,dow:1,dom:1,expert:false};
+    if(!expr) return def;
+    var p=String(expr).trim().split(/\s+/);
+    if(p.length<5){ def.expert=true; return def; }
+    var m=p[0],h=p[1],dom=p[2],dow=p[4];
+    function isInt(x){ return /^\d+$/.test(x); }
+    if(/^\*\/\d+$/.test(m) && h==='*'){ return {preset:'minutes',n:parseInt(m.split('/')[1],10),hh:9,mm:0,dow:1,dom:1,expert:false}; }
+    if(m==='0' && /^\*\/\d+$/.test(h)){ return {preset:'hours',n:parseInt(h.split('/')[1],10),hh:9,mm:0,dow:1,dom:1,expert:false}; }
+    if(isInt(m)&&isInt(h)&&dom==='*'&&dow==='*'){ return {preset:'daily',hh:+h,mm:+m,n:1,dow:1,dom:1,expert:false}; }
+    if(isInt(m)&&isInt(h)&&dom==='*'&&isInt(dow)){ return {preset:'weekly',hh:+h,mm:+m,dow:+dow,n:1,dom:1,expert:false}; }
+    if(isInt(m)&&isInt(h)&&isInt(dom)){ return {preset:'monthly',hh:+h,mm:+m,dom:+dom,n:1,dow:1,expert:false}; }
+    def.expert=true; return def; // non reconnu -> mode expert
+  }
+
+  // Cree un builder dans le conteneur (host = element OU id). Retourne l'id d'instance.
+  // opts: { value: exprInitiale, onChange: fn(expr) }
+  function mount(host, opts){
+    ensureStyle();
+    opts = opts || {};
+    var el = (typeof host==='string') ? document.getElementById(host) : host;
+    if(!el) return null;
+    var id = 'cb_'+Math.random().toString(36).slice(2,9);
+    var init = parseInitial(opts.value||'');
+    instances[id] = { onChange: opts.onChange, expert: init.expert };
+    function hopt(sel,n){ var o=''; for(var i=0;i<24;i++){ o+='<option value="'+i+'"'+(i===n?' selected':'')+'>'+('0'+i).slice(-2)+'</option>'; } return o; }
+    function mopt(n){ var o=''; for(var i=0;i<60;i+=5){ o+='<option value="'+i+'"'+(i===n?' selected':'')+'>'+('0'+i).slice(-2)+'</option>'; } if(n%5){ o+='<option value="'+n+'" selected>'+('0'+n).slice(-2)+'</option>'; } return o; }
+    function dowopt(n){ var o=''; for(var i=1;i<=6;i++){ o+='<option value="'+i+'"'+(i===n?' selected':'')+'>'+DOW[i].charAt(0).toUpperCase()+DOW[i].slice(1)+'</option>'; } o+='<option value="0"'+(n===0?' selected':'')+'>Dimanche</option>'; return o; }
+    var pre=init.preset;
+    function presetOpt(v,lbl){ return '<option value="'+v+'"'+(v===pre?' selected':'')+'>'+lbl+'</option>'; }
+    var oc="LaRuche.CronBuilder.changed('"+id+"')";
+    el.innerHTML =
+      '<div class="cb-wrap">'+
+        '<div id="'+id+'_simple"'+(init.expert?' style="display:none"':'')+'>'+
+          '<div class="cb-row">'+
+            '<div class="cb-field"><label>Frequence</label><select class="form-input" id="'+id+'_preset" onchange="'+oc+'">'+
+              presetOpt('daily','Chaque jour')+presetOpt('weekly','Chaque semaine')+presetOpt('hours','Toutes les N heures')+presetOpt('minutes','Toutes les N minutes')+presetOpt('monthly','Chaque mois')+
+            '</select></div>'+
+            '<div class="cb-field" id="'+id+'_w_dow"><label>Jour</label><select class="form-input" id="'+id+'_dow" onchange="'+oc+'">'+dowopt(init.dow)+'</select></div>'+
+            '<div class="cb-field" id="'+id+'_w_dom"><label>Jour du mois</label><input class="form-input cb-num" type="number" min="1" max="31" id="'+id+'_dom" value="'+init.dom+'" oninput="'+oc+'"></div>'+
+            '<div class="cb-field" id="'+id+'_w_n"><label>N (<span id="'+id+'_nlabel">heures</span>)</label><input class="form-input cb-num" type="number" min="1" id="'+id+'_n" value="'+init.n+'" oninput="'+oc+'"></div>'+
+            '<div class="cb-field" id="'+id+'_w_time"><label>Heure</label><div style="display:flex;gap:4px;align-items:center"><select class="form-input" id="'+id+'_hh" onchange="'+oc+'">'+hopt('hh',init.hh)+'</select><span style="color:var(--text-dim)">:</span><select class="form-input" id="'+id+'_mm" onchange="'+oc+'">'+mopt(init.mm)+'</select></div></div>'+
+          '</div>'+
+        '</div>'+
+        '<div id="'+id+'_expert"'+(init.expert?'':' style="display:none"')+'>'+
+          '<div class="cb-field"><label>Expression cron (5 champs)</label><input class="form-input" id="'+id+'_raw" placeholder="*/30 * * * *" value="'+LaRuche.Utils.esc(init.expert?(opts.value||''):'')+'" oninput="'+oc+'"></div>'+
+        '</div>'+
+        '<div class="cb-preview">'+
+          '<span>&#x21B3; <b id="'+id+'_humanPrev">—</b></span>'+
+          '<code id="'+id+'_codePrev">—</code>'+
+          '<button type="button" class="cb-expert-toggle" id="'+id+'_expertBtn" onclick="LaRuche.CronBuilder.toggleExpert(\''+id+'\')">'+(init.expert?'Mode simple':'Mode expert')+'</button>'+
+        '</div>'+
+      '</div>';
+    refresh(id);
+    return id;
+  }
+
+  function getValue(id){ return buildExpr(id); }
+
+  return { mount:mount, getValue:getValue, changed:refresh, toggleExpert:toggleExpert };
+})();
+
 /* ── Timeline (planning global cron + missions + watchers) ── */
 LaRuche.Timeline = (function(){
   var DOW = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
@@ -7363,6 +7542,15 @@ LaRuche.Timeline = (function(){
       return d.getTime();
     }
     return null;
+  }
+
+  // Liste les occurrences d'une expression cron dans [fromMs, toMs] (max ~400).
+  function occurrencesIn(expr, fromMs, toMs){
+    var out=[]; if(!expr) return out;
+    var t = nextCron(expr, fromMs-60000);
+    var guard=0;
+    while(t!=null && t<=toMs && guard<400){ out.push(t); t = nextCron(expr, t); guard++; }
+    return out;
   }
 
   // Libelle humain approximatif d'une expression cron.
@@ -7449,13 +7637,151 @@ LaRuche.Timeline = (function(){
     document.head.appendChild(s);
   }
 
-  async function render(el){
-    if(!el) return;
-    ensureBtnStyle();
-    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">Chargement du planning...</div>';
-    var data = await gather();
-    var ev = data.events.slice().sort(function(a,b){ return (a.next||Infinity)-(b.next||Infinity); });
+  // ── Etat partage (mode d'affichage + fenetre Gantt) ──
+  var _viewMode = (function(){ try{ return localStorage.getItem('lr_tl_view')||'agenda'; }catch(e){ return 'agenda'; } })();
+  var _ganttSpanH = 24;          // fenetre visible en heures (24/48/168)
+  var _ganttFromMs = null;       // bord gauche de la fenetre
+  var _lastData = null;          // donnees gather() en cache (pour re-render rapide)
+  var _hostEl = null;
 
+  function ensureGanttStyle(){
+    if(document.getElementById('lr-gantt-style')) return;
+    var s=document.createElement('style'); s.id='lr-gantt-style';
+    s.textContent=
+      '.gantt-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}'+
+      '.gantt-scroll{overflow-x:auto;overflow-y:hidden;border:1px solid var(--border);border-radius:8px;background:var(--bg-panel);-webkit-overflow-scrolling:touch}'+
+      '.gantt-grid{position:relative}'+
+      '.gantt-row{display:flex;align-items:stretch;border-bottom:1px solid rgba(42,42,46,.5);min-height:42px}'+
+      '.gantt-row.sect{background:rgba(245,158,11,.06)}'+
+      '.gantt-gutter{position:sticky;left:0;z-index:3;flex:0 0 auto;width:170px;background:var(--bg-panel);border-right:1px solid var(--border);padding:6px 8px;display:flex;flex-direction:column;justify-content:center;overflow:hidden}'+
+      '.gantt-gutter .gn{font-size:11px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
+      '.gantt-gutter .gs{font-size:9px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
+      '.gantt-lane{position:relative;flex:1 1 auto}'+
+      '.gantt-head{position:sticky;top:0;z-index:2;background:var(--bg-panel);border-bottom:1px solid var(--border)}'+
+      '.gantt-tick{position:absolute;top:0;bottom:0;border-left:1px solid rgba(42,42,46,.55)}'+
+      '.gantt-tick span{position:absolute;top:2px;left:3px;font-size:9px;color:var(--text-dim);white-space:nowrap}'+
+      '.gantt-now{position:absolute;top:0;bottom:0;width:2px;background:var(--red);z-index:4;pointer-events:none}'+
+      '.gantt-now:before{content:"now";position:absolute;top:0;left:3px;font-size:8px;color:var(--red);font-weight:700}'+
+      '.gantt-mark{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;transform:translate(-50%,-50%);cursor:pointer;border:1px solid rgba(0,0,0,.4);transition:transform .1s}'+
+      '.gantt-mark:hover{transform:translate(-50%,-50%) scale(1.5);z-index:5}'+
+      '.gantt-mark.past{opacity:.4}'+
+      '.gantt-detail{margin-top:10px;border:1px solid var(--amber);border-radius:8px;padding:10px;background:rgba(245,158,11,.07);font-size:12px}'+
+      '.gantt-detail .gd-t{font-weight:600;color:var(--amber);margin-bottom:4px}'+
+      '@media(max-width:640px){.gantt-gutter{width:110px}}';
+    document.head.appendChild(s);
+  }
+
+  function setView(mode){
+    _viewMode = mode;
+    try{ localStorage.setItem('lr_tl_view', mode); }catch(e){}
+    if(_hostEl) renderInto(_hostEl);
+  }
+  function ganttZoom(h){ _ganttSpanH=h; _ganttFromMs=Date.now()-0.25*h*3600000; if(_hostEl) renderInto(_hostEl); }
+  function ganttRecenter(){ _ganttFromMs=Date.now()-0.25*_ganttSpanH*3600000; if(_hostEl) renderInto(_hostEl); }
+
+  function fmtFull(ms){
+    if(!ms) return '—';
+    var d=new Date(ms);
+    return d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'})+' '+('0'+d.getHours()).slice(-2)+'h'+('0'+d.getMinutes()).slice(-2);
+  }
+
+  function renderGantt(el, data){
+    ensureGanttStyle();
+    var now = Date.now();
+    if(_ganttFromMs==null) _ganttFromMs = now - 0.25*_ganttSpanH*3600000;
+    var spanMs = _ganttSpanH*3600000;
+    var fromMs = _ganttFromMs, toMs = fromMs + spanMs;
+    // Largeur du graphe en px (densite par heure adaptee au zoom).
+    var pxPerH = _ganttSpanH<=24 ? 70 : (_ganttSpanH<=48 ? 42 : 14);
+    var graphW = Math.max(_ganttSpanH*pxPerH, 320);
+    function xOf(ms){ return (ms-fromMs)/spanMs*graphW; }
+
+    // Lanes : 1 par cron + 1 par mission a cadence ; watchers = 1 lane "surveillance".
+    var lanes = [];
+    (data.events||[]).forEach(function(e){
+      if(!e.expr) return; // pas de cadence -> pas de barre dans le Gantt
+      lanes.push({ name:e.name, sub:e.human, color:e.color, expr:e.expr, kind:e.kind });
+    });
+
+    // Graduations : pas adapte (3h en 24h, 6h en 48h, 1j en 7j).
+    var tickStepH = _ganttSpanH<=24 ? 3 : (_ganttSpanH<=48 ? 6 : 24);
+    var ticks='';
+    var firstTick = Math.ceil(fromMs/(tickStepH*3600000))*(tickStepH*3600000);
+    for(var tk=firstTick; tk<=toMs; tk+=tickStepH*3600000){
+      var d=new Date(tk);
+      var lbl = (tickStepH>=24) ? d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric'}) : (('0'+d.getHours()).slice(-2)+'h');
+      ticks += '<div class="gantt-tick" style="left:'+xOf(tk)+'px"><span>'+lbl+'</span></div>';
+    }
+    var nowLine = (now>=fromMs && now<=toMs) ? '<div class="gantt-now" style="left:'+xOf(now)+'px"></div>' : '';
+
+    // En-tete (axe temps)
+    var head = '<div class="gantt-row gantt-head"><div class="gantt-gutter"><div class="gn">Jobs</div><div class="gs">'+fmtFull(fromMs)+' → '+fmtFull(toMs)+'</div></div>'+
+      '<div class="gantt-lane" style="width:'+graphW+'px;min-height:24px">'+ticks+'</div></div>';
+
+    var rows = '';
+    if(!lanes.length){
+      rows = '<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:12px">Aucun job a cadence cron a afficher.</div>';
+    }
+    window._tlGanttMarks = window._tlGanttMarks || {};
+    lanes.forEach(function(ln, li){
+      var occs = occurrencesIn(ln.expr, fromMs, toMs);
+      var marks='';
+      occs.forEach(function(t){
+        var past = t < now;
+        window._tlGanttMarks[li+'_'+t] = { name:ln.name, when:t, expr:ln.expr, human:ln.sub };
+        marks += '<div class="gantt-mark'+(past?' past':'')+'" style="left:'+xOf(t)+'px;background:'+ln.color+'" '+
+          'onclick="LaRuche.Timeline.ganttMark('+li+','+t+')" title="'+LaRuche.Utils.esc(ln.name+' · '+fmtFull(t))+'"></div>';
+      });
+      rows += '<div class="gantt-row"><div class="gantt-gutter"><div class="gn">'+(ln.kind==='cron'?'⏰ ':'👑 ')+LaRuche.Utils.esc(ln.name)+'</div><div class="gs">'+LaRuche.Utils.esc(ln.sub)+'</div></div>'+
+        '<div class="gantt-lane" style="width:'+graphW+'px">'+ticks+nowLine+marks+'</div></div>';
+    });
+
+    // Lane de surveillance continue (watchers)
+    if((data.watchers||[]).length){
+      var wnames = (data.watchers||[]).map(function(w){ return w.name||'(watcher)'; }).join(', ');
+      rows += '<div class="gantt-row sect"><div class="gantt-gutter"><div class="gn">👁 Surveillance continue</div><div class="gs">'+(data.watchers||[]).length+' monitor(s)</div></div>'+
+        '<div class="gantt-lane" style="width:'+graphW+'px;display:flex;align-items:center"><div style="position:relative;width:100%">'+ticks+nowLine+
+          '<div style="position:absolute;top:50%;left:0;right:8px;height:4px;transform:translateY(-50%);background:linear-gradient(90deg,rgba(6,182,212,.15),rgba(6,182,212,.5));border-radius:3px"></div>'+
+          '<div style="position:absolute;top:50%;left:8px;transform:translateY(-50%);font-size:10px;color:var(--cyan);white-space:nowrap;text-shadow:0 0 4px #000">'+LaRuche.Utils.esc(wnames.substring(0,80))+'</div>'+
+        '</div></div></div>';
+    }
+
+    var zoomBtn = function(h,lbl){ return '<button class="tl-btn"'+(_ganttSpanH===h?' style="border-color:var(--amber);color:var(--amber)"':'')+' onclick="LaRuche.Timeline.ganttZoom('+h+')">'+lbl+'</button>'; };
+    var toolbar = '<div class="gantt-toolbar">'+
+      viewToggleHtml()+
+      '<span style="margin-left:8px;color:var(--text-dim);font-size:11px">Zoom</span>'+
+      zoomBtn(24,'24h')+zoomBtn(48,'48h')+zoomBtn(168,'7j')+
+      '<button class="tl-btn" onclick="LaRuche.Timeline.ganttRecenter()">⊙ Now</button>'+
+      '<button class="tl-btn" onclick="LaRuche.Timeline.reload()">↻ Rafraichir</button>'+
+      '</div>';
+
+    el.innerHTML = toolbar +
+      '<div class="gantt-scroll" id="tlGanttScroll"><div class="gantt-grid">'+head+rows+'</div></div>'+
+      '<div id="tlGanttDetail"></div>';
+    // Centre le scroll sur "Now" au premier rendu de la fenetre.
+    var sc=document.getElementById('tlGanttScroll');
+    if(sc && now>=fromMs && now<=toMs){ sc.scrollLeft = Math.max(0, xOf(now) - sc.clientWidth*0.4); }
+  }
+
+  function ganttMark(li, t){
+    var m = (window._tlGanttMarks||{})[li+'_'+t]; if(!m) return;
+    var host=document.getElementById('tlGanttDetail'); if(!host) return;
+    host.innerHTML = '<div class="gantt-detail">'+
+      '<div class="gd-t">'+LaRuche.Utils.esc(m.name)+'</div>'+
+      '<div style="color:var(--text-dim)">Occurrence : <b style="color:#fff">'+fmtFull(m.when)+'</b>'+(m.when<Date.now()?' (passee)':' (a venir)')+'</div>'+
+      '<div style="color:var(--text-dim)">Cadence : '+LaRuche.Utils.esc(m.human)+' · <code style="color:var(--cyan)">'+LaRuche.Utils.esc(m.expr)+'</code></div>'+
+      '</div>';
+  }
+
+  function viewToggleHtml(){
+    return '<div style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">'+
+      '<button class="tl-btn" style="border:none;border-radius:0'+(_viewMode==='agenda'?';background:var(--amber);color:#000':'')+'" onclick="LaRuche.Timeline.setView(\'agenda\')">Agenda</button>'+
+      '<button class="tl-btn" style="border:none;border-radius:0'+(_viewMode==='gantt'?';background:var(--amber);color:#000':'')+'" onclick="LaRuche.Timeline.setView(\'gantt\')">Gantt</button>'+
+      '</div>';
+  }
+
+  function renderAgenda(el, data){
+    var ev = data.events.slice().sort(function(a,b){ return (a.next||Infinity)-(b.next||Infinity); });
     var buckets = {today:[], week:[], later:[], none:[]};
     ev.forEach(function(e){
       if(!e.next){ buckets.none.push(e); return; }
@@ -7473,9 +7799,10 @@ LaRuche.Timeline = (function(){
         '</div>';
     }).join('');
 
-    var html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">'+
-      '<span style="color:var(--text-dim);font-size:12px">'+ev.length+' planification(s) · '+(data.watchers||[]).length+' monitor(s)</span>'+
-      '<button class="tl-btn" onclick="LaRuche.Timeline.reload()">↻ Rafraichir</button></div>';
+    var html = '<div class="gantt-toolbar" style="justify-content:space-between">'+
+      viewToggleHtml()+
+      '<span style="color:var(--text-dim);font-size:12px">'+ev.length+' planification(s) · '+(data.watchers||[]).length+' monitor(s) '+
+      '<button class="tl-btn" style="margin-left:8px" onclick="LaRuche.Timeline.reload()">↻ Rafraichir</button></span></div>';
     html += section("Aujourd'hui", rowsOf(buckets.today));
     html += section('Cette semaine', rowsOf(buckets.week));
     html += section('A venir', rowsOf(buckets.later));
@@ -7484,12 +7811,28 @@ LaRuche.Timeline = (function(){
     el.innerHTML = html;
   }
 
+  function renderInto(el){
+    if(!el || !_lastData) return;
+    if(_viewMode==='gantt') renderGantt(el, _lastData);
+    else renderAgenda(el, _lastData);
+  }
+
+  async function render(el){
+    if(!el) return;
+    ensureBtnStyle();
+    _hostEl = el;
+    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">Chargement du planning...</div>';
+    _lastData = await gather();
+    renderInto(el);
+  }
+
   function reload(){
-    var el = document.getElementById('autoContent');
+    var el = document.getElementById('autoContent') || _hostEl;
     if(el) render(el);
   }
 
-  return { render:render, reload:reload, nextCron:nextCron, humanCron:humanCron };
+  return { render:render, reload:reload, nextCron:nextCron, humanCron:humanCron, occurrencesIn:occurrencesIn,
+    setView:setView, ganttZoom:ganttZoom, ganttRecenter:ganttRecenter, ganttMark:ganttMark };
 })();
 
 /* ── Automatisations (Cron · Watchers · Kanban · Blueprints · Timeline) ── */
