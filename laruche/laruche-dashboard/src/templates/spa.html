@@ -1691,8 +1691,10 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
           <span class="mem2-title">Memoire</span>
           <span class="mem2-stats" id="mem2Stats">--</span>
         </div>
-        <div class="mem2-search">
-          <input id="mem2Search" type="text" placeholder="Rechercher..." spellcheck="false">
+        <div class="mem2-search" style="display:flex; gap:5px;">
+          <input id="mem2Search" type="text" placeholder="Rechercher..." spellcheck="false" style="flex:1;">
+          <button onclick="LaRuche.Memory.toggleAll(true)" title="Tout déplier" style="background:var(--bg-hover);border:1px solid var(--border);color:var(--text-muted);border-radius:4px;cursor:pointer;padding:0 8px;">+</button>
+          <button onclick="LaRuche.Memory.toggleAll(false)" title="Tout plier" style="background:var(--bg-hover);border:1px solid var(--border);color:var(--text-muted);border-radius:4px;cursor:pointer;padding:0 8px;">-</button>
         </div>
         <datalist id="memoryNodeSuggestions"></datalist>
         <div class="mem2-tree" id="mem2Tree"><div class="mem2-empty">Chargement...</div></div>
@@ -5143,7 +5145,7 @@ LaRuche.Memory = (function(){
     if(id === 'system.prompt') return SVG.prompt;
     if(id === 'system.soul') return SVG.soul;
     if(id === 'tools' || id.indexOf('tools.') === 0) return SVG.tools;
-    return hasKids ? '<span style="color:var(--amber)">'+SVG.folder+'</span>' : SVG.file;
+    return '<span style="color:var(--amber)">'+SVG.folder+'</span>';
   }
 
   // Ordre racine : SYSTEM puis tools en premier, le reste alphabetique.
@@ -5733,7 +5735,14 @@ LaRuche.Missions = (function(){
     } catch(e){ LaRuche.Toast.show('Export: '+e,'err'); }
   }
 
-  return { init:init, enter:enter, leave:leave, refresh:refresh, create:create };
+  function toggleAll(forceOpen) {
+    Object.keys(nodes).forEach(function(id) {
+      expanded[id] = forceOpen;
+    });
+    renderTree();
+  }
+
+  return { init:init, enter:enter, leave:leave, refresh:refresh, create:create, toggleAll:toggleAll };
 })();
 
 
