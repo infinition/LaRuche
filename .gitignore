@@ -38,3 +38,7 @@ laruche/watchers.json
 laruche/cron-tasks.json
 laruche/provider-profiles.json
 laruche/channels-config.json
+
+# Exports & artefacts runtime de l'agent
+laruche/okf-export/
+laruche/*.py
