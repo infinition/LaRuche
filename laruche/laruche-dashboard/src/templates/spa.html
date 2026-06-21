@@ -1570,6 +1570,35 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 /* ================================================================ */
 window.LaRuche = {};
 
+/* ── Rafraichissement dynamique global (P7) ──────────────────────
+ * Apres toute action mutante (choix de modele, visibilite, capacite,
+ * cron...), on re-fetch + re-render les composants concernes SANS F5.
+ * Les references aux modules sont resolues a l'appel (lazy) car cette
+ * fonction est definie avant les modules. parts = sous-ensemble optionnel
+ * a rafraichir : 'models','mesh','capabilities','profiles','voice','cron'.
+ */
+LaRuche.refreshAll = function(parts) {
+  var all = !parts || !parts.length;
+  function want(p){ return all || parts.indexOf(p) !== -1; }
+  try {
+    // Dropdown modele du haut + badge capacite global
+    if(want('models') && LaRuche.Header && LaRuche.Header.loadModels) LaRuche.Header.loadModels();
+    // Panneau "Services du mesh" + recap capacites + sélecteurs voix (Dashboard.fetchModels
+    // re-lit /swarm/models ET /api/capabilities/selection, et met à jour les voix).
+    if((want('mesh') || want('capabilities') || want('voice')) && LaRuche.Dashboard && LaRuche.Dashboard.fetchModels) LaRuche.Dashboard.fetchModels();
+    // Statut voix (STT/TTS selectionne)
+    if(want('voice') && LaRuche.Voice && LaRuche.Voice.refreshStatus) LaRuche.Voice.refreshStatus();
+    // Onglet Settings courant (profils, cron, watchers, kanban...) si visible
+    if(want('profiles') || want('cron')) {
+      if(LaRuche.Settings && LaRuche.Settings.refreshTab && LaRuche.Router && LaRuche.Router.current && LaRuche.Router.current() === 'settings') {
+        LaRuche.Settings.refreshTab();
+      }
+    }
+  } catch(e){ /* best-effort, ne jamais casser l'action */ }
+};
+// Alias historique (deja appele dans le code visibilite)
+LaRuche.forceReactivityUpdate = function(){ LaRuche.refreshAll(); };
+
 /* ── Utils ─────────────────────────────────────────────────────── */
 LaRuche.Utils = {
   esc: function(t) { var d=document.createElement('div'); d.textContent=t; return d.innerHTML; },
@@ -2186,6 +2215,8 @@ LaRuche.Header = (function(){
         }).catch(function(){});
       }
       LaRuche.Toast.show('Model: '+modelName,'ok');
+      // P7 : refleter le nouveau modele actif dans le mesh/recap capacites sans F5
+      LaRuche.refreshAll(['mesh','capabilities']);
     }).catch(function(){ select.disabled = false; });
   }
 
@@ -3661,6 +3692,7 @@ LaRuche.Voice = (function(){
 
   return {
     init:init, speakText:speakText, toggleMic:toggleMic, toggleAutoTts:toggleAutoTts,
+    refreshStatus:checkVoiceStatus,
     isAutoTts:function(){return autoTtsEnabled;}, cleanTextForTTS:cleanTextForTTS,
     selectTTS: function(v){ if(!v)return; var p=v.split('|'); LaRuche.Dashboard.useMeshModel(p[0],p[1],'tts'); },
     selectSTT: function(v){ if(!v)return; var p=v.split('|'); LaRuche.Dashboard.useMeshModel(p[0],p[1],'stt'); },
@@ -3972,7 +4004,8 @@ LaRuche.Dashboard = (function(){
     })}).then(function(r){return r.json();}).then(function(d){
       if(d.status==='ok') {
         LaRuche.Toast.show(name + ' actif pour ' + capability, 'ok');
-        fetchModels();
+        // P7 : re-fetch + re-render le dropdown du haut, le mesh, le recap capacites et la voix
+        LaRuche.refreshAll();
       } else {
         LaRuche.Toast.show('Erreur: '+(d.error||'?'), 'err');
         fetchModels();
