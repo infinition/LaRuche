@@ -3027,6 +3027,8 @@ async fn api_list_watchers(State(state): State<Arc<AppState>>) -> Json<serde_jso
                 "prompt": w.prompt,
                 "active": w.active,
                 "run_count": w.run_count,
+                "profile_id": w.profile_id,
+                "model": w.model,
             })
         })
         .collect();

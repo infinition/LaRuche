@@ -25,3 +25,8 @@ laruche/laruche-node/src/main.rs.broken
 laruche/laruche-node/src/main.rs.merged
 laruche/laruche-node/src/main.rs.staged_version
 *.corrupted-*
+
+# SQLite runtime
+*.db
+*.db-wal
+*.db-shm
