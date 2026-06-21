@@ -351,7 +351,7 @@ impl MemoireCognitive for SqliteBackend {
             // Repli LEXICAL : FTS5 BM25.
             let match_expr = qtoks
                 .iter()
-                .map(|t| format!("\"{t}\""))
+                .map(|t| format!("\"{t}\"*"))
                 .collect::<Vec<_>>()
                 .join(" OR ");
             let mut stmt = conn.prepare(

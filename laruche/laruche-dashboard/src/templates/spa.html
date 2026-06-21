@@ -2466,6 +2466,7 @@ LaRuche.Router = (function(){
 LaRuche.Header = (function(){
   var currentModelName = '';
   var currentProfileId = '';
+  var lastModelChangeAt = 0;
 
   function init() {
     loadModels();
@@ -2557,10 +2558,12 @@ LaRuche.Header = (function(){
         select.appendChild(opt);
       }
 
-      currentModelName = active.model || '';
-      currentProfileId = active.profile_id || '';
-      var recapEl = document.getElementById('sessionCapsRecap');
-      if (recapEl) recapEl.textContent = currentModelName || 'Auto';
+      if (Date.now() - lastModelChangeAt > 2000) {
+        currentModelName = active.model || '';
+        currentProfileId = active.profile_id || '';
+        var recapEl = document.getElementById('sessionCapsRecap');
+        if (recapEl) recapEl.textContent = currentModelName || 'Auto';
+      }
     }).catch(function(){});
   }
 
@@ -2572,6 +2575,7 @@ LaRuche.Header = (function(){
     var modelName = value.substring(slashIdx + 1);
     currentModelName = modelName;
     currentProfileId = profileId;
+    lastModelChangeAt = Date.now();
 
     var recapEl = document.getElementById('sessionCapsRecap');
     if (recapEl) recapEl.textContent = modelName;
@@ -5005,8 +5009,20 @@ LaRuche.Memory = (function(){
     });
   }
 
-  function enter() { setView('tree'); if(!loaded) loadTree(); else renderTree(); }
-  function leave() {}
+  var memPollTimer = null;
+  function enter() { 
+    setView('tree'); 
+    if(!loaded) loadTree(); else renderTree(); 
+    if(!memPollTimer) memPollTimer = setInterval(function(){
+      var input = document.getElementById('mem2Search');
+      if (input && input.value.trim()) return; // Pause auto-refresh during search
+      loadTree(true);
+      if(current && view==='tree') loadNode(current, true);
+    }, 2000);
+  }
+  function leave() {
+    if(memPollTimer) { clearInterval(memPollTimer); memPollTimer = null; }
+  }
 
   function esc(t){ return LaRuche.Utils.esc(t); }
 
@@ -5026,13 +5042,18 @@ LaRuche.Memory = (function(){
   }
 
   /* ---- chargement ---- */
-  function loadTree() {
+  var lastTreeSig = '';
+  function loadTree(silent) {
     fetch(LaRuche.API.base+'/api/memory/tree').then(function(r){return r.json();}).then(function(data){
       loaded = true;
+      var sig = JSON.stringify(data.nodes || []);
+      if(silent && sig === lastTreeSig) return;
+      lastTreeSig = sig;
       mergeNodes(data.nodes || []);
       renderTree();
       loadStats();
     }).catch(function(e){
+      if(silent) return;
       var t = document.getElementById('mem2Tree');
       if(t) t.innerHTML = '<div class="mem2-empty">Memoire indisponible</div>';
       LaRuche.Toast.show('Memoire indisponible: '+e, 'err');
@@ -5064,11 +5085,15 @@ LaRuche.Memory = (function(){
     }).catch(function(e){ LaRuche.Toast.show('Recherche: '+e, 'err'); });
   }
 
-  function loadNode(id) {
+  var lastNodeSig = '';
+  function loadNode(id, silent) {
     id = String(id || '').trim(); if(!id) return;
     fetch(LaRuche.API.base+'/api/memory/node/'+encodeURIComponent(id)).then(function(r){return r.json();}).then(function(data){
-      if(data.status === 'error' || data.error) { LaRuche.Toast.show(data.error || 'Noeud indisponible', 'err'); return; }
+      if(data.status === 'error' || data.error) { if(!silent) LaRuche.Toast.show(data.error || 'Noeud indisponible', 'err'); return; }
       var node = data.node || data;
+      var sig = JSON.stringify(node);
+      if(silent && sig === lastNodeSig && current === id) return;
+      lastNodeSig = sig;
       node.node_id = node.node_id || node.id || id;
       currentNode = node;
       current = node.node_id;
@@ -5079,7 +5104,7 @@ LaRuche.Memory = (function(){
       renderTree();
       renderDoc();
       if(view === 'graph') renderGraph();
-    }).catch(function(e){ LaRuche.Toast.show('Lecture noeud: '+e, 'err'); });
+    }).catch(function(e){ if(!silent) LaRuche.Toast.show('Lecture noeud: '+e, 'err'); });
   }
 
   /* ---- helpers icones / protection ---- */
@@ -5192,7 +5217,14 @@ LaRuche.Memory = (function(){
       c.onclick = function(e){ e.stopPropagation(); var id=c.dataset.toggle; expanded[id]=!expanded[id]; renderTree(); };
     });
     el.querySelectorAll('.mem2-row').forEach(function(row){
-      row.onclick = function(){ loadNode(row.dataset.node); };
+      row.onclick = function(e){ 
+        if(!e.target.closest('.mem2-caret')) {
+          var id = row.dataset.node;
+          expanded[id] = !expanded[id];
+          renderTree();
+        }
+        loadNode(row.dataset.node); 
+      };
     });
   }
 
