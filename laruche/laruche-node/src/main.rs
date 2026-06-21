@@ -3334,7 +3334,7 @@ async fn api_list_skills(State(state): State<Arc<AppState>>) -> Json<serde_json:
             for child in children {
                 let id = child["id"].as_str().or_else(|| child["node_id"].as_str());
                 let Some(id) = id else { continue };
-                let name = id.strip_prefix("tools.skills.").unwrap_or(id).to_string();
+                let name = id.strip_prefix("capacities.skills.").unwrap_or(id).to_string();
                 // Charge le contenu pour extraire la description.
                 let mut description = child["label"].as_str().unwrap_or("").to_string();
                 if let Ok(node) = state.memoire.read_node(id).await {
