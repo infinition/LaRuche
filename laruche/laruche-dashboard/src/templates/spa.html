@@ -7375,6 +7375,7 @@ LaRuche.Automations = (function(){
 /* ── Capacités (Abeilles · Skills · MCP · Plugins) — tableau unifié ── */
 LaRuche.Capabilities = (function(){
   var currentFamily = 'all';
+  var searchTerm = '';
   function init(){
     var bar = document.getElementById('capTabsBar');
     if(!bar) return;
@@ -7445,6 +7446,14 @@ LaRuche.Capabilities = (function(){
         });
       }
     } catch(e){}
+    // Tri alphabetique par nom a l'interieur de chaque famille
+    var famOrder = {abeille:0, skill:1, mcp:2, plugin:3};
+    rows.sort(function(a,b){
+      var fa=(famOrder[a.family]==null?9:famOrder[a.family]);
+      var fb=(famOrder[b.family]==null?9:famOrder[b.family]);
+      if(fa!==fb) return fa-fb;
+      return String(a.name).toLowerCase().localeCompare(String(b.name).toLowerCase());
+    });
     return rows;
   }
 
@@ -7472,7 +7481,9 @@ LaRuche.Capabilities = (function(){
       return tog2+' '+edit+' '+del2;
     }
     if(r.family==='mcp'){
-      return '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.Settings.deleteMcpServer(\''+LaRuche.Utils.esc(r.mcpName)+'\');setTimeout(LaRuche.Capabilities.refresh,600)">Retirer</button>';
+      var editMcp = '<button class="tl-btn" onclick="LaRuche.Capabilities.editMcp('+i+')">Editer</button>';
+      var delMcp = '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.Settings.deleteMcpServer(\''+LaRuche.Utils.esc(r.mcpName)+'\');setTimeout(LaRuche.Capabilities.refresh,600)">Retirer</button>';
+      return editMcp+' '+delMcp;
     }
     return '<span style="color:var(--text-dim);font-size:10px">—</span>';
   }
@@ -7484,6 +7495,13 @@ LaRuche.Capabilities = (function(){
     ensureSwitchStyle();
     var rows = await gather();
     var filtered = (currentFamily==='all') ? rows : rows.filter(function(r){ return r.family===currentFamily; });
+    var q = (searchTerm||'').trim().toLowerCase();
+    if(q){
+      filtered = filtered.filter(function(r){
+        return (String(r.name||'').toLowerCase().indexOf(q)!==-1) ||
+               (String(r.desc||'').toLowerCase().indexOf(q)!==-1);
+      });
+    }
     window._capRows = filtered;
 
     var counts = {all:rows.length, abeille:0, skill:0, mcp:0, plugin:0};
@@ -7528,16 +7546,58 @@ LaRuche.Capabilities = (function(){
 
     var extraActions = '';
     if(currentFamily==='all' || currentFamily==='skill'){
-      extraActions = '<button class="settings-save-btn" onclick="LaRuche.Settings.newSkill()">+ Nouveau skill</button>';
+      extraActions += '<button class="settings-save-btn" onclick="LaRuche.Settings.newSkill()">+ Nouveau skill</button>';
+    }
+    if(currentFamily==='all' || currentFamily==='abeille'){
+      extraActions = '<button onclick="LaRuche.Capabilities.toggleAll(true)" style="background:rgba(16,185,129,0.15);color:var(--green);border:1px solid var(--green);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600">Tout activer</button>'+
+        '<button onclick="LaRuche.Capabilities.toggleAll(false)" style="background:rgba(239,68,68,0.15);color:var(--red);border:1px solid var(--red);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600">Tout desactiver</button>'+
+        extraActions;
     }
 
-    el.innerHTML = mcpAdd +
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
+    // Champ de recherche (loupe, ambre)
+    var searchBar = '<div style="position:relative;margin-bottom:12px;max-width:360px">'+
+      '<span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--amber);font-size:13px;pointer-events:none">&#128269;</span>'+
+      '<input id="capSearch" class="form-input" placeholder="Rechercher (nom ou description)..." '+
+        'value="'+LaRuche.Utils.esc(searchTerm)+'" '+
+        'oninput="LaRuche.Capabilities.onSearch(this.value)" '+
+        'style="width:100%;padding-left:30px;border-color:var(--amber)"></div>';
+
+    el.innerHTML = mcpAdd + searchBar +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">'+
         '<span style="color:var(--text-dim);font-size:12px">'+filtered.length+' capacite(s)'+(currentFamily==='all'?' — abeilles natives = immuables':'')+'</span>'+
-        extraActions+
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">'+extraActions+'</div>'+
       '</div>'+
       (filtered.length ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+head+'<tbody>'+body+'</tbody></table></div>'
-                       : '<div style="text-align:center;color:var(--text-muted);padding:30px">Aucune capacite dans cette famille.</div>');
+                       : '<div style="text-align:center;color:var(--text-muted);padding:30px">Aucune capacite (filtre ou famille vide).</div>');
+
+    // Restaure le focus + curseur dans le champ de recherche apres re-render
+    if(searchTerm){
+      var si = document.getElementById('capSearch');
+      if(si){ si.focus(); try{ si.setSelectionRange(si.value.length, si.value.length); }catch(e){} }
+    }
+  }
+
+  function onSearch(v){ searchTerm = v||''; render(); }
+
+  function toggleAll(enable){
+    if(LaRuche.Settings && LaRuche.Settings.toggleAllTools){
+      LaRuche.Settings.toggleAllTools(enable);
+      setTimeout(refresh, 400);
+    }
+  }
+
+  function editMcp(i){
+    var rows = window._capRows || [];
+    var r = rows[i]; if(!r || r.family!=='mcp') return;
+    var s = r.raw || {};
+    var nameEl=document.getElementById('capMcpName'), cmdEl=document.getElementById('capMcpCmd'), argsEl=document.getElementById('capMcpArgs');
+    if(!nameEl||!cmdEl||!argsEl){ LaRuche.Toast.show('Formulaire MCP indisponible','err'); return; }
+    nameEl.value = r.mcpName || r.name || '';
+    cmdEl.value = s.command || '';
+    argsEl.value = (s.args || []).join(' ');
+    nameEl.focus();
+    try{ nameEl.scrollIntoView({behavior:'smooth', block:'center'}); }catch(e){}
+    LaRuche.Toast.show('Edition de '+(r.mcpName||r.name)+' — modifiez puis cliquez sur le bouton','ok');
   }
 
   function addMcp(){
@@ -7545,7 +7605,7 @@ LaRuche.Capabilities = (function(){
     n=(n||'').trim(); c=(c||'').trim(); a=(a||'').trim();
     if(!n||!c){ LaRuche.Toast.show('Nom et commande requis','err'); return; }
     fetch('/api/mcp/servers/'+encodeURIComponent(n),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:c,args:(a?a.split(' '):[])})})
-      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Serveur MCP ajoute','ok'); render(); } else LaRuche.Toast.show('Echec ajout MCP','err'); });
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Serveur MCP enregistre','ok'); var ne=document.getElementById('capMcpName'),ce=document.getElementById('capMcpCmd'),ae=document.getElementById('capMcpArgs'); if(ne)ne.value=''; if(ce)ce.value=''; if(ae)ae.value=''; render(); } else LaRuche.Toast.show('Echec enregistrement MCP','err'); });
   }
 
   function ensureSwitchStyle(){
@@ -7558,7 +7618,7 @@ LaRuche.Capabilities = (function(){
     document.head.appendChild(st);
   }
 
-  return { init:init, enter:enter, leave:leave, refresh:refresh, addMcp:addMcp, viewRaw:viewRaw };
+  return { init:init, enter:enter, leave:leave, refresh:refresh, addMcp:addMcp, viewRaw:viewRaw, onSearch:onSearch, toggleAll:toggleAll, editMcp:editMcp };
 })();
 
 /* ── Register all page modules ── */
