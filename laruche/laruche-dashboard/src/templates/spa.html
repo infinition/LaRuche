@@ -159,24 +159,6 @@ body {
 .header-nav a.active { color:var(--amber); border-bottom-color:var(--amber); }
 
 .header-right { display:flex; align-items:center; gap:12px; font-size:12px; color:var(--text-dim); }
-.auto-tts-toggle {
-  display:flex; align-items:center; gap:5px; cursor:pointer;
-  padding:4px 8px; border-radius:var(--radius);
-  border:1px solid var(--border); background:none;
-  color:var(--text-muted); font-size:12px;
-  transition:all var(--transition-fast); user-select:none;
-}
-.auto-tts-toggle:hover { border-color:var(--amber); color:var(--amber); }
-.auto-tts-toggle.active { border-color:var(--amber); color:var(--amber); background:var(--amber-glow); }
-.auto-tts-toggle .toggle-icon { font-size:14px; }
-.think-toggle {
-  display:flex; align-items:center; gap:6px; cursor:pointer;
-  padding:4px 8px; border-radius:var(--radius); border:1px solid var(--border);
-  color:var(--text-muted); font-size:12px; user-select:none;
-}
-.think-toggle:hover { border-color:var(--amber); color:var(--amber); }
-.think-toggle input { accent-color:var(--amber); }
-.think-toggle.active { border-color:var(--amber); color:var(--amber); background:var(--amber-glow); }
 .model-select {
   background:var(--bg-input); border:1px solid var(--border); border-radius:6px;
   color:var(--text); font-size:12px; padding:4px 8px; outline:none;
@@ -184,6 +166,53 @@ body {
 }
 .model-select:focus { border-color:var(--amber); }
 .version-pill { font-size:10px; color:var(--text-muted); font-family:var(--mono); }
+
+/* New compact controls in sidebar */
+.sidebar-controls {
+  display: flex; gap: 6px; padding: 6px 12px; border-bottom: 1px solid var(--border);
+  background: var(--bg-panel); align-items: center; flex-wrap: wrap; justify-content: flex-start;
+}
+.ctrl-icon-btn {
+  position: relative; width: 26px; height: 26px; border-radius: 4px; border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  background: var(--bg-input); color: var(--text-muted); font-size: 13px; transition: all 0.2s;
+  padding: 0; margin: 0;
+}
+.ctrl-icon-btn:hover { border-color: var(--amber); color: var(--amber); }
+.ctrl-icon-btn select {
+  position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer;
+}
+.ctrl-icon-btn select option { color: #000; }
+.ctrl-toggle { display: none; }
+.ctrl-icon-btn .icon { position: relative; }
+.ctrl-icon-btn.toggleable .icon::after {
+  content: ''; position: absolute; left: -2px; right: -2px; top: 50%; height: 2px;
+  background: var(--red); transform: rotate(-45deg); transition: transform 0.2s, opacity 0.2s;
+}
+.ctrl-icon-btn.toggleable { color: var(--red); border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.05); }
+.ctrl-icon-btn.toggleable.active {
+  color: var(--green); border-color: rgba(34,197,94,0.3); background: rgba(34,197,94,0.05);
+}
+.ctrl-icon-btn.toggleable.active .icon::after {
+  opacity: 0; transform: rotate(-45deg) scaleX(0);
+}
+.ctrl-icon-btn.toggleable.reverse-toggle {
+  color: var(--green); border-color: rgba(34,197,94,0.3); background: rgba(34,197,94,0.05);
+}
+.ctrl-icon-btn.toggleable.reverse-toggle .icon::after {
+  opacity: 0; transform: rotate(-45deg) scaleX(0);
+}
+.ctrl-icon-btn.toggleable.reverse-toggle.active {
+  color: var(--red); border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.05);
+}
+.ctrl-icon-btn.toggleable.reverse-toggle.active .icon::after {
+  opacity: 1; transform: rotate(-45deg) scaleX(1);
+}
+.ctx-mini-pill {
+  font-family: var(--mono); font-size: 10px; padding: 2px 6px; border-radius: 4px;
+  background: var(--bg-input); border: 1px solid var(--border); color: var(--text-dim);
+  cursor: default; margin-left: auto;
+}
 
 /* ============================== */
 /* MOBILE BOTTOM TAB BAR          */
@@ -1214,24 +1243,6 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
     <a href="#settings" data-page="settings">Settings</a>
   </div>
   <div class="header-right">
-    <button class="auto-tts-toggle" id="autoTtsToggle" onclick="LaRuche.Voice.toggleAutoTts()" title="Lecture automatique des reponses">
-      <span class="toggle-icon">&#x1F50A;</span>
-      <span>Auto-TTS</span>
-    </button>
-    <select id="ttsSelect" class="model-select" onchange="LaRuche.Voice.selectTTS(this.value)" style="max-width:120px;" title="Modele TTS">
-      <option value="">Auto (premier detecte)</option>
-    </select>
-    <label class="think-toggle" id="noThinkWrap" title="Injecter /no_think dans le prochain tour">
-      <input type="checkbox" id="noThinkToggle" onchange="LaRuche.Chat.toggleNoThink(this.checked)">
-      <span>No-think</span>
-    </label>
-    <select id="modelSelect" class="model-select" onchange="LaRuche.Header.changeModel(this.value)" title="Changer de modele">
-      <option value="">Chargement...</option>
-    </select>
-    <select id="permModeSelect" class="model-select" onchange="LaRuche.Header.changePermissionMode(this.value)" title="Mode de permission des outils">
-      <option value="">Permissions…</option>
-    </select>
-    <div id="headerContextUsage" class="model-select" style="display:flex;align-items:center;padding:4px 8px;font-family:var(--mono);font-size:11px;cursor:default;" title="Usage du contexte">CTX: 0%</div>
     <span class="version-pill">Miel v0.2.0</span>
     <div class="user-badge" id="userBadge" style="display:none">
       <div class="user-avatar" id="userAvatar"></div>
@@ -1264,6 +1275,37 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
     <div id="sessionCapsRecap" style="text-align:center;font-size:10px;color:var(--text-dim);background:var(--bg-panel);padding:2px 0;border-bottom:1px solid var(--border);">Pour cette discussion : Chargement...</div>
     <div class="chat-layout">
       <div class="chat-sidebar" id="chatSidebar">
+        <!-- New compact global controls for chat -->
+        <div class="sidebar-controls">
+          <div style="display:flex; gap:6px; align-items:center;">
+             <button class="ctrl-icon-btn toggleable" id="autoTtsToggle" onclick="LaRuche.Voice.toggleAutoTts()" title="Lecture automatique (Auto-TTS)">
+               <span class="icon">&#x1F50A;</span>
+             </button>
+             <div class="ctrl-icon-btn" title="Modele TTS (Cliquez pour choisir)">
+               <span class="icon">&#x1F3A4;</span>
+               <select id="ttsSelect" onchange="LaRuche.Voice.selectTTS(this.value)">
+                 <option value="">Auto (premier detecte)</option>
+               </select>
+             </div>
+             <label class="ctrl-icon-btn toggleable reverse-toggle" id="noThinkWrap" title="No-think (Forcer à ne pas réfléchir)">
+               <input type="checkbox" class="ctrl-toggle" id="noThinkToggle" onchange="LaRuche.Chat.toggleNoThink(this.checked)">
+               <span class="icon">&#x1F9E0;</span>
+             </label>
+             <div class="ctrl-icon-btn" title="Modele LLM (Cliquez pour choisir)">
+               <span class="icon">&#x1F916;</span>
+               <select id="modelSelect" onchange="LaRuche.Header.changeModel(this.value)">
+                 <option value="">Chargement...</option>
+               </select>
+             </div>
+             <div class="ctrl-icon-btn" title="Permissions des outils (Cliquez pour choisir)">
+               <span class="icon">&#x1F6E1;</span>
+               <select id="permModeSelect" onchange="LaRuche.Header.changePermissionMode(this.value)">
+                 <option value="">Permissions…</option>
+               </select>
+             </div>
+          </div>
+          <div id="headerContextUsage" class="ctx-mini-pill" title="Usage du contexte">CTX: 0%</div>
+        </div>
 <div class="sidebar-header agent-header">
           <span>Agent</span>
           <span class="agent-header-actions">
