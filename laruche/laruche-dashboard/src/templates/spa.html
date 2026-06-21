@@ -6427,7 +6427,7 @@ LaRuche.Router.register('login', LaRuche.Auth);
           document.body.style.height = window.visualViewport.height + 'px';
         } else {
           // Keyboard is closed
-          if(mobileTabs && window.innerWidth <= 768) mobileTabs.style.display = 'flex';
+          if(mobileTabs) mobileTabs.style.display = '';
           document.body.style.height = '';
         }
       });
