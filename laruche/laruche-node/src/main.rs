@@ -2444,6 +2444,18 @@ async fn api_feed(
             }
         }
     }
+    // 5) Watchers déclenchés (dernière détection).
+    {
+        let watchers = state.watchers.read().await;
+        for w in watchers.list() {
+            if let Some(lr) = w.last_run {
+                events.push(serde_json::json!({
+                    "ts": lr.timestamp(), "actor": "LaRuche", "kind": "watcher",
+                    "action": "a déclenché le watcher", "object": w.name, "ref": serde_json::Value::Null
+                }));
+            }
+        }
+    }
 
     events.sort_by(|a, b| {
         b["ts"].as_i64().unwrap_or(0).cmp(&a["ts"].as_i64().unwrap_or(0))

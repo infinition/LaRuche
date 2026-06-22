@@ -647,6 +647,82 @@ impl Abeille for MemoireReadNode {
     }
 }
 
+/// `memory_doctor` — audit LECTURE SEULE de la santé de la mémoire (stats, nœuds surchargés,
+/// doublons) pour décider quoi ranger/consolider. N'applique rien.
+pub struct MemoireDoctor {
+    pub mem: Arc<dyn MemoireCognitive>,
+}
+
+#[async_trait]
+impl Abeille for MemoireDoctor {
+    fn nom(&self) -> &str {
+        "memory_doctor"
+    }
+    fn description(&self) -> &str {
+        "Audit lecture seule de la memoire : compteurs, noeuds les plus charges, doublons/surcharges. \
+         Pour decider quoi consolider (memory_consolidate) ou ranger. N'applique aucune modif."
+    }
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({ "type": "object", "properties": {} })
+    }
+    fn niveau_danger(&self) -> NiveauDanger {
+        NiveauDanger::Safe
+    }
+    async fn executer(
+        &self,
+        _args: serde_json::Value,
+        _ctx: &ContextExecution,
+    ) -> Result<ResultatAbeille> {
+        let stats = self.mem.stats().await.unwrap_or_else(|_| serde_json::json!({}));
+        let dream = self.mem.dream().await.unwrap_or_else(|_| serde_json::json!({}));
+        let sugg = self
+            .mem
+            .suggest_nodes("", Some(200))
+            .await
+            .unwrap_or_else(|_| serde_json::json!({}));
+        // Top nœuds par nombre d'items.
+        let mut tops: Vec<(String, u64)> = sugg["nodes"]
+            .as_array()
+            .map(|a| {
+                a.iter()
+                    .filter_map(|n| {
+                        let id = n.get("id").and_then(|v| v.as_str())?;
+                        let c = n.get("item_count").and_then(|v| v.as_u64()).unwrap_or(0);
+                        Some((id.to_string(), c))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        tops.sort_by(|a, b| b.1.cmp(&a.1));
+        tops.truncate(8);
+
+        let mut out = String::from("# Audit mémoire\n\n");
+        out.push_str(&format!(
+            "Stats: {}\n\n",
+            serde_json::to_string(&stats).unwrap_or_default()
+        ));
+        if !tops.is_empty() {
+            out.push_str("Nœuds les plus chargés (candidats à consolider) :\n");
+            for (id, c) in &tops {
+                out.push_str(&format!("- {id} : {c} items\n"));
+            }
+            out.push('\n');
+        }
+        if let Some(sug) = dream.get("suggestions").and_then(|s| s.as_array()) {
+            if !sug.is_empty() {
+                out.push_str(&format!("Suggestions (doublons/surcharges) : {}\n", sug.len()));
+                for s in sug.iter().take(10) {
+                    if let Some(msg) = s.get("message").and_then(|m| m.as_str()) {
+                        out.push_str(&format!("- {msg}\n"));
+                    }
+                }
+            }
+        }
+        out.push_str("\nAction : `memory_consolidate(node_id)` pour fusionner un nœud chargé.");
+        Ok(ResultatAbeille::ok(out))
+    }
+}
+
 /// `memory_grep` — recherche EXACTE par sous-chaîne dans le contenu des items (insensible à la
 /// casse). Complète `memory_search` (sémantique) : utile pour retrouver un terme précis, un nom,
 /// une URL, un id… parmi tous les items.
