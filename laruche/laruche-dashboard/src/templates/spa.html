@@ -65,6 +65,12 @@ body {
   overflow: hidden;
   padding-top: var(--safe-top);
   padding-bottom: var(--safe-bottom);
+  transition: padding-right .26s cubic-bezier(.22,.61,.36,1);
+}
+/* Feed ancré + ouvert : on réduit le contenu pour qu'il ne soit pas masqué */
+body.feed-docked { padding-right: 360px; }
+@media (max-width:600px) {
+  body.feed-docked { padding-right: 0; } /* drawer pleine largeur : pas de décalage */
 }
 
 /* ============================== */
@@ -1434,6 +1440,20 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 }
 .feed-next strong { color:var(--amber); }
 .feed-next .fn-sub { color:var(--text-muted); font-size:11px; }
+.feed-filters {
+  display:flex; flex-wrap:wrap; gap:6px; align-items:center;
+  padding:6px 12px 4px; border-bottom:1px solid var(--border);
+}
+.feed-filters .ff-label { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.4px; margin-right:2px; }
+.ff-chip {
+  font-size:11px; font-weight:600; cursor:pointer; user-select:none;
+  padding:2px 9px; border-radius:999px; line-height:1.5;
+  border:1px solid var(--border); background:rgba(255,255,255,0.03);
+  color:var(--text-muted); transition:color .15s, border-color .15s, background .15s, opacity .15s;
+}
+.ff-chip:hover { border-color:rgba(245,158,11,0.4); color:var(--text-dim); }
+.ff-chip.active { color:var(--amber); border-color:var(--amber); background:rgba(245,158,11,0.14); }
+.ff-chip:not(.active) { opacity:.6; }
 .feed-list { flex:1; overflow-y:auto; padding:6px 8px 16px; }
 .feed-row {
   display:flex; flex-direction:column; gap:3px;
@@ -1512,6 +1532,13 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
       <button class="fd-btn" onclick="LaRuche.Feed.close()" title="Fermer">&#x2716;</button>
     </div>
     <div class="feed-next" id="feedNext">Chargement…</div>
+    <div class="feed-filters" id="feedFilters">
+      <span class="ff-label">Filtrer</span>
+      <span class="ff-chip" data-filter="memory" title="Événements mémoire">&#x1F9E0; Mémoire</span>
+      <span class="ff-chip" data-filter="agent" title="Événements agent">&#x1F916; Agent</span>
+      <span class="ff-chip" data-filter="user" title="Actions de l'utilisateur">&#x1F464; User</span>
+      <span class="ff-chip" data-filter="laruche" title="Actions de LaRuche">&#x1F41D; LaRuche</span>
+    </div>
     <div class="feed-list" id="feedList" aria-live="polite"></div>
   </aside>
 </div>
@@ -8725,6 +8752,25 @@ LaRuche.Feed = (function(){
   var pollTimer = null;
   var nextTimer = null;
   var lastSig = '';
+  var lastEvents = [];               // derniers events chargés (pour re-render client-side)
+  var DEFAULT_FILTERS = { memory:true, agent:true, user:true, laruche:true };
+  var filters = { memory:true, agent:true, user:true, laruche:true };
+
+  function loadFilters(){
+    try{
+      var raw = localStorage.getItem('lr_feed_filters');
+      if(raw){ var o = JSON.parse(raw); for(var k in DEFAULT_FILTERS){ if(typeof o[k]==='boolean') filters[k]=o[k]; } }
+    }catch(e){}
+  }
+  function saveFilters(){ try{ localStorage.setItem('lr_feed_filters', JSON.stringify(filters)); }catch(e){} }
+
+  function passFilter(ev){
+    var kind = (ev.kind==='agent') ? 'agent' : 'memory';
+    if(!filters[kind]) return false;
+    var actor = (ev.actor==='User') ? 'user' : 'laruche';
+    if(!filters[actor]) return false;
+    return true;
+  }
 
   function esc(s){ return LaRuche.Utils.esc(s==null?'':String(s)); }
 
@@ -8796,15 +8842,25 @@ LaRuche.Feed = (function(){
   function render(events){
     var list = document.getElementById('feedList');
     if(!list) return;
-    var sig = String(events.length);
-    for(var i=0;i<events.length;i++){ var e=events[i]; sig += '|'+e.ts+e.actor+e.action+e.object+(e.ref||''); }
+    lastEvents = events || [];
+    // filtrage client-side sur les events déjà chargés
+    var shown = [];
+    for(var k=0;k<lastEvents.length;k++){ if(passFilter(lastEvents[k])) shown.push(lastEvents[k]); }
+    // signature inclut l'état des filtres pour re-render quand ils changent
+    var sig = 'f:'+(filters.memory?1:0)+(filters.agent?1:0)+(filters.user?1:0)+(filters.laruche?1:0)+';n:'+shown.length;
+    for(var i=0;i<shown.length;i++){ var e=shown[i]; sig += '|'+e.ts+e.actor+e.action+e.object+(e.ref||''); }
     if(sig === lastSig) return; // pas de changement : évite le flicker
     lastSig = sig;
     var atTop = list.scrollTop <= 4;
     var prevScroll = list.scrollTop;
-    if(!events.length){ list.innerHTML = '<div class="feed-empty">Aucune activité pour le moment.</div>'; return; }
+    if(!shown.length){
+      list.innerHTML = lastEvents.length
+        ? '<div class="feed-empty">Aucun événement ne correspond aux filtres actifs.</div>'
+        : '<div class="feed-empty">Aucune activité pour le moment.</div>';
+      return;
+    }
     var html = '';
-    for(var j=0;j<events.length;j++){ html += rowHtml(events[j]); }
+    for(var j=0;j<shown.length;j++){ html += rowHtml(shown[j]); }
     list.innerHTML = html;
     // refs cliquables → onglet Mémoire + ouverture du nœud
     list.querySelectorAll('.feed-obj-ref').forEach(function(s){
@@ -8843,12 +8899,28 @@ LaRuche.Feed = (function(){
     if(nextTimer){ clearInterval(nextTimer); nextTimer=null; }
   }
 
+  // ── Filtres ──────────────────────────────────────────────────
+  function applyFilterUI(){
+    var bar = document.getElementById('feedFilters');
+    if(!bar) return;
+    bar.querySelectorAll('.ff-chip').forEach(function(c){
+      var f = c.dataset.filter;
+      c.classList.toggle('active', !!filters[f]);
+    });
+  }
+  function reRender(){
+    lastSig = '';                 // force le re-render malgré l'anti-flicker
+    render(lastEvents);
+  }
+
   // ── Ouverture / fermeture ────────────────────────────────────
   function applyAnchorUI(){
     var btn = document.getElementById('feedAnchorBtn');
     var ov = document.getElementById('feedDrawerOverlay');
     if(btn) btn.classList.toggle('active', anchored);
     if(ov) ov.classList.toggle('anchored', anchored && open);
+    // mode docké : on pousse le contenu (uniquement ancré ET ouvert)
+    document.body.classList.toggle('feed-docked', anchored && open);
   }
 
   function openDrawer(){
@@ -8865,6 +8937,7 @@ LaRuche.Feed = (function(){
     open = false;
     ov.classList.remove('open');
     ov.classList.remove('anchored');
+    document.body.classList.remove('feed-docked');
     stopPolling();
   }
   function toggle(){ open ? closeDrawer() : openDrawer(); }
@@ -8877,7 +8950,21 @@ LaRuche.Feed = (function(){
 
   function init(){
     try{ anchored = localStorage.getItem('lr_feed_anchored')==='1'; }catch(e){}
+    loadFilters();
     applyAnchorUI();
+    applyFilterUI();
+    var bar = document.getElementById('feedFilters');
+    if(bar){
+      bar.querySelectorAll('.ff-chip').forEach(function(c){
+        c.onclick = function(){
+          var f = c.dataset.filter;
+          filters[f] = !filters[f];
+          saveFilters();
+          applyFilterUI();
+          reRender();
+        };
+      });
+    }
     var ov = document.getElementById('feedDrawerOverlay');
     if(ov){
       // clic extérieur (sur l'overlay, pas le drawer) → ferme si non ancré
