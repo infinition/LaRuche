@@ -1598,6 +1598,28 @@ fn outils_forces_par_intention(registry: &AbeilleRegistry, prompt: &str) -> Vec<
         }
     }
 
+    // (3) Intention de CRÉATION de capacité (skill / outil / plugin) → boîte de forge.
+    const MOTS_FORGE: &[&str] = &[
+        "skill", "outil", "plugin", "forge", "crée", "cree", "créer", "creer", "automatise",
+        "script", "procédure", "procedure",
+    ];
+    if MOTS_FORGE.iter().any(|m| p.contains(m)) {
+        const BOITE_FORGE: &[&str] = &[
+            "skill_create",
+            "skill_patch",
+            "skill_view",
+            "skill_list",
+            "skill_file_write",
+            "plugin_create",
+            "plugin_list",
+        ];
+        for t in BOITE_FORGE {
+            if noms.iter().any(|n| n.as_str() == *t) {
+                forces.push((*t).to_string());
+            }
+        }
+    }
+
     forces
 }
 
