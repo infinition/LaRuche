@@ -5086,7 +5086,7 @@ LaRuche.Memory = (function(){
   /* ---- chargement ---- */
   var lastTreeSig = '';
   function loadTree(silent) {
-    fetch(LaRuche.API.base+'/api/memory/tree').then(function(r){return r.json();}).then(function(data){
+    fetch(LaRuche.API.base+'/api/memory/tree', {cache: 'no-store'}).then(function(r){return r.json();}).then(function(data){
       loaded = true;
       var sig = JSON.stringify(data.nodes || []);
       if(silent && sig === lastTreeSig) return;
@@ -5973,10 +5973,12 @@ LaRuche.Memory = (function(){
     }).then(function(r){return r.json();}).then(function(d){
       if(d.error) { LaRuche.Toast.show(d.error, 'err'); return; }
       LaRuche.Toast.show('Dossier supprime', 'ok');
-      loadTree(false);
       if(current === id) current = null;
+      treeRaw = treeRaw.filter(function(n){ return n.id !== id && n.id.indexOf(id+'.') !== 0; });
+      buildTree();
       renderTree();
       renderDoc();
+      loadTree(false);
     }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
   }
 

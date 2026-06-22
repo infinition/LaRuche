@@ -647,6 +647,237 @@ impl Abeille for MemoireReadNode {
     }
 }
 
+// ───────────────────────── SKILLS (auto-amélioration, façon third-party) ─────────────────────────
+
+fn str_array(v: &serde_json::Value) -> Vec<String> {
+    v.as_array()
+        .map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect())
+        .unwrap_or_default()
+}
+
+/// Construit le document OKF d'un skill : frontmatter (type/name/description + outils/scripts
+/// DÉCLARÉS = skill borné) + corps markdown.
+fn build_skill_okf(
+    name: &str,
+    description: &str,
+    tools: &[String],
+    scripts: &[String],
+    body: &str,
+) -> String {
+    let mut s = String::from("---\ntype: skill\n");
+    s.push_str(&format!("name: {name}\n"));
+    if !description.is_empty() {
+        s.push_str(&format!("description: {}\n", description.replace('\n', " ")));
+    }
+    if !tools.is_empty() {
+        s.push_str(&format!("tools: [{}]\n", tools.join(", ")));
+    }
+    if !scripts.is_empty() {
+        s.push_str(&format!("scripts: [{}]\n", scripts.join(", ")));
+    }
+    s.push_str("---\n\n");
+    s.push_str(body.trim());
+    s.push('\n');
+    s
+}
+
+/// Remplace TOUT le contenu d'un nœud skill par `content` (supprime les items actifs puis écrit).
+async fn set_skill_content(
+    mem: &Arc<dyn MemoireCognitive>,
+    node_id: &str,
+    content: &str,
+) -> Result<()> {
+    if let Ok(node) = mem.read_node(node_id).await {
+        if let Some(items) = node.get("items").and_then(|i| i.as_array()) {
+            for it in items {
+                if let Some(id) = it.get("id").and_then(|i| i.as_str()) {
+                    let _ = mem.delete_item(id, Some("skill-replace")).await;
+                }
+            }
+        }
+    }
+    mem.write(MemoryItem::new(node_id.to_string(), content.to_string()).with_source("agent-skill"))
+        .await?;
+    Ok(())
+}
+
+async fn read_skill_content(mem: &Arc<dyn MemoireCognitive>, node_id: &str) -> Option<String> {
+    let node = mem.read_node(node_id).await.ok()?;
+    let items = node.get("items")?.as_array()?;
+    items
+        .iter()
+        .rev()
+        .find_map(|it| it.get("content").and_then(|c| c.as_str()))
+        .filter(|c| c.contains("type: skill"))
+        .map(String::from)
+}
+
+/// `skill_create` — crée OU remplace un skill (procédure réutilisable) au bon endroit et bien
+/// formaté. C'est LA façon de transformer une expérience réussie en savoir réutilisable.
+pub struct MemoireSkillCreate {
+    pub mem: Arc<dyn MemoireCognitive>,
+}
+
+#[async_trait]
+impl Abeille for MemoireSkillCreate {
+    fn nom(&self) -> &str {
+        "skill_create"
+    }
+    fn description(&self) -> &str {
+        "Cree (ou remplace) un SKILL = procedure reutilisable, ecrit bien formate sous \
+         capacities.skills.<nom>. A faire APRES une tache complexe REUSSIE (>=2 outils enchaines, \
+         erreurs surmontees, workflow non-trivial). Declare les outils/scripts que le skill \
+         orchestre (champ tools/scripts) pour le borner. Pour un OUTIL atomique: plugin_create."
+    }
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "name": { "type": "string", "description": "nom court, ex. arxiv-search" },
+                "description": { "type": "string", "description": "une ligne: quand l'utiliser" },
+                "body": { "type": "string", "description": "Markdown: procedure etape par etape, pieges, commandes exactes" },
+                "tools": { "type": "array", "items": { "type": "string" }, "description": "outils orchestres, ex. [shell_exec, web_fetch]" },
+                "scripts": { "type": "array", "items": { "type": "string" }, "description": "scripts bundles, ex. [scripts/search.py]" }
+            },
+            "required": ["name", "description", "body"]
+        })
+    }
+    fn niveau_danger(&self) -> NiveauDanger {
+        NiveauDanger::Safe
+    }
+    async fn executer(
+        &self,
+        args: serde_json::Value,
+        _ctx: &ContextExecution,
+    ) -> Result<ResultatAbeille> {
+        let name = args["name"].as_str().unwrap_or("").trim();
+        if name.is_empty() {
+            return Ok(ResultatAbeille::err("'name' manquant"));
+        }
+        let node_id = crate::abeilles::skill_node_id(name);
+        let content = build_skill_okf(
+            name,
+            args["description"].as_str().unwrap_or(""),
+            &str_array(&args["tools"]),
+            &str_array(&args["scripts"]),
+            args["body"].as_str().unwrap_or(""),
+        );
+        match set_skill_content(&self.mem, &node_id, &content).await {
+            Ok(_) => Ok(ResultatAbeille::ok(format!(
+                "Skill `{name}` enregistre dans `{node_id}`."
+            ))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Echec skill_create: {e}"))),
+        }
+    }
+}
+
+/// `skill_patch` — corrige un skill EN PLACE (find-replace). L'itération « jusqu'à ce que ça
+/// marche » : quand un skill échoue ou est périmé, patche-le immédiatement.
+pub struct MemoireSkillPatch {
+    pub mem: Arc<dyn MemoireCognitive>,
+}
+
+#[async_trait]
+impl Abeille for MemoireSkillPatch {
+    fn nom(&self) -> &str {
+        "skill_patch"
+    }
+    fn description(&self) -> &str {
+        "Corrige un skill EN PLACE : remplace `old` par `new` dans son corps. A utiliser des \
+         qu'un skill echoue, est perime, ou qu'un piege apparait (iteration). `old` doit etre unique."
+    }
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "name": { "type": "string" },
+                "old": { "type": "string", "description": "texte exact a remplacer" },
+                "new": { "type": "string", "description": "remplacement" }
+            },
+            "required": ["name", "old", "new"]
+        })
+    }
+    fn niveau_danger(&self) -> NiveauDanger {
+        NiveauDanger::Safe
+    }
+    async fn executer(
+        &self,
+        args: serde_json::Value,
+        _ctx: &ContextExecution,
+    ) -> Result<ResultatAbeille> {
+        let name = args["name"].as_str().unwrap_or("").trim();
+        let old = args["old"].as_str().unwrap_or("");
+        let new = args["new"].as_str().unwrap_or("");
+        if name.is_empty() || old.is_empty() {
+            return Ok(ResultatAbeille::err("'name' et 'old' requis"));
+        }
+        let node_id = crate::abeilles::skill_node_id(name);
+        let Some(content) = read_skill_content(&self.mem, &node_id).await else {
+            return Ok(ResultatAbeille::err(format!("Skill introuvable: {name}")));
+        };
+        if !content.contains(old) {
+            return Ok(ResultatAbeille::err(
+                "'old' introuvable dans le skill (verifie le texte exact)",
+            ));
+        }
+        let patched = content.replacen(old, new, 1);
+        match set_skill_content(&self.mem, &node_id, &patched).await {
+            Ok(_) => Ok(ResultatAbeille::ok(format!("Skill `{name}` patche."))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Echec skill_patch: {e}"))),
+        }
+    }
+}
+
+/// `skill_delete` — supprime un skill (items + dossier de scripts).
+pub struct MemoireSkillDelete {
+    pub mem: Arc<dyn MemoireCognitive>,
+}
+
+#[async_trait]
+impl Abeille for MemoireSkillDelete {
+    fn nom(&self) -> &str {
+        "skill_delete"
+    }
+    fn description(&self) -> &str {
+        "Supprime un skill (son document et ses fichiers/scripts bundles)."
+    }
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": { "name": { "type": "string" } },
+            "required": ["name"]
+        })
+    }
+    fn niveau_danger(&self) -> NiveauDanger {
+        NiveauDanger::NeedsApproval
+    }
+    async fn executer(
+        &self,
+        args: serde_json::Value,
+        _ctx: &ContextExecution,
+    ) -> Result<ResultatAbeille> {
+        let name = args["name"].as_str().unwrap_or("").trim();
+        if name.is_empty() {
+            return Ok(ResultatAbeille::err("'name' manquant"));
+        }
+        let node_id = crate::abeilles::skill_node_id(name);
+        if let Ok(node) = self.mem.read_node(&node_id).await {
+            if let Some(items) = node.get("items").and_then(|i| i.as_array()) {
+                for it in items {
+                    if let Some(id) = it.get("id").and_then(|i| i.as_str()) {
+                        let _ = self.mem.delete_item(id, Some("skill-delete")).await;
+                    }
+                }
+            }
+        }
+        let slug = node_id
+            .strip_prefix("capacities.skills.")
+            .unwrap_or(&node_id);
+        let _ = std::fs::remove_dir_all(std::path::PathBuf::from("skills").join(slug));
+        Ok(ResultatAbeille::ok(format!("Skill `{name}` supprime.")))
+    }
+}
+
 /// Crée un nouveau nœud dans la carte cognitive.
 pub struct MemoireCreateNode {
     pub mem: Arc<dyn MemoireCognitive>,

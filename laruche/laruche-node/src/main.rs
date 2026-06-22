@@ -7709,6 +7709,9 @@ async fn main() -> Result<()> {
             registry: essaim_registry.clone(),
         },
     ));
+    // Outils d'AUTO-AMELIORATION (forge) : skill_file_*, plugin_*, mcp_*. Le registre principal
+    // est passe pour que plugin_create/delete rechargent au bon endroit.
+    laruche_essaim::abeilles::enregistrer_forge(&essaim_registry, essaim_registry.clone());
 
     // Migration `tools.* → capacities.*` (idempotente, jouée à chaque boot mais no-op après).
     // Les skills forgés (vraies données) sont PRÉSERVÉS ; tools.abeilles (simple projection)

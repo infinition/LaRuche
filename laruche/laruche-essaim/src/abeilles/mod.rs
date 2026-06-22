@@ -12,6 +12,8 @@ pub mod plugins;
 pub use plugins::charger_plugins;
 pub mod delegation;
 pub mod essaim_status;
+pub mod forge;
+pub use forge::enregistrer_forge;
 pub mod execute_code;
 pub mod fichiers;
 pub mod file_watch;
@@ -127,6 +129,9 @@ pub fn enregistrer_memoire(
     registry.enregistrer(Box::new(memoire::MemoireMutations { mem: mem.clone() }));
     registry.enregistrer(Box::new(memoire::MemoireTree { mem: mem.clone() }));
     registry.enregistrer(Box::new(memoire::MemoireReadNode { mem: mem.clone() }));
+    registry.enregistrer(Box::new(memoire::MemoireSkillCreate { mem: mem.clone() }));
+    registry.enregistrer(Box::new(memoire::MemoireSkillPatch { mem: mem.clone() }));
+    registry.enregistrer(Box::new(memoire::MemoireSkillDelete { mem: mem.clone() }));
     registry.enregistrer(Box::new(memoire::MemoireDeleteNode { mem: mem.clone() }));
     registry.enregistrer(Box::new(memoire::MemoireCreateNode { mem: mem.clone() }));
     registry.enregistrer(Box::new(memoire::MemoireUpdateNode { mem: mem.clone() }));
@@ -160,7 +165,7 @@ pub fn enregistrer_delegation(
     tracing::info!("Delegate + run_script + mixture abeilles registered");
 }
 
-fn skill_node_id(name: &str) -> String {
+pub(crate) fn skill_node_id(name: &str) -> String {
     let trimmed = name.trim();
     if trimmed.starts_with("capacities.skills.") {
         return trimmed.to_string();
