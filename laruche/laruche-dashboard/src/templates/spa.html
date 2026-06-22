@@ -5218,7 +5218,7 @@ LaRuche.Memory = (function(){
     var html = '<div class="mem2-row'+(current===c.id?' active':'')+'"'+nodeDrag+dtAttr+' style="padding-left:'+(6+depth*13)+'px" data-node="'+esc(c.id)+'">'+
       '<span class="mem2-caret" data-toggle="'+esc(c.id)+'">'+caret+'</span>'+
       '<span class="mem2-icon">'+nodeIcon(c.id, kids>0)+'</span>'+
-      '<span class="mem2-label">'+esc(c.seg)+'</span>'+
+      '<span class="mem2-label">'+esc(mem2SegLabel(c.seg))+'</span>'+
       (locked ? '<span class="mem2-lock" title="Gere par le systeme">'+SVG.lock+'</span>' : '')+
       (meta.count != null ? '<span class="mem2-count">'+meta.count+'</span>' : (kids?'<span class="mem2-count">'+kids+'</span>':''))+
       '<span class="node-actions">'+
@@ -5408,6 +5408,13 @@ LaRuche.Memory = (function(){
   }
 
   /* ---- panneau document (markdown + CRUD) ---- */
+  // Libelle lisible d'un segment d'id (unifie l'affichage : "prompt" -> "Identite", etc.).
+  var MEM2_SEG_LABELS = {
+    system:'Systeme', prompt:'Identite', behavior:'Comportement', soul:'SOUL',
+    capacities:'Capacites', tools:'Outils', plugins:'Plugins', mcp:'MCP', skills:'Skills'
+  };
+  function mem2SegLabel(seg){ return MEM2_SEG_LABELS[seg] || seg; }
+
   function setCrumb() {
     var el = document.getElementById('mem2Crumb'); if(!el) return;
     if(!currentNode){ el.textContent = 'Memoire cognitive'; return; }
@@ -5417,7 +5424,7 @@ LaRuche.Memory = (function(){
     parts.forEach(function(p, idx){
       acc = acc ? acc+'.'+p : p;
       var cls = idx===parts.length-1 ? 'seg cur' : 'seg';
-      html += (idx?'<span class="seg"> / </span>':'')+'<span class="'+cls+'" data-crumb="'+esc(acc)+'">'+esc(p)+'</span>';
+      html += (idx?'<span class="seg"> / </span>':'')+'<span class="'+cls+'" data-crumb="'+esc(acc)+'">'+esc(mem2SegLabel(p))+'</span>';
     });
     el.innerHTML = html;
     el.querySelectorAll('[data-crumb]').forEach(function(s){ s.onclick=function(){ loadNode(s.dataset.crumb); }; });
@@ -5545,12 +5552,23 @@ LaRuche.Memory = (function(){
     return '---\ntype: soul\nenabled: '+(enabled?'true':'false')+'\n---\n'+(body || '');
   }
 
+  var _sysDefaults = null; // cache des textes par defaut (codes en dur)
   function renderSystemEditor(el, nodeId){
     var isSoul = (nodeId === 'system.soul');
+    // Charge une fois les defauts codes pour PRE-REMPLIR identite/comportement (l'utilisateur
+    // voit et edite le prompt complet, au lieu d'un champ vide).
+    if(!isSoul && !_sysDefaults){
+      el.innerHTML = '<div class="mem2-empty">Chargement...</div>';
+      fetch(LaRuche.API.base+'/api/system/prompt-defaults').then(function(r){return r.json();})
+        .then(function(d){ _sysDefaults = d || {}; renderSystemEditor(el, nodeId); })
+        .catch(function(){ _sysDefaults = {}; renderSystemEditor(el, nodeId); });
+      return;
+    }
     var items = (currentNode && currentNode.items) || [];
     // dernier item = contenu courant
     var last = items.length ? items[items.length-1] : null;
     var rawContent = last ? (last.content || last.text || '') : '';
+    var hasOverride = !!rawContent;
     var taValue = rawContent, soulEnabled = false;
     if(isSoul){
       if(!rawContent){ taValue = SOUL_TEMPLATE; soulEnabled = false; }
@@ -5559,6 +5577,9 @@ LaRuche.Memory = (function(){
         soulEnabled = parsed.enabled;
         taValue = rawContent; // on garde le frontmatter visible/editable
       }
+    } else if(!rawContent){
+      // Vide en DB → pre-remplit avec le defaut du code (c'est CE texte qui est utilise).
+      taValue = (nodeId === 'system.behavior') ? (_sysDefaults.behavior || '') : (_sysDefaults.identity || '');
     }
     var title = isSoul ? 'SOUL — personnalite' : (nodeId === 'system.behavior' ? 'Comportement' : 'Identite');
     var icon = isSoul ? SVG.soul : (nodeId === 'system.behavior' ? SVG.system : SVG.prompt);
@@ -5568,7 +5589,10 @@ LaRuche.Memory = (function(){
         (isSoul ? '<label class="mem2-toggle"><input type="checkbox" id="mem2SoulToggle"'+(soulEnabled?' checked':'')+'><span class="mem2-toggle-track"></span><span>'+(soulEnabled?'Activee':'Desactivee')+'</span></label>' : '')+
       '</div>'+
       '<div class="mem2-protnote">'+SVG.lock+'<span>Gere par le systeme : l\'agent ne peut pas modifier ce contenu. Edition reservee a l\'administrateur ici.</span></div>'+
-      '<textarea id="mem2SysText" spellcheck="false" placeholder="'+(isSoul?'Personnalite (format OKF avec frontmatter)...':'System prompt...')+'">'+esc(taValue)+'</textarea>'+
+      (isSoul ? '' : '<div class="mem2-nodedates">'+(hasOverride
+          ? '✎ Personnalise : ce texte REMPLACE le defaut du code.'
+          : 'Defaut du code (pre-rempli) : c\'est ce texte qui est utilise tant que tu n\'enregistres pas. Edite-le pour le personnaliser ; il sera applique au prochain message, sans redemarrage.')+'</div>')+
+      '<textarea id="mem2SysText" spellcheck="false" placeholder="'+(isSoul?'Personnalite (format OKF avec frontmatter)...':'Texte de la section...')+'">'+esc(taValue)+'</textarea>'+
       '<div class="mem2-syseditor-acts">'+
         '<button class="mem2-btn-primary" id="mem2SysSave">Enregistrer</button>'+
         '<button class="mem2-btn-ghost" id="mem2SysRestore">Restaurer le defaut</button>'+

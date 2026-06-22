@@ -57,7 +57,7 @@ fn push_capability_index(prompt: &mut String, index: Option<&str>) {
     }
 }
 
-fn section_identite_stable() -> String {
+pub fn section_identite_stable() -> String {
     let os_info = if cfg!(windows) {
         "Windows (utilise des commandes cmd/PowerShell, PAS bash/sh)"
     } else if cfg!(target_os = "macos") {
@@ -121,7 +121,7 @@ fn section_planification() -> &'static str {
      Utilise le plan pour les taches avec 2+ etapes. Pour les questions simples, reponds directement.\n\n"
 }
 
-fn section_comportement() -> &'static str {
+pub fn section_comportement() -> &'static str {
     "## Comportement\n\n\
      - Reponds en francais sauf si l'utilisateur parle dans une autre langue.\n\
      - Sois concis et utile.\n\

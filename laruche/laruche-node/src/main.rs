@@ -2202,6 +2202,16 @@ async fn api_memory_dream(State(state): State<Arc<AppState>>) -> Json<serde_json
     Json(dream)
 }
 
+/// GET /api/system/prompt-defaults — textes par défaut (codés en dur) des sections éditables,
+/// pour pré-remplir l'éditeur : l'utilisateur voit et modifie le prompt complet (vide en DB =
+/// ce défaut est utilisé). Le `node_*` override REMPLACE la section correspondante.
+async fn api_system_prompt_defaults() -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "identity": laruche_essaim::prompt::section_identite_stable(),
+        "behavior": laruche_essaim::prompt::section_comportement(),
+    }))
+}
+
 /// GET /api/memory/tree — lightweight cognitive-map snapshot for the SPA.
 async fn api_memory_tree(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let health = state.memoire.health().await.unwrap_or(false);
@@ -7785,6 +7795,7 @@ async fn main() -> Result<()> {
         .route("/api/memory/review", post(api_memory_review))
         .route("/api/memory/dream", post(api_memory_dream))
         .route("/api/memory/tree", get(api_memory_tree))
+        .route("/api/system/prompt-defaults", get(api_system_prompt_defaults))
         .route("/api/memory/stats", get(api_memory_stats))
         .route("/api/memory/mutations", get(api_memory_mutations))
         .route("/api/memory/export_okf", get(api_memory_export_okf))
