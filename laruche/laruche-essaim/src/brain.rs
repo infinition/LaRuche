@@ -109,6 +109,11 @@ pub struct EssaimConfig {
     /// Comportement éditable (nœud `system.behavior`). Idem, remplace le comportement par défaut.
     #[serde(skip)]
     pub behavior_override: Option<String>,
+    /// Index compact des skills disponibles (`nom — description`), construit par tour depuis la
+    /// carte cognitive. Toujours injecté dans le préfixe stable pour que le modèle connaisse son
+    /// répertoire complet (corps via `skill_view` à la demande). `None` hors contexte mémoire.
+    #[serde(skip)]
+    pub skills_index: Option<String>,
     /// Modèle auxiliaire pour les tâches de fond (curation/extraction). `None` = même modèle.
     /// Pointer un petit modèle rapide évite de concurrencer le KV-cache du chat principal.
     #[serde(default)]
@@ -160,6 +165,7 @@ impl Default for EssaimConfig {
             relevant_tools: None,
             system_prompt_override: None,
             behavior_override: None,
+            skills_index: None,
             aux_model: None,
             permission_mode: default_permission_mode(),
             permission_rules: Vec::new(),
@@ -1263,6 +1269,8 @@ pub async fn boucle_react_memoire_multimodal(
     if let Some(soul) = charger_doc_systeme(&memoire, "system.soul").await {
         cfg.custom_instructions = Some(soul);
     }
+    // Index des skills disponibles (toujours présent → le modèle connaît son répertoire complet).
+    cfg.skills_index = construire_index_skills(&memoire).await;
 
     // Pré-récupération → contexte ÉPHÉMÈRE trailing (PAS dans le system prompt :
     // garde le préfixe stable → cache de préfixe chaud, astuce third-party).
@@ -1950,6 +1958,76 @@ fn skill_pertinent_lexical(query: &str, name: &str, content: &str) -> bool {
     tokens.iter().any(|t| haystack.contains(t))
 }
 
+/// Index COMPACT de TOUS les skills disponibles (`nom — description`), toujours injecté dans le
+/// préfixe stable. Sans lui, les skills importés sont invisibles au modèle (il n'en voit un que
+/// par fuzzy-recall). Le corps complet reste à la demande via `skill_view(nom)` — progressive
+/// disclosure façon third-party. Construit en UN seul `search` (query-indépendante : tous les skills
+/// contiennent `type: skill`).
+async fn construire_index_skills(memoire: &Arc<dyn MemoireCognitive>) -> Option<String> {
+    let pack = memoire
+        .search(
+            "capacities.skills type: skill",
+            SearchOpts {
+                depth: Some(2),
+                limit: Some(200),
+            },
+        )
+        .await
+        .ok()?;
+    let items = pack.raw["items"].as_array()?;
+    let mut lignes: Vec<(String, String)> = Vec::new();
+    let mut vus: HashSet<String> = HashSet::new();
+    for it in items {
+        let node_id = it
+            .get("node_id")
+            .or_else(|| it.get("node"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        if !node_id.starts_with("capacities.skills.") {
+            continue;
+        }
+        let content = it
+            .get("content")
+            .or_else(|| it.get("text"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        if !content.contains("type: skill") {
+            continue;
+        }
+        let name = yaml_frontmatter_field(content, "name")
+            .unwrap_or_else(|| node_id.trim_start_matches("capacities.skills.").to_string());
+        if !vus.insert(name.clone()) {
+            continue;
+        }
+        let desc: String = yaml_frontmatter_field(content, "description")
+            .unwrap_or_default()
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .chars()
+            .take(80)
+            .collect();
+        lignes.push((name, desc));
+    }
+    if lignes.is_empty() {
+        return None;
+    }
+    lignes.sort();
+    let mut out = String::from(
+        "## Compétences (skills) disponibles\n\nProcédures réutilisables. Pour appliquer la \
+         procédure complète de l'une d'elles, appelle `skill_view(nom)`.\n",
+    );
+    for (n, d) in lignes {
+        if d.is_empty() {
+            out.push_str(&format!("- {n}\n"));
+        } else {
+            out.push_str(&format!("- {n} — {d}\n"));
+        }
+    }
+    out.push('\n');
+    Some(out)
+}
+
 async fn recuperer_skills_pertinents(
     memoire: &Arc<dyn MemoireCognitive>,
     query: &str,
@@ -2228,7 +2306,11 @@ pub async fn boucle_react_multimodal_ext(
     session.ajouter_user_multimodal(prompt_utilisateur, attachments);
 
     let tool_schema = schema_outils_pour_prompt(registry, config, prompt_utilisateur);
-    let capability_index = build_capability_index(registry);
+    let mut capability_index = build_capability_index(registry);
+    // Ajoute l'index des skills (s'il a été construit par le caller mémoire) au catalogue stable.
+    if let Some(sk) = config.skills_index.as_deref() {
+        capability_index.push_str(sk);
+    }
     let system_prompt = build_system_prompt(
         &tool_schema,
         config.system_prompt_override.as_deref(),
