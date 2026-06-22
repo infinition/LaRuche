@@ -439,7 +439,6 @@ impl MemoireCognitive for SqliteBackend {
 
     async fn read_node(&self, node_id: &str) -> Result<Value> {
         let conn = self.conn.lock().unwrap();
-        ensure_node(&conn, node_id)?;
 
         let mut child_stmt = conn.prepare(
             "SELECT id, label, one_liner, parent_id, importance FROM nodes
