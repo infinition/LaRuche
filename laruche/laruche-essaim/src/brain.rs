@@ -300,14 +300,19 @@ fn build_capability_index(registry: &AbeilleRegistry) -> String {
     let Some(tools) = schema.as_array() else {
         return String::new();
     };
-    let (mut builtin, mut plugins, mut mcp) = (Vec::new(), Vec::new(), Vec::new());
+    // Natifs : NOMS seuls (~70, déjà couverts par leur signature complète quand pertinents).
+    // Plugins + MCP : NOM — DESCRIPTION (peu nombreux, capacités custom → méritent d'être décrites,
+    // comme les skills). Résumé court via `resumer_description`.
+    let mut builtin: Vec<&str> = Vec::new();
+    let mut plugins: Vec<(&str, String)> = Vec::new();
+    let mut mcp: Vec<(&str, String)> = Vec::new();
     for t in tools {
         let Some(name) = t["name"].as_str().filter(|n| !n.is_empty()) else {
             continue;
         };
         match t["origin"].as_str().unwrap_or("builtin") {
-            "custom" => plugins.push(name),
-            "mcp" => mcp.push(name),
+            "custom" => plugins.push((name, resumer_description(t["description"].as_str().unwrap_or("")))),
+            "mcp" => mcp.push((name, resumer_description(t["description"].as_str().unwrap_or("")))),
             _ => builtin.push(name),
         }
     }
@@ -315,8 +320,15 @@ fn build_capability_index(registry: &AbeilleRegistry) -> String {
         return String::new();
     }
     builtin.sort_unstable();
-    plugins.sort_unstable();
-    mcp.sort_unstable();
+    plugins.sort_by(|a, b| a.0.cmp(b.0));
+    mcp.sort_by(|a, b| a.0.cmp(b.0));
+    let ligne = |out: &mut String, n: &str, d: &str| {
+        if d.is_empty() {
+            out.push_str(&format!("  - {n}\n"));
+        } else {
+            out.push_str(&format!("  - {n} — {d}\n"));
+        }
+    };
     let mut out = String::from(
         "## Catalogue d'outils\n\nTOUS les outils ci-dessous sont disponibles, même si leur \
          schéma n'est pas listé ce tour. Pour en utiliser un absent de ta liste : appelle \
@@ -326,10 +338,16 @@ fn build_capability_index(registry: &AbeilleRegistry) -> String {
         out.push_str(&format!("- Outils natifs : {}\n", builtin.join(", ")));
     }
     if !plugins.is_empty() {
-        out.push_str(&format!("- Plugins : {}\n", plugins.join(", ")));
+        out.push_str("- Plugins :\n");
+        for (n, d) in &plugins {
+            ligne(&mut out, n, d);
+        }
     }
     if !mcp.is_empty() {
-        out.push_str(&format!("- MCP : {}\n", mcp.join(", ")));
+        out.push_str("- MCP :\n");
+        for (n, d) in &mcp {
+            ligne(&mut out, n, d);
+        }
     }
     out.push('\n');
     out
