@@ -263,6 +263,8 @@ impl SqliteBackend {
         let _ = conn.execute("ALTER TABLE items ADD COLUMN updated_at INTEGER", []);
         let _ = conn.execute("ALTER TABLE nodes ADD COLUMN updated_at INTEGER", []);
         let _ = conn.execute("ALTER TABLE nodes ADD COLUMN source TEXT", []);
+        // Acteur de la mutation (source/raison) pour le Feed (User vs LaRuche).
+        let _ = conn.execute("ALTER TABLE mutations ADD COLUMN src TEXT", []);
         Ok(Self {
             conn: Mutex::new(conn),
             embedder,
@@ -284,7 +286,7 @@ impl SqliteBackend {
             )?;
         }
         conn.execute(
-            "INSERT INTO mutations(op,node_id,content,ts) VALUES(?1,?2,?3,?4)",
+            "INSERT INTO mutations(op,node_id,content,ts,src) VALUES(?1,?2,?3,?4,?5)",
             rusqlite::params![
                 if status == "active" {
                     "write"
@@ -293,7 +295,8 @@ impl SqliteBackend {
                 },
                 item.node_id,
                 item.content,
-                now()
+                now(),
+                item.source
             ],
         )?;
         Ok(id)
@@ -553,7 +556,7 @@ impl MemoireCognitive for SqliteBackend {
         conn.execute("UPDATE items SET status='deleted' WHERE id=?1", [id])?;
         conn.execute("DELETE FROM items_fts WHERE rowid=?1", [id])?;
         conn.execute(
-            "INSERT INTO mutations(op,node_id,content,ts) VALUES(?1,?2,?3,?4)",
+            "INSERT INTO mutations(op,node_id,content,ts,src) VALUES(?1,?2,?3,?4,?5)",
             rusqlite::params![
                 "delete",
                 existing.0,
@@ -562,7 +565,8 @@ impl MemoireCognitive for SqliteBackend {
                     reason.unwrap_or("delete_via_laruche"),
                     existing.1
                 ),
-                now()
+                now(),
+                reason
             ],
         )?;
         Ok(
@@ -699,14 +703,16 @@ impl MemoireCognitive for SqliteBackend {
 
     async fn mutations(&self, limit: Option<u8>) -> Result<Value> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt = conn
-            .prepare("SELECT op, node_id, content, ts FROM mutations ORDER BY id DESC LIMIT ?1")?;
+        let mut stmt = conn.prepare(
+            "SELECT op, node_id, content, ts, src FROM mutations ORDER BY id DESC LIMIT ?1",
+        )?;
         let rows = stmt.query_map([limit.unwrap_or(50) as i64], |r| {
             Ok(json!({
                 "op": r.get::<_, String>(0)?,
                 "node_id": r.get::<_, Option<String>>(1)?,
                 "content": r.get::<_, Option<String>>(2)?,
                 "ts": r.get::<_, i64>(3)?,
+                "src": r.get::<_, Option<String>>(4)?,
             }))
         })?;
         let entries: Vec<Value> = rows.filter_map(|r| r.ok()).collect();

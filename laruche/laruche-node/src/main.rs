@@ -2336,6 +2336,85 @@ async fn api_memory_consolidate(
     Json(res.unwrap_or_else(|e| serde_json::json!({ "error": e.to_string() })))
 }
 
+/// Acteur d'une mutation mémoire d'après son `src` (source/raison). UI → User, sinon LaRuche.
+fn feed_actor(src: &str) -> &'static str {
+    let s = src.trim().to_lowercase();
+    if s.starts_with("ui") || s == "user" || s == "fabien" || s == "admin" {
+        "User"
+    } else {
+        "LaRuche"
+    }
+}
+
+/// GET /api/feed?limit=N — flux d'activité UNIFIÉ pour le volet Feed global : mutations mémoire
+/// (avec acteur User/LaRuche + ref cliquable) + inférences agent (activity_log), trié récent→ancien.
+async fn api_feed(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Json<serde_json::Value> {
+    let limit = q
+        .get("limit")
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(80);
+    let mut events: Vec<serde_json::Value> = Vec::new();
+
+    // 1) Mutations mémoire (qui a ajouté/supprimé/modifié quoi).
+    if let Ok(muts) = state.memoire.mutations(Some(150)).await {
+        if let Some(arr) = muts.get("mutations").and_then(|m| m.as_array()) {
+            for m in arr {
+                let op = m.get("op").and_then(|v| v.as_str()).unwrap_or("");
+                let node = m.get("node_id").and_then(|v| v.as_str()).unwrap_or("");
+                let ts = m.get("ts").and_then(|v| v.as_i64()).unwrap_or(0);
+                let src = m.get("src").and_then(|v| v.as_str()).unwrap_or("");
+                let action = match op {
+                    "write" if src == "consolidation" => "a consolidé",
+                    "write" => "a ajouté un item dans",
+                    "propose" => "a proposé un item dans",
+                    "update" => "a modifié un item de",
+                    "delete" => "a supprimé un item de",
+                    "move" => "a déplacé un item vers",
+                    "create_node" => "a créé le nœud",
+                    "update_node" => "a mis à jour le nœud",
+                    "rename_subtree" => "a déplacé le sous-arbre",
+                    _ => "a modifié",
+                };
+                events.push(serde_json::json!({
+                    "ts": ts, "actor": feed_actor(src), "kind": "memory",
+                    "action": action, "object": node, "ref": node
+                }));
+            }
+        }
+    }
+
+    // 2) Inférences agent (ce que LaRuche a traité/répondu).
+    {
+        let logs = state.activity_log.read().await;
+        for e in logs.iter() {
+            let ts = chrono::DateTime::parse_from_rfc3339(&e.timestamp)
+                .map(|d| d.timestamp())
+                .unwrap_or(0);
+            let preview: String = e
+                .full_response
+                .as_deref()
+                .filter(|s| !s.is_empty())
+                .unwrap_or(&e.message)
+                .chars()
+                .take(160)
+                .collect();
+            events.push(serde_json::json!({
+                "ts": ts, "actor": "LaRuche", "kind": "agent",
+                "action": "a répondu", "object": preview, "ref": serde_json::Value::Null, "tag": e.tag
+            }));
+        }
+    }
+
+    events.sort_by(|a, b| {
+        b["ts"].as_i64().unwrap_or(0).cmp(&a["ts"].as_i64().unwrap_or(0))
+    });
+    events.truncate(limit);
+    Json(serde_json::json!({ "events": events }))
+}
+
 /// GET /api/system/prompt-defaults — textes par défaut (codés en dur) des sections éditables,
 /// pour pré-remplir l'éditeur : l'utilisateur voit et modifie le prompt complet (vide en DB =
 /// ce défaut est utilisé). Le `node_*` override REMPLACE la section correspondante.
@@ -8022,6 +8101,7 @@ async fn main() -> Result<()> {
         .route("/api/memory/review", post(api_memory_review))
         .route("/api/memory/dream", post(api_memory_dream))
         .route("/api/memory/consolidate", post(api_memory_consolidate))
+        .route("/api/feed", get(api_feed))
         .route("/api/memory/tree", get(api_memory_tree))
         .route(
             "/api/system/prompt-defaults",
