@@ -1260,10 +1260,13 @@ pub async fn run_tui() -> anyhow::Result<()> {
                                     final_text
                                 };
                                 if !text.is_empty() {
-                                    app.messages.push(ChatMessage {
-                                        role: "assistant".into(),
-                                        text: text.clone(),
-                                    });
+                                    let cleaned = markdown::clean_agent_text(&text);
+                                    if !cleaned.is_empty() {
+                                        app.messages.push(ChatMessage {
+                                            role: "assistant".into(),
+                                            text: cleaned,
+                                        });
+                                    }
                                     app.activity_log.push(format!(
                                         "[OK] [{}] Response: {} chars",
                                         ts,
@@ -2510,11 +2513,11 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                 return;
             }
 
-            // Show user message immediately + scroll (disabled by user request)
-            // app.messages.push(ChatMessage {
-            //     role: "user".into(),
-            //     text: text.clone(),
-            // });
+            // Show user message immediately + scroll
+            app.messages.push(ChatMessage {
+                role: "user".into(),
+                text: text.clone(),
+            });
             app.is_streaming = true;
             app.status_msg = "Reflexion...".into();
             let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
@@ -3328,9 +3331,18 @@ fn draw_chat(f: &mut Frame, area: Rect, app: &App) {
                         lines.push(Line::from(""));
                     }
                     "tool" => {
+                        let parts: Vec<&str> = msg.text.splitn(2, ' ').collect();
+                        let name = parts[0];
+                        let args = parts.get(1).unwrap_or(&"");
                         lines.push(Line::from(vec![
-                            Span::styled("  ⚙ ", Style::default().fg(Color::Blue)),
-                            Span::styled(&msg.text, Style::default().fg(Color::Cyan)),
+                            Span::styled("  🐝 ", Style::default().fg(AMBER).add_modifier(Modifier::BOLD)),
+                            Span::styled("Abeille active : ", Style::default().fg(TEXT_DIM)),
+                            Span::styled(name.to_string(), Style::default().fg(AMBER).add_modifier(Modifier::BOLD)),
+                            if !args.is_empty() {
+                                Span::styled(format!(" (arguments: {})", args), Style::default().fg(TEXT_DIM))
+                            } else {
+                                Span::raw("")
+                            },
                         ]));
                     }
                     "error" => {
@@ -3353,7 +3365,8 @@ fn draw_chat(f: &mut Frame, area: Rect, app: &App) {
             if app.is_streaming {
                 if !app.streaming_response.is_empty() {
                     // Show the partial streaming response as it comes in
-                    for l in app.streaming_response.lines() {
+                    let cleaned = markdown::clean_agent_text(&app.streaming_response);
+                    for l in cleaned.lines() {
                         lines.push(render_md_line(l));
                     }
                     lines.push(Line::from(Span::styled("  ▍", Style::default().fg(AMBER))));
