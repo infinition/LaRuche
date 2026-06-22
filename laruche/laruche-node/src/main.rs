@@ -7564,6 +7564,35 @@ async fn main() -> Result<()> {
         let _ = memoire.create_node(id, label, Some(desc), Some(1.0)).await;
     }
 
+    // Skill par défaut « web-research » (procédure search→évalue→fetch→synthèse) — seedé une
+    // seule fois s'il est absent, pour que la recherche web aille au-delà des snippets.
+    {
+        let present = memoire
+            .read_node("capacities.skills.web-research")
+            .await
+            .ok()
+            .and_then(|n| {
+                n.get("items").and_then(|i| i.as_array()).map(|a| {
+                    a.iter().any(|it| {
+                        it.get("content")
+                            .and_then(|c| c.as_str())
+                            .map(|c| c.contains("type: skill"))
+                            .unwrap_or(false)
+                    })
+                })
+            })
+            .unwrap_or(false);
+        if !present {
+            let skill = "---\ntype: skill\nname: web-research\ndescription: Recherche web approfondie multi-etapes (cherche, evalue, fetch en profondeur, synthetise avec sources)\n---\n\n# Recherche web approfondie\n\n## Quand l'utiliser\nDes qu'on demande des infos a jour, factuelles ou detaillees sur le web (actu, docs, comparatifs, scores, prix...).\n\n## Procedure\n1. `web_deep_search` (ou `web_search`) avec une requete ciblee -> snippets + contenu des meilleurs resultats.\n2. EVALUE : si les extraits suffisent a repondre precisement, synthetise. Sinon -> etape 3.\n3. APPROFONDIS : `web_fetch` sur les 1-3 URLs les plus prometteuses pour lire la PAGE COMPLETE (pas juste le snippet). Relance une recherche affinee si besoin.\n4. SYNTHETISE en citant les sources (URLs). Signale incertitudes/contradictions.\n\n## Regles\n- Ne te contente JAMAIS des seuls snippets si la question demande du detail : fetch les pages.\n- Prefere 2-3 sources concordantes a une seule.\n- Memorise (memory_write) un fait durable utile si pertinent.\n";
+            let _ = memoire
+                .write(
+                    laruche_memoire::MemoryItem::new("capacities.skills.web-research", skill)
+                        .with_source("seed"),
+                )
+                .await;
+        }
+    }
+
     // Indexe le registre d'outils dans la carte (capacities.*) DÈS le démarrage — incrémental —
     // pour que tout nouvel outil soit visible en mémoire et récupérable sémantiquement.
     // (Les outils MCP, chargés plus bas, seront indexés au 1er tour de chat via le même appel.)

@@ -145,6 +145,12 @@ pub fn enregistrer_delegation(
     registry.enregistrer(Box::new(run_script::RunScript {
         registry: sub_registry.clone(),
     }));
+    registry.enregistrer(Box::new(run_script::ToolSearch {
+        registry: sub_registry.clone(),
+    }));
+    registry.enregistrer(Box::new(run_script::ToolCall {
+        registry: sub_registry.clone(),
+    }));
     registry.enregistrer(Box::new(delegation::Delegate {
         registry: sub_registry,
         config: config.clone(),

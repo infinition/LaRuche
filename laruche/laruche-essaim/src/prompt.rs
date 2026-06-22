@@ -7,6 +7,7 @@
 pub fn build_system_prompt(
     tools_schema: &serde_json::Value,
     persona_override: Option<&str>,
+    capability_index: Option<&str>,
     custom_instructions: Option<&str>,
 ) -> String {
     let mut prompt = String::new();
@@ -18,11 +19,13 @@ pub fn build_system_prompt(
             prompt.push_str(o.trim());
             prompt.push_str("\n\n");
             prompt.push_str(&section_outils(tools_schema));
+            push_capability_index(&mut prompt, capability_index);
             prompt.push_str(&section_planification());
         }
         _ => {
             prompt.push_str(&section_identite_stable());
             prompt.push_str(&section_outils(tools_schema));
+            push_capability_index(&mut prompt, capability_index);
             prompt.push_str(&section_planification());
             prompt.push_str(&section_comportement());
         }
@@ -31,6 +34,16 @@ pub fn build_system_prompt(
         prompt.push_str(&section_contexte_dynamique(instructions));
     }
     prompt
+}
+
+/// Catalogue compact des capacités (noms par famille) : le LLM sait ce qui EXISTE au-delà des
+/// schémas injectés ce tour, et peut tout atteindre via `tool_call`. Stable → cacheable.
+fn push_capability_index(prompt: &mut String, index: Option<&str>) {
+    if let Some(idx) = index {
+        if !idx.trim().is_empty() {
+            prompt.push_str(idx);
+        }
+    }
 }
 
 fn section_identite_stable() -> String {
@@ -127,7 +140,7 @@ mod tests {
     #[test]
     fn prompt_place_sections_stables_avant_outils_et_custom() {
         let tools = serde_json::json!([{"name":"file_read","description":"read","parameters":{}}]);
-        let prompt = build_system_prompt(&tools, None, Some("custom volatile"));
+        let prompt = build_system_prompt(&tools, None, None, Some("custom volatile"));
 
         let env = prompt.find("## Environnement").unwrap();
         let outils = prompt.find("## Outils disponibles").unwrap();

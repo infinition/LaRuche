@@ -14,6 +14,129 @@ pub struct RunScript {
     pub registry: Arc<AbeilleRegistry>,
 }
 
+/// `tool_search` — divulgation progressive (inspiré du `tool_search` d'third-party) : cherche un
+/// outil par mots-clés parmi TOUS ceux enregistrés, pas seulement ceux injectés ce tour.
+/// Tolérant FR↔EN (recherche par sous-chaîne sur nom+description). Lecture seule.
+pub struct ToolSearch {
+    pub registry: Arc<AbeilleRegistry>,
+}
+
+#[async_trait]
+impl Abeille for ToolSearch {
+    fn nom(&self) -> &str {
+        "tool_search"
+    }
+    fn description(&self) -> &str {
+        "Cherche un outil par mots-cles parmi TOUS les outils disponibles (au-dela de ceux \
+         listes ce tour). Renvoie nom + origine + description. Puis execute-le avec tool_call."
+    }
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "query": { "type": "string", "description": "Mots-cles (intention)" },
+                "limit": { "type": "integer", "description": "Nb max de resultats (defaut 15)" }
+            },
+            "required": ["query"]
+        })
+    }
+    fn niveau_danger(&self) -> NiveauDanger {
+        NiveauDanger::Safe
+    }
+    async fn executer(
+        &self,
+        args: serde_json::Value,
+        _ctx: &ContextExecution,
+    ) -> Result<ResultatAbeille> {
+        let q = args["query"].as_str().unwrap_or("").to_lowercase();
+        let limit = args["limit"].as_u64().unwrap_or(15) as usize;
+        let toks: Vec<String> = q
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|t| t.len() > 1)
+            .map(|t| t.to_string())
+            .collect();
+        let schema = self.registry.schema_complet();
+        let mut lignes = Vec::new();
+        if let Some(tools) = schema.as_array() {
+            for t in tools {
+                let name = t["name"].as_str().unwrap_or("");
+                let desc = t["description"].as_str().unwrap_or("");
+                let origin = t["origin"].as_str().unwrap_or("builtin");
+                let hay = format!("{name} {desc}").to_lowercase();
+                let hit = toks.is_empty() || toks.iter().any(|tk| hay.contains(tk.as_str()));
+                if hit {
+                    let short: String = desc.chars().take(120).collect();
+                    lignes.push(format!("- {name} ({origin}): {short}"));
+                }
+            }
+        }
+        if lignes.is_empty() {
+            return Ok(ResultatAbeille::ok("Aucun outil ne correspond."));
+        }
+        lignes.truncate(limit);
+        Ok(ResultatAbeille::ok(format!(
+            "Outils trouves (execute avec tool_call):\n{}",
+            lignes.join("\n")
+        )))
+    }
+}
+
+/// `tool_call` — exécute N'IMPORTE quel outil enregistré par son nom, même s'il n'est pas
+/// injecté ce tour (inspiré du pont `tool_call` d'third-party). Préserve la validation : refuse les
+/// outils non-`Safe` (à appeler directement) et la récursion.
+pub struct ToolCall {
+    pub registry: Arc<AbeilleRegistry>,
+}
+
+#[async_trait]
+impl Abeille for ToolCall {
+    fn nom(&self) -> &str {
+        "tool_call"
+    }
+    fn description(&self) -> &str {
+        "Execute un outil par son nom, meme absent de ta liste ce tour (decouvre-le via \
+         tool_search). `tool` = nom, `args` = ses arguments. Les outils sensibles (validation \
+         requise) doivent etre appeles directement, pas via tool_call."
+    }
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "tool": { "type": "string", "description": "Nom de l'outil a executer" },
+                "args": { "type": "object", "description": "Arguments de l'outil cible" }
+            },
+            "required": ["tool"]
+        })
+    }
+    fn niveau_danger(&self) -> NiveauDanger {
+        NiveauDanger::Safe
+    }
+    async fn executer(
+        &self,
+        args: serde_json::Value,
+        ctx: &ContextExecution,
+    ) -> Result<ResultatAbeille> {
+        let tool = args["tool"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("'tool' manquant"))?;
+        if matches!(tool, "tool_call" | "run_script" | "delegate") {
+            return Ok(ResultatAbeille::err(format!(
+                "Recursion interdite via tool_call: {tool}"
+            )));
+        }
+        match self.registry.get(tool) {
+            None => Ok(ResultatAbeille::err(format!("Outil inconnu: {tool}"))),
+            Some(a) if a.niveau_danger() != NiveauDanger::Safe => Ok(ResultatAbeille::err(format!(
+                "'{tool}' requiert une validation : appelle-le DIRECTEMENT (pas via tool_call)."
+            ))),
+            Some(_) => {
+                let inner = args.get("args").cloned().unwrap_or_else(|| serde_json::json!({}));
+                self.registry.executer(tool, inner, ctx).await
+            }
+        }
+    }
+}
+
 /// Remplace `{{N}}` (1-based) par la sortie de l'étape N, récursivement dans les chaînes.
 fn substitute_refs(value: &mut serde_json::Value, outputs: &[String]) {
     match value {

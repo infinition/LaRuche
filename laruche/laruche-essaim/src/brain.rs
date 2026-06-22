@@ -195,8 +195,12 @@ const SEMANTIC_CORE: &[&str] = &[
     "todo",
     "run_script",
     "skill_view",
+    // Découverte universelle d'outils (filet anti-échec du retrieval) — toujours présents.
+    "tool_search",
+    "tool_call",
     // Action courante — toujours utile (sinon l'agent ne peut rien faire)
     "web_deep_search",
+    "web_fetch",
     "shell_exec",
     "file_read",
     "file_write",
@@ -275,6 +279,49 @@ fn tool_score(
 }
 
 /// Return the tool schema to inject for this user prompt.
+/// Index COMPACT de toutes les capacités (noms par famille) pour le tier stable du prompt :
+/// le LLM sait ce qui EXISTE même hors des outils injectés ce tour, et peut tout atteindre via
+/// `tool_call`. Inspiré de l'index de skills d'third-party. Stable dans la session → cacheable.
+fn build_capability_index(registry: &AbeilleRegistry) -> String {
+    let schema = registry.schema_complet();
+    let Some(tools) = schema.as_array() else {
+        return String::new();
+    };
+    let (mut builtin, mut plugins, mut mcp) = (Vec::new(), Vec::new(), Vec::new());
+    for t in tools {
+        let Some(name) = t["name"].as_str().filter(|n| !n.is_empty()) else {
+            continue;
+        };
+        match t["origin"].as_str().unwrap_or("builtin") {
+            "custom" => plugins.push(name),
+            "mcp" => mcp.push(name),
+            _ => builtin.push(name),
+        }
+    }
+    if builtin.is_empty() && plugins.is_empty() && mcp.is_empty() {
+        return String::new();
+    }
+    builtin.sort_unstable();
+    plugins.sort_unstable();
+    mcp.sort_unstable();
+    let mut out = String::from(
+        "## Catalogue d'outils\n\nTOUS les outils ci-dessous sont disponibles, même si leur \
+         schéma n'est pas listé ce tour. Pour en utiliser un absent de ta liste : appelle \
+         `tool_call` avec `tool` = son nom (ou `tool_search` pour chercher par mots-clés).\n",
+    );
+    if !builtin.is_empty() {
+        out.push_str(&format!("- Outils natifs : {}\n", builtin.join(", ")));
+    }
+    if !plugins.is_empty() {
+        out.push_str(&format!("- Plugins : {}\n", plugins.join(", ")));
+    }
+    if !mcp.is_empty() {
+        out.push_str(&format!("- MCP : {}\n", mcp.join(", ")));
+    }
+    out.push('\n');
+    out
+}
+
 pub fn schema_outils_pour_prompt(
     registry: &AbeilleRegistry,
     config: &EssaimConfig,
@@ -1837,9 +1884,11 @@ pub async fn boucle_react_multimodal_ext(
     session.ajouter_user_multimodal(prompt_utilisateur, attachments);
 
     let tool_schema = schema_outils_pour_prompt(registry, config, prompt_utilisateur);
+    let capability_index = build_capability_index(registry);
     let system_prompt = build_system_prompt(
         &tool_schema,
         config.system_prompt_override.as_deref(),
+        Some(&capability_index),
         config.custom_instructions.as_deref(),
     );
 
@@ -2316,9 +2365,13 @@ pub async fn boucle_react_multimodal_ext(
 
             let mut reject = false;
 
-            if *n >= 4 {
+            // Garde-fou STRICT uniquement sur les appels IDENTIQUES (nom + args) : c'est le
+            // seul vrai signal de boucle inutile. Bloque le doublon exact à 5, stoppe à 8.
+            // (La recherche/édition légitime appelle le MÊME outil avec des args DIFFÉRENTS —
+            // ce n'est pas une boucle ; le compteur par-nom ci-dessous ne fait plus que nudger.)
+            if *n >= 8 {
                 let msg = format!(
-                    "Boucle d'outils détectée sur '{}' (4×) — arrêt contrôlé.",
+                    "Appel identique répété {n}× sur '{}' — arrêt contrôlé.",
                     call.name
                 );
                 let _ = tx.send(ChatEvent::Error {
@@ -2328,33 +2381,20 @@ pub async fn boucle_react_multimodal_ext(
                     full_response: msg.clone(),
                 });
                 return Ok(msg);
-            } else if *n == 3 {
+            } else if *n == 5 {
                 session.ajouter_observation(
                     &call.name,
-                    "Garde-fou : APPEL BLOQUÉ. Tu as répété cet appel à l'identique 3 fois. Change d'approche, utilise les résultats déjà obtenus, ou conclus.",
+                    "Garde-fou : tu répètes cet appel À L'IDENTIQUE. Varie les arguments, exploite les résultats déjà obtenus, ou conclus.",
                 );
-                let _ = tx.send(ChatEvent::Status {
-                    message: format!("Garde-fou : appel bloqué '{}'", call.name),
-                });
                 reject = true;
             }
 
-            if *m >= 15 {
-                let msg = format!(
-                    "Trop d'appels à '{}' ({}×) sans converger — arrêt contrôlé. Conclus avec ce que tu as.",
-                    call.name, m
-                );
-                let _ = tx.send(ChatEvent::Error {
-                    message: msg.clone(),
-                });
-                let _ = tx.send(ChatEvent::Done {
-                    full_response: msg.clone(),
-                });
-                return Ok(msg);
-            } else if *m == 10 {
+            // Compteur par NOM : plus de hard-stop (gênait recherche/édition multi-fichiers).
+            // Seulement un nudge ponctuel ; la boucle reste bornée par `max_iterations`.
+            if *m == 30 {
                 session.ajouter_observation(
                     &call.name,
-                    "Garde-fou : tu utilises beaucoup le même outil sans converger. Synthétise ce que tu as déjà, pose une question (clarify), ou conclus.",
+                    "Note : beaucoup d'appels à cet outil. Si tu as assez d'éléments, synthétise et conclus.",
                 );
             }
 
