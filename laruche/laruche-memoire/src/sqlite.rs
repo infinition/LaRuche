@@ -766,17 +766,35 @@ impl MemoireCognitive for SqliteBackend {
         Ok(json!({ "suggestions": suggestions, "duplicates": dups, "orphan_items": orphan_items }))
     }
 
-    async fn export_okf(&self, dir: &Path) -> Result<usize> {
+    async fn export_okf(&self, dir: &Path, prefix: Option<&str>) -> Result<usize> {
         let conn = self.conn.lock().unwrap();
         std::fs::create_dir_all(dir)?;
         let ts = chrono::Utc::now().to_rfc3339();
 
-        let mut nstmt = conn.prepare("SELECT id, label, one_liner FROM nodes")?;
-        let nodes: Vec<(String, String, String)> = nstmt
-            .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
-            .filter_map(|x| x.ok())
-            .collect();
-        drop(nstmt);
+        // Scope optionnel : un nœud + son sous-arbre (`id = prefix OR id LIKE prefix.%`).
+        let nodes: Vec<(String, String, String)> = match prefix.map(|p| p.trim_matches('.')) {
+            Some(p) if !p.is_empty() => {
+                let like = format!("{p}.%");
+                let mut nstmt = conn.prepare(
+                    "SELECT id, label, one_liner FROM nodes WHERE id=?1 OR id LIKE ?2",
+                )?;
+                let v: Vec<(String, String, String)> = nstmt
+                    .query_map(rusqlite::params![p, like], |r| {
+                        Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+                    })?
+                    .filter_map(|x| x.ok())
+                    .collect();
+                v
+            }
+            _ => {
+                let mut nstmt = conn.prepare("SELECT id, label, one_liner FROM nodes")?;
+                let v: Vec<(String, String, String)> = nstmt
+                    .query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?
+                    .filter_map(|x| x.ok())
+                    .collect();
+                v
+            }
+        };
 
         let mut files = 0usize;
         for (id, label, one_liner) in &nodes {

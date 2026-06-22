@@ -55,6 +55,8 @@ axum = { version = "0.7", features = ["ws"] }
 tower-http = { version = "0.5", features = ["cors", "fs"] }
 # Compression for manifest
 flate2 = "1"
+# Zip archives (export OKF téléchargeable via le navigateur)
+zip = { version = "2", default-features = false, features = ["deflate"] }
 # Crypto for auth tokens
 blake3 = "1"
 rand = "0.8"

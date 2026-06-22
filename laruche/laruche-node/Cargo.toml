@@ -40,6 +40,7 @@ rand.workspace = true
 base64.workspace = true
 laruche-watchers.workspace = true
 laruche-kanban = { version = "0.2.0", path = "../laruche-kanban" }
+zip.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 tray-icon = "0.19"

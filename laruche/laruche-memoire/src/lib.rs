@@ -244,9 +244,10 @@ pub trait MemoireCognitive: Send + Sync {
 
     async fn dream(&self) -> Result<Value>;
 
-    /// Exporte toute la mémoire en **bundle OKF** (Open Knowledge Format, Google) : arborescence
-    /// de fichiers Markdown + frontmatter YAML (`type` obligatoire). Renvoie le nb de fichiers écrits.
-    async fn export_okf(&self, _dir: &std::path::Path) -> Result<usize> {
+    /// Exporte la mémoire en **bundle OKF** (Open Knowledge Format, Google) : arborescence
+    /// de fichiers Markdown + frontmatter YAML (`type` obligatoire). Si `prefix` est `Some`,
+    /// n'exporte que ce nœud et son sous-arbre (sinon toute la carte). Renvoie le nb de fichiers.
+    async fn export_okf(&self, _dir: &std::path::Path, _prefix: Option<&str>) -> Result<usize> {
         Err(anyhow!("export_okf unsupported by this backend"))
     }
 

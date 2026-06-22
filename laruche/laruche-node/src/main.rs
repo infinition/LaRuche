@@ -2277,7 +2277,8 @@ async fn api_memory_mutations(
     )
 }
 
-/// GET /api/memory/export_okf?dir=okf-export — exporte la mémoire en bundle OKF (un clic).
+/// GET /api/memory/export_okf?dir=okf-export&node=<id> — exporte en bundle OKF dans un dossier
+/// serveur. `node` optionnel = n'exporte que ce nœud + son sous-arbre (sinon toute la carte).
 async fn api_memory_export_okf(
     State(state): State<Arc<AppState>>,
     axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
@@ -2286,10 +2287,75 @@ async fn api_memory_export_okf(
         .get("dir")
         .cloned()
         .unwrap_or_else(|| "okf-export".to_string());
-    match state.memoire.export_okf(std::path::Path::new(&dir)).await {
+    let node = q.get("node").map(|s| s.as_str()).filter(|s| !s.is_empty());
+    match state.memoire.export_okf(std::path::Path::new(&dir), node).await {
         Ok(n) => Json(serde_json::json!({ "ok": true, "files": n, "dir": dir })),
         Err(e) => Json(serde_json::json!({ "ok": false, "error": e.to_string() })),
     }
+}
+
+/// Zippe récursivement le contenu d'un dossier dans un buffer mémoire (entrées relatives à `base`).
+fn zip_dir_to_bytes(base: &std::path::Path) -> std::io::Result<Vec<u8>> {
+    use std::io::{Cursor, Write};
+    let mut buf = Vec::new();
+    {
+        let mut zw = zip::ZipWriter::new(Cursor::new(&mut buf));
+        let opts: zip::write::FileOptions<()> =
+            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        let mut stack = vec![base.to_path_buf()];
+        while let Some(d) = stack.pop() {
+            for entry in std::fs::read_dir(&d)? {
+                let path = entry?.path();
+                if path.is_dir() {
+                    stack.push(path);
+                } else if let Ok(rel) = path.strip_prefix(base) {
+                    let name = rel.to_string_lossy().replace('\\', "/");
+                    zw.start_file(name, opts)
+                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                    zw.write_all(&std::fs::read(&path)?)?;
+                }
+            }
+        }
+        zw.finish()
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+    }
+    Ok(buf)
+}
+
+/// GET /api/memory/export.zip?node=<id> — exporte le bundle OKF et le renvoie en .zip
+/// TÉLÉCHARGEABLE (Content-Disposition), sans rien écrire durablement côté projet.
+/// `node` optionnel = nœud courant + sous-arbre ; sinon toute la mémoire.
+async fn api_memory_export_zip(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<axum::response::Response, StatusCode> {
+    use axum::response::IntoResponse;
+    let node = q.get("node").map(|s| s.as_str()).filter(|s| !s.is_empty());
+    // Dossier temporaire isolé (nettoyé après lecture).
+    let tmp = std::env::temp_dir().join(format!("laruche-okf-{}", Uuid::new_v4()));
+    let result = state
+        .memoire
+        .export_okf(&tmp, node)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR);
+    let bytes = result.and_then(|_| zip_dir_to_bytes(&tmp).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR));
+    let _ = std::fs::remove_dir_all(&tmp); // best-effort cleanup
+    let bytes = bytes?;
+    let fname = match node {
+        Some(n) => format!("okf-{}.zip", n.replace('.', "_")),
+        None => "okf-memoire.zip".to_string(),
+    };
+    Ok((
+        [
+            (axum::http::header::CONTENT_TYPE, "application/zip".to_string()),
+            (
+                axum::http::header::CONTENT_DISPOSITION,
+                format!("attachment; filename=\"{fname}\""),
+            ),
+        ],
+        bytes,
+    )
+        .into_response())
 }
 
 /// POST /api/memory/import_okf?dir=okf-export — importe un bundle OKF.
@@ -7691,6 +7757,7 @@ async fn main() -> Result<()> {
         .route("/api/memory/stats", get(api_memory_stats))
         .route("/api/memory/mutations", get(api_memory_mutations))
         .route("/api/memory/export_okf", get(api_memory_export_okf))
+        .route("/api/memory/export.zip", get(api_memory_export_zip))
         .route("/api/sessions", get(api_list_sessions))
         .route("/api/sessions/search", get(api_search_sessions))
         .route("/api/sessions/:id/messages", get(api_get_session_messages))

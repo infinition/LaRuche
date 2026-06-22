@@ -143,7 +143,7 @@ async fn sqlite_export_okf_writes_bundle() {
 
     let out = std::env::temp_dir().join(format!("okf_bundle_{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&out);
-    let n = backend.export_okf(&out).await.unwrap();
+    let n = backend.export_okf(&out, None).await.unwrap();
     assert!(n >= 2, "doit écrire au moins l'index + un node");
 
     let root = std::fs::read_to_string(out.join("index.md")).unwrap();
@@ -206,7 +206,7 @@ async fn sqlite_okf_round_trip() {
 
     let out = std::env::temp_dir().join(format!("okf_rt_{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&out);
-    a.export_okf(&out).await.unwrap();
+    a.export_okf(&out, None).await.unwrap();
 
     // Réimport dans un backend NEUF → la knowledge doit revenir.
     let dir_b = temp_db("okf_b");
