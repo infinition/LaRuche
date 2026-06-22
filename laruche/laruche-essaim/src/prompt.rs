@@ -78,16 +78,123 @@ pub fn section_identite_stable() -> String {
     )
 }
 
-fn section_outils(tools_schema: &serde_json::Value) -> String {
-    let has_tools = !tools_schema.as_array().map_or(true, |a| a.is_empty());
-    if !has_tools {
-        return String::new();
+/// Type court d'un paramètre : enum > tableau typé > primitif abrégé. Format familier au modèle.
+fn type_court(spec: &serde_json::Value) -> String {
+    if let Some(en) = spec.get("enum").and_then(|v| v.as_array()) {
+        let vals: Vec<&str> = en.iter().filter_map(|x| x.as_str()).collect();
+        if !vals.is_empty() {
+            return vals.join("|");
+        }
     }
-    let tools_json = serde_json::to_string_pretty(tools_schema).unwrap_or_default();
+    fn prim(t: &str) -> &str {
+        match t {
+            "integer" => "int",
+            "boolean" => "bool",
+            other => other,
+        }
+    }
+    match spec.get("type").and_then(|v| v.as_str()).unwrap_or("string") {
+        "array" => match spec
+            .get("items")
+            .and_then(|i| i.get("type"))
+            .and_then(|v| v.as_str())
+        {
+            Some(it) => format!("{}[]", prim(it)),
+            None => "array".to_string(),
+        },
+        other => prim(other).to_string(),
+    }
+}
+
+/// Hint de paramètre conservé UNIQUEMENT s'il porte un FORMAT/EXEMPLE (cron, ISO8601, défaut,
+/// slot `{{}}`…). Les descriptions redondantes avec le nom+type (« The URL to fetch ») sont jetées.
+fn hint_param(spec: &serde_json::Value) -> Option<String> {
+    let d = spec
+        .get("description")
+        .and_then(|v| v.as_str())
+        .map(str::trim)
+        .filter(|s| !s.is_empty())?;
+    let porteur = d.chars().any(|c| c.is_ascii_digit())
+        || d.contains("ex:")
+        || d.contains("ex ")
+        || d.contains("ISO")
+        || d.contains("{{")
+        || d.contains("['")
+        || d.contains("défaut")
+        || d.contains("defaut");
+    if !porteur {
+        return None;
+    }
+    let one = d.split_whitespace().collect::<Vec<_>>().join(" ");
+    Some(one.chars().take(60).collect())
+}
+
+/// Rend les outils en SIGNATURES compactes (style TypeScript) au lieu de JSON verbeux :
+/// `nom(param: type, opt?: type) — description`. ~80% de tokens en moins que le JSON pretty,
+/// dans un format que le modèle relie nativement à l'émission d'un `<tool_call>`.
+fn signatures_outils(tools: &[serde_json::Value]) -> String {
+    let mut out = String::new();
+    for t in tools {
+        let Some(name) = t
+            .get("name")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+        else {
+            continue;
+        };
+        let params = &t["parameters"];
+        let req: Vec<&str> = params
+            .get("required")
+            .and_then(|v| v.as_array())
+            .map(|a| a.iter().filter_map(|x| x.as_str()).collect())
+            .unwrap_or_default();
+        let mut sig: Vec<String> = Vec::new();
+        let mut hints: Vec<String> = Vec::new();
+        if let Some(props) = params.get("properties").and_then(|v| v.as_object()) {
+            // Paramètres requis d'abord (ordre de `required`), puis les optionnels.
+            let mut keys: Vec<&str> = req.iter().copied().filter(|k| props.contains_key(*k)).collect();
+            for k in props.keys() {
+                if !keys.contains(&k.as_str()) {
+                    keys.push(k.as_str());
+                }
+            }
+            for k in keys {
+                let spec = &props[k];
+                let opt = if req.contains(&k) { "" } else { "?" };
+                sig.push(format!("{k}{opt}: {}", type_court(spec)));
+                if let Some(h) = hint_param(spec) {
+                    hints.push(format!("{k}: {h}"));
+                }
+            }
+        }
+        let desc = t
+            .get("description")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        let suffixe = if hints.is_empty() {
+            String::new()
+        } else {
+            format!(" {{{}}}", hints.join("; "))
+        };
+        out.push_str(&format!("- {name}({}) — {desc}{suffixe}\n", sig.join(", ")));
+    }
+    out
+}
+
+fn section_outils(tools_schema: &serde_json::Value) -> String {
+    let tools = match tools_schema.as_array() {
+        Some(a) if !a.is_empty() => a,
+        _ => return String::new(),
+    };
+    let sigs = signatures_outils(tools);
     format!(
         "## Outils disponibles\n\n\
-         Tu as acces aux outils suivants :\n\n\
-         ```json\n{tools_json}\n```\n\n\
+         Signatures (style TypeScript). `?` = paramètre optionnel ; `a|b` = valeurs autorisées ; \
+         `{{…}}` = précision de format. Tu DOIS émettre l'appel en JSON (voir ci-dessous).\n\n\
+         ```\n{sigs}```\n\n\
          ## Comment utiliser un outil\n\n\
          Pour appeler un outil, inclus un bloc XML dans ta reponse avec ce format exact :\n\n\
          ```\n\
@@ -166,5 +273,44 @@ mod tests {
         assert!(env < outils);
         assert!(outils < custom);
         assert!(prompt.contains("UN SEUL outil"));
+    }
+
+    #[test]
+    fn signatures_compactes_preservent_enums_et_hints() {
+        let tools = serde_json::json!([
+            {"name":"web_fetch","description":"Fetch a web page and return clean text.","origin":"builtin",
+             "parameters":{"properties":{
+                 "url":{"description":"The URL to fetch","type":"string"},
+                 "render":{"description":"Si true, rendu headless (pages JS).","type":"boolean"}},
+                 "required":["url"],"type":"object"}},
+            {"name":"todo","description":"Liste de taches.","origin":"builtin",
+             "parameters":{"properties":{
+                 "action":{"description":"Action","enum":["add","done","list"],"type":"string"},
+                 "id":{"description":"id pour done","type":"integer"}},
+                 "required":["action"],"type":"object"}},
+            {"name":"cron_create","description":"Crée une tâche planifiée.","origin":"builtin",
+             "parameters":{"properties":{
+                 "name":{"description":"Nom","type":"string"},
+                 "cron_expr":{"description":"Expression cron (ex: '*/5 * * * *')","type":"string"}},
+                 "required":["name"],"type":"object"}},
+        ]);
+        let arr = tools.as_array().unwrap();
+        let sigs = signatures_outils(arr);
+        // enum rendu inline, optionnel marqué `?`, hint de format conservé, requis sans `?`.
+        assert!(sigs.contains("action: add|done|list"));
+        assert!(sigs.contains("render?: bool"));
+        assert!(sigs.contains("url: string"));
+        assert!(sigs.contains("*/5 * * * *"));
+        assert!(!sigs.contains("The URL to fetch")); // hint redondant jeté
+        // Mesure du gain réel sur cet échantillon.
+        let json = serde_json::to_string_pretty(&tools).unwrap();
+        eprintln!(
+            "[MESURE] JSON pretty: {} car (~{} tok) | signatures: {} car (~{} tok) | gain {:.0}%",
+            json.len(),
+            json.len() / 4,
+            sigs.len(),
+            sigs.len() / 4,
+            100.0 * (1.0 - sigs.len() as f64 / json.len() as f64)
+        );
     }
 }
