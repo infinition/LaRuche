@@ -3363,13 +3363,26 @@ fn draw_chat(f: &mut Frame, area: Rect, app: &App) {
                 }
             }
             if app.is_streaming {
-                if !app.streaming_response.is_empty() {
+                let cleaned = markdown::clean_agent_text(&app.streaming_response);
+                if !cleaned.is_empty() {
                     // Show the partial streaming response as it comes in
-                    let cleaned = markdown::clean_agent_text(&app.streaming_response);
-                    for l in cleaned.lines() {
-                        lines.push(render_md_line(l));
+                    let total_lines = cleaned.lines().count();
+                    for (i, l) in cleaned.lines().enumerate() {
+                        if i == total_lines - 1 {
+                            // Last line: append the blinking cursor to it!
+                            let cursor_char = if (chrono::Utc::now().timestamp_millis() / 250) % 2 == 0 {
+                                "▍"
+                            } else {
+                                " "
+                            };
+                            let mut line_spans = render_md_line(l).spans;
+                            line_spans.push(Span::styled(cursor_char, Style::default().fg(AMBER)));
+                            lines.push(Line::from(line_spans));
+                        } else {
+                            lines.push(render_md_line(l));
+                        }
                     }
-                    lines.push(Line::from(Span::styled("  ▍", Style::default().fg(AMBER))));
+                    lines.push(Line::from(""));
                 } else {
                     // Show reflection animation (spinner)
                     let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
