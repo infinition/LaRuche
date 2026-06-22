@@ -826,6 +826,18 @@ fn str_array(v: &serde_json::Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// Sync SQL → disque : écrit le `SKILL.md` du skill sous `skills/<slug>/` (flat-file,
+/// compat agentskills.io / third-party — éditable, versionnable, ré-importable).
+fn ecrire_skill_md(node_id: &str, content: &str) {
+    let slug = node_id.strip_prefix("capacities.skills.").unwrap_or(node_id);
+    if slug.is_empty() {
+        return;
+    }
+    let dir = std::path::PathBuf::from("skills").join(slug);
+    let _ = std::fs::create_dir_all(&dir);
+    let _ = std::fs::write(dir.join("SKILL.md"), content);
+}
+
 /// Construit le document OKF d'un skill : frontmatter (type/name/description + outils/scripts
 /// DÉCLARÉS = skill borné) + corps markdown.
 fn build_skill_okf(
@@ -934,9 +946,12 @@ impl Abeille for MemoireSkillCreate {
             args["body"].as_str().unwrap_or(""),
         );
         match set_skill_content(&self.mem, &node_id, &content).await {
-            Ok(_) => Ok(ResultatAbeille::ok(format!(
-                "Skill `{name}` enregistre dans `{node_id}`."
-            ))),
+            Ok(_) => {
+                ecrire_skill_md(&node_id, &content); // sync SQL → disque (flat-file)
+                Ok(ResultatAbeille::ok(format!(
+                    "Skill `{name}` enregistre dans `{node_id}` (+ skills/.../SKILL.md)."
+                )))
+            }
             Err(e) => Ok(ResultatAbeille::err(format!("Echec skill_create: {e}"))),
         }
     }
@@ -993,7 +1008,10 @@ impl Abeille for MemoireSkillPatch {
         }
         let patched = content.replacen(old, new, 1);
         match set_skill_content(&self.mem, &node_id, &patched).await {
-            Ok(_) => Ok(ResultatAbeille::ok(format!("Skill `{name}` patche."))),
+            Ok(_) => {
+                ecrire_skill_md(&node_id, &patched); // sync SQL → disque
+                Ok(ResultatAbeille::ok(format!("Skill `{name}` patche.")))
+            }
             Err(e) => Ok(ResultatAbeille::err(format!("Echec skill_patch: {e}"))),
         }
     }

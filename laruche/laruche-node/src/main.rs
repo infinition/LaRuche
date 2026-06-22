@@ -2352,6 +2352,51 @@ async fn api_memory_grep(
     )
 }
 
+/// Phase 1 — sync DISQUE → SQL : scanne `skills/*/SKILL.md` et upsert chaque skill dans
+/// `capacities.skills.<slug>` (item unique). Additif (ne supprime pas les skills SQL-only).
+async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::MemoireCognitive>) {
+    let dir = std::path::Path::new("skills");
+    let Ok(rd) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let mut n = 0usize;
+    for e in rd.flatten() {
+        let p = e.path();
+        if !p.is_dir() {
+            continue;
+        }
+        let Ok(content) = std::fs::read_to_string(p.join("SKILL.md")) else {
+            continue;
+        };
+        if !content.contains("type: skill") {
+            continue; // seulement les vrais skills OKF
+        }
+        let Some(slug) = p.file_name().and_then(|x| x.to_str()).filter(|s| !s.is_empty()) else {
+            continue;
+        };
+        let node_id = format!("capacities.skills.{slug}");
+        // Remplace l'item existant (skill = item unique).
+        if let Ok(node) = memoire.read_node(&node_id).await {
+            if let Some(items) = node.get("items").and_then(|i| i.as_array()) {
+                for it in items {
+                    if let Some(id) = it.get("id").and_then(|x| x.as_str()) {
+                        let _ = memoire.delete_item(id, Some("skill-file-sync")).await;
+                    }
+                }
+            }
+        }
+        let _ = memoire
+            .write(
+                laruche_memoire::MemoryItem::new(node_id, content).with_source("skill-file"),
+            )
+            .await;
+        n += 1;
+    }
+    if n > 0 {
+        tracing::info!(count = n, "skills synchronises depuis disque (SKILL.md -> SQL)");
+    }
+}
+
 /// Importe une liste de faits `{node_id, content}` dans la mémoire (dédup exact). (imported, skipped).
 async fn importer_changes(
     state: &Arc<AppState>,
@@ -8102,6 +8147,9 @@ async fn main() -> Result<()> {
     {
         tracing::warn!(error = %e, "indexation outils au demarrage ignoree");
     }
+
+    // Phase 1 — couche flat-file : sync disque → SQL des skills (skills/<slug>/SKILL.md).
+    sync_skills_disk_to_sql(&memoire).await;
 
     // Load MCP servers
     let (_count, mcp_clients) =
