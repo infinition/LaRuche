@@ -11,6 +11,18 @@
     "created_at": "2026-06-21T17:46:30.234114100Z",
     "result": "Le plan initial est entièrement terminé et toutes les tâches ont été accomplies.\n\nPourriez-vous me donner une nouvelle instruction ou une nouvelle tâche à accomplir ?"
   },
+  "a6bb2d2c-97e7-4b16-a653-49b9fab6939d": {
+    "id": "a6bb2d2c-97e7-4b16-a653-49b9fab6939d",
+    "title": "test 1",
+    "profile_id": null,
+    "model": null,
+    "description": "repond ok",
+    "status": "Done",
+    "blocks": [],
+    "blocked_by": [],
+    "created_at": "2026-06-21T23:59:35.537110600Z",
+    "result": "ok"
+  },
   "b18f9fd6-af19-46c8-8495-fcbfec974dbc": {
     "id": "b18f9fd6-af19-46c8-8495-fcbfec974dbc",
     "title": "REcherche brokenswork",
@@ -29,10 +41,10 @@
     "profile_id": null,
     "model": null,
     "description": "envoie moi tout les codes triche pour skyrim sur telegram",
-    "status": "Blocked",
+    "status": "Done",
     "blocks": [],
     "blocked_by": [],
     "created_at": "2026-06-20T00:49:50.332812900Z",
-    "result": "ERROR: Agent reached maximum iterations (15). The task may be incomplete."
+    "result": "<plan>\n[{\"task\": \"Rechercher la liste complète des codes de triche pour Skyrim\", \"status\": \"done\"},\n{\"task\": \"Formater la liste des codes de triche\", \"status\": \"done\"},\n{\"task\": \"Envoyer la liste via Telegram\", \"status\": \"done\"}]\n</plan>\n\nLa liste des codes de triche pour Skyrim a été recherchée, formatée et envoyée avec succès via Telegram (Message ID: 115). Toutes les tâches du plan sont terminées."
   }
 }
