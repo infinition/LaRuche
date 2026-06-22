@@ -1,0 +1,93 @@
+# Deep Search: Skyrim items summary categories unique items legendary loot
+
+Found 7 results. Fetching top 3...
+
+---
+## 1. Skyrim:Unique Items - UESP Wiki - The Unofficial Elder ...
+**URL:** https://en.uesp.net/wiki/Skyrim:Unique_Items
+**Snippet:** Mar 24, 2026 ·   The various types of items within the scope of this field are further divided into separate groupings for unique weapons, unique armor, unique clothing, unique jewelry, and a final group for all other unique items.
+
+Skyrim:Unique Items
+The UESPWiki – Your source for The Elder Scrolls, in memory of Julian LeFay
+&lt; Skyrim: Items
+⧼monobook-jumptonavigation⧽⧼monobook-jumptosearch⧽
+Contents
+1 Unique Weapons
+2 Unique Armor
+3 Unique Clothing
+4 Unique Jewelry
+5 Other Unique Items
+6 See Also
+Unique Items are items available in Skyrim generally found in fixed locations, unlike most equipment in the game, which are randomly generated or generic equipment (see Generic Magic Apparel and Generic Magic Weapons). The various types of items within the scope of this field are further divided into separate groupings for unique weapons, unique armor, unique clothing, unique jewelry, and a final group for all other unique items. Some of these items can be improved through smithing. Improving enchanted items requires the Arcane Blacksmith perk.
+Many of these items are quest rewards, although some of the most valuable quest rewards are listed at Leveled Items (unique items, but with level-dependent statistics) and Artifacts (unusually powerful unique items with unique appearances and enchantments). For unique items that are needed to complete quests, please see the Quest Items article. For other unique items in the game, see the Other Unique Items article. Unique items that are quest-related are listed at Quest Items. For lists of other available items, see:
+Skyrim-Armor: Category listing of all the armor available in the game.
+Skyrim-Clothing: Category listing of all the clothing available in the game.
+Skyr
+...(milieu tronque)...
+nique Items[edit]
+A category of unique items intended to cover all of the unique items that do not fall into the above groupings.
+See Also[edit]
+Skyrim:Artifacts
+Skyrim:Quest Items
+Skyrim:Leveled Items
+Skyrim:Unobtainable Items
+Retrieved from "https://en.uesp.net/w/index.php?title=Skyrim:Unique_Items&oldid=3526989"
+Categories:
+Skyrim-Items
+Skyrim-Clothing
+Skyrim-Armor
+Skyrim-Jewelry
+Skyrim-Weapons
+
+---
+## 2. Skyrim:Items - UESP Wiki - The Unofficial Elder Scrolls Pages
+**URL:** https://en.uesp.net/wiki/Skyrim:Items
+**Snippet:** Feb 4, 2026 ·   Categories[edit] Within the category Skyrim-Items are many subcategories listing nearly every item in the game by function. If you don't know the exact spelling of a specific item, browsing through one of the categories may help you to find it.
+
+Skyrim:Items
+The UESPWiki – Your source for The Elder Scrolls, in memory of Julian LeFay
+&lt; Skyrim
+⧼monobook-jumptonavigation⧽⧼monobook-jumptosearch⧽
+Skyrim is full of items both magical and mundane. The articles listed here provide information on all items in the game.
+Contents
+1 Finding Items
+1.1 Search
+1.2 Categories
+1.3 General Articles on Items
+1.4 Articles on Enchanted Items
+1.5 Articles on Item Materials
+1.6 Creating Custom Items
+1.7 Official Add-Ons
+Finding Items[edit]
+Depending upon whether you are looking for a specific item or just browsing for general information, there are several different ways to navigate through the many item-related pages.
+Search[edit]
+If you know the exact name of the specific item you want to find, you can search for it here or at the search box at the top of the page.
+0x000F71CD
+Categories[edit]
+Within the category Skyrim-Items are many subcategories listing nearly every item in the game by function.  If you don't know the exact spelling of a specific item, browsing through one of the categories may help you to find it.
+General Articles on Items[edit]
+Most of these articles provide general information on various types of items, and also include lists of the mundane (non-enchanted and widely available) varieties of the items.
+Ammunition: All arrows and bolts, magical and non-magical
+Armor: Base unenchanted armor
+Books: All books in the game
+Clothing: Base unenchanted clothing and jewelry
+Food: Ingredients that can be eaten raw or cooked
+I
+...(milieu tronque)...
+akes you to a list of Creation Club items.
+Dawnguard Items: New items added by the Dawnguard add-on.
+Hearthfire Items: New items added by the Hearthfire add-on.
+Dragonborn Items: New items added by the Dragonborn add-on.
+Creation Club Items: New items separately added by Creation Club.
+Retrieved from "https://en.uesp.net/w/index.php?title=Skyrim:Items&oldid=3496519"
+Categories:
+Skyrim
+Skyrim-Items
+
+---
+## 3. Legendary Loot at Skyrim Special Edition Nexus - Mods and ...
+**URL:** https://www.nexusmods.com/skyrimspecialedition/mods/172089
+**Snippet:** Jun 1, 2026 ·   Legendary artifacts like Guardian's Claymore, Dragon's Blight and Spellbane have unique enchantments, but Onyx Cleaver, Onyx Saber and Pandemonium have no enchantments.
+
+(HTTP 403 Forbidden)
+

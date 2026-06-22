@@ -125,6 +125,8 @@ pub struct App {
 
     // Shared background event sender
     pub ui_tx: Option<tokio::sync::mpsc::Sender<TuiEvent>>,
+    // Agent sidebar scroll
+    sidebar_scroll: u16,
 }
 
 #[derive(PartialEq, Clone, Debug)]
@@ -322,6 +324,7 @@ impl App {
             missions_dossier_scroll: 0,
 
             ui_tx: None,
+            sidebar_scroll: 0,
         };
         app
     }
@@ -811,12 +814,19 @@ async fn fetch_model(url: &str) -> String {
             .ok()
         })
         .and_then(|d| {
-            d["models"]
-                .as_array()?
-                .first()?
-                .get("name")?
+            // Prefer the default_model field from ModelsResponse
+            d["default_model"]
                 .as_str()
+                .filter(|s| !s.is_empty())
                 .map(String::from)
+                .or_else(|| {
+                    d["models"]
+                        .as_array()?
+                        .first()?
+                        .get("name")?
+                        .as_str()
+                        .map(String::from)
+                })
         })
         .unwrap_or_else(|| "?".into())
 }
@@ -998,10 +1008,26 @@ async fn stream_via_websocket(
                                     return;
                                 }
                                 _ => {
-                                    // Unknown event type — if it has text, treat as token
-                                    if let Some(t) = data["text"].as_str() {
-                                        full_response.push_str(t);
-                                        let _ = tx.send(TuiEvent::Token(t.to_string())).await;
+                                    // Handle thought/status/compaction/failover as agent activity
+                                    // (not chat tokens)
+                                    match event_type {
+                                        "thought" | "status" | "compaction" | "failover" => {
+                                            let thought_text = data["text"]
+                                                .as_str()
+                                                .or_else(|| data["message"].as_str())
+                                                .unwrap_or("")
+                                                .to_string();
+                                            if !thought_text.is_empty() {
+                                                let _ = tx.send(TuiEvent::Thinking(thought_text)).await;
+                                            }
+                                        }
+                                        _ => {
+                                            // Truly unknown event — if it has text, treat as token
+                                            if let Some(t) = data["text"].as_str() {
+                                                full_response.push_str(t);
+                                                let _ = tx.send(TuiEvent::Token(t.to_string())).await;
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -1707,92 +1733,129 @@ pub async fn run_tui() -> anyhow::Result<()> {
                 }
                 }
                 Event::Mouse(mouse) => {
-                    if mouse.kind == crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left) {
-                        let size = terminal.size().unwrap_or_default();
-                        let area = Rect::new(0, 0, size.width, size.height);
-                        let input_lines = app.input.lines().count().max(1).min(10) as u16 + 2;
-                        let chunks = Layout::default()
-                            .direction(Direction::Vertical)
-                            .constraints([
-                                Constraint::Length(6), // Header
-                                Constraint::Min(10),   // Content
-                                Constraint::Length(input_lines), // Input
-                                Constraint::Length(1), // Footer/Status
-                            ])
-                            .split(area);
+                    let size = terminal.size().unwrap_or_default();
+                    let area = Rect::new(0, 0, size.width, size.height);
+                    let input_lines = app.input.lines().count().max(1).min(10) as u16 + 2;
+                    let chunks = Layout::default()
+                        .direction(Direction::Vertical)
+                        .constraints([
+                            Constraint::Length(6), // Header
+                            Constraint::Min(10),   // Content
+                            Constraint::Length(input_lines), // Input
+                            Constraint::Length(1), // Footer/Status
+                        ])
+                        .split(area);
 
-                        let row = mouse.row;
-                        let col = mouse.column;
+                    let row = mouse.row;
+                    let col = mouse.column;
 
-                        // 1. Header click (tabs navigation) at row 4
-                        if row == 4 {
-                            if col >= 45 && col <= 51 {
-                                app.current_screen = Screen::Chat;
-                                app.active_panel = Panel::Input;
-                            } else if col >= 52 && col <= 61 {
-                                app.current_screen = Screen::Memory;
-                                app.active_panel = Panel::MemoryTree;
-                                app.memory_active_pane = MemoryPane::Tree;
-                                app.trigger_load_memory();
-                            } else if col >= 62 && col <= 73 {
-                                app.current_screen = Screen::Missions;
-                                app.active_panel = Panel::MissionsList;
-                                app.missions_active_pane = MissionsPane::List;
-                                app.trigger_load_missions();
+                    match mouse.kind {
+                        // ── Mouse scroll ──
+                        crossterm::event::MouseEventKind::ScrollUp => {
+                            if row >= chunks[1].y && row < chunks[1].y + chunks[1].height {
+                                if app.current_screen == Screen::Chat {
+                                    // Determine if scroll is in sidebar or chat
+                                    if col < 36 {
+                                        app.sidebar_scroll = app.sidebar_scroll.saturating_sub(3);
+                                    } else {
+                                        app.chat_scroll = app.chat_scroll.saturating_sub(3);
+                                    }
+                                } else if app.current_screen == Screen::Memory {
+                                    if col < 38 {
+                                        app.memory_tree_scroll = app.memory_tree_scroll.saturating_sub(3);
+                                    } else {
+                                        app.memory_details_scroll = app.memory_details_scroll.saturating_sub(3);
+                                    }
+                                } else if app.current_screen == Screen::Missions {
+                                    if col >= 38 {
+                                        app.missions_dossier_scroll = app.missions_dossier_scroll.saturating_sub(3);
+                                    }
+                                }
                             }
                         }
-                        // 2. Content area click
-                        else if row >= chunks[1].y && row < chunks[1].y + chunks[1].height {
-                            if app.current_screen == Screen::Chat && row == chunks[1].y {
-                                let x = chunks[1].x;
-                                if col >= x + 2 && col < x + 8 {
-                                    app.chat_view = ChatView::Messages;
-                                    app.chat_scroll = 0;
-                                    app.active_panel = Panel::Chat;
-                                } else if col >= x + 9 && col < x + 19 {
-                                    app.chat_view = ChatView::Activity;
-                                    app.chat_scroll = 0;
-                                    app.active_panel = Panel::Chat;
-                                } else if col >= x + 20 && col < x + 28 {
-                                    app.chat_view = ChatView::Status;
-                                    app.chat_scroll = 0;
-                                    app.active_panel = Panel::Chat;
-                                } else {
-                                    app.active_panel = Panel::Chat;
+                        crossterm::event::MouseEventKind::ScrollDown => {
+                            if row >= chunks[1].y && row < chunks[1].y + chunks[1].height {
+                                if app.current_screen == Screen::Chat {
+                                    if col < 36 {
+                                        app.sidebar_scroll = app.sidebar_scroll.saturating_add(3);
+                                    } else {
+                                        app.chat_scroll = app.chat_scroll.saturating_add(3);
+                                    }
+                                } else if app.current_screen == Screen::Memory {
+                                    if col < 38 {
+                                        app.memory_tree_scroll = app.memory_tree_scroll.saturating_add(3);
+                                    } else {
+                                        app.memory_details_scroll = app.memory_details_scroll.saturating_add(3);
+                                    }
+                                } else if app.current_screen == Screen::Missions {
+                                    if col >= 38 {
+                                        app.missions_dossier_scroll = app.missions_dossier_scroll.saturating_add(3);
+                                    }
                                 }
-                            } else if app.current_screen == Screen::Memory {
-                                // Split horizontally: Tree pane (width 38) and Details pane (Min(0))
-                                let mem_chunks = Layout::default()
-                                    .direction(Direction::Horizontal)
-                                    .constraints([Constraint::Length(38), Constraint::Min(0)])
-                                    .split(chunks[1]);
-                                if col >= mem_chunks[0].x && col < mem_chunks[0].x + mem_chunks[0].width {
+                            }
+                        }
+                        // ── Mouse click ──
+                        crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
+                            // 1. Header click (tabs navigation) at row 4
+                            if row == 4 {
+                                if col >= 45 && col <= 51 {
+                                    app.current_screen = Screen::Chat;
+                                    app.active_panel = Panel::Input;
+                                } else if col >= 52 && col <= 61 {
+                                    app.current_screen = Screen::Memory;
                                     app.active_panel = Panel::MemoryTree;
                                     app.memory_active_pane = MemoryPane::Tree;
-                                } else {
-                                    app.active_panel = Panel::MemoryTree;
-                                    app.memory_active_pane = MemoryPane::Details;
-                                }
-                            } else if app.current_screen == Screen::Missions {
-                                let mis_chunks = Layout::default()
-                                    .direction(Direction::Horizontal)
-                                    .constraints([Constraint::Length(38), Constraint::Min(0)])
-                                    .split(chunks[1]);
-                                if col >= mis_chunks[0].x && col < mis_chunks[0].x + mis_chunks[0].width {
+                                    app.trigger_load_memory();
+                                } else if col >= 62 && col <= 73 {
+                                    app.current_screen = Screen::Missions;
                                     app.active_panel = Panel::MissionsList;
                                     app.missions_active_pane = MissionsPane::List;
-                                } else {
-                                    app.active_panel = Panel::MissionsList;
-                                    app.missions_active_pane = MissionsPane::Dossier;
+                                    app.trigger_load_missions();
                                 }
-                            } else {
-                                app.active_panel = Panel::Chat;
+                            }
+                            // 2. Content area click
+                            else if row >= chunks[1].y && row < chunks[1].y + chunks[1].height {
+                                if app.current_screen == Screen::Chat {
+                                    // Agent sidebar (left 36 cols) or Chat (right)
+                                    if col < 36 {
+                                        // Clicked in agent sidebar — no panel change needed
+                                    } else {
+                                        app.active_panel = Panel::Chat;
+                                    }
+                                } else if app.current_screen == Screen::Memory {
+                                    let mem_chunks = Layout::default()
+                                        .direction(Direction::Horizontal)
+                                        .constraints([Constraint::Length(38), Constraint::Min(0)])
+                                        .split(chunks[1]);
+                                    if col >= mem_chunks[0].x && col < mem_chunks[0].x + mem_chunks[0].width {
+                                        app.active_panel = Panel::MemoryTree;
+                                        app.memory_active_pane = MemoryPane::Tree;
+                                    } else {
+                                        app.active_panel = Panel::MemoryTree;
+                                        app.memory_active_pane = MemoryPane::Details;
+                                    }
+                                } else if app.current_screen == Screen::Missions {
+                                    let mis_chunks = Layout::default()
+                                        .direction(Direction::Horizontal)
+                                        .constraints([Constraint::Length(38), Constraint::Min(0)])
+                                        .split(chunks[1]);
+                                    if col >= mis_chunks[0].x && col < mis_chunks[0].x + mis_chunks[0].width {
+                                        app.active_panel = Panel::MissionsList;
+                                        app.missions_active_pane = MissionsPane::List;
+                                    } else {
+                                        app.active_panel = Panel::MissionsList;
+                                        app.missions_active_pane = MissionsPane::Dossier;
+                                    }
+                                } else {
+                                    app.active_panel = Panel::Chat;
+                                }
+                            }
+                            // 3. Input area click
+                            else if row >= chunks[2].y && row < chunks[2].y + chunks[2].height {
+                                app.active_panel = Panel::Input;
                             }
                         }
-                        // 3. Input area click
-                        else if row >= chunks[2].y && row < chunks[2].y + chunks[2].height {
-                            app.active_panel = Panel::Input;
-                        }
+                        _ => {}
                     }
                 }
                 _ => {}
@@ -2738,7 +2801,17 @@ fn ui(f: &mut Frame, app: &mut App) {
     draw_header(f, chunks[0], app);
     match app.current_screen {
         Screen::Chat => {
-            draw_chat(f, chunks[1], app);
+            // Split horizontally: left sidebar for agent activity, right for chat
+            let h_chunks = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Length(36), // Agent sidebar
+                    Constraint::Min(20),   // Chat messages
+                ])
+                .split(chunks[1]);
+
+            draw_agent_sidebar(f, h_chunks[0], app);
+            draw_chat(f, h_chunks[1], app);
         }
         Screen::Memory => {
             draw_memory(f, chunks[1], app);
@@ -3271,246 +3344,200 @@ fn render_md_line(line: &str) -> Line<'static> {
     Line::from(spans)
 }
 
+fn draw_agent_sidebar(f: &mut Frame, area: Rect, app: &App) {
+    let mut lines: Vec<Line> = Vec::new();
+
+    // ── Plan section ──
+    if !app.plan.is_empty() {
+        lines.push(Line::from(Span::styled(
+            " ─── Plan ───",
+            Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+        )));
+        for (task, status) in &app.plan {
+            let (icon, color) = match status.as_str() {
+                "done" => ("✓", Color::Green),
+                "in_progress" | "running" => ("⟳", AMBER),
+                _ => ("○", TEXT_DIM),
+            };
+            let short_task: String = task.chars().take(28).collect();
+            lines.push(Line::from(vec![
+                Span::styled(format!(" {} ", icon), Style::default().fg(color)),
+                Span::styled(short_task, Style::default().fg(Color::White)),
+            ]));
+        }
+        lines.push(Line::from(""));
+    }
+
+    // ── Activity log section ──
+    lines.push(Line::from(Span::styled(
+        " ─── Activite ───",
+        Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+    )));
+
+    if app.activity_log.is_empty() && !app.is_streaming {
+        lines.push(Line::from(Span::styled(
+            " En attente...",
+            Style::default().fg(TEXT_DIM).add_modifier(Modifier::ITALIC),
+        )));
+    } else {
+        // Show the last N entries that fit
+        let max_entries = (area.height as usize).saturating_sub(6);
+        let start = app.activity_log.len().saturating_sub(max_entries);
+        for entry in &app.activity_log[start..] {
+            let (icon, color) = if entry.starts_with("[OK]") {
+                ("✓", Color::Green)
+            } else if entry.starts_with("[ERR]") {
+                ("✗", Color::Red)
+            } else if entry.starts_with("[TOOL]") {
+                ("⚙", Color::Blue)
+            } else if entry.starts_with("[THINK]") {
+                ("💭", Color::Magenta)
+            } else {
+                ("·", TEXT_DIM)
+            };
+
+            // Extract the text after the tag and timestamp
+            let display_text = entry
+                .find("] ")
+                .and_then(|i| {
+                    let rest = &entry[i + 2..];
+                    // Skip the second bracket (timestamp)
+                    rest.find("] ").map(|j| &rest[j + 2..]).or(Some(rest))
+                })
+                .unwrap_or(entry);
+
+            // Truncate for sidebar width
+            let short: String = display_text.chars().take(30).collect();
+            lines.push(Line::from(vec![
+                Span::styled(format!(" {} ", icon), Style::default().fg(color)),
+                Span::styled(short, Style::default().fg(TEXT_DIM)),
+            ]));
+        }
+    }
+
+    // ── Streaming indicator ──
+    if app.is_streaming {
+        lines.push(Line::from(""));
+        let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        let idx = ((chrono::Utc::now().timestamp_millis() / 80) % spinner_frames.len() as i64) as usize;
+        let stream_chars = app.streaming_response.chars().count();
+        if stream_chars > 0 {
+            lines.push(Line::from(vec![
+                Span::styled(
+                    format!(" {} Ecriture... ", spinner_frames[idx]),
+                    Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+                ),
+            ]));
+            lines.push(Line::from(Span::styled(
+                format!(" {} chars", stream_chars),
+                Style::default().fg(TEXT_DIM),
+            )));
+        } else {
+            lines.push(Line::from(vec![
+                Span::styled(
+                    format!(" {} Reflexion...", spinner_frames[idx]),
+                    Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+                ),
+            ]));
+        }
+    }
+
+    let title = Line::from(vec![
+        Span::styled(" 🐝 Agent ", Style::default().fg(AMBER).add_modifier(Modifier::BOLD)),
+    ]);
+
+    f.render_widget(
+        Paragraph::new(Text::from(lines))
+            .wrap(Wrap { trim: false })
+            .scroll((app.sidebar_scroll, 0))
+            .block(
+                Block::default()
+                    .title(title)
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(BORDER))
+                    .style(Style::default().bg(BG_PANEL)),
+            ),
+        area,
+    );
+}
+
 fn draw_chat(f: &mut Frame, area: Rect, app: &App) {
     let is_active = app.active_panel == Panel::Chat;
 
-    // Tab title
     let title = Line::from(vec![
-        if app.chat_view == ChatView::Messages {
-            Span::styled(
-                " Chat ",
-                Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
-            )
-        } else {
-            Span::styled(" Chat ", Style::default().fg(TEXT_DIM))
-        },
-        Span::styled("│", Style::default().fg(BORDER)),
-        if app.chat_view == ChatView::Activity {
-            Span::styled(
-                " Activity ",
-                Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
-            )
-        } else {
-            Span::styled(" Activity ", Style::default().fg(TEXT_DIM))
-        },
-        Span::styled("│", Style::default().fg(BORDER)),
-        if app.chat_view == ChatView::Status {
-            Span::styled(
-                " Status ",
-                Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
-            )
-        } else {
-            Span::styled(" Status ", Style::default().fg(TEXT_DIM))
-        },
-        if is_active {
-            Span::styled("  ←→", Style::default().fg(Color::Rgb(50, 50, 55)))
-        } else {
-            Span::raw("")
-        },
+        Span::styled(
+            " Chat ",
+            Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+        ),
     ]);
 
     let mut lines: Vec<Line> = Vec::new();
 
-    match app.chat_view {
-        ChatView::Messages => {
-            for msg in &app.messages {
-                match msg.role.as_str() {
-                    "user" => {
-                        lines.push(Line::from(vec![
-                            Span::styled(
-                                "  ❯ ",
-                                Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
-                            ),
-                            Span::styled(&msg.text, Style::default().fg(AMBER)),
-                        ]));
-                        lines.push(Line::from(""));
-                    }
-                    "assistant" => {
-                        let mut md_lines = markdown::parse_markdown(&msg.text);
-                        lines.append(&mut md_lines);
-                        lines.push(Line::from(""));
-                    }
-                    "tool" => {
-                        let parts: Vec<&str> = msg.text.splitn(2, ' ').collect();
-                        let name = parts[0];
-                        let args = parts.get(1).unwrap_or(&"");
-                        lines.push(Line::from(vec![
-                            Span::styled("  🐝 ", Style::default().fg(AMBER).add_modifier(Modifier::BOLD)),
-                            Span::styled("Abeille active : ", Style::default().fg(TEXT_DIM)),
-                            Span::styled(name.to_string(), Style::default().fg(AMBER).add_modifier(Modifier::BOLD)),
-                            if !args.is_empty() {
-                                Span::styled(format!(" (arguments: {})", args), Style::default().fg(TEXT_DIM))
-                            } else {
-                                Span::raw("")
-                            },
-                        ]));
-                    }
-                    "error" => {
-                        lines.push(Line::from(Span::styled(
-                            format!("  ✗ {}", msg.text),
-                            Style::default().fg(Color::Red),
-                        )));
-                        lines.push(Line::from(""));
-                    }
-                    "system" => {
-                        lines.push(Line::from(Span::styled(
-                            format!("  {}", msg.text),
-                            Style::default().fg(TEXT_DIM).add_modifier(Modifier::ITALIC),
-                        )));
-                        lines.push(Line::from(""));
-                    }
-                    _ => {}
-                }
+    // Only show user, assistant, system, error messages — tools go to sidebar
+    for msg in &app.messages {
+        match msg.role.as_str() {
+            "user" => {
+                lines.push(Line::from(vec![
+                    Span::styled(
+                        "  ❯ ",
+                        Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
+                    ),
+                    Span::styled(&msg.text, Style::default().fg(AMBER)),
+                ]));
+                lines.push(Line::from(""));
             }
-            if app.is_streaming {
-                let cleaned = markdown::clean_agent_text(&app.streaming_response);
-                if !cleaned.is_empty() {
-                    // Show the partial streaming response as it comes in
-                    let total_lines = cleaned.lines().count();
-                    for (i, l) in cleaned.lines().enumerate() {
-                        if i == total_lines - 1 {
-                            // Last line: append the blinking cursor to it!
-                            let cursor_char = if (chrono::Utc::now().timestamp_millis() / 250) % 2 == 0 {
-                                "▍"
-                            } else {
-                                " "
-                            };
-                            let mut line_spans = render_md_line(l).spans;
-                            line_spans.push(Span::styled(cursor_char, Style::default().fg(AMBER)));
-                            lines.push(Line::from(line_spans));
-                        } else {
-                            lines.push(render_md_line(l));
-                        }
-                    }
-                    lines.push(Line::from(""));
-                } else {
-                    // Show reflection animation (spinner)
-                    let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-                    let idx = ((chrono::Utc::now().timestamp_millis() / 80) % spinner_frames.len() as i64) as usize;
-                    lines.push(Line::from(vec![
-                        Span::styled(format!("  {} Réflexion...", spinner_frames[idx]), Style::default().fg(AMBER).add_modifier(Modifier::BOLD)),
-                    ]));
-                    lines.push(Line::from(""));
-                }
+            "assistant" => {
+                let mut md_lines = markdown::parse_markdown(&msg.text);
+                lines.append(&mut md_lines);
+                lines.push(Line::from(""));
             }
-        }
-        ChatView::Activity => {
-            if app.activity_log.is_empty() {
+            "error" => {
                 lines.push(Line::from(Span::styled(
-                    "  Aucune activite",
+                    format!("  ✗ {}", msg.text),
+                    Style::default().fg(Color::Red),
+                )));
+                lines.push(Line::from(""));
+            }
+            "system" => {
+                lines.push(Line::from(Span::styled(
+                    format!("  {}", msg.text),
                     Style::default().fg(TEXT_DIM).add_modifier(Modifier::ITALIC),
                 )));
-            } else {
-                for entry in &app.activity_log {
-                    let (icon, color) = if entry.starts_with("[OK]") {
-                        ("✓", Color::Green)
-                    } else if entry.starts_with("[ERR]") {
-                        ("✗", Color::Red)
-                    } else if entry.starts_with("[TOOL]") {
-                        ("⚙", Color::Blue)
-                    } else if entry.starts_with("[THINK]") {
-                        ("💭", Color::Magenta)
+                lines.push(Line::from(""));
+            }
+            // "tool" messages are now shown in the agent sidebar
+            _ => {}
+        }
+    }
+
+    // Streaming response with blinking cursor
+    if app.is_streaming {
+        let cleaned = markdown::clean_agent_text(&app.streaming_response);
+        if !cleaned.is_empty() {
+            let total_lines = cleaned.lines().count();
+            for (i, l) in cleaned.lines().enumerate() {
+                if i == total_lines - 1 {
+                    let cursor_char = if (chrono::Utc::now().timestamp_millis() / 250) % 2 == 0 {
+                        "▍"
                     } else {
-                        ("·", Color::Rgb(113, 113, 122))
+                        " "
                     };
-                    lines.push(Line::from(vec![
-                        Span::styled(format!("  {} ", icon), Style::default().fg(color)),
-                        Span::styled(entry.as_str(), Style::default().fg(TEXT_DIM)),
-                    ]));
+                    let mut line_spans = render_md_line(l).spans;
+                    line_spans.push(Span::styled(cursor_char, Style::default().fg(AMBER)));
+                    lines.push(Line::from(line_spans));
+                } else {
+                    lines.push(render_md_line(l));
                 }
             }
-        }
-        ChatView::Status => {
-            // Connection
+            lines.push(Line::from(""));
+        } else {
+            // Show reflection animation (spinner)
+            let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+            let idx = ((chrono::Utc::now().timestamp_millis() / 80) % spinner_frames.len() as i64) as usize;
             lines.push(Line::from(vec![
-                Span::styled("  Serveur  ", Style::default().fg(TEXT_DIM)),
-                if app.connected {
-                    Span::styled("● Connecte", Style::default().fg(Color::Green))
-                } else {
-                    Span::styled("● Deconnecte", Style::default().fg(Color::Red))
-                },
-            ]));
-            lines.push(Line::from(vec![
-                Span::styled("  URL      ", Style::default().fg(TEXT_DIM)),
-                Span::styled(
-                    if app.server_url.is_empty() {
-                        "-"
-                    } else {
-                        &app.server_url
-                    },
-                    Style::default().fg(Color::Cyan),
-                ),
+                Span::styled(format!("  {} Reflexion...", spinner_frames[idx]), Style::default().fg(AMBER).add_modifier(Modifier::BOLD)),
             ]));
             lines.push(Line::from(""));
-
-            // Model
-            lines.push(Line::from(vec![
-                Span::styled("  Modele   ", Style::default().fg(TEXT_DIM)),
-                Span::styled(&app.model, Style::default().fg(AMBER)),
-            ]));
-            lines.push(Line::from(""));
-
-            // Working directory
-            lines.push(Line::from(vec![
-                Span::styled("  CWD      ", Style::default().fg(TEXT_DIM)),
-                Span::styled(&app.cwd, Style::default().fg(AMBER)),
-            ]));
-            lines.push(Line::from(""));
-
-            // Tools
-            lines.push(Line::from(vec![
-                Span::styled("  Abeilles ", Style::default().fg(TEXT_DIM)),
-                Span::styled(
-                    format!("{} outils", app.tools.len()),
-                    Style::default().fg(Color::Green),
-                ),
-            ]));
-            lines.push(Line::from(""));
-
-            // Session
-            lines.push(Line::from(vec![
-                Span::styled("  Session  ", Style::default().fg(TEXT_DIM)),
-                Span::styled(
-                    app.session_id
-                        .as_deref()
-                        .map(|s| &s[..8.min(s.len())])
-                        .unwrap_or("nouvelle"),
-                    Style::default().fg(TEXT_DIM),
-                ),
-            ]));
-            lines.push(Line::from(vec![
-                Span::styled("  Messages ", Style::default().fg(TEXT_DIM)),
-                Span::styled(
-                    format!("{}", app.messages.len()),
-                    Style::default().fg(Color::White),
-                ),
-            ]));
-            lines.push(Line::from(vec![
-                Span::styled("  Historiq. ", Style::default().fg(TEXT_DIM)),
-                Span::styled(
-                    format!("{} commandes", app.history.len()),
-                    Style::default().fg(Color::White),
-                ),
-            ]));
-            lines.push(Line::from(""));
-
-            // Channels (if connected, fetch from server)
-            lines.push(Line::from(Span::styled(
-                "  ─── Services ───",
-                Style::default().fg(BORDER),
-            )));
-            lines.push(Line::from(vec![
-                Span::styled("  Telegram ", Style::default().fg(TEXT_DIM)),
-                Span::styled("voir /server", Style::default().fg(TEXT_DIM)),
-            ]));
-            lines.push(Line::from(vec![
-                Span::styled("  STT      ", Style::default().fg(TEXT_DIM)),
-                Span::styled("voir Settings web", Style::default().fg(TEXT_DIM)),
-            ]));
-            lines.push(Line::from(vec![
-                Span::styled("  TTS      ", Style::default().fg(TEXT_DIM)),
-                Span::styled("voir Settings web", Style::default().fg(TEXT_DIM)),
-            ]));
         }
     }
 
@@ -3611,7 +3638,7 @@ fn draw_status(f: &mut Frame, area: Rect, app: &App) {
         Span::styled(&app.status_msg, Style::default().fg(TEXT_DIM)),
         Span::styled("  │  ", Style::default().fg(BORDER)),
         Span::styled(
-            "Tab:panel ↑↓:scroll Ctrl-C:quit",
+            "Tab:panel  ⇅:scroll  Ctrl+C:quit  Ctrl+=/−:zoom",
             Style::default().fg(TEXT_DIM),
         ),
     ]);

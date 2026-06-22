@@ -1938,14 +1938,25 @@ fn formater_et_signaler_skills(
     if skills.is_empty() {
         return ephemeral;
     }
+    // Budget par skill : les skills third-party importés peuvent peser 10-20 Ko. Injecter le corps
+    // complet noierait le working-set (vu en prod : `third-party agent` ~15 Ko sur une requête
+    // "world models"). On cape à ~1600 caractères + pointeur skill_view pour le détail (progressive
+    // disclosure façon third-party : le LLM lit le résumé, et appelle skill_view s'il a besoin de tout).
+    const BUDGET_SKILL: usize = 1600;
     let mut bloc = String::from("# Compétences apprises applicables à cette tâche\n\n");
     for (name, body) in skills {
         let _ = tx.send(ChatEvent::SkillApplied { name: name.clone() });
-        bloc.push_str(&format!(
-            "## Skill : {}\n{}\n\n---\n\n",
-            name.trim(),
-            body.trim()
-        ));
+        let nom = name.trim();
+        let corps_complet = body.trim();
+        let corps = if corps_complet.chars().count() > BUDGET_SKILL {
+            let tronque: String = corps_complet.chars().take(BUDGET_SKILL).collect();
+            format!(
+                "{tronque}\n\n… (tronqué — `skill_view(\"{nom}\")` pour la procédure complète)"
+            )
+        } else {
+            corps_complet.to_string()
+        };
+        bloc.push_str(&format!("## Skill : {nom}\n{corps}\n\n---\n\n"));
     }
     Some(match ephemeral {
         Some(mem) => format!("{bloc}{mem}"),
