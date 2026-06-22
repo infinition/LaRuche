@@ -8,7 +8,7 @@
 //!   laruche discover            - Find nodes on network
 //!   laruche doctor              - System health check
 
-mod tui;
+mod ui;
 
 use anyhow::Result;
 use crossterm::style::{Color, Stylize};
@@ -99,7 +99,7 @@ async fn main() -> Result<()> {
         }
     }
     match command {
-        "tui" => tui::run_tui().await?,
+        "tui" => ui::run_tui().await?,
         "chat" => cmd_chat().await?,
         "ask" => cmd_ask(&prompt_args.join(" ")).await?,
         "server" => cmd_server(&prompt_args).await?,

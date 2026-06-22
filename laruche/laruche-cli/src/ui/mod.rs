@@ -3,6 +3,8 @@
 //! Connects to a LaRuche server via WebSocket (/ws/chat) for agent capabilities.
 //! Falls back to direct Ollama if no server found.
 
+pub mod markdown;
+
 use crossterm::{
     event::{self, Event, KeyCode, KeyModifiers},
     execute,
@@ -22,7 +24,7 @@ use tokio_tungstenite::tungstenite::Message as WsMessage;
 
 /// Events sent from the WebSocket background task to the TUI main loop.
 #[derive(Debug, Clone)]
-enum TuiEvent {
+pub enum TuiEvent {
     /// A single token to append to the current streaming response.
     Token(String),
     /// The agent is calling a tool.
@@ -41,6 +43,13 @@ enum TuiEvent {
     Done(String),
     /// An error occurred.
     Error(String),
+
+    // Background UI loading
+    MemoryTreeLoaded(Vec<serde_json::Value>),
+    NodeDetailsLoaded(serde_json::Value),
+    MissionsLoaded(Vec<serde_json::Value>),
+    MissionDossierLoaded { slug: String, markdown: String },
+    ActionFinished(String),
 }
 
 const AMBER: Color = Color::Rgb(245, 158, 11);
@@ -50,20 +59,20 @@ const BORDER: Color = Color::Rgb(42, 42, 46);
 const TEXT_DIM: Color = Color::Rgb(113, 113, 122);
 
 #[derive(Clone)]
-struct ChatMessage {
-    role: String,
-    text: String,
+pub struct ChatMessage {
+    pub role: String,
+    pub text: String,
 }
 
-struct App {
+pub struct App {
     input: String,
     cursor_pos: usize,
     messages: Vec<ChatMessage>,
     chat_scroll: u16,
     tools: Vec<String>,
     plan: Vec<(String, String)>,
-    active_panel: Panel,
-    sidebar_panel: SidebarPanel,
+    pub current_screen: Screen,
+    pub active_panel: Panel,
     model: String,
     server_url: String,
     cwd: String,
@@ -87,17 +96,66 @@ struct App {
     available_models: Vec<String>,
     model_cursor: usize,
     // WebSocket streaming channel
-    event_rx: Option<tokio::sync::mpsc::Receiver<TuiEvent>>,
+    pub event_rx: Option<tokio::sync::mpsc::Receiver<TuiEvent>>,
+    pub stream_task: Option<tokio::task::JoinHandle<()>>,
     // Buffer for tokens as they stream in
     streaming_response: String,
     // Auth
     auth_token: Option<String>,
     user_name: Option<String>,
     user_role: Option<String>,
+
+    // Memory view state
+    memory_nodes: Vec<serde_json::Value>,
+    selected_node_idx: usize,
+    selected_node_details: Option<serde_json::Value>,
+    memory_active_pane: MemoryPane,
+    memory_input_mode: MemoryInputMode,
+    memory_tree_scroll: usize,
+    memory_details_scroll: usize,
+    selected_item_idx: usize,
+
+    // Missions view state
+    missions: Vec<serde_json::Value>,
+    selected_mission_idx: usize,
+    selected_mission_dossier: Option<String>,
+    missions_active_pane: MissionsPane,
+    missions_input_mode: MissionsInputMode,
+    missions_dossier_scroll: usize,
+
+    // Shared background event sender
+    pub ui_tx: Option<tokio::sync::mpsc::Sender<TuiEvent>>,
+}
+
+#[derive(PartialEq, Clone, Debug)]
+pub enum MemoryPane {
+    Tree,
+    Details,
+}
+
+#[derive(PartialEq, Clone, Debug)]
+pub enum MemoryInputMode {
+    Normal,
+    CreateNode,
+    AddItem,
+    EditNode,
+    EditItem,
+}
+
+#[derive(PartialEq, Clone, Debug)]
+pub enum MissionsPane {
+    List,
+    Dossier,
+}
+
+#[derive(PartialEq, Clone, Debug)]
+pub enum MissionsInputMode {
+    Normal,
+    CreateMission,
 }
 
 #[derive(PartialEq, Clone)]
-enum SidebarPanel {
+pub enum SidebarPanel {
     Tools,
     Models,
     Sessions,
@@ -105,17 +163,25 @@ enum SidebarPanel {
 }
 
 #[derive(PartialEq, Clone)]
-enum ChatView {
+pub enum ChatView {
     Messages,
     Activity,
     Status,
 }
 
 #[derive(PartialEq, Clone)]
-enum Panel {
+pub enum Screen {
+    Chat,
+    Memory,
+    Missions,
+}
+
+#[derive(PartialEq, Clone)]
+pub enum Panel {
     Input,
     Chat,
-    Sidebar,
+    MemoryTree,
+    MissionsList,
 }
 
 impl App {
@@ -209,8 +275,8 @@ impl App {
             chat_scroll: 0,
             tools,
             plan: vec![],
+            current_screen: Screen::Chat,
             active_panel: Panel::Input,
-            sidebar_panel: SidebarPanel::Tools,
             model,
             server_url,
             cwd,
@@ -233,10 +299,29 @@ impl App {
             available_models: Vec::new(),
             model_cursor: 0,
             event_rx: None,
+            stream_task: None,
             streaming_response: String::new(),
             auth_token,
             user_name,
             user_role,
+
+            memory_nodes: Vec::new(),
+            selected_node_idx: 0,
+            selected_node_details: None,
+            memory_active_pane: MemoryPane::Tree,
+            memory_input_mode: MemoryInputMode::Normal,
+            memory_tree_scroll: 0,
+            memory_details_scroll: 0,
+            selected_item_idx: 0,
+
+            missions: Vec::new(),
+            selected_mission_idx: 0,
+            selected_mission_dossier: None,
+            missions_active_pane: MissionsPane::List,
+            missions_input_mode: MissionsInputMode::Normal,
+            missions_dossier_scroll: 0,
+
+            ui_tx: None,
         };
         app
     }
@@ -258,6 +343,400 @@ impl App {
             serde_json::to_string_pretty(&cfg).unwrap_or_default(),
         );
     }
+
+    fn trigger_load_memory(&self) {
+        if let Some(ref tx) = self.ui_tx {
+            let url = self.server_url.clone();
+            let token = self.auth_token.clone();
+            let tx_cloned = tx.clone();
+            tokio::spawn(async move {
+                fetch_memory_tree_bg(url, token, tx_cloned).await;
+            });
+        }
+    }
+
+    fn trigger_load_node_details(&self, node_id: String) {
+        if let Some(ref tx) = self.ui_tx {
+            let url = self.server_url.clone();
+            let token = self.auth_token.clone();
+            let tx_cloned = tx.clone();
+            tokio::spawn(async move {
+                fetch_node_details_bg(url, node_id, token, tx_cloned).await;
+            });
+        }
+    }
+
+    fn trigger_load_missions(&self) {
+        if let Some(ref tx) = self.ui_tx {
+            let url = self.server_url.clone();
+            let token = self.auth_token.clone();
+            let tx_cloned = tx.clone();
+            tokio::spawn(async move {
+                fetch_missions_bg(url, token, tx_cloned).await;
+            });
+        }
+    }
+
+    fn trigger_load_mission_dossier(&self, slug: String) {
+        if let Some(ref tx) = self.ui_tx {
+            let url = self.server_url.clone();
+            let token = self.auth_token.clone();
+            let tx_cloned = tx.clone();
+            tokio::spawn(async move {
+                fetch_mission_dossier_bg(url, slug, token, tx_cloned).await;
+            });
+        }
+    }
+}
+
+// ======================== Background tasks for Memory and Missions ========================
+
+struct TreeDrawItem {
+    id: String,
+    label: String,
+    one_liner: String,
+    depth: usize,
+    is_protected: bool,
+}
+
+fn build_draw_tree(
+    nodes: &[serde_json::Value],
+    parent: Option<&str>,
+    depth: usize,
+    visited: &mut std::collections::HashSet<String>,
+    out: &mut Vec<TreeDrawItem>,
+) {
+    for n in nodes {
+        let id = match n.get("id").and_then(|v| v.as_str()) {
+            Some(id) => id,
+            None => continue,
+        };
+        if visited.contains(id) {
+            continue;
+        }
+        let n_parent = n.get("parent_id").and_then(|v| v.as_str()).unwrap_or("");
+        let matches = match parent {
+            Some(p) => n_parent == p,
+            None => n_parent.is_empty() || !nodes.iter().any(|other| other.get("id").and_then(|v| v.as_str()) == Some(n_parent)),
+        };
+        if matches {
+            visited.insert(id.to_string());
+            let label = n.get("label").and_then(|v| v.as_str()).unwrap_or(id).to_string();
+            let one_liner = n.get("one_liner").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let is_protected = n.get("protected").and_then(|v| v.as_bool()).unwrap_or(false);
+
+            out.push(TreeDrawItem {
+                id: id.to_string(),
+                label,
+                one_liner,
+                depth,
+                is_protected,
+            });
+            build_draw_tree(nodes, Some(id), depth + 1, visited, out);
+        }
+    }
+}
+
+async fn fetch_memory_tree_bg(url: String, token: Option<String>, tx: tokio::sync::mpsc::Sender<TuiEvent>) {
+    let client = reqwest::Client::new();
+    let mut req = client.get(format!("{}/api/memory/tree", url));
+    if let Some(t) = token {
+        req = req.header("Cookie", format!("laruche_auth={}", t));
+    }
+    match req.send().await {
+        Ok(resp) => {
+            if let Ok(data) = resp.json::<serde_json::Value>().await {
+                if let Some(nodes) = data["nodes"].as_array() {
+                    let _ = tx.send(TuiEvent::MemoryTreeLoaded(nodes.clone())).await;
+                    return;
+                }
+            }
+            let _ = tx.send(TuiEvent::Error("Failed to parse memory tree".into())).await;
+        }
+        Err(e) => {
+            let _ = tx.send(TuiEvent::Error(format!("Network error: {}", e))).await;
+        }
+    }
+}
+
+async fn fetch_node_details_bg(url: String, node_id: String, token: Option<String>, tx: tokio::sync::mpsc::Sender<TuiEvent>) {
+    let client = reqwest::Client::new();
+    let mut req = client.get(format!("{}/api/memory/node/{}", url, node_id));
+    if let Some(t) = token {
+        req = req.header("Cookie", format!("laruche_auth={}", t));
+    }
+    match req.send().await {
+        Ok(resp) => {
+            if let Ok(data) = resp.json::<serde_json::Value>().await {
+                if data["status"] == "ok" {
+                    let _ = tx.send(TuiEvent::NodeDetailsLoaded(data["node"].clone())).await;
+                    return;
+                }
+            }
+            let _ = tx.send(TuiEvent::Error(format!("Failed to load node details for {}", node_id))).await;
+        }
+        Err(e) => {
+            let _ = tx.send(TuiEvent::Error(format!("Network error: {}", e))).await;
+        }
+    }
+}
+
+async fn fetch_missions_bg(url: String, token: Option<String>, tx: tokio::sync::mpsc::Sender<TuiEvent>) {
+    let client = reqwest::Client::new();
+    let mut req = client.get(format!("{}/api/missions", url));
+    if let Some(t) = token {
+        req = req.header("Cookie", format!("laruche_auth={}", t));
+    }
+    match req.send().await {
+        Ok(resp) => {
+            if let Ok(data) = resp.json::<serde_json::Value>().await {
+                if let Some(list) = data.as_array() {
+                    let _ = tx.send(TuiEvent::MissionsLoaded(list.clone())).await;
+                    return;
+                }
+            }
+            let _ = tx.send(TuiEvent::Error("Failed to parse missions list".into())).await;
+        }
+        Err(e) => {
+            let _ = tx.send(TuiEvent::Error(format!("Network error: {}", e))).await;
+        }
+    }
+}
+
+async fn fetch_mission_dossier_bg(url: String, slug: String, token: Option<String>, tx: tokio::sync::mpsc::Sender<TuiEvent>) {
+    let client = reqwest::Client::new();
+    let mut req = client.get(format!("{}/api/missions/{}/dossier", url, slug));
+    if let Some(t) = token {
+        req = req.header("Cookie", format!("laruche_auth={}", t));
+    }
+    match req.send().await {
+        Ok(resp) => {
+            if let Ok(data) = resp.json::<serde_json::Value>().await {
+                if let Some(md) = data["markdown"].as_str() {
+                    let _ = tx.send(TuiEvent::MissionDossierLoaded { slug, markdown: md.to_string() }).await;
+                    return;
+                }
+            }
+            let _ = tx.send(TuiEvent::Error("Failed to load mission dossier".into())).await;
+        }
+        Err(e) => {
+            let _ = tx.send(TuiEvent::Error(format!("Network error: {}", e))).await;
+        }
+    }
+}
+
+async fn run_mission_bg(url: String, slug: String, token: Option<String>, tx: tokio::sync::mpsc::Sender<TuiEvent>) {
+    let client = reqwest::Client::new();
+    let mut req = client.post(format!("{}/api/missions/{}/run", url, slug));
+    if let Some(t) = token {
+        req = req.header("Cookie", format!("laruche_auth={}", t));
+    }
+    match req.send().await {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                let _ = tx.send(TuiEvent::ActionFinished("Mission demarree avec succes.".into())).await;
+            } else {
+                let _ = tx.send(TuiEvent::Error("Echec du lancement de la mission".into())).await;
+            }
+        }
+        Err(e) => {
+            let _ = tx.send(TuiEvent::Error(format!("Network error: {}", e))).await;
+        }
+    }
+}
+
+async fn create_mission_bg(url: String, objective: String, token: Option<String>, tx: tokio::sync::mpsc::Sender<TuiEvent>) {
+    let client = reqwest::Client::new();
+    let mut req = client.post(format!("{}/api/missions", url))
+        .json(&serde_json::json!({ "objective": objective }));
+    if let Some(t) = token {
+        req = req.header("Cookie", format!("laruche_auth={}", t));
+    }
+    match req.send().await {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                let _ = tx.send(TuiEvent::ActionFinished("Mission creee avec succes.".into())).await;
+            } else {
+                let _ = tx.send(TuiEvent::Error("Echec de la creation de la mission".into())).await;
+            }
+        }
+        Err(e) => {
+            let _ = tx.send(TuiEvent::Error(format!("Network error: {}", e))).await;
+        }
+    }
+}
+
+async fn update_mission_status_bg(url: String, slug: String, status: String, token: Option<String>, tx: tokio::sync::mpsc::Sender<TuiEvent>) {
+    let client = reqwest::Client::new();
+    let mut req = client.post(format!("{}/api/missions/{}", url, slug))
+        .json(&serde_json::json!({ "status": status }));
+    if let Some(t) = token {
+        req = req.header("Cookie", format!("laruche_auth={}", t));
+    }
+    match req.send().await {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                let _ = tx.send(TuiEvent::ActionFinished(format!("Statut mission mis a jour a {}", status))).await;
+            } else {
+                let _ = tx.send(TuiEvent::Error("Echec de la mise a jour".into())).await;
+            }
+        }
+        Err(e) => {
+            let _ = tx.send(TuiEvent::Error(format!("Network error: {}", e))).await;
+        }
+    }
+}
+
+async fn delete_mission_bg(url: String, slug: String, token: Option<String>, tx: tokio::sync::mpsc::Sender<TuiEvent>) {
+    let client = reqwest::Client::new();
+    let mut req = client.delete(format!("{}/api/missions/{}", url, slug));
+    if let Some(t) = token {
+        req = req.header("Cookie", format!("laruche_auth={}", t));
+    }
+    match req.send().await {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                let _ = tx.send(TuiEvent::ActionFinished("Mission supprimee.".into())).await;
+            } else {
+                let _ = tx.send(TuiEvent::Error("Echec de la suppression".into())).await;
+            }
+        }
+        Err(e) => {
+            let _ = tx.send(TuiEvent::Error(format!("Network error: {}", e))).await;
+        }
+    }
+}
+
+async fn decompose_mission_bg(url: String, slug: String, token: Option<String>, tx: tokio::sync::mpsc::Sender<TuiEvent>) {
+    let client = reqwest::Client::new();
+    let mut req = client.post(format!("{}/api/missions/{}/decompose", url, slug));
+    if let Some(t) = token {
+        req = req.header("Cookie", format!("laruche_auth={}", t));
+    }
+    match req.send().await {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                let _ = tx.send(TuiEvent::ActionFinished("Mission decomposee en taches kanban.".into())).await;
+            } else {
+                let _ = tx.send(TuiEvent::Error("Echec de la decomposition".into())).await;
+            }
+        }
+        Err(e) => {
+            let _ = tx.send(TuiEvent::Error(format!("Network error: {}", e))).await;
+        }
+    }
+}
+
+async fn create_memory_node_bg(url: String, parent_id: String, label: String, one_liner: String, token: Option<String>, tx: tokio::sync::mpsc::Sender<TuiEvent>) {
+    let client = reqwest::Client::new();
+    let slug = slugify(&label);
+    let node_id = if parent_id.is_empty() {
+        slug
+    } else {
+        format!("{}.{}", parent_id, slug)
+    };
+    let mut req = client.post(format!("{}/api/memory/node/create", url))
+        .json(&serde_json::json!({
+            "node_id": node_id,
+            "label": label,
+            "one_liner": one_liner,
+        }));
+    if let Some(t) = token {
+        req = req.header("Cookie", format!("laruche_auth={}", t));
+    }
+    match req.send().await {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                let _ = tx.send(TuiEvent::ActionFinished(format!("Noeud cree : {}", node_id))).await;
+            } else {
+                let _ = tx.send(TuiEvent::Error("Echec de la creation du noeud".into())).await;
+            }
+        }
+        Err(e) => {
+            let _ = tx.send(TuiEvent::Error(format!("Network error: {}", e))).await;
+        }
+    }
+}
+
+async fn add_memory_item_bg(url: String, node_id: String, content: String, token: Option<String>, tx: tokio::sync::mpsc::Sender<TuiEvent>) {
+    let client = reqwest::Client::new();
+    let mut req = client.post(format!("{}/api/memory/write", url))
+        .json(&serde_json::json!({
+            "node_id": node_id,
+            "content": content,
+        }));
+    if let Some(t) = token {
+        req = req.header("Cookie", format!("laruche_auth={}", t));
+    }
+    match req.send().await {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                let _ = tx.send(TuiEvent::ActionFinished("Item ajoute avec succes.".into())).await;
+            } else {
+                let _ = tx.send(TuiEvent::Error("Echec de l'ajout de l'item".into())).await;
+            }
+        }
+        Err(e) => {
+            let _ = tx.send(TuiEvent::Error(format!("Network error: {}", e))).await;
+        }
+    }
+}
+
+async fn delete_memory_item_bg(url: String, item_id: String, token: Option<String>, tx: tokio::sync::mpsc::Sender<TuiEvent>) {
+    let client = reqwest::Client::new();
+    let mut req = client.post(format!("{}/api/memory/delete", url))
+        .json(&serde_json::json!({
+            "item_id": item_id,
+        }));
+    if let Some(t) = token {
+        req = req.header("Cookie", format!("laruche_auth={}", t));
+    }
+    match req.send().await {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                let _ = tx.send(TuiEvent::ActionFinished("Item supprime.".into())).await;
+            } else {
+                let _ = tx.send(TuiEvent::Error("Echec de la suppression".into())).await;
+            }
+        }
+        Err(e) => {
+            let _ = tx.send(TuiEvent::Error(format!("Network error: {}", e))).await;
+        }
+    }
+}
+
+async fn delete_memory_node_bg(url: String, node_id: String, token: Option<String>, tx: tokio::sync::mpsc::Sender<TuiEvent>) {
+    let client = reqwest::Client::new();
+    let mut req = client.post(format!("{}/api/memory/node/delete", url))
+        .json(&serde_json::json!({
+            "node_id": node_id,
+        }));
+    if let Some(t) = token {
+        req = req.header("Cookie", format!("laruche_auth={}", t));
+    }
+    match req.send().await {
+        Ok(resp) => {
+            if resp.status().is_success() {
+                let _ = tx.send(TuiEvent::ActionFinished(format!("Noeud supprime : {}", node_id))).await;
+            } else {
+                let _ = tx.send(TuiEvent::Error("Echec de la suppression du noeud".into())).await;
+            }
+        }
+        Err(e) => {
+            let _ = tx.send(TuiEvent::Error(format!("Network error: {}", e))).await;
+        }
+    }
+}
+
+fn slugify(s: &str) -> String {
+    s.to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '_' })
+        .collect::<String>()
+        .split('_')
+        .filter(|seg| !seg.is_empty())
+        .collect::<Vec<_>>()
+        .join("_")
 }
 
 fn dirs_config_path() -> String {
@@ -638,13 +1117,86 @@ async fn fallback_http_send(url: &str, text: &str, tx: &tokio::sync::mpsc::Sende
 pub async fn run_tui() -> anyhow::Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen)?;
+    execute!(stdout, EnterAlternateScreen, crossterm::event::EnableMouseCapture)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
     let mut app = App::new().await;
+    let (ui_tx, mut ui_rx) = tokio::sync::mpsc::channel::<TuiEvent>(100);
+    app.ui_tx = Some(ui_tx);
 
     loop {
+        // Drain general UI background events
+        while let Ok(evt) = ui_rx.try_recv() {
+            match evt {
+                TuiEvent::MemoryTreeLoaded(nodes) => {
+                    app.memory_nodes = nodes;
+                    if !app.memory_nodes.is_empty() {
+                        let mut draw_items = Vec::new();
+                        let mut visited = std::collections::HashSet::new();
+                        build_draw_tree(&app.memory_nodes, None, 0, &mut visited, &mut draw_items);
+                        if app.selected_node_idx >= draw_items.len() {
+                            app.selected_node_idx = 0;
+                        }
+                        if let Some(item) = draw_items.get(app.selected_node_idx) {
+                            app.trigger_load_node_details(item.id.clone());
+                        }
+                    }
+                }
+                TuiEvent::NodeDetailsLoaded(node) => {
+                    app.selected_node_details = Some(node);
+                    if let Some(items) = app.selected_node_details.as_ref().and_then(|n| n["items"].as_array()) {
+                        if app.selected_item_idx >= items.len() {
+                            app.selected_item_idx = 0;
+                        }
+                    }
+                }
+                TuiEvent::MissionsLoaded(list) => {
+                    app.missions = list;
+                    if !app.missions.is_empty() {
+                        if app.selected_mission_idx >= app.missions.len() {
+                            app.selected_mission_idx = 0;
+                        }
+                        if let Some(m) = app.missions.get(app.selected_mission_idx) {
+                            if let Some(slug) = m["slug"].as_str() {
+                                app.trigger_load_mission_dossier(slug.to_string());
+                            }
+                        }
+                    }
+                }
+                TuiEvent::MissionDossierLoaded { slug, markdown } => {
+                    if let Some(m) = app.missions.get(app.selected_mission_idx) {
+                        if m["slug"].as_str() == Some(&slug) {
+                            app.selected_mission_dossier = Some(markdown);
+                        }
+                    }
+                }
+                TuiEvent::ActionFinished(msg) => {
+                    app.status_msg = msg.clone();
+                    app.activity_log.push(format!("[OK] [{}] {}", chrono::Local::now().format("%H:%M:%S"), msg));
+                    match app.current_screen {
+                        Screen::Memory => {
+                            app.trigger_load_memory();
+                            let mut draw_items = Vec::new();
+                            let mut visited = std::collections::HashSet::new();
+                            build_draw_tree(&app.memory_nodes, None, 0, &mut visited, &mut draw_items);
+                            if let Some(item) = draw_items.get(app.selected_node_idx) {
+                                app.trigger_load_node_details(item.id.clone());
+                            }
+                        }
+                        Screen::Missions => {
+                            app.trigger_load_missions();
+                        }
+                        _ => {}
+                    }
+                }
+                TuiEvent::Error(err) => {
+                    app.status_msg = format!("Erreur: {}", err);
+                    app.activity_log.push(format!("[ERR] [{}] {}", chrono::Local::now().format("%H:%M:%S"), err));
+                }
+                _ => {}
+            }
+        }
         // Drain all pending TuiEvents from the WebSocket background task
         if let Some(ref mut rx) = app.event_rx {
             let mut channel_closed = false;
@@ -737,6 +1289,7 @@ pub async fn run_tui() -> anyhow::Result<()> {
                                 app.activity_log.push(format!("[ERR] [{}] {}", ts, err));
                                 app.status_msg = format!("Erreur: {}", err);
                             }
+                            _ => {}
                         }
                     }
                     Err(tokio::sync::mpsc::error::TryRecvError::Empty) => break,
@@ -769,16 +1322,105 @@ pub async fn run_tui() -> anyhow::Result<()> {
         }
 
         if event::poll(std::time::Duration::from_millis(50))? {
-            if let Event::Key(key) = event::read()? {
-                if key.kind != crossterm::event::KeyEventKind::Press {
-                    continue;
-                }
+            let ev = event::read()?;
+            match ev {
+                Event::Key(key) => {
+                    if key.kind != crossterm::event::KeyEventKind::Press {
+                        continue;
+                    }
 
                 // Global
                 match (key.modifiers, key.code) {
-                    (KeyModifiers::CONTROL, KeyCode::Char('c'))
-                    | (KeyModifiers::CONTROL, KeyCode::Char('q')) => {
+                    (KeyModifiers::CONTROL, KeyCode::Char('c')) => {
+                        if app.is_streaming {
+                            if let Some(task) = app.stream_task.take() {
+                                task.abort();
+                            }
+                            app.is_streaming = false;
+                            app.status_msg = "Génération interrompue.".into();
+                            app.activity_log.push(format!("[INFO] [{}] Génération interrompue par l'utilisateur", chrono::Local::now().format("%H:%M:%S")));
+                        } else {
+                            app.should_quit = true;
+                        }
+                        continue;
+                    }
+                    (KeyModifiers::CONTROL, KeyCode::Char('q')) => {
                         app.should_quit = true;
+                        continue;
+                    }
+                    (KeyModifiers::NONE, KeyCode::F(1)) | (KeyModifiers::CONTROL, KeyCode::Char('1')) => {
+                        app.current_screen = Screen::Chat;
+                        app.active_panel = Panel::Input;
+                        continue;
+                    }
+                    (KeyModifiers::NONE, KeyCode::F(2)) | (KeyModifiers::CONTROL, KeyCode::Char('2')) => {
+                        app.current_screen = Screen::Memory;
+                        app.active_panel = Panel::MemoryTree;
+                        app.trigger_load_memory();
+                        continue;
+                    }
+                    (KeyModifiers::NONE, KeyCode::F(3)) | (KeyModifiers::CONTROL, KeyCode::Char('3')) => {
+                        app.current_screen = Screen::Missions;
+                        app.active_panel = Panel::MissionsList;
+                        app.trigger_load_missions();
+                        continue;
+                    }
+                    (KeyModifiers::NONE, KeyCode::Tab) => {
+                        match app.current_screen {
+                            Screen::Chat => {
+                                app.current_screen = Screen::Memory;
+                                app.active_panel = Panel::MemoryTree;
+                                app.memory_active_pane = MemoryPane::Tree;
+                                app.trigger_load_memory();
+                            }
+                            Screen::Memory => {
+                                if app.memory_active_pane == MemoryPane::Tree {
+                                    app.memory_active_pane = MemoryPane::Details;
+                                } else {
+                                    app.current_screen = Screen::Missions;
+                                    app.active_panel = Panel::MissionsList;
+                                    app.missions_active_pane = MissionsPane::List;
+                                    app.trigger_load_missions();
+                                }
+                            }
+                            Screen::Missions => {
+                                if app.missions_active_pane == MissionsPane::List {
+                                    app.missions_active_pane = MissionsPane::Dossier;
+                                } else {
+                                    app.current_screen = Screen::Chat;
+                                    app.active_panel = Panel::Input;
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                    (KeyModifiers::SHIFT, KeyCode::BackTab) => {
+                        match app.current_screen {
+                            Screen::Chat => {
+                                app.current_screen = Screen::Missions;
+                                app.active_panel = Panel::MissionsList;
+                                app.missions_active_pane = MissionsPane::Dossier;
+                                app.trigger_load_missions();
+                            }
+                            Screen::Memory => {
+                                if app.memory_active_pane == MemoryPane::Details {
+                                    app.memory_active_pane = MemoryPane::Tree;
+                                } else {
+                                    app.current_screen = Screen::Chat;
+                                    app.active_panel = Panel::Input;
+                                }
+                            }
+                            Screen::Missions => {
+                                if app.missions_active_pane == MissionsPane::Dossier {
+                                    app.missions_active_pane = MissionsPane::List;
+                                } else {
+                                    app.current_screen = Screen::Memory;
+                                    app.active_panel = Panel::MemoryTree;
+                                    app.memory_active_pane = MemoryPane::Details;
+                                    app.trigger_load_memory();
+                                }
+                            }
+                        }
                         continue;
                     }
                     _ => {}
@@ -807,107 +1449,506 @@ pub async fn run_tui() -> anyhow::Result<()> {
                             };
                             app.chat_scroll = 0;
                         }
-                        KeyCode::Tab => app.active_panel = Panel::Sidebar,
                         KeyCode::Esc | KeyCode::Enter => app.active_panel = Panel::Input,
                         _ => {}
                     },
-                    Panel::Sidebar => match key.code {
-                        KeyCode::Tab | KeyCode::Esc => app.active_panel = Panel::Input,
-                        KeyCode::Left => {
-                            app.sidebar_panel = match app.sidebar_panel {
-                                SidebarPanel::Models => SidebarPanel::Tools,
-                                SidebarPanel::Sessions => SidebarPanel::Models,
-                                SidebarPanel::Plan => SidebarPanel::Sessions,
-                                SidebarPanel::Tools => SidebarPanel::Plan,
-                            };
-                            if app.sidebar_panel == SidebarPanel::Models
-                                && app.available_models.is_empty()
-                            {
-                                app.available_models =
-                                    fetch_tools_or_models(&app.server_url, "models").await;
-                                // Set cursor to current model
-                                app.model_cursor = app
-                                    .available_models
-                                    .iter()
-                                    .position(|m| *m == app.model)
-                                    .unwrap_or(0);
+                    Panel::MemoryTree => {
+                        match app.memory_active_pane {
+                            MemoryPane::Tree => {
+                                let mut draw_items = Vec::new();
+                                let mut visited = std::collections::HashSet::new();
+                                build_draw_tree(&app.memory_nodes, None, 0, &mut visited, &mut draw_items);
+                                match key.code {
+                                    KeyCode::Up => {
+                                        if !draw_items.is_empty() {
+                                            if app.selected_node_idx > 0 {
+                                                app.selected_node_idx -= 1;
+                                                if let Some(item) = draw_items.get(app.selected_node_idx) {
+                                                    app.trigger_load_node_details(item.id.clone());
+                                                }
+                                            }
+                                        }
+                                    }
+                                    KeyCode::Down => {
+                                        if !draw_items.is_empty() {
+                                            if app.selected_node_idx + 1 < draw_items.len() {
+                                                app.selected_node_idx += 1;
+                                                if let Some(item) = draw_items.get(app.selected_node_idx) {
+                                                    app.trigger_load_node_details(item.id.clone());
+                                                }
+                                            }
+                                        }
+                                    }
+                                    KeyCode::Char('n') | KeyCode::Char('N') => {
+                                        app.memory_input_mode = MemoryInputMode::CreateNode;
+                                        app.active_panel = Panel::Input;
+                                        app.input.clear();
+                                        app.cursor_pos = 0;
+                                    }
+                                    KeyCode::Char('a') | KeyCode::Char('A') => {
+                                        app.memory_input_mode = MemoryInputMode::AddItem;
+                                        app.active_panel = Panel::Input;
+                                        app.input.clear();
+                                        app.cursor_pos = 0;
+                                    }
+                                    KeyCode::Char('e') | KeyCode::Char('E') => {
+                                        if let Some(item) = draw_items.get(app.selected_node_idx) {
+                                            if !item.is_protected {
+                                                app.memory_input_mode = MemoryInputMode::EditNode;
+                                                app.active_panel = Panel::Input;
+                                                app.input = item.label.clone();
+                                                app.cursor_pos = app.input.chars().count();
+                                            }
+                                        }
+                                    }
+                                    KeyCode::Char('d') | KeyCode::Char('D') => {
+                                        if let Some(item) = draw_items.get(app.selected_node_idx) {
+                                            if !item.is_protected {
+                                                let url = app.server_url.clone();
+                                                let token = app.auth_token.clone();
+                                                let node_id = item.id.clone();
+                                                if let Some(ref tx) = app.ui_tx {
+                                                    let tx = tx.clone();
+                                                    tokio::spawn(async move {
+                                                        delete_memory_node_bg(url, node_id, token, tx).await;
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                    KeyCode::Esc => {
+                                        app.active_panel = Panel::Input;
+                                    }
+                                    _ => {}
+                                }
                             }
-                        }
-                        KeyCode::Right => {
-                            app.sidebar_panel = match app.sidebar_panel {
-                                SidebarPanel::Tools => SidebarPanel::Models,
-                                SidebarPanel::Models => SidebarPanel::Sessions,
-                                SidebarPanel::Sessions => SidebarPanel::Plan,
-                                SidebarPanel::Plan => SidebarPanel::Tools,
-                            };
-                            if app.sidebar_panel == SidebarPanel::Models
-                                && app.available_models.is_empty()
-                            {
-                                app.available_models =
-                                    fetch_tools_or_models(&app.server_url, "models").await;
-                                app.model_cursor = app
-                                    .available_models
-                                    .iter()
-                                    .position(|m| *m == app.model)
-                                    .unwrap_or(0);
-                            }
-                        }
-                        KeyCode::Up => {
-                            if app.sidebar_panel == SidebarPanel::Models
-                                && !app.available_models.is_empty()
-                            {
-                                app.model_cursor = app.model_cursor.saturating_sub(1);
-                            }
-                        }
-                        KeyCode::Down => {
-                            if app.sidebar_panel == SidebarPanel::Models
-                                && !app.available_models.is_empty()
-                            {
-                                if app.model_cursor + 1 < app.available_models.len() {
-                                    app.model_cursor += 1;
+                            MemoryPane::Details => {
+                                let mut item_count = 0;
+                                if let Some(ref details) = app.selected_node_details {
+                                    if let Some(items) = details["items"].as_array() {
+                                        item_count = items.len();
+                                    }
+                                }
+                                match key.code {
+                                    KeyCode::Up => {
+                                        if item_count > 0 && app.selected_item_idx > 0 {
+                                            app.selected_item_idx -= 1;
+                                        }
+                                    }
+                                    KeyCode::Down => {
+                                        if item_count > 0 && app.selected_item_idx + 1 < item_count {
+                                            app.selected_item_idx += 1;
+                                        }
+                                    }
+                                    KeyCode::Char('a') | KeyCode::Char('A') => {
+                                        app.memory_input_mode = MemoryInputMode::AddItem;
+                                        app.active_panel = Panel::Input;
+                                        app.input.clear();
+                                        app.cursor_pos = 0;
+                                    }
+                                    KeyCode::Char('e') | KeyCode::Char('E') => {
+                                        if let Some(ref details) = app.selected_node_details {
+                                            if let Some(items) = details["items"].as_array() {
+                                                if let Some(item) = items.get(app.selected_item_idx) {
+                                                    if let Some(content) = item["content"].as_str() {
+                                                        app.memory_input_mode = MemoryInputMode::EditItem;
+                                                        app.active_panel = Panel::Input;
+                                                        app.input = content.to_string();
+                                                        app.cursor_pos = app.input.chars().count();
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    KeyCode::Char('d') | KeyCode::Char('D') => {
+                                        if let Some(ref details) = app.selected_node_details {
+                                            if let Some(items) = details["items"].as_array() {
+                                                if let Some(item) = items.get(app.selected_item_idx) {
+                                                    if let Some(item_id) = item["id"].as_str() {
+                                                        let url = app.server_url.clone();
+                                                        let token = app.auth_token.clone();
+                                                        let itm_id = item_id.to_string();
+                                                        if let Some(ref tx) = app.ui_tx {
+                                                            let tx = tx.clone();
+                                                            tokio::spawn(async move {
+                                                                delete_memory_item_bg(url, itm_id, token, tx).await;
+                                                            });
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    KeyCode::Esc => {
+                                        app.active_panel = Panel::Input;
+                                    }
+                                    _ => {}
                                 }
                             }
                         }
-                        KeyCode::Enter => {
-                            if app.sidebar_panel == SidebarPanel::Models
-                                && !app.available_models.is_empty()
-                            {
-                                let selected = app.available_models[app.model_cursor].clone();
-                                app.model = selected.clone();
-                                app.status_msg = format!("Model: {}", selected);
-                                app.activity_log.push(format!(
-                                    "[{}] Model changed: {}",
-                                    chrono::Local::now().format("%H:%M:%S"),
-                                    selected
-                                ));
-                                app.save_config();
-                                // Notify server if connected
-                                if app.connected {
-                                    let _ = reqwest::Client::new()
-                                        .post(format!("{}/config/default_model", app.server_url))
-                                        .json(&serde_json::json!({"capability":"llm","model":&selected}))
-                                        .send().await;
+                    }
+                    Panel::MissionsList => {
+                        match app.missions_active_pane {
+                            MissionsPane::List => {
+                                match key.code {
+                                    KeyCode::Up => {
+                                        if !app.missions.is_empty() && app.selected_mission_idx > 0 {
+                                            app.selected_mission_idx -= 1;
+                                            if let Some(m) = app.missions.get(app.selected_mission_idx) {
+                                                if let Some(slug) = m["slug"].as_str() {
+                                                    app.trigger_load_mission_dossier(slug.to_string());
+                                                }
+                                            }
+                                        }
+                                    }
+                                    KeyCode::Down => {
+                                        if !app.missions.is_empty() && app.selected_mission_idx + 1 < app.missions.len() {
+                                            app.selected_mission_idx += 1;
+                                            if let Some(m) = app.missions.get(app.selected_mission_idx) {
+                                                if let Some(slug) = m["slug"].as_str() {
+                                                    app.trigger_load_mission_dossier(slug.to_string());
+                                                }
+                                            }
+                                        }
+                                    }
+                                    KeyCode::Char('c') | KeyCode::Char('C') => {
+                                        app.missions_input_mode = MissionsInputMode::CreateMission;
+                                        app.active_panel = Panel::Input;
+                                        app.input.clear();
+                                        app.cursor_pos = 0;
+                                    }
+                                    KeyCode::Char('r') | KeyCode::Char('R') => {
+                                        if let Some(m) = app.missions.get(app.selected_mission_idx) {
+                                            if let Some(slug) = m["slug"].as_str() {
+                                                let url = app.server_url.clone();
+                                                let token = app.auth_token.clone();
+                                                let slg = slug.to_string();
+                                                if let Some(ref tx) = app.ui_tx {
+                                                    let tx = tx.clone();
+                                                    tokio::spawn(async move {
+                                                        run_mission_bg(url, slg, token, tx).await;
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                    KeyCode::Char('p') | KeyCode::Char('P') => {
+                                        if let Some(m) = app.missions.get(app.selected_mission_idx) {
+                                            if let Some(slug) = m["slug"].as_str() {
+                                                let status = if m["status"] == "paused" { "active" } else { "paused" };
+                                                let url = app.server_url.clone();
+                                                let token = app.auth_token.clone();
+                                                let slg = slug.to_string();
+                                                let new_status = status.to_string();
+                                                if let Some(ref tx) = app.ui_tx {
+                                                    let tx = tx.clone();
+                                                    tokio::spawn(async move {
+                                                        update_mission_status_bg(url, slg, new_status, token, tx).await;
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                    KeyCode::Char('d') | KeyCode::Char('D') => {
+                                        if let Some(m) = app.missions.get(app.selected_mission_idx) {
+                                            if let Some(slug) = m["slug"].as_str() {
+                                                let url = app.server_url.clone();
+                                                let token = app.auth_token.clone();
+                                                let slg = slug.to_string();
+                                                if let Some(ref tx) = app.ui_tx {
+                                                    let tx = tx.clone();
+                                                    tokio::spawn(async move {
+                                                        delete_mission_bg(url, slg, token, tx).await;
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                    KeyCode::Char('k') | KeyCode::Char('K') => {
+                                        if let Some(m) = app.missions.get(app.selected_mission_idx) {
+                                            if let Some(slug) = m["slug"].as_str() {
+                                                let url = app.server_url.clone();
+                                                let token = app.auth_token.clone();
+                                                let slg = slug.to_string();
+                                                if let Some(ref tx) = app.ui_tx {
+                                                    let tx = tx.clone();
+                                                    tokio::spawn(async move {
+                                                        decompose_mission_bg(url, slg, token, tx).await;
+                                                    });
+                                                }
+                                            }
+                                        }
+                                    }
+                                    KeyCode::Esc => {
+                                        app.active_panel = Panel::Input;
+                                    }
+                                    _ => {}
                                 }
-                                app.active_panel = Panel::Input;
-                            } else {
-                                app.active_panel = Panel::Input;
+                            }
+                            MissionsPane::Dossier => {
+                                match key.code {
+                                    KeyCode::Up => {
+                                        app.missions_dossier_scroll = app.missions_dossier_scroll.saturating_sub(2);
+                                    }
+                                    KeyCode::Down => {
+                                        app.missions_dossier_scroll = app.missions_dossier_scroll.saturating_add(2);
+                                    }
+                                    KeyCode::Esc => {
+                                        app.active_panel = Panel::Input;
+                                    }
+                                    _ => {}
+                                }
                             }
                         }
-                        _ => {}
-                    },
+                    }
                 }
+                }
+                Event::Mouse(mouse) => {
+                    if mouse.kind == crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left) {
+                        let size = terminal.size().unwrap_or_default();
+                        let area = Rect::new(0, 0, size.width, size.height);
+                        let input_lines = app.input.lines().count().max(1).min(10) as u16 + 2;
+                        let chunks = Layout::default()
+                            .direction(Direction::Vertical)
+                            .constraints([
+                                Constraint::Length(6), // Header
+                                Constraint::Min(10),   // Content
+                                Constraint::Length(input_lines), // Input
+                                Constraint::Length(1), // Footer/Status
+                            ])
+                            .split(area);
+
+                        let row = mouse.row;
+                        let col = mouse.column;
+
+                        // 1. Header click (tabs navigation) at row 4
+                        if row == 4 {
+                            if col >= 45 && col <= 51 {
+                                app.current_screen = Screen::Chat;
+                                app.active_panel = Panel::Input;
+                            } else if col >= 52 && col <= 61 {
+                                app.current_screen = Screen::Memory;
+                                app.active_panel = Panel::MemoryTree;
+                                app.memory_active_pane = MemoryPane::Tree;
+                                app.trigger_load_memory();
+                            } else if col >= 62 && col <= 73 {
+                                app.current_screen = Screen::Missions;
+                                app.active_panel = Panel::MissionsList;
+                                app.missions_active_pane = MissionsPane::List;
+                                app.trigger_load_missions();
+                            }
+                        }
+                        // 2. Content area click
+                        else if row >= chunks[1].y && row < chunks[1].y + chunks[1].height {
+                            if app.current_screen == Screen::Chat && row == chunks[1].y {
+                                let x = chunks[1].x;
+                                if col >= x + 2 && col < x + 8 {
+                                    app.chat_view = ChatView::Messages;
+                                    app.chat_scroll = 0;
+                                    app.active_panel = Panel::Chat;
+                                } else if col >= x + 9 && col < x + 19 {
+                                    app.chat_view = ChatView::Activity;
+                                    app.chat_scroll = 0;
+                                    app.active_panel = Panel::Chat;
+                                } else if col >= x + 20 && col < x + 28 {
+                                    app.chat_view = ChatView::Status;
+                                    app.chat_scroll = 0;
+                                    app.active_panel = Panel::Chat;
+                                } else {
+                                    app.active_panel = Panel::Chat;
+                                }
+                            } else if app.current_screen == Screen::Memory {
+                                // Split horizontally: Tree pane (width 38) and Details pane (Min(0))
+                                let mem_chunks = Layout::default()
+                                    .direction(Direction::Horizontal)
+                                    .constraints([Constraint::Length(38), Constraint::Min(0)])
+                                    .split(chunks[1]);
+                                if col >= mem_chunks[0].x && col < mem_chunks[0].x + mem_chunks[0].width {
+                                    app.active_panel = Panel::MemoryTree;
+                                    app.memory_active_pane = MemoryPane::Tree;
+                                } else {
+                                    app.active_panel = Panel::MemoryTree;
+                                    app.memory_active_pane = MemoryPane::Details;
+                                }
+                            } else if app.current_screen == Screen::Missions {
+                                let mis_chunks = Layout::default()
+                                    .direction(Direction::Horizontal)
+                                    .constraints([Constraint::Length(38), Constraint::Min(0)])
+                                    .split(chunks[1]);
+                                if col >= mis_chunks[0].x && col < mis_chunks[0].x + mis_chunks[0].width {
+                                    app.active_panel = Panel::MissionsList;
+                                    app.missions_active_pane = MissionsPane::List;
+                                } else {
+                                    app.active_panel = Panel::MissionsList;
+                                    app.missions_active_pane = MissionsPane::Dossier;
+                                }
+                            } else {
+                                app.active_panel = Panel::Chat;
+                            }
+                        }
+                        // 3. Input area click
+                        else if row >= chunks[2].y && row < chunks[2].y + chunks[2].height {
+                            app.active_panel = Panel::Input;
+                        }
+                    }
+                }
+                _ => {}
             }
         }
     }
 
     app.save_config();
     disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    execute!(terminal.backend_mut(), crossterm::event::DisableMouseCapture, LeaveAlternateScreen)?;
     terminal.show_cursor()?;
     Ok(())
 }
 
 async fn handle_input(app: &mut App, key: KeyCode) {
+    if app.current_screen == Screen::Memory && app.memory_input_mode != MemoryInputMode::Normal {
+        match key {
+            KeyCode::Enter => {
+                let text = app.input.trim().to_string();
+                app.input.clear();
+                app.cursor_pos = 0;
+                let mode = app.memory_input_mode.clone();
+                app.memory_input_mode = MemoryInputMode::Normal;
+                app.active_panel = Panel::MemoryTree;
+                if !text.is_empty() {
+                    let url = app.server_url.clone();
+                    let token = app.auth_token.clone();
+                    if let Some(ref tx) = app.ui_tx {
+                        let tx = tx.clone();
+                        match mode {
+                            MemoryInputMode::CreateNode => {
+                                let mut draw_items = Vec::new();
+                                let mut visited = std::collections::HashSet::new();
+                                build_draw_tree(&app.memory_nodes, None, 0, &mut visited, &mut draw_items);
+                                let parent_id = if let Some(item) = draw_items.get(app.selected_node_idx) {
+                                    item.id.clone()
+                                } else {
+                                    "".to_string()
+                                };
+                                tokio::spawn(async move {
+                                    create_memory_node_bg(url, parent_id, text, "".into(), token, tx).await;
+                                });
+                            }
+                            MemoryInputMode::AddItem => {
+                                let mut draw_items = Vec::new();
+                                let mut visited = std::collections::HashSet::new();
+                                build_draw_tree(&app.memory_nodes, None, 0, &mut visited, &mut draw_items);
+                                if let Some(item) = draw_items.get(app.selected_node_idx) {
+                                    let node_id = item.id.clone();
+                                    tokio::spawn(async move {
+                                        add_memory_item_bg(url, node_id, text, token, tx).await;
+                                    });
+                                }
+                            }
+                            MemoryInputMode::EditNode => {
+                                let mut draw_items = Vec::new();
+                                let mut visited = std::collections::HashSet::new();
+                                build_draw_tree(&app.memory_nodes, None, 0, &mut visited, &mut draw_items);
+                                if let Some(item) = draw_items.get(app.selected_node_idx) {
+                                    let node_id = item.id.clone();
+                                    tokio::spawn(async move {
+                                        let client = reqwest::Client::new();
+                                        let mut req = client.post(format!("{}/api/memory/node/update", url))
+                                            .json(&serde_json::json!({ "node_id": node_id, "label": text }));
+                                        if let Some(t) = token {
+                                            req = req.header("Cookie", format!("laruche_auth={}", t));
+                                        }
+                                        match req.send().await {
+                                            Ok(resp) if resp.status().is_success() => {
+                                                let _ = tx.send(TuiEvent::ActionFinished("Nœud mis à jour.".into())).await;
+                                            }
+                                            _ => {
+                                                let _ = tx.send(TuiEvent::Error("Échec de la mise à jour".into())).await;
+                                            }
+                                        }
+                                    });
+                                }
+                            }
+                            MemoryInputMode::EditItem => {
+                                if let Some(details) = &app.selected_node_details {
+                                    if let Some(items) = details["items"].as_array() {
+                                        if let Some(item) = items.get(app.selected_item_idx) {
+                                            if let Some(item_id) = item["id"].as_str() {
+                                                let itm_id = item_id.to_string();
+                                                tokio::spawn(async move {
+                                                    let client = reqwest::Client::new();
+                                                    let mut req = client.post(format!("{}/api/memory/update", url))
+                                                        .json(&serde_json::json!({ "item_id": itm_id, "content": text }));
+                                                    if let Some(t) = token {
+                                                        req = req.header("Cookie", format!("laruche_auth={}", t));
+                                                    }
+                                                    match req.send().await {
+                                                        Ok(resp) if resp.status().is_success() => {
+                                                            let _ = tx.send(TuiEvent::ActionFinished("Fact mis à jour.".into())).await;
+                                                        }
+                                                        _ => {
+                                                            let _ = tx.send(TuiEvent::Error("Échec de la mise à jour".into())).await;
+                                                        }
+                                                    }
+                                                });
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                return;
+            }
+            KeyCode::Esc => {
+                app.input.clear();
+                app.cursor_pos = 0;
+                app.memory_input_mode = MemoryInputMode::Normal;
+                app.active_panel = Panel::MemoryTree;
+                return;
+            }
+            _ => {}
+        }
+    }
+
+    if app.current_screen == Screen::Missions && app.missions_input_mode != MissionsInputMode::Normal {
+        match key {
+            KeyCode::Enter => {
+                let text = app.input.trim().to_string();
+                app.input.clear();
+                app.cursor_pos = 0;
+                let mode = app.missions_input_mode.clone();
+                app.missions_input_mode = MissionsInputMode::Normal;
+                app.active_panel = Panel::MissionsList;
+                if !text.is_empty() {
+                    let url = app.server_url.clone();
+                    let token = app.auth_token.clone();
+                    if let Some(ref tx) = app.ui_tx {
+                        let tx = tx.clone();
+                        match mode {
+                            MissionsInputMode::CreateMission => {
+                                tokio::spawn(async move {
+                                    create_mission_bg(url, text, token, tx).await;
+                                });
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                return;
+            }
+            KeyCode::Esc => {
+                app.input.clear();
+                app.cursor_pos = 0;
+                app.missions_input_mode = MissionsInputMode::Normal;
+                app.active_panel = Panel::MissionsList;
+                return;
+            }
+            _ => {}
+        }
+    }
+
     match key {
         KeyCode::Enter => {
             // Accept autocomplete if any
@@ -958,10 +1999,7 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                         app.status_msg = "Nouvelle conversation".into();
                         return;
                     }
-                    "/tools" | "/t" => {
-                        app.active_panel = Panel::Sidebar;
-                        return;
-                    }
+
                     "/cwd" => {
                         let arg = text.strip_prefix("/cwd").unwrap_or("").trim();
                         if arg.is_empty() {
@@ -1501,9 +2539,9 @@ async fn handle_input(app: &mut App, key: KeyCode) {
             let model = app.model.clone();
             let token = app.auth_token.clone();
             let session = app.session_id.clone();
-            tokio::spawn(async move {
+            app.stream_task = Some(tokio::spawn(async move {
                 stream_via_websocket(url, text, model, token, session, tx_evt).await;
-            });
+            }));
         }
         KeyCode::Char(c) => {
             // Insert at char position (not byte position)
@@ -1683,273 +2721,422 @@ fn update_autocomplete(app: &mut App) {
 }
 
 fn ui(f: &mut Frame, app: &mut App) {
+    let input_lines = app.input.lines().count().max(1).min(10) as u16 + 2;
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),
-            Constraint::Min(10),
-            Constraint::Length(3),
-            Constraint::Length(1),
+            Constraint::Length(6), // Header
+            Constraint::Min(10),   // Chat
+            Constraint::Length(input_lines), // Input
+            Constraint::Length(1), // Footer/Status
         ])
         .split(f.area());
 
     draw_header(f, chunks[0], app);
-    let body = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Length(22), Constraint::Min(40)])
-        .split(chunks[1]);
-    draw_sidebar(f, body[0], app);
-    draw_chat(f, body[1], app);
+    match app.current_screen {
+        Screen::Chat => {
+            draw_chat(f, chunks[1], app);
+        }
+        Screen::Memory => {
+            draw_memory(f, chunks[1], app);
+        }
+        Screen::Missions => {
+            draw_missions(f, chunks[1], app);
+        }
+    }
     draw_input(f, chunks[2], app);
     draw_status(f, chunks[3], app);
 }
 
+fn draw_memory(f: &mut Frame, area: Rect, app: &mut App) {
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(38), // Tree
+            Constraint::Min(0),      // Details
+        ])
+        .split(area);
+
+    let is_tree_focused = app.active_panel == Panel::MemoryTree && app.memory_active_pane == MemoryPane::Tree;
+    let is_details_focused = app.active_panel == Panel::MemoryTree && app.memory_active_pane == MemoryPane::Details;
+
+    // 1. Build & Draw Tree
+    let mut draw_items = Vec::new();
+    let mut visited = std::collections::HashSet::new();
+    build_draw_tree(&app.memory_nodes, None, 0, &mut visited, &mut draw_items);
+
+    // Keep selected index in bounds
+    if !draw_items.is_empty() && app.selected_node_idx >= draw_items.len() {
+        app.selected_node_idx = draw_items.len() - 1;
+    }
+
+    // Scroll calculations
+    let tree_visible_height = chunks[0].height.saturating_sub(2) as usize;
+    if !draw_items.is_empty() {
+        if app.selected_node_idx >= app.memory_tree_scroll + tree_visible_height {
+            app.memory_tree_scroll = app.selected_node_idx - tree_visible_height + 1;
+        } else if app.selected_node_idx < app.memory_tree_scroll {
+            app.memory_tree_scroll = app.selected_node_idx;
+        }
+    }
+
+    let mut list_items = Vec::new();
+    for (idx, item) in draw_items.iter().enumerate().skip(app.memory_tree_scroll).take(tree_visible_height) {
+        let style = if idx == app.selected_node_idx {
+            Style::default().fg(Color::Black).bg(AMBER).add_modifier(Modifier::BOLD)
+        } else if item.is_protected {
+            Style::default().fg(Color::Cyan)
+        } else {
+            Style::default().fg(Color::White)
+        };
+
+        let indent = "  ".repeat(item.depth);
+        let prefix = if item.depth > 0 { "└─ " } else { "● " };
+        let lock = if item.is_protected { " 🔒" } else { "" };
+        list_items.push(ListItem::new(Line::from(Span::styled(
+            format!("{}{}{}{}", indent, prefix, item.label, lock),
+            style,
+        ))));
+    }
+
+    if list_items.is_empty() {
+        list_items.push(ListItem::new(Line::from(Span::styled(
+            " Aucun nœud charge",
+            Style::default().fg(TEXT_DIM).add_modifier(Modifier::ITALIC),
+        ))));
+    }
+
+    let b_tree = Block::default()
+        .title(" Carte Cognitive ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(if is_tree_focused { AMBER } else { BORDER }))
+        .style(Style::default().bg(BG));
+    f.render_widget(List::new(list_items).block(b_tree), chunks[0]);
+
+    // 2. Draw Details
+    let b_details = Block::default()
+        .title(" Detail du Noeud ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(if is_details_focused { AMBER } else { BORDER }))
+        .style(Style::default().bg(BG));
+
+    if let Some(ref details) = app.selected_node_details {
+        // Split details area vertically: Metadata (height 5) and Items list (Min(0))
+        let details_area = b_details.inner(chunks[1]);
+        let details_chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(5), // Metadata
+                Constraint::Min(0),    // Facts
+            ])
+            .split(details_area);
+
+        // Metadata
+        let label = details["label"].as_str().unwrap_or("?");
+        let id = details["id"].as_str().unwrap_or("?");
+        let desc = details["one_liner"].as_str().unwrap_or("");
+        let is_prot = details["protected"].as_bool().unwrap_or(false);
+
+        let prot_status = if is_prot {
+            Span::styled(" [SYSTEME PROTEGE 🔒]", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        } else {
+            Span::styled(" [MODIFIABLE ✏️]", Style::default().fg(Color::Green))
+        };
+
+        let meta_lines = vec![
+            Line::from(vec![
+                Span::styled("Label : ", Style::default().fg(TEXT_DIM)),
+                Span::styled(label, Style::default().fg(AMBER).add_modifier(Modifier::BOLD)),
+                prot_status,
+            ]),
+            Line::from(vec![
+                Span::styled("ID    : ", Style::default().fg(TEXT_DIM)),
+                Span::styled(id, Style::default().fg(Color::Cyan)),
+            ]),
+            Line::from(vec![
+                Span::styled("Desc  : ", Style::default().fg(TEXT_DIM)),
+                Span::styled(desc, Style::default().fg(Color::White)),
+            ]),
+            Line::from(Span::styled("─".repeat(details_chunks[0].width as usize), Style::default().fg(BORDER))),
+        ];
+        f.render_widget(Paragraph::new(meta_lines), details_chunks[0]);
+
+        // Facts List
+        let mut fact_items = Vec::new();
+        if let Some(items) = details["items"].as_array() {
+            // Keep selected item index in bounds
+            if !items.is_empty() && app.selected_item_idx >= items.len() {
+                app.selected_item_idx = items.len() - 1;
+            }
+
+            let facts_visible_height = details_chunks[1].height.saturating_sub(1) as usize; // reserve last line for help
+            if !items.is_empty() {
+                if app.selected_item_idx >= app.memory_details_scroll + facts_visible_height {
+                    app.memory_details_scroll = app.selected_item_idx - facts_visible_height + 1;
+                } else if app.selected_item_idx < app.memory_details_scroll {
+                    app.memory_details_scroll = app.selected_item_idx;
+                }
+            }
+
+            for (idx, item) in items.iter().enumerate().skip(app.memory_details_scroll).take(facts_visible_height) {
+                let content = item["content"].as_str().unwrap_or("");
+                let source = item["source"].as_str().unwrap_or("system");
+                let is_sel = idx == app.selected_item_idx && is_details_focused;
+
+                let style = if is_sel {
+                    Style::default().fg(Color::Black).bg(AMBER).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::White)
+                };
+
+                let src_span = if is_sel {
+                    Span::styled(format!(" (depuis {})", source), Style::default().fg(Color::Black).add_modifier(Modifier::ITALIC))
+                } else {
+                    Span::styled(format!(" (depuis {})", source), Style::default().fg(TEXT_DIM).add_modifier(Modifier::ITALIC))
+                };
+
+                fact_items.push(ListItem::new(Line::from(vec![
+                    Span::styled(format!("  {} · ", idx + 1), if is_sel { Style::default().fg(Color::Black).add_modifier(Modifier::BOLD) } else { Style::default().fg(AMBER) }),
+                    Span::styled(content, style),
+                    src_span,
+                ])));
+            }
+        }
+
+        if fact_items.is_empty() {
+            fact_items.push(ListItem::new(Line::from(Span::styled(
+                " Aucun fait enregistre dans ce noeud. Appuyez sur 'a' pour en ajouter un.",
+                Style::default().fg(TEXT_DIM).add_modifier(Modifier::ITALIC),
+            ))));
+        }
+
+        // Help bar at the bottom
+        let help_text = if is_tree_focused {
+            " [Tab] Details  [n] Nouveau sous-noeud  [e] Renommer  [d] Supprimer  [a] Ajouter Fait "
+        } else if is_details_focused {
+            " [Tab] Arbre  [a] Ajouter Fait  [e] Modifier Fait  [d] Supprimer Fait "
+        } else {
+            " Appuyez sur Tab pour activer ce panneau "
+        };
+        let help_line = Line::from(Span::styled(help_text, Style::default().fg(TEXT_DIM).add_modifier(Modifier::ITALIC)));
+
+        let details_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(0),
+                Constraint::Length(1), // Help text
+            ])
+            .split(details_chunks[1]);
+
+        f.render_widget(List::new(fact_items), details_layout[0]);
+        f.render_widget(Paragraph::new(help_line), details_layout[1]);
+        f.render_widget(Block::default().borders(Borders::NONE).style(Style::default().bg(BG)), chunks[1]);
+        // Render surrounding border block
+        f.render_widget(b_details, chunks[1]);
+    } else {
+        let empty_text = vec![
+            Line::from(""),
+            Line::from(Span::styled("  Veuillez selectionner un noeud dans la carte cognitive a gauche.", Style::default().fg(TEXT_DIM))),
+        ];
+        f.render_widget(Paragraph::new(empty_text).block(b_details), chunks[1]);
+    }
+}
+
+fn draw_missions(f: &mut Frame, area: Rect, app: &mut App) {
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(38), // List
+            Constraint::Min(0),      // Dossier
+        ])
+        .split(area);
+
+    let is_list_focused = app.active_panel == Panel::MissionsList && app.missions_active_pane == MissionsPane::List;
+    let is_dossier_focused = app.active_panel == Panel::MissionsList && app.missions_active_pane == MissionsPane::Dossier;
+
+    // 1. Draw List
+    let b_list = Block::default()
+        .title(" Missions Actives ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(if is_list_focused { AMBER } else { BORDER }))
+        .style(Style::default().bg(BG));
+
+    let mut list_items = Vec::new();
+    for (idx, m) in app.missions.iter().enumerate() {
+        let objective = m["objective"].as_str().unwrap_or("?");
+        let status = m["status"].as_str().unwrap_or("active");
+        let runs = m["iterations"].as_u64().unwrap_or(0);
+        let cadence = m["cadence"].as_str().unwrap_or("manuel");
+
+        let is_sel = idx == app.selected_mission_idx;
+        let style = if is_sel {
+            Style::default().fg(Color::Black).bg(AMBER).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(Color::White)
+        };
+
+        let status_badge = match status {
+            "active" => Span::styled(" [ACTIF] ", Style::default().fg(Color::Green)),
+            "paused" => Span::styled(" [PAUSE] ", Style::default().fg(Color::Yellow)),
+            _ => Span::styled(" [FINI]  ", Style::default().fg(TEXT_DIM)),
+        };
+
+        let runs_text = format!(" ({} iterations, {})", runs, cadence);
+        let runs_span = if is_sel {
+            Span::styled(runs_text, Style::default().fg(Color::Black).add_modifier(Modifier::ITALIC))
+        } else {
+            Span::styled(runs_text, Style::default().fg(TEXT_DIM).add_modifier(Modifier::ITALIC))
+        };
+
+        list_items.push(ListItem::new(Line::from(vec![
+            status_badge,
+            Span::styled(objective, style),
+            runs_span,
+        ])));
+    }
+
+    if list_items.is_empty() {
+        list_items.push(ListItem::new(Line::from(Span::styled(
+            " Aucune mission creee. Appuyez sur 'c' pour en lancer une.",
+            Style::default().fg(TEXT_DIM).add_modifier(Modifier::ITALIC),
+        ))));
+    }
+
+    f.render_widget(List::new(list_items).block(b_list), chunks[0]);
+
+    // 2. Draw Dossier
+    let b_dossier = Block::default()
+        .title(" Dossier de Mission ")
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(if is_dossier_focused { AMBER } else { BORDER }))
+        .style(Style::default().bg(BG));
+
+    if let Some(ref dossier) = app.selected_mission_dossier {
+        let md_lines = markdown::parse_markdown(dossier);
+
+        let dossier_area = b_dossier.inner(chunks[1]);
+        let dossier_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(0),
+                Constraint::Length(1), // help text
+            ])
+            .split(dossier_area);
+
+        // Help bar
+        let help_text = if is_list_focused {
+            " [Tab] Dossier  [c] Creer Mission  [r] Executer Tour  [p] Pause/Reprendre  [d] Supprimer  [k] Decomposer "
+        } else {
+            " [Tab] Liste  [Fleches Haut/Bas] Defiler le dossier "
+        };
+        let help_line = Line::from(Span::styled(help_text, Style::default().fg(TEXT_DIM).add_modifier(Modifier::ITALIC)));
+
+        f.render_widget(
+            Paragraph::new(Text::from(md_lines))
+                .wrap(Wrap { trim: false })
+                .scroll((app.missions_dossier_scroll as u16, 0)),
+            dossier_layout[0],
+        );
+        f.render_widget(Paragraph::new(help_line), dossier_layout[1]);
+        f.render_widget(Block::default().borders(Borders::NONE).style(Style::default().bg(BG)), chunks[1]);
+        f.render_widget(b_dossier, chunks[1]);
+    } else {
+        let empty_text = vec![
+            Line::from(""),
+            Line::from(Span::styled("  Aucun dossier de mission charge ou selectionnez une mission.", Style::default().fg(TEXT_DIM))),
+        ];
+        f.render_widget(Paragraph::new(empty_text).block(b_dossier), chunks[1]);
+    }
+}
+
 fn draw_header(f: &mut Frame, area: Rect, app: &App) {
+    let chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(45), // ASCII Logo + client version
+            Constraint::Length(36), // Tabs
+            Constraint::Min(0),      // Connection and Model
+        ])
+        .split(area);
+
+    // Left chunk (ASCII Art + Subtitle)
+    let logo_lines = vec![
+        Line::from(Span::styled(r#"    __       ___         __        "#, Style::default().fg(AMBER).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(r#"   / /  ___ / _ \__ __  / /  ___   "#, Style::default().fg(AMBER).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(r#"  / /__/ _ `/ , _/ // / / _ \/ -_) "#, Style::default().fg(AMBER).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(r#" /____/\_,_/_/|_|\_,_/_/_//_/\__/  "#, Style::default().fg(AMBER).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(format!("   🐝 CLI Client v{}", env!("CARGO_PKG_VERSION")), Style::default().fg(TEXT_DIM))),
+    ];
+
+    let b_art = Block::default()
+        .borders(Borders::BOTTOM)
+        .border_style(Style::default().fg(BORDER))
+        .style(Style::default().bg(BG_PANEL));
+    f.render_widget(Paragraph::new(logo_lines).block(b_art), chunks[0]);
+
+    // Middle chunk (Tabs)
+    let tab_chat = if app.current_screen == Screen::Chat {
+        Span::styled(" Chat ", Style::default().fg(Color::Black).bg(AMBER).add_modifier(Modifier::BOLD))
+    } else {
+        Span::styled(" Chat ", Style::default().fg(TEXT_DIM))
+    };
+    let tab_memory = if app.current_screen == Screen::Memory {
+        Span::styled(" Memory ", Style::default().fg(Color::Black).bg(AMBER).add_modifier(Modifier::BOLD))
+    } else {
+        Span::styled(" Memory ", Style::default().fg(TEXT_DIM))
+    };
+    let tab_missions = if app.current_screen == Screen::Missions {
+        Span::styled(" Missions ", Style::default().fg(Color::Black).bg(AMBER).add_modifier(Modifier::BOLD))
+    } else {
+        Span::styled(" Missions ", Style::default().fg(TEXT_DIM))
+    };
+
+    let tab_line = vec![
+        Line::from(""), // spacer
+        Line::from(""), // spacer
+        Line::from(""), // spacer
+        Line::from(""), // spacer
+        Line::from(vec![
+            tab_chat,
+            Span::raw("  "),
+            tab_memory,
+            Span::raw("  "),
+            tab_missions,
+        ]),
+    ];
+
+    let b_tabs = Block::default()
+        .borders(Borders::BOTTOM)
+        .border_style(Style::default().fg(BORDER))
+        .style(Style::default().bg(BG_PANEL));
+    f.render_widget(Paragraph::new(tab_line).block(b_tabs), chunks[1]);
+
+    // Right chunk (Connection & Model)
     let conn = if app.connected {
         Span::styled(" Connected ", Style::default().fg(Color::Green))
     } else {
         Span::styled(" Offline ", Style::default().fg(Color::Red))
     };
-    let h = Line::from(vec![
-        Span::styled(" 🐝 ", Style::default()),
-        Span::styled(
-            "LaRuche ",
-            Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(
-            "L'Essaim",
-            Style::default()
-                .fg(Color::White)
-                .add_modifier(Modifier::BOLD),
-        ),
-        conn,
-        Span::styled("  │  ", Style::default().fg(BORDER)),
-        Span::styled(
-            if app.server_url.is_empty() {
-                "-".to_string()
-            } else {
-                format!("{}/app#chat", app.server_url)
-            },
-            Style::default().fg(TEXT_DIM),
-        ),
-        Span::styled("  │  ", Style::default().fg(BORDER)),
-        Span::styled(
-            format!("model: {}", app.model),
-            Style::default().fg(Color::Cyan),
-        ),
-    ]);
-    f.render_widget(
-        Paragraph::new(h).block(
-            Block::default()
-                .borders(Borders::BOTTOM)
-                .border_style(Style::default().fg(BORDER))
-                .style(Style::default().bg(BG_PANEL)),
-        ),
-        area,
-    );
-}
 
-fn draw_sidebar(f: &mut Frame, area: Rect, app: &mut App) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(if app.plan.is_empty() {
-                0
-            } else {
-                (app.plan.len() as u16 + 2).min(8)
-            }),
-            Constraint::Min(5),
-        ])
-        .split(area);
-
-    if !app.plan.is_empty() {
-        let items: Vec<ListItem> = app
-            .plan
-            .iter()
-            .map(|(task, status)| {
-                let icon = match status.as_str() {
-                    "done" => Span::styled("✓ ", Style::default().fg(Color::Green)),
-                    "in_progress" => Span::styled("● ", Style::default().fg(AMBER)),
-                    _ => Span::styled("○ ", Style::default().fg(TEXT_DIM)),
-                };
-                ListItem::new(Line::from(vec![
-                    icon,
-                    Span::raw(task.chars().take(18).collect::<String>()),
-                ]))
-            })
-            .collect();
-        f.render_widget(
-            List::new(items).block(
-                Block::default()
-                    .title(Span::styled(
-                        " Plan ",
-                        Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
-                    ))
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(BORDER))
-                    .style(Style::default().bg(BG_PANEL)),
-            ),
-            chunks[0],
-        );
-    }
-
-    let is_active = app.active_panel == Panel::Sidebar;
-
-    // Tab indicators at top
-    let tab_titles = vec![
-        if app.sidebar_panel == SidebarPanel::Tools {
-            Span::styled(
-                " Abeilles ",
-                Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
-            )
-        } else {
-            Span::styled(" Abeilles ", Style::default().fg(TEXT_DIM))
-        },
-        Span::styled(" | ", Style::default().fg(BORDER)),
-        if app.sidebar_panel == SidebarPanel::Models {
-            Span::styled(
-                "Models",
-                Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
-            )
-        } else {
-            Span::styled("Models", Style::default().fg(TEXT_DIM))
-        },
-        Span::styled(" | ", Style::default().fg(BORDER)),
-        if app.sidebar_panel == SidebarPanel::Sessions {
-            Span::styled(
-                "Sess",
-                Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
-            )
-        } else {
-            Span::styled("Sess", Style::default().fg(TEXT_DIM))
-        },
-        Span::styled("|", Style::default().fg(BORDER)),
-        if app.sidebar_panel == SidebarPanel::Plan {
-            Span::styled(
-                "Plan",
-                Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
-            )
-        } else {
-            Span::styled("Plan", Style::default().fg(TEXT_DIM))
-        },
+    let right_line = vec![
+        Line::from(""), // spacer
+        Line::from(""), // spacer
+        Line::from(""), // spacer
+        Line::from(""), // spacer
+        Line::from(vec![
+            conn,
+            Span::styled("  │  ", Style::default().fg(BORDER)),
+            Span::styled(format!("Model: {}  ", app.model), Style::default().fg(Color::Cyan)),
+        ]),
     ];
-    let title = Line::from(tab_titles);
 
-    let items: Vec<ListItem> = match app.sidebar_panel {
-        SidebarPanel::Tools => {
-            let mut items: Vec<ListItem> = Vec::new();
-            if app.is_streaming {
-                items.push(ListItem::new(Span::styled(
-                    " ● Agent actif...",
-                    Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
-                )));
-                items.push(ListItem::new(Span::raw("")));
-            }
-            for n in &app.tools {
-                items.push(ListItem::new(Span::styled(
-                    format!(" · {}", n.chars().take(16).collect::<String>()),
-                    Style::default().fg(Color::Cyan),
-                )));
-            }
-            items
-        }
-        SidebarPanel::Models => {
-            if app.available_models.is_empty() {
-                vec![
-                    ListItem::new(Span::styled(
-                        format!(" ● {}", app.model),
-                        Style::default().fg(Color::Green),
-                    )),
-                    ListItem::new(Span::styled(
-                        " ← → pour charger",
-                        Style::default().fg(TEXT_DIM),
-                    )),
-                ]
-            } else {
-                app.available_models
-                    .iter()
-                    .enumerate()
-                    .map(|(i, name)| {
-                        let is_current = *name == app.model;
-                        let is_cursor = i == app.model_cursor;
-                        let prefix = if is_cursor && is_current {
-                            "▸●"
-                        } else if is_cursor {
-                            "▸ "
-                        } else if is_current {
-                            " ●"
-                        } else {
-                            "  "
-                        };
-                        let style = if is_cursor {
-                            Style::default().fg(AMBER).add_modifier(Modifier::BOLD)
-                        } else if is_current {
-                            Style::default().fg(Color::Green)
-                        } else {
-                            Style::default().fg(Color::Cyan)
-                        };
-                        ListItem::new(Span::styled(
-                            format!("{} {}", prefix, name.chars().take(14).collect::<String>()),
-                            style,
-                        ))
-                    })
-                    .collect()
-            }
-        }
-        SidebarPanel::Sessions => app
-            .messages
-            .iter()
-            .rev()
-            .filter(|m| m.role == "user")
-            .take(8)
-            .map(|m| {
-                ListItem::new(Span::styled(
-                    format!(" · {}", m.text.chars().take(18).collect::<String>()),
-                    Style::default().fg(TEXT_DIM),
-                ))
-            })
-            .collect(),
-        SidebarPanel::Plan => {
-            if app.plan.is_empty() {
-                vec![ListItem::new(Span::styled(
-                    " Aucun plan",
-                    Style::default().fg(TEXT_DIM).add_modifier(Modifier::ITALIC),
-                ))]
-            } else {
-                app.plan
-                    .iter()
-                    .map(|(task, status)| {
-                        let (icon, color) = match status.as_str() {
-                            "done" => ("✓", Color::Green),
-                            "in_progress" => ("●", AMBER),
-                            _ => ("○", Color::Rgb(113, 113, 122)),
-                        };
-                        ListItem::new(Line::from(vec![
-                            Span::styled(format!(" {} ", icon), Style::default().fg(color)),
-                            Span::styled(
-                                task.chars().take(16).collect::<String>(),
-                                Style::default().fg(if status == "done" {
-                                    TEXT_DIM
-                                } else {
-                                    Color::White
-                                }),
-                            ),
-                        ]))
-                    })
-                    .collect()
-            }
-        }
-    };
-
+    let b_right = Block::default()
+        .borders(Borders::BOTTOM)
+        .border_style(Style::default().fg(BORDER))
+        .style(Style::default().bg(BG_PANEL));
     f.render_widget(
-        List::new(items).block(
-            Block::default()
-                .title(title)
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(if is_active { AMBER } else { BORDER }))
-                .style(Style::default().bg(BG_PANEL)),
-        ),
-        chunks[1],
+        Paragraph::new(right_line).block(b_right).alignment(ratatui::layout::Alignment::Right),
+        chunks[2],
     );
 }
 
@@ -2136,11 +3323,8 @@ fn draw_chat(f: &mut Frame, area: Rect, app: &App) {
                         lines.push(Line::from(""));
                     }
                     "assistant" => {
-                        for l in msg.text.lines() {
-                            // Basic markdown rendering
-                            let styled = render_md_line(l);
-                            lines.push(styled);
-                        }
+                        let mut md_lines = markdown::parse_markdown(&msg.text);
+                        lines.append(&mut md_lines);
                         lines.push(Line::from(""));
                     }
                     "tool" => {
@@ -2335,14 +3519,33 @@ fn draw_input(f: &mut Frame, area: Rect, app: &App) {
         Line::from(spans)
     };
 
-    let prompt = if is_active { "> " } else { "  " };
+    let title_text = if app.current_screen == Screen::Memory && app.memory_input_mode != MemoryInputMode::Normal {
+        match app.memory_input_mode {
+            MemoryInputMode::CreateNode => " Nouveau noeud (Entree pour valider, Echap pour annuler) ",
+            MemoryInputMode::AddItem => " Nouveau fait (Entree pour valider, Echap pour annuler) ",
+            MemoryInputMode::EditNode => " Renommer noeud (Entree pour valider, Echap pour annuler) ",
+            MemoryInputMode::EditItem => " Modifier fait (Entree pour valider, Echap pour annuler) ",
+            _ => " Prompt ",
+        }
+    } else if app.current_screen == Screen::Missions && app.missions_input_mode != MissionsInputMode::Normal {
+        match app.missions_input_mode {
+            MissionsInputMode::CreateMission => " Nouvelle mission (Entree pour valider, Echap pour annuler) ",
+            _ => " Prompt ",
+        }
+    } else {
+        " Prompt "
+    };
+
+    let block_title = if is_active {
+        Span::styled(format!(" {} > ", title_text), Style::default().fg(AMBER).add_modifier(Modifier::BOLD))
+    } else {
+        Span::styled(format!(" {} ", title_text), Style::default().fg(TEXT_DIM))
+    };
+
     f.render_widget(
         Paragraph::new(content).block(
             Block::default()
-                .title(Span::styled(
-                    prompt,
-                    Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
-                ))
+                .title(block_title)
                 .borders(Borders::ALL)
                 .border_style(Style::default().fg(if is_active { AMBER } else { BORDER }))
                 .style(Style::default().bg(BG_PANEL)),
@@ -2350,7 +3553,7 @@ fn draw_input(f: &mut Frame, area: Rect, app: &App) {
         area,
     );
 
-    // Cursor: x + 1 (left border) + 2 (prompt "> ") + cursor_pos
+    // Cursor: x + 1 (left border) + cursor_pos
     if is_active {
         f.set_cursor_position((area.x + 1 + app.cursor_pos as u16, area.y + 1));
     }
