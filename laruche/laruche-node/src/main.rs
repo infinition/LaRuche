@@ -2336,6 +2336,22 @@ async fn api_memory_consolidate(
     Json(res.unwrap_or_else(|e| serde_json::json!({ "error": e.to_string() })))
 }
 
+/// GET /api/memory/grep?q=<texte>&limit=30 — recherche par sous-chaîne dans le contenu des items.
+async fn api_memory_grep(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Json<serde_json::Value> {
+    let pattern = q.get("q").cloned().unwrap_or_default();
+    let limit = q.get("limit").and_then(|s| s.parse::<u8>().ok());
+    Json(
+        state
+            .memoire
+            .grep(&pattern, limit)
+            .await
+            .unwrap_or_else(|e| serde_json::json!({ "error": e.to_string() })),
+    )
+}
+
 /// Acteur d'une mutation mémoire d'après son `src` (source/raison). UI → User, sinon LaRuche.
 fn feed_actor(src: &str) -> &'static str {
     let s = src.trim().to_lowercase();
@@ -8140,6 +8156,7 @@ async fn main() -> Result<()> {
         .route("/api/memory/dream", post(api_memory_dream))
         .route("/api/memory/consolidate", post(api_memory_consolidate))
         .route("/api/feed", get(api_feed))
+        .route("/api/memory/grep", get(api_memory_grep))
         .route("/api/memory/tree", get(api_memory_tree))
         .route(
             "/api/system/prompt-defaults",
