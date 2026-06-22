@@ -1095,27 +1095,59 @@ async fn assembler_working_set(
     prompt: &str,
     budget_chars: usize,
 ) -> Option<String> {
-    let pack = memoire
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut lignes: Vec<String> = Vec::new();
+
+    // Source 1 — PERTINENCE (sémantique/lexicale).
+    if let Ok(pack) = memoire
         .search(
             prompt,
             SearchOpts {
                 depth: None,
-                limit: Some(18),
+                limit: Some(16),
             },
         )
         .await
-        .ok()?;
-    let texte = pack.to_prompt_text();
-    if texte.trim().is_empty() {
+    {
+        for l in pack.to_prompt_text().lines() {
+            let key = l.trim().to_string();
+            if !key.is_empty() && seen.insert(key) {
+                lignes.push(l.to_string());
+            }
+        }
+    }
+
+    // Source 2 — RÉCENCE (derniers faits écrits, hors système/outils) : approxime l'activation.
+    if let Ok(muts) = memoire.mutations(Some(40)).await {
+        if let Some(arr) = muts["mutations"].as_array() {
+            for m in arr.iter() {
+                if m["op"].as_str() != Some("write") {
+                    continue;
+                }
+                let n = m["node_id"].as_str().unwrap_or("");
+                if n.starts_with("capacities") || n.starts_with("system") {
+                    continue;
+                }
+                if let Some(c) = m["content"].as_str() {
+                    let key = format!("recent:{}", c.trim());
+                    if !c.trim().is_empty() && seen.insert(key) {
+                        lignes.push(format!("- {} (récent)", c.trim()));
+                    }
+                }
+            }
+        }
+    }
+
+    if lignes.is_empty() {
         return None;
     }
-    // Sélection par BUDGET : on garde les lignes (déjà triées par pertinence) jusqu'à la limite.
+    // Sélection par BUDGET de caractères (≈ tokens) : on garde dans l'ordre jusqu'à la limite.
     let mut out = String::new();
-    for ligne in texte.lines() {
-        if out.len() + ligne.len() + 1 > budget_chars {
+    for l in lignes {
+        if out.len() + l.len() + 1 > budget_chars {
             break;
         }
-        out.push_str(ligne);
+        out.push_str(&l);
         out.push('\n');
     }
     let out = out.trim_end().to_string();

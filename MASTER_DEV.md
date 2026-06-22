@@ -1676,8 +1676,8 @@ LARUCHE_MEMOIRE_BACKEND=sidecar cargo run -p laruche-node
 - (Gemini) `@LaRuche` dans la DB, fixes suppression de nœuds (read_node pur, orphans), UI mobile/dashboard.
 
 ## 10.4 Backlog RÉEL restant (haute confiance, code-vérifié)
-- **Levier 1** — contexte working-set (« infini ») : 🟡 **1re tranche faite** (`assembler_working_set` : recall BUDGÉTÉ par caractères au lieu d'un top-N fixe). Reste : activation/atlas, sources « récents » + « nœud actif », budget token réel.
-- **Levier 3** — mémoire mesh CRDT (moonshot) : 🟡 **1re tranche faite** (fédération : `GET /api/memory/export_changes?since=`, `POST /api/memory/import_changes`, `POST /api/memory/mesh_pull {peer}` — pull+dédup des faits d'un node pair). Reste : sync auto/bidirectionnelle, idempotency keys, réconciliation CRDT complète.
+- **Levier 1** — contexte working-set (« infini ») : 🟢 **tranche 2 faite** (`assembler_working_set` MULTI-SOURCES : pertinence sémantique + RÉCENCE des derniers faits, sous budget de caractères). Reste (avancé) : activation/atlas spreading, « nœud actif » détecté, budget token exact.
+- **Levier 3** — mémoire collective mesh : 🟢 **tranche 2 faite** (fédération `export_changes`/`import_changes`/`mesh_pull` + **boucle de SYNC AUTO toutes les 5 min** : chaque node tire+dédupe les faits de tous ses pairs Miel → mémoire de la ruche, sans cloud). Reste (avancé) : idempotency keys + réconciliation CRDT formelle, gestion des conflits/suppressions.
 - **Feed v2** — ✅ crons (dernière exéc) + missions (dernière itération) loggés dans `/api/feed`. Reste : **watchers** (pas de ts par-événement) + attribution `move`/`create_node` (mineur, défaut LaRuche).
 - **P7** — réactivité UI : 🟡 **lite fait** (`GET /api/state/version` = ts dernière mutation, l'UI poll pour savoir si rafraîchir). Reste : vrai canal push `state_changed` (broadcast/SSE) si besoin.
 - **§P5 audit (0 fichier = NON fait)** : `reasoning_effort`, `cache_control` Anthropic, `web_render` (Playwright), notebook `.ipynb`, **auth OTP/password**. ~~grep contenu~~ → ✅ **`memory_grep`** (sous-chaîne insensible casse, trait+sqlite+native+abeille).

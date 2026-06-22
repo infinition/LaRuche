@@ -9206,6 +9206,56 @@ async fn main() -> Result<()> {
     // Sync essaim config from active profile at startup
     sync_essaim_from_profiles(&state).await;
 
+    // L3 (tranche 2) — SYNC mémoire AUTO depuis les nodes pairs (Miel), toutes les 5 min : chaque
+    // node tire+dédupe les faits des autres → mémoire COLLECTIVE de la ruche, sans cloud.
+    {
+        let sync_state = state.clone();
+        tokio::spawn(async move {
+            let mut last_sync: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(300));
+            loop {
+                interval.tick().await;
+                let peers: Vec<String> = {
+                    let l = sync_state.listener.read().await;
+                    l.get_nodes()
+                        .await
+                        .into_iter()
+                        .map(|(_, n)| n.manifest.host)
+                        .collect()
+                };
+                for host in peers {
+                    if host.trim().is_empty() {
+                        continue;
+                    }
+                    let since = *last_sync.get(&host).unwrap_or(&0);
+                    let url = format!("http://{host}:8419/api/memory/export_changes?since={since}");
+                    let Ok(resp) = reqwest::get(&url).await else {
+                        continue;
+                    };
+                    let Ok(data) = resp.json::<serde_json::Value>().await else {
+                        continue;
+                    };
+                    let empty: Vec<serde_json::Value> = vec![];
+                    let items = data["items"].as_array().unwrap_or(&empty);
+                    if items.is_empty() {
+                        continue;
+                    }
+                    let maxts = items
+                        .iter()
+                        .filter_map(|i| i["ts"].as_i64())
+                        .max()
+                        .unwrap_or(since);
+                    let (imp, _) =
+                        importer_changes(&sync_state, items, &format!("mesh:{host}")).await;
+                    last_sync.insert(host.clone(), maxts.max(since));
+                    if imp > 0 {
+                        tracing::info!(peer = %host, imported = imp, "mesh memory auto-sync");
+                    }
+                }
+            }
+        });
+    }
+
     let notifier_state = state.clone();
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
