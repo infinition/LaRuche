@@ -1812,7 +1812,11 @@ fn yaml_frontmatter_field(markdown: &str, key: &str) -> Option<String> {
     let rest = markdown.trim_start().strip_prefix("---")?;
     let end = rest.find("\n---")?;
     for line in rest[..end].lines() {
-        let (k, v) = line.split_once(':')?;
+        // Ignore les lignes sans `:` (la 1re ligne après `---` est vide). NE PAS `?` ici : ça
+        // faisait échouer TOUT le parsing dès la ligne vide → name/description toujours None.
+        let Some((k, v)) = line.split_once(':') else {
+            continue;
+        };
         if k.trim() == key {
             return Some(v.trim().trim_matches('"').trim_matches('\'').to_string());
         }
@@ -2081,8 +2085,12 @@ async fn construire_index_skills(memoire: &Arc<dyn MemoireCognitive>) -> Option<
         if !content.contains("type: skill") {
             continue;
         }
-        let name = yaml_frontmatter_field(content, "name")
-            .unwrap_or_else(|| node_id.trim_start_matches("capacities.skills.").to_string());
+        // Nom affiché = SLUG (suffixe node_id) : c'est l'identifiant que `skill_view(nom)` résout.
+        // (Le nom du frontmatter peut différer, ex. `arxiv-search` vs nœud `arxiv_search`.)
+        let name = node_id.trim_start_matches("capacities.skills.").to_string();
+        if name.is_empty() || name.contains('.') {
+            continue; // skills directs seulement
+        }
         if !vus.insert(name.clone()) {
             continue;
         }
@@ -3271,6 +3279,18 @@ mod tests {
     use crate::abeille::{Abeille, ResultatAbeille};
     use async_trait::async_trait;
     use laruche_permissions::RuleSource;
+
+    #[test]
+    fn yaml_frontmatter_lit_apres_ligne_vide() {
+        // Régression : la 1re ligne après `---` est vide → ne doit PAS faire échouer le parsing.
+        let md = "---\ntype: skill\nname: arxiv-search\ndescription: Recherche de papiers sur arxiv.org\n---\n\n# Corps";
+        assert_eq!(yaml_frontmatter_field(md, "name").as_deref(), Some("arxiv-search"));
+        assert_eq!(
+            yaml_frontmatter_field(md, "description").as_deref(),
+            Some("Recherche de papiers sur arxiv.org")
+        );
+        assert_eq!(yaml_frontmatter_field(md, "type").as_deref(), Some("skill"));
+    }
 
     #[test]
     fn resumer_description_garde_le_resume_avant_tiret() {
