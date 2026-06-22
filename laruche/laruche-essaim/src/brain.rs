@@ -1926,6 +1926,25 @@ async fn recuperer_abeilles_pertinentes(
     out
 }
 
+/// Porte lexicale : un skill rappelé par fuzzy match n'est injecté que si la requête partage
+/// un token significatif (≥4 car.) avec son nom ou sa description. Empêche un skill hors-sujet
+/// d'être injecté sur une requête vague (ex. `google-workspace` sur « et sur le 6? »). Les
+/// recherches web passent par le chemin FORCÉ (`intention_recherche`) : cette porte ne les
+/// pénalise donc pas.
+fn skill_pertinent_lexical(query: &str, name: &str, content: &str) -> bool {
+    let q = query.to_lowercase();
+    let tokens: Vec<&str> = q
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|t| t.chars().count() >= 4)
+        .collect();
+    if tokens.is_empty() {
+        return false; // requête trop vague → aucun skill fuzzy
+    }
+    let desc = yaml_frontmatter_field(content, "description").unwrap_or_default();
+    let haystack = format!("{name} {desc}").to_lowercase();
+    tokens.iter().any(|t| haystack.contains(t))
+}
+
 async fn recuperer_skills_pertinents(
     memoire: &Arc<dyn MemoireCognitive>,
     query: &str,
@@ -1966,6 +1985,10 @@ async fn recuperer_skills_pertinents(
             let name = yaml_frontmatter_field(content, "name")
                 .unwrap_or_else(|| node_id.trim_start_matches("capacities.skills.").to_string());
             if out.iter().any(|(n, _)| n == &name) {
+                continue;
+            }
+            // Porte de pertinence : ignore les matches fuzzy hors-sujet (bruit sur requête vague).
+            if !skill_pertinent_lexical(query, &name, content) {
                 continue;
             }
             out.push((name, content.to_string()));
