@@ -444,6 +444,10 @@ body.feed-docked { padding-right: 360px; }
 .message-row.assistant { align-self:flex-start; }
 .message-row.error-row { align-self:center; max-width:90%; }
 .message-row.tool-row { align-self:stretch; max-width:100%; margin:2px 0 2px 44px; }
+/* Bande des skills appliqués : annotation discrète, alignée avec le texte (pas une bulle). */
+.skills-strip { align-self:flex-start; max-width:80%; margin:1px 0 3px 62px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.skills-strip-label { font-size:11px; color:var(--muted); }
+.skill-chip { display:inline-flex; align-items:center; gap:4px; background:rgba(245,158,11,0.14); color:var(--amber); border:1px solid rgba(245,158,11,0.25); padding:1px 8px; border-radius:10px; font-size:11px; line-height:1.6; }
 .avatar {
   width:48px; height:48px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
@@ -3027,6 +3031,7 @@ LaRuche.Chat = (function(){
   var sessionId = null;
   var currentAssistantMsg = null;
   var currentAssistantRow = null;
+  var currentSkillsStrip = null; // bande compacte des skills appliqués pour le tour courant
   var isStreaming = false;
   var autoTtsEnabled = false;
   var noThinkEnabled = false;
@@ -3108,15 +3113,7 @@ LaRuche.Chat = (function(){
         break;
       
       case 'skill_applied':
-        var chip = document.createElement('div');
-        chip.style.cssText = 'display:inline-block; background:rgba(245,158,11,0.2); color:var(--amber); padding:2px 8px; border-radius:12px; font-size:11px; margin-top:4px; margin-bottom:4px;';
-        chip.innerHTML = '🧠 Skill appliqué : <strong>' + data.name + '</strong>';
-        if (currentAssistantMsg) {
-          currentAssistantMsg.appendChild(chip);
-        } else {
-          var r = addMessage('assistant','');
-          r.msgEl.appendChild(chip);
-        }
+        addSkillChip(data.name);
         break;
       case 'skill_proposed':
         LaRuche.Toast.show('✨ Skill né : ' + data.name, 'ok');
@@ -3358,6 +3355,7 @@ LaRuche.Chat = (function(){
     var fullMsg = msg + fileData.text;
     startPlanMission(msg);
     addMessage('user', msg, fileData.attachments);
+    currentSkillsStrip = null; // nouveau tour → nouvelle bande de skills
     _feedBody = null; // nouveau tour → nouvelle étape (les cartes précédentes restent, repliées)
     var usageOnNewTurn=document.getElementById('feedUsage');
     if(usageOnNewTurn)usageOnNewTurn.textContent='';
@@ -3509,6 +3507,38 @@ LaRuche.Chat = (function(){
     document.body.appendChild(ov);
   }
 
+  // Bande compacte « Skills : … » pour le tour courant — PAS une bulle de chat (pas d'avatar,
+  // pas de fond de bulle). Un seul élément par tour, chips dédupliqués.
+  function addSkillChip(name) {
+    var container = document.getElementById('chatContainer');
+    if (!currentSkillsStrip || !currentSkillsStrip.isConnected) {
+      currentSkillsStrip = document.createElement('div');
+      currentSkillsStrip.className = 'skills-strip';
+      var label = document.createElement('span');
+      label.className = 'skills-strip-label';
+      label.textContent = 'Skills :';
+      currentSkillsStrip.appendChild(label);
+      container.appendChild(currentSkillsStrip);
+    }
+    if (currentSkillsStrip.querySelector('[data-skill="' + CSS.escape(name) + '"]')) return; // déjà là
+    var chip = document.createElement('span');
+    chip.className = 'skill-chip';
+    chip.dataset.skill = name;
+    chip.textContent = '🧠 ' + name;
+    currentSkillsStrip.appendChild(chip);
+    scrollToBottom();
+  }
+
+  // Avatar abeille affiché uniquement sur le DERNIER message assistant (visibility → garde
+  // l'alignement, pas de saut de mise en page). Recalculé à chaque ajout de message.
+  function updateAssistantAvatars() {
+    var rows = document.querySelectorAll('#chatContainer .message-row.assistant');
+    for (var i = 0; i < rows.length; i++) {
+      var av = rows[i].querySelector('.avatar.assistant-avatar');
+      if (av) av.style.visibility = (i === rows.length - 1) ? 'visible' : 'hidden';
+    }
+  }
+
   function addMessage(role, text, attachments) {
     var container = document.getElementById('chatContainer');
     var row = document.createElement('div');
@@ -3546,6 +3576,7 @@ LaRuche.Chat = (function(){
     wrapper.appendChild(ts);
     row.appendChild(wrapper);
     container.appendChild(row);
+    if(role==='assistant') updateAssistantAvatars();
     scrollToBottom();
     return {row:row, msgEl:msg, tsEl:ts};
   }
@@ -3564,6 +3595,7 @@ LaRuche.Chat = (function(){
       currentAssistantRow.remove();
     }
     currentAssistantMsg=null; currentAssistantRow=null;
+    updateAssistantAvatars();
   }
 
   function addErrorMessage(text) {
