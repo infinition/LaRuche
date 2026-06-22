@@ -88,6 +88,7 @@ struct NodeMeta {
     label: Option<String>,
     one_liner: Option<String>,
     importance: Option<f32>,
+    source: Option<String>,
 }
 
 /// Backend mémoire natif (en RAM). Cloner via `Arc`.
@@ -456,7 +457,11 @@ impl MemoireCognitive for NativeBackend {
             if let Some(m) = meta.remove(&id) {
                 meta.insert(cible_self.clone(), m);
             }
-            let keys: Vec<String> = meta.keys().filter(|k| k.starts_with(&prefix)).cloned().collect();
+            let keys: Vec<String> = meta
+                .keys()
+                .filter(|k| k.starts_with(&prefix))
+                .cloned()
+                .collect();
             for k in keys {
                 if let Some(m) = meta.remove(&k) {
                     let suffix = k.strip_prefix(&prefix).unwrap_or(&k);
@@ -473,6 +478,7 @@ impl MemoireCognitive for NativeBackend {
         label: &str,
         one_liner: Option<&str>,
         importance: Option<f32>,
+        source: Option<&str>,
     ) -> Result<Value> {
         let id = node_id.trim_matches('.').to_string();
         if id.is_empty() {
@@ -486,6 +492,7 @@ impl MemoireCognitive for NativeBackend {
                 label: Some(label.to_string()),
                 one_liner: one_liner.map(|s| s.to_string()),
                 importance,
+                source: source.map(|s| s.to_string()),
             },
         );
         Ok(json!({ "created": id, "label": label, "parent_id": node_parent_id(node_id) }))

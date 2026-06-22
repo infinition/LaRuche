@@ -268,8 +268,14 @@ impl Abeille for AbeilleWatcherCreate {
             _ => laruche_watchers::WatcherType::File,
         };
 
-        let profile_id = args.get("profile_id").and_then(|v| v.as_str()).map(|s| s.to_string());
-        let model = args.get("model").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let profile_id = args
+            .get("profile_id")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        let model = args
+            .get("model")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
         let watcher = laruche_watchers::Watcher {
             id: Uuid::new_v4(),
             name,
@@ -529,8 +535,14 @@ impl Abeille for AbeilleKanbanCreate {
             .get("description")
             .and_then(|v| v.as_str())
             .unwrap_or("");
-        let profile_id = arguments.get("profile_id").and_then(|v| v.as_str()).map(|s| s.to_string());
-        let model = arguments.get("model").and_then(|v| v.as_str()).map(|s| s.to_string());
+        let profile_id = arguments
+            .get("profile_id")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        let model = arguments
+            .get("model")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
         let task = {
             let mut board = self.kanban_board.write().await;
             board.create(title.to_string(), desc.to_string(), None, profile_id, model)

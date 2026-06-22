@@ -118,10 +118,13 @@ mod tests {
     #[tokio::test]
     async fn next_returns_the_next_executable_task() {
         let kanban_board = board();
-        let task = kanban_board
-            .write()
-            .await
-            .create("Traiter".into(), "Description".into(), None, None, None);
+        let task = kanban_board.write().await.create(
+            "Traiter".into(),
+            "Description".into(),
+            None,
+            None,
+            None,
+        );
         let tool = KanbanNext { kanban_board };
 
         let response = tool

@@ -14,8 +14,8 @@
 mod abeilles_local;
 mod auth_user;
 mod local_inference;
-mod missions;
 mod mcp;
+mod missions;
 mod profiles;
 mod sync;
 mod systray;
@@ -768,7 +768,9 @@ async fn instancier_blueprint(
         let mut cron = state.essaim_cron.write().await;
         cron.add(task)
     };
-    Ok(Json(serde_json::json!({ "status": "ok", "cron_id": cron_id })))
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "cron_id": cron_id }),
+    ))
 }
 
 // ======================== Handlers ========================
@@ -1285,7 +1287,8 @@ async fn get_swarm_models(
             if profile.provider == "ollama" {
                 continue; // already listed above
             }
-            let is_profile_local = profile.base_url.contains("127.0.0.1") || profile.base_url.contains("localhost");
+            let is_profile_local =
+                profile.base_url.contains("127.0.0.1") || profile.base_url.contains("localhost");
             for model_name in &profile.models {
                 if is_profile_local && models.iter().any(|m| m.is_local && m.name == *model_name) {
                     continue; // Skip duplicate of auto-detected local model
@@ -1586,13 +1589,16 @@ async fn api_register_service(
         return Err(StatusCode::BAD_REQUEST);
     }
     let mut custom = state.custom_services.write().await;
-    custom.insert(req.name.clone(), CustomService {
-        name: req.name.clone(),
-        capability: req.capability.clone(),
-        url: req.url.clone(),
-        protocol: req.protocol.clone(),
-    });
-    
+    custom.insert(
+        req.name.clone(),
+        CustomService {
+            name: req.name.clone(),
+            capability: req.capability.clone(),
+            url: req.url.clone(),
+            protocol: req.protocol.clone(),
+        },
+    );
+
     // P4 periodic loop will pick this up for mDNS if public_proxy (or auto-announce)
     Ok(Json(serde_json::json!({ "success": true })))
 }
@@ -1608,7 +1614,6 @@ async fn api_unregister_service(
         Err(StatusCode::NOT_FOUND)
     }
 }
-
 
 // --- P3: OpenAI-compatible /v1/chat/completions ---
 #[derive(Deserialize)]
@@ -1629,13 +1634,13 @@ async fn api_v1_chat_completions(
 ) -> axum::response::Response {
     use axum::response::IntoResponse;
     use futures_util::StreamExt;
-    
+
     // 1. Resolve provider based on req.model or active_model
     let mut provider_id = "ollama".to_string();
     let mut api_key = "".to_string();
     let mut api_base = None;
     let ollama_url = state.config.ollama_url.clone();
-    
+
     {
         let profiles = state.profiles.read().await;
         let mut found = false;
@@ -1671,7 +1676,9 @@ async fn api_v1_chat_completions(
         &api_key,
         api_base.as_deref(),
         &ollama_url,
-    ).await {
+    )
+    .await
+    {
         Ok(mut stream) => {
             if req.stream {
                 let model_name = req.model.clone();
@@ -1688,8 +1695,9 @@ async fn api_v1_chat_completions(
                             },
                             "finish_reason": if chunk.done { Some("stop") } else { None::<&str> }
                         }]
-                    }).to_string();
-                    
+                    })
+                    .to_string();
+
                     let mut out = format!("data: {}\n\n", json_str);
                     if chunk.done {
                         out.push_str("data: [DONE]\n\n");
@@ -1727,7 +1735,11 @@ async fn api_v1_chat_completions(
             let res = serde_json::json!({
                 "error": { "message": e.to_string(), "type": "server_error" }
             });
-            (axum::http::StatusCode::INTERNAL_SERVER_ERROR, axum::Json(res)).into_response()
+            (
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                axum::Json(res),
+            )
+                .into_response()
         }
     }
 }
@@ -1966,6 +1978,92 @@ async fn api_memory_write(
     }
 }
 
+/// POST /api/memory/enrich - Spawn an agent to enrich a node
+async fn api_memory_enrich(
+    State(state): State<Arc<AppState>>,
+    _headers: axum::http::HeaderMap,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let node_id = body["node_id"]
+        .as_str()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .ok_or(StatusCode::BAD_REQUEST)?
+        .to_string();
+    let prompt = body["prompt"]
+        .as_str()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .ok_or(StatusCode::BAD_REQUEST)?
+        .to_string();
+    let item_id = body["item_id"].as_str().map(|s| s.to_string());
+
+    let mut config = state.essaim_config.read().await.clone();
+    if let Some(review_model) = &config.review_model {
+        if !review_model.trim().is_empty() {
+            config.model = review_model.clone();
+        }
+    }
+
+    let agent_id = uuid::Uuid::new_v4();
+    let registry = state.essaim_registry.clone();
+    let state_clone = state.clone();
+
+    let task = format!(
+        "Tu dois enrichir le noeud cognitif '{}'.\nVoici la requête de l'utilisateur : '{}'.\nLis le noeud avec 'memory_read_node', effectue les recherches nécessaires, puis utilise 'memory_write' pour ajouter tes trouvailles dans ce noeud.",
+        node_id, prompt
+    );
+    let context = Some(node_id.to_string());
+
+    tokio::spawn(async move {
+        tracing::info!(agent_id = %agent_id, task = %task, "Subagent spawned for memory enrichment");
+        let _ = state_clone.events.write().await.emit(
+            laruche_events::EventKind::AgentStarted,
+            "api_memory_enrich",
+            serde_json::json!({ "agent_id": agent_id, "node_id": node_id, "item_id": item_id }),
+        );
+
+        match laruche_essaim::subagent::lancer_sous_agent(
+            &task,
+            context.as_deref(),
+            registry,
+            &config,
+        )
+        .await
+        {
+            Ok(result) => {
+                tracing::info!(agent_id = %agent_id, "Memory enrichment agent finished");
+                if let Some(id) = item_id {
+                    let new_content =
+                        format!("{}\n\n**Synthèse LaRuche :**\n{}", prompt, result.summary);
+                    let _ = state_clone.memoire.update_item(&id, &new_content).await;
+                    let _ = state_clone.events.write().await.emit(
+                        laruche_events::EventKind::AgentFinished,
+                        "api_memory_enrich",
+                        serde_json::json!({ "agent_id": agent_id, "item_id": id, "status": "ok" }),
+                    );
+                }
+            }
+            Err(e) => {
+                tracing::error!(agent_id = %agent_id, error = %e, "Memory enrichment agent failed");
+                if let Some(id) = item_id {
+                    let new_content = format!("{}\n\n**Erreur LaRuche :**\n{}", prompt, e);
+                    let _ = state_clone.memoire.update_item(&id, &new_content).await;
+                    let _ = state_clone.events.write().await.emit(
+                        laruche_events::EventKind::AgentFinished,
+                        "api_memory_enrich",
+                        serde_json::json!({ "agent_id": agent_id, "item_id": id, "status": "error" }),
+                    );
+                }
+            }
+        }
+    });
+
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "agent_id": agent_id }),
+    ))
+}
+
 /// GET /api/memory/node/:id — read a cognitive-map node with children and active items.
 async fn api_memory_node(
     State(state): State<Arc<AppState>>,
@@ -2042,10 +2140,15 @@ async fn api_memory_node_create(
     let label = body["label"].as_str().unwrap_or("");
     let one_liner = body["one_liner"].as_str();
     let importance = body["importance"].as_f64().map(|f| f as f32);
+    let source = body["source"].as_str();
     if node_id.is_empty() || label.is_empty() {
         return Err(StatusCode::BAD_REQUEST);
     }
-    match state.memoire.create_node(node_id, label, one_liner, importance).await {
+    match state
+        .memoire
+        .create_node(node_id, label, one_liner, importance, source)
+        .await
+    {
         Ok(value) => Ok(Json(serde_json::json!({ "status": "ok", "result": value }))),
         Err(e) => Ok(Json(
             serde_json::json!({ "status": "error", "error": e.to_string() }),
@@ -2064,8 +2167,12 @@ async fn api_memory_node_update(
     let label = body["label"].as_str();
     let one_liner = body["one_liner"].as_str();
     let importance = body["importance"].as_f64().map(|f| f as f32);
-    
-    match state.memoire.update_node(node_id, label, one_liner, importance).await {
+
+    match state
+        .memoire
+        .update_node(node_id, label, one_liner, importance)
+        .await
+    {
         Ok(value) => Ok(Json(serde_json::json!({ "status": "ok", "result": value }))),
         Err(e) => Ok(Json(
             serde_json::json!({ "status": "error", "error": e.to_string() }),
@@ -2085,7 +2192,11 @@ async fn api_memory_node_move(
         .map(|s| s.trim().trim_matches('.'))
         .filter(|s| !s.is_empty())
         .ok_or(StatusCode::BAD_REQUEST)?;
-    let new_parent = body["new_parent"].as_str().unwrap_or("").trim().trim_matches('.');
+    let new_parent = body["new_parent"]
+        .as_str()
+        .unwrap_or("")
+        .trim()
+        .trim_matches('.');
     let last = old.rsplit('.').next().unwrap_or(old);
     let new_id = if new_parent.is_empty() {
         last.to_string()
@@ -2093,13 +2204,20 @@ async fn api_memory_node_move(
         format!("{new_parent}.{last}")
     };
     let prot = |s: &str| {
-        s == "system" || s == "capacities" || s.starts_with("system.") || s.starts_with("capacities.")
+        s == "system"
+            || s == "capacities"
+            || s.starts_with("system.")
+            || s.starts_with("capacities.")
     };
     if prot(old) || prot(&new_id) {
-        return Ok(Json(serde_json::json!({ "status": "error", "error": "noeud systeme non deplacable" })));
+        return Ok(Json(
+            serde_json::json!({ "status": "error", "error": "noeud systeme non deplacable" }),
+        ));
     }
     if new_id == old || new_id.starts_with(&format!("{old}.")) {
-        return Ok(Json(serde_json::json!({ "status": "error", "error": "deplacement invalide (cycle ou identique)" })));
+        return Ok(Json(
+            serde_json::json!({ "status": "error", "error": "deplacement invalide (cycle ou identique)" }),
+        ));
     }
     match state.memoire.renommer_sous_arbre(old, &new_id).await {
         Ok(n) => Ok(Json(
@@ -2298,7 +2416,11 @@ async fn api_memory_export_okf(
         .cloned()
         .unwrap_or_else(|| "okf-export".to_string());
     let node = q.get("node").map(|s| s.as_str()).filter(|s| !s.is_empty());
-    match state.memoire.export_okf(std::path::Path::new(&dir), node).await {
+    match state
+        .memoire
+        .export_okf(std::path::Path::new(&dir), node)
+        .await
+    {
         Ok(n) => Json(serde_json::json!({ "ok": true, "files": n, "dir": dir })),
         Err(e) => Json(serde_json::json!({ "ok": false, "error": e.to_string() })),
     }
@@ -2348,7 +2470,8 @@ async fn api_memory_export_zip(
         .export_okf(&tmp, node)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR);
-    let bytes = result.and_then(|_| zip_dir_to_bytes(&tmp).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR));
+    let bytes =
+        result.and_then(|_| zip_dir_to_bytes(&tmp).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR));
     let _ = std::fs::remove_dir_all(&tmp); // best-effort cleanup
     let bytes = bytes?;
     let fname = match node {
@@ -2357,7 +2480,10 @@ async fn api_memory_export_zip(
     };
     Ok((
         [
-            (axum::http::header::CONTENT_TYPE, "application/zip".to_string()),
+            (
+                axum::http::header::CONTENT_TYPE,
+                "application/zip".to_string(),
+            ),
             (
                 axum::http::header::CONTENT_DISPOSITION,
                 format!("attachment; filename=\"{fname}\""),
@@ -3032,7 +3158,11 @@ async fn api_create_mission(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
-    let objective = body["objective"].as_str().unwrap_or_default().trim().to_string();
+    let objective = body["objective"]
+        .as_str()
+        .unwrap_or_default()
+        .trim()
+        .to_string();
     if objective.is_empty() {
         return Json(serde_json::json!({"error": "objective requis"}));
     }
@@ -3140,7 +3270,14 @@ async fn api_mission_dossier(
     let read = |suffix: &str| {
         let n = format!("{base}.{suffix}");
         let mem = state.memoire.clone();
-        async move { mem.read_node(&n).await.ok().as_ref().map(items_of).unwrap_or_default() }
+        async move {
+            mem.read_node(&n)
+                .await
+                .ok()
+                .as_ref()
+                .map(items_of)
+                .unwrap_or_default()
+        }
     };
     let synthese = read("synthese").await;
     let findings = read("findings").await;
@@ -3410,7 +3547,10 @@ async fn api_list_skills(State(state): State<Arc<AppState>>) -> Json<serde_json:
             for child in children {
                 let id = child["id"].as_str().or_else(|| child["node_id"].as_str());
                 let Some(id) = id else { continue };
-                let name = id.strip_prefix("capacities.skills.").unwrap_or(id).to_string();
+                let name = id
+                    .strip_prefix("capacities.skills.")
+                    .unwrap_or(id)
+                    .to_string();
                 // Charge le contenu pour extraire la description.
                 let mut description = child["label"].as_str().unwrap_or("").to_string();
                 if let Ok(node) = state.memoire.read_node(id).await {
@@ -3602,7 +3742,10 @@ async fn api_create_watcher(
         last_run: None,
         run_count: 0,
         last_state: None,
-        model: body["model"].as_str().filter(|s| !s.is_empty()).map(|s| s.to_string()),
+        model: body["model"]
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string()),
         profile_id: body["profile_id"]
             .as_str()
             .filter(|s| !s.is_empty())
@@ -4041,7 +4184,10 @@ async fn api_get_context_stats(
     let session_id = params.get("session_id");
     let messages = if let Some(sid_str) = session_id {
         if let Ok(sid) = uuid::Uuid::parse_str(sid_str) {
-            sessions.get(&sid).map(|s| s.messages.len() as u32).unwrap_or(0)
+            sessions
+                .get(&sid)
+                .map(|s| s.messages.len() as u32)
+                .unwrap_or(0)
         } else {
             0
         }
@@ -4138,6 +4284,12 @@ async fn api_save_provider_config(
     }
     if let Some(t) = body["temperature"].as_f64() {
         cg.temperature = t as f32;
+    }
+    if body.get("review_model").is_some() {
+        cg.review_model = body["review_model"]
+            .as_str()
+            .map(|s| s.to_string())
+            .filter(|s| !s.is_empty());
     }
     let result = serde_json::json!({
         "status": "ok",
@@ -4655,17 +4807,17 @@ async fn api_models_use(
         let mut cfg = state.profiles.write().await;
         // Crée le profil SEULEMENT s'il n'existe pas (sinon on n'écrase ni son
         // provider, ni sa base_url, ni sa clé — on ajoute juste le modèle).
-        let prof = cfg
-            .profiles
-            .entry(profile_id.clone())
-            .or_insert_with(|| profiles::ProviderProfile {
-                provider: provider.clone(),
-                name: disp.clone(),
-                base_url: base_url.clone(),
-                api_key: String::new(),
-                models: vec![],
-                visibilite: profiles::Visibilite::Prive,
-            });
+        let prof =
+            cfg.profiles
+                .entry(profile_id.clone())
+                .or_insert_with(|| profiles::ProviderProfile {
+                    provider: provider.clone(),
+                    name: disp.clone(),
+                    base_url: base_url.clone(),
+                    api_key: String::new(),
+                    models: vec![],
+                    visibilite: profiles::Visibilite::Prive,
+                });
         if !prof.models.contains(&name) {
             prof.models.push(name.clone());
         }
@@ -4697,7 +4849,9 @@ async fn api_models_use(
 
     sync_essaim_from_profiles(&state).await;
     save_persistent_state(&state).await;
-    Json(serde_json::json!({"status": "ok", "profile_id": profile_id, "model": name, "capability": capability}))
+    Json(
+        serde_json::json!({"status": "ok", "profile_id": profile_id, "model": name, "capability": capability}),
+    )
 }
 
 /// GET /api/capabilities/selection — sélection courante de service par capacité.
@@ -6405,9 +6559,7 @@ async fn ws_chat_handler(
     State(state): State<Arc<AppState>>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> axum::response::Response {
-    let user_id = params
-        .get("user_id")
-        .and_then(|s| Uuid::parse_str(s).ok());
+    let user_id = params.get("user_id").and_then(|s| Uuid::parse_str(s).ok());
     ws.on_upgrade(move |socket| ws_chat_connection(socket, state, user_id))
 }
 
@@ -6443,7 +6595,7 @@ async fn ws_chat_connection(
         };
 
         let msg_type = incoming["type"].as_str().unwrap_or("message");
-        
+
         // Handle "subscribe" — reattach to an existing running session
         if msg_type == "subscribe" {
             let sessions_dir = std::path::Path::new("sessions");
@@ -6452,7 +6604,9 @@ async fn ws_chat_connection(
                 if let Ok(id) = Uuid::parse_str(session_id_str) {
                     // Try to load from disk if not in memory
                     if !sessions.contains_key(&id) {
-                        if let Ok(loaded) = laruche_essaim::Session::charger(&sessions_dir.join(format!("{}.json", id))) {
+                        if let Ok(loaded) = laruche_essaim::Session::charger(
+                            &sessions_dir.join(format!("{}.json", id)),
+                        ) {
                             sessions.insert(id, loaded);
                         }
                     }
@@ -6490,7 +6644,7 @@ async fn ws_chat_connection(
             }
             continue;
         }
-        
+
         if msg_type == "steer" {
             let _ = sender
                 .send(ws::Message::Text(
@@ -6535,26 +6689,28 @@ async fn ws_chat_connection(
             s.user_id = auth_user_id;
             sessions.insert(session_id, s);
         }
-        
+
         // Immediate persistence — save right after creating (before agent runs)
         if let Some(s) = sessions.get(&session_id) {
             let _ = s.sauvegarder();
         }
-        
+
         // Create or reuse broadcast channel
         let (tx, mut rx) = if let Some(s) = sessions.get_mut(&session_id) {
             if let Some(existing_tx) = &s.event_tx {
                 (existing_tx.clone(), existing_tx.subscribe())
             } else {
-                let (new_tx, new_rx) = tokio::sync::broadcast::channel::<laruche_essaim::ChatEvent>(256);
+                let (new_tx, new_rx) =
+                    tokio::sync::broadcast::channel::<laruche_essaim::ChatEvent>(256);
                 s.event_tx = Some(new_tx.clone());
                 (new_tx, new_rx)
             }
         } else {
-            let (new_tx, new_rx) = tokio::sync::broadcast::channel::<laruche_essaim::ChatEvent>(256);
+            let (new_tx, new_rx) =
+                tokio::sync::broadcast::channel::<laruche_essaim::ChatEvent>(256);
             (new_tx, new_rx)
         };
-        
+
         drop(sessions);
 
         // Send session_id back so the client can persist it
@@ -6729,7 +6885,7 @@ async fn ws_chat_connection(
             let mut sessions = state_clone.essaim_sessions.write().await;
             sessions.insert(session_id, session.clone());
             drop(sessions);
-            
+
             // Notify globally that session finished
             let last_msg = session
                 .messages
@@ -6741,7 +6897,11 @@ async fn ws_chat_connection(
                     _ => String::new(),
                 })
                 .unwrap_or_default();
-            let preview = if last_msg.len() > 100 { format!("{}...", &last_msg[..97]) } else { last_msg };
+            let preview = if last_msg.len() > 100 {
+                format!("{}...", &last_msg[..97])
+            } else {
+                last_msg
+            };
             let _ = state_clone.events.write().await.emit(
                 laruche_events::EventKind::SessionFinished,
                 &actor_react,
@@ -7058,7 +7218,9 @@ async fn api_plugin_get(
     if !path.exists() {
         return Err(StatusCode::NOT_FOUND);
     }
-    let content = tokio::fs::read_to_string(&path).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let content = tokio::fs::read_to_string(&path)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(serde_json::json!({ "content": content })))
 }
 
@@ -7070,12 +7232,14 @@ async fn api_plugin_save(
     let content = body["content"].as_str().ok_or(StatusCode::BAD_REQUEST)?;
     let path = std::path::Path::new("plugins").join(format!("{}.json", name));
     tokio::fs::create_dir_all("plugins").await.ok();
-    tokio::fs::write(&path, content).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    
+    tokio::fs::write(&path, content)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
     // Reload plugins
     let plugins_dir = std::path::Path::new("plugins");
     laruche_essaim::abeilles::plugins::charger_plugins(plugins_dir, &state.essaim_registry);
-    
+
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
@@ -7085,13 +7249,15 @@ async fn api_plugin_delete(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let path = std::path::Path::new("plugins").join(format!("{}.json", name));
     if path.exists() {
-        tokio::fs::remove_file(&path).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        tokio::fs::remove_file(&path)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     }
-    
+
     // Reload plugins
     let plugins_dir = std::path::Path::new("plugins");
     laruche_essaim::abeilles::plugins::charger_plugins(plugins_dir, &state.essaim_registry);
-    
+
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
@@ -7131,8 +7297,10 @@ async fn api_mcp_save_server(
     let path = std::path::Path::new("mcp_servers.json");
     let mut servers: laruche_essaim::mcp_client::McpServersFile = if path.exists() {
         let content = std::fs::read_to_string(path).unwrap_or_default();
-        serde_json::from_str(&content).unwrap_or_else(|_| laruche_essaim::mcp_client::McpServersFile {
-            mcpServers: std::collections::HashMap::new(),
+        serde_json::from_str(&content).unwrap_or_else(|_| {
+            laruche_essaim::mcp_client::McpServersFile {
+                mcpServers: std::collections::HashMap::new(),
+            }
         })
     } else {
         laruche_essaim::mcp_client::McpServersFile {
@@ -7140,17 +7308,19 @@ async fn api_mcp_save_server(
         }
     };
 
-    servers.mcpServers.insert(name.clone(), laruche_essaim::mcp_client::McpServerConfig {
-        command,
-        args,
-    });
+    servers.mcpServers.insert(
+        name.clone(),
+        laruche_essaim::mcp_client::McpServerConfig { command, args },
+    );
 
     if let Ok(json) = serde_json::to_string_pretty(&servers) {
         let _ = std::fs::write(path, json);
     }
 
     // Reload all MCP tools
-    state.essaim_registry.supprimer_par_origine(laruche_essaim::abeille::ToolOrigin::Mcp);
+    state
+        .essaim_registry
+        .supprimer_par_origine(laruche_essaim::abeille::ToolOrigin::Mcp);
     let _ = laruche_essaim::mcp_client::charger_mcp_servers(path, &state.essaim_registry).await;
 
     axum::Json(serde_json::json!({ "status": "ok", "name": name }))
@@ -7164,7 +7334,9 @@ async fn api_mcp_delete_server(
     let path = std::path::Path::new("mcp_servers.json");
     if path.exists() {
         if let Ok(content) = std::fs::read_to_string(path) {
-            if let Ok(mut servers) = serde_json::from_str::<laruche_essaim::mcp_client::McpServersFile>(&content) {
+            if let Ok(mut servers) =
+                serde_json::from_str::<laruche_essaim::mcp_client::McpServersFile>(&content)
+            {
                 servers.mcpServers.remove(&name);
                 if let Ok(json) = serde_json::to_string_pretty(&servers) {
                     let _ = std::fs::write(path, json);
@@ -7174,7 +7346,9 @@ async fn api_mcp_delete_server(
     }
 
     // Reload all MCP tools
-    state.essaim_registry.supprimer_par_origine(laruche_essaim::abeille::ToolOrigin::Mcp);
+    state
+        .essaim_registry
+        .supprimer_par_origine(laruche_essaim::abeille::ToolOrigin::Mcp);
     let _ = laruche_essaim::mcp_client::charger_mcp_servers(path, &state.essaim_registry).await;
 
     axum::Json(serde_json::json!({ "status": "deleted", "name": name }))
@@ -7433,7 +7607,10 @@ async fn main() -> Result<()> {
             }
         }
         if !to_remove.is_empty() {
-            tracing::info!(removed = to_remove.len(), "Profils doublons nettoyés au démarrage");
+            tracing::info!(
+                removed = to_remove.len(),
+                "Profils doublons nettoyés au démarrage"
+            );
         }
     }
 
@@ -7562,17 +7739,47 @@ async fn main() -> Result<()> {
     // Nœuds de la carte (fichiers .md virtuels). Créés vides si absents (idempotent).
     // `capacities.*` = écosystème d'outils (protégé) ; `system.*` = socle prompt/SOUL éditable.
     for (id, label, desc) in [
-        ("capacities", "Capacites", "Ecosysteme : outils, plugins, MCP, skills"),
+        (
+            "capacities",
+            "Capacites",
+            "Ecosysteme : outils, plugins, MCP, skills",
+        ),
         ("capacities.tools", "Outils", "Abeilles natives (builtin)"),
-        ("capacities.plugins", "Plugins", "Outils custom (plugins JSON)"),
-        ("capacities.mcp", "MCP", "Outils servis par des serveurs MCP"),
+        (
+            "capacities.plugins",
+            "Plugins",
+            "Outils custom (plugins JSON)",
+        ),
+        (
+            "capacities.mcp",
+            "MCP",
+            "Outils servis par des serveurs MCP",
+        ),
         ("capacities.skills", "Skills", "Procedures OKF apprises"),
-        ("system", "Systeme", "Sections editables du system prompt (hot-reload, sans redemarrage)"),
-        ("system.prompt", "Identite", "Identite / persona editable (vide = defaut code)"),
-        ("system.behavior", "Comportement", "Regles de comportement editables (vide = defaut code)"),
-        ("system.soul", "SOUL", "Couche de personnalisation injectable (frontmatter enabled)"),
+        (
+            "system",
+            "Systeme",
+            "Sections editables du system prompt (hot-reload, sans redemarrage)",
+        ),
+        (
+            "system.prompt",
+            "Identite",
+            "Identite / persona editable (vide = defaut code)",
+        ),
+        (
+            "system.behavior",
+            "Comportement",
+            "Regles de comportement editables (vide = defaut code)",
+        ),
+        (
+            "system.soul",
+            "SOUL",
+            "Couche de personnalisation injectable (frontmatter enabled)",
+        ),
     ] {
-        let _ = memoire.create_node(id, label, Some(desc), Some(1.0)).await;
+        let _ = memoire
+            .create_node(id, label, Some(desc), Some(1.0), None)
+            .await;
     }
 
     // Skill par défaut « web-research » (procédure search→évalue→fetch→synthèse) — seedé une
@@ -7749,8 +7956,14 @@ async fn main() -> Result<()> {
     let app = Router::new()
         .route("/", get(spa_page))
         .route("/api/status", get(get_status))
-        .route("/api/blueprints", get(get_blueprints).post(api_create_blueprint))
-        .route("/api/blueprints/:id", axum::routing::delete(api_delete_blueprint))
+        .route(
+            "/api/blueprints",
+            get(get_blueprints).post(api_create_blueprint),
+        )
+        .route(
+            "/api/blueprints/:id",
+            axum::routing::delete(api_delete_blueprint),
+        )
         .route("/api/blueprints/:id/instancier", post(instancier_blueprint))
         .route("/api/events", get(api_get_events))
         .route("/api/events/export", get(api_export_events))
@@ -7785,6 +7998,7 @@ async fn main() -> Result<()> {
         .route("/api/memory/suggest", get(api_memory_suggest))
         .route("/api/memory/proposed", get(api_memory_proposed))
         .route("/api/memory/write", post(api_memory_write))
+        .route("/api/memory/enrich", post(api_memory_enrich))
         .route("/api/memory/update", post(api_memory_update))
         .route("/api/memory/delete", post(api_memory_delete))
         .route("/api/memory/node/create", post(api_memory_node_create))
@@ -7795,7 +8009,10 @@ async fn main() -> Result<()> {
         .route("/api/memory/review", post(api_memory_review))
         .route("/api/memory/dream", post(api_memory_dream))
         .route("/api/memory/tree", get(api_memory_tree))
-        .route("/api/system/prompt-defaults", get(api_system_prompt_defaults))
+        .route(
+            "/api/system/prompt-defaults",
+            get(api_system_prompt_defaults),
+        )
         .route("/api/memory/stats", get(api_memory_stats))
         .route("/api/memory/mutations", get(api_memory_mutations))
         .route("/api/memory/export_okf", get(api_memory_export_okf))
@@ -7856,10 +8073,7 @@ async fn main() -> Result<()> {
         )
         .route("/api/missions/:slug/run", post(api_run_mission))
         .route("/api/missions/:slug/dossier", get(api_mission_dossier))
-        .route(
-            "/api/missions/:slug/decompose",
-            post(api_decompose_mission),
-        )
+        .route("/api/missions/:slug/decompose", post(api_decompose_mission))
         .route(
             "/api/missions/:slug",
             post(api_update_mission).delete(api_delete_mission),
@@ -7931,8 +8145,16 @@ async fn main() -> Result<()> {
         .route("/api/memory/import_okf", post(api_memory_import_okf))
         .route("/api/mcp", post(mcp::api_mcp_handler))
         .route("/api/mcp/servers", get(api_mcp_list_servers))
-        .route("/api/mcp/servers/:name", post(api_mcp_save_server).delete(api_mcp_delete_server))
-        .route("/api/plugins/:name", get(api_plugin_get).post(api_plugin_save).delete(api_plugin_delete))
+        .route(
+            "/api/mcp/servers/:name",
+            post(api_mcp_save_server).delete(api_mcp_delete_server),
+        )
+        .route(
+            "/api/plugins/:name",
+            get(api_plugin_get)
+                .post(api_plugin_save)
+                .delete(api_plugin_delete),
+        )
         .route("/api/channels/discord/webhook", post(api_discord_webhook))
         .route("/api/channels/slack/events", post(api_slack_events))
         // Auth routes
@@ -8586,8 +8808,13 @@ async fn main() -> Result<()> {
                 let (tx, _rx) = broadcast::channel::<ChatEvent>(64);
                 let mut config = kanban_state.essaim_config.read().await.clone();
                 if let Some(pid) = &kanban_task.profile_id {
-                    appliquer_profil(&kanban_state, &mut config, pid, kanban_task.model.as_deref())
-                        .await;
+                    appliquer_profil(
+                        &kanban_state,
+                        &mut config,
+                        pid,
+                        kanban_task.model.as_deref(),
+                    )
+                    .await;
                 } else {
                     config.model = current_model;
                 }

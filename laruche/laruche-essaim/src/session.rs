@@ -248,7 +248,12 @@ impl Session {
         self.ajouter_observation_avec_images(tool, result, vec![]);
     }
 
-    pub fn ajouter_observation_avec_images(&mut self, tool: &str, result: &str, images: Vec<String>) {
+    pub fn ajouter_observation_avec_images(
+        &mut self,
+        tool: &str,
+        result: &str,
+        images: Vec<String>,
+    ) {
         self.messages.push(Message::Observation {
             tool: tool.to_string(),
             result: result.to_string(),
@@ -348,7 +353,11 @@ impl Session {
                     // Already included in the assistant text via <tool_call> tags
                     let _ = (name, args);
                 }
-                Message::Observation { tool, result, images } => {
+                Message::Observation {
+                    tool,
+                    result,
+                    images,
+                } => {
                     // Observations from tools are injected as user messages.
                     // Truncate long results to prevent context explosion.
                     let truncated: String = result.chars().take(2000).collect();

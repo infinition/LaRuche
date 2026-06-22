@@ -1010,6 +1010,8 @@ pre:hover .code-copy-btn { opacity:1; }
 .mem2-chip { border:1px solid var(--border); border-radius:18px; background:var(--bg-input); color:var(--text-dim); padding:5px 12px; font-size:11px; font-family:var(--mono); cursor:pointer; }
 .mem2-chip:hover { border-color:var(--amber); color:var(--amber); background:var(--amber-glow); }
 .mem2-item { border:1px solid var(--border); border-radius:10px; background:var(--bg-panel); margin-bottom:14px; overflow:hidden; }
+.mem2-item-agent-call { border-color: var(--amber); background: rgba(245,158,11,0.06); }
+.mem2-item-agent-call .mem2-item-bar { background: rgba(245,158,11,0.2); }
 .mem2-item-bar { display:flex; align-items:center; gap:8px; padding:7px 12px; border-bottom:1px solid var(--border); background:rgba(245,158,11,.04); }
 .mem2-item-id { font-family:var(--mono); font-size:10px; color:var(--amber); }
 .mem2-item-meta { font-size:10px; color:var(--text-muted); margin-left:auto; }
@@ -1022,8 +1024,10 @@ pre:hover .code-copy-btn { opacity:1; }
 .mem2-edit { padding:12px 16px; display:flex; flex-direction:column; gap:8px; }
 .mem2-edit textarea { width:100%; min-height:140px; background:var(--bg-input); border:1px solid var(--amber); color:var(--text); border-radius:6px; padding:10px; font-family:var(--mono); font-size:12.5px; line-height:1.5; resize:vertical; outline:none; }
 .mem2-edit-acts { display:flex; gap:8px; }
-.mem2-add { border:1px dashed var(--border); border-radius:10px; padding:14px; margin-top:6px; }
-.mem2-add textarea { width:100%; min-height:80px; background:var(--bg-input); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:10px; font-family:var(--mono); font-size:12.5px; resize:vertical; outline:none; }
+.mem2-add { border:1px dashed var(--border); border-radius:10px; padding:14px; margin-top:6px; transition: all 0.3s ease; }
+.mem2-add.is-agent-call { border-color: var(--amber); background: rgba(245,158,11,0.06); box-shadow: 0 0 15px rgba(245,158,11,0.1); }
+.mem2-add textarea { width:100%; min-height:80px; background:var(--bg-input); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:10px; font-family:var(--mono); font-size:12.5px; resize:vertical; outline:none; transition: all 0.3s ease; }
+.mem2-add.is-agent-call textarea { border-color: var(--amber); box-shadow: inset 0 0 5px rgba(245,158,11,0.2); }
 .mem2-add textarea:focus { border-color:var(--amber); }
 .mem2-btn-primary { border:1px solid var(--amber); border-radius:6px; background:var(--amber-glow); color:var(--amber); padding:7px 14px; font-size:12px; font-weight:700; cursor:pointer; }
 .mem2-btn-primary:hover { background:rgba(245,158,11,.2); }
@@ -2116,7 +2120,7 @@ LaRuche.Console = (function(){
           sid ? function(){ openSession(sid); } : null);
         break;
       }
-      case 'AgentStarted': {
+      case 'AgentFinished': { if (typeof LaRuche !== 'undefined' && LaRuche.Memory && typeof LaRuche.Memory.current === 'function') { var cnode = LaRuche.Memory.current(); if (cnode) { LaRuche.Memory.loadNode(cnode); } } break; } case 'AgentStarted': {
         // payload: {session_id, prompt} (chat) ou {task_id, prompt} (cron)
         var label = pl.prompt || pl.preview || 'Agent démarré';
         LaRuche.Toast.show('Agent démarré: ' + String(label).substring(0, 60), 'info', 6000,
@@ -2130,7 +2134,7 @@ LaRuche.Console = (function(){
           sid ? function(){ openSession(sid); } : null);
         break;
       }
-      case 'KanbanTask': {
+      case 'MemorySaved': { if (typeof LaRuche !== 'undefined' && LaRuche.Memory && typeof LaRuche.Memory.current === 'function') { var cnode = LaRuche.Memory.current(); if (cnode && pl.node_id && String(cnode) === String(pl.node_id)) { LaRuche.Memory.loadNode(cnode); } } break; } case 'KanbanTask': {
         // payload: {task_id, title}
         var ktitle = pl.title || ('Tâche ' + (tid || '')) ;
         LaRuche.Toast.show('Kanban: ' + String(ktitle).substring(0, 55), 'info', 7000,
@@ -4091,7 +4095,7 @@ LaRuche.Chat = (function(){
   });
 
   return {
-    init:init, enter:enter, leave:leave, handleEvent:handleEvent, sendMessage:sendMessage,
+    init:init, enter:enter, leave:leave, current:function(){return current;}, handleEvent:handleEvent, sendMessage:sendMessage,
     useSuggestion:useSuggestion, newSession:newSession, deleteSession:deleteSession,
     respondApproval:respondApproval, toggleSidebar:toggleSidebar,
     removePendingFile:removePendingFile, loadSessions:loadSessions,
@@ -5400,7 +5404,7 @@ LaRuche.Memory = (function(){
     label = label.trim(); if(!label) return;
     var slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
     if(!slug){ LaRuche.Toast.show('Nom invalide', 'err'); return; }
-    postJson('/api/memory/node/create', {node_id:slug, label:label}).then(function(d){
+    postJson('/api/memory/node/create', {node_id:slug, label:label, source:'ui-admin'}).then(function(d){
       if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Creation impossible','err'); return; }
       LaRuche.Toast.show('Racine "'+slug+'" creee', 'ok');
       loadTree(false);
@@ -5440,6 +5444,14 @@ LaRuche.Memory = (function(){
     return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+d.getFullYear()+' '+p(d.getHours())+':'+p(d.getMinutes());
   }
   // "cree X · maj Y" (maj seulement si differente). "" si aucune date.
+  function formatSource(s){
+    if(!s) return '';
+    if(s === 'ui-admin' || s === 'ui-memory') return '👤 par User';
+    if(s === 'agent-call' || s === 'memory_write' || s === 'agent') return '🐝 par LaRuche';
+    if(s === 'watcher') return '🐝 par LaRuche (Watcher)';
+    return '🔌 par ' + LaRuche.Utils.esc(s);
+  }
+
   function mem2Dates(created, updated){
     var c = mem2FmtTs(created), u = mem2FmtTs(updated);
     if(!c && !u) return '';
@@ -5460,6 +5472,9 @@ LaRuche.Memory = (function(){
     var readOnly = isReadOnly(nodeId);
     // Horodatage du noeud (cree / maj) si fourni par le backend.
     var nd = mem2Dates(currentNode.created_at, currentNode.updated_at);
+    if(currentNode.source) {
+      nd += (nd ? ' · ' : '') + formatSource(currentNode.source);
+    }
     if(nd){ html += '<div class="mem2-nodedates">'+nd+'</div>'; }
     if(locked){
       html += '<div class="mem2-protnote">'+SVG.lock+
@@ -5493,11 +5508,22 @@ LaRuche.Memory = (function(){
             '<button class="mem2-iact danger" data-act="delete" data-id="'+esc(id)+'"'+dis+'>Suppr</button>'+
           '</span>';
         }
-        return '<div class="mem2-item" draggable="true" ondragstart="event.dataTransfer.setData(\'text/plain\',\''+esc(id)+'\')" data-itemwrap="'+esc(id)+'">'+
+        var isAgentCall = it.source === 'agent-call';
+        var isAgentRunning = isAgentCall && content.indexOf('**Synthèse LaRuche :**') === -1 && content.indexOf('**Erreur LaRuche :**') === -1;
+        var agentStatusIcon = '';
+        if (isAgentRunning) {
+          agentStatusIcon = '<span class="agent-spinner" title="Agent en cours..." style="margin-left:6px; display:inline-block; width:10px; height:10px; border:2px solid var(--amber); border-right-color:transparent; border-radius:50%; animation:spin 1s linear infinite;"></span>';
+          acts = ''; // Hide actions while running
+        } else if (isAgentCall) {
+          agentStatusIcon = '<span title="Terminé" style="margin-left:6px; color:var(--green); font-weight:bold;">✓</span>';
+        }
+        var extraClass = isAgentCall ? ' mem2-item-agent-call' : '';
+        return '<div class="mem2-item' + extraClass + '" draggable="true" ondragstart="event.dataTransfer.setData(\'text/plain\',\''+esc(id)+'\')" data-itemwrap="'+esc(id)+'">'+
           '<div class="mem2-item-bar">'+
             '<span class="mem2-item-id">'+esc(id || '(sans id)')+'</span>'+
+            (isAgentCall ? '<span style="margin-left:6px; font-weight:bold; font-size:10px;">[ Mission @LaRuche ]</span>' + agentStatusIcon : '') +
             (locked ? '<span class="mem2-lock" title="Gere par le systeme">'+SVG.lock+'</span>' : '')+
-            '<span class="mem2-item-meta">'+esc(node)+(function(){var d=mem2Dates(it.created_at,it.updated_at);return d?' · '+esc(d):'';})()+'</span>'+
+            '<span class="mem2-item-meta">'+esc(node)+(function(){var d=mem2Dates(it.created_at,it.updated_at);var s=formatSource(it.source);return (d?' · '+esc(d):'')+(s?' · '+s:'');})()+'</span>'+
             acts+
           '</div>'+
           '<div class="mem2-md" data-md="'+esc(id)+'">'+LaRuche.MD.render(content)+'</div>'+
@@ -5528,6 +5554,16 @@ LaRuche.Memory = (function(){
     });
     var addBtn = document.getElementById('mem2AddBtn');
     if(addBtn) addBtn.onclick = function(){ addItem(nodeId); };
+    var ta = document.getElementById('mem2AddText');
+    if(ta) {
+      ta.oninput = function() {
+        var w = document.querySelector('.mem2-add');
+        if (w) {
+          if (this.value.trim().toLowerCase().startsWith('@laruche')) w.classList.add('is-agent-call');
+          else w.classList.remove('is-agent-call');
+        }
+      };
+    }
   }
 
   /* ---- editeur System Prompt / SOUL ---- */
@@ -5713,6 +5749,27 @@ LaRuche.Memory = (function(){
     var ta = document.getElementById('mem2AddText'); if(!ta) return;
     var content = ta.value.trim();
     if(!content){ LaRuche.Toast.show('Contenu requis','warn'); return; }
+    
+    // Intercept @LaRuche for memory enrichment
+    if(content.toLowerCase().startsWith('@laruche')) {
+      var prompt = content.substring(8).trim();
+      ta.value = '';
+      var w = document.querySelector('.mem2-add');
+      if (w) w.classList.remove('is-agent-call');
+      LaRuche.Toast.show('Création de la mission...', 'info');
+      postJson('/api/memory/write', {node_id:nodeId, content:content, source:'agent-call'}).then(function(res){
+        if(res.status==='error' || res.error){ LaRuche.Toast.show(res.error||'Erreur creation','err'); return; }
+        var itemId = res.result || res.id || res.item_id;
+        if (res.result && typeof res.result === 'object') itemId = res.result.item_id || res.result.id;
+        loadNode(nodeId);
+        postJson('/api/memory/enrich', {node_id: nodeId, prompt: prompt, item_id: itemId}).then(function(d){
+          if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Erreur lancement agent','err'); return; }
+          LaRuche.Toast.show('Agent en mission !', 'ok');
+        }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e,'err'); });
+      }).catch(function(e){ LaRuche.Toast.show('Erreur creation: '+e,'err'); });
+      return;
+    }
+
     postJson('/api/memory/write', {node_id:nodeId, content:content, source:'ui-memory'}).then(function(d){
       if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Ecriture impossible','err'); return; }
       LaRuche.Toast.show('Souvenir memorise','ok');
@@ -5925,7 +5982,7 @@ LaRuche.Memory = (function(){
     var newId = parentId + '.' + slug;
     fetch(LaRuche.API.base+'/api/memory/node/create', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({node_id:newId, label:label})
+      body:JSON.stringify({node_id:newId, label:label, source:'ui-admin'})
     }).then(function(r){return r.json();}).then(function(d){
       if(d.error) { LaRuche.Toast.show(d.error, 'err'); return; }
       expanded[parentId] = true;
@@ -5941,7 +5998,7 @@ LaRuche.Memory = (function(){
   }
 
   return {
-    init:init, enter:enter, leave:leave,
+    init:init, enter:enter, leave:leave, current:function(){return current;},
     loadNode:loadNode, setView:setView,
     exportOkf:exportOkf, importOkf:importOkf, triggerDream:triggerDream,
     toggleAll:toggleAll, deleteNode:deleteNode, renameNode:renameNode,
@@ -6155,7 +6212,7 @@ LaRuche.Missions = (function(){
     } catch(e){ LaRuche.Toast.show('Export: '+e,'err'); }
   }
 
-  return { init:init, enter:enter, leave:leave, refresh:refresh, create:create };
+  return { init:init, enter:enter, leave:leave, current:function(){return current;}, refresh:refresh, create:create };
 })();
 
 
@@ -6212,6 +6269,7 @@ LaRuche.Settings = (function(){
       '<div class="settings-row" style="padding:0;"><span class="settings-label">Fallback Models</span><input type="text" id="cfgProvFallback" class="form-input" style="width:120px;padding:2px 6px;" value="'+(provCfg.fallback_models||'')+'" placeholder="claude-3-haiku, ..."></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Max Tokens</span><input type="number" id="cfgProvMaxTokens" class="form-input" style="width:80px;padding:2px 6px;" value="'+(provCfg.max_tokens||4096)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Temperature</span><input type="number" id="cfgProvTemp" class="form-input" style="width:80px;padding:2px 6px;" step="0.1" value="'+(provCfg.temperature||0.7)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Review Model</span><input type="text" id="cfgProvReview" class="form-input" style="width:120px;padding:2px 6px;" value="'+(provCfg.review_model||'')+'" placeholder="ex: gpt-4o"></div>'+
       '<button class="form-btn" onclick="LaRuche.Settings.saveProviderCfg()" style="margin-top:8px;">Sauvegarder</button>'+
       '<div style="font-size:10px;color:var(--text-dim);margin-top:8px">Active: '+(provCfg.provider||'ollama')+' / '+(provCfg.model||'-')+'</div></div>'+
       '<div class="settings-card"><div class="settings-card-title">Voice</div>'+
@@ -6239,7 +6297,7 @@ LaRuche.Settings = (function(){
     try { credsData = await fetch('/api/credentials').then(function(r){return r.json();}); } catch(e) {}
     var allCreds = credsData.credentials || [];
 
-    // Carte dédiée : connexion ChatGPT Codex via abonnement (OAuth).
+    // Carte dǸdiǸe : connexion ChatGPT Codex via abonnement (OAuth).
     var html = '<div class="settings-card" id="codexAuthCard" style="margin-bottom:16px;border:1px solid var(--amber)">'+
       '<div class="settings-card-title">ChatGPT Codex <span style="color:var(--text-dim);font-size:10px;font-weight:normal">— abonnement (OAuth, sans clé API)</span></div>'+
       '<div id="codexAuthBox" style="font-size:12px;color:var(--text-dim)">Chargement…</div>'+
@@ -8171,7 +8229,7 @@ LaRuche.Automations = (function(){
   function enter(){ loadTab(currentTab); }
   function leave(){}
   function refresh(){ loadTab(currentTab); }
-  return { init:init, enter:enter, leave:leave, refresh:refresh };
+  return { init:init, enter:enter, leave:leave, current:function(){return current;}, refresh:refresh };
 })();
 
 /* ── Capacités (Abeilles · Skills · MCP · Plugins) — tableau unifié ── */
@@ -8416,7 +8474,7 @@ LaRuche.Capabilities = (function(){
     document.head.appendChild(st);
   }
 
-  return { init:init, enter:enter, leave:leave, refresh:refresh, addMcp:addMcp, viewRaw:viewRaw, onSearch:onSearch, toggleAll:toggleAll, editMcp:editMcp };
+  return { init:init, enter:enter, leave:leave, current:function(){return current;}, refresh:refresh, addMcp:addMcp, viewRaw:viewRaw, onSearch:onSearch, toggleAll:toggleAll, editMcp:editMcp };
 })();
 
 /* ── Register all page modules ── */

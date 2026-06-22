@@ -566,7 +566,11 @@ impl Abeille for MemoireDeleteNode {
 fn fmt_ts(v: &serde_json::Value) -> String {
     match v.as_i64() {
         Some(ts) if ts > 0 => chrono::DateTime::from_timestamp(ts, 0)
-            .map(|dt| dt.with_timezone(&chrono::Local).format("%d/%m/%Y %H:%M").to_string())
+            .map(|dt| {
+                dt.with_timezone(&chrono::Local)
+                    .format("%d/%m/%Y %H:%M")
+                    .to_string()
+            })
             .unwrap_or_else(|| "?".to_string()),
         _ => "?".to_string(),
     }
@@ -691,12 +695,14 @@ impl Abeille for MemoireCreateNode {
                 "Refus: `{node_id}` est sous un prefixe systeme (tools.*/system.*) reserve."
             )));
         }
-        match self
+        let res = self
             .mem
-            .create_node(node_id, label, one_liner, importance)
-            .await
-        {
-            Ok(_) => Ok(ResultatAbeille::ok(format!("Noeud cree: {node_id} ({label})"))),
+            .create_node(node_id, label, one_liner, importance, None)
+            .await;
+        match res {
+            Ok(_) => Ok(ResultatAbeille::ok(format!(
+                "Noeud cree: {node_id} ({label})"
+            ))),
             Err(e) => Ok(ResultatAbeille::err(format!("Echec create_node: {e}"))),
         }
     }

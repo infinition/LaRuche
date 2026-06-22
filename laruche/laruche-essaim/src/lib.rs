@@ -43,4 +43,4 @@ pub use brain::{
     ApprovalResponse, ChatEvent, EssaimConfig, PlanItem,
 };
 pub use laruche_permissions::PermissionMode;
-pub use session::{Message, Session, Attachment};
+pub use session::{Attachment, Message, Session};

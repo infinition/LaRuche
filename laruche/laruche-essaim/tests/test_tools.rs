@@ -454,8 +454,19 @@ fn test_registry_creation_and_tool_list() {
         "Should have at least 10 built-in tools, got {}",
         names.len()
     );
-    for expected in ["file_read", "read_extract", "file_write", "math_eval", "shell_exec", "web_search", "media_present"] {
-        assert!(names.iter().any(|name| name == expected), "missing built-in tool: {expected}");
+    for expected in [
+        "file_read",
+        "read_extract",
+        "file_write",
+        "math_eval",
+        "shell_exec",
+        "web_search",
+        "media_present",
+    ] {
+        assert!(
+            names.iter().any(|name| name == expected),
+            "missing built-in tool: {expected}"
+        );
     }
 }
 

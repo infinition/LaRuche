@@ -126,11 +126,16 @@ impl Abeille for ToolCall {
         }
         match self.registry.get(tool) {
             None => Ok(ResultatAbeille::err(format!("Outil inconnu: {tool}"))),
-            Some(a) if a.niveau_danger() != NiveauDanger::Safe => Ok(ResultatAbeille::err(format!(
+            Some(a) if a.niveau_danger() != NiveauDanger::Safe => {
+                Ok(ResultatAbeille::err(format!(
                 "'{tool}' requiert une validation : appelle-le DIRECTEMENT (pas via tool_call)."
-            ))),
+            )))
+            }
             Some(_) => {
-                let inner = args.get("args").cloned().unwrap_or_else(|| serde_json::json!({}));
+                let inner = args
+                    .get("args")
+                    .cloned()
+                    .unwrap_or_else(|| serde_json::json!({}));
                 self.registry.executer(tool, inner, ctx).await
             }
         }

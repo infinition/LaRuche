@@ -1,0 +1,1 @@
+use laruche_memoire::MemoireCognitive; use std::sync::Arc; #[tokio::main] async fn main() { let db = laruche_memoire::MemoireSqlite::new("memoire.db").await.unwrap(); let n = db.read_node("capacities.skills.web-research").await; println!("{:?}", n); }

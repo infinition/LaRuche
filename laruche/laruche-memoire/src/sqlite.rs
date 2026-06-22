@@ -157,7 +157,7 @@ fn ensure_node(conn: &Connection, node_id: &str) -> Result<()> {
 fn node_json(conn: &Connection, node_id: &str) -> Result<Value> {
     let row = conn
         .query_row(
-            "SELECT label, one_liner, parent_id, importance, created_at, COALESCE(updated_at, created_at) \
+            "SELECT label, one_liner, parent_id, importance, created_at, COALESCE(updated_at, created_at), source \
              FROM nodes WHERE id=?1",
             [node_id],
             |r| {
@@ -168,17 +168,19 @@ fn node_json(conn: &Connection, node_id: &str) -> Result<Value> {
                     r.get::<_, f32>(3)?,
                     r.get::<_, Option<i64>>(4)?,
                     r.get::<_, Option<i64>>(5)?,
+                    r.get::<_, Option<String>>(6)?,
                 ))
             },
         )
         .optional()?;
-    let (label, one_liner, parent_id, importance, created_at, updated_at) =
-        row.unwrap_or_else(|| {
+    let (label, one_liner, parent_id, importance, created_at, updated_at, source) = row
+        .unwrap_or_else(|| {
             (
                 node_label(node_id),
                 String::new(),
                 node_parent_id(node_id),
                 0.5,
+                None,
                 None,
                 None,
             )
@@ -191,7 +193,8 @@ fn node_json(conn: &Connection, node_id: &str) -> Result<Value> {
         "parent_id": parent_id,
         "importance": importance,
         "created_at": created_at,
-        "updated_at": updated_at
+        "updated_at": updated_at,
+        "source": source,
     }))
 }
 
@@ -249,6 +252,7 @@ impl SqliteBackend {
                label TEXT NOT NULL,
                one_liner TEXT NOT NULL DEFAULT '',
                importance REAL NOT NULL DEFAULT 0.5,
+               source TEXT,
                created_at INTEGER NOT NULL);
              CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(content, node_id);
              CREATE TABLE IF NOT EXISTS mutations(
@@ -258,6 +262,7 @@ impl SqliteBackend {
         // Migration : horodatage de dernière modification (ignore l'erreur si déjà présent).
         let _ = conn.execute("ALTER TABLE items ADD COLUMN updated_at INTEGER", []);
         let _ = conn.execute("ALTER TABLE nodes ADD COLUMN updated_at INTEGER", []);
+        let _ = conn.execute("ALTER TABLE nodes ADD COLUMN source TEXT", []);
         Ok(Self {
             conn: Mutex::new(conn),
             embedder,
@@ -787,9 +792,8 @@ impl MemoireCognitive for SqliteBackend {
         let nodes: Vec<(String, String, String)> = match prefix.map(|p| p.trim_matches('.')) {
             Some(p) if !p.is_empty() => {
                 let like = format!("{p}.%");
-                let mut nstmt = conn.prepare(
-                    "SELECT id, label, one_liner FROM nodes WHERE id=?1 OR id LIKE ?2",
-                )?;
+                let mut nstmt = conn
+                    .prepare("SELECT id, label, one_liner FROM nodes WHERE id=?1 OR id LIKE ?2")?;
                 let v: Vec<(String, String, String)> = nstmt
                     .query_map(rusqlite::params![p, like], |r| {
                         Ok((r.get(0)?, r.get(1)?, r.get(2)?))
@@ -851,7 +855,10 @@ impl MemoireCognitive for SqliteBackend {
             "timestamp: {ts}\n---\n\n# LaRuche — bundle OKF\n\n"
         ));
         for (id, label, _) in &nodes {
-            root.push_str(&format!("- [{label}]({}/index.md)\n", safe_path_segments(id)));
+            root.push_str(&format!(
+                "- [{label}]({}/index.md)\n",
+                safe_path_segments(id)
+            ));
         }
         std::fs::write(dir.join("index.md"), root)?;
         files += 1;
@@ -894,7 +901,7 @@ impl MemoireCognitive for SqliteBackend {
     async fn list_nodes(&self) -> Result<Value> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, parent_id, label, one_liner, created_at, COALESCE(updated_at, created_at) \
+            "SELECT id, parent_id, label, one_liner, created_at, COALESCE(updated_at, created_at), source \
              FROM nodes ORDER BY id",
         )?;
         let rows = stmt.query_map([], |r| {
@@ -907,6 +914,7 @@ impl MemoireCognitive for SqliteBackend {
                 "one_liner": r.get::<_, String>(3)?,
                 "created_at": r.get::<_, Option<i64>>(4)?,
                 "updated_at": r.get::<_, Option<i64>>(5)?,
+                "source": r.get::<_, Option<String>>(6)?,
             }))
         })?;
         let nodes: Vec<Value> = rows.filter_map(|r| r.ok()).collect();
@@ -991,6 +999,7 @@ impl MemoireCognitive for SqliteBackend {
         label: &str,
         one_liner: Option<&str>,
         importance: Option<f32>,
+        source: Option<&str>,
     ) -> Result<Value> {
         let id = node_id.trim_matches('.').to_string();
         if id.is_empty() {
@@ -1003,17 +1012,18 @@ impl MemoireCognitive for SqliteBackend {
         }
         let parent_id = node_parent_id(&id);
         conn.execute(
-            "INSERT INTO nodes(id,parent_id,label,one_liner,importance,created_at,updated_at)
-             VALUES(?1,?2,?3,?4,?5,?6,?6)
+            "INSERT INTO nodes(id,parent_id,label,one_liner,importance,created_at,updated_at,source)
+             VALUES(?1,?2,?3,?4,?5,?6,?6,?7)
              ON CONFLICT(id) DO UPDATE SET label=excluded.label,
-               one_liner=excluded.one_liner, importance=excluded.importance, updated_at=excluded.updated_at",
+               one_liner=excluded.one_liner, importance=excluded.importance, updated_at=excluded.updated_at, source=excluded.source",
             rusqlite::params![
                 id,
                 parent_id,
                 label,
                 one_liner.unwrap_or(""),
                 importance.unwrap_or(0.5),
-                now()
+                now(),
+                source
             ],
         )?;
         conn.execute(

@@ -734,10 +734,16 @@ async fn cmd_auth(args: &[String]) -> Result<()> {
             let tokens = codex_auth::device_code_login(|url, code| {
                 eprintln!("  Pour continuer :\n");
                 eprintln!("    1. Ouvrez cette URL dans votre navigateur :");
-                eprintln!("       {}\n", url.to_string().with(Color::Cyan).underlined());
+                eprintln!(
+                    "       {}\n",
+                    url.to_string().with(Color::Cyan).underlined()
+                );
                 eprintln!("    2. Entrez ce code :");
                 eprintln!("       {}\n", code.to_string().with(AMBER).bold());
-                eprintln!("  {} En attente de connexion... (Ctrl+C pour annuler)", "⏳".dark_grey());
+                eprintln!(
+                    "  {} En attente de connexion... (Ctrl+C pour annuler)",
+                    "⏳".dark_grey()
+                );
             })
             .await?;
 
@@ -789,19 +795,30 @@ async fn cmd_auth(args: &[String]) -> Result<()> {
 
 async fn auth_codex_status() -> Result<()> {
     use laruche_essaim::codex_auth;
-    eprintln!("\n  {} {}\n", "ChatGPT Codex".with(AMBER).bold(), "état".dark_grey());
+    eprintln!(
+        "\n  {} {}\n",
+        "ChatGPT Codex".with(AMBER).bold(),
+        "état".dark_grey()
+    );
     match codex_auth::read_codex_tokens() {
         Some(tokens) => {
             let expiring = codex_auth::access_token_is_expiring(&tokens.access_token, 60);
             if expiring {
-                eprintln!("  {} Connecté (access token expiré — refresh auto au prochain appel).", "~".with(Color::Yellow));
+                eprintln!(
+                    "  {} Connecté (access token expiré — refresh auto au prochain appel).",
+                    "~".with(Color::Yellow)
+                );
             } else {
                 eprintln!("  {} Connecté, token valide.", "✓".green());
             }
             if let Some(acct) = codex_auth::account_id_from_token(&tokens.access_token) {
                 eprintln!("  {} Compte: {}", "i".with(Color::Cyan), acct);
             }
-            eprintln!("  {} Store: {}", "i".with(Color::Cyan), codex_auth::auth_store_path().display());
+            eprintln!(
+                "  {} Store: {}",
+                "i".with(Color::Cyan),
+                codex_auth::auth_store_path().display()
+            );
         }
         None => {
             eprintln!("  {} Non connecté. Lancez: laruche auth codex", "✗".red());

@@ -173,6 +173,7 @@ pub trait MemoireCognitive: Send + Sync {
         _label: &str,
         _one_liner: Option<&str>,
         _importance: Option<f32>,
+        _source: Option<&str>,
     ) -> Result<Value> {
         Err(anyhow!("memory_create_node unsupported by this backend"))
     }

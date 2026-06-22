@@ -12,8 +12,8 @@
 use laruche_essaim::abeilles::{enregistrer_abeilles_builtin, enregistrer_memoire};
 use laruche_essaim::{boucle_react_memoire, AbeilleRegistry, ChatEvent, EssaimConfig, Session};
 use laruche_memoire::{MemoireCognitive, MemoryItem, NativeBackend};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -91,8 +91,14 @@ async fn main() -> anyhow::Result<()> {
 
     tokio::time::sleep(std::time::Duration::from_millis(400)).await;
     println!("\n════════ Bilan ════════");
-    println!("SkillApplied (rappels)  : {}", applied.load(Ordering::Relaxed));
-    println!("SkillProposed (naissances) : {}", proposed.load(Ordering::Relaxed));
+    println!(
+        "SkillApplied (rappels)  : {}",
+        applied.load(Ordering::Relaxed)
+    );
+    println!(
+        "SkillProposed (naissances) : {}",
+        proposed.load(Ordering::Relaxed)
+    );
     assert!(
         applied.load(Ordering::Relaxed) >= 1,
         "le skill seedé aurait dû être rappelé (SkillApplied) au moins une fois"

@@ -49,6 +49,8 @@ pub struct EssaimConfig {
     pub ollama_url: String,
     /// Default model for inference
     pub model: String,
+    /// Model used for specific reviews and missions
+    pub review_model: Option<String>,
     /// Fallback models (tried in order if primary fails)
     #[serde(default)]
     pub fallback_models: Vec<String>,
@@ -146,6 +148,7 @@ impl Default for EssaimConfig {
             compaction_threshold: 0.75,
             cost_per_1k_input: 0.0,
             cost_per_1k_output: 0.0,
+            review_model: None,
             provider: "ollama".to_string(),
             api_key: String::new(),
             api_base: None,
@@ -1169,7 +1172,8 @@ pub async fn boucle_react_memoire_multimodal(
 
     // Rappel automatique des skills appris (boucle d'apprentissage) : injectés dans le
     // contexte trailing avec la mémoire, et signalés via SkillApplied.
-    let ephemeral = augmenter_ephemere_avec_skills(&memoire, prompt_utilisateur, ephemeral, tx).await;
+    let ephemeral =
+        augmenter_ephemere_avec_skills(&memoire, prompt_utilisateur, ephemeral, tx).await;
 
     // Date/heure courante injectée dans le contexte VOLATILE (trailing) — pas dans le préfixe
     // stable, pour ne pas invalider le prefix-cache à chaque tour. Pratique standard : sans
@@ -1623,10 +1627,7 @@ fn parser_frontmatter_enabled(content: &str) -> (bool, String) {
 
 /// Charge un document système (`system.prompt`, `system.soul`) depuis la carte cognitive :
 /// prend le dernier item du nœud, lit son frontmatter. Renvoie le corps si activé et non vide.
-async fn charger_doc_systeme(
-    memoire: &Arc<dyn MemoireCognitive>,
-    node_id: &str,
-) -> Option<String> {
+async fn charger_doc_systeme(memoire: &Arc<dyn MemoireCognitive>, node_id: &str) -> Option<String> {
     let node = memoire.read_node(node_id).await.ok()?;
     let items = node.get("items")?.as_array()?;
     let content = items
@@ -1670,9 +1671,13 @@ async fn recuperer_abeilles_pertinentes(
                 .and_then(serde_json::Value::as_str)
                 .unwrap_or("");
             // Outils = familles capacities.tools / capacities.plugins / capacities.mcp (pas skills).
-            let name = ["capacities.tools.", "capacities.plugins.", "capacities.mcp."]
-                .iter()
-                .find_map(|p| node_id.strip_prefix(p));
+            let name = [
+                "capacities.tools.",
+                "capacities.plugins.",
+                "capacities.mcp.",
+            ]
+            .iter()
+            .find_map(|p| node_id.strip_prefix(p));
             if let Some(name) = name {
                 if !name.is_empty() && !out.iter().any(|n| n == name) {
                     out.push(name.to_string());
@@ -1750,7 +1755,11 @@ fn formater_et_signaler_skills(
     let mut bloc = String::from("# Compétences apprises applicables à cette tâche\n\n");
     for (name, body) in skills {
         let _ = tx.send(ChatEvent::SkillApplied { name: name.clone() });
-        bloc.push_str(&format!("## Skill : {}\n{}\n\n---\n\n", name.trim(), body.trim()));
+        bloc.push_str(&format!(
+            "## Skill : {}\n{}\n\n---\n\n",
+            name.trim(),
+            body.trim()
+        ));
     }
     Some(match ephemeral {
         Some(mem) => format!("{bloc}{mem}"),
@@ -1762,17 +1771,27 @@ fn formater_et_signaler_skills(
 fn intention_recherche(query: &str) -> bool {
     let p = query.to_lowercase();
     const MOTS: &[&str] = &[
-        "recherche", "approfond", "cherche", "renseigne", "trouve", "web", "internet",
-        "actu", "news", "source", "documente", "veille", "compare", "qui est", "quoi de neuf",
+        "recherche",
+        "approfond",
+        "cherche",
+        "renseigne",
+        "trouve",
+        "web",
+        "internet",
+        "actu",
+        "news",
+        "source",
+        "documente",
+        "veille",
+        "compare",
+        "qui est",
+        "quoi de neuf",
     ];
     MOTS.iter().any(|m| p.contains(m))
 }
 
 /// Charge le corps OKF d'un skill (dernier item `type: skill` du nœud).
-async fn charger_skill_corps(
-    memoire: &Arc<dyn MemoireCognitive>,
-    node_id: &str,
-) -> Option<String> {
+async fn charger_skill_corps(memoire: &Arc<dyn MemoireCognitive>, node_id: &str) -> Option<String> {
     let node = memoire.read_node(node_id).await.ok()?;
     let items = node.get("items")?.as_array()?;
     items
@@ -1831,7 +1850,10 @@ mod apprentissage_tests {
         let out = formater_et_signaler_skills(&skills, Some("souvenir X".into()), &tx)
             .expect("contexte non vide quand un skill est rappelé");
         assert!(out.contains("## Skill : veille-ia"), "skill injecté");
-        assert!(out.contains("souvenir X"), "mémoire conservée après le bloc skills");
+        assert!(
+            out.contains("souvenir X"),
+            "mémoire conservée après le bloc skills"
+        );
         match rx.try_recv() {
             Ok(ChatEvent::SkillApplied { name }) => assert_eq!(name, "veille-ia"),
             other => panic!("attendu SkillApplied, eu {other:?}"),
@@ -1851,11 +1873,23 @@ mod apprentissage_tests {
     #[test]
     fn gating_trajectoire_anti_bruit() {
         // Sans outil → jamais de skill, même avec une réponse longue.
-        assert!(!trajectoire_merite_skill("une demande assez longue", &"x".repeat(250), 0));
+        assert!(!trajectoire_merite_skill(
+            "une demande assez longue",
+            &"x".repeat(250),
+            0
+        ));
         // Un seul outil → trajectoire trop simple pour un skill.
-        assert!(!trajectoire_merite_skill("une demande assez longue", &"x".repeat(250), 1));
+        assert!(!trajectoire_merite_skill(
+            "une demande assez longue",
+            &"x".repeat(250),
+            1
+        ));
         // ≥2 outils enchaînés + réponse substantielle → skill mérité.
-        assert!(trajectoire_merite_skill("une demande assez longue", &"x".repeat(250), 2));
+        assert!(trajectoire_merite_skill(
+            "une demande assez longue",
+            &"x".repeat(250),
+            2
+        ));
         // 2 outils mais réponse triviale → non.
         assert!(!trajectoire_merite_skill("ok", "court", 2));
     }
@@ -2594,7 +2628,11 @@ pub async fn boucle_react_multimodal_ext(
                                     res.error.unwrap_or_else(|| "Unknown".to_string())
                                 )
                             };
-                            session.ajouter_observation_avec_images(&name, &observation, res.images);
+                            session.ajouter_observation_avec_images(
+                                &name,
+                                &observation,
+                                res.images,
+                            );
                         }
                         Err(e) => {
                             let _ = tx.send(ChatEvent::ToolResult {
@@ -2768,7 +2806,11 @@ pub async fn boucle_react_multimodal_ext(
                             result.error.unwrap_or_else(|| "Unknown".to_string())
                         )
                     };
-                    session.ajouter_observation_avec_images(&call.name, &observation, result.images);
+                    session.ajouter_observation_avec_images(
+                        &call.name,
+                        &observation,
+                        result.images,
+                    );
                 }
             }
         } // fin de la boucle sur les lots (partition_tool_calls)
