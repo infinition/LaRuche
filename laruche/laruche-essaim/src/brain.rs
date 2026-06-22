@@ -1129,7 +1129,12 @@ async fn assembler_working_set(
                 if id.is_empty() || infra(id) {
                     continue;
                 }
-                let one = n.get("one_liner").and_then(|v| v.as_str()).unwrap_or("");
+                let one = n.get("one_liner").and_then(|v| v.as_str()).unwrap_or("").trim();
+                // Bullet à one-liner VIDE = bruit pur (le nom seul, ex. `decisions.2`, ne dit rien).
+                // Le contenu réel du nœud est injecté via ses items plus bas — on saute le bullet.
+                if one.is_empty() {
+                    continue;
+                }
                 let l = format!("• {id} — {one}");
                 if seen.insert(l.trim().to_string()) {
                     lignes.push(l);
