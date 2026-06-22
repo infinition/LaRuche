@@ -1241,7 +1241,7 @@ pre:hover .code-copy-btn { opacity:1; }
   :root { --sidebar-width:300px; }
   .header-nav { display:none; }
   .mobile-tabs { display:flex; }
-  .sidebar-toggle { display:flex; }
+  .sidebar-toggle { display: none !important; }
   .sidebar-close { display:flex; }
   .chat-sidebar {
     position:fixed; left:0; top:0; bottom:0; z-index:120;
@@ -1250,8 +1250,34 @@ pre:hover .code-copy-btn { opacity:1; }
   }
   .chat-sidebar.open { transform:translateX(0); }
   .sidebar-overlay.open { display:block; z-index:119; }
+
+@media (max-width: 900px) {
+  .chat-sidebar, .mem2-side, .mis-side {
+    position: fixed !important; left: 0; top: 0; bottom: 0; z-index: 120 !important;
+    width: 90% !important; max-width: none !important;
+    transform: translateX(-100%);
+    transition: transform var(--transition-med);
+    box-shadow: 4px 0 24px rgba(0,0,0,0.6);
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border) !important;
+  }
+  .chat-sidebar.open, .mem2-side.open, .mis-side.open {
+    transform: translateX(0);
+  }
+  .mis-layout, .mem2-layout {
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+  }
+  .mem2-main, .mem2-detail, .mis-dossier-body {
+    flex: 1;
+    min-height: 50vh;
+  }
+}
+
   .header { padding:8px 12px; padding-left:calc(12px + var(--safe-left)); padding-right:calc(12px + var(--safe-right)); }
   .header-brand { font-size:14px; }
+  .sidebar-toggle { display: none !important; }
   .header-right { gap:6px; font-size:11px; }
   .chat-container { padding:12px; padding-left:calc(12px + var(--safe-left)); padding-right:calc(12px + var(--safe-right)); gap:10px; }
   .message-row { max-width:92%; }
@@ -1565,7 +1591,7 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 <div class="header">
   <div class="header-left">
     <button class="sidebar-toggle" id="sidebarToggle" onclick="LaRuche.Chat.toggleSidebar()">&#x2630;</button>
-    <div class="honeycomb-loader hc-sm" id="statusHoneycomb" onclick="LaRuche.Router.go('settings')" title="Settings"><div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div><div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div><div class="hexagon hx7"></div></div>
+    <div class="honeycomb-loader hc-sm" id="statusHoneycomb" onclick="LaRuche.Chat.toggleSidebar()" title="Settings"><div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div><div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div><div class="hexagon hx7"></div></div>
     <a class="header-brand" href="#chat" title="LaRuche">LaRuche</a>
 
     <div class="pill pill-swarm" id="pill-swarm"><div class="dot"></div><span id="pill-swarm-text"></span></div>
@@ -4210,13 +4236,31 @@ LaRuche.Chat = (function(){
   }
 
   function toggleSidebar() {
-    document.getElementById('chatSidebar').classList.toggle('open');
-    document.getElementById('sidebarOverlay').classList.toggle('open');
+    if(window.innerWidth > 900) return;
+    var activePage = document.querySelector('.page.active');
+    if(!activePage) return;
+    var side;
+    if(activePage.id === 'page-chat') side = document.getElementById('chatSidebar');
+    else if(activePage.id === 'page-missions') side = activePage.querySelector('.mis-side');
+    else if(activePage.id === 'page-memory') side = activePage.querySelector('.mem2-side');
+    
+    if(side) {
+      side.classList.toggle('open');
+      document.getElementById('sidebarOverlay').classList.toggle('open');
+    }
   }
   function closeSidebarMobile() {
-    if(window.innerWidth<=768){
-      document.getElementById('chatSidebar').classList.remove('open');
-      document.getElementById('sidebarOverlay').classList.remove('open');
+    if(window.innerWidth<=900){
+      var activePage = document.querySelector('.page.active');
+      if(activePage) {
+        var side;
+        if(activePage.id === 'page-chat') side = document.getElementById('chatSidebar');
+        else if(activePage.id === 'page-missions') side = activePage.querySelector('.mis-side');
+        else if(activePage.id === 'page-memory') side = activePage.querySelector('.mem2-side');
+        if(side) side.classList.remove('open');
+      }
+      var overlay = document.getElementById('sidebarOverlay');
+      if(overlay) overlay.classList.remove('open');
     }
   }
 
