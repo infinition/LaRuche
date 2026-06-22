@@ -5974,9 +5974,6 @@ LaRuche.Memory = (function(){
       if(d.error) { LaRuche.Toast.show(d.error, 'err'); return; }
       LaRuche.Toast.show('Dossier supprime', 'ok');
       if(current === id) current = null;
-      treeRaw = treeRaw.filter(function(n){ return n.id !== id && n.id.indexOf(id+'.') !== 0; });
-      buildTree();
-      renderTree();
       renderDoc();
       loadTree(false);
     }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
