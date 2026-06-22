@@ -1382,6 +1382,85 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 .mesh-local { background: rgba(34,197,94,0.15); color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
 .mesh-remote { background: rgba(59,130,246,0.15); color: var(--blue); border: 1px solid rgba(59,130,246,0.3); }
 
+/* ============================== */
+/* GLOBAL FEED DRAWER             */
+/* ============================== */
+.feed-toggle-btn {
+  display:flex; align-items:center; gap:5px;
+  background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.25);
+  color:var(--amber); border-radius:8px; cursor:pointer;
+  padding:5px 10px; font-size:12px; font-weight:600; line-height:1;
+  transition:background .15s, border-color .15s;
+}
+.feed-toggle-btn:hover { background:rgba(245,158,11,0.16); border-color:rgba(245,158,11,0.45); }
+.feed-toggle-btn .feed-toggle-ico { font-size:13px; }
+.feed-drawer-overlay {
+  position:fixed; inset:0; z-index:4000;
+  background:rgba(0,0,0,0.45); opacity:0; pointer-events:none;
+  transition:opacity .22s ease;
+}
+.feed-drawer-overlay.open { opacity:1; pointer-events:auto; }
+.feed-drawer-overlay.anchored { background:transparent; pointer-events:none; }
+.feed-drawer {
+  position:fixed; top:0; right:0; height:100%; width:360px; max-width:92vw;
+  z-index:4001; display:flex; flex-direction:column;
+  background:var(--bg-card); backdrop-filter:blur(10px);
+  border-left:1px solid rgba(245,158,11,0.25);
+  box-shadow:-8px 0 28px rgba(0,0,0,0.5);
+  transform:translateX(105%); transition:transform .26s cubic-bezier(.22,.61,.36,1);
+  pointer-events:auto;
+}
+.feed-drawer-overlay.open .feed-drawer { transform:translateX(0); }
+.feed-drawer-head {
+  display:flex; align-items:center; gap:8px;
+  padding:12px 14px; border-bottom:1px solid var(--border);
+  background:linear-gradient(180deg, rgba(245,158,11,0.07), transparent);
+}
+.feed-drawer-head .fd-title { font-size:14px; font-weight:700; color:var(--amber); flex:1; display:flex; align-items:center; gap:7px; }
+.feed-drawer-head .fd-live-dot { width:7px; height:7px; border-radius:50%; background:var(--text-muted); }
+.feed-drawer-head.live .fd-live-dot { background:var(--amber); box-shadow:0 0 6px var(--amber); animation:fdpulse 1.6s infinite; }
+@keyframes fdpulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+.feed-drawer-head .fd-btn {
+  background:none; border:1px solid var(--border); color:var(--text-dim);
+  border-radius:6px; cursor:pointer; padding:3px 7px; font-size:13px; line-height:1;
+  transition:color .15s, border-color .15s, background .15s;
+}
+.feed-drawer-head .fd-btn:hover { color:var(--amber); border-color:rgba(245,158,11,0.4); }
+.feed-drawer-head .fd-btn.active { color:var(--amber); border-color:var(--amber); background:rgba(245,158,11,0.12); }
+.feed-next {
+  margin:10px 12px 4px; padding:9px 11px; border-radius:9px;
+  background:rgba(245,158,11,0.07); border:1px solid rgba(245,158,11,0.18);
+  font-size:12px; color:var(--text-dim); line-height:1.45;
+}
+.feed-next strong { color:var(--amber); }
+.feed-next .fn-sub { color:var(--text-muted); font-size:11px; }
+.feed-list { flex:1; overflow-y:auto; padding:6px 8px 16px; }
+.feed-row {
+  display:flex; flex-direction:column; gap:3px;
+  padding:8px 9px; margin-bottom:5px; border-radius:8px;
+  background:rgba(255,255,255,0.02); border:1px solid transparent;
+  transition:background .15s, border-color .15s;
+}
+.feed-row:hover { background:rgba(255,255,255,0.04); }
+.feed-row.kind-agent { border-left:2px solid var(--purple); }
+.feed-row.kind-memory { border-left:2px solid var(--amber); }
+.feed-row-top { display:flex; align-items:center; gap:6px; }
+.feed-row-time { font-size:10px; color:var(--text-muted); font-family:var(--mono); white-space:nowrap; }
+.feed-actor {
+  font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.4px;
+  padding:1px 6px; border-radius:5px; white-space:nowrap;
+}
+.feed-actor.actor-user { background:rgba(59,130,246,0.16); color:var(--blue); border:1px solid rgba(59,130,246,0.3); }
+.feed-actor.actor-laruche { background:rgba(245,158,11,0.16); color:var(--amber); border:1px solid rgba(245,158,11,0.3); }
+.feed-row-text { font-size:12px; color:var(--text); line-height:1.4; word-break:break-word; }
+.feed-obj-ref { color:var(--amber); cursor:pointer; text-decoration:underline dotted; text-underline-offset:2px; }
+.feed-obj-ref:hover { text-decoration:underline; }
+.feed-row.kind-agent .feed-row-text { color:var(--text-dim); font-style:italic; }
+.feed-empty { text-align:center; color:var(--text-muted); font-size:12px; padding:30px 12px; }
+@media (max-width:600px) {
+  .feed-drawer { width:100%; max-width:100%; }
+}
+
 </style>
 </head>
 <body>
@@ -1410,6 +1489,9 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
     <a href="#settings" data-page="settings">Settings</a>
   </div>
   <div class="header-right">
+    <button class="feed-toggle-btn" id="feedToggleBtn" onclick="LaRuche.Feed.toggle()" title="Activité en temps réel (mémoire + agent)">
+      <span class="feed-toggle-ico">&#x1F4E1;</span><span>Feed</span>
+    </button>
     <span class="version-pill">Miel v0.2.0</span>
     <div class="user-badge" id="userBadge" style="display:none">
       <div class="user-avatar" id="userAvatar"></div>
@@ -1417,6 +1499,21 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
       <button class="user-logout" onclick="LaRuche.Auth.logout()" title="Deconnexion">&#x2716;</button>
     </div>
   </div>
+</div>
+
+<!-- ============================== -->
+<!-- GLOBAL FEED DRAWER             -->
+<!-- ============================== -->
+<div class="feed-drawer-overlay" id="feedDrawerOverlay">
+  <aside class="feed-drawer" id="feedDrawer" role="complementary" aria-label="Feed d'activité">
+    <div class="feed-drawer-head" id="feedDrawerHead">
+      <span class="fd-title"><span class="fd-live-dot"></span>Feed</span>
+      <button class="fd-btn" id="feedAnchorBtn" onclick="LaRuche.Feed.toggleAnchor()" title="Ancrer / libérer le volet">&#x1F4CC;</button>
+      <button class="fd-btn" onclick="LaRuche.Feed.close()" title="Fermer">&#x2716;</button>
+    </div>
+    <div class="feed-next" id="feedNext">Chargement…</div>
+    <div class="feed-list" id="feedList" aria-live="polite"></div>
+  </aside>
 </div>
 
 <!-- ============================== -->
@@ -8621,10 +8718,186 @@ LaRuche.Router.register('login', LaRuche.Auth);
     }
   };
 
+/* ── Global Feed Drawer ── */
+LaRuche.Feed = (function(){
+  var open = false;
+  var anchored = false;
+  var pollTimer = null;
+  var nextTimer = null;
+  var lastSig = '';
+
+  function esc(s){ return LaRuche.Utils.esc(s==null?'':String(s)); }
+
+  function fmtTime(ts){
+    var d = new Date(ts*1000);
+    var now = new Date();
+    var hm = ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+    var sameDay = d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth() && d.getDate()===now.getDate();
+    if(sameDay) return hm;
+    return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+' '+hm;
+  }
+
+  function humanDelta(ms){
+    if(ms<=0) return 'maintenant';
+    var s = Math.floor(ms/1000);
+    var h = Math.floor(s/3600);
+    var m = Math.floor((s%3600)/60);
+    if(h>=24){ var dd=Math.floor(h/24); var rh=h%24; return rh? (dd+'j'+rh+'h') : (dd+'j'); }
+    if(h>0) return h+'h'+('0'+m).slice(-2);
+    return m+'min';
+  }
+
+  // ── Prochaine action programmée ──────────────────────────────
+  async function refreshNext(){
+    var el = document.getElementById('feedNext');
+    if(!el) return;
+    var TL = LaRuche.Timeline;
+    if(!TL || !TL.nextCron){ el.textContent = 'Aucune action programmée'; return; }
+    var crons=[], missions=[];
+    try{ crons = await fetch('/api/cron').then(function(r){return r.json();}); }catch(e){}
+    try{ missions = await fetch('/api/missions').then(function(r){return r.json();}); }catch(e){}
+    var now = Date.now();
+    var best = null;
+    (crons||[]).forEach(function(c){
+      if(c.enabled===false) return;
+      var nx = TL.nextCron(c.cron_expr, now);
+      if(nx!=null && (!best || nx<best.next)) best = { next:nx, name:c.name||'(cron sans nom)', human:TL.humanCron(c.cron_expr) };
+    });
+    (missions||[]).forEach(function(mi){
+      var cad = mi.cadence || mi.cron_expr || mi.schedule || '';
+      if(!cad) return;
+      var nx = TL.nextCron(cad, now);
+      if(nx!=null && (!best || nx<best.next)) best = { next:nx, name:mi.objective||mi.title||mi.slug||'(mission)', human:TL.humanCron(cad) };
+    });
+    if(!best){ el.innerHTML = 'Aucune action programmée'; return; }
+    el.innerHTML = '&#x23F0; Prochaine : <strong>'+esc(best.name)+'</strong> dans '+esc(humanDelta(best.next-now))+
+      ' <span class="fn-sub">('+esc(best.human||'')+')</span>';
+  }
+
+  // ── Liste des événements ─────────────────────────────────────
+  function rowHtml(ev){
+    var actorCls = (ev.actor==='User') ? 'actor-user' : 'actor-laruche';
+    var kindCls = (ev.kind==='agent') ? 'kind-agent' : 'kind-memory';
+    var objHtml;
+    if(ev.ref){
+      objHtml = '<span class="feed-obj-ref" data-ref="'+esc(ev.ref)+'">'+esc(ev.object)+'</span>';
+    } else {
+      objHtml = esc(ev.object);
+    }
+    return '<div class="feed-row '+kindCls+'">'+
+      '<div class="feed-row-top">'+
+        '<span class="feed-actor '+actorCls+'">'+esc(ev.actor)+'</span>'+
+        '<span class="feed-row-time">'+esc(fmtTime(ev.ts))+'</span>'+
+      '</div>'+
+      '<div class="feed-row-text">'+esc(ev.action)+' '+objHtml+'</div>'+
+    '</div>';
+  }
+
+  function render(events){
+    var list = document.getElementById('feedList');
+    if(!list) return;
+    var sig = String(events.length);
+    for(var i=0;i<events.length;i++){ var e=events[i]; sig += '|'+e.ts+e.actor+e.action+e.object+(e.ref||''); }
+    if(sig === lastSig) return; // pas de changement : évite le flicker
+    lastSig = sig;
+    var atTop = list.scrollTop <= 4;
+    var prevScroll = list.scrollTop;
+    if(!events.length){ list.innerHTML = '<div class="feed-empty">Aucune activité pour le moment.</div>'; return; }
+    var html = '';
+    for(var j=0;j<events.length;j++){ html += rowHtml(events[j]); }
+    list.innerHTML = html;
+    // refs cliquables → onglet Mémoire + ouverture du nœud
+    list.querySelectorAll('.feed-obj-ref').forEach(function(s){
+      s.onclick = function(){
+        var ref = s.dataset.ref;
+        if(!ref) return;
+        LaRuche.Router.go('memory');
+        setTimeout(function(){ if(LaRuche.Memory && LaRuche.Memory.loadNode) LaRuche.Memory.loadNode(ref); }, 60);
+      };
+    });
+    // préserve la position de scroll (sauf si on était tout en haut → reste en haut pour voir le récent)
+    list.scrollTop = atTop ? 0 : prevScroll;
+  }
+
+  async function poll(){
+    var head = document.getElementById('feedDrawerHead');
+    try{
+      var data = await fetch('/api/feed?limit=80').then(function(r){return r.json();});
+      var events = (data && data.events) ? data.events : [];
+      render(events);
+      if(head) head.classList.add('live');
+    }catch(e){
+      if(head) head.classList.remove('live');
+    }
+  }
+
+  // ── Cycle de vie polling ─────────────────────────────────────
+  function startPolling(){
+    if(pollTimer) return;
+    poll(); refreshNext();
+    pollTimer = setInterval(poll, 4000);
+    nextTimer = setInterval(refreshNext, 30000);
+  }
+  function stopPolling(){
+    if(pollTimer){ clearInterval(pollTimer); pollTimer=null; }
+    if(nextTimer){ clearInterval(nextTimer); nextTimer=null; }
+  }
+
+  // ── Ouverture / fermeture ────────────────────────────────────
+  function applyAnchorUI(){
+    var btn = document.getElementById('feedAnchorBtn');
+    var ov = document.getElementById('feedDrawerOverlay');
+    if(btn) btn.classList.toggle('active', anchored);
+    if(ov) ov.classList.toggle('anchored', anchored && open);
+  }
+
+  function openDrawer(){
+    var ov = document.getElementById('feedDrawerOverlay');
+    if(!ov) return;
+    open = true;
+    ov.classList.add('open');
+    applyAnchorUI();
+    startPolling();
+  }
+  function closeDrawer(){
+    var ov = document.getElementById('feedDrawerOverlay');
+    if(!ov) return;
+    open = false;
+    ov.classList.remove('open');
+    ov.classList.remove('anchored');
+    stopPolling();
+  }
+  function toggle(){ open ? closeDrawer() : openDrawer(); }
+
+  function toggleAnchor(){
+    anchored = !anchored;
+    try{ localStorage.setItem('lr_feed_anchored', anchored?'1':'0'); }catch(e){}
+    applyAnchorUI();
+  }
+
+  function init(){
+    try{ anchored = localStorage.getItem('lr_feed_anchored')==='1'; }catch(e){}
+    applyAnchorUI();
+    var ov = document.getElementById('feedDrawerOverlay');
+    if(ov){
+      // clic extérieur (sur l'overlay, pas le drawer) → ferme si non ancré
+      ov.addEventListener('mousedown', function(e){
+        if(e.target===ov && open && !anchored) closeDrawer();
+      });
+    }
+    document.addEventListener('keydown', function(e){
+      if(e.key==='Escape' && open && !anchored) closeDrawer();
+    });
+  }
+
+  return { init:init, toggle:toggle, open:openDrawer, close:closeDrawer, toggleAnchor:toggleAnchor };
+})();
+
 /* ── Boot ── */
 (function(){
   LaRuche.Header.init();
   LaRuche.Voice.init();
+  LaRuche.Feed.init();
   // Check auth first, then init router
   LaRuche.Auth.init(function(authenticated){
     LaRuche.WS.connect();
