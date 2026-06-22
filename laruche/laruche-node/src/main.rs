@@ -7557,8 +7557,9 @@ async fn main() -> Result<()> {
         ("capacities.plugins", "Plugins", "Outils custom (plugins JSON)"),
         ("capacities.mcp", "MCP", "Outils servis par des serveurs MCP"),
         ("capacities.skills", "Skills", "Procedures OKF apprises"),
-        ("system", "Systeme", "Configuration noyau (prompt, soul)"),
-        ("system.prompt", "System Prompt", "Socle de personnalite editable (vide = defaut code)"),
+        ("system", "Systeme", "Sections editables du system prompt (hot-reload, sans redemarrage)"),
+        ("system.prompt", "Identite", "Identite / persona editable (vide = defaut code)"),
+        ("system.behavior", "Comportement", "Regles de comportement editables (vide = defaut code)"),
         ("system.soul", "SOUL", "Couche de personnalisation injectable (frontmatter enabled)"),
     ] {
         let _ = memoire.create_node(id, label, Some(desc), Some(1.0)).await;

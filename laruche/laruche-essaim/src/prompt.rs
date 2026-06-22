@@ -4,32 +4,43 @@
 /// 1. stable identity and behavior,
 /// 2. tool capabilities and call format,
 /// 3. dynamic/custom context.
+/// Assemble le system prompt à partir de sections ÉDITABLES (chargées de la carte cognitive,
+/// hot-reload par tour) et de sections VERROUILLÉES (protocole machine-critique, codé en dur).
+///
+/// - `identity_override` (nœud `system.prompt`) → remplace l'identité par défaut.
+/// - `behavior_override` (nœud `system.behavior`) → remplace le comportement par défaut.
+/// - `custom_instructions` (nœud `system.soul`) → couche d'instructions additionnelle.
+/// - Verrouillé (jamais éditable) : liste d'outils + format `<tool_call>` + format `<plan>`.
+///   Éditer ces formats casserait le tool-calling → ils restent dans le code.
 pub fn build_system_prompt(
     tools_schema: &serde_json::Value,
-    persona_override: Option<&str>,
+    identity_override: Option<&str>,
+    behavior_override: Option<&str>,
     capability_index: Option<&str>,
     custom_instructions: Option<&str>,
 ) -> String {
     let mut prompt = String::new();
-    match persona_override {
-        // Socle éditable (nœud `system.prompt`) : remplace l'identité/comportement codés en
-        // dur. Le PROTOCOLE machine-critique (format <tool_call>, liste d'outils, <plan>) est
-        // TOUJOURS ré-attaché ensuite — non éditable — pour ne jamais casser le tool-calling.
+    // 1) Identité (éditable) ou défaut codé.
+    match identity_override {
         Some(o) if !o.trim().is_empty() => {
             prompt.push_str(o.trim());
             prompt.push_str("\n\n");
-            prompt.push_str(&section_outils(tools_schema));
-            push_capability_index(&mut prompt, capability_index);
-            prompt.push_str(&section_planification());
         }
-        _ => {
-            prompt.push_str(&section_identite_stable());
-            prompt.push_str(&section_outils(tools_schema));
-            push_capability_index(&mut prompt, capability_index);
-            prompt.push_str(&section_planification());
-            prompt.push_str(&section_comportement());
-        }
+        _ => prompt.push_str(&section_identite_stable()),
     }
+    // 2) Protocole VERROUILLÉ + outils générés + index de capacités.
+    prompt.push_str(&section_outils(tools_schema));
+    push_capability_index(&mut prompt, capability_index);
+    prompt.push_str(&section_planification());
+    // 3) Comportement (éditable) ou défaut codé.
+    match behavior_override {
+        Some(o) if !o.trim().is_empty() => {
+            prompt.push_str(o.trim());
+            prompt.push_str("\n\n");
+        }
+        _ => prompt.push_str(&section_comportement()),
+    }
+    // 4) Instructions additionnelles (SOUL).
     if let Some(instructions) = custom_instructions {
         prompt.push_str(&section_contexte_dynamique(instructions));
     }
@@ -140,7 +151,7 @@ mod tests {
     #[test]
     fn prompt_place_sections_stables_avant_outils_et_custom() {
         let tools = serde_json::json!([{"name":"file_read","description":"read","parameters":{}}]);
-        let prompt = build_system_prompt(&tools, None, None, Some("custom volatile"));
+        let prompt = build_system_prompt(&tools, None, None, None, Some("custom volatile"));
 
         let env = prompt.find("## Environnement").unwrap();
         let outils = prompt.find("## Outils disponibles").unwrap();

@@ -5149,7 +5149,7 @@ LaRuche.Memory = (function(){
   }
   // system.prompt / system.soul : editables par l'admin via l'editeur dedie
   function isSystemEditor(id){
-    return id === 'system.prompt' || id === 'system.soul';
+    return id === 'system.prompt' || id === 'system.behavior' || id === 'system.soul';
   }
 
   // SVG inline (heritent currentColor)
@@ -5167,6 +5167,7 @@ LaRuche.Memory = (function(){
   function nodeIcon(id, hasKids){
     if(id === 'system') return SVG.system;
     if(id === 'system.prompt') return SVG.prompt;
+    if(id === 'system.behavior') return SVG.system;
     if(id === 'system.soul') return SVG.soul;
     if(id === 'capacities.skills' || id.indexOf('capacities.skills.') === 0) return SVG.file;
     if(id === 'capacities' || id.indexOf('capacities.') === 0
@@ -5535,8 +5536,8 @@ LaRuche.Memory = (function(){
         taValue = rawContent; // on garde le frontmatter visible/editable
       }
     }
-    var title = isSoul ? 'SOUL — personnalite' : 'System Prompt';
-    var icon = isSoul ? SVG.soul : SVG.prompt;
+    var title = isSoul ? 'SOUL — personnalite' : (nodeId === 'system.behavior' ? 'Comportement' : 'Identite');
+    var icon = isSoul ? SVG.soul : (nodeId === 'system.behavior' ? SVG.system : SVG.prompt);
     var html = '<div class="mem2-syseditor">'+
       '<div class="mem2-syseditor-head">'+
         '<h3>'+icon+esc(title)+'</h3>'+

@@ -100,10 +100,13 @@ pub struct EssaimConfig {
     /// au lieu des ~30 schémas. `None` = comportement historique. Rempli par tour, non persisté.
     #[serde(skip)]
     pub relevant_tools: Option<Vec<String>>,
-    /// Socle de personnalité éditable (nœud `system.prompt`). Si `Some`+non vide, remplace
-    /// l'identité/comportement codés en dur (le protocole reste verrouillé). Rempli par tour.
+    /// Identité éditable (nœud `system.prompt`). Si `Some`+non vide, remplace l'identité codée.
+    /// Rempli par tour (hot-reload). Le protocole reste verrouillé.
     #[serde(skip)]
     pub system_prompt_override: Option<String>,
+    /// Comportement éditable (nœud `system.behavior`). Idem, remplace le comportement par défaut.
+    #[serde(skip)]
+    pub behavior_override: Option<String>,
     /// Modèle auxiliaire pour les tâches de fond (curation/extraction). `None` = même modèle.
     /// Pointer un petit modèle rapide évite de concurrencer le KV-cache du chat principal.
     #[serde(default)]
@@ -153,6 +156,7 @@ impl Default for EssaimConfig {
             stable_toolset: false,
             relevant_tools: None,
             system_prompt_override: None,
+            behavior_override: None,
             aux_model: None,
             permission_mode: default_permission_mode(),
             permission_rules: Vec::new(),
@@ -1126,6 +1130,7 @@ pub async fn boucle_react_memoire_multimodal(
     // (fichiers .md virtuels, format OKF avec frontmatter `enabled`). Chargés par tour ;
     // si absents/désactivés → on retombe sur le prompt par défaut codé.
     cfg.system_prompt_override = charger_doc_systeme(&memoire, "system.prompt").await;
+    cfg.behavior_override = charger_doc_systeme(&memoire, "system.behavior").await;
     if let Some(soul) = charger_doc_systeme(&memoire, "system.soul").await {
         cfg.custom_instructions = Some(soul);
     }
@@ -1919,6 +1924,7 @@ pub async fn boucle_react_multimodal_ext(
     let system_prompt = build_system_prompt(
         &tool_schema,
         config.system_prompt_override.as_deref(),
+        config.behavior_override.as_deref(),
         Some(&capability_index),
         config.custom_instructions.as_deref(),
     );
