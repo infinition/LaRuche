@@ -1113,7 +1113,11 @@ async fn assembler_working_set(
         )
         .await
     {
-        let infra = |id: &str| id.starts_with("system") || id.starts_with("capacities");
+        // `system.*`/`capacities.*` = infrastructure (sections du prompt, catalogue d'outils) ;
+        // `orphans.*` = nœuds supprimés en attente de purge (jamais pertinents comme « souvenir »).
+        let infra = |id: &str| {
+            id.starts_with("system") || id.starts_with("capacities") || id.starts_with("orphans")
+        };
         // Nœuds activés (one-liners), hors infrastructure.
         if let Some(nodes) = pack.raw.get("nodes").and_then(|v| v.as_array()) {
             for n in nodes {

@@ -2360,7 +2360,6 @@ async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::MemoireCogni
         return;
     };
     let mut n = 0usize;
-    let mut slugs_disque: std::collections::HashSet<String> = std::collections::HashSet::new();
     for e in rd.flatten() {
         let p = e.path();
         if !p.is_dir() {
@@ -2376,7 +2375,6 @@ async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::MemoireCogni
         let Some(slug) = p.file_name().and_then(|x| x.to_str()).filter(|s| !s.is_empty()) else {
             continue;
         };
-        slugs_disque.insert(slug.to_string());
         let node_id = format!("capacities.skills.{slug}");
         // Remplace l'item existant (skill = item unique).
         if let Ok(node) = memoire.read_node(&node_id).await {
@@ -2398,34 +2396,34 @@ async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::MemoireCogni
     if n > 0 {
         tracing::info!(count = n, "skills synchronises depuis disque (SKILL.md -> SQL)");
     }
-    // Réconciliation des SUPPRESSIONS : le disque est source de vérité pour les skills.
-    // Tout nœud `capacities.skills.<slug>` SQL sans dossier `skills/<slug>/` correspondant est
-    // supprimé (ex. méta-skills d'autres frameworks d'agents retirés du disque).
-    if let Ok(nodes) = memoire.list_nodes().await {
-        if let Some(arr) = nodes.as_array() {
-            let mut supprimes = 0usize;
-            for nd in arr {
-                let id = nd
-                    .get("node_id")
-                    .or_else(|| nd.get("id"))
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("");
-                let Some(slug) = id.strip_prefix("capacities.skills.") else {
-                    continue;
-                };
-                if slug.is_empty() || slug.contains('.') {
-                    continue; // pas un slug de skill direct
-                }
-                if !slugs_disque.contains(slug) {
-                    if memoire.delete_node(id).await.is_ok() {
-                        supprimes += 1;
-                    }
-                }
-            }
-            if supprimes > 0 {
-                tracing::info!(count = supprimes, "skills SQL orphelins supprimes (absents du disque)");
+    // Purge ciblée des MÉTA-SKILLS d'autres frameworks d'agents (third-party/Claude Code/Codex…),
+    // importés à tort : ils décrivent un AUTRE agent, pas LaRuche. DENYLIST explicite — surtout
+    // PAS un diff disque « supprime tout ce qui n'est pas sur disque » (ça détruirait les skills
+    // créés par l'agent ou seedés en code, comme arxiv_search / web_research). Hard-delete :
+    // delete_node reparente vers `orphans.*`, donc on supprime aussi l'orphelin résultant.
+    const META_SKILLS_A_PURGER: &[&str] = &[
+        "third-party agent",
+        "third-party agent-skill-authoring",
+        "claude-code",
+        "codex",
+        "opencode",
+    ];
+    let mut purges = 0usize;
+    for slug in META_SKILLS_A_PURGER {
+        let node_id = format!("capacities.skills.{slug}");
+        if memoire.read_node(&node_id).await.is_err() {
+            continue; // absent → rien à faire
+        }
+        if let Ok(r) = memoire.delete_node(&node_id).await {
+            purges += 1;
+            // delete_node a déplacé vers orphans.<base>_<ts> → hard-delete cet orphelin.
+            if let Some(orphan) = r.get("relocated_to").and_then(|v| v.as_str()) {
+                let _ = memoire.delete_node(orphan).await;
             }
         }
+    }
+    if purges > 0 {
+        tracing::info!(count = purges, "meta-skills d'autres frameworks purges (denylist)");
     }
 }
 
