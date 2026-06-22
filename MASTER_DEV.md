@@ -1676,10 +1676,10 @@ LARUCHE_MEMOIRE_BACKEND=sidecar cargo run -p laruche-node
 - (Gemini) `@LaRuche` dans la DB, fixes suppression de nœuds (read_node pur, orphans), UI mobile/dashboard.
 
 ## 10.4 Backlog RÉEL restant (haute confiance, code-vérifié)
-- **Levier 1** — contexte working-set (« infini ») : ❌ pas fait. Le gros pari archi.
-- **Levier 3** — mémoire mesh CRDT (moonshot, le titre) : ❌ pas fait.
+- **Levier 1** — contexte working-set (« infini ») : 🟡 **1re tranche faite** (`assembler_working_set` : recall BUDGÉTÉ par caractères au lieu d'un top-N fixe). Reste : activation/atlas, sources « récents » + « nœud actif », budget token réel.
+- **Levier 3** — mémoire mesh CRDT (moonshot) : 🟡 **1re tranche faite** (fédération : `GET /api/memory/export_changes?since=`, `POST /api/memory/import_changes`, `POST /api/memory/mesh_pull {peer}` — pull+dédup des faits d'un node pair). Reste : sync auto/bidirectionnelle, idempotency keys, réconciliation CRDT complète.
 - **Feed v2** — ✅ crons (dernière exéc) + missions (dernière itération) loggés dans `/api/feed`. Reste : **watchers** (pas de ts par-événement) + attribution `move`/`create_node` (mineur, défaut LaRuche).
-- **P7** — push global `state_changed` (au-delà du poll Feed) : partiel.
+- **P7** — réactivité UI : 🟡 **lite fait** (`GET /api/state/version` = ts dernière mutation, l'UI poll pour savoir si rafraîchir). Reste : vrai canal push `state_changed` (broadcast/SSE) si besoin.
 - **§P5 audit (0 fichier = NON fait)** : `reasoning_effort`, `cache_control` Anthropic, `web_render` (Playwright), notebook `.ipynb`, **auth OTP/password**. ~~grep contenu~~ → ✅ **`memory_grep`** (sous-chaîne insensible casse, trait+sqlite+native+abeille).
 - **Watchers** : boucle autonome fichier/RSS→tâche→notif = **à confirmer** (webhooks Discord/HTTP présents).
 - `cargo test --workspace` complet : jamais lancé.

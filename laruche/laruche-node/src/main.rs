@@ -2352,6 +2352,142 @@ async fn api_memory_grep(
     )
 }
 
+/// Importe une liste de faits `{node_id, content}` dans la mémoire (dédup exact). (imported, skipped).
+async fn importer_changes(
+    state: &Arc<AppState>,
+    items: &[serde_json::Value],
+    src: &str,
+) -> (usize, usize) {
+    let (mut imported, mut skipped) = (0usize, 0usize);
+    for it in items {
+        let node = it["node_id"].as_str().unwrap_or("").trim();
+        let content = it["content"].as_str().unwrap_or("");
+        if node.is_empty() || content.trim().is_empty() {
+            continue;
+        }
+        // Dédup exact : si un item identique existe déjà dans ce nœud, on saute.
+        let exists = state
+            .memoire
+            .grep(content, Some(8))
+            .await
+            .ok()
+            .and_then(|g| {
+                g["items"].as_array().map(|a| {
+                    a.iter().any(|x| {
+                        x["node_id"].as_str() == Some(node) && x["content"].as_str() == Some(content)
+                    })
+                })
+            })
+            .unwrap_or(false);
+        if exists {
+            skipped += 1;
+            continue;
+        }
+        let _ = state
+            .memoire
+            .write(
+                laruche_memoire::MemoryItem::new(node.to_string(), content.to_string())
+                    .with_source(src),
+            )
+            .await;
+        imported += 1;
+    }
+    (imported, skipped)
+}
+
+/// GET /api/memory/export_changes?since=<ts> — faits (op=write) écrits depuis `since`, pour la
+/// fédération mesh (Levier 3, 1re tranche). Exclut projections système/capacities.
+async fn api_memory_export_changes(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Json<serde_json::Value> {
+    let since = q.get("since").and_then(|s| s.parse::<i64>().ok()).unwrap_or(0);
+    let muts = state
+        .memoire
+        .mutations(Some(250))
+        .await
+        .unwrap_or_else(|_| serde_json::json!({}));
+    let items: Vec<serde_json::Value> = muts["mutations"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .filter(|m| {
+                    m["op"].as_str() == Some("write")
+                        && m["ts"].as_i64().unwrap_or(0) > since
+                        && {
+                            let n = m["node_id"].as_str().unwrap_or("");
+                            !n.starts_with("capacities") && !n.starts_with("system")
+                        }
+                })
+                .map(|m| serde_json::json!({ "node_id": m["node_id"], "content": m["content"], "ts": m["ts"] }))
+                .collect()
+        })
+        .unwrap_or_default();
+    let count = items.len();
+    Json(serde_json::json!({ "items": items, "count": count }))
+}
+
+/// POST /api/memory/import_changes {items:[{node_id,content}], source?} — applique des faits (dédup).
+async fn api_memory_import_changes(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let src = body["source"].as_str().unwrap_or("mesh").to_string();
+    let empty: Vec<serde_json::Value> = vec![];
+    let items = body["items"].as_array().unwrap_or(&empty);
+    let (imported, skipped) = importer_changes(&state, items, &src).await;
+    Json(serde_json::json!({ "imported": imported, "skipped": skipped }))
+}
+
+/// POST /api/memory/mesh_pull {peer, since?} — tire les faits d'un node PAIR (Miel) et les importe
+/// localement. Première brique de la mémoire COLLECTIVE du mesh (Levier 3).
+async fn api_memory_mesh_pull(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let peer = body["peer"]
+        .as_str()
+        .unwrap_or("")
+        .trim()
+        .trim_end_matches('/')
+        .to_string();
+    if peer.is_empty() {
+        return Json(serde_json::json!({ "error": "peer manquant (ex. http://192.168.1.20:8419)" }));
+    }
+    let since = body["since"].as_i64().unwrap_or(0);
+    let url = format!("{peer}/api/memory/export_changes?since={since}");
+    let data: serde_json::Value = match reqwest::get(&url).await {
+        Ok(r) => match r.json().await {
+            Ok(v) => v,
+            Err(e) => return Json(serde_json::json!({ "error": format!("json pair: {e}") })),
+        },
+        Err(e) => return Json(serde_json::json!({ "error": format!("contact pair: {e}") })),
+    };
+    let empty: Vec<serde_json::Value> = vec![];
+    let items = data["items"].as_array().unwrap_or(&empty);
+    let src = format!("mesh:{peer}");
+    let (imported, skipped) = importer_changes(&state, items, &src).await;
+    Json(serde_json::json!({ "pulled_from": peer, "imported": imported, "skipped": skipped }))
+}
+
+/// GET /api/state/version — ts de la dernière mutation mémoire (P7 lite : l'UI poll pour savoir
+/// si rafraîchir, sans canal push).
+async fn api_state_version(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let v = state
+        .memoire
+        .mutations(Some(1))
+        .await
+        .ok()
+        .and_then(|m| {
+            m["mutations"]
+                .as_array()
+                .and_then(|a| a.first())
+                .and_then(|x| x["ts"].as_i64())
+        })
+        .unwrap_or(0);
+    Json(serde_json::json!({ "version": v }))
+}
+
 /// Acteur d'une mutation mémoire d'après son `src` (source/raison). UI → User, sinon LaRuche.
 fn feed_actor(src: &str) -> &'static str {
     let s = src.trim().to_lowercase();
@@ -8157,6 +8293,10 @@ async fn main() -> Result<()> {
         .route("/api/memory/consolidate", post(api_memory_consolidate))
         .route("/api/feed", get(api_feed))
         .route("/api/memory/grep", get(api_memory_grep))
+        .route("/api/memory/export_changes", get(api_memory_export_changes))
+        .route("/api/memory/import_changes", post(api_memory_import_changes))
+        .route("/api/memory/mesh_pull", post(api_memory_mesh_pull))
+        .route("/api/state/version", get(api_state_version))
         .route("/api/memory/tree", get(api_memory_tree))
         .route(
             "/api/system/prompt-defaults",

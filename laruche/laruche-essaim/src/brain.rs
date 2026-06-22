@@ -1086,6 +1086,46 @@ pub async fn boucle_react_memoire(
     .await
 }
 
+/// **Levier 1 — assembleur de WORKING-SET (1re tranche).** Au lieu d'un top-N fixe, on récupère
+/// large puis on garde les souvenirs les plus pertinents **sous un budget de caractères** (≈ tokens).
+/// Le prompt reste stable et petit ; l'info est *récupérée* à la demande, pas accumulée.
+/// Fondation : à enrichir (activation/atlas, sources « récents » + « nœud actif », budget token réel).
+async fn assembler_working_set(
+    memoire: &Arc<dyn MemoireCognitive>,
+    prompt: &str,
+    budget_chars: usize,
+) -> Option<String> {
+    let pack = memoire
+        .search(
+            prompt,
+            SearchOpts {
+                depth: None,
+                limit: Some(18),
+            },
+        )
+        .await
+        .ok()?;
+    let texte = pack.to_prompt_text();
+    if texte.trim().is_empty() {
+        return None;
+    }
+    // Sélection par BUDGET : on garde les lignes (déjà triées par pertinence) jusqu'à la limite.
+    let mut out = String::new();
+    for ligne in texte.lines() {
+        if out.len() + ligne.len() + 1 > budget_chars {
+            break;
+        }
+        out.push_str(ligne);
+        out.push('\n');
+    }
+    let out = out.trim_end().to_string();
+    if out.is_empty() {
+        None
+    } else {
+        Some(out)
+    }
+}
+
 /// Variante multimodale de [`boucle_react_memoire`] pour l'UI WebSocket :
 /// conserve les images et les demandes d'approbation tout en activant la mémoire.
 pub async fn boucle_react_memoire_multimodal(
@@ -1140,34 +1180,15 @@ pub async fn boucle_react_memoire_multimodal(
 
     // Pré-récupération → contexte ÉPHÉMÈRE trailing (PAS dans le system prompt :
     // garde le préfixe stable → cache de préfixe chaud, astuce third-party).
-    let ephemeral = match memoire
-        .search(
-            prompt_utilisateur,
-            SearchOpts {
-                depth: None,
-                limit: Some(8),
-            },
-        )
-        .await
-    {
-        Ok(pack) => {
-            let recall = pack.to_prompt_text();
-            if recall.trim().is_empty() {
-                None
-            } else {
-                let _ = tx.send(ChatEvent::Status {
-                    message: format!(
-                        "Mémoire : {} souvenir(s) injecté(s)",
-                        recall.lines().count()
-                    ),
-                });
-                Some(recall)
-            }
+    // Levier 1 (1re tranche) : working-set BUDGÉTÉ au lieu d'un top-N fixe.
+    let ephemeral = match assembler_working_set(&memoire, prompt_utilisateur, 2400).await {
+        Some(recall) => {
+            let _ = tx.send(ChatEvent::Status {
+                message: format!("Mémoire : working-set {} car.", recall.len()),
+            });
+            Some(recall)
         }
-        Err(e) => {
-            tracing::warn!(error = %e, "pré-récupération mémoire échouée (on continue sans)");
-            None
-        }
+        None => None,
     };
 
     // Rappel automatique des skills appris (boucle d'apprentissage) : injectés dans le
