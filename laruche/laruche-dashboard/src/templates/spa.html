@@ -5940,7 +5940,7 @@ LaRuche.Memory = (function(){
       // ITEM UNIQUE : un nœud système = exactement un item. On supprime les anciens puis on écrit
       // (pas d'accumulation de versions).
       var oldIds = items.map(function(it){ return it.id; }).filter(Boolean);
-      Promise.all(oldIds.map(function(id){ return postJson('/api/memory/delete', {item_id:id, reason:'system-replace'}); }))
+      Promise.all(oldIds.map(function(id){ return postJson('/api/memory/delete', {item_id:id, reason:'ui-admin'}); }))
         .then(function(){ return postJson('/api/memory/write', {node_id:nodeId, content:content, source:'ui-admin'}); })
         .then(function(d){
           if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Ecriture impossible','err'); return; }
@@ -5993,15 +5993,17 @@ LaRuche.Memory = (function(){
     box.querySelector('[data-save]').onclick = function(){
       var next = ta.value.trim();
       if(!next){ LaRuche.Toast.show('Contenu requis','warn'); return; }
-      postJson('/api/memory/update', {item_id:id, content:next}).then(function(d){
-        if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Update impossible','err'); return; }
-        LaRuche.Toast.show('Souvenir mis a jour','ok');
-        // maj local
-        if(currentNode && currentNode.items){
-          currentNode.items.forEach(function(it){ if(String(it.id)===String(id)) it.content = next; });
-        }
-        renderDoc();
-      }).catch(function(e){ LaRuche.Toast.show('Update: '+e,'err'); });
+      var node = (currentNode && (currentNode.node_id || currentNode.id)) || '';
+      // Edit = supprime + réécrit, tagué 'ui-memory' → attribué à User dans le Feed
+      // (l'update direct ne porte pas de src, donc serait attribué a LaRuche).
+      postJson('/api/memory/delete', {item_id:id, reason:'ui-memory'})
+        .then(function(){ return postJson('/api/memory/write', {node_id:node, content:next, source:'ui-memory'}); })
+        .then(function(d){
+          if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Update impossible','err'); return; }
+          LaRuche.Toast.show('Souvenir mis a jour','ok');
+          box.remove();
+          loadNode(node);
+        }).catch(function(e){ LaRuche.Toast.show('Update: '+e,'err'); });
     };
   }
 
