@@ -1678,9 +1678,9 @@ LARUCHE_MEMOIRE_BACKEND=sidecar cargo run -p laruche-node
 ## 10.4 Backlog RÉEL restant (haute confiance, code-vérifié)
 - **Levier 1** — contexte working-set (« infini ») : ❌ pas fait. Le gros pari archi.
 - **Levier 3** — mémoire mesh CRDT (moonshot, le titre) : ❌ pas fait.
-- **Feed v2** — logger crons/watchers/missions DÉCLENCHÉS (pour l'instant : « prochaine action » + activity_log). Attribution `move`/`create_node` reste LaRuche par défaut (mineur).
+- **Feed v2** — ✅ crons (dernière exéc) + missions (dernière itération) loggés dans `/api/feed`. Reste : **watchers** (pas de ts par-événement) + attribution `move`/`create_node` (mineur, défaut LaRuche).
 - **P7** — push global `state_changed` (au-delà du poll Feed) : partiel.
-- **§P5 audit (0 fichier = NON fait)** : `reasoning_effort`, `cache_control` Anthropic, `web_render` (Playwright), notebook `.ipynb`, **auth OTP/password**, **grep contenu (regex)**.
+- **§P5 audit (0 fichier = NON fait)** : `reasoning_effort`, `cache_control` Anthropic, `web_render` (Playwright), notebook `.ipynb`, **auth OTP/password**. ~~grep contenu~~ → ✅ **`memory_grep`** (sous-chaîne insensible casse, trait+sqlite+native+abeille).
 - **Watchers** : boucle autonome fichier/RSS→tâche→notif = **à confirmer** (webhooks Discord/HTTP présents).
 - `cargo test --workspace` complet : jamais lancé.
 

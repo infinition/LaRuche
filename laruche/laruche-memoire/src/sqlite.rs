@@ -719,6 +719,27 @@ impl MemoireCognitive for SqliteBackend {
         Ok(json!({ "count": entries.len(), "mutations": entries }))
     }
 
+    async fn grep(&self, pattern: &str, limit: Option<u8>) -> Result<Value> {
+        let conn = self.conn.lock().unwrap();
+        let like = format!(
+            "%{}%",
+            pattern.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+        );
+        let mut stmt = conn.prepare(
+            "SELECT id, node_id, content FROM items WHERE status='active' AND content LIKE ?1 ESCAPE '\\' ORDER BY id DESC LIMIT ?2",
+        )?;
+        let rows = stmt.query_map(rusqlite::params![like, limit.unwrap_or(30) as i64], |r| {
+            let id: i64 = r.get(0)?;
+            Ok(json!({
+                "id": format!("itm_{id}"),
+                "node_id": r.get::<_, String>(1)?,
+                "content": r.get::<_, String>(2)?,
+            }))
+        })?;
+        let items: Vec<Value> = rows.filter_map(|x| x.ok()).collect();
+        Ok(json!({ "count": items.len(), "items": items }))
+    }
+
     async fn dream(&self) -> Result<Value> {
         let conn = self.conn.lock().unwrap();
         let dups: i64 = conn

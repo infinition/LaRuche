@@ -2417,6 +2417,34 @@ async fn api_feed(
         }
     }
 
+    // 3) Crons exécutés (dernière exécution).
+    {
+        let cron = state.essaim_cron.read().await;
+        for t in cron.list() {
+            if let Some(lr) = t.last_run {
+                events.push(serde_json::json!({
+                    "ts": lr.timestamp(), "actor": "LaRuche", "kind": "cron",
+                    "action": "a exécuté le cron", "object": t.name, "ref": serde_json::Value::Null
+                }));
+            }
+        }
+    }
+    // 4) Missions (dernière itération).
+    {
+        let missions = state.missions.read().await;
+        for m in missions.list() {
+            if let Some(lr) = m.last_run.as_deref() {
+                let ts = chrono::DateTime::parse_from_rfc3339(lr)
+                    .map(|d| d.timestamp())
+                    .unwrap_or(0);
+                events.push(serde_json::json!({
+                    "ts": ts, "actor": "LaRuche", "kind": "mission",
+                    "action": "a avancé la mission", "object": m.slug, "ref": serde_json::Value::Null
+                }));
+            }
+        }
+    }
+
     events.sort_by(|a, b| {
         b["ts"].as_i64().unwrap_or(0).cmp(&a["ts"].as_i64().unwrap_or(0))
     });
@@ -9430,3 +9458,29 @@ fn load_config() -> Result<NodeConfig> {
 // Trigger rebuild 7
 
 // Trigger rebuild 8
+
+// Trigger rebuild 9
+
+// Trigger rebuild 10
+
+// Trigger rebuild 11
+
+// Trigger rebuild 12
+
+// Trigger rebuild 13
+
+// Trigger rebuild 14
+
+// Trigger rebuild 15
+
+// Trigger rebuild 16
+
+// Trigger rebuild 17
+
+// Trigger rebuild 18
+
+// Trigger rebuild 19
+
+// Trigger rebuild 20
+
+// Trigger rebuild 21

@@ -588,6 +588,24 @@ impl MemoireCognitive for NativeBackend {
         Ok(removed)
     }
 
+    async fn grep(&self, pattern: &str, limit: Option<u8>) -> Result<Value> {
+        let pat = pattern.to_lowercase();
+        let store = self.store.lock().unwrap();
+        let mut items = Vec::new();
+        for (node, list) in store.iter() {
+            for it in list {
+                if it.proposed || it.deleted {
+                    continue;
+                }
+                if it.content.to_lowercase().contains(&pat) {
+                    items.push(json!({ "id": it.id, "node_id": node, "content": it.content }));
+                }
+            }
+        }
+        items.truncate(limit.unwrap_or(30) as usize);
+        Ok(json!({ "count": items.len(), "items": items }))
+    }
+
     async fn health(&self) -> Result<bool> {
         Ok(true)
     }

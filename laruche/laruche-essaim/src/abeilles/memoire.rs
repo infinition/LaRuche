@@ -647,6 +647,55 @@ impl Abeille for MemoireReadNode {
     }
 }
 
+/// `memory_grep` — recherche EXACTE par sous-chaîne dans le contenu des items (insensible à la
+/// casse). Complète `memory_search` (sémantique) : utile pour retrouver un terme précis, un nom,
+/// une URL, un id… parmi tous les items.
+pub struct MemoireGrep {
+    pub mem: Arc<dyn MemoireCognitive>,
+}
+
+#[async_trait]
+impl Abeille for MemoireGrep {
+    fn nom(&self) -> &str {
+        "memory_grep"
+    }
+    fn description(&self) -> &str {
+        "Recherche un texte EXACT (sous-chaine, insensible casse) dans le contenu de tous les \
+         items de la memoire. Complementaire de memory_search (semantique). Pour retrouver un nom, \
+         une URL, un terme precis."
+    }
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "pattern": { "type": "string", "description": "texte a chercher" },
+                "limit": { "type": "integer", "description": "max resultats (defaut 30)" }
+            },
+            "required": ["pattern"]
+        })
+    }
+    fn niveau_danger(&self) -> NiveauDanger {
+        NiveauDanger::Safe
+    }
+    async fn executer(
+        &self,
+        args: serde_json::Value,
+        _ctx: &ContextExecution,
+    ) -> Result<ResultatAbeille> {
+        let pattern = args["pattern"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("'pattern' manquant"))?;
+        match self
+            .mem
+            .grep(pattern, args["limit"].as_u64().map(|l| l as u8))
+            .await
+        {
+            Ok(v) => Ok(ResultatAbeille::ok(serde_json::to_string_pretty(&v)?)),
+            Err(e) => Ok(ResultatAbeille::err(format!("Echec memory_grep: {e}"))),
+        }
+    }
+}
+
 /// `memory_consolidate` — fusionne/déduplique les items d'un nœud en un ensemble minimal et
 /// synthétique (ex. `people.fabien` plein de notes → 1-2 items qui résument tout). Sûr : les
 /// anciens items sont soft-deleted (récupérables). Pour ranger/nettoyer la mémoire.

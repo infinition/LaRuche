@@ -243,6 +243,12 @@ pub trait MemoireCognitive: Send + Sync {
         Err(anyhow!("memory_mutations unsupported by this backend"))
     }
 
+    /// Recherche par SOUS-CHAÎNE (insensible à la casse) dans le contenu des items actifs —
+    /// « grep mémoire ». Renvoie `[{id, node_id, content}]`. Défaut : non supporté.
+    async fn grep(&self, _pattern: &str, _limit: Option<u8>) -> Result<Value> {
+        Err(anyhow!("memory_grep unsupported by this backend"))
+    }
+
     async fn dream(&self) -> Result<Value>;
 
     /// Exporte la mémoire en **bundle OKF** (Open Knowledge Format, Google) : arborescence
