@@ -2510,11 +2510,11 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                 return;
             }
 
-            // Show user message immediately + scroll
-            app.messages.push(ChatMessage {
-                role: "user".into(),
-                text: text.clone(),
-            });
+            // Show user message immediately + scroll (disabled by user request)
+            // app.messages.push(ChatMessage {
+            //     role: "user".into(),
+            //     text: text.clone(),
+            // });
             app.is_streaming = true;
             app.status_msg = "Reflexion...".into();
             let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
@@ -3061,10 +3061,10 @@ fn draw_header(f: &mut Frame, area: Rect, app: &App) {
 
     // Left chunk (ASCII Art + Subtitle)
     let logo_lines = vec![
-        Line::from(Span::styled(r#"    __       ___         __        "#, Style::default().fg(AMBER).add_modifier(Modifier::BOLD))),
-        Line::from(Span::styled(r#"   / /  ___ / _ \__ __  / /  ___   "#, Style::default().fg(AMBER).add_modifier(Modifier::BOLD))),
-        Line::from(Span::styled(r#"  / /__/ _ `/ , _/ // / / _ \/ -_) "#, Style::default().fg(AMBER).add_modifier(Modifier::BOLD))),
-        Line::from(Span::styled(r#" /____/\_,_/_/|_|\_,_/_/_//_/\__/  "#, Style::default().fg(AMBER).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(r#"    __       ___             __       "#, Style::default().fg(AMBER).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(r#"   / /  ___ / _ \__ __  ___ / /  ___  "#, Style::default().fg(AMBER).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(r#"  / /__/ _ `/ , _/ // // __|/ _ \/ -_) "#, Style::default().fg(AMBER).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(r#" /____/\_,_/_/|_|\_,_/ \___/_//_/\__/  "#, Style::default().fg(AMBER).add_modifier(Modifier::BOLD))),
         Line::from(Span::styled(format!("   🐝 CLI Client v{}", env!("CARGO_PKG_VERSION")), Style::default().fg(TEXT_DIM))),
     ];
 
@@ -3351,13 +3351,21 @@ fn draw_chat(f: &mut Frame, area: Rect, app: &App) {
                 }
             }
             if app.is_streaming {
-                // Show the partial streaming response as it comes in
                 if !app.streaming_response.is_empty() {
+                    // Show the partial streaming response as it comes in
                     for l in app.streaming_response.lines() {
                         lines.push(render_md_line(l));
                     }
+                    lines.push(Line::from(Span::styled("  ▍", Style::default().fg(AMBER))));
+                } else {
+                    // Show reflection animation (spinner)
+                    let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+                    let idx = ((chrono::Utc::now().timestamp_millis() / 80) % spinner_frames.len() as i64) as usize;
+                    lines.push(Line::from(vec![
+                        Span::styled(format!("  {} Réflexion...", spinner_frames[idx]), Style::default().fg(AMBER).add_modifier(Modifier::BOLD)),
+                    ]));
+                    lines.push(Line::from(""));
                 }
-                lines.push(Line::from(Span::styled("  ▍", Style::default().fg(AMBER))));
             }
         }
         ChatView::Activity => {
