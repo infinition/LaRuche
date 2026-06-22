@@ -232,6 +232,14 @@ async fn stream_via_websocket(
                                     let thought = data["text"].as_str().unwrap_or("").to_string();
                                     let _ = tx.send(TuiEvent::Thinking(thought)).await;
                                 }
+                                "thought" => {
+                                    let thought = data["text"].as_str().unwrap_or("").to_string();
+                                    let _ = tx.send(TuiEvent::Thinking(thought)).await;
+                                }
+                                "status" => {
+                                    let status = data["message"].as_str().unwrap_or("").to_string();
+                                    let _ = tx.send(TuiEvent::Thinking(status)).await;
+                                }
                                 "done" => {
                                     // The server may send the full response in "text"
                                     let final_text = data["text"]

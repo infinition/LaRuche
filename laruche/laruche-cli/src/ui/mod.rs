@@ -3061,7 +3061,7 @@ fn draw_header(f: &mut Frame, area: Rect, app: &App) {
 
     // Left chunk (ASCII Art + Subtitle)
     let logo_lines = vec![
-        Line::from(Span::styled(r#"    __       ___             __       "#, Style::default().fg(AMBER).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(r#"    __       ___            __        "#, Style::default().fg(AMBER).add_modifier(Modifier::BOLD))),
         Line::from(Span::styled(r#"   / /  ___ / _ \__ __  ___ / /  ___  "#, Style::default().fg(AMBER).add_modifier(Modifier::BOLD))),
         Line::from(Span::styled(r#"  / /__/ _ `/ , _/ // // __|/ _ \/ -_) "#, Style::default().fg(AMBER).add_modifier(Modifier::BOLD))),
         Line::from(Span::styled(r#" /____/\_,_/_/|_|\_,_/ \___/_//_/\__/  "#, Style::default().fg(AMBER).add_modifier(Modifier::BOLD))),
