@@ -930,67 +930,39 @@ impl MemoireCognitive for SqliteBackend {
         let like = format!("{id}.%");
         let conn = self.conn.lock().unwrap();
 
-        let Some(parent) = node_parent_id(&id) else {
-            // Nœud RACINE : pas de parent → on relocalise tout le sous-arbre sous `orphans.<id>`
-            // (rien n'est perdu). id → orphans.id ; id.* → orphans.id.* (items + nœuds + FTS).
-            let dest = format!("orphans.{id}");
-            ensure_node(&conn, "orphans")?;
-            conn.execute(
-                "UPDATE items SET node_id = ?1 || substr(node_id, ?2+1) WHERE node_id = ?3 OR node_id LIKE ?4",
-                rusqlite::params![dest, idlen, id, like],
-            )?;
-            let _ = conn.execute(
-                "UPDATE items_fts SET node_id = ?1 || substr(node_id, ?2+1) WHERE node_id = ?3 OR node_id LIKE ?4",
-                rusqlite::params![dest, idlen, id, like],
-            );
-            conn.execute(
-                "UPDATE nodes SET parent_id = ?1 || substr(parent_id, ?2+1) WHERE parent_id = ?3 OR parent_id LIKE ?4",
-                rusqlite::params![dest, idlen, id, like],
-            )?;
-            conn.execute(
-                "UPDATE nodes SET id = ?1 || substr(id, ?2+1) WHERE id = ?3 OR id LIKE ?4",
-                rusqlite::params![dest, idlen, id, like],
-            )?;
-            conn.execute(
-                "UPDATE nodes SET parent_id='orphans' WHERE id=?1",
-                rusqlite::params![dest],
-            )?;
-            return Ok(json!({"deleted": id, "moved_to": "orphans", "relocated_to": dest}));
-        };
+        // On relocalise toujours tout le sous-arbre sous `orphans.<base_name>_<timestamp>`
+        // Cela evite la perte de donnees et les conflits d'unicite (UNIQUE constraint failed: nodes.id).
+        let base_name = id.split('.').last().unwrap_or(&id);
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let dest = format!("orphans.{}_{}", base_name, ts);
 
-        // Nœud non-racine : items + sous-nœuds remontent au PARENT (on retire le segment du nœud).
-        ensure_node(&conn, &parent)?;
+        ensure_node(&conn, "orphans")?;
+
         conn.execute(
-            "UPDATE items SET node_id=?1 WHERE node_id=?2",
-            rusqlite::params![parent, id],
+            "UPDATE items SET node_id = ?1 || substr(node_id, ?2+1) WHERE node_id = ?3 OR node_id LIKE ?4",
+            rusqlite::params![dest, idlen, id, like],
         )?;
         let _ = conn.execute(
-            "UPDATE items_fts SET node_id=?1 WHERE node_id=?2",
-            rusqlite::params![parent, id],
-        );
-        // descendants (items + nœuds) : id.suite → parent.suite
-        conn.execute(
-            "UPDATE items SET node_id = ?1 || substr(node_id, ?2+1) WHERE node_id LIKE ?3",
-            rusqlite::params![parent, idlen, like],
-        )?;
-        let _ = conn.execute(
-            "UPDATE items_fts SET node_id = ?1 || substr(node_id, ?2+1) WHERE node_id LIKE ?3",
-            rusqlite::params![parent, idlen, like],
+            "UPDATE items_fts SET node_id = ?1 || substr(node_id, ?2+1) WHERE node_id = ?3 OR node_id LIKE ?4",
+            rusqlite::params![dest, idlen, id, like],
         );
         conn.execute(
-            "UPDATE nodes SET parent_id = ?1 || substr(parent_id, ?2+1) WHERE parent_id LIKE ?3",
-            rusqlite::params![parent, idlen, like],
+            "UPDATE nodes SET parent_id = ?1 || substr(parent_id, ?2+1) WHERE parent_id = ?3 OR parent_id LIKE ?4",
+            rusqlite::params![dest, idlen, id, like],
         )?;
         conn.execute(
-            "UPDATE nodes SET parent_id=?1 WHERE parent_id=?2",
-            rusqlite::params![parent, id],
+            "UPDATE nodes SET id = ?1 || substr(id, ?2+1) WHERE id = ?3 OR id LIKE ?4",
+            rusqlite::params![dest, idlen, id, like],
         )?;
         conn.execute(
-            "UPDATE nodes SET id = ?1 || substr(id, ?2+1) WHERE id LIKE ?3",
-            rusqlite::params![parent, idlen, like],
+            "UPDATE nodes SET parent_id='orphans' WHERE id=?1",
+            rusqlite::params![dest],
         )?;
-        let removed = conn.execute("DELETE FROM nodes WHERE id=?1", rusqlite::params![id])?;
-        Ok(json!({"deleted": id, "moved_to": parent, "removed": removed}))
+
+        Ok(json!({"deleted": id, "moved_to": "orphans", "relocated_to": dest}))
     }
 
     async fn create_node(
