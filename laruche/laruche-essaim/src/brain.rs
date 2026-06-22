@@ -1958,6 +1958,36 @@ fn skill_pertinent_lexical(query: &str, name: &str, content: &str) -> bool {
     tokens.iter().any(|t| haystack.contains(t))
 }
 
+/// Réduit une description de skill à un résumé court et lisible pour l'index :
+/// 1) motif third-party `Résumé — détails` → garde le résumé (avant le tiret cadratin) ;
+/// 2) sinon, première phrase si elle tient ;
+/// 3) plafond mou ~80 car., coupé au mot (jamais en plein milieu), `…` si tronqué.
+fn resumer_description(desc: &str) -> String {
+    let d = desc.split_whitespace().collect::<Vec<_>>().join(" ");
+    let base = if let Some(i) = d.find(" — ") {
+        &d[..i]
+    } else if let Some(i) = d.find(". ") {
+        &d[..i]
+    } else {
+        d.as_str()
+    }
+    .trim();
+    if base.chars().count() <= 80 {
+        return base.to_string();
+    }
+    let mut cut = String::new();
+    for w in base.split(' ') {
+        if cut.chars().count() + w.chars().count() + 1 > 78 {
+            break;
+        }
+        if !cut.is_empty() {
+            cut.push(' ');
+        }
+        cut.push_str(w);
+    }
+    format!("{cut}…")
+}
+
 /// Index COMPACT de TOUS les skills disponibles (`nom — description`), toujours injecté dans le
 /// préfixe stable. Sans lui, les skills importés sont invisibles au modèle (il n'en voit un que
 /// par fuzzy-recall). Le corps complet reste à la demande via `skill_view(nom)` — progressive
@@ -1999,14 +2029,7 @@ async fn construire_index_skills(memoire: &Arc<dyn MemoireCognitive>) -> Option<
         if !vus.insert(name.clone()) {
             continue;
         }
-        let desc: String = yaml_frontmatter_field(content, "description")
-            .unwrap_or_default()
-            .split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ")
-            .chars()
-            .take(80)
-            .collect();
+        let desc = resumer_description(&yaml_frontmatter_field(content, "description").unwrap_or_default());
         lignes.push((name, desc));
     }
     if lignes.is_empty() {
@@ -3191,6 +3214,31 @@ mod tests {
     use crate::abeille::{Abeille, ResultatAbeille};
     use async_trait::async_trait;
     use laruche_permissions::RuleSource;
+
+    #[test]
+    fn resumer_description_garde_le_resume_avant_tiret() {
+        // Motif third-party "Résumé — détails" : on garde le résumé.
+        let comfyui = "Generate images, video, and audio with ComfyUI — install, launch, manage nodes/models, run workflows with parameter injection. Uses the official API.";
+        assert_eq!(
+            resumer_description(comfyui),
+            "Generate images, video, and audio with ComfyUI"
+        );
+        // Sans tiret : première phrase.
+        let plan = "Plan mode: write an actionable markdown plan to .third-party/plans/, no execution. Bite-sized tasks, exact paths, complete code.";
+        assert_eq!(
+            resumer_description(plan),
+            "Plan mode: write an actionable markdown plan to .third-party/plans/, no execution"
+        );
+        // Déjà courte : inchangée.
+        assert_eq!(
+            resumer_description("Recherche de papiers sur arxiv.org via des requêtes structurées"),
+            "Recherche de papiers sur arxiv.org via des requêtes structurées"
+        );
+        // Long sans séparateur : coupe au mot + ellipse, jamais > ~80.
+        let long = "mot ".repeat(40);
+        let r = resumer_description(&long);
+        assert!(r.ends_with('…') && r.chars().count() <= 80);
+    }
 
     struct LimitedTool;
 
