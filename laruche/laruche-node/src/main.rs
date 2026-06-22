@@ -2366,6 +2366,15 @@ async fn api_feed(
                 let node = m.get("node_id").and_then(|v| v.as_str()).unwrap_or("");
                 let ts = m.get("ts").and_then(|v| v.as_i64()).unwrap_or(0);
                 let src = m.get("src").and_then(|v| v.as_str()).unwrap_or("");
+                // Bruit système (non-activité) : indexation d'outils + (re)seed des nœuds au boot.
+                if src == "tool-registry" || src == "seed" {
+                    continue;
+                }
+                if (op == "create_node" || op == "update_node")
+                    && (node.starts_with("system") || node.starts_with("capacities"))
+                {
+                    continue;
+                }
                 let action = match op {
                     "write" if src == "consolidation" => "a consolidé",
                     "write" => "a ajouté un item dans",
