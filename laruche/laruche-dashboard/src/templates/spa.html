@@ -4955,10 +4955,27 @@ LaRuche.MD = (function(){
 
   function render(src){
     if(!src) return '';
+    var planBlocks = [];
+    src = String(src).replace(/<plan>\s*([\s\S]*?)\s*<\/plan>/gi, function(m, jsonText){
+      try {
+        var plan = JSON.parse(jsonText);
+        var html = '<div class="mem2-plan" style="margin: 10px 0; border: 1px solid var(--border); border-radius: 4px; padding: 8px; background: var(--bg2);">';
+        plan.forEach(function(t){
+           var icon = t.status === 'done' ? '✅' : (t.status === 'in_progress' ? '⏳' : '⬜');
+           var color = t.status === 'done' ? 'var(--text)' : (t.status === 'in_progress' ? 'var(--gold)' : 'var(--text-dim)');
+           html += '<div style="margin: 4px 0; color: '+color+'; display: flex; gap: 8px;"><span style="flex-shrink:0;">' + icon + '</span><span>' + esc(t.task) + '</span></div>';
+        });
+        html += '</div>';
+        planBlocks.push(html);
+        return '\n\x00PB'+(planBlocks.length-1)+'\x00\n';
+      } catch(e) {
+        return m;
+      }
+    });
     var codeBlocks = [];
-    src = String(src).replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, function(m, lang, code){
+    src = src.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, function(m, lang, code){
       codeBlocks.push({lang:lang, code:code});
-      return '\x00CB'+(codeBlocks.length-1)+'\x00';
+      return '\n\x00CB'+(codeBlocks.length-1)+'\x00\n';
     });
     var inlineCodes = [];
     src = src.replace(/`([^`\n]+)`/g, function(m, c){ inlineCodes.push(c); return '\x00IC'+(inlineCodes.length-1)+'\x00'; });
@@ -4980,6 +4997,8 @@ LaRuche.MD = (function(){
         var ol=[]; while(i<lines.length && /^\s*\d+\.\s+/.test(lines[i])){ ol.push(lines[i].replace(/^\s*\d+\.\s+/,'')); i++; }
         html += '<ol>'+ol.map(function(b){return '<li>'+inline(b)+'</li>';}).join('')+'</ol>'; continue;
       }
+      var pb = line.match(/^\x00PB(\d+)\x00$/);
+      if(pb){ html += planBlocks[+pb[1]]; i++; continue; }
       var cb = line.match(/^\x00CB(\d+)\x00$/);
       if(cb){ html += '<pre><code>'+esc(codeBlocks[+cb[1]].code)+'</code></pre>'; i++; continue; }
       if(i+1 < lines.length && /\|/.test(line) && /^[\s\|:\-]+$/.test(lines[i+1]) && /\|/.test(lines[i+1])){
@@ -4992,7 +5011,7 @@ LaRuche.MD = (function(){
       }
       if(line.trim()===''){ i++; continue; }
       var buf=[];
-      while(i<lines.length && lines[i].trim()!=='' && !/^(#{1,6}\s|>\s?|[\-\*\+]\s+|\d+\.\s+|---+|\*\*\*+|___+|\x00CB)/.test(lines[i])){ buf.push(lines[i]); i++; }
+      while(i<lines.length && lines[i].trim()!=='' && !/^(#{1,6}\s|>\s?|[\-\*\+]\s+|\d+\.\s+|---+|\*\*\*+|___+|\x00CB|\x00PB)/.test(lines[i])){ buf.push(lines[i]); i++; }
       html += '<p>'+inline(buf.join('\n'))+'</p>';
     }
     html = html.replace(/\x00IC(\d+)\x00/g, function(m, n){ return '<code>'+esc(inlineCodes[+n])+'</code>'; });

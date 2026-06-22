@@ -305,9 +305,9 @@ fn draw_ui(f: &mut Frame, tui: &TuiState, stats: &LiveStats) {
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // header
-            Constraint::Min(10),   // body
-            Constraint::Length(1), // footer
+            Constraint::Length(11), // header (logo + info)
+            Constraint::Min(10),    // body
+            Constraint::Length(1),  // footer
         ])
         .split(size);
 
@@ -326,8 +326,28 @@ fn draw_ui(f: &mut Frame, tui: &TuiState, stats: &LiveStats) {
 }
 
 fn draw_header(f: &mut Frame, area: Rect, stats: &LiveStats) {
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(8), Constraint::Length(3)])
+        .split(area);
+
     let amber = Color::Rgb(255, 191, 0);
     let dim = Color::Rgb(120, 120, 120);
+
+    let logo = format!(
+        r#"
+  ██╗      █████╗ ██████╗ ██╗   ██╗ ██████╗██╗  ██╗███████╗
+  ██║     ██╔══██╗██╔══██╗██║   ██║██╔════╝██║  ██║██╔════╝
+  ██║     ███████║██████╔╝██║   ██║██║     ███████║█████╗
+  ██║     ██╔══██║██╔══██╗██║   ██║██║     ██╔══██║██╔══╝
+  ███████╗██║  ██║██║  ██║╚██████╔╝╚██████╗██║  ██║███████╗
+  ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝
+  Branchez l'IA. C'est tout. • Miel Protocol v{}"#,
+        env!("CARGO_PKG_VERSION")
+    );
+
+    let logo_para = Paragraph::new(logo).style(Style::default().fg(Color::Rgb(200, 200, 200)));
+    f.render_widget(logo_para, chunks[0]);
 
     let provider_label = if stats.provider == "ollama" || stats.provider.is_empty() {
         stats.model.clone()
@@ -353,12 +373,11 @@ fn draw_header(f: &mut Frame, area: Rect, stats: &LiveStats) {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled(
-            format!("  {}:{}", stats.host, stats.port),
+            format!("  {}:{}  ", stats.host, stats.port),
             Style::default().fg(dim),
         ),
-        Span::raw("  "),
         Span::styled(
-            format!("up {}", stats.uptime),
+            format!("up {}s", stats.uptime),
             Style::default().fg(Color::Green),
         ),
         Span::raw("  "),

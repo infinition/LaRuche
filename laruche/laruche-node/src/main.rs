@@ -7383,19 +7383,6 @@ async fn main() -> Result<()> {
 
     let config = load_config()?;
 
-    info!(
-        r#"
-  ██╗      █████╗ ██████╗ ██╗   ██╗ ██████╗██╗  ██╗███████╗
-  ██║     ██╔══██╗██╔══██╗██║   ██║██╔════╝██║  ██║██╔════╝
-  ██║     ███████║██████╔╝██║   ██║██║     ███████║█████╗
-  ██║     ██╔══██║██╔══██╗██║   ██║██║     ██╔══██║██╔══╝
-  ███████╗██║  ██║██║  ██║╚██████╔╝╚██████╗██║  ██║███████╗
-  ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝
-  Branchez l'IA. C'est tout. • Miel Protocol v{}
-    "#,
-        miel_protocol::PROTOCOL_VERSION
-    );
-
     info!(name = %config.node_name, tier = ?config.tier, "Starting LaRuche node");
 
     let local_ip = miel_protocol::get_local_ip();
