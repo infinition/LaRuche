@@ -2360,6 +2360,7 @@ async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::MemoireCogni
         return;
     };
     let mut n = 0usize;
+    let mut slugs_disque: std::collections::HashSet<String> = std::collections::HashSet::new();
     for e in rd.flatten() {
         let p = e.path();
         if !p.is_dir() {
@@ -2375,6 +2376,7 @@ async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::MemoireCogni
         let Some(slug) = p.file_name().and_then(|x| x.to_str()).filter(|s| !s.is_empty()) else {
             continue;
         };
+        slugs_disque.insert(slug.to_string());
         let node_id = format!("capacities.skills.{slug}");
         // Remplace l'item existant (skill = item unique).
         if let Ok(node) = memoire.read_node(&node_id).await {
@@ -2395,6 +2397,35 @@ async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::MemoireCogni
     }
     if n > 0 {
         tracing::info!(count = n, "skills synchronises depuis disque (SKILL.md -> SQL)");
+    }
+    // Réconciliation des SUPPRESSIONS : le disque est source de vérité pour les skills.
+    // Tout nœud `capacities.skills.<slug>` SQL sans dossier `skills/<slug>/` correspondant est
+    // supprimé (ex. méta-skills d'autres frameworks d'agents retirés du disque).
+    if let Ok(nodes) = memoire.list_nodes().await {
+        if let Some(arr) = nodes.as_array() {
+            let mut supprimes = 0usize;
+            for nd in arr {
+                let id = nd
+                    .get("node_id")
+                    .or_else(|| nd.get("id"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                let Some(slug) = id.strip_prefix("capacities.skills.") else {
+                    continue;
+                };
+                if slug.is_empty() || slug.contains('.') {
+                    continue; // pas un slug de skill direct
+                }
+                if !slugs_disque.contains(slug) {
+                    if memoire.delete_node(id).await.is_ok() {
+                        supprimes += 1;
+                    }
+                }
+            }
+            if supprimes > 0 {
+                tracing::info!(count = supprimes, "skills SQL orphelins supprimes (absents du disque)");
+            }
+        }
     }
 }
 

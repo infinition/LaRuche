@@ -25,6 +25,16 @@ TOOL_REMAP = {
 }
 # Inchangés (existent tels quels) : web_search, session_search, skill_view, todo.
 
+# Méta-skills d'IDENTITÉ/outillage d'AUTRES frameworks d'agents : sans valeur dans LaRuche
+# (LaRuche n'est pas third-party/Claude Code/Codex). On ne les importe pas.
+SKIP_SLUGS = {
+    "third-party agent",
+    "third-party agent-skill-authoring",
+    "claude-code",
+    "codex",
+    "opencode",
+}
+
 def slugify(name):
     s = re.sub(r"[^a-z0-9]+", "-", (name or "").strip().lower()).strip("-")
     return s or "skill"
@@ -72,6 +82,8 @@ def main():
             skipped_plat += 1; continue
         nm = re.search(r"^name:\s*['\"]?([^'\"\n]+)", fm, re.M)
         slug = slugify(nm.group(1) if nm else os.path.basename(root))
+        if slug in SKIP_SLUGS:
+            skipped_plat += 1; continue  # méta-skill d'un autre framework d'agent
         # remap tools dans le corps (après le frontmatter)
         parts = content.split("\n---\n", 1)
         if len(parts) == 2:

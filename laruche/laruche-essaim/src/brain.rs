@@ -1099,6 +1099,10 @@ async fn assembler_working_set(
     let mut lignes: Vec<String> = Vec::new();
 
     // Source 1 — PERTINENCE (sémantique/lexicale).
+    // On filtre les nœuds d'INFRASTRUCTURE (`system.*` = sections du system prompt lui-même ;
+    // `capacities.*` = catalogue d'outils/skills) : les injecter ici DUPLIQUAIT la section
+    // Comportement dans les « souvenirs » et noyait le working-set de bullets `capacities.tools.*`.
+    // Les skills pertinents arrivent par un canal dédié (augmenter_ephemere_avec_skills).
     if let Ok(pack) = memoire
         .search(
             prompt,
@@ -1109,10 +1113,51 @@ async fn assembler_working_set(
         )
         .await
     {
-        for l in pack.to_prompt_text().lines() {
-            let key = l.trim().to_string();
-            if !key.is_empty() && seen.insert(key) {
-                lignes.push(l.to_string());
+        let infra = |id: &str| id.starts_with("system") || id.starts_with("capacities");
+        // Nœuds activés (one-liners), hors infrastructure.
+        if let Some(nodes) = pack.raw.get("nodes").and_then(|v| v.as_array()) {
+            for n in nodes {
+                let id = n
+                    .get("id")
+                    .or_else(|| n.get("label"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                if id.is_empty() || infra(id) {
+                    continue;
+                }
+                let one = n.get("one_liner").and_then(|v| v.as_str()).unwrap_or("");
+                let l = format!("• {id} — {one}");
+                if seen.insert(l.trim().to_string()) {
+                    lignes.push(l);
+                }
+            }
+        }
+        // Items de preuve (contenu réel), hors infrastructure.
+        if let Some(items) = pack
+            .raw
+            .get("items")
+            .or_else(|| pack.raw.get("evidence"))
+            .and_then(|v| v.as_array())
+        {
+            for it in items {
+                let node = it
+                    .get("node_id")
+                    .or_else(|| it.get("node"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("");
+                if infra(node) {
+                    continue;
+                }
+                if let Some(content) = it
+                    .get("content")
+                    .or_else(|| it.get("text"))
+                    .and_then(|v| v.as_str())
+                {
+                    let l = format!("- {}", content.trim());
+                    if !content.trim().is_empty() && seen.insert(l.trim().to_string()) {
+                        lignes.push(l);
+                    }
+                }
             }
         }
     }
