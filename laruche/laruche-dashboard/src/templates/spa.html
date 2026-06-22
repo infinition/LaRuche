@@ -5684,11 +5684,49 @@ LaRuche.Memory = (function(){
     else { if(gwrap) gwrap.style.display='none'; if(body) body.style.display='block'; }
   }
 
-  function exportOkf() {
-    fetch(LaRuche.API.base+'/api/memory/export_okf?dir=okf-export').then(function(r){return r.json();}).then(function(res){
-      if(res.ok) LaRuche.Toast.show('OKF exporte ('+(res.files!=null?res.files+' fichiers, ':'')+'dir: '+res.dir+')','ok');
-      else LaRuche.Toast.show('Erreur export: '+(res.error||'?'),'err');
-    }).catch(function(e){ LaRuche.Toast.show('Export: '+e,'err'); });
+  // Telecharge un .zip OKF via le navigateur (Content-Disposition cote serveur).
+  function downloadExportZip(nodeId){
+    var url = LaRuche.API.base+'/api/memory/export.zip'+(nodeId?('?node='+encodeURIComponent(nodeId)):'');
+    var a = document.createElement('a');
+    a.href = url; a.download = ''; a.style.display = 'none';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ a.remove(); }, 0);
+    LaRuche.Toast.show('Telechargement OKF lance'+(nodeId?(' ('+nodeId+')'):' (tout)'),'ok');
+  }
+
+  function exportOkf(){
+    // Petit menu flottant : ce noeud / tout. Telechargement .zip navigateur.
+    var old = document.getElementById('mem2ExportMenu');
+    if(old){ old.remove(); return; }
+    var menu = document.createElement('div');
+    menu.id = 'mem2ExportMenu';
+    menu.style.cssText = 'position:fixed;z-index:9999;background:var(--bg-elev,#18181b);border:1px solid var(--amber,#f59e0b);'+
+      'border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:4px;min-width:200px;';
+    var btnNode = document.createElement('button');
+    btnNode.className = 'mem2-tbtn';
+    btnNode.textContent = current ? ('Exporter ce noeud ('+current+')') : 'Exporter ce noeud (aucun selectionne)';
+    btnNode.disabled = !current;
+    if(!current) btnNode.style.opacity = '.5';
+    btnNode.onclick = function(){ menu.remove(); if(current) downloadExportZip(current); };
+    var btnAll = document.createElement('button');
+    btnAll.className = 'mem2-tbtn';
+    btnAll.textContent = 'Exporter tout';
+    btnAll.onclick = function(){ menu.remove(); downloadExportZip(null); };
+    menu.appendChild(btnNode);
+    menu.appendChild(btnAll);
+    document.body.appendChild(menu);
+    // positionne sous le bouton declencheur si trouvable, sinon coin haut-droit
+    var trigger = document.querySelector('.mem2-toolbar [onclick*="exportOkf"]');
+    if(trigger){
+      var r = trigger.getBoundingClientRect();
+      menu.style.top = (r.bottom+4)+'px';
+      menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 220))+'px';
+    } else { menu.style.top = '60px'; menu.style.right = '12px'; }
+    // ferme au clic exterieur
+    setTimeout(function(){
+      function onDoc(e){ if(!menu.contains(e.target)){ menu.remove(); document.removeEventListener('mousedown', onDoc); } }
+      document.addEventListener('mousedown', onDoc);
+    }, 0);
   }
 
   // Parse un .md/.okf : node_id depuis le frontmatter `id:` (sinon derive du nom de fichier),
@@ -5697,7 +5735,8 @@ LaRuche.Memory = (function(){
   function parseOkfMarkdown(text, filename){
     var base = String(filename||'note').replace(/\.[^.]+$/, '');
     var slug = base.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'') || 'note';
-    var nodeId = 'knowledge.' + slug; // defaut si pas d'id en frontmatter
+    var fallbackId = 'knowledge.' + slug; // defaut si pas d'id en frontmatter ni noeud courant
+    var explicitId = null; // id: explicite dans le frontmatter (prioritaire)
     var lines = String(text||'').split(/\r?\n/);
     var front = 0, items = [];
     for(var i=0;i<lines.length;i++){
@@ -5705,7 +5744,7 @@ LaRuche.Memory = (function(){
       if(ln.trim() === '---'){ front++; continue; }
       if(front === 1){
         var m = ln.trim().match(/^id:\s*(.+)$/);
-        if(m){ var v = m[1].trim().replace(/^["']|["']$/g,'').trim(); if(v) nodeId = v; }
+        if(m){ var v = m[1].trim().replace(/^["']|["']$/g,'').trim(); if(v) explicitId = v; }
       } else if(front >= 2 && /^\s*-\s+/.test(ln)){
         var c = ln.replace(/^\s*-\s+/, '').split('  _(source:')[0].trim();
         if(c) items.push(c);
@@ -5715,11 +5754,16 @@ LaRuche.Memory = (function(){
       var body = String(text||'').replace(/^---[\s\S]*?---/, '').trim();
       if(body) items.push(body.slice(0, 4000));
     }
-    return { nodeId: nodeId, items: items };
+    return { explicitId: explicitId, fallbackId: fallbackId, items: items };
   }
 
   // Import direct de fichiers .md/.okf choisis par l'utilisateur (pas un dossier serveur).
   function importOkf() {
+    // Refuse l'import dans un noeud courant protege (system.*, capacities.*, tools.*).
+    if(current && isProtected(current)){
+      LaRuche.Toast.show('Noeud courant protege : import interdit ici','err');
+      return;
+    }
     var inp = document.createElement('input');
     inp.type = 'file'; inp.accept = '.md,.markdown,.okf,.txt'; inp.multiple = true;
     inp.onchange = function(){
@@ -5736,10 +5780,12 @@ LaRuche.Memory = (function(){
         reader.onload = function(){
           var parsed = parseOkfMarkdown(String(reader.result||''), file.name);
           if(!parsed.items.length){ done++; finish(); return; }
+          // Priorite cible : id: explicite (frontmatter) > noeud courant selectionne > knowledge.<slug>
+          var targetId = parsed.explicitId || (current || parsed.fallbackId);
           Promise.all(parsed.items.map(function(content){
             return fetch(LaRuche.API.base+'/api/memory/write', {
               method:'POST', headers:{'Content-Type':'application/json'},
-              body: JSON.stringify({node_id: parsed.nodeId, content: content})
+              body: JSON.stringify({node_id: targetId, content: content})
             }).then(function(r){ if(r.ok) written++; else errors++; }).catch(function(){ errors++; });
           })).then(function(){ done++; finish(); });
         };
@@ -5835,17 +5881,6 @@ LaRuche.Memory = (function(){
       if(d.error) { LaRuche.Toast.show(d.error, 'err'); return; }
       expanded[parentId] = true;
       loadTree(false);
-    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
-  }
-
-  function moveItem(itemId, newParentId) {
-    fetch(LaRuche.API.base+'/api/memory/move', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({item_id:itemId, target_node_id:newParentId})
-    }).then(function(r){return r.json();}).then(function(d){
-      if(d.error) { LaRuche.Toast.show(d.error, 'err'); return; }
-      LaRuche.Toast.show('Souvenir deplace avec succes', 'ok');
-      if(current) loadNode(current, true);
     }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
   }
 
@@ -7052,12 +7087,43 @@ LaRuche.Settings = (function(){
       if(t.model) kProv += (kProv?' ':'') + '(' + t.model + ')';
       if(kProv) h+='<div style="font-size:10px;color:var(--amber);margin-bottom:6px">⚙ '+LaRuche.Utils.esc(kProv)+'</div>';
     }
-    if(t.result) h+='<div style="font-size:10px;color:var(--green);margin-bottom:6px">Résultat: '+LaRuche.Utils.esc((t.result||'').substring(0,60))+'…</div>';
+    if(t.result){
+      var _full = String(t.result||'');
+      var _trunc = _full.length>60;
+      var _short = _trunc ? (_full.substring(0,60)+'…') : _full;
+      // Accordeon : clic pour deplier/replier le commentaire LLM (lisible en entier, mobile-friendly).
+      // stopPropagation evite d'interferer avec le drag&drop de la carte.
+      h+='<div class="kb-result" onclick="event.stopPropagation();LaRuche.Settings.toggleKanbanResult(this)" '+
+         'data-collapsed="1" style="font-size:10px;color:var(--green);margin-bottom:6px;cursor:pointer" '+
+         'title="'+(_trunc?'Cliquer pour deplier/replier':'')+'">'+
+         '<span class="kb-result-label">Résultat'+(_trunc?' ▸':'')+': </span>'+
+         '<span class="kb-result-short" style="white-space:pre-wrap;word-break:break-word">'+LaRuche.Utils.esc(_short)+'</span>'+
+         '<span class="kb-result-full" style="display:none;white-space:pre-wrap;word-break:break-word">'+LaRuche.Utils.esc(_full)+'</span>'+
+         '</div>';
+    }
     h+='<div style="display:flex;justify-content:space-between;align-items:center">';
     h+='<span style="font-size:9px;color:var(--text-muted);font-family:var(--mono)">'+t.id.split('-')[0]+'</span>';
     h+='<span><button onclick="LaRuche.Settings.editKanbanTask(\''+t.id+'\')" style="background:none;border:none;color:var(--amber);cursor:pointer;font-size:10px">Éditer</button> <button onclick="LaRuche.Settings.deleteKanbanTask(\''+t.id+'\')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:10px">Suppr</button></span>';
     h+='</div></div>';
     return h;
+  }
+  // Deplie/replie le commentaire LLM (champ result) d'une carte kanban.
+  function toggleKanbanResult(elDiv){
+    if(!elDiv) return;
+    var collapsed = elDiv.dataset.collapsed === '1';
+    var shortEl = elDiv.querySelector('.kb-result-short');
+    var fullEl = elDiv.querySelector('.kb-result-full');
+    var labelEl = elDiv.querySelector('.kb-result-label');
+    if(!shortEl || !fullEl) return;
+    if(collapsed){
+      shortEl.style.display='none'; fullEl.style.display='';
+      elDiv.dataset.collapsed='0';
+      if(labelEl && /▸/.test(labelEl.textContent)) labelEl.textContent = labelEl.textContent.replace('▸','▾');
+    } else {
+      shortEl.style.display=''; fullEl.style.display='none';
+      elDiv.dataset.collapsed='1';
+      if(labelEl && /▾/.test(labelEl.textContent)) labelEl.textContent = labelEl.textContent.replace('▾','▸');
+    }
   }
   async function loadKanban(el) {
     // P1 : profils pour le selecteur Provider de la tache kanban.
@@ -7305,12 +7371,13 @@ var m = document.getElementById('kanban-model')?document.getElementById('kanban-
   }
 
   function exportOkf() {
-    fetch(LaRuche.API.base+'/api/memory/export_okf?dir=okf-export')
-      .then(function(r){return r.json();})
-      .then(function(res){
-        if(res.ok) LaRuche.Toast.show('OKF exporte dans ' + res.dir, 'ok');
-        else LaRuche.Toast.show('Erreur export: ' + res.error, 'err');
-      });
+    // Telechargement .zip navigateur (toute la memoire) au lieu d'un dossier serveur.
+    var a = document.createElement('a');
+    a.href = LaRuche.API.base+'/api/memory/export.zip';
+    a.download = ''; a.style.display = 'none';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ a.remove(); }, 0);
+    LaRuche.Toast.show('Telechargement OKF lance (tout)', 'ok');
   }
 
   function importOkf() {
@@ -7383,28 +7450,131 @@ var m = document.getElementById('kanban-model')?document.getElementById('kanban-
       });
   }
 
+    var _bpCronBuilderId = null; // instance CronBuilder du formulaire de creation
+
     async function loadBlueprints(el) {
     var bps=[];try{bps=await fetch('/api/blueprints').then(function(r){return r.json();});}catch(e){}
-    if(!bps.length){el.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px">Aucun blueprint disponible</div>';return;}
-    
-    window._blueprints = bps;
-    el.innerHTML = '<div style="margin-bottom:12px;color:var(--amber);font-size:12px;">Sélectionnez un blueprint pour l\'instancier en tant que tâche cron.</div>' +
-      bps.map(function(b, idx) {
+    window._blueprints = bps || [];
+    var head = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap">' +
+      '<span style="color:var(--amber);font-size:12px;">Sélectionnez un blueprint pour l\'instancier en tant que tâche cron.</span>' +
+      '<button class="settings-save-btn" onclick="LaRuche.Settings.openNewBlueprintForm()">+ Nouveau blueprint</button>' +
+      '</div>';
+    var creationSlot = '<div id="bpNewFormWrap"></div>';
+    var cards = (!window._blueprints.length)
+      ? '<div style="text-align:center;color:var(--text-muted);padding:20px">Aucun blueprint disponible</div>'
+      : window._blueprints.map(function(b, idx) {
         return '<div class="settings-card" style="margin-bottom:12px;cursor:pointer;" onclick="LaRuche.Settings.openBlueprintForm('+idx+')">' +
-          '<div class="settings-card-title">'+LaRuche.Utils.esc(b.title||b.id)+'</div>' +
-          '<div style="font-size:12px;color:var(--text-dim);margin-top:4px;">'+LaRuche.Utils.esc(b.description||'')+'</div>' +
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
+            '<div style="flex:1">' +
+              '<div class="settings-card-title">'+LaRuche.Utils.esc(b.title||b.id)+'</div>' +
+              '<div style="font-size:12px;color:var(--text-dim);margin-top:4px;">'+LaRuche.Utils.esc(b.description||'')+'</div>' +
+            '</div>' +
+            '<button onclick="event.stopPropagation();LaRuche.Settings.deleteBlueprint('+idx+')" title="Supprimer ce blueprint perso" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;flex:0 0 auto">Supprimer</button>' +
+          '</div>' +
           '<div id="bpForm_'+idx+'" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);" onclick="event.stopPropagation()">' +
             (b.slots||[]).map(function(slot){
-              return '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.Utils.esc(slot.label||slot.name)+'</label><input id="bpInput_'+idx+'_'+slot.name+'" class="form-input" placeholder="'+LaRuche.Utils.esc(slot.placeholder||'')+'"></div>';
+              return '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.Utils.esc(slot.label||slot.name)+'</label><input id="bpInput_'+idx+'_'+slot.name+'" class="form-input" placeholder="'+LaRuche.Utils.esc(slot.placeholder||slot.default||'')+'" value="'+LaRuche.Utils.esc(slot.default||'')+'"></div>';
             }).join('') +
             '<button class="settings-save-btn" style="margin-top:8px" onclick="LaRuche.Settings.instanciateBlueprint('+idx+')">Instancier</button>' +
           '</div>' +
         '</div>';
       }).join('');
+    el.innerHTML = head + creationSlot + cards;
+  }
+
+  // --- Formulaire de creation d'un blueprint perso ---
+  function bpSlotRowHtml(){
+    return '<div class="bp-slot-row" style="display:flex;gap:6px;margin-bottom:6px;align-items:center">' +
+      '<input class="form-input bp-slot-name" placeholder="name" style="flex:1">' +
+      '<input class="form-input bp-slot-label" placeholder="label" style="flex:1">' +
+      '<input class="form-input bp-slot-default" placeholder="default" style="flex:1">' +
+      '<button onclick="this.parentNode.remove()" title="Supprimer cette variable" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;flex:0 0 auto">×</button>' +
+      '</div>';
+  }
+
+  function addBlueprintSlotRow(){
+    var box = document.getElementById('bpSlotsList');
+    if(!box) return;
+    var tmp = document.createElement('div'); tmp.innerHTML = bpSlotRowHtml();
+    box.appendChild(tmp.firstChild);
+  }
+
+  function openNewBlueprintForm(){
+    var wrap = document.getElementById('bpNewFormWrap');
+    if(!wrap) return;
+    if(wrap.dataset.open === '1'){ wrap.innerHTML=''; wrap.dataset.open='0'; _bpCronBuilderId=null; return; }
+    wrap.dataset.open = '1';
+    wrap.innerHTML =
+      '<div class="settings-card" style="margin-bottom:12px;border:1px solid var(--amber)">' +
+        '<div class="settings-card-title">Nouveau blueprint</div>' +
+        '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">Titre</label>' +
+          '<input id="bpNewTitle" class="form-input" placeholder="Ex: Veille quotidienne"></div>' +
+        '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">Prompt (template)</label>' +
+          '<textarea id="bpNewPrompt" class="form-input" style="min-height:90px;resize:vertical" placeholder="Utilise {nom} pour referencer une variable..."></textarea></div>' +
+        '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">Cadence (cron)</label><div id="bpNewCron"></div></div>' +
+        '<div style="margin-top:10px"><label style="font-size:10px;color:var(--text-dim)">Variables (slots) — referencees via <code>{name}</code> dans les templates</label>' +
+          '<div id="bpSlotsList" style="margin-top:6px"></div>' +
+          '<button onclick="LaRuche.Settings.addBlueprintSlotRow()" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:4px 10px;cursor:pointer;font-size:11px;margin-top:2px">+ Variable</button>' +
+        '</div>' +
+        '<div style="margin-top:12px;display:flex;gap:8px">' +
+          '<button class="settings-save-btn" onclick="LaRuche.Settings.saveNewBlueprint()">Créer le blueprint</button>' +
+          '<button onclick="LaRuche.Settings.openNewBlueprintForm()" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px">Annuler</button>' +
+        '</div>' +
+      '</div>';
+    _bpCronBuilderId = (LaRuche.CronBuilder) ? LaRuche.CronBuilder.mount('bpNewCron', { value:'' }) : null;
+    addBlueprintSlotRow();
+  }
+
+  function saveNewBlueprint(){
+    var title = (document.getElementById('bpNewTitle')||{}).value || '';
+    var prompt = (document.getElementById('bpNewPrompt')||{}).value || '';
+    var cron = (_bpCronBuilderId && LaRuche.CronBuilder) ? LaRuche.CronBuilder.getValue(_bpCronBuilderId) : '';
+    title = title.trim();
+    if(!title){ LaRuche.Toast.show('Titre requis','warn'); return; }
+    if(!prompt.trim()){ LaRuche.Toast.show('Prompt requis','warn'); return; }
+    var slots = [];
+    document.querySelectorAll('#bpSlotsList .bp-slot-row').forEach(function(row){
+      var name = (row.querySelector('.bp-slot-name')||{}).value || '';
+      name = name.trim();
+      if(!name) return;
+      slots.push({
+        name: name,
+        label: ((row.querySelector('.bp-slot-label')||{}).value || '').trim() || name,
+        default: ((row.querySelector('.bp-slot-default')||{}).value || '').trim()
+      });
+    });
+    var body = { title:title, prompt_template:prompt, schedule_template:cron, slots:slots };
+    fetch('/api/blueprints', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+    }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ return {ok:r.ok, d:d}; }); })
+      .then(function(res){
+        if(res.ok && !(res.d && res.d.error)){
+          LaRuche.Toast.show('Blueprint créé','ok');
+          var el = document.getElementById('autoContent'); if(el) loadBlueprints(el);
+        } else {
+          LaRuche.Toast.show('Erreur création: '+((res.d&&res.d.error)||'?'),'err');
+        }
+      }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e,'err'); });
+  }
+
+  function deleteBlueprint(idx){
+    var b = window._blueprints[idx]; if(!b) return;
+    if(!window.confirm('Supprimer le blueprint "'+(b.title||b.id)+'" ? (les blueprints intégrés ne peuvent pas être supprimés)')) return;
+    fetch('/api/blueprints/'+encodeURIComponent(b.id), { method:'DELETE' })
+      .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ return {ok:r.ok, d:d}; }); })
+      .then(function(res){
+        if(res.ok && !(res.d && res.d.error)){
+          LaRuche.Toast.show('Blueprint supprimé','ok');
+          var el = document.getElementById('autoContent'); if(el) loadBlueprints(el);
+        } else {
+          LaRuche.Toast.show('Suppression refusée: '+((res.d&&res.d.error)||'blueprint intégré ?'),'err');
+        }
+      }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e,'err'); });
   }
 
   function openBlueprintForm(idx) {
     var form = document.getElementById('bpForm_'+idx);
+    if(!form) return;
     if (form.style.display === 'none') {
       form.style.display = 'block';
     } else {
@@ -7416,9 +7586,10 @@ var m = document.getElementById('kanban-model')?document.getElementById('kanban-
     var b = window._blueprints[idx];
     var slotsData = {};
     (b.slots||[]).forEach(function(slot){
-      slotsData[slot.name] = document.getElementById('bpInput_'+idx+'_'+slot.name).value;
+      var inp = document.getElementById('bpInput_'+idx+'_'+slot.name);
+      slotsData[slot.name] = inp ? inp.value : '';
     });
-    fetch('/api/blueprints/'+b.id+'/instancier', {
+    fetch('/api/blueprints/'+encodeURIComponent(b.id)+'/instancier', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(slotsData)
@@ -7432,8 +7603,8 @@ var m = document.getElementById('kanban-model')?document.getElementById('kanban-
     }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
   }
 
-  return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, enter:enter, leave:leave, createCron:createCron, createWatcher:createWatcher, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+  return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, createWatcher:createWatcher, refreshTab:refreshTab,
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder : composant "human-friendly" reutilisable (missions + cron) ── */
