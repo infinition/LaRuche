@@ -5091,6 +5091,11 @@ LaRuche.Memory = (function(){
       var sig = JSON.stringify(data.nodes || []);
       if(silent && sig === lastTreeSig) return;
       lastTreeSig = sig;
+      
+      var newIds = {};
+      (data.nodes || []).forEach(function(n){ newIds[n.id || n.node_id] = true; });
+      Object.keys(nodes).forEach(function(id){ if(!newIds[id]) delete nodes[id]; });
+      
       mergeNodes(data.nodes || []);
       renderTree();
       loadStats();
@@ -5974,6 +5979,9 @@ LaRuche.Memory = (function(){
       if(d.error) { LaRuche.Toast.show(d.error, 'err'); return; }
       LaRuche.Toast.show('Dossier supprime', 'ok');
       if(current === id) current = null;
+      delete nodes[id];
+      Object.keys(nodes).forEach(function(k){ if(k.indexOf(id+'.') === 0) delete nodes[k]; });
+      renderTree();
       renderDoc();
       loadTree(false);
     }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
