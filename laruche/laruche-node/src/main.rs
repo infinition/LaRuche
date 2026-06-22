@@ -2320,6 +2320,22 @@ async fn api_memory_dream(State(state): State<Arc<AppState>>) -> Json<serde_json
     Json(dream)
 }
 
+/// POST /api/memory/consolidate?node=<id> — fusionne RÉELLEMENT les items (via le modèle aux).
+/// Avec `node` : consolide ce nœud. Sans : passe sur les nœuds surchargés (≥4 items). Les anciens
+/// items sont soft-deleted (récupérables). C'est ce que le bouton « Consolider » déclenche.
+async fn api_memory_consolidate(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Json<serde_json::Value> {
+    let config = state.essaim_config.read().await.clone();
+    let node = q.get("node").map(|s| s.as_str()).filter(|s| !s.is_empty());
+    let res = match node {
+        Some(n) => laruche_essaim::brain::consolider_node(&state.memoire, &config, n).await,
+        None => laruche_essaim::brain::consolider_memoire(&state.memoire, &config).await,
+    };
+    Json(res.unwrap_or_else(|e| serde_json::json!({ "error": e.to_string() })))
+}
+
 /// GET /api/system/prompt-defaults — textes par défaut (codés en dur) des sections éditables,
 /// pour pré-remplir l'éditeur : l'utilisateur voit et modifie le prompt complet (vide en DB =
 /// ce défaut est utilisé). Le `node_*` override REMPLACE la section correspondante.
@@ -7701,6 +7717,13 @@ async fn main() -> Result<()> {
             _ => Arc::new(laruche_memoire::NativeBackend::new()),
         };
     laruche_essaim::abeilles::enregistrer_memoire(&essaim_registry, memoire.clone());
+    // Consolidation LLM (fusion d'items) : nécessite mémoire + config (modèle aux).
+    essaim_registry.enregistrer(Box::new(
+        laruche_essaim::abeilles::memoire::MemoireConsolidate {
+            mem: memoire.clone(),
+            config: essaim_config.clone(),
+        },
+    ));
 
     // Load dynamic plugins from plugins/ directory
     charger_plugins(std::path::Path::new("plugins"), &essaim_registry);
@@ -7998,6 +8021,7 @@ async fn main() -> Result<()> {
         .route("/api/memory/move", post(api_memory_move))
         .route("/api/memory/review", post(api_memory_review))
         .route("/api/memory/dream", post(api_memory_dream))
+        .route("/api/memory/consolidate", post(api_memory_consolidate))
         .route("/api/memory/tree", get(api_memory_tree))
         .route(
             "/api/system/prompt-defaults",

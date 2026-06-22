@@ -1378,6 +1378,116 @@ async fn curer_memoire(
     Ok(())
 }
 
+/// Consolide UN nœud : fusionne/déduplique ses items en un ensemble minimal via le modèle aux,
+/// puis remplace (anciens **soft-deleted** → récupérables via l'audit). N'agit que s'il y a un
+/// vrai gain (moins d'items). Ignore `system.*`/`capacities.*` (gérés en item unique ailleurs).
+pub async fn consolider_node(
+    memoire: &Arc<dyn MemoireCognitive>,
+    config: &EssaimConfig,
+    node_id: &str,
+) -> Result<serde_json::Value> {
+    if node_id.starts_with("system") || node_id.starts_with("capacities") {
+        return Ok(serde_json::json!({ "node_id": node_id, "skipped": "noeud systeme" }));
+    }
+    let node = memoire.read_node(node_id).await?;
+    let items: Vec<(String, String)> = node
+        .get("items")
+        .and_then(|i| i.as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|it| {
+                    Some((
+                        it.get("id").and_then(|x| x.as_str())?.to_string(),
+                        it.get("content").and_then(|x| x.as_str())?.to_string(),
+                    ))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    if items.len() < 2 {
+        return Ok(serde_json::json!({ "node_id": node_id, "items": items.len(), "unchanged": true }));
+    }
+    let liste = items
+        .iter()
+        .enumerate()
+        .map(|(i, (_, c))| format!("{}. {}", i + 1, c))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let sys = "Tu consolides la memoire d'un noeud. On te donne une liste de faits/notes. \
+        Fusionne doublons et redondances, GARDE toute l'information distincte, reformule clairement. \
+        Renvoie UNIQUEMENT un tableau JSON d'items consolides: [{\"content\":\"...\"}]. \
+        Vise le minimum (souvent 1 a 3 pour une personne/projet/synthese). Aucun texte hors JSON.";
+    let messages = vec![
+        serde_json::json!({ "role": "system", "content": sys }),
+        serde_json::json!({ "role": "user", "content": format!("Noeud: {node_id}\nItems:\n{liste}") }),
+    ];
+    let mut stream = provider_chat_stream(
+        &config.provider,
+        config.aux_model.as_deref().unwrap_or(&config.model),
+        &messages,
+        0.0,
+        1400,
+        &config.api_key,
+        config.api_base.as_deref(),
+        &config.ollama_url,
+    )
+    .await?;
+    let mut out = String::new();
+    while let Some(chunk) = stream.next().await {
+        out.push_str(&chunk.text);
+    }
+    let Some(js) = extraire_json_array(&out) else {
+        return Ok(serde_json::json!({ "node_id": node_id, "error": "pas de JSON" }));
+    };
+    let arr: Vec<serde_json::Value> = serde_json::from_str(&js).unwrap_or_default();
+    let news: Vec<String> = arr
+        .iter()
+        .filter_map(|v| v.get("content").and_then(|c| c.as_str()).map(|s| s.trim().to_string()))
+        .filter(|s| !s.is_empty())
+        .collect();
+    // Sécurité : on ne remplace QUE si vrai gain (sinon on ne touche à rien).
+    if news.is_empty() || news.len() >= items.len() {
+        return Ok(serde_json::json!({ "node_id": node_id, "items": items.len(), "unchanged": true }));
+    }
+    for (id, _) in &items {
+        let _ = memoire.delete_item(id, Some("consolidation")).await;
+    }
+    for c in &news {
+        let _ = memoire
+            .write(MemoryItem::new(node_id.to_string(), c.clone()).with_source("consolidation"))
+            .await;
+    }
+    Ok(serde_json::json!({ "node_id": node_id, "before": items.len(), "after": news.len() }))
+}
+
+/// Consolide la mémoire : repère les nœuds chargés (≥4 items, hors system/capacities) et les
+/// passe à `consolider_node`. Borné en nb de nœuds par run (coût LLM).
+pub async fn consolider_memoire(
+    memoire: &Arc<dyn MemoireCognitive>,
+    config: &EssaimConfig,
+) -> Result<serde_json::Value> {
+    let mut cibles: Vec<String> = Vec::new();
+    if let Ok(sugg) = memoire.suggest_nodes("", Some(200)).await {
+        if let Some(nodes) = sugg.get("nodes").and_then(|n| n.as_array()) {
+            for n in nodes {
+                let id = n.get("id").and_then(|x| x.as_str()).unwrap_or("");
+                let count = n.get("item_count").and_then(|x| x.as_u64()).unwrap_or(0);
+                if count >= 4 && !id.starts_with("system") && !id.starts_with("capacities") {
+                    cibles.push(id.to_string());
+                }
+            }
+        }
+    }
+    cibles.truncate(12);
+    let mut rapport = Vec::new();
+    for id in cibles {
+        if let Ok(r) = consolider_node(memoire, config, &id).await {
+            rapport.push(r);
+        }
+    }
+    Ok(serde_json::json!({ "consolidated": rapport.len(), "details": rapport }))
+}
+
 async fn extraire_skill_memoire(
     user: &str,
     assistant: &str,
@@ -1390,11 +1500,12 @@ async fn extraire_skill_memoire(
     if !trajectoire_merite_skill(user, assistant, n_outils) {
         return Ok(());
     }
-    let sys = "Tu es un extracteur de skills OKF. Si l'echange contient une procedure \
-        reutilisable, renvoie UNIQUEMENT un document Markdown OKF complet avec frontmatter YAML: \
-        ---\\ntype: skill\\nname: ...\\ndescription: ...\\nallowed-tools: [...]\\nwhen_to_use: ...\\n--- \
-        puis des sections ## Paradigm: et ## Step:. Si aucun skill utile et generalisable, renvoie NO_SKILL. \
-        Aucun texte hors du document.";
+    // Format UNIFIÉ avec skill_create (build_skill_okf) : type/name/description/tools + corps.
+    let sys = "Tu es un extracteur de skills. Si l'echange contient une procedure REUTILISABLE, \
+        renvoie UNIQUEMENT un document Markdown OKF avec ce frontmatter EXACT: \
+        ---\\ntype: skill\\nname: <slug-court>\\ndescription: <une ligne: quand l'utiliser>\\ntools: [outils utilises]\\n--- \
+        puis un corps: '# Titre', '## Quand l'utiliser', '## Procedure' (etapes numerotees + commandes exactes), '## Pieges'. \
+        Si rien de generalisable, renvoie NO_SKILL. Aucun texte hors du document.";
     let messages = vec![
         serde_json::json!({ "role": "system", "content": sys }),
         serde_json::json!({ "role": "user", "content": format!("Utilisateur: {user}\nAssistant: {assistant}") }),

@@ -5684,11 +5684,16 @@ LaRuche.Memory = (function(){
         content = content.trim();
         if(!content){ LaRuche.Toast.show('Contenu requis','warn'); return; }
       }
-      postJson('/api/memory/write', {node_id:nodeId, content:content, source:'ui-admin'}).then(function(d){
-        if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Ecriture impossible','err'); return; }
-        LaRuche.Toast.show((isSoul?'SOUL':'System prompt')+' enregistre','ok');
-        loadNode(nodeId); loadStats();
-      }).catch(function(e){ LaRuche.Toast.show('Ecriture: '+e,'err'); });
+      // ITEM UNIQUE : un nœud système = exactement un item. On supprime les anciens puis on écrit
+      // (pas d'accumulation de versions).
+      var oldIds = items.map(function(it){ return it.id; }).filter(Boolean);
+      Promise.all(oldIds.map(function(id){ return postJson('/api/memory/delete', {item_id:id, reason:'system-replace'}); }))
+        .then(function(){ return postJson('/api/memory/write', {node_id:nodeId, content:content, source:'ui-admin'}); })
+        .then(function(d){
+          if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Ecriture impossible','err'); return; }
+          LaRuche.Toast.show((isSoul?'SOUL':'Section')+' enregistree','ok');
+          loadNode(nodeId); loadStats();
+        }).catch(function(e){ LaRuche.Toast.show('Ecriture: '+e,'err'); });
     };
 
     document.getElementById('mem2SysRestore').onclick = function(){
@@ -5927,10 +5932,19 @@ LaRuche.Memory = (function(){
   }
 
   function triggerDream() {
-    fetch(LaRuche.API.base+'/api/memory/dream', {method:'POST'}).then(function(r){
-      if(r.ok) LaRuche.Toast.show('Consolidation declenchee en arriere-plan','ok');
-      else LaRuche.Toast.show('Erreur de consolidation','err');
-    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e,'err'); });
+    // Consolide RÉELLEMENT (fusion d'items via le modèle aux). Si un nœud est sélectionné et
+    // n'est pas système, on le consolide ; sinon passe globale sur les nœuds surchargés.
+    var node = (current && current.indexOf('system')!==0 && current.indexOf('capacities')!==0 && current.indexOf('recherche:')!==0) ? current : '';
+    var url = LaRuche.API.base+'/api/memory/consolidate'+(node?('?node='+encodeURIComponent(node)):'');
+    var scope = node ? ('« '+node+' »') : 'mémoire (nœuds surchargés)';
+    LaRuche.Toast.show('Consolidation de '+scope+'… (peut prendre quelques secondes)','ok');
+    fetch(url, {method:'POST'}).then(function(r){return r.json();}).then(function(res){
+      if(res.error){ LaRuche.Toast.show('Erreur: '+res.error,'err'); return; }
+      var n = (res.consolidated!=null) ? res.consolidated+' nœud(s) consolidé(s)'
+            : (res.before!=null ? (res.before+'→'+res.after+' items') : 'fait');
+      LaRuche.Toast.show('Consolidation: '+n,'ok');
+      loaded=false; nodes={}; loadTree(); if(node) loadNode(node);
+    }).catch(function(e){ LaRuche.Toast.show('Consolidation: '+e,'err'); });
   }
 
   /* ---- vue graphe (bonus A4) ---- */

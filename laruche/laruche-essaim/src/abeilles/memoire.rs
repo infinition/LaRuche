@@ -647,6 +647,52 @@ impl Abeille for MemoireReadNode {
     }
 }
 
+/// `memory_consolidate` — fusionne/déduplique les items d'un nœud en un ensemble minimal et
+/// synthétique (ex. `people.fabien` plein de notes → 1-2 items qui résument tout). Sûr : les
+/// anciens items sont soft-deleted (récupérables). Pour ranger/nettoyer la mémoire.
+pub struct MemoireConsolidate {
+    pub mem: Arc<dyn MemoireCognitive>,
+    pub config: crate::brain::EssaimConfig,
+}
+
+#[async_trait]
+impl Abeille for MemoireConsolidate {
+    fn nom(&self) -> &str {
+        "memory_consolidate"
+    }
+    fn description(&self) -> &str {
+        "Consolide un noeud : fusionne ses items en un ensemble minimal et synthetique sans \
+         perdre d'info (ex. un noeud 'people.<nom>' plein de notes -> 1-2 items qui resument tout). \
+         A utiliser pour ranger un noeud surcharge."
+    }
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": { "node_id": { "type": "string" } },
+            "required": ["node_id"]
+        })
+    }
+    fn niveau_danger(&self) -> NiveauDanger {
+        NiveauDanger::NeedsApproval
+    }
+    async fn executer(
+        &self,
+        args: serde_json::Value,
+        _ctx: &ContextExecution,
+    ) -> Result<ResultatAbeille> {
+        let node_id = args["node_id"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("'node_id' manquant"))?;
+        match crate::brain::consolider_node(&self.mem, &self.config, node_id).await {
+            Ok(v) => Ok(ResultatAbeille::ok(format!(
+                "Consolidation: {}",
+                serde_json::to_string(&v).unwrap_or_default()
+            ))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Echec consolidation: {e}"))),
+        }
+    }
+}
+
 // ───────────────────────── SKILLS (auto-amélioration, façon third-party) ─────────────────────────
 
 fn str_array(v: &serde_json::Value) -> Vec<String> {
