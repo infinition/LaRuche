@@ -949,7 +949,7 @@ pre:hover .code-copy-btn { opacity:1; }
 /* ── Obsidian-style memory (LOT 1-4) ───────────────────────────── */
 .mem2-layout { flex:1; display:grid; grid-template-columns:280px minmax(0,1fr); overflow:hidden; background:var(--bg); }
 .mem2-side { border-right:1px solid var(--border); background:var(--bg-panel); display:flex; flex-direction:column; min-width:0; min-height:0; overflow:hidden; }
-.mem2-main { display:flex; flex-direction:column; min-width:0; background:var(--bg); }
+.mem2-main { display:flex; flex-direction:column; min-width:0; min-height:0; background:var(--bg); }
 .mem2-side-hdr { padding:10px 12px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; }
 .mem2-side-hdr .mem2-title { font-size:11px; font-weight:700; color:var(--amber); text-transform:uppercase; letter-spacing:.5px; flex:1; }
 .mem2-stats { font-size:10px; color:var(--text-muted); font-family:var(--mono); white-space:nowrap; }
@@ -1013,6 +1013,7 @@ pre:hover .code-copy-btn { opacity:1; }
 .mem2-item-bar { display:flex; align-items:center; gap:8px; padding:7px 12px; border-bottom:1px solid var(--border); background:rgba(245,158,11,.04); }
 .mem2-item-id { font-family:var(--mono); font-size:10px; color:var(--amber); }
 .mem2-item-meta { font-size:10px; color:var(--text-muted); margin-left:auto; }
+.mem2-nodedates { font-size:10px; color:var(--text-muted); font-family:var(--mono); margin:0 0 10px 2px; }
 .mem2-item-acts { display:flex; gap:5px; }
 .mem2-iact { border:1px solid var(--border); border-radius:5px; background:var(--bg-input); color:var(--text-muted); padding:3px 8px; font-size:10px; cursor:pointer; }
 .mem2-iact:hover { border-color:var(--amber); color:var(--amber); }
@@ -5212,7 +5213,9 @@ LaRuche.Memory = (function(){
     var nodeDrag = (editMode && !locked)
       ? ' draggable="true" ondragstart="event.dataTransfer.setData(\'application/x-node\',\''+esc(c.id)+'\');event.dataTransfer.effectAllowed=\'move\'"'
       : '';
-    var html = '<div class="mem2-row'+(current===c.id?' active':'')+'"'+nodeDrag+' style="padding-left:'+(6+depth*13)+'px" data-node="'+esc(c.id)+'">'+
+    var dts = mem2Dates(meta.created_at, meta.updated_at);
+    var dtAttr = dts ? ' title="'+esc(dts)+'"' : '';
+    var html = '<div class="mem2-row'+(current===c.id?' active':'')+'"'+nodeDrag+dtAttr+' style="padding-left:'+(6+depth*13)+'px" data-node="'+esc(c.id)+'">'+
       '<span class="mem2-caret" data-toggle="'+esc(c.id)+'">'+caret+'</span>'+
       '<span class="mem2-icon">'+nodeIcon(c.id, kids>0)+'</span>'+
       '<span class="mem2-label">'+esc(c.seg)+'</span>'+
@@ -5420,6 +5423,24 @@ LaRuche.Memory = (function(){
     el.querySelectorAll('[data-crumb]').forEach(function(s){ s.onclick=function(){ loadNode(s.dataset.crumb); }; });
   }
 
+  // Horodatage unix (s) -> "22/06/2026 14:32". Vide si absent/0.
+  function mem2FmtTs(sec){
+    var n = Number(sec);
+    if(!n || n<=0) return '';
+    var d = new Date(n*1000);
+    if(isNaN(d.getTime())) return '';
+    function p(x){ return (x<10?'0':'')+x; }
+    return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+d.getFullYear()+' '+p(d.getHours())+':'+p(d.getMinutes());
+  }
+  // "cree X · maj Y" (maj seulement si differente). "" si aucune date.
+  function mem2Dates(created, updated){
+    var c = mem2FmtTs(created), u = mem2FmtTs(updated);
+    if(!c && !u) return '';
+    var out = c ? ('cree '+c) : '';
+    if(u && u!==c) out += (out?' · ':'')+'maj '+u;
+    return out;
+  }
+
   function renderDoc() {
     setCrumb();
     var el = document.getElementById('mem2Doc'); if(!el) return;
@@ -5430,6 +5451,9 @@ LaRuche.Memory = (function(){
     var html = '';
     var locked = isProtected(nodeId);
     var readOnly = isReadOnly(nodeId);
+    // Horodatage du noeud (cree / maj) si fourni par le backend.
+    var nd = mem2Dates(currentNode.created_at, currentNode.updated_at);
+    if(nd){ html += '<div class="mem2-nodedates">'+nd+'</div>'; }
     if(locked){
       html += '<div class="mem2-protnote">'+SVG.lock+
         '<span>Noeud gere par le systeme. L\'agent ne peut pas le modifier'+
@@ -5466,7 +5490,7 @@ LaRuche.Memory = (function(){
           '<div class="mem2-item-bar">'+
             '<span class="mem2-item-id">'+esc(id || '(sans id)')+'</span>'+
             (locked ? '<span class="mem2-lock" title="Gere par le systeme">'+SVG.lock+'</span>' : '')+
-            '<span class="mem2-item-meta">'+esc(node)+'</span>'+
+            '<span class="mem2-item-meta">'+esc(node)+(function(){var d=mem2Dates(it.created_at,it.updated_at);return d?' · '+esc(d):'';})()+'</span>'+
             acts+
           '</div>'+
           '<div class="mem2-md" data-md="'+esc(id)+'">'+LaRuche.MD.render(content)+'</div>'+

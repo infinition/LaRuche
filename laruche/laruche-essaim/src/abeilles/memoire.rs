@@ -562,6 +562,87 @@ impl Abeille for MemoireDeleteNode {
     }
 }
 
+/// Horodatage unix (secondes) → date locale lisible « 22/06/2026 14:32 » (ou "?" si absent).
+fn fmt_ts(v: &serde_json::Value) -> String {
+    match v.as_i64() {
+        Some(ts) if ts > 0 => chrono::DateTime::from_timestamp(ts, 0)
+            .map(|dt| dt.with_timezone(&chrono::Local).format("%d/%m/%Y %H:%M").to_string())
+            .unwrap_or_else(|| "?".to_string()),
+        _ => "?".to_string(),
+    }
+}
+
+/// Lit un nœud : ses items AVEC horodatage (créé/modifié), ses sous-nœuds et ses métadonnées.
+pub struct MemoireReadNode {
+    pub mem: Arc<dyn MemoireCognitive>,
+}
+
+#[async_trait]
+impl Abeille for MemoireReadNode {
+    fn nom(&self) -> &str {
+        "memory_read_node"
+    }
+    fn description(&self) -> &str {
+        "Lit un noeud de la carte cognitive : ses items avec leur HORODATAGE (cree / modifie le), \
+         ses sous-noeuds et ses metadonnees. Pour inspecter le contenu ET la fraicheur d'un noeud."
+    }
+    fn schema(&self) -> serde_json::Value {
+        serde_json::json!({
+            "type": "object",
+            "properties": {
+                "node_id": { "type": "string", "description": "Noeud pointe, ex. projects.laruche" }
+            },
+            "required": ["node_id"]
+        })
+    }
+    fn niveau_danger(&self) -> NiveauDanger {
+        NiveauDanger::Safe
+    }
+    async fn executer(
+        &self,
+        args: serde_json::Value,
+        _ctx: &ContextExecution,
+    ) -> Result<ResultatAbeille> {
+        let node_id = args["node_id"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("'node_id' manquant"))?;
+        let node = match self.mem.read_node(node_id).await {
+            Ok(n) => n,
+            Err(e) => return Ok(ResultatAbeille::err(format!("Lecture impossible: {e}"))),
+        };
+        let mut out = format!(
+            "Noeud `{node_id}` (cree {}, maj {})\n",
+            fmt_ts(&node["created_at"]),
+            fmt_ts(&node["updated_at"])
+        );
+        if let Some(children) = node["children"].as_array() {
+            if !children.is_empty() {
+                let noms: Vec<String> = children
+                    .iter()
+                    .filter_map(|c| c["id"].as_str().map(String::from))
+                    .collect();
+                out.push_str(&format!("Sous-noeuds: {}\n", noms.join(", ")));
+            }
+        }
+        out.push_str("\nItems:\n");
+        match node["items"].as_array() {
+            Some(items) if !items.is_empty() => {
+                for it in items {
+                    let id = it["id"].as_str().unwrap_or("?");
+                    let content = it["content"].as_str().unwrap_or("");
+                    out.push_str(&format!(
+                        "- [{id}] {content}  (cree {}, maj {})\n",
+                        fmt_ts(&it["created_at"]),
+                        fmt_ts(&it["updated_at"])
+                    ));
+                }
+            }
+            _ => out.push_str("(aucun item)\n"),
+        }
+        Ok(ResultatAbeille::ok(out))
+    }
+}
+
 /// Crée un nouveau nœud dans la carte cognitive.
 pub struct MemoireCreateNode {
     pub mem: Arc<dyn MemoireCognitive>,

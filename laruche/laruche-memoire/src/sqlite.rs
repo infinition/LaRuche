@@ -147,8 +147,8 @@ fn ensure_node(conn: &Connection, node_id: &str) -> Result<()> {
         .map(|p| format!("Sous-noeud de {p}"))
         .unwrap_or_else(|| "Noeud racine".to_string());
     conn.execute(
-        "INSERT OR IGNORE INTO nodes(id,parent_id,label,one_liner,importance,created_at)
-         VALUES(?1,?2,?3,?4,?5,?6)",
+        "INSERT OR IGNORE INTO nodes(id,parent_id,label,one_liner,importance,created_at,updated_at)
+         VALUES(?1,?2,?3,?4,?5,?6,?6)",
         rusqlite::params![node_id, parent_id, label, one_liner, 0.5f32, now()],
     )?;
     Ok(())
@@ -157,7 +157,8 @@ fn ensure_node(conn: &Connection, node_id: &str) -> Result<()> {
 fn node_json(conn: &Connection, node_id: &str) -> Result<Value> {
     let row = conn
         .query_row(
-            "SELECT label, one_liner, parent_id, importance FROM nodes WHERE id=?1",
+            "SELECT label, one_liner, parent_id, importance, created_at, COALESCE(updated_at, created_at) \
+             FROM nodes WHERE id=?1",
             [node_id],
             |r| {
                 Ok((
@@ -165,25 +166,32 @@ fn node_json(conn: &Connection, node_id: &str) -> Result<Value> {
                     r.get::<_, String>(1)?,
                     r.get::<_, Option<String>>(2)?,
                     r.get::<_, f32>(3)?,
+                    r.get::<_, Option<i64>>(4)?,
+                    r.get::<_, Option<i64>>(5)?,
                 ))
             },
         )
         .optional()?;
-    let (label, one_liner, parent_id, importance) = row.unwrap_or_else(|| {
-        (
-            node_label(node_id),
-            String::new(),
-            node_parent_id(node_id),
-            0.5,
-        )
-    });
+    let (label, one_liner, parent_id, importance, created_at, updated_at) =
+        row.unwrap_or_else(|| {
+            (
+                node_label(node_id),
+                String::new(),
+                node_parent_id(node_id),
+                0.5,
+                None,
+                None,
+            )
+        });
     Ok(json!({
         "id": node_id,
         "node_id": node_id,
         "label": label,
         "one_liner": one_liner,
         "parent_id": parent_id,
-        "importance": importance
+        "importance": importance,
+        "created_at": created_at,
+        "updated_at": updated_at
     }))
 }
 
@@ -247,6 +255,9 @@ impl SqliteBackend {
                id INTEGER PRIMARY KEY,
                op TEXT NOT NULL, node_id TEXT, content TEXT, ts INTEGER NOT NULL);",
         )?;
+        // Migration : horodatage de dernière modification (ignore l'erreur si déjà présent).
+        let _ = conn.execute("ALTER TABLE items ADD COLUMN updated_at INTEGER", []);
+        let _ = conn.execute("ALTER TABLE nodes ADD COLUMN updated_at INTEGER", []);
         Ok(Self {
             conn: Mutex::new(conn),
             embedder,
@@ -257,7 +268,7 @@ impl SqliteBackend {
         let conn = self.conn.lock().unwrap();
         ensure_node(&conn, &item.node_id)?;
         conn.execute(
-            "INSERT INTO items(node_id,content,source,status,embedding,created_at) VALUES(?1,?2,?3,?4,?5,?6)",
+            "INSERT INTO items(node_id,content,source,status,embedding,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?6)",
             rusqlite::params![item.node_id, item.content, item.source, status, embedding, now()],
         )?;
         let id = conn.last_insert_rowid();
@@ -443,7 +454,7 @@ impl MemoireCognitive for SqliteBackend {
         let children: Vec<Value> = child_rows.filter_map(|r| r.ok()).collect();
 
         let mut stmt = conn.prepare(
-            "SELECT id, content, source, created_at FROM items
+            "SELECT id, content, source, created_at, COALESCE(updated_at, created_at) FROM items
              WHERE node_id=?1 AND status='active' ORDER BY created_at",
         )?;
         let rows = stmt.query_map([node_id], |r| {
@@ -453,6 +464,7 @@ impl MemoireCognitive for SqliteBackend {
                 "content": r.get::<_,String>(1)?,
                 "source": r.get::<_, Option<String>>(2)?,
                 "created_at": r.get::<_, i64>(3)?,
+                "updated_at": r.get::<_, i64>(4)?,
             }))
         })?;
         let items: Vec<Value> = rows.filter_map(|r| r.ok()).collect();
@@ -473,8 +485,8 @@ impl MemoireCognitive for SqliteBackend {
             .optional()?
             .ok_or_else(|| anyhow!("item inconnu: {item_id}"))?;
         conn.execute(
-            "UPDATE items SET content=?1, embedding=?2 WHERE id=?3",
-            rusqlite::params![content, emb, id],
+            "UPDATE items SET content=?1, embedding=?2, updated_at=?3 WHERE id=?4",
+            rusqlite::params![content, emb, now(), id],
         )?;
         refresh_fts_row(&conn, id, &existing.0, content, &existing.1)?;
         conn.execute(
@@ -505,8 +517,8 @@ impl MemoireCognitive for SqliteBackend {
             .optional()?
             .ok_or_else(|| anyhow!("item inconnu: {item_id}"))?;
         conn.execute(
-            "UPDATE items SET node_id=?1 WHERE id=?2",
-            rusqlite::params![node_id, id],
+            "UPDATE items SET node_id=?1, updated_at=?2 WHERE id=?3",
+            rusqlite::params![node_id, now(), id],
         )?;
         refresh_fts_row(&conn, id, node_id, &existing.0, &existing.1)?;
         conn.execute(
@@ -881,8 +893,10 @@ impl MemoireCognitive for SqliteBackend {
 
     async fn list_nodes(&self) -> Result<Value> {
         let conn = self.conn.lock().unwrap();
-        let mut stmt =
-            conn.prepare("SELECT id, parent_id, label, one_liner FROM nodes ORDER BY id")?;
+        let mut stmt = conn.prepare(
+            "SELECT id, parent_id, label, one_liner, created_at, COALESCE(updated_at, created_at) \
+             FROM nodes ORDER BY id",
+        )?;
         let rows = stmt.query_map([], |r| {
             let id: String = r.get(0)?;
             Ok(json!({
@@ -891,6 +905,8 @@ impl MemoireCognitive for SqliteBackend {
                 "parent_id": r.get::<_, Option<String>>(1)?,
                 "label": r.get::<_, String>(2)?,
                 "one_liner": r.get::<_, String>(3)?,
+                "created_at": r.get::<_, Option<i64>>(4)?,
+                "updated_at": r.get::<_, Option<i64>>(5)?,
             }))
         })?;
         let nodes: Vec<Value> = rows.filter_map(|r| r.ok()).collect();
@@ -987,10 +1003,10 @@ impl MemoireCognitive for SqliteBackend {
         }
         let parent_id = node_parent_id(&id);
         conn.execute(
-            "INSERT INTO nodes(id,parent_id,label,one_liner,importance,created_at)
-             VALUES(?1,?2,?3,?4,?5,?6)
+            "INSERT INTO nodes(id,parent_id,label,one_liner,importance,created_at,updated_at)
+             VALUES(?1,?2,?3,?4,?5,?6,?6)
              ON CONFLICT(id) DO UPDATE SET label=excluded.label,
-               one_liner=excluded.one_liner, importance=excluded.importance",
+               one_liner=excluded.one_liner, importance=excluded.importance, updated_at=excluded.updated_at",
             rusqlite::params![
                 id,
                 parent_id,
@@ -1035,6 +1051,10 @@ impl MemoireCognitive for SqliteBackend {
                 rusqlite::params![importance, id],
             )?;
         }
+        conn.execute(
+            "UPDATE nodes SET updated_at=?1 WHERE id=?2",
+            rusqlite::params![now(), id],
+        )?;
         conn.execute(
             "INSERT INTO mutations(op,node_id,content,ts) VALUES('update_node',?1,?2,?3)",
             rusqlite::params![id, label.unwrap_or(""), now()],
