@@ -5219,6 +5219,8 @@ LaRuche.MD = (function(){
 
   function render(src){
     if(!src) return '';
+    src = String(src).replace(/\r\n?/g, '\n'); // normalise CRLF -> LF (sinon les blocs de code
+    // ne sont pas extraits et leur contenu passe dans les regex inline -> freeze navigateur)
     var planBlocks = [];
     src = String(src).replace(/<plan>\s*([\s\S]*?)\s*<\/plan>/gi, function(m, jsonText){
       try {

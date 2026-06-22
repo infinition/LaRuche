@@ -2368,6 +2368,7 @@ async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::MemoireCogni
         let Ok(content) = std::fs::read_to_string(p.join("SKILL.md")) else {
             continue;
         };
+        let content = content.replace("\r\n", "\n"); // normalise (SQL en LF)
         if !content.contains("type: skill") {
             continue; // seulement les vrais skills OKF
         }
@@ -9300,6 +9301,69 @@ async fn main() -> Result<()> {
                         tracing::info!(peer = %host, imported = imp, "mesh memory auto-sync");
                     }
                 }
+            }
+        });
+    }
+
+    // Phase 1.5 — WATCHER live des SKILL.md : un fichier modifié est re-synchronisé vers SQL
+    // sans reboot (poll 8s, incrémental par mtime).
+    {
+        let w_state = state.clone();
+        tokio::spawn(async move {
+            let mut mtimes: std::collections::HashMap<String, std::time::SystemTime> =
+                std::collections::HashMap::new();
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(8));
+            let mut first = true;
+            loop {
+                interval.tick().await;
+                let Ok(rd) = std::fs::read_dir("skills") else {
+                    continue;
+                };
+                for e in rd.flatten() {
+                    let p = e.path();
+                    if !p.is_dir() {
+                        continue;
+                    }
+                    let md = p.join("SKILL.md");
+                    let Ok(mt) = std::fs::metadata(&md).and_then(|m| m.modified()) else {
+                        continue;
+                    };
+                    let Some(key) = p.file_name().and_then(|x| x.to_str()).map(String::from) else {
+                        continue;
+                    };
+                    let changed = mtimes.get(&key).map(|prev| *prev != mt).unwrap_or(true);
+                    mtimes.insert(key.clone(), mt);
+                    if first || !changed {
+                        continue; // 1er tour = init ; le boot a déjà tout synchronisé
+                    }
+                    let Ok(content) = std::fs::read_to_string(&md) else {
+                        continue;
+                    };
+                    let content = content.replace("\r\n", "\n");
+                    if !content.contains("type: skill") {
+                        continue;
+                    }
+                    let node_id = format!("capacities.skills.{key}");
+                    if let Ok(node) = w_state.memoire.read_node(&node_id).await {
+                        if let Some(items) = node.get("items").and_then(|i| i.as_array()) {
+                            for it in items {
+                                if let Some(id) = it.get("id").and_then(|x| x.as_str()) {
+                                    let _ =
+                                        w_state.memoire.delete_item(id, Some("skill-file-watch")).await;
+                                }
+                            }
+                        }
+                    }
+                    let _ = w_state
+                        .memoire
+                        .write(
+                            laruche_memoire::MemoryItem::new(node_id, content)
+                                .with_source("skill-file"),
+                        )
+                        .await;
+                    tracing::info!(skill = %key, "skill re-synchronise (watcher SKILL.md)");
+                }
+                first = false;
             }
         });
     }
