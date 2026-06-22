@@ -7567,6 +7567,7 @@ async fn main() -> Result<()> {
     // Skill par défaut « web-research » (procédure search→évalue→fetch→synthèse) — seedé une
     // seule fois s'il est absent, pour que la recherche web aille au-delà des snippets.
     {
+        // Marqueur de version : re-seed une fois si l'ancienne version (v1) est en place.
         let present = memoire
             .read_node("capacities.skills.web-research")
             .await
@@ -7576,14 +7577,14 @@ async fn main() -> Result<()> {
                     a.iter().any(|it| {
                         it.get("content")
                             .and_then(|c| c.as_str())
-                            .map(|c| c.contains("type: skill"))
+                            .map(|c| c.contains("web-research-v2"))
                             .unwrap_or(false)
                     })
                 })
             })
             .unwrap_or(false);
         if !present {
-            let skill = "---\ntype: skill\nname: web-research\ndescription: Recherche web approfondie multi-etapes (cherche, evalue, fetch en profondeur, synthetise avec sources)\n---\n\n# Recherche web approfondie\n\n## Quand l'utiliser\nDes qu'on demande des infos a jour, factuelles ou detaillees sur le web (actu, docs, comparatifs, scores, prix...).\n\n## Procedure\n1. `web_deep_search` (ou `web_search`) avec une requete ciblee -> snippets + contenu des meilleurs resultats.\n2. EVALUE : si les extraits suffisent a repondre precisement, synthetise. Sinon -> etape 3.\n3. APPROFONDIS : `web_fetch` sur les 1-3 URLs les plus prometteuses pour lire la PAGE COMPLETE (pas juste le snippet). Relance une recherche affinee si besoin.\n4. SYNTHETISE en citant les sources (URLs). Signale incertitudes/contradictions.\n\n## Regles\n- Ne te contente JAMAIS des seuls snippets si la question demande du detail : fetch les pages.\n- Prefere 2-3 sources concordantes a une seule.\n- Memorise (memory_write) un fait durable utile si pertinent.\n";
+            let skill = "---\ntype: skill\nname: web-research\nversion: web-research-v2\ndescription: Recherche web approfondie multi-etapes (cherche, evalue, FETCH les pages, synthetise avec sources)\n---\n\n# Recherche web approfondie\n\n## Quand l'utiliser\nToute demande d'infos a jour, factuelles ou detaillees sur le web (actu, papiers, docs, comparatifs, scores, prix...).\n\n## Procedure (NE PAS boucler sur la recherche)\n1. UNE recherche large : `web_deep_search` avec une requete precise.\n2. REPERE dans les resultats les URLs fiables et NON bloquees (arxiv.org, blogs, docs officielles). Ignore les domaines qui renvoient 400/403/Forbidden.\n3. APPROFONDIS : `web_fetch` sur 1 a 3 de ces URLs pour lire la PAGE COMPLETE — c'est la qu'est le detail, pas dans les snippets.\n4. Si une info cle manque : UNE recherche affinee DIFFERENTE (jamais la meme requete), puis re-fetch.\n5. SYNTHETISE en citant les URLs sources. Signale incertitudes/contradictions.\n\n## Regles strictes\n- Maximum ~2 web_deep_search ; au-dela, passe a `web_fetch` sur des URLs precises.\n- Ne relance JAMAIS une requete quasi-identique a la precedente.\n- Une page renvoie 400/403/Forbidden -> abandonne-la, n'insiste pas dessus.\n- Toujours `web_fetch` au moins une source primaire (arxiv, site officiel) avant de conclure.\n- Memorise (memory_write) un fait durable utile si pertinent.\n";
             let _ = memoire
                 .write(
                     laruche_memoire::MemoryItem::new("capacities.skills.web-research", skill)

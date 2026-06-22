@@ -1753,15 +1753,46 @@ fn formater_et_signaler_skills(
     })
 }
 
+/// Intention de recherche web (déclenche le skill `web-research` d'office).
+fn intention_recherche(query: &str) -> bool {
+    let p = query.to_lowercase();
+    const MOTS: &[&str] = &[
+        "recherche", "approfond", "cherche", "renseigne", "trouve", "web", "internet",
+        "actu", "news", "source", "documente", "veille", "compare", "qui est", "quoi de neuf",
+    ];
+    MOTS.iter().any(|m| p.contains(m))
+}
+
+/// Charge le corps OKF d'un skill (dernier item `type: skill` du nœud).
+async fn charger_skill_corps(
+    memoire: &Arc<dyn MemoireCognitive>,
+    node_id: &str,
+) -> Option<String> {
+    let node = memoire.read_node(node_id).await.ok()?;
+    let items = node.get("items")?.as_array()?;
+    items
+        .iter()
+        .rev()
+        .find_map(|it| it.get("content").and_then(|c| c.as_str()))
+        .filter(|c| c.contains("type: skill"))
+        .map(|c| c.to_string())
+}
+
 /// Rappel automatique : cherche les skills pertinents, les injecte dans le contexte
-/// éphémère trailing et les signale. Retourne le contexte augmenté.
+/// éphémère trailing et les signale. Sur une intention de recherche, FORCE le skill
+/// `web-research` (sinon le réflexe « web_deep_search en boucle » l'emporte).
 async fn augmenter_ephemere_avec_skills(
     memoire: &Arc<dyn MemoireCognitive>,
     query: &str,
     ephemeral: Option<String>,
     tx: &tokio::sync::broadcast::Sender<ChatEvent>,
 ) -> Option<String> {
-    let skills = recuperer_skills_pertinents(memoire, query, 3).await;
+    let mut skills = recuperer_skills_pertinents(memoire, query, 3).await;
+    if intention_recherche(query) && !skills.iter().any(|(n, _)| n == "web-research") {
+        if let Some(body) = charger_skill_corps(memoire, "capacities.skills.web-research").await {
+            skills.insert(0, ("web-research".to_string(), body));
+        }
+    }
     formater_et_signaler_skills(&skills, ephemeral, tx)
 }
 
