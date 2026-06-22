@@ -1485,6 +1485,13 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 .feed-row:hover { background:rgba(255,255,255,0.04); }
 .feed-row.kind-agent { border-left:2px solid var(--purple); }
 .feed-row.kind-memory { border-left:2px solid var(--amber); }
+.feed-row.kind-cron { border-left:2px solid var(--cyan); }
+.feed-row.kind-mission { border-left:2px solid #eab308; }
+.feed-row.kind-watcher { border-left:2px solid var(--green); }
+.feed-kind-icon { margin-right:5px; font-size:11px; line-height:1; vertical-align:baseline; }
+.feed-row.kind-cron .feed-kind-icon { color:var(--cyan); }
+.feed-row.kind-mission .feed-kind-icon { color:#eab308; }
+.feed-row.kind-watcher .feed-kind-icon { color:var(--green); }
 .feed-row-top { display:flex; align-items:center; gap:6px; }
 .feed-row-time { font-size:10px; color:var(--text-muted); font-family:var(--mono); white-space:nowrap; }
 .feed-actor {
@@ -1635,6 +1642,9 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
       <span class="ff-label">Filtrer</span>
       <span class="ff-chip" data-filter="memory" title="Événements mémoire"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M9.5 2A2.5 2.5 0 0 0 7 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-.08A2.5 2.5 0 0 0 17 19.5v-15A2.5 2.5 0 0 0 14.5 2 2.5 2.5 0 0 0 12 3a2.5 2.5 0 0 0-2.5-1z"></path></svg> Mémoire</span>
       <span class="ff-chip" data-filter="agent" title="Événements agent"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><rect x="3" y="11" width="18" height="10" rx="2"></rect><circle cx="12" cy="5" r="2"></circle><path d="M12 7v4"></path><line x1="8" y1="16" x2="8" y2="16"></line><line x1="16" y1="16" x2="16" y2="16"></line></svg> Agent</span>
+      <span class="ff-chip" data-filter="cron" title="Crons exécutés"><span style="vertical-align:middle;">&#x23F0;</span> Cron</span>
+      <span class="ff-chip" data-filter="mission" title="Avancées de missions"><span style="vertical-align:middle;">&#x1F451;</span> Mission</span>
+      <span class="ff-chip" data-filter="watcher" title="Watchers déclenchés"><span style="vertical-align:middle;">&#x1F441;</span> Watcher</span>
       <span class="ff-chip" data-filter="user" title="Actions de l'utilisateur"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> User</span>
       <span class="ff-chip" data-filter="laruche" title="Actions de LaRuche"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg> LaRuche</span>
     </div>
@@ -1942,6 +1952,7 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
         </div>
         <div class="mem2-search" style="display:flex; gap:5px;">
           <input id="mem2Search" type="text" placeholder="Rechercher..." spellcheck="false" style="flex:1;">
+          <button id="mem2SearchExact" onclick="LaRuche.Memory.toggleExact()" title="Recherche sémantique (cliquer pour passer en recherche de contenu exacte)" style="background:var(--bg-hover);border:1px solid var(--border);color:var(--text-muted);border-radius:4px;cursor:pointer;padding:0 8px;font-size:11px;">≈</button>
           <button onclick="LaRuche.Memory.toggleAll(true)" title="Tout déplier" style="background:var(--bg-hover);border:1px solid var(--border);color:var(--text-muted);border-radius:4px;cursor:pointer;padding:0 8px;">+</button>
           <button onclick="LaRuche.Memory.toggleAll(false)" title="Tout plier" style="background:var(--bg-hover);border:1px solid var(--border);color:var(--text-muted);border-radius:4px;cursor:pointer;padding:0 8px;">-</button>
         </div>
@@ -5291,6 +5302,7 @@ LaRuche.Memory = (function(){
   var currentNode = null;// dernier objet node charge (items/children)
   var view = 'tree';     // 'tree' (document) | 'graph'
   var searchTimer = null;
+  var exactMode = false; // false = recherche semantique (/search) ; true = contenu exact (/grep)
   var editMode = false;  // mode edition : noeuds draggables (reparent) + creer racine
   var springTimer = null;// spring-loaded : timer d'auto-ouverture au survol pendant un drag
   var springId = null;   // noeud actuellement en attente d'auto-ouverture
@@ -5300,8 +5312,53 @@ LaRuche.Memory = (function(){
     if(input) input.addEventListener('input', function(){
       clearTimeout(searchTimer);
       var q = input.value.trim();
-      searchTimer = setTimeout(function(){ q ? doSearch(q) : refreshTree(); }, 220);
+      searchTimer = setTimeout(function(){ q ? runSearch(q) : refreshTree(); }, 220);
     });
+  }
+
+  // dispatch selon le mode courant (semantique vs contenu exact)
+  function runSearch(q){ exactMode ? doGrep(q) : doSearch(q); }
+
+  // bascule semantique <-> exact ; relance la recherche si une requete est en cours
+  function toggleExact(){
+    exactMode = !exactMode;
+    var btn = document.getElementById('mem2SearchExact');
+    var input = document.getElementById('mem2Search');
+    if(btn){
+      btn.textContent = exactMode ? '🔍' : '≈';
+      btn.style.color = exactMode ? 'var(--amber)' : 'var(--text-muted)';
+      btn.style.borderColor = exactMode ? 'var(--amber)' : 'var(--border)';
+      btn.title = exactMode
+        ? 'Recherche de contenu exacte (cliquer pour revenir au sémantique)'
+        : 'Recherche sémantique (cliquer pour passer en recherche de contenu exacte)';
+    }
+    if(input){
+      input.placeholder = exactMode ? 'Recherche de contenu exacte...' : 'Rechercher...';
+      var q = input.value.trim();
+      if(q) runSearch(q); else refreshTree();
+    }
+  }
+
+  // recherche de contenu exacte : GET /api/memory/grep -> {count, items:[{id,node_id,content}]}
+  function doGrep(q){
+    fetch(LaRuche.API.base+'/api/memory/grep?q='+encodeURIComponent(q)+'&limit=30').then(function(r){return r.json();}).then(function(data){
+      if(data.error){ LaRuche.Toast.show(data.error, 'err'); return; }
+      var items = data.items || [];
+      // noeuds uniques -> chips cliquables (data-chip -> loadNode via renderDoc)
+      var seen = {}, children = [];
+      items.forEach(function(it){
+        var nid = it.node_id || it.node;
+        if(nid && !seen[nid]){ seen[nid] = 1; children.push({ node_id:nid, label:nid }); }
+      });
+      currentNode = {
+        node_id: 'recherche: «'+q+'» ('+(data.count!=null?data.count:items.length)+' resultat'+((data.count||items.length)>1?'s':'')+')',
+        items: items,
+        children: children
+      };
+      current = null;
+      renderTree();
+      renderDoc();
+    }).catch(function(e){ LaRuche.Toast.show('Recherche exacte: '+e, 'err'); });
   }
 
   var memPollTimer = null;
@@ -6298,7 +6355,8 @@ LaRuche.Memory = (function(){
     exportOkf:exportOkf, importOkf:importOkf, triggerDream:triggerDream,
     toggleAll:toggleAll, deleteNode:deleteNode, renameNode:renameNode,
     createSubnode:createSubnode, moveItem:moveItem,
-    toggleEditMode:toggleEditMode, createRoot:createRoot
+    toggleEditMode:toggleEditMode, createRoot:createRoot,
+    toggleExact:toggleExact
   };
 })();
 
@@ -8884,8 +8942,8 @@ LaRuche.Feed = (function(){
   var nextTimer = null;
   var lastSig = '';
   var lastEvents = [];               // derniers events chargés (pour re-render client-side)
-  var DEFAULT_FILTERS = { memory:true, agent:true, user:true, laruche:true };
-  var filters = { memory:true, agent:true, user:true, laruche:true };
+  var DEFAULT_FILTERS = { memory:true, agent:true, cron:true, mission:true, watcher:true, user:true, laruche:true };
+  var filters = { memory:true, agent:true, cron:true, mission:true, watcher:true, user:true, laruche:true };
 
   function loadFilters(){
     try{
@@ -8896,7 +8954,7 @@ LaRuche.Feed = (function(){
   function saveFilters(){ try{ localStorage.setItem('lr_feed_filters', JSON.stringify(filters)); }catch(e){} }
 
   function passFilter(ev){
-    var kind = (ev.kind==='agent') ? 'agent' : 'memory';
+    var kind = kindOf(ev);
     if(!filters[kind]) return false;
     var actor = (ev.actor==='User') ? 'user' : 'laruche';
     if(!filters[actor]) return false;
@@ -8952,21 +9010,30 @@ LaRuche.Feed = (function(){
   }
 
   // ── Liste des événements ─────────────────────────────────────
+  // mapping kind -> classe css + petite icone distincte
+  var KIND_ICON = { memory:'', agent:'', cron:'⏰', mission:'👑', watcher:'👁' };
+  function kindOf(ev){
+    var k = ev && ev.kind;
+    if(k==='agent'||k==='cron'||k==='mission'||k==='watcher') return k;
+    return 'memory';
+  }
   function rowHtml(ev){
     var actorCls = (ev.actor==='User') ? 'actor-user' : 'actor-laruche';
-    var kindCls = (ev.kind==='agent') ? 'kind-agent' : 'kind-memory';
+    var kind = kindOf(ev);
+    var kindCls = 'kind-'+kind;
     var objHtml;
     if(ev.ref){
       objHtml = '<span class="feed-obj-ref" data-ref="'+esc(ev.ref)+'">'+esc(ev.object)+'</span>';
     } else {
       objHtml = esc(ev.object);
     }
+    var icon = KIND_ICON[kind] ? '<span class="feed-kind-icon">'+KIND_ICON[kind]+'</span>' : '';
     return '<div class="feed-row '+kindCls+'">'+
       '<div class="feed-row-top">'+
         '<span class="feed-actor '+actorCls+'">'+esc(ev.actor)+'</span>'+
         '<span class="feed-row-time">'+esc(fmtTime(ev.ts))+'</span>'+
       '</div>'+
-      '<div class="feed-row-text">'+esc(ev.action)+' '+objHtml+'</div>'+
+      '<div class="feed-row-text">'+icon+esc(ev.action)+' '+objHtml+'</div>'+
     '</div>';
   }
 
@@ -8978,7 +9045,7 @@ LaRuche.Feed = (function(){
     var shown = [];
     for(var k=0;k<lastEvents.length;k++){ if(passFilter(lastEvents[k])) shown.push(lastEvents[k]); }
     // signature inclut l'état des filtres pour re-render quand ils changent
-    var sig = 'f:'+(filters.memory?1:0)+(filters.agent?1:0)+(filters.user?1:0)+(filters.laruche?1:0)+';n:'+shown.length;
+    var sig = 'f:'+(filters.memory?1:0)+(filters.agent?1:0)+(filters.cron?1:0)+(filters.mission?1:0)+(filters.watcher?1:0)+(filters.user?1:0)+(filters.laruche?1:0)+';n:'+shown.length;
     for(var i=0;i<shown.length;i++){ var e=shown[i]; sig += '|'+e.ts+e.actor+e.action+e.object+(e.ref||''); }
     if(sig === lastSig) return; // pas de changement : évite le flicker
     lastSig = sig;
