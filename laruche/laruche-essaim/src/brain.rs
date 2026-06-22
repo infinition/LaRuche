@@ -1433,6 +1433,45 @@ pub async fn indexer_abeilles_memoire(
         ajoutes += 1;
     }
 
+    // Réconciliation des SUPPRESSIONS pour les familles VOLATILES (plugins/mcp) : pures projections
+    // du registry. Tout nœud `capacities.{plugins,mcp}.<name>` sans outil correspondant = capacité
+    // retirée (ex. plugin supprimé) → on l'enlève. Garde-fou : on ne réconcilie une famille QUE si
+    // le registry en contient au moins un (évite de tout purger au boot avant le chargement des MCP).
+    let mut valides: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let (mut a_plugins, mut a_mcp) = (false, false);
+    for tool in tools {
+        let name = tool["name"].as_str().unwrap_or("");
+        let origin = tool["origin"].as_str().unwrap_or("builtin");
+        valides.insert(format!("{}.{name}", famille_capacite(origin)));
+        match origin {
+            "custom" => a_plugins = true,
+            "mcp" => a_mcp = true,
+            _ => {}
+        }
+    }
+    for (parent, actif) in [("capacities.plugins", a_plugins), ("capacities.mcp", a_mcp)] {
+        if !actif {
+            continue;
+        }
+        if let Ok(node) = memoire.read_node(parent).await {
+            if let Some(children) = node["children"].as_array() {
+                for child in children {
+                    let Some(id) = child["id"].as_str().or_else(|| child["node_id"].as_str()) else {
+                        continue;
+                    };
+                    if valides.contains(id) {
+                        continue;
+                    }
+                    if let Ok(r) = memoire.delete_node(id).await {
+                        if let Some(orphan) = r.get("relocated_to").and_then(|v| v.as_str()) {
+                            let _ = memoire.delete_node(orphan).await; // hard-delete l'orphelin
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     if ajoutes > 0 {
         let _ = memoire
             .write(
