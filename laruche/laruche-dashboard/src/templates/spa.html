@@ -965,7 +965,7 @@ pre:hover .code-copy-btn { opacity:1; }
 .mem2-search input { flex:1; background:var(--bg-input); border:1px solid var(--border); color:var(--text); border-radius:6px; padding:7px 9px; font-size:12px; outline:none; }
 .mem2-search input:focus { border-color:var(--amber); }
 .mem2-tree { flex:1; overflow-y:auto; overflow-x:hidden; min-height:0; padding:6px 4px; }
-.mem2-row { align-items:center; gap:5px; padding:4px 6px; font-size:12px; cursor:pointer; border-radius:5px; color:var(--text-dim); user-select:none; }
+.mem2-row { display:flex; align-items:center; gap:5px; padding:4px 6px; font-size:12px; cursor:pointer; border-radius:5px; color:var(--text-dim); user-select:none; }
 .mem2-row:hover { background:var(--bg-hover); }
 .node-actions { display: none; gap: 3px; margin-left: auto; align-items: center; }
 .mem2-row:hover .node-actions { display: flex; }
@@ -1251,29 +1251,6 @@ pre:hover .code-copy-btn { opacity:1; }
   .chat-sidebar.open { transform:translateX(0); }
   .sidebar-overlay.open { display:block; z-index:119; }
 
-@media (max-width: 900px) {
-  .chat-sidebar, .mem2-side, .mis-side {
-    position: fixed !important; left: 0; top: 0; bottom: 0; z-index: 120 !important;
-    width: 90% !important; max-width: none !important;
-    transform: translateX(-100%);
-    transition: transform var(--transition-med);
-    box-shadow: 4px 0 24px rgba(0,0,0,0.6);
-    background: var(--bg-panel);
-    border-right: 1px solid var(--border) !important;
-  }
-  .chat-sidebar.open, .mem2-side.open, .mis-side.open {
-    transform: translateX(0);
-  }
-  .mis-layout, .mem2-layout {
-    display: flex;
-    flex-direction: column;
-    overflow: auto;
-  }
-  .mem2-main, .mem2-detail, .mis-dossier-body {
-    flex: 1;
-    min-height: 50vh;
-  }
-}
 
   .header { padding:8px 12px; padding-left:calc(12px + var(--safe-left)); padding-right:calc(12px + var(--safe-right)); }
   .header-brand { font-size:14px; }
@@ -1351,8 +1328,8 @@ html { overscroll-behavior:none; }
 html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 /* Touch targets minimum 44px */
 @media (pointer:coarse) {
-  .session-item, .suggested-prompt, .filter-btn { min-height:44px; }
-  button, select, .mic-btn, .send-btn { min-height:44px; min-width:44px; }
+  .session-item, .suggested-prompt { min-height:44px; }
+  .mic-btn, .send-btn, .input-action-btn, .sidebar-toggle, .sidebar-close { min-height:44px; min-width:44px; }
   .header-nav a { padding:8px 12px; }
 }
 /* Fix iOS keyboard pushing content — use dvh */
@@ -1581,6 +1558,29 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   .header-nav a .tab-icon { margin-right: 0; }
 }
 
+@media (max-width: 900px) {
+  .chat-sidebar, .mem2-side, .mis-side {
+    position: fixed !important; left: 0; top: 0; bottom: 0; z-index: 120 !important;
+    width: 90vw !important; min-width: 90vw !important; max-width: 90vw !important;
+    transform: translateX(-100%);
+    transition: transform var(--transition-med);
+    box-shadow: 4px 0 24px rgba(0,0,0,0.6);
+    background: var(--bg-panel);
+    border-right: 1px solid var(--border) !important;
+  }
+  .chat-sidebar.open, .mem2-side.open, .mis-side.open {
+    transform: translateX(0);
+  }
+  .mis-layout, .mem2-layout {
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+  }
+  .mem2-main, .mem2-detail, .mis-dossier-body {
+    flex: 1;
+    min-height: 50vh;
+  }
+}
 </style>
 </head>
 <body>
