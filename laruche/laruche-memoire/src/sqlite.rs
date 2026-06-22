@@ -929,6 +929,14 @@ impl MemoireCognitive for SqliteBackend {
         let like = format!("{id}.%");
         let conn = self.conn.lock().unwrap();
 
+        if id == "orphans" || id.starts_with("orphans.") {
+            // Hard delete for orphans
+            let _ = conn.execute("DELETE FROM items_fts WHERE node_id = ?1 OR node_id LIKE ?2", rusqlite::params![id, like]);
+            conn.execute("DELETE FROM items WHERE node_id = ?1 OR node_id LIKE ?2", rusqlite::params![id, like])?;
+            conn.execute("DELETE FROM nodes WHERE id = ?1 OR id LIKE ?2", rusqlite::params![id, like])?;
+            return Ok(json!({"deleted": id, "hard_delete": true}));
+        }
+
         // On relocalise toujours tout le sous-arbre sous `orphans.<base_name>_<timestamp>`
         // Cela evite la perte de donnees et les conflits d'unicite (UNIQUE constraint failed: nodes.id).
         let base_name = id.split('.').last().unwrap_or(&id);
