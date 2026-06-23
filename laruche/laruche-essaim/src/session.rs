@@ -395,16 +395,26 @@ impl Session {
         if self.title.is_some() {
             return;
         }
+        // Bug fix : le chat stocke les messages user en `UserMultimodal` (pas seulement `User`) →
+        // l'ancienne version ne trouvait jamais de titre = « Sans titre » partout. On gère les deux,
+        // on retire le suffixe `[SYSTEM]…` ajouté au prompt, et on coupe proprement à 60 caractères.
         for msg in &self.messages {
-            if let Message::User(text) = msg {
-                let title: String = text.chars().take(60).collect();
-                self.title = Some(if text.len() > 60 {
-                    format!("{}...", title)
-                } else {
-                    title
-                });
-                return;
+            let raw = match msg {
+                Message::User(t) => t.as_str(),
+                Message::UserMultimodal { text, .. } => text.as_str(),
+                _ => continue,
+            };
+            let clean = raw.split("\n\n[SYSTEM]").next().unwrap_or(raw).trim();
+            if clean.is_empty() {
+                continue;
             }
+            let title: String = clean.chars().take(60).collect();
+            self.title = Some(if clean.chars().count() > 60 {
+                format!("{title}...")
+            } else {
+                title
+            });
+            return;
         }
     }
 

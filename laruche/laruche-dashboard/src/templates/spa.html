@@ -145,6 +145,14 @@ body.feed-docked { padding-right: 360px; }
 .feed-av-peer { background:#a855f7; color:#fff; border-radius:50%; font-size:10px; font-weight:700; }
 .feed-expandable { cursor:pointer; }
 .feed-more { color:var(--amber); font-size:10px; opacity:.8; }
+/* Pastille de conversation : vide (réserve l'espace) sauf nouveau = point ambre. */
+.conv-dot { width:6px; height:6px; border-radius:50%; margin-right:8px; flex-shrink:0; background:transparent; }
+.conv-dot-new { background:var(--amber); box-shadow:0 0 6px rgba(245,158,11,.6); }
+/* Recherche historique : surlignage du mot-clé + extrait + message ciblé. */
+.hk { background:rgba(245,158,11,.35); color:inherit; border-radius:2px; padding:0 1px; }
+.hi-match { font-size:11px; color:var(--text-dim); margin-top:3px; font-style:italic; }
+.message.msg-highlight { animation:msgHl 2.5s ease-out; }
+@keyframes msgHl { 0%,40% { box-shadow:0 0 0 2px var(--amber); } 100% { box-shadow:0 0 0 0 transparent; } }
 /* Mini-composer « parler à LaRuche » au bas du Feed + animation d'envoi. */
 .feed-ask { display:flex; gap:6px; padding:8px; border-top:1px solid var(--border); flex-shrink:0; }
 .feed-ask textarea { flex:1; resize:none; background:var(--bg-input); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:7px 10px; font-size:13px; font-family:inherit; max-height:120px; }
@@ -4237,6 +4245,16 @@ LaRuche.Chat = (function(){
     renderPlanMissions();
   }
 
+  // Suivi « lu / non-lu » des conversations (localStorage). La pastille n'apparaît QUE s'il y a du
+  // nouveau dans une conversation NON ouverte (plus de couleurs aléatoires « barriolées »).
+  function getSeenMap(){ try{ return JSON.parse(localStorage.getItem('lr_conv_seen')||'{}'); }catch(e){ return {}; } }
+  function markConvSeen(id, updatedAt){ if(!id) return; var m=getSeenMap(); m[id]=updatedAt||new Date().toISOString(); try{ localStorage.setItem('lr_conv_seen', JSON.stringify(m)); }catch(e){} }
+  function convIsUnread(s){
+    if(s.id===sessionId) return false; // ouverte = lue
+    if(!s.updated_at) return false;
+    var seen=getSeenMap()[s.id];
+    return !seen || new Date(s.updated_at) > new Date(seen);
+  }
   function loadSessions() {
     fetch('/api/sessions').then(function(r){return r.json();}).then(function(sessions){
       var list = document.getElementById('sessionsSidebarList');
@@ -4247,12 +4265,10 @@ LaRuche.Chat = (function(){
         div.className='session-item'+(s.id===sessionId?' active':'');
         var cleanTitle = (s.title||'').split(/\[SYSTEM\]/i)[0].trim() || 'Sans titre';
         if(cleanTitle.length > 55) cleanTitle = cleanTitle.substring(0, 52) + '...';
-        var hash = 0;
-        var sid = s.id || '';
-        for (var i = 0; i < sid.length; i++) hash = sid.charCodeAt(i) + ((hash << 5) - hash);
-        var hue = Math.abs(hash) % 360;
-        var color = 'hsl('+hue+', 75%, 65%)';
-        div.innerHTML='<div style="display:flex; align-items:center; flex:1; min-width:0; overflow:hidden;"><div style="width:6px; height:6px; border-radius:50%; background:'+color+'; margin-right:8px; flex-shrink:0; box-shadow: 0 0 6px '+color+'80;"></div><span class="session-title" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'+LaRuche.Utils.esc(cleanTitle)+'</span></div><span class="session-delete" onclick="event.stopPropagation();LaRuche.Chat.deleteSession(\''+s.id+'\')">&times;</span>';
+        var dot = convIsUnread(s)
+          ? '<span class="conv-dot conv-dot-new" title="Nouveau"></span>'
+          : '<span class="conv-dot"></span>';
+        div.innerHTML='<div style="display:flex; align-items:center; flex:1; min-width:0; overflow:hidden;">'+dot+'<span class="session-title" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'+LaRuche.Utils.esc(cleanTitle)+'</span></div><span class="session-delete" onclick="event.stopPropagation();LaRuche.Chat.deleteSession(\''+s.id+'\')">&times;</span>';
         div.onclick=function(){switchSession(s.id);};
         list.appendChild(div);
       });
@@ -4281,8 +4297,9 @@ LaRuche.Chat = (function(){
     closeSidebarMobile();
   }
 
-  function switchSession(id) {
+  function switchSession(id, scrollTerm) {
     sessionId=id;
+    markConvSeen(id); // ouvrir = marquer lu (efface la pastille)
     var container=document.getElementById('chatContainer');
     container.innerHTML='';
     document.getElementById('activityFeed').innerHTML='';
@@ -4341,7 +4358,8 @@ LaRuche.Chat = (function(){
         if(restoredState) restoredState.textContent='TERMINÉ';
       }
       setFeedLive('idle');
-      scrollToBottom();
+      // Saut vers le mot-clé recherché (clic depuis l'historique), sinon bas de page.
+      if(scrollTerm){ scrollToMessageTerm(scrollTerm); } else { scrollToBottom(); }
     }).catch(function(){});
     loadSessions(); closeSidebarMobile();
     // P8 — re-attach au flux live si la session est encore en cours (le serveur
@@ -4382,13 +4400,68 @@ LaRuche.Chat = (function(){
       renderHistory(_historySessions);
     }).catch(function(){ renderHistory([]); });
   }
+  var _searchTerm = '';
+  // Date RELATIVE : aujourd'hui HH:MM / hier / avant-hier / il y a N jours / sem. / mois / ans.
+  function fmtRelDate(iso){
+    if(!iso) return 'MAJ : -';
+    var d=new Date(iso); if(isNaN(d.getTime())) return 'MAJ : -';
+    var now=new Date(), hm=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+    function sod(x){ return new Date(x.getFullYear(),x.getMonth(),x.getDate()).getTime(); }
+    var days=Math.round((sod(now)-sod(d))/86400000);
+    if(days<=0) return "aujourd'hui "+hm;
+    if(days===1) return 'hier '+hm;
+    if(days===2) return 'avant-hier '+hm;
+    if(days<7) return 'il y a '+days+' jours · '+hm;
+    if(days<31) return 'il y a '+Math.floor(days/7)+' sem.';
+    if(days<365) return 'il y a '+Math.floor(days/30)+' mois';
+    var y=Math.floor(days/365); return 'il y a '+y+' an'+(y>1?'s':'');
+  }
+  // Surligne `term` (insensible casse) dans `text`, échappé.
+  function hlt(text, term){
+    text=String(text||'');
+    if(!term) return LaRuche.Utils.esc(text);
+    var i=text.toLowerCase().indexOf(term);
+    if(i<0) return LaRuche.Utils.esc(text);
+    return LaRuche.Utils.esc(text.slice(0,i))+'<mark class="hk">'+LaRuche.Utils.esc(text.slice(i,i+term.length))+'</mark>'+LaRuche.Utils.esc(text.slice(i+term.length));
+  }
+  // Saute au 1er message contenant `term` et le surligne brièvement.
+  function scrollToMessageTerm(term){
+    if(!term){ scrollToBottom(); return; }
+    var t=String(term).toLowerCase();
+    var msgs=document.querySelectorAll('#chatContainer .message');
+    for(var i=0;i<msgs.length;i++){
+      if((msgs[i].textContent||'').toLowerCase().indexOf(t)!==-1){
+        msgs[i].scrollIntoView({behavior:'smooth',block:'center'});
+        msgs[i].classList.add('msg-highlight');
+        (function(el){ setTimeout(function(){ el.classList.remove('msg-highlight'); }, 2600); })(msgs[i]);
+        return;
+      }
+    }
+    scrollToBottom();
+  }
   function searchHistory(q){
-    q = (q||'').toLowerCase().trim();
+    q = (q||'').trim();
+    _searchTerm = q.toLowerCase();
     if(!q){ renderHistory(_historySessions); return; }
-    fetch('/api/sessions/search?q='+encodeURIComponent(q)).then(function(r){ if(!r.ok) throw 0; return r.json(); })
-      .then(function(results){ renderHistory(results); })
+    fetch('/api/sessions/search?q='+encodeURIComponent(q)).then(function(r){ return r.ok?r.json():[]; })
+      .then(function(results){
+        // Résultats backend = {session_id, session_title, role, preview}. On regroupe par session
+        // et on ENRICHIT avec les métadonnées complètes (title/updated_at/messages) — sinon « Sans titre ».
+        var byId={};
+        (results||[]).forEach(function(r){
+          var sid=r.session_id; if(!sid) return;
+          if(!byId[sid]){
+            var full=_historySessions.filter(function(s){return s.id===sid;})[0];
+            byId[sid]=full?Object.assign({},full):{ id:sid, title:r.session_title };
+            byId[sid]._match=r.preview;
+          }
+        });
+        var merged=Object.keys(byId).map(function(k){return byId[k];});
+        merged.sort(function(a,b){return new Date(b.updated_at||0)-new Date(a.updated_at||0);});
+        renderHistory(merged);
+      })
       .catch(function(){
-        renderHistory(_historySessions.filter(function(s){ return (s.title||'').toLowerCase().indexOf(q)!==-1; }));
+        renderHistory(_historySessions.filter(function(s){ return (s.title||'').toLowerCase().indexOf(_searchTerm)!==-1; }));
       });
   }
   function renderHistory(sessions){
@@ -4396,23 +4469,25 @@ LaRuche.Chat = (function(){
     if(!list) return;
     if(!sessions || !sessions.length){ list.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:30px">Aucune conversation.</div>'; return; }
     list.innerHTML='';
+    var term=_searchTerm||null;
     sessions.forEach(function(s){
       var cleanTitle = (s.title||'').split(/\[SYSTEM\]/i)[0].trim() || 'Sans titre';
-      var updated = s.updated_at ? new Date(s.updated_at).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}) : '-';
       var item = document.createElement('div');
       item.className = 'history-item';
+      var matchHtml = (s._match && term) ? '<div class="hi-match">…'+hlt(s._match, term)+'…</div>' : '';
       item.innerHTML =
         '<div class="hi-main">'+
-          '<div class="hi-title">'+LaRuche.Utils.esc(cleanTitle)+'</div>'+
-          '<div class="hi-meta">MAJ : '+updated+(s.messages?(' · '+s.messages+' msg'):'')+'</div>'+
+          '<div class="hi-title">'+hlt(cleanTitle, term)+'</div>'+
+          '<div class="hi-meta">'+fmtRelDate(s.updated_at)+(s.messages?(' · '+s.messages+' msg'):'')+'</div>'+
+          matchHtml+
         '</div>'+
         '<div class="hi-actions">'+
           '<button class="hi-btn open">Ouvrir</button>'+
           '<button class="hi-btn export">Exporter</button>'+
           '<button class="hi-btn del">Supprimer</button>'+
         '</div>';
-      item.querySelector('.hi-main').onclick = function(){ closeHistory(); switchSession(s.id); };
-      item.querySelector('.open').onclick = function(){ closeHistory(); switchSession(s.id); };
+      item.querySelector('.hi-main').onclick = function(){ closeHistory(); switchSession(s.id, term); };
+      item.querySelector('.open').onclick = function(){ closeHistory(); switchSession(s.id, term); };
       item.querySelector('.export').onclick = function(){ exportSessionMd(s.id, cleanTitle); };
       item.querySelector('.del').onclick = function(){ if(confirm('Supprimer « '+cleanTitle+' » ?')) deleteSession(s.id); };
       list.appendChild(item);
