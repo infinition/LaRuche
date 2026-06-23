@@ -64,7 +64,8 @@ async fn openai_chat_stream(
     api_key: &str,
     api_base: Option<&str>,
 ) -> Result<Pin<Box<dyn Stream<Item = OllamaChunk> + Send>>> {
-    let base = api_base.unwrap_or("https://api.openai.com");
+    let base = normalize_base_url(api_base.unwrap_or("https://api.openai.com"));
+    let base = base.as_str();
     if api_key.is_empty() && !is_local_base_url(base) {
         anyhow::bail!("API key is required for OpenAI-compatible provider. Configure in Settings > Providers.");
     }
@@ -410,6 +411,31 @@ async fn codex_chat_stream(
     });
 
     Ok(Box::pin(ReceiverStream::new(rx)))
+}
+
+/// Normalise une base URL de provider : garantit le schéma `http://`, et pour un hôte = IPv4 NUE
+/// sans port (cas d'un nœud mesh annoncé par son IP, ex. "192.168.1.30"), ajoute le port API
+/// LaRuche `:8419` (qui sert /v1/chat/completions). Évite les « builder error » (URL sans schéma)
+/// et le routage vers le port 80. Laisse intacts les domaines (api.openai.com) et les hôtes:port.
+fn normalize_base_url(base: &str) -> String {
+    let b = base.trim().trim_end_matches('/');
+    let with_scheme = if b.starts_with("http://") || b.starts_with("https://") {
+        b.to_string()
+    } else {
+        format!("http://{b}")
+    };
+    let after = with_scheme.splitn(2, "://").nth(1).unwrap_or("");
+    let host_part = after.split('/').next().unwrap_or("");
+    let is_bare_ipv4 = !host_part.contains(':')
+        && host_part.split('.').count() == 4
+        && host_part
+            .split('.')
+            .all(|o| !o.is_empty() && o.chars().all(|c| c.is_ascii_digit()));
+    if is_bare_ipv4 {
+        format!("{with_scheme}:8419")
+    } else {
+        with_scheme
+    }
 }
 
 /// Hôte LOCAL ou LAN privé (RFC1918) → pas de clé API requise (llama.cpp / nœud mesh local).
