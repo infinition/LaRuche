@@ -1563,8 +1563,13 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.4px;
   padding:1px 6px; border-radius:5px; white-space:nowrap;
 }
-.feed-actor.actor-user { background:rgba(59,130,246,0.16); color:var(--blue); border:1px solid rgba(59,130,246,0.3); }
-.feed-actor.actor-laruche { background:rgba(245,158,11,0.16); color:var(--amber); border:1px solid rgba(245,158,11,0.3); }
+/* Acteurs bien distincts : Moi (bleu plein) · LaRuche/mon agent (ambre plein) · autre ruche (violet). */
+.feed-actor.actor-user { background:#3b82f6; color:#fff; border:1px solid #3b82f6; font-weight:700; }
+.feed-actor.actor-laruche { background:#f59e0b; color:#1a1a1a; border:1px solid #f59e0b; font-weight:700; }
+.feed-actor.actor-peer { background:#a855f7; color:#fff; border:1px solid #a855f7; font-weight:700; }
+/* Bord gauche coloré de la ligne selon l'acteur (renfort visuel). */
+.feed-row:has(.actor-user) { border-left:2px solid #3b82f6; }
+.feed-row:has(.actor-peer) { border-left:2px solid #a855f7; }
 .feed-row-text { font-size:12px; color:var(--text); line-height:1.4; word-break:break-word; }
 .feed-obj-ref { color:var(--amber); cursor:pointer; text-decoration:underline dotted; text-underline-offset:2px; }
 .feed-obj-ref:hover { text-decoration:underline; }
@@ -9396,7 +9401,7 @@ LaRuche.Feed = (function(){
   async function poll(){
     var head = document.getElementById('feedDrawerHead');
     try{
-      var data = await fetch('/api/feed?limit=80').then(function(r){return r.json();});
+      var data = await fetch('/api/feed?limit=200').then(function(r){return r.json();});
       var events = (data && data.events) ? data.events : [];
       render(events);
       if(head) head.classList.add('live');

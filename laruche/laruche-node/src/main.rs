@@ -62,7 +62,7 @@ const PEER_FETCH_TIMEOUT_MS: u64 = 4000;
 // sinon un pair « clignote » : il devient périmé entre deux annonces. 90s = tolère 2 annonces ratées.
 const PEER_STALE_SECS: i64 = 90;
 const MDNS_REANNOUNCE_INTERVAL_SECS: u64 = 2;
-const ACTIVITY_LOG_LIMIT: usize = 120;
+const ACTIVITY_LOG_LIMIT: usize = 400;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct ActivityLogEntry {
@@ -2974,7 +2974,7 @@ async fn api_feed(
     let limit = q
         .get("limit")
         .and_then(|s| s.parse::<usize>().ok())
-        .unwrap_or(80);
+        .unwrap_or(200);
     let mut events: Vec<serde_json::Value> = Vec::new();
 
     // 1) Mutations mémoire (qui a ajouté/supprimé/modifié quoi).
@@ -3025,8 +3025,11 @@ async fn api_feed(
     {
         let logs = state.activity_log.read().await;
         for e in logs.iter() {
-            let ts = chrono::DateTime::parse_from_rfc3339(&e.timestamp)
-                .map(|d| d.timestamp())
+            // MILLISECONDES (le rfc3339 a la sous-seconde) → ordre correct entre tours d'une même
+            // minute. Dans un tour, la question est placée 1 ms AU-DESSUS de sa réponse (lecture
+            // Q→A par tour, tours en ordre antéchronologique).
+            let ms = chrono::DateTime::parse_from_rfc3339(&e.timestamp)
+                .map(|d| d.timestamp_millis())
                 .unwrap_or(0);
             // a) Message utilisateur (uniquement pour les échanges de chat).
             if e.tag == "agent" {
@@ -3034,7 +3037,7 @@ async fn api_feed(
                     let clean = prompt.split("\n\n[SYSTEM]").next().unwrap_or(prompt).trim();
                     if !clean.is_empty() {
                         events.push(serde_json::json!({
-                            "ts": ts, "actor": "User", "kind": "agent",
+                            "ts": ms + 1, "actor": "User", "kind": "agent",
                             "action": "a demandé", "object": preview_text(clean, 160),
                             "ref": serde_json::Value::Null, "tag": e.tag
                         }));
@@ -3047,7 +3050,7 @@ async fn api_feed(
             let resp = nettoyer_reponse_feed(brut);
             if !resp.is_empty() {
                 events.push(serde_json::json!({
-                    "ts": ts, "actor": "LaRuche", "kind": "agent",
+                    "ts": ms, "actor": "LaRuche", "kind": "agent",
                     "action": "a répondu", "object": preview_text(&resp, 160),
                     "ref": serde_json::Value::Null, "tag": e.tag
                 }));
@@ -3095,6 +3098,15 @@ async fn api_feed(
         }
     }
 
+    // Unifie l'unité : les sections mutations/cron/mission/watcher sont en SECONDES, la section
+    // agent en MILLISECONDES. On passe tout en ms (un ts < 1e12 = secondes → ×1000) pour un tri
+    // cohérent (sinon les events agent, 1000× plus grands, écraseraient tout).
+    for e in events.iter_mut() {
+        let t = e["ts"].as_i64().unwrap_or(0);
+        if t > 0 && t < 1_000_000_000_000 {
+            e["ts"] = serde_json::Value::from(t * 1000);
+        }
+    }
     events.sort_by(|a, b| {
         b["ts"].as_i64().unwrap_or(0).cmp(&a["ts"].as_i64().unwrap_or(0))
     });
