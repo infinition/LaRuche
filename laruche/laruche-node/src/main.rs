@@ -2573,6 +2573,30 @@ fn feed_actor(src: &str) -> &'static str {
     }
 }
 
+/// Nettoie une réponse d'agent pour le Feed : retire les blocs protocole (`<plan>`, `<tool_call>`,
+/// `<think>`) — complets ou tronqués — et normalise les espaces. Sinon le Feed affiche du JSON/XML
+/// illisible pour un humain.
+fn nettoyer_reponse_feed(s: &str) -> String {
+    let mut out = s.to_string();
+    for (open, close) in [
+        ("<plan>", "</plan>"),
+        ("<tool_call>", "</tool_call>"),
+        ("<think>", "</think>"),
+    ] {
+        loop {
+            let Some(i) = out.find(open) else { break };
+            match out[i..].find(close) {
+                Some(j_rel) => {
+                    let j = i + j_rel + close.len();
+                    out.replace_range(i..j, " ");
+                }
+                None => out.truncate(i), // tag ouvrant sans fermant → coupe la queue
+            }
+        }
+    }
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 /// GET /api/feed?limit=N — flux d'activité UNIFIÉ pour le volet Feed global : mutations mémoire
 /// (avec acteur User/LaRuche + ref cliquable) + inférences agent (activity_log), trié récent→ancien.
 async fn api_feed(
@@ -2593,8 +2617,13 @@ async fn api_feed(
                 let node = m.get("node_id").and_then(|v| v.as_str()).unwrap_or("");
                 let ts = m.get("ts").and_then(|v| v.as_i64()).unwrap_or(0);
                 let src = m.get("src").and_then(|v| v.as_str()).unwrap_or("");
-                // Bruit système (non-activité) : indexation d'outils + (re)seed des nœuds au boot.
-                if src == "tool-registry" || src == "seed" {
+                // Bruit système (non-activité) : indexation d'outils + (re)seed des nœuds au boot
+                // + sync disque↔SQL des skills (delete+write par skill à chaque démarrage/watch →
+                // floodait le Feed de dizaines de lignes capacities.skills.*).
+                if matches!(
+                    src,
+                    "tool-registry" | "seed" | "skill-file" | "skill-file-sync" | "skill-file-watch"
+                ) {
                     continue;
                 }
                 if (op == "create_node" || op == "update_node")
@@ -2622,25 +2651,39 @@ async fn api_feed(
         }
     }
 
-    // 2) Inférences agent (ce que LaRuche a traité/répondu).
+    // 2) Échanges agent : le message de l'utilisateur (full_prompt) PUIS la réponse de LaRuche
+    //    (full_response nettoyée des tags protocole). Permet de voir ses propres messages dans le
+    //    Feed, attribués à User, et une réponse lisible (pas de <plan>/<tool_call> bruts).
     {
         let logs = state.activity_log.read().await;
         for e in logs.iter() {
             let ts = chrono::DateTime::parse_from_rfc3339(&e.timestamp)
                 .map(|d| d.timestamp())
                 .unwrap_or(0);
-            let preview: String = e
-                .full_response
-                .as_deref()
-                .filter(|s| !s.is_empty())
-                .unwrap_or(&e.message)
-                .chars()
-                .take(160)
-                .collect();
-            events.push(serde_json::json!({
-                "ts": ts, "actor": "LaRuche", "kind": "agent",
-                "action": "a répondu", "object": preview, "ref": serde_json::Value::Null, "tag": e.tag
-            }));
+            // a) Message utilisateur (uniquement pour les échanges de chat).
+            if e.tag == "agent" {
+                if let Some(prompt) = e.full_prompt.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                    let clean = prompt.split("\n\n[SYSTEM]").next().unwrap_or(prompt).trim();
+                    if !clean.is_empty() {
+                        events.push(serde_json::json!({
+                            "ts": ts, "actor": "User", "kind": "agent",
+                            "action": "a demandé", "object": preview_text(clean, 160),
+                            "ref": serde_json::Value::Null, "tag": e.tag
+                        }));
+                    }
+                }
+            }
+            // b) Réponse de LaRuche, nettoyée (sinon JSON/XML illisible). Vide après nettoyage
+            //    (tour purement outil) → on n'ajoute pas d'événement « a répondu » creux.
+            let brut = e.full_response.as_deref().filter(|s| !s.is_empty()).unwrap_or(&e.message);
+            let resp = nettoyer_reponse_feed(brut);
+            if !resp.is_empty() {
+                events.push(serde_json::json!({
+                    "ts": ts, "actor": "LaRuche", "kind": "agent",
+                    "action": "a répondu", "object": preview_text(&resp, 160),
+                    "ref": serde_json::Value::Null, "tag": e.tag
+                }));
+            }
         }
     }
 
