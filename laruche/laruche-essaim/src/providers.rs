@@ -65,7 +65,7 @@ async fn openai_chat_stream(
     api_base: Option<&str>,
 ) -> Result<Pin<Box<dyn Stream<Item = OllamaChunk> + Send>>> {
     let base = api_base.unwrap_or("https://api.openai.com");
-    if api_key.is_empty() && !is_loopback_base_url(base) {
+    if api_key.is_empty() && !is_local_base_url(base) {
         anyhow::bail!("API key is required for OpenAI-compatible provider. Configure in Settings > Providers.");
     }
     let bearer = if api_key.is_empty() {
@@ -412,14 +412,26 @@ async fn codex_chat_stream(
     Ok(Box::pin(ReceiverStream::new(rx)))
 }
 
-fn is_loopback_base_url(base: &str) -> bool {
+/// Hôte LOCAL ou LAN privé (RFC1918) → pas de clé API requise (llama.cpp / nœud mesh local).
+/// Couvre loopback, 10/8, 172.16-31/12, 192.168/16, localhost, [::1] et les noms `.local`.
+fn is_local_base_url(base: &str) -> bool {
     let lower = base.trim().to_ascii_lowercase();
-    lower.starts_with("http://127.")
-        || lower.starts_with("https://127.")
-        || lower.starts_with("http://localhost")
-        || lower.starts_with("https://localhost")
-        || lower.starts_with("http://[::1]")
-        || lower.starts_with("https://[::1]")
+    let after = lower.split("://").nth(1).unwrap_or(&lower);
+    let host = after.split(['/', ':']).next().unwrap_or("");
+    if host == "localhost" || host == "[::1]" || host.ends_with(".local") {
+        return true;
+    }
+    if host.starts_with("127.") || host.starts_with("10.") || host.starts_with("192.168.") {
+        return true;
+    }
+    if let Some(rest) = host.strip_prefix("172.") {
+        if let Some(oct) = rest.split('.').next().and_then(|s| s.parse::<u8>().ok()) {
+            if (16..=31).contains(&oct) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 // ─── Anthropic Claude streaming ─────────────────────────────────────────────

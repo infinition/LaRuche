@@ -168,13 +168,29 @@ fn is_known_peer(remote_ip: &str, known_peers: &HashSet<String>) -> bool {
 }
 
 async fn get_known_peer_ips(state: &Arc<AppState>) -> HashSet<String> {
+    use std::sync::{Mutex, OnceLock};
+    use std::time::{Duration, Instant};
+    // Cache COLLANT : une IP vue par la découverte reste autorisée GRACE après sa dernière
+    // apparition. Évite que des nœuds qui clignotent (découverte mDNS intermittente, WiFi) se
+    // fassent rejeter leur sync (« Rejected ... from unknown peer ») le temps d'un trou.
+    static CACHE: OnceLock<Mutex<std::collections::HashMap<String, Instant>>> = OnceLock::new();
+    const GRACE: Duration = Duration::from_secs(600); // 10 min
+    let cache = CACHE.get_or_init(|| Mutex::new(std::collections::HashMap::new()));
+
     let listener = state.listener.read().await;
     let nodes = listener.get_nodes().await;
+    let now = Instant::now();
     let mut ips = HashSet::new();
-    for node in nodes.values() {
-        ips.insert(node.manifest.host.clone());
+    {
+        let mut c = cache.lock().unwrap();
+        for node in nodes.values() {
+            c.insert(node.manifest.host.clone(), now);
+        }
+        c.retain(|_, t| now.duration_since(*t) < GRACE);
+        for ip in c.keys() {
+            ips.insert(ip.clone());
+        }
     }
-    // Also allow localhost
     ips.insert("127.0.0.1".into());
     ips.insert("::1".into());
     ips
