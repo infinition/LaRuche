@@ -74,6 +74,76 @@ pub fn save_mesh_code(code: &str) {
 fn mesh_key() -> Option<[u8; 32]> {
     load_mesh_code().map(|c| *blake3::hash(c.as_bytes()).as_bytes())
 }
+
+// ─── Chiffrement authentifié des payloads mesh (5.3b) ───────────────────────
+// Clé dérivée du code de mesh (KDF blake3). Construction encrypt-then-MAC, 100 % blake3 (aucune
+// nouvelle dépendance) : keystream = XOF blake3 keyé(nonce), puis MAC blake3 keyé(nonce+ct).
+fn aead_key() -> Option<[u8; 32]> {
+    load_mesh_code().map(|c| blake3::derive_key("laruche-mesh-aead-v1", c.as_bytes()))
+}
+fn hex_decode_var(s: &str) -> Option<Vec<u8>> {
+    if s.len() % 2 != 0 {
+        return None;
+    }
+    (0..s.len() / 2)
+        .map(|i| u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).ok())
+        .collect()
+}
+/// Chiffre+authentifie un texte → "nonce.ct.mac" (hex). None si aucun code de mesh (envoi clair).
+pub fn seal(plaintext: &str) -> Option<String> {
+    let key = aead_key()?;
+    let mut nonce = [0u8; 16];
+    rand::RngCore::fill_bytes(&mut rand::rngs::OsRng, &mut nonce);
+    let pt = plaintext.as_bytes();
+    let mut ks = vec![0u8; pt.len()];
+    let mut h = blake3::Hasher::new_keyed(&key);
+    h.update(b"ks");
+    h.update(&nonce);
+    h.finalize_xof().fill(&mut ks);
+    let ct: Vec<u8> = pt.iter().zip(ks.iter()).map(|(p, k)| p ^ k).collect();
+    let mut m = blake3::Hasher::new_keyed(&key);
+    m.update(b"mac");
+    m.update(&nonce);
+    m.update(&ct);
+    let mac = m.finalize();
+    Some(format!(
+        "{}.{}.{}",
+        hex_encode(&nonce),
+        hex_encode(&ct),
+        hex_encode(&mac.as_bytes()[..16])
+    ))
+}
+/// Déchiffre "nonce.ct.mac". None si code absent / MAC invalide / format invalide.
+pub fn open(sealed: &str) -> Option<String> {
+    let key = aead_key()?;
+    let parts: Vec<&str> = sealed.split('.').collect();
+    if parts.len() != 3 {
+        return None;
+    }
+    let nonce = hex_decode(parts[0], 16)?;
+    let ct = hex_decode_var(parts[1])?;
+    let mac_given = hex_decode(parts[2], 16)?;
+    let mut m = blake3::Hasher::new_keyed(&key);
+    m.update(b"mac");
+    m.update(&nonce);
+    m.update(&ct);
+    let mac = m.finalize();
+    let ok = mac.as_bytes()[..16]
+        .iter()
+        .zip(mac_given.iter())
+        .fold(0u8, |a, (x, y)| a | (x ^ y))
+        == 0;
+    if !ok {
+        return None;
+    }
+    let mut ks = vec![0u8; ct.len()];
+    let mut h = blake3::Hasher::new_keyed(&key);
+    h.update(b"ks");
+    h.update(&nonce);
+    h.finalize_xof().fill(&mut ks);
+    let pt: Vec<u8> = ct.iter().zip(ks.iter()).map(|(c, k)| c ^ k).collect();
+    String::from_utf8(pt).ok()
+}
 /// En-têtes d'auth pour un appel SORTANT vers un pair. Vide si aucun code configuré.
 fn mesh_auth_headers(path: &str) -> Vec<(&'static str, String)> {
     match mesh_key() {

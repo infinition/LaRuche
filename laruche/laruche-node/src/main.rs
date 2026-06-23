@@ -58,7 +58,9 @@ use std::collections::VecDeque;
 
 const SPA_HTML: &str = include_str!("../../laruche-dashboard/src/templates/spa.html");
 const PEER_FETCH_TIMEOUT_MS: u64 = 4000;
-const PEER_STALE_SECS: i64 = 45;
+// Fenêtre de péremption d'un pair. DOIT être > l'intervalle de ré-annonce mDNS (30s ci-dessous),
+// sinon un pair « clignote » : il devient périmé entre deux annonces. 90s = tolère 2 annonces ratées.
+const PEER_STALE_SECS: i64 = 90;
 const MDNS_REANNOUNCE_INTERVAL_SECS: u64 = 2;
 const ACTIVITY_LOG_LIMIT: usize = 120;
 
@@ -2778,8 +2780,13 @@ async fn api_mesh_send(
     };
     let client = reqwest::Client::new();
     let url = format!("http://{host}:8419/api/mesh/receive");
+    // Chiffre le contenu si un code de mesh est configuré (sinon clair, rétro-compatible).
+    let payload = match sync::seal(&text) {
+        Some(enc) => serde_json::json!({ "from_id": my_id, "from_name": my_name, "enc": enc }),
+        None => serde_json::json!({ "from_id": my_id, "from_name": my_name, "text": text }),
+    };
     let ok = sync::sign_request(client.post(&url), "/api/mesh/receive")
-        .json(&serde_json::json!({ "from_id": my_id, "from_name": my_name, "text": text }))
+        .json(&payload)
         .send()
         .await
         .map(|r| r.status().is_success())
@@ -2807,7 +2814,15 @@ async fn api_mesh_receive(
     }
     let from_id = body["from_id"].as_str().unwrap_or("inconnu").to_string();
     let from_name = body["from_name"].as_str().unwrap_or("LaRuche").to_string();
-    let text = body["text"].as_str().unwrap_or("").trim().to_string();
+    // Contenu chiffré (`enc`) → déchiffre ; sinon clair (`text`).
+    let text = if let Some(enc) = body["enc"].as_str() {
+        match sync::open(enc) {
+            Some(t) => t.trim().to_string(),
+            None => return Json(serde_json::json!({ "status": "error", "error": "déchiffrement échoué" })),
+        }
+    } else {
+        body["text"].as_str().unwrap_or("").trim().to_string()
+    };
     if text.is_empty() {
         return Json(serde_json::json!({ "status": "error" }));
     }
@@ -9488,7 +9503,8 @@ async fn main() -> Result<()> {
     let mdns_broadcaster = broadcaster.clone();
     let mdns_state = state.clone();
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(120));
+        // Ré-annonce toutes les 30s (< PEER_STALE_SECS=90) → présence stable, fini le flapping.
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
         interval.tick().await; // saute le tick immédiat
         loop {
             interval.tick().await;
