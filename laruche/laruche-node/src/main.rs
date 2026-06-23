@@ -1291,10 +1291,13 @@ async fn get_swarm_models(
             }
             let is_profile_local =
                 profile.base_url.contains("127.0.0.1") || profile.base_url.contains("localhost");
+            // Backend LOCAL (llama.cpp/vLLM/LM Studio) : on ne liste QUE ce qui est réellement
+            // détecté EN VIE (détection live plus haut). Un profil local dont le backend est éteint
+            // n'apparaît donc PAS (fini les modèles fantômes d'un Ollama/llama.cpp fermé).
+            if is_profile_local {
+                continue;
+            }
             for model_name in &profile.models {
-                if is_profile_local && models.iter().any(|m| m.is_local && m.name == *model_name) {
-                    continue; // Skip duplicate of auto-detected local model
-                }
                 let is_def = pid == &active.profile_id && model_name == &active.model;
                 let cap = resolve_model_capability(model_name, &state.config.capabilities);
                 models.push(SwarmModelInfo {

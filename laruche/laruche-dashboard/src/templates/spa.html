@@ -5197,7 +5197,10 @@ LaRuche.Dashboard = (function(){
       d.models.forEach(function(m){
         var cap=(m.capability||'llm').toLowerCase();
         if(!groups[cap]){groups[cap]=[];}
-        groups[cap].push(m);
+        // DÉDUP : un même modèle (nom + source) ne doit apparaître qu'une fois (sinon « Utilisé
+        // partout » et cartes en double quand un modèle vient de plusieurs sources).
+        var dup = groups[cap].some(function(x){ return x.name===m.name && x.host===m.host && x.node_id===m.node_id; });
+        if(!dup) groups[cap].push(m);
       });
       
       var allCaps = Object.keys(groups);
@@ -5214,16 +5217,20 @@ LaRuche.Dashboard = (function(){
         section.className = 'mesh-cap-section';
         if(cap === 'code') section.style.border = '1px solid var(--green-dim)';
         
+        var CAP_LABEL = { llm:'💬 Conversation (LLM)', agent:'🤖 Agent', code:'💻 Code', stt:'🎙️ Voix → Texte', tts:'🔊 Texte → Voix', vlm:'👁️ Vision', vla:'🦾 Vision-Action' };
         var hdr = document.createElement('div');
         hdr.className = 'mesh-cap-hdr';
-        hdr.innerHTML = '<span>' + cap + (cap==='code'?' <span style="color:var(--green)">[DISTINCT]</span>':'') + '</span> <span>' + groups[cap].length + '</span>';
+        hdr.innerHTML = '<span>' + (CAP_LABEL[cap]||cap) + '</span> <span>' + groups[cap].length + '</span>';
         section.appendChild(hdr);
         
         var grid = document.createElement('div');
         grid.className = 'mesh-grid';
         
         groups[cap].forEach(function(m){
-          var isPreferred = serverPreferred[cap] ? (m.name === serverPreferred[cap].model && m.host === serverPreferred[cap].backend) : m.is_default;
+          // Sélectionné = correspond EXACTEMENT au choix serveur pour cette capacité (nom + source).
+          // Pas de fallback sur is_default (qui pouvait marquer plusieurs cartes « Utilisé »).
+          var _sp = serverPreferred[cap];
+          var isPreferred = !!(_sp && m.name === _sp.model && (_sp.backend == null || m.host === _sp.backend));
           var card = document.createElement('div');
           card.className = 'mesh-card';
           if(isPreferred){ card.style.borderColor = 'var(--amber)'; card.style.background = 'rgba(245,158,11,0.06)'; }
