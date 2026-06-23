@@ -3624,6 +3624,11 @@ LaRuche.Chat = (function(){
     if(!currentAssistantMsg || !currentAssistantRow) return;
     var hasVisibleText=currentAssistantMsg.textContent.trim().length>0;
     if(hasVisibleText) {
+      // Raisonnement du LLM en TEXTE CLAIR (modèles sans <think>, ex. gemma) : la narration
+      // émise avant un appel d'outil EST le raisonnement → on la route aussi vers le feed du
+      // volet gauche (visible en mode détaillé), en plus du segment intermédiaire dans le chat.
+      var raison=currentAssistantMsg.textContent.trim();
+      if(raison) addActivity('thinking','Raisonnement', raison, true);
       finalizeMessage(currentAssistantMsg,'');
       currentAssistantRow.classList.add('assistant-intermediate');
       var label=document.createElement('div'); label.className='assistant-segment-label';
