@@ -8,6 +8,58 @@ use laruche_essaim::abeille::{Abeille, NiveauDanger, ResultatAbeille};
 use laruche_essaim::cron::ScheduledTask;
 use laruche_essaim::ContextExecution;
 
+/// Outil agent : envoyer un message direct à une AUTRE instance LaRuche (ou son utilisateur) via
+/// le mesh, par son ID `laruche`. Réutilise l'endpoint local /api/mesh/send (résolution du pair +
+/// POST inter-instance). Sortant → validation requise.
+pub struct AbeilleMeshSend;
+
+#[async_trait]
+impl Abeille for AbeilleMeshSend {
+    fn nom(&self) -> &str {
+        "mesh_send"
+    }
+    fn niveau_danger(&self) -> NiveauDanger {
+        NiveauDanger::NeedsApproval
+    }
+    fn description(&self) -> &str {
+        "Envoie un message direct a une AUTRE instance LaRuche (ou son utilisateur) via le mesh, \
+         par son ID laruche. Liste les destinataires possibles avec le bouton Messages / mesh peers. \
+         Outil SORTANT : validation requise."
+    }
+    fn schema(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "to_id": { "type": "string", "description": "ID laruche du destinataire" },
+                "text": { "type": "string", "description": "Le message à envoyer" }
+            },
+            "required": ["to_id", "text"]
+        })
+    }
+    async fn executer(&self, args: Value, _ctx: &ContextExecution) -> anyhow::Result<ResultatAbeille> {
+        let to_id = args["to_id"].as_str().unwrap_or("").to_string();
+        let text = args["text"].as_str().unwrap_or("").to_string();
+        if to_id.is_empty() || text.trim().is_empty() {
+            return Ok(ResultatAbeille::err(
+                "'to_id' et 'text' sont requis.".to_string(),
+            ));
+        }
+        let client = reqwest::Client::new();
+        let res = client
+            .post("http://127.0.0.1:8419/api/mesh/send")
+            .json(&json!({ "to_id": to_id, "text": text }))
+            .send()
+            .await;
+        match res {
+            Ok(r) if r.status().is_success() => {
+                Ok(ResultatAbeille::ok(format!("Message envoyé à `{to_id}`.")))
+            }
+            Ok(r) => Ok(ResultatAbeille::err(format!("Échec de l'envoi (HTTP {}).", r.status()))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Échec de l'envoi : {e}"))),
+        }
+    }
+}
+
 pub struct AbeilleCronCreate {
     pub cron_store: Arc<RwLock<laruche_essaim::cron::CronScheduler>>,
 }

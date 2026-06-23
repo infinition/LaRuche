@@ -2597,6 +2597,156 @@ fn nettoyer_reponse_feed(s: &str) -> String {
     out.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+// ===================== Phase 4 — Messagerie mesh (DM inter-instances/users) =====================
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+struct InboxMessage {
+    id: String,
+    peer_id: String,
+    peer_name: String,
+    dir: String, // "in" (reçu) | "out" (envoyé)
+    text: String,
+    ts: i64,
+    read: bool,
+}
+fn inbox_path() -> std::path::PathBuf {
+    std::path::PathBuf::from("inbox.json")
+}
+fn read_inbox() -> Vec<InboxMessage> {
+    std::fs::read_to_string(inbox_path())
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+fn write_inbox(msgs: &[InboxMessage]) {
+    if let Ok(s) = serde_json::to_string_pretty(msgs) {
+        let _ = std::fs::write(inbox_path(), s);
+    }
+}
+fn append_inbox(m: InboxMessage) {
+    let mut v = read_inbox();
+    v.push(m);
+    if v.len() > 1000 {
+        let drop_n = v.len() - 1000;
+        v.drain(0..drop_n);
+    }
+    write_inbox(&v);
+}
+
+/// GET /api/mesh/whoami — identité de CETTE instance (ID laruche + nom).
+async fn api_mesh_whoami(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let m = state.manifest.read().await;
+    Json(serde_json::json!({ "id": m.node_id.to_string(), "name": m.node_name }))
+}
+
+/// GET /api/mesh/peers — autres instances LaRuche découvertes sur le réseau (annuaire).
+async fn api_mesh_peers(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let listener = state.listener.read().await;
+    let nodes = listener.get_nodes().await;
+    let m = state.manifest.read().await;
+    let peers: Vec<serde_json::Value> = nodes
+        .values()
+        .filter(|n| {
+            n.manifest.node_id != Some(m.node_id) && n.manifest.host != m.api_endpoint.host
+        })
+        .filter_map(|n| {
+            n.manifest.node_id.map(|id| {
+                serde_json::json!({
+                    "id": id.to_string(),
+                    "name": n.manifest.node_name,
+                    "host": n.manifest.host,
+                })
+            })
+        })
+        .collect();
+    Json(serde_json::json!({ "peers": peers }))
+}
+
+/// POST /api/mesh/send {to_id, text} — envoie un DM à un pair (résout l'hôte par ID, POST sur son
+/// /api/mesh/receive). Garde une copie locale (dir=out) pour le fil de conversation.
+async fn api_mesh_send(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let to_id = body["to_id"].as_str().unwrap_or("").to_string();
+    let text = body["text"].as_str().unwrap_or("").trim().to_string();
+    if to_id.is_empty() || text.is_empty() {
+        return Json(serde_json::json!({ "status": "error", "error": "to_id/text requis" }));
+    }
+    let (host, peer_name) = {
+        let listener = state.listener.read().await;
+        let nodes = listener.get_nodes().await;
+        nodes
+            .values()
+            .find(|n| n.manifest.node_id.map(|i| i.to_string()).as_deref() == Some(to_id.as_str()))
+            .map(|n| (n.manifest.host.clone(), n.manifest.node_name.clone().unwrap_or_default()))
+            .unwrap_or((String::new(), to_id.clone()))
+    };
+    if host.is_empty() {
+        return Json(serde_json::json!({ "status": "error", "error": "pair introuvable" }));
+    }
+    let (my_id, my_name) = {
+        let m = state.manifest.read().await;
+        (m.node_id.to_string(), m.node_name.clone())
+    };
+    let client = reqwest::Client::new();
+    let url = format!("http://{host}:8419/api/mesh/receive");
+    let ok = client
+        .post(&url)
+        .json(&serde_json::json!({ "from_id": my_id, "from_name": my_name, "text": text }))
+        .send()
+        .await
+        .map(|r| r.status().is_success())
+        .unwrap_or(false);
+    append_inbox(InboxMessage {
+        id: Uuid::new_v4().to_string(),
+        peer_id: to_id,
+        peer_name,
+        dir: "out".into(),
+        text,
+        ts: chrono::Utc::now().timestamp(),
+        read: true,
+    });
+    Json(serde_json::json!({ "status": if ok { "ok" } else { "local_only" } }))
+}
+
+/// POST /api/mesh/receive {from_id, from_name, text} — réception d'un DM d'un autre LaRuche.
+async fn api_mesh_receive(Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    let from_id = body["from_id"].as_str().unwrap_or("inconnu").to_string();
+    let from_name = body["from_name"].as_str().unwrap_or("LaRuche").to_string();
+    let text = body["text"].as_str().unwrap_or("").trim().to_string();
+    if text.is_empty() {
+        return Json(serde_json::json!({ "status": "error" }));
+    }
+    append_inbox(InboxMessage {
+        id: Uuid::new_v4().to_string(),
+        peer_id: from_id,
+        peer_name: from_name,
+        dir: "in".into(),
+        text,
+        ts: chrono::Utc::now().timestamp(),
+        read: false,
+    });
+    Json(serde_json::json!({ "status": "ok" }))
+}
+
+/// GET /api/inbox — tous les messages (le client regroupe par pair).
+async fn api_inbox_get() -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "messages": read_inbox() }))
+}
+
+/// POST /api/inbox/read {peer_id} — marque comme lus les messages d'un pair.
+async fn api_inbox_read(Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    let peer = body["peer_id"].as_str().unwrap_or("");
+    let mut v = read_inbox();
+    for m in v.iter_mut() {
+        if m.peer_id == peer {
+            m.read = true;
+        }
+    }
+    write_inbox(&v);
+    Json(serde_json::json!({ "status": "ok" }))
+}
+
 /// POST /api/feed/ask {text} — parle à LaRuche DEPUIS le Feed. Tourne sur une session « feed »
 /// dédiée (contexte roulant ~10 échanges, isolé du chat principal), en arrière-plan ; la réponse
 /// apparaît dans le Feed via activity_log au prochain poll. Capacités agent complètes (crons…).
@@ -8253,6 +8403,7 @@ async fn main() -> Result<()> {
     // Outils d'AUTO-AMELIORATION (forge) : skill_file_*, plugin_*, mcp_*. Le registre principal
     // est passe pour que plugin_create/delete rechargent au bon endroit.
     laruche_essaim::abeilles::enregistrer_forge(&essaim_registry, essaim_registry.clone());
+    essaim_registry.enregistrer(Box::new(abeilles_local::AbeilleMeshSend));
 
     // Migration `tools.* → capacities.*` (idempotente, jouée à chaque boot mais no-op après).
     // Les skills forgés (vraies données) sont PRÉSERVÉS ; tools.abeilles (simple projection)
@@ -8545,6 +8696,12 @@ async fn main() -> Result<()> {
         .route("/api/memory/consolidate", post(api_memory_consolidate))
         .route("/api/feed", get(api_feed))
         .route("/api/feed/ask", post(api_feed_ask))
+        .route("/api/mesh/whoami", get(api_mesh_whoami))
+        .route("/api/mesh/peers", get(api_mesh_peers))
+        .route("/api/mesh/send", post(api_mesh_send))
+        .route("/api/mesh/receive", post(api_mesh_receive))
+        .route("/api/inbox", get(api_inbox_get))
+        .route("/api/inbox/read", post(api_inbox_read))
         .route("/api/profile", get(api_profile_get).post(api_profile_save))
         .route("/api/memory/grep", get(api_memory_grep))
         .route("/api/memory/export_changes", get(api_memory_export_changes))
