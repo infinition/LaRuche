@@ -15,12 +15,14 @@ use tracing::{info, warn};
 /// - `PublicProxy` : ce node devient **passerelle** — le mesh peut utiliser ce provider
 ///   *via* lui. La clé reste locale, le node relaie et exécute les appels (on n'expose
 ///   JAMAIS la clé brute sur le réseau).
+/// - `Restricted` : passerelle, mais réservée aux ruches listées dans `allowed_peers` (node_ids).
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Visibilite {
     #[default]
     Prive,
     PublicProxy,
+    Restricted,
 }
 
 /// A single provider profile.
@@ -41,6 +43,9 @@ pub struct ProviderProfile {
     /// Visibilité mesh (privé par défaut). JSON : `"visibility"`.
     #[serde(default, rename = "visibility")]
     pub visibilite: Visibilite,
+    /// node_ids des ruches autorisées quand `visibilite == Restricted`.
+    #[serde(default)]
+    pub allowed_peers: Vec<String>,
 }
 
 /// Which model is currently active.
@@ -74,7 +79,7 @@ impl Default for ProfilesConfig {
                 base_url: "http://127.0.0.1:11434".to_string(),
                 api_key: String::new(),
                 models: vec![],
-                visibilite: Visibilite::Prive,
+                visibilite: Visibilite::Prive, allowed_peers: Vec::new(),
             },
         );
         Self {
@@ -283,7 +288,7 @@ pub async fn ensure_llamacpp_8001_profile(config: &mut ProfilesConfig) {
             base_url,
             api_key: String::new(),
             models: models.clone(),
-            visibilite: Visibilite::Prive,
+            visibilite: Visibilite::Prive, allowed_peers: Vec::new(),
         },
     );
 

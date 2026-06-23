@@ -1628,8 +1628,48 @@ pub struct OpenAiChatReq {
     pub max_tokens: Option<u32>,
 }
 
+/// Récupère (avec cache) la clé publique d'un pair via son /api/mesh/identity. Vérifie que le
+/// node_id annoncé par l'IP correspond bien à celui déclaré (X-Miel-From).
+async fn peer_pubkey(node_id: &str, ip: &str) -> Option<String> {
+    use std::sync::{Mutex, OnceLock};
+    static CACHE: OnceLock<Mutex<std::collections::HashMap<String, String>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(std::collections::HashMap::new()));
+    if let Some(pk) = cache.lock().unwrap().get(node_id) {
+        return Some(pk.clone());
+    }
+    let url = format!("http://{ip}:8419/api/mesh/identity");
+    let resp: serde_json::Value = reqwest::Client::new()
+        .get(&url)
+        .timeout(std::time::Duration::from_secs(3))
+        .send()
+        .await
+        .ok()?
+        .json()
+        .await
+        .ok()?;
+    let nid = resp.get("node_id").and_then(|v| v.as_str())?;
+    let pk = resp.get("pubkey").and_then(|v| v.as_str())?.to_string();
+    if nid != node_id {
+        return None; // l'IP ne correspond pas au node_id déclaré → suspect
+    }
+    cache.lock().unwrap().insert(node_id.to_string(), pk.clone());
+    Some(pk)
+}
+
+/// node_id VÉRIFIÉ (signature ed25519) de l'appelant d'une requête d'inférence, ou None.
+async fn verified_inference_caller(
+    headers: &axum::http::HeaderMap,
+    addr: &std::net::SocketAddr,
+) -> Option<String> {
+    let from = headers.get("X-Miel-From").and_then(|v| v.to_str().ok())?.to_string();
+    let pubkey = peer_pubkey(&from, &addr.ip().to_string()).await?;
+    sync::verified_caller(headers, "/v1/chat/completions", &pubkey)
+}
+
 async fn api_v1_chat_completions(
     State(state): State<Arc<AppState>>,
+    axum::extract::ConnectInfo(addr): axum::extract::ConnectInfo<std::net::SocketAddr>,
+    headers: axum::http::HeaderMap,
     axum::extract::Json(req): axum::extract::Json<OpenAiChatReq>,
 ) -> axum::response::Response {
     use axum::response::IntoResponse;
@@ -1640,15 +1680,19 @@ async fn api_v1_chat_completions(
     let mut api_key = "".to_string();
     let mut api_base = None;
     let ollama_url = state.config.ollama_url.clone();
+    let mut vis = profiles::Visibilite::Prive;
+    let mut allowed: Vec<String> = Vec::new();
 
     {
         let profiles = state.profiles.read().await;
         let mut found = false;
-        for (pid, profile) in &profiles.profiles {
+        for (_pid, profile) in &profiles.profiles {
             if profile.models.contains(&req.model) {
                 provider_id = profile.provider.clone();
                 api_key = profile.api_key.clone();
                 api_base = Some(profile.base_url.clone());
+                vis = profile.visibilite;
+                allowed = profile.allowed_peers.clone();
                 found = true;
                 break;
             }
@@ -1660,7 +1704,34 @@ async fn api_v1_chat_completions(
                 provider_id = p.provider.clone();
                 api_key = p.api_key.clone();
                 api_base = Some(p.base_url.clone());
+                vis = p.visibilite;
+                allowed = p.allowed_peers.clone();
             }
+        }
+    }
+
+    // ENFORCEMENT mesh : un appelant DISTANT (non-loopback) ne peut utiliser ce modèle que selon
+    // sa visibilité. Le node local (loopback) n'est jamais bloqué.
+    if !addr.ip().is_loopback() {
+        let refus = |msg: &str| {
+            (
+                axum::http::StatusCode::FORBIDDEN,
+                axum::Json(serde_json::json!({ "error": { "message": msg, "type": "forbidden" } })),
+            )
+                .into_response()
+        };
+        match vis {
+            profiles::Visibilite::Prive => {
+                return refus("Modèle privé : non partagé sur le mesh.");
+            }
+            profiles::Visibilite::Restricted => {
+                match verified_inference_caller(&headers, &addr).await {
+                    Some(nid) if allowed.iter().any(|a| a == &nid) => {} // autorisé
+                    Some(_) => return refus("Ruche non autorisée pour ce modèle (restricted)."),
+                    None => return refus("Identité mesh requise/invalide pour un modèle restricted."),
+                }
+            }
+            profiles::Visibilite::PublicProxy => {} // public : tout membre du mesh
         }
     }
 
@@ -5119,7 +5190,7 @@ async fn api_upsert_profile(
         base_url,
         api_key,
         models,
-        visibilite: Default::default(),
+        visibilite: Default::default(), allowed_peers: Vec::new(),
     };
 
     let mut cfg = state.profiles.write().await;
@@ -5239,7 +5310,7 @@ async fn ensure_codex_profile(state: &Arc<AppState>) {
                     base_url: laruche_essaim::codex_auth::DEFAULT_CODEX_BASE_URL.to_string(),
                     api_key: String::new(),
                     models,
-                    visibilite: Default::default(),
+                    visibilite: Default::default(), allowed_peers: Vec::new(),
                 },
             );
         }
@@ -5501,7 +5572,7 @@ async fn api_models_use(
                     base_url: base_url.clone(),
                     api_key: String::new(),
                     models: vec![],
-                    visibilite: profiles::Visibilite::Prive,
+                    visibilite: profiles::Visibilite::Prive, allowed_peers: Vec::new(),
                 });
         if !prof.models.contains(&name) {
             prof.models.push(name.clone());
@@ -8226,7 +8297,7 @@ async fn main() -> Result<()> {
                 }),
                 api_key: config.api_key.clone(),
                 models: vec![config.default_model.clone()],
-                visibilite: Default::default(),
+                visibilite: Default::default(), allowed_peers: Vec::new(),
             },
         );
         profiles_cfg.active_model = profiles::ActiveModel {
@@ -9438,13 +9509,15 @@ async fn main() -> Result<()> {
                 quantization: None,
                 max_context_length: Some(8192),
             });
-            // Providers public_proxy → annoncés sur le mesh (passerelle ; clé jamais diffusée).
+            // Providers public_proxy ET restricted → annoncés (passerelle ; clé jamais diffusée).
+            // Les restricted sont visibles (les pairs autorisés doivent les découvrir) mais l'accès
+            // est contrôlé à l'usage (P3 vérifie l'identité de l'appelant contre allowed_peers).
             {
                 let pcfg = mdns_state.profiles.read().await;
                 for (_, p) in pcfg
                     .profiles
                     .iter()
-                    .filter(|(_, p)| p.visibilite == profiles::Visibilite::PublicProxy)
+                    .filter(|(_, p)| p.visibilite != profiles::Visibilite::Prive)
                 {
                     for model in &p.models {
                         let cap = resolve_model_capability(model, &mdns_state.config.capabilities);
