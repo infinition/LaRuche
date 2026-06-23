@@ -87,20 +87,28 @@ fn mesh_auth_headers(path: &str) -> Vec<(&'static str, String)> {
         None => vec![],
     }
 }
-/// Applique la signature de mesh à une requête reqwest sortante : MAC d'appartenance (code de
-/// mesh) + signature d'IDENTITÉ ed25519 (X-Miel-From + X-Miel-Sig) qui prouve quelle ruche appelle.
-pub fn sign_request(mut rb: reqwest::RequestBuilder, path: &str) -> reqwest::RequestBuilder {
-    for (k, v) in mesh_auth_headers(path) {
-        rb = rb.header(k, v);
-    }
+/// En-têtes de signature mesh pour un appel sortant : MAC d'appartenance (code de mesh) +
+/// signature d'IDENTITÉ ed25519 (X-Miel-From + X-Miel-Sig) prouvant quelle ruche appelle.
+/// Exposé pour le « signer global » consommé par le chemin d'inférence (providers).
+pub fn sign_headers(path: &str) -> Vec<(String, String)> {
+    let mut h: Vec<(String, String)> = mesh_auth_headers(path)
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v))
+        .collect();
     let from = my_node_id();
     if !from.is_empty() {
         let ts = Utc::now().timestamp();
         let sig = sign_hex(&format!("{ts}:{path}:{from}"));
-        rb = rb
-            .header("X-Miel-From", from)
-            .header("X-Miel-Sig-Ts", ts.to_string())
-            .header("X-Miel-Sig", sig);
+        h.push(("X-Miel-From".to_string(), from));
+        h.push(("X-Miel-Sig-Ts".to_string(), ts.to_string()));
+        h.push(("X-Miel-Sig".to_string(), sig));
+    }
+    h
+}
+/// Applique `sign_headers` à une requête reqwest sortante.
+pub fn sign_request(mut rb: reqwest::RequestBuilder, path: &str) -> reqwest::RequestBuilder {
+    for (k, v) in sign_headers(path) {
+        rb = rb.header(k, v);
     }
     rb
 }

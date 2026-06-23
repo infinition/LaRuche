@@ -8333,6 +8333,11 @@ async fn main() -> Result<()> {
     // Initialize Essaim (agent engine)
     let essaim_registry = Arc::new(AbeilleRegistry::new());
     enregistrer_abeilles_builtin(&essaim_registry);
+    // Branche le signer mesh : le chemin d'inférence (laruche-essaim) signe ses appels vers un pair
+    // LAN avec l'identité ed25519 de ce nœud → le pair pourra appliquer `restricted`.
+    laruche_essaim::providers::set_mesh_signer(std::sync::Arc::new(|path: &str| {
+        sync::sign_headers(path)
+    }));
     essaim_registry.enregistrer(Box::new(abeilles_local::AbeilleCronCreate {
         cron_store: cron_arc.clone(),
     }));

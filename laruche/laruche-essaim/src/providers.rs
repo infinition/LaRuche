@@ -54,6 +54,19 @@ pub async fn provider_chat_stream(
     }
 }
 
+// ─── Signer mesh (identité ed25519) injecté par le nœud ─────────────────────
+// Le chemin d'inférence (ce crate) doit signer ses appels vers un pair LAN pour que le pair
+// puisse appliquer `restricted`. Mais l'identité vit dans laruche-node (pas de dép circulaire) :
+// le nœud branche cette closure au démarrage via `set_mesh_signer`.
+pub type MeshSigner = std::sync::Arc<dyn Fn(&str) -> Vec<(String, String)> + Send + Sync>;
+static MESH_SIGNER: std::sync::OnceLock<MeshSigner> = std::sync::OnceLock::new();
+pub fn set_mesh_signer(s: MeshSigner) {
+    let _ = MESH_SIGNER.set(s);
+}
+fn mesh_headers(path: &str) -> Vec<(String, String)> {
+    MESH_SIGNER.get().map(|s| s(path)).unwrap_or_default()
+}
+
 // ─── OpenAI-compatible streaming ────────────────────────────────────────────
 
 async fn openai_chat_stream(
@@ -138,13 +151,17 @@ async fn openai_chat_stream(
     });
 
     let client = reqwest::Client::new();
-    let mut response = client
+    let mut req = client
         .post(&url)
         .header("Authorization", format!("Bearer {}", bearer))
-        .header("Content-Type", "application/json")
-        .json(&body)
-        .send()
-        .await?;
+        .header("Content-Type", "application/json");
+    // Pair LAN → on signe l'appel avec l'identité mesh (le pair pourra appliquer `restricted`).
+    if is_local_base_url(base) {
+        for (k, v) in mesh_headers("/v1/chat/completions") {
+            req = req.header(k, v);
+        }
+    }
+    let mut response = req.json(&body).send().await?;
 
     if !response.status().is_success() {
         let status = response.status();
