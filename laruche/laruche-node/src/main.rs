@@ -2643,6 +2643,12 @@ async fn api_mesh_code_set(Json(body): Json<serde_json::Value>) -> Json<serde_js
     Json(serde_json::json!({ "status": "ok", "set": !code.trim().is_empty() }))
 }
 
+/// GET /api/mesh/identity — node_id + clé PUBLIQUE ed25519 (hex) de ce nœud. Les pairs la
+/// récupèrent et la mettent en cache pour vérifier les signatures (identité forte, `restricted`).
+async fn api_mesh_identity() -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "node_id": sync::my_node_id(), "pubkey": sync::my_pubkey_hex() }))
+}
+
 /// GET /api/mesh/whoami — identité de CETTE instance (ID laruche + nom).
 async fn api_mesh_whoami(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let m = state.manifest.read().await;
@@ -8721,6 +8727,7 @@ async fn main() -> Result<()> {
         .route("/api/feed", get(api_feed))
         .route("/api/feed/ask", post(api_feed_ask))
         .route("/api/mesh/whoami", get(api_mesh_whoami))
+        .route("/api/mesh/identity", get(api_mesh_identity))
         .route("/api/mesh/code", get(api_mesh_code_get).post(api_mesh_code_set))
         .route("/api/mesh/peers", get(api_mesh_peers))
         .route("/api/mesh/send", post(api_mesh_send))

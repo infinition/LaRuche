@@ -87,12 +87,42 @@ fn mesh_auth_headers(path: &str) -> Vec<(&'static str, String)> {
         None => vec![],
     }
 }
-/// Applique la signature de mesh à une requête reqwest sortante.
+/// Applique la signature de mesh à une requête reqwest sortante : MAC d'appartenance (code de
+/// mesh) + signature d'IDENTITÉ ed25519 (X-Miel-From + X-Miel-Sig) qui prouve quelle ruche appelle.
 pub fn sign_request(mut rb: reqwest::RequestBuilder, path: &str) -> reqwest::RequestBuilder {
     for (k, v) in mesh_auth_headers(path) {
         rb = rb.header(k, v);
     }
+    let from = my_node_id();
+    if !from.is_empty() {
+        let ts = Utc::now().timestamp();
+        let sig = sign_hex(&format!("{ts}:{path}:{from}"));
+        rb = rb
+            .header("X-Miel-From", from)
+            .header("X-Miel-Sig-Ts", ts.to_string())
+            .header("X-Miel-Sig", sig);
+    }
     rb
+}
+
+/// Vérifie l'IDENTITÉ d'une requête entrante (signature ed25519 du pair). Retourne le node_id
+/// VÉRIFIÉ de l'appelant, ou None (signature absente/invalide). `peer_pubkey` doit provenir de
+/// /api/mesh/identity du pair (mis en cache par l'appelant). Base de l'enforcement `restricted`.
+pub fn verified_caller(headers: &axum::http::HeaderMap, path: &str, peer_pubkey: &str) -> Option<String> {
+    let from = headers.get("X-Miel-From").and_then(|v| v.to_str().ok())?;
+    let ts = headers
+        .get("X-Miel-Sig-Ts")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse::<i64>().ok())?;
+    let sig = headers.get("X-Miel-Sig").and_then(|v| v.to_str().ok())?;
+    if (Utc::now().timestamp() - ts).abs() > 300 {
+        return None;
+    }
+    if verify_sig(peer_pubkey, &format!("{ts}:{path}:{from}"), sig) {
+        Some(from.to_string())
+    } else {
+        None
+    }
 }
 /// Vérifie une requête ENTRANTE. `None` si aucun code configuré → l'appelant retombe sur l'IP.
 pub fn mesh_auth_ok(headers: &axum::http::HeaderMap, path: &str) -> Option<bool> {
@@ -120,6 +150,90 @@ pub fn mesh_auth_ok(headers: &axum::http::HeaderMap, path: &str) -> Option<bool>
             .fold(0u8, |acc, (x, y)| acc | (x ^ y))
             == 0;
     Some(ok)
+}
+
+// ─── Identité forte par nœud : keypair ed25519 (5.3) ────────────────────────
+// Le code de mesh prouve l'APPARTENANCE (symétrique). La keypair prouve QUELLE ruche signe
+// (asymétrique, non-forgeable) → base du `restricted` sûr et du chiffrement / hors-LAN.
+// Persistée dans identity.json (champ `secret` = seed 32 octets hex), à côté du node_id.
+
+fn hex_encode(b: &[u8]) -> String {
+    let mut s = String::with_capacity(b.len() * 2);
+    for x in b {
+        s.push_str(&format!("{x:02x}"));
+    }
+    s
+}
+fn hex_decode(s: &str, n: usize) -> Option<Vec<u8>> {
+    if s.len() != n * 2 {
+        return None;
+    }
+    (0..n)
+        .map(|i| u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).ok())
+        .collect()
+}
+
+fn load_or_create_signing_key() -> ed25519_dalek::SigningKey {
+    use ed25519_dalek::SigningKey;
+    let path = std::path::Path::new("identity.json");
+    let mut v: serde_json::Value = std::fs::read_to_string(path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+    // Clé existante ?
+    if let Some(seed) = v
+        .get("secret")
+        .and_then(|x| x.as_str())
+        .and_then(|s| hex_decode(s, 32))
+    {
+        if let Ok(arr) = <[u8; 32]>::try_from(seed.as_slice()) {
+            return SigningKey::from_bytes(&arr);
+        }
+    }
+    // Génère + persiste (en conservant node_id s'il est déjà là).
+    let sk = SigningKey::generate(&mut rand::rngs::OsRng);
+    v["secret"] = serde_json::Value::String(hex_encode(&sk.to_bytes()));
+    let _ = std::fs::write(path, v.to_string());
+    sk
+}
+fn signing_key() -> &'static ed25519_dalek::SigningKey {
+    static K: std::sync::OnceLock<ed25519_dalek::SigningKey> = std::sync::OnceLock::new();
+    K.get_or_init(load_or_create_signing_key)
+}
+/// Clé PUBLIQUE de ce nœud (hex) — partagée via /api/mesh/identity.
+pub fn my_pubkey_hex() -> String {
+    hex_encode(signing_key().verifying_key().as_bytes())
+}
+/// node_id de ce nœud (depuis identity.json).
+pub fn my_node_id() -> String {
+    std::fs::read_to_string("identity.json")
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .and_then(|v| v.get("node_id").and_then(|x| x.as_str()).map(String::from))
+        .unwrap_or_default()
+}
+fn sign_hex(msg: &str) -> String {
+    use ed25519_dalek::Signer;
+    hex_encode(&signing_key().sign(msg.as_bytes()).to_bytes())
+}
+/// Vérifie une signature ed25519 d'un pair (pubkey hex + signature hex sur `msg`).
+pub fn verify_sig(pubkey_hex: &str, msg: &str, sig_hex: &str) -> bool {
+    use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+    let pk = match hex_decode(pubkey_hex, 32)
+        .and_then(|b| <[u8; 32]>::try_from(b.as_slice()).ok())
+        .and_then(|a| VerifyingKey::from_bytes(&a).ok())
+    {
+        Some(k) => k,
+        None => return false,
+    };
+    let sig = match hex_decode(sig_hex, 64)
+        .and_then(|b| <[u8; 64]>::try_from(b.as_slice()).ok())
+        .map(|a| Signature::from_bytes(&a))
+    {
+        Some(s) => s,
+        None => return false,
+    };
+    pk.verify(msg.as_bytes(), &sig).is_ok()
 }
 
 // ─── Push to peers (fire-and-forget) ────────────────────────────────────────
