@@ -444,10 +444,11 @@ body.feed-docked { padding-right: 360px; }
 .message-row.assistant { align-self:flex-start; align-items:flex-end; }
 .message-row.error-row { align-self:center; max-width:90%; }
 .message-row.tool-row { align-self:stretch; max-width:100%; margin:2px 0 2px 44px; }
-/* Bande des skills appliqués : annotation discrète, alignée avec le texte (pas une bulle). */
-.skills-strip { align-self:flex-start; max-width:80%; margin:1px 0 3px 62px; display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
-.skills-strip-label { font-size:11px; color:var(--muted); }
-.skill-chip { display:inline-flex; align-items:center; gap:4px; background:rgba(245,158,11,0.14); color:var(--amber); border:1px solid rgba(245,158,11,0.25); padding:1px 8px; border-radius:10px; font-size:11px; line-height:1.6; }
+/* Skills appliqués : section compacte dans le volet gauche (pas dans le fil de chat). */
+.skills-panel { padding:6px 12px 8px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:5px; }
+.skills-panel-label { font-size:10px; letter-spacing:.4px; text-transform:uppercase; color:var(--text-muted,var(--text-dim)); }
+.skills-panel-chips { display:flex; flex-wrap:wrap; gap:5px; }
+.skill-chip { display:inline-flex; align-items:center; background:rgba(245,158,11,0.14); color:var(--amber); border:1px solid rgba(245,158,11,0.25); padding:1px 7px; border-radius:9px; font-size:10.5px; line-height:1.7; }
 .avatar {
   width:48px; height:48px; border-radius:50%;
   display:flex; align-items:center; justify-content:center;
@@ -1748,6 +1749,7 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
           </div>
         </div>
         <div class="plan-section" id="planSection"><div class="plan-title">Plan</div></div>
+        <div class="skills-panel" id="skillsPanel" style="display:none"><span class="skills-panel-label">Skills</span><span class="skills-panel-chips" id="skillsPanelChips"></span></div>
         <div class="agent-feed-wrap">
           <div class="activity-feed compact" id="activityFeed" aria-live="polite" aria-label="Activité de l'agent"></div>
           <button class="feed-jump" id="feedJump" type="button" onclick="window.lrFeedJump()" aria-label="Afficher les nouvelles activités">↓ <span>nouvelles activités</span></button>
@@ -3034,7 +3036,6 @@ LaRuche.Chat = (function(){
   var sessionId = null;
   var currentAssistantMsg = null;
   var currentAssistantRow = null;
-  var currentSkillsStrip = null; // bande compacte des skills appliqués pour le tour courant
   var isStreaming = false;
   var autoTtsEnabled = false;
   var noThinkEnabled = false;
@@ -3374,7 +3375,9 @@ LaRuche.Chat = (function(){
     var fullMsg = msg + fileData.text;
     startPlanMission(msg);
     addMessage('user', msg, fileData.attachments);
-    currentSkillsStrip = null; // nouveau tour → nouvelle bande de skills
+    // nouveau tour → vide la section Skills du volet gauche
+    var spChips0=document.getElementById('skillsPanelChips'); if(spChips0) spChips0.innerHTML='';
+    var sp0=document.getElementById('skillsPanel'); if(sp0) sp0.style.display='none';
     _feedBody = null; // nouveau tour → nouvelle étape (les cartes précédentes restent, repliées)
     var usageOnNewTurn=document.getElementById('feedUsage');
     if(usageOnNewTurn)usageOnNewTurn.textContent='';
@@ -3527,32 +3530,32 @@ LaRuche.Chat = (function(){
     document.body.appendChild(ov);
   }
 
-  // Bande compacte « Skills : … » pour le tour courant — PAS une bulle de chat (pas d'avatar,
-  // pas de fond de bulle). Un seul élément par tour, chips dédupliqués.
+  // Skills appliqués → volet gauche (compact, sous le label « Skills »), PAS dans le fil de chat
+  // (gain de place). Chips dédupliqués, remis à zéro à chaque tour.
   function addSkillChip(name) {
-    var container = document.getElementById('chatContainer');
-    if (!currentSkillsStrip || !currentSkillsStrip.isConnected) {
-      currentSkillsStrip = document.createElement('div');
-      currentSkillsStrip.className = 'skills-strip';
-      var label = document.createElement('span');
-      label.className = 'skills-strip-label';
-      label.textContent = 'Skills :';
-      currentSkillsStrip.appendChild(label);
-      container.appendChild(currentSkillsStrip);
-    }
-    if (currentSkillsStrip.querySelector('[data-skill="' + CSS.escape(name) + '"]')) return; // déjà là
+    var panel = document.getElementById('skillsPanel');
+    var chips = document.getElementById('skillsPanelChips');
+    if (!panel || !chips) return;
+    if (chips.querySelector('[data-skill="' + CSS.escape(name) + '"]')) return; // déjà là
     var chip = document.createElement('span');
     chip.className = 'skill-chip';
     chip.dataset.skill = name;
-    chip.textContent = '🧠 ' + name;
-    currentSkillsStrip.appendChild(chip);
-    scrollToBottom();
+    chip.textContent = name;
+    chips.appendChild(chip);
+    panel.style.display = '';
   }
 
   // Avatar abeille affiché uniquement sur le DERNIER message assistant (visibility → garde
   // l'alignement, pas de saut de mise en page). Recalculé à chaque ajout de message.
   function updateAssistantAvatars() {
-    var rows = document.querySelectorAll('#chatContainer .message-row.assistant');
+    // Pendant l'animation des abeilles volantes (typingIndicator), on n'affiche AUCUNE abeille
+    // statique : elle réapparaît sur le nouveau message quand l'animation disparaît.
+    if (document.getElementById('typingIndicator')) {
+      document.querySelectorAll('#chatContainer .avatar.assistant-avatar')
+        .forEach(function(a){ a.style.visibility = 'hidden'; });
+      return;
+    }
+    var rows = document.querySelectorAll('#chatContainer .message-row.assistant:not(#typingIndicator)');
     for (var i = 0; i < rows.length; i++) {
       var av = rows[i].querySelector('.avatar.assistant-avatar');
       if (av) av.style.visibility = (i === rows.length - 1) ? 'visible' : 'hidden';
@@ -3658,10 +3661,12 @@ LaRuche.Chat = (function(){
     msg.innerHTML='<div class="typing-bees"><div class="tb-bounce">'+beeHtml+'</div><div class="tb-bounce">'+beeHtml+'</div><div class="tb-bounce">'+beeHtml+'</div></div>';
     wrapper.appendChild(msg); row.appendChild(wrapper);
     container.appendChild(row); typingIndicatorEl=row; scrollToBottom();
+    updateAssistantAvatars(); // masque les abeilles statiques tant que l'animation tourne
   }
   function removeTypingIndicator() {
     if(typingIndicatorEl){typingIndicatorEl.remove();typingIndicatorEl=null;}
     var e=document.getElementById('typingIndicator'); if(e)e.remove();
+    updateAssistantAvatars(); // l'animation est partie → réaffiche l'abeille sur le dernier message
   }
 
   function streamToken(el, _text) {
