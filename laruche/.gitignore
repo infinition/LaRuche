@@ -28,6 +28,7 @@ Thumbs.db
 /env_debug.txt
 
 # Secrets — NE JAMAIS versionner
+/identity.json
 /credentials.json
 /mcp_servers.json
 /laruche-node/mcp_servers.json

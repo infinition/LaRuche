@@ -8073,6 +8073,30 @@ async fn main() -> Result<()> {
     info!(ip = %local_ip, "Detected local IP");
 
     let mut manifest = CognitiveManifest::new(config.node_name.clone(), config.tier);
+    // IDENTITÉ PERSISTANTE (identity.json). Sans ça, node_id = Uuid::new_v4() à CHAQUE démarrage :
+    // la ruche apparaît comme un NOUVEAU nœud aux pairs à chaque reboot (l'ancien expire) → c'est
+    // une cause directe du flapping. On charge l'ID sauvegardé, ou on persiste celui généré.
+    {
+        let id_path = std::path::Path::new("identity.json");
+        let saved = std::fs::read_to_string(id_path)
+            .ok()
+            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+            .and_then(|v| v.get("node_id").and_then(|x| x.as_str()).map(String::from))
+            .and_then(|s| Uuid::parse_str(&s).ok());
+        match saved {
+            Some(id) => {
+                manifest.node_id = id;
+                info!(node_id = %id, "Identite chargee (identity.json)");
+            }
+            None => {
+                let _ = std::fs::write(
+                    id_path,
+                    serde_json::json!({ "node_id": manifest.node_id.to_string() }).to_string(),
+                );
+                info!(node_id = %manifest.node_id, "Nouvelle identite persistee (identity.json)");
+            }
+        }
+    }
     manifest.api_endpoint.host = local_ip;
     manifest.api_endpoint.port = config.api_port;
     manifest.api_endpoint.dashboard_port = config.dashboard_port;
