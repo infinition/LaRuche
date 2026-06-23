@@ -123,6 +123,17 @@ impl Abeille for MemoireWrite {
         let content = args["content"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("'content' manquant"))?;
+        // Garde-fou : memory_write NE DOIT PAS écrire dans les nœuds système (capacities.*/
+        // system.*). Sinon l'agent dumpe des « skills » en items dans capacities.skills.* et
+        // pollue (vu en prod : web_research avec 2 items, recherche_programme_tv créé à tort).
+        // Un SKILL se crée avec skill_create (item unique, fichier .md), pas memory_write.
+        if noeud_reserve(node_id) {
+            return Ok(ResultatAbeille::err(format!(
+                "Refus : `{node_id}` est un nœud SYSTÈME réservé (capacities.*/system.*). \
+                 Pour créer ou mettre à jour un SKILL, utilise `skill_create` (jamais \
+                 memory_write). Range les faits durables sous projects.*/decisions.*/people.*."
+            )));
+        }
         let mut item = MemoryItem::new(node_id, content);
         if let Some(src) = args["source"].as_str() {
             item = item.with_source(src);
