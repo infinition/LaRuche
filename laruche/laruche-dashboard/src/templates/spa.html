@@ -141,7 +141,10 @@ body.feed-docked { padding-right: 360px; }
 .feed-av-laruche .honeycomb-loader.hc-sm { transform:scale(.62); transform-origin:top left; pointer-events:none; }
 .feed-av-laruche .honeycomb-loader.hc-sm:hover { transform:scale(.62); }
 .feed-kind-badge { font-size:8.5px; letter-spacing:.3px; text-transform:uppercase; padding:0 5px; border-radius:6px; border:1px solid currentColor; opacity:.85; line-height:1.5; }
-.kb-memory{color:#a78bfa} .kb-agent{color:var(--amber)} .kb-cron{color:#f59e0b} .kb-mission{color:#34d399} .kb-watcher{color:#60a5fa}
+.kb-memory{color:#a78bfa} .kb-agent{color:var(--amber)} .kb-cron{color:#f59e0b} .kb-mission{color:#34d399} .kb-watcher{color:#60a5fa} .kb-dm{color:#a855f7}
+.feed-av-peer { background:#a855f7; color:#fff; border-radius:50%; font-size:10px; font-weight:700; }
+.feed-expandable { cursor:pointer; }
+.feed-more { color:var(--amber); font-size:10px; opacity:.8; }
 /* Mini-composer « parler à LaRuche » au bas du Feed + animation d'envoi. */
 .feed-ask { display:flex; gap:6px; padding:8px; border-top:1px solid var(--border); flex-shrink:0; }
 .feed-ask textarea { flex:1; resize:none; background:var(--bg-input); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:7px 10px; font-size:13px; font-family:inherit; max-height:120px; }
@@ -9258,16 +9261,17 @@ LaRuche.Feed = (function(){
 
   function passFilter(ev){
     var kind = kindOf(ev);
-    if(!filters[kind]) return false;
+    if(filters[kind]===false) return false; // kinds inconnus (dm) passent par défaut
     var actor = (ev.actor==='User') ? 'user' : 'laruche';
-    if(!filters[actor]) return false;
+    if(filters[actor]===false) return false;
     return true;
   }
 
   function esc(s){ return LaRuche.Utils.esc(s==null?'':String(s)); }
 
   function fmtTime(ts){
-    var d = new Date(ts*1000);
+    // ts en millisecondes (>1e12) ou secondes : on gère les deux.
+    var d = new Date(ts > 1000000000000 ? ts : ts*1000);
     var now = new Date();
     var hm = ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
     var sameDay = d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth() && d.getDate()===now.getDate();
@@ -9314,10 +9318,10 @@ LaRuche.Feed = (function(){
 
   // ── Liste des événements ─────────────────────────────────────
   // mapping kind -> libellé du badge
-  var KIND_LABEL = { memory:'Mémoire', agent:'Agent', cron:'Cron', mission:'Mission', watcher:'Watcher' };
+  var KIND_LABEL = { memory:'Mémoire', agent:'Agent', cron:'Cron', mission:'Mission', watcher:'Watcher', dm:'DM' };
   function kindOf(ev){
     var k = ev && ev.kind;
-    if(k==='agent'||k==='cron'||k==='mission'||k==='watcher') return k;
+    if(k==='agent'||k==='cron'||k==='mission'||k==='watcher'||k==='dm') return k;
     return 'memory';
   }
   function feedUser(){
@@ -9325,13 +9329,21 @@ LaRuche.Feed = (function(){
   }
   function actorName(ev){
     if(ev.actor==='User'){ var u=feedUser(); return (u && u.display_name) ? u.display_name : 'Vous'; }
+    if(ev.actor_kind==='peer') return ev.actor; // nom de la ruche pair
     return 'LaRuche';
   }
-  // Avatar : initiale du compte (User) / nid d'abeille STATIQUE (LaRuche).
+  function actorClass(ev){
+    if(ev.actor_kind==='peer') return 'actor-peer';
+    return (ev.actor==='User') ? 'actor-user' : 'actor-laruche';
+  }
+  // Avatar : initiale (User / ruche pair) / nid d'abeille STATIQUE (LaRuche).
   function actorAvatar(ev){
     if(ev.actor==='User'){
       var u=feedUser(); var init=((u && u.display_name)||'?').charAt(0).toUpperCase();
       return '<span class="feed-av feed-av-user">'+esc(init)+'</span>';
+    }
+    if(ev.actor_kind==='peer'){
+      return '<span class="feed-av feed-av-peer">'+esc((ev.actor||'?').charAt(0).toUpperCase())+'</span>';
     }
     return '<span class="feed-av feed-av-laruche"><span class="honeycomb-loader hc-sm hc-static">'+
       '<span class="hexagon hx1"></span><span class="hexagon hx2"></span><span class="hexagon hx3"></span>'+
@@ -9339,18 +9351,26 @@ LaRuche.Feed = (function(){
       '<span class="hexagon hx7"></span></span></span>';
   }
   function rowHtml(ev){
-    var actorCls = (ev.actor==='User') ? 'actor-user' : 'actor-laruche';
+    var actorCls = actorClass(ev);
     var kind = kindOf(ev);
-    var objHtml = ev.ref
-      ? '<span class="feed-obj-ref" data-ref="'+esc(ev.ref)+'">'+esc(ev.object)+'</span>'
-      : esc(ev.object);
-    // On retire les verbes de chat « a répondu / a demandé » : l'acteur + le badge suffisent.
+    // On retire les verbes de chat « a répondu / a demandé » (l'acteur + le badge suffisent).
     var action = ev.action || '';
     if(action==='a répondu' || action==='a demandé') action='';
-    var actionHtml = action ? esc(action)+' ' : '';
-    // Pas de badge « Agent » sur MES propres messages (incohérent) ; badge sinon.
+    var prefix = action ? action+' ' : '';
     var badge = (ev.actor==='User' && kind==='agent') ? ''
       : '<span class="feed-kind-badge kb-'+kind+'">'+esc(KIND_LABEL[kind]||kind)+'</span>';
+    // Corps : ref cliquable, OU texte dépliable au clic (message complet), OU texte simple.
+    var bodyHtml, extraAttr='';
+    if(ev.ref){
+      bodyHtml = esc(prefix)+'<span class="feed-obj-ref" data-ref="'+esc(ev.ref)+'">'+esc(ev.object)+'</span>';
+    } else {
+      var expandable = ev.full && String(ev.full).length > String(ev.object||'').length;
+      bodyHtml = esc(prefix+ev.object) + (expandable ? ' <span class="feed-more">⌄</span>' : '');
+      if(expandable){
+        extraAttr = ' class="feed-row-text feed-expandable" data-short="'+esc(prefix+ev.object)+'" data-full="'+esc(prefix+ev.full)+'"';
+      }
+    }
+    var textOpen = extraAttr ? '<div'+extraAttr+'>' : '<div class="feed-row-text">';
     return '<div class="feed-row kind-'+kind+'">'+
       '<div class="feed-row-top">'+
         actorAvatar(ev)+
@@ -9358,7 +9378,7 @@ LaRuche.Feed = (function(){
         badge+
         '<span class="feed-row-time">'+esc(fmtTime(ev.ts))+'</span>'+
       '</div>'+
-      '<div class="feed-row-text">'+actionHtml+objHtml+'</div>'+
+      textOpen+bodyHtml+'</div>'+
     '</div>';
   }
 
@@ -9392,6 +9412,13 @@ LaRuche.Feed = (function(){
         if(!ref) return;
         LaRuche.Router.go('memory');
         setTimeout(function(){ if(LaRuche.Memory && LaRuche.Memory.loadNode) LaRuche.Memory.loadNode(ref); }, 60);
+      };
+    });
+    // clic pour déplier le message complet
+    list.querySelectorAll('.feed-expandable').forEach(function(t){
+      t.onclick = function(){
+        if(t.dataset.exp==='1'){ t.textContent=t.dataset.short; t.insertAdjacentHTML('beforeend',' <span class="feed-more">⌄</span>'); t.dataset.exp='0'; }
+        else { t.textContent=t.dataset.full; t.insertAdjacentHTML('beforeend',' <span class="feed-more">⌃</span>'); t.dataset.exp='1'; }
       };
     });
     // préserve la position de scroll (sauf si on était tout en haut → reste en haut pour voir le récent)

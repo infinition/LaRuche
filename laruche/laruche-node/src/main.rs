@@ -2907,7 +2907,7 @@ async fn api_feed_ask(
                 tag: "agent".into(),
                 message: format!("Feed: {}", preview_text(&text, 60)),
                 full_prompt: Some(text.clone()),
-                full_response: result.as_ref().ok().map(|r| preview_text(r, 200)),
+                full_response: result.as_ref().ok().map(|r| preview_text(r, 4000)),
                 model_used: Some(cfg.model.clone()),
                 tokens_generated: None,
                 latency_ms: None,
@@ -3039,7 +3039,7 @@ async fn api_feed(
                         events.push(serde_json::json!({
                             "ts": ms + 1, "actor": "User", "kind": "agent",
                             "action": "a demandé", "object": preview_text(clean, 160),
-                            "ref": serde_json::Value::Null, "tag": e.tag
+                            "full": clean, "ref": serde_json::Value::Null, "tag": e.tag
                         }));
                     }
                 }
@@ -3052,7 +3052,7 @@ async fn api_feed(
                 events.push(serde_json::json!({
                     "ts": ms, "actor": "LaRuche", "kind": "agent",
                     "action": "a répondu", "object": preview_text(&resp, 160),
-                    "ref": serde_json::Value::Null, "tag": e.tag
+                    "full": resp, "ref": serde_json::Value::Null, "tag": e.tag
                 }));
             }
         }
@@ -3096,6 +3096,21 @@ async fn api_feed(
                 }));
             }
         }
+    }
+
+    // 6) Messages directs (DM) du mesh → 1re brique du feed global. Acteur = le PAIR (ruche
+    //    violette) pour les reçus ; Moi pour les envoyés.
+    for m in read_inbox() {
+        let (actor, action, akind) = if m.dir == "out" {
+            ("User".to_string(), format!("a écrit à {}", m.peer_name), "user")
+        } else {
+            (m.peer_name.clone(), "vous a écrit".to_string(), "peer")
+        };
+        events.push(serde_json::json!({
+            "ts": m.ts, "actor": actor, "kind": "dm", "action": action,
+            "object": preview_text(&m.text, 160), "full": m.text,
+            "ref": serde_json::Value::Null, "actor_kind": akind
+        }));
     }
 
     // Unifie l'unité : les sections mutations/cron/mission/watcher sont en SECONDES, la section
@@ -7648,7 +7663,7 @@ async fn ws_chat_connection(
                     tag: "agent".into(),
                     message: format!("Agent chat: {}", preview_text(&user_text_log, 60)),
                     full_prompt: Some(user_text_log.clone()),
-                    full_response: result.as_ref().ok().map(|r| preview_text(r, 200)),
+                    full_response: result.as_ref().ok().map(|r| preview_text(r, 4000)),
                     model_used: Some(config.model.clone()),
                     tokens_generated: None,
                     latency_ms: None,
@@ -9430,7 +9445,7 @@ async fn main() -> Result<()> {
                         tag: "cron".into(),
                         message: format!("Cron task: {}", preview_text(&prompt, 60)),
                         full_prompt: Some(prompt),
-                        full_response: result.ok().map(|r| preview_text(&r, 200)),
+                        full_response: result.ok().map(|r| preview_text(&r, 4000)),
                         model_used: Some(cron_config.model.clone()),
                         tokens_generated: None,
                         latency_ms: None,
@@ -9499,7 +9514,7 @@ async fn main() -> Result<()> {
                     tag: "watcher".into(),
                     message: format!("Watcher task: {}", preview_text(&prompt, 60)),
                     full_prompt: Some(full_prompt),
-                    full_response: result.ok().map(|r| preview_text(&r, 200)),
+                    full_response: result.ok().map(|r| preview_text(&r, 4000)),
                     model_used: Some(config.model.clone()),
                     tokens_generated: None,
                     latency_ms: None,
@@ -9704,7 +9719,7 @@ async fn main() -> Result<()> {
                     tag: "kanban".into(),
                     message: format!("Kanban task: {}", preview_text(&kanban_task.title, 60)),
                     full_prompt: Some(prompt),
-                    full_response: result.ok().map(|r| preview_text(&r, 200)),
+                    full_response: result.ok().map(|r| preview_text(&r, 4000)),
                     model_used: Some(config.model.clone()),
                     tokens_generated: None,
                     latency_ms: None,
