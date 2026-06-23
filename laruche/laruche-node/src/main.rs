@@ -8141,26 +8141,9 @@ async fn main() -> Result<()> {
     });
     info!(capability = "agent", "Registered Essaim agent capability");
 
-    // Annonce sur le mesh les modèles des backends d'inférence locaux OpenAI-compatibles
-    // (llama.cpp / vLLM / LM Studio) : ils deviennent des capacités de CE nœud, donc visibles
-    // des autres nœuds via mDNS — comme Ollama. (cf. local_inference, Axe 5.)
-    for m in local_inference::detecter_modeles_openai_compat(
-        &local_inference::backends_openai_compat_par_defaut(),
-    )
-    .await
-    {
-        let cap_label = resolve_model_capability(&m.name, &config.capabilities);
-        if let Some(cap) = Capability::from_flag(&cap_label) {
-            manifest.capabilities.add(CapabilityInfo {
-                capability: cap,
-                model_name: m.name.clone(),
-                model_size: None,
-                quantization: None,
-                max_context_length: Some(8192),
-            });
-            info!(capability = %cap, model = %m.name, backend = %m.backend, "Modèle local annoncé sur le mesh");
-        }
-    }
+    // NOTE confidentialité : on N'annonce PLUS les backends locaux détectés au démarrage. Le mesh
+    // ne doit exposer que les providers explicitement publics (`public_proxy`) — c'est la boucle
+    // de re-annonce (plus bas) qui reconstruit les capacités à partir du public uniquement.
 
     let mut broadcaster = MielBroadcaster::new()?;
     broadcaster.register(&manifest)?;
@@ -9418,32 +9401,31 @@ async fn main() -> Result<()> {
             interval.tick().await;
             let mut manifest = mdns_state.manifest.read().await.clone();
             manifest.capabilities = Default::default();
-            // Agent = modèle LLM actif.
+            // CONFIDENTIALITÉ MESH : on n'annonce QUE ce qui est EXPLICITEMENT public (providers
+            // `public_proxy`). On n'auto-annonce PLUS les backends locaux détectés (fuite : un pair
+            // voyait tous tes llama.cpp), et le modèle de l'Agent n'est divulgué que s'il est public.
+            let public_models: std::collections::HashSet<String> = {
+                let pcfg = mdns_state.profiles.read().await;
+                pcfg.profiles
+                    .iter()
+                    .filter(|(_, p)| p.visibilite == profiles::Visibilite::PublicProxy)
+                    .flat_map(|(_, p)| p.models.iter().cloned())
+                    .collect()
+            };
+            // Agent = présence d'un agent dans l'essaim. Nom du modèle masqué si non public.
             let active_model = get_llm_default(&mdns_state).await;
+            let agent_model = if public_models.contains(&active_model) {
+                active_model
+            } else {
+                "(privé)".to_string()
+            };
             manifest.capabilities.add(CapabilityInfo {
                 capability: Capability::Agent,
-                model_name: active_model,
+                model_name: agent_model,
                 model_size: None,
                 quantization: None,
                 max_context_length: Some(8192),
             });
-            // Backends OpenAI-compatibles locaux détectés → llm/code/…
-            for m in local_inference::detecter_modeles_openai_compat(
-                &local_inference::backends_openai_compat_par_defaut(),
-            )
-            .await
-            {
-                let cap = resolve_model_capability(&m.name, &mdns_state.config.capabilities);
-                if let Some(c) = Capability::from_flag(&cap) {
-                    manifest.capabilities.add(CapabilityInfo {
-                        capability: c,
-                        model_name: m.name,
-                        model_size: None,
-                        quantization: None,
-                        max_context_length: Some(8192),
-                    });
-                }
-            }
             // Providers public_proxy → annoncés sur le mesh (passerelle ; clé jamais diffusée).
             {
                 let pcfg = mdns_state.profiles.read().await;
