@@ -441,7 +441,7 @@ body.feed-docked { padding-right: 360px; }
 .message-row { display:flex; gap:10px; max-width:80%; animation:msgIn .25s ease-out; }
 .message-row.user { align-self:flex-end; flex-direction:row-reverse; }
 .message-row.steer { align-self:flex-end; flex-direction:row-reverse; }
-.message-row.assistant { align-self:flex-start; }
+.message-row.assistant { align-self:flex-start; align-items:flex-end; }
 .message-row.error-row { align-self:center; max-width:90%; }
 .message-row.tool-row { align-self:stretch; max-width:100%; margin:2px 0 2px 44px; }
 /* Bande des skills appliqués : annotation discrète, alignée avec le texte (pas une bulle). */
@@ -679,6 +679,8 @@ pre:hover .code-copy-btn { opacity:1; }
 .send-btn:hover { opacity:.85; transform:scale(1.02); }
 .send-btn:active { transform:scale(.98); }
 .send-btn:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+.send-btn.stop-btn { background:#ef4444; color:#fff; }
+.send-btn.stop-btn:hover { background:#dc2626; opacity:1; }
 .input-action-btn {
   background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius);
   color:var(--text-dim); font-size:18px; width:40px; height:40px; min-width:40px; min-height:40px;
@@ -1799,6 +1801,7 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
           <div class="honey-wave" id="honeyWave" style="display:none"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
           <textarea id="userInput" placeholder="Ecrivez votre message..." rows="1"></textarea>
           <button class="send-btn" id="sendBtn" onclick="LaRuche.Chat.sendMessage()"><span>Envoyer</span> <svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button>
+          <button class="send-btn stop-btn" id="stopBtn" style="display:none" onclick="LaRuche.Chat.stopRun()" title="Arrêter la génération"><span>Stop</span> <svg width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: middle;"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg></button>
         </div>
         <div class="cwd-bar" id="cwdBar">
           <span class="cwd-icon" title="Dossier de travail"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg></span>
@@ -3278,6 +3281,20 @@ LaRuche.Chat = (function(){
           }
         }
         break;
+      case 'stopped':
+        clearResponseTimeout(); removeTypingIndicator();
+        if(currentAssistantMsg) finalizeMessage(currentAssistantMsg, '');
+        currentAssistantMsg=null; currentAssistantRow=null;
+        isStreaming=false; staleRecoveryActive=false;
+        setRunning(false);
+        document.getElementById('sendBtn').disabled=false;
+        document.getElementById('userInput').placeholder = "Envoyer un message...";
+        document.getElementById('userInput').disabled=false;
+        document.getElementById('iterationBadge').textContent='';
+        setFeedLive('idle');
+        LaRuche.Toast.show('⏹ Génération interrompue','warn');
+        loadSessions(); refreshSessionsPage();
+        break;
       case 'done':
         clearResponseTimeout(); removeTypingIndicator();
         if(!currentAssistantMsg && (data.full_response||pendingMedia.length)){
@@ -3288,6 +3305,7 @@ LaRuche.Chat = (function(){
         currentAssistantMsg=null; currentAssistantRow=null;
         isStreaming=false;
         staleRecoveryActive=false;
+        setRunning(false);
         document.getElementById('sendBtn').disabled=false;
         document.getElementById('userInput').placeholder = "Envoyer un message...";
         document.getElementById('userInput').disabled=false;
@@ -3305,6 +3323,7 @@ LaRuche.Chat = (function(){
         currentAssistantMsg=null; currentAssistantRow=null;
         isStreaming=false;
         staleRecoveryActive=false;
+        setRunning(false);
         document.getElementById('sendBtn').disabled=false;
         document.getElementById('userInput').placeholder = "Envoyer un message...";
         document.getElementById('userInput').disabled=false;
@@ -3378,6 +3397,7 @@ LaRuche.Chat = (function(){
     document.getElementById('userInput').value='';
     document.getElementById('userInput').style.height='auto';
     isStreaming=true;
+    setRunning(true);
     document.getElementById('userInput').placeholder = "Interrompre ou orienter l'agent en cours...";
     showTypingIndicator();
     startResponseTimeout();
@@ -3539,6 +3559,22 @@ LaRuche.Chat = (function(){
     }
   }
 
+  // Bascule Envoyer ↔ Stop selon l'état du run (UX type assistant : pendant la génération,
+  // le bouton d'envoi devient un bouton d'arrêt).
+  function setRunning(running) {
+    var snd = document.getElementById('sendBtn');
+    var stp = document.getElementById('stopBtn');
+    if (snd) snd.style.display = running ? 'none' : '';
+    if (stp) stp.style.display = running ? '' : 'none';
+  }
+
+  // Demande l'arrêt de la génération en cours au backend (abort de la tâche agent côté serveur).
+  function stopRun() {
+    if (!isStreaming) return;
+    LaRuche.WS.send({ type: 'stop' });
+    setRunning(false);
+  }
+
   function addMessage(role, text, attachments) {
     var container = document.getElementById('chatContainer');
     var row = document.createElement('div');
@@ -3655,7 +3691,9 @@ LaRuche.Chat = (function(){
       }
     }
 
-    clean = clean.trimEnd();
+    // trim() (pas seulement trimEnd) : sinon les sauts de ligne EN TÊTE laissés par un bloc
+    // <think> retiré s'affichent en blanc au-dessus de la bulle pendant le streaming (pre-wrap).
+    clean = clean.trim();
 
     // Update DOM: clear all text nodes and re-set content
     var cursor = el.querySelector('.cursor');
@@ -4396,7 +4434,7 @@ LaRuche.Chat = (function(){
     respondApproval:respondApproval, toggleSidebar:toggleSidebar,
     removePendingFile:removePendingFile, loadSessions:loadSessions,
     getSessionId:getSessionId, switchSession:switchSession,
-    browseCwd:browseCwd, loadCwd:loadCwd, toggleNoThink:toggleNoThink,
+    browseCwd:browseCwd, loadCwd:loadCwd, toggleNoThink:toggleNoThink, stopRun:stopRun,
     openHistory:openHistory, closeHistory:closeHistory, searchHistory:searchHistory,
     refreshHistoryOverlay:refreshHistoryOverlay, exportSessionMd:exportSessionMd
   };

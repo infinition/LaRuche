@@ -7366,6 +7366,28 @@ async fn ws_chat_connection(
                                             )).await;
                                         }
                                     }
+                                } else if json["type"].as_str() == Some("stop") {
+                                    // Stop demandé : on abort la tâche agent. La session a déjà été
+                                    // sauvegardée en snapshot (avec le message user) AVANT le run,
+                                    // donc seule la réponse en cours est abandonnée — pas la session.
+                                    react_handle.abort();
+                                    let _ = state.events.write().await.emit(
+                                        laruche_events::EventKind::AgentFinished,
+                                        &actor,
+                                        serde_json::json!({ "session_id": session_id, "status": "stopped" }),
+                                    );
+                                    let _ = sender
+                                        .send(ws::Message::Text(
+                                            serde_json::json!({
+                                                "type": "stopped",
+                                                "session_id": session_id.to_string(),
+                                                "message": "Génération interrompue."
+                                            })
+                                            .to_string()
+                                            .into(),
+                                        ))
+                                        .await;
+                                    done = true;
                                 }
                             }
                         }
