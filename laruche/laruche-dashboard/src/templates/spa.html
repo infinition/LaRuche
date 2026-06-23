@@ -7147,11 +7147,25 @@ LaRuche.Settings = (function(){
   }
 
   async function loadNetwork(el) {
+    var codeSet=false; try{ codeSet=(await fetch('/api/mesh/code').then(function(r){return r.json();})).set; }catch(e){}
+    var codeCard='<div class="settings-card"><div class="settings-card-title">Code de mesh '+
+      (codeSet?'<span style="color:var(--green);font-size:11px">(configuré)</span>':'<span style="color:var(--text-muted);font-size:11px">(non configuré — auth par IP LAN)</span>')+'</div>'+
+      '<p style="color:var(--text-dim);font-size:12px;margin:4px 0 8px">Secret partagé entre tes ruches (comme un mot de passe WiFi). Mets le <b>même</b> code sur toutes tes ruches : il authentifie les échanges du mesh (fin des « rejected » / flapping) et servira de base au chiffrement.</p>'+
+      '<div style="display:flex;gap:8px"><input id="meshCodeInput" type="password" placeholder="'+(codeSet?'•••• (vide = inchangé)':'choisis un code')+'" style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px"><button class="send-btn" id="meshCodeSave"><span>Enregistrer</span></button></div></div>';
     var d={nodes:[]};try{d=await fetch('/swarm').then(function(r){return r.json();});}catch(e){}
-    el.innerHTML=(d.nodes||[]).map(function(n){
+    var nodesHtml=(d.nodes||[]).map(function(n){
       var caps=(n.capabilities||[]).map(function(c){return '<span style="background:rgba(6,182,212,.15);color:var(--cyan);padding:1px 6px;border-radius:8px;font-size:10px">'+c+'</span>';}).join(' ');
       return '<div class="settings-card"><div class="settings-card-title">'+(n.name||'?')+'</div><div class="settings-row"><span class="settings-label">Host</span><span class="settings-value">'+n.host+':'+(n.port||'?')+'</span></div><div style="margin-top:4px">'+caps+'</div></div>';
-    }).join('')||'<div style="text-align:center;color:var(--text-muted);padding:20px">No nodes</div>';
+    }).join('')||'<div style="text-align:center;color:var(--text-muted);padding:20px">Aucun nœud</div>';
+    el.innerHTML=codeCard+nodesHtml;
+    var btn=document.getElementById('meshCodeSave');
+    if(btn) btn.onclick=async function(){
+      var v=(document.getElementById('meshCodeInput').value||'');
+      if(!v.trim()){ LaRuche.Toast.show('Code inchangé.','info'); return; }
+      try{ await fetch('/api/mesh/code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:v})});
+        LaRuche.Toast.show('Code enregistré. Mets le MÊME sur tes autres ruches, puis relance-les.','ok'); loadNetwork(el);
+      }catch(e){ LaRuche.Toast.show('Échec.','err'); }
+    };
   }
 
   // ── Timeline des crons (porté de la PR third-party #47944, en vanilla JS) ──────

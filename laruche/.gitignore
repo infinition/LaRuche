@@ -29,6 +29,7 @@ Thumbs.db
 
 # Secrets — NE JAMAIS versionner
 /identity.json
+/mesh-secret.json
 /credentials.json
 /mcp_servers.json
 /laruche-node/mcp_servers.json

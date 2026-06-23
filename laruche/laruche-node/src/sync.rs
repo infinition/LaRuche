@@ -45,6 +45,83 @@ pub struct BulkSyncResponse {
     pub cookie_secret: Option<String>,
 }
 
+// ─── Authentification par CODE DE MESH (MAC blake3 keyed) ───────────────────
+// Modèle « passphrase WiFi » : un secret partagé entre les ruches d'un même mesh. Les requêtes
+// internes sont signées (ts + chemin) → on authentifie par le SECRET, plus par l'IP (qui clignote).
+// Tant qu'aucun code n'est configuré, on retombe sur l'allowlist IP (rétro-compatible).
+
+fn mesh_code_path() -> std::path::PathBuf {
+    std::path::PathBuf::from("mesh-secret.json")
+}
+pub fn load_mesh_code() -> Option<String> {
+    std::fs::read_to_string(mesh_code_path())
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .and_then(|v| {
+            v.get("code")
+                .and_then(|x| x.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(String::from)
+        })
+}
+pub fn save_mesh_code(code: &str) {
+    let _ = std::fs::write(
+        mesh_code_path(),
+        serde_json::json!({ "code": code.trim() }).to_string(),
+    );
+}
+fn mesh_key() -> Option<[u8; 32]> {
+    load_mesh_code().map(|c| *blake3::hash(c.as_bytes()).as_bytes())
+}
+/// En-têtes d'auth pour un appel SORTANT vers un pair. Vide si aucun code configuré.
+fn mesh_auth_headers(path: &str) -> Vec<(&'static str, String)> {
+    match mesh_key() {
+        Some(k) => {
+            let ts = Utc::now().timestamp();
+            let mac = blake3::keyed_hash(&k, format!("{ts}:{path}").as_bytes())
+                .to_hex()
+                .to_string();
+            vec![("X-Miel-Ts", ts.to_string()), ("X-Miel-Mac", mac)]
+        }
+        None => vec![],
+    }
+}
+/// Applique la signature de mesh à une requête reqwest sortante.
+pub fn sign_request(mut rb: reqwest::RequestBuilder, path: &str) -> reqwest::RequestBuilder {
+    for (k, v) in mesh_auth_headers(path) {
+        rb = rb.header(k, v);
+    }
+    rb
+}
+/// Vérifie une requête ENTRANTE. `None` si aucun code configuré → l'appelant retombe sur l'IP.
+pub fn mesh_auth_ok(headers: &axum::http::HeaderMap, path: &str) -> Option<bool> {
+    let key = mesh_key()?; // pas de code → None (pas d'auth MAC, on laisse l'allowlist IP décider)
+    let ts = headers
+        .get("X-Miel-Ts")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse::<i64>().ok());
+    let mac = headers.get("X-Miel-Mac").and_then(|v| v.to_str().ok());
+    let (ts, mac) = match (ts, mac) {
+        (Some(t), Some(m)) => (t, m),
+        _ => return Some(false),
+    };
+    if (Utc::now().timestamp() - ts).abs() > 300 {
+        return Some(false); // anti-rejeu : fenêtre 5 min
+    }
+    let expected = blake3::keyed_hash(&key, format!("{ts}:{path}").as_bytes())
+        .to_hex()
+        .to_string();
+    // comparaison à temps constant
+    let ok = expected.len() == mac.len()
+        && expected
+            .bytes()
+            .zip(mac.bytes())
+            .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+            == 0;
+    Some(ok)
+}
+
 // ─── Push to peers (fire-and-forget) ────────────────────────────────────────
 
 /// Push a session update to all known peer nodes.
@@ -79,13 +156,10 @@ pub async fn push_session_to_peers(session: &Session, state: &Arc<AppState>) {
         let json_clone = json.clone();
         let client_clone = client.clone();
         tokio::spawn(async move {
-            if let Err(e) = client_clone
-                .post(&url)
+            let req = sign_request(client_clone.post(&url), "/api/internal/sync/session")
                 .header("Content-Type", "application/json")
-                .body(json_clone)
-                .send()
-                .await
-            {
+                .body(json_clone);
+            if let Err(e) = req.send().await {
                 debug!(peer = %url, error = %e, "Session sync push failed");
             }
         });
@@ -124,13 +198,10 @@ pub async fn push_user_to_peers(user: &auth_user::User, state: &Arc<AppState>) {
         let json_clone = json.clone();
         let client_clone = client.clone();
         tokio::spawn(async move {
-            if let Err(e) = client_clone
-                .post(&url)
+            let req = sign_request(client_clone.post(&url), "/api/internal/sync/user")
                 .header("Content-Type", "application/json")
-                .body(json_clone)
-                .send()
-                .await
-            {
+                .body(json_clone);
+            if let Err(e) = req.send().await {
                 debug!(peer = %url, error = %e, "User sync push failed");
             }
         });
@@ -200,12 +271,16 @@ async fn get_known_peer_ips(state: &Arc<AppState>) -> HashSet<String> {
 pub async fn handle_session_sync(
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: axum::http::HeaderMap,
     Json(payload): Json<SyncSessionPayload>,
 ) -> StatusCode {
-    // Verify peer
-    let known = get_known_peer_ips(&state).await;
-    if !is_known_peer(&addr.ip().to_string(), &known) {
-        warn!(ip = %addr.ip(), "Rejected session sync from unknown peer");
+    // Auth : code de mesh (MAC) si configuré, sinon allowlist IP (rétro-compatible).
+    let authed = match mesh_auth_ok(&headers, "/api/internal/sync/session") {
+        Some(ok) => ok,
+        None => is_known_peer(&addr.ip().to_string(), &get_known_peer_ips(&state).await),
+    };
+    if !authed {
+        warn!(ip = %addr.ip(), "Rejected session sync (auth)");
         return StatusCode::FORBIDDEN;
     }
 
@@ -234,11 +309,15 @@ pub async fn handle_session_sync(
 pub async fn handle_user_sync(
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: axum::http::HeaderMap,
     Json(payload): Json<SyncUserPayload>,
 ) -> StatusCode {
-    let known = get_known_peer_ips(&state).await;
-    if !is_known_peer(&addr.ip().to_string(), &known) {
-        warn!(ip = %addr.ip(), "Rejected user sync from unknown peer");
+    let authed = match mesh_auth_ok(&headers, "/api/internal/sync/user") {
+        Some(ok) => ok,
+        None => is_known_peer(&addr.ip().to_string(), &get_known_peer_ips(&state).await),
+    };
+    if !authed {
+        warn!(ip = %addr.ip(), "Rejected user sync (auth)");
         return StatusCode::FORBIDDEN;
     }
 
@@ -262,10 +341,14 @@ pub async fn handle_user_sync(
 pub async fn handle_bulk_sync(
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<BulkSyncResponse>, StatusCode> {
-    let known = get_known_peer_ips(&state).await;
-    if !is_known_peer(&addr.ip().to_string(), &known) {
-        warn!(ip = %addr.ip(), "Rejected bulk sync from unknown peer");
+    let authed = match mesh_auth_ok(&headers, "/api/internal/sync/bulk") {
+        Some(ok) => ok,
+        None => is_known_peer(&addr.ip().to_string(), &get_known_peer_ips(&state).await),
+    };
+    if !authed {
+        warn!(ip = %addr.ip(), "Rejected bulk sync (auth)");
         return Err(StatusCode::FORBIDDEN);
     }
 
@@ -299,7 +382,7 @@ pub async fn fetch_bulk_from_peer(host: &str, port: u16, state: &Arc<AppState>) 
         .build()
         .unwrap_or_else(|_| reqwest::Client::new());
 
-    let response = match client.get(&url).send().await {
+    let response = match sign_request(client.get(&url), "/api/internal/sync/bulk").send().await {
         Ok(r) if r.status().is_success() => r,
         Ok(r) => {
             debug!(peer = %url, status = %r.status(), "Bulk sync fetch failed");

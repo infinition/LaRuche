@@ -2632,6 +2632,17 @@ fn append_inbox(m: InboxMessage) {
     write_inbox(&v);
 }
 
+/// GET /api/mesh/code — indique si un code de mesh est configuré (jamais le secret lui-même).
+async fn api_mesh_code_get() -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "set": sync::load_mesh_code().is_some() }))
+}
+/// POST /api/mesh/code {code} — définit/efface le code de mesh partagé (auth + base de chiffrement).
+async fn api_mesh_code_set(Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+    let code = body["code"].as_str().unwrap_or("");
+    sync::save_mesh_code(code);
+    Json(serde_json::json!({ "status": "ok", "set": !code.trim().is_empty() }))
+}
+
 /// GET /api/mesh/whoami — identité de CETTE instance (ID laruche + nom).
 async fn api_mesh_whoami(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let m = state.manifest.read().await;
@@ -2690,8 +2701,7 @@ async fn api_mesh_send(
     };
     let client = reqwest::Client::new();
     let url = format!("http://{host}:8419/api/mesh/receive");
-    let ok = client
-        .post(&url)
+    let ok = sync::sign_request(client.post(&url), "/api/mesh/receive")
         .json(&serde_json::json!({ "from_id": my_id, "from_name": my_name, "text": text }))
         .send()
         .await
@@ -2710,7 +2720,14 @@ async fn api_mesh_send(
 }
 
 /// POST /api/mesh/receive {from_id, from_name, text} — réception d'un DM d'un autre LaRuche.
-async fn api_mesh_receive(Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
+/// Auth code-de-mesh si configuré (sinon ouvert, comportement historique sur LAN).
+async fn api_mesh_receive(
+    headers: axum::http::HeaderMap,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    if let Some(false) = sync::mesh_auth_ok(&headers, "/api/mesh/receive") {
+        return Json(serde_json::json!({ "status": "error", "error": "auth mesh invalide" }));
+    }
     let from_id = body["from_id"].as_str().unwrap_or("inconnu").to_string();
     let from_name = body["from_name"].as_str().unwrap_or("LaRuche").to_string();
     let text = body["text"].as_str().unwrap_or("").trim().to_string();
@@ -8721,6 +8738,7 @@ async fn main() -> Result<()> {
         .route("/api/feed", get(api_feed))
         .route("/api/feed/ask", post(api_feed_ask))
         .route("/api/mesh/whoami", get(api_mesh_whoami))
+        .route("/api/mesh/code", get(api_mesh_code_get).post(api_mesh_code_set))
         .route("/api/mesh/peers", get(api_mesh_peers))
         .route("/api/mesh/send", post(api_mesh_send))
         .route("/api/mesh/receive", post(api_mesh_receive))
