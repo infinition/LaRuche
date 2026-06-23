@@ -27,9 +27,18 @@ Thumbs.db
 *.log
 /env_debug.txt
 
+# Secrets — NE JAMAIS versionner
+/credentials.json
+/mcp_servers.json
+/laruche-node/mcp_servers.json
+
 # Runtime data and local user state
 /sessions/
 /users/
+/inbox.json
+/kanban.json
+/missions.json
+/watchers.json
 /plugins/*
 !/plugins/example_hello.json
 /provider-profiles.json
