@@ -6889,13 +6889,28 @@ LaRuche.Settings = (function(){
     html += '</div>';
 
     html += '<div class="settings-grid">';
+    var sharedHtml = '';
 
     ids.forEach(function(id) {
       var p = profiles[id];
       var isActive = (id === active.profile_id);
       var modelCount = (p.models || []).length;
       var provLabel = p.provider === 'ollama' ? 'Ollama' : p.provider === 'anthropic' ? 'Anthropic' : p.provider === 'codex' ? 'ChatGPT Codex' : 'OpenAI-compat';
-      
+      // PARTAGÉ PAR UN PAIR : base_url = IP LAN privée (≠ loopback) → carte séparée, lecture seule
+      // (on ne re-partage pas / n'édite pas le provider d'un autre).
+      var _bu = (p.base_url||'').toLowerCase();
+      var _shared = /(^|\/\/)(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(_bu) && !/127\.0\.0\.1|localhost/.test(_bu);
+      if(_shared){
+        sharedHtml += '<div class="settings-card">'+
+          '<div class="settings-card-title" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span>'+LaRuche.Utils.esc(p.name)+'</span>'+
+          '<span style="color:var(--cyan);font-size:10px;font-weight:normal">🐝 partagé par un pair · lecture seule</span></div>'+
+          '<div class="settings-row"><span class="settings-label">URL</span><span class="settings-value" style="font-size:10px;word-break:break-all">'+LaRuche.Utils.esc(p.base_url)+'</span></div>'+
+          '<div class="settings-row"><span class="settings-label">Modèles</span><span class="settings-value">'+modelCount+'</span></div>'+
+          '<div style="margin-top:10px"><button onclick="LaRuche.Settings.deleteProfile(\''+id+'\')" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:10px">Retirer de ma liste</button></div>'+
+          '</div>';
+        return; // pas de carte normale : ni « Rendre Public », ni « Edit »
+      }
+
       var pCreds = allCreds.filter(function(c){ return c.provider.toLowerCase() === p.provider.toLowerCase(); });
       var credsHtml = '';
       if(pCreds.length > 0) {
@@ -6934,6 +6949,11 @@ LaRuche.Settings = (function(){
     });
 
     html += '</div>';
+    if(sharedHtml){
+      html += '<div class="settings-card-title" style="margin:18px 0 8px;color:var(--cyan)">🐝 Partagés avec moi (mesh)</div>'+
+        '<div style="color:var(--text-dim);font-size:11px;margin-bottom:10px">Modèles exposés par d\'autres ruches. Tu peux les utiliser, mais pas les éditer ni les re-partager.</div>'+
+        '<div class="settings-grid">'+sharedHtml+'</div>';
+    }
     el.innerHTML = html;
     refreshCodexStatus();
   }
