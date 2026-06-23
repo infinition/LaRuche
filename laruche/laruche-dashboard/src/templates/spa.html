@@ -3635,7 +3635,7 @@ LaRuche.Chat = (function(){
   // ── Profil : fiche utilisateur verrouillée, injectée au contexte de LaRuche ──
   async function openProfile() {
     var ov = document.getElementById('profileModal'); if(!ov) return;
-    var u = currentUser || {};
+    var u = (window.LaRuche && LaRuche.Auth && LaRuche.Auth.getUser && LaRuche.Auth.getUser()) || {};
     var nm = document.getElementById('profileModalName'); if(nm) nm.textContent = u.display_name || 'Mon profil';
     var av = document.getElementById('profileModalAvatar'); if(av) av.textContent = (u.display_name||'?').charAt(0).toUpperCase();
     var ta = document.getElementById('profileFiche');
@@ -4534,7 +4534,7 @@ LaRuche.Chat = (function(){
     useSuggestion:useSuggestion, newSession:newSession, deleteSession:deleteSession,
     respondApproval:respondApproval, toggleSidebar:toggleSidebar,
     removePendingFile:removePendingFile, loadSessions:loadSessions,
-    getSessionId:getSessionId, switchSession:switchSession, getUser:getUser,
+    getSessionId:getSessionId, switchSession:switchSession,
     openProfile:openProfile, closeProfile:closeProfile, saveProfile:saveProfile,
     browseCwd:browseCwd, loadCwd:loadCwd, toggleNoThink:toggleNoThink, stopRun:stopRun,
     openHistory:openHistory, closeHistory:closeHistory, searchHistory:searchHistory,
@@ -9192,7 +9192,7 @@ LaRuche.Feed = (function(){
     return 'memory';
   }
   function feedUser(){
-    return (window.LaRuche && LaRuche.Chat && LaRuche.Chat.getUser) ? LaRuche.Chat.getUser() : null;
+    return (window.LaRuche && LaRuche.Auth && LaRuche.Auth.getUser) ? LaRuche.Auth.getUser() : null;
   }
   function actorName(ev){
     if(ev.actor==='User'){ var u=feedUser(); return (u && u.display_name) ? u.display_name : 'Vous'; }
