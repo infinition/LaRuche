@@ -64,6 +64,7 @@ async fn openai_chat_stream(
     api_key: &str,
     api_base: Option<&str>,
 ) -> Result<Pin<Box<dyn Stream<Item = OllamaChunk> + Send>>> {
+    let api_key = api_key.trim(); // espaces/retours-ligne collés avec la clé → 401 sinon
     let base = normalize_base_url(api_base.unwrap_or("https://api.openai.com"));
     let base = base.as_str();
     if api_key.is_empty() && !is_local_base_url(base) {
@@ -470,6 +471,7 @@ async fn anthropic_chat_stream(
     api_key: &str,
     api_base: Option<&str>,
 ) -> Result<Pin<Box<dyn Stream<Item = OllamaChunk> + Send>>> {
+    let api_key = api_key.trim(); // espaces/retours-ligne collés avec la clé → 401 sinon
     if api_key.is_empty() {
         anyhow::bail!(
             "API key is required for Anthropic provider. Configure in Settings > Providers."
