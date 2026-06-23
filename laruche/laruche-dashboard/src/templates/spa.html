@@ -132,6 +132,16 @@ body.feed-docked { padding-right: 360px; }
 .hc-sm .hx7{top:23px;left:11px;animation-delay:1.2s}
 .honeycomb-loader.hc-lg { width:80px; height:80px; }
 .honeycomb-loader.hc-lg .hexagon { width:20px; height:23px; }
+/* Variante STATIQUE (avatar LaRuche dans le Feed) : pas d'animation, pas de hover-scale. */
+.honeycomb-loader.hc-static .hexagon { animation:none !important; }
+/* Avatars + badge de type dans le Feed. */
+.feed-av { width:20px; height:20px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; }
+.feed-av-user { background:var(--amber); color:var(--bg); border-radius:50%; font-size:10px; font-weight:700; }
+.feed-av-laruche { position:relative; overflow:hidden; }
+.feed-av-laruche .honeycomb-loader.hc-sm { transform:scale(.62); transform-origin:top left; pointer-events:none; }
+.feed-av-laruche .honeycomb-loader.hc-sm:hover { transform:scale(.62); }
+.feed-kind-badge { font-size:8.5px; letter-spacing:.3px; text-transform:uppercase; padding:0 5px; border-radius:6px; border:1px solid currentColor; opacity:.85; line-height:1.5; }
+.kb-memory{color:#a78bfa} .kb-agent{color:var(--amber)} .kb-cron{color:#f59e0b} .kb-mission{color:#34d399} .kb-watcher{color:#60a5fa}
 .swarm-wrap { width:260px; height:260px; display:flex; align-items:center; justify-content:center; border-radius:50%; background:radial-gradient(circle, rgba(255, 205, 45, 0.08), transparent 56%), radial-gradient(circle, rgba(255, 180, 0, 0.04), transparent 72%); filter:drop-shadow(0 0 20px rgba(255, 195, 30, 0.18)); pointer-events:none; }
 .swarm-wrap canvas { width:260px; height:260px; display:block; }
 .hc-lg .hx1{top:8px;left:30px;animation-delay:0s} .hc-lg .hx2{top:21px;left:10px;animation-delay:.2s} .hc-lg .hx3{top:21px;left:50px;animation-delay:.4s}
@@ -1500,7 +1510,7 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 .feed-row.kind-mission .feed-kind-icon { color:#eab308; }
 .feed-row.kind-watcher .feed-kind-icon { color:var(--green); }
 .feed-row-top { display:flex; align-items:center; gap:6px; }
-.feed-row-time { font-size:10px; color:var(--text-muted); font-family:var(--mono); white-space:nowrap; }
+.feed-row-time { font-size:10px; color:var(--text-muted); font-family:var(--mono); white-space:nowrap; margin-left:auto; }
 .feed-actor {
   font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.4px;
   padding:1px 6px; border-radius:5px; white-space:nowrap;
@@ -4456,7 +4466,7 @@ LaRuche.Chat = (function(){
     useSuggestion:useSuggestion, newSession:newSession, deleteSession:deleteSession,
     respondApproval:respondApproval, toggleSidebar:toggleSidebar,
     removePendingFile:removePendingFile, loadSessions:loadSessions,
-    getSessionId:getSessionId, switchSession:switchSession,
+    getSessionId:getSessionId, switchSession:switchSession, getUser:getUser,
     browseCwd:browseCwd, loadCwd:loadCwd, toggleNoThink:toggleNoThink, stopRun:stopRun,
     openHistory:openHistory, closeHistory:closeHistory, searchHistory:searchHistory,
     refreshHistoryOverlay:refreshHistoryOverlay, exportSessionMd:exportSessionMd
@@ -9105,30 +9115,49 @@ LaRuche.Feed = (function(){
   }
 
   // ── Liste des événements ─────────────────────────────────────
-  // mapping kind -> classe css + petite icone distincte
-  var KIND_ICON = { memory:'', agent:'', cron:'⏰', mission:'👑', watcher:'👁' };
+  // mapping kind -> libellé du badge
+  var KIND_LABEL = { memory:'Mémoire', agent:'Agent', cron:'Cron', mission:'Mission', watcher:'Watcher' };
   function kindOf(ev){
     var k = ev && ev.kind;
     if(k==='agent'||k==='cron'||k==='mission'||k==='watcher') return k;
     return 'memory';
   }
+  function feedUser(){
+    return (window.LaRuche && LaRuche.Chat && LaRuche.Chat.getUser) ? LaRuche.Chat.getUser() : null;
+  }
+  function actorName(ev){
+    if(ev.actor==='User'){ var u=feedUser(); return (u && u.display_name) ? u.display_name : 'Vous'; }
+    return 'LaRuche';
+  }
+  // Avatar : initiale du compte (User) / nid d'abeille STATIQUE (LaRuche).
+  function actorAvatar(ev){
+    if(ev.actor==='User'){
+      var u=feedUser(); var init=((u && u.display_name)||'?').charAt(0).toUpperCase();
+      return '<span class="feed-av feed-av-user">'+esc(init)+'</span>';
+    }
+    return '<span class="feed-av feed-av-laruche"><span class="honeycomb-loader hc-sm hc-static">'+
+      '<span class="hexagon hx1"></span><span class="hexagon hx2"></span><span class="hexagon hx3"></span>'+
+      '<span class="hexagon hx4"></span><span class="hexagon hx5"></span><span class="hexagon hx6"></span>'+
+      '<span class="hexagon hx7"></span></span></span>';
+  }
   function rowHtml(ev){
     var actorCls = (ev.actor==='User') ? 'actor-user' : 'actor-laruche';
     var kind = kindOf(ev);
-    var kindCls = 'kind-'+kind;
-    var objHtml;
-    if(ev.ref){
-      objHtml = '<span class="feed-obj-ref" data-ref="'+esc(ev.ref)+'">'+esc(ev.object)+'</span>';
-    } else {
-      objHtml = esc(ev.object);
-    }
-    var icon = KIND_ICON[kind] ? '<span class="feed-kind-icon">'+KIND_ICON[kind]+'</span>' : '';
-    return '<div class="feed-row '+kindCls+'">'+
+    var objHtml = ev.ref
+      ? '<span class="feed-obj-ref" data-ref="'+esc(ev.ref)+'">'+esc(ev.object)+'</span>'
+      : esc(ev.object);
+    // On retire les verbes de chat « a répondu / a demandé » : l'acteur + le badge suffisent.
+    var action = ev.action || '';
+    if(action==='a répondu' || action==='a demandé') action='';
+    var actionHtml = action ? esc(action)+' ' : '';
+    return '<div class="feed-row kind-'+kind+'">'+
       '<div class="feed-row-top">'+
-        '<span class="feed-actor '+actorCls+'">'+esc(ev.actor)+'</span>'+
+        actorAvatar(ev)+
+        '<span class="feed-actor '+actorCls+'">'+esc(actorName(ev))+'</span>'+
+        '<span class="feed-kind-badge kb-'+kind+'">'+esc(KIND_LABEL[kind]||kind)+'</span>'+
         '<span class="feed-row-time">'+esc(fmtTime(ev.ts))+'</span>'+
       '</div>'+
-      '<div class="feed-row-text">'+icon+esc(ev.action)+' '+objHtml+'</div>'+
+      '<div class="feed-row-text">'+actionHtml+objHtml+'</div>'+
     '</div>';
   }
 
