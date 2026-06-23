@@ -5143,41 +5143,47 @@ LaRuche.Dashboard = (function(){
           var isPreferred = serverPreferred[cap] ? (m.name === serverPreferred[cap].model && m.host === serverPreferred[cap].backend) : m.is_default;
           var card = document.createElement('div');
           card.className = 'mesh-card';
-          if(isPreferred) card.style.borderColor = 'var(--amber)';
-          card.title = 'Click to set default for ' + cap;
-          
+          if(isPreferred){ card.style.borderColor = 'var(--amber)'; card.style.background = 'rgba(245,158,11,0.06)'; }
+          card.title = m.is_local ? 'Mon modèle local' : 'Modèle distant (ruche '+(m.node_name||'pair')+')';
+
           var nameDiv = document.createElement('div');
           nameDiv.className = 'mesh-card-name';
           nameDiv.textContent = m.name;
-          if(isPreferred) nameDiv.innerHTML += ' <span style="color:var(--amber); font-size:10px;">★</span>';
-          
+          if(isPreferred) nameDiv.innerHTML += ' <span style="background:var(--amber);color:var(--bg);font-size:9px;font-weight:700;padding:0 5px;border-radius:7px;margin-left:4px;vertical-align:middle;">● SÉLECTIONNÉ</span>';
+
           var metaDiv = document.createElement('div');
           metaDiv.className = 'mesh-card-meta';
-          
+
           var sizeSpan = document.createElement('span');
           sizeSpan.textContent = m.size_gb > 0 ? m.size_gb.toFixed(1) + ' GB' : '';
-          
+
+          // Provenance CLAIRE : 🖥️ mon local · 🐝 distant (quelle ruche).
           var badgeSpan = document.createElement('span');
           badgeSpan.className = 'mesh-badge ' + (m.is_local ? 'mesh-local' : 'mesh-remote');
-          badgeSpan.textContent = m.is_local ? 'LOCAL (' + m.host + ')' : 'MESH (' + (m.node_name || 'unknown') + ')';
-          
+          badgeSpan.textContent = m.is_local ? '🖥️ à moi (local)' : '🐝 '+(m.node_name || 'pair')+' · distant';
+
           metaDiv.appendChild(sizeSpan);
           metaDiv.appendChild(badgeSpan);
-          
+
           card.appendChild(nameDiv);
           card.appendChild(metaDiv);
-          
+
           var useBtn = document.createElement('button');
           useBtn.style.cssText = 'background:rgba(245,158,11,0.1); border:1px solid var(--amber); color:var(--amber); border-radius:4px; padding:4px 8px; font-size:10px; cursor:pointer; margin-top:4px; transition:var(--transition-fast); text-align:center;';
-          useBtn.textContent = 'Utiliser';
-          useBtn.onmouseover = function() { this.style.background = 'rgba(245,158,11,0.2)'; };
-          useBtn.onmouseout = function() { this.style.background = 'rgba(245,158,11,0.1)'; };
-          useBtn.onclick = function(e){ 
-            e.stopPropagation();
-            useBtn.disabled = true;
-            useBtn.textContent = '...';
-            useMeshModel(m.host, m.name, cap, m.node_id, m.base_url); 
-          };
+          if(isPreferred){
+            useBtn.textContent = '✓ Utilisé';
+            useBtn.style.background = 'var(--amber)'; useBtn.style.color = 'var(--bg)'; useBtn.disabled = true; useBtn.style.cursor = 'default';
+          } else {
+            useBtn.textContent = 'Utiliser';
+            useBtn.onmouseover = function() { this.style.background = 'rgba(245,158,11,0.2)'; };
+            useBtn.onmouseout = function() { this.style.background = 'rgba(245,158,11,0.1)'; };
+            useBtn.onclick = function(e){
+              e.stopPropagation();
+              useBtn.disabled = true;
+              useBtn.textContent = '...';
+              useMeshModel(m.host, m.name, cap, m.node_id, m.base_url);
+            };
+          }
           card.appendChild(useBtn);
           
           card.addEventListener('click', function(){ setPreferredModel(m.name, cap); });
