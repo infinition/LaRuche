@@ -1,5 +1,20 @@
 [
   {
+    "id": "e8eef113-ed13-4a80-8b88-b023f11db807",
+    "name": "WorldCupResultsMonitor",
+    "profile_id": null,
+    "model": null,
+    "watcher_type": "url",
+    "target": "https://www.flashscore.com/",
+    "condition": "contains 'résultat' or contains 'match terminé'",
+    "prompt": "Vérifier les dernières mises à jour de la Coupe du Monde sur cette page. Si de nouveaux matchs sont terminés ou des scores sont mis à jour, enregistrer les résultats dans le projet projects.coupe_du_monde.",
+    "active": true,
+    "created_at": "2026-06-23T00:17:12.819709300Z",
+    "last_run": "2026-06-23T00:26:24.604574900Z",
+    "run_count": 2,
+    "last_state": "3456206944470468073"
+  },
+  {
     "id": "6335d2bb-7041-4071-be12-fed8f4d5dfd7",
     "name": "Flashscore_CoupeDuMonde_RealTime",
     "profile_id": null,

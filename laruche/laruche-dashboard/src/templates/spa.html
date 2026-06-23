@@ -3674,6 +3674,19 @@ LaRuche.Chat = (function(){
     // This ensures protocol/reasoning tags are NEVER shown, even partially.
     var buf = el._rawBuf;
 
+    // Capture du RAISONNEMENT du LLM : chaque bloc <think>…</think> COMPLET est routé une seule
+    // fois vers le feed du volet gauche (visible en mode détaillé, classe act-noise). Le chat,
+    // lui, continue de masquer le raisonnement.
+    var thinkRe = /<think>([\s\S]*?)<\/think>/g, tm, ti = 0, sent = el._thinkEmitted || 0;
+    while ((tm = thinkRe.exec(buf)) !== null) {
+      if (ti >= sent) {
+        var tt = tm[1].trim();
+        if (tt) addActivity('thinking', 'Raisonnement', tt, true);
+      }
+      ti++;
+    }
+    el._thinkEmitted = ti;
+
     // Strip all complete hidden blocks.
     var clean = buf.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '');
     clean = clean.replace(/<plan>[\s\S]*?<\/plan>/g, '');
