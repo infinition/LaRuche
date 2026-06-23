@@ -5487,16 +5487,26 @@ async fn api_set_visibility(
 ) -> Json<serde_json::Value> {
     let vis = match body["visibility"].as_str() {
         Some("public_proxy") => profiles::Visibilite::PublicProxy,
+        Some("restricted") => profiles::Visibilite::Restricted,
         Some("prive") => profiles::Visibilite::Prive,
         _ => {
-            return Json(
-                serde_json::json!({"error": "visibility must be 'prive' or 'public_proxy'"}),
-            )
+            return Json(serde_json::json!(
+                {"error": "visibility must be 'prive' | 'public_proxy' | 'restricted'"}
+            ))
         }
     };
+    let allowed: Vec<String> = body["allowed_peers"]
+        .as_array()
+        .map(|a| a.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .unwrap_or_default();
     let mut cfg = state.profiles.write().await;
     match cfg.profiles.get_mut(&id) {
-        Some(p) => p.visibilite = vis,
+        Some(p) => {
+            p.visibilite = vis;
+            if vis == profiles::Visibilite::Restricted {
+                p.allowed_peers = allowed;
+            }
+        }
         None => return Json(serde_json::json!({"error": "profile not found"})),
     }
     let _ = profiles::save_profiles(&state.profiles_path, &cfg);
