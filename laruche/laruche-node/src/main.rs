@@ -2597,6 +2597,115 @@ fn nettoyer_reponse_feed(s: &str) -> String {
     out.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
+/// POST /api/feed/ask {text} — parle à LaRuche DEPUIS le Feed. Tourne sur une session « feed »
+/// dédiée (contexte roulant ~10 échanges, isolé du chat principal), en arrière-plan ; la réponse
+/// apparaît dans le Feed via activity_log au prochain poll. Capacités agent complètes (crons…).
+async fn api_feed_ask(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let text = match body["text"].as_str().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(t) => t.to_string(),
+        None => return Json(serde_json::json!({ "status": "error", "error": "texte vide" })),
+    };
+    let st = state.clone();
+    tokio::spawn(async move {
+        // Session feed dédiée (id déterministe) → contexte roulant, séparé du chat principal.
+        let feed_id = Uuid::from_u128(0xFEED_0000_0000_0000_0000_0000_0000_0001);
+        let sessions_dir = std::path::Path::new("sessions");
+        let model = st.essaim_config.read().await.model.clone();
+        let mut session = {
+            let mut sessions = st.essaim_sessions.write().await;
+            sessions
+                .remove(&feed_id)
+                .unwrap_or_else(|| Session::new_with_id(feed_id, &model, sessions_dir))
+        };
+        let (tx, _rx) = tokio::sync::broadcast::channel::<laruche_essaim::ChatEvent>(256);
+        let cfg = st.essaim_config.read().await.clone();
+        let result = boucle_react_memoire(
+            &text,
+            &mut session,
+            &st.essaim_registry,
+            &cfg,
+            &tx,
+            st.memoire.clone(),
+        )
+        .await;
+        // Contexte roulant court (~10 échanges = 20 messages) : on tronque le plus ancien.
+        if session.messages.len() > 20 {
+            let drop_n = session.messages.len() - 20;
+            session.messages.drain(0..drop_n);
+        }
+        {
+            let now = chrono::Utc::now().to_rfc3339();
+            let mut activity = st.activity_log.write().await;
+            if activity.len() >= ACTIVITY_LOG_LIMIT {
+                activity.pop_front();
+            }
+            activity.push_back(ActivityLogEntry {
+                timestamp: now,
+                level: if result.is_ok() { "info" } else { "error" }.into(),
+                tag: "agent".into(),
+                message: format!("Feed: {}", preview_text(&text, 60)),
+                full_prompt: Some(text.clone()),
+                full_response: result.as_ref().ok().map(|r| preview_text(r, 200)),
+                model_used: Some(cfg.model.clone()),
+                tokens_generated: None,
+                latency_ms: None,
+                user_id: None,
+            });
+        }
+        let _ = session.sauvegarder();
+        st.essaim_sessions.write().await.insert(feed_id, session);
+    });
+    Json(serde_json::json!({ "status": "ok" }))
+}
+
+/// GET /api/profile — fiche utilisateur (nœud `system.user`, injectée au contexte de LaRuche).
+async fn api_profile_get(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let fiche = state
+        .memoire
+        .read_node("system.user")
+        .await
+        .ok()
+        .and_then(|n| {
+            n.get("items").and_then(|i| i.as_array()).and_then(|a| {
+                a.iter().rev().find_map(|it| {
+                    it.get("content").and_then(|c| c.as_str()).map(str::to_string)
+                })
+            })
+        })
+        .unwrap_or_default();
+    Json(serde_json::json!({ "fiche": fiche }))
+}
+
+/// POST /api/profile {fiche} — remplace la fiche utilisateur (item unique). Source `ui-profile`
+/// (acteur User dans le Feed). Seul l'utilisateur édite ; l'agent en est interdit (memory_write).
+async fn api_profile_save(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let fiche = body["fiche"].as_str().unwrap_or("").trim().to_string();
+    if let Ok(node) = state.memoire.read_node("system.user").await {
+        if let Some(items) = node.get("items").and_then(|i| i.as_array()) {
+            for it in items {
+                if let Some(id) = it.get("id").and_then(|x| x.as_str()) {
+                    let _ = state.memoire.delete_item(id, Some("ui-profile")).await;
+                }
+            }
+        }
+    }
+    if !fiche.is_empty() {
+        let _ = state
+            .memoire
+            .write(
+                laruche_memoire::MemoryItem::new("system.user", fiche).with_source("ui-profile"),
+            )
+            .await;
+    }
+    Json(serde_json::json!({ "status": "ok" }))
+}
+
 /// GET /api/feed?limit=N — flux d'activité UNIFIÉ pour le volet Feed global : mutations mémoire
 /// (avec acteur User/LaRuche + ref cliquable) + inférences agent (activity_log), trié récent→ancien.
 async fn api_feed(
@@ -8435,6 +8544,8 @@ async fn main() -> Result<()> {
         .route("/api/memory/dream", post(api_memory_dream))
         .route("/api/memory/consolidate", post(api_memory_consolidate))
         .route("/api/feed", get(api_feed))
+        .route("/api/feed/ask", post(api_feed_ask))
+        .route("/api/profile", get(api_profile_get).post(api_profile_save))
         .route("/api/memory/grep", get(api_memory_grep))
         .route("/api/memory/export_changes", get(api_memory_export_changes))
         .route("/api/memory/import_changes", post(api_memory_import_changes))

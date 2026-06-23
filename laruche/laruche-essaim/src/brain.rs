@@ -1287,6 +1287,28 @@ pub async fn boucle_react_memoire_multimodal(
     if let Some(soul) = charger_doc_systeme(&memoire, "system.soul").await {
         cfg.custom_instructions = Some(soul);
     }
+    // Fiche utilisateur (nœud verrouillé `system.user`) : éditable par le SEUL user (via son
+    // profil), jamais par l'agent (garde-fou memory_write). Injectée au contexte pour que LaRuche
+    // « connaisse » l'utilisateur. Item unique, lu directement (pas de dépendance frontmatter).
+    if let Ok(node) = memoire.read_node("system.user").await {
+        if let Some(fiche) = node
+            .get("items")
+            .and_then(|i| i.as_array())
+            .and_then(|a| {
+                a.iter()
+                    .rev()
+                    .find_map(|it| it.get("content").and_then(|c| c.as_str()))
+            })
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            let bloc = format!("## À propos de l'utilisateur (fiche qu'il a fournie)\n{fiche}");
+            cfg.custom_instructions = Some(match cfg.custom_instructions.take() {
+                Some(s) => format!("{s}\n\n{bloc}"),
+                None => bloc,
+            });
+        }
+    }
     // Index des skills disponibles (toujours présent → le modèle connaît son répertoire complet).
     cfg.skills_index = construire_index_skills(&memoire).await;
 
