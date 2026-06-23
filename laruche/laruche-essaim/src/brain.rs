@@ -114,6 +114,10 @@ pub struct EssaimConfig {
     /// répertoire complet (corps via `skill_view` à la demande). `None` hors contexte mémoire.
     #[serde(skip)]
     pub skills_index: Option<String>,
+    /// Liste des ruches du mesh joignables (`nom — laruche_id`), injectée pour que l'agent puisse
+    /// les contacter (`mesh_send`) / coordonner. Rempli par le nœud (accès listener). `None` si solo.
+    #[serde(skip)]
+    pub mesh_peers_hint: Option<String>,
     /// Modèle auxiliaire pour les tâches de fond (curation/extraction). `None` = même modèle.
     /// Pointer un petit modèle rapide évite de concurrencer le KV-cache du chat principal.
     #[serde(default)]
@@ -166,6 +170,7 @@ impl Default for EssaimConfig {
             system_prompt_override: None,
             behavior_override: None,
             skills_index: None,
+            mesh_peers_hint: None,
             aux_model: None,
             permission_mode: default_permission_mode(),
             permission_rules: Vec::new(),
@@ -2420,6 +2425,12 @@ pub async fn boucle_react_multimodal_ext(
     // Ajoute l'index des skills (s'il a été construit par le caller mémoire) au catalogue stable.
     if let Some(sk) = config.skills_index.as_deref() {
         capability_index.push_str(sk);
+    }
+    // Ruches du mesh joignables → l'agent sait qui contacter via `mesh_send`.
+    if let Some(peers) = config.mesh_peers_hint.as_deref().filter(|s| !s.trim().is_empty()) {
+        capability_index.push_str(&format!(
+            "\n## Ruches du mesh joignables\nTu peux leur envoyer un message avec `mesh_send(to_id, text)` :\n{peers}\n"
+        ));
     }
     let system_prompt = build_system_prompt(
         &tool_schema,

@@ -7614,6 +7614,28 @@ async fn ws_chat_connection(
             }
 
             let mut config = ec_snapshot;
+            // Liste des ruches du mesh joignables → injectée au contexte (l'agent peut `mesh_send`).
+            {
+                let listener = state_clone.listener.read().await;
+                let nodes = listener.get_nodes().await;
+                let me = state_clone.manifest.read().await.node_id;
+                let lignes: Vec<String> = nodes
+                    .values()
+                    .filter(|n| n.manifest.node_id != Some(me))
+                    .filter_map(|n| {
+                        n.manifest.node_id.map(|id| {
+                            format!(
+                                "- {} — {}",
+                                n.manifest.node_name.clone().unwrap_or_else(|| "ruche".into()),
+                                id
+                            )
+                        })
+                    })
+                    .collect();
+                if !lignes.is_empty() {
+                    config.mesh_peers_hint = Some(lignes.join("\n"));
+                }
+            }
             // Résoudre le profil sélectionné → provider/base_url/api_key.
             if let Some(ref pid) = profile_override {
                 let profiles = state_clone.profiles.read().await;
