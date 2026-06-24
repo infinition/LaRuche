@@ -253,9 +253,10 @@ body.feed-docked { padding-right: 360px; }
 .mesh-win-head { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:rgba(245,158,11,.12); border-bottom:1px solid var(--border); font-weight:600; font-size:13px; }
 .mesh-win-close, .mesh-win-min { background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:13px; padding:0 4px; }
 .mesh-win-close:hover, .mesh-win-min:hover { color:var(--text); }
-.mesh-win.minimized { height:auto !important; }
+/* Réduite : rétrécit AU CONTENU (plus de largeur 300px → plus de vide entre le nom et les boutons). */
+.mesh-win.minimized { height:auto !important; width:auto !important; }
 .mesh-win.minimized .mesh-win-body, .mesh-win.minimized .mesh-win-input { display:none; }
-.mesh-win.minimized .mesh-win-head { border-bottom:none; cursor:pointer; }
+.mesh-win.minimized .mesh-win-head { border-bottom:none; cursor:pointer; gap:12px; }
 .mesh-win.minimized .mesh-win-head:hover { background:rgba(245,158,11,.22); }
 .mesh-win-body { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:6px; }
 .mesh-msg { max-width:80%; padding:6px 10px; border-radius:12px; font-size:13px; line-height:1.4; word-wrap:break-word; white-space:pre-wrap; }
