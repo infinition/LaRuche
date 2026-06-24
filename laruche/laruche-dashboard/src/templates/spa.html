@@ -69,6 +69,15 @@ body {
 }
 /* Feed ancré + ouvert : on réduit le contenu pour qu'il ne soit pas masqué */
 body.feed-docked { padding-right: 360px; }
+.status-bar { flex-shrink:0; height:28px; display:flex; align-items:center; justify-content:flex-start; gap:8px; padding:0 10px; background:var(--bg-panel); border-top:1px solid var(--border); font-size:11px; color:var(--text-dim); }
+.status-bar select { background:transparent; border:none; color:var(--amber); font-size:11px; font-weight:500; cursor:pointer; outline:none; }
+.status-bar select:hover { color:var(--amber); text-decoration:underline; }
+.status-bar .sb-model-wrap { position:relative; }
+.status-bar .sb-model-drop { position:absolute; bottom:100%; left:0; margin-bottom:4px; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; box-shadow:0 -4px 16px rgba(0,0,0,.4); display:none; min-width:180px; max-height:240px; overflow-y:auto; z-index:10000; padding:4px 0; }
+.status-bar .sb-model-drop.open { display:block; }
+.status-bar .sb-model-drop div { padding:6px 12px; font-size:12px; cursor:pointer; color:var(--text); transition:background .12s; }
+.status-bar .sb-model-drop div:hover { background:rgba(245,158,11,0.12); color:var(--amber); }
+.status-bar .sb-model-drop div.active { color:var(--amber); font-weight:600; background:rgba(245,158,11,0.08); }
 @media (max-width:600px) {
   body.feed-docked { padding-right: 0; } /* drawer pleine largeur : pas de décalage */
 }
@@ -237,11 +246,15 @@ body.feed-docked { padding-right: 360px; }
 .mesh-conv-name { font-size:13px; font-weight:600; display:flex; align-items:center; gap:6px; }
 .mesh-conv-last { font-size:11px; color:var(--text-dim); }
 .mesh-unread { background:#ef4444; color:#fff; font-size:9px; font-weight:700; border-radius:8px; padding:0 5px; }
-.mesh-windows { position:fixed; bottom:0; right:14px; z-index:4400; display:flex; gap:10px; align-items:flex-end; pointer-events:none; }
+.mesh-windows { position:fixed; right:14px; z-index:3000; display:flex; gap:10px; align-items:flex-end; pointer-events:none; }
 .mesh-win { pointer-events:auto; width:300px; height:404px; background:var(--bg-card); border:1px solid var(--border); border-bottom:none; border-radius:12px 12px 0 0; box-shadow:0 -6px 24px rgba(0,0,0,.45); display:flex; flex-direction:column; overflow:hidden; }
 .mesh-win-head { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:rgba(245,158,11,.12); border-bottom:1px solid var(--border); font-weight:600; font-size:13px; }
-.mesh-win-close { background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:13px; }
-.mesh-win-close:hover { color:var(--text); }
+.mesh-win-close, .mesh-win-min { background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:13px; padding:0 4px; }
+.mesh-win-close:hover, .mesh-win-min:hover { color:var(--text); }
+.mesh-win.minimized { height:auto !important; }
+.mesh-win.minimized .mesh-win-body, .mesh-win.minimized .mesh-win-input { display:none; }
+.mesh-win.minimized .mesh-win-head { border-bottom:none; cursor:pointer; }
+.mesh-win.minimized .mesh-win-head:hover { background:rgba(245,158,11,.22); }
 .mesh-win-body { flex:1; overflow-y:auto; padding:10px; display:flex; flex-direction:column; gap:6px; }
 .mesh-msg { max-width:80%; padding:6px 10px; border-radius:12px; font-size:13px; line-height:1.4; word-wrap:break-word; white-space:pre-wrap; }
 .mesh-msg.in { align-self:flex-start; background:var(--bg-input); border:1px solid var(--border); border-bottom-left-radius:4px; }
@@ -796,7 +809,7 @@ pre:hover .code-copy-btn { opacity:1; }
 .input-area textarea {
   flex:1; background:var(--bg-input); border:1px solid var(--border);
   border-radius:var(--radius); color:var(--text); font-family:var(--font);
-  font-size:16px; padding:10px 12px; resize:none; outline:none;
+  font-size:12px; padding:10px 12px; resize:none; outline:none;
   max-height:120px; min-height:44px; line-height:1.4;
   transition:border-color var(--transition-fast);
 }
@@ -1398,7 +1411,7 @@ pre:hover .code-copy-btn { opacity:1; }
   .sidebar-toggle { display: none !important; }
   .sidebar-close { display:flex; }
   .chat-sidebar {
-    position:fixed; left:0; top:0; bottom:0; z-index:120;
+    position:fixed; left:0; top:0; bottom:28px; z-index:120;
     transform:translateX(-100%); transition:transform var(--transition-med);
     box-shadow:4px 0 24px rgba(0,0,0,.6);
   }
@@ -1576,14 +1589,14 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 .feed-toggle-btn.active:hover { background:rgba(245,158,11,0.16); border-color:rgba(245,158,11,0.45); }
 .feed-toggle-btn .feed-toggle-ico { font-size:13px; }
 .feed-drawer-overlay {
-  position:fixed; inset:0; z-index:4000;
+  position:fixed; inset:0 0 28px; z-index:4000;
   background:rgba(0,0,0,0.45); opacity:0; pointer-events:none;
   transition:opacity .22s ease;
 }
 .feed-drawer-overlay.open { opacity:1; pointer-events:auto; }
 .feed-drawer-overlay.anchored { background:transparent; pointer-events:none; }
 .feed-drawer {
-  position:fixed; top:0; right:0; height:100%; width:360px; max-width:92vw;
+  position:fixed; top:0; right:0; bottom:28px; width:360px; max-width:92vw;
   z-index:4001; display:flex; flex-direction:column;
   background:var(--bg-card); backdrop-filter:blur(10px);
   border-left:1px solid rgba(245,158,11,0.25);
@@ -1864,13 +1877,8 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
     <div class="chat-layout">
       <div class="chat-sidebar" id="chatSidebar">
         <button class="sidebar-close" onclick="LaRuche.Chat.toggleSidebar()">&times;</button>
-        <!-- Discreet LLM Bubble (with select overlay) -->
-        <div style="position: relative; margin: 8px auto; width: fit-content;">
-          <div id="sessionCapsRecap" style="text-align:center;font-size:11px;font-weight:600;color:var(--amber);background:rgba(255, 191, 58, 0.05);padding:4px 12px;border-radius:12px;border: 1px solid rgba(255, 191, 58, 0.15); box-shadow: 0 2px 8px rgba(0,0,0,0.2); cursor: pointer;">Chargement...</div>
-          <select id="modelSelect" onchange="LaRuche.Header.changeModel(this.value)" style="opacity:0; position:absolute; inset:0; width:100%; height:100%; cursor:pointer;">
-            <option value="">Chargement...</option>
-          </select>
-        </div>
+        <!-- LLM Bubble moved to bottom bar -->
+
 
         <!-- New compact global controls for chat -->
         <div class="sidebar-controls">
@@ -9661,6 +9669,7 @@ LaRuche.Feed = (function(){
     if(ov) ov.classList.toggle('anchored', anchored && open);
     // mode docké : on pousse le contenu (uniquement ancré ET ouvert)
     document.body.classList.toggle('feed-docked', anchored && open);
+    if(LaRuche.Mesh) LaRuche.Mesh.repositionWindows();
   }
 
   function openDrawer(){
@@ -9690,6 +9699,7 @@ LaRuche.Feed = (function(){
     anchored = !anchored;
     try{ localStorage.setItem('lr_feed_anchored', anchored?'1':'0'); }catch(e){}
     applyAnchorUI();
+    if(LaRuche.Mesh) LaRuche.Mesh.repositionWindows();
   }
 
   function init(){
@@ -9786,7 +9796,23 @@ LaRuche.Mesh = (function(){
     lastUnread=u;
   }
   function start(){ if(pollTimer) return; refresh(); pollTimer=setInterval(refresh,5000); }
-  function init(){ if(started) return; started=true; start(); }
+  function repositionWindows(){
+    var w=document.getElementById('meshWindows'); if(!w) return;
+    var b=28;
+    var mt=document.getElementById('mobileTabs');
+    if(mt&&mt.offsetHeight&&getComputedStyle(mt).display!=='none') b=mt.offsetHeight;
+    var pc=document.getElementById('page-chat');
+    if(pc&&pc.classList.contains('active')){
+      var ia=pc.querySelector('.input-area');
+      if(ia) b+=ia.offsetHeight;
+    }
+    w.style.bottom=b+'px';
+    // décaler à droite si le feed-drawer est ancré
+    var feed=document.getElementById('feedDrawerOverlay');
+    if(feed&&feed.classList.contains('anchored')){ w.style.right='374px'; }
+    else { w.style.right='14px'; }
+  }
+  function init(){ if(started) return; started=true; start(); repositionWindows(); }
 
   function positionInbox(){
     var pop=document.getElementById('meshInbox'); var btn=document.getElementById('meshBtn');
@@ -9847,13 +9873,16 @@ LaRuche.Mesh = (function(){
     if(openWins[peerId]){ openWins[peerId].style.display='flex'; markRead(peerId); renderWin(peerId); return; }
     var layer=document.getElementById('meshWindows'); if(!layer) return;
     var win=document.createElement('div'); win.className='mesh-win';
-    win.innerHTML='<div class="mesh-win-head"><span class="mesh-win-name">'+esc(peerName||peerId)+'</span><button class="mesh-win-close" title="Fermer">&#x2716;</button></div>'+
+    win.innerHTML='<div class="mesh-win-head"><span class="mesh-win-name">'+esc(peerName||peerId)+'</span><span style="display:flex;gap:4px;"><button class="mesh-win-min" title="Réduire">&#x2014;</button><button class="mesh-win-close" title="Fermer">&#x2716;</button></span></div>'+
       '<div class="mesh-win-body"></div>'+
       '<div class="mesh-win-input"><textarea rows="1" placeholder="Message…"></textarea><button class="mesh-win-send" title="Envoyer">'+
       '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button></div>';
     layer.appendChild(win);
     openWins[peerId]=win;
+    var hd=win.querySelector('.mesh-win-head');
     win.querySelector('.mesh-win-close').onclick=function(){ win.remove(); delete openWins[peerId]; };
+    win.querySelector('.mesh-win-min').onclick=function(){ win.classList.toggle('minimized'); };
+    hd.onclick=function(e){ if(e.target.closest('button')) return; win.classList.remove('minimized'); };
     var ta=win.querySelector('textarea');
     var doIt=function(){ var t=(ta.value||'').trim(); if(!t)return; ta.value=''; send(peerId,t); };
     win.querySelector('.mesh-win-send').onclick=doIt;
@@ -9881,7 +9910,7 @@ LaRuche.Mesh = (function(){
     try{ await fetch('/api/mesh/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to_id:peerId,text:text})}); }catch(e){}
     setTimeout(refresh,700);
   }
-  return { init:init, toggle:toggle, openChat:openChat };
+  return { init:init, toggle:toggle, openChat:openChat, repositionWindows:repositionWindows };
 })();
 
 /* ── Boot ── */
@@ -9890,6 +9919,9 @@ LaRuche.Mesh = (function(){
   LaRuche.Voice.init();
   LaRuche.Feed.init();
   if(LaRuche.Mesh && LaRuche.Mesh.init) LaRuche.Mesh.init();
+  // reposition mesh windows on page change and resize
+  window.addEventListener('hashchange', function(){ if(LaRuche.Mesh) LaRuche.Mesh.repositionWindows(); });
+  window.addEventListener('resize', function(){ if(LaRuche.Mesh) LaRuche.Mesh.repositionWindows(); });
   // Check auth first, then init router
   LaRuche.Auth.init(function(authenticated){
     LaRuche.WS.connect();
@@ -9920,6 +9952,45 @@ LaRuche.Mesh = (function(){
   });
 })();
 </script>
+<!-- BOTTOM STATUS BAR (desktop app aesthetic) -->
+<div class="status-bar" id="statusBar">
+  <div class="sb-model-wrap">
+    <span id="sbModelLabel" style="color:var(--amber);font-size:11px;font-weight:500;cursor:pointer;">Chargement...</span>
+    <div class="sb-model-drop" id="sbModelDrop"></div>
+  </div>
+  <select id="modelSelect" onchange="LaRuche.Header.changeModel(this.value)" title="Changer de modele" style="display:none;">
+    <option value="">Chargement...</option>
+  </select>
+</div>
+
+<script>
+(function(){
+  var sel=document.getElementById('modelSelect'), lbl=document.getElementById('sbModelLabel'), drop=document.getElementById('sbModelDrop');
+  if(!sel||!lbl||!drop) return;
+  sel._updateLabel=function(){ lbl.textContent=sel.options[sel.selectedIndex]?sel.options[sel.selectedIndex].text:'Auto'; };
+  // build custom dropdown from native options
+  function buildDrop(){
+    drop.innerHTML='';
+    for(var i=0;i<sel.options.length;i++){
+      var o=sel.options[i], d=document.createElement('div');
+      d.textContent=o.text; d.dataset.value=o.value;
+      if(o.selected) d.className='active';
+      d.onclick=function(){ sel.value=this.dataset.value; sel.onchange(); drop.classList.remove('open'); };
+      drop.appendChild(d);
+    }
+  }
+  sel._rebuild=buildDrop;
+  // observe changes (options added dynamically by LaRuche.Header)
+  var mo=new MutationObserver(function(){ buildDrop(); sel._updateLabel(); });
+  mo.observe(sel,{childList:true});
+  lbl.onclick=function(e){ e.stopPropagation(); buildDrop(); drop.classList.toggle('open'); };
+  document.addEventListener('click',function(e){ if(!drop.contains(e.target)&&e.target!==lbl) drop.classList.remove('open'); });
+  // sync label when select changes
+  sel.addEventListener('change',sel._updateLabel);
+  sel._updateLabel();
+})();
+</script>
+
 </body>
 </html>
 
