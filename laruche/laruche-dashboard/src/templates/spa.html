@@ -624,8 +624,18 @@ body.feed-docked { padding-right: 360px; }
 .message.user a, .message.steer a { color:var(--bg); font-weight:700; text-decoration:underline; text-underline-offset:2px; }
 .message.steer { background:var(--amber); color:var(--bg); border-bottom-right-radius:4px; border: 2px dashed rgba(0,0,0,0.2); font-style: italic; }
 .message.assistant { background:var(--bg-card); border:1px solid var(--border); border-bottom-left-radius:4px; }
-.assistant-segment-label { margin:0 0 4px 2px; color:var(--text-muted); font:10px var(--mono); letter-spacing:.2px; }
-.assistant-intermediate .message.assistant { border-color:rgba(96,165,250,.28); }
+.assistant-segment-label { margin:0 0 4px 2px; color:#60a5fa; font:10px var(--mono); letter-spacing:.3px; text-transform:uppercase; opacity:.85; }
+.assistant-segment-label span { font-weight:600; }
+/* Raisonnement intermédiaire = NETTEMENT distinct de la réponse finale : fond atténué, italique,
+   texte adouci, liseré pointillé bleu à gauche. La vraie réponse reste pleine et opaque. */
+.assistant-intermediate .message.assistant {
+  background:rgba(96,165,250,.06);
+  border:1px dashed rgba(96,165,250,.35);
+  border-left:3px solid rgba(96,165,250,.55);
+  font-style:italic;
+  color:var(--text-muted);
+  opacity:.92;
+}
 .message.tool { background:rgba(59,130,246,.08); border:1px solid rgba(59,130,246,.24); border-radius:8px; color:var(--text-dim); font-family:var(--mono); font-size:11px; line-height:1.45; padding:8px 10px; max-height:150px; overflow:auto; }
 .message.tool.err { background:rgba(239,68,68,.08); border-color:rgba(239,68,68,.28); }
 .tool-msg-head { display:flex; align-items:center; gap:8px; margin-bottom:4px; color:var(--text); font-family:var(--font); font-size:11px; font-weight:700; }
@@ -3768,7 +3778,7 @@ LaRuche.Chat = (function(){
       finalizeMessage(currentAssistantMsg,'');
       currentAssistantRow.classList.add('assistant-intermediate');
       var label=document.createElement('div'); label.className='assistant-segment-label';
-      label.textContent='Étape intermédiaire · avant outil';
+      label.innerHTML='💭 <span>Raisonnement intermédiaire</span> · avant outil';
       var wrapper=currentAssistantRow.querySelector('.message-wrapper');
       if(wrapper) wrapper.insertBefore(label,currentAssistantMsg);
     } else {
