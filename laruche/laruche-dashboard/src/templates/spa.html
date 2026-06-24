@@ -69,6 +69,9 @@ body {
 }
 /* Feed ancré + ouvert : on réduit le contenu pour qu'il ne soit pas masqué */
 body.feed-docked { padding-right: 360px; }
+/* …mais la status-bar reste PLEINE LARGEUR (le drawer s'arrête à bottom:28px, au-dessus d'elle) :
+   on annule le décalage avec une marge négative. */
+body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s cubic-bezier(.22,.61,.36,1); }
 .status-bar { flex-shrink:0; height:28px; display:flex; align-items:center; justify-content:flex-start; gap:8px; padding:0 10px; background:var(--bg-panel); border-top:1px solid var(--border); font-size:11px; color:var(--text-dim); }
 .status-bar select { background:transparent; border:none; color:var(--amber); font-size:11px; font-weight:500; cursor:pointer; outline:none; }
 .status-bar select:hover { color:var(--amber); text-decoration:underline; }
@@ -80,6 +83,7 @@ body.feed-docked { padding-right: 360px; }
 .status-bar .sb-model-drop div.active { color:var(--amber); font-weight:600; background:rgba(245,158,11,0.08); }
 @media (max-width:600px) {
   body.feed-docked { padding-right: 0; } /* drawer pleine largeur : pas de décalage */
+  body.feed-docked .status-bar { margin-right:0; } /* pas de décalage → pas de compensation */
 }
 
 /* ============================== */
@@ -198,7 +202,7 @@ body.feed-docked { padding-right: 360px; }
 .cc-anim { animation:ccPhase .28s ease-out; }
 @keyframes ccPhase { from { opacity:.2; transform:translateY(3px); } to { opacity:1; transform:none; } }
 /* Plan inline (carte repliable « 📋 Plan ») */
-.cc-block { margin:8px 0; }
+.cc-block { margin:8px 0; flex-shrink:0; }
 .cc-plan { border:1px solid var(--border); border-radius:8px; overflow:hidden; background:rgba(255,255,255,.015); }
 .cc-plan-head { display:flex; align-items:center; gap:7px; padding:7px 10px; cursor:pointer; font:11px var(--mono); }
 .cc-plan-head:hover { background:rgba(255,255,255,.03); }
@@ -207,7 +211,7 @@ body.feed-docked { padding-right: 360px; }
 .cc-plan.cc-collapsed .cc-plan-body { display:none; }
 .cc-plan-body { padding:4px 10px 8px; }
 /* Barre PLAN épinglée en haut du chat (suit le scroll, rétractable). */
-.cc-plan-sticky { position:sticky; top:0; z-index:6; margin:0 0 6px; background:var(--bg-panel,#15130f); border-color:rgba(245,158,11,.30); box-shadow:0 4px 14px rgba(0,0,0,.35); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); }
+.cc-plan-sticky { position:sticky; top:0; z-index:6; flex-shrink:0; margin:0 0 6px; background:var(--bg-panel,#15130f); border-color:rgba(245,158,11,.30); box-shadow:0 4px 14px rgba(0,0,0,.35); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); }
 .cc-plan-sticky .cc-plan-head { background:rgba(245,158,11,.07); }
 /* Skills inline */
 .cc-skills { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:4px 2px; }
