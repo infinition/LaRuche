@@ -76,9 +76,10 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .status-bar select { background:transparent; border:none; color:var(--amber); font-size:11px; font-weight:500; cursor:pointer; outline:none; }
 .status-bar select:hover { color:var(--amber); text-decoration:underline; }
 .status-bar .sb-model-wrap { position:relative; }
-.status-bar .ctx-dot { width:24px; height:24px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; cursor:default; transition:background .2s; background:var(--green,#34d399); color:var(--bg); }
-.status-bar .ctx-dot.warm { background:var(--amber); }
-.status-bar .ctx-dot.hot { background:var(--red,#f87171); }
+.status-bar .ctx-bar { width:36px; height:3px; border-radius:2px; flex-shrink:0; background:rgba(255,255,255,.06); cursor:default; position:relative; overflow:hidden; }
+.status-bar .ctx-bar-fill { position:absolute; inset:0; border-radius:2px; background:var(--green,#34d399); transition:width .3s ease, background .3s ease; width:0%; }
+.status-bar .ctx-bar-fill.warm { background:var(--amber); }
+.status-bar .ctx-bar-fill.hot { background:var(--red,#f87171); }
 .status-bar .sb-model-drop { position:absolute; bottom:100%; left:0; margin-bottom:4px; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; box-shadow:0 -4px 16px rgba(0,0,0,.4); display:none; min-width:180px; max-height:240px; overflow-y:auto; z-index:10000; padding:4px 0; }
 .status-bar .sb-model-drop.open { display:block; }
 .status-bar .sb-model-drop div { padding:6px 12px; font-size:12px; cursor:pointer; color:var(--text); transition:background .12s; }
@@ -2951,11 +2952,8 @@ LaRuche.Header = (function(){
       if(!r.ok)return;
       var d=await r.json();
       var pct = Math.round((d.ratio||0)*100);
-      var el = document.getElementById('ctxDot');
-      if(el) {
-        el.textContent = pct;
-        el.className='ctx-dot'+(pct>66?' hot':pct>33?' warm':'');
-      }
+      var bar = document.getElementById('ctxBarFill');
+      if(bar) { bar.style.width=pct+'%'; bar.className='ctx-bar-fill'+(pct>66?' hot':pct>33?' warm':''); }
     }catch(e){}
   }
 
@@ -10024,7 +10022,7 @@ LaRuche.Mesh = (function(){
     <span id="sbModelLabel" style="color:var(--amber);font-size:11px;font-weight:500;cursor:pointer;">Chargement...</span>
     <div class="sb-model-drop" id="sbModelDrop"></div>
   </div>
-  <span class="ctx-dot" id="ctxDot" title="Contexte utilisé">0</span>
+  <div class="ctx-bar" id="ctxBar" title="Contexte utilisé"><div class="ctx-bar-fill" id="ctxBarFill"></div></div>
   <select id="modelSelect" onchange="LaRuche.Header.changeModel(this.value)" title="Changer de modele" style="display:none;">
     <option value="">Chargement...</option>
   </select>
