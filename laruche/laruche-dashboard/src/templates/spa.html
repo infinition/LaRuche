@@ -157,7 +157,7 @@ body.feed-docked { padding-right: 360px; }
 /* ===================== MODE CLAUDE CODE — transcript inline ===================== */
 /* Activités (raisonnement/outils) inline dans la conversation, façon Claude Code : ligne compacte
    « ● libellé · heure », repliée par défaut, clic pour déplier le détail. Pleine largeur, sans bulle. */
-.cc-act { margin:2px 0; font:12px/1.5 var(--mono,ui-monospace,monospace); }
+.cc-act { margin:0; font:12px/1.45 var(--mono,ui-monospace,monospace); }
 .cc-act .act-line { display:flex; align-items:center; gap:7px; padding:3px 8px; border-radius:6px; }
 .cc-act.collapsible .act-line:hover { background:rgba(255,255,255,.04); }
 .cc-caret { width:10px; font-size:9px; color:var(--text-dim); flex-shrink:0; text-align:center; }
@@ -559,8 +559,10 @@ body.feed-docked { padding-right: 360px; }
   flex:1; overflow-y:auto; padding:20px;
   padding-left:calc(20px + var(--safe-left));
   padding-right:calc(20px + var(--safe-right));
-  display:flex; flex-direction:column; gap:16px; scroll-behavior:smooth;
+  display:flex; flex-direction:column; gap:6px; scroll-behavior:smooth;
 }
+/* Les vraies bulles (user / réponse finale) gardent de l'air ; les activités restent denses. */
+.chat-container > .message-row { margin:6px 0; }
 .message-row { display:flex; gap:10px; max-width:80%; animation:msgIn .25s ease-out; }
 .message-row.user { align-self:flex-end; flex-direction:row-reverse; }
 .message-row.steer { align-self:flex-end; flex-direction:row-reverse; }
@@ -690,6 +692,15 @@ body.feed-docked { padding-right: 360px; }
   color:var(--text-muted);
   opacity:.92;
 }
+/* RÉPONSE FINALE de l'agent : pleine largeur, SANS bulle (façon Claude Code). Le message user et le
+   raisonnement intermédiaire gardent leur bulle distincte. */
+.message-row.assistant:not(.assistant-intermediate) { max-width:100%; align-self:stretch; align-items:flex-start; }
+.message-row.assistant:not(.assistant-intermediate) > .message-wrapper > .message.assistant {
+  background:transparent; border:none; padding:2px 0; border-radius:0;
+}
+/* Raisonnement (phases + narration) en italique pour le distinguer du factuel. */
+.cc-act.thinking .act-txt, .cc-act.act-noise .act-txt { font-style:italic; }
+.cc-act.thinking .act-body, .cc-act.act-noise .act-body { font-style:italic; color:#aab1ba; }
 .message.tool { background:rgba(59,130,246,.08); border:1px solid rgba(59,130,246,.24); border-radius:8px; color:var(--text-dim); font-family:var(--mono); font-size:11px; line-height:1.45; padding:8px 10px; max-height:150px; overflow:auto; }
 .message.tool.err { background:rgba(239,68,68,.08); border-color:rgba(239,68,68,.28); }
 .tool-msg-head { display:flex; align-items:center; gap:8px; margin-bottom:4px; color:var(--text); font-family:var(--font); font-size:11px; font-weight:700; }
@@ -4226,18 +4237,17 @@ LaRuche.Chat = (function(){
     if(options.toolName)item.dataset.toolName=options.toolName;
     if(options.activityLabel)item.dataset.activityLabel=options.activityLabel;
     var line=document.createElement('div');line.className='act-line';
-    var caret = collapsible ? '<span class="cc-caret">▸</span>' : '<span class="cc-caret cc-caret-empty"></span>';
-    line.innerHTML=caret+'<span class="act-ico '+type+'">'+(iconMap[type]||'•')+'</span><span class="act-txt">'+LaRuche.Utils.esc(label)+'</span><span class="act-time">'+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+'</span>';
+    line.innerHTML='<span class="cc-caret cc-caret-empty"></span><span class="act-ico '+type+'">'+(iconMap[type]||'•')+'</span><span class="act-txt">'+LaRuche.Utils.esc(label)+'</span><span class="act-time">'+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+'</span>';
     item.appendChild(line);
     if(body!==undefined&&body!==null&&body!==''){
       var bodyEl=document.createElement('pre');bodyEl.className='act-body';
       if(options.terminal){item.dataset.command=options.command||body;setTerminalContent(bodyEl,item.dataset.command,'');}
       else bodyEl.textContent=body;
       item.appendChild(bodyEl);
-      if(collapsible){
-        item.classList.add('cc-collapsed'); line.style.cursor='pointer';
-        line.onclick=function(){ item.classList.toggle('cc-collapsed'); var c=line.querySelector('.cc-caret'); if(c)c.textContent=item.classList.contains('cc-collapsed')?'▸':'▾'; };
-      }
+      // Façon Claude Code : TOUJOURS replié par défaut (on ne voit que le libellé), clic pour déplier.
+      item.classList.add('cc-collapsed'); line.style.cursor='pointer';
+      var caret=line.querySelector('.cc-caret'); if(caret){caret.classList.remove('cc-caret-empty');caret.textContent='▸';}
+      line.onclick=function(){ item.classList.toggle('cc-collapsed'); var c=line.querySelector('.cc-caret'); if(c)c.textContent=item.classList.contains('cc-collapsed')?'▸':'▾'; };
     }
     if(options.live)_feedPendingTools.push(item);
     cc.appendChild(item);
