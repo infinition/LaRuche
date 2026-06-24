@@ -76,6 +76,9 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .status-bar select { background:transparent; border:none; color:var(--amber); font-size:11px; font-weight:500; cursor:pointer; outline:none; }
 .status-bar select:hover { color:var(--amber); text-decoration:underline; }
 .status-bar .sb-model-wrap { position:relative; }
+.status-bar .ctx-dot { width:24px; height:24px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; cursor:default; transition:background .2s; background:var(--green,#34d399); color:var(--bg); }
+.status-bar .ctx-dot.warm { background:var(--amber); }
+.status-bar .ctx-dot.hot { background:var(--red,#f87171); }
 .status-bar .sb-model-drop { position:absolute; bottom:100%; left:0; margin-bottom:4px; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; box-shadow:0 -4px 16px rgba(0,0,0,.4); display:none; min-width:180px; max-height:240px; overflow-y:auto; z-index:10000; padding:4px 0; }
 .status-bar .sb-model-drop.open { display:block; }
 .status-bar .sb-model-drop div { padding:6px 12px; font-size:12px; cursor:pointer; color:var(--text); transition:background .12s; }
@@ -333,12 +336,12 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 /* New compact controls in sidebar */
 .sidebar-controls {
   display: flex; gap: 6px; padding: 6px 12px; border-bottom: 1px solid var(--border);
-  background: var(--bg-panel); align-items: center; flex-wrap: wrap; justify-content: flex-start;
+  background: var(--bg-panel); align-items: center; flex-wrap: wrap; justify-content: center;
 }
 .ctrl-icon-btn {
-  position: relative; width: 26px; height: 26px; border-radius: 4px; border: 1px solid var(--border);
+  position: relative; width: 40px; height: 40px; border-radius: 6px; border: 1px solid var(--border);
   display: flex; align-items: center; justify-content: center; cursor: pointer;
-  background: var(--bg-input); color: var(--text-muted); font-size: 13px; transition: all 0.2s;
+  background: var(--bg-input); color: var(--text-muted); font-size: 15px; transition: all 0.2s;
   padding: 0; margin: 0;
 }
 .ctrl-icon-btn:hover { border-color: var(--amber); color: var(--amber); }
@@ -1920,21 +1923,6 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
                </select>
              </div>
           </div>
-          <div class="honey-gauge-container" title="Usage du contexte">
-            <div class="honey-gauge" id="headerContextUsage" style="--value: 0;">
-              <div class="hex-shell"></div>
-              <div class="hex-core">
-                <div class="honey-fill"></div>
-              </div>
-              <div class="shine"></div>
-              <div class="percent-wrap">
-                <div class="percent">
-                  <span class="num" id="headerContextNum">0</span>
-                  <span class="symbol">%</span>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
         <!-- MODE CLAUDE CODE : raisonnement / outils / plan / skills sont rendus INLINE dans la
              conversation (plus de volet agentique à gauche). Ces éléments restent en stubs CACHÉS
@@ -2962,12 +2950,11 @@ LaRuche.Header = (function(){
       var r=await fetch(url);
       if(!r.ok)return;
       var d=await r.json();
-      var el = document.getElementById('headerContextUsage');
+      var pct = Math.round((d.ratio||0)*100);
+      var el = document.getElementById('ctxDot');
       if(el) {
-        var pct = Math.round((d.ratio||0)*100);
-        el.style.setProperty('--value', Math.min(100, Math.max(0, pct)));
-        var num = document.getElementById('headerContextNum');
-        if(num) num.textContent = pct;
+        el.textContent = pct;
+        el.className='ctx-dot'+(pct>66?' hot':pct>33?' warm':'');
       }
     }catch(e){}
   }
@@ -10037,6 +10024,7 @@ LaRuche.Mesh = (function(){
     <span id="sbModelLabel" style="color:var(--amber);font-size:11px;font-weight:500;cursor:pointer;">Chargement...</span>
     <div class="sb-model-drop" id="sbModelDrop"></div>
   </div>
+  <span class="ctx-dot" id="ctxDot" title="Contexte utilisé">0</span>
   <select id="modelSelect" onchange="LaRuche.Header.changeModel(this.value)" title="Changer de modele" style="display:none;">
     <option value="">Chargement...</option>
   </select>
