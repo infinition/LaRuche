@@ -179,6 +179,7 @@ impl Default for EssaimConfig {
             permission_mode: default_permission_mode(),
             permission_rules: Vec::new(),
             credential_pool: None,
+            allow_loop: false,
         }
     }
 }
