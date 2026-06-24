@@ -1917,6 +1917,11 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
                <span class="icon"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M9.5 2A2.5 2.5 0 0 0 7 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-.08A2.5 2.5 0 0 0 17 19.5v-15A2.5 2.5 0 0 0 14.5 2 2.5 2.5 0 0 0 12 3a2.5 2.5 0 0 0-2.5-1z"></path></svg></span>
              </label>
 
+             <label class="ctrl-icon-btn toggleable reverse-toggle" id="loopAllowWrap" title="Autoriser les appels d'outils répétés (désactive le blocage anti-boucle)">
+               <input type="checkbox" class="ctrl-toggle" id="loopAllowToggle" onchange="LaRuche.Chat.toggleLoopAllow(this.checked)">
+               <span class="icon"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></span>
+             </label>
+
              <div class="ctrl-icon-btn" title="Permissions des outils (Cliquez pour choisir)">
                <span class="icon"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></span>
                <select id="permModeSelect" onchange="LaRuche.Header.changePermissionMode(this.value)">
@@ -3235,6 +3240,7 @@ LaRuche.Chat = (function(){
   var isStreaming = false;
   var autoTtsEnabled = false;
   var noThinkEnabled = false;
+  var loopAllowEnabled = false;
   var lastUserMessage = '';
   var responseTimeout = null;
   var typingIndicatorEl = null;
@@ -3292,6 +3298,11 @@ LaRuche.Chat = (function(){
     var noThinkWrap = document.getElementById('noThinkWrap');
     if(noThink) noThink.checked = noThinkEnabled;
     if(noThinkWrap) noThinkWrap.classList.toggle('active', noThinkEnabled);
+    loopAllowEnabled = localStorage.getItem('laruche_loop_allow') === '1';
+    var loopEl = document.getElementById('loopAllowToggle');
+    var loopWrap = document.getElementById('loopAllowWrap');
+    if(loopEl) loopEl.checked = loopAllowEnabled;
+    if(loopWrap) loopWrap.classList.toggle('active', loopAllowEnabled);
   }
 
   function enter() { loadCwd(); }
@@ -3373,6 +3384,7 @@ LaRuche.Chat = (function(){
           var recoveredModel=LaRuche.Header.getModel(); if(recoveredModel) recoveredPayload.model=recoveredModel;
           var recoveredProvider=LaRuche.Header.getProfileId?LaRuche.Header.getProfileId():''; if(recoveredProvider) recoveredPayload.provider=recoveredProvider;
           if(noThinkEnabled) recoveredPayload.no_think=true;
+          if(loopAllowEnabled) recoveredPayload.allow_loop=true;
           LaRuche.WS.send(recoveredPayload);
           isStreaming=true;
           document.getElementById('userInput').placeholder="Interrompre ou orienter l'agent en cours...";
@@ -3589,6 +3601,7 @@ LaRuche.Chat = (function(){
     var pid = LaRuche.Header.getProfileId ? LaRuche.Header.getProfileId() : '';
     if(pid) payload.provider = pid;
     if(noThinkEnabled) payload.no_think = true;
+    if(loopAllowEnabled) payload.allow_loop = true;
     var codingTog = document.getElementById('codingModeToggle');
     if(codingTog && codingTog.checked) payload.capability = 'code';
     if(fileData.attachments && fileData.attachments.length>0) payload.attachments = fileData.attachments;
@@ -3610,6 +3623,13 @@ LaRuche.Chat = (function(){
     var wrap = document.getElementById('noThinkWrap');
     if(wrap) wrap.classList.toggle('active', noThinkEnabled);
     LaRuche.Toast.show(noThinkEnabled ? 'No-think actif' : 'Thinking actif', 'ok');
+  }
+  function toggleLoopAllow(enabled) {
+    loopAllowEnabled = !!enabled;
+    localStorage.setItem('laruche_loop_allow', loopAllowEnabled ? '1' : '0');
+    var wrap = document.getElementById('loopAllowWrap');
+    if(wrap) wrap.classList.toggle('active', loopAllowEnabled);
+    LaRuche.Toast.show(loopAllowEnabled ? 'Boucles autorisées (anti-boucle désactivé)' : 'Anti-boucle actif', 'ok');
   }
 
   // Artifact viewer : popup dédiée pour lire/rendre le code (HTML/SVG rendus
@@ -4321,7 +4341,7 @@ LaRuche.Chat = (function(){
         acc.querySelector('.cc-status-head .act-time').textContent = item.querySelector('.act-time').textContent;
       } else { cc.appendChild(item); }
     } else {
-      // outil → sa propre ligne (ne casse PAS l'accumulateur)
+      closeStatusAccumulator(); // outil → prochain cycle sur un nouveau groupe
       cc.appendChild(item);
     }
     if(typeof scrollToBottom==='function') scrollToBottom();

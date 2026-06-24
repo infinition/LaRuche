@@ -129,6 +129,10 @@ pub struct EssaimConfig {
     #[serde(skip)]
     pub credential_pool:
         Option<std::sync::Arc<tokio::sync::RwLock<crate::credential_pool::CredentialPool>>>,
+    /// Désactive le garde-fou anti-boucle (appels d'outils identiques répétés).
+    /// Transmis par l'UI (toggle dans la barre de contrôle). `false` par défaut.
+    #[serde(default)]
+    pub allow_loop: bool,
 }
 
 fn default_provider() -> String {
@@ -2913,37 +2917,40 @@ pub async fn boucle_react_multimodal_ext(
 
             let mut reject = false;
 
-            // Garde-fou STRICT uniquement sur les appels IDENTIQUES (nom + args) : c'est le
-            // seul vrai signal de boucle inutile. Bloque le doublon exact à 5, stoppe à 8.
-            // (La recherche/édition légitime appelle le MÊME outil avec des args DIFFÉRENTS —
-            // ce n'est pas une boucle ; le compteur par-nom ci-dessous ne fait plus que nudger.)
-            if *n >= 8 {
-                let msg = format!(
-                    "Appel identique répété {n}× sur '{}' — arrêt contrôlé.",
-                    call.name
-                );
-                let _ = tx.send(ChatEvent::Error {
-                    message: msg.clone(),
-                });
-                let _ = tx.send(ChatEvent::Done {
-                    full_response: msg.clone(),
-                });
-                return Ok(msg);
-            } else if *n == 5 {
-                session.ajouter_observation(
-                    &call.name,
-                    "Garde-fou : tu répètes cet appel À L'IDENTIQUE. Varie les arguments, exploite les résultats déjà obtenus, ou conclus.",
-                );
-                reject = true;
-            }
+            // Garde-fou anti-boucle : désactivable via `allow_loop` (toggle UI).
+            if !config.allow_loop {
+                // Garde-fou STRICT uniquement sur les appels IDENTIQUES (nom + args) : c'est le
+                // seul vrai signal de boucle inutile. Bloque le doublon exact à 5, stoppe à 8.
+                // (La recherche/édition légitime appelle le MÊME outil avec des args DIFFÉRENTS —
+                // ce n'est pas une boucle ; le compteur par-nom ci-dessous ne fait plus que nudger.)
+                if *n >= 8 {
+                    let msg = format!(
+                        "Appel identique répété {n}× sur '{}' — arrêt contrôlé.",
+                        call.name
+                    );
+                    let _ = tx.send(ChatEvent::Error {
+                        message: msg.clone(),
+                    });
+                    let _ = tx.send(ChatEvent::Done {
+                        full_response: msg.clone(),
+                    });
+                    return Ok(msg);
+                } else if *n == 5 {
+                    session.ajouter_observation(
+                        &call.name,
+                        "Garde-fou : tu répètes cet appel À L'IDENTIQUE. Varie les arguments, exploite les résultats déjà obtenus, ou conclus.",
+                    );
+                    reject = true;
+                }
 
-            // Compteur par NOM : plus de hard-stop (gênait recherche/édition multi-fichiers).
-            // Seulement un nudge ponctuel ; la boucle reste bornée par `max_iterations`.
-            if *m == 30 {
-                session.ajouter_observation(
-                    &call.name,
-                    "Note : beaucoup d'appels à cet outil. Si tu as assez d'éléments, synthétise et conclus.",
-                );
+                // Compteur par NOM : plus de hard-stop (gênait recherche/édition multi-fichiers).
+                // Seulement un nudge ponctuel ; la boucle reste bornée par `max_iterations`.
+                if *m == 30 {
+                    session.ajouter_observation(
+                        &call.name,
+                        "Note : beaucoup d'appels à cet outil. Si tu as assez d'éléments, synthétise et conclus.",
+                    );
+                }
             }
 
             if !reject {
