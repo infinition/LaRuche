@@ -3423,7 +3423,7 @@ LaRuche.Chat = (function(){
         break;
       case 'thought':
         setFeedLive('thinking');
-        addActivity('thinking',thoughtLabel(data.phase||'',data.kind||''),data.text,false);
+        if(data.kind!=='next_action') addActivity('thinking',thoughtLabel(data.phase||'',data.kind||''),data.text,false);
         break;
       case 'tool_call':
         closeAssistantSegmentForTool();
@@ -4504,7 +4504,7 @@ LaRuche.Chat = (function(){
         if(Array.isArray(msg.plan)) updatePlan(msg.plan);
         if(msg.role==='user'){startPlanMission(msg.text);addMessage('user',msg.text, msg.attachments); _feedBody=null; /* nouveau tour → nouvelle étape */ }
         else if(msg.role==='thought'){
-          addActivity('thinking',thoughtLabel(msg.phase||'',msg.kind||''),msg.text||'',false,{stepTitle:_feedTurnTitle});
+          if(msg.kind!=='next_action') addActivity('thinking',thoughtLabel(msg.phase||'',msg.kind||''),msg.text||'',false,{stepTitle:_feedTurnTitle});
         }
         else if(msg.role==='prompt_debug'){
           onPromptDebug(msg);
