@@ -149,7 +149,7 @@ impl Default for EssaimConfig {
             ollama_url: "http://127.0.0.1:11434".to_string(),
             model: "gemma4:e4b".to_string(),
             fallback_models: vec![],
-            max_iterations: 15,
+            max_iterations: 100,
             temperature: 0.7,
             max_tokens: 4096,
             custom_instructions: None,
