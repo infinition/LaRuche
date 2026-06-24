@@ -197,7 +197,9 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .cc-status-count { font-size:10px; color:var(--text-dim); flex-shrink:0; }
 .cc-status-head .act-time { font-size:10px; color:var(--text-dim); flex-shrink:0; }
 .cc-status.cc-collapsed .cc-status-steps { display:none; }
-.cc-status-steps { margin-left:18px; border-left:1px solid var(--border); padding-left:6px; }
+.cc-status-steps { margin-left:18px; border-left:1px solid var(--border); padding-left:6px; display:flex; flex-direction:column; gap:0; }
+.cc-status-steps > .cc-act { margin:0; }
+.cc-status-steps > .cc-act .act-line { padding:1px 8px; }
 /* Animation du libellé courant à chaque nouvelle phase (fondu + léger glissement). */
 .cc-anim { animation:ccPhase .28s ease-out; }
 @keyframes ccPhase { from { opacity:.2; transform:translateY(3px); } to { opacity:1; transform:none; } }
@@ -211,7 +213,9 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .cc-plan.cc-collapsed .cc-plan-body { display:none; }
 .cc-plan-body { padding:4px 10px 8px; }
 /* Barre PLAN épinglée en haut du chat (suit le scroll, rétractable). */
-.cc-plan-sticky { position:sticky; top:0; z-index:6; flex-shrink:0; margin:0 0 6px; background:var(--bg-panel,#15130f); border-color:rgba(245,158,11,.30); box-shadow:0 4px 14px rgba(0,0,0,.35); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); }
+.cc-plan-sticky { position:sticky; top:0; z-index:6; flex-shrink:0; margin:0 0 6px; background:var(--bg-panel,#15130f); border-color:rgba(245,158,11,.30); box-shadow:0 4px 14px rgba(0,0,0,.35); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); min-height:36px; }
+.cc-plan-sticky .cc-plan-body { max-height:35vh; overflow-y:auto; min-height:28px; }
+.cc-plan-sticky .plan-item { min-height:24px; display:flex; align-items:center; gap:6px; }
 .cc-plan-sticky .cc-plan-head { background:rgba(245,158,11,.07); }
 /* Skills inline */
 .cc-skills { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:4px 2px; }
@@ -777,7 +781,8 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .error-actions { display:flex; gap:8px; margin-top:8px; }
 .retry-btn { background:none; border:1px solid rgba(239,68,68,.4); border-radius:var(--radius); color:var(--red); font-size:11px; padding:4px 12px; cursor:pointer; transition:all var(--transition-fast); }
 .retry-btn:hover { background:var(--red-dim); border-color:var(--red); }
-.msg-actions { display:flex; gap:6px; margin-top:8px; padding-top:6px; border-top:1px solid rgba(42,42,46,.4); }
+.msg-actions { display:flex; gap:6px; margin-top:8px; padding-top:6px; border-top:1px solid rgba(42,42,46,.4); opacity:0; transition:opacity .15s ease; }
+.message-row:hover .msg-actions { opacity:1; transition:opacity .15s ease 1s; }
 .msg-action-btn { background:none; border:1px solid var(--border); border-radius:var(--radius); color:var(--text-muted); font-size:11px; padding:3px 10px; cursor:pointer; display:flex; align-items:center; gap:4px; transition:all var(--transition-fast); }
 .msg-action-btn:hover { color:var(--amber); border-color:var(--amber); }
 .msg-action-btn.playing { color:var(--green); border-color:var(--green); }
@@ -3860,14 +3865,24 @@ LaRuche.Chat = (function(){
     if(!currentAssistantMsg || !currentAssistantRow) return;
     var hasVisibleText=currentAssistantMsg.textContent.trim().length>0;
     if(hasVisibleText) {
-      // Raisonnement du LLM en TEXTE CLAIR (modèles sans <think>, ex. gemma). Affiché EXACTEMENT
-      // comme le texte de réponse (pleine largeur, même style) ; seule nuance : au SURVOL, une petite
-      // ligne en bas révèle « 💭 raisonnement · heure · modèle · ~tokens ». On mémorise le texte
+      // Raisonnement du LLM en TEXTE CLAIR. Mémorise le texte
       // pour dédupliquer le « thought » jumeau que le backend renvoie aussi.
       var raison = currentAssistantMsg.textContent.trim();
       _lastReasoningText = raison;
       finalizeMessage(currentAssistantMsg,'');
       currentAssistantRow.classList.add('assistant-intermediate');
+      // Supprimer les activities thinking du status accumulator (éviter le doublon)
+      if(_statusAcc && _statusAcc.isConnected){
+        var steps=_statusAcc.querySelector('.cc-status-steps');
+        if(steps){
+          var thinks=steps.querySelectorAll('.cc-act.thinking');
+          thinks.forEach(function(t){ t.remove(); });
+          if(!steps.children.length){
+            steps.innerHTML='<div class="cc-act-empty" style="display:none"></div>';
+            _statusAcc.querySelector('.cc-status-count').textContent='';
+          }
+        }
+      }
       var recap=document.getElementById('sessionCapsRecap');
       var model=(recap && recap.textContent && recap.textContent!=='Chargement...') ? recap.textContent.trim() : '';
       var toks=Math.max(1, Math.round(raison.length/4));
@@ -3875,7 +3890,7 @@ LaRuche.Chat = (function(){
       var label=document.createElement('div'); label.className='assistant-segment-label';
       label.textContent='💭 raisonnement · '+time+(model?(' · '+model):'')+' · ~'+toks+' tokens';
       var wrapper=currentAssistantRow.querySelector('.message-wrapper');
-      if(wrapper) wrapper.appendChild(label); // EN BAS du texte (révélé au survol)
+      if(wrapper) wrapper.appendChild(label);
     } else {
       currentAssistantRow.remove();
     }
