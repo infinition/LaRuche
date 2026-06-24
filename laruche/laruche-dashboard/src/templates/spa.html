@@ -4321,7 +4321,7 @@ LaRuche.Chat = (function(){
         acc.querySelector('.cc-status-head .act-time').textContent = item.querySelector('.act-time').textContent;
       } else { cc.appendChild(item); }
     } else {
-      closeStatusAccumulator(); // outil → on va à la ligne
+      // outil → sa propre ligne (ne casse PAS l'accumulateur)
       cc.appendChild(item);
     }
     if(typeof scrollToBottom==='function') scrollToBottom();
