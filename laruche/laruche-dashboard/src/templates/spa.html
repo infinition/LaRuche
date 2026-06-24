@@ -227,7 +227,7 @@ body.feed-docked { padding-right: 360px; }
 .profile-modal-actions { display:flex; justify-content:flex-end; margin-top:12px; }
 /* ===== Messagerie mesh (Phase 4) ===== */
 .mesh-badge { position:absolute; top:-3px; right:-3px; min-width:15px; height:15px; padding:0 3px; border-radius:8px; background:#ef4444; color:#fff; font-size:9px; line-height:15px; text-align:center; font-weight:700; }
-.mesh-inbox { position:fixed; top:54px; right:14px; width:300px; max-height:70vh; overflow-y:auto; z-index:4500; background:var(--bg-card); border:1px solid var(--border); border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.5); display:none; padding:6px; }
+.mesh-inbox { position:fixed; width:300px; max-height:70vh; overflow-y:auto; z-index:3000; background:var(--bg-card); border:1px solid var(--border); border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.5); display:none; padding:6px; }
 .mesh-inbox.open { display:block; }
 .mesh-inbox-head { font-size:10px; text-transform:uppercase; letter-spacing:.4px; color:var(--text-muted,var(--text-dim)); padding:8px 8px 4px; }
 .mesh-empty { color:var(--text-dim); font-size:12px; padding:4px 8px 8px; }
@@ -535,7 +535,7 @@ body.feed-docked { padding-right: 360px; }
 .activity-item.collapsible.expanded .activity-header::after { transform:rotate(90deg); }
 .activity-item.collapsible .activity-body { display:none; }
 .activity-item.collapsible.expanded .activity-body { display:block; }
-.sessions-list-sidebar { border-top:1px solid var(--border); display:flex; flex-direction:column; max-height:200px; overflow:hidden; }
+.sessions-list-sidebar { border-top:1px solid var(--border); flex:1; min-height:0; display:flex; flex-direction:column; }
 .sessions-list-sidebar > #sessionsSidebarList { flex:1; overflow-y:auto; overflow-x:hidden; }
 .session-item {
   padding:8px 12px; font-size:12px; cursor:pointer;
@@ -1587,7 +1587,6 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   z-index:4001; display:flex; flex-direction:column;
   background:var(--bg-card); backdrop-filter:blur(10px);
   border-left:1px solid rgba(245,158,11,0.25);
-  box-shadow:-8px 0 28px rgba(0,0,0,0.5);
   transform:translateX(105%); transition:transform .26s cubic-bezier(.22,.61,.36,1);
   pointer-events:auto;
 }
@@ -1814,7 +1813,7 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
     </div>
     <div class="feed-list" id="feedList" aria-live="polite"></div>
     <div class="feed-ask">
-      <textarea id="feedAskInput" rows="1" placeholder="Demander à LaRuche… (ex. crée un cron qui me prévient des résultats foot sur Telegram)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();LaRuche.Feed.ask();}"></textarea>
+      <textarea id="feedAskInput" rows="1" placeholder="Demander à LaRuche…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();LaRuche.Feed.ask();}"></textarea>
       <button class="feed-ask-send" id="feedAskSend" onclick="LaRuche.Feed.ask()" title="Envoyer à LaRuche">
         <svg width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
       </button>
@@ -1932,8 +1931,10 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
             <span>Conversations</span>
             <span style="display:flex; gap:6px; align-items:center;">
               <button onclick="LaRuche.Chat.openHistory()" title="Historique &amp; recherche" style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:15px; line-height:1; transition:color 0.2s;" onmouseover="this.style.color='var(--amber)'" onmouseout="this.style.color='var(--text-dim)'"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></button>
-              <button onclick="LaRuche.Chat.newSession()" title="Nouvelle conversation" style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:18px; line-height:1; transition:color 0.2s;" onmouseover="this.style.color='var(--amber)'" onmouseout="this.style.color='var(--text-dim)'">+</button>
             </span>
+          </div>
+          <div style="padding:2px 8px 4px;">
+            <button onclick="LaRuche.Chat.newSession()" title="Nouvelle conversation" style="display:flex; align-items:center; justify-content:center; gap:6px; width:100%; padding:6px 10px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2); border-radius:6px; color:var(--amber); cursor:pointer; font-size:12px; font-weight:500; transition:background 0.2s;" onmouseover="this.style.background='rgba(245,158,11,0.16)'" onmouseout="this.style.background='rgba(245,158,11,0.08)'">+ Nouvelle conversation</button>
           </div>
           <div id="sessionsSidebarList"></div>
         </div>
@@ -9787,11 +9788,38 @@ LaRuche.Mesh = (function(){
   function start(){ if(pollTimer) return; refresh(); pollTimer=setInterval(refresh,5000); }
   function init(){ if(started) return; started=true; start(); }
 
+  function positionInbox(){
+    var pop=document.getElementById('meshInbox'); var btn=document.getElementById('meshBtn');
+    if(!pop||!btn) return;
+    var br=btn.getBoundingClientRect();
+    var w=pop.offsetWidth||300;
+    var left=br.right-w; var top=br.bottom+6;
+    // recaler si le feed-drawer est ouvert (chevauchement)
+    var feed=document.getElementById('feedDrawer');
+    if(feed){
+      var fr=feed.getBoundingClientRect();
+      var inboxRight=left+w;
+      if(inboxRight>fr.left-8){ left=fr.left-w-8; if(left<8) left=8; }
+    }
+    pop.style.left=left+'px'; pop.style.top=top+'px';
+  }
+  function closeInbox(){
+    var pop=document.getElementById('meshInbox'); if(!pop) return;
+    pop.classList.remove('open');
+    var btn=document.getElementById('meshBtn'); if(btn) btn.classList.remove('active');
+  }
   function toggle(){
     var pop=document.getElementById('meshInbox'); if(!pop) return;
-    if(pop.classList.contains('open')){ pop.classList.remove('open'); return; }
-    renderInbox(); pop.classList.add('open'); start();
+    if(pop.classList.contains('open')){ closeInbox(); return; }
+    renderInbox(); pop.classList.add('open'); positionInbox(); start();
+    var btn=document.getElementById('meshBtn'); if(btn) btn.classList.add('active');
   }
+  document.addEventListener('click', function(e){
+    var pop=document.getElementById('meshInbox'); if(!pop||!pop.classList.contains('open')) return;
+    var btn=document.getElementById('meshBtn');
+    if(pop.contains(e.target)||(btn&&btn.contains(e.target))) return;
+    closeInbox();
+  });
   async function renderInbox(){
     var pop=document.getElementById('meshInbox'); if(!pop) return;
     try{ var d=await fetch('/api/mesh/peers').then(function(r){return r.json();}); peers=(d&&d.peers)||[]; }catch(e){ peers=[]; }
