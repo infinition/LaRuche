@@ -184,6 +184,9 @@ body.feed-docked { padding-right: 360px; }
 .cc-plan-meta { margin-left:auto; color:var(--text-dim); font-size:10px; }
 .cc-plan.cc-collapsed .cc-plan-body { display:none; }
 .cc-plan-body { padding:4px 10px 8px; }
+/* Barre PLAN épinglée en haut du chat (suit le scroll, rétractable). */
+.cc-plan-sticky { position:sticky; top:0; z-index:6; margin:0 0 6px; background:var(--bg-panel,#15130f); border-color:rgba(245,158,11,.30); box-shadow:0 4px 14px rgba(0,0,0,.35); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); }
+.cc-plan-sticky .cc-plan-head { background:rgba(245,158,11,.07); }
 /* Skills inline */
 .cc-skills { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:4px 2px; }
 .cc-skills-label { font:10px var(--mono); color:var(--text-dim); text-transform:uppercase; letter-spacing:.5px; }
@@ -4304,7 +4307,7 @@ LaRuche.Chat = (function(){
     _planMissions.push({title:title,items:[],activeTask:''});
     _currentPlanMission=_planMissions.length-1;
     _feedTurnTitle=title;
-    _planInlineEl=null; _skillsInlineEl=null; // nouveau tour → nouvelles cartes inline
+    _skillsInlineEl=null; // nouveau tour → nouvelle ligne skills (le plan sticky, lui, est réutilisé)
     renderPlanMissions();
   }
   function planItemDone(item){
@@ -4321,12 +4324,13 @@ LaRuche.Chat = (function(){
   function renderPlanMissions(){
     var cc=document.getElementById('chatContainer'); if(!cc) return;
     var mission=_planMissions[_currentPlanMission]; if(!mission || !mission.items.length) return;
+    // Barre PLAN épinglée EN HAUT du chat (sticky), réutilisée et mise à jour en place à chaque
+    // évolution. Toujours 1er enfant du conteneur pour rester collée au sommet pendant le scroll.
     if(!_planInlineEl || !_planInlineEl.isConnected){
       var welcome=document.getElementById('welcomeScreen'); if(welcome) welcome.remove();
-      _planInlineEl=document.createElement('div'); _planInlineEl.className='cc-plan cc-block';
-      cc.appendChild(_planInlineEl);
-      if(typeof scrollToBottom==='function') scrollToBottom();
+      _planInlineEl=document.createElement('div'); _planInlineEl.className='cc-plan cc-block cc-plan-sticky';
     }
+    if(cc.firstChild!==_planInlineEl) cc.insertBefore(_planInlineEl, cc.firstChild);
     var doneCount=mission.items.filter(planItemDone).length;
     var rows=mission.items.map(function(item){
       return '<div class="plan-item"><span class="plan-dot '+planDotClass(item)+'"></span><span class="plan-text'+(planItemDone(item)?' done':'')+'">'+LaRuche.Utils.esc(item.task||'')+'</span></div>';
