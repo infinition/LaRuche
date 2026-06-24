@@ -246,8 +246,10 @@ body.feed-docked { padding-right: 360px; }
 .mesh-conv-name { font-size:13px; font-weight:600; display:flex; align-items:center; gap:6px; }
 .mesh-conv-last { font-size:11px; color:var(--text-dim); }
 .mesh-unread { background:#ef4444; color:#fff; font-size:9px; font-weight:700; border-radius:8px; padding:0 5px; }
-.mesh-windows { position:fixed; right:14px; z-index:3000; display:flex; gap:10px; align-items:flex-end; pointer-events:none; }
-.mesh-win { pointer-events:auto; width:300px; height:404px; background:var(--bg-card); border:1px solid var(--border); border-bottom:none; border-radius:12px 12px 0 0; box-shadow:0 -6px 24px rgba(0,0,0,.45); display:flex; flex-direction:column; overflow:hidden; }
+/* z-index BAS : les fenêtres mini-chat passent DERRIÈRE la sidebar gauche (mobile 120) et le volet
+   feed droit (4000). Au-dessus du contenu du chat seulement. */
+.mesh-windows { position:fixed; right:14px; z-index:90; display:flex; gap:10px; align-items:flex-end; pointer-events:none; }
+.mesh-win { pointer-events:auto; width:300px; height:404px; background:var(--bg-card); border:1px solid var(--border); border-bottom:none; border-radius:12px 12px 0 0; display:flex; flex-direction:column; overflow:hidden; }
 .mesh-win-head { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:rgba(245,158,11,.12); border-bottom:1px solid var(--border); font-weight:600; font-size:13px; }
 .mesh-win-close, .mesh-win-min { background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:13px; padding:0 4px; }
 .mesh-win-close:hover, .mesh-win-min:hover { color:var(--text); }
@@ -9877,7 +9879,7 @@ LaRuche.Mesh = (function(){
     });
     pop.innerHTML=html;
     pop.querySelectorAll('[data-peer]').forEach(function(el){
-      el.onclick=function(){ openChat(el.getAttribute('data-peer'), el.getAttribute('data-name')); pop.classList.remove('open'); };
+      el.onclick=function(){ openChat(el.getAttribute('data-peer'), el.getAttribute('data-name')); closeInbox(); };
     });
   }
   function openChat(peerId, peerName){
