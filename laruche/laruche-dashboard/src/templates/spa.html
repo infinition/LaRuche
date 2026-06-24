@@ -3682,6 +3682,7 @@ LaRuche.Chat = (function(){
     window.lrEnhanceCode = function(el){
       el.querySelectorAll('pre code').forEach(function(block){
         var pre=block.parentElement; if(!pre || pre.querySelector('.code-toolbar')) return;
+        if(!(block.textContent||'').trim()) return; // skip empty/vides
         pre.style.position='relative';
         var lang=''; (block.className||'').split(/\s+/).forEach(function(c){if(c.indexOf('language-')===0)lang=c.slice(9);});
         var code=block.textContent||'';
