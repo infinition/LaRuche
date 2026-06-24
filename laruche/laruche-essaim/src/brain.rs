@@ -2452,7 +2452,7 @@ pub async fn boucle_react_multimodal_ext(
     // Fix B — borné à 6 (était 12) : évite que l'agent sur-planifie en ~12 étapes et
     // boucle en deep-research bien après avoir la réponse. 6 auto-continuations suffisent
     // pour une tâche multi-étapes légitime sans runaway.
-    const AUTO_CONTINUE_MAX: usize = 6;
+    const AUTO_CONTINUE_MAX: usize = 20;
     // Garde-fou anti-boucle (astuce third-party `tool_guardrails`) : compte les appels d'outils
     // identiques (nom+args) pour avertir puis stopper si le modèle tourne en rond.
     let mut tool_call_counts: std::collections::HashMap<String, u32> =
@@ -2864,6 +2864,15 @@ pub async fn boucle_react_multimodal_ext(
             }
 
             // STOP REASON: end_turn — model finished naturally
+            let plan_inacheve = last_plan.iter().any(|p| !plan_item_termine(&p.status));
+            if plan_inacheve {
+                let _ = tx.send(ChatEvent::Status {
+                    message: format!(
+                        "Agent arrete alors que le plan contient encore des taches non terminees (auto-continuation epuisee: {}/{}).",
+                        auto_continue_count, AUTO_CONTINUE_MAX
+                    ),
+                });
+            }
             session.ajouter_assistant(&response_text);
             emit_thought(
                 tx,
