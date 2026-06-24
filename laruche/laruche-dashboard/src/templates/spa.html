@@ -184,6 +184,19 @@ body.feed-docked { padding-right: 360px; }
 .cc-act.terminal .act-body { background:#0c0c0e; }
 .cc-act.terminal .terminal-command { color:#7dd3fc; display:block; }
 .cc-act.terminal .terminal-output { color:#cdd2d8; display:block; margin-top:4px; }
+/* Accumulateur de statut : UNE ligne animée pour N phases « bruit », clic = déplie les étapes. */
+.cc-status { margin:0; }
+.cc-status-head { display:flex; align-items:center; gap:7px; padding:3px 8px; border-radius:6px; cursor:pointer; font:12px/1.45 var(--mono,monospace); }
+.cc-status-head:hover { background:rgba(255,255,255,.04); }
+.cc-status-head .act-ico.thinking { color:#60a5fa; font-size:10px; }
+.cc-status-current { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-muted); font-style:italic; }
+.cc-status-count { font-size:10px; color:var(--text-dim); flex-shrink:0; }
+.cc-status-head .act-time { font-size:10px; color:var(--text-dim); flex-shrink:0; }
+.cc-status.cc-collapsed .cc-status-steps { display:none; }
+.cc-status-steps { margin-left:18px; border-left:1px solid var(--border); padding-left:6px; }
+/* Animation du libellé courant à chaque nouvelle phase (fondu + léger glissement). */
+.cc-anim { animation:ccPhase .28s ease-out; }
+@keyframes ccPhase { from { opacity:.2; transform:translateY(3px); } to { opacity:1; transform:none; } }
 /* Plan inline (carte repliable « 📋 Plan ») */
 .cc-block { margin:8px 0; }
 .cc-plan { border:1px solid var(--border); border-radius:8px; overflow:hidden; background:rgba(255,255,255,.015); }
@@ -699,19 +712,16 @@ body.feed-docked { padding-right: 360px; }
 .message.user a, .message.steer a { color:var(--bg); font-weight:700; text-decoration:underline; text-underline-offset:2px; }
 .message.steer { background:var(--amber); color:var(--bg); border-bottom-right-radius:4px; border: 2px dashed rgba(0,0,0,0.2); font-style: italic; }
 .message.assistant { background:var(--bg-card); border:1px solid var(--border); border-bottom-left-radius:4px; }
-/* Petit marqueur discret « 💭 raisonnement » au-dessus du texte de raisonnement (pas une étiquette
-   encadrée). */
-.assistant-segment-label { margin:0 0 1px 2px; color:var(--text-dim); font:10px var(--mono); font-style:italic; opacity:.65; }
-/* RÉPONSE FINALE *et* RAISONNEMENT : pleine largeur, SANS bulle (façon Claude Code). Le raisonnement
-   se distingue uniquement par l'ITALIQUE + un texte atténué (comme la conversation, mais en italique). */
+/* Métadonnée de raisonnement : cachée par défaut, révélée AU SURVOL en bas (heure · modèle · tokens). */
+.assistant-segment-label { margin:2px 0 0 2px; color:var(--text-dim); font:10px var(--mono); opacity:0; max-height:0; overflow:hidden; transition:opacity .15s ease; }
+.message-row.assistant-intermediate:hover .assistant-segment-label { opacity:.6; max-height:20px; }
+/* RÉPONSE FINALE *et* RAISONNEMENT : pleine largeur, SANS bulle, MÊME STYLE (façon Claude Code). Le
+   raisonnement ne se distingue QUE par la métadonnée révélée au survol. */
 .message-row.assistant { max-width:100%; align-self:stretch; align-items:flex-start; }
 .message-row.assistant > .message-wrapper > .message.assistant {
   background:transparent; border:none; padding:2px 0; border-radius:0;
 }
-.assistant-intermediate > .message-wrapper > .message.assistant {
-  font-style:italic; color:var(--text-muted); opacity:.9;
-}
-/* Raisonnement (phases + narration) en italique pour le distinguer du factuel. */
+/* Phases « bruit » individuelles (dans l'accumulateur déplié) en italique discrète. */
 .cc-act.thinking .act-txt, .cc-act.act-noise .act-txt { font-style:italic; }
 .cc-act.thinking .act-body, .cc-act.act-noise .act-body { font-style:italic; color:#aab1ba; }
 .message.tool { background:rgba(59,130,246,.08); border:1px solid rgba(59,130,246,.24); border-radius:8px; color:var(--text-dim); font-family:var(--mono); font-size:11px; line-height:1.45; padding:8px 10px; max-height:150px; overflow:auto; }
@@ -3800,6 +3810,7 @@ LaRuche.Chat = (function(){
   }
 
   function addMessage(role, text, attachments) {
+    closeStatusAccumulator(); // un message (raisonnement / réponse / user) casse l'accumulation
     var container = document.getElementById('chatContainer');
     var row = document.createElement('div');
     row.className = 'message-row '+(role==='error'?'error-row':role);
@@ -3845,17 +3856,22 @@ LaRuche.Chat = (function(){
     if(!currentAssistantMsg || !currentAssistantRow) return;
     var hasVisibleText=currentAssistantMsg.textContent.trim().length>0;
     if(hasVisibleText) {
-      // Raisonnement du LLM en TEXTE CLAIR (modèles sans <think>, ex. gemma) : la narration émise
-      // avant un appel d'outil EST le raisonnement. Affichée comme la conversation (PLEINE LARGEUR,
-      // sans bulle) mais EN ITALIQUE. On mémorise le texte pour dédupliquer le « thought » jumeau
-      // que le backend renvoie aussi (sinon il réapparaît dans une activité « J'explore… »).
-      _lastReasoningText = currentAssistantMsg.textContent.trim();
+      // Raisonnement du LLM en TEXTE CLAIR (modèles sans <think>, ex. gemma). Affiché EXACTEMENT
+      // comme le texte de réponse (pleine largeur, même style) ; seule nuance : au SURVOL, une petite
+      // ligne en bas révèle « 💭 raisonnement · heure · modèle · ~tokens ». On mémorise le texte
+      // pour dédupliquer le « thought » jumeau que le backend renvoie aussi.
+      var raison = currentAssistantMsg.textContent.trim();
+      _lastReasoningText = raison;
       finalizeMessage(currentAssistantMsg,'');
       currentAssistantRow.classList.add('assistant-intermediate');
+      var recap=document.getElementById('sessionCapsRecap');
+      var model=(recap && recap.textContent && recap.textContent!=='Chargement...') ? recap.textContent.trim() : '';
+      var toks=Math.max(1, Math.round(raison.length/4));
+      var time=new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
       var label=document.createElement('div'); label.className='assistant-segment-label';
-      label.textContent='💭 raisonnement';
+      label.textContent='💭 raisonnement · '+time+(model?(' · '+model):'')+' · ~'+toks+' tokens';
       var wrapper=currentAssistantRow.querySelector('.message-wrapper');
-      if(wrapper) wrapper.insertBefore(label,currentAssistantMsg);
+      if(wrapper) wrapper.appendChild(label); // EN BAS du texte (révélé au survol)
     } else {
       currentAssistantRow.remove();
     }
@@ -4108,6 +4124,20 @@ LaRuche.Chat = (function(){
   var _feedTimer=null, _feedUnread=0, _feedPendingTools=[];
   var _planMissions=[], _currentPlanMission=-1, _planInlineEl=null, _skillsInlineEl=null;
   var _lastReasoningText=''; // dernier raisonnement affiché (bulle intermédiaire) → dédup du thought jumeau
+  var _statusAcc=null; // accumulateur de statut « bruit » : 1 ligne animée pour N phases (façon Claude Code)
+  // Crée/retourne la ligne d'accumulation de statut (en bas du fil). Les phases « bruit » s'y empilent.
+  function statusAccumulator(){
+    if(_statusAcc && _statusAcc.isConnected) return _statusAcc;
+    var cc=document.getElementById('chatContainer'); if(!cc) return null;
+    var w=document.getElementById('welcomeScreen'); if(w) w.remove();
+    var el=document.createElement('div'); el.className='cc-status cc-collapsed';
+    el.innerHTML='<div class="cc-status-head"><span class="cc-caret">▸</span><span class="act-ico thinking">◍</span><span class="cc-status-current"></span><span class="cc-status-count"></span><span class="act-time"></span></div><div class="cc-status-steps"></div>';
+    var head=el.querySelector('.cc-status-head');
+    head.onclick=function(){ el.classList.toggle('cc-collapsed'); var c=head.querySelector('.cc-caret'); if(c)c.textContent=el.classList.contains('cc-collapsed')?'▸':'▾'; };
+    cc.appendChild(el); _statusAcc=el; return el;
+  }
+  // Stoppe l'accumulation : la prochaine phase « bruit » repartira sur une nouvelle ligne.
+  function closeStatusAccumulator(){ _statusAcc=null; }
 
   window.lrToggleFeedDetails=function(on){
     var af=document.getElementById('activityFeed');
@@ -4125,6 +4155,7 @@ LaRuche.Chat = (function(){
   function resetFeed(){
     _feedStepN=0; _feedBody=null; _feedPrevCard=null; _feedPendingTools=[]; _feedUnread=0; _feedTurnTitle='';
     _planMissions=[]; _currentPlanMission=-1; _planInlineEl=null; _skillsInlineEl=null;
+    _statusAcc=null; _lastReasoningText='';
     updateFeedJump();
   }
   function feedAtBottom(af){ return af.scrollHeight-af.scrollTop-af.clientHeight<150; }
@@ -4253,6 +4284,8 @@ LaRuche.Chat = (function(){
       var bt=String(body).trim(), rt=String(_lastReasoningText).trim();
       if(rt.length>20 && bt && (bt===rt || bt.indexOf(rt)!==-1 || rt.indexOf(bt)!==-1)) return null;
     }
+    // Pollution post-réponse : on ne veut PAS de « Point d'étape : Réponse finale prête ».
+    if(/r[ée]ponse finale/i.test(String(body||'')) || /r[ée]ponse finale/i.test(String(label||''))) return null;
     var welcome=document.getElementById('welcomeScreen'); if(welcome) welcome.remove();
     // ● filled dot coloré par statut (façon Claude Code) ; ◍ pour le raisonnement.
     var iconMap={'thinking':'◍','tool-call':'●','tool-ok':'●','tool-err':'●','status':'•'};
@@ -4274,7 +4307,23 @@ LaRuche.Chat = (function(){
       line.onclick=function(){ item.classList.toggle('cc-collapsed'); var c=line.querySelector('.cc-caret'); if(c)c.textContent=item.classList.contains('cc-collapsed')?'▸':'▾'; };
     }
     if(options.live)_feedPendingTools.push(item);
-    cc.appendChild(item);
+    // ROUTAGE façon Claude Code : les phases « bruit » (thinking/status) s'empilent dans UNE ligne
+    // animée (l'accumulateur) ; un outil casse l'accumulation et s'affiche sur sa propre ligne.
+    var isNoise = (type==='thinking' || type==='status');
+    if(isNoise){
+      var acc=statusAccumulator();
+      if(acc){
+        acc.querySelector('.cc-status-steps').appendChild(item);
+        var cur=acc.querySelector('.cc-status-current'); cur.textContent=label;
+        cur.classList.remove('cc-anim'); void cur.offsetWidth; cur.classList.add('cc-anim'); // ré-anime
+        var n=acc.querySelectorAll('.cc-status-steps > .cc-act').length;
+        acc.querySelector('.cc-status-count').textContent = n>1 ? (n+' étapes') : '';
+        acc.querySelector('.cc-status-head .act-time').textContent = item.querySelector('.act-time').textContent;
+      } else { cc.appendChild(item); }
+    } else {
+      closeStatusAccumulator(); // outil → on va à la ligne
+      cc.appendChild(item);
+    }
     if(typeof scrollToBottom==='function') scrollToBottom();
     LaRuche.Console.log('info','Chat','['+type+'] '+label);return item;
   }
