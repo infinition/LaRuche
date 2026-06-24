@@ -153,6 +153,54 @@ body.feed-docked { padding-right: 360px; }
 .hi-match { font-size:11px; color:var(--text-dim); margin-top:3px; font-style:italic; }
 .message.msg-highlight { animation:msgHl 2.5s ease-out; }
 @keyframes msgHl { 0%,40% { box-shadow:0 0 0 2px var(--amber); } 100% { box-shadow:0 0 0 0 transparent; } }
+
+/* ===================== MODE CLAUDE CODE — transcript inline ===================== */
+/* Activités (raisonnement/outils) inline dans la conversation, façon Claude Code : ligne compacte
+   « ● libellé · heure », repliée par défaut, clic pour déplier le détail. Pleine largeur, sans bulle. */
+.cc-act { margin:2px 0; font:12px/1.5 var(--mono,ui-monospace,monospace); }
+.cc-act .act-line { display:flex; align-items:center; gap:7px; padding:3px 8px; border-radius:6px; }
+.cc-act.collapsible .act-line:hover { background:rgba(255,255,255,.04); }
+.cc-caret { width:10px; font-size:9px; color:var(--text-dim); flex-shrink:0; text-align:center; }
+.cc-caret-empty { visibility:hidden; }
+.cc-act .act-ico { font-size:10px; flex-shrink:0; line-height:1; }
+.cc-act .act-ico.tool-call { color:var(--amber); }
+.cc-act .act-ico.tool-ok { color:var(--green,#34d399); }
+.cc-act .act-ico.tool-err { color:var(--red,#f87171); }
+.cc-act .act-ico.thinking { color:#60a5fa; }
+.cc-act .act-txt { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); }
+.cc-act.act-noise .act-txt { color:var(--text-muted); }
+.cc-act .act-time { font-size:10px; color:var(--text-dim); flex-shrink:0; }
+.cc-act .act-body { margin:3px 0 5px 25px; padding:8px 10px; background:rgba(0,0,0,.28); border-left:2px solid var(--border); border-radius:4px; font:11px/1.5 var(--mono); white-space:pre-wrap; word-break:break-word; max-height:360px; overflow:auto; color:#cdd2d8; }
+.cc-act.cc-collapsed .act-body { display:none; }
+.cc-act.terminal .act-body { background:#0c0c0e; }
+.cc-act.terminal .terminal-command { color:#7dd3fc; display:block; }
+.cc-act.terminal .terminal-output { color:#cdd2d8; display:block; margin-top:4px; }
+/* Plan inline (carte repliable « 📋 Plan ») */
+.cc-block { margin:8px 0; }
+.cc-plan { border:1px solid var(--border); border-radius:8px; overflow:hidden; background:rgba(255,255,255,.015); }
+.cc-plan-head { display:flex; align-items:center; gap:7px; padding:7px 10px; cursor:pointer; font:11px var(--mono); }
+.cc-plan-head:hover { background:rgba(255,255,255,.03); }
+.cc-plan-title { font-weight:600; color:var(--amber); }
+.cc-plan-meta { margin-left:auto; color:var(--text-dim); font-size:10px; }
+.cc-plan.cc-collapsed .cc-plan-body { display:none; }
+.cc-plan-body { padding:4px 10px 8px; }
+/* Skills inline */
+.cc-skills { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:4px 2px; }
+.cc-skills-label { font:10px var(--mono); color:var(--text-dim); text-transform:uppercase; letter-spacing:.5px; }
+/* Diff de fichier inline (+N -M) */
+.cc-diff { border:1px solid var(--border); border-radius:8px; overflow:hidden; background:rgba(255,255,255,.015); }
+.cc-diff-head { display:flex; align-items:center; gap:8px; padding:7px 10px; cursor:pointer; font:11px var(--mono); }
+.cc-diff-head:hover { background:rgba(255,255,255,.03); }
+.cc-diff-file { color:var(--text); font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cc-diff-stat { margin-left:auto; flex-shrink:0; font-size:11px; }
+.cc-diff-add { color:var(--green,#34d399); }
+.cc-diff-del { color:var(--red,#f87171); }
+.cc-diff.cc-collapsed .cc-diff-body { display:none; }
+.cc-diff-body { font:11px/1.5 var(--mono); max-height:420px; overflow:auto; border-top:1px solid var(--border); }
+.cc-diff-body .dl { display:block; padding:0 10px; white-space:pre-wrap; word-break:break-word; }
+.cc-diff-body .dl-add { background:rgba(52,211,153,.10); color:#9be8c6; }
+.cc-diff-body .dl-del { background:rgba(248,113,113,.10); color:#f3b0b0; }
+.cc-diff-body .dl-ctx { color:var(--text-muted); }
 /* Mini-composer « parler à LaRuche » au bas du Feed + animation d'envoi. */
 .feed-ask { display:flex; gap:6px; padding:8px; border-top:1px solid var(--border); flex-shrink:0; }
 .feed-ask textarea { flex:1; resize:none; background:var(--bg-input); color:var(--text); border:1px solid var(--border); border-radius:8px; padding:7px 10px; font-size:13px; font-family:inherit; max-height:120px; }
@@ -353,7 +401,13 @@ body.feed-docked { padding-right: 360px; }
   width:var(--sidebar-width); min-width:var(--sidebar-width);
   border-right:1px solid var(--border); background:var(--bg-panel);
   display:flex; flex-direction:column; overflow:hidden;
+  transition:width .2s ease, min-width .2s ease;
 }
+/* Repli sur PC (le honeycomb du bandeau haut le fait revenir). */
+.chat-sidebar.collapsed { width:0; min-width:0; border-right:none; }
+/* Conversations : occupent toute la hauteur restante de la sidebar (panneaux agentiques retirés). */
+.sessions-list-sidebar { flex:1; min-height:0; display:flex; flex-direction:column; }
+.sessions-list-sidebar > #sessionsSidebarList { flex:1; overflow-y:auto; }
 .sidebar-header {
   padding:10px 12px; font-size:11px; font-weight:600;
   text-transform:uppercase; letter-spacing:.5px;
@@ -1845,29 +1899,19 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
             </div>
           </div>
         </div>
-        <div class="agent-header-block">
-          <div class="sidebar-header agent-header">
-            <span class="agent-title-area">
-              <span>Agent</span>
-              <span class="feed-live-status" id="feedLiveStatus" aria-live="polite"><span class="feed-live-dot"></span><span id="feedLiveText">En attente</span></span>
-            </span>
-          </div>
-          <div class="agent-sub-row">
-            <div class="agent-header-actions">
-              <label class="feed-details-toggle" title="Détails des logs">
-                <input type="checkbox" id="feedDetailsToggle" onchange="this.parentElement.classList.toggle('active', this.checked); window.lrToggleFeedDetails(this.checked)">
-                <svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
-              </label>
-              <span id="iterationBadge" class="iteration-badge"></span>
-            </div>
-            <div class="feed-usage-bar" id="feedUsage" aria-live="polite"></div>
-          </div>
-        </div>
-        <div class="plan-section" id="planSection"><div class="plan-title">Plan</div></div>
-        <div class="skills-panel" id="skillsPanel" style="display:none"><span class="skills-panel-label">Skills</span><span class="skills-panel-chips" id="skillsPanelChips"></span></div>
-        <div class="agent-feed-wrap">
-          <div class="activity-feed compact" id="activityFeed" aria-live="polite" aria-label="Activité de l'agent"></div>
-          <button class="feed-jump" id="feedJump" type="button" onclick="window.lrFeedJump()" aria-label="Afficher les nouvelles activités">↓ <span>nouvelles activités</span></button>
+        <!-- MODE CLAUDE CODE : raisonnement / outils / plan / skills sont rendus INLINE dans la
+             conversation (plus de volet agentique à gauche). Ces éléments restent en stubs CACHÉS
+             pour satisfaire les références JS de statut (feed-live, usage, iteration…) sans rien
+             afficher. La sidebar ne garde que : contrôles + modèle + conversations. -->
+        <div id="agentLegacyStubs" style="display:none" aria-hidden="true">
+          <span id="feedLiveStatus" class="feed-live-status"><span class="feed-live-dot"></span><span id="feedLiveText">En attente</span></span>
+          <input type="checkbox" id="feedDetailsToggle">
+          <span id="iterationBadge" class="iteration-badge"></span>
+          <div class="feed-usage-bar" id="feedUsage"></div>
+          <div id="planSection"></div>
+          <div id="skillsPanel"><span id="skillsPanelChips"></span></div>
+          <div id="activityFeed"></div>
+          <button id="feedJump"><span></span></button>
         </div>
         <div class="sessions-list-sidebar" id="sessionsSidebarSection">
           <div class="sidebar-header" style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
@@ -3340,7 +3384,7 @@ LaRuche.Chat = (function(){
         closeAssistantSegmentForTool();
         setFeedLive('tool');
         var toolLabel=toolActivityLabel(data.name,data.args);
-        updateActiveFeedTitle(toolLabel);
+        maybeRenderFileDiff(data.name,data.args); // carte diff inline pour les éditions de fichier
         addActivity('tool-call',toolLabel+' · en cours',toolContext(data.args),true,{toolName:data.name,activityLabel:toolLabel,live:true,terminal:(data.name==='shell_exec'||data.name==='execute_code'||data.name==='run_script'),command:toolContext(data.args)});
         break;
       case 'tool_output':
@@ -3654,17 +3698,22 @@ LaRuche.Chat = (function(){
 
   // Skills appliqués → volet gauche (compact, sous le label « Skills »), PAS dans le fil de chat
   // (gain de place). Chips dédupliqués, remis à zéro à chaque tour.
+  // Skills activés → ligne de puces INLINE dans la conversation (une par tour).
   function addSkillChip(name) {
-    var panel = document.getElementById('skillsPanel');
-    var chips = document.getElementById('skillsPanelChips');
-    if (!panel || !chips) return;
-    if (chips.querySelector('[data-skill="' + CSS.escape(name) + '"]')) return; // déjà là
+    var cc = document.getElementById('chatContainer'); if(!cc) return;
+    if(!_skillsInlineEl || !_skillsInlineEl.isConnected){
+      var welcome=document.getElementById('welcomeScreen'); if(welcome) welcome.remove();
+      _skillsInlineEl=document.createElement('div'); _skillsInlineEl.className='cc-skills cc-block';
+      _skillsInlineEl.innerHTML='<span class="cc-skills-label">🧩 Skills</span>';
+      cc.appendChild(_skillsInlineEl);
+      if(typeof scrollToBottom==='function') scrollToBottom();
+    }
+    if (_skillsInlineEl.querySelector('[data-skill="' + CSS.escape(name) + '"]')) return; // déjà là
     var chip = document.createElement('span');
     chip.className = 'skill-chip';
     chip.dataset.skill = name;
     chip.textContent = name;
-    chips.appendChild(chip);
-    panel.style.display = '';
+    _skillsInlineEl.appendChild(chip);
   }
 
   // Avatar abeille affiché uniquement sur le DERNIER message assistant (visibility → garde
@@ -3770,11 +3819,9 @@ LaRuche.Chat = (function(){
     if(!currentAssistantMsg || !currentAssistantRow) return;
     var hasVisibleText=currentAssistantMsg.textContent.trim().length>0;
     if(hasVisibleText) {
-      // Raisonnement du LLM en TEXTE CLAIR (modèles sans <think>, ex. gemma) : la narration
-      // émise avant un appel d'outil EST le raisonnement → on la route aussi vers le feed du
-      // volet gauche (visible en mode détaillé), en plus du segment intermédiaire dans le chat.
-      var raison=currentAssistantMsg.textContent.trim();
-      if(raison) addActivity('thinking','Raisonnement', raison, true);
+      // Raisonnement du LLM en TEXTE CLAIR (modèles sans <think>, ex. gemma) : la narration émise
+      // avant un appel d'outil EST le raisonnement. En mode inline (façon Claude Code) elle reste
+      // la bulle intermédiaire stylée ci-dessous — pas de doublon via addActivity.
       finalizeMessage(currentAssistantMsg,'');
       currentAssistantRow.classList.add('assistant-intermediate');
       var label=document.createElement('div'); label.className='assistant-segment-label';
@@ -4031,7 +4078,7 @@ LaRuche.Chat = (function(){
   // \u2500\u2500 Feed agentique : timeline en \u00e9tapes repliables \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   var _feedStepN=0, _feedBody=null, _feedPrevCard=null, _feedLiveStartedAt=0, _feedTurnTitle='';
   var _feedTimer=null, _feedUnread=0, _feedPendingTools=[];
-  var _planMissions=[], _currentPlanMission=-1;
+  var _planMissions=[], _currentPlanMission=-1, _planInlineEl=null, _skillsInlineEl=null;
 
   window.lrToggleFeedDetails=function(on){
     var af=document.getElementById('activityFeed');
@@ -4048,7 +4095,7 @@ LaRuche.Chat = (function(){
   };
   function resetFeed(){
     _feedStepN=0; _feedBody=null; _feedPrevCard=null; _feedPendingTools=[]; _feedUnread=0; _feedTurnTitle='';
-    _planMissions=[]; _currentPlanMission=-1;
+    _planMissions=[]; _currentPlanMission=-1; _planInlineEl=null; _skillsInlineEl=null;
     updateFeedJump();
   }
   function feedAtBottom(af){ return af.scrollHeight-af.scrollTop-af.clientHeight<150; }
@@ -4135,20 +4182,13 @@ LaRuche.Chat = (function(){
     var count=list.querySelectorAll('.feed-step').length;
     history.querySelector('.feed-history-count').textContent=count;
   }
+  // MODE CLAUDE CODE : plus de carte « cycle » dans un volet séparé. Les activités (raisonnement,
+  // outils, plan) s'insèrent INLINE dans la conversation, dans l'ordre chronologique. On pointe
+  // simplement la cible d'ajout sur le conteneur du chat.
   function newFeedStep(label){
     ensureFeedStyle();
-    var af=document.getElementById('activityFeed');if(!af)return;
-    var follow=feedAtBottom(af);_feedStepN++;
-    if(_feedPrevCard){_feedPrevCard.classList.remove('expanded','running');var previousState=_feedPrevCard.querySelector('.feed-step-state');if(previousState)previousState.textContent='TERMINÉ';}
-    var card=document.createElement('section');card.className='feed-step expanded running';
-    var h=document.createElement('div');h.className='feed-step-head';
-    h.innerHTML='<span class="feed-step-caret">▾</span><span class="feed-step-title">'+LaRuche.Utils.esc(label||_feedTurnTitle||('Cycle '+_feedStepN))+'</span><span class="feed-step-state">EN COURS</span><span class="feed-step-meta"></span>';
-    h.onclick=function(){card.classList.toggle('expanded');};
-    var b=document.createElement('div');b.className='feed-step-body';
-    b._lrFollow=true;
-    b.addEventListener('scroll', function(){ b._lrFollow = feedAtBottom(b); });
-    card.appendChild(h);card.appendChild(b);af.appendChild(card);
-    _feedBody=b;_feedPrevCard=card;pruneFeedHistory(af);followFeed(af,follow);
+    _feedBody = document.getElementById('chatContainer');
+    _feedPrevCard = null; _feedStepN++;
   }
   function humanToolName(name){
     var names={'shell_exec':'Commande terminal','execute_code':'Exécution de code','run_script':'Script','file_read':'Lecture de fichier','file_write':'Écriture de fichier','file_edit':'Modification de fichier','file_search':'Recherche dans les fichiers','read_extract':'Lecture ciblée','web_search':'Recherche web','web_deep_search':'Recherche web approfondie','web_fetch':'Lecture de page','memory_search':'Recherche mémoire','memory_write':'Mémoire mise à jour','delegate':'Sous-agent','mixture_of_agents':'Consultation multi-agents'};
@@ -4175,34 +4215,78 @@ LaRuche.Chat = (function(){
     }
   }
   function addActivity(type,label,body,collapsible,options){
-    ensureFeedStyle();var af=document.getElementById('activityFeed');if(!af)return null;
-    var follow=feedAtBottom(af);options=options||{};
-    if(!_feedBody)newFeedStep(options.stepTitle||_feedTurnTitle);
-    var iconMap={'thinking':'◌','tool-call':'⌘','tool-ok':'✓','tool-err':'!','status':'•'};
-    var item=document.createElement('article');item.className='act '+type+(type.indexOf('tool-')===0?' act-major':' act-noise')+(collapsible?' collapsible':'')+(options.live?' live':'')+(options.terminal?' terminal':'');
+    ensureFeedStyle();
+    var cc=document.getElementById('chatContainer'); if(!cc) return null;
+    options=options||{};
+    var welcome=document.getElementById('welcomeScreen'); if(welcome) welcome.remove();
+    // ● filled dot coloré par statut (façon Claude Code) ; ◍ pour le raisonnement.
+    var iconMap={'thinking':'◍','tool-call':'●','tool-ok':'●','tool-err':'●','status':'•'};
+    var item=document.createElement('article');
+    item.className='cc-act '+type+(type.indexOf('tool-')===0?' act-major':' act-noise')+(collapsible?' collapsible':'')+(options.live?' live':'')+(options.terminal?' terminal':'');
     if(options.toolName)item.dataset.toolName=options.toolName;
     if(options.activityLabel)item.dataset.activityLabel=options.activityLabel;
     var line=document.createElement('div');line.className='act-line';
-    line.innerHTML='<span class="act-ico '+type+'">'+(iconMap[type]||'•')+'</span><span class="act-txt">'+LaRuche.Utils.esc(label)+'</span><span class="act-time">'+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'})+'</span>';
+    var caret = collapsible ? '<span class="cc-caret">▸</span>' : '<span class="cc-caret cc-caret-empty"></span>';
+    line.innerHTML=caret+'<span class="act-ico '+type+'">'+(iconMap[type]||'•')+'</span><span class="act-txt">'+LaRuche.Utils.esc(label)+'</span><span class="act-time">'+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+'</span>';
     item.appendChild(line);
-    if(body!==undefined&&body!==null&&body!==''){var bodyEl=document.createElement('pre');bodyEl.className='act-body';if(options.terminal){item.dataset.command=options.command||body;setTerminalContent(bodyEl,item.dataset.command,'');}else bodyEl.textContent=body;item.appendChild(bodyEl);if(collapsible)line.onclick=function(){item.classList.toggle('open');};}
+    if(body!==undefined&&body!==null&&body!==''){
+      var bodyEl=document.createElement('pre');bodyEl.className='act-body';
+      if(options.terminal){item.dataset.command=options.command||body;setTerminalContent(bodyEl,item.dataset.command,'');}
+      else bodyEl.textContent=body;
+      item.appendChild(bodyEl);
+      if(collapsible){
+        item.classList.add('cc-collapsed'); line.style.cursor='pointer';
+        line.onclick=function(){ item.classList.toggle('cc-collapsed'); var c=line.querySelector('.cc-caret'); if(c)c.textContent=item.classList.contains('cc-collapsed')?'▸':'▾'; };
+      }
+    }
     if(options.live)_feedPendingTools.push(item);
-    (_feedBody||af).appendChild(item);
-    updateFeedMeta();
-    if (_feedBody && _feedBody._lrFollow) { _feedBody.scrollTop = _feedBody.scrollHeight; }
-    followFeed(af,follow);
+    cc.appendChild(item);
+    if(typeof scrollToBottom==='function') scrollToBottom();
     LaRuche.Console.log('info','Chat','['+type+'] '+label);return item;
   }
   function updateFeedMeta(){if(!_feedPrevCard||!_feedBody)return;var meta=_feedPrevCard.querySelector('.feed-step-meta');if(meta){var tools=_feedBody.querySelectorAll('.act-major').length;meta.textContent=tools?(tools+' action'+(tools>1?'s':'')):'';}}
+  // ===== Diffs de fichiers inline (façon Claude Code : 📄 chemin  +N -M, repliable) =====
+  function buildDiffHtml(oldStr, newStr){
+    var html='';
+    if(oldStr){ String(oldStr).split('\n').forEach(function(l){ html+='<span class="dl dl-del">- '+LaRuche.Utils.esc(l)+'</span>'; }); }
+    if(newStr){ String(newStr).split('\n').forEach(function(l){ html+='<span class="dl dl-add">+ '+LaRuche.Utils.esc(l)+'</span>'; }); }
+    return html;
+  }
+  function renderFileDiff(path, added, removed, diffHtml){
+    var cc=document.getElementById('chatContainer'); if(!cc) return;
+    var welcome=document.getElementById('welcomeScreen'); if(welcome) welcome.remove();
+    var el=document.createElement('div'); el.className='cc-diff cc-block cc-collapsed';
+    el.innerHTML='<div class="cc-diff-head"><span class="cc-caret">▸</span><span class="cc-diff-file">📄 '+LaRuche.Utils.esc(path)+'</span><span class="cc-diff-stat"><span class="cc-diff-add">+'+added+'</span> <span class="cc-diff-del">-'+removed+'</span></span></div><div class="cc-diff-body">'+diffHtml+'</div>';
+    var head=el.querySelector('.cc-diff-head');
+    head.onclick=function(){ el.classList.toggle('cc-collapsed'); var c=head.querySelector('.cc-caret'); if(c)c.textContent=el.classList.contains('cc-collapsed')?'▸':'▾'; };
+    cc.appendChild(el);
+    if(typeof scrollToBottom==='function') scrollToBottom();
+  }
+  // Rend une carte diff si l'outil est une écriture/édition de fichier (args connus côté client).
+  function maybeRenderFileDiff(name, args){
+    args=args||{};
+    if(name==='file_edit' && (args.old_string!=null || args.new_string!=null)){
+      var o=args.old_string||'', n=args.new_string||'';
+      renderFileDiff(args.path||'(fichier)', String(n).split('\n').length, String(o).split('\n').length, buildDiffHtml(o,n));
+      return true;
+    }
+    if((name==='file_write'||name==='skill_file_write') && args.content!=null){
+      var c=String(args.content);
+      renderFileDiff(args.path||args.skill||'(fichier)', c.split('\n').length, 0, buildDiffHtml('', c));
+      return true;
+    }
+    return false;
+  }
   function pendingTool(name){for(var i=_feedPendingTools.length-1;i>=0;i--){var item=_feedPendingTools[i];if(item&&item.dataset.toolName===name&&item.classList.contains('live'))return item;}return null;}
   function finishToolActivity(name,result,success,elapsed){
     var item=pendingTool(name);
     if(!item)return addActivity(success?'tool-ok':'tool-err',humanToolName(name)+(success?' terminée':' en erreur'),result,true,{toolName:name});
     item.classList.remove('tool-call','live');item.classList.add(success?'tool-ok':'tool-err');
+    var ico=item.querySelector('.act-ico');if(ico)ico.className='act-ico '+(success?'tool-ok':'tool-err');
     var title=item.querySelector('.act-txt');if(title)title.textContent=(item.dataset.activityLabel||humanToolName(name))+(success?' · terminé':' · erreur');
     var stamp=item.querySelector('.act-time');if(stamp&&elapsed!=null)stamp.textContent=LaRuche.Utils.formatElapsed(elapsed);
     var body=item.querySelector('.act-body');if(!body&&result){body=document.createElement('pre');body.className='act-body';item.appendChild(body);}if(body){if(item.classList.contains('terminal'))setTerminalContent(body,item.dataset.command||'',result||'(aucune sortie)');else body.textContent=result||'(aucune sortie)';}
-    if(!success)item.classList.add('open');_feedPendingTools=_feedPendingTools.filter(function(candidate){return candidate!==item;});updateFeedMeta();return item;
+    if(!success){item.classList.remove('cc-collapsed');var c=item.querySelector('.cc-caret');if(c)c.textContent='▾';}_feedPendingTools=_feedPendingTools.filter(function(candidate){return candidate!==item;});return item;
   }
   function appendToolOutput(name,chunk){var item=pendingTool(name);if(!item)return;var body=item.querySelector('.act-body');if(!body){body=document.createElement('pre');body.className='act-body';item.appendChild(body);}if(item.classList.contains('terminal')){item._terminalOutput=(item._terminalOutput||'')+(chunk||'');setTerminalContent(body,item.dataset.command||'',item._terminalOutput);}else body.textContent+=(chunk||'');body.scrollTop=body.scrollHeight;}
   function startPlanMission(message){
@@ -4210,6 +4294,7 @@ LaRuche.Chat = (function(){
     _planMissions.push({title:title,items:[],activeTask:''});
     _currentPlanMission=_planMissions.length-1;
     _feedTurnTitle=title;
+    _planInlineEl=null; _skillsInlineEl=null; // nouveau tour → nouvelles cartes inline
     renderPlanMissions();
   }
   function planItemDone(item){
@@ -4221,37 +4306,31 @@ LaRuche.Chat = (function(){
     var status=String((item&&item.status)||'').toLowerCase();
     return status.indexOf('progress')!==-1 || status.indexOf('cours')!==-1 ? 'in_progress' : 'pending';
   }
+  // Plan rendu INLINE dans la conversation (carte « 📋 Plan » mise à jour en place, repliable).
+  // Une carte par mission/tour ; un nouveau tour repart d'une carte fraîche (_planInlineEl reset).
   function renderPlanMissions(){
-    var ps=document.getElementById('planSection'); if(!ps)return;
-    ps.innerHTML='<div class="plan-title">Missions</div>';
-    _planMissions.forEach(function(mission,index){
-      var doneCount=mission.items.filter(planItemDone).length;
-      var box=document.createElement('details'); box.className='plan-mission';
-      if(index===_currentPlanMission) box.open=true;
-      var summary=document.createElement('summary'); summary.textContent=mission.title;
-      var meta=document.createElement('span'); meta.className='plan-mission-meta'; meta.textContent=mission.items.length?(doneCount+'/'+mission.items.length+' terminée(s)'):'en attente du plan'; summary.appendChild(meta); box.appendChild(summary);
-      mission.items.forEach(function(item){
-        var row=document.createElement('div'); row.className='plan-item';
-        var dot=document.createElement('span'); dot.className='plan-dot '+planDotClass(item);
-        var text=document.createElement('span'); text.className='plan-text'+(planItemDone(item)?' done':''); text.textContent=item.task;
-        row.appendChild(dot); row.appendChild(text); box.appendChild(row);
-      });
-      ps.appendChild(box);
-    });
+    var cc=document.getElementById('chatContainer'); if(!cc) return;
+    var mission=_planMissions[_currentPlanMission]; if(!mission || !mission.items.length) return;
+    if(!_planInlineEl || !_planInlineEl.isConnected){
+      var welcome=document.getElementById('welcomeScreen'); if(welcome) welcome.remove();
+      _planInlineEl=document.createElement('div'); _planInlineEl.className='cc-plan cc-block';
+      cc.appendChild(_planInlineEl);
+      if(typeof scrollToBottom==='function') scrollToBottom();
+    }
+    var doneCount=mission.items.filter(planItemDone).length;
+    var rows=mission.items.map(function(item){
+      return '<div class="plan-item"><span class="plan-dot '+planDotClass(item)+'"></span><span class="plan-text'+(planItemDone(item)?' done':'')+'">'+LaRuche.Utils.esc(item.task||'')+'</span></div>';
+    }).join('');
+    _planInlineEl.innerHTML='<div class="cc-plan-head"><span class="cc-caret">▾</span><span class="cc-plan-title">📋 Plan</span><span class="cc-plan-meta">'+doneCount+'/'+mission.items.length+'</span></div><div class="cc-plan-body">'+rows+'</div>';
+    var head=_planInlineEl.querySelector('.cc-plan-head');
+    head.onclick=function(){ _planInlineEl.classList.toggle('cc-collapsed'); var c=head.querySelector('.cc-caret'); if(c)c.textContent=_planInlineEl.classList.contains('cc-collapsed')?'▸':'▾'; };
   }
   function updatePlan(items) {
     if(!Array.isArray(items)) return;
     if(_currentPlanMission<0) startPlanMission(_feedTurnTitle||'Mission de l’agent');
     var mission=_planMissions[_currentPlanMission]; mission.items=items.slice();
     var active=items.find(function(item){return !planItemDone(item);}) || items[items.length-1];
-    var nextTitle=active&&active.task ? active.task : mission.title;
-    if(nextTitle && mission.activeTask!==nextTitle){
-      mission.activeTask=nextTitle;
-      _feedTurnTitle=nextTitle;
-      if(!_feedBody) newFeedStep(nextTitle);
-      else if(_feedPrevCard && _feedPrevCard.querySelector('.feed-step-title') && _feedPrevCard.querySelector('.feed-step-title').textContent!==nextTitle) newFeedStep(nextTitle);
-      else updateActiveFeedTitle(nextTitle);
-    }
+    if(active && active.task) _feedTurnTitle=active.task;
     renderPlanMissions();
   }
 
@@ -4346,6 +4425,7 @@ LaRuche.Chat = (function(){
         else if(msg.role==='tool_call'){
           var restoredArgs=msg.args||{};
           var restoredTool=msg.tool||'?';
+          maybeRenderFileDiff(restoredTool,restoredArgs); // carte diff inline (replay)
           addActivity('tool-call',toolActivityLabel(restoredTool,restoredArgs)+' · exécuté',toolContext(restoredArgs),true,{toolName:restoredTool,activityLabel:toolActivityLabel(restoredTool,restoredArgs),terminal:(restoredTool==='shell_exec'||restoredTool==='execute_code'||restoredTool==='run_script'),command:toolContext(restoredArgs)});
         }
         else if(msg.role==='tool'){
@@ -4553,15 +4633,18 @@ LaRuche.Chat = (function(){
   }
 
   function toggleSidebar() {
-    if(window.innerWidth > 900) return;
     var activePage = document.querySelector('.page.active');
     if(!activePage) return;
     var side;
     if(activePage.id === 'page-chat') side = document.getElementById('chatSidebar');
     else if(activePage.id === 'page-missions') side = activePage.querySelector('.mis-side');
     else if(activePage.id === 'page-memory') side = activePage.querySelector('.mem2-side');
-    
-    if(side) {
+    if(!side) return;
+    if(window.innerWidth > 900){
+      // PC : repli/dépli de la colonne (largeur 0). Le honeycomb du bandeau haut la fait revenir.
+      side.classList.toggle('collapsed');
+      try{ localStorage.setItem('lr_sidebar_collapsed', side.classList.contains('collapsed')?'1':'0'); }catch(e){}
+    } else {
       side.classList.toggle('open');
       document.getElementById('sidebarOverlay').classList.toggle('open');
     }
