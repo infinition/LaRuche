@@ -173,8 +173,7 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .cc-act { margin:0; font:12px/1.45 var(--mono,ui-monospace,monospace); }
 .cc-act .act-line { display:flex; align-items:center; gap:7px; padding:3px 8px; border-radius:6px; }
 .cc-act.collapsible .act-line:hover { background:rgba(255,255,255,.04); }
-.cc-caret { width:10px; font-size:9px; color:var(--text-dim); flex-shrink:0; text-align:center; }
-.cc-caret-empty { visibility:hidden; }
+/* caret supprimé (demande user) */
 .cc-act .act-ico { font-size:10px; flex-shrink:0; line-height:1; }
 .cc-act .act-ico.tool-call { color:var(--amber); }
 .cc-act .act-ico.tool-ok { color:var(--green,#34d399); }
@@ -4150,9 +4149,9 @@ LaRuche.Chat = (function(){
     var cc=document.getElementById('chatContainer'); if(!cc) return null;
     var w=document.getElementById('welcomeScreen'); if(w) w.remove();
     var el=document.createElement('div'); el.className='cc-status cc-collapsed';
-    el.innerHTML='<div class="cc-status-head"><span class="cc-caret">▸</span><span class="act-ico thinking">◍</span><span class="cc-status-current"></span><span class="cc-status-count"></span><span class="act-time"></span></div><div class="cc-status-steps"></div>';
+    el.innerHTML='<div class="cc-status-head"><span class="act-ico thinking">◍</span><span class="cc-status-current"></span><span class="cc-status-count"></span><span class="act-time"></span></div><div class="cc-status-steps"></div>';
     var head=el.querySelector('.cc-status-head');
-    head.onclick=function(){ el.classList.toggle('cc-collapsed'); var c=head.querySelector('.cc-caret'); if(c)c.textContent=el.classList.contains('cc-collapsed')?'▸':'▾'; };
+    head.onclick=function(){ el.classList.toggle('cc-collapsed'); };
     cc.appendChild(el); _statusAcc=el; return el;
   }
   // Stoppe l'accumulation : la prochaine phase « bruit » repartira sur une nouvelle ligne.
@@ -4313,7 +4312,7 @@ LaRuche.Chat = (function(){
     if(options.toolName)item.dataset.toolName=options.toolName;
     if(options.activityLabel)item.dataset.activityLabel=options.activityLabel;
     var line=document.createElement('div');line.className='act-line';
-    line.innerHTML='<span class="cc-caret cc-caret-empty"></span><span class="act-ico '+type+'">'+(iconMap[type]||'•')+'</span><span class="act-txt">'+LaRuche.Utils.esc(label)+'</span><span class="act-time">'+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+'</span>';
+    line.innerHTML='<span class="act-ico '+type+'">'+(iconMap[type]||'•')+'</span><span class="act-txt">'+LaRuche.Utils.esc(label)+'</span><span class="act-time">'+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+'</span>';
     item.appendChild(line);
     if(body!==undefined&&body!==null&&body!==''){
       var bodyEl=document.createElement('pre');bodyEl.className='act-body';
@@ -4322,8 +4321,7 @@ LaRuche.Chat = (function(){
       item.appendChild(bodyEl);
       // Façon Claude Code : TOUJOURS replié par défaut (on ne voit que le libellé), clic pour déplier.
       item.classList.add('cc-collapsed'); line.style.cursor='pointer';
-      var caret=line.querySelector('.cc-caret'); if(caret){caret.classList.remove('cc-caret-empty');caret.textContent='▸';}
-      line.onclick=function(){ item.classList.toggle('cc-collapsed'); var c=line.querySelector('.cc-caret'); if(c)c.textContent=item.classList.contains('cc-collapsed')?'▸':'▾'; };
+      line.onclick=function(){ item.classList.toggle('cc-collapsed'); };
     }
     if(options.live)_feedPendingTools.push(item);
     // ROUTAGE façon Claude Code : les phases « bruit » (thinking/status) s'empilent dans UNE ligne
@@ -4358,9 +4356,9 @@ LaRuche.Chat = (function(){
     var cc=document.getElementById('chatContainer'); if(!cc) return;
     var welcome=document.getElementById('welcomeScreen'); if(welcome) welcome.remove();
     var el=document.createElement('div'); el.className='cc-diff cc-block cc-collapsed';
-    el.innerHTML='<div class="cc-diff-head"><span class="cc-caret">▸</span><span class="cc-diff-file">📄 '+LaRuche.Utils.esc(path)+'</span><span class="cc-diff-stat"><span class="cc-diff-add">+'+added+'</span> <span class="cc-diff-del">-'+removed+'</span></span></div><div class="cc-diff-body">'+diffHtml+'</div>';
+    el.innerHTML='<div class="cc-diff-head"><span class="cc-diff-file">📄 '+LaRuche.Utils.esc(path)+'</span><span class="cc-diff-stat"><span class="cc-diff-add">+'+added+'</span> <span class="cc-diff-del">-'+removed+'</span></span></div><div class="cc-diff-body">'+diffHtml+'</div>';
     var head=el.querySelector('.cc-diff-head');
-    head.onclick=function(){ el.classList.toggle('cc-collapsed'); var c=head.querySelector('.cc-caret'); if(c)c.textContent=el.classList.contains('cc-collapsed')?'▸':'▾'; };
+    head.onclick=function(){ el.classList.toggle('cc-collapsed'); };
     cc.appendChild(el);
     if(typeof scrollToBottom==='function') scrollToBottom();
   }
@@ -4388,7 +4386,7 @@ LaRuche.Chat = (function(){
     var title=item.querySelector('.act-txt');if(title)title.textContent=(item.dataset.activityLabel||humanToolName(name))+(success?' · terminé':' · erreur');
     var stamp=item.querySelector('.act-time');if(stamp&&elapsed!=null)stamp.textContent=LaRuche.Utils.formatElapsed(elapsed);
     var body=item.querySelector('.act-body');if(!body&&result){body=document.createElement('pre');body.className='act-body';item.appendChild(body);}if(body){if(item.classList.contains('terminal'))setTerminalContent(body,item.dataset.command||'',result||'(aucune sortie)');else body.textContent=result||'(aucune sortie)';}
-    if(!success){item.classList.remove('cc-collapsed');var c=item.querySelector('.cc-caret');if(c)c.textContent='▾';}_feedPendingTools=_feedPendingTools.filter(function(candidate){return candidate!==item;});return item;
+    if(!success){item.classList.remove('cc-collapsed');}_feedPendingTools=_feedPendingTools.filter(function(candidate){return candidate!==item;});return item;
   }
   function appendToolOutput(name,chunk){var item=pendingTool(name);if(!item)return;var body=item.querySelector('.act-body');if(!body){body=document.createElement('pre');body.className='act-body';item.appendChild(body);}if(item.classList.contains('terminal')){item._terminalOutput=(item._terminalOutput||'')+(chunk||'');setTerminalContent(body,item.dataset.command||'',item._terminalOutput);}else body.textContent+=(chunk||'');body.scrollTop=body.scrollHeight;}
   function startPlanMission(message){
@@ -4424,9 +4422,9 @@ LaRuche.Chat = (function(){
     var rows=mission.items.map(function(item){
       return '<div class="plan-item"><span class="plan-dot '+planDotClass(item)+'"></span><span class="plan-text'+(planItemDone(item)?' done':'')+'">'+LaRuche.Utils.esc(item.task||'')+'</span></div>';
     }).join('');
-    _planInlineEl.innerHTML='<div class="cc-plan-head"><span class="cc-caret">▾</span><span class="cc-plan-title">📋 Plan</span><span class="cc-plan-meta">'+doneCount+'/'+mission.items.length+'</span></div><div class="cc-plan-body">'+rows+'</div>';
+    _planInlineEl.innerHTML='<div class="cc-plan-head"><span class="cc-plan-title">📋 Plan</span><span class="cc-plan-meta">'+doneCount+'/'+mission.items.length+'</span></div><div class="cc-plan-body">'+rows+'</div>';
     var head=_planInlineEl.querySelector('.cc-plan-head');
-    head.onclick=function(){ _planInlineEl.classList.toggle('cc-collapsed'); var c=head.querySelector('.cc-caret'); if(c)c.textContent=_planInlineEl.classList.contains('cc-collapsed')?'▸':'▾'; };
+    head.onclick=function(){ _planInlineEl.classList.toggle('cc-collapsed'); };
   }
   function updatePlan(items) {
     if(!Array.isArray(items)) return;
