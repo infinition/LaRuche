@@ -7541,7 +7541,6 @@ async fn ws_chat_connection(
         let profile_override = incoming["provider"].as_str().map(|s| s.to_string());
         // Capacité explicite du tour (ex. "code" pour coder) → résout un modèle dédié.
         let capability_override = incoming["capability"].as_str().map(|s| s.to_lowercase());
-        let allow_loop = incoming["allow_loop"].as_bool().unwrap_or(false);
 
         // Parse attachments from client message
         let mut attachments = match incoming.get("attachments") {
@@ -7615,7 +7614,6 @@ async fn ws_chat_connection(
             }
 
             let mut config = ec_snapshot;
-            config.allow_loop = allow_loop;
             // Liste des ruches du mesh joignables → injectée au contexte (l'agent peut `mesh_send`).
             {
                 let listener = state_clone.listener.read().await;
