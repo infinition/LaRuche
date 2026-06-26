@@ -19,6 +19,7 @@ use tokio_stream::wrappers::ReceiverStream;
 pub struct ProviderError {
     pub status: u16,
     pub body: String,
+    pub retry_after: Option<String>,
 }
 
 impl std::fmt::Display for ProviderError {
@@ -167,10 +168,16 @@ async fn openai_chat_stream(
 
     if !response.status().is_success() {
         let status = response.status();
+        let retry_after = response
+            .headers()
+            .get(reqwest::header::RETRY_AFTER)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string);
         let body = response.text().await.unwrap_or_default();
         return Err(ProviderError {
             status: status.as_u16(),
             body,
+            retry_after,
         }
         .into());
     }
@@ -325,10 +332,16 @@ async fn codex_chat_stream(
 
     if !response.status().is_success() {
         let status = response.status();
+        let retry_after = response
+            .headers()
+            .get(reqwest::header::RETRY_AFTER)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string);
         let body = response.text().await.unwrap_or_default();
         return Err(ProviderError {
             status: status.as_u16(),
             body,
+            retry_after,
         }
         .into());
     }
@@ -583,10 +596,16 @@ async fn anthropic_chat_stream(
 
     if !response.status().is_success() {
         let status = response.status();
+        let retry_after = response
+            .headers()
+            .get(reqwest::header::RETRY_AFTER)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string);
         let body = response.text().await.unwrap_or_default();
         return Err(ProviderError {
             status: status.as_u16(),
             body,
+            retry_after,
         }
         .into());
     }

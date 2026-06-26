@@ -974,9 +974,30 @@ fn reponse_annonce_action_sans_outil(text: &str) -> bool {
 /// comme une erreur réseau (généralement transitoire). Branche `error_classifier`.
 fn classer_erreur_provider(e: &anyhow::Error) -> ErrorClass {
     if let Some(pe) = e.downcast_ref::<ProviderError>() {
-        error_classifier::classifier(pe.status, &pe.body)
+        error_classifier::classifier_avec_retry_after(
+            pe.status,
+            &pe.body,
+            pe.retry_after.as_deref(),
+        )
     } else {
         error_classifier::classifier_erreur_reseau(&e.to_string())
+    }
+}
+
+const MAX_RATE_LIMIT_RETRIES: usize = 6;
+
+fn delai_retry_rate_limit_secs(reset_at: Option<i64>, attempt: usize) -> u64 {
+    if let Some(reset_at) = reset_at {
+        let now = chrono::Utc::now().timestamp();
+        return (reset_at - now).clamp(1, 300) as u64;
+    }
+
+    match attempt {
+        0 | 1 => 65,
+        2 => 90,
+        3 => 120,
+        4 => 180,
+        _ => 300,
     }
 }
 
@@ -2905,6 +2926,7 @@ pub async fn boucle_react_multimodal_ext(
         }
 
         let mut current_api_key = config.api_key.clone();
+        let mut rate_limit_retries = 0usize;
 
         let stream_result = loop {
             let res = provider_chat_stream(
@@ -2927,7 +2949,7 @@ pub async fn boucle_react_multimodal_ext(
                     if classe.exige_relogin() {
                         pool.marquer_invalide(&config.provider, &current_api_key);
                     } else if let crate::error_classifier::ErrorClass::RateLimited { reset_at } =
-                        classe
+                        classe.clone()
                     {
                         pool.marquer_rate_limited(
                             &config.provider,
@@ -2947,6 +2969,32 @@ pub async fn boucle_react_multimodal_ext(
                             continue;
                         }
                     }
+                }
+
+                if let crate::error_classifier::ErrorClass::RateLimited { reset_at } = classe {
+                    if rate_limit_retries < MAX_RATE_LIMIT_RETRIES {
+                        rate_limit_retries += 1;
+                        let delay = delai_retry_rate_limit_secs(reset_at, rate_limit_retries);
+                        let _ = tx.send(ChatEvent::Status {
+                            message: format!(
+                                "Rate limit provider '{}' sur le modele '{}' : attente {}s puis reprise automatique (essai {}/{}).",
+                                config.provider,
+                                current_model,
+                                delay,
+                                rate_limit_retries,
+                                MAX_RATE_LIMIT_RETRIES
+                            ),
+                        });
+                        tokio::time::sleep(Duration::from_secs(delay)).await;
+                        continue;
+                    }
+
+                    let _ = tx.send(ChatEvent::Status {
+                        message: format!(
+                            "Rate limit persistant apres {} attente(s) : abandon du retry automatique.",
+                            MAX_RATE_LIMIT_RETRIES
+                        ),
+                    });
                 }
             }
             break res;
@@ -3896,6 +3944,30 @@ mod tests {
             .error
             .unwrap_or_default()
             .contains("Tool execution error: boom interne"));
+    }
+
+    #[test]
+    fn erreur_provider_rate_limit_utilise_retry_after() {
+        let err: anyhow::Error = ProviderError {
+            status: 429,
+            body: "{}".into(),
+            retry_after: Some("42".into()),
+        }
+        .into();
+
+        match classer_erreur_provider(&err) {
+            ErrorClass::RateLimited { reset_at: Some(reset_at) } => {
+                let delta = reset_at - chrono::Utc::now().timestamp();
+                assert!((35..=42).contains(&delta));
+            }
+            other => panic!("attendu RateLimited avec reset_at, obtenu {other:?}"),
+        }
+    }
+
+    #[test]
+    fn delai_rate_limit_sans_header_attend_une_fenetre_rpm() {
+        assert_eq!(delai_retry_rate_limit_secs(None, 1), 65);
+        assert_eq!(delai_retry_rate_limit_secs(None, 2), 90);
     }
 
     #[test]
