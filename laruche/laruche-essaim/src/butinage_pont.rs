@@ -488,6 +488,7 @@ const CURATEUR_OUTILS: &[&str] = &[
     "skill_view",
     "skill_create",
     "skill_patch",
+    "skill_delete",
     "skill_file_write",
     "plugin_list",
     "plugin_create",
@@ -519,6 +520,7 @@ For tools: BEFORE `plugin_create`, run `plugin_list` — if a plugin already cov
 
 ## Anti-duplication (CRITICAL — the library must stay small & sharp)
 ALWAYS look before you write: `skill_list` / `memory_search` / `plugin_list`. If something overlaps, PATCH it instead of creating a near-duplicate. Prefer few RICH class-level skills over many narrow ones.
+If `skill_list` reveals two skills that clearly cover the SAME class, MERGE them: patch the best one to absorb the other, then `skill_delete` the redundant one. Keep the library small and sharp — this is how we avoid thousands of half-duplicate skills.
 
 ## Verification (our edge — only keep what WORKS)
 After `plugin_create`: call `reload_plugins`, then VERIFY by running the plugin's underlying command once with safe test args via `shell_exec`. If it errors, FIX the script (rewrite via plugin_create) or REMOVE it (`plugin_delete`). NEVER leave a broken tool in the library.
