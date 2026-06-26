@@ -28,6 +28,7 @@ pub mod itineraire;
 pub mod messagerie;
 pub mod meteo;
 pub mod outils;
+pub mod recolte;
 pub mod reglages;
 pub mod cap;
 

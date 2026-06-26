@@ -7,7 +7,7 @@
 //! récolter) → checkpoint.
 
 use crate::cap::boussole::{cap, Decision};
-use crate::cap::vigie::{Signal, Vigie};
+use crate::cap::vigie::Vigie;
 use crate::carnet::Carnet;
 use crate::evenement::{Emetteur, Evenement};
 use crate::fournisseur::{Fournisseur, ReponseModele};
@@ -16,7 +16,7 @@ use crate::messagerie::Message;
 use crate::meteo::{reagir, ClasseErreur, Reaction};
 use crate::outils::Outils;
 use crate::reglages::Reglages;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 /// Lance un butinage jusqu'à son terme (mission accomplie, clarification, plafond,
 /// erreur fatale ou boucle stérile). Le [`Carnet`] est muté à chaque passe et
@@ -88,7 +88,9 @@ pub async fn butiner(
             }
             Decision::Recolter(appels) => {
                 carnet.rearmer_auto();
-                if let Some(bilan) = recolter(&appels, carnet, outils, &mut vigie, emet).await {
+                if let Some(bilan) =
+                    crate::recolte::recolter(&appels, carnet, reglages, outils, &mut vigie, emet).await
+                {
                     return Ok(bilan); // arrêt propre : boucle stérile
                 }
             }
@@ -220,67 +222,6 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet) -> Issue {
         malforme: ressemble_a_un_outil(&reponse.texte),
         tronquee,
     })
-}
-
-/// Récolte (exécution des outils) séquentielle, avec surveillance de la vigie.
-/// Renvoie `Some(bilan)` si la vigie impose un arrêt (boucle stérile), sinon `None`.
-///
-/// NOTE : version séquentielle. La récolte **parallèle** des appels read-only
-/// (partition) arrive dans un module dédié — voir ARCHI_BUTINAGE.md §recolte.
-async fn recolter(
-    appels: &[crate::issue::Appel],
-    carnet: &mut Carnet,
-    outils: &dyn Outils,
-    vigie: &mut Vigie,
-    emet: &dyn Emetteur,
-) -> Option<Bilan> {
-    for appel in appels {
-        let sig = appel.signature();
-
-        if let Signal::Bloquer(msg) = vigie.avant_appel(sig) {
-            carnet
-                .historique
-                .push(Message::observation(&appel.nom, format!("Blocked: {msg}")));
-            emet.emettre(Evenement::ResultatOutil { nom: appel.nom.clone(), ok: false, ms: 0 });
-            continue;
-        }
-
-        emet.emettre(Evenement::AppelOutil { nom: appel.nom.clone() });
-        let t0 = Instant::now();
-        let resultat = outils.executer(appel).await;
-        let ms = t0.elapsed().as_millis() as u64;
-
-        if outils.est_web(appel) {
-            carnet.recolte_web += 1;
-        }
-
-        let signal = vigie.apres_appel(
-            &appel.nom,
-            sig,
-            resultat.ok,
-            outils.idempotent(&appel.nom),
-            resultat.empreinte(),
-        );
-        emet.emettre(Evenement::ResultatOutil { nom: appel.nom.clone(), ok: resultat.ok, ms });
-
-        let mut observation = resultat.sortie.clone();
-        if let Signal::Avertir(m) | Signal::Poser(m) = &signal {
-            observation.push_str(&format!("\n\n[vigie: {m}]"));
-        }
-        carnet
-            .historique
-            .push(Message::observation(&appel.nom, observation));
-
-        if let Signal::Poser(motif) = signal {
-            carnet.itineraire.finaliser();
-            return Some(Bilan::nouveau(
-                "Arrêt : boucle stérile détectée par la vigie.",
-                FinDeVol::BoucleSterile(motif),
-                carnet.passe + 1,
-            ));
-        }
-    }
-    None
 }
 
 /// Le texte ressemble-t-il à un tool_call (mais n'a pas été parsé) ? Rail pour modèles faibles.
