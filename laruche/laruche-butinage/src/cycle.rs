@@ -29,6 +29,7 @@ pub async fn butiner(
     outils: &dyn Outils,
     emet: &dyn Emetteur,
     source: Option<&dyn Source>,
+    mut steering: Option<&mut tokio::sync::mpsc::Receiver<String>>,
 ) -> anyhow::Result<Bilan> {
     if carnet.historique.is_empty() {
         let mission = carnet.mission.clone();
@@ -43,6 +44,20 @@ pub async fn butiner(
             let msg = format!("Plafond de {} passes atteint — peut être incomplet.", reglages.plafond_passes);
             emet.emettre(Evenement::Statut(msg.clone()));
             return Ok(Bilan::nouveau(msg, FinDeVol::Plafond, carnet.passe));
+        }
+
+        // Steering : messages que l'utilisateur injecte PENDANT le run (non bloquant).
+        // Vrais messages user (visibles/persistés), pas des nudges internes.
+        if let Some(rx) = steering.as_deref_mut() {
+            while let Ok(msg) = rx.try_recv() {
+                let msg = msg.trim();
+                if !msg.is_empty() {
+                    carnet
+                        .historique
+                        .push(Message::utilisateur(format!("[Steering pendant le run] {msg}")));
+                    emet.emettre(Evenement::Statut("Orientation utilisateur injectée.".into()));
+                }
+            }
         }
 
         // Escale : compaction (extractive) ou, si la jauge est critique et qu'une mémoire
@@ -362,7 +377,7 @@ mod tests {
             json!({"resume": "tout est fait", "confiance": 0.9}),
         )]);
         let mut carnet = Carnet::ouvrir("fais X", ModeMission::Standard, t0());
-        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None)
+        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None, None)
             .await
             .unwrap();
         assert_eq!(bilan.fin, FinDeVol::Accomplie);
@@ -377,7 +392,7 @@ mod tests {
             rep_appel("mission_accomplie", json!({"resume": "trouvé"})),
         ]);
         let mut carnet = Carnet::ouvrir("cherche", ModeMission::Standard, t0());
-        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None)
+        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None, None)
             .await
             .unwrap();
         assert_eq!(bilan.fin, FinDeVol::Accomplie);
@@ -394,7 +409,7 @@ mod tests {
     async fn texte_seul_standard_termine_tout_de_suite() {
         let four = FournisseurScript::scenario(vec![rep_texte("voici la réponse directe")]);
         let mut carnet = Carnet::ouvrir("salut", ModeMission::Standard, t0());
-        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None)
+        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None, None)
             .await
             .unwrap();
         assert_eq!(bilan.fin, FinDeVol::Accomplie);
@@ -411,7 +426,7 @@ mod tests {
             rep_appel("mission_accomplie", json!({"resume": "ok"})),
         ]);
         let mut carnet = Carnet::ouvrir("mission", ModeMission::Standard, t0());
-        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None)
+        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None, None)
             .await
             .unwrap();
         assert_eq!(bilan.fin, FinDeVol::Accomplie);
@@ -422,7 +437,7 @@ mod tests {
     async fn erreur_fatale_arrete_proprement() {
         let four = FournisseurScript::en_erreur(400); // requête invalide → fatal, pas de repli
         let mut carnet = Carnet::ouvrir("x", ModeMission::Standard, t0());
-        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None)
+        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None, None)
             .await
             .unwrap();
         assert!(matches!(bilan.fin, FinDeVol::Erreur(_)));

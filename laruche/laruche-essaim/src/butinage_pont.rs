@@ -683,7 +683,7 @@ pub async fn lancer_curateur_arriere_plan(
     let _ = tx.send(ChatEvent::Status {
         message: "🐝 Curateur : revue des compétences en arrière-plan…".into(),
     });
-    match but::butiner(&mut carnet, &reglages, &four, &outils, &emet, None).await {
+    match but::butiner(&mut carnet, &reglages, &four, &outils, &emet, None, None).await {
         Ok(b) => {
             let _ = tx.send(ChatEvent::Status {
                 message: format!("🐝 Curateur : {}", b.texte.chars().take(160).collect::<String>()),
@@ -749,6 +749,7 @@ pub async fn executer(
     tx: &broadcast::Sender<ChatEvent>,
     ephemeral_context: &Option<String>,
     memoire: &Option<Arc<dyn MemoireCognitive>>,
+    mut steer_rx: Option<tokio::sync::mpsc::Receiver<String>>,
 ) -> Result<String> {
     let _ = tx.send(ChatEvent::Status {
         message: "Moteur butinage actif (RUCHE_MOTEUR=butinage).".into(),
@@ -825,7 +826,9 @@ pub async fn executer(
     let source_pont = memoire.as_ref().map(|m| SourcePont { mem: m.clone() });
     let source: Option<&dyn but::Source> = source_pont.as_ref().map(|s| s as &dyn but::Source);
 
-    let bilan = but::butiner(&mut carnet, &reglages, &four, &outils, &emet, source).await?;
+    let bilan =
+        but::butiner(&mut carnet, &reglages, &four, &outils, &emet, source, steer_rx.as_mut())
+            .await?;
 
     // Plan final vers l'UI : un modèle faible ne re-marque pas toujours son plan, il
     // restait donc à 0/3 même mission accomplie. Sur succès, on pousse tout en « done ».

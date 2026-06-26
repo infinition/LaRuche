@@ -2937,6 +2937,7 @@ pub async fn boucle_react_multimodal_ext(
             tx,
             &ephemeral_context,
             &memoire,
+            steer_rx,
         )
         .await;
     }
