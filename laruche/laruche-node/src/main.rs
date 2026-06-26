@@ -7583,11 +7583,20 @@ async fn ws_chat_connection(
 
     let (mut sender, mut receiver) = socket.split();
 
-    while let Some(Ok(msg)) = receiver.next().await {
-        let text = match msg {
-            ws::Message::Text(t) => t.to_string(),
-            ws::Message::Close(_) => break,
-            _ => continue,
+    // Message en attente : déposé par la boucle de relais quand un NOUVEAU `message` arrive
+    // pendant qu'un run tourne (l'utilisateur a switché de conversation et réécrit). On laisse
+    // le run courant tourner détaché et on traite ce message comme un nouveau run.
+    let mut pending_text: Option<String> = None;
+    loop {
+        let text = if let Some(p) = pending_text.take() {
+            p
+        } else {
+            match receiver.next().await {
+                Some(Ok(ws::Message::Text(t))) => t.to_string(),
+                Some(Ok(ws::Message::Close(_))) | None => break,
+                Some(Ok(_)) => continue,
+                Some(Err(_)) => break,
+            }
         };
 
         // Parse incoming message
@@ -8093,6 +8102,12 @@ async fn ws_chat_connection(
                                             .into(),
                                         ))
                                         .await;
+                                    done = true;
+                                } else if json["type"].as_str() == Some("message") {
+                                    // Nouveau message pendant un run (souvent une AUTRE conversation) :
+                                    // on laisse CE run tourner détaché (react_handle continue, sa session
+                                    // est re-insérée à la fin) et on demande à la boucle externe de le traiter.
+                                    pending_text = Some(text.to_string());
                                     done = true;
                                 }
                             }

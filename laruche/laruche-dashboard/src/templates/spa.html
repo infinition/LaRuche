@@ -3344,7 +3344,9 @@ LaRuche.Chat = (function(){
     // Cloisonnement par conversation : un event tagué d'une AUTRE conversation
     // (job parallèle qui tourne en fond) ne doit JAMAIS s'écrire dans la vue courante.
     // On note seulement un "nouveau" sur les events terminaux (pas la réflexion).
-    if(data.session_id && data.type!=='session' && sessionId && String(data.session_id)!==String(sessionId)){
+    if(data.session_id && data.type!=='session' && String(data.session_id)!==String(sessionId||'')){
+      // Event d'une AUTRE conversation (job en fond) — y compris quand l'active est neuve
+      // (sessionId null) : on ne rend RIEN dans la vue courante. Pastille sur terminal.
       if(data.type==='done' || data.type==='error' || data.type==='approval_request'){
         unreadSessions[data.session_id]=true;
         loadSessions();
