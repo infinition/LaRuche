@@ -5,24 +5,41 @@
 //! l'itinéraire soit accompli.
 //!
 //! Principe directeur : **la boucle est bête, la politique est isolée et testée.**
-//! - [`cycle`] : la boucle minimale, pilotée par [`issue::Issue`].
-//! - [`cap`] : la politique (où va l'abeille) — [`cap::boussole`] décide continuer/poser,
-//!   [`cap::vigie`] surveille les boucles stériles, [`cap::jauge`] le budget contexte.
-//! - [`carnet`] : l'état persistable (reprise après crash).
-//! - [`itineraire`] : le plan = **source de vérité** de la terminaison.
+//! - [`cycle::butiner`] : la boucle minimale, pilotée par [`issue::Issue`].
+//! - [`cap`] : la politique — [`cap::boussole::cap`] décide continuer/poser,
+//!   [`cap::vigie`] surveille les boucles stériles, jauge (à venir) le budget.
+//! - [`carnet::Carnet`] : l'état persistable (reprise après crash).
+//! - [`itineraire::Itineraire`] : le plan = **source de vérité** de la terminaison.
+//! - [`meteo`] : classification d'erreurs + politique de retry.
+//!
+//! Intégration par **inversion de dépendances** : le moteur ne connaît pas les
+//! providers/outils concrets, seulement des traits ([`fournisseur::Fournisseur`],
+//! [`outils::Outils`], [`evenement::Emetteur`]) que `laruche-essaim` implémente.
 //!
 //! Aucune heuristique métier (matching de chaînes) dans la boucle : les décisions
 //! reposent sur des *faits* (stop_reason natif, itinéraire, compteurs).
 
 pub mod carnet;
+pub mod cycle;
+pub mod evenement;
+pub mod fournisseur;
 pub mod issue;
 pub mod itineraire;
+pub mod messagerie;
 pub mod meteo;
+pub mod outils;
+pub mod reglages;
 pub mod cap;
 
 pub use carnet::{Carnet, ModeMission};
-pub use issue::{Appel, Bilan, FinDeVol, Issue, StopReason};
+pub use cycle::butiner;
+pub use evenement::{Emetteur, Evenement, Silencieux};
+pub use fournisseur::{ErreurFournisseur, Fournisseur, ReponseModele, Usage};
+pub use issue::{Appel, Bilan, FinDeVol, Issue, StopReason, TexteSeul};
 pub use itineraire::{Etape, Itineraire, StatutEtape};
+pub use messagerie::{Message, Role};
 pub use meteo::{ClasseErreur, Reaction};
+pub use outils::{Outils, ResultatOutil};
+pub use reglages::{ProfilModele, Reglages};
 pub use cap::boussole::{cap, ContexteCap, Decision};
-pub use cap::vigie::{Signal, SeuilsVigie, Vigie};
+pub use cap::vigie::{SeuilsVigie, Signal, Vigie};

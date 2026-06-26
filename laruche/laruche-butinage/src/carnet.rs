@@ -7,6 +7,7 @@
 
 use crate::cap::boussole::ContexteCap;
 use crate::itineraire::Itineraire;
+use crate::messagerie::Message;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -29,6 +30,9 @@ pub struct Carnet {
     pub mission: String,
     pub mode: ModeMission,
     pub itineraire: Itineraire,
+    /// Historique de conversation (système exclu — reconstruit depuis les réglages).
+    #[serde(default)]
+    pub historique: Vec<Message>,
     /// Numéro de la passe courante (0-based).
     pub passe: usize,
     /// Auto-continuations consommées depuis la dernière récolte d'outil.
@@ -48,6 +52,7 @@ impl Carnet {
             mission: mission.into(),
             mode,
             itineraire: Itineraire::vide(),
+            historique: Vec::new(),
             passe: 0,
             auto_continue: 0,
             recolte_web: 0,
