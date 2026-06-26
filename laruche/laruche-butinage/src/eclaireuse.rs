@@ -119,7 +119,9 @@ pub async fn depecher(
     };
 
     let mut carnet = Carnet::ouvrir(&mission, ordre.role.mode(), now);
-    let bilan = crate::cycle::butiner(&mut carnet, &reglages_enfant, fournisseur, outils, emet).await?;
+    // Les éclaireuses sont bornées et courtes → pas de consolidation mémoire (source None).
+    let bilan =
+        crate::cycle::butiner(&mut carnet, &reglages_enfant, fournisseur, outils, emet, None).await?;
 
     Ok(Rapport {
         tache: ordre.tache,

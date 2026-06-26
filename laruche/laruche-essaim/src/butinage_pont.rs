@@ -17,7 +17,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use futures_util::StreamExt;
 use laruche_butinage as but;
-use laruche_memoire::MemoireCognitive;
+use laruche_memoire::{MemoireCognitive, MemoryItem, SearchOpts};
 use laruche_permissions::PermissionBehavior;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -365,7 +365,15 @@ impl but::Outils for OutilsPont<'_> {
                 if r.success {
                     but::ResultatOutil::ok(r.output)
                 } else {
-                    but::ResultatOutil::echec(r.error.unwrap_or_else(|| "Unknown".into()))
+                    let mut msg = r.error.unwrap_or_else(|| "Unknown".into());
+                    // Cas fréquent : le modèle appelle un SKILL comme un outil → on l'oriente.
+                    if msg.contains("Unknown tool") {
+                        msg.push_str(
+                            ". If this name is a SKILL, call skill_view(name) to read its procedure, \
+                             then use the real tools it lists. To find a tool, use tool_search(query).",
+                        );
+                    }
+                    but::ResultatOutil::echec(msg)
                 }
             }
             Err(e) => but::ResultatOutil::echec(format!("tool error: {e}")),
@@ -441,6 +449,36 @@ impl but::Emetteur for EmetteurPont {
     }
 }
 
+// ───────────────────────── Source (mémoire) ─────────────────────────
+
+struct SourcePont {
+    mem: Arc<dyn MemoireCognitive>,
+}
+
+#[async_trait]
+impl but::Source for SourcePont {
+    async fn rappeler(&self, requete: &str) -> Option<String> {
+        let pack = self
+            .mem
+            .search(requete, SearchOpts { depth: None, limit: Some(8) })
+            .await
+            .ok()?;
+        let t = pack.to_prompt_text();
+        if t.trim().is_empty() {
+            None
+        } else {
+            Some(t)
+        }
+    }
+
+    async fn consigner(&self, node_id: &str, fait: &str) {
+        let _ = self
+            .mem
+            .write(MemoryItem::new(node_id, fait).with_source("butinage-consolidation"))
+            .await;
+    }
+}
+
 // ───────────────────────── Façade ─────────────────────────
 
 /// Encadre la mémoire rappelée comme **donnée de référence**, jamais comme instruction.
@@ -496,7 +534,7 @@ pub async fn executer(
     config: &EssaimConfig,
     tx: &broadcast::Sender<ChatEvent>,
     ephemeral_context: &Option<String>,
-    _memoire: &Option<Arc<dyn MemoireCognitive>>,
+    memoire: &Option<Arc<dyn MemoireCognitive>>,
 ) -> Result<String> {
     let _ = tx.send(ChatEvent::Status {
         message: "Moteur butinage actif (RUCHE_MOTEUR=butinage).".into(),
@@ -521,9 +559,16 @@ pub async fn executer(
         but::ModeMission::Standard
     };
 
+    // Checkpoint disque : le carnet est sauvé à chaque passe → reprise après crash.
+    let chemin_carnet = Some(
+        std::path::PathBuf::from("sessions")
+            .join("butinage")
+            .join(format!("{}.carnet.json", uuid::Uuid::new_v4())),
+    );
     let reglages = but::Reglages {
         plafond_passes: config.max_iterations.max(1),
         context_max_tokens: (config.context_max_tokens as usize).max(8_000),
+        chemin_carnet,
         systeme,
         profil: profil_pour(config),
         ..but::Reglages::default()
@@ -551,7 +596,11 @@ pub async fn executer(
     };
     let emet = EmetteurPont { tx: tx.clone() };
 
-    let bilan = but::butiner(&mut carnet, &reglages, &four, &outils, &emet).await?;
+    // Mémoire injectée (consolidation + rappel just-in-time) si disponible.
+    let source_pont = memoire.as_ref().map(|m| SourcePont { mem: m.clone() });
+    let source: Option<&dyn but::Source> = source_pont.as_ref().map(|s| s as &dyn but::Source);
+
+    let bilan = but::butiner(&mut carnet, &reglages, &four, &outils, &emet, source).await?;
 
     // Recompose la session depuis le carnet (persistance disque + relecture UI).
     for m in &carnet.historique {

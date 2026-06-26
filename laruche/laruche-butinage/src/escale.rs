@@ -8,8 +8,10 @@
 
 use crate::cap::jauge::{Besoin, Jauge};
 use crate::carnet::Carnet;
-use crate::evenement::Evenement;
+use crate::evenement::{Emetteur, Evenement};
+use crate::fournisseur::Fournisseur;
 use crate::messagerie::{Message, Role};
+use crate::nectar::Source;
 
 /// Examine la jauge et compacte si nécessaire. Renvoie un événement d'escale si une
 /// compaction a eu lieu (pour l'UI), sinon `None`.
@@ -75,6 +77,91 @@ fn resumer(msgs: &[Message]) -> String {
     )
 }
 
+const PROMPT_EXTRACTION: &str = "You are a memory consolidator. From the agent conversation below, extract \
+the DURABLE facts worth remembering across sessions: discoveries, decisions, stable user preferences, key \
+results, useful URLs. Output STRICT JSON only, an array of objects: \
+[{\"node_id\":\"<domain>.<subject>\",\"content\":\"<concise fact>\"}]. Use snake_case dotted node_ids \
+(e.g. research.dungeon_siege, decisions.archi, people.fabien). If nothing durable, output []. No prose, JSON only.";
+
+/// **Consolidation cognitive** (escale lourde) : extrait les faits durables de l'historique
+/// via un appel LLM auxiliaire, les écrit en mémoire (`source`), puis repart sur un contexte
+/// frais (ancre + reprise). Rend la mission *cumulative* sans saturer le contexte.
+pub async fn consolider(
+    carnet: &mut Carnet,
+    fournisseur: &dyn Fournisseur,
+    source: &dyn Source,
+    emet: &dyn Emetteur,
+) -> Option<Evenement> {
+    emet.emettre(Evenement::Statut("🧠 Consolidation cognitive…".into()));
+    let messages = vec![
+        Message::systeme(PROMPT_EXTRACTION),
+        Message::utilisateur(rendu_historique(&carnet.historique)),
+    ];
+    let reponse = fournisseur.repondre(&messages, &[]).await.ok()?;
+    let faits = parse_faits(&reponse.texte);
+    for (node_id, content) in &faits {
+        source.consigner(node_id, content).await;
+    }
+
+    let avant = carnet.historique.len();
+    // Contexte frais : ancre (mission) + consigne de reprise via la mémoire.
+    carnet.historique = vec![
+        Message::systeme(format!(
+            "=== Resumed after cognitive consolidation: {} fact(s) stored to long-term memory. \
+             Use memory_search to recall what you already found, then continue the mission from where it stood. ===",
+            faits.len()
+        )),
+        Message::utilisateur(carnet.mission.clone()),
+    ];
+    Some(Evenement::Escale { avant, apres: carnet.historique.len() })
+}
+
+/// Rend l'historique en texte plat pour l'extraction.
+fn rendu_historique(h: &[Message]) -> String {
+    h.iter()
+        .filter(|m| !m.contenu.trim().is_empty())
+        .map(|m| {
+            let role = match m.role {
+                Role::Systeme => "system",
+                Role::Utilisateur => "user",
+                Role::Assistant => "assistant",
+                Role::Observation => "tool",
+            };
+            format!("[{role}] {}", m.contenu)
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+/// Extrait la liste `[{node_id, content}]` du texte (tolérant au bavardage autour du JSON).
+fn parse_faits(texte: &str) -> Vec<(String, String)> {
+    let (Some(deb), Some(fin)) = (texte.find('['), texte.rfind(']')) else {
+        return Vec::new();
+    };
+    if fin <= deb {
+        return Vec::new();
+    }
+    let json = &texte[deb..=fin];
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(json) else {
+        return Vec::new();
+    };
+    v.as_array()
+        .map(|a| {
+            a.iter()
+                .filter_map(|f| {
+                    let node = f.get("node_id").and_then(|x| x.as_str())?;
+                    let content = f.get("content").and_then(|x| x.as_str())?;
+                    if node.trim().is_empty() || content.trim().is_empty() {
+                        None
+                    } else {
+                        Some((node.to_string(), content.to_string()))
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -133,5 +220,22 @@ mod tests {
         jauge.utilise = 300; // ratio 0.3
         assert!(peut_etre(&mut carnet, &jauge, 8).is_none());
         assert_eq!(carnet.historique.len(), 41);
+    }
+
+    #[test]
+    fn parse_faits_extrait_le_json_entoure_de_bavardage() {
+        let txt = "Voici les faits :\n[{\"node_id\":\"research.x\",\"content\":\"A\"}, \
+                   {\"node_id\":\"\",\"content\":\"vide\"}, {\"node_id\":\"decisions.y\",\"content\":\"B\"}]\nVoilà.";
+        let f = parse_faits(txt);
+        assert_eq!(f, vec![
+            ("research.x".to_string(), "A".to_string()),
+            ("decisions.y".to_string(), "B".to_string()),
+        ]);
+    }
+
+    #[test]
+    fn parse_faits_vide_si_pas_de_json() {
+        assert!(parse_faits("rien à consolider").is_empty());
+        assert!(parse_faits("[]").is_empty());
     }
 }

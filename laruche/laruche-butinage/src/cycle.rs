@@ -14,6 +14,7 @@ use crate::fournisseur::{Fournisseur, ReponseModele};
 use crate::issue::{Bilan, FinDeVol, Issue, StopReason, TexteSeul};
 use crate::messagerie::Message;
 use crate::meteo::{reagir, ClasseErreur, Reaction};
+use crate::nectar::Source;
 use crate::outils::Outils;
 use crate::reglages::Reglages;
 use std::time::Duration;
@@ -27,6 +28,7 @@ pub async fn butiner(
     fournisseur: &dyn Fournisseur,
     outils: &dyn Outils,
     emet: &dyn Emetteur,
+    source: Option<&dyn Source>,
 ) -> anyhow::Result<Bilan> {
     if carnet.historique.is_empty() {
         let mission = carnet.mission.clone();
@@ -43,9 +45,19 @@ pub async fn butiner(
             return Ok(Bilan::nouveau(msg, FinDeVol::Plafond, carnet.passe));
         }
 
-        // Escale : compaction/consolidation du contexte si la jauge le réclame.
+        // Escale : compaction (extractive) ou, si la jauge est critique et qu'une mémoire
+        // est branchée, consolidation cognitive (LLM → faits durables → contexte frais).
         jauge.estimer(&reglages.systeme, &carnet.historique);
-        if let Some(ev) = crate::escale::peut_etre(carnet, &jauge, reglages.garder_recents) {
+        let consolide =
+            matches!(jauge.besoin(), crate::cap::jauge::Besoin::Consolider) && source.is_some();
+        if consolide {
+            if let Some(ev) =
+                crate::escale::consolider(carnet, fournisseur, source.unwrap(), emet).await
+            {
+                emet.emettre(ev);
+                jauge.estimer(&reglages.systeme, &carnet.historique);
+            }
+        } else if let Some(ev) = crate::escale::peut_etre(carnet, &jauge, reglages.garder_recents) {
             emet.emettre(ev);
             jauge.estimer(&reglages.systeme, &carnet.historique);
         }
@@ -344,7 +356,7 @@ mod tests {
             json!({"resume": "tout est fait", "confiance": 0.9}),
         )]);
         let mut carnet = Carnet::ouvrir("fais X", ModeMission::Standard, t0());
-        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux)
+        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None)
             .await
             .unwrap();
         assert_eq!(bilan.fin, FinDeVol::Accomplie);
@@ -359,7 +371,7 @@ mod tests {
             rep_appel("mission_accomplie", json!({"resume": "trouvé"})),
         ]);
         let mut carnet = Carnet::ouvrir("cherche", ModeMission::Standard, t0());
-        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux)
+        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None)
             .await
             .unwrap();
         assert_eq!(bilan.fin, FinDeVol::Accomplie);
@@ -376,7 +388,7 @@ mod tests {
     async fn texte_seul_standard_termine_tout_de_suite() {
         let four = FournisseurScript::scenario(vec![rep_texte("voici la réponse directe")]);
         let mut carnet = Carnet::ouvrir("salut", ModeMission::Standard, t0());
-        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux)
+        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None)
             .await
             .unwrap();
         assert_eq!(bilan.fin, FinDeVol::Accomplie);
@@ -393,7 +405,7 @@ mod tests {
             rep_appel("mission_accomplie", json!({"resume": "ok"})),
         ]);
         let mut carnet = Carnet::ouvrir("mission", ModeMission::Standard, t0());
-        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux)
+        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None)
             .await
             .unwrap();
         assert_eq!(bilan.fin, FinDeVol::Accomplie);
@@ -404,7 +416,7 @@ mod tests {
     async fn erreur_fatale_arrete_proprement() {
         let four = FournisseurScript::en_erreur(400); // requête invalide → fatal, pas de repli
         let mut carnet = Carnet::ouvrir("x", ModeMission::Standard, t0());
-        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux)
+        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None)
             .await
             .unwrap();
         assert!(matches!(bilan.fin, FinDeVol::Erreur(_)));
