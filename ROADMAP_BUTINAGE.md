@@ -26,7 +26,8 @@ Réfs concurrents étudiés : `ARCHI_BUTINAGE.md` + mémoire `~/.claude/.../memo
 - [ ] Résumé curateur visible (le `💾 Self-improvement` de third-party) — actuellement les events tombent après le `Done`.
 
 ### Lot node (touche `main.rs`)
-- [ ] **Steering live** : injecter un message user pendant un run (file rafraîchie chaque passe, façon third-party `getSteeringMessages`). Pas câblé dans butinage.
+- [x] **Steering live** ✅ (commit a4c11ea) : butiner draine un `Receiver<String>` chaque passe, injecté comme message user. Le node envoyait déjà `{type:'steer'}`.
+- [x] **Multi-job concurrent** ✅ (commit 7e865e0) : un nouveau message pendant un run détache le run courant et démarre le nouveau.
 - [ ] **Tokens réels** : la `jauge` estime en `chars/4` ; brancher `usage` provider (modif `providers.rs` → capter prompt tokens dans `OllamaChunk`).
 - [ ] **Popup d'approbation** : `Ask` est auto-approuvé en butinage (signalé). Câbler `approval_rx`.
 - [ ] **Multimodal** : attachments images non transmis (text-first).
