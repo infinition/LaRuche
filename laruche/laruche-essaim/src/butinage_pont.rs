@@ -534,59 +534,135 @@ User corrections / preferences ("stop doing X", "I want Y") are FIRST-CLASS skil
 ## Output
 Make the updates with your tools. When done, call `task_complete` with a one-line summary of what you created/patched. If truly nothing durable stands out, call `task_complete` with "Nothing to save." — but don't default to that."#;
 
-/// Rend le transcript de la mission pour le curateur (chaque message plafonné).
-fn rendre_snapshot(messages: &[but::Message]) -> String {
-    messages
-        .iter()
-        .filter(|m| !m.contenu.trim().is_empty())
-        .map(|m| {
-            let role = match m.role {
-                but::Role::Systeme => "system",
-                but::Role::Utilisateur => "user",
-                but::Role::Assistant => "assistant",
-                but::Role::Observation => "tool",
-            };
-            let c: String = m.contenu.chars().take(2000).collect();
-            format!("[{role}] {c}")
-        })
-        .collect::<Vec<_>>()
-        .join("\n\n")
+/// Outils du curateur — version POSSÉDÉE (Arc) pour un spawn en arrière-plan 'static.
+/// Restreint à la whitelist ; applique garde d'injection + permissions comme `OutilsPont`.
+struct OutilsCurateur {
+    registry: Arc<AbeilleRegistry>,
+    config: EssaimConfig,
+    permis: std::collections::HashSet<String>,
+    tx: broadcast::Sender<ChatEvent>,
 }
 
-/// Lance le curateur (sous-run butinage à outils restreints) sur le transcript d'une mission.
-/// Best-effort : crée/patche skills & plugins, vérifie les plugins, dédup avant création.
-async fn lancer_curateur(
-    snapshot: &[but::Message],
-    registry: &AbeilleRegistry,
-    config: &EssaimConfig,
-    tx: &broadcast::Sender<ChatEvent>,
-) -> Result<()> {
-    let permis: std::collections::HashSet<&str> = CURATEUR_OUTILS.iter().copied().collect();
-    let disabled: Vec<String> = registry
-        .noms()
-        .into_iter()
-        .filter(|n| !permis.contains(n.as_str()))
-        .collect();
+#[async_trait]
+impl but::Outils for OutilsCurateur {
+    async fn executer(&self, appel: &but::Appel) -> but::ResultatOutil {
+        if !self.permis.contains(&appel.nom) {
+            return but::ResultatOutil::echec(format!(
+                "Tool '{}' is not available to the curator.",
+                appel.nom
+            ));
+        }
+        if let Some(reason) = garde_injection(&appel.nom, &appel.args) {
+            return but::ResultatOutil::echec(format!("Blocked (injection guard): {reason}"));
+        }
+        let ctx = ContextExecution::default();
+        let danger = self
+            .registry
+            .get(&appel.nom)
+            .map(|a| a.niveau_danger())
+            .unwrap_or(NiveauDanger::Safe);
+        if let PermissionBehavior::Deny =
+            decision_permission(&self.config, &appel.nom, &appel.args, danger, &ctx)
+        {
+            return but::ResultatOutil::echec("Blocked: permission denied");
+        }
+        let _ = self.tx.send(ChatEvent::ToolCall {
+            name: appel.nom.clone(),
+            args: appel.args.clone(),
+            iteration: None,
+        });
+        let res = match self
+            .registry
+            .executer(&appel.nom, appel.args.clone(), &ctx)
+            .await
+        {
+            Ok(r) if r.success => but::ResultatOutil::ok(r.output),
+            Ok(r) => but::ResultatOutil::echec(r.error.unwrap_or_else(|| "Unknown".into())),
+            Err(e) => but::ResultatOutil::echec(format!("tool error: {e}")),
+        };
+        let _ = self.tx.send(ChatEvent::ToolResult {
+            name: appel.nom.clone(),
+            result: res.sortie.clone(),
+            success: res.ok,
+            elapsed_ms: None,
+        });
+        res
+    }
 
+    fn idempotent(&self, nom: &str) -> bool {
+        est_lecture_seule(nom)
+    }
+
+    fn schemas(&self) -> Vec<serde_json::Value> {
+        match self.registry.schema_complet() {
+            serde_json::Value::Array(a) => a
+                .into_iter()
+                .filter(|t| {
+                    t.get("name")
+                        .and_then(|v| v.as_str())
+                        .map(|n| self.permis.contains(n))
+                        .unwrap_or(false)
+                })
+                .collect(),
+            _ => Vec::new(),
+        }
+    }
+}
+
+fn tronque(s: &str) -> String {
+    s.chars().take(2000).collect()
+}
+
+/// Rend les messages de session (laruche) en transcript texte pour le curateur.
+fn rendre_session_messages(messages: &[crate::Message]) -> String {
+    use crate::Message as M;
+    let mut out = Vec::new();
+    for m in messages {
+        let ligne = match m {
+            M::User(t) => format!("[user] {}", tronque(t)),
+            M::UserMultimodal { text, .. } => format!("[user] {}", tronque(text)),
+            M::Assistant(t) => format!("[assistant] {}", tronque(t)),
+            M::Observation { tool, result, .. } => format!("[tool:{}] {}", tool, tronque(result)),
+            M::ToolCall { name, args } => format!("[call] {} {}", name, tronque(&args.to_string())),
+            _ => continue,
+        };
+        out.push(ligne);
+    }
+    out.join("\n\n")
+}
+
+/// Lance le curateur en ARRIÈRE-PLAN (tout possédé → `tokio::spawn` depuis le node).
+/// Best-effort : crée/patche skills & plugins VÉRIFIÉS, dédup avant création.
+pub async fn lancer_curateur_arriere_plan(
+    messages: Vec<crate::Message>,
+    registry: Arc<AbeilleRegistry>,
+    config: EssaimConfig,
+    tx: broadcast::Sender<ChatEvent>,
+) {
+    let transcript = rendre_session_messages(&messages);
+    if transcript.chars().count() < 120 {
+        return; // trop court pour valoir une revue
+    }
+
+    let permis: std::collections::HashSet<String> =
+        CURATEUR_OUTILS.iter().map(|s| s.to_string()).collect();
     let reglages = but::Reglages {
         plafond_passes: 8,
         systeme: PROMPT_CURATEUR.to_string(),
-        profil: profil_pour(config),
+        profil: profil_pour(&config),
         ..but::Reglages::default()
     };
-    // Modèle auxiliaire si configuré (plus petit/rapide, ne concurrence pas le KV-cache du chat).
-    let modele_curateur = config.aux_model.clone().unwrap_or_else(|| config.model.clone());
     let revue = format!(
         "Review the mission transcript below and update the capability library if warranted \
          (skills and/or verified plugins), following your rules strictly.\n\n\
-         === MISSION TRANSCRIPT ===\n{}",
-        rendre_snapshot(snapshot)
+         === MISSION TRANSCRIPT ===\n{transcript}"
     );
     let mut carnet = but::Carnet::ouvrir(revue, but::ModeMission::Standard, chrono::Utc::now());
 
     let four = FournisseurPont {
         provider: config.provider.clone(),
-        model: modele_curateur,
+        // Modèle auxiliaire si configuré (petit/rapide, ne concurrence pas le KV-cache du chat).
+        model: config.aux_model.clone().unwrap_or_else(|| config.model.clone()),
         api_key: config.api_key.clone(),
         api_base: config.api_base.clone(),
         ollama_url: config.ollama_url.clone(),
@@ -594,21 +670,25 @@ async fn lancer_curateur(
         max_tokens: config.max_tokens,
         tx: tx.clone(),
     };
-    let outils = OutilsPont {
+    let emet = EmetteurPont { tx: tx.clone() };
+    let outils = OutilsCurateur {
         registry,
         config,
-        reglages: &reglages,
-        working_dir: None,
-        disabled,
+        permis,
         tx: tx.clone(),
     };
-    let emet = EmetteurPont { tx: tx.clone() };
 
-    let bilan = but::butiner(&mut carnet, &reglages, &four, &outils, &emet, None).await?;
     let _ = tx.send(ChatEvent::Status {
-        message: format!("🐝 Curateur : {}", bilan.texte.chars().take(160).collect::<String>()),
+        message: "🐝 Curateur : revue des compétences en arrière-plan…".into(),
     });
-    Ok(())
+    match but::butiner(&mut carnet, &reglages, &four, &outils, &emet, None).await {
+        Ok(b) => {
+            let _ = tx.send(ChatEvent::Status {
+                message: format!("🐝 Curateur : {}", b.texte.chars().take(160).collect::<String>()),
+            });
+        }
+        Err(e) => tracing::warn!(error = %e, "curateur échoué"),
+    }
 }
 
 // ───────────────────────── Façade ─────────────────────────
@@ -770,20 +850,8 @@ pub async fn executer(
         }
     }
 
-    // CURATEUR (killer feature) : auto-création/patch de skills & tools VÉRIFIÉS, après la
-    // mission, sur un transcript snapshot, outils restreints. Best-effort, désactivable par
-    // RUCHE_CURATEUR=0. Gardé pour les missions non triviales (≥ 6 messages) avec mémoire.
-    if std::env::var("RUCHE_CURATEUR").as_deref() != Ok("0")
-        && memoire.is_some()
-        && carnet.historique.len() >= 6
-    {
-        let _ = tx.send(ChatEvent::Status {
-            message: "🐝 Curateur : revue des compétences…".into(),
-        });
-        if let Err(e) = lancer_curateur(&carnet.historique, registry, config, tx).await {
-            tracing::warn!(error = %e, "curateur échoué");
-        }
-    }
+    // Le CURATEUR tourne en ARRIÈRE-PLAN, lancé par le node après la mission (il détient
+    // l'Arc<AbeilleRegistry> nécessaire au spawn 'static) → voir lancer_curateur_arriere_plan.
 
     Ok(bilan.texte)
 }

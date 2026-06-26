@@ -7918,6 +7918,24 @@ async fn ws_chat_connection(
                 ActiveContextStats::from_session(&session, false),
             );
 
+            // CURATEUR (moteur butinage) : auto-création/patch de skills & tools VÉRIFIÉS,
+            // en ARRIÈRE-PLAN (ne bloque pas la session). Best-effort. Désactivable RUCHE_CURATEUR=0.
+            if std::env::var("RUCHE_MOTEUR").as_deref() == Ok("butinage")
+                && std::env::var("RUCHE_CURATEUR").as_deref() != Ok("0")
+                && session.messages.len() >= 6
+            {
+                let msgs = session.messages.clone();
+                let reg = state_clone.essaim_registry.clone();
+                let cfg = config.clone();
+                let txc = tx_clone.clone();
+                tokio::spawn(async move {
+                    laruche_essaim::butinage_pont::lancer_curateur_arriere_plan(
+                        msgs, reg, cfg, txc,
+                    )
+                    .await;
+                });
+            }
+
             // Notify globally that session finished
             let last_msg = session
                 .messages
