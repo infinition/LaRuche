@@ -136,7 +136,12 @@ impl Abeille for ToolCall {
                     .get("args")
                     .cloned()
                     .unwrap_or_else(|| serde_json::json!({}));
-                self.registry.executer(tool, inner, ctx).await
+                match self.registry.executer(tool, inner, ctx).await {
+                    Ok(result) => Ok(result),
+                    Err(err) => Ok(ResultatAbeille::err(format!(
+                        "Erreur d'execution de l'outil '{tool}': {err}"
+                    ))),
+                }
             }
         }
     }
@@ -238,7 +243,13 @@ impl Abeille for RunScript {
                 .unwrap_or_else(|| serde_json::json!({}));
             substitute_refs(&mut step_args, &outputs);
 
-            let res = self.registry.executer(tool, step_args, ctx).await?;
+            let res = match self.registry.executer(tool, step_args, ctx).await {
+                Ok(res) => res,
+                Err(err) => ResultatAbeille::err(format!(
+                    "Erreur d'execution de l'etape {} ({tool}): {err}",
+                    i + 1
+                )),
+            };
             let out = if res.success {
                 res.output
             } else {

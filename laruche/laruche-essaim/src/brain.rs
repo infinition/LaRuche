@@ -7,7 +7,7 @@
 //! - Streaming with thinking blocks separation
 //! - Tool execution with timing
 
-use crate::abeille::{AbeilleRegistry, ContextExecution, NiveauDanger};
+use crate::abeille::{AbeilleRegistry, ContextExecution, NiveauDanger, ResultatAbeille};
 use crate::budget::{BudgetStatus, BudgetTracker};
 use crate::error_classifier::{self, ErrorClass};
 use crate::prompt::build_system_prompt;
@@ -30,6 +30,23 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+
+async fn executer_outil_robuste(
+    registry: &AbeilleRegistry,
+    name: &str,
+    args: serde_json::Value,
+    ctx: &ContextExecution,
+) -> ResultatAbeille {
+    let timeout = timeout_for_tool(name);
+    match tokio::time::timeout(timeout, registry.executer(name, args, ctx)).await {
+        Ok(Ok(result)) => result,
+        Ok(Err(err)) => ResultatAbeille::err(format!("Tool execution error: {err}")),
+        Err(_) => ResultatAbeille::err(format!(
+            "Tool timed out after {}s. Continue by checking state, retrying with a smaller action, or using submit_job for long-running work.",
+            timeout.as_secs()
+        )),
+    }
+}
 
 /// Response to an approval request.
 #[derive(Debug, Clone)]
@@ -3470,7 +3487,8 @@ pub async fn boucle_react_multimodal_ext(
                     let registry_ref = &registry;
                     handles.push(async move {
                         let start = Instant::now();
-                        let result = registry_ref.executer(&name, args, &ctx_clone).await;
+                        let result =
+                            executer_outil_robuste(registry_ref, &name, args, &ctx_clone).await;
                         let elapsed = start.elapsed().as_millis() as u64;
                         (name, result, elapsed)
                     });
@@ -3479,63 +3497,41 @@ pub async fn boucle_react_multimodal_ext(
                 // Await all in parallel
                 let results = futures_util::future::join_all(handles).await;
 
-                for (name, result, elapsed) in results {
-                    match result {
-                        Ok(res) => {
-                            let summarized =
-                                resumer_resultat_si_gros(config, &name, res.output).await;
-                            let output = resultat_observable(registry, &name, summarized);
-                            let _ = tx.send(ChatEvent::ToolResult {
-                                name: name.clone(),
-                                result: output.clone(),
-                                success: res.success,
-                                elapsed_ms: Some(elapsed),
-                            });
-                            emit_thought(
-                                tx,
-                                session,
-                                &mut thoughts,
-                                "verification",
-                                "observation",
-                                format!(
-                                    "{}: {} en {} ms.",
-                                    name,
-                                    if res.success { "succes" } else { "echec" },
-                                    elapsed
-                                ),
-                            );
-                            let observation = if res.success {
-                                output
-                            } else {
-                                format!(
-                                    "Error: {}",
-                                    res.error.unwrap_or_else(|| "Unknown".to_string())
-                                )
-                            };
-                            session.ajouter_observation_avec_images(
-                                &name,
-                                &observation,
-                                res.images,
-                            );
-                        }
-                        Err(e) => {
-                            let _ = tx.send(ChatEvent::ToolResult {
-                                name: name.clone(),
-                                result: format!("Error: {}", e),
-                                success: false,
-                                elapsed_ms: Some(elapsed),
-                            });
-                            emit_thought(
-                                tx,
-                                session,
-                                &mut thoughts,
-                                "verification",
-                                "observation",
-                                format!("{name}: erreur d'execution en {elapsed} ms."),
-                            );
-                            session.ajouter_observation(&name, &format!("Error: {}", e));
-                        }
-                    }
+                for (name, res, elapsed) in results {
+                    let success = res.success;
+                    let error = res.error.clone();
+                    let images = res.images;
+                    let summarized = resumer_resultat_si_gros(config, &name, res.output).await;
+                    let output = resultat_observable(registry, &name, summarized);
+                    let _ = tx.send(ChatEvent::ToolResult {
+                        name: name.clone(),
+                        result: if success {
+                            output.clone()
+                        } else {
+                            format!("Error: {}", error.as_deref().unwrap_or("Unknown"))
+                        },
+                        success,
+                        elapsed_ms: Some(elapsed),
+                    });
+                    emit_thought(
+                        tx,
+                        session,
+                        &mut thoughts,
+                        "verification",
+                        "observation",
+                        format!(
+                            "{}: {} en {} ms.",
+                            name,
+                            if success { "succes" } else { "echec" },
+                            elapsed
+                        ),
+                    );
+                    let observation = if success {
+                        output
+                    } else {
+                        format!("Error: {}", error.unwrap_or_else(|| "Unknown".to_string()))
+                    };
+                    session.ajouter_observation_avec_images(&name, &observation, images);
                 }
             } else {
                 // Lot séquentiel : outil unique ou outil mutant/à approbation —
@@ -3645,9 +3641,8 @@ pub async fn boucle_react_multimodal_ext(
                         message: format!("Executing: {}", call.name),
                     });
 
-                    let result = registry
-                        .executer(&call.name, call.args.clone(), &ctx)
-                        .await?;
+                    let result =
+                        executer_outil_robuste(registry, &call.name, call.args.clone(), &ctx).await;
                     let elapsed = tool_start.elapsed().as_millis() as u64;
 
                     if let Some(new_cwd) = &result.cwd_change {
@@ -3658,14 +3653,21 @@ pub async fn boucle_react_multimodal_ext(
                         });
                     }
 
+                    let success = result.success;
+                    let error = result.error.clone();
+                    let images = result.images;
                     let summarized =
                         resumer_resultat_si_gros(config, &call.name, result.output).await;
                     let output = resultat_observable(registry, &call.name, summarized);
 
                     let _ = tx.send(ChatEvent::ToolResult {
                         name: call.name.clone(),
-                        result: output.clone(),
-                        success: result.success,
+                        result: if success {
+                            output.clone()
+                        } else {
+                            format!("Error: {}", error.as_deref().unwrap_or("Unknown"))
+                        },
+                        success,
                         elapsed_ms: Some(elapsed),
                     });
                     emit_thought(
@@ -3677,24 +3679,17 @@ pub async fn boucle_react_multimodal_ext(
                         format!(
                             "{}: {} en {} ms.",
                             call.name,
-                            if result.success { "succes" } else { "echec" },
+                            if success { "succes" } else { "echec" },
                             elapsed
                         ),
                     );
 
-                    let observation = if result.success {
+                    let observation = if success {
                         output
                     } else {
-                        format!(
-                            "Error: {}",
-                            result.error.unwrap_or_else(|| "Unknown".to_string())
-                        )
+                        format!("Error: {}", error.unwrap_or_else(|| "Unknown".to_string()))
                     };
-                    session.ajouter_observation_avec_images(
-                        &call.name,
-                        &observation,
-                        result.images,
-                    );
+                    session.ajouter_observation_avec_images(&call.name, &observation, images);
                 }
             }
         } // fin de la boucle sur les lots (partition_tool_calls)
@@ -3852,6 +3847,55 @@ mod tests {
         ) -> Result<ResultatAbeille> {
             Ok(ResultatAbeille::ok("abcdef"))
         }
+    }
+
+    struct FailingTool;
+
+    #[async_trait]
+    impl Abeille for FailingTool {
+        fn nom(&self) -> &str {
+            "failing_tool"
+        }
+
+        fn description(&self) -> &str {
+            "outil qui echoue"
+        }
+
+        fn schema(&self) -> serde_json::Value {
+            serde_json::json!({})
+        }
+
+        fn niveau_danger(&self) -> NiveauDanger {
+            NiveauDanger::Safe
+        }
+
+        async fn executer(
+            &self,
+            _args: serde_json::Value,
+            _ctx: &ContextExecution,
+        ) -> Result<ResultatAbeille> {
+            Err(anyhow::anyhow!("boom interne"))
+        }
+    }
+
+    #[tokio::test]
+    async fn execution_robuste_convertit_erreur_outil_en_observation() {
+        let registry = AbeilleRegistry::new();
+        registry.enregistrer(Box::new(FailingTool));
+
+        let result = executer_outil_robuste(
+            &registry,
+            "failing_tool",
+            serde_json::json!({}),
+            &ContextExecution::default(),
+        )
+        .await;
+
+        assert!(!result.success);
+        assert!(result
+            .error
+            .unwrap_or_default()
+            .contains("Tool execution error: boom interne"));
     }
 
     #[test]

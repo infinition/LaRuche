@@ -53,7 +53,11 @@ impl JobQueue {
         let job_id = format!(
             "job_{}_{}",
             label.unwrap_or("script"),
-            uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or("x")
+            uuid::Uuid::new_v4()
+                .to_string()
+                .split('-')
+                .next()
+                .unwrap_or("x")
         );
         let jobs = self.jobs.clone();
         let id = job_id.clone();
@@ -76,11 +80,16 @@ impl JobQueue {
             let start = Instant::now();
 
             // Exécution via tokio::process::Command
-            let output = tokio::process::Command::new("sh")
-                .arg("-c")
-                .arg(&script)
-                .output()
-                .await;
+            let mut command = if cfg!(windows) {
+                let mut cmd = tokio::process::Command::new("cmd");
+                cmd.arg("/C").arg(&script);
+                cmd
+            } else {
+                let mut cmd = tokio::process::Command::new("sh");
+                cmd.arg("-c").arg(&script);
+                cmd
+            };
+            let output = command.output().await;
 
             let mut w = jobs.write().await;
             match output {
@@ -149,21 +158,21 @@ impl JobQueue {
     pub async fn nettoyer(&self) -> usize {
         let mut w = self.jobs.write().await;
         let _now = Instant::now();
-        let stale: Vec<String> = w
-            .iter()
-            .filter_map(|(id, status)| {
-                let elapsed = match status {
-                    JobStatus::Completed { elapsed, .. }
-                    | JobStatus::Failed { elapsed, .. } => *elapsed,
-                    _ => return None,
-                };
-                if elapsed > std::time::Duration::from_secs(3600) {
-                    Some(id.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
+        let stale: Vec<String> =
+            w.iter()
+                .filter_map(|(id, status)| {
+                    let elapsed = match status {
+                        JobStatus::Completed { elapsed, .. }
+                        | JobStatus::Failed { elapsed, .. } => *elapsed,
+                        _ => return None,
+                    };
+                    if elapsed > std::time::Duration::from_secs(3600) {
+                        Some(id.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
         let count = stale.len();
         for id in stale {
             w.remove(&id);
@@ -175,5 +184,33 @@ impl JobQueue {
 impl Default for JobQueue {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::time::{sleep, timeout, Duration};
+
+    #[tokio::test]
+    async fn submit_execute_une_commande_shell_portable() {
+        let queue = JobQueue::new();
+        let job_id = queue.submit("echo laruche_job_ok", Some("test")).await;
+
+        let status = timeout(Duration::from_secs(5), async {
+            loop {
+                match queue.check(&job_id).await {
+                    Some(JobStatus::Completed { output, .. }) => break output,
+                    Some(JobStatus::Failed { error, .. }) => panic!("{error}"),
+                    Some(JobStatus::Running { .. }) | None => {
+                        sleep(Duration::from_millis(50)).await;
+                    }
+                }
+            }
+        })
+        .await
+        .expect("job shell timeout");
+
+        assert!(status.contains("laruche_job_ok"));
     }
 }
