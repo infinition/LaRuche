@@ -174,6 +174,112 @@ pub struct CustomService {
     pub protocol: String,
 }
 
+#[derive(Debug, Clone, Default)]
+struct ActiveContextStats {
+    messages: u32,
+    base_tokens: u32,
+    streamed_chars: usize,
+    extra_tokens: u32,
+    streaming_response_open: bool,
+    running: bool,
+}
+
+impl ActiveContextStats {
+    fn from_session(session: &Session, running: bool) -> Self {
+        Self {
+            messages: session.len() as u32,
+            base_tokens: session.estimated_tokens() as u32,
+            streamed_chars: 0,
+            extra_tokens: 0,
+            streaming_response_open: false,
+            running,
+        }
+    }
+
+    fn used_tokens(&self) -> u32 {
+        self.base_tokens
+            .saturating_add((self.streamed_chars / 4) as u32)
+            .saturating_add(self.extra_tokens)
+    }
+
+    fn apply_event(&mut self, event: &ChatEvent) {
+        match event {
+            ChatEvent::Token { text } => {
+                if !text.is_empty() {
+                    self.streamed_chars = self.streamed_chars.saturating_add(text.len());
+                    self.streaming_response_open = true;
+                    self.running = true;
+                }
+            }
+            ChatEvent::ToolCall { name, args, .. } => {
+                if self.streaming_response_open {
+                    self.messages = self.messages.saturating_add(1);
+                    self.streaming_response_open = false;
+                }
+                self.messages = self.messages.saturating_add(1);
+                self.extra_tokens = self
+                    .extra_tokens
+                    .saturating_add(approx_context_tokens(&format!("{name}{args}")));
+                self.running = true;
+            }
+            ChatEvent::ToolResult { name, result, .. } => {
+                self.messages = self.messages.saturating_add(1);
+                self.extra_tokens = self
+                    .extra_tokens
+                    .saturating_add(approx_context_tokens(&format!("{name}{result}")));
+                self.running = true;
+            }
+            ChatEvent::Usage {
+                input_tokens,
+                output_tokens,
+                ..
+            } => {
+                let usage_total = input_tokens.saturating_add(*output_tokens);
+                if usage_total > self.used_tokens() {
+                    self.base_tokens = usage_total;
+                    self.streamed_chars = 0;
+                    self.extra_tokens = 0;
+                }
+            }
+            ChatEvent::Done { full_response } => {
+                if self.streaming_response_open || !full_response.is_empty() {
+                    self.messages = self.messages.saturating_add(1);
+                    self.streaming_response_open = false;
+                }
+                self.running = false;
+            }
+            ChatEvent::Error { .. } => {
+                self.running = false;
+            }
+            _ => {}
+        }
+    }
+}
+
+fn approx_context_tokens(text: &str) -> u32 {
+    if text.is_empty() {
+        0
+    } else {
+        ((text.len() + 3) / 4) as u32
+    }
+}
+
+async fn update_active_context_stats(
+    state: &Arc<AppState>,
+    session_id: Uuid,
+    event: &ChatEvent,
+) {
+    let mut stats_by_session = state.active_context_stats.write().await;
+    let stats = stats_by_session
+        .entry(session_id)
+        .or_insert_with(|| ActiveContextStats {
+            running: true,
+            ..ActiveContextStats::default()
+        });
+
+    stats.apply_event(event);
+}
+
 struct AppState {
     manifest: RwLock<CognitiveManifest>,
     auth: RwLock<ProximityAuth>,
@@ -204,6 +310,7 @@ struct AppState {
     essaim_config: RwLock<EssaimConfig>,
     memoire: Arc<dyn laruche_memoire::MemoireCognitive>,
     essaim_sessions: Arc<RwLock<HashMap<Uuid, Session>>>,
+    active_context_stats: Arc<RwLock<HashMap<Uuid, ActiveContextStats>>>,
     essaim_cron: Arc<RwLock<CronScheduler>>,
     watchers: Arc<RwLock<laruche_watchers::WatchersRegistry>>,
     kanban_board: Arc<RwLock<laruche_kanban::KanbanBoard>>,
@@ -3514,6 +3621,35 @@ mod session_display_tests {
         assert_eq!(display["text"], "Fichier prêt.");
         assert_eq!(display["plan"][0]["task"], "Télécharger");
     }
+
+    #[test]
+    fn active_context_stats_progressent_pendant_les_outils() {
+        let mut stats = ActiveContextStats {
+            messages: 1,
+            base_tokens: 65,
+            running: true,
+            ..ActiveContextStats::default()
+        };
+
+        stats.apply_event(&ChatEvent::Token {
+            text: "Je vais chercher la page puis analyser le resultat.".into(),
+        });
+        stats.apply_event(&ChatEvent::ToolCall {
+            name: "web_fetch".into(),
+            args: serde_json::json!({"url":"https://example.test/long-page"}),
+            iteration: Some(1),
+        });
+        stats.apply_event(&ChatEvent::ToolResult {
+            name: "web_fetch".into(),
+            result: "contenu ".repeat(200),
+            success: true,
+            elapsed_ms: Some(42),
+        });
+
+        assert!(stats.messages >= 4);
+        assert!(stats.used_tokens() > 65);
+        assert!(stats.running);
+    }
 }
 
 /// GET /api/sessions/:id/messages — get session messages (with ownership check).
@@ -4990,14 +5126,29 @@ async fn api_get_context_stats(
     let max_messages = ec.context_max_messages;
     let max_tokens = ec.context_max_tokens;
 
-    let sessions = state.essaim_sessions.read().await;
     let session_id = params.get("session_id");
     let (messages, used_tokens) = if let Some(sid_str) = session_id {
         if let Ok(sid) = uuid::Uuid::parse_str(sid_str) {
-            sessions
+            let session_stats = state
+                .essaim_sessions
+                .read()
+                .await
                 .get(&sid)
                 .map(|s| (s.messages.len() as u32, s.estimated_tokens() as u32))
-                .unwrap_or((0, 0))
+                .unwrap_or((0, 0));
+            let active_stats = state.active_context_stats.read().await.get(&sid).cloned();
+            if let Some(active) = active_stats {
+                if active.running {
+                    (
+                        active.messages.max(session_stats.0),
+                        active.used_tokens().max(session_stats.1),
+                    )
+                } else {
+                    session_stats
+                }
+            } else {
+                session_stats
+            }
         } else {
             (0, 0)
         }
@@ -7457,6 +7608,7 @@ async fn ws_chat_connection(
                                 tokio::select! {
                                     event_result = rx.recv() => {
                                         if let Ok(event) = event_result {
+                                            update_active_context_stats(&state, id, &event).await;
                                             let json = serde_json::to_string(&event).unwrap_or_default();
                                             if sender.send(ws::Message::Text(json.into())).await.is_err() {
                                                 done = true;
@@ -7631,6 +7783,10 @@ async fn ws_chat_connection(
                 let mut snapshot = session.clone();
                 snapshot.ajouter_user(&user_text_log);
                 let _ = snapshot.sauvegarder();
+                state_clone.active_context_stats.write().await.insert(
+                    session_id,
+                    ActiveContextStats::from_session(&snapshot, true),
+                );
                 state_clone
                     .essaim_sessions
                     .write()
@@ -7743,6 +7899,10 @@ async fn ws_chat_connection(
             let mut sessions = state_clone.essaim_sessions.write().await;
             sessions.insert(session_id, session.clone());
             drop(sessions);
+            state_clone.active_context_stats.write().await.insert(
+                session_id,
+                ActiveContextStats::from_session(&session, false),
+            );
 
             // Notify globally that session finished
             let last_msg = session
@@ -7775,6 +7935,7 @@ async fn ws_chat_connection(
                 event_result = rx.recv() => {
                     match event_result {
                         Ok(event) => {
+                            update_active_context_stats(&state, session_id, &event).await;
                             let json = serde_json::to_string(&event).unwrap_or_default();
                             if sender.send(ws::Message::Text(json.into())).await.is_err() {
                                 done = true;
@@ -7869,6 +8030,11 @@ async fn ws_chat_connection(
                                     // sauvegardée en snapshot (avec le message user) AVANT le run,
                                     // donc seule la réponse en cours est abandonnée — pas la session.
                                     react_handle.abort();
+                                    if let Some(stats) =
+                                        state.active_context_stats.write().await.get_mut(&session_id)
+                                    {
+                                        stats.running = false;
+                                    }
                                     let _ = state.events.write().await.emit(
                                         laruche_events::EventKind::AgentFinished,
                                         &actor,
@@ -8839,6 +9005,7 @@ async fn main() -> Result<()> {
         }),
         memoire,
         essaim_sessions: sessions_arc.clone(),
+        active_context_stats: Arc::new(RwLock::new(HashMap::new())),
         essaim_cron: cron_arc.clone(),
         watchers: watchers_arc.clone(),
         kanban_board: kanban_arc.clone(),
