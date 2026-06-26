@@ -177,9 +177,13 @@ fn retirer_think(t: &str) -> String {
 
 // ───────────────────────── Outils (registre) ─────────────────────────
 
+/// Outils interprétés comme une délégation à une éclaireuse (sous-agent).
+const OUTILS_DELEGATION: &[&str] = &["delegate", "delegate_task", "deleguer", "spawn_specialist"];
+
 struct OutilsPont<'a> {
     registry: &'a AbeilleRegistry,
     config: &'a EssaimConfig,
+    reglages: &'a but::Reglages,
     working_dir: Option<PathBuf>,
     disabled: Vec<String>,
     tx: broadcast::Sender<ChatEvent>,
@@ -195,6 +199,87 @@ impl OutilsPont<'_> {
         });
         but::ResultatOutil::echec(motif)
     }
+
+    /// Dépêche une éclaireuse (sous-agent butinage) à contexte isolé.
+    async fn deleguer(&self, appel: &but::Appel) -> but::ResultatOutil {
+        let role = appel
+            .args
+            .get("role")
+            .and_then(|v| v.as_str())
+            .map(but::RoleEclaireuse::depuis)
+            .unwrap_or(but::RoleEclaireuse::Eclaireuse);
+        let tache = ["task", "tache", "prompt", "description", "objective"]
+            .iter()
+            .find_map(|k| appel.args.get(*k).and_then(|v| v.as_str()))
+            .unwrap_or("")
+            .to_string();
+        if tache.trim().is_empty() {
+            return but::ResultatOutil::echec("delegate: argument 'task' manquant");
+        }
+        let contexte = ["context", "contexte"]
+            .iter()
+            .find_map(|k| appel.args.get(*k).and_then(|v| v.as_str()))
+            .map(str::to_string);
+
+        let _ = self.tx.send(ChatEvent::ToolCall {
+            name: appel.nom.clone(),
+            args: appel.args.clone(),
+            iteration: None,
+        });
+        let _ = self.tx.send(ChatEvent::Status {
+            message: format!("🐝 Éclaireuse ({role:?}) dépêchée : {tache}"),
+        });
+
+        // Adaptateurs ENFANT : délégation désactivée (anti-récursion).
+        let four = FournisseurPont {
+            provider: self.config.provider.clone(),
+            model: self.config.model.clone(),
+            api_key: self.config.api_key.clone(),
+            api_base: self.config.api_base.clone(),
+            ollama_url: self.config.ollama_url.clone(),
+            temperature: self.config.temperature,
+            max_tokens: self.config.max_tokens,
+            tx: self.tx.clone(),
+        };
+        let mut disabled = self.disabled.clone();
+        for d in OUTILS_DELEGATION {
+            if !disabled.iter().any(|x| x == d) {
+                disabled.push((*d).to_string());
+            }
+        }
+        let outils_enfant = OutilsPont {
+            registry: self.registry,
+            config: self.config,
+            reglages: self.reglages,
+            working_dir: self.working_dir.clone(),
+            disabled,
+            tx: self.tx.clone(),
+        };
+        let emet = EmetteurPont { tx: self.tx.clone() };
+
+        let ordre = but::OrdreEclaireuse { role, tache, contexte };
+        let resultat = match but::depecher(
+            ordre,
+            self.reglages,
+            &four,
+            &outils_enfant,
+            &emet,
+            chrono::Utc::now(),
+        )
+        .await
+        {
+            Ok(rapport) => but::ResultatOutil::ok(rapport.en_observation()),
+            Err(e) => but::ResultatOutil::echec(format!("éclaireuse échouée : {e}")),
+        };
+
+        let _ = self.tx.send(ChatEvent::ToolResult {
+            name: appel.nom.clone(),
+            result: resultat.sortie.clone(),
+            success: resultat.ok,
+            elapsed_ms: None,
+        });
+        resultat
+    }
 }
 
 #[async_trait]
@@ -202,6 +287,12 @@ impl but::Outils for OutilsPont<'_> {
     async fn executer(&self, appel: &but::Appel) -> but::ResultatOutil {
         if self.disabled.iter().any(|d| d == &appel.nom) {
             return self.bloquer(&appel.nom, "Blocked: tool disabled in Settings".into());
+        }
+
+        // Délégation : on dépêche une éclaireuse (sous-agent butinage) au lieu d'exécuter
+        // un outil. `delegate` est désactivé chez l'enfant → un seul niveau de récursion.
+        if OUTILS_DELEGATION.contains(&appel.nom.as_str()) {
+            return self.deleguer(appel).await;
         }
 
         let mut ctx = ContextExecution::default();
@@ -403,6 +494,7 @@ pub async fn executer(
     let outils = OutilsPont {
         registry,
         config,
+        reglages: &reglages,
         working_dir: session.working_dir.clone(),
         disabled: config.disabled_tools.clone(),
         tx: tx.clone(),

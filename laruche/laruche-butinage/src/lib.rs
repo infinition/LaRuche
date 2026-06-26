@@ -21,6 +21,7 @@
 
 pub mod carnet;
 pub mod cycle;
+pub mod eclaireuse;
 pub mod escale;
 pub mod evenement;
 pub mod fournisseur;
@@ -35,6 +36,7 @@ pub mod cap;
 
 pub use carnet::{Carnet, ModeMission};
 pub use cycle::butiner;
+pub use eclaireuse::{depecher, OrdreEclaireuse, Rapport, Role as RoleEclaireuse};
 pub use evenement::{Emetteur, Evenement, Silencieux};
 pub use fournisseur::{ErreurFournisseur, Fournisseur, ReponseModele, Usage};
 pub use issue::{Appel, Bilan, FinDeVol, Issue, StopReason, TexteSeul};
