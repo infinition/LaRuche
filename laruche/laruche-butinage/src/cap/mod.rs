@@ -6,4 +6,5 @@
 //! - [`jauge`] : le budget de contexte en tokens réels (à venir avec le moteur).
 
 pub mod boussole;
+pub mod jauge;
 pub mod vigie;

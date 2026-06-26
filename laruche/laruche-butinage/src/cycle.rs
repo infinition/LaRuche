@@ -33,6 +33,7 @@ pub async fn butiner(
         carnet.historique.push(Message::utilisateur(mission));
     }
     let mut vigie = Vigie::nouvelle(reglages.profil.seuils_vigie());
+    let mut jauge = crate::cap::jauge::Jauge::nouvelle(reglages.context_max_tokens, 0.70, 0.85);
     let schemas = outils.schemas();
 
     loop {
@@ -40,6 +41,13 @@ pub async fn butiner(
             let msg = format!("Plafond de {} passes atteint — peut être incomplet.", reglages.plafond_passes);
             emet.emettre(Evenement::Statut(msg.clone()));
             return Ok(Bilan::nouveau(msg, FinDeVol::Plafond, carnet.passe));
+        }
+
+        // Escale : compaction/consolidation du contexte si la jauge le réclame.
+        jauge.estimer(&reglages.systeme, &carnet.historique);
+        if let Some(ev) = crate::escale::peut_etre(carnet, &jauge, reglages.garder_recents) {
+            emet.emettre(ev);
+            jauge.estimer(&reglages.systeme, &carnet.historique);
         }
 
         let messages = assembler(carnet, reglages);

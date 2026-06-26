@@ -49,6 +49,10 @@ pub struct Reglages {
     pub max_rate_limit: usize,
     /// Retries max sur panne passagère.
     pub max_transitoire: usize,
+    /// Fenêtre de contexte du modèle (tokens) — pilote la jauge/escale.
+    pub context_max_tokens: usize,
+    /// Nombre de tours récents conservés intacts lors d'une compaction.
+    pub garder_recents: usize,
     /// Prompt système (tier stable). En anglais (best practice).
     pub systeme: String,
     /// Profil de la cible.
@@ -65,6 +69,8 @@ impl Default for Reglages {
             min_web_exploration: 12,
             max_rate_limit: 3,
             max_transitoire: 3,
+            context_max_tokens: 128_000,
+            garder_recents: 12,
             systeme: String::new(),
             profil: ProfilModele::default(),
             chemin_carnet: None,

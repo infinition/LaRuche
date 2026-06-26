@@ -382,6 +382,7 @@ pub async fn executer(
 
     let reglages = but::Reglages {
         plafond_passes: config.max_iterations.max(1),
+        context_max_tokens: (config.context_max_tokens as usize).max(8_000),
         systeme,
         profil: profil_pour(config),
         ..but::Reglages::default()

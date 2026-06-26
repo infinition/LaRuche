@@ -21,6 +21,7 @@
 
 pub mod carnet;
 pub mod cycle;
+pub mod escale;
 pub mod evenement;
 pub mod fournisseur;
 pub mod issue;
@@ -43,4 +44,5 @@ pub use meteo::{ClasseErreur, Reaction};
 pub use outils::{Outils, ResultatOutil};
 pub use reglages::{ProfilModele, Reglages};
 pub use cap::boussole::{cap, ContexteCap, Decision};
+pub use cap::jauge::{Besoin, Jauge};
 pub use cap::vigie::{SeuilsVigie, Signal, Vigie};
