@@ -3272,6 +3272,7 @@ LaRuche.WS = (function(){
 /* ── Chat Module ──────────────────────────────────────────────── */
 LaRuche.Chat = (function(){
   var sessionId = null;
+  var unreadSessions = {}; // conversations (autres que l'active) avec du NOUVEAU terminé → pastille
   var currentAssistantMsg = null;
   var currentAssistantRow = null;
   var isStreaming = false;
@@ -3340,6 +3341,16 @@ LaRuche.Chat = (function(){
   function leave() {}
 
   function handleEvent(data) {
+    // Cloisonnement par conversation : un event tagué d'une AUTRE conversation
+    // (job parallèle qui tourne en fond) ne doit JAMAIS s'écrire dans la vue courante.
+    // On note seulement un "nouveau" sur les events terminaux (pas la réflexion).
+    if(data.session_id && data.type!=='session' && sessionId && String(data.session_id)!==String(sessionId)){
+      if(data.type==='done' || data.type==='error' || data.type==='approval_request'){
+        unreadSessions[data.session_id]=true;
+        loadSessions();
+      }
+      return;
+    }
     switch(data.type) {
       case 'session': sessionId = data.session_id; loadSessions(); refreshSessionsPage(); break;
       case 'token':
@@ -4473,9 +4484,10 @@ LaRuche.Chat = (function(){
   function markConvSeen(id, updatedAt){ if(!id) return; var m=getSeenMap(); m[id]=updatedAt||new Date().toISOString(); try{ localStorage.setItem('lr_conv_seen', JSON.stringify(m)); }catch(e){} }
   function convIsUnread(s){
     if(s.id===sessionId) return false; // ouverte = lue
-    if(!s.updated_at) return false;
-    var seen=getSeenMap()[s.id];
-    return !seen || new Date(s.updated_at) > new Date(seen);
+    // Pastille UNIQUEMENT sur du NOUVEAU terminé (message final / popup), jamais sur
+    // la réflexion en cours. Pilotée par les events terminaux reçus (unreadSessions),
+    // pas par updated_at (qui bougeait à chaque sauvegarde intermédiaire).
+    return !!unreadSessions[s.id];
   }
   function loadSessions() {
     fetch('/api/sessions').then(function(r){return r.json();}).then(function(sessions){
@@ -4521,7 +4533,8 @@ LaRuche.Chat = (function(){
 
   function switchSession(id, scrollTerm) {
     sessionId=id;
-    markConvSeen(id); // ouvrir = marquer lu (efface la pastille)
+    delete unreadSessions[id]; // ouvrir = marquer lu (efface la pastille)
+    markConvSeen(id);
     var container=document.getElementById('chatContainer');
     container.innerHTML='';
     document.getElementById('activityFeed').innerHTML='';

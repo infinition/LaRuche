@@ -1,4 +1,4 @@
-//! LaRuche Node Daemon
+﻿//! LaRuche Node Daemon
 //!
 //! The main process that runs on each LaRuche box. It:
 //! 1. Broadcasts its Cognitive Manifest via Miel (mDNS)
@@ -1867,8 +1867,8 @@ async fn api_v1_chat_completions(
         &api_key,
         api_base.as_deref(),
         &ollama_url,
-    )
-    .await
+            None,
+        ).await
     {
         Ok(mut stream) => {
             if req.stream {
@@ -7537,10 +7537,24 @@ async fn api_webhook(
     }
 }
 
+/// Sérialise un ChatEvent en JSON en y injectant le `session_id` d'origine.
+/// Indispensable pour que le front route chaque event vers SA conversation (et ne
+/// mélange pas les jobs de conversations différentes qui tournent en parallèle).
+fn event_json_avec_session(event: &laruche_essaim::ChatEvent, session_id: Uuid) -> String {
+    let mut v = serde_json::to_value(event).unwrap_or_else(|_| serde_json::json!({}));
+    if let Some(obj) = v.as_object_mut() {
+        obj.insert(
+            "session_id".to_string(),
+            serde_json::Value::String(session_id.to_string()),
+        );
+    }
+    serde_json::to_string(&v).unwrap_or_default()
+}
+
 /// WebSocket handler for the chat interface.
 /// Protocol:
 ///   Client → {"type":"message","text":"..."} or {"type":"message","text":"...","session_id":"uuid"}
-///   Server → {"type":"token","text":"..."} / {"type":"tool_call",...} / {"type":"done",...} / {"type":"error",...}
+///   Server → {"type":"token","text":"...","session_id":"uuid"} / {"type":"tool_call",...} / {"type":"done",...}
 async fn ws_chat_handler(
     ws: WebSocketUpgrade,
     State(state): State<Arc<AppState>>,
@@ -7609,7 +7623,7 @@ async fn ws_chat_connection(
                                     event_result = rx.recv() => {
                                         if let Ok(event) = event_result {
                                             update_active_context_stats(&state, id, &event).await;
-                                            let json = serde_json::to_string(&event).unwrap_or_default();
+                                            let json = event_json_avec_session(&event, id);
                                             if sender.send(ws::Message::Text(json.into())).await.is_err() {
                                                 done = true;
                                             }
@@ -7936,7 +7950,7 @@ async fn ws_chat_connection(
                     match event_result {
                         Ok(event) => {
                             update_active_context_stats(&state, session_id, &event).await;
-                            let json = serde_json::to_string(&event).unwrap_or_default();
+                            let json = event_json_avec_session(&event, session_id);
                             if sender.send(ws::Message::Text(json.into())).await.is_err() {
                                 done = true;
                             }
