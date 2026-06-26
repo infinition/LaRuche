@@ -719,7 +719,7 @@ fn permission_engine(config: &EssaimConfig) -> PermissionEngine {
     })
 }
 
-fn decision_permission(
+pub fn decision_permission(
     config: &EssaimConfig,
     name: &str,
     args: &serde_json::Value,
@@ -871,7 +871,7 @@ fn is_concurrency_safe(name: &str, args: &serde_json::Value, danger: NiveauDange
 /// des patterns d'injection/exfiltration (third-party `threat_patterns`). Renvoie
 /// `Some(raison)` si l'appel doit être bloqué, `None` sinon.
 /// On ne bloque pas les outils en lecture seule (faux positifs trop coûteux).
-fn garde_injection(name: &str, args: &serde_json::Value) -> Option<String> {
+pub fn garde_injection(name: &str, args: &serde_json::Value) -> Option<String> {
     // Outils d'action concernés (mutation, shell, exécution de code/scripts).
     let est_action = name == "shell_exec"
         || name == "execute_code"

@@ -5,9 +5,10 @@
 //! [`executer`] : la façade appelée par `boucle_react_multimodal_ext` quand le flag
 //! `RUCHE_MOTEUR=butinage` est actif. L'ancien moteur (`brain.rs`) reste intact.
 
-use crate::abeille::{AbeilleRegistry, ContextExecution};
+use crate::abeille::{AbeilleRegistry, ContextExecution, NiveauDanger};
 use crate::brain::{
-    demande_recherche_longue, parse_tool_calls, schema_outils_pour_prompt, ChatEvent, EssaimConfig,
+    decision_permission, demande_recherche_longue, garde_injection, parse_tool_calls,
+    schema_outils_pour_prompt, ChatEvent, EssaimConfig,
 };
 use crate::prompt::build_system_prompt;
 use crate::providers::{provider_chat_stream, ProviderError};
@@ -17,6 +18,7 @@ use async_trait::async_trait;
 use futures_util::StreamExt;
 use laruche_butinage as but;
 use laruche_memoire::MemoireCognitive;
+use laruche_permissions::PermissionBehavior;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
@@ -177,28 +179,69 @@ fn retirer_think(t: &str) -> String {
 
 struct OutilsPont<'a> {
     registry: &'a AbeilleRegistry,
+    config: &'a EssaimConfig,
     working_dir: Option<PathBuf>,
     disabled: Vec<String>,
     tx: broadcast::Sender<ChatEvent>,
+}
+
+impl OutilsPont<'_> {
+    fn bloquer(&self, nom: &str, motif: String) -> but::ResultatOutil {
+        let _ = self.tx.send(ChatEvent::ToolResult {
+            name: nom.to_string(),
+            result: motif.clone(),
+            success: false,
+            elapsed_ms: Some(0),
+        });
+        but::ResultatOutil::echec(motif)
+    }
 }
 
 #[async_trait]
 impl but::Outils for OutilsPont<'_> {
     async fn executer(&self, appel: &but::Appel) -> but::ResultatOutil {
         if self.disabled.iter().any(|d| d == &appel.nom) {
-            return but::ResultatOutil::echec("tool disabled in Settings");
+            return self.bloquer(&appel.nom, "Blocked: tool disabled in Settings".into());
         }
+
+        let mut ctx = ContextExecution::default();
+        if let Some(wd) = &self.working_dir {
+            ctx.working_dir = wd.clone();
+        }
+
+        // Garde anti-injection/exfiltration (threat_patterns) sur les outils d'action.
+        if let Some(reason) = garde_injection(&appel.nom, &appel.args) {
+            return self.bloquer(&appel.nom, format!("Blocked (injection guard): {reason}"));
+        }
+
+        // Moteur de permissions : Deny bloque ; Ask est auto-approuvé en POC (pas encore
+        // de popup câblé) mais signalé ; Dangerous est toujours refusé.
+        let danger = self
+            .registry
+            .get(&appel.nom)
+            .map(|a| a.niveau_danger())
+            .unwrap_or(NiveauDanger::Safe);
+        match decision_permission(self.config, &appel.nom, &appel.args, danger, &ctx) {
+            PermissionBehavior::Allow => {}
+            PermissionBehavior::Deny => {
+                return self.bloquer(&appel.nom, "Blocked: permission denied".into());
+            }
+            PermissionBehavior::Ask => {
+                let _ = self.tx.send(ChatEvent::Status {
+                    message: format!(
+                        "⚠ '{}' exécuté sans confirmation (POC butinage : popup d'approbation non câblé).",
+                        appel.nom
+                    ),
+                });
+            }
+        }
+
         // Événement riche (args complets) pour le dashboard.
         let _ = self.tx.send(ChatEvent::ToolCall {
             name: appel.nom.clone(),
             args: appel.args.clone(),
             iteration: None,
         });
-
-        let mut ctx = ContextExecution::default();
-        if let Some(wd) = &self.working_dir {
-            ctx.working_dir = wd.clone();
-        }
 
         let t0 = Instant::now();
         let res = match self
@@ -358,6 +401,7 @@ pub async fn executer(
     };
     let outils = OutilsPont {
         registry,
+        config,
         working_dir: session.working_dir.clone(),
         disabled: config.disabled_tools.clone(),
         tx: tx.clone(),

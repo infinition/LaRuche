@@ -176,7 +176,12 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet) -> Issue {
         }
     }
 
-    if let Some(a) = appels.iter().find(|a| a.nom == "mission_accomplie") {
+    // Outils de fin explicite : `mission_accomplie` (butinage natif) ou `task_complete`
+    // (déjà enregistré dans LaRuche). On reconnaît les deux.
+    if let Some(a) = appels
+        .iter()
+        .find(|a| a.nom == "mission_accomplie" || a.nom == "task_complete")
+    {
         let resume = a
             .args
             .get("resume")
