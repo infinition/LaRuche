@@ -79,6 +79,10 @@ pub enum Issue {
     Clarification(String),
     /// Le modèle veut exécuter des outils.
     Outils(Vec<Appel>),
+    /// Le modèle a (seulement) posé/mis à jour son plan, sans autre outil. Poser un plan
+    /// est un acte productif (comme un tool call) → la boucle doit continuer pour qu'il
+    /// passe à l'action, pas conclure. Borné par `relance_max` (anti plan-en-boucle).
+    PlanEnregistre,
     /// Réponse en texte seul (pas d'outil). On joint les faits qui guideront la décision.
     TexteSeul(TexteSeul),
 }

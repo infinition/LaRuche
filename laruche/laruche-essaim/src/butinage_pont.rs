@@ -92,7 +92,9 @@ impl but::Fournisseur for FournisseurPont {
 
         // stop_reason calculé sur les VRAIS appels (avant l'injection du plan synthétique).
         let stop = classer_stop(finish.as_deref(), &appels);
-        let mut texte_propre = retirer_bloc(&texte, "think");
+        // On retire seulement <think>. On GARDE <plan> dans l'historique : sinon le modèle
+        // oublie son propre plan au tour suivant et répond « je n'ai pas de plan » en boucle.
+        let texte_propre = retirer_bloc(&texte, "think");
 
         // Plan émis en TEXTE (<plan>…</plan>) par le system prompt : on l'affiche (widget UI)
         // et on l'injecte comme appel `plan` pour peupler l'itinéraire (avec statuts).
@@ -106,7 +108,6 @@ impl but::Fournisseur for FournisseurPont {
                 0,
                 but::Appel::nouveau("plan", serde_json::json!({ "items": items_json })),
             );
-            texte_propre = retirer_bloc(&texte_propre, "plan");
         }
 
         Ok(but::ReponseModele {
@@ -601,6 +602,30 @@ pub async fn executer(
     let source: Option<&dyn but::Source> = source_pont.as_ref().map(|s| s as &dyn but::Source);
 
     let bilan = but::butiner(&mut carnet, &reglages, &four, &outils, &emet, source).await?;
+
+    // Plan final vers l'UI : un modèle faible ne re-marque pas toujours son plan, il
+    // restait donc à 0/3 même mission accomplie. Sur succès, on pousse tout en « done ».
+    if !carnet.itineraire.est_vide() {
+        let succes = bilan.est_succes();
+        let items: Vec<crate::brain::PlanItem> = carnet
+            .itineraire
+            .etapes
+            .iter()
+            .map(|e| {
+                let status = match e.statut {
+                    but::StatutEtape::Terminee => "done",
+                    but::StatutEtape::Bloquee => "blocked",
+                    _ if succes => "done",
+                    _ => "pending",
+                };
+                crate::brain::PlanItem {
+                    task: e.titre.clone(),
+                    status: status.to_string(),
+                }
+            })
+            .collect();
+        let _ = tx.send(ChatEvent::Plan { items });
+    }
 
     // Recompose la session depuis le carnet (persistance disque + relecture UI).
     for m in &carnet.historique {

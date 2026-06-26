@@ -41,8 +41,9 @@ impl ProfilModele {
 pub struct Reglages {
     /// Plafond dur de passes (anti-runaway absolu).
     pub plafond_passes: usize,
-    /// Plafond d'auto-continuations entre deux récoltes d'outils.
-    pub auto_continue_max: usize,
+    /// Borne dure des relances stériles (rails modèle-faible : troncature, tool malformé,
+    /// exploration). Petit (~3) — texte seul = fin de tour, on ne force JAMAIS la continuation.
+    pub relance_max: usize,
     /// En mode exploration : appels web minimaux avant d'accepter une fin.
     pub min_web_exploration: usize,
     /// Attentes max sur rate-limit avant d'abandonner/dérouter.
@@ -65,7 +66,7 @@ impl Default for Reglages {
     fn default() -> Self {
         Self {
             plafond_passes: 100,
-            auto_continue_max: 20,
+            relance_max: 3,
             min_web_exploration: 12,
             max_rate_limit: 3,
             max_transitoire: 3,

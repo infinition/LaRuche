@@ -87,7 +87,7 @@ pub async fn butiner(
             _ => reponse.texte.clone(),
         };
 
-        let ctx = carnet.contexte_cap(reglages.auto_continue_max, reglages.min_web_exploration);
+        let ctx = carnet.contexte_cap(reglages.relance_max, reglages.min_web_exploration);
         match cap(&ctx, issue) {
             Decision::Poser(fin) => {
                 carnet.itineraire.finaliser();
@@ -101,8 +101,8 @@ pub async fn butiner(
             Decision::Relancer(nudge) => {
                 carnet.consommer_auto();
                 emet.emettre(Evenement::Statut(format!(
-                    "Auto-continuation ({}/{})",
-                    carnet.auto_continue, reglages.auto_continue_max
+                    "Relance ({}/{})",
+                    carnet.auto_continue, reglages.relance_max
                 )));
                 carnet.historique.push(Message::utilisateur(nudge));
             }
@@ -187,6 +187,7 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet) -> Issue {
     // `plan` : effet de bord (pose/maj l'itinéraire), retiré de la liste d'appels.
     // Deux formats acceptés : `items:[{task,status}]` (statuts préservés, le modèle
     // ré-émet son plan à jour chaque tour) ou `steps:[titres]` (tout à faire).
+    let plan_trouve = appels.iter().any(|a| a.nom == "plan");
     if let Some(pos) = appels.iter().position(|a| a.nom == "plan") {
         let a = appels.remove(pos);
         if let Some(items) = a.args.get("items").and_then(|v| v.as_array()) {
@@ -256,6 +257,11 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet) -> Issue {
 
     if !appels.is_empty() {
         return Issue::Outils(appels);
+    }
+
+    // Plan posé seul (sans autre outil) : acte productif → on continue (borné), pas une fin.
+    if plan_trouve {
+        return Issue::PlanEnregistre;
     }
 
     let tronquee = matches!(reponse.stop, StopReason::Longueur) || bloc_outil_non_ferme(&reponse.texte);
