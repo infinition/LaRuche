@@ -480,6 +480,137 @@ impl but::Source for SourcePont {
     }
 }
 
+// ───────────────────────── Curateur (auto-skills & tools) ─────────────────────────
+
+/// Outils autorisés au curateur (whitelist). Tout le reste est désactivé pour ce sous-run.
+const CURATEUR_OUTILS: &[&str] = &[
+    "skill_list",
+    "skill_view",
+    "skill_create",
+    "skill_patch",
+    "skill_file_write",
+    "plugin_list",
+    "plugin_create",
+    "plugin_delete",
+    "memory_search",
+    "memory_write",
+    "reload_plugins",
+    "shell_exec", // vérification : tester la commande d'un plugin créé
+    "task_complete",
+];
+
+/// Le **prompt-cadre béton** du curateur (« mega skill » à suivre à la lettre).
+/// Inspiré du background-review de third-party, étendu aux TOOLS/plugins + vérification.
+const PROMPT_CURATEUR: &str = r#"You are the CURATOR of the hive's capability library — a background reviewer that runs AFTER a mission to make the agent permanently better. The main conversation and its cache are untouched by you.
+
+Your job: from the transcript provided, capture DURABLE, REUSABLE capability. Be ACTIVE but PRECISE — most non-trivial sessions warrant at least one update, but never invent fluff.
+
+## Two kinds of capability
+- SKILL = a PROCEDURE (the "how"): multi-step know-how for a CLASS of task — steps, pitfalls, exact commands. Create/patch via skill tools. Body = concise Markdown.
+- TOOL/PLUGIN = an ATOMIC capability (a verb): one repeatable shell-able action. Create via `plugin_create(name, description, command, schema, [script_path, script_content])` where `command` is a shell template with `{{slots}}` (e.g. `python plugins/scripts/x.py {{arg}}`) and `schema` is the JSON Schema of its args.
+Rule: if a repetitive atomic action emerged (one command, clear inputs/outputs) → make a PLUGIN. If it's a workflow / judgement / multi-tool sequence → make a SKILL.
+
+## Decision tree (pick the EARLIEST that fits — creating is the LAST resort)
+1. PATCH a skill that was loaded/consulted this session (`skill_patch(name, old_string, new_string)`).
+2. UPDATE an existing umbrella skill (find it: `skill_list` then `skill_view`). Patch it — add a subsection, a pitfall, broaden a trigger.
+3. ADD a SUPPORT FILE under an existing skill via `skill_file_write` (`references/<topic>.md` for condensed knowledge, `templates/<name>` for starters, `scripts/<name>` for re-runnable actions) + a one-line pointer in the skill body.
+4. CREATE a new CLASS-LEVEL skill ONLY if nothing covers the class. Name at the class level (NOT a task title, error string, or codename).
+For tools: BEFORE `plugin_create`, run `plugin_list` — if a plugin already covers it, do nothing.
+
+## Anti-duplication (CRITICAL — the library must stay small & sharp)
+ALWAYS look before you write: `skill_list` / `memory_search` / `plugin_list`. If something overlaps, PATCH it instead of creating a near-duplicate. Prefer few RICH class-level skills over many narrow ones.
+
+## Verification (our edge — only keep what WORKS)
+After `plugin_create`: call `reload_plugins`, then VERIFY by running the plugin's underlying command once with safe test args via `shell_exec`. If it errors, FIX the script (rewrite via plugin_create) or REMOVE it (`plugin_delete`). NEVER leave a broken tool in the library.
+
+## User signals
+User corrections / preferences ("stop doing X", "I want Y") are FIRST-CLASS skill signals: embed the lesson in the skill that governs that task (and `memory_write` the preference).
+
+## DO NOT capture (these harden into self-sabotage)
+- Negative claims about tools ("X is broken", "can't use Y") — they become refusals for months.
+- Environment failures (missing binary, unconfigured creds, "command not found") — capture the FIX under a setup skill instead, never "this doesn't work".
+- Transient errors that resolved, and one-off task narratives (a single "summarize this") — not a class of work.
+
+## Output
+Make the updates with your tools. When done, call `task_complete` with a one-line summary of what you created/patched. If truly nothing durable stands out, call `task_complete` with "Nothing to save." — but don't default to that."#;
+
+/// Rend le transcript de la mission pour le curateur (chaque message plafonné).
+fn rendre_snapshot(messages: &[but::Message]) -> String {
+    messages
+        .iter()
+        .filter(|m| !m.contenu.trim().is_empty())
+        .map(|m| {
+            let role = match m.role {
+                but::Role::Systeme => "system",
+                but::Role::Utilisateur => "user",
+                but::Role::Assistant => "assistant",
+                but::Role::Observation => "tool",
+            };
+            let c: String = m.contenu.chars().take(2000).collect();
+            format!("[{role}] {c}")
+        })
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+/// Lance le curateur (sous-run butinage à outils restreints) sur le transcript d'une mission.
+/// Best-effort : crée/patche skills & plugins, vérifie les plugins, dédup avant création.
+async fn lancer_curateur(
+    snapshot: &[but::Message],
+    registry: &AbeilleRegistry,
+    config: &EssaimConfig,
+    tx: &broadcast::Sender<ChatEvent>,
+) -> Result<()> {
+    let permis: std::collections::HashSet<&str> = CURATEUR_OUTILS.iter().copied().collect();
+    let disabled: Vec<String> = registry
+        .noms()
+        .into_iter()
+        .filter(|n| !permis.contains(n.as_str()))
+        .collect();
+
+    let reglages = but::Reglages {
+        plafond_passes: 8,
+        systeme: PROMPT_CURATEUR.to_string(),
+        profil: profil_pour(config),
+        ..but::Reglages::default()
+    };
+    // Modèle auxiliaire si configuré (plus petit/rapide, ne concurrence pas le KV-cache du chat).
+    let modele_curateur = config.aux_model.clone().unwrap_or_else(|| config.model.clone());
+    let revue = format!(
+        "Review the mission transcript below and update the capability library if warranted \
+         (skills and/or verified plugins), following your rules strictly.\n\n\
+         === MISSION TRANSCRIPT ===\n{}",
+        rendre_snapshot(snapshot)
+    );
+    let mut carnet = but::Carnet::ouvrir(revue, but::ModeMission::Standard, chrono::Utc::now());
+
+    let four = FournisseurPont {
+        provider: config.provider.clone(),
+        model: modele_curateur,
+        api_key: config.api_key.clone(),
+        api_base: config.api_base.clone(),
+        ollama_url: config.ollama_url.clone(),
+        temperature: 0.4,
+        max_tokens: config.max_tokens,
+        tx: tx.clone(),
+    };
+    let outils = OutilsPont {
+        registry,
+        config,
+        reglages: &reglages,
+        working_dir: None,
+        disabled,
+        tx: tx.clone(),
+    };
+    let emet = EmetteurPont { tx: tx.clone() };
+
+    let bilan = but::butiner(&mut carnet, &reglages, &four, &outils, &emet, None).await?;
+    let _ = tx.send(ChatEvent::Status {
+        message: format!("🐝 Curateur : {}", bilan.texte.chars().take(160).collect::<String>()),
+    });
+    Ok(())
+}
+
 // ───────────────────────── Façade ─────────────────────────
 
 /// Encadre la mémoire rappelée comme **donnée de référence**, jamais comme instruction.
@@ -636,6 +767,21 @@ pub async fn executer(
                 session.ajouter_observation(m.outil.as_deref().unwrap_or("tool"), &m.contenu)
             }
             _ => {}
+        }
+    }
+
+    // CURATEUR (killer feature) : auto-création/patch de skills & tools VÉRIFIÉS, après la
+    // mission, sur un transcript snapshot, outils restreints. Best-effort, désactivable par
+    // RUCHE_CURATEUR=0. Gardé pour les missions non triviales (≥ 6 messages) avec mémoire.
+    if std::env::var("RUCHE_CURATEUR").as_deref() != Ok("0")
+        && memoire.is_some()
+        && carnet.historique.len() >= 6
+    {
+        let _ = tx.send(ChatEvent::Status {
+            message: "🐝 Curateur : revue des compétences…".into(),
+        });
+        if let Err(e) = lancer_curateur(&carnet.historique, registry, config, tx).await {
+            tracing::warn!(error = %e, "curateur échoué");
         }
     }
 
