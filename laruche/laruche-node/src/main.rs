@@ -3143,9 +3143,9 @@ async fn api_feed(
     {
         let logs = state.activity_log.read().await;
         for e in logs.iter() {
-            // MILLISECONDES (le rfc3339 a la sous-seconde) → ordre correct entre tours d'une même
-            // minute. Dans un tour, la question est placée 1 ms AU-DESSUS de sa réponse (lecture
-            // Q→A par tour, tours en ordre antéchronologique).
+            // MILLISECONDES (le rfc3339 a la sous-seconde). Feed antéchronologique (récent en
+            // HAUT) → dans un tour, la RÉPONSE (plus récente) est placée 1 ms AU-DESSUS de la
+            // question. On lit : réponse, puis sa question en dessous ; tour suivant plus bas.
             let ms = chrono::DateTime::parse_from_rfc3339(&e.timestamp)
                 .map(|d| d.timestamp_millis())
                 .unwrap_or(0);
@@ -3155,7 +3155,7 @@ async fn api_feed(
                     let clean = prompt.split("\n\n[SYSTEM]").next().unwrap_or(prompt).trim();
                     if !clean.is_empty() {
                         events.push(serde_json::json!({
-                            "ts": ms + 1, "actor": "User", "kind": "agent",
+                            "ts": ms, "actor": "User", "kind": "agent",
                             "action": "a demandé", "object": preview_text(clean, 160),
                             "full": clean, "ref": serde_json::Value::Null, "tag": e.tag
                         }));
@@ -3168,7 +3168,7 @@ async fn api_feed(
             let resp = nettoyer_reponse_feed(brut);
             if !resp.is_empty() {
                 events.push(serde_json::json!({
-                    "ts": ms, "actor": "LaRuche", "kind": "agent",
+                    "ts": ms + 1, "actor": "LaRuche", "kind": "agent",
                     "action": "a répondu", "object": preview_text(&resp, 160),
                     "full": resp, "ref": serde_json::Value::Null, "tag": e.tag
                 }));
@@ -3238,6 +3238,16 @@ async fn api_feed(
         let t = e["ts"].as_i64().unwrap_or(0);
         if t > 0 && t < 1_000_000_000_000 {
             e["ts"] = serde_json::Value::from(t * 1000);
+        }
+    }
+    // Normalise tous les `ts` en MILLISECONDES (certaines sources sont en secondes : mémoire,
+    // missions, watchers, crons). Sans ça, les events agent (déjà en ms) flottaient TOUJOURS
+    // au-dessus des autres, quel que soit le temps réel. Heuristique : ts < 1e12 → secondes.
+    for e in events.iter_mut() {
+        if let Some(ts) = e.get("ts").and_then(|v| v.as_i64()) {
+            if ts != 0 && ts < 1_000_000_000_000 {
+                e["ts"] = serde_json::Value::from(ts * 1000);
+            }
         }
     }
     events.sort_by(|a, b| {

@@ -1231,7 +1231,7 @@ pre:hover .code-copy-btn { opacity:1; }
 .mem2-iact { border:1px solid var(--border); border-radius:5px; background:var(--bg-input); color:var(--text-muted); padding:3px 8px; font-size:10px; cursor:pointer; }
 .mem2-iact:hover { border-color:var(--amber); color:var(--amber); }
 .mem2-iact.danger:hover { border-color:var(--red); color:var(--red); background:rgba(239,68,68,.12); }
-.mem2-md { padding:12px 16px; color:var(--text); font-size:13.5px; line-height:1.62; word-wrap:break-word; }
+.mem2-md { padding:12px 16px; color:var(--text); font-size:13.5px; line-height:1.62; word-wrap:break-word; user-select:text; -webkit-user-select:text; cursor:text; }
 .mem2-edit { padding:12px 16px; display:flex; flex-direction:column; gap:8px; }
 .mem2-edit textarea { width:100%; min-height:140px; background:var(--bg-input); border:1px solid var(--amber); color:var(--text); border-radius:6px; padding:10px; font-family:var(--mono); font-size:12.5px; line-height:1.5; resize:vertical; outline:none; }
 .mem2-edit-acts { display:flex; gap:8px; }
@@ -3899,7 +3899,7 @@ LaRuche.Chat = (function(){
     row.appendChild(wrapper);
     container.appendChild(row);
     if(role==='assistant') updateAssistantAvatars();
-    scrollToBottom();
+    scrollToBottom(role==='user'); // l'utilisateur qui envoie force le retour en bas ; sinon on respecte sa position
     return {row:row, msgEl:msg, tsEl:ts};
   }
 
@@ -4174,7 +4174,24 @@ LaRuche.Chat = (function(){
     if(LaRuche.Voice.isAutoTts()) LaRuche.Voice.speakText(text,ttsBtn);
   }
 
-  function scrollToBottom() { requestAnimationFrame(function(){ var c=document.getElementById('chatContainer'); c.scrollTop=c.scrollHeight; }); }
+  // Auto-scroll « collé en bas » : on ne re-scrolle QUE si l'utilisateur était déjà en bas.
+  // Dès qu'il remonte lire, on arrête de le ramener (jusqu'à ce qu'il redescende lui-même).
+  // `force=true` pour les actions explicites (l'utilisateur envoie un message).
+  var _chatStick = true, _chatScrollBound = false;
+  function _bindChatScroll(){
+    if(_chatScrollBound) return;
+    var c=document.getElementById('chatContainer'); if(!c) return;
+    c.addEventListener('scroll', function(){
+      _chatStick = (c.scrollHeight - c.scrollTop - c.clientHeight) < 120;
+    });
+    _chatScrollBound = true;
+  }
+  function scrollToBottom(force) {
+    _bindChatScroll();
+    if(force) _chatStick = true;
+    if(!_chatStick) return;
+    requestAnimationFrame(function(){ var c=document.getElementById('chatContainer'); if(c) c.scrollTop=c.scrollHeight; });
+  }
 
   // \u2500\u2500 Feed agentique : timeline en \u00e9tapes repliables \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   var _feedStepN=0, _feedBody=null, _feedPrevCard=null, _feedLiveStartedAt=0, _feedTurnTitle='';

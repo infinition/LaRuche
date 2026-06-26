@@ -788,6 +788,17 @@ pub async fn executer(
         ..but::Reglages::default()
     };
 
+    // Debug 👁 : émet le contexte réel (system prompt + message) pour le bouton « voir le
+    // message envoyé » sur la bulle utilisateur (l'ancien moteur l'émettait, pas encore butinage).
+    let _ = tx.send(ChatEvent::PromptDebug {
+        payload: serde_json::json!([
+            { "role": "system", "content": reglages.systeme.clone() },
+            { "role": "user", "content": prompt_utilisateur },
+        ]),
+        model: config.model.clone(),
+        provider: config.provider.clone(),
+    });
+
     let mut carnet = but::Carnet::ouvrir(prompt_utilisateur, mode, chrono::Utc::now());
 
     let four = FournisseurPont {
