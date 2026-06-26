@@ -10,6 +10,7 @@ laruche-memoire.workspace = true
 laruche-permissions.workspace = true
 laruche-compaction.workspace = true
 laruche-kanban = { path = "../laruche-kanban" }
+laruche-butinage = { path = "../laruche-butinage" }
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true

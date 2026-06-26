@@ -2018,6 +2018,7 @@ dependencies = [
  "chrono",
  "futures-util",
  "hostname",
+ "laruche-butinage",
  "laruche-compaction",
  "laruche-kanban",
  "laruche-memoire",

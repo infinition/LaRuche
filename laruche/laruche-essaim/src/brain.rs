@@ -1,4 +1,4 @@
-//! ReAct Agent Loop — inspired by third-party's agent architecture.
+﻿//! ReAct Agent Loop — inspired by third-party's agent architecture.
 //!
 //! Key patterns from third-party:
 //! - Stop reason handling (end_turn, tool_use, max_tokens)
@@ -824,6 +824,7 @@ async fn resumer_resultat_si_gros(
             &config.api_key,
             config.api_base.as_deref(),
             &config.ollama_url,
+            None,
         ),
     )
     .await;
@@ -905,6 +906,106 @@ fn plan_item_termine(status: &str) -> bool {
         || s.contains("✅")
 }
 
+/// Vrai si le statut d'une tâche du plan est terminal, même si l'étape n'a pas
+/// été accomplie au sens strict. Utile pour les branches conditionnelles :
+/// exemple, « télécharger si un lien est trouvé » devient terminal quand aucune
+/// source fiable n'existe après recherche suffisante.
+fn plan_item_terminal(status: &str) -> bool {
+    let s = status.to_lowercase();
+    plan_item_termine(status)
+        || s.contains("skip")
+        || s.contains("ignor")
+        || s.contains("non applicable")
+        || s.contains("failed")
+        || s.contains("échec")
+        || s.contains("echec")
+        || s.contains("blocked")
+        || s.contains("bloqu")
+        || s.contains("impossible")
+}
+
+fn reponse_negative_recherche(text: &str) -> bool {
+    let t = text.to_lowercase();
+    [
+        "je n'ai pas trouvé",
+        "je n'ai pas trouve",
+        "je n'ai pas réussi",
+        "je n'ai pas reussi",
+        "aucun lien",
+        "aucune source",
+        "pas trouvé de lien",
+        "pas trouve de lien",
+        "absence de liens",
+        "impossible de trouver",
+        "n'a pas été trouvé",
+        "n'a pas ete trouve",
+    ]
+    .iter()
+    .any(|m| t.contains(m))
+}
+
+/// Détecte les requêtes où l'utilisateur attend explicitement une recherche
+/// longue, exploratoire, avec plusieurs stratégies successives. Dans ce mode,
+/// une conclusion négative précoce ne doit pas arrêter la boucle.
+pub fn demande_recherche_longue(prompt: &str) -> bool {
+    let p = prompt.to_lowercase();
+    [
+        "ne t'arrete pas",
+        "ne t'arrête pas",
+        "jusqu'a",
+        "jusqu’à",
+        "jusqu'à",
+        "tant que",
+        "tréfonds",
+        "trefonds",
+        "très profonde",
+        "tres profonde",
+        "recherche profonde",
+        "recherche très profonde",
+        "recherche tres profonde",
+        "pendant des heures",
+        "des heures",
+        "longue recherche",
+        "deep research",
+    ]
+    .iter()
+    .any(|m| p.contains(m))
+}
+
+fn finaliser_plan_pour_reponse(last_plan: &[PlanItem], response_text: &str) -> Option<Vec<PlanItem>> {
+    if last_plan.is_empty() {
+        return None;
+    }
+
+    let negatif = reponse_negative_recherche(response_text);
+    let final_plan = last_plan
+        .iter()
+        .map(|p| {
+            let mut item = p.clone();
+            if !plan_item_terminal(&item.status) {
+                let task = item.task.to_lowercase();
+                item.status = if negatif
+                    && (task.contains("récup")
+                        || task.contains("recup")
+                        || task.contains("télécharg")
+                        || task.contains("telecharg")
+                        || task.contains("fichier")
+                        || task.contains("lien"))
+                {
+                    "ok: non applicable, aucun lien exploitable trouvé".to_string()
+                } else if negatif {
+                    "ok: terminé avec résultat négatif".to_string()
+                } else {
+                    "ok: terminé".to_string()
+                };
+            }
+            item
+        })
+        .collect::<Vec<_>>();
+
+    Some(final_plan)
+}
+
 /// Vrai si la réponse signale une vraie conclusion (pas une étape intermédiaire).
 /// Sert de soupape : on arrête l'auto-continuation même si le plan n'est pas coché.
 fn reponse_signale_fin(text: &str) -> bool {
@@ -967,6 +1068,72 @@ fn reponse_annonce_action_sans_outil(text: &str) -> bool {
     ]
     .iter()
     .any(|m| t.contains(m))
+}
+
+/// Vrai si le modèle a tenté d'écrire un appel d'outil sous une forme textuelle
+/// non exécutable (`tool_call{tool: ...}` par exemple). Ce cas est dangereux :
+/// l'UI peut afficher du texte qui ressemble à un appel, mais aucun outil n'a été lancé.
+fn reponse_contient_tool_call_malforme(text: &str) -> bool {
+    let t = strip_plan_tags(&strip_think_tags(text)).to_lowercase();
+
+    let contient_marqueur_malforme = t.contains("tool_call{")
+        || t.contains("tool_call {")
+        || t.contains("tool_call(")
+        || t.contains("tool_call:")
+        || t.contains("tool_call=")
+        || t.contains("tool_call `")
+        || t.contains("outil_call{")
+        || t.contains("appel_outil{");
+
+    let contient_tool_call_valide = t.contains("<tool_call>") && t.contains("</tool_call>");
+
+    contient_marqueur_malforme && !contient_tool_call_valide
+}
+
+/// Détecte les demandes où une conclusion sans trace d'outil est suspecte.
+/// Ce n'est pas une preuve de réussite, seulement un garde-fou anti-"j'ai cherché" narratif.
+fn demande_implique_recherche_web(prompt: &str) -> bool {
+    let p = prompt.to_lowercase();
+    [
+        "internet",
+        "web",
+        "recherche",
+        "cherche",
+        "trouve",
+        "télécharg",
+        "telecharg",
+        "lien",
+        "source",
+        "archive",
+        "forum",
+    ]
+    .iter()
+    .any(|m| p.contains(m))
+}
+
+fn reponse_conclut_recherche_sans_trace(prompt: &str, response_text: &str, web_tool_count: usize) -> bool {
+    if web_tool_count > 0 || !demande_implique_recherche_web(prompt) {
+        return false;
+    }
+
+    let t = response_text.to_lowercase();
+    let conclusion_negative = [
+        "je n'ai pas réussi",
+        "je n'ai pas reussi",
+        "aucun lien",
+        "absence de liens",
+        "pas trouvé",
+        "pas trouve",
+        "impossible de trouver",
+        "recherche terminée",
+        "recherche terminee",
+    ]
+    .iter()
+    .any(|m| t.contains(m));
+
+    let contient_url = t.contains("http://") || t.contains("https://") || t.contains("www.");
+
+    conclusion_negative && !contient_url
 }
 
 /// Classe une erreur provider : si c'est une `ProviderError` structurée (status+body),
@@ -1171,8 +1338,9 @@ fn sortie_tronquee(response_text: &str, finish_reason: Option<&str>) -> bool {
 
 #[derive(Debug, Deserialize)]
 struct ToolCallRaw {
+    #[serde(alias = "tool", alias = "function", alias = "function_name")]
     name: String,
-    #[serde(alias = "arguments", alias = "args", alias = "parameters")]
+    #[serde(alias = "arguments", alias = "args", alias = "parameters", alias = "input")]
     arguments: serde_json::Value,
 }
 
@@ -1773,9 +1941,9 @@ async fn curer_memoire(
         512,
         &config.api_key,
         config.api_base.as_deref(),
-        &config.ollama_url,
-    )
-    .await?;
+            &config.ollama_url,
+            None,
+        ).await?;
     let mut out = String::new();
     while let Some(chunk) = stream.next().await {
         out.push_str(&chunk.text);
@@ -1932,9 +2100,9 @@ pub async fn consolider_node(
         1400,
         &config.api_key,
         config.api_base.as_deref(),
-        &config.ollama_url,
-    )
-    .await?;
+            &config.ollama_url,
+            None,
+        ).await?;
     let mut out = String::new();
     while let Some(chunk) = stream.next().await {
         out.push_str(&chunk.text);
@@ -2038,9 +2206,9 @@ async fn extraire_skill_memoire(
         1400,
         &config.api_key,
         config.api_base.as_deref(),
-        &config.ollama_url,
-    )
-    .await?;
+            &config.ollama_url,
+            None,
+        ).await?;
     let mut out = String::new();
     while let Some(chunk) = stream.next().await {
         out.push_str(&chunk.text);
@@ -2757,9 +2925,35 @@ pub async fn boucle_react_multimodal_ext(
     ephemeral_context: Option<String>,
     memoire: Option<Arc<dyn laruche_memoire::MemoireCognitive>>,
 ) -> Result<String> {
+    // Cohabitation : moteur ReAct « butinage » (nouveau) activable par flag, sans
+    // toucher au node. Les attachments multimodaux ne sont pas (encore) transmis au
+    // pont → POC text-first. À défaut de flag, on garde l'ancien moteur ci-dessous.
+    if std::env::var("RUCHE_MOTEUR").as_deref() == Ok("butinage") {
+        return crate::butinage_pont::executer(
+            prompt_utilisateur,
+            session,
+            registry,
+            config,
+            tx,
+            &ephemeral_context,
+            &memoire,
+        )
+        .await;
+    }
+
     session.ajouter_user_multimodal(prompt_utilisateur, attachments);
 
     let tool_schema = schema_outils_pour_prompt(registry, config, prompt_utilisateur);
+    // Tableau d'outils natifs pour l'API (format OpenAI/Anthropic)
+    let native_tools: Vec<serde_json::Value> = match &tool_schema {
+        serde_json::Value::Array(arr) => arr.clone(),
+        _ => vec![],
+    };
+    let native_tools_opt: Option<&[serde_json::Value]> = if native_tools.is_empty() {
+        None
+    } else {
+        Some(native_tools.as_slice())
+    };
     let mut capability_index = build_capability_index(registry);
     // Ajoute l'index des skills (s'il a été construit par le caller mémoire) au catalogue stable.
     if let Some(sk) = config.skills_index.as_deref() {
@@ -2776,6 +2970,10 @@ pub async fn boucle_react_multimodal_ext(
         ));
     }
     let system_prompt = build_system_prompt(
+        // Robustesse ReAct : même si les outils natifs sont envoyés via l'API (`tools:`),
+        // on garde le protocole texte dans le prompt. Certains providers compatibles OpenAI
+        // ou modèles locaux ignorent/ratent les tool calls natifs et émettent alors du texte
+        // du type `tool_call{...}`. Le schéma texte sert de rail de sécurité/fallback.
         &tool_schema,
         config.system_prompt_override.as_deref(),
         config.behavior_override.as_deref(),
@@ -2796,6 +2994,10 @@ pub async fn boucle_react_multimodal_ext(
     // boucle en deep-research bien après avoir la réponse. 6 auto-continuations suffisent
     // pour une tâche multi-étapes légitime sans runaway.
     const AUTO_CONTINUE_MAX: usize = 20;
+    // En mode recherche longue explicite, on refuse les conclusions négatives trop tôt.
+    // Ce seuil force plusieurs stratégies de recherche indépendantes avant d'accepter
+    // un « rien trouvé ». Monte-le (30/60/120) pour des missions de plusieurs heures.
+    const MIN_DEEP_RESEARCH_WEB_CALLS: usize = 12;
     // Garde-fou anti-boucle (astuce third-party `tool_guardrails`) : compte les appels d'outils
     // identiques (nom+args) pour avertir puis stopper si le modèle tourne en rond.
     let mut tool_call_counts: std::collections::HashMap<String, u32> =
@@ -2803,6 +3005,9 @@ pub async fn boucle_react_multimodal_ext(
     // Compteur par NOM d'outil : catche un même outil rappelé en boucle (même avec args différents).
     let mut tool_name_counts: std::collections::HashMap<String, u32> =
         std::collections::HashMap::new();
+    // Trace minimale de preuve : évite qu'une tâche web soit déclarée terminée alors
+    // qu'aucun outil réseau n'a réellement été appelé.
+    let mut web_tool_count: usize = 0;
     let mut thoughts = ThoughtStreamer::default();
     emit_thought(
         tx,
@@ -2938,6 +3143,7 @@ pub async fn boucle_react_multimodal_ext(
                 &current_api_key,
                 config.api_base.as_deref(),
                 &config.ollama_url,
+                native_tools_opt,
             )
             .await;
 
@@ -3048,6 +3254,7 @@ pub async fn boucle_react_multimodal_ext(
                             &current_api_key,
                             config.api_base.as_deref(),
                             &config.ollama_url,
+                            native_tools_opt,
                         )
                         .await
                         {
@@ -3081,6 +3288,8 @@ pub async fn boucle_react_multimodal_ext(
         let mut response_text = String::new();
         let mut finish_reason = None;
         let mut steering_interruption = None;
+        // Tool calls natifs provenant de l'API (format OpenAI tools:)
+        let mut native_tool_calls: Option<Vec<ToolCall>> = None;
 
         loop {
             if let Some(rx) = steer_rx.as_mut() {
@@ -3090,6 +3299,9 @@ pub async fn boucle_react_multimodal_ext(
                             Some(chunk) => {
                                 if chunk.finish_reason.is_some() {
                                     finish_reason = chunk.finish_reason.clone();
+                                }
+                                if chunk.tool_calls.is_some() {
+                                    native_tool_calls = chunk.tool_calls.clone();
                                 }
                                 if !chunk.text.is_empty() {
                                     response_text.push_str(&chunk.text);
@@ -3115,6 +3327,9 @@ pub async fn boucle_react_multimodal_ext(
                 if let Some(chunk) = stream.next().await {
                     if chunk.finish_reason.is_some() {
                         finish_reason = chunk.finish_reason.clone();
+                    }
+                    if chunk.tool_calls.is_some() {
+                        native_tool_calls = chunk.tool_calls.clone();
                     }
                     if !chunk.text.is_empty() {
                         response_text.push_str(&chunk.text);
@@ -3201,7 +3416,7 @@ pub async fn boucle_react_multimodal_ext(
         }
 
         // Parse tool calls (extraits AVANT strip_think_tags plus haut)
-        let mut tool_calls = raw_tool_calls;
+        let mut tool_calls = native_tool_calls.unwrap_or(raw_tool_calls);
         let tool_call_overflow = keep_single_tool_call(&mut tool_calls);
         if !tool_calls.is_empty() {
             // Progrès réel (un outil va s'exécuter) → on réarme le budget d'auto-continuation.
@@ -3290,6 +3505,9 @@ pub async fn boucle_react_multimodal_ext(
                 cost_usd,
             });
             let msg = format!("✅ Tâche terminée — {summary}");
+            if let Some(final_plan) = finaliser_plan_pour_reponse(&last_plan, &msg) {
+                let _ = tx.send(ChatEvent::Plan { items: final_plan });
+            }
             let _ = tx.send(ChatEvent::Done {
                 full_response: msg.clone(),
             });
@@ -3299,10 +3517,29 @@ pub async fn boucle_react_multimodal_ext(
         // === Stop reason handling (third-party pattern) ===
 
         if tool_calls.is_empty() {
+            if auto_continue_count < AUTO_CONTINUE_MAX
+                && reponse_contient_tool_call_malforme(&response_text)
+            {
+                auto_continue_count += 1;
+                session.ajouter_assistant(&response_text);
+                session.ajouter_user(
+                    r#"Tu as émis un appel d'outil mal formé : il ressemble à un tool_call, mais il n'est pas exécutable.
+Réémets maintenant UNIQUEMENT un appel d'outil valide, sans Markdown, sans explication.
+Format exact : <tool_call>{"name":"NOM_OUTIL","arguments":{...}}</tool_call>"#,
+                );
+                let _ = tx.send(ChatEvent::Status {
+                    message: format!(
+                        "Auto-continuation: appel d'outil mal formé détecté ({}/{})",
+                        auto_continue_count, AUTO_CONTINUE_MAX
+                    ),
+                });
+                continue;
+            }
+
             // Auto-continuation : si un plan est en cours (tâches non terminées) et
             // que la réponse n'est pas une vraie conclusion, on relance tout seul
             // au lieu de rendre la main — l'agent enchaîne les étapes.
-            let plan_inacheve = last_plan.iter().any(|p| !plan_item_termine(&p.status));
+            let plan_inacheve = last_plan.iter().any(|p| !plan_item_terminal(&p.status));
             if plan_inacheve
                 && auto_continue_count < AUTO_CONTINUE_MAX
                 && !reponse_signale_fin(&response_text)
@@ -3343,8 +3580,39 @@ pub async fn boucle_react_multimodal_ext(
                 continue;
             }
 
+            // Mode recherche longue : si l'utilisateur a explicitement demandé de ne pas
+            // s'arrêter tant qu'une piste n'a pas été trouvée, une conclusion négative
+            // après seulement quelques recherches est considérée comme un checkpoint,
+            // pas comme une fin de mission.
+            if demande_recherche_longue(prompt_utilisateur)
+                && reponse_negative_recherche(&response_text)
+                && web_tool_count < MIN_DEEP_RESEARCH_WEB_CALLS
+                && auto_continue_count < AUTO_CONTINUE_MAX
+            {
+                auto_continue_count += 1;
+                session.ajouter_assistant(&response_text);
+                session.ajouter_user(
+                    r#"Recherche longue demandée : ta conclusion négative arrive trop tôt.
+Ne conclus pas encore. Change de stratégie et appelle maintenant un outil web.
+Explore explicitement plusieurs axes nouveaux :
+- requêtes FR/EN : "Dungeon Siege fichiers", "Dungeon Siege sauvegarde", "Dungeon Siege characters", "Dungeon Siege party", "Dungeon Siege save", "Dungeon Siege forum fichiers" ;
+- anciens fansites et forums : Lord TRY, SiegeTheDay, HeavenGames, GameFront/FilePlanet archives, Nexus, GitHub, Internet Archive ;
+- requêtes avancées : site:, intitle:index.of, filetype:zip, .dssave, .dsgame, .rar, .7z ;
+- pages "fichiers", "downloads", "forum", "personnages/pj", "multijoueur" plutôt que seulement "save game".
+À chaque passe, note les requêtes testées et les URLs candidates.
+N'accepte une conclusion négative qu'après avoir épuisé plusieurs familles de requêtes."#,
+                );
+                let _ = tx.send(ChatEvent::Status {
+                    message: format!(
+                        "Recherche longue: conclusion négative trop précoce — relance forcée ({}/{} web calls, auto {}/{})",
+                        web_tool_count, MIN_DEEP_RESEARCH_WEB_CALLS, auto_continue_count, AUTO_CONTINUE_MAX
+                    ),
+                });
+                continue;
+            }
+
             // STOP REASON: end_turn — model finished naturally
-            let plan_inacheve = last_plan.iter().any(|p| !plan_item_termine(&p.status));
+            let plan_inacheve = last_plan.iter().any(|p| !plan_item_terminal(&p.status));
             if plan_inacheve {
                 let _ = tx.send(ChatEvent::Status {
                     message: format!(
@@ -3353,6 +3621,26 @@ pub async fn boucle_react_multimodal_ext(
                     ),
                 });
             }
+
+            if auto_continue_count < AUTO_CONTINUE_MAX
+                && reponse_conclut_recherche_sans_trace(prompt_utilisateur, &response_text, web_tool_count)
+            {
+                auto_continue_count += 1;
+                session.ajouter_assistant(&response_text);
+                session.ajouter_user(
+                    r#"Tu conclus une recherche web sans trace d'outil réellement exécuté.
+Relance avec `web_deep_search` ou `web_fetch`.
+Dans la réponse finale, liste les requêtes testées et les URLs consultées ou candidates."#,
+                );
+                let _ = tx.send(ChatEvent::Status {
+                    message: format!(
+                        "Conclusion web sans observation détectée — relance forcée ({}/{})",
+                        auto_continue_count, AUTO_CONTINUE_MAX
+                    ),
+                });
+                continue;
+            }
+
             session.ajouter_assistant(&response_text);
             emit_thought(
                 tx,
@@ -3373,6 +3661,14 @@ pub async fn boucle_react_multimodal_ext(
                 output_tokens,
                 cost_usd,
             });
+
+            // Dernière synchronisation UI : une réponse finale doit toujours
+            // pousser un plan terminal. Sinon l'UI peut rester en 0/3 alors que
+            // la boucle a rendu la main. Les étapes conditionnelles deviennent
+            // `ok: non applicable` quand la recherche n'a pas produit de lien.
+            if let Some(final_plan) = finaliser_plan_pour_reponse(&last_plan, &response_text) {
+                let _ = tx.send(ChatEvent::Plan { items: final_plan });
+            }
 
             let _ = tx.send(ChatEvent::Done {
                 full_response: response_text.clone(),
@@ -3416,6 +3712,9 @@ pub async fn boucle_react_multimodal_ext(
                 );
             }
 
+            if call.name.starts_with("web_") || call.name.starts_with("browser_") {
+                web_tool_count += 1;
+            }
             allowed_tool_calls.push(call.clone());
         }
 
