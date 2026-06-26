@@ -1945,6 +1945,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "laruche-butinage"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "serde",
+ "serde_json",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "laruche-cli"
 version = "0.2.0"
 dependencies = [
