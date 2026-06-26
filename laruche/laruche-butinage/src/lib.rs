@@ -17,10 +17,12 @@
 pub mod carnet;
 pub mod issue;
 pub mod itineraire;
+pub mod meteo;
 pub mod cap;
 
 pub use carnet::{Carnet, ModeMission};
 pub use issue::{Appel, Bilan, FinDeVol, Issue, StopReason};
 pub use itineraire::{Etape, Itineraire, StatutEtape};
+pub use meteo::{ClasseErreur, Reaction};
 pub use cap::boussole::{cap, ContexteCap, Decision};
 pub use cap::vigie::{Signal, SeuilsVigie, Vigie};
