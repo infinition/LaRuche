@@ -154,25 +154,98 @@ pub(crate) async fn search_web_results(
     client: &reqwest::Client,
     query: &str,
 ) -> Result<Vec<SearchResult>> {
-    let mut results = if let Ok(key) = std::env::var("LARUCHE_TAVILY_KEY") {
-        search_tavily(client, query, &key).await.unwrap_or_default()
-    } else if let Ok(url) = std::env::var("LARUCHE_SEARXNG_URL") {
-        search_searxng(client, query, &url)
-            .await
-            .unwrap_or_default()
-    } else {
-        Vec::new()
-    };
-    if results.is_empty() {
-        results = search_yahoo_html(client, query).await.unwrap_or_default();
+    // 1) API dédiée si configurée (qualité > volume, et on économise les scrapers).
+    //    Tavily et Brave sont pensés pour les agents : résultats propres, opérateurs gérés.
+    if let Ok(key) = std::env::var("LARUCHE_TAVILY_KEY") {
+        let r = search_tavily(client, query, &key).await.unwrap_or_default();
+        if !r.is_empty() {
+            return Ok(r);
+        }
     }
-    if results.is_empty() {
-        results = search_ddg_html(client, query).await.unwrap_or_default();
+    if let Ok(key) = std::env::var("LARUCHE_BRAVE_KEY") {
+        let r = search_brave(client, query, &key).await.unwrap_or_default();
+        if !r.is_empty() {
+            return Ok(r);
+        }
     }
-    if results.is_empty() {
-        results = search_ddg_lite(client, query).await.unwrap_or_default();
+    if let Ok(url) = std::env::var("LARUCHE_SEARXNG_URL") {
+        let r = search_searxng(client, query, &url).await.unwrap_or_default();
+        if !r.is_empty() {
+            return Ok(r);
+        }
     }
-    Ok(results)
+
+    // 2) Sinon : on interroge les scrapers gratuits EN PARALLÈLE et on fusionne
+    //    (au lieu de « le premier non vide gagne »). Meilleure couverture, et
+    //    résilience quand un moteur est rate-limité/bloqué (cause des « No results »).
+    let (yahoo, ddg, lite) = tokio::join!(
+        search_yahoo_html(client, query),
+        search_ddg_html(client, query),
+        search_ddg_lite(client, query),
+    );
+    let mut fusion: Vec<SearchResult> = Vec::new();
+    fusionner(&mut fusion, yahoo.unwrap_or_default());
+    fusionner(&mut fusion, ddg.unwrap_or_default());
+    fusionner(&mut fusion, lite.unwrap_or_default());
+    Ok(fusion)
+}
+
+/// Clé de déduplication d'une URL : domaine + chemin, sans `www.`, query, fragment ni slash final.
+fn cle_url(url: &str) -> String {
+    let sans_proto = url.split("://").nth(1).unwrap_or(url);
+    let sans_q = sans_proto.split(['?', '#']).next().unwrap_or(sans_proto);
+    sans_q
+        .trim_start_matches("www.")
+        .trim_end_matches('/')
+        .to_lowercase()
+}
+
+/// Ajoute à `acc` les résultats non déjà présents (dédup par [`cle_url`]).
+fn fusionner(acc: &mut Vec<SearchResult>, nouveaux: Vec<SearchResult>) {
+    for r in nouveaux {
+        let cle = cle_url(&r.url);
+        if cle.is_empty() || !r.url.starts_with("http") {
+            continue;
+        }
+        if !acc.iter().any(|x| cle_url(&x.url) == cle) {
+            acc.push(r);
+        }
+    }
+}
+
+/// Brave Search API (clé `LARUCHE_BRAVE_KEY`) — fiable, gérée pour les agents, free tier généreux.
+async fn search_brave(
+    client: &reqwest::Client,
+    query: &str,
+    key: &str,
+) -> Result<Vec<SearchResult>> {
+    let url = format!(
+        "https://api.search.brave.com/res/v1/web/search?q={}&count=10",
+        urlencoding::encode(query)
+    );
+    let resp = tokio::time::timeout(
+        std::time::Duration::from_secs(10),
+        client
+            .get(&url)
+            .header("X-Subscription-Token", key)
+            .header("Accept", "application/json")
+            .send(),
+    )
+    .await??;
+    let v: serde_json::Value = resp.json().await?;
+    let out = v["web"]["results"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .map(|r| SearchResult {
+                    title: r["title"].as_str().unwrap_or("").to_string(),
+                    url: r["url"].as_str().unwrap_or("").to_string(),
+                    snippet: r["description"].as_str().unwrap_or("").to_string(),
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    Ok(out)
 }
 
 fn decode_yahoo_url(href: &str) -> String {

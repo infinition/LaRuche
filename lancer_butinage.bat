@@ -13,6 +13,15 @@ set "RUCHE_MOTEUR=butinage"
 REM --- Backend memoire : native | sqlite | sidecar ---
 set "LARUCHE_MEMOIRE_BACKEND=sqlite"
 
+REM --- RECHERCHE WEB : decommente UNE ligne pour une vraie API (gros boost qualite) ---
+REM   Tavily (pense pour les agents, free 1000/mois) : https://tavily.com
+REM set "LARUCHE_TAVILY_KEY=tvly-xxxxxxxxxxxxxxxx"
+REM   Brave Search (free 2000/mois) : https://brave.com/search/api/
+REM set "LARUCHE_BRAVE_KEY=BSA-xxxxxxxxxxxxxxxx"
+REM   ou un SearXNG auto-heberge :
+REM set "LARUCHE_SEARXNG_URL=http://localhost:8888"
+REM   Sans cle : scrapers gratuits (Yahoo+DDG) interroges en parallele et fusionnes.
+
 REM --- (optionnel) embeddings semantiques via Ollama ---
 REM set "LARUCHE_EMBED_URL=http://localhost:11434"
 REM set "LARUCHE_EMBED_MODEL=nomic-embed-text"
