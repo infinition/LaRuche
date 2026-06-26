@@ -142,13 +142,15 @@ async fn openai_chat_stream(
         })
         .collect();
 
-    let body = serde_json::json!({
+    let mut body = serde_json::json!({
         "model": model,
         "messages": openai_messages,
         "stream": true,
         "temperature": temperature,
-        "max_tokens": max_tokens,
     });
+    if max_tokens > 0 {
+        body["max_tokens"] = serde_json::json!(max_tokens);
+    }
 
     let client = reqwest::Client::new();
     let mut req = client
@@ -556,11 +558,12 @@ async fn anthropic_chat_stream(
     // Ensure messages alternate user/assistant — merge consecutive same-role
     anthropic_messages = merge_consecutive_roles(anthropic_messages);
 
+    let anthropic_max = if max_tokens > 0 { max_tokens } else { 4096 };
     let mut body = serde_json::json!({
         "model": model,
         "messages": anthropic_messages,
         "stream": true,
-        "max_tokens": max_tokens,
+        "max_tokens": anthropic_max,
         "temperature": temperature,
     });
 

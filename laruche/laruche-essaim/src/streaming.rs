@@ -44,10 +44,16 @@ pub async fn ollama_chat_stream(
 ) -> Result<Pin<Box<dyn Stream<Item = OllamaChunk> + Send>>> {
     let client = reqwest::Client::new();
 
-    let options = serde_json::json!({
-        "num_predict": max_tokens,
-        "temperature": temperature,
-    });
+    let options = if max_tokens > 0 {
+        serde_json::json!({
+            "num_predict": max_tokens,
+            "temperature": temperature,
+        })
+    } else {
+        serde_json::json!({
+            "temperature": temperature,
+        })
+    };
 
     // Try /api/chat first
     let chat_body = serde_json::json!({

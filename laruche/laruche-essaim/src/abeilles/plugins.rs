@@ -3,22 +3,10 @@
 //! Plugins are JSON files in a `plugins/` directory. Each file defines a tool
 //! that executes a shell command template with arguments from the LLM.
 //!
-//! Example plugin file (`plugins/docker-status.json`):
-//! ```json
-//! {
-//!   "name": "docker_status",
-//!   "description": "Get Docker container status",
-//!   "parameters": {
-//!     "type": "object",
-//!     "properties": {
-//!       "container": { "type": "string", "description": "Container name or ID" }
-//!     },
-//!     "required": []
-//!   },
-//!   "command": "docker ps --filter name={{container}} --format '{{.Names}} {{.Status}}'",
-//!   "danger": "safe"
-//! }
-//! ```
+//! **Arguments passing** : les arguments sont injectés dans la commande via
+//! `{{param}}` placeholder, MAIS les arguments longs et multi-lignes (`message`,
+//! `text`, `content`, `code`) sont automatiquement passés via **stdin** pour
+//! éviter les problèmes de quoting shell (surtout sur Windows cmd.exe).
 
 use crate::abeille::{
     Abeille, AbeilleRegistry, ContextExecution, NiveauDanger, ResultatAbeille, ToolOrigin,
@@ -28,6 +16,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::process::Stdio;
+use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -46,7 +35,9 @@ fn default_danger() -> String {
     "safe".to_string()
 }
 
-/// A dynamically loaded plugin abeille.
+/// Champs d'argument longs → passés via stdin au lieu du shell.
+const STDIN_ARGS: &[&str] = &["message", "text", "content", "code", "body"];
+
 pub struct PluginAbeille {
     def: PluginDefinition,
 }
@@ -62,11 +53,9 @@ impl Abeille for PluginAbeille {
     fn nom(&self) -> &str {
         &self.def.name
     }
-
     fn description(&self) -> &str {
         &self.def.description
     }
-
     fn schema(&self) -> serde_json::Value {
         self.def.parameters.clone()
     }
@@ -88,32 +77,63 @@ impl Abeille for PluginAbeille {
         args: serde_json::Value,
         ctx: &ContextExecution,
     ) -> Result<ResultatAbeille> {
-        // Template substitution: replace {{param}} with actual values
         let mut command = self.def.command.clone();
+        let mut stdin_data: Option<String> = None;
+
         if let Some(obj) = args.as_object() {
             for (key, value) in obj {
                 let placeholder = format!("{{{{{}}}}}", key);
+                let is_stdin_candidate = STDIN_ARGS.contains(&key.as_str());
+                let command_has_placeholder = command.contains(&placeholder);
+
                 let replacement = match value {
-                    serde_json::Value::String(s) => s.clone(),
+                    serde_json::Value::String(s) => {
+                        if is_stdin_candidate && !command_has_placeholder {
+                            match &mut stdin_data {
+                                Some(existing) => {
+                                    existing.push('\n');
+                                    existing.push_str(s);
+                                }
+                                None => stdin_data = Some(s.clone()),
+                            }
+                        }
+                        s.clone()
+                    }
                     other => other.to_string(),
                 };
-                command = command.replace(&placeholder, &replacement);
+                if command_has_placeholder {
+                    command = command.replace(&placeholder, &replacement);
+                }
             }
         }
 
         let shell = if cfg!(windows) { "cmd" } else { "sh" };
         let flag = if cfg!(windows) { "/C" } else { "-c" };
-        let timeout = self.def.timeout_secs.unwrap_or(30);
+        let timeout_secs = self.def.timeout_secs.unwrap_or(30);
+
+        let mut child = Command::new(shell)
+            .arg(flag)
+            .arg(&command)
+            .current_dir(&ctx.working_dir)
+            .stdin(if stdin_data.is_some() {
+                Stdio::piped()
+            } else {
+                Stdio::null()
+            })
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
+
+        if let Some(data) = stdin_data {
+            if let Some(mut stdin_handle) = child.stdin.take() {
+                let _ = stdin_handle.write_all(data.as_bytes()).await;
+                let _ = stdin_handle.shutdown().await;
+            }
+        }
 
         let result = tokio::time::timeout(
-            std::time::Duration::from_secs(timeout),
-            Command::new(shell)
-                .arg(flag)
-                .arg(&command)
-                .current_dir(&ctx.working_dir)
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .output(),
+            std::time::Duration::from_secs(timeout_secs),
+            child.wait_with_output(),
         )
         .await;
 
@@ -125,7 +145,6 @@ impl Abeille for PluginAbeille {
                 if !stderr.is_empty() {
                     combined.push_str(&format!("\n--- stderr ---\n{}", stderr));
                 }
-                // Truncate
                 if combined.len() > 4000 {
                     combined.truncate(4000);
                     combined.push_str("\n...(truncated)");
@@ -135,7 +154,7 @@ impl Abeille for PluginAbeille {
             Ok(Err(e)) => Ok(ResultatAbeille::err(format!("Plugin exec error: {}", e))),
             Err(_) => Ok(ResultatAbeille::err(format!(
                 "Plugin timed out ({}s)",
-                timeout
+                timeout_secs
             ))),
         }
     }
@@ -144,7 +163,6 @@ impl Abeille for PluginAbeille {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn plugin_origin_is_custom() {
         let plugin = PluginAbeille::new(PluginDefinition {
@@ -155,53 +173,48 @@ mod tests {
             danger: "safe".into(),
             timeout_secs: None,
         });
-
         assert_eq!(plugin.origin(), ToolOrigin::Custom);
-
         let registry = AbeilleRegistry::new();
         registry.enregistrer(Box::new(plugin));
         assert_eq!(registry.origin("custom_test"), Some(ToolOrigin::Custom));
         assert_eq!(registry.schema_complet()[0]["origin"], "custom");
     }
+
+    #[tokio::test]
+    async fn plugin_passes_long_arg_to_stdin_without_placeholder() {
+        let command = if cfg!(windows) {
+            "powershell -NoProfile -Command \"$input | Write-Output\""
+        } else {
+            "cat"
+        };
+        let plugin = PluginAbeille::new(PluginDefinition {
+            name: "stdin_test".into(),
+            description: "stdin test".into(),
+            parameters: serde_json::json!({}),
+            command: command.into(),
+            danger: "safe".into(),
+            timeout_secs: Some(5),
+        });
+
+        let result = plugin
+            .executer(
+                serde_json::json!({"message": "hello from stdin"}),
+                &ContextExecution::default(),
+            )
+            .await
+            .unwrap();
+
+        assert!(result.success);
+        assert!(result.output.contains("hello from stdin"));
+    }
 }
 
-/// Scan a directory for plugin JSON files and register them.
 pub fn charger_plugins(dir: &Path, registry: &AbeilleRegistry) -> usize {
     let mut count = 0;
-
     if !dir.exists() {
-        // Create plugins directory and scripts subdirectory
         let scripts_dir = dir.join("scripts");
-        if let Err(e) = std::fs::create_dir_all(&scripts_dir) {
-            tracing::warn!(error = %e, "Failed to create plugins/scripts directory");
-            return 0;
-        }
-        // Write example plugin
-        let example = PluginDefinition {
-            name: "example_hello".to_string(),
-            description: "Example plugin: says hello (delete this file to remove)".to_string(),
-            parameters: serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "name": { "type": "string", "description": "Name to greet" }
-                },
-                "required": ["name"]
-            }),
-            command: if cfg!(windows) {
-                "echo Hello, {{name}}!".to_string()
-            } else {
-                "echo 'Hello, {{name}}!'".to_string()
-            },
-            danger: "safe".to_string(),
-            timeout_secs: Some(5),
-        };
-        let example_path = dir.join("example_hello.json");
-        if let Ok(json) = serde_json::to_string_pretty(&example) {
-            let _ = std::fs::write(&example_path, json);
-        }
+        let _ = std::fs::create_dir_all(&scripts_dir);
     }
-
-    // Always ensure the scripts subdirectory exists
     let _ = std::fs::create_dir_all(dir.join("scripts"));
 
     let entries = match std::fs::read_dir(dir) {
@@ -218,32 +231,22 @@ pub fn charger_plugins(dir: &Path, registry: &AbeilleRegistry) -> usize {
             match std::fs::read_to_string(&path) {
                 Ok(content) => match serde_json::from_str::<PluginDefinition>(&content) {
                     Ok(def) => {
-                        tracing::info!(
-                            plugin = %def.name,
-                            file = %path.display(),
-                            "Loaded plugin"
-                        );
+                        tracing::info!(plugin = %def.name, file = %path.display(), "Loaded plugin");
                         registry.enregistrer(Box::new(PluginAbeille::new(def)));
                         count += 1;
                     }
                     Err(e) => {
-                        tracing::warn!(
-                            file = %path.display(),
-                            error = %e,
-                            "Failed to parse plugin"
-                        );
+                        tracing::warn!(file = %path.display(), error = %e, "Failed to parse plugin")
                     }
                 },
                 Err(e) => {
-                    tracing::warn!(file = %path.display(), error = %e, "Failed to read plugin");
+                    tracing::warn!(file = %path.display(), error = %e, "Failed to read plugin")
                 }
             }
         }
     }
-
     if count > 0 {
         tracing::info!(count, dir = %dir.display(), "Plugins loaded");
     }
-
     count
 }

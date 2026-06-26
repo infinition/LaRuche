@@ -5,6 +5,7 @@ pub mod calendrier;
 pub mod clarify;
 pub mod git;
 pub mod image_search;
+pub mod job;
 pub mod kanban_next;
 pub mod knowledge;
 // Re-export plugin loader
@@ -30,6 +31,8 @@ pub mod recherche_fichiers;
 pub mod reload_plugins;
 pub mod run_script;
 pub mod shell;
+pub mod spawn_specialist;
+pub mod task_complete;
 pub mod todo;
 pub mod web_deep;
 pub mod web_fetch;
@@ -37,6 +40,7 @@ pub mod web_recherche;
 pub mod worktree;
 
 use crate::abeille::{Abeille, AbeilleRegistry, ContextExecution, NiveauDanger, ResultatAbeille};
+use crate::job_queue::JobQueue;
 use anyhow::Result;
 use async_trait::async_trait;
 use laruche_memoire::{MemoireCognitive, SearchOpts};
@@ -96,6 +100,8 @@ pub fn enregistrer_abeilles_builtin(registry: &AbeilleRegistry) {
     registry.enregistrer(Box::new(worktree::AbeilleGitWorktreeExit));
     // LSP
     registry.enregistrer(Box::new(lsp::AbeilleLsp));
+    // Task completion signal
+    registry.enregistrer(Box::new(task_complete::TaskComplete));
 
     tracing::info!(
         count = registry.noms().len(),
@@ -160,11 +166,28 @@ pub fn enregistrer_delegation(
         registry: sub_registry.clone(),
     }));
     registry.enregistrer(Box::new(delegation::Delegate {
-        registry: sub_registry,
+        registry: sub_registry.clone(),
         config: config.clone(),
     }));
-    registry.enregistrer(Box::new(mixture::MixtureOfAgents { config }));
-    tracing::info!("Delegate + run_script + mixture abeilles registered");
+    registry.enregistrer(Box::new(mixture::MixtureOfAgents { config: config.clone() }));
+    registry.enregistrer(Box::new(spawn_specialist::SpawnSpecialist {
+        registry: sub_registry.clone(),
+        config,
+    }));
+    tracing::info!("Delegate + run_script + mixture + spawn_specialist abeilles registered");
+}
+
+/// Register the JobQueue tools (submit_job, check_job_status).
+/// Call this with an Arc<JobQueue> shared across the application.
+pub fn enregistrer_jobs(
+    registry: &AbeilleRegistry,
+    queue: Arc<JobQueue>,
+) {
+    registry.enregistrer(Box::new(job::SubmitJob {
+        queue: queue.clone(),
+    }));
+    registry.enregistrer(Box::new(job::CheckJobStatus { queue }));
+    tracing::info!("JobQueue abeilles registered (submit_job, check_job_status)");
 }
 
 pub(crate) fn skill_node_id(name: &str) -> String {

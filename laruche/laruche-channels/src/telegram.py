@@ -61,18 +61,18 @@ if not BOT_TOKEN:
 API = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
 
-async def send_telegram(chat_id: int, text: str, parse_mode: str = "Markdown"):
+async def send_telegram(chat_id: int, text: str, parse_mode: str | None = None):
     """Send a message to Telegram."""
     async with httpx.AsyncClient() as client:
-        # Try Markdown first, fallback to plain text
         try:
-            resp = await client.post(f"{API}/sendMessage", json={
+            payload = {
                 "chat_id": chat_id,
                 "text": text,
-                "parse_mode": parse_mode,
-            })
+            }
+            if parse_mode:
+                payload["parse_mode"] = parse_mode
+            resp = await client.post(f"{API}/sendMessage", json=payload)
             if resp.status_code != 200:
-                # Fallback: send without parse_mode
                 await client.post(f"{API}/sendMessage", json={
                     "chat_id": chat_id,
                     "text": text,

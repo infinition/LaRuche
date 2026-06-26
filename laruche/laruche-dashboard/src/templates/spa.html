@@ -76,10 +76,6 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .status-bar select { background:transparent; border:none; color:var(--amber); font-size:11px; font-weight:500; cursor:pointer; outline:none; }
 .status-bar select:hover { color:var(--amber); text-decoration:underline; }
 .status-bar .sb-model-wrap { position:relative; }
-.status-bar .ctx-bar { width:36px; height:3px; border-radius:2px; flex-shrink:0; background:rgba(255,255,255,.06); cursor:default; position:relative; overflow:hidden; }
-.status-bar .ctx-bar-fill { position:absolute; inset:0; border-radius:2px; background:var(--green,#34d399); transition:width .3s ease, background .3s ease; width:0%; }
-.status-bar .ctx-bar-fill.warm { background:var(--amber); }
-.status-bar .ctx-bar-fill.hot { background:var(--red,#f87171); }
 .status-bar .sb-model-drop { position:absolute; bottom:100%; left:0; margin-bottom:4px; background:var(--bg-card); border:1px solid var(--border); border-radius:8px; box-shadow:0 -4px 16px rgba(0,0,0,.4); display:none; min-width:180px; max-height:240px; overflow-y:auto; z-index:10000; padding:4px 0; }
 .status-bar .sb-model-drop.open { display:block; }
 .status-bar .sb-model-drop div { padding:6px 12px; font-size:12px; cursor:pointer; color:var(--text); transition:background .12s; }
@@ -818,6 +814,26 @@ pre:hover .code-copy-btn { opacity:1; }
 .approval-btn.approve { background:var(--green); color:#000; }
 .approval-btn.deny { background:var(--red); color:#fff; }
 .approval-btn:hover { opacity:.85; }
+
+/* Context gauge (chat only — session-bound) */
+.chat-ctx-gauge {
+  display:none; align-items:center; gap:8px;
+  padding:3px 16px 2px; flex-shrink:0;
+  background:var(--bg-card); border-top:1px solid var(--border);
+  font-size:10px; color:var(--text-dim); user-select:none;
+}
+.chat-ctx-bar {
+  width:60px; height:4px; border-radius:2px; flex-shrink:0;
+  background:rgba(255,255,255,.08); position:relative; overflow:hidden;
+}
+.chat-ctx-fill {
+  position:absolute; inset:0; border-radius:2px;
+  background:var(--green,#34d399); transition:width .3s ease, background .3s ease; width:0%;
+}
+.chat-ctx-fill.warm { background:var(--amber); }
+.chat-ctx-fill.hot { background:var(--red,#f87171); }
+.chat-ctx-pct { font-weight:600; font-variant-numeric:tabular-nums; min-width:2.6em; }
+.chat-ctx-detail { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
 /* Input area */
 .input-area {
@@ -1972,6 +1988,12 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
         </div>
         <div id="dropZone" class="drop-zone" style="display:none"><div class="drop-zone-text">Deposer le fichier ici</div></div>
         <div id="attachmentPreview" class="attachment-preview" style="display:none"></div>
+        <!-- Context gauge (chat only — context is session-bound) -->
+        <div class="chat-ctx-gauge" id="chatCtxGauge">
+          <div class="chat-ctx-bar"><div class="chat-ctx-fill" id="chatCtxFill"></div></div>
+          <span class="chat-ctx-pct" id="chatCtxPct">0%</span>
+          <span class="chat-ctx-detail" id="chatCtxDetail">—</span>
+        </div>
         <div class="input-area" id="mainInputArea">
           <button class="tray-toggle-btn" id="trayToggleBtn" onclick="document.getElementById('mainInputArea').classList.toggle('show-tray'); this.classList.toggle('active')" title="Afficher les outils">
             <svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="9 18 15 12 9 6"></polyline></svg>
@@ -2949,6 +2971,13 @@ LaRuche.Header = (function(){
 
   async function fetchContextStats(){
     try{
+      var chatPage = document.getElementById('page-chat');
+      var gauge = document.getElementById('chatCtxGauge');
+      if(!chatPage || !gauge) return;
+      var isChat = chatPage.classList.contains('active');
+      gauge.style.display = isChat ? 'flex' : 'none';
+      if(!isChat) return;
+
       var sid = (window.LaRuche && LaRuche.Chat && typeof LaRuche.Chat.getSessionId === 'function') ? LaRuche.Chat.getSessionId() : null;
       var url = '/api/context/stats';
       if(sid) url += '?session_id=' + encodeURIComponent(sid);
@@ -2956,8 +2985,17 @@ LaRuche.Header = (function(){
       if(!r.ok)return;
       var d=await r.json();
       var pct = Math.round((d.ratio||0)*100);
-      var bar = document.getElementById('ctxBarFill');
-      if(bar) { bar.style.width=pct+'%'; bar.className='ctx-bar-fill'+(pct>66?' hot':pct>33?' warm':''); }
+      var fill = document.getElementById('chatCtxFill');
+      if(fill) { fill.style.width=pct+'%'; fill.className='chat-ctx-fill'+(pct>66?' hot':pct>33?' warm':''); }
+      var pctEl = document.getElementById('chatCtxPct');
+      if(pctEl) pctEl.textContent = pct+'%';
+      var detail = document.getElementById('chatCtxDetail');
+      if(detail) {
+        var used = d.used_tokens||0; var max = d.max_tokens||0;
+        var usedStr = used >= 1000 ? (used/1000).toFixed(1)+'k' : used;
+        var maxStr = max >= 1000 ? (max/1000).toFixed(0)+'k' : max;
+        detail.textContent = usedStr+' / '+maxStr+' tokens · '+d.messages+' msg';
+      }
     }catch(e){}
   }
 
@@ -4301,8 +4339,12 @@ LaRuche.Chat = (function(){
     item.className='cc-act '+type+(type.indexOf('tool-')===0?' act-major':' act-noise')+(collapsible?' collapsible':'')+(options.live?' live':'')+(options.terminal?' terminal':'');
     if(options.toolName)item.dataset.toolName=options.toolName;
     if(options.activityLabel)item.dataset.activityLabel=options.activityLabel;
+    // Horodatage avec secondes pour éviter le mélange d'événements d'une même minute
+    var now=new Date();
+    var timeStr=now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    item.dataset.feedSeq=String(now.getTime())+':'+String(Math.random()).slice(2,8);
     var line=document.createElement('div');line.className='act-line';
-    line.innerHTML='<span class="act-ico '+type+'">'+(iconMap[type]||'•')+'</span><span class="act-txt">'+LaRuche.Utils.esc(label)+'</span><span class="act-time">'+new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})+'</span>';
+    line.innerHTML='<span class="act-ico '+type+'">'+(iconMap[type]||'•')+'</span><span class="act-txt">'+LaRuche.Utils.esc(label)+'</span><span class="act-time">'+timeStr+'</span>';
     item.appendChild(line);
     if(body!==undefined&&body!==null&&body!==''){
       var bodyEl=document.createElement('pre');bodyEl.className='act-body';
@@ -9876,6 +9918,7 @@ LaRuche.Mesh = (function(){
     var pc=document.getElementById('page-chat');
     if(pc&&pc.classList.contains('active')){
       var ia=pc.querySelector('.input-area');           if(visible(ia)) b+=ia.offsetHeight;  // input du chat
+      var cg=pc.querySelector('.chat-ctx-gauge');      if(visible(cg)) b+=cg.offsetHeight;  // jauge de contexte
     }
     w.style.bottom=b+'px';
     // décaler à droite si le feed-drawer est ancré
@@ -10029,7 +10072,6 @@ LaRuche.Mesh = (function(){
     <span id="sbModelLabel" style="color:var(--amber);font-size:11px;font-weight:500;cursor:pointer;">Chargement...</span>
     <div class="sb-model-drop" id="sbModelDrop"></div>
   </div>
-  <div class="ctx-bar" id="ctxBar" title="Contexte utilisé"><div class="ctx-bar-fill" id="ctxBarFill"></div></div>
   <select id="modelSelect" onchange="LaRuche.Header.changeModel(this.value)" title="Changer de modele" style="display:none;">
     <option value="">Chargement...</option>
   </select>

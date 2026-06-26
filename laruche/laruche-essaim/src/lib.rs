@@ -22,12 +22,15 @@ pub mod codex_auth;
 pub mod credential_pool;
 pub mod cron;
 pub mod error_classifier;
+pub mod fatigue;
+pub mod job_queue;
 pub mod mcp_client;
 pub mod orchestration;
 pub mod prompt;
 pub mod providers;
 pub mod rag;
 pub mod session;
+pub mod stdout_filter;
 pub mod streaming;
 pub mod subagent;
 pub mod thought_stream;
@@ -40,7 +43,12 @@ pub use abeille::{
 };
 pub use brain::{
     boucle_react, boucle_react_memoire, boucle_react_memoire_multimodal, boucle_react_multimodal,
-    ApprovalResponse, ChatEvent, EssaimConfig, PlanItem,
+    detecter_contradictions, timeout_for_tool, ApprovalResponse, ChatEvent, EssaimConfig, PlanItem,
 };
+pub use fatigue::{consolider_fatigue, FatigueMonitor};
 pub use laruche_permissions::PermissionMode;
 pub use session::{Attachment, Message, Session};
+pub use subagent::{
+    cascade_providers, config_agent_specialise, config_sous_agent, dispatcher_pertinent,
+    lancer_sous_agent, AgentRole, ProviderConfig, SubagentResult,
+};

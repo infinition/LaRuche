@@ -114,6 +114,8 @@ struct PersistentState {
     #[serde(default)]
     context_max_messages: Option<usize>,
     #[serde(default)]
+    context_max_tokens: Option<u32>,
+    #[serde(default)]
     compaction_threshold: Option<f32>,
 }
 
@@ -1082,12 +1084,18 @@ async fn post_infer(
     }
 
     let client = reqwest::Client::new();
+    let max_tokens_val = req.max_tokens.unwrap_or(0);
+    let num_predict = if max_tokens_val > 0 {
+        serde_json::json!(max_tokens_val)
+    } else {
+        serde_json::Value::Null
+    };
     let ollama_req = serde_json::json!({
         "model": model,
         "prompt": req.prompt,
         "stream": false,
         "options": {
-            "num_predict": req.max_tokens.unwrap_or(4096),
+            "num_predict": num_predict,
             "temperature": req.temperature.unwrap_or(0.7),
         }
     });
@@ -4979,31 +4987,35 @@ async fn api_get_context_stats(
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Json<serde_json::Value> {
     let ec = state.essaim_config.read().await;
-    let max = ec.context_max_messages;
+    let max_messages = ec.context_max_messages;
+    let max_tokens = ec.context_max_tokens;
 
     let sessions = state.essaim_sessions.read().await;
     let session_id = params.get("session_id");
-    let messages = if let Some(sid_str) = session_id {
+    let (messages, used_tokens) = if let Some(sid_str) = session_id {
         if let Ok(sid) = uuid::Uuid::parse_str(sid_str) {
             sessions
                 .get(&sid)
-                .map(|s| s.messages.len() as u32)
-                .unwrap_or(0)
+                .map(|s| (s.messages.len() as u32, s.estimated_tokens() as u32))
+                .unwrap_or((0, 0))
         } else {
-            0
+            (0, 0)
         }
     } else {
-        0
+        (0, 0)
     };
-    let ratio = if max > 0 {
-        messages as f32 / max as f32
+
+    let ratio = if max_tokens > 0 {
+        used_tokens as f32 / max_tokens as f32
     } else {
         0.0
     };
 
     Json(serde_json::json!({
         "used": messages,
-        "max": max,
+        "max_messages": max_messages,
+        "used_tokens": used_tokens,
+        "max_tokens": max_tokens,
         "ratio": ratio,
         "messages": messages
     }))
@@ -5228,6 +5240,15 @@ async fn api_upsert_profile(
                 .collect()
         })
         .unwrap_or_default();
+    let max_context_length = body["max_context_length"]
+        .as_u64()
+        .map(|v| v as u32)
+        .unwrap_or_else(|| match provider.as_str() {
+            "anthropic" => 200000,
+            "codex" => 128000,
+            "openai" => 128000,
+            _ => 32768,
+        });
 
     let profile = profiles::ProviderProfile {
         provider,
@@ -5236,6 +5257,7 @@ async fn api_upsert_profile(
         api_key,
         models,
         visibilite: Default::default(), allowed_peers: Vec::new(),
+        max_context_length,
     };
 
     let mut cfg = state.profiles.write().await;
@@ -5356,6 +5378,7 @@ async fn ensure_codex_profile(state: &Arc<AppState>) {
                     api_key: String::new(),
                     models,
                     visibilite: Default::default(), allowed_peers: Vec::new(),
+                    max_context_length: 128000,
                 },
             );
         }
@@ -5628,6 +5651,7 @@ async fn api_models_use(
                     api_key: String::new(),
                     models: vec![],
                     visibilite: profiles::Visibilite::Prive, allowed_peers: Vec::new(),
+                    max_context_length: 128000,
                 });
         if !prof.models.contains(&name) {
             prof.models.push(name.clone());
@@ -5714,7 +5738,7 @@ async fn appliquer_capacite(state: &Arc<AppState>, config: &mut EssaimConfig, ca
 /// Sync the active profile into EssaimConfig so brain.rs picks it up.
 async fn sync_essaim_from_profiles(state: &Arc<AppState>) {
     let cfg = state.profiles.read().await;
-    let (provider, model, api_key, api_base, ollama_url) = profiles::active_to_essaim_fields(&cfg);
+    let (provider, model, api_key, api_base, ollama_url, max_context_length) = profiles::active_to_essaim_fields(&cfg);
     drop(cfg);
 
     let mut ec = state.essaim_config.write().await;
@@ -5723,6 +5747,7 @@ async fn sync_essaim_from_profiles(state: &Arc<AppState>) {
     ec.api_key = api_key;
     ec.api_base = api_base;
     ec.ollama_url = ollama_url;
+    ec.context_max_tokens = max_context_length;
 }
 
 // ======================== Events Endpoints ========================
@@ -8375,6 +8400,11 @@ async fn main() -> Result<()> {
                 api_key: config.api_key.clone(),
                 models: vec![config.default_model.clone()],
                 visibilite: Default::default(), allowed_peers: Vec::new(),
+                max_context_length: match config.provider.as_str() {
+                    "anthropic" => 200000,
+                    "openai" => 128000,
+                    _ => 32768,
+                },
             },
         );
         profiles_cfg.active_model = profiles::ActiveModel {
@@ -8466,7 +8496,7 @@ async fn main() -> Result<()> {
     let _ = profiles::save_profiles(&profiles_path, &profiles_cfg);
 
     // Derive EssaimConfig from active profile
-    let (prof_provider, prof_model, prof_api_key, prof_api_base, prof_ollama_url) =
+    let (prof_provider, prof_model, prof_api_key, prof_api_base, prof_ollama_url, prof_max_context_len) =
         profiles::active_to_essaim_fields(&profiles_cfg);
 
     let cron_arc = Arc::new(RwLock::new(CronScheduler::new(std::path::Path::new(
@@ -8516,12 +8546,16 @@ async fn main() -> Result<()> {
         provider: prof_provider,
         api_key: prof_api_key,
         api_base: prof_api_base,
+        context_max_tokens: prof_max_context_len,
         disabled_tools: persistent.disabled_tools.clone(),
         disabled_skills: persistent.disabled_skills.clone(),
         ..EssaimConfig::default()
     };
     if let Some(max) = persistent.context_max_messages {
         essaim_config.context_max_messages = max;
+    }
+    if let Some(tok) = persistent.context_max_tokens {
+        essaim_config.context_max_tokens = tok;
     }
     if let Some(th) = persistent.compaction_threshold {
         essaim_config.compaction_threshold = th;
@@ -10193,6 +10227,7 @@ async fn save_persistent_state(state: &Arc<AppState>) {
         cookie_secret: Some(auth_user::cookie_secret_to_base64(&state.cookie_secret)),
         context_max_messages: Some(state.essaim_config.read().await.context_max_messages),
         compaction_threshold: Some(state.essaim_config.read().await.compaction_threshold),
+        context_max_tokens: Some(state.essaim_config.read().await.context_max_tokens),
     };
     drop(logs);
     drop(dm);

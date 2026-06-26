@@ -64,6 +64,9 @@ pub struct EssaimConfig {
     pub custom_instructions: Option<String>,
     /// Max messages in context before auto-compaction (default: 30)
     pub context_max_messages: usize,
+    /// Actual context window of the current model/provider in tokens (default: 128000)
+    /// Used for the UI context gauge and token-aware decisions.
+    pub context_max_tokens: u32,
     /// Context compaction threshold ratio (default: 0.75)
     pub compaction_threshold: f32,
     /// Cost per 1k input tokens in USD (default: 0.0)
@@ -151,9 +154,10 @@ impl Default for EssaimConfig {
             fallback_models: vec![],
             max_iterations: 100,
             temperature: 0.7,
-            max_tokens: 4096,
+            max_tokens: 0, // 0 = pas de limite (stop naturel du modèle)
             custom_instructions: None,
             context_max_messages: 30,
+            context_max_tokens: 128000,
             compaction_threshold: 0.75,
             cost_per_1k_input: 0.0,
             cost_per_1k_output: 0.0,
@@ -224,6 +228,11 @@ const SEMANTIC_CORE: &[&str] = &[
     "file_write",
     "file_edit",
     "file_list",
+    // Création et rechargement d'outils
+    "reload_plugins",
+    // Jobs longs en arrière-plan
+    "submit_job",
+    "check_job_status",
 ];
 
 const CORE_TOOL_NAMES: &[&str] = &[
@@ -316,8 +325,14 @@ fn build_capability_index(registry: &AbeilleRegistry) -> String {
             continue;
         };
         match t["origin"].as_str().unwrap_or("builtin") {
-            "custom" => plugins.push((name, resumer_description(t["description"].as_str().unwrap_or("")))),
-            "mcp" => mcp.push((name, resumer_description(t["description"].as_str().unwrap_or("")))),
+            "custom" => plugins.push((
+                name,
+                resumer_description(t["description"].as_str().unwrap_or("")),
+            )),
+            "mcp" => mcp.push((
+                name,
+                resumer_description(t["description"].as_str().unwrap_or("")),
+            )),
             _ => builtin.push(name),
         }
     }
@@ -900,6 +915,43 @@ fn reponse_signale_fin(text: &str) -> bool {
     .any(|m| t.contains(m))
 }
 
+/// Vrai si le modele annonce une action mais n'a pas emis de tool_call valide.
+fn reponse_annonce_action_sans_outil(text: &str) -> bool {
+    let t = strip_plan_tags(&strip_think_tags(text)).to_lowercase();
+    let t = t.trim();
+    if t.is_empty() || reponse_signale_fin(t) {
+        return false;
+    }
+
+    [
+        "maintenant je ",
+        "je vais ",
+        "je vais maintenant ",
+        "je regarde ",
+        "je lis ",
+        "je verifie ",
+        "je vérifie ",
+        "je modifie ",
+        "je corrige ",
+        "je patche ",
+        "je patch ",
+        "je mets a jour ",
+        "je mets à jour ",
+        "je lance ",
+        "je cree ",
+        "je crée ",
+        "je recharge ",
+        "j'appelle ",
+        "j appelle ",
+        "je vais appeler ",
+        "je commence par ",
+        "je procede ",
+        "je procède ",
+    ]
+    .iter()
+    .any(|m| t.contains(m))
+}
+
 /// Classe une erreur provider : si c'est une `ProviderError` structurée (status+body),
 /// on classe finement (429→RateLimited, 401/403→ReloginRequired…) ; sinon on traite
 /// comme une erreur réseau (généralement transitoire). Branche `error_classifier`.
@@ -964,6 +1016,92 @@ pub fn parse_tool_calls(text: &str) -> Vec<ToolCall> {
     calls
 }
 
+/// Fallback défensif : tente de parser du JSON brut quand le modèle n'a pas utilisé
+/// les balises `<tool_call>`. deepseek-v4-flash et gemma4:e4b émettent parfois
+/// `{"name":"...","arguments":{...}}` directement sans balises.
+fn try_parse_as_tool_call(json: &str) -> Option<ToolCall> {
+    serde_json::from_str::<ToolCallRaw>(json)
+        .ok()
+        .map(|r| ToolCall {
+            id: uuid::Uuid::new_v4().to_string(),
+            name: r.name,
+            args: r.arguments,
+        })
+}
+
+fn parse_tool_calls_json_brut(text: &str) -> Vec<ToolCall> {
+    let trimmed = text.trim();
+
+    // Format 1 : bloc ```json\n{...}\n```
+    if trimmed.starts_with("```") {
+        let without_fence = trimmed
+            .trim_start_matches("```json")
+            .trim_start_matches("```")
+            .trim_end_matches("```")
+            .trim();
+        if let Some(call) = try_parse_as_tool_call(without_fence) {
+            return vec![call];
+        }
+    }
+
+    // Format 2 : {"name":"...","arguments":{...}} brut
+    if trimmed.starts_with('{') && trimmed.ends_with('}') {
+        if let Some(call) = try_parse_as_tool_call(trimmed) {
+            return vec![call];
+        }
+    }
+
+    // Format 3 : JSON array [{...}, {...}]
+    if trimmed.starts_with('[') && trimmed.ends_with(']') {
+        if let Ok(calls) = serde_json::from_str::<Vec<ToolCallRaw>>(trimmed) {
+            return calls
+                .into_iter()
+                .map(|r| ToolCall {
+                    id: uuid::Uuid::new_v4().to_string(),
+                    name: r.name,
+                    args: r.arguments,
+                })
+                .collect();
+        }
+    }
+
+    // Format 4 : JSON quelconque dans le texte (extraction best-effort)
+    let mut calls = Vec::new();
+    let mut search_from = 0;
+    while let Some(start) = text[search_from..].find('{') {
+        let abs_start = search_from + start;
+        // Cherche la fermeture `}` correspondante (comptage basique)
+        let mut depth = 0u32;
+        let mut end = abs_start;
+        for (i, ch) in text[abs_start..].char_indices() {
+            match ch {
+                '{' => depth += 1,
+                '}' => {
+                    depth = depth.saturating_sub(1);
+                    if depth == 0 {
+                        end = abs_start + i + 1;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if depth != 0 {
+            break; // JSON mal formé
+        }
+        let candidate = &text[abs_start..end];
+        if let Some(call) = try_parse_as_tool_call(candidate) {
+            // Évite les doublons
+            if !calls.iter().any(|c: &ToolCall| c.name == call.name) {
+                calls.push(call);
+            }
+        }
+        search_from = end;
+    }
+
+    calls
+}
+
 fn keep_single_tool_call(tool_calls: &mut Vec<ToolCall>) -> Option<String> {
     if tool_calls.len() <= 1 {
         return None;
@@ -996,6 +1134,7 @@ fn sortie_tronquee(response_text: &str, finish_reason: Option<&str>) -> bool {
 #[derive(Debug, Deserialize)]
 struct ToolCallRaw {
     name: String,
+    #[serde(alias = "arguments", alias = "args", alias = "parameters")]
     arguments: serde_json::Value,
 }
 
@@ -1052,6 +1191,24 @@ fn emit_thought(
             kind: update.kind,
             text: update.text,
         });
+    }
+}
+
+/// Timeout par outil (secondes).
+pub fn timeout_for_tool(name: &str) -> std::time::Duration {
+    match name {
+        "web_fetch" | "web_deep_search" | "web_search" => std::time::Duration::from_secs(30),
+        "file_read" | "file_list" | "file_search" => std::time::Duration::from_secs(5),
+        "file_write" | "file_edit" => std::time::Duration::from_secs(10),
+        "shell_exec" => std::time::Duration::from_secs(60),
+        "execute_code" => std::time::Duration::from_secs(300),
+        "run_script" => std::time::Duration::from_secs(3600),
+        "delegate" | "spawn_specialist" => std::time::Duration::from_secs(1800),
+        "memory_search" | "memory_write" | "memory_tree" => std::time::Duration::from_secs(5),
+        "browser_navigate" | "browser_screenshot" => std::time::Duration::from_secs(30),
+        "submit_job" => std::time::Duration::from_secs(5),
+        "check_job_status" => std::time::Duration::from_secs(5),
+        _ => std::time::Duration::from_secs(30),
     }
 }
 
@@ -1158,7 +1315,11 @@ async fn assembler_working_set(
                 if id.is_empty() || infra(id) {
                     continue;
                 }
-                let one = n.get("one_liner").and_then(|v| v.as_str()).unwrap_or("").trim();
+                let one = n
+                    .get("one_liner")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .trim();
                 // Bullet à one-liner VIDE = bruit pur (le nom seul, ex. `decisions.2`, ne dit rien).
                 // Le contenu réel du nœud est injecté via ses items plus bas — on saute le bullet.
                 if one.is_empty() {
@@ -1349,6 +1510,19 @@ pub async fn boucle_react_memoire_multimodal(
     // Snapshot du nombre d'outils déjà appelés (pour mesurer la complexité de CE tour).
     let tools_avant = compter_tool_calls(session);
 
+    // Barrière « NOUVELLE MISSION » si la session a déjà de l'historique.
+    // Empêche le modèle de confondre la nouvelle demande avec l'ancien plan.
+    let ephemeral = if tools_avant > 0 {
+        let barrier = format!(
+            "[NOUVELLE MISSION — IGNORE le plan et les étapes précédentes. \
+             C'est une nouvelle tâche indépendante.]\n{}",
+            ephemeral.clone().unwrap_or_default()
+        );
+        Some(barrier)
+    } else {
+        ephemeral
+    };
+
     // Boucle normale, mémoire injectée en contexte éphémère trailing (cœur inchangé).
     let reponse = boucle_react_multimodal_ext(
         prompt_utilisateur,
@@ -1360,6 +1534,7 @@ pub async fn boucle_react_memoire_multimodal(
         approval_rx,
         steer_rx,
         ephemeral,
+        Some(memoire.clone()),
     )
     .await?;
 
@@ -1395,10 +1570,14 @@ pub async fn boucle_react_memoire_multimodal(
 struct MemFact {
     node_id: String,
     content: String,
+    #[serde(default)]
+    confidence: Option<f32>,
+    #[serde(default)]
+    source: Option<String>,
 }
 
 /// Extrait le premier tableau JSON d'un texte (tolère le bavardage autour).
-fn extraire_json_array(s: &str) -> Option<String> {
+pub fn extraire_json_array(s: &str) -> Option<String> {
     let start = s.find('[')?;
     let end = s.rfind(']')?;
     (end > start).then(|| s[start..=end].to_string())
@@ -1483,7 +1662,8 @@ pub async fn indexer_abeilles_memoire(
         if let Ok(node) = memoire.read_node(parent).await {
             if let Some(children) = node["children"].as_array() {
                 for child in children {
-                    let Some(id) = child["id"].as_str().or_else(|| child["node_id"].as_str()) else {
+                    let Some(id) = child["id"].as_str().or_else(|| child["node_id"].as_str())
+                    else {
                         continue;
                     };
                     if valides.contains(id) {
@@ -1518,7 +1698,7 @@ pub async fn indexer_abeilles_memoire(
 
 /// Fix C — valide un node_id avant écriture mémoire : non vide, sans '|' ni espace, dernier
 /// segment ≠ placeholder 'x', et hiérarchique (préfixe.nom — pas un nœud racine comme "system").
-fn node_id_valide(node_id: &str) -> bool {
+pub fn node_id_valide(node_id: &str) -> bool {
     let id = node_id.trim();
     if id.is_empty() || id.contains('|') || id.contains(' ') || !id.contains('.') {
         return false;
@@ -1536,9 +1716,12 @@ async fn curer_memoire(
     let sys = "Tu es un extracteur de mémoire. À partir de l'échange, renvoie UNIQUEMENT un \
         tableau JSON des faits DURABLES à mémoriser (préférences stables, décisions, infos \
         persistantes sur l'utilisateur ou les projets). Chaque élément : \
-        {\"node_id\":\"<prefixe>.<nom>\",\"content\":\"...\"} ou <prefixe> vaut people, projects \
-        ou decisions (ex. people.fabien, projects.laruche, decisions.archi). Le node_id ne doit \
-        contenir NI espace NI le caractere '|', et n'utilise JAMAIS 'x' comme nom (ce sont des exemples). \
+        {\"node_id\":\"<prefixe>.<nom>\",\"content\":\"...\",\"confidence\":0.0-1.0,\"source\":\"...\"} \
+        où <prefixe> vaut people, projects ou decisions (ex. people.fabien, projects.laruche, \
+        decisions.archi). Le node_id ne doit contenir NI espace NI le caractere '|', \
+        et n'utilise JAMAIS 'x' comme nom (ce sont des exemples). \
+        'confidence': ton niveau de certitude (1.0 = certain, 0.5 = supposition). \
+        'source': d'où vient l'info (ex. 'user a dit', 'web_search', 'analyse'). \
         Si rien de durable, renvoie []. Aucun texte hors du JSON.";
     let messages = vec![
         serde_json::json!({ "role": "system", "content": sys }),
@@ -1568,10 +1751,91 @@ async fn curer_memoire(
                 if !node_id_valide(&f.node_id) || f.content.trim().is_empty() {
                     continue;
                 }
-                let _ = memoire
-                    .write(MemoryItem::new(f.node_id, f.content).with_source("auto-curation"))
-                    .await;
+                let mut item = MemoryItem::new(f.node_id, f.content).with_source("auto-curation");
+                if let Some(conf) = f.confidence {
+                    item.confidence = Some(conf.clamp(0.0, 1.0));
+                }
+                if let Some(src) = f.source {
+                    item.source = Some(src);
+                }
+                let _ = memoire.write(item).await;
             }
+        }
+    }
+    Ok(())
+}
+
+/// Vérifie si un nouveau fait contredit des faits existants en mémoire.
+/// Écrit une note sous `contradictions.*` si une contradiction est détectée.
+pub async fn detecter_contradictions(
+    nouveau_contenu: &str,
+    memoire: &Arc<dyn MemoireCognitive>,
+) -> Result<()> {
+    let pack = memoire
+        .search(
+            nouveau_contenu,
+            SearchOpts {
+                depth: None,
+                limit: Some(5),
+            },
+        )
+        .await?;
+
+    let Some(items) = pack
+        .raw
+        .get("items")
+        .or_else(|| pack.raw.get("evidence"))
+        .and_then(|v| v.as_array())
+    else {
+        return Ok(());
+    };
+
+    for item in items {
+        let existing_content = item
+            .get("content")
+            .or_else(|| item.get("text"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        if existing_content.is_empty() || existing_content == nouveau_contenu {
+            continue;
+        }
+        let existing_lower = existing_content.to_lowercase();
+        let nouveau_lower = nouveau_contenu.to_lowercase();
+
+        if (existing_lower.contains("ne ") && !nouveau_lower.contains("ne "))
+            || (!existing_lower.contains("ne ") && nouveau_lower.contains("ne "))
+        {
+            let node_id = item
+                .get("node_id")
+                .or_else(|| item.get("node"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            let contradiction = format!(
+                "CONTRADICTION DÉTECTÉE :\n- Ancien ({}): {existing_content}\n- Nouveau: {nouveau_contenu}\n\
+                 À résoudre : l'un des deux est incorrect ou contextuel.",
+                node_id
+            );
+            let _ = memoire
+                .write(
+                    MemoryItem::new(
+                        format!(
+                            "contradictions.auto.{}",
+                            uuid::Uuid::new_v4()
+                                .to_string()
+                                .split('-')
+                                .next()
+                                .unwrap_or("x")
+                        ),
+                        contradiction,
+                    )
+                    .with_source("contradiction-detector"),
+                )
+                .await;
+            tracing::warn!(
+                existing = existing_content,
+                nouveau = nouveau_contenu,
+                "Contradiction mémoire détectée"
+            );
         }
     }
     Ok(())
@@ -1604,7 +1868,9 @@ pub async fn consolider_node(
         })
         .unwrap_or_default();
     if items.len() < 2 {
-        return Ok(serde_json::json!({ "node_id": node_id, "items": items.len(), "unchanged": true }));
+        return Ok(
+            serde_json::json!({ "node_id": node_id, "items": items.len(), "unchanged": true }),
+        );
     }
     let liste = items
         .iter()
@@ -1641,12 +1907,18 @@ pub async fn consolider_node(
     let arr: Vec<serde_json::Value> = serde_json::from_str(&js).unwrap_or_default();
     let news: Vec<String> = arr
         .iter()
-        .filter_map(|v| v.get("content").and_then(|c| c.as_str()).map(|s| s.trim().to_string()))
+        .filter_map(|v| {
+            v.get("content")
+                .and_then(|c| c.as_str())
+                .map(|s| s.trim().to_string())
+        })
         .filter(|s| !s.is_empty())
         .collect();
     // Sécurité : on ne remplace QUE si vrai gain (sinon on ne touche à rien).
     if news.is_empty() || news.len() >= items.len() {
-        return Ok(serde_json::json!({ "node_id": node_id, "items": items.len(), "unchanged": true }));
+        return Ok(
+            serde_json::json!({ "node_id": node_id, "items": items.len(), "unchanged": true }),
+        );
     }
     for (id, _) in &items {
         let _ = memoire.delete_item(id, Some("consolidation")).await;
@@ -1701,9 +1973,20 @@ async fn extraire_skill_memoire(
     }
     // Format UNIFIÉ avec skill_create (build_skill_okf) : type/name/description/tools + corps.
     let sys = "Tu es un extracteur de skills. Si l'echange contient une procedure REUTILISABLE, \
-        renvoie UNIQUEMENT un document Markdown OKF avec ce frontmatter EXACT: \
-        ---\\ntype: skill\\nname: <slug-court>\\ndescription: <une ligne: quand l'utiliser>\\ntools: [outils utilises]\\n--- \
-        puis un corps: '# Titre', '## Quand l'utiliser', '## Procedure' (etapes numerotees + commandes exactes), '## Pieges'. \
+        renvoie UNIQUEMENT un document Markdown OKF avec ce frontmatter EXACT : \
+        ---\\ntype: skill\\nname: <slug-court>\\ndescription: <10-50 lettres, ultra-concise, \
+        explicite, commence par un verbe a l'infinitif>\\ntools: [outils utilisés]\\n--- \
+        puis un corps : '# Titre', '## Quand l'utiliser', '## Procedure' \
+        (etapes numerotees + commandes exactes), '## Pieges'. \
+        ATTENTION `description` : injectee dans le contexte du LLM a chaque tour \
+        — max 50 lettres, explicite (ex: « chercher des actus web »). \
+        ATTENTION `tools` : ne liste que des outils REELS de LaRuche \
+        (file_read, file_write, file_edit, shell_exec, execute_code, \
+        run_script, web_search, web_deep_search, web_fetch, delegate, \
+        memory_search, memory_write, cron_create, watcher_create, \
+        submit_job, check_job_status, spawn_specialist). \
+        Si un outil necessaire n'existe pas, mets-le dans '## Pieges' comme \
+        « outil à créer : mon_script.py » mais PAS dans `tools`. \
         Si rien de generalisable, renvoie NO_SKILL. Aucun texte hors du document.";
     let messages = vec![
         serde_json::json!({ "role": "system", "content": sys }),
@@ -1767,12 +2050,15 @@ async fn trouver_skill_existant(
     name: &str,
     okf: &str,
 ) -> Result<Option<SkillHit>> {
+    // Étape 1 : match EXACT sur le node_id.
     if let Ok(node) = memoire.read_node(node_id).await {
         if let Some(hit) = skill_hit_from_items(node["items"].as_array()) {
             return Ok(Some(hit));
         }
     }
 
+    // Étape 2 : fallback recherche sémantique mais vérifie que le node_id
+    // match EXACTEMENT. Sans ça, "web-recherche-profonde" irait sous "web-research".
     let description = yaml_frontmatter_field(okf, "description").unwrap_or_default();
     let query = format!("capacities.skills {name} {description}");
     let pack = memoire
@@ -1784,7 +2070,10 @@ async fn trouver_skill_existant(
             },
         )
         .await?;
-    Ok(skill_hit_from_items(pack.raw["items"].as_array()))
+    match skill_hit_from_items(pack.raw["items"].as_array()) {
+        Some(hit) if hit.node_id == node_id => Ok(Some(hit)),
+        _ => Ok(None), // Pas de match exact → nouveau skill, nouveau nœud
+    }
 }
 
 fn skill_hit_from_items(items: Option<&Vec<serde_json::Value>>) -> Option<SkillHit> {
@@ -1914,8 +2203,18 @@ fn outils_forces_par_intention(registry: &AbeilleRegistry, prompt: &str) -> Vec<
 
     // (3) Intention de CRÉATION de capacité (skill / outil / plugin) → boîte de forge.
     const MOTS_FORGE: &[&str] = &[
-        "skill", "outil", "plugin", "forge", "crée", "cree", "créer", "creer", "automatise",
-        "script", "procédure", "procedure",
+        "skill",
+        "outil",
+        "plugin",
+        "forge",
+        "crée",
+        "cree",
+        "créer",
+        "creer",
+        "automatise",
+        "script",
+        "procédure",
+        "procedure",
     ];
     if MOTS_FORGE.iter().any(|m| p.contains(m)) {
         const BOITE_FORGE: &[&str] = &[
@@ -2121,7 +2420,9 @@ async fn construire_index_skills(memoire: &Arc<dyn MemoireCognitive>) -> Option<
         if !vus.insert(name.clone()) {
             continue;
         }
-        let desc = resumer_description(&yaml_frontmatter_field(content, "description").unwrap_or_default());
+        let desc = resumer_description(
+            &yaml_frontmatter_field(content, "description").unwrap_or_default(),
+        );
         lignes.push((name, desc));
     }
     if lignes.is_empty() {
@@ -2220,9 +2521,7 @@ fn formater_et_signaler_skills(
         let corps_complet = body.trim();
         let corps = if corps_complet.chars().count() > BUDGET_SKILL {
             let tronque: String = corps_complet.chars().take(BUDGET_SKILL).collect();
-            format!(
-                "{tronque}\n\n… (tronqué — `skill_view(\"{nom}\")` pour la procédure complète)"
-            )
+            format!("{tronque}\n\n… (tronqué — `skill_view(\"{nom}\")` pour la procédure complète)")
         } else {
             corps_complet.to_string()
         };
@@ -2399,6 +2698,7 @@ pub async fn boucle_react_multimodal(
         approval_rx,
         None,
         None,
+        None,
     )
     .await
 }
@@ -2417,6 +2717,7 @@ pub async fn boucle_react_multimodal_ext(
     mut approval_rx: Option<ApprovalReceiver>,
     mut steer_rx: Option<SteerReceiver>,
     ephemeral_context: Option<String>,
+    memoire: Option<Arc<dyn laruche_memoire::MemoireCognitive>>,
 ) -> Result<String> {
     session.ajouter_user_multimodal(prompt_utilisateur, attachments);
 
@@ -2427,7 +2728,11 @@ pub async fn boucle_react_multimodal_ext(
         capability_index.push_str(sk);
     }
     // Ruches du mesh joignables → l'agent sait qui contacter via `mesh_send`.
-    if let Some(peers) = config.mesh_peers_hint.as_deref().filter(|s| !s.trim().is_empty()) {
+    if let Some(peers) = config
+        .mesh_peers_hint
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
         capability_index.push_str(&format!(
             "\n## Ruches du mesh joignables\nTu peux leur envoyer un message avec `mesh_send(to_id, text)` :\n{peers}\n"
         ));
@@ -2469,6 +2774,13 @@ pub async fn boucle_react_multimodal_ext(
         "status",
         "J'oriente la requete et prepare le contexte utile.",
     );
+
+    // FatigueMonitor — détection de bouclage et consolidation cognitive
+    let mut fatigue = crate::fatigue::FatigueMonitor::new();
+    let task_id = uuid::Uuid::new_v4().to_string();
+    // Budget warnings déjà émis (pour ne pas spammer à chaque itération)
+    let mut budget_warn_sent = false;
+    let mut budget_critical_sent = false;
 
     for iteration in 0..config.max_iterations {
         tracing::debug!(iteration, model = %current_model, "ReAct iteration");
@@ -2529,6 +2841,35 @@ pub async fn boucle_react_multimodal_ext(
             messages.push(serde_json::json!({
                 "role": "system",
                 "content": format!("[Mémoire cognitive — souvenirs pertinents pour cette requête, utilise-les si utile]\n{ctx}")
+            }));
+        }
+
+        // Budget warnings progressifs (évite de spammer à chaque tour)
+        if budget_status.ratio >= 0.85 && !budget_critical_sent {
+            budget_critical_sent = true;
+            messages.push(serde_json::json!({
+                "role": "system",
+                "content": format!(
+                    "[BUDGET CRITIQUE : {:.0}%] Tu approches de la limite de contexte ({}/{} tokens). \
+                     Termine la tâche actuelle et appelle `task_complete` avec le résumé. \
+                     Stocke les faits importants via `memory_write` avant qu'ils ne soient perdus.",
+                    budget_status.ratio * 100.0,
+                    budget_status.used,
+                    budget_status.max
+                )
+            }));
+        } else if budget_status.ratio >= 0.70 && !budget_warn_sent {
+            budget_warn_sent = true;
+            messages.push(serde_json::json!({
+                "role": "system",
+                "content": format!(
+                    "[BUDGET : {:.0}%] Le contexte commence à être saturé ({}/{} tokens). \
+                     Commence à synthétiser et stocke les infos importantes en mémoire. \
+                     Évite les appels d'outils superflus.",
+                    budget_status.ratio * 100.0,
+                    budget_status.used,
+                    budget_status.max
+                )
             }));
         }
 
@@ -2721,8 +3062,26 @@ pub async fn boucle_react_multimodal_ext(
                 }
             }
         }
-        response_text = strip_think_tags(&response_text);
 
+        // Extraction AVANT strip_think_tags : Deepseek met parfois ses tool calls
+        // dans les blocs <think>.
+        let raw_tool_calls = parse_tool_calls(&response_text);
+        let raw_tool_calls = if raw_tool_calls.is_empty() && !response_text.trim().is_empty() {
+            let json_fallback = parse_tool_calls_json_brut(&response_text);
+            if !json_fallback.is_empty() {
+                tracing::info!(
+                    count = json_fallback.len(),
+                    "Tool calls extraits du texte brut (avant strip think)"
+                );
+                json_fallback
+            } else {
+                raw_tool_calls
+            }
+        } else {
+            raw_tool_calls
+        };
+
+        response_text = strip_think_tags(&response_text);
         if let Some(steer) = steering_interruption {
             if !response_text.is_empty() {
                 session.ajouter_assistant(&response_text);
@@ -2776,8 +3135,8 @@ pub async fn boucle_react_multimodal_ext(
             let _ = tx.send(ChatEvent::Plan { items: plan_items });
         }
 
-        // Parse tool calls
-        let mut tool_calls = parse_tool_calls(&response_text);
+        // Parse tool calls (extraits AVANT strip_think_tags plus haut)
+        let mut tool_calls = raw_tool_calls;
         let tool_call_overflow = keep_single_tool_call(&mut tool_calls);
         if !tool_calls.is_empty() {
             // Progrès réel (un outil va s'exécuter) → on réarme le budget d'auto-continuation.
@@ -2836,6 +3195,42 @@ pub async fn boucle_react_multimodal_ext(
             return Ok(q);
         }
 
+        // task_complete : le modèle signale que la tâche est entièrement terminée.
+        // On sort immédiatement avec le résumé, sans exécuter l'outil.
+        if let Some(complete) = tool_calls.iter().find(|c| c.name == "task_complete") {
+            let summary = complete.args["summary"]
+                .as_str()
+                .unwrap_or("Tâche terminée par le modèle");
+            let confidence = complete.args["confidence"].as_f64().unwrap_or(1.0);
+            session.ajouter_assistant(&response_text);
+            emit_thought(
+                tx,
+                session,
+                &mut thoughts,
+                "done",
+                "checkpoint",
+                format!(
+                    "Tâche terminée (confiance {:.0}%) : {}",
+                    confidence * 100.0,
+                    summary
+                ),
+            );
+            let input_tokens = session.estimated_tokens() as u32;
+            let output_tokens = (response_text.len() / 4) as u32;
+            let cost_usd = (input_tokens as f32 / 1000.0) * config.cost_per_1k_input
+                + (output_tokens as f32 / 1000.0) * config.cost_per_1k_output;
+            let _ = tx.send(ChatEvent::Usage {
+                input_tokens,
+                output_tokens,
+                cost_usd,
+            });
+            let msg = format!("✅ Tâche terminée — {summary}");
+            let _ = tx.send(ChatEvent::Done {
+                full_response: msg.clone(),
+            });
+            return Ok(msg);
+        }
+
         // === Stop reason handling (third-party pattern) ===
 
         if tool_calls.is_empty() {
@@ -2857,6 +3252,26 @@ pub async fn boucle_react_multimodal_ext(
                 let _ = tx.send(ChatEvent::Status {
                     message: format!(
                         "Auto-continuation du plan ({}/{})",
+                        auto_continue_count, AUTO_CONTINUE_MAX
+                    ),
+                });
+                continue;
+            }
+
+            if !plan_inacheve
+                && auto_continue_count < AUTO_CONTINUE_MAX
+                && reponse_annonce_action_sans_outil(&response_text)
+            {
+                auto_continue_count += 1;
+                session.ajouter_assistant(&response_text);
+                session.ajouter_user(
+                    "Tu viens d'annoncer une action, mais aucun <tool_call> JSON valide n'a ete detecte. \
+                     Ne conclus pas et ne mets pas l'appel en bloc Markdown. Emets maintenant uniquement \
+                     le <tool_call> valide pour l'action annoncee, puis arrete ta reponse.",
+                );
+                let _ = tx.send(ChatEvent::Status {
+                    message: format!(
+                        "Auto-continuation: action annoncee sans outil ({}/{})",
                         auto_continue_count, AUTO_CONTINUE_MAX
                     ),
                 });
@@ -2977,6 +3392,10 @@ pub async fn boucle_react_multimodal_ext(
                 iteration: Some(iteration),
             });
         }
+
+        // Pour le FatigueMonitor : on collecte les noms des outils exécutés
+        let exec_tool_names: Vec<String> =
+            allowed_tool_calls.iter().map(|c| c.name.clone()).collect();
 
         // Orchestration façon Claude Code (`partitionToolCalls`) : on découpe
         // les appels en lots ordonnés — outils read-only consécutifs lancés en
@@ -3280,6 +3699,67 @@ pub async fn boucle_react_multimodal_ext(
             }
         } // fin de la boucle sur les lots (partition_tool_calls)
 
+        // FatigueMonitor : mise à jour + consolidation si nécessaire
+        if !exec_tool_names.is_empty() {
+            let tokens_est = session.estimated_tokens();
+            fatigue.update_names(&exec_tool_names, tokens_est, iteration as u32);
+
+            if fatigue.is_critical(config) {
+                let _ = tx.send(ChatEvent::Status {
+                    message: format!(
+                        "⚠️ Fatigue cognitive élevée ({:.0}%) — consolidation recommandée.",
+                        fatigue.fatigue_level(config) * 100.0
+                    ),
+                });
+            }
+
+            if let Some(ref mem) = memoire {
+                if fatigue.should_consolidate(config) {
+                    let _ = tx.send(ChatEvent::Status {
+                        message: "🧠 Consolidation cognitive en cours...".into(),
+                    });
+                    tracing::info!(
+                        fatigue_pct = fatigue.fatigue_level(config),
+                        iteration,
+                        "Déclenchement consolidation cognitive"
+                    );
+                    let messages_now = session.build_ollama_messages(&system_prompt);
+                    match crate::fatigue::consolider_fatigue(&task_id, &messages_now, config, mem)
+                        .await
+                    {
+                        Ok(result) => {
+                            let fresh = crate::fatigue::contexte_apres_consolidation(
+                                &task_id,
+                                prompt_utilisateur,
+                                &result,
+                                mem,
+                            )
+                            .await;
+                            let before = session.len();
+                            session.remplacer_historique(fresh);
+                            fatigue.reset();
+                            let _ = tx.send(ChatEvent::Compaction {
+                                messages_before: before + result.facts_stored,
+                                messages_after: session.len(),
+                            });
+                            let _ = tx.send(ChatEvent::Status {
+                                message: format!(
+                                    "✅ Consolidation terminée : {} fait(s) stocké(s).",
+                                    result.facts_stored
+                                ),
+                            });
+                        }
+                        Err(e) => {
+                            tracing::warn!(error = %e, "Échec consolidation cognitive");
+                            let _ = tx.send(ChatEvent::Status {
+                                message: format!("⚠️ Consolidation cognitive échouée : {e}"),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
         // Continue loop — LLM will see tool results in next iteration
     }
 
@@ -3305,7 +3785,10 @@ mod tests {
     fn yaml_frontmatter_lit_apres_ligne_vide() {
         // Régression : la 1re ligne après `---` est vide → ne doit PAS faire échouer le parsing.
         let md = "---\ntype: skill\nname: arxiv-search\ndescription: Recherche de papiers sur arxiv.org\n---\n\n# Corps";
-        assert_eq!(yaml_frontmatter_field(md, "name").as_deref(), Some("arxiv-search"));
+        assert_eq!(
+            yaml_frontmatter_field(md, "name").as_deref(),
+            Some("arxiv-search")
+        );
         assert_eq!(
             yaml_frontmatter_field(md, "description").as_deref(),
             Some("Recherche de papiers sur arxiv.org")
@@ -3380,6 +3863,15 @@ mod tests {
         // Une narration d'étape n'est pas une fin → auto-continue.
         assert!(!reponse_signale_fin(
             "Étape 4 : je vais maintenant recréer le cron."
+        ));
+        assert!(reponse_annonce_action_sans_outil(
+            "Parfait. Maintenant je mets a jour le plugin pour passer le message."
+        ));
+        assert!(reponse_annonce_action_sans_outil(
+            "Je vais lire le fichier de configuration."
+        ));
+        assert!(!reponse_annonce_action_sans_outil(
+            "Toutes les tâches sont terminées, mission accomplie."
         ));
         // Une vraie conclusion stoppe l'auto-continue.
         assert!(reponse_signale_fin(

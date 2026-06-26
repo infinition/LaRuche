@@ -510,6 +510,23 @@ impl Session {
         self.messages.len()
     }
 
+    /// Remplace tout l'historique par un nouveau jeu de messages formatés
+    /// (utilisé après consolidation cognitive pour repartir sur un contexte frais).
+    pub fn remplacer_historique(&mut self, messages: Vec<serde_json::Value>) {
+        self.messages.clear();
+        for msg in messages {
+            let role = msg["role"].as_str().unwrap_or("user");
+            let content = msg["content"].as_str().unwrap_or("");
+            match role {
+                "system" => self.messages.push(Message::System(content.to_string())),
+                "user" => self.messages.push(Message::User(content.to_string())),
+                "assistant" => self.messages.push(Message::Assistant(content.to_string())),
+                _ => self.messages.push(Message::User(content.to_string())),
+            }
+        }
+        self.updated_at = chrono::Utc::now();
+    }
+
     pub fn is_empty(&self) -> bool {
         self.messages.is_empty()
     }

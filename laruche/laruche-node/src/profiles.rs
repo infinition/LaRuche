@@ -46,6 +46,15 @@ pub struct ProviderProfile {
     /// node_ids des ruches autorisées quand `visibilite == Restricted`.
     #[serde(default)]
     pub allowed_peers: Vec<String>,
+    /// Maximum context window in tokens for this provider's models.
+    /// Used to display the context gauge ratio in the UI.
+    /// Sensible defaults: ollama=32768, openai=128000, anthropic=200000, codex=128000.
+    #[serde(default = "default_max_context_length")]
+    pub max_context_length: u32,
+}
+
+fn default_max_context_length() -> u32 {
+    128000
 }
 
 /// Which model is currently active.
@@ -80,6 +89,7 @@ impl Default for ProfilesConfig {
                 api_key: String::new(),
                 models: vec![],
                 visibilite: Visibilite::Prive, allowed_peers: Vec::new(),
+                max_context_length: 32768,
             },
         );
         Self {
@@ -289,6 +299,7 @@ pub async fn ensure_llamacpp_8001_profile(config: &mut ProfilesConfig) {
             api_key: String::new(),
             models: models.clone(),
             visibilite: Visibilite::Prive, allowed_peers: Vec::new(),
+            max_context_length: 32768,
         },
     );
 
@@ -312,10 +323,10 @@ pub async fn ensure_llamacpp_8001_profile(config: &mut ProfilesConfig) {
 }
 
 /// Convert the active profile into EssaimConfig-compatible fields.
-/// Returns (provider, model, api_key, api_base, ollama_url).
+/// Returns (provider, model, api_key, api_base, ollama_url, max_context_length).
 pub fn active_to_essaim_fields(
     config: &ProfilesConfig,
-) -> (String, String, String, Option<String>, String) {
+) -> (String, String, String, Option<String>, String, u32) {
     let active = &config.active_model;
     if let Some(profile) = config.profiles.get(&active.profile_id) {
         let ollama_url = if profile.provider == "ollama" {
@@ -342,6 +353,7 @@ pub fn active_to_essaim_fields(
             profile.api_key.clone(),
             api_base,
             ollama_url,
+            profile.max_context_length,
         )
     } else {
         // Fallback
@@ -351,6 +363,7 @@ pub fn active_to_essaim_fields(
             String::new(),
             None,
             "http://127.0.0.1:11434".to_string(),
+            32768,
         )
     }
 }
