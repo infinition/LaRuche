@@ -36,6 +36,17 @@ impl StatutEtape {
     pub fn est_ouverte(self) -> bool {
         matches!(self, StatutEtape::AFaire | StatutEtape::EnCours)
     }
+
+    /// Mappe un statut texte (formats FR/EN du modèle) vers le statut typé.
+    pub fn depuis(s: &str) -> StatutEtape {
+        match s.trim().to_lowercase().as_str() {
+            "done" | "terminee" | "terminée" | "completed" | "ok" => StatutEtape::Terminee,
+            "in_progress" | "en_cours" | "encours" | "doing" | "wip" => StatutEtape::EnCours,
+            "blocked" | "bloquee" | "bloquée" | "blocked_by" => StatutEtape::Bloquee,
+            "skip" | "skipped" | "non_applicable" | "n/a" | "na" => StatutEtape::NonApplicable,
+            _ => StatutEtape::AFaire,
+        }
+    }
 }
 
 /// Une étape de l'itinéraire.

@@ -173,9 +173,33 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet) -> Issue {
     let mut appels = reponse.appels.clone();
 
     // `plan` : effet de bord (pose/maj l'itinéraire), retiré de la liste d'appels.
+    // Deux formats acceptés : `items:[{task,status}]` (statuts préservés, le modèle
+    // ré-émet son plan à jour chaque tour) ou `steps:[titres]` (tout à faire).
     if let Some(pos) = appels.iter().position(|a| a.nom == "plan") {
         let a = appels.remove(pos);
-        if let Some(steps) = a.args.get("steps").and_then(|v| v.as_array()) {
+        if let Some(items) = a.args.get("items").and_then(|v| v.as_array()) {
+            let etapes: Vec<crate::itineraire::Etape> = items
+                .iter()
+                .filter_map(|it| {
+                    let titre = it
+                        .get("task")
+                        .or_else(|| it.get("titre"))
+                        .and_then(|v| v.as_str())?;
+                    let statut = it
+                        .get("status")
+                        .or_else(|| it.get("statut"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("pending");
+                    Some(crate::itineraire::Etape {
+                        titre: titre.to_string(),
+                        statut: crate::itineraire::StatutEtape::depuis(statut),
+                    })
+                })
+                .collect();
+            if !etapes.is_empty() {
+                carnet.itineraire.etapes = etapes;
+            }
+        } else if let Some(steps) = a.args.get("steps").and_then(|v| v.as_array()) {
             let titres: Vec<String> = steps
                 .iter()
                 .filter_map(|s| s.as_str().map(str::to_string))

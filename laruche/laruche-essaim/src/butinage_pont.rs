@@ -7,7 +7,7 @@
 
 use crate::abeille::{AbeilleRegistry, ContextExecution, NiveauDanger};
 use crate::brain::{
-    decision_permission, demande_recherche_longue, garde_injection, parse_tool_calls,
+    decision_permission, demande_recherche_longue, garde_injection, parse_plan, parse_tool_calls,
     schema_outils_pour_prompt, ChatEvent, EssaimConfig,
 };
 use crate::prompt::build_system_prompt;
@@ -82,7 +82,7 @@ impl but::Fournisseur for FournisseurPont {
         }
 
         // Appels : natifs (API) sinon parsés du texte (rail pour modèles faibles).
-        let appels: Vec<but::Appel> = match natifs {
+        let mut appels: Vec<but::Appel> = match natifs {
             Some(tcs) if !tcs.is_empty() => tcs.into_iter().map(appel_depuis_toolcall).collect(),
             _ => parse_tool_calls(&texte)
                 .into_iter()
@@ -90,9 +90,27 @@ impl but::Fournisseur for FournisseurPont {
                 .collect(),
         };
 
+        // stop_reason calculé sur les VRAIS appels (avant l'injection du plan synthétique).
         let stop = classer_stop(finish.as_deref(), &appels);
+        let mut texte_propre = retirer_bloc(&texte, "think");
+
+        // Plan émis en TEXTE (<plan>…</plan>) par le system prompt : on l'affiche (widget UI)
+        // et on l'injecte comme appel `plan` pour peupler l'itinéraire (avec statuts).
+        if let Some(items) = parse_plan(&texte) {
+            let _ = self.tx.send(ChatEvent::Plan { items: items.clone() });
+            let items_json: Vec<serde_json::Value> = items
+                .iter()
+                .map(|p| serde_json::json!({ "task": p.task, "status": p.status }))
+                .collect();
+            appels.insert(
+                0,
+                but::Appel::nouveau("plan", serde_json::json!({ "items": items_json })),
+            );
+            texte_propre = retirer_bloc(&texte_propre, "plan");
+        }
+
         Ok(but::ReponseModele {
-            texte: retirer_think(&texte),
+            texte: texte_propre,
             stop,
             appels,
             usage: None,
@@ -158,14 +176,17 @@ fn classer_erreur(e: anyhow::Error) -> but::ErreurFournisseur {
     }
 }
 
-/// Retire les blocs `<think>…</think>` (raisonnement interne de certains modèles).
-fn retirer_think(t: &str) -> String {
+/// Retire les blocs `<tag>…</tag>` du texte (ex. `think`, `plan`). Tolérant à un
+/// bloc non fermé (coupe à l'ouverture).
+fn retirer_bloc(t: &str, tag: &str) -> String {
+    let open = format!("<{tag}>");
+    let close = format!("</{tag}>");
     let mut out = String::with_capacity(t.len());
     let mut reste = t;
-    while let Some(deb) = reste.find("<think>") {
+    while let Some(deb) = reste.find(&open) {
         out.push_str(&reste[..deb]);
-        if let Some(fin) = reste[deb..].find("</think>") {
-            reste = &reste[deb + fin + "</think>".len()..];
+        if let Some(fin) = reste[deb..].find(&close) {
+            reste = &reste[deb + fin + close.len()..];
         } else {
             reste = "";
             break;
