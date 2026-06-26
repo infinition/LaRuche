@@ -104,7 +104,7 @@ pub async fn butiner(
                     "Relance ({}/{})",
                     carnet.auto_continue, reglages.relance_max
                 )));
-                carnet.historique.push(Message::utilisateur(nudge));
+                carnet.historique.push(Message::nudge(nudge)); // interne : pas persisté/affiché
             }
             Decision::Recolter(appels) => {
                 carnet.rearmer_auto();

@@ -853,6 +853,9 @@ pub async fn executer(
 
     // Recompose la session depuis le carnet (persistance disque + relecture UI).
     for m in &carnet.historique {
+        if m.interne {
+            continue; // nudges internes (steering) : jamais persistés ni affichés
+        }
         match m.role {
             but::Role::Utilisateur => session.ajouter_user(&m.contenu),
             but::Role::Assistant if !m.contenu.is_empty() => session.ajouter_assistant(&m.contenu),
