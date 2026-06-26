@@ -72,33 +72,97 @@ impl Abeille for WebFetch {
             .timeout(std::time::Duration::from_secs(15))
             .build()?;
 
-        let response = match client.get(url).send().await {
-            Ok(r) => r,
-            Err(e) => return Ok(ResultatAbeille::err(format!("Failed to fetch: {}", e))),
-        };
-
-        if !response.status().is_success() {
-            return Ok(ResultatAbeille::err(format!(
-                "HTTP error: {}",
-                response.status()
-            )));
+        // Fetch direct, puis chaîne de repli anti-blocage si échec/vide.
+        match fetch_direct(&client, url).await {
+            Ok(text) if !text.trim().is_empty() => {
+                Ok(ResultatAbeille::ok(cap_head_tail(text, 6000)))
+            }
+            issue => {
+                let motif = match issue {
+                    Err(e) => e.to_string(),
+                    _ => "page vide".to_string(),
+                };
+                // Repli 1 : reader proxy r.jina.ai (nettoie, rend le JS, contourne 403 simples).
+                if let Some(text) = fetch_via_jina(&client, url).await {
+                    return Ok(ResultatAbeille::ok(format!(
+                        "[via r.jina.ai — fetch direct a échoué : {motif}]\n\n{}",
+                        cap_head_tail(text, 6000)
+                    )));
+                }
+                // Repli 2 : Wayback Machine (snapshot archivé).
+                if let Some(text) = fetch_via_wayback(&client, url).await {
+                    return Ok(ResultatAbeille::ok(format!(
+                        "[via Wayback Machine — fetch direct a échoué : {motif}]\n\n{}",
+                        cap_head_tail(text, 6000)
+                    )));
+                }
+                Ok(ResultatAbeille::err(format!(
+                    "Fetch échoué (direct : {motif}). Replis r.jina.ai et Wayback infructueux. \
+                     Tu peux réessayer avec render=true (rendu navigateur)."
+                )))
+            }
         }
+    }
+}
 
-        let content_type = response
-            .headers()
-            .get("content-type")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("")
-            .to_string();
+/// Fetch direct : renvoie le texte nettoyé, ou une erreur (réseau ou statut non-2xx).
+async fn fetch_direct(client: &reqwest::Client, url: &str) -> Result<String> {
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| anyhow::anyhow!("réseau : {e}"))?;
+    if !response.status().is_success() {
+        return Err(anyhow::anyhow!("HTTP {}", response.status()));
+    }
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string();
+    let body = response.text().await.unwrap_or_default();
+    Ok(if content_type.contains("html") {
+        html_to_text(&body)
+    } else {
+        body
+    })
+}
 
-        let body = response.text().await.unwrap_or_default();
-        let text = if content_type.contains("html") {
-            html_to_text(&body)
-        } else {
-            body
-        };
+/// Repli via r.jina.ai — reader proxy qui renvoie déjà du texte/markdown propre.
+async fn fetch_via_jina(client: &reqwest::Client, url: &str) -> Option<String> {
+    let proxied = format!("https://r.jina.ai/{url}");
+    let resp = client
+        .get(&proxied)
+        .timeout(std::time::Duration::from_secs(25))
+        .send()
+        .await
+        .ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let text = resp.text().await.ok()?;
+    if text.trim().is_empty() {
+        None
+    } else {
+        Some(text)
+    }
+}
 
-        Ok(ResultatAbeille::ok(cap_head_tail(text, 6000)))
+/// Repli via la Wayback Machine (archive.org) — snapshot le plus proche.
+async fn fetch_via_wayback(client: &reqwest::Client, url: &str) -> Option<String> {
+    let api = format!(
+        "https://archive.org/wayback/available?url={}",
+        urlencoding::encode(url)
+    );
+    let v: serde_json::Value = client.get(&api).send().await.ok()?.json().await.ok()?;
+    let snap = v["archived_snapshots"]["closest"]["url"].as_str()?;
+    let html = client.get(snap).send().await.ok()?.text().await.ok()?;
+    let text = html_to_text(&html);
+    if text.trim().is_empty() {
+        None
+    } else {
+        Some(text)
     }
 }
 
