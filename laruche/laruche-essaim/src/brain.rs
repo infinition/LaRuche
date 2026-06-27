@@ -1709,7 +1709,10 @@ pub async fn boucle_react_memoire_multimodal(
         }
     }
     // Index des skills disponibles (toujours présent → le modèle connaît son répertoire complet).
-    cfg.skills_index = construire_index_skills(&memoire).await;
+    // Catalogue skills DYNAMIQUE quand le contexte est étroit (même condition que la sélection
+    // dynamique des outils) : la DB sémantique ne liste que les skills pertinents + pointeur.
+    let dyn_skills = cfg.dynamic_tool_selection || cfg.context_max_tokens <= 40_000;
+    cfg.skills_index = construire_index_skills(&memoire, prompt_utilisateur, dyn_skills).await;
 
     // Pré-récupération → contexte ÉPHÉMÈRE trailing (PAS dans le system prompt :
     // garde le préfixe stable → cache de préfixe chaud, astuce third-party).
@@ -2616,7 +2619,11 @@ fn resumer_description(desc: &str) -> String {
 /// par fuzzy-recall). Le corps complet reste à la demande via `skill_view(nom)` — progressive
 /// disclosure façon third-party. Construit en UN seul `search` (query-indépendante : tous les skills
 /// contiennent `type: skill`).
-async fn construire_index_skills(memoire: &Arc<dyn MemoireCognitive>) -> Option<String> {
+async fn construire_index_skills(
+    memoire: &Arc<dyn MemoireCognitive>,
+    query: &str,
+    dynamic: bool,
+) -> Option<String> {
     let pack = memoire
         .search(
             "capacities.skills type: skill",
@@ -2664,7 +2671,61 @@ async fn construire_index_skills(memoire: &Arc<dyn MemoireCognitive>) -> Option<
     if lignes.is_empty() {
         return None;
     }
+    let total = lignes.len();
     lignes.sort();
+
+    // GROS CONTEXTE (dynamic=false) : catalogue COMPLET (préfixe stable → cacheable).
+    // PETIT CONTEXTE (dynamic=true) : la DB sémantique surface les skills PERTINENTS seulement
+    // (cohérent avec la sélection dynamique des outils), + pointeur `skill_list` pour le reste.
+    // Pour du smalltalk → 0 skill listé, juste le pointeur. C'est ici qu'on « exploite la DB ».
+    if dynamic {
+        let q = query.split("[SYSTEM]").next().unwrap_or(query).to_lowercase();
+        let toks: Vec<&str> = q
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|t| t.chars().count() >= 4)
+            .collect();
+        let pertinents: Vec<&(String, String)> = if requete_triviale(&q) || toks.is_empty() {
+            Vec::new()
+        } else {
+            let mut scores: Vec<(usize, &(String, String))> = lignes
+                .iter()
+                .map(|sk| {
+                    let hay = format!("{} {}", sk.0, sk.1).to_lowercase();
+                    (toks.iter().filter(|t| hay.contains(**t)).count(), sk)
+                })
+                .filter(|(n, _)| *n > 0)
+                .collect();
+            scores.sort_by(|a, b| b.0.cmp(&a.0));
+            scores.into_iter().take(12).map(|(_, sk)| sk).collect()
+        };
+        let mut out = String::from("## Available skills\n\n");
+        if pertinents.is_empty() {
+            out.push_str(&format!(
+                "{total} reusable skill procedures are available — call `skill_list` to browse them \
+                 or `skill_view(name)` to read one.\n\n"
+            ));
+        } else {
+            out.push_str(
+                "Skills relevant to this request (full procedure via `skill_view(name)`):\n",
+            );
+            for sk in &pertinents {
+                if sk.1.is_empty() {
+                    out.push_str(&format!("- {}\n", sk.0));
+                } else {
+                    out.push_str(&format!("- {} — {}\n", sk.0, sk.1));
+                }
+            }
+            let reste = total.saturating_sub(pertinents.len());
+            if reste > 0 {
+                out.push_str(&format!(
+                    "(+{reste} other skills — `skill_list` to browse, `skill_view(name)` to read.)\n"
+                ));
+            }
+            out.push('\n');
+        }
+        return Some(out);
+    }
+
     let mut out = String::from(
         "## Available skills\n\nReusable procedures. To apply the full procedure of one, \
          call `skill_view(name)`.\n",
