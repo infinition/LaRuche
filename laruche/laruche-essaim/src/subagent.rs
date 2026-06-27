@@ -1,4 +1,4 @@
-use crate::abeille::AbeilleRegistry;
+﻿use crate::abeille::AbeilleRegistry;
 use crate::brain::{boucle_react, ChatEvent, EssaimConfig};
 use crate::session::Session;
 use anyhow::Result;
@@ -277,6 +277,7 @@ pub async fn dispatcher_pertinent(
         &dispatcher_cfg.api_key,
         dispatcher_cfg.api_base.as_deref(),
         &dispatcher_cfg.ollama_url,
+        None,
     )
     .await
     {

@@ -1,4 +1,4 @@
-use crate::abeille::{Abeille, ContextExecution, NiveauDanger, ResultatAbeille};
+﻿use crate::abeille::{Abeille, ContextExecution, NiveauDanger, ResultatAbeille};
 use crate::brain::EssaimConfig;
 use crate::providers::provider_chat_stream;
 use anyhow::Result;
@@ -146,7 +146,8 @@ async fn interroger_candidat(
         &config.api_key,
         api_base,
         &config.ollama_url,
-    )
+            None,
+        )
     .await?;
     let mut out = String::new();
     while let Some(chunk) = stream.next().await {
@@ -187,6 +188,7 @@ async fn synthetiser(
             &config.api_key,
             config.api_base.as_deref(),
             &config.ollama_url,
+            None,
         ),
     )
     .await

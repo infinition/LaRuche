@@ -1,4 +1,4 @@
-//! Fatigue cognitive et consolidation mémoire pour la boucle ReAct.
+﻿//! Fatigue cognitive et consolidation mémoire pour la boucle ReAct.
 //!
 //! ## FatigueMonitor
 //! Détecte quand l'agent tourne en rond (répétitions, erreurs, contexte saturé)
@@ -284,7 +284,8 @@ async fn appel_llm_auxiliaire(
         config.aux_model.as_deref().unwrap_or(&config.model),
         &messages, 0.0, 1024,
         &config.api_key, config.api_base.as_deref(), &config.ollama_url,
-    ).await?;
+            None,
+        ).await?;
     let mut out = String::new();
     while let Some(chunk) = stream.next().await { out.push_str(&chunk.text); }
     Ok(out)
