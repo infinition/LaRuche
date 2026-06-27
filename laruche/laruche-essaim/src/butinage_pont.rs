@@ -568,6 +568,28 @@ impl but::Outils for OutilsCurateur {
         {
             return but::ResultatOutil::echec("Blocked: permission denied");
         }
+
+        // Dédup CÔTÉ CODE (model-independent) : avant de créer un skill, on cherche en mémoire
+        // un skill SÉMANTIQUEMENT proche. Si trouvé, on REFUSE la création (force le patch) →
+        // empêche les quasi-doublons même quand un modèle faible ignore l'instruction.
+        if appel.nom == "skill_create" {
+            let nom = appel.args.get("name").and_then(|v| v.as_str()).unwrap_or("");
+            let desc = appel
+                .args
+                .get("description")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if !nom.trim().is_empty() {
+                if let Some(existant) = skill_proche_existant(&self.registry, nom, desc).await {
+                    return but::ResultatOutil::echec(format!(
+                        "Refused: a related skill already exists in the library: `{existant}`. \
+                         Do NOT create a near-duplicate. Either PATCH it with skill_patch, or call \
+                         task_complete with 'Nothing to save.'"
+                    ));
+                }
+            }
+        }
+
         let _ = self.tx.send(ChatEvent::ToolCall {
             name: appel.nom.clone(),
             args: appel.args.clone(),
@@ -631,6 +653,48 @@ fn rendre_session_messages(messages: &[crate::Message]) -> String {
         out.push(ligne);
     }
     out.join("\n\n")
+}
+
+/// Cherche en mémoire un skill SÉMANTIQUEMENT proche (via `memory_search`) d'un nouveau
+/// skill (nom + description). Renvoie le slug du skill existant si trouvé. Model-independent :
+/// c'est le code, pas le LLM, qui détecte le doublon.
+async fn skill_proche_existant(
+    registry: &AbeilleRegistry,
+    nom: &str,
+    description: &str,
+) -> Option<String> {
+    let ctx = ContextExecution::default();
+    let q = format!("{nom} {description}");
+    let res = registry
+        .executer("memory_search", serde_json::json!({ "query": q.trim(), "limit": 6 }), &ctx)
+        .await
+        .ok()?;
+    if !res.success {
+        return None;
+    }
+    let slug_nouveau = slug_simple(nom);
+    for ligne in res.output.lines() {
+        if let Some(pos) = ligne.find("capacities.skills.") {
+            let reste = &ligne[pos + "capacities.skills.".len()..];
+            let slug: String = reste
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            if !slug.is_empty() && slug != slug_nouveau {
+                return Some(slug);
+            }
+        }
+    }
+    None
+}
+
+fn slug_simple(s: &str) -> String {
+    s.to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '_' })
+        .collect::<String>()
+        .trim_matches('_')
+        .to_string()
 }
 
 /// Lance le curateur en ARRIÈRE-PLAN (tout possédé → `tokio::spawn` depuis le node).
