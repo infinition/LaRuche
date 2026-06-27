@@ -2,15 +2,23 @@
 
 > Reste-à-faire **récupéré des anciens docs de conception** (avant archivage dans `docs/_archive/`) + chantiers en cours. Source de vérité du travail restant. Coché = fait.
 
-## 🔧 En cours / near-term (chantiers actifs)
-Suivis dans la liste de tâches du dépôt. Résumé :
-- [ ] Cleanup `laruche/_archive/` ✅ (rangement fait) — reste : décider du sort de la page **Sessions** orpheline (dans `test_script.js`).
-- [ ] **Split `spa.html`** → CSS + JS + routes (enabler i18n).
-- [ ] **i18n UI FR/EN** (sélecteur de langue ; UI seulement).
+## ✅ Fait récemment
+- [x] **Rangement racine** : `README.md` à jour + archivage des docs/scripts/lanceurs (`docs/_archive/`, `_archive/`, `laruche/_archive/`) + `.gitignore` durci.
+- [x] **Split `spa.html`** → `app.css` + `app.js` + routes node (`/app.css`, `/app.js`).
+- [x] **Split `app.js`** → 9 modules dans `templates/js/` (concat compile-time, un seul `/app.js` servi).
+- [x] **i18n UI FR/EN** : infra `LaRuche.i18n` (`t()` + toggle header + dico par module) + **760 chaînes migrées** (workflow 8 agents). Marque non traduite.
+- [x] **Localisation EN** : prompts système, abeilles (318 chaînes), plugins, **71 skills** (de-third-party + lean + `tools:` liés).
+- [x] **Optimisations contexte** : champ `tools:` natif respecte la sélection · catalogue outils dé-dupliqué · catalogue **skills dynamique** · pas de corps de skill sur smalltalk · **seuil contexte configurable** (Settings).
+- [x] **Sonde n_ctx** → `context_max_tokens` auto · commandes Telegram (`/help /status /crons /delcron`) · `@@secret` autocomplete · fixes crons (anti-spam/runaway/réplication).
+
+## 🔧 Reste / near-term (chantiers actifs)
+Suivis dans la liste de tâches du dépôt.
+- [ ] **i18n** : passe de vérif visuelle (chaînes ratées / interpolées) après rebuild. Décider du sort de la page **Sessions** orpheline (`laruche/_archive/test_script.js`).
 - [ ] **Split `main.rs`** (11.7k) en modules node.
 - [ ] **Settings : section « Avancé »** + migrer les params de tuning.
 - [ ] Affinage injection skill body (top-1 + gate stricte).
 - [ ] `/lang fr|en` messages Telegram directs (optionnel).
+- [ ] Découper `app.js`-modules plus finement si besoin (settings/chat sont gros) — optionnel.
 
 ## 🩹 Dette / récupéré des archives (à trancher)
 - [ ] **`laruche-suggestions`** : crate **orphelin** (0 référence ailleurs) → le **câbler** ou le **supprimer**.
