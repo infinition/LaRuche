@@ -46,8 +46,19 @@ C. [x] **Missions** : provider + channel (optionnel) + cadence simplifiée (Cron
 D. [ ] **Timeline** : clic sur la ligne (pas que la pastille), zoom molette, édition/suppression depuis le détail.
 E. [ ] **Skill ↔ abeilles/plugins** (façon third-party) : déclarer tools/plugins par skill, hint injecté au chargement.
 
-## 🔜 À FAIRE
-7. [ ] **Fédération mesh** : propager skills VÉRIFIÉS aux ruches via `miel-protocol` (GROS — besoin test multi-nœuds).
+## ✅ Lot 4 (27/06) — A/B/D/E + fixes critiques
+- **Régression Telegram** corrigée : `convertir_messages` fusionne les messages consécutifs de même rôle (Anthropic 400 « roles must alternate », déclenché par ma réinjection mémoire + tours échoués) ; erreur provider rendue **diagnostique** (vrai HTTP + corps).
+- **A — Vault Secrets** : `essaim::secrets` (substitution `${NOM}`) + `node::secrets_vault` (chiffré blake3-keystream, `secrets.enc`/`secret.key`) + endpoints (NOMS only) + onglet Secrets/Webhooks + substitution shell_exec & clé API + NOMS dans le system prompt.
+- **B — Modèles dynamiques** : provider local fermé (ollama/llama.cpp) → liste **vidée** (avant : stale) ; repeuplée au retour ; refresh UI périodique (20 s, sans F5).
+- **D — Timeline** : clic sur la ligne, **zoom molette**, suppr/édit depuis le détail.
+- **E — Skill↔outils** (cœur) : `extraire_outils_skill` + hint « outils recommandés pour ce skill » injecté au chargement.
+- Fix **consolidation** : ne pollue plus `system.*`/`capacities.*`.
+
+## 🔜 RESTE (polish, non bloquant)
+- **E (UI)** : picker à cocher des tools dans l'éditeur de skill (le format `tools:` + l'injection marchent déjà ; reste l'UX).
+- **F (mémoire)** : ~80% via le Mode édition existant (créer/renommer/supprimer node, drag dossiers, add/edit/delete item) ; reste le **drag d'items** entre nœuds (endpoint `move_item` existe).
+- **Audit QoL/responsive** approfondi du spa.html (JS vérifié `node --check` à chaque commit ; pas d'audit responsive profond fait).
+- **Fédération mesh** : propager skills VÉRIFIÉS via `miel-protocol` (GROS — besoin test multi-nœuds).
 10. [ ] Discord/Slack : commandes `/sethome` `/clear` (aujourd'hui Telegram seul) · per-tâche channel pour kanban/cron via UI · home channel par utilisateur (aujourd'hui global, OK en POC mono-user).
 8. [ ] Tokens réels openai/anthropic/codex (aujourd'hui Ollama seul) · Feed backlog des runs en fond non-attachés (buffer serveur) · `executionMode` par outil · tokenizer réel.
 9. [ ] **Reprise effective** d'un carnet inachevé (aujourd'hui : détectés+log seulement ; reste à recharger le carnet dans un run via une UI « missions reprises »).
