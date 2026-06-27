@@ -53,12 +53,12 @@ curateur d'auto-amélioration qui crée skills ET tools vérifiés. Les vrais ga
 6. Hub d'automatisation unifié.
 
 ## 🎯 Les 6 gaps « killer » (priorisés)
-- **A** 🔴 P0 — **Finir la fédération mesh** : propager les skills vérifiés de nœud à nœud (« essaim qui apprend collectivement »). Test multi-nœuds requis. *Le récit différenciant.*
-- **B** 🔴 P0 — **Exposer un serveur MCP** : LaRuche pilotable comme outil par Claude Code/Cursor/third-party. Effet réseau. Effort moyen, ROI énorme. **← à commencer.**
-- **C** 🟠 P1 — **Tokens/usage réels hors-Ollama** (OpenAI/Anthropic/codex) : jauge/budget aveugle sur le cloud sinon. Effort faible-moyen.
-- **D** 🟠 P1 — **Hooks utilisateur** (pre/post-tool, events, configurables) façon Claude Code/third-party.
-- **E** 🟡 P2 — **Sandbox durci** pour shell_exec/execute_code/browser (isolation process, limites ressources).
-- **F** 🟡 P2 — **Reprise effective des missions/carnets** : recharger un carnet dans un run + UI « missions reprises ».
+- **A** 🔴 P0 — **Finir la fédération mesh** : propager les skills vérifiés de nœud à nœud. Test multi-nœuds requis. *Le récit différenciant.* ⏳ RESTE (besoin setup multi-nœuds).
+- **B** 🔴 P0 — **Serveur MCP** : LaRuche pilotable par Claude Code/Cursor/third-party. ✅ **FAIT** (`POST /mcp`, commit `7fc4514`).
+- **C** 🟠 P1 — **Tokens/usage réels hors-Ollama**. ✅ **FAIT** Anthropic+OpenAI (`efb848e`) ; codex OAuth reste.
+- **D** 🟠 P1 — **Hooks utilisateur** (pre/post-tool, events, configurables) façon Claude Code/third-party. ⏳ RESTE (système à concevoir).
+- **E** 🟡 P2 — **Sandbox durci** pour shell_exec/execute_code/browser. ⏳ RESTE (durcissement large).
+- **F** 🟡 P2 — **Reprise effective des carnets**. ✅ **FAIT** (`reprendre_carnet` + endpoints, `8a8f44b`).
 
 ## Séquence recommandée
 1. **B** (serveur MCP) — petit effort, branche tout l'écosystème, démontrable.
