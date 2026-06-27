@@ -7257,6 +7257,82 @@ async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState
                                 continue;
                             }
 
+                            // /help — liste des commandes (façon third-party).
+                            if text == "/help" {
+                                let aide = "*Commandes LaRuche*\n\
+                                    /help — cette aide\n\
+                                    /status — modèle, home channel, tâches\n\
+                                    /clear (ou /reset, /start) — efface l'historique de CE chat\n\
+                                    /sethome — définir CE chat comme destination des tâches\n\
+                                    /crons — lister les tâches planifiées\n\
+                                    /delcron <nom|all> — supprimer un cron (ou tous)\n\n\
+                                    _Astuce : écris un message pendant une tâche en cours pour l'orienter (steering)._";
+                                let _ = client.post(format!("{}/sendMessage", api))
+                                    .json(&serde_json::json!({"chat_id": chat_id, "text": aide, "parse_mode": "Markdown"}))
+                                    .send().await;
+                                continue;
+                            }
+
+                            // /status — état courant.
+                            if text == "/status" {
+                                let modele = get_llm_default(state).await;
+                                let home = state.essaim_config.read().await.home_channel.clone()
+                                    .unwrap_or_else(|| "(non défini)".into());
+                                let n_crons = state.essaim_cron.read().await.list().len();
+                                let msg = format!(
+                                    "*LaRuche — statut*\nModèle : `{modele}`\nHome : `{home}`\nCrons : {n_crons}"
+                                );
+                                let _ = client.post(format!("{}/sendMessage", api))
+                                    .json(&serde_json::json!({"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}))
+                                    .send().await;
+                                continue;
+                            }
+
+                            // /crons — liste les tâches planifiées.
+                            if text == "/crons" {
+                                let lignes: Vec<String> = state.essaim_cron.read().await.list()
+                                    .iter()
+                                    .map(|t| format!("• *{}* — `{}` (runs: {})", t.name, t.cron_expr.clone().unwrap_or_else(|| "ponctuel".into()), t.run_count))
+                                    .collect();
+                                let msg = if lignes.is_empty() {
+                                    "Aucune tâche planifiée.".to_string()
+                                } else {
+                                    format!("*Tâches planifiées*\n{}\n\n_Supprimer : /delcron <nom> ou /delcron all_", lignes.join("\n"))
+                                };
+                                let _ = client.post(format!("{}/sendMessage", api))
+                                    .json(&serde_json::json!({"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}))
+                                    .send().await;
+                                continue;
+                            }
+
+                            // /delcron <nom|all> — supprime un cron (ou tous). Stoppe le spam depuis Telegram.
+                            if let Some(arg) = text.strip_prefix("/delcron").map(|s| s.trim()) {
+                                let arg = arg.to_string();
+                                let msg = {
+                                    let mut sched = state.essaim_cron.write().await;
+                                    if arg.is_empty() {
+                                        "Usage : /delcron <nom> ou /delcron all".to_string()
+                                    } else if arg.eq_ignore_ascii_case("all") {
+                                        let ids: Vec<Uuid> = sched.list().iter().map(|t| t.id).collect();
+                                        let n = ids.len();
+                                        for id in ids { sched.remove(&id); }
+                                        format!("🗑️ {n} cron(s) supprimé(s).")
+                                    } else {
+                                        let id = sched.list().iter()
+                                            .find(|t| t.name.eq_ignore_ascii_case(&arg))
+                                            .map(|t| t.id);
+                                        match id {
+                                            Some(id) => { sched.remove(&id); format!("🗑️ Cron « {arg} » supprimé.") }
+                                            None => format!("Aucun cron nommé « {arg} ». Vois /crons."),
+                                        }
+                                    }
+                                };
+                                let _ = client.post(format!("{}/sendMessage", api))
+                                    .json(&serde_json::json!({"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}))
+                                    .send().await;
+                                continue;
+                            }
+
                             // Check for active steering
                             let mut steers_lock = active_steers.write().await;
                             if let Some(steer_tx) = steers_lock.get(&chat_id) {
