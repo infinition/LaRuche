@@ -387,21 +387,21 @@ pub fn build_capability_index(registry: &AbeilleRegistry) -> String {
         }
     };
     let mut out = String::from(
-        "## Catalogue d'outils\n\nTOUS les outils ci-dessous sont disponibles, même si leur \
-         schéma n'est pas listé ce tour. Pour en utiliser un absent de ta liste : appelle \
-         `tool_call` avec `tool` = son nom (ou `tool_search` pour chercher par mots-clés).\n",
+        "## Tool Catalog\n\nALL tools below are available, even if their schema isn't listed this \
+         turn. To use one that isn't in your list: call `tool_call` with `tool` = its name (or \
+         `tool_search` to search by keywords).\n",
     );
     if !builtin.is_empty() {
-        out.push_str(&format!("- Outils natifs : {}\n", builtin.join(", ")));
+        out.push_str(&format!("- Native tools: {}\n", builtin.join(", ")));
     }
     if !plugins.is_empty() {
-        out.push_str("- Plugins :\n");
+        out.push_str("- Plugins:\n");
         for (n, d) in &plugins {
             ligne(&mut out, n, d);
         }
     }
     if !mcp.is_empty() {
-        out.push_str("- MCP :\n");
+        out.push_str("- MCP:\n");
         for (n, d) in &mcp {
             ligne(&mut out, n, d);
         }
@@ -1695,7 +1695,7 @@ pub async fn boucle_react_memoire_multimodal(
             .map(str::trim)
             .filter(|s| !s.is_empty())
         {
-            let bloc = format!("## À propos de l'utilisateur (fiche qu'il a fournie)\n{fiche}");
+            let bloc = format!("## About the user (profile they provided)\n{fiche}");
             cfg.custom_instructions = Some(match cfg.custom_instructions.take() {
                 Some(s) => format!("{s}\n\n{bloc}"),
                 None => bloc,
@@ -2755,7 +2755,7 @@ fn formater_et_signaler_skills(
         } else {
             corps_complet.to_string()
         };
-        bloc.push_str(&format!("## Skill : {nom}\n{corps}\n\n---\n\n"));
+        bloc.push_str(&format!("## Skill: {nom}\n{corps}\n\n---\n\n"));
     }
     Some(match ephemeral {
         Some(mem) => format!("{bloc}{mem}"),
@@ -2845,7 +2845,7 @@ mod apprentissage_tests {
         )];
         let out = formater_et_signaler_skills(&skills, Some("souvenir X".into()), &tx)
             .expect("contexte non vide quand un skill est rappelé");
-        assert!(out.contains("## Skill : veille-ia"), "skill injecté");
+        assert!(out.contains("## Skill: veille-ia"), "skill injecté");
         assert!(
             out.contains("souvenir X"),
             "mémoire conservée après le bloc skills"
