@@ -247,6 +247,11 @@ struct OutilsPont<'a> {
     working_dir: Option<PathBuf>,
     disabled: Vec<String>,
     tx: broadcast::Sender<ChatEvent>,
+    /// Canal d'approbation (popup UI) pour les outils mutants en mode permission `Ask`.
+    /// `None` chez les éclaireuses (autonomes) ou quand l'UI n'en fournit pas → auto-approuvé.
+    /// `Mutex` car le trait `Outils::executer` prend `&self` ; les outils mutants sont
+    /// exécutés séquentiellement (récolte) → pas de contention.
+    approval: Option<&'a tokio::sync::Mutex<crate::brain::ApprovalReceiver>>,
 }
 
 impl OutilsPont<'_> {
@@ -314,6 +319,7 @@ impl OutilsPont<'_> {
             working_dir: self.working_dir.clone(),
             disabled,
             tx: self.tx.clone(),
+            approval: None, // les éclaireuses sont autonomes : pas de popup
         };
         let emet = EmetteurPont { tx: self.tx.clone() };
 
@@ -342,6 +348,17 @@ impl OutilsPont<'_> {
     }
 }
 
+/// Attend une réponse d'approbation correspondant à `tcid` (ignore les réponses pour
+/// d'autres outils). Canal fermé → `false` (refus par défaut, fail-safe).
+async fn attendre_approbation(rx: &mut crate::brain::ApprovalReceiver, tcid: &str) -> bool {
+    while let Some(resp) = rx.recv().await {
+        if resp.tool_call_id == tcid || resp.tool_call_id.is_empty() {
+            return resp.approved;
+        }
+    }
+    false
+}
+
 #[async_trait]
 impl but::Outils for OutilsPont<'_> {
     async fn executer(&self, appel: &but::Appel) -> but::ResultatOutil {
@@ -365,8 +382,8 @@ impl but::Outils for OutilsPont<'_> {
             return self.bloquer(&appel.nom, format!("Blocked (injection guard): {reason}"));
         }
 
-        // Moteur de permissions : Deny bloque ; Ask est auto-approuvé en POC (pas encore
-        // de popup câblé) mais signalé ; Dangerous est toujours refusé.
+        // Moteur de permissions : Deny bloque ; Dangerous toujours refusé ; Ask déclenche le
+        // popup d'approbation (UI) et attend la réponse. Sans canal (éclaireuse/auto) → passe.
         let danger = self
             .registry
             .get(&appel.nom)
@@ -378,12 +395,38 @@ impl but::Outils for OutilsPont<'_> {
                 return self.bloquer(&appel.nom, "Blocked: permission denied".into());
             }
             PermissionBehavior::Ask => {
-                let _ = self.tx.send(ChatEvent::Status {
-                    message: format!(
-                        "⚠ '{}' exécuté sans confirmation (POC butinage : popup d'approbation non câblé).",
-                        appel.nom
-                    ),
-                });
+                if let Some(mx) = self.approval {
+                    let tcid = if appel.id.is_empty() {
+                        uuid::Uuid::new_v4().to_string()
+                    } else {
+                        appel.id.clone()
+                    };
+                    // Demande à l'UI (le node route la réponse vers ce canal).
+                    let _ = self.tx.send(ChatEvent::ApprovalRequest {
+                        tool_call_id: tcid.clone(),
+                        name: appel.nom.clone(),
+                        args: appel.args.clone(),
+                    });
+                    let mut rx = mx.lock().await;
+                    // Timeout : sans réponse on REFUSE (mode autonome = `auto`, qui n'arrive
+                    // jamais ici car la permission y vaut Allow).
+                    let verdict = tokio::time::timeout(
+                        std::time::Duration::from_secs(180),
+                        attendre_approbation(&mut rx, &tcid),
+                    )
+                    .await;
+                    match verdict {
+                        Ok(true) => {}
+                        Ok(false) => {
+                            return self.bloquer(&appel.nom, "Refusé par l'utilisateur.".into());
+                        }
+                        Err(_) => {
+                            return self
+                                .bloquer(&appel.nom, "Approbation expirée (aucune réponse).".into());
+                        }
+                    }
+                }
+                // Pas de canal d'approbation → exécution autonome (sous-agent / UI absente).
             }
         }
 
@@ -853,6 +896,7 @@ pub async fn executer(
     memoire: &Option<Arc<dyn MemoireCognitive>>,
     mut steer_rx: Option<tokio::sync::mpsc::Receiver<String>>,
     attachments: &[crate::session::Attachment],
+    approval_rx: Option<crate::brain::ApprovalReceiver>,
 ) -> Result<String> {
     let _ = tx.send(ChatEvent::Status {
         message: "Moteur butinage actif (RUCHE_MOTEUR=butinage).".into(),
@@ -932,6 +976,9 @@ pub async fn executer(
         max_tokens: config.max_tokens,
         tx: tx.clone(),
     };
+    // Canal d'approbation (popup UI) partagé avec les outils via Mutex (exécution mutante
+    // séquentielle → pas de contention). `None` => outils Ask exécutés sans confirmation.
+    let approval_mx = approval_rx.map(tokio::sync::Mutex::new);
     let outils = OutilsPont {
         registry,
         config,
@@ -939,6 +986,7 @@ pub async fn executer(
         working_dir: session.working_dir.clone(),
         disabled: config.disabled_tools.clone(),
         tx: tx.clone(),
+        approval: approval_mx.as_ref(),
     };
     let emet = EmetteurPont { tx: tx.clone() };
 

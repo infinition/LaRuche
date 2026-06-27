@@ -2944,6 +2944,7 @@ pub async fn boucle_react_multimodal_ext(
             &memoire,
             steer_rx,
             &attachments,
+            approval_rx,
         )
         .await;
     }
