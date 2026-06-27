@@ -51,8 +51,11 @@ pub fn build_system_prompt(
         prompt.push_str(&format!(
             "\n## Secrets disponibles\nL'utilisateur a enregistré des secrets (clés d'API, tokens, \
              URLs de webhook). Tu n'en connais JAMAIS la valeur — seulement le nom. Pour t'en \
-             servir dans une commande shell_exec ou un script, écris `${{NOM}}` : le système \
-             remplacera par la vraie valeur au moment de l'exécution (jamais affichée).\n\
+             servir dans une commande shell_exec, un script ou une URL, écris `${{NOM}}` OU `@@NOM` \
+             (forme courte ; l'utilisateur l'écrit souvent ainsi, ex. `@@webhook_test1`) : le \
+             système remplace par la vraie valeur au moment de l'exécution (jamais affichée). \
+             Si l'utilisateur écrit `@@NOM`, c'est une référence à ce secret — passe-la telle quelle \
+             à l'outil (ne tente pas de la deviner).\n\
              Secrets : {}\n\n",
             noms.join(", ")
         ));

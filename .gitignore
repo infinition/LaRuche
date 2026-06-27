@@ -42,3 +42,12 @@ laruche/channels-config.json
 # Exports & artefacts runtime de l'agent
 laruche/okf-export/
 laruche/*.py
+
+# Runtime / secrets (jamais versionner)
+laruche/secret.key
+laruche/secrets.enc
+laruche/feed-journal.ndjson
+laruche/essaim-calendar.json
+laruche/cron-tasks.json
+laruche/laruche-state.json
+laruche/sessions/

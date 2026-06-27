@@ -52,18 +52,25 @@ pub fn non_vide() -> bool {
     coffre().read().map(|c| !c.is_empty()).unwrap_or(false)
 }
 
-/// **Substitution** : remplace toutes les occurrences de `${NOM}` (et `{{NOM}}`) par la valeur
-/// réelle du secret. Les références inconnues sont laissées telles quelles. C'est ici que la
-/// valeur « entre » dans la commande, sans jamais transiter par le contexte du LLM.
+/// **Substitution** : remplace toutes les occurrences de `${NOM}`, `{{NOM}}` ET `@@NOM` par la
+/// valeur réelle du secret. Les références inconnues sont laissées telles quelles. C'est ici que
+/// la valeur « entre » dans la commande, sans jamais transiter par le contexte du LLM.
+///
+/// `@@NOM` est la forme ergonomique tapée dans le chat/les formulaires (« envoie via @@webhook »).
+/// Les noms sont traités du plus long au plus court pour éviter qu'un nom préfixe d'un autre
+/// (`@@web` vs `@@webhook`) ne soit substitué en premier.
 pub fn substituer(texte: &str) -> String {
-    if !texte.contains("${") && !texte.contains("{{") {
+    if !texte.contains("${") && !texte.contains("{{") && !texte.contains("@@") {
         return texte.to_string();
     }
     let Ok(c) = coffre().read() else { return texte.to_string() };
+    let mut paires: Vec<(&String, &String)> = c.iter().collect();
+    paires.sort_by(|a, b| b.0.len().cmp(&a.0.len())); // plus long d'abord
     let mut out = texte.to_string();
-    for (nom, val) in c.iter() {
+    for (nom, val) in paires {
         out = out.replace(&format!("${{{nom}}}"), val);
         out = out.replace(&format!("{{{{{nom}}}}}"), val);
+        out = out.replace(&format!("@@{nom}"), val);
     }
     out
 }
@@ -79,8 +86,10 @@ mod tests {
         init(m);
         assert_eq!(substituer("curl -H ${TOKEN_X}"), "curl -H secret123");
         assert_eq!(substituer("voir {{TOKEN_X}}"), "voir secret123");
+        assert_eq!(substituer("post @@TOKEN_X"), "post secret123");
         // référence inconnue laissée telle quelle
         assert_eq!(substituer("${INCONNU}"), "${INCONNU}");
+        assert_eq!(substituer("@@INCONNU"), "@@INCONNU");
         // les noms sont exposés, pas les valeurs
         assert!(noms().contains(&"TOKEN_X".to_string()));
     }

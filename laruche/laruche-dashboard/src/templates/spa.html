@@ -2365,6 +2365,56 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 /* ================================================================ */
 window.LaRuche = {};
 
+/* ── @@secret : autocomplétion CENTRALE des secrets ──────────────────────────────
+ * Tape `@@` dans N'IMPORTE quel champ texte (chat, prompts de cron/mission/skill/watcher,
+ * éditeur mémoire, formulaires…) → liste cliquable des secrets enregistrés. La VALEUR n'est
+ * jamais affichée : on insère la référence `@@NOM`, que le backend substitue à l'exécution
+ * (shell, web_fetch, provider, webhook via curl). Marche sans câblage par champ : un seul
+ * écouteur en capture sur tout le document. */
+LaRuche.Secrets = (function(){
+  var names=[], box=null, items=[], sel=-1, targetEl=null, tokenStart=-1;
+  function refresh(){ fetch('/api/secrets').then(function(r){return r.json();}).then(function(d){ names=(d&&d.names)||[]; }).catch(function(){}); }
+  function isText(el){ return el && (el.tagName==='TEXTAREA' || (el.tagName==='INPUT' && (el.type==='text'||el.type==='search'||el.type===''))); }
+  function ensureBox(){ if(box)return box; box=document.createElement('div'); box.id='secretAC'; box.style.cssText='position:fixed;z-index:100001;display:none;background:#16161a;border:1px solid var(--amber);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.55);max-height:220px;overflow:auto;min-width:170px;font-size:12px'; document.body.appendChild(box); return box; }
+  function hide(){ if(box) box.style.display='none'; targetEl=null; sel=-1; }
+  function currentToken(el){ var pos=el.selectionStart; if(pos==null)return null; var m=el.value.slice(0,pos).match(/@@([A-Za-z0-9_\-]*)$/); return m?{start:pos-m[0].length, partial:m[1]}:null; }
+  function paint(){ if(!box)return; Array.prototype.forEach.call(box.querySelectorAll('.sac-item'), function(it,i){ it.style.background=(i===sel)?'rgba(245,158,11,.2)':''; }); }
+  function render(el, tok){
+    var f=tok.partial.toLowerCase();
+    items = names.filter(function(n){ return n.toLowerCase().indexOf(f)>=0; });
+    if(!items.length){ hide(); return; }
+    sel=0; targetEl=el; tokenStart=tok.start;
+    var b=ensureBox();
+    b.innerHTML = '<div style="padding:3px 10px;color:var(--text-dim);font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Secrets</div>'+
+      items.map(function(n,i){ return '<div class="sac-item" data-i="'+i+'" style="padding:6px 10px;cursor:pointer;color:var(--amber);'+(i===0?'background:rgba(245,158,11,.2)':'')+'">@@'+LaRuche.Utils.esc(n)+'</div>'; }).join('');
+    var r=el.getBoundingClientRect();
+    b.style.left=Math.min(r.left, window.innerWidth-200)+'px'; b.style.top=(r.bottom+2)+'px'; b.style.display='block';
+    Array.prototype.forEach.call(b.querySelectorAll('.sac-item'), function(it){ it.onmousedown=function(e){ e.preventDefault(); choose(parseInt(it.dataset.i)); }; });
+  }
+  function choose(i){
+    if(!targetEl||!items[i])return;
+    var el=targetEl, name=items[i], pos=el.selectionStart;
+    el.value = el.value.slice(0,tokenStart)+'@@'+name+el.value.slice(pos);
+    var caret=tokenStart+2+name.length; el.selectionStart=el.selectionEnd=caret;
+    el.dispatchEvent(new Event('input',{bubbles:true})); hide(); el.focus();
+  }
+  function onInput(e){ var el=e.target; if(!isText(el)||!names.length){ return; } var t=currentToken(el); if(t) render(el,t); else hide(); }
+  function onKey(e){
+    if(!box||box.style.display==='none')return;
+    if(e.key==='ArrowDown'){ e.preventDefault(); e.stopPropagation(); sel=Math.min(sel+1,items.length-1); paint(); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); e.stopPropagation(); sel=Math.max(sel-1,0); paint(); }
+    else if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); e.stopPropagation(); choose(sel); }
+    else if(e.key==='Escape'){ e.stopPropagation(); hide(); }
+  }
+  function init(){
+    refresh(); setInterval(refresh, 45000);
+    document.addEventListener('input', onInput, true);
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('click', function(e){ if(box && box.style.display!=='none' && !box.contains(e.target)) hide(); }, true);
+  }
+  return { init:init, refresh:refresh };
+})();
+
 /* ── Rafraichissement dynamique global (P7) ──────────────────────
  * Apres toute action mutante (choix de modele, visibilite, capacite,
  * cron...), on re-fetch + re-render les composants concernes SANS F5.
@@ -7865,11 +7915,11 @@ LaRuche.Settings = (function(){
     var value=document.getElementById('secVal').value||'';
     if(!name||!value){ LaRuche.Toast.show('Nom et valeur requis','warn'); return; }
     fetch(LaRuche.API.base+'/api/secrets',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,value:value})})
-      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Secret enregistré','ok'); refreshTab(); } else { LaRuche.Toast.show('Échec (nom invalide ? A-Z/0-9/_ uniquement)','err'); } });
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Secret enregistré','ok'); if(LaRuche.Secrets)LaRuche.Secrets.refresh(); refreshTab(); } else { LaRuche.Toast.show('Échec (nom invalide ? A-Z/0-9/_ uniquement)','err'); } });
   }
   function secretDelete(name){
     fetch(LaRuche.API.base+'/api/secrets/'+encodeURIComponent(name),{method:'DELETE',credentials:'include'})
-      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Secret supprimé','ok'); refreshTab(); } });
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Secret supprimé','ok'); if(LaRuche.Secrets)LaRuche.Secrets.refresh(); refreshTab(); } });
   }
 
   // Onglet MCP dédié (sorti de Providers).
@@ -7986,10 +8036,21 @@ LaRuche.Settings = (function(){
           else if(t.provider) effProv = t.provider + (t.model ? " / " + t.model : "");
           else if(t.model) effProv = t.model;
           if(t.profile_id && t.model) effProv += " (" + t.model + ")";
-          return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.Utils.esc(t.name)+'</div><div class="settings-row"><span class="settings-label">Schedule</span><span class="settings-value">'+(t.cron_expr||t.fire_at||'-')+'</span></div><div class="settings-row"><span class="settings-label">Runs</span><span class="settings-value">'+(t.run_count||0)+'</span></div><div class="settings-row"><span class="settings-label">Channel</span><span class="settings-value">'+LaRuche.Utils.esc(t.channel||'None')+'</span></div><div class="settings-row"><span class="settings-label">Provider/Model</span><span class="settings-value">'+LaRuche.Utils.esc(effProv)+'</span></div><button onclick="fetch(\'/api/cron/'+t.id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;margin-top:6px">Delete</button></div>';
+          return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.Utils.esc(t.name)+'</div><div class="settings-row"><span class="settings-label">Schedule</span><span class="settings-value">'+(t.cron_expr||t.fire_at||'-')+'</span></div><div class="settings-row"><span class="settings-label">Runs</span><span class="settings-value">'+(t.run_count||0)+'</span></div><div class="settings-row"><span class="settings-label">Channel</span><span class="settings-value">'+LaRuche.Utils.esc(t.channel||'None')+'</span></div><div class="settings-row"><span class="settings-label">Provider/Model</span><span class="settings-value">'+LaRuche.Utils.esc(effProv)+'</span></div><button onclick="LaRuche.Settings.deleteCronTask(\''+t.id+'\',this)" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;margin-top:6px">Delete</button></div>';
       }).join('');
     // Builder cron human-friendly pour le formulaire de creation.
     if(LaRuche.CronBuilder){ _ncCronBuilderId = LaRuche.CronBuilder.mount('ncCronBuilder', { value:'' }); }
+  }
+  // Suppression cron OPTIMISTE : retire la carte du DOM des que le DELETE reussit. Marche
+  // dans n'importe quel conteneur (page Cron OU hub Missions) — fini le F5 (refreshTab
+  // rechargeait le mauvais onglet selon le contexte).
+  function deleteCronTask(id, btn){
+    if(!confirm('Supprimer ce cron ?')) return;
+    fetch('/api/cron/'+id,{method:'DELETE'}).then(function(r){
+      if(!r.ok){ LaRuche.Toast.show('Suppression impossible','err'); return; }
+      var card = btn && btn.closest('.settings-card'); if(card) card.remove();
+      LaRuche.Toast.show('Cron supprimé','ok');
+    }).catch(function(){ LaRuche.Toast.show('Suppression impossible','err'); });
   }
   
   function updateCronModelSelect() {
@@ -8988,7 +9049,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
   }
 
-  return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
+  return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
     loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
@@ -10445,6 +10506,7 @@ LaRuche.Mesh = (function(){
   LaRuche.Header.init();
   LaRuche.Voice.init();
   LaRuche.Feed.init();
+  if(LaRuche.Secrets && LaRuche.Secrets.init) LaRuche.Secrets.init();
   if(LaRuche.Mesh && LaRuche.Mesh.init) LaRuche.Mesh.init();
   // reposition mesh windows on page change and resize
   window.addEventListener('hashchange', function(){ if(LaRuche.Mesh) LaRuche.Mesh.repositionWindows(); });

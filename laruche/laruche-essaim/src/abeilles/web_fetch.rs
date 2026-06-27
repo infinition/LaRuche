@@ -45,9 +45,13 @@ impl Abeille for WebFetch {
         args: serde_json::Value,
         _ctx: &ContextExecution,
     ) -> Result<ResultatAbeille> {
-        let url = args["url"]
+        let url_raw = args["url"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Missing 'url' argument"))?;
+        // Substitution des secrets (`${NOM}` / `@@NOM`) : permet `web_fetch @@webhook_get` sans
+        // jamais exposer la valeur au LLM (outil sortant).
+        let url_sub = crate::secrets::substituer(url_raw);
+        let url = url_sub.as_str();
 
         if !url.starts_with("http://") && !url.starts_with("https://") {
             return Ok(ResultatAbeille::err(
