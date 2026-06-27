@@ -5343,6 +5343,74 @@ async fn api_secrets_delete(
     StatusCode::OK
 }
 
+/// POST /mcp — **serveur MCP** (JSON-RPC, transport « Streamable HTTP »). Expose les abeilles
+/// de LaRuche comme outils MCP → n'importe quel client MCP (Claude Code, Cursor, third-party…)
+/// peut piloter LaRuche. Sécurité opt-in : si `LARUCHE_MCP_TOKEN` est défini, exige l'en-tête
+/// `X-LaRuche-MCP-Token` correspondant (sinon ouvert — usage local POC).
+async fn api_mcp_server(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(req): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let id = req.get("id").cloned().unwrap_or(serde_json::Value::Null);
+    let method = req.get("method").and_then(|m| m.as_str()).unwrap_or("");
+    let err = |code: i64, msg: String| {
+        Json(serde_json::json!({"jsonrpc":"2.0","id":id,"error":{"code":code,"message":msg}}))
+    };
+    // Garde-fou opt-in par token (recommandé si exposé hors localhost).
+    if let Ok(tok) = std::env::var("LARUCHE_MCP_TOKEN") {
+        let got = headers.get("x-laruche-mcp-token").and_then(|v| v.to_str().ok());
+        if got != Some(tok.as_str()) {
+            return err(-32000, "Unauthorized (X-LaRuche-MCP-Token)".into());
+        }
+    }
+    let ok = |result: serde_json::Value| {
+        Json(serde_json::json!({"jsonrpc":"2.0","id":id,"result":result}))
+    };
+    match method {
+        "initialize" => ok(serde_json::json!({
+            "protocolVersion": "2024-11-05",
+            "capabilities": { "tools": {} },
+            "serverInfo": { "name": "laruche", "version": env!("CARGO_PKG_VERSION") }
+        })),
+        // Notifications (pas de réponse attendue) → on renvoie une enveloppe vide valide.
+        m if m.starts_with("notifications/") => Json(serde_json::json!({"jsonrpc":"2.0"})),
+        "tools/list" => {
+            let schema = state.essaim_registry.schema_complet();
+            let tools: Vec<serde_json::Value> = schema
+                .as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .map(|t| {
+                            serde_json::json!({
+                                "name": t["name"],
+                                "description": t["description"],
+                                "inputSchema": t["parameters"],
+                            })
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            ok(serde_json::json!({ "tools": tools }))
+        }
+        "tools/call" => {
+            let name = req["params"]["name"].as_str().unwrap_or("").to_string();
+            let args = req["params"]["arguments"].clone();
+            let ctx = laruche_essaim::ContextExecution::default();
+            let (text, is_err) = match state.essaim_registry.executer(&name, args, &ctx).await {
+                Ok(r) if r.success => (r.output, false),
+                Ok(r) => (r.error.unwrap_or(r.output), true),
+                Err(e) => (e.to_string(), true),
+            };
+            ok(serde_json::json!({
+                "content": [{ "type": "text", "text": text }],
+                "isError": is_err
+            }))
+        }
+        other => err(-32601, format!("Method not found: {other}")),
+    }
+}
+
 /// GET /api/config/provider — get current LLM provider settings.
 async fn api_get_provider_config(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let ec = state.essaim_config.read().await;
@@ -9515,6 +9583,7 @@ async fn main() -> Result<()> {
             get(api_secrets_list).post(api_secrets_set),
         )
         .route("/api/secrets/:name", axum::routing::delete(api_secrets_delete))
+        .route("/mcp", post(api_mcp_server))
         .route(
             "/api/profiles",
             get(api_get_profiles).post(api_upsert_profile),
