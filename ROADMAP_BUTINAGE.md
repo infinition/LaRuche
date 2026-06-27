@@ -34,6 +34,18 @@ UI : auto-scroll · sélection texte mémoire · bouton 👁 PromptDebug.
 - **Édition des watchers** (parité cron/kanban) : `WatchersRegistry::update`, `PATCH /api/watchers/:id`, modale UI.
 - **Menu fusionné « Missions »** : ex-Automatisations renommé, hub unique avec sous-onglets Brief/Timeline/Cron/Watchers/Kanban ; `#page-missions` vidé (compat route).
 
+## ✅ Feed & UX (27/06, lot 3)
+- **Feed persistant + logging universel** : module `feed_journal` (essaim, global ndjson) → toute **création** (cron/watcher/mission/kanban via tools agent ET endpoints UI) + run curateur loggée + **survit au reboot** ; `api_feed` fusionne. (Avant : seules les exécutions via last_run, perdues au reboot.)
+- **sbModelLabel** : maj immédiate au choix du modèle (`dispatchEvent('change')` au lieu de `sel.onchange()`).
+- **MCP** : onglet Settings dédié (sorti de Providers, dédupliqué).
+
+## 🔜 À FAIRE (lot 3, suite — features lourdes, passes dédiées)
+A. [ ] **Vault Secrets chiffré** (onglet Secrets + section Webhooks) : AES-GCM clé locale, noms→valeurs, le LLM voit les NOMS, substitution `${NOM}` à l'exécution tool/shell, dropdown secrets dans les champs API Key des providers, contexte LLM informé. **GROS — sécurité-sensible, passe dédiée.**
+B. [ ] **Modèles dynamiques par provider** : liste fetchée live (`/v1/models`,`/api/tags`), vidée si injoignable (llama.cpp fermé), repeuplée au retour.
+C. [ ] **Missions** : sélecteurs provider + channel (channel optionnel), cadence cron simplifiée (réutiliser le sélecteur facile des Crons).
+D. [ ] **Timeline** : clic sur la ligne (pas que la pastille), zoom molette, édition/suppression depuis le détail.
+E. [ ] **Skill ↔ abeilles/plugins** (façon third-party) : déclarer tools/plugins par skill, hint injecté au chargement.
+
 ## 🔜 À FAIRE
 7. [ ] **Fédération mesh** : propager skills VÉRIFIÉS aux ruches via `miel-protocol` (GROS — besoin test multi-nœuds).
 10. [ ] Discord/Slack : commandes `/sethome` `/clear` (aujourd'hui Telegram seul) · per-tâche channel pour kanban/cron via UI · home channel par utilisateur (aujourd'hui global, OK en POC mono-user).
