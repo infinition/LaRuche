@@ -1005,12 +1005,16 @@ pub async fn executer(
     };
 
     // System prompt : on réutilise les assembleurs existants (tier stable).
+    // Index de capacités COMPACT (~4K) : expose TOUS les skills/abeilles/plugins par nom
+    // (comme le chat) → le modèle sait ce qui existe sans qu'on injecte tous les schémas
+    // complets. C'était l'erreur : butinage passait `None` ici et gonflait le prompt.
     let tool_schema = schema_outils_pour_prompt(registry, config, prompt_utilisateur);
+    let index_capacites = crate::brain::build_capability_index(registry);
     let mut systeme = build_system_prompt(
         &tool_schema,
         config.system_prompt_override.as_deref(),
         config.behavior_override.as_deref(),
-        None,
+        Some(&index_capacites),
         config.custom_instructions.as_deref(),
     );
     if let Some(ctx) = ephemeral_context {

@@ -342,7 +342,7 @@ fn tool_score(
 /// Index COMPACT de toutes les capacités (noms par famille) pour le tier stable du prompt :
 /// le LLM sait ce qui EXISTE même hors des outils injectés ce tour, et peut tout atteindre via
 /// `tool_call`. Inspiré de l'index de skills d'third-party. Stable dans la session → cacheable.
-fn build_capability_index(registry: &AbeilleRegistry) -> String {
+pub fn build_capability_index(registry: &AbeilleRegistry) -> String {
     let schema = registry.schema_complet();
     let Some(tools) = schema.as_array() else {
         return String::new();
