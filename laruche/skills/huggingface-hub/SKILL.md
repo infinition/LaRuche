@@ -7,76 +7,106 @@ author: Hugging Face
 license: MIT
 tags: [huggingface, hf, models, datasets, hub, mlops]
 platforms: [linux, macos, windows]
+tools: [shell_exec]
 ---
 
 # Hugging Face CLI (`hf`) Reference Guide
 
-The `hf` command is the modern command-line interface for interacting with the Hugging Face Hub, providing tools to manage repositories, models, datasets, and Spaces.
+The `hf` command is the modern CLI for the Hugging Face Hub. It replaces the deprecated `huggingface-cli`.
 
-> **IMPORTANT:** The `hf` command replaces the now deprecated `huggingface-cli` command.
+**Installation:** `curl -LsSf https://hf.co/cli/install.sh | bash -s`
+**Auth:** Use `${HF_TOKEN}` (LaRuche secrets vault) or pass `--token ${HF_TOKEN}` to any command.
+**Help:** `hf --help` — full command list with examples.
 
-## Quick Start
-*   **Installation:** `curl -LsSf https://hf.co/cli/install.sh | bash -s`
-*   **Help:** Use `hf --help` to view all available functions and real-world examples.
-*   **Authentication:** Recommended via `HF_TOKEN` environment variable or the `--token` flag.
+In LaRuche, run all `hf` commands via `shell_exec`.
 
 ---
 
 ## Core Commands
 
-### General Operations
-*   `hf download REPO_ID`: Download files from the Hub.
-*   `hf upload REPO_ID`: Upload files/folders (recommended for single-commit).
-*   `hf upload-large-folder REPO_ID LOCAL_PATH`: Recommended for resumable uploads of large directories.
-*   `hf sync`: Sync files between a local directory and a bucket.
-*   `hf env` / `hf version`: View environment and version details.
+### Download / Upload
+- `hf download REPO_ID` — download files from Hub
+- `hf upload REPO_ID [LOCAL_PATH]` — single-commit upload
+- `hf upload-large-folder REPO_ID LOCAL_PATH` — resumable upload for large dirs
+- `hf sync` — sync local dir with a bucket
 
-### Authentication (`hf auth`)
-*   `login` / `logout`: Manage sessions using tokens from [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens).
-*   `list` / `switch`: Manage and toggle between multiple stored access tokens.
-*   `whoami`: Identify the currently logged-in account.
+### Auth (`hf auth`)
+- `hf auth login` / `hf auth logout`
+- `hf auth list` / `hf auth switch` — manage multiple tokens
+- `hf auth whoami`
 
-### Repository Management (`hf repos`)
-*   `create` / `delete`: Create or permanently remove repositories.
-*   `duplicate`: Clone a model, dataset, or Space to a new ID.
-*   `move`: Transfer a repository between namespaces.
-*   `branch` / `tag`: Manage Git-like references.
-*   `delete-files`: Remove specific files using patterns.
+### Repos (`hf repos`)
+- `hf repos create REPO_ID [--type dataset|model|space]`
+- `hf repos delete REPO_ID`
+- `hf repos duplicate SRC_ID DEST_ID`
+- `hf repos move REPO_ID NEW_ID`
+- `hf repos branch` / `hf repos tag` — Git-like refs
+- `hf repos delete-files REPO_ID PATTERN`
 
 ---
 
-## Specialized Hub Interactions
+## Specialized Commands
 
 ### Datasets & Models
-*   **Datasets:** `hf datasets list`, `info`, and `parquet` (list parquet URLs).
-*   **SQL Queries:** `hf datasets sql SQL` — Execute raw SQL via DuckDB against dataset parquet URLs.
-*   **Models:** `hf models list` and `info`.
-*   **Papers:** `hf papers list` — View daily papers.
+- `hf datasets list [--search QUERY]` / `hf datasets info REPO_ID`
+- `hf datasets parquet REPO_ID` — list parquet URLs
+- `hf datasets sql "SELECT ..." REPO_ID` — SQL via DuckDB on parquet
+- `hf models list [--search QUERY]` / `hf models info REPO_ID`
+- `hf papers list` — daily papers
 
-### Discussions & Pull Requests (`hf discussions`)
-*   Manage the lifecycle of Hub contributions: `list`, `create`, `info`, `comment`, `close`, `reopen`, and `rename`.
-*   `diff`: View changes in a PR.
-*   `merge`: Finalize pull requests.
+### Discussions & PRs (`hf discussions`)
+- `hf discussions list REPO_ID`
+- `hf discussions create REPO_ID --title "..."` / `hf discussions comment`
+- `hf discussions diff / merge / close / reopen / rename`
 
-### Infrastructure & Compute
-*   **Endpoints:** Deploy and manage Inference Endpoints (`deploy`, `pause`, `resume`, `scale-to-zero`, `catalog`).
-*   **Jobs:** Run compute tasks on HF infrastructure. Includes `hf jobs uv` for running Python scripts with inline dependencies and `stats` for resource monitoring.
-*   **Spaces:** Manage interactive apps. Includes `dev-mode` and `hot-reload` for Python files without full restarts.
+### Inference Endpoints
+- `hf endpoints deploy / pause / resume / scale-to-zero / catalog`
 
-### Storage & Automation
-*   **Buckets:** Full S3-like bucket management (`create`, `cp`, `mv`, `rm`, `sync`).
-*   **Cache:** Manage local storage with `list`, `prune` (remove detached revisions), and `verify` (checksum checks).
-*   **Webhooks:** Automate workflows by managing Hub webhooks (`create`, `watch`, `enable`/`disable`).
-*   **Collections:** Organize Hub items into collections (`add-item`, `update`, `list`).
+### Jobs
+- `hf jobs uv SCRIPT.py` — run Python script with inline deps on HF infra
+- `hf jobs stats` — resource monitoring
+
+### Spaces
+- `hf spaces dev-mode REPO_ID` / `hf spaces hot-reload FILE` — iterate without full restart
+
+### Buckets (S3-like)
+- `hf buckets create / cp / mv / rm / sync`
+
+### Cache
+- `hf cache list` / `hf cache prune` / `hf cache verify`
+
+### Webhooks & Collections
+- `hf webhooks create / watch / enable / disable`
+- `hf collections add-item / update / list`
 
 ---
 
-## Advanced Usage & Tips
+## Global Flags
+- `--format json` — machine-readable output (use for parsing in LaRuche)
+- `-q` / `--quiet` — IDs only
 
-### Global Flags
-*   `--format json`: Produces machine-readable output for automation.
-*   `-q` / `--quiet`: Limits output to IDs only.
+## Extensions
+- `hf extensions install GITHUB_REPO_ID` — extend CLI functionality
+- `hf skills add` — add AI assistant skills
 
-### Extensions & Skills
-*   **Extensions:** Extend CLI functionality via GitHub repositories using `hf extensions install REPO_ID`.
-*   **Skills:** Manage AI assistant skills with `hf skills add`.
+---
+
+## LaRuche Usage Pattern
+
+```
+# Search and download a model
+shell_exec("hf models list --search mistral --format json")
+shell_exec("hf download mistralai/Mistral-7B-v0.1 --local-dir /data/models/mistral")
+
+# Upload a dataset
+shell_exec("hf upload my-org/my-dataset ./local-data --repo-type dataset")
+
+# SQL query on a public dataset
+shell_exec('hf datasets sql "SELECT * FROM train LIMIT 10" datasets/glue')
+```
+
+## Pitfalls
+- `${HF_TOKEN}` must be set in LaRuche secrets vault before any authenticated operation; missing token gives a 401, not a clear error. Always inject via `HF_TOKEN=${HF_TOKEN} hf ...` in shell_exec.
+- `hf upload` does a single commit — for >10 GB dirs always use `hf upload-large-folder` (supports resume).
+- `hf datasets sql` requires DuckDB to be installed locally; it is NOT a server-side query.
+- Windows paths in `shell_exec` should use forward slashes or raw strings to avoid escape issues.

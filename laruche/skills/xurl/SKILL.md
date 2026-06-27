@@ -2,14 +2,15 @@
 type: skill
 name: xurl
 description: "X/Twitter via xurl CLI: post, search, DM, media, v2 API."
-version: 1.1.1
-author: xdevplatform + third-party + third-party agent
+version: 1.1.2
+author: xdevplatform + third-party
 license: MIT
 platforms: [linux, macos]
+tools: [shell_exec]
 prerequisites:
   commands: [xurl]
 metadata:
-  third-party:
+  laruche:
     tags: [twitter, x, social-media, xurl, official-api]
     homepage: https://github.com/xdevplatform/xurl
     upstream_skill: https://github.com/third-party/third-party/blob/main/skills/xurl/SKILL.md
@@ -39,7 +40,7 @@ Critical rules when operating inside an agent/LLM session:
 
 - **Never** read, print, parse, summarize, upload, or send `~/.xurl` to LLM context.
 - **Never** ask the user to paste credentials/tokens into chat.
-- The user must fill `~/.xurl` with secrets manually on their own machine. In Docker, this must be the `~` seen by third-party tool subprocesses; see the Docker note below.
+- The user must fill `~/.xurl` with secrets manually on their own machine.
 - **Never** recommend or execute auth commands with inline secrets in agent sessions.
 - **Never** use `--verbose` / `-v` in agent sessions — it can expose auth headers/tokens.
 - To verify credentials exist, only use: `xurl auth status`.
@@ -115,15 +116,6 @@ These steps must be performed by the user directly, NOT by the agent, because th
 After this, the agent can use any command below without further setup. OAuth 2.0 tokens auto-refresh.
 
 > **Common pitfall:** If you omit `--app my-app` from `xurl auth oauth2`, the OAuth token is saved to the built-in `default` app profile — which has no client-id or client-secret. Commands will fail with auth errors even though the OAuth flow appeared to succeed. If you hit this, re-run `xurl auth oauth2 --app my-app` and `xurl auth default my-app`.
-
-> **Docker HOME pitfall:** In the official third-party Docker layout, `/opt/data` is `THIRD_PARTY_HOME`, but third-party tool subprocesses use `/opt/data/home` as `HOME`. That means `~/.xurl` resolves to `/opt/data/home/.xurl` for third-party-run `xurl` commands, not `/opt/data/.xurl`. Run the user setup with the same HOME:
-> ```bash
-> HOME=/opt/data/home xurl auth apps add my-app --client-id YOUR_CLIENT_ID --client-secret YOUR_CLIENT_SECRET
-> HOME=/opt/data/home xurl auth oauth2 --app my-app YOUR_USERNAME
-> HOME=/opt/data/home xurl auth default my-app YOUR_USERNAME
-> HOME=/opt/data/home xurl auth status
-> ```
-> If `HOME=/opt/data xurl auth status` succeeds but `HOME=/opt/data/home xurl auth status` shows no apps or tokens, third-party tool calls will not see the credentials.
 
 ---
 
@@ -342,51 +334,6 @@ Errors are also JSON:
 
 ---
 
-## Common Workflows
-
-### Post with an image
-```bash
-xurl media upload photo.jpg
-xurl post "Check out this photo!" --media-id MEDIA_ID
-```
-
-### Reply to a conversation
-```bash
-xurl read https://x.com/user/status/1234567890
-xurl reply 1234567890 "Here are my thoughts..."
-```
-
-### Search and engage
-```bash
-xurl search "topic of interest" -n 10
-xurl like POST_ID_FROM_RESULTS
-xurl reply POST_ID_FROM_RESULTS "Great point!"
-```
-
-### Check your activity
-```bash
-xurl whoami
-xurl mentions -n 20
-xurl timeline -n 20
-```
-
-### Multiple apps (credentials pre-configured manually)
-```bash
-xurl auth default prod alice               # prod app, alice user
-xurl --app staging /2/users/me             # one-off against staging
-```
-
----
-
-## Error Handling
-
-- Non-zero exit code on any error.
-- API errors are still printed as JSON to stdout, so you can parse them.
-- Auth errors → have the user re-run `xurl auth oauth2` outside the agent session.
-- Commands that need the caller's user ID (like, repost, bookmark, follow, etc.) will auto-fetch it via `/2/users/me`. An auth failure there surfaces as an auth error.
-
----
-
 ## Agent Workflow
 
 1. Verify prerequisites: `xurl --help` and `xurl auth status`.
@@ -396,6 +343,17 @@ xurl --app staging /2/users/me             # one-off against staging
 5. Confirm the target post/user and the user's intent before any write action (post, reply, like, repost, DM, follow, block, delete).
 6. Use JSON output directly — every response is already structured.
 7. Never paste `~/.xurl` contents back into the conversation.
+
+---
+
+## Error Handling
+
+- Non-zero exit code on any error.
+- API errors are still printed as JSON to stdout, so you can parse them.
+- Auth errors → have the user re-run `xurl auth oauth2` outside the agent session.
+- Commands that need the caller's user ID (like, repost, bookmark, follow, etc.) will auto-fetch it via `/2/users/me`. An auth failure there surfaces as an auth error.
+- **Rate limits (429):** wait and retry. Write endpoints (post, reply, like, repost) have tighter limits than reads.
+- **403 on a specific action:** token is missing a required scope — have the user re-run `xurl auth oauth2`.
 
 ---
 
@@ -416,12 +374,10 @@ xurl --app staging /2/users/me             # one-off against staging
 
 ## Notes
 
-- **Rate limits:** X enforces per-endpoint rate limits. A 429 means wait and retry. Write endpoints (post, reply, like, repost) have tighter limits than reads.
-- **Scopes:** OAuth 2.0 tokens use broad scopes. A 403 on a specific action usually means the token is missing a scope — have the user re-run `xurl auth oauth2`.
 - **Token refresh:** OAuth 2.0 tokens auto-refresh. Nothing to do.
 - **Multiple apps:** Each app has isolated credentials/tokens. Switch with `xurl auth default` or `--app`.
 - **Multiple accounts per app:** Select with `-u / --username`, or set a default with `xurl auth default APP USER`.
-- **Token storage:** `~/.xurl` is YAML. In Docker, use the third-party subprocess HOME (`/opt/data/home` in the official image) so tokens land under `/opt/data/home/.xurl`. Never read or send this file to LLM context.
+- **Token storage:** `~/.xurl` is YAML. Never read or send this file to LLM context.
 - **Cost:** X API access is typically paid for meaningful usage. Many failures are plan/permission problems, not code problems.
 
 ---
@@ -430,4 +386,3 @@ xurl --app staging /2/users/me             # one-off against staging
 
 - Upstream CLI: https://github.com/xdevplatform/xurl (X developer platform team, Chris Park et al.)
 - Upstream agent skill: https://github.com/third-party/third-party/blob/main/skills/xurl/SKILL.md
-- third-party adaptation: reformatted for third-party skill conventions; safety guardrails preserved verbatim.

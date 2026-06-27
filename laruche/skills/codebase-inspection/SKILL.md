@@ -1,13 +1,13 @@
 ---
 type: skill
 name: codebase-inspection
-description: "Inspect codebases w/ pygount: LOC, languages, ratios."
-version: 1.0.0
-author: third-party agent
+description: "LOC, language breakdown, and code/comment ratios via pygount."
+version: 1.1.0
 license: MIT
 platforms: [linux, macos, windows]
+tools: [shell_exec, execute_code, file_write]
 metadata:
-  third-party:
+  laruche:
     tags: [LOC, Code Analysis, pygount, Codebase, Metrics, Repository]
     related_skills: [github-repo-management]
 prerequisites:
@@ -16,102 +16,89 @@ prerequisites:
 
 # Codebase Inspection with pygount
 
-Analyze repositories for lines of code, language breakdown, file counts, and code-vs-comment ratios using `pygount`.
+Analyze repositories for lines of code, language breakdown, file counts, and code-vs-comment ratios using `pygount`. Run all commands via `shell_exec`.
 
-## When to Use
-
-- User asks for LOC (lines of code) count
-- User wants a language breakdown of a repo
-- User asks about codebase size or composition
-- User wants code-vs-comment ratios
-- General "how big is this repo" questions
-
-## Prerequisites
+## Install
 
 ```bash
 pip install --break-system-packages pygount 2>/dev/null || pip install pygount
 ```
 
-## 1. Basic Summary (Most Common)
-
-Get a full language breakdown with file counts, code lines, and comment lines:
+## 1. Basic Summary (Start Here)
 
 ```bash
-cd /path/to/repo
-pygount --format=summary \
-  --folders-to-skip=".git,node_modules,venv,.venv,__pycache__,.cache,dist,build,.next,.tox,.eggs,*.egg-info" \
+cd /path/to/repo && pygount --format=summary \
+  --folders-to-skip=".git,node_modules,venv,.venv,__pycache__,.cache,dist,build,.next,.tox,.eggs,vendor,third_party" \
   .
 ```
 
-**IMPORTANT:** Always use `--folders-to-skip` to exclude dependency/build directories, otherwise pygount will crawl them and take a very long time or hang.
+**CRITICAL:** Always pass `--folders-to-skip`. Without it, pygount crawls dependency/build directories and can hang for minutes on large repos.
 
-## 2. Common Folder Exclusions
+Project-type additions to `--folders-to-skip`:
+- **Python:** `.mypy_cache,.tox,.eggs`
+- **JS/TS:** `.turbo,coverage`
 
-Adjust based on the project type:
-
-```bash
-# Python projects
---folders-to-skip=".git,venv,.venv,__pycache__,.cache,dist,build,.tox,.eggs,.mypy_cache"
-
-# JavaScript/TypeScript projects
---folders-to-skip=".git,node_modules,dist,build,.next,.cache,.turbo,coverage"
-
-# General catch-all
---folders-to-skip=".git,node_modules,venv,.venv,__pycache__,.cache,dist,build,.next,.tox,vendor,third_party"
-```
-
-## 3. Filter by Specific Language
+## 2. Filter by Language
 
 ```bash
-# Only count Python files
+# Python only
 pygount --suffix=py --format=summary .
 
-# Only count Python and YAML
+# Python + YAML
 pygount --suffix=py,yaml,yml --format=summary .
 ```
 
-## 4. Detailed File-by-File Output
+Use `--suffix` on large monorepos to avoid scanning irrelevant file types.
+
+## 3. File-by-File Output
 
 ```bash
-# Default format shows per-file breakdown
+# Per-file breakdown (default format, no --format flag)
 pygount --folders-to-skip=".git,node_modules,venv" .
 
-# Sort by code lines (pipe through sort)
+# Top 20 files by code lines (Linux/macOS)
 pygount --folders-to-skip=".git,node_modules,venv" . | sort -t$'\t' -k1 -nr | head -20
 ```
 
-## 5. Output Formats
+On Windows, skip the `sort` pipe — use JSON output and post-process instead (see §4).
+
+## 4. JSON Output (Programmatic / Windows-safe)
 
 ```bash
-# Summary table (default recommendation)
-pygount --format=summary .
-
-# JSON output for programmatic use
-pygount --format=json .
-
-# Pipe-friendly: Language, file count, code, docs, empty, string
-pygount --format=summary . 2>/dev/null
+pygount --format=json --folders-to-skip=".git,node_modules,venv" . > loc_report.json
 ```
 
-## 6. Interpreting Results
+Then use `execute_code` (Python) to parse and aggregate, or `file_write` to save and pass downstream. Example aggregation:
 
-The summary table columns:
-- **Language** — detected programming language
-- **Files** — number of files of that language
-- **Code** — lines of actual code (executable/declarative)
-- **Comment** — lines that are comments or documentation
-- **%** — percentage of total
+```python
+import json, collections
+data = json.load(open("loc_report.json"))
+by_lang = collections.defaultdict(lambda: {"files": 0, "code": 0, "comment": 0})
+for entry in data:
+    lang = entry.get("language", "__unknown__")
+    by_lang[lang]["files"] += 1
+    by_lang[lang]["code"] += entry.get("code", 0)
+    by_lang[lang]["comment"] += entry.get("documentation", 0)
+for lang, stats in sorted(by_lang.items(), key=lambda x: -x[1]["code"])[:10]:
+    print(f"{lang}: {stats['code']} code, {stats['comment']} comment ({stats['files']} files)")
+```
 
-Special pseudo-languages:
-- `__empty__` — empty files
-- `__binary__` — binary files (images, compiled, etc.)
-- `__generated__` — auto-generated files (detected heuristically)
-- `__duplicate__` — files with identical content
-- `__unknown__` — unrecognized file types
+## 5. Interpreting the Summary Table
+
+| Column   | Meaning                                      |
+|----------|----------------------------------------------|
+| Language | Detected language                            |
+| Files    | File count                                   |
+| Code     | Executable/declarative lines                 |
+| Comment  | Comment/doc lines                            |
+| %        | Share of total                               |
+
+Special pseudo-languages: `__empty__`, `__binary__`, `__generated__`, `__duplicate__`, `__unknown__`.
 
 ## Pitfalls
 
-1. **Always exclude .git, node_modules, venv** — without `--folders-to-skip`, pygount will crawl everything and may take minutes or hang on large dependency trees.
-2. **Markdown shows 0 code lines** — pygount classifies all Markdown content as comments, not code. This is expected behavior.
-3. **JSON files show low code counts** — pygount may count JSON lines conservatively. For accurate JSON line counts, use `wc -l` directly.
-4. **Large monorepos** — for very large repos, consider using `--suffix` to target specific languages rather than scanning everything.
+1. **Missing `--folders-to-skip`** — crawls node_modules/venv and hangs. Always include it.
+2. **Markdown = 0 code lines** — pygount classifies all Markdown as comments. Expected behavior.
+3. **JSON files show low counts** — pygount is conservative; use `wc -l` for raw line counts.
+4. **Large monorepos** — target with `--suffix` to avoid scanning everything.
+5. **pygount not found** — run the install command above; confirm with `pygount --version`.

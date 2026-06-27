@@ -1,15 +1,17 @@
 ---
 type: skill
 name: touchdesigner-mcp
-description: "Control a running TouchDesigner instance via twozero MCP — create operators, set parameters, wire connections, execute Python, build real-time visuals. 36 native tools."
+description: "Control TouchDesigner via twozero MCP: create ops, set params, run Python, capture visuals."
 version: 1.1.0
 author: kshitijk4poor
 license: MIT
 platforms: [linux, macos, windows]
+tools: [tool_call, shell_exec, file_write]
+scripts: [scripts/setup.sh]
 metadata:
-  third-party:
+  laruche:
     tags: [TouchDesigner, MCP, twozero, creative-coding, real-time-visuals, generative-art, audio-reactive, VJ, installation, GLSL]
-    related_skills: [native-mcp, ascii-video, manim-video, third-party-video]
+    related_skills: [ascii-video, manim-video]
 
 ---
 
@@ -17,44 +19,43 @@ metadata:
 
 ## CRITICAL RULES
 
-1. **NEVER guess parameter names.** Call `td_get_par_info` for the op type FIRST. Your training data is wrong for TD 2025.32.
+1. **NEVER guess parameter names.** Call `td_get_par_info` for the op type FIRST. Training data is wrong for TD 2025.32.
 2. **If `tdAttributeError` fires, STOP.** Call `td_get_operator_info` on the failing node before continuing.
 3. **NEVER hardcode absolute paths** in script callbacks. Use `me.parent()` / `scriptOp.parent()`.
-4. **Prefer native MCP tools over td_execute_python.** Use `td_create_operator`, `td_set_operator_pars`, `td_get_errors` etc. Only fall back to `td_execute_python` for complex multi-step logic.
-5. **Call `td_get_hints` before building.** It returns patterns specific to the op type you're working with.
+4. **Prefer native MCP tools over `td_execute_python`.** Use `td_create_operator`, `td_set_operator_pars`, `td_get_errors` etc. Fall back to `td_execute_python` only for complex multi-step logic.
+5. **Call `td_get_hints` before building.** Returns patterns specific to the op type you're working with.
 
 ## Architecture
 
 ```
-third-party agent -> MCP (Streamable HTTP) -> twozero.tox (port 40404) -> TD Python
+LaRuche (tool_call) -> MCP (Streamable HTTP) -> twozero.tox (port 40404) -> TD Python
 ```
 
 36 native tools. Free plugin (no payment/license — confirmed April 2026).
-Context-aware (knows selected OP, current network).
-Hub health check: `GET http://localhost:40404/mcp` returns JSON with instance PID, project name, TD version.
+Context-aware: knows selected OP and current network.
+Health check: `GET http://localhost:40404/mcp` returns JSON with instance PID, project name, TD version.
 
-## Setup (Automated)
+## Setup
 
-Run the setup script to handle everything:
+Run the bundled setup script (idempotent):
 
 ```bash
-bash "${THIRD_PARTY_HOME:-$HOME/.third-party}/skills/creative/touchdesigner-mcp/scripts/setup.sh"
+bash "skills/touchdesigner-mcp/scripts/setup.sh"
 ```
 
 The script will:
 1. Check if TD is running
-2. Download twozero.tox if not already cached
-3. Add `twozero_td` MCP server to third-party config (if missing)
-4. Test the MCP connection on port 40404
-5. Report what manual steps remain (drag .tox into TD, enable MCP toggle)
+2. Download `twozero.tox` to `~/Downloads/` if missing
+3. Test the MCP connection on port 40404
+4. Report remaining manual steps
 
 ### Manual steps (one-time, cannot be automated)
 
 1. **Drag `~/Downloads/twozero.tox` into the TD network editor** → click Install
-2. **Enable MCP:** click twozero icon → Settings → mcp → "auto start MCP" → Yes
-3. **Restart third-party session** to pick up the new MCP server
+2. **Enable MCP:** twozero icon → Settings → mcp → "auto start MCP" → Yes
+3. **Reconnect LaRuche MCP session** to pick up the new server
 
-After setup, verify:
+Verify connection:
 ```bash
 nc -z 127.0.0.1 40404 && echo "twozero MCP: READY"
 ```
@@ -63,51 +64,47 @@ nc -z 127.0.0.1 40404 && echo "twozero MCP: READY"
 
 - **Non-Commercial TD** caps resolution at 1280×1280. Use `outputresolution = 'custom'` and set width/height explicitly.
 - **Codecs:** `prores` (preferred on macOS) or `mjpa` as fallback. H.264/H.265/AV1 require a Commercial license.
-- Always call `td_get_par_info` before setting params — names vary by TD version (see CRITICAL RULES #1).
+- Always call `td_get_par_info` before setting params — names vary by TD version.
 
 ## Workflow
 
 ### Step 0: Discover (before building anything)
 
 ```
-Call td_get_par_info with op_type for each type you plan to use.
-Call td_get_hints with the topic you're building (e.g. "glsl", "audio reactive", "feedback").
-Call td_get_focus to see where the user is and what's selected.
-Call td_get_network to see what already exists.
+td_get_par_info(op_type=<type>)   # for each op type you plan to use
+td_get_hints(topic=<topic>)        # patterns for "glsl", "audio reactive", "feedback", etc.
+td_get_focus()                     # see current network + selected OP
+td_get_network(path="/project1")   # inspect what already exists
 ```
-
-No temp nodes, no cleanup. This replaces the old discovery dance entirely.
 
 ### Step 1: Clean + Build
 
-**IMPORTANT: Split cleanup and creation into SEPARATE MCP calls.** Destroying and recreating same-named nodes in one `td_execute_python` script causes "Invalid OP object" errors. See pitfalls #11b.
+**Split cleanup and creation into SEPARATE MCP calls.** Destroying and recreating same-named nodes in one `td_execute_python` causes "Invalid OP object" errors.
 
-Use `td_create_operator` for each node (handles viewport positioning automatically):
+Use `td_create_operator` per node (handles viewport positioning automatically):
 
 ```
 td_create_operator(type="noiseTOP", parent="/project1", name="bg", parameters={"resolutionw": 1280, "resolutionh": 720})
 td_create_operator(type="levelTOP", parent="/project1", name="brightness")
-td_create_operator(type="nullTOP", parent="/project1", name="out")
+td_create_operator(type="nullTOP",  parent="/project1", name="out")
 ```
 
-For bulk creation or wiring, use `td_execute_python`:
+For bulk creation + wiring, use `td_execute_python`:
 
 ```python
-# td_execute_python script:
 root = op('/project1')
 nodes = []
 for name, optype in [('bg', noiseTOP), ('fx', levelTOP), ('out', nullTOP)]:
     n = root.create(optype, name)
     nodes.append(n.path)
-# Wire chain
-for i in range(len(nodes)-1):
+for i in range(len(nodes) - 1):
     op(nodes[i]).outputConnectors[0].connect(op(nodes[i+1]).inputConnectors[0])
 result = {'created': nodes}
 ```
 
 ### Step 2: Set Parameters
 
-Prefer the native tool (validates params, won't crash):
+Prefer native tool (validates params, won't crash):
 
 ```
 td_set_operator_pars(path="/project1/bg", parameters={"roughness": 0.6, "monochrome": true})
@@ -121,7 +118,7 @@ op('/project1/time_driver').par.colorr.expr = "absTime.seconds % 1000.0"
 
 ### Step 3: Wire
 
-Use `td_execute_python` — no native wire tool exists:
+No native wire tool exists — use `td_execute_python`:
 
 ```python
 op('/project1/bg').outputConnectors[0].connect(op('/project1/fx').inputConnectors[0])
@@ -145,8 +142,9 @@ Or open a window via script:
 
 ```python
 win = op('/project1').create(windowCOMP, 'display')
-win.par.winop = op('/project1/out').path
-win.par.winw = 1280; win.par.winh = 720
+win.par.winop  = op('/project1/out').path
+win.par.winw   = 1280
+win.par.winh   = 720
 win.par.winopen.pulse()
 ```
 
@@ -162,7 +160,7 @@ win.par.winopen.pulse()
 | `td_get_operators_info` | Inspect multiple nodes in one call |
 | `td_get_network` | See network structure at a path |
 | `td_get_errors` | Find errors/warnings recursively |
-| `td_get_par_info` | Get param names for an OP type (replaces discovery) |
+| `td_get_par_info` | Get param names for an OP type |
 | `td_get_hints` | Get patterns/tips before building |
 | `td_get_focus` | What network is open, what's selected |
 
@@ -208,15 +206,14 @@ win.par.winopen.pulse()
 | `td_click_screen_point` | Click a point in a screenshot |
 | `td_screen_point_to_global` | Convert screenshot pixel to absolute screen coords |
 
-The table above covers the 32 tools used in typical creative workflows. The remaining 4 tools (`td_project_quit`, `td_test_session`, `td_dev_log`, `td_clear_dev_log`) are admin/dev-mode utilities — see `references/mcp-tools.md` for the full 36-tool reference with complete parameter schemas.
+Admin/dev utilities (`td_project_quit`, `td_test_session`, `td_dev_log`, `td_clear_dev_log`) — see `references/mcp-tools.md` for full 36-tool reference with parameter schemas.
 
 ## Key Implementation Rules
 
 **GLSL time:** No `uTDCurrentTime` in GLSL TOP. Use the Values page:
 ```python
-# Call td_get_par_info(op_type="glslTOP") first to confirm param names
+# Confirm param names first: td_get_par_info(op_type="glslTOP")
 td_set_operator_pars(path="/project1/shader", parameters={"value0name": "uTime"})
-# Then set expression via script:
 # op('/project1/shader').par.value0.expr = "absTime.seconds"
 # In GLSL: uniform float uTime;
 ```
@@ -227,7 +224,7 @@ Fallback: Constant TOP in `rgba32float` format (8-bit clamps to 0-1, freezing th
 
 **Resolution:** Non-Commercial caps at 1280×1280. Use `outputresolution = 'custom'`.
 
-**Large shaders:** Write GLSL to `/tmp/file.glsl`, then use `td_write_dat` or `td_execute_python` to load.
+**Large shaders:** Write GLSL via `file_write` to a temp path, then load with `td_write_dat` or `td_execute_python`.
 
 **Vertex/Point access (TD 2025.32):** `point.P[0]`, `point.P[1]`, `point.P[2]` — NOT `.x`, `.y`, `.z`.
 
@@ -244,50 +241,49 @@ Fallback: Constant TOP in `rgba32float` format (8-bit clamps to 0-1, freezing th
 root = op('/project1')
 rec = root.create(moviefileoutTOP, 'recorder')
 op('/project1/out').outputConnectors[0].connect(rec.inputConnectors[0])
-rec.par.type = 'movie'
-rec.par.file = '/tmp/output.mov'
-rec.par.videocodec = 'prores'  # Apple ProRes — NOT license-restricted on macOS
-rec.par.record = True   # start
-# rec.par.record = False  # stop (call separately later)
+rec.par.type       = 'movie'
+rec.par.file       = '/tmp/output.mov'
+rec.par.videocodec = 'prores'   # Apple ProRes — not license-restricted on macOS
+rec.par.record     = True       # start; set False in a separate call to stop
 ```
 
 H.264/H.265/AV1 need Commercial license. Use `prores` on macOS or `mjpa` as fallback.
 Extract frames: `ffmpeg -i /tmp/output.mov -vframes 120 /tmp/frames/frame_%06d.png`
 
-**TOP.save() is useless for animation** — captures same GPU texture every time. Always use MovieFileOut.
+**TOP.save() is useless for animation** — captures the same GPU texture every time. Always use MovieFileOut.
 
 ### Before Recording: Checklist
 
-1. **Verify FPS > 0** via `td_get_perf`. If FPS=0 the recording will be empty. See pitfalls #38-39.
-2. **Verify shader output is not black** via `td_get_screenshot`. Black output = shader error or missing input. See pitfalls #8, #40.
-3. **If recording with audio:** cue audio to start first, then delay recording by 3 frames. See pitfalls #19.
-4. **Set output path before starting record** — setting both in the same script can race.
+1. **Verify FPS > 0** via `td_get_perf`. FPS=0 → recording will be empty.
+2. **Verify output is not black** via `td_get_screenshot`. Black = shader error or missing input.
+3. **If recording with audio:** cue audio first, then delay recording start by 3 frames.
+4. **Set output path before `rec.par.record = True`** — setting both in the same script can race.
 
 ## Audio-Reactive GLSL (Proven Recipe)
 
-### Correct signal chain (tested April 2026)
+### Signal chain (tested April 2026)
 
 ```
 AudioFileIn CHOP (playmode=sequential)
   → AudioSpectrum CHOP (FFT=512, outputmenu=setmanually, outlength=256, timeslice=ON)
   → Math CHOP (gain=10)
   → CHOP to TOP (dataformat=r, layout=rowscropped)
-  → GLSL TOP input 1 (spectrum texture, 256x2)
+  → GLSL TOP input 1   (spectrum texture, 256×2)
 
 Constant TOP (rgba32float, time) → GLSL TOP input 0
 GLSL TOP → Null TOP → MovieFileOut
 ```
 
-### Critical audio-reactive rules (empirically verified)
+### Critical audio-reactive rules
 
-1. **TimeSlice must stay ON** for AudioSpectrum. OFF = processes entire audio file → 24000+ samples → CHOP to TOP overflow.
-2. **Set Output Length manually** to 256 via `outputmenu='setmanually'` and `outlength=256`. Default outputs 22050 samples.
-3. **DO NOT use Lag CHOP for spectrum smoothing.** Lag CHOP operates in timeslice mode and expands 256 samples to 2400+, averaging all values to near-zero (~1e-06). The shader receives no usable data. This was the #1 audio sync failure in testing.
-4. **DO NOT use Filter CHOP either** — same timeslice expansion problem with spectrum data.
-5. **Smoothing belongs in the GLSL shader** if needed, via temporal lerp with a feedback texture: `mix(prevValue, newValue, 0.3)`. This gives frame-perfect sync with zero pipeline latency.
-6. **CHOP to TOP dataformat = 'r'**, layout = 'rowscropped'. Spectrum output is 256x2 (stereo). Sample at y=0.25 for first channel.
-7. **Math gain = 10** (not 5). Raw spectrum values are ~0.19 in bass range. Gain of 10 gives usable ~5.0 for the shader.
-8. **No Resample CHOP needed.** Control output size via AudioSpectrum's `outlength` param directly.
+1. **TimeSlice must stay ON** for AudioSpectrum. OFF = processes entire file → 24000+ samples → CHOP to TOP overflow.
+2. **Set Output Length manually** to 256: `outputmenu='setmanually'`, `outlength=256`. Default outputs 22050 samples.
+3. **DO NOT use Lag CHOP for spectrum smoothing.** Lag CHOP timeslice expansion averages 256 samples to near-zero (~1e-06). Shader receives no usable data. This was the #1 audio sync failure in testing.
+4. **DO NOT use Filter CHOP either** — same timeslice expansion problem.
+5. **Smooth in the GLSL shader** via temporal lerp with a feedback texture: `mix(prevValue, newValue, 0.3)`. Frame-perfect sync, zero pipeline latency.
+6. **CHOP to TOP:** `dataformat='r'`, `layout='rowscropped'`. Spectrum output is 256×2 (stereo). Sample at `y=0.25` for first channel.
+7. **Math gain = 10** (not 5). Raw bass spectrum values are ~0.19. Gain of 10 → usable ~5.0 in shader.
+8. **No Resample CHOP needed.** Control output size via AudioSpectrum's `outlength` directly.
 
 ### GLSL spectrum sampling
 
@@ -295,22 +291,21 @@ GLSL TOP → Null TOP → MovieFileOut
 // Input 0 = time (1x1 rgba32float), Input 1 = spectrum (256x2)
 float iTime = texture(sTD2DInputs[0], vec2(0.5)).r;
 
-// Sample multiple points per band and average for stability:
-// NOTE: y=0.25 for first channel (stereo texture is 256x2, first row center is 0.25)
+// Average two points per band for stability
 float bass = (texture(sTD2DInputs[1], vec2(0.02, 0.25)).r +
               texture(sTD2DInputs[1], vec2(0.05, 0.25)).r) / 2.0;
-float mid  = (texture(sTD2DInputs[1], vec2(0.2, 0.25)).r +
+float mid  = (texture(sTD2DInputs[1], vec2(0.20, 0.25)).r +
               texture(sTD2DInputs[1], vec2(0.35, 0.25)).r) / 2.0;
-float hi   = (texture(sTD2DInputs[1], vec2(0.6, 0.25)).r +
-              texture(sTD2DInputs[1], vec2(0.8, 0.25)).r) / 2.0;
+float hi   = (texture(sTD2DInputs[1], vec2(0.60, 0.25)).r +
+              texture(sTD2DInputs[1], vec2(0.80, 0.25)).r) / 2.0;
 ```
 
-See `references/network-patterns.md` for complete build scripts + shader code.
+See `references/network-patterns.md` for complete build scripts + full shader code.
 
 ## Operator Quick Reference
 
 | Family | Color | Python class / MCP type | Suffix |
-|--------|-------|-------------|--------|
+|--------|-------|-------------------------|--------|
 | TOP | Purple | noiseTOP, glslTOP, compositeTOP, levelTop, blurTOP, textTOP, nullTOP | TOP |
 | CHOP | Green | audiofileinCHOP, audiospectrumCHOP, mathCHOP, lfoCHOP, constantCHOP | CHOP |
 | SOP | Blue | gridSOP, sphereSOP, transformSOP, noiseSOP | SOP |
@@ -321,9 +316,9 @@ See `references/network-patterns.md` for complete build scripts + shader code.
 ## Security Notes
 
 - MCP runs on localhost only (port 40404). No authentication — any local process can send commands.
-- `td_execute_python` has unrestricted access to the TD Python environment and filesystem as the TD process user.
-- `setup.sh` downloads twozero.tox from the official 404zero.com URL. Verify the download if concerned.
-- The skill never sends data outside localhost. All MCP communication is local.
+- `td_execute_python` has unrestricted access to TD Python environment and filesystem as the TD process user.
+- `scripts/setup.sh` downloads twozero.tox from the official `404zero.com` URL. Verify the download hash if security matters.
+- All MCP communication is local — no data leaves the machine.
 
 ## References
 
@@ -351,7 +346,3 @@ See `references/network-patterns.md` for complete build scripts + shader code.
 | `references/dat-scripting.md` | Execute DAT family — chop/dat/parameter/panel/op/executeDAT |
 | `references/3d-scene.md` | Lighting rigs, shadows, IBL/cubemaps, multi-camera, PBR |
 | `scripts/setup.sh` | Automated setup script |
-
----
-
-> You're not writing code. You're conducting light.

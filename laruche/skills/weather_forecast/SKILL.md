@@ -1,27 +1,39 @@
 ---
 type: skill
 name: weather-forecast
-description: Obtenir et résumer les prévisions météorologiques détaillées pour une ville donnée.
-tools: [web_search, web_fetch]
+description: Fetch and summarize weather forecast for any city via web search + extraction.
+tools: [web_search, web_fetch, read_extract]
 ---
 
-# Procédure de prévision météo
+# Weather Forecast
 
-Cette procédure permet d'obtenir et de synthétiser les prévisions météorologiques détaillées pour une ville donnée en utilisant des sources fiables.
+## Procedure
 
-## Étapes
-1. **Recherche de source (`web_search`)**: Utiliser l'outil `web_search` avec une requête combinant la ville et le terme "météo" (ex: "météo Cannes").
-2. **Sélection de la source**: Analyser les résultats de la recherche pour identifier le site le plus fiable et le plus pertinent (ex: Météo-France, sites officiels).
-3. **Récupération des données (`web_fetch`)**: Utiliser l'outil `web_fetch` sur l'URL sélectionnée pour récupérer le contenu de la page de prévisions.
-4. **Extraction et Synthèse**: Parcourir le contenu récupéré (HTML/texte) pour extraire les informations clés :
-    *   Conditions générales (soleil, pluie, etc.).
-    *   Températures (min/max par période).
-    *   Vent et vigilance.
-    *   Période couverte (jours/heures).
-5. **Présentation**: Structurer les données extraites dans un résumé clair et lisible pour l'utilisateur, en citant la source.
+1. **Search** (`web_search`): query `"<city> weather forecast"` or `"météo <city>"` for French cities. Prefer official or well-known sources in results (e.g. meteofrance.com, weather.com, accuweather.com, bbc.co.uk/weather).
 
-## Pièges à éviter
-*   **Sources non fiables**: Ne pas se fier aux premiers résultats de recherche si leur domaine n'est pas reconnu comme une source météorologique professionnelle.
-*   **Parsing complexe**: Le contenu web est souvent complexe (HTML/JavaScript). Il faut s'assurer que l'extraction est robuste aux variations de structure du site.
+2. **Pick the best URL**: select the first result from a recognized meteorological source. Skip aggregators, ads, or SEO-spam sites.
 
-**Outils utilisés**: `web_search`, `web_fetch`.
+3. **Extract content** (`read_extract` on the chosen URL): this strips HTML boilerplate and returns clean text. Fall back to `web_fetch` if `read_extract` fails or returns empty.
+
+4. **Parse key data** from the extracted text:
+   - Current conditions (sun, rain, clouds, storms)
+   - Min/max temperatures per period (today, tonight, next days)
+   - Wind speed and direction
+   - Alerts / vigilance warnings if any
+   - Forecast horizon (hours or days covered)
+
+5. **Present** a structured summary to the user: conditions, temperatures, wind, alerts, and cite the source URL.
+
+## Failure handling
+
+- If `read_extract` returns garbled/empty content, retry with `web_fetch` on the same URL and parse manually.
+- If the top result is paywalled or JS-heavy, try the second result or a different source (e.g. `wttr.in/<city>` — plain-text weather, no parsing needed: `web_fetch("https://wttr.in/<city>?format=3")` returns a one-liner).
+- For non-Latin city names, URL-encode or use the English transliteration in the query.
+
+## Quick path (plain-text fallback)
+
+For a fast, no-parse answer use wttr.in directly:
+```
+web_fetch("https://wttr.in/Paris?format=v2")
+```
+Returns a preformatted ASCII forecast — no extraction needed.

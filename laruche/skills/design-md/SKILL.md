@@ -1,15 +1,16 @@
 ---
 type: skill
 name: design-md
-description: Author/validate/export Google's DESIGN.md token spec files.
+description: Author, lint, diff, and export Google DESIGN.md token spec files.
 version: 1.0.0
-author: third-party agent
 license: MIT
 platforms: [linux, macos, windows]
+tools: [shell_exec, file_write, file_read, file_edit]
 metadata:
-  third-party:
+  laruche:
     tags: [design, design-system, tokens, ui, accessibility, wcag, tailwind, dtcg, google]
-    related_skills: [popular-web-designs, claude-design, excalidraw, architecture-diagram]
+    related_skills: [excalidraw, architecture-diagram]
+    homepage: https://github.com/google-labs-code/design.md
 ---
 
 # DESIGN.md Skill
@@ -24,18 +25,13 @@ Tokens give exact values. Prose tells agents *why* those values exist and how to
 apply them. The CLI (`npx @google/design.md`) lints structure + WCAG contrast,
 diffs versions for regressions, and exports to Tailwind or W3C DTCG JSON.
 
-## When to use this skill
+## Triggers
 
 - User asks for a DESIGN.md file, design tokens, or a design system spec
 - User wants consistent UI/brand across multiple projects or tools
 - User pastes an existing DESIGN.md and asks to lint, diff, export, or extend it
 - User asks to port a style guide into a format agents can consume
 - User wants contrast / WCAG accessibility validation on their color palette
-
-For purely visual inspiration or layout examples, use `popular-web-designs`
-instead. For *process and taste* when designing a one-off HTML artifact
-from scratch (prototype, deck, landing page, component lab), use
-`claude-design`. This skill is for the *formal spec file* itself.
 
 ## File anatomy
 
@@ -106,8 +102,7 @@ Public Sans for everything except small all-caps labels...
 
 Component property whitelist: `backgroundColor`, `textColor`, `typography`,
 `rounded`, `padding`, `size`, `height`, `width`. Variants (hover, active,
-pressed) are **separate component entries** with related key names
-(`button-primary-hover`), not nested.
+pressed) are **separate component entries** (`button-primary-hover`), not nested.
 
 ## Canonical section order
 
@@ -128,73 +123,63 @@ if the value type is valid. Unknown component properties produce a warning.
 
 ## Workflow: authoring a new DESIGN.md
 
-1. **Ask the user** (or infer) the brand tone, accent color, and typography
-   direction. If they provided a site, image, or vibe, translate it to the
-   token shape above.
-2. **Write `DESIGN.md`** in their project root using `write_file`. Always
-   include `name:` and `colors:`; other sections optional but encouraged.
-3. **Use token references** (`{colors.primary}`) in the `components:` section
-   instead of re-typing hex values. Keeps the palette single-source.
-4. **Lint it** (see below). Fix any broken references or WCAG failures
-   before returning.
-5. **If the user has an existing project**, also write Tailwind or DTCG
-   exports next to the file (`tailwind.theme.json`, `tokens.json`).
+1. **Ask or infer** the brand tone, accent color, and typography direction. If the
+   user provided a site, image, or vibe, translate it to the token shape above.
+2. **Write `DESIGN.md`** in the project root via `file_write`. Always include
+   `name:` and `colors:`; other sections optional but encouraged.
+3. **Use token references** (`{colors.primary}`) in `components:` instead of
+   re-typing hex values — single-source palette.
+4. **Lint it** (see below). Fix any broken references or WCAG failures before
+   returning.
+5. **If the project already exists**, also write Tailwind or DTCG exports next
+   to the file (`tailwind.theme.json`, `tokens.json`).
 
 ## Workflow: lint / diff / export
 
-The CLI is `@google/design.md` (Node). Use `npx` — no global install needed.
+Run via `shell_exec`. The CLI is `@google/design.md` (Node); use `npx -y` — no global install needed.
 
 ```bash
 # Validate structure + token references + WCAG contrast
 npx -y @google/design.md lint DESIGN.md
 
-# Compare two versions, fail on regression (exit 1 = regression)
+# Compare two versions (exit 1 = regression)
 npx -y @google/design.md diff DESIGN.md DESIGN-v2.md
 
 # Export to Tailwind theme JSON
 npx -y @google/design.md export --format tailwind DESIGN.md > tailwind.theme.json
 
-# Export to W3C DTCG (Design Tokens Format Module) JSON
+# Export to W3C DTCG JSON
 npx -y @google/design.md export --format dtcg DESIGN.md > tokens.json
 
-# Print the spec itself — useful when injecting into an agent prompt
+# Print the spec rules as JSON (useful for injecting into prompts)
 npx -y @google/design.md spec --rules-only --format json
 ```
 
-All commands accept `-` for stdin. `lint` returns exit 1 on errors. Use the
-`--format json` flag and parse the output if you need to report findings
-structurally.
+All commands accept `-` for stdin. `lint` exits 1 on errors. Pass `--format json`
+and parse output to report findings structurally.
 
-### Lint rule reference (what the 7 rules catch)
+### Lint rules (what they catch)
 
 - `broken-ref` (error) — `{colors.missing}` points at a non-existent token
 - `duplicate-section` (error) — same `## Heading` appears twice
 - `invalid-color`, `invalid-dimension`, `invalid-typography` (error)
-- `wcag-contrast` (warning/info) — component `textColor` vs `backgroundColor`
-  ratio against WCAG AA (4.5:1) and AAA (7:1)
-- `unknown-component-property` (warning) — outside the whitelist above
+- `wcag-contrast` (warning/info) — `textColor` vs `backgroundColor` ratio vs WCAG AA (4.5:1) and AAA (7:1)
+- `unknown-component-property` (warning) — outside the whitelist
 
-When the user cares about accessibility, call this out explicitly in your
-summary — WCAG findings are the most load-bearing reason to use the CLI.
+When accessibility matters, surface WCAG findings explicitly — they are the most
+load-bearing reason to run the CLI.
 
 ## Pitfalls
 
 - **Don't nest component variants.** `button-primary.hover` is wrong;
   `button-primary-hover` as a sibling key is right.
-- **Hex colors must be quoted strings.** YAML will otherwise choke on `#` or
-  truncate values like `#1A1C1E` oddly.
-- **Negative dimensions need quotes too.** `letterSpacing: -0.02em` parses as
-  a YAML flow — write `letterSpacing: "-0.02em"`.
-- **Section order is enforced.** If the user gives you prose in a random order,
-  reorder it to match the canonical list before saving.
-- **`version: alpha` is the current spec version** (as of Apr 2026). The spec
-  is marked alpha — watch for breaking changes.
-- **Token references resolve by dotted path.** `{colors.primary}` works;
-  `{primary}` does not.
+- **Hex colors must be quoted strings.** Unquoted `#` breaks YAML or truncates values.
+- **Negative dimensions need quotes.** `letterSpacing: -0.02em` is a YAML flow scalar — write `"-0.02em"`.
+- **Section order is enforced.** Reorder user-supplied prose to match the canonical list before saving.
+- **`version: alpha` is the current spec version** (as of 2026). The spec is marked alpha — watch for breaking changes.
+- **Token references resolve by dotted path.** `{colors.primary}` works; `{primary}` does not.
 
-## Spec source of truth
+## Spec source
 
 - Repo: https://github.com/google-labs-code/design.md (Apache-2.0)
 - CLI: `@google/design.md` on npm
-- License of generated DESIGN.md files: whatever the user's project uses;
-  the spec itself is Apache-2.0.

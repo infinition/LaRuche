@@ -1,103 +1,62 @@
 ---
 type: skill
 name: github-issues
-description: "Create, triage, label, assign GitHub issues via gh or REST."
-version: 1.1.0
-author: third-party agent
+description: "Create, search, triage, label, assign GitHub issues via gh or REST."
+version: 1.2.0
 license: MIT
 platforms: [linux, macos, windows]
+tools: [shell_exec]
 metadata:
-  third-party:
+  laruche:
     tags: [GitHub, Issues, Project-Management, Bug-Tracking, Triage]
     related_skills: [github-auth, github-pr-workflow]
 ---
 
 # GitHub Issues Management
 
-Create, search, triage, and manage GitHub issues. Each section shows `gh` first, then the `curl` fallback.
+Create, search, triage, and manage GitHub issues. Prefer `gh`; fall back to `curl` when unavailable.
 
 ## Prerequisites
 
 - Authenticated with GitHub (see `github-auth` skill)
-- Inside a git repo with a GitHub remote, or specify the repo explicitly
+- Inside a git repo with a GitHub remote, or pass `--repo OWNER/REPO` explicitly
 
-### Setup
+### Setup (curl fallback only)
 
 ```bash
-if command -v gh &>/dev/null && gh auth status &>/dev/null; then
-  AUTH="gh"
-else
-  AUTH="git"
-  if [ -z "$GITHUB_TOKEN" ]; then
-    if _third-party_env="${THIRD_PARTY_HOME:-$HOME/.third-party}/.env"; [ -f "$_third-party_env" ] && grep -q "^GITHUB_TOKEN=" "$_third-party_env"; then
-      GITHUB_TOKEN=$(grep "^GITHUB_TOKEN=" "$_third-party_env" | head -1 | cut -d= -f2 | tr -d '\n\r')
-    elif grep -q "github.com" ~/.git-credentials 2>/dev/null; then
-      GITHUB_TOKEN=$(grep "github.com" ~/.git-credentials 2>/dev/null | head -1 | sed 's|https://[^:]*:\([^@]*\)@.*|\1|')
-    fi
-  fi
-fi
-
 REMOTE_URL=$(git remote get-url origin)
 OWNER_REPO=$(echo "$REMOTE_URL" | sed -E 's|.*github\.com[:/]||; s|\.git$||')
 OWNER=$(echo "$OWNER_REPO" | cut -d/ -f1)
 REPO=$(echo "$OWNER_REPO" | cut -d/ -f2)
+AUTH_HEADER="Authorization: token ${GITHUB_TOKEN}"
 ```
+
+> `${GITHUB_TOKEN}` is injected from the LaRuche secrets vault at execution time.
 
 ---
 
 ## 1. Viewing Issues
 
-**With gh:**
-
 ```bash
+# gh
 gh issue list
 gh issue list --state open --label "bug"
 gh issue list --assignee @me
 gh issue list --search "authentication error" --state all
 gh issue view 42
-```
 
-**With curl:**
-
-```bash
-# List open issues
-curl -s \
-  -H "Authorization: token $GITHUB_TOKEN" \
+# curl
+curl -s -H "$AUTH_HEADER" \
   "https://api.github.com/repos/$OWNER/$REPO/issues?state=open&per_page=20" \
   | python3 -c "
 import sys, json
 for i in json.load(sys.stdin):
-    if 'pull_request' not in i:  # GitHub API returns PRs in /issues too
+    if 'pull_request' not in i:
         labels = ', '.join(l['name'] for l in i['labels'])
         print(f\"#{i['number']:5}  {i['state']:6}  {labels:30}  {i['title']}\")"
 
-# Filter by label
-curl -s \
-  -H "Authorization: token $GITHUB_TOKEN" \
-  "https://api.github.com/repos/$OWNER/$REPO/issues?state=open&labels=bug&per_page=20" \
-  | python3 -c "
-import sys, json
-for i in json.load(sys.stdin):
-    if 'pull_request' not in i:
-        print(f\"#{i['number']}  {i['title']}\")"
-
-# View a specific issue
-curl -s \
-  -H "Authorization: token $GITHUB_TOKEN" \
-  https://api.github.com/repos/$OWNER/$REPO/issues/42 \
-  | python3 -c "
-import sys, json
-i = json.load(sys.stdin)
-labels = ', '.join(l['name'] for l in i['labels'])
-assignees = ', '.join(a['login'] for a in i['assignees'])
-print(f\"#{i['number']}: {i['title']}\")
-print(f\"State: {i['state']}  Labels: {labels}  Assignees: {assignees}\")
-print(f\"Author: {i['user']['login']}  Created: {i['created_at']}\")
-print(f\"\n{i['body']}\")"
-
-# Search issues
-curl -s \
-  -H "Authorization: token $GITHUB_TOKEN" \
+# curl — search
+curl -s -H "$AUTH_HEADER" \
   "https://api.github.com/search/issues?q=authentication+error+repo:$OWNER/$REPO" \
   | python3 -c "
 import sys, json
@@ -105,261 +64,185 @@ for i in json.load(sys.stdin)['items']:
     print(f\"#{i['number']}  {i['state']:6}  {i['title']}\")"
 ```
 
+> **Pitfall:** `/issues` returns PRs too — always filter with `'pull_request' not in i`.
+
+---
+
 ## 2. Creating Issues
 
-**With gh:**
-
 ```bash
+# gh
 gh issue create \
   --title "Login redirect ignores ?next= parameter" \
-  --body "## Description
-After logging in, users always land on /dashboard.
+  --body "$(cat <<'EOF'
+## Description
+After login, users always land on /dashboard instead of the requested page.
 
 ## Steps to Reproduce
 1. Navigate to /settings while logged out
 2. Get redirected to /login?next=/settings
 3. Log in
-4. Actual: redirected to /dashboard (should go to /settings)
 
 ## Expected Behavior
-Respect the ?next= query parameter." \
+Respect the ?next= query parameter.
+EOF
+)" \
   --label "bug,backend" \
   --assignee "username"
-```
 
-**With curl:**
-
-```bash
-curl -s -X POST \
-  -H "Authorization: token $GITHUB_TOKEN" \
+# curl
+curl -s -X POST -H "$AUTH_HEADER" \
   https://api.github.com/repos/$OWNER/$REPO/issues \
   -d '{
     "title": "Login redirect ignores ?next= parameter",
-    "body": "## Description\nAfter logging in, users always land on /dashboard.\n\n## Steps to Reproduce\n1. Navigate to /settings while logged out\n2. Get redirected to /login?next=/settings\n3. Log in\n4. Actual: redirected to /dashboard\n\n## Expected Behavior\nRespect the ?next= query parameter.",
+    "body": "## Description\nAfter login, users land on /dashboard.\n\n## Steps to Reproduce\n1. Go to /settings while logged out\n2. Log in → lands on /dashboard instead of /settings\n\n## Expected Behavior\nRespect the ?next= parameter.",
     "labels": ["bug", "backend"],
     "assignees": ["username"]
   }'
 ```
 
-### Bug Report Template
+### Issue Templates
 
+**Bug report:**
 ```
-## Bug Description
-<What's happening>
+## Description
+<what's happening>
 
 ## Steps to Reproduce
 1. <step>
-2. <step>
 
-## Expected Behavior
-<What should happen>
-
-## Actual Behavior
-<What actually happens>
+## Expected / Actual Behavior
+Expected: <what should happen>
+Actual:   <what actually happens>
 
 ## Environment
-- OS: <os>
-- Version: <version>
+- OS: <os>  Version: <version>
 ```
 
-### Feature Request Template
-
+**Feature request:**
 ```
 ## Feature Description
-<What you want>
+<what you want>
 
 ## Motivation
-<Why this would be useful>
+<why this is useful>
 
-## Proposed Solution
-<How it could work>
-
-## Alternatives Considered
-<Other approaches>
+## Proposed Solution / Alternatives
+<how it could work; other approaches considered>
 ```
+
+---
 
 ## 3. Managing Issues
 
-### Add/Remove Labels
-
-**With gh:**
+### Labels
 
 ```bash
+# gh
 gh issue edit 42 --add-label "priority:high,bug"
 gh issue edit 42 --remove-label "needs-triage"
-```
 
-**With curl:**
-
-```bash
-# Add labels
-curl -s -X POST \
-  -H "Authorization: token $GITHUB_TOKEN" \
+# curl — add
+curl -s -X POST -H "$AUTH_HEADER" \
   https://api.github.com/repos/$OWNER/$REPO/issues/42/labels \
   -d '{"labels": ["priority:high", "bug"]}'
 
-# Remove a label
-curl -s -X DELETE \
-  -H "Authorization: token $GITHUB_TOKEN" \
+# curl — remove
+curl -s -X DELETE -H "$AUTH_HEADER" \
   https://api.github.com/repos/$OWNER/$REPO/issues/42/labels/needs-triage
 
-# List available labels in the repo
-curl -s \
-  -H "Authorization: token $GITHUB_TOKEN" \
+# List repo labels
+curl -s -H "$AUTH_HEADER" \
   https://api.github.com/repos/$OWNER/$REPO/labels \
   | python3 -c "
 import sys, json
-for l in json.load(sys.stdin):
-    print(f\"  {l['name']:30}  {l.get('description', '')}\")"
+for l in json.load(sys.stdin): print(f\"  {l['name']:30}  {l.get('description','')}\")"
 ```
 
-### Assignment
-
-**With gh:**
+### Assignment & Comments
 
 ```bash
-gh issue edit 42 --add-assignee username
+# gh
 gh issue edit 42 --add-assignee @me
-```
+gh issue comment 42 --body "Root cause: auth middleware. Fix in progress."
 
-**With curl:**
-
-```bash
-curl -s -X POST \
-  -H "Authorization: token $GITHUB_TOKEN" \
+# curl — assign
+curl -s -X POST -H "$AUTH_HEADER" \
   https://api.github.com/repos/$OWNER/$REPO/issues/42/assignees \
   -d '{"assignees": ["username"]}'
-```
 
-### Commenting
-
-**With gh:**
-
-```bash
-gh issue comment 42 --body "Investigated — root cause is in auth middleware. Working on a fix."
-```
-
-**With curl:**
-
-```bash
-curl -s -X POST \
-  -H "Authorization: token $GITHUB_TOKEN" \
+# curl — comment
+curl -s -X POST -H "$AUTH_HEADER" \
   https://api.github.com/repos/$OWNER/$REPO/issues/42/comments \
-  -d '{"body": "Investigated — root cause is in auth middleware. Working on a fix."}'
+  -d '{"body": "Root cause: auth middleware. Fix in progress."}'
 ```
 
-### Closing and Reopening
-
-**With gh:**
+### Close / Reopen
 
 ```bash
-gh issue close 42
-gh issue close 42 --reason "not planned"
+# gh
+gh issue close 42 --reason "completed"   # or "not planned"
 gh issue reopen 42
-```
 
-**With curl:**
-
-```bash
-# Close
-curl -s -X PATCH \
-  -H "Authorization: token $GITHUB_TOKEN" \
+# curl
+curl -s -X PATCH -H "$AUTH_HEADER" \
   https://api.github.com/repos/$OWNER/$REPO/issues/42 \
-  -d '{"state": "closed", "state_reason": "completed"}'
-
-# Reopen
-curl -s -X PATCH \
-  -H "Authorization: token $GITHUB_TOKEN" \
-  https://api.github.com/repos/$OWNER/$REPO/issues/42 \
-  -d '{"state": "open"}'
+  -d '{"state": "closed", "state_reason": "completed"}'   # or "not_planned"
 ```
 
-### Linking Issues to PRs
+### Link Issues to PRs
 
-Issues are automatically closed when a PR merges with the right keywords in the body:
-
+Include in the PR body to auto-close on merge:
 ```
-Closes #42
-Fixes #42
-Resolves #42
+Closes #42    Fixes #42    Resolves #42
 ```
 
-To create a branch from an issue:
-
-**With gh:**
-
+Create a branch directly from an issue:
 ```bash
-gh issue develop 42 --checkout
+gh issue develop 42 --checkout          # gh (preferred)
+git checkout -b fix/issue-42-login-redirect   # manual fallback
 ```
 
-**With git (manual equivalent):**
+---
 
-```bash
-git checkout main && git pull origin main
-git checkout -b fix/issue-42-login-redirect
-```
+## 4. Triage Workflow
 
-## 4. Issue Triage Workflow
+1. **List untriaged:**
+   ```bash
+   gh issue list --label "needs-triage" --state open
+   ```
+2. **Read each issue** — view details, understand scope.
+3. **Apply labels and priority** (see §3).
+4. **Assign** if owner is clear.
+5. **Comment** with triage notes or requests for more info.
+6. **Remove** `needs-triage` once processed.
 
-When asked to triage issues:
-
-1. **List untriaged issues:**
-
-```bash
-# With gh
-gh issue list --label "needs-triage" --state open
-
-# With curl
-curl -s \
-  -H "Authorization: token $GITHUB_TOKEN" \
-  "https://api.github.com/repos/$OWNER/$REPO/issues?labels=needs-triage&state=open" \
-  | python3 -c "
-import sys, json
-for i in json.load(sys.stdin):
-    if 'pull_request' not in i:
-        print(f\"#{i['number']}  {i['title']}\")"
-```
-
-2. **Read and categorize** each issue (view details, understand the bug/feature)
-
-3. **Apply labels and priority** (see Managing Issues above)
-
-4. **Assign** if the owner is clear
-
-5. **Comment with triage notes** if needed
+---
 
 ## 5. Bulk Operations
 
-For batch operations, combine API calls with shell scripting:
-
-**With gh:**
-
 ```bash
-# Close all issues with a specific label
+# Close all "wontfix" issues — gh
 gh issue list --label "wontfix" --json number --jq '.[].number' | \
   xargs -I {} gh issue close {} --reason "not planned"
-```
 
-**With curl:**
-
-```bash
-# List issue numbers with a label, then close each
-curl -s \
-  -H "Authorization: token $GITHUB_TOKEN" \
+# Close all "wontfix" issues — curl
+curl -s -H "$AUTH_HEADER" \
   "https://api.github.com/repos/$OWNER/$REPO/issues?labels=wontfix&state=open" \
   | python3 -c "import sys,json; [print(i['number']) for i in json.load(sys.stdin)]" \
   | while read num; do
-    curl -s -X PATCH \
-      -H "Authorization: token $GITHUB_TOKEN" \
-      https://api.github.com/repos/$OWNER/$REPO/issues/$num \
-      -d '{"state": "closed", "state_reason": "not_planned"}'
-    echo "Closed #$num"
-  done
+      curl -s -X PATCH -H "$AUTH_HEADER" \
+        https://api.github.com/repos/$OWNER/$REPO/issues/$num \
+        -d '{"state": "closed", "state_reason": "not_planned"}'
+      echo "Closed #$num"
+    done
 ```
 
-## Quick Reference Table
+---
 
-| Action | gh | curl endpoint |
+## Quick Reference
+
+| Action | gh | REST endpoint |
 |--------|-----|--------------|
 | List issues | `gh issue list` | `GET /repos/{o}/{r}/issues` |
 | View issue | `gh issue view N` | `GET /repos/{o}/{r}/issues/N` |

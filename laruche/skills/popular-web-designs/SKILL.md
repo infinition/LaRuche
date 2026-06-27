@@ -1,12 +1,13 @@
 ---
 type: skill
 name: popular-web-designs
-description: 54 real design systems (Stripe, Linear, Vercel) as HTML/CSS.
+description: 54 real design systems (Stripe, Linear, Vercel) as HTML/CSS templates.
 version: 1.0.0
-author: third-party agent + Teknium (design systems sourced from VoltAgent/awesome-design-md)
+author: Teknium (design systems sourced from VoltAgent/awesome-design-md)
 license: MIT
 tags: [design, css, html, ui, web-development, design-systems, templates]
 platforms: [linux, macos, windows]
+tools: [file_read, file_write, browser_navigate, browser_screenshot]
 triggers:
   - build a page that looks like
   - make it look like stripe
@@ -21,80 +22,36 @@ triggers:
 
 # Popular Web Designs
 
-54 real-world design systems ready for use when generating HTML/CSS. Each template captures a
-site's complete visual language: color palette, typography hierarchy, component styles, spacing
-system, shadows, responsive behavior, and practical agent prompts with exact CSS values.
-
-## Related design skills
-
-- **`claude-design`** — use for the design *process and taste* (scoping a brief,
-  producing variants, verifying a local HTML artifact, avoiding AI-design slop).
-  Pair it with this skill when the user wants a thoughtfully-designed page styled
-  after a known brand: `claude-design` drives the workflow, this skill supplies
-  the visual vocabulary.
-- **`design-md`** — use when the deliverable is a formal DESIGN.md token spec
-  file, not a rendered artifact.
+54 real-world design systems for generating HTML/CSS. Each template captures a site's full
+visual language: color palette, typography, component styles, spacing, shadows, and responsive
+behavior — with exact CSS values ready to use.
 
 ## How to Use
 
-1. Pick a design from the catalog below
-2. Load it: `skill_view(name="popular-web-designs", file_path="templates/<site>.md")`
-3. Use the design tokens and component specs when generating HTML
-4. Pair with the `generative-widgets` skill to serve the result via cloudflared tunnel
+1. Pick a template from the catalog below.
+2. Load it with `file_read`:
+   `file_read("skills/popular-web-designs/templates/<site>.md")`
+3. Extract the CSS custom properties, font stack, and component specs.
+4. Generate the HTML/CSS and write it with `file_write`.
+5. Verify visually: `browser_navigate` to the file path, then `browser_screenshot`.
 
-Each template includes a **third-party Implementation Notes** block at the top with:
-- CDN font substitute and Google Fonts `<link>` tag (ready to paste)
-- CSS font-family stacks for primary and monospace
-- Reminders to use `write_file` for HTML creation and `browser_vision` for verification
+Each template's **Implementation Notes** block contains:
+- Google Fonts `<link>` tag (ready to paste)
+- CSS font-family stacks (primary + monospace)
+- Exact color tokens as CSS custom properties
 
-## HTML Generation Pattern
-
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Page Title</title>
-  <!-- Paste the Google Fonts <link> from the template's third-party notes -->
-  <link href="https://fonts.googleapis.com/css2?family=..." rel="stylesheet">
-  <style>
-    /* Apply the template's color palette as CSS custom properties */
-    :root {
-      --color-bg: #ffffff;
-      --color-text: #171717;
-      --color-accent: #533afd;
-      /* ... more from template Section 2 */
-    }
-    /* Apply typography from template Section 3 */
-    body {
-      font-family: 'Inter', system-ui, sans-serif;
-      color: var(--color-text);
-      background: var(--color-bg);
-    }
-    /* Apply component styles from template Section 4 */
-    /* Apply layout from template Section 5 */
-    /* Apply shadows from template Section 6 */
-  </style>
-</head>
-<body>
-  <!-- Build using component specs from the template -->
-</body>
-</html>
-```
-
-Write the file with `write_file`, serve with the `generative-widgets` workflow (cloudflared tunnel),
-and verify the result with `browser_vision` to confirm visual accuracy.
+**On failure:** if a template's font link fails to load (offline/blocked), fall back to
+the system font stack (`-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`) and
+apply the same weight/tracking values — those carry more visual identity than the font face.
 
 ## Font Substitution Reference
 
-Most sites use proprietary fonts unavailable via CDN. Each template maps to a Google Fonts
-substitute that preserves the design's character. Common mappings:
+Most sites use proprietary fonts. Each template maps them to a Google Fonts substitute.
 
 | Proprietary Font | CDN Substitute | Character |
 |---|---|---|
-| Geist / Geist Sans | Geist (on Google Fonts) | Geometric, compressed tracking |
-| Geist Mono | Geist Mono (on Google Fonts) | Clean monospace, ligatures |
+| Geist / Geist Sans | Geist (Google Fonts) | Geometric, compressed tracking |
+| Geist Mono | Geist Mono (Google Fonts) | Clean monospace, ligatures |
 | sohne-var (Stripe) | Source Sans 3 | Light weight elegance |
 | Berkeley Mono | JetBrains Mono | Technical monospace |
 | Airbnb Cereal VF | DM Sans | Rounded, friendly geometric |
@@ -109,10 +66,8 @@ substitute that preserves the design's character. Common mappings:
 | IBM Plex Sans/Mono | IBM Plex Sans/Mono | Available on Google Fonts |
 | Rubik (Sentry) | Rubik | Available on Google Fonts |
 
-When a template's CDN font matches the original (Inter, IBM Plex, Rubik, Geist), no
-substitution loss occurs. When a substitute is used (DM Sans for Circular, Source Sans 3
-for sohne-var), follow the template's weight, size, and letter-spacing values closely —
-those carry more visual identity than the specific font face.
+When using a substitute (e.g. DM Sans for Circular), weight, size, and letter-spacing
+carry more visual identity than the font face — apply them precisely.
 
 ## Design Catalog
 
@@ -202,7 +157,7 @@ those carry more visual identity than the specific font face.
 
 ## Choosing a Design
 
-Match the design to the content:
+Match the design to the content type:
 
 - **Developer tools / dashboards:** Linear, Vercel, Supabase, Raycast, Sentry
 - **Documentation / content sites:** Mintlify, Notion, Sanity, MongoDB

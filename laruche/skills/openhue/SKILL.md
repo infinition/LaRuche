@@ -6,8 +6,9 @@ version: 1.0.0
 author: community
 license: MIT
 platforms: [linux, macos, windows]
+tools: [shell_exec]
 metadata:
-  third-party:
+  laruche:
     tags: [Smart-Home, Hue, Lights, IoT, Automation]
     homepage: https://www.openhue.io/cli
 prerequisites:
@@ -18,93 +19,72 @@ prerequisites:
 
 Control Philips Hue lights and scenes via a Hue Bridge from the terminal.
 
-## Prerequisites
+## Install
 
 ```bash
 # Linux (pre-built binary)
-curl -sL https://github.com/openhue/openhue-cli/releases/latest/download/openhue-linux-amd64 -o ~/.local/bin/openhue && chmod +x ~/.local/bin/openhue
+curl -sL https://github.com/openhue/openhue-cli/releases/latest/download/openhue-linux-amd64 \
+  -o ~/.local/bin/openhue && chmod +x ~/.local/bin/openhue
 
 # macOS
 brew install openhue/cli/openhue-cli
 ```
 
-First run requires pressing the button on your Hue Bridge to pair. The bridge must be on the same local network.
+First run: press the button on your Hue Bridge to pair. The bridge must be on the same local network.
 
-## When to Use
-
-- "Turn on/off the lights"
-- "Dim the living room lights"
-- "Set a scene" or "movie mode"
-- Controlling specific Hue rooms, zones, or individual bulbs
-- Adjusting brightness, color, or color temperature
-
-## Common Commands
-
-### List Resources
+## Discovery
 
 ```bash
-openhue get light       # List all lights
-openhue get room        # List all rooms
-openhue get scene       # List all scenes
+openhue get light    # list all lights with exact names
+openhue get room     # list rooms
+openhue get scene    # list scenes
 ```
 
-### Control Lights
+Light and room names are case-sensitive — always verify with `openhue get`.
+
+## Control Lights
 
 ```bash
-# Turn on/off
 openhue set light "Bedroom Lamp" --on
 openhue set light "Bedroom Lamp" --off
-
-# Brightness (0-100)
-openhue set light "Bedroom Lamp" --on --brightness 50
-
-# Color temperature (warm to cool: 153-500 mirek)
-openhue set light "Bedroom Lamp" --on --temperature 300
-
-# Color (by name or hex)
+openhue set light "Bedroom Lamp" --on --brightness 50        # 0–100
+openhue set light "Bedroom Lamp" --on --temperature 300      # 153 (warm) – 500 (cool) mirek
 openhue set light "Bedroom Lamp" --on --color red
-openhue set light "Bedroom Lamp" --on --rgb "#FF5500"
+openhue set light "Bedroom Lamp" --on --rgb "#FF5500"        # color-capable bulbs only
 ```
 
-### Control Rooms
+## Control Rooms
 
 ```bash
-# Turn off entire room
 openhue set room "Bedroom" --off
-
-# Set room brightness
 openhue set room "Bedroom" --on --brightness 30
 ```
 
-### Scenes
+## Scenes
 
 ```bash
 openhue set scene "Relax" --room "Bedroom"
 openhue set scene "Concentrate" --room "Office"
 ```
 
-## Quick Presets
+## Useful Presets
 
 ```bash
-# Bedtime (dim warm)
+# Bedtime: dim warm
 openhue set room "Bedroom" --on --brightness 20 --temperature 450
 
-# Work mode (bright cool)
+# Work: bright cool
 openhue set room "Office" --on --brightness 100 --temperature 250
 
-# Movie mode (dim)
+# Movie: dim living room
 openhue set room "Living Room" --on --brightness 10
 
-# Everything off
-openhue set room "Bedroom" --off
-openhue set room "Office" --off
-openhue set room "Living Room" --off
+# All off (adapt room names to your setup)
+for room in "Bedroom" "Office" "Living Room"; do openhue set room "$room" --off; done
 ```
 
 ## Notes
 
-- Bridge must be on the same local network as the machine running third-party
-- First run requires physically pressing the button on the Hue Bridge to authorize
-- Colors only work on color-capable bulbs (not white-only models)
-- Light and room names are case-sensitive — use `openhue get light` to check exact names
-- Works great with cron jobs for scheduled lighting (e.g. dim at bedtime, bright at wake)
+- Bridge and the machine running LaRuche must share the same local network.
+- Colors (`--color`, `--rgb`) only work on color-capable bulbs, not white-only models.
+- Pair well with `cron_create` for scheduled lighting (dim at bedtime, bright at sunrise).

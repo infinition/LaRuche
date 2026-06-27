@@ -2,62 +2,58 @@
 type: skill
 name: sketch
 description: "Throwaway HTML mockups: 2-3 design variants to compare."
-version: 1.0.0
-author: third-party agent (adapted from gsd-build/get-shit-done)
+version: 1.1.0
 license: MIT
 platforms: [linux, macos, windows]
+tools: [shell_exec, file_write, file_read, browser_navigate, browser_screenshot]
 metadata:
-  third-party:
+  laruche:
     tags: [sketch, mockup, design, ui, prototype, html, variants, exploration, wireframe, comparison]
-    related_skills: [spike, claude-design, popular-web-designs, excalidraw]
+    related_skills: [spike]
 ---
 
 # Sketch
 
-Use this skill when the user wants to **see a design direction before committing** to one — exploring a UI/UX idea as disposable HTML mockups. The point is to generate 2-3 interactive variants so the user can compare visual directions side-by-side, not to produce shippable code.
+Use when the user wants to **explore a design direction before committing** — disposable HTML mockups to compare side-by-side. Goal: 2-3 interactive variants, not shippable code.
 
-Load this when the user says things like "sketch this screen", "show me what X could look like", "compare layout A vs B", "give me 2-3 takes on this UI", "let me see some variants", "mockup this before I build".
+Trigger phrases: "sketch this screen", "show me what X could look like", "compare layout A vs B", "give me 2-3 takes on this UI", "mockup this before I build".
 
-## When NOT to use this
+## When NOT to use
 
-- User wants a production component — use `claude-design` or build it properly
-- User wants a polished one-off HTML artifact (landing page, deck) — `claude-design`
-- User wants a diagram — `excalidraw`, `architecture-diagram`
-- The design is already locked — just build it
+- User wants a production component → build it properly
+- Design is already locked → just build it
+- User wants a diagram → use a diagramming approach instead
 
-## If the user has the full GSD system installed
-
-If `gsd-sketch` shows up as a sibling skill (installed via `npx get-shit-done-cc --third-party`), prefer **`gsd-sketch`** for the full workflow: persistent `.planning/sketches/` with MANIFEST, frontier mode analysis, consistency audits across past sketches, and integration with the rest of GSD. This skill is the lightweight standalone version — one-off sketching without the state machinery.
-
-## Core method
+## Core flow
 
 ```
-intake  →  variants  →  head-to-head  →  pick winner (or iterate)
+intake → variants → visual check → head-to-head → pick winner (or iterate)
 ```
 
-### 1. Intake (skip if the user already gave you enough)
+---
 
-Before generating variants, get three things — one question at a time, not all at once:
+## 1. Intake (skip if user already gave you enough)
 
-1. **Feel.** "What should this feel like? Adjectives, emotions, a vibe." — *"calm, editorial, like Linear"* tells you more than *"minimal"*.
-2. **References.** "What apps, sites, or products capture the feel you're imagining?" — actual references beat abstract descriptions.
-3. **Core action.** "What's the single most important thing a user does on this screen?" — the variants should all serve this well; if they don't, they're just decoration.
+Ask one question at a time — three things needed:
 
-Reflect each answer briefly before the next question. If the user already gave you all three upfront, skip straight to variants.
+1. **Feel.** "What should this feel like? Adjectives, emotions, a vibe." (*"calm, editorial, like Linear"* beats *"minimal"*)
+2. **References.** "What apps, sites, or products capture that feel?"
+3. **Core action.** "What's the single most important thing a user does on this screen?" (variants must all serve this well)
 
-### 2. Variants (2-3, never 1, rarely 4+)
+Reflect each answer briefly before the next question. If user gave all three upfront, skip straight to variants.
 
-Produce **2-3 variants** in one go. Each variant is a complete, standalone HTML file. Don't describe variants — build them. The point is comparison.
+---
 
-Each variant should take a **different design stance**, not different pixel values. Three good variant axes:
+## 2. Variants (2-3, never 1, rarely 4+)
 
-- **Density:** compact / airy / ultra-dense (pick two contrasting poles)
-- **Emphasis:** content-first / action-first / tool-first
-- **Aesthetic:** editorial / utilitarian / playful
-- **Layout:** single-column / sidebar / split-pane
-- **Grounding:** card-based / bare-content / document-style
+Produce 2-3 variants in one go — each a **complete standalone HTML file**. Don't describe variants; build them.
 
-Pick one axis and pull apart from it. Two variants that differ only in accent color are wasted effort — the user can't distinguish them.
+Each variant must take a **different design stance**, not just different colors. Pick one axis:
+
+- **Density:** compact vs. airy vs. ultra-dense
+- **Emphasis:** content-first vs. action-first vs. tool-first
+- **Aesthetic:** editorial vs. utilitarian vs. playful
+- **Layout:** single-column vs. sidebar vs. split-pane
 
 **Variant naming:** describe the stance, not the number.
 
@@ -74,28 +70,19 @@ sketches/
     └── README.md
 ```
 
-### 3. Make them real HTML
+---
+
+## 3. Build real HTML
 
 Each variant is a **single self-contained HTML file**:
 
 - Inline `<style>` — no build step, no external CSS
 - System fonts or one Google Font via `<link>`
-- Tailwind via CDN (`<script src="https://cdn.tailwindcss.com"></script>`) is fine
-- Realistic fake content — actual sentences, actual names, not "Lorem ipsum"
-- **Interactive**: links clickable, hovers real, at least one state transition (open/close, filter, toggle). A frozen static image is a worse spike than a sloppy animated one.
+- Tailwind via CDN is fine: `<script src="https://cdn.tailwindcss.com"></script>`
+- Realistic fake content (actual sentences and names, not Lorem ipsum)
+- **Interactive**: hovers real, at least one state transition (open/close, filter, toggle)
 
-Open it in a browser. If it looks broken, fix it before showing the user.
-
-**Verify variants visually — use third-party' browser tools.** Don't just write HTML and hope it renders; load each variant and look at it:
-
-```
-browser_navigate(url="file:///absolute/path/to/sketches/001-calm-editorial/index.html")
-browser_vision(question="Does this layout look clean and readable? Any visible bugs (overlapping text, unstyled elements, broken images)?")
-```
-
-`browser_vision` returns an AI description of what's actually on the page plus a screenshot path — catches layout bugs that pure source inspection misses (e.g. a font import that silently failed, a flex container that collapsed). Fix and re-navigate until each variant looks right.
-
-**Default CSS reset + system font stack** for fast starts:
+**Default CSS reset + system font stack:**
 
 ```html
 <style>
@@ -111,9 +98,28 @@ browser_vision(question="Does this layout look clean and readable? Any visible b
 </style>
 ```
 
-### 4. Variant README
+**Tool sequence per variant:**
 
-Each variant's `README.md` answers:
+```
+shell_exec("mkdir -p sketches/001-calm-editorial")
+file_write("sketches/001-calm-editorial/index.html", "<!doctype html>...")
+file_write("sketches/001-calm-editorial/README.md", "## Variant: Calm editorial\n...")
+browser_navigate("file:///absolute/path/to/sketches/001-calm-editorial/index.html")
+browser_screenshot()
+```
+
+Inspect the screenshot. Fix layout bugs (collapsed flex containers, failed font imports, overlapping text) before moving on. Repeat for each variant.
+
+**Opening locally (fallback if no browser tool):**
+- macOS: `shell_exec("open sketches/001-calm-editorial/index.html")`
+- Linux: `shell_exec("xdg-open sketches/001-calm-editorial/index.html")`
+- Windows: `shell_exec("start sketches/001-calm-editorial/index.html")`
+
+---
+
+## 4. Variant README
+
+Each `README.md` answers:
 
 ```markdown
 ## Variant: {stance name}
@@ -135,9 +141,11 @@ One sentence on the principle driving this variant.
 - The kind of user or use case this variant actually serves
 ```
 
-### 5. Head-to-head
+---
 
-After all variants are built, present them as a comparison. Don't just list — **opinionate**:
+## 5. Head-to-head
+
+After all variants are built, present a comparison table — **opinionate**, don't just list:
 
 ```markdown
 ## Three takes on the home screen
@@ -149,17 +157,31 @@ After all variants are built, present them as a comparison. Don't just list — 
 | Scan-ability | High | Medium | Low |
 | Feel | Calm, trusted | Sharp, tool-like | Inviting, energetic |
 
-**My take:** Utilitarian dense for power users, calm editorial for content-forward audiences. Playful split is weakest — tries to do both and commits to neither.
+**My take:** Utilitarian dense for power users, calm editorial for content-forward audiences.
+Playful split is weakest — tries to do both and commits to neither.
 ```
 
-Let the user pick a winner, or combine two into a hybrid, or ask for another round.
+Let the user pick a winner, ask for a hybrid, or request another round.
+
+---
+
+## Interactivity threshold
+
+A sketch is interactive enough when the user can:
+
+1. Click a primary action → something visible happens (state change, modal, toast, nav)
+2. See one meaningful state transition (filter a list, toggle a mode, open/close a panel)
+3. Hover recognizable affordances (buttons, rows, tabs)
+
+More than that is over-engineering a throwaway. Less than that is a screenshot.
+
+---
 
 ## Theming (when the project has a visual identity)
 
-If the user has an existing theme (colors, fonts, tokens), put shared tokens in `sketches/themes/tokens.css` and `@import` them in each variant. Keep tokens minimal:
+Put shared tokens in `sketches/themes/tokens.css` and `@import` in each variant:
 
 ```css
-/* sketches/themes/tokens.css */
 :root {
   --color-bg: #fafafa;
   --color-fg: #1a1a1a;
@@ -171,49 +193,26 @@ If the user has an existing theme (colors, fonts, tokens), put shared tokens in 
 }
 ```
 
-Don't over-tokenize a throwaway sketch — three colors and one font is usually enough.
+Three colors and one font is enough for a throwaway sketch.
 
-## Interactivity bar
+---
 
-A sketch is interactive enough when the user can:
+## What to sketch next (frontier mode)
 
-1. **Click a primary action** and something visible happens (state change, modal, toast, navigation feint)
-2. **See one meaningful state transition** (filter a list, toggle a mode, open/close a panel)
-3. **Hover recognizable affordances** (buttons, rows, tabs)
+If sketches already exist and the user asks "what should I sketch next?":
 
-More than that is over-engineering a throwaway. Less than that is a screenshot.
-
-## Frontier mode (picking what to sketch next)
-
-If sketches already exist and the user says "what should I sketch next?":
-
-- **Consistency gaps** — two winning variants from different sketches made independent choices that haven't been composed together yet
+- **Consistency gaps** — winning variants made independent choices not yet composed
 - **Unsketched screens** — referenced but never explored
-- **State coverage** — happy path sketched, but not empty / loading / error / 1000-items
+- **State coverage** — happy path done, but not empty / loading / error / overflow
 - **Responsive gaps** — validated at one viewport; does it hold at mobile / ultrawide?
 - **Interaction patterns** — static layouts exist; transitions, drag, scroll behavior don't
 
 Propose 2-4 named candidates. Let the user pick.
 
-## Output
+---
 
-- Create `sketches/` (or `.planning/sketches/` if the user is using GSD conventions) in the repo root
+## Output summary
+
+- Create `sketches/` in the repo root (or `.planning/sketches/` if project uses that convention)
 - One subdir per variant: `NNN-stance-name/index.html` + `README.md`
-- Tell the user how to open them: `open sketches/001-calm-editorial/index.html` on macOS, `xdg-open` on Linux, `start` on Windows
-- Keep variants disposable — a sketch that you felt the need to preserve should be promoted into real project code, not curated as an asset
-
-**Typical tool sequence for one variant:**
-
-```
-shell_exec("mkdir -p sketches/001-calm-editorial")
-file_write("sketches/001-calm-editorial/index.html", "<!doctype html>...")
-file_write("sketches/001-calm-editorial/README.md", "## Variant: Calm editorial\n...")
-browser_navigate(url="file://$(pwd)/sketches/001-calm-editorial/index.html")
-browser_vision(question="How does this look? Any obvious layout issues?")
-```
-
-Repeat for each variant, then present the comparison table.
-
-## Attribution
-
-Adapted from the GSD (Get Shit Done) project's `/gsd-sketch` workflow — MIT © 2025 Lex Christopherson ([gsd-build/get-shit-done](https://github.com/gsd-build/get-shit-done)). The full GSD system ships persistent sketch state, theme/variant pattern references, and consistency-audit workflows; install with `npx get-shit-done-cc --third-party --global`.
+- Keep variants disposable — a sketch worth preserving should be promoted to real project code

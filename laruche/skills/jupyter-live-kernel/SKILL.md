@@ -1,75 +1,72 @@
 ---
 type: skill
 name: jupyter-live-kernel
-description: "Iterative Python via live Jupyter kernel (hamelnb)."
+description: "Stateful Python REPL via live Jupyter kernel (hamelnb)."
 version: 1.0.0
-author: third-party agent
 license: MIT
 platforms: [linux, macos, windows]
+tools: [shell_exec, file_write]
 metadata:
-  third-party:
+  laruche:
     tags: [jupyter, notebook, repl, data-science, exploration, iterative]
     category: data-science
 ---
 
 # Jupyter Live Kernel (hamelnb)
 
-Gives you a **stateful Python REPL** via a live Jupyter kernel. Variables persist
-across executions. Use this instead of `execute_code` when you need to build up
-state incrementally, explore APIs, inspect DataFrames, or iterate on complex code.
+A **stateful Python REPL** backed by a live Jupyter kernel. Variables, imports,
+and objects persist across executions. Use this instead of `execute_code` when
+you need incremental state, DataFrame inspection, or "try-and-check" iteration.
 
-## When to Use This vs Other Tools
+All shell commands run via **`shell_exec`**.
 
-| Tool | Use When |
+## When to Use
+
+| Tool | Use when |
 |------|----------|
-| **This skill** | Iterative exploration, state across steps, data science, ML, "let me try this and check" |
-| `execute_code` | One-shot scripts needing third-party tool access (web_search, file ops). Stateless. |
-| `terminal` | Shell commands, builds, installs, git, process management |
+| **This skill** | Iterative exploration, persistent state, data science, ML |
+| `execute_code` | One-shot scripts needing LaRuche tools (web_search, file ops). Stateless. |
+| `shell_exec` | Shell commands, installs, git, process management |
 
-**Rule of thumb:** If you'd want a Jupyter notebook for the task, use this skill.
+Rule of thumb: if you'd reach for a Jupyter notebook, use this skill.
 
 ## Prerequisites
 
-1. **uv** must be installed (check: `which uv`)
-2. **JupyterLab** must be installed: `uv tool install jupyterlab`
-3. A Jupyter server must be running (see Setup below)
+1. **uv** installed — `which uv`
+2. **JupyterLab** installed — `uv tool install jupyterlab`
+3. **hamelnb** helper script (clone once):
+   ```
+   git clone https://github.com/hamelsmu/hamelnb.git ~/.agent-skills/hamelnb
+   ```
 
-## Setup
-
-The hamelnb script location:
+Set the script path once per session:
 ```
 SCRIPT="$HOME/.agent-skills/hamelnb/skills/jupyter-live-kernel/scripts/jupyter_live_kernel.py"
 ```
 
-If not cloned yet:
-```
-git clone https://github.com/hamelsmu/hamelnb.git ~/.agent-skills/hamelnb
-```
+## Setup
 
-### Starting JupyterLab
+### Start JupyterLab
 
-Check if a server is already running:
+Check for a running server first:
 ```
 uv run "$SCRIPT" servers
 ```
 
-If no servers found, start one:
+If none found, start one (token/password disabled for local agent access):
 ```
 jupyter-lab --no-browser --port=8888 --notebook-dir=$HOME/notebooks \
   --IdentityProvider.token='' --ServerApp.password='' > /tmp/jupyter.log 2>&1 &
 sleep 3
 ```
 
-Note: Token/password disabled for local agent access. The server runs headless.
+### Create a Kernel Session
 
-### Creating a Notebook for REPL Use
-
-If you just need a REPL (no existing notebook), create a minimal notebook file:
 ```
 mkdir -p ~/notebooks
 ```
-Write a minimal .ipynb JSON file with one empty code cell, then start a kernel
-session via the Jupyter REST API:
+
+Write a minimal `.ipynb` (one empty code cell) via `file_write`, then create a session:
 ```
 curl -s -X POST http://127.0.0.1:8888/api/sessions \
   -H "Content-Type: application/json" \
@@ -78,7 +75,7 @@ curl -s -X POST http://127.0.0.1:8888/api/sessions \
 
 ## Core Workflow
 
-All commands return structured JSON. Always use `--compact` to save tokens.
+Always pass `--compact` to save tokens. All commands return structured JSON.
 
 ### 1. Discover servers and notebooks
 
@@ -93,11 +90,10 @@ uv run "$SCRIPT" notebooks --compact
 uv run "$SCRIPT" execute --path <notebook.ipynb> --code '<python code>' --compact
 ```
 
-State persists across execute calls. Variables, imports, objects all survive.
-
-Multi-line code works with $'...' quoting:
+State persists across calls. Multi-line code — use `$'...'` quoting:
 ```
-uv run "$SCRIPT" execute --path scratch.ipynb --code $'import os\nfiles = os.listdir(".")\nprint(f"Found {len(files)} files")' --compact
+uv run "$SCRIPT" execute --path scratch.ipynb \
+  --code $'import os\nfiles = os.listdir(".")\nprint(f"Found {len(files)} files")' --compact
 ```
 
 ### 3. Inspect live variables
@@ -113,11 +109,11 @@ uv run "$SCRIPT" variables --path <notebook.ipynb> preview --name <varname> --co
 # View current cells
 uv run "$SCRIPT" contents --path <notebook.ipynb> --compact
 
-# Insert a new cell
+# Insert a cell
 uv run "$SCRIPT" edit --path <notebook.ipynb> insert \
   --at-index <N> --cell-type code --source '<code>' --compact
 
-# Replace cell source (use cell-id from contents output)
+# Replace cell source (cell-id from contents output)
 uv run "$SCRIPT" edit --path <notebook.ipynb> replace-source \
   --cell-id <id> --source '<new code>' --compact
 
@@ -125,44 +121,32 @@ uv run "$SCRIPT" edit --path <notebook.ipynb> replace-source \
 uv run "$SCRIPT" edit --path <notebook.ipynb> delete --cell-id <id> --compact
 ```
 
-### 5. Verification (restart + run all)
+### 5. Clean verification (restart + run all)
 
-Only use when the user asks for a clean verification or you need to confirm
-the notebook runs top-to-bottom:
-
+Only when you need to confirm the notebook runs top-to-bottom cleanly:
 ```
 uv run "$SCRIPT" restart-run-all --path <notebook.ipynb> --save-outputs --compact
 ```
 
-## Practical Tips from Experience
+## Pitfalls
 
-1. **First execution after server start may timeout** — the kernel needs a moment
-   to initialize. If you get a timeout, just retry.
+1. **Argument order matters** — subcommand flags like `--path` go BEFORE the
+   sub-subcommand: `variables --path nb.ipynb list`, NOT `variables list --path nb.ipynb`.
 
-2. **The kernel Python is JupyterLab's Python** — packages must be installed in
-   that environment. If you need additional packages, install them into the
-   JupyterLab tool environment first.
+2. **First execution after server start may timeout** — kernel needs a moment to
+   initialize. Retry once. Same for websocket timeouts after a kernel restart.
 
-3. **--compact flag saves significant tokens** — always use it. JSON output can
-   be very verbose without it.
+3. **Packages must be in JupyterLab's environment** — install into the
+   `jupyterlab` tool env before importing in the kernel:
+   ```
+   uv tool run --from jupyterlab pip install <package>
+   ```
 
-4. **For pure REPL use**, create a scratch.ipynb and don't bother with cell editing.
-   Just use `execute` repeatedly.
+4. **Errors return JSON** — read `ename` and `evalue` fields for the traceback.
+   Reconstruct with `traceback` array for full context.
 
-5. **Argument order matters** — subcommand flags like `--path` go BEFORE the
-   sub-subcommand. E.g.: `variables --path nb.ipynb list` not `variables list --path nb.ipynb`.
+5. **Long-running operations** — pass `--timeout 120` (default 30 s).
+   Use 60+ for heavy computation or initial kernel setup.
 
-6. **If a session doesn't exist yet**, you need to start one via the REST API
-   (see Setup section). The tool can't execute without a live kernel session.
-
-7. **Errors are returned as JSON** with traceback — read the `ename` and `evalue`
-   fields to understand what went wrong.
-
-8. **Occasional websocket timeouts** — some operations may timeout on first try,
-   especially after a kernel restart. Retry once before escalating.
-
-## Timeout Defaults
-
-The script has a 30-second default timeout per execution. For long-running
-operations, pass `--timeout 120`. Use generous timeouts (60+) for initial
-setup or heavy computation.
+6. **Port conflict** — if 8888 is taken, pass `--port=8889` to `jupyter-lab`
+   and update the `curl` base URL accordingly.

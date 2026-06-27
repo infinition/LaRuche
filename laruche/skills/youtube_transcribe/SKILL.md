@@ -1,23 +1,63 @@
 ---
 type: skill
 name: youtube-transcribe
-description: Transcrire le contenu parlé d'une vidéo YouTube en utilisant le script dédié.
+description: "Fetch raw YouTube transcript (text or JSON) via youtube-transcript-api."
+platforms: [linux, macos, windows]
 tools: [shell_exec]
-scripts: [scripts/fetch_transcript.py]
+scripts: []
+dependencies:
+  python: ">=3.9"
+  uv_packages: [youtube-transcript-api]
 ---
 
-### Procédure de Transcription YouTube
+# YouTube Transcribe
 
-Ce skill orchestre l'exécution d'un script externe pour récupérer la transcription d'une vidéo YouTube donnée.
+## When to use
 
-**Étapes :**
-1.  Identifier l'URL de la vidéo YouTube cible.
-2.  Exécuter le script `fetch_transcript.py` via `shell_exec`, en passant l'URL en argument.
-3.  Utiliser le flag `--text-only` pour s'assurer que seul le contenu textuel de la transcription est retourné.
+Use when the user wants the raw transcript of a YouTube video — no formatting, no summarization. For downstream content generation (summaries, threads, chapters), use the `youtube-content` skill instead.
 
-**Commandes exactes :**
-`uv run python3 SKILL_DIR/scripts/fetch_transcript.py "{{url}}" --text-only`
+## Setup
 
-**Pièges :**
-*   **Erreur d'exécution (Code 1) :** Si le script échoue, cela peut être dû à des restrictions de l'API YouTube, à des problèmes de format de la vidéo (pas de sous-titres disponibles), ou à des problèmes d'environnement. Vérifier la disponibilité des sous-titres pour l'URL fournie.
-*   **Dépendances :** Assurez-vous que l'environnement `uv` et les dépendances du script sont correctement installés.
+Install the dependency once:
+
+```bash
+uv pip install youtube-transcript-api
+```
+
+## Script
+
+The shared helper lives at `../youtube-content/scripts/fetch_transcript.py`. It handles all standard YouTube URL formats (watch?v=, youtu.be/, /shorts/, /live/, /embed/), as well as raw 11-character video IDs.
+
+## Commands
+
+```bash
+# Plain text — best for direct reading or further processing
+uv run python3 ../youtube-content/scripts/fetch_transcript.py "URL" --text-only
+
+# Timestamped plain text
+uv run python3 ../youtube-content/scripts/fetch_transcript.py "URL" --text-only --timestamps
+
+# Full JSON with metadata (video_id, segment_count, duration, full_text)
+uv run python3 ../youtube-content/scripts/fetch_transcript.py "URL"
+
+# Force a specific language (comma-separated fallback chain)
+uv run python3 ../youtube-content/scripts/fetch_transcript.py "URL" --language en,fr
+```
+
+Run via `shell_exec`. Replace `URL` with the full YouTube URL or a bare video ID.
+
+## Output
+
+- `--text-only`: plain string, ready to pipe or display.
+- `--text-only --timestamps`: `MM:SS text` lines, one per segment.
+- JSON (default): `{"video_id": "...", "segment_count": N, "duration": "M:SS", "full_text": "..."}`. Add `--timestamps` to include `"timestamped_text"` in JSON.
+
+## Error Handling
+
+| Error | Cause | Fix |
+|---|---|---|
+| `Transcripts are disabled` | Video owner disabled captions | Inform the user; no workaround |
+| `No transcript found` | Language mismatch | Retry without `--language` to accept any available language |
+| `youtube-transcript-api not installed` | Missing dep | Run `uv pip install youtube-transcript-api` and retry |
+| Private/unavailable video | Bad URL or private video | Ask the user to verify the URL |
+| Exit code 1 with JSON error object | Script-level failure | Print the JSON error to the user and follow the table above |

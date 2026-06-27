@@ -1,48 +1,34 @@
 ---
 type: skill
 name: manim-video
-description: "Manim CE animations: 3Blue1Brown math/algo videos."
+description: "Programmatic math/CS animations with Manim CE + ffmpeg."
 version: 1.0.0
 platforms: [linux, macos, windows]
+tools: [shell_exec, file_write, file_read, media_present]
+scripts: [scripts/setup.sh]
 ---
 
 # Manim Video Production Pipeline
 
 ## When to use
 
-Use when users request: animated explanations, math animations, concept visualizations, algorithm walkthroughs, technical explainers, 3Blue1Brown style videos, or any programmatic animation with geometric/mathematical content. Creates 3Blue1Brown-style explainer videos, algorithm visualizations, equation derivations, architecture diagrams, and data stories using Manim Community Edition.
-
-## Creative Standard
-
-This is educational cinema. Every frame teaches. Every animation reveals structure.
-
-**Before writing a single line of code**, articulate the narrative arc. What misconception does this correct? What is the "aha moment"? What visual story takes the viewer from confusion to understanding? The user's prompt is a starting point — interpret it with pedagogical ambition.
-
-**Geometry before algebra.** Show the shape first, the equation second. Visual memory encodes faster than symbolic memory. When the viewer sees the geometric pattern before the formula, the equation feels earned.
-
-**First-render excellence is non-negotiable.** The output must be visually clear and aesthetically cohesive without revision rounds. If something looks cluttered, poorly timed, or like "AI-generated slides," it is wrong.
-
-**Opacity layering directs attention.** Never show everything at full brightness. Primary elements at 1.0, contextual elements at 0.4, structural elements (axes, grids) at 0.15. The brain processes visual salience in layers.
-
-**Breathing room.** Every animation needs `self.wait()` after it. The viewer needs time to absorb what just appeared. Never rush from one animation to the next. A 2-second pause after a key reveal is never wasted.
-
-**Cohesive visual language.** All scenes share a color palette, consistent typography sizing, matching animation speeds. A technically correct video where every scene uses random different colors is an aesthetic failure.
+Animated math/CS explainers, equation derivations, algorithm visualizations, data stories, architecture diagrams, 3D concept videos — anything requiring programmatic animation with geometric/mathematical content.
 
 ## Prerequisites
 
-Run `scripts/setup.sh` to verify all dependencies. Requires: Python 3.10+, Manim Community Edition v0.20+ (`pip install manim`), LaTeX (`texlive-full` on Linux, `mactex` on macOS), and ffmpeg. Reference docs tested against Manim CE v0.20.1.
+Run `scripts/setup.sh` via `shell_exec` to verify all dependencies. Requires: Python 3.10+, Manim CE v0.20+ (`pip install manim`), LaTeX (`texlive-full` on Linux, `mactex-no-gui` on macOS), ffmpeg.
 
 ## Modes
 
 | Mode | Input | Output | Reference |
 |------|-------|--------|-----------|
-| **Concept explainer** | Topic/concept | Animated explanation with geometric intuition | `references/scene-planning.md` |
-| **Equation derivation** | Math expressions | Step-by-step animated proof | `references/equations.md` |
-| **Algorithm visualization** | Algorithm description | Step-by-step execution with data structures | `references/graphs-and-data.md` |
-| **Data story** | Data/metrics | Animated charts, comparisons, counters | `references/graphs-and-data.md` |
-| **Architecture diagram** | System description | Components building up with connections | `references/mobjects.md` |
-| **Paper explainer** | Research paper | Key findings and methods animated | `references/scene-planning.md` |
-| **3D visualization** | 3D concept | Rotating surfaces, parametric curves, spatial geometry | `references/camera-and-3d.md` |
+| Concept explainer | Topic/concept | Animated explanation with geometric intuition | `references/scene-planning.md` |
+| Equation derivation | Math expressions | Step-by-step animated proof | `references/equations.md` |
+| Algorithm visualization | Algorithm description | Step-by-step execution with data structures | `references/graphs-and-data.md` |
+| Data story | Data/metrics | Animated charts, comparisons, counters | `references/graphs-and-data.md` |
+| Architecture diagram | System description | Components building up with connections | `references/mobjects.md` |
+| Paper explainer | Research paper | Key findings and methods animated | `references/scene-planning.md` |
+| 3D visualization | 3D concept | Rotating surfaces, parametric curves, spatial geometry | `references/camera-and-3d.md` |
 
 ## Stack
 
@@ -61,13 +47,6 @@ Single Python script per project. No browser, no Node.js, no GPU required.
 PLAN --> CODE --> RENDER --> STITCH --> AUDIO (optional) --> REVIEW
 ```
 
-1. **PLAN** — Write `plan.md` with narrative arc, scene list, visual elements, color palette, voiceover script
-2. **CODE** — Write `script.py` with one class per scene, each independently renderable
-3. **RENDER** — `manim -ql script.py Scene1 Scene2 ...` for draft, `-qh` for production
-4. **STITCH** — ffmpeg concat of scene clips into `final.mp4`
-5. **AUDIO** (optional) — Add voiceover and/or background music via ffmpeg. See `references/rendering.md`
-6. **REVIEW** — Render preview stills, verify against plan, adjust
-
 ## Project Structure
 
 ```
@@ -80,69 +59,15 @@ project-name/
     videos/script/480p15/
 ```
 
-## Creative Direction
-
-### Color Palettes
-
-| Palette | Background | Primary | Secondary | Accent | Use case |
-|---------|-----------|---------|-----------|--------|----------|
-| **Classic 3B1B** | `#1C1C1C` | `#58C4DD` (BLUE) | `#83C167` (GREEN) | `#FFFF00` (YELLOW) | General math/CS |
-| **Warm academic** | `#2D2B55` | `#FF6B6B` | `#FFD93D` | `#6BCB77` | Approachable |
-| **Neon tech** | `#0A0A0A` | `#00F5FF` | `#FF00FF` | `#39FF14` | Systems, architecture |
-| **Monochrome** | `#1A1A2E` | `#EAEAEA` | `#888888` | `#FFFFFF` | Minimalist |
-
-### Animation Speed
-
-| Context | run_time | self.wait() after |
-|---------|----------|-------------------|
-| Title/intro appear | 1.5s | 1.0s |
-| Key equation reveal | 2.0s | 2.0s |
-| Transform/morph | 1.5s | 1.5s |
-| Supporting label | 0.8s | 0.5s |
-| FadeOut cleanup | 0.5s | 0.3s |
-| "Aha moment" reveal | 2.5s | 3.0s |
-
-### Typography Scale
-
-| Role | Font size | Usage |
-|------|-----------|-------|
-| Title | 48 | Scene titles, opening text |
-| Heading | 36 | Section headers within a scene |
-| Body | 30 | Explanatory text |
-| Label | 24 | Annotations, axis labels |
-| Caption | 20 | Subtitles, fine print |
-
-### Fonts
-
-**Use monospace fonts for all text.** Manim's Pango renderer produces broken kerning with proportional fonts at all sizes. See `references/visual-design.md` for full recommendations.
-
-```python
-MONO = "Menlo"  # define once at top of file
-
-Text("Fourier Series", font_size=48, font=MONO, weight=BOLD)  # titles
-Text("n=1: sin(x)", font_size=20, font=MONO)                  # labels
-MathTex(r"\nabla L")                                            # math (uses LaTeX)
-```
-
-Minimum `font_size=18` for readability.
-
-### Per-Scene Variation
-
-Never use identical config for all scenes. For each scene:
-- **Different dominant color** from the palette
-- **Different layout** — don't always center everything
-- **Different animation entry** — vary between Write, FadeIn, GrowFromCenter, Create
-- **Different visual weight** — some scenes dense, others sparse
-
 ## Workflow
 
-### Step 1: Plan (plan.md)
+### Step 1: Plan — write `plan.md` with `file_write`
 
-Before any code, write `plan.md`. See `references/scene-planning.md` for the comprehensive template.
+Before any code, articulate: narrative arc, scene list, visual elements, color palette, voiceover script. See `references/scene-planning.md` for the full template.
 
-### Step 2: Code (script.py)
+### Step 2: Code — write `script.py` with `file_write`
 
-One class per scene. Every scene is independently renderable.
+One class per scene. Every scene independently renderable. Define shared constants at the top.
 
 ```python
 from manim import *
@@ -164,60 +89,19 @@ class Scene1_Introduction(Scene):
 ```
 
 Key patterns:
-- **Subtitles** on every animation: `self.add_subcaption("text", duration=N)` or `subcaption="text"` on `self.play()`
+- **Subtitles** on every animation: `self.add_subcaption("text", duration=N)` or `subcaption="text"` in `self.play()`
 - **Shared color constants** at file top for cross-scene consistency
-- **`self.camera.background_color`** set in every scene
-- **Clean exits** — FadeOut all mobjects at scene end: `self.play(FadeOut(Group(*self.mobjects)))`
+- **`self.camera.background_color`** set in every scene's `construct()`
+- **Clean exits**: `self.play(FadeOut(Group(*self.mobjects)))` at scene end
 
-### Step 3: Render
+### Step 3: Render — via `shell_exec`
 
 ```bash
-manim -ql script.py Scene1_Introduction Scene2_CoreConcept  # draft
+manim -ql script.py Scene1_Introduction Scene2_CoreConcept  # draft (fast)
 manim -qh script.py Scene1_Introduction Scene2_CoreConcept  # production
 ```
 
-### Step 4: Stitch
-
-```bash
-cat > concat.txt << 'EOF'
-file 'media/videos/script/480p15/Scene1_Introduction.mp4'
-file 'media/videos/script/480p15/Scene2_CoreConcept.mp4'
-EOF
-ffmpeg -y -f concat -safe 0 -i concat.txt -c copy final.mp4
-```
-
-### Step 5: Review
-
-```bash
-manim -ql --format=png -s script.py Scene2_CoreConcept  # preview still
-```
-
-## Critical Implementation Notes
-
-### Raw Strings for LaTeX
-```python
-# WRONG: MathTex("\frac{1}{2}")
-# RIGHT:
-MathTex(r"\frac{1}{2}")
-```
-
-### buff >= 0.5 for Edge Text
-```python
-label.to_edge(DOWN, buff=0.5)  # never < 0.5
-```
-
-### FadeOut Before Replacing Text
-```python
-self.play(ReplacementTransform(note1, note2))  # not Write(note2) on top
-```
-
-### Never Animate Non-Added Mobjects
-```python
-self.play(Create(circle))  # must add first
-self.play(circle.animate.set_color(RED))  # then animate
-```
-
-## Performance Targets
+Always iterate at `-ql`. Only render `-qh` for final output.
 
 | Quality | Resolution | FPS | Speed |
 |---------|-----------|-----|-------|
@@ -225,46 +109,132 @@ self.play(circle.animate.set_color(RED))  # then animate
 | `-qm` (medium) | 1280x720 | 30 | 15-60s/scene |
 | `-qh` (production) | 1920x1080 | 60 | 30-120s/scene |
 
-Always iterate at `-ql`. Only render `-qh` for final output.
+### Step 4: Stitch — via `shell_exec`
+
+Write `concat.txt` with `file_write`, then run ffmpeg:
+
+```bash
+ffmpeg -y -f concat -safe 0 -i concat.txt -c copy final.mp4
+```
+
+### Step 5: Review — via `media_present`
+
+```bash
+manim -ql --format=png -s script.py Scene2_CoreConcept  # preview still
+```
+
+Use `media_present` to display the still or final video for user review.
+
+## Visual Design
+
+### Color Palettes
+
+| Palette | Background | Primary | Secondary | Accent | Use case |
+|---------|-----------|---------|-----------|--------|----------|
+| Classic 3B1B | `#1C1C1C` | `#58C4DD` | `#83C167` | `#FFFF00` | General math/CS |
+| Warm academic | `#2D2B55` | `#FF6B6B` | `#FFD93D` | `#6BCB77` | Approachable |
+| Neon tech | `#0A0A0A` | `#00F5FF` | `#FF00FF` | `#39FF14` | Systems, architecture |
+| Monochrome | `#1A1A2E` | `#EAEAEA` | `#888888` | `#FFFFFF` | Minimalist |
+
+### Typography
+
+**Use monospace fonts for all text** — Manim's Pango renderer produces broken kerning with proportional fonts.
+
+```python
+MONO = "Menlo"  # define once at top
+Text("Fourier Series", font_size=48, font=MONO, weight=BOLD)  # titles
+Text("n=1: sin(x)", font_size=20, font=MONO)                  # labels
+MathTex(r"\nabla L")                                            # math (uses LaTeX)
+```
+
+| Role | Font size |
+|------|-----------|
+| Title | 48 |
+| Heading | 36 |
+| Body | 30 |
+| Label | 24 |
+| Caption | 20 |
+
+Minimum `font_size=18` for readability. See `references/visual-design.md`.
+
+### Animation Timing
+
+| Context | run_time | self.wait() after |
+|---------|----------|-------------------|
+| Title/intro appear | 1.5s | 1.0s |
+| Key equation reveal | 2.0s | 2.0s |
+| Transform/morph | 1.5s | 1.5s |
+| Supporting label | 0.8s | 0.5s |
+| FadeOut cleanup | 0.5s | 0.3s |
+| "Aha moment" reveal | 2.5s | 3.0s |
+
+### Opacity Layering
+
+Primary elements: `opacity=1.0` · Contextual: `opacity=0.4` · Structural (axes, grids): `opacity=0.15`
+
+### Per-Scene Variation
+
+Vary across scenes: dominant color from palette, layout (don't always center), animation entry (Write / FadeIn / GrowFromCenter / Create), visual density (some scenes dense, others sparse).
+
+## Critical Pitfalls
+
+**Raw strings for LaTeX:**
+```python
+MathTex(r"\frac{1}{2}")   # correct
+MathTex("\frac{1}{2}")    # WRONG — backslash escape
+```
+
+**Edge text needs buff >= 0.5:**
+```python
+label.to_edge(DOWN, buff=0.5)  # never < 0.5
+```
+
+**Replace text with transform, not Write-on-top:**
+```python
+self.play(ReplacementTransform(note1, note2))  # correct
+```
+
+**Animate only added mobjects:**
+```python
+self.play(Create(circle))            # adds to scene
+self.play(circle.animate.set_color(RED))  # then animate
+```
+
+**ffmpeg stitch fails if quality flag changes:** ensure `concat.txt` paths match the quality preset folder (e.g. `480p15` for `-ql`, `1080p60` for `-qh`).
 
 ## References
 
 | File | Contents |
 |------|----------|
-| `references/animations.md` | Core animations, rate functions, composition, `.animate` syntax, timing patterns |
-| `references/mobjects.md` | Text, shapes, VGroup/Group, positioning, styling, custom mobjects |
-| `references/visual-design.md` | 12 design principles, opacity layering, layout templates, color palettes |
+| `references/animations.md` | Core animations, rate functions, `.animate` syntax, timing |
+| `references/mobjects.md` | Text, shapes, VGroup/Group, positioning, styling |
+| `references/visual-design.md` | Design principles, opacity layering, layout templates |
 | `references/equations.md` | LaTeX in Manim, TransformMatchingTex, derivation patterns |
-| `references/graphs-and-data.md` | Axes, plotting, BarChart, animated data, algorithm visualization |
-| `references/camera-and-3d.md` | MovingCameraScene, ThreeDScene, 3D surfaces, camera control |
-| `references/scene-planning.md` | Narrative arcs, layout templates, scene transitions, planning template |
-| `references/rendering.md` | CLI reference, quality presets, ffmpeg, voiceover workflow, GIF export |
-| `references/troubleshooting.md` | LaTeX errors, animation errors, common mistakes, debugging |
-| `references/animation-design-thinking.md` | When to animate vs show static, decomposition, pacing, narration sync |
-| `references/updaters-and-trackers.md` | ValueTracker, add_updater, always_redraw, time-based updaters, patterns |
-| `references/paper-explainer.md` | Turning research papers into animations — workflow, templates, domain patterns |
-| `references/decorations.md` | SurroundingRectangle, Brace, arrows, DashedLine, Angle, annotation lifecycle |
-| `references/production-quality.md` | Pre-code, pre-render, post-render checklists, spatial layout, color, tempo |
+| `references/graphs-and-data.md` | Axes, plotting, BarChart, animated data |
+| `references/camera-and-3d.md` | MovingCameraScene, ThreeDScene, 3D surfaces |
+| `references/scene-planning.md` | Narrative arcs, layout templates, planning template |
+| `references/rendering.md` | CLI reference, quality presets, ffmpeg, voiceover, GIF export |
+| `references/troubleshooting.md` | LaTeX errors, animation errors, common mistakes |
+| `references/animation-design-thinking.md` | Pacing, narration sync, when to animate vs. static |
+| `references/updaters-and-trackers.md` | ValueTracker, add_updater, always_redraw |
+| `references/paper-explainer.md` | Research paper → animation workflow |
+| `references/decorations.md` | SurroundingRectangle, Brace, arrows, DashedLine, Angle |
+| `references/production-quality.md` | Pre-code / pre-render / post-render checklists |
 
 ---
 
-## Creative Divergence (use only when user requests experimental/creative/unique output)
+## Creative Divergence (use only when user requests experimental output)
 
-If the user asks for creative, experimental, or unconventional explanatory approaches, select a strategy and reason through it BEFORE designing the animation.
-
-- **SCAMPER** — when the user wants a fresh take on a standard explanation
-- **Assumption Reversal** — when the user wants to challenge how something is typically taught
-
-### SCAMPER Transformation
-Take a standard mathematical/technical visualization and transform it:
-- **Substitute**: replace the standard visual metaphor (number line → winding path, matrix → city grid)
-- **Combine**: merge two explanation approaches (algebraic + geometric simultaneously)
-- **Reverse**: derive backward — start from the result and deconstruct to axioms
-- **Modify**: exaggerate a parameter to show why it matters (10x the learning rate, 1000x the sample size)
-- **Eliminate**: remove all notation — explain purely through animation and spatial relationships
+### SCAMPER
+Transform a standard visualization:
+- **Substitute**: swap the standard metaphor (number line → winding path, matrix → city grid)
+- **Combine**: merge two approaches simultaneously (algebraic + geometric)
+- **Reverse**: start from result and deconstruct to axioms
+- **Modify**: exaggerate a parameter to show why it matters (10x learning rate)
+- **Eliminate**: explain purely through animation with zero notation
 
 ### Assumption Reversal
-1. List what's "standard" about how this topic is visualized (left-to-right, 2D, discrete steps, formal notation)
+1. List what's standard about how this topic is typically visualized
 2. Pick the most fundamental assumption
-3. Reverse it (right-to-left derivation, 3D embedding of a 2D concept, continuous morphing instead of steps, zero notation)
-4. Explore what the reversal reveals that the standard approach hides
+3. Reverse it (right-to-left derivation, 3D embedding of a 2D concept, continuous morphing instead of discrete steps)
+4. Articulate what the reversal reveals that the standard approach hides

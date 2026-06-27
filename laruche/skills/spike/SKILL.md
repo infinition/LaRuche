@@ -1,36 +1,30 @@
 ---
 type: skill
 name: spike
-description: "Throwaway experiments to validate an idea before build."
+description: "Throwaway experiments to validate feasibility before building."
 version: 1.0.0
-author: third-party agent (adapted from gsd-build/get-shit-done)
 license: MIT
 platforms: [linux, macos, windows]
+tools: [web_search, web_fetch, shell_exec, file_write, file_read, execute_code]
 metadata:
-  third-party:
+  laruche:
     tags: [spike, prototype, experiment, feasibility, throwaway, exploration, research, planning, mvp, proof-of-concept]
-    related_skills: [sketch, subagent-driven-development, plan]
+    related_skills: [sketch, plan]
 ---
 
 # Spike
 
-Use this skill when the user wants to **feel out an idea** before committing to a real build — validating feasibility, comparing approaches, or surfacing unknowns that no amount of research will answer. Spikes are disposable by design. Throw them away once they've paid their debt.
+Use when the user wants to **feel out an idea** before committing to a real build — validating feasibility, comparing approaches, or surfacing unknowns. Spikes are disposable by design. Throw them away once they've paid their debt.
 
-Load this when the user says things like "let me try this", "I want to see if X works", "spike this out", "before I commit to Y", "quick prototype of Z", "is this even possible?", or "compare A vs B".
+Trigger: "let me try this", "I want to see if X works", "spike this out", "before I commit to Y", "quick prototype of Z", "is this even possible?", "compare A vs B".
 
-## When NOT to use this
+## When NOT to use
 
-- The answer is knowable from docs or reading code — just do research, don't build
-- The work is production path — use the `plan` skill instead
-- The idea is already validated — jump straight to implementation
+- The answer is knowable from docs or reading code — just research, don't build.
+- The work is on the production path — use the `plan` skill instead.
+- The idea is already validated — jump straight to implementation.
 
-## If the user has the full GSD system installed
-
-If `gsd-spike` shows up as a sibling skill (installed via `npx get-shit-done-cc --third-party`), prefer **`gsd-spike`** when the user wants the full GSD workflow: persistent `.planning/spikes/` state, MANIFEST tracking across sessions, Given/When/Then verdict format, and commit patterns that integrate with the rest of GSD. This skill is the lightweight standalone version for users who don't have (or don't want) the full system.
-
-## Core method
-
-Regardless of scale, every spike follows this loop:
+## Core loop
 
 ```
 decompose  →  research  →  build  →  verdict
@@ -40,7 +34,7 @@ decompose  →  research  →  build  →  verdict
 
 ### 1. Decompose
 
-Break the user's idea into **2-5 independent feasibility questions**. Each question is one spike. Present them as a table with Given/When/Then framing:
+Break the idea into **2-5 independent feasibility questions**. Present as a table with Given/When/Then framing:
 
 | # | Spike | Validates (Given/When/Then) | Risk |
 |---|-------|----------------------------|------|
@@ -49,23 +43,20 @@ Break the user's idea into **2-5 independent feasibility questions**. Each quest
 | 002b | pdf-parse-camelot | Given a multi-page PDF, when parsed with camelot, then structured text is extractable | Medium |
 
 **Spike types:**
-- **standard** — one approach answering one question
+- **standard** — one approach, one question
 - **comparison** — same question, different approaches (shared number, letter suffix `a`/`b`/`c`)
 
-**Good spike questions:** specific feasibility with observable output.
-**Bad spike questions:** too broad, no observable output, or just "read the docs about X".
+**Order by risk.** The spike most likely to kill the idea runs first.
 
-**Order by risk.** The spike most likely to kill the idea runs first. No point prototyping the easy parts if the hard part doesn't work.
+**Skip decomposition** only if the user already knows exactly what to spike — take it as a single spike.
 
-**Skip decomposition** only if the user already knows exactly what they want to spike and says so. Then take their idea as a single spike.
+### 2. Align (multi-spike only)
 
-### 2. Align (for multi-spike ideas)
-
-Present the spike table. Ask: "Build all in this order, or adjust?" Let the user drop, reorder, or re-frame before you write any code.
+Present the table. Ask: "Build all in this order, or adjust?" Let the user drop, reorder, or re-frame before writing any code.
 
 ### 3. Research (per spike, before building)
 
-Spikes are not research-free — you research enough to pick the right approach, then you build. Per spike:
+Research enough to pick the right approach, then build.
 
 1. **Brief it.** 2-3 sentences: what this spike is, why it matters, key risk.
 2. **Surface competing approaches** if there's real choice:
@@ -77,13 +68,14 @@ Spikes are not research-free — you research enough to pick the right approach,
 3. **Pick one.** State why. If 2+ are credible, build quick variants within the spike.
 4. **Skip research** for pure logic with no external dependencies.
 
-Use third-party tools for the research step:
+LaRuche tools for research:
 
-- `web_search("python websocket streaming libraries 2025")` — find candidates
-- `web_fetch(urls=["https://websockets.readthedocs.io/..."])` — read the actual docs (returns markdown)
-- `shell_exec("pip show websockets | grep Version")` — check what's installed in the project's venv
-
-For libraries without docs pages, clone and read their `README.md` / `examples/` via `read_file`. Context7 MCP (if the user has it configured) is also a good source — `mcp_*_resolve-library-id` then `mcp_*_query-docs`.
+```
+web_search("python websocket streaming libraries 2025")
+web_fetch(urls=["https://websockets.readthedocs.io/..."])
+shell_exec("pip show websockets | grep Version")
+file_read("path/to/cloned/README.md")
+```
 
 ### 4. Build
 
@@ -102,18 +94,18 @@ spikes/
     └── parse.py
 ```
 
-**Bias toward something the user can interact with.** Spikes fail when the only output is a log line that says "it works." The user wants to *feel* the spike working. Default choices, in order of preference:
+**Bias toward something the user can interact with.** Default choices, in order:
 
 1. A runnable CLI that takes input and prints observable output
-2. A minimal HTML page that demonstrates the behavior
+2. A minimal HTML page demonstrating the behavior
 3. A small web server with one endpoint
-4. A unit test that exercises the question with recognizable assertions
+4. A unit test exercising the question with recognizable assertions
 
-**Depth over speed.** Never declare "it works" after one happy-path run. Test edge cases. Follow surprising findings. The verdict is only trustworthy when the investigation was honest.
+**Depth over speed.** Never declare "it works" after one happy-path run. Test edge cases. Follow surprising findings.
 
-**Avoid** unless the spike specifically requires it: complex package management, build tools/bundlers, Docker, env files, config systems. Hardcode everything — it's a spike.
+**Avoid** (unless the spike specifically requires it): complex package management, build tools/bundlers, Docker, env files, config systems. Hardcode everything — it's a spike.
 
-**Building one spike** — a typical tool sequence:
+**Typical tool sequence for one spike:**
 
 ```
 shell_exec("mkdir -p spikes/001-websocket-streaming")
@@ -123,16 +115,7 @@ shell_exec("cd spikes/001-websocket-streaming && python3 main.py")
 # Observe output, iterate.
 ```
 
-**Parallel comparison spikes (002a / 002b) — delegate.** When two approaches can run in parallel and both need real engineering (not 10-line prototypes), fan out with `delegate_task`:
-
-```
-delegate_task(tasks=[
-    {"goal": "Build 002a-pdf-parse-pdfjs: ...", "toolsets": ["terminal", "file", "web"]},
-    {"goal": "Build 002b-pdf-parse-camelot: ...", "toolsets": ["terminal", "file", "web"]},
-])
-```
-
-Each subagent returns its own verdict; you write the head-to-head.
+**Parallel comparison spikes (002a / 002b):** run them sequentially (a then b). For non-trivial parallel workloads, use `execute_code` to run both scripts and capture outputs side by side, or build them in separate `shell_exec` calls and compare results.
 
 ### 5. Verdict
 
@@ -154,13 +137,13 @@ Each spike's `README.md` closes with:
 - ...
 ```
 
-**VALIDATED** = the core question was answered yes, with evidence.
-**PARTIAL** = it works under constraints X, Y, Z — document them.
-**INVALIDATED** = doesn't work, for this reason. This is a successful spike.
+- **VALIDATED** — core question answered yes, with evidence.
+- **PARTIAL** — works under constraints X, Y, Z — document them.
+- **INVALIDATED** — doesn't work, for this reason. This is a successful spike.
 
 ## Comparison spikes
 
-When two approaches answer the same question (002a / 002b), build them **back to back**, then do a head-to-head comparison at the end:
+When two approaches answer the same question (002a / 002b), build them back to back, then do a head-to-head:
 
 ```markdown
 ## Head-to-head: pdfjs vs camelot
@@ -172,27 +155,22 @@ When two approaches answer the same question (002a / 002b), build them **back to
 | Perf on 100-page PDF | 3s | 18s |
 | Handles rotated text | no | yes |
 
-**Winner:** pdfjs for our use case. Camelot if we need table-first extraction later.
+**Winner:** pdfjs for our use case.
 ```
 
-## Frontier mode (picking what to spike next)
+## Frontier mode (what to spike next)
 
-If spikes already exist and the user says "what should I spike next?", walk the existing directories and look for:
+If spikes already exist and the user asks "what should I spike next?", walk the existing directories and look for:
 
 - **Integration risks** — two validated spikes that touch the same resource but were tested independently
 - **Data handoffs** — spike A's output was assumed compatible with spike B's input; never proven
 - **Gaps in the vision** — capabilities assumed but unproven
-- **Alternative approaches** — different angles for PARTIAL or INVALIDATED spikes
+- **Alternative angles** — different approaches for PARTIAL or INVALIDATED spikes
 
 Propose 2-4 candidates as Given/When/Then. Let the user pick.
 
-## Output
+## Output conventions
 
-- Create `spikes/` (or `.planning/spikes/` if the user is using GSD conventions) in the repo root
-- One dir per spike: `NNN-descriptive-name/`
+- Create `spikes/` in the repo root (one dir per spike: `NNN-descriptive-name/`)
 - `README.md` per spike captures question, approach, results, verdict
 - Keep the code throwaway — a spike that takes 2 days to "clean up for production" was a bad spike
-
-## Attribution
-
-Adapted from the GSD (Get Shit Done) project's `/gsd-spike` workflow — MIT © 2025 Lex Christopherson ([gsd-build/get-shit-done](https://github.com/gsd-build/get-shit-done)). The full GSD system offers persistent spike state, MANIFEST tracking, and integration with a broader spec-driven development pipeline; install with `npx get-shit-done-cc --third-party --global`.

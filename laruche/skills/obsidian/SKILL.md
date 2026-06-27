@@ -1,62 +1,114 @@
 ---
 type: skill
 name: obsidian
-description: Read, search, create, and edit notes in the Obsidian vault.
+title: Obsidian Vault
+version: "1.1.0"
+license: MIT
+description: Read, search, create, and edit Obsidian vault notes.
 platforms: [linux, macos, windows]
+tools: [file_read, file_write, file_list, file_edit, file_search, shell_exec]
+scripts: []
+dependencies: []
+metadata:
+  laruche:
+    category: productivity
+    tags: [obsidian, notes, markdown, wikilinks]
+    homepage: https://obsidian.md
 ---
 
 # Obsidian Vault
 
-Use this skill for filesystem-first Obsidian vault work: reading notes, listing notes, searching note files, creating notes, appending content, and adding wikilinks.
+Filesystem-first Obsidian vault operations: read, list, search, create, and edit notes, using LaRuche native tools.
 
 ## Vault path
 
-Use a known or resolved vault path before calling file tools.
+The vault root is resolved from `${OBSIDIAN_VAULT_PATH}` (set this as a LaRuche secret or env var). Fallback: `~/Documents/Obsidian Vault`.
 
-The documented vault-path convention is the `OBSIDIAN_VAULT_PATH` environment variable, for example from `${THIRD_PARTY_HOME:-~/.third-party}/.env`. If it is unset, use `~/Documents/Obsidian Vault`.
+**Critical:** `file_read`, `file_write`, `file_list` do not expand shell variables — always resolve to a concrete absolute path first.
 
-File tools do not expand shell variables. Do not pass paths containing `$OBSIDIAN_VAULT_PATH` to `read_file`, `write_file`, `patch`, or `search_files`; resolve the vault path first and pass a concrete absolute path. Vault paths may contain spaces, which is another reason to prefer file tools over shell commands.
+```
+shell_exec: echo "${OBSIDIAN_VAULT_PATH}"
+```
 
-If the vault path is unknown, `terminal` is acceptable for resolving `OBSIDIAN_VAULT_PATH` or checking whether the fallback path exists. Once the path is known, switch back to file tools.
+If empty, check fallback:
+```
+shell_exec: [ -d "$HOME/Documents/Obsidian Vault" ] && echo "$HOME/Documents/Obsidian Vault"
+```
+
+Paths may contain spaces — always quote them in shell commands.
 
 ## Read a note
 
-Use `read_file` with the resolved absolute path to the note. Prefer this over `cat` because it provides line numbers and pagination.
+```
+file_read: <vault_path>/Notes/MyNote.md
+```
 
 ## List notes
 
-Use `search_files` with `target: "files"` and the resolved vault path. Prefer this over `find` or `ls`.
+All `.md` files in the vault:
+```
+file_list: <vault_path>  # recursive, filter *.md
+```
 
-- To list all markdown notes, use `pattern: "*.md"` under the vault path.
-- To list a subfolder, search under that subfolder's absolute path.
+Subfolder only:
+```
+file_list: <vault_path>/Subfolder
+```
 
 ## Search
 
-Use `search_files` for both filename and content searches. Prefer this over `grep`, `find`, or `ls`.
+**By filename:**
+```
+shell_exec: find "<vault_path>" -name "*keyword*.md"
+```
 
-- For filenames, use `search_files` with `target: "files"` and a filename `pattern`.
-- For note contents, use `search_files` with `target: "content"`, the content regex as `pattern`, and `file_glob: "*.md"` when you want to restrict matches to markdown notes.
+**By content (files):**
+```
+shell_exec: grep -rl "search term" "<vault_path>" --include="*.md"
+```
+
+**By content (with line numbers):**
+```
+shell_exec: grep -rn "search term" "<vault_path>" --include="*.md"
+```
+
+Or use `file_search` with a keyword to let LaRuche scan indexed content.
 
 ## Create a note
 
-Use `write_file` with the resolved absolute path and the full markdown content. Prefer this over shell heredocs or `echo` because it avoids shell quoting issues and returns structured results.
+Compose the full markdown content, then write it:
+```
+file_write: <vault_path>/Notes/NewNote.md
+content: |
+  # Title
 
-## Append to a note
+  Body text. [[LinkedNote]]
+```
 
-Prefer a native file-tool workflow when it is not awkward:
+Use `[[Note Name]]` wikilinks to connect related notes (base filename, no `.md` extension). For aliased display: `[[Note Name|Alias]]`.
 
-- Read the target note with `read_file`.
-- Use `patch` for an anchored append when there is stable context, such as adding a section after an existing heading or appending before a known trailing block.
-- Use `write_file` when rewriting the whole note is clearer than constructing a fragile patch.
+## Edit a note
 
-For an anchored append with `patch`, replace the anchor with the anchor plus the new content.
+For targeted edits (replace a block, insert a section):
+```
+file_edit: <vault_path>/Notes/MyNote.md
+```
+Use `file_edit` to avoid overwriting the full file when only a section changes.
 
-For a simple append with no stable context, `terminal` is acceptable if it is the clearest safe option.
+For full rewrites:
+1. Read current content: `file_read: <vault_path>/Notes/MyNote.md`
+2. Compose the updated content.
+3. Write back: `file_write: <vault_path>/Notes/MyNote.md`
 
-## Targeted edits
+**Pitfall:** `file_write` overwrites entirely — always read first to avoid data loss.
 
-Use `patch` for focused note changes when the current content gives you stable context. Prefer this over shell text rewriting.
+For simple appends:
+```
+shell_exec: printf '\n## New Section\n\nContent\n' >> "<vault_path>/Notes/MyNote.md"
+```
 
-## Wikilinks
+## Failure handling
 
-Obsidian links notes with `[[Note Name]]` syntax. When creating notes, use these to link related content.
+- If `file_write` errors on a missing directory, create it first: `shell_exec: mkdir -p "<vault_path>/Subfolder"`
+- If the vault path resolves empty, prompt the user to set `OBSIDIAN_VAULT_PATH` in LaRuche secrets.
+- Prefer `file_edit` over read+write for incremental changes to reduce the risk of content loss.

@@ -1,25 +1,50 @@
 ---
 type: skill
 name: youtube_video_retrieval
-description: Procédure complète pour localiser et télécharger une vidéo YouTube spécifique, gérant les étapes de recherche et les pièges de scraping.
+description: Find and download a specific YouTube video by title, channel, or keyword.
 tools: [web_deep_search, web_fetch, browser_navigate, video_downloader]
 ---
 
-# Workflow de récupération et téléchargement de vidéo YouTube
+# YouTube Video Retrieval
 
-Ce skill orchestre la recherche d'une vidéo YouTube spécifique (par titre, chaîne, ou mot-clé) et son téléchargement.
+Locate a YouTube video URL (by title, channel, or keyword) then download it via `video_downloader`.
 
-## ⚙️ Étapes du processus
-1. **Recherche de l'URL (Phase de Découverte) :**
-    *   Utiliser `web_deep_search` avec des requêtes ciblées (ex: "Titre de la vidéo youtube", "Chaîne youtube nom dernier video").
-    *   Si la recherche échoue ou renvoie des pages de canal complexes (comme YouTube), utiliser `web_fetch` ou `browser_navigate` pour tenter de charger la page, mais être conscient des limitations (politiques de cookies, anti-scraping).
-    *   **⚠️ Piège majeur :** Les plateformes comme YouTube bloquent souvent le scraping direct. Si l'URL directe n'est pas trouvée, l'utilisateur doit fournir l'URL manuellement.
-2. **Extraction de l'URL :**
-    *   Analyser les résultats de recherche pour extraire l'URL canonique de la vidéo.
-3. **Téléchargement (Phase d'Action) :**
-    *   Une fois l'URL validée, utiliser l'outil `video_downloader` pour effectuer le téléchargement.
+## Steps
 
-## 🛠️ Outils et dépendances
-*   `web_deep_search`: Pour la recherche initiale de l'URL.
-*   `web_fetch` / `browser_navigate`: Pour l'inspection de pages complexes.
-*   `video_downloader`: L'outil final pour l'action de téléchargement.
+### 1. Search for the URL
+
+Use `web_deep_search` with targeted queries:
+- `"<video title>" site:youtube.com`
+- `"<channel name>" "<keyword>" youtube`
+- `youtube "<exact title>" inurl:watch`
+
+Parse the results for a canonical `youtube.com/watch?v=<ID>` URL.
+
+**If no direct URL is found:**
+- Try `web_fetch("https://www.youtube.com/results?search_query=<encoded+query>")` and extract `watch?v=` links from the HTML.
+- Try `browser_navigate("https://www.youtube.com/results?search_query=<encoded+query>")` and scrape visible results.
+- **Warning:** YouTube actively blocks scraping. If all automated paths fail, ask the user to provide the URL manually.
+
+### 2. Validate the URL
+
+Confirm the extracted URL matches the expected video (title, channel) before downloading. A wrong `watch?v=` ID wastes bandwidth.
+
+### 3. Download
+
+Once the URL is confirmed:
+
+```
+video_downloader(url="https://www.youtube.com/watch?v=<ID>")
+```
+
+`video_downloader` handles format selection, retries, and saving locally.
+
+## Failure Handling
+
+| Situation | Action |
+|---|---|
+| Search returns channel page, not video | Inspect channel page with `browser_navigate`, look for matching video title in listings |
+| `web_fetch` blocked (cookie wall) | Fall back to `browser_navigate` |
+| `browser_navigate` also blocked | Ask user for the URL directly |
+| `video_downloader` fails (geo-block, age gate) | Report the error verbatim; suggest user retrieves via VPN or a manual tool |
+| Video is private or deleted | Inform user; no workaround available |

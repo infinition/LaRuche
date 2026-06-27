@@ -1,238 +1,230 @@
 ---
 type: skill
 name: powerpoint
-description: "Create, read, edit .pptx decks, slides, notes, templates."
+description: "Create, edit, extract, QA .pptx files via XML and bundled scripts."
+version: "1.1.0"
 license: Proprietary. LICENSE.txt has complete terms
 platforms: [linux, macos, windows]
+tools: [shell_exec, run_script, execute_code, file_read, file_write]
+scripts:
+  - scripts/add_slide.py
+  - scripts/clean.py
+  - scripts/office/pack.py
+dependencies:
+  python:
+    - markitdown[pptx]
+    - defusedxml
+  system:
+    - LibreOffice (soffice)       # PDF conversion for visual QA
+    - Poppler (pdftoppm)          # PDF→images
+  optional:
+    - pptxgenjs (npm)             # programmatic creation alternative
 ---
 
-# Powerpoint Skill
+# PowerPoint Skill
 
-## When to use
+## When to Use
 
-Use this skill any time a .pptx file is involved in any way — as input, output, or both. This includes: creating slide decks, pitch decks, or presentations; reading, parsing, or extracting text from any .pptx file (even if the extracted content will be used elsewhere, like in an email or summary); editing, modifying, or updating existing presentations; combining or splitting slide files; working with templates, layouts, speaker notes, or comments. Trigger whenever the user mentions "deck," "slides," "presentation," or references a .pptx filename, regardless of what they plan to do with the content afterward. If a .pptx file needs to be opened, created, or touched, use this skill.
-
-## Quick Reference
-
-| Task | Guide |
-|------|-------|
-| Read/analyze content | `python -m markitdown presentation.pptx` |
-| Edit or create from template | Read [editing.md](editing.md) |
-| Create from scratch | Read [pptxgenjs.md](pptxgenjs.md) |
+Any time a `.pptx` file is involved: creating decks, reading/extracting content, editing slides, adding/removing slides, working with templates, layouts, or notes.
 
 ---
 
 ## Reading Content
 
 ```bash
-# Text extraction
+# Extract all text (markitdown[pptx] required)
 python -m markitdown presentation.pptx
 
-# Visual overview
-python scripts/thumbnail.py presentation.pptx
-
-# Raw XML
-python scripts/office/unpack.py presentation.pptx unpacked/
+# Inspect raw XML (a .pptx is a zip)
+unzip -o presentation.pptx -d unpacked/
 ```
 
 ---
 
 ## Editing Workflow
 
-**Read [editing.md](editing.md) for full details.**
+```bash
+# 1. Unpack
+unzip -o input.pptx -d unpacked/
 
-1. Analyze template with `thumbnail.py`
-2. Unpack → manipulate slides → edit content → clean → pack
+# 2. Inspect layouts
+ls unpacked/ppt/slideLayouts/
+
+# 3. Add a slide
+python scripts/add_slide.py unpacked/ slide2.xml          # duplicate existing
+python scripts/add_slide.py unpacked/ slideLayout2.xml    # from layout
+# Script prints the <p:sldId> element — add it to unpacked/ppt/presentation.xml <p:sldIdLst>
+
+# 4. Edit slide XML directly
+# Files: unpacked/ppt/slides/slideN.xml
+# Namespaces: p: (presentationml), a: (drawingml), r: (relationships)
+
+# 5. Clean orphaned files
+python scripts/clean.py unpacked/
+
+# 6. Repack
+python scripts/office/pack.py unpacked/ output.pptx --original input.pptx
+# Creating from scratch (no original):
+python scripts/office/pack.py unpacked/ output.pptx --validate false
+```
+
+**Key XML patterns:**
+
+```xml
+<!-- Text shape -->
+<p:sp>
+  <p:nvSpPr>
+    <p:cNvPr id="2" name="Title"/>
+    <p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>
+    <p:nvPr><p:ph type="title"/></p:nvPr>
+  </p:nvSpPr>
+  <p:txBody>
+    <a:bodyPr/>
+    <a:p><a:r><a:t>Your text here</a:t></a:r></a:p>
+  </p:txBody>
+</p:sp>
+
+<!-- Position/size: EMU units. 1 inch = 914400 EMU. Slide = 9144000 x 5143500 EMU -->
+<a:xfrm><a:off x="457200" y="274638"/><a:ext cx="8229600" cy="1143000"/></a:xfrm>
+```
 
 ---
 
 ## Creating from Scratch
 
-**Read [pptxgenjs.md](pptxgenjs.md) for full details.**
+**Option A — XML (recommended):** unzip any blank .pptx as a base, add slides with `add_slide.py` using `slideLayout` sources, then edit XML directly.
 
-Use when no template or reference presentation is available.
+**Option B — pptxgenjs (optional, Node.js):**
+
+```bash
+npm install -g pptxgenjs
+node -e "
+const pptxgen = require('pptxgenjs');
+const prs = new pptxgen();
+let slide = prs.addSlide();
+slide.addText('Hello World', { x: 1, y: 1, fontSize: 36 });
+prs.writeFile({ fileName: 'output.pptx' });
+"
+```
 
 ---
 
-## Design Ideas
+## Design: Don't Make Boring Slides
 
-**Don't create boring slides.** Plain bullets on a white background won't impress anyone. Consider ideas from this list for each slide.
+### Palette Selection
 
-### Before Starting
-
-- **Pick a bold, content-informed color palette**: The palette should feel designed for THIS topic. If swapping your colors into a completely different presentation would still "work," you haven't made specific enough choices.
-- **Dominance over equality**: One color should dominate (60-70% visual weight), with 1-2 supporting tones and one sharp accent. Never give all colors equal weight.
-- **Dark/light contrast**: Dark backgrounds for title + conclusion slides, light for content ("sandwich" structure). Or commit to dark throughout for a premium feel.
-- **Commit to a visual motif**: Pick ONE distinctive element and repeat it — rounded image frames, icons in colored circles, thick single-side borders. Carry it across every slide.
-
-### Color Palettes
-
-Choose colors that match your topic — don't default to generic blue. Use these palettes as inspiration:
+Pick a bold, content-informed palette. One color dominates (60-70%), 1-2 supporting tones, one sharp accent. Vary light/dark across slides (dark title + light content = "sandwich"; or commit fully dark for premium look).
 
 | Theme | Primary | Secondary | Accent |
 |-------|---------|-----------|--------|
-| **Midnight Executive** | `1E2761` (navy) | `CADCFC` (ice blue) | `FFFFFF` (white) |
-| **Forest & Moss** | `2C5F2D` (forest) | `97BC62` (moss) | `F5F5F5` (cream) |
-| **Coral Energy** | `F96167` (coral) | `F9E795` (gold) | `2F3C7E` (navy) |
-| **Warm Terracotta** | `B85042` (terracotta) | `E7E8D1` (sand) | `A7BEAE` (sage) |
-| **Ocean Gradient** | `065A82` (deep blue) | `1C7293` (teal) | `21295C` (midnight) |
-| **Charcoal Minimal** | `36454F` (charcoal) | `F2F2F2` (off-white) | `212121` (black) |
-| **Teal Trust** | `028090` (teal) | `00A896` (seafoam) | `02C39A` (mint) |
-| **Berry & Cream** | `6D2E46` (berry) | `A26769` (dusty rose) | `ECE2D0` (cream) |
-| **Sage Calm** | `84B59F` (sage) | `69A297` (eucalyptus) | `50808E` (slate) |
-| **Cherry Bold** | `990011` (cherry) | `FCF6F5` (off-white) | `2F3C7E` (navy) |
+| Midnight Executive | `1E2761` (navy) | `CADCFC` (ice blue) | `FFFFFF` |
+| Forest & Moss | `2C5F2D` (forest) | `97BC62` (moss) | `F5F5F5` |
+| Coral Energy | `F96167` (coral) | `F9E795` (gold) | `2F3C7E` |
+| Warm Terracotta | `B85042` (terracotta) | `E7E8D1` (sand) | `A7BEAE` |
+| Charcoal Minimal | `36454F` (charcoal) | `F2F2F2` (off-white) | `212121` |
+| Cherry Bold | `990011` (cherry) | `FCF6F5` (off-white) | `2F3C7E` |
 
-### For Each Slide
+### Layouts (vary across slides, never text-only)
 
-**Every slide needs a visual element** — image, chart, icon, or shape. Text-only slides are forgettable.
-
-**Layout options:**
-- Two-column (text left, illustration on right)
+- Two-column (text left, visual right)
 - Icon + text rows (icon in colored circle, bold header, description below)
-- 2x2 or 2x3 grid (image on one side, grid of content blocks on other)
-- Half-bleed image (full left or right side) with content overlay
-
-**Data display:**
-- Large stat callouts (big numbers 60-72pt with small labels below)
-- Comparison columns (before/after, pros/cons, side-by-side options)
-- Timeline or process flow (numbered steps, arrows)
-
-**Visual polish:**
-- Icons in small colored circles next to section headers
-- Italic accent text for key stats or taglines
+- 2x2 / 2x3 grid with image on one side
+- Half-bleed image (full left/right) with content overlay
+- Large stat callout (60-72pt number, small label below)
+- Timeline / process flow (numbered steps, arrows)
 
 ### Typography
 
-**Choose an interesting font pairing** — don't default to Arial. Pick a header font with personality and pair it with a clean body font.
-
-| Header Font | Body Font |
-|-------------|-----------|
-| Georgia | Calibri |
-| Arial Black | Arial |
-| Calibri | Calibri Light |
-| Cambria | Calibri |
-| Trebuchet MS | Calibri |
-| Impact | Arial |
-| Palatino | Garamond |
-| Consolas | Calibri |
-
 | Element | Size |
 |---------|------|
-| Slide title | 36-44pt bold |
+| Slide title | 36-44pt bold (Georgia, Arial Black, Cambria, Trebuchet) |
 | Section header | 20-24pt bold |
-| Body text | 14-16pt |
+| Body text | 14-16pt (Calibri or Arial) |
 | Captions | 10-12pt muted |
 
-### Spacing
+Margins: 0.5" min. Gaps between blocks: 0.3-0.5" consistent. Left-align body; center only titles.
 
-- 0.5" minimum margins
-- 0.3-0.5" between content blocks
-- Leave breathing room—don't fill every inch
+### Avoid
 
-### Avoid (Common Mistakes)
-
-- **Don't repeat the same layout** — vary columns, cards, and callouts across slides
-- **Don't center body text** — left-align paragraphs and lists; center only titles
-- **Don't skimp on size contrast** — titles need 36pt+ to stand out from 14-16pt body
-- **Don't default to blue** — pick colors that reflect the specific topic
-- **Don't mix spacing randomly** — choose 0.3" or 0.5" gaps and use consistently
-- **Don't style one slide and leave the rest plain** — commit fully or keep it simple throughout
-- **Don't create text-only slides** — add images, icons, charts, or visual elements; avoid plain title + bullets
-- **Don't forget text box padding** — when aligning lines or shapes with text edges, set `margin: 0` on the text box or offset the shape to account for padding
-- **Don't use low-contrast elements** — icons AND text need strong contrast against the background; avoid light text on light backgrounds or dark text on dark backgrounds
-- **NEVER use accent lines under titles** — these are a hallmark of AI-generated slides; use whitespace or background color instead
+- Repeating the same layout slide after slide
+- Centering body paragraphs
+- Defaulting to blue — match palette to the topic
+- Text-only slides
+- **Accent lines under titles** — hallmark of AI-generated slides; use whitespace or background color instead
+- Low-contrast icons or text
 
 ---
 
 ## QA (Required)
 
-**Assume there are problems. Your job is to find them.**
-
-Your first render is almost never correct. Approach QA as a bug hunt, not a confirmation step. If you found zero issues on first inspection, you weren't looking hard enough.
+Assume there are problems. Your job is to find them.
 
 ### Content QA
 
 ```bash
 python -m markitdown output.pptx
-```
+# Check: missing content, wrong order, typos
 
-Check for missing content, typos, wrong order.
-
-**When using templates, check for leftover placeholder text:**
-
-```bash
+# Check for placeholders
 python -m markitdown output.pptx | grep -iE "xxxx|lorem|ipsum|this.*(page|slide).*layout"
+# Any result → fix before declaring success
 ```
-
-If grep returns results, fix them before declaring success.
 
 ### Visual QA
 
-**⚠️ USE SUBAGENTS** — even for 2-3 slides. You've been staring at the code and will see what you expect, not what's there. Subagents have fresh eyes.
+```bash
+# 1. Convert to PDF
+soffice --headless --convert-to pdf output.pptx
 
-Convert slides to images (see [Converting to Images](#converting-to-images)), then use this prompt:
+# 2. Render to images
+pdftoppm -jpeg -r 150 output.pdf slide
+# Output: slide-01.jpg, slide-02.jpg, ...
+
+# Re-render specific slides (N to N) after fixes
+pdftoppm -jpeg -r 150 -f N -l N output.pdf slide-fixed
+```
+
+Inspect via subagent with fresh eyes — even on 2-3 slides. Prompt:
 
 ```
 Visually inspect these slides. Assume there are issues — find them.
 
 Look for:
-- Overlapping elements (text through shapes, lines through words, stacked elements)
+- Overlapping elements (text through shapes, stacked elements)
 - Text overflow or cut off at edges/box boundaries
-- Decorative lines positioned for single-line text but title wrapped to two lines
-- Source citations or footers colliding with content above
-- Elements too close (< 0.3" gaps) or cards/sections nearly touching
-- Uneven gaps (large empty area in one place, cramped in another)
-- Insufficient margin from slide edges (< 0.5")
-- Columns or similar elements not aligned consistently
-- Low-contrast text (e.g., light gray text on cream-colored background)
-- Low-contrast icons (e.g., dark icons on dark backgrounds without a contrasting circle)
+- Decorative lines sized for single-line titles that wrapped to two lines
+- Footers/citations colliding with content above
+- Elements too close (< 0.3") or nearly touching
+- Uneven gaps (large empty area vs cramped)
+- Insufficient margins from edges (< 0.5")
+- Misaligned columns or similar elements
+- Low-contrast text or icons
 - Text boxes too narrow causing excessive wrapping
 - Leftover placeholder content
 
-For each slide, list issues or areas of concern, even if minor.
+For each slide, list issues or concerns, even if minor.
 
-Read and analyze these images:
+Images:
 1. /path/to/slide-01.jpg (Expected: [brief description])
 2. /path/to/slide-02.jpg (Expected: [brief description])
-
-Report ALL issues found, including minor ones.
 ```
 
 ### Verification Loop
 
-1. Generate slides → Convert to images → Inspect
-2. **List issues found** (if none found, look again more critically)
+1. Generate → convert to images → inspect
+2. List issues (if none found, look again more critically)
 3. Fix issues
-4. **Re-verify affected slides** — one fix often creates another problem
-5. Repeat until a full pass reveals no new issues
+4. Re-verify affected slides — one fix often creates another problem
+5. Repeat until a full pass finds no new issues
 
-**Do not declare success until you've completed at least one fix-and-verify cycle.**
-
----
-
-## Converting to Images
-
-Convert presentations to individual slide images for visual inspection:
-
-```bash
-python scripts/office/soffice.py --headless --convert-to pdf output.pptx
-pdftoppm -jpeg -r 150 output.pdf slide
-```
-
-This creates `slide-01.jpg`, `slide-02.jpg`, etc.
-
-To re-render specific slides after fixes:
-
-```bash
-pdftoppm -jpeg -r 150 -f N -l N output.pdf slide-fixed
-```
+Do not declare success until at least one fix-and-verify cycle is complete.
 
 ---
 
 ## Dependencies
 
-- `pip install "markitdown[pptx]"` - text extraction
-- `pip install Pillow` - thumbnail grids
-- `npm install -g pptxgenjs` - creating from scratch
-- LibreOffice (`soffice`) - PDF conversion (auto-configured for sandboxed environments via `scripts/office/soffice.py`)
-- Poppler (`pdftoppm`) - PDF to images
+```bash
+pip install "markitdown[pptx]" defusedxml
+npm install -g pptxgenjs          # optional
+# System: install LibreOffice and Poppler for visual QA
+```

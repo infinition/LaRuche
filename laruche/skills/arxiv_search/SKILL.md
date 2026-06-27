@@ -1,14 +1,14 @@
 ---
 type: skill
 name: arxiv-search
-description: Recherche de papiers sur arxiv.org via des requêtes structurées
-tools: [web_deep_search, web_fetch]
-scripts: [scripts/search_arxiv.py]
+description: "arXiv + Semantic Scholar: search papers, citations, BibTeX via curl."
+tools: [shell_exec, read_extract]
+scripts: []
 ---
 
 # arXiv Research
 
-Search and retrieve academic papers from arXiv via their free REST API. No API key, no dependencies — just curl.
+Search and retrieve academic papers from arXiv via their free REST API. No API key, no dependencies — just curl and Python stdlib.
 
 ## Quick Reference
 
@@ -16,20 +16,14 @@ Search and retrieve academic papers from arXiv via their free REST API. No API k
 |--------|---------|
 | Search papers | `curl "https://export.arxiv.org/api/query?search_query=all:QUERY&max_results=5"` |
 | Get specific paper | `curl "https://export.arxiv.org/api/query?id_list=2402.03300"` |
-| Read abstract (web) | `web_extract(urls=["https://arxiv.org/abs/2402.03300"])` |
-| Read full paper (PDF) | `web_extract(urls=["https://arxiv.org/pdf/2402.03300"])` |
+| Read abstract | `read_extract(urls=["https://arxiv.org/abs/2402.03300"])` |
+| Read full paper (PDF) | `read_extract(urls=["https://arxiv.org/pdf/2402.03300"])` |
 
 ## Searching Papers
 
-The API returns Atom XML. Parse with `grep`/`sed` or pipe through `python3` for clean output.
+The API returns Atom XML. Parse with python3 for clean output.
 
-### Basic search
-
-```bash
-curl -s "https://export.arxiv.org/api/query?search_query=all:GRPO+reinforcement+learning&max_results=5"
-```
-
-### Clean output (parse XML to readable format)
+### Clean search output
 
 ```bash
 curl -s "https://export.arxiv.org/api/query?search_query=all:GRPO+reinforcement+learning&max_results=5&sortBy=submittedDate&sortOrder=descending" | python3 -c "
@@ -66,20 +60,11 @@ for i, entry in enumerate(root.findall('a:entry', ns)):
 ### Boolean operators
 
 ```
-# AND (default when using +)
-search_query=all:transformer+attention
-
-# OR
-search_query=all:GPT+OR+all:BERT
-
-# AND NOT
-search_query=all:language+model+ANDNOT+all:vision
-
-# Exact phrase
-search_query=ti:"chain+of+thought"
-
-# Combined
-search_query=au:hinton+AND+cat:cs.LG
+all:transformer+attention              # AND (default, use +)
+all:GPT+OR+all:BERT                   # OR
+all:language+model+ANDNOT+all:vision  # AND NOT
+ti:"chain+of+thought"                 # Exact phrase
+au:hinton+AND+cat:cs.LG               # Combined
 ```
 
 ## Sort and Pagination
@@ -99,7 +84,7 @@ curl -s "https://export.arxiv.org/api/query?search_query=cat:cs.AI&sortBy=submit
 ## Fetching Specific Papers
 
 ```bash
-# By arXiv ID
+# Single paper by arXiv ID
 curl -s "https://export.arxiv.org/api/query?id_list=2402.03300"
 
 # Multiple papers
@@ -108,9 +93,6 @@ curl -s "https://export.arxiv.org/api/query?id_list=2402.03300,2401.12345,2403.0
 
 ## BibTeX Generation
 
-After fetching metadata for a paper, generate a BibTeX entry:
-
-{% raw %}
 ```bash
 curl -s "https://export.arxiv.org/api/query?id_list=1706.03762" | python3 -c "
 import sys, xml.etree.ElementTree as ET
@@ -136,18 +118,18 @@ print(f'  url       = {{https://arxiv.org/abs/{raw_id}}}')
 print('}')
 "
 ```
-{% endraw %}
 
 ## Reading Paper Content
 
-After finding a paper, read it:
-
 ```
-# Abstract page (fast, metadata + abstract)
-web_extract(urls=["https://arxiv.org/abs/2402.03300"])
+# Abstract page (fast — metadata + abstract)
+read_extract(urls=["https://arxiv.org/abs/2402.03300"])
 
-# Full paper (PDF → markdown via Firecrawl)
-web_extract(urls=["https://arxiv.org/pdf/2402.03300"])
+# Full paper (PDF → text)
+read_extract(urls=["https://arxiv.org/pdf/2402.03300"])
+
+# HTML version (when available, cleaner than PDF)
+read_extract(urls=["https://arxiv.org/html/2402.03300"])
 ```
 
 For local PDF processing, see the `ocr-and-documents` skill.
@@ -167,56 +149,37 @@ For local PDF processing, see the `ocr-and-documents` skill.
 
 Full list: https://arxiv.org/category_taxonomy
 
-## Helper Script
-
-The `scripts/search_arxiv.py` script handles XML parsing and provides clean output:
-
-```bash
-python scripts/search_arxiv.py "GRPO reinforcement learning"
-python scripts/search_arxiv.py "transformer attention" --max 10 --sort date
-python scripts/search_arxiv.py --author "Yann LeCun" --max 5
-python scripts/search_arxiv.py --category cs.AI --sort date
-python scripts/search_arxiv.py --id 2402.03300
-python scripts/search_arxiv.py --id 2402.03300,2401.12345
-```
-
-No dependencies — uses only Python stdlib.
-
 ---
 
 ## Semantic Scholar (Citations, Related Papers, Author Profiles)
 
-arXiv doesn't provide citation data or recommendations. Use the **Semantic Scholar API** for that — free, no key needed for basic use (1 req/sec), returns JSON.
+arXiv has no citation data. Use the **Semantic Scholar API** — free, no key needed (1 req/sec), returns JSON.
 
-### Get paper details + citations
+### Paper details + citation counts
 
 ```bash
-# By arXiv ID
 curl -s "https://api.semanticscholar.org/graph/v1/paper/arXiv:2402.03300?fields=title,authors,citationCount,referenceCount,influentialCitationCount,year,abstract" | python3 -m json.tool
-
-# By Semantic Scholar paper ID or DOI
-curl -s "https://api.semanticscholar.org/graph/v1/paper/DOI:10.1234/example?fields=title,citationCount"
 ```
 
-### Get citations OF a paper (who cited it)
+### Who cited this paper
 
 ```bash
 curl -s "https://api.semanticscholar.org/graph/v1/paper/arXiv:2402.03300/citations?fields=title,authors,year,citationCount&limit=10" | python3 -m json.tool
 ```
 
-### Get references FROM a paper (what it cites)
+### What this paper cites
 
 ```bash
 curl -s "https://api.semanticscholar.org/graph/v1/paper/arXiv:2402.03300/references?fields=title,authors,year,citationCount&limit=10" | python3 -m json.tool
 ```
 
-### Search papers (alternative to arXiv search, returns JSON)
+### Search (JSON alternative to arXiv search)
 
 ```bash
 curl -s "https://api.semanticscholar.org/graph/v1/paper/search?query=GRPO+reinforcement+learning&limit=5&fields=title,authors,year,citationCount,externalIds" | python3 -m json.tool
 ```
 
-### Get paper recommendations
+### Paper recommendations
 
 ```bash
 curl -s -X POST "https://api.semanticscholar.org/recommendations/v1/papers/" \
@@ -230,48 +193,32 @@ curl -s -X POST "https://api.semanticscholar.org/recommendations/v1/papers/" \
 curl -s "https://api.semanticscholar.org/graph/v1/author/search?query=Yann+LeCun&fields=name,hIndex,citationCount,paperCount" | python3 -m json.tool
 ```
 
-### Useful Semantic Scholar fields
-
-`title`, `authors`, `year`, `abstract`, `citationCount`, `referenceCount`, `influentialCitationCount`, `isOpenAccess`, `openAccessPdf`, `fieldsOfStudy`, `publicationVenue`, `externalIds` (contains arXiv ID, DOI, etc.)
+**Useful fields:** `title`, `authors`, `year`, `abstract`, `citationCount`, `referenceCount`, `influentialCitationCount`, `isOpenAccess`, `openAccessPdf`, `fieldsOfStudy`, `publicationVenue`, `externalIds` (contains arXiv ID, DOI)
 
 ---
 
 ## Complete Research Workflow
 
-1. **Discover**: `python scripts/search_arxiv.py "your topic" --sort date --max 10`
-2. **Assess impact**: `curl -s "https://api.semanticscholar.org/graph/v1/paper/arXiv:ID?fields=citationCount,influentialCitationCount"`
-3. **Read abstract**: `web_extract(urls=["https://arxiv.org/abs/ID"])`
-4. **Read full paper**: `web_extract(urls=["https://arxiv.org/pdf/ID"])`
-5. **Find related work**: `curl -s "https://api.semanticscholar.org/graph/v1/paper/arXiv:ID/references?fields=title,citationCount&limit=20"`
+1. **Discover**: search via arXiv API (curl + python3 parser above)
+2. **Assess impact**: `curl .../paper/arXiv:ID?fields=citationCount,influentialCitationCount`
+3. **Read abstract**: `read_extract(urls=["https://arxiv.org/abs/ID"])`
+4. **Read full paper**: `read_extract(urls=["https://arxiv.org/pdf/ID"])`
+5. **Find related work**: `curl .../paper/arXiv:ID/references?fields=title,citationCount&limit=20`
 6. **Get recommendations**: POST to Semantic Scholar recommendations endpoint
-7. **Track authors**: `curl -s "https://api.semanticscholar.org/graph/v1/author/search?query=NAME"`
+7. **Track authors**: `curl .../author/search?query=NAME`
 
 ## Rate Limits
 
 | API | Rate | Auth |
 |-----|------|------|
 | arXiv | ~1 req / 3 seconds | None needed |
-| Semantic Scholar | 1 req / second | None (100/sec with API key) |
+| Semantic Scholar | 1 req / second | None (100/sec with free API key — sign up at semanticscholar.org/product/api, then pass `-H "x-api-key: ${SEMANTIC_SCHOLAR_API_KEY}"`) |
 
-## Notes
+## Pitfalls
 
-- arXiv returns Atom XML — use the helper script or parsing snippet for clean output
-- Semantic Scholar returns JSON — pipe through `python3 -m json.tool` for readability
-- arXiv IDs: old format (`hep-th/0601001`) vs new (`2402.03300`)
-- PDF: `https://arxiv.org/pdf/{id}` — Abstract: `https://arxiv.org/abs/{id}`
-- HTML (when available): `https://arxiv.org/html/{id}`
-- For local PDF processing, see the `ocr-and-documents` skill
-
-## ID Versioning
-
-- `arxiv.org/abs/1706.03762` always resolves to the **latest** version
-- `arxiv.org/abs/1706.03762v1` points to a **specific** immutable version
-- When generating citations, preserve the version suffix you actually read to prevent citation drift (a later version may substantially change content)
+- arXiv returns **Atom XML** — pipe through the python3 snippet above; raw XML is unreadable
+- Semantic Scholar returns **JSON** — pipe through `python3 -m json.tool`
+- arXiv IDs: old format (`hep-th/0601001`) vs new (`2402.03300`) — both work in `id_list`
+- `arxiv.org/abs/1706.03762` → latest version; `arxiv.org/abs/1706.03762v1` → immutable version. **Preserve the version suffix in citations** to prevent citation drift
 - The API `<id>` field returns the versioned URL (e.g., `http://arxiv.org/abs/1706.03762v7`)
-
-## Withdrawn Papers
-
-Papers can be withdrawn after submission. When this happens:
-- The `<summary>` field contains a withdrawal notice (look for "withdrawn" or "retracted")
-- Metadata fields may be incomplete
-- Always check the summary before treating a result as a valid paper
+- **Withdrawn papers**: `<summary>` will contain "withdrawn" or "retracted" — check before treating as valid

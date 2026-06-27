@@ -1,24 +1,78 @@
 ---
 type: skill
 name: deep_tech_research
-description: Mener une recherche approfondie et synthétisée sur les tendances futures d'un domaine technologique (IA, ML, Quantique, etc.) en utilisant des sources d'autorité.
-tools: [web_deep_search, web_fetch]
+description: Deep-dive tech trend research: search, extract, synthesize, cite.
+tools: [web_search, web_deep_search, web_fetch, read_extract, memory_write]
 ---
 
-# Processus de Recherche de Tendances Technologiques Profondes
+# Deep Tech Research
 
-Ce skill est conçu pour mener une analyse exhaustive et synthétisée sur l'évolution future d'un domaine technologique (IA, ML, Quantique, etc.).
+## Purpose
+Produce a structured, cited analysis of future trends in a given tech domain.
+Input: a domain or question (e.g. "AI agents 2026", "quantum computing roadmap").
 
-## 🔬 Étapes de la Recherche
-1.  **Identification des Sources (web_deep_search):** Utiliser `web_deep_search` avec des requêtes ciblées (ex: "tendances IA 2026", "avenir ML"). L'objectif est d'identifier des articles de haute autorité (Microsoft, IBM, Gartner, etc.).
-2.  **Extraction du Contenu (web_fetch):** Pour les sources jugées les plus pertinentes, utiliser `web_fetch` avec l'argument `render: true` pour garantir l'extraction du contenu principal, en ignorant les éléments de navigation ou les bannières.
-3.  **Analyse et Synthèse:** Examiner les résultats pour identifier les thèmes récurrents (ex: collaboration homme-IA, avancées d'infrastructure, éthique).
-4.  **Rapport Final:** Synthétiser les informations en un rapport structuré, en distinguant les tendances majeures et les preuves tirées des sources.
+## Steps
 
-## ⚠️ Pièges à éviter
-*   Ne pas se fier uniquement aux snippets : toujours utiliser `web_fetch` pour obtenir le contexte complet.
-*   Éviter les sources trop commerciales ou promotionnelles ; privilégier les rapports de recherche ou les analyses de grands acteurs.
+### 1. Source Discovery
+Run 3–5 targeted queries via `web_search`. If results are thin, escalate to `web_deep_search`.
 
-## 🛠️ Outils utilisés
-*   web_deep_search
-*   web_fetch
+Target high-authority sources: research labs, analyst firms (Gartner, McKinsey, IDC), major tech vendors, peer-reviewed outlets, government roadmaps.
+
+Example queries for "AI agents":
+- `"AI agents trends 2026 site:gartner.com OR site:mckinsey.com"`
+- `"agentic AI roadmap 2025 2026 forecast"`
+- `"multi-agent systems research 2026"`
+
+Collect 6–10 candidate URLs. Drop product landing pages, press releases, and articles with no data or forecasts.
+
+### 2. Content Extraction
+For the 4–6 most relevant URLs, extract full content — never rely on snippets:
+
+```
+read_extract(url)          # preferred: clean article text, strips nav/ads
+web_fetch(url, render=true) # fallback for JS-rendered pages
+```
+
+Use `read_extract` first; fall back to `web_fetch(render=true)` if the page is JavaScript-heavy or `read_extract` returns truncated content.
+
+### 3. Analysis
+Scan extracted content for:
+- **Recurring themes** across sources (convergence = higher confidence)
+- **Concrete timelines and forecasts** with named sources
+- **Conflicting claims** — note disagreements explicitly and flag which sources disagree
+- **Forecasts older than 18 months** — mark as potentially stale
+
+### 4. Persist Key Findings (optional)
+If the research will be referenced later, store a summary:
+
+```
+memory_write(key="research/<domain>/<YYYY-MM>", value="<summary + source list>")
+```
+
+### 5. Final Report
+Output structure:
+
+```markdown
+## [Domain] — Future Trends Report
+
+### Key Trends
+1. [Trend] — [Evidence] — Source: [Title](URL)
+2. ...
+
+### Emerging Risks / Open Questions
+- ...
+
+### Conflicting Views
+- [Claim A] (Source X) vs [Claim B] (Source Y) — unresolved
+
+### Sources
+| Title | URL | Authority | Date |
+|-------|-----|-----------|------|
+| ...   | ... | high/med  | ...  |
+```
+
+## Failure Handling
+- **No results from `web_search`**: switch to `web_deep_search` with broader or alternate phrasing.
+- **`read_extract` returns empty**: fall back to `web_fetch(render=true)`.
+- **Paywall / access denied**: skip that source, note it in the report, find an alternate.
+- **All sources are older than 18 months**: flag the report as potentially stale; recommend re-running in 3 months.
