@@ -90,6 +90,54 @@ impl WatchersRegistry {
         }
     }
 
+    /// Met à jour les champs ÉDITABLES d'un watcher (id/run_count/created_at/last_state
+    /// préservés). Un argument `None` = champ inchangé ; pour model/profile_id, `Some(None)`
+    /// efface la valeur.
+    #[allow(clippy::too_many_arguments)]
+    pub fn update(
+        &mut self,
+        id: &Uuid,
+        name: Option<String>,
+        watcher_type: Option<WatcherType>,
+        target: Option<String>,
+        condition: Option<String>,
+        prompt: Option<String>,
+        active: Option<bool>,
+        model: Option<Option<String>>,
+        profile_id: Option<Option<String>>,
+    ) -> bool {
+        if let Some(w) = self.watchers.get_mut(id) {
+            if let Some(v) = name {
+                w.name = v;
+            }
+            if let Some(v) = watcher_type {
+                w.watcher_type = v;
+            }
+            if let Some(v) = target {
+                w.target = v;
+            }
+            if let Some(v) = condition {
+                w.condition = v;
+            }
+            if let Some(v) = prompt {
+                w.prompt = v;
+            }
+            if let Some(v) = active {
+                w.active = v;
+            }
+            if let Some(v) = model {
+                w.model = v;
+            }
+            if let Some(v) = profile_id {
+                w.profile_id = v;
+            }
+            let _ = self.save();
+            true
+        } else {
+            false
+        }
+    }
+
     pub async fn check_triggered_watchers(&mut self) -> Vec<(Uuid, String, String)> {
         let mut triggered = Vec::new();
         let mut needs_save = false;

@@ -4718,6 +4718,47 @@ async fn api_create_watcher(
     StatusCode::CREATED
 }
 
+/// PATCH /api/watchers/:id — met à jour les champs éditables d'un watcher. Clé absente =
+/// champ inchangé ; model/profile_id à "" = effacé.
+async fn api_update_watcher(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    axum::extract::Json(body): axum::extract::Json<serde_json::Value>,
+) -> StatusCode {
+    let uuid = match Uuid::parse_str(&id) {
+        Ok(u) => u,
+        Err(_) => return StatusCode::BAD_REQUEST,
+    };
+    let watcher_type = body.get("watcher_type").and_then(|v| v.as_str()).map(|s| match s {
+        "url" => laruche_watchers::WatcherType::Url,
+        "log" => laruche_watchers::WatcherType::Log,
+        _ => laruche_watchers::WatcherType::File,
+    });
+    let s = |k: &str| body.get(k).and_then(|v| v.as_str()).map(|v| v.to_string());
+    // Présence de la clé → mise à jour (valeur vide = effacement pour model/profile_id).
+    let opt = |k: &str| {
+        body.get(k)
+            .map(|v| v.as_str().filter(|x| !x.is_empty()).map(|x| x.to_string()))
+    };
+    let mut registry = state.watchers.write().await;
+    let ok = registry.update(
+        &uuid,
+        s("name"),
+        watcher_type,
+        s("target"),
+        s("condition"),
+        s("prompt"),
+        body.get("active").and_then(|v| v.as_bool()),
+        opt("model"),
+        opt("profile_id"),
+    );
+    if ok {
+        StatusCode::OK
+    } else {
+        StatusCode::NOT_FOUND
+    }
+}
+
 /// DELETE /api/watchers/:id — remove a watcher.
 async fn api_delete_watcher(
     State(state): State<Arc<AppState>>,
@@ -9382,7 +9423,7 @@ async fn main() -> Result<()> {
         )
         .route(
             "/api/watchers/:id",
-            axum::routing::delete(api_delete_watcher),
+            axum::routing::patch(api_update_watcher).delete(api_delete_watcher),
         )
         .route("/api/kanban", get(api_kanban_list).post(api_kanban_create))
         .route(
