@@ -3272,6 +3272,7 @@ LaRuche.WS = (function(){
 /* ── Chat Module ──────────────────────────────────────────────── */
 LaRuche.Chat = (function(){
   var sessionId = null;
+  var runningSession = null; // session dont le run tourne sur la socket PRINCIPALE (pas via attachWs)
   var unreadSessions = {}; // conversations (autres que l'active) avec du NOUVEAU terminé → pastille
   var currentAssistantMsg = null;
   var currentAssistantRow = null;
@@ -3354,7 +3355,12 @@ LaRuche.Chat = (function(){
       return;
     }
     switch(data.type) {
-      case 'session': sessionId = data.session_id; loadSessions(); refreshSessionsPage(); break;
+      case 'session':
+        // La socket principale confirme la session de SON run. On ne change la vue que si
+        // aucune n'est ouverte (nouvelle conv) ; sinon on garde celle que l'utilisateur regarde.
+        if(!sessionId) sessionId = data.session_id;
+        runningSession = data.session_id;
+        loadSessions(); refreshSessionsPage(); break;
       case 'token':
         clearResponseTimeout();
         if(!currentAssistantMsg) {
@@ -3641,6 +3647,9 @@ LaRuche.Chat = (function(){
     pendingMedia=[];
     staleRecoveryActive=false;
     lastSteerText='';
+    // La socket principale va streamer CE run : on ferme tout réabonnement attachWs résiduel
+    // (sinon double rendu des tokens : « VoiciVoici les les »).
+    if(LaRuche.WS && LaRuche.WS.detach) LaRuche.WS.detach();
     var payload = {type:'message', text:fullMsg};
     if(sessionId) payload.session_id = sessionId;
     var model = LaRuche.Header.getModel();
@@ -4634,9 +4643,9 @@ LaRuche.Chat = (function(){
       if(scrollTerm){ scrollToMessageTerm(scrollTerm); } else { scrollToBottom(); }
     }).catch(function(){});
     loadSessions(); closeSidebarMobile();
-    // P8 — re-attach au flux live si la session est encore en cours (le serveur
-    // ne renvoie des tokens que si un run est actif ; sinon la socket se referme).
-    if(LaRuche.WS && LaRuche.WS.reattach) LaRuche.WS.reattach(id);
+    // Re-attach au flux live SEULEMENT si la session n'est pas déjà streamée par la socket
+    // principale (sinon double abonnement -> chaque token rendu 2x : « VoiciVoici les les »).
+    if(id !== runningSession && LaRuche.WS && LaRuche.WS.reattach) LaRuche.WS.reattach(id);
   }
 
   function deleteSession(id) {
