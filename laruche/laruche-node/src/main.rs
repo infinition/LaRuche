@@ -7938,9 +7938,10 @@ async fn ws_chat_connection(
             );
 
             // CURATEUR (moteur butinage) : auto-création/patch de skills & tools VÉRIFIÉS,
-            // en ARRIÈRE-PLAN (ne bloque pas la session). Best-effort. Désactivable RUCHE_CURATEUR=0.
+            // en ARRIÈRE-PLAN. OPT-IN (désactivé par défaut) pour ne pas polluer la bibliothèque :
+            // activer avec RUCHE_CURATEUR=1. Conservateur (la plupart des missions => rien).
             if std::env::var("RUCHE_MOTEUR").as_deref() == Ok("butinage")
-                && std::env::var("RUCHE_CURATEUR").as_deref() != Ok("0")
+                && std::env::var("RUCHE_CURATEUR").as_deref() == Ok("1")
                 && session.messages.len() >= 6
             {
                 let msgs = session.messages.clone();

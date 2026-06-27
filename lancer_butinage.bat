@@ -13,6 +13,10 @@ set "RUCHE_MOTEUR=butinage"
 REM --- Backend memoire : native | sqlite | sidecar ---
 set "LARUCHE_MEMOIRE_BACKEND=sqlite"
 
+REM --- CURATEUR (auto-creation de skills/tools, OPT-IN, conservateur) ---
+REM   Decommente pour l'activer (sinon desactive : ne cree rien) :
+REM set "RUCHE_CURATEUR=1"
+
 REM --- RECHERCHE WEB : decommente UNE ligne pour une vraie API (gros boost qualite) ---
 REM   Tavily (pense pour les agents, free 1000/mois) : https://tavily.com
 REM set "LARUCHE_TAVILY_KEY=tvly-xxxxxxxxxxxxxxxx"
