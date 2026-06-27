@@ -65,10 +65,10 @@ async fn skill_created_then_read_from_cognitive_memory() {
     let listed = list_skills(&mem, Some(10)).await.unwrap();
     assert!(serde_json::to_string(&listed)
         .unwrap()
-        .contains("tools.skills.edition_rust_sure"));
+        .contains("capacities.skills.edition_rust_sure"));
 
     assert!(mem
-        .read_node("tools.skills.edition_rust_sure")
+        .read_node("capacities.skills.edition_rust_sure")
         .await
         .unwrap()["items"]
         .as_array()

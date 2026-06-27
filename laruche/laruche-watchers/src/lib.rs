@@ -283,6 +283,8 @@ mod tests {
             last_run: None,
             run_count: 0,
             last_state: None,
+            model: None,
+            profile_id: None,
         };
 
         // First run initializes state without triggering
