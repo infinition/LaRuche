@@ -1,3 +1,284 @@
+LaRuche.i18n.add({
+  'settings.loading':            {fr:'Chargement...',    en:'Loading...'},
+  'settings.generationTitle':    {fr:'Génération (à chaud, sans redémarrage)', en:'Generation (hot reload, no restart)'},
+  'settings.maxPassesTitle':     {fr:'Passes ReAct max par tâche (anti-runaway)', en:'Max ReAct passes per task (anti-runaway)'},
+  'settings.temperature':        {fr:'Température',      en:'Temperature'},
+  'settings.maxTokensOut':       {fr:'Max tokens (sortie)', en:'Max tokens (output)'},
+  'settings.dynToolsLimit':      {fr:'Nb d\'outils injectés en sélection dynamique', en:'Number of tools injected in dynamic selection'},
+  'settings.dynToolsLimitLabel': {fr:'Limite outils dyn.', en:'Dyn. tools limit'},
+  'settings.narrowCtxThreshold': {fr:'Sous ce n_ctx, outils ET catalogue de skills passent en sélection dynamique (DB sémantique)', en:'Below this n_ctx, tools AND skill catalog switch to dynamic selection (semantic DB)'},
+  'settings.narrowCtxLabel':     {fr:'Seuil contexte étroit', en:'Narrow context threshold'},
+  'settings.apply':              {fr:'Appliquer',        en:'Apply'},
+  'settings.contextCompaction':  {fr:'Contexte & compaction', en:'Context & compaction'},
+  'settings.maxMessages':        {fr:'Max Messages',     en:'Max Messages'},
+  'settings.compactionThreshold':{fr:'Seuil Compaction', en:'Compaction Threshold'},
+  'settings.save':               {fr:'Sauvegarder',      en:'Save'},
+  'settings.curateur':           {fr:'Curateur · Butinage', en:'Curateur · Butinage'},
+  'settings.autoSkillCreate':    {fr:'Auto-création de skills/outils vérifiés', en:'Auto-creation of verified skills/tools'},
+  'settings.dynToolsSelect':     {fr:'Sélection dynamique des outils ', en:'Dynamic tool selection '},
+  'settings.dynToolsHint':       {fr:'(prompt léger — recommandé pour petits modèles / llama.cpp)', en:'(light prompt — recommended for small models / llama.cpp)'},
+  'settings.curEnvForced':       {fr:'Forcé par RUCHE_CURATEUR=1 (variable d\'env).', en:'Forced by RUCHE_CURATEUR=1 (env variable).'},
+  'settings.curDefault':         {fr:'En arrière-plan, conservateur (dédup auto). Off = ne crée rien.', en:'Background, conservative (auto-dedup). Off = creates nothing.'},
+  'settings.system':             {fr:'System',           en:'System'},
+  'settings.showTransparency':   {fr:'Afficher la transparence (outils/mémoire)', en:'Show transparency (tools/memory)'},
+  'settings.codexLoading':       {fr:'Chargement…',     en:'Loading…'},
+  'settings.codexConnected':     {fr:'✓ Connecté',      en:'✓ Connected'},
+  'settings.codexExpiring':      {fr:'Token expiré — refresh auto au prochain appel.', en:'Token expired — auto-refresh on next call.'},
+  'settings.codexDisconnect':    {fr:'Déconnecter',     en:'Disconnect'},
+  'settings.codexConnectInstr':  {fr:'Pour vous connecter :', en:'To connect:'},
+  'settings.codexStep1':         {fr:'Ouvrez', en:'Open'},
+  'settings.codexStep2':         {fr:'Entrez ce code :', en:'Enter this code:'},
+  'settings.codexWaiting':       {fr:'⏳ En attente de validation…', en:'⏳ Waiting for validation…'},
+  'settings.codexError':         {fr:'Échec : ', en:'Failed: '},
+  'settings.codexRetry':         {fr:'Réessayer', en:'Retry'},
+  'settings.codexUseSubscription': {fr:'Utilisez votre abonnement ChatGPT (Plus/Pro) au lieu d\'une clé API.', en:'Use your ChatGPT subscription (Plus/Pro) instead of an API key.'},
+  'settings.codexSignIn':        {fr:'Se connecter avec ChatGPT', en:'Sign in with ChatGPT'},
+  'settings.codexInit':          {fr:'Initialisation…', en:'Initializing…'},
+  'settings.codexNetwork':       {fr:'réseau',           en:'network'},
+  'settings.codexLogoutConfirm': {fr:'Déconnecter ChatGPT Codex ?', en:'Disconnect ChatGPT Codex?'},
+  'settings.sharedReadOnly':     {fr:'🐝 partagé par un pair · lecture seule', en:'🐝 shared by a peer · read-only'},
+  'settings.removeFromList':     {fr:'Retirer de ma liste', en:'Remove from my list'},
+  'settings.credPool':           {fr:'Pool de Credentials', en:'Credential Pool'},
+  'settings.deleteCred':         {fr:'Supprimer',        en:'Delete'},
+  'settings.sharedWithMe':       {fr:'🐝 Partagés avec moi (mesh)', en:'🐝 Shared with me (mesh)'},
+  'settings.sharedHint':         {fr:'Modèles exposés par d\'autres ruches. Tu peux les utiliser, mais pas les éditer ni les re-partager.', en:'Models exposed by other nodes. You can use them but not edit or re-share.'},
+  'settings.accessBtn':          {fr:'🔐 Accès',         en:'🔐 Access'},
+  'settings.visPrivate':         {fr:'🔒 Privé',         en:'🔒 Private'},
+  'settings.visRestricted':      {fr:'🐝 Restreint',     en:'🐝 Restricted'},
+  'settings.enableAll':          {fr:'Tout Activer',     en:'Enable All'},
+  'settings.disableAll':         {fr:'Tout Désactiver',  en:'Disable All'},
+  'settings.toolsEmpty':         {fr:'Aucune abeille configurée', en:'No tools configured'},
+  'settings.toolsConfigErr':     {fr:'Erreur configuration Abeilles', en:'Tools configuration error'},
+  'settings.allToolsEnabled':    {fr:'Toutes les abeilles activées', en:'All tools enabled'},
+  'settings.allToolsDisabled':   {fr:'Toutes les abeilles désactivées', en:'All tools disabled'},
+  'settings.toolsErr':           {fr:'Erreur Abeilles: ', en:'Tools error: '},
+  'settings.meshCodeConfigured': {fr:'(configuré)',      en:'(configured)'},
+  'settings.meshCodeUnconfigured':{fr:'(non configuré — auth par IP LAN)', en:'(not configured — auth by LAN IP)'},
+  'settings.meshCodeHint':       {fr:'Secret partagé entre tes ruches (comme un mot de passe WiFi). Mets le <b>même</b> code sur toutes tes ruches : il authentifie les échanges du mesh (fin des « rejected » / flapping) et servira de base au chiffrement.', en:'Shared secret between your nodes (like a WiFi password). Set the <b>same</b> code on all nodes: it authenticates mesh exchanges (no more "rejected" / flapping) and will be used for encryption.'},
+  'settings.meshCodePlaceholderSet':   {fr:'•••• (vide = inchangé)', en:'•••• (empty = unchanged)'},
+  'settings.meshCodePlaceholderNew':   {fr:'choisis un code',        en:'choose a code'},
+  'settings.meshSave':           {fr:'Enregistrer',     en:'Save'},
+  'settings.noNodes':            {fr:'Aucun nœud',      en:'No nodes'},
+  'settings.meshCodeUnchanged':  {fr:'Code inchangé.',  en:'Code unchanged.'},
+  'settings.meshCodeSaved':      {fr:'Code enregistré. Mets le MÊME sur tes autres ruches, puis relance-les.', en:'Code saved. Set the SAME code on your other nodes, then restart them.'},
+  'settings.meshCodeFailed':     {fr:'Échec.',           en:'Failed.'},
+  'settings.noCron':             {fr:'Aucun cron planifié.', en:'No scheduled cron.'},
+  'settings.recenter':           {fr:'Recentrer',        en:'Recenter'},
+  'settings.tlShiftUnsupported': {fr:'Décalage non supporté pour ce planning', en:'Shift not supported for this schedule'},
+  'settings.tlShiftFixed':       {fr:'Décalage : crons à heure fixe uniquement', en:'Shift: fixed-hour crons only'},
+  'settings.tlHourShifted':      {fr:'Heure décalée → ', en:'Hour shifted → '},
+  'settings.tlNoName':           {fr:'(sans nom)',       en:'(unnamed)'},
+  'settings.tlLastRun':          {fr:'Dernier : ',       en:'Last run: '},
+  'settings.tlNever':            {fr:'jamais',           en:'never'},
+  'settings.tlRuns':             {fr:' · Exécutions : ', en:' · Runs: '},
+  'settings.tlChannel':          {fr:' · Canal : ',      en:' · Channel: '},
+  'settings.tlRunNow':           {fr:'Lancer maintenant', en:'Run now'},
+  'settings.tlEdit':             {fr:'Éditer',           en:'Edit'},
+  'settings.tlPause':            {fr:'Mettre en pause',  en:'Pause'},
+  'settings.tlResume':           {fr:'Réactiver',        en:'Resume'},
+  'settings.tlDelete':           {fr:'Supprimer',        en:'Delete'},
+  'settings.tlDeleteConfirm':    {fr:'Supprimer ce cron ?', en:'Delete this cron?'},
+  'settings.tlRunning':          {fr:'Cron lancé',       en:'Cron started'},
+  'settings.tlFailed':           {fr:'Échec',            en:'Failed'},
+  'settings.tlPlanLabel':        {fr:'Planning : ',      en:'Schedule: '},
+  'settings.tlSaveEdit':         {fr:'Enregistrer',      en:'Save'},
+  'settings.tlCancel':           {fr:'Annuler',          en:'Cancel'},
+  'settings.tlSaved':            {fr:'Cron mis à jour',  en:'Cron updated'},
+  'settings.skillsUnavailable':  {fr:'Skills indisponibles : les associations existantes seront conservées.', en:'Skills unavailable: existing associations will be preserved.'},
+  'settings.noSkillsAvailable':  {fr:'Aucun skill disponible. Créez-en dans Settings → Skills.', en:'No skills available. Create some in Settings → Skills.'},
+  'settings.skillsInjected':     {fr:'Skills injectés à ce cron', en:'Skills injected into this cron'},
+  'settings.skillDisabled':      {fr:'(désactivé : non injecté)', en:'(disabled: not injected)'},
+  'settings.defaultModel':       {fr:'Default (modele actif)', en:'Default (active model)'},
+  'settings.providerDefault':    {fr:'Défaut du provider', en:'Provider default'},
+  'settings.secretsDesc':        {fr:'Les secrets sont <b>chiffrés au repos</b>. Le LLM ne voit JAMAIS leur valeur — seulement leur nom. Dans une commande, un script ou un champ clé d\'API, référence-les par <code>${NOM}</code> : la vraie valeur est substituée à l\'exécution.', en:'Secrets are <b>encrypted at rest</b>. The LLM NEVER sees their value — only their name. In a command, script, or API key field, reference them as <code>${NAME}</code>: the real value is substituted at runtime.'},
+  'settings.secretsTitle':       {fr:'Secrets', en:'Secrets'},
+  'settings.secretsHint':        {fr:'Ex: API_OPENAI, TOKEN_TELEGRAM, USERID_TELEGRAM…', en:'E.g.: API_OPENAI, TOKEN_TELEGRAM, USERID_TELEGRAM…'},
+  'settings.webhooksTitle':      {fr:'Webhooks', en:'Webhooks'},
+  'settings.webhooksHint':       {fr:'Nomme-les WEBHOOK_… (ex: WEBHOOK_DISCORD). Référence dans un script : ${WEBHOOK_DISCORD}', en:'Name them WEBHOOK_… (e.g.: WEBHOOK_DISCORD). Reference in a script: ${WEBHOOK_DISCORD}'},
+  'settings.addOrUpdate':        {fr:'Ajouter / mettre à jour', en:'Add / update'},
+  'settings.secretNameLabel':    {fr:'Nom (A-Z, 0-9, _)', en:'Name (A-Z, 0-9, _)'},
+  'settings.secretValLabel':     {fr:'Valeur (jamais ré-affichée)', en:'Value (never shown again)'},
+  'settings.secretNamePlaceholder': {fr:'ex: WEBHOOK_DISCORD', en:'e.g.: WEBHOOK_DISCORD'},
+  'settings.secretValPlaceholder':  {fr:'collez la valeur ici', en:'paste value here'},
+  'settings.secretSave':         {fr:'Enregistrer', en:'Save'},
+  'settings.secretDeleteBtn':    {fr:'Suppr', en:'Del'},
+  'settings.secretNone':         {fr:'Aucun.', en:'None.'},
+  'settings.secretNameRequired': {fr:'Nom et valeur requis', en:'Name and value required'},
+  'settings.secretSaved':        {fr:'Secret enregistré', en:'Secret saved'},
+  'settings.secretSaveFailed':   {fr:'Échec (nom invalide ? A-Z/0-9/_ uniquement)', en:'Failed (invalid name? A-Z/0-9/_ only)'},
+  'settings.secretDeleted':      {fr:'Secret supprimé', en:'Secret deleted'},
+  'settings.mcpDesc':            {fr:'Configurez des serveurs MCP locaux. LaRuche les utilisera pour étendre ses capacités via les agents.', en:'Configure local MCP servers. LaRuche will use them to extend its capabilities via agents.'},
+  'settings.mcpArgsLabel':       {fr:'Arguments (séparés par un espace)', en:'Arguments (space-separated)'},
+  'settings.mcpAddBtn':          {fr:'Ajouter le serveur', en:'Add server'},
+  'settings.mcpAdded':           {fr:'Serveur MCP ajouté', en:'MCP server added'},
+  'settings.mcpNone':            {fr:'Aucun serveur configuré.', en:'No servers configured.'},
+  'settings.mcpDeleteConfirm':   {fr:'Supprimer ce serveur MCP ?', en:'Delete this MCP server?'},
+  'settings.mcpDeleted':         {fr:'Serveur MCP supprimé', en:'MCP server deleted'},
+  'settings.mcpDeleteBtn':       {fr:'Suppr', en:'Del'},
+  'settings.parDefault':         {fr:'(Par défaut)',      en:'(Default)'},
+  'settings.notifyLabel':        {fr:'Activer Notifier proactif', en:'Enable proactive notifications'},
+  'settings.notifyHint':         {fr:'Envoi proactif des events (AgentCompleted, WatcherFired) via Telegram (le premier Chat ID configuré est utilisé).', en:'Proactive delivery of events (AgentCompleted, WatcherFired) via Telegram (the first configured Chat ID is used).'},
+  'settings.chAllowedChats':     {fr:'vide = tous',      en:'empty = all'},
+  'settings.chTgLaunch':         {fr:'Lancer: python -m src.telegram', en:'Launch: python -m src.telegram'},
+  'settings.chDcLaunch':         {fr:'Lancer: python -m src.discord_bot', en:'Launch: python -m src.discord_bot'},
+  'settings.chSlLaunch':         {fr:'Lancer: python -m src.slack_bot', en:'Launch: python -m src.slack_bot'},
+  'settings.saveChannels':       {fr:'Sauvegarder',      en:'Save'},
+  'settings.startTelegram':      {fr:'Demarrer Telegram', en:'Start Telegram'},
+  'settings.stopTelegram':       {fr:'Arreter Telegram', en:'Stop Telegram'},
+  'settings.skillsDesc':         {fr:'Connaissances procédurales (OKF). Activées = injectables dans le contexte / attachables aux crons.', en:'Procedural knowledge (OKF). Enabled = injectable in context / attachable to crons.'},
+  'settings.newSkillBtn':        {fr:'+ Nouveau skill',  en:'+ New skill'},
+  'settings.noSkills':           {fr:'Aucun skill. L\'agent peut en créer (memory_write capacities.skills.*) ou clique « + Nouveau skill ».', en:'No skills. The agent can create them (memory_write capacities.skills.*) or click "+ New skill".'},
+  'settings.skillViewEdit':      {fr:'Voir / Éditer',    en:'View / Edit'},
+  'settings.skillDelBtn':        {fr:'Suppr',            en:'Del'},
+  'settings.skillActivated':     {fr:'activé',           en:'enabled'},
+  'settings.skillDeactivated':   {fr:'désactivé',        en:'disabled'},
+  'settings.skillToast':         {fr:'Skill ',           en:'Skill '},
+  'settings.skillToolsHint':     {fr:'Abeilles / plugins de ce skill (→ <code>tools:</code>) ', en:'Tools / plugins for this skill (→ <code>tools:</code>) '},
+  'settings.skillToolsFilter':   {fr:'filtrer…',         en:'filter…'},
+  'settings.skillToolsClear':    {fr:'Vider',            en:'Clear'},
+  'settings.skillToolsLoading':  {fr:'Chargement…',     en:'Loading…'},
+  'settings.skillToolsNone':     {fr:'Aucun résultat.',  en:'No results.'},
+  'settings.skillEditorHint':    {fr:'— SKILL.md (frontmatter validé au save)', en:'— SKILL.md (frontmatter validated on save)'},
+  'settings.skillNewTitle':      {fr:'Nouveau skill',    en:'New skill'},
+  'settings.skillEditPrefix':    {fr:'Éditer : ',        en:'Edit: '},
+  'settings.skillSaveBtn':       {fr:'Enregistrer',      en:'Save'},
+  'settings.skillCancelBtn':     {fr:'Annuler',          en:'Cancel'},
+  'settings.skillSaved':         {fr:' » enregistré',   en:' » saved'},
+  'settings.skillFailed':        {fr:'Échec',            en:'Failed'},
+  'settings.pluginEditTitle':    {fr:'Éditer Plugin : ', en:'Edit Plugin: '},
+  'settings.pluginEditorHint':   {fr:'— JSON (rechargé au save)', en:'— JSON (reloaded on save)'},
+  'settings.pluginSaveBtn':      {fr:'Enregistrer',      en:'Save'},
+  'settings.pluginCancelBtn':    {fr:'Annuler',          en:'Cancel'},
+  'settings.pluginSaved':        {fr:' » enregistré',   en:' » saved'},
+  'settings.pluginFailed':       {fr:'Échec',            en:'Failed'},
+  'settings.pluginDeleted':      {fr:'Plugin supprimé',  en:'Plugin deleted'},
+  'settings.pluginSrcUnavailable': {fr:'Source non disponible', en:'Source unavailable'},
+  'settings.pluginJsonNoEdit':   {fr:'JSON non modifiable ici', en:'JSON not editable here'},
+  'settings.pluginNotFound':     {fr:'Fichier non trouvé', en:'File not found'},
+  'settings.fileNotFound':       {fr:'Watcher introuvable', en:'Watcher not found'},
+  'settings.watcherEditTitle':   {fr:'Éditer le watcher', en:'Edit watcher'},
+  'settings.watcherNomLabel':    {fr:'Nom',              en:'Name'},
+  'settings.watcherTypeLabel':   {fr:'Type',             en:'Type'},
+  'settings.watcherTargetLabel': {fr:'Cible (Path/URL)', en:'Target (Path/URL)'},
+  'settings.watcherCondLabel':   {fr:'Condition',        en:'Condition'},
+  'settings.watcherPromptLabel': {fr:'Prompt',           en:'Prompt'},
+  'settings.watcherProviderLabel':{fr:'Provider',        en:'Provider'},
+  'settings.watcherModelLabel':  {fr:'Modèle',           en:'Model'},
+  'settings.watcherChannelLabel':{fr:'Canal',            en:'Channel'},
+  'settings.watcherActiveLabel': {fr:'Actif',            en:'Active'},
+  'settings.watcherSave':        {fr:'Enregistrer',      en:'Save'},
+  'settings.watcherCancel':      {fr:'Annuler',          en:'Cancel'},
+  'settings.watcherSaved':       {fr:'Watcher modifié',  en:'Watcher updated'},
+  'settings.watcherSaveFailed':  {fr:'Échec modification', en:'Update failed'},
+  'settings.watcherDefaut':      {fr:'Défaut',           en:'Default'},
+  'settings.watcherEditBtn':     {fr:'Éditer',           en:'Edit'},
+  'settings.watcherHomeChannel': {fr:'Home channel (défaut)', en:'Home channel (default)'},
+  'settings.watcherDefChannel':  {fr:'Défaut (modèle actif)', en:'Default (active model)'},
+  'settings.newCredKey':         {fr:'Nouvelle cle API pour ', en:'New API key for '},
+  'settings.newCredLabel':       {fr:'Label optionnel (ex: Compte Dev) :', en:'Optional label (e.g.: Dev Account):'},
+  'settings.credErr':            {fr:'Erreur: ',         en:'Error: '},
+  'settings.visibilityUpdated':  {fr:'Visibilité modifiée avec succès', en:'Visibility updated successfully'},
+  'settings.accessTitle':        {fr:'🔐 Accès mesh du provider', en:'🔐 Provider mesh access'},
+  'settings.accessHint':         {fr:'Qui peut utiliser ce provider/LLM via le mesh ? (la clé API reste toujours locale)', en:'Who can use this provider/LLM via the mesh? (the API key always stays local)'},
+  'settings.accessPrivate':      {fr:'🔒 <b>Privé</b> — moi seulement', en:'🔒 <b>Private</b> — me only'},
+  'settings.accessPublic':       {fr:'🌐 <b>Public</b> — toutes les ruches du mesh', en:'🌐 <b>Public</b> — all mesh nodes'},
+  'settings.accessRestricted':   {fr:'🐝 <b>Restreint</b> — seulement ces ruches :', en:'🐝 <b>Restricted</b> — only these nodes:'},
+  'settings.accessNoPeers':      {fr:'Aucune ruche découverte sur le réseau.', en:'No nodes discovered on the network.'},
+  'settings.accessSave':         {fr:'Enregistrer',      en:'Save'},
+  'settings.accessUpdated':      {fr:'Accès mis à jour', en:'Access updated'},
+  'settings.deleteCredConfirm':  {fr:'Supprimer cette cle du pool ?', en:'Delete this key from the pool?'},
+  'settings.kanbanTitle':        {fr:'Titre de la tâche', en:'Task title'},
+  'settings.kanbanTitlePlaceholder': {fr:'Nouvelle tâche...', en:'New task...'},
+  'settings.kanbanDesc':         {fr:'Description',      en:'Description'},
+  'settings.kanbanDescPlaceholder': {fr:'Détails...',   en:'Details...'},
+  'settings.kanbanModel':        {fr:'Modèle',           en:'Model'},
+  'settings.kanbanChannel':      {fr:'Canal',            en:'Channel'},
+  'settings.kanbanBoardChannel': {fr:'Défaut du board',  en:'Board default'},
+  'settings.kanbanBoardChannelNone': {fr:'Aucun (→ home channel)', en:'None (→ home channel)'},
+  'settings.kanbanCreate':       {fr:'Créer',            en:'Create'},
+  'settings.kanbanDefaultChannelLabel': {fr:'Canal par défaut du board', en:'Board default channel'},
+  'settings.kanbanDefaultUpdated': {fr:'Canal par défaut du board mis à jour', en:'Board default channel updated'},
+  'settings.kanbanTaskCreated':  {fr:'Tâche créée',      en:'Task created'},
+  'settings.kanbanEditTitle':    {fr:'Éditer la tâche',  en:'Edit task'},
+  'settings.kanbanEditTitleLabel': {fr:'Titre',          en:'Title'},
+  'settings.kanbanEditDescLabel':  {fr:'Description',    en:'Description'},
+  'settings.kanbanEditProviderLabel': {fr:'Provider',    en:'Provider'},
+  'settings.kanbanEditModelLabel': {fr:'Modèle',         en:'Model'},
+  'settings.kanbanEditChannelLabel': {fr:'Canal',        en:'Channel'},
+  'settings.kanbanEditSave':     {fr:'Enregistrer',      en:'Save'},
+  'settings.kanbanEditCancel':   {fr:'Annuler',          en:'Cancel'},
+  'settings.kanbanTaskUpdated':  {fr:'Tâche modifiée',   en:'Task updated'},
+  'settings.kanbanEditBtn':      {fr:'Éditer',           en:'Edit'},
+  'settings.kanbanDelBtn':       {fr:'Suppr',            en:'Del'},
+  'settings.kanbanResultLabel':  {fr:'Résultat',         en:'Result'},
+  'settings.kanbanCols':         {fr:'Colonnes',         en:'Columns'},
+  'settings.kanbanHorizontal':   {fr:'Horizontal',       en:'Horizontal'},
+  'settings.kanbanDefProvider':  {fr:'Défaut (modèle actif)', en:'Default (active model)'},
+  'settings.kanbanParDefault':   {fr:'(Par défaut)',     en:'(Default)'},
+  'settings.deleteProfile':      {fr:'Delete provider profile "', en:'Delete provider profile "'},
+  'settings.profileDeleted':     {fr:'Profile deleted',  en:'Profile deleted'},
+  'settings.cronSaved':          {fr:'Cron mis  jour',   en:'Cron updated'},
+  'settings.cronDeleteConfirm':  {fr:'Supprimer ce cron ?', en:'Delete this cron?'},
+  'settings.cronDeleteFailed':   {fr:'Suppression impossible', en:'Deletion failed'},
+  'settings.cronDeleted':        {fr:'Cron supprimé',    en:'Cron deleted'},
+  'settings.contextSaved':       {fr:'Configuration Contexte sauvegardée', en:'Context configuration saved'},
+  'settings.contextSaveFailed':  {fr:'Erreur de sauvegarde', en:'Save error'},
+  'settings.generationApplied':  {fr:'Génération appliquée (à chaud)', en:'Generation applied (hot reload)'},
+  'settings.errorGeneric':       {fr:'Erreur',           en:'Error'},
+  'settings.curateEnabled':      {fr:'activé',           en:'enabled'},
+  'settings.curateDisabled':     {fr:'désactivé',        en:'disabled'},
+  'settings.curateFailed':       {fr:'Échec curateur',   en:'Curateur failed'},
+  'settings.dynToolsEnabled':    {fr:'activée',          en:'enabled'},
+  'settings.dynToolsDisabled':   {fr:'désactivée',       en:'disabled'},
+  'settings.dynToolsSaved':      {fr:'Sélection dynamique des outils ', en:'Dynamic tool selection '},
+  'settings.dynToolsFailed':     {fr:'Échec',            en:'Failed'},
+  'settings.kbAddLabel':         {fr:'Ajouter une connaissance', en:'Add knowledge'},
+  'settings.kbAddPlaceholder':   {fr:'Information a memoriser...', en:'Information to memorize...'},
+  'settings.kbSourceLabel':      {fr:'Source',           en:'Source'},
+  'settings.kbExportBtn':        {fr:'Export OKF',       en:'Export OKF'},
+  'settings.kbImportBtn':        {fr:'Import OKF',       en:'Import OKF'},
+  'settings.kbAdded':            {fr:'Connaissance ajoutee (', en:'Knowledge added ('},
+  'settings.kbExportLaunched':   {fr:'Telechargement OKF lance (tout)', en:'OKF download started (all)'},
+  'settings.kbImported':         {fr:'OKF importe avec succes', en:'OKF imported successfully'},
+  'settings.kbEditBtn':          {fr:'Editer',           en:'Edit'},
+  'settings.kbDelBtn':           {fr:'Suppr',            en:'Del'},
+  'settings.kbEmpty':            {fr:'Base vide. L\'agent peut ajouter des connaissances via l\'outil knowledge_add, ou ajoutez-en manuellement ci-dessus.', en:'Empty base. The agent can add knowledge via the knowledge_add tool, or add it manually above.'},
+  'settings.kbUpdated':          {fr:'Mis a jour',       en:'Updated'},
+  'settings.kbDeleted':          {fr:'Supprime',         en:'Deleted'},
+  'settings.channelStarted':     {fr:' demarre !',       en:' started!'},
+  'settings.channelAlreadyRunning': {fr:' deja en marche', en:' already running'},
+  'settings.channelStopped':     {fr:' arrete',          en:' stopped'},
+  'settings.blueprintsHint':     {fr:'Sélectionnez un blueprint pour l\'instancier en tant que tâche cron.', en:'Select a blueprint to instantiate it as a cron task.'},
+  'settings.newBlueprintBtn':    {fr:'+ Nouveau blueprint', en:'+ New blueprint'},
+  'settings.bpNone':             {fr:'Aucun blueprint disponible', en:'No blueprints available'},
+  'settings.bpDeleteBtn':        {fr:'Supprimer',        en:'Delete'},
+  'settings.bpInstanciateBtn':   {fr:'Instancier',       en:'Instantiate'},
+  'settings.bpNewTitle':         {fr:'Nouveau blueprint', en:'New blueprint'},
+  'settings.bpTitleLabel':       {fr:'Titre',            en:'Title'},
+  'settings.bpPromptLabel':      {fr:'Prompt (template)', en:'Prompt (template)'},
+  'settings.bpScheduleLabel':    {fr:'Cadence (cron)',   en:'Schedule (cron)'},
+  'settings.bpSlotsLabel':       {fr:'Variables (slots) — referencees via <code>{name}</code> dans les templates', en:'Variables (slots) — referenced via <code>{name}</code> in templates'},
+  'settings.bpAddSlot':          {fr:'+ Variable',       en:'+ Variable'},
+  'settings.bpCreateBtn':        {fr:'Créer le blueprint', en:'Create blueprint'},
+  'settings.bpCancelBtn':        {fr:'Annuler',          en:'Cancel'},
+  'settings.bpTitleRequired':    {fr:'Titre requis',     en:'Title required'},
+  'settings.bpPromptRequired':   {fr:'Prompt requis',    en:'Prompt required'},
+  'settings.bpCreated':          {fr:'Blueprint créé',   en:'Blueprint created'},
+  'settings.bpCreateError':      {fr:'Erreur création: ', en:'Creation error: '},
+  'settings.bpDeleteConfirm':    {fr:'Supprimer le blueprint "', en:'Delete blueprint "'},
+  'settings.bpDeleteConfirmSuffix': {fr:'" ? (les blueprints intégrés ne peuvent pas être supprimés)', en:'" ? (built-in blueprints cannot be deleted)'},
+  'settings.bpDeleted':          {fr:'Blueprint supprimé', en:'Blueprint deleted'},
+  'settings.bpDeleteRefused':    {fr:'Suppression refusée: ', en:'Deletion refused: '},
+  'settings.bpDeleteRefusedFallback': {fr:'blueprint intégré ?', en:'built-in blueprint?'},
+  'settings.bpInstanciated':     {fr:'Blueprint instancié avec succès', en:'Blueprint instantiated successfully'},
+  'settings.bpInstanciateError': {fr:'Erreur d\'instanciation', en:'Instantiation error'},
+  'settings.bpDeleteSlotBtn':    {fr:'Supprimer cette variable', en:'Delete this variable'},
+  'settings.deleteWatcherBtn':   {fr:'Delete',           en:'Delete'},
+  'settings.errorColon':         {fr:'Erreur: ',         en:'Error: '},
+  'settings.skillToolsRef':      {fr:'(référence)',      en:'(reference)'},
+  'settings.skillToolsChecked':  {fr:'coché(s)',         en:'checked'}
+});
+
 LaRuche.Settings = (function(){
   var currentTab = 'general';
 
@@ -24,7 +305,7 @@ LaRuche.Settings = (function(){
     el.className = 'settings-tab-canvas';
     host.innerHTML = '';
     host.appendChild(el);
-    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">Chargement...</div>';
+    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">'+LaRuche.i18n.t('settings.loading')+'</div>';
     switch(tab) {
       case 'general': loadGeneral(el); break;
       case 'providers': loadProviders(el); break;
@@ -55,25 +336,25 @@ LaRuche.Settings = (function(){
     ]);
     var doc=_r[0], voice=_r[1], provCfg=_r[2], ctxStats=_r[3], ctxCfg=_r[4], curCfg=_r[5], rt=_r[6]||{};
     el.innerHTML = '<div class="settings-grid">'+
-      '<div class="settings-card"><div class="settings-card-title">Génération (à chaud, sans redémarrage)</div>'+
+      '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.generationTitle')+'</div>'+
       '<div class="settings-row" style="flex-direction:column;align-items:stretch;gap:4px;">'+
-      '<div class="settings-row" style="padding:0;"><span class="settings-label" title="Passes ReAct max par tâche (anti-runaway)">Max passes</span><input type="number" id="cfgMaxIter" class="form-input" style="width:80px;padding:2px 6px;" value="'+(rt.max_iterations||40)+'"></div>'+
-      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Température</span><input type="number" id="cfgTemp" class="form-input" style="width:80px;padding:2px 6px;" step="0.05" min="0" max="2" value="'+(rt.temperature!=null?rt.temperature:0.7)+'"></div>'+
-      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Max tokens (sortie)</span><input type="number" id="cfgMaxTok" class="form-input" style="width:90px;padding:2px 6px;" value="'+(rt.max_tokens||4096)+'"></div>'+
-      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="Nb d\'outils injectés en sélection dynamique">Limite outils dyn.</span><input type="number" id="cfgToolLim" class="form-input" style="width:80px;padding:2px 6px;" value="'+(rt.tool_selection_limit||24)+'"></div>'+
-      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="Sous ce n_ctx, outils ET catalogue de skills passent en sélection dynamique (DB sémantique)">Seuil contexte étroit</span><input type="number" id="cfgCtxThreshold" class="form-input" style="width:90px;padding:2px 6px;" value="'+(rt.dynamic_context_threshold||40000)+'"></div>'+
-      '<button class="form-btn" onclick="LaRuche.Settings.saveRuntimeCfg()" style="margin-top:8px;">Appliquer</button></div></div>'+
-      '<div class="settings-card"><div class="settings-card-title">Contexte &amp; compaction</div>'+
+      '<div class="settings-row" style="padding:0;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.maxPassesTitle')+'">Max passes</span><input type="number" id="cfgMaxIter" class="form-input" style="width:80px;padding:2px 6px;" value="'+(rt.max_iterations||40)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.temperature')+'</span><input type="number" id="cfgTemp" class="form-input" style="width:80px;padding:2px 6px;" step="0.05" min="0" max="2" value="'+(rt.temperature!=null?rt.temperature:0.7)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.maxTokensOut')+'</span><input type="number" id="cfgMaxTok" class="form-input" style="width:90px;padding:2px 6px;" value="'+(rt.max_tokens||4096)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.dynToolsLimit')+'">'+LaRuche.i18n.t('settings.dynToolsLimitLabel')+'</span><input type="number" id="cfgToolLim" class="form-input" style="width:80px;padding:2px 6px;" value="'+(rt.tool_selection_limit||24)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.narrowCtxThreshold')+'">'+LaRuche.i18n.t('settings.narrowCtxLabel')+'</span><input type="number" id="cfgCtxThreshold" class="form-input" style="width:90px;padding:2px 6px;" value="'+(rt.dynamic_context_threshold||40000)+'"></div>'+
+      '<button class="form-btn" onclick="LaRuche.Settings.saveRuntimeCfg()" style="margin-top:8px;">'+LaRuche.i18n.t('settings.apply')+'</button></div></div>'+
+      '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.contextCompaction')+'</div>'+
       '<div class="settings-row" style="flex-direction:column;align-items:stretch;gap:4px;">'+
-      '<div class="settings-row" style="padding:0;"><span class="settings-label">Max Messages</span><input type="number" id="cfgCtxMax" class="form-input" style="width:80px;padding:2px 6px;" value="'+(ctxCfg.context_max_messages||50)+'"></div>'+
-      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Seuil Compaction</span><input type="number" id="cfgCtxThresh" class="form-input" style="width:80px;padding:2px 6px;" step="0.05" value="'+(ctxCfg.compaction_threshold||0.75)+'"></div>'+
-      '<button class="form-btn" onclick="LaRuche.Settings.saveContextCfg()" style="margin-top:8px;">Sauvegarder</button></div>'+
+      '<div class="settings-row" style="padding:0;"><span class="settings-label">'+LaRuche.i18n.t('settings.maxMessages')+'</span><input type="number" id="cfgCtxMax" class="form-input" style="width:80px;padding:2px 6px;" value="'+(ctxCfg.context_max_messages||50)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.compactionThreshold')+'</span><input type="number" id="cfgCtxThresh" class="form-input" style="width:80px;padding:2px 6px;" step="0.05" value="'+(ctxCfg.compaction_threshold||0.75)+'"></div>'+
+      '<button class="form-btn" onclick="LaRuche.Settings.saveContextCfg()" style="margin-top:8px;">'+LaRuche.i18n.t('settings.save')+'</button></div>'+
       '<div class="settings-card"><div class="settings-card-title">Inference Config</div>'+
       '<div class="settings-row" style="padding:0;"><span class="settings-label">Fallback Models</span><input type="text" id="cfgProvFallback" class="form-input" style="width:120px;padding:2px 6px;" value="'+(provCfg.fallback_models||'')+'" placeholder="claude-3-haiku, ..."></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Max Tokens</span><input type="number" id="cfgProvMaxTokens" class="form-input" style="width:80px;padding:2px 6px;" value="'+(provCfg.max_tokens||4096)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Temperature</span><input type="number" id="cfgProvTemp" class="form-input" style="width:80px;padding:2px 6px;" step="0.1" value="'+(provCfg.temperature||0.7)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Review Model</span><input type="text" id="cfgProvReview" class="form-input" style="width:120px;padding:2px 6px;" value="'+(provCfg.review_model||'')+'" placeholder="ex: gpt-4o"></div>'+
-      '<button class="form-btn" onclick="LaRuche.Settings.saveProviderCfg()" style="margin-top:8px;">Sauvegarder</button>'+
+      '<button class="form-btn" onclick="LaRuche.Settings.saveProviderCfg()" style="margin-top:8px;">'+LaRuche.i18n.t('settings.save')+'</button>'+
       '<div style="font-size:10px;color:var(--text-dim);margin-top:8px">Active: '+(provCfg.provider||'ollama')+' / '+(provCfg.model||'-')+'</div></div>'+
       '<div class="settings-card"><div class="settings-card-title">Voice</div>'+
       '<div class="settings-row"><span class="settings-label">STT</span><span style="color:'+(voice.stt&&voice.stt.available?'var(--green)':'var(--red)')+'">'+(voice.stt&&voice.stt.available?'OK':'Off')+'</span></div>'+
@@ -81,12 +362,12 @@ LaRuche.Settings = (function(){
       '<div class="settings-card"><div class="settings-card-title">Security</div>'+
       '<div class="settings-row"><span class="settings-label">Secrets</span><span class="settings-value">17 patterns</span></div>'+
       '<div class="settings-row"><span class="settings-label">Protocol</span><span class="settings-value">Miel v'+(doc.version||'0.2.0')+'</span></div></div>'+
-      '<div class="settings-card"><div class="settings-card-title">Curateur · Butinage</div>'+
-      '<div class="settings-row"><span class="settings-label">Auto-création de skills/outils vérifiés</span><label class="lr-switch"><input type="checkbox" id="cfgCurateur" '+(curCfg.enabled?'checked':'')+' '+(curCfg.env_forced?'disabled':'')+' onchange="LaRuche.Settings.toggleCurateur(this.checked)"><span class="lr-slider"></span></label></div>'+
-      '<div class="settings-row"><span class="settings-label">Sélection dynamique des outils <span style="color:var(--text-dim);font-size:10px">(prompt léger — recommandé pour petits modèles / llama.cpp)</span></span><label class="lr-switch"><input type="checkbox" id="cfgDynTools" '+(curCfg.dynamic_tools?'checked':'')+' onchange="LaRuche.Settings.toggleDynamicTools(this.checked)"><span class="lr-slider"></span></label></div>'+
-      '<div style="font-size:10px;color:var(--text-dim);margin-top:6px">'+(curCfg.env_forced?'Forcé par RUCHE_CURATEUR=1 (variable d\'env).':'En arrière-plan, conservateur (dédup auto). Off = ne crée rien.')+'</div></div>'+
-      '<div class="settings-card"><div class="settings-card-title">System</div>'+
-      '<div class="settings-row"><span class="settings-label">Afficher la transparence (outils/mémoire)</span><label class="lr-switch"><input type="checkbox" id="cfgTransparence" onchange="window.localStorage.setItem(\'laruche_hide_transparency\', this.checked ? \'false\' : \'true\')" \'+(window.localStorage.getItem(\'laruche_hide_transparency\') !== \'true\' ? \'checked\' : \'\')+\'><span class="lr-slider"></span></label></div>'+
+      '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.curateur')+'</div>'+
+      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.autoSkillCreate')+'</span><label class="lr-switch"><input type="checkbox" id="cfgCurateur" '+(curCfg.enabled?'checked':'')+' '+(curCfg.env_forced?'disabled':'')+' onchange="LaRuche.Settings.toggleCurateur(this.checked)"><span class="lr-slider"></span></label></div>'+
+      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.dynToolsSelect')+'<span style="color:var(--text-dim);font-size:10px">'+LaRuche.i18n.t('settings.dynToolsHint')+'</span></span><label class="lr-switch"><input type="checkbox" id="cfgDynTools" '+(curCfg.dynamic_tools?'checked':'')+' onchange="LaRuche.Settings.toggleDynamicTools(this.checked)"><span class="lr-slider"></span></label></div>'+
+      '<div style="font-size:10px;color:var(--text-dim);margin-top:6px">'+(curCfg.env_forced?LaRuche.i18n.t('settings.curEnvForced'):LaRuche.i18n.t('settings.curDefault'))+'</div></div>'+
+      '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.system')+'</div>'+
+      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.showTransparency')+'</span><label class="lr-switch"><input type="checkbox" id="cfgTransparence" onchange="window.localStorage.setItem(\'laruche_hide_transparency\', this.checked ? \'false\' : \'true\')" \'+(window.localStorage.getItem(\'laruche_hide_transparency\') !== \'true\' ? \'checked\' : \'\')+\'><span class="lr-slider"></span></label></div>'+
       ((doc.checks||[]).map(function(c){return '<div class="settings-row"><span class="settings-label">'+c.name+'</span><span style="color:'+(c.status==='ok'?'var(--green)':'var(--red)')+'">'+c.status+'</span></div>';}).join('')||'<div class="settings-row"><span class="settings-label">Status</span><span class="settings-value">OK</span></div>')+
       '</div></div>';
   }
@@ -107,7 +388,7 @@ LaRuche.Settings = (function(){
     // Carte dǸdiǸe : connexion ChatGPT Codex via abonnement (OAuth).
     var html = '<div class="settings-card" id="codexAuthCard" style="margin-bottom:16px;border:1px solid var(--amber)">'+
       '<div class="settings-card-title">ChatGPT Codex <span style="color:var(--text-dim);font-size:10px;font-weight:normal">— abonnement (OAuth, sans clé API)</span></div>'+
-      '<div id="codexAuthBox" style="font-size:12px;color:var(--text-dim)">Chargement…</div>'+
+      '<div id="codexAuthBox" style="font-size:12px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.codexLoading')+'</div>'+
       '</div>';
 
     html += '<div style="margin-bottom:12px"><button class="settings-save-btn" onclick="LaRuche.Settings.showProfileForm()">+ Add Provider</button></div>';
@@ -130,10 +411,10 @@ LaRuche.Settings = (function(){
       if(_shared){
         sharedHtml += '<div class="settings-card">'+
           '<div class="settings-card-title" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span>'+LaRuche.Utils.esc(p.name)+'</span>'+
-          '<span style="color:var(--cyan);font-size:10px;font-weight:normal">🐝 partagé par un pair · lecture seule</span></div>'+
+          '<span style="color:var(--cyan);font-size:10px;font-weight:normal">'+LaRuche.i18n.t('settings.sharedReadOnly')+'</span></div>'+
           '<div class="settings-row"><span class="settings-label">URL</span><span class="settings-value" style="font-size:10px;word-break:break-all">'+LaRuche.Utils.esc(p.base_url)+'</span></div>'+
           '<div class="settings-row"><span class="settings-label">Modèles</span><span class="settings-value">'+modelCount+'</span></div>'+
-          '<div style="margin-top:10px"><button onclick="LaRuche.Settings.deleteProfile(\''+id+'\')" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:10px">Retirer de ma liste</button></div>'+
+          '<div style="margin-top:10px"><button onclick="LaRuche.Settings.deleteProfile(\''+id+'\')" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.removeFromList')+'</button></div>'+
           '</div>';
         return; // pas de carte normale : ni « Rendre Public », ni « Edit »
       }
@@ -142,14 +423,14 @@ LaRuche.Settings = (function(){
       var credsHtml = '';
       if(pCreds.length > 0) {
         credsHtml += '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">';
-        credsHtml += '<div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;font-weight:bold">Pool de Credentials</div>';
+        credsHtml += '<div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;font-weight:bold">'+LaRuche.i18n.t('settings.credPool')+'</div>';
         pCreds.forEach(function(c){
            var maskedKey = c.api_key ? (c.api_key.substring(0,6) + '...' + c.api_key.substring(c.api_key.length-4)) : '';
            var cdText = c.cooldown_until ? (' <span style="color:var(--red)">(cooldown)</span>') : '';
            var lbl = c.label ? ('<span style="color:var(--amber);margin-right:6px">['+LaRuche.Utils.esc(c.label)+']</span>') : '';
            credsHtml += '<div style="font-size:10px;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;background:var(--bg-lighter);padding:4px;border-radius:4px">'+
              '<div>'+lbl+'<span style="font-family:monospace">'+LaRuche.Utils.esc(maskedKey)+'</span> '+cdText+' <span style="color:var(--text-dim)">['+c.request_count+' reqs]</span></div>'+
-             '<button onclick="LaRuche.Settings.deleteCredential(\''+p.provider+'\', \''+c.api_key+'\')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;padding:0 4px" title="Supprimer">&times;</button>'+
+             '<button onclick="LaRuche.Settings.deleteCredential(\''+p.provider+'\', \''+c.api_key+'\')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;padding:0 4px" title="'+LaRuche.i18n.t('settings.deleteCred')+'">&times;</button>'+
              '</div>';
         });
         credsHtml += '</div>';
@@ -162,8 +443,8 @@ LaRuche.Settings = (function(){
         ? '<span style="color:var(--blue);font-size:10px;font-weight:bold;margin-left:8px;">🌐 Public 📡</span>'
         : _vis==='restricted'
         ? '<span style="color:var(--cyan);font-size:10px;font-weight:bold;margin-left:8px;">🐝 Restreint ('+_nAllowed+')</span>'
-        : '<span style="color:var(--text-dim);font-size:10px;font-weight:bold;margin-left:8px;">🔒 Privé</span>';
-      var visToggleBtn = '<button onclick="LaRuche.Settings.openAccess(\''+id+'\', \''+_vis+'\', \''+encodeURIComponent(JSON.stringify(p.allowed_peers||[]))+'\')" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;">🔐 Accès</button>';
+        : '<span style="color:var(--text-dim);font-size:10px;font-weight:bold;margin-left:8px;">'+LaRuche.i18n.t('settings.visPrivate')+'</span>';
+      var visToggleBtn = '<button onclick="LaRuche.Settings.openAccess(\''+id+'\', \''+_vis+'\', \''+encodeURIComponent(JSON.stringify(p.allowed_peers||[]))+'\')" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;">'+LaRuche.i18n.t('settings.accessBtn')+'</button>';
       html += '<div class="settings-card" style="'+(isActive?'border:1px solid var(--amber);':'')+'">'+
         '<div class="settings-card-title" style="display:flex;align-items:center;"><span>'+LaRuche.Utils.esc(p.name)+'</span>'+
         (isActive?' <span style="color:var(--amber);font-size:10px;font-weight:normal;margin-left:4px;">(active)</span>':'')+
@@ -182,8 +463,8 @@ LaRuche.Settings = (function(){
 
     html += '</div>';
     if(sharedHtml){
-      html += '<div class="settings-card-title" style="margin:18px 0 8px;color:var(--cyan)">🐝 Partagés avec moi (mesh)</div>'+
-        '<div style="color:var(--text-dim);font-size:11px;margin-bottom:10px">Modèles exposés par d\'autres ruches. Tu peux les utiliser, mais pas les éditer ni les re-partager.</div>'+
+      html += '<div class="settings-card-title" style="margin:18px 0 8px;color:var(--cyan)">'+LaRuche.i18n.t('settings.sharedWithMe')+'</div>'+
+        '<div style="color:var(--text-dim);font-size:11px;margin-bottom:10px">'+LaRuche.i18n.t('settings.sharedHint')+'</div>'+
         '<div class="settings-grid">'+sharedHtml+'</div>';
     }
     el.innerHTML = html;
@@ -198,23 +479,23 @@ LaRuche.Settings = (function(){
     if(!box) return;
     s = s || {};
     if(s.phase === 'connected') {
-      box.innerHTML = '<div style="color:var(--green)">✓ Connecté'+
+      box.innerHTML = '<div style="color:var(--green)">'+LaRuche.i18n.t('settings.codexConnected')+
         (s.account_id?(' <span style="color:var(--text-dim)">('+LaRuche.Utils.esc(s.account_id)+')</span>'):'')+'</div>'+
-        (s.expiring?'<div style="color:var(--amber);font-size:10px;margin-top:4px">Token expiré — refresh auto au prochain appel.</div>':'')+
-        '<div style="margin-top:8px"><button onclick="LaRuche.Settings.logoutCodex()" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:10px">Déconnecter</button></div>';
+        (s.expiring?'<div style="color:var(--amber);font-size:10px;margin-top:4px">'+LaRuche.i18n.t('settings.codexExpiring')+'</div>':'')+
+        '<div style="margin-top:8px"><button onclick="LaRuche.Settings.logoutCodex()" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.codexDisconnect')+'</button></div>';
     } else if(s.phase === 'pending' && s.user_code) {
-      box.innerHTML = '<div>Pour vous connecter :</div>'+
+      box.innerHTML = '<div>'+LaRuche.i18n.t('settings.codexConnectInstr')+'</div>'+
         '<ol style="margin:6px 0 6px 16px;padding:0;line-height:1.7">'+
-        '<li>Ouvrez <a href="'+LaRuche.Utils.esc(s.verification_url)+'" target="_blank" rel="noopener" style="color:var(--amber)">'+LaRuche.Utils.esc(s.verification_url)+'</a></li>'+
-        '<li>Entrez ce code : <span style="font-size:16px;font-weight:bold;color:var(--amber);letter-spacing:2px">'+LaRuche.Utils.esc(s.user_code)+'</span></li>'+
+        '<li>'+LaRuche.i18n.t('settings.codexStep1')+' <a href="'+LaRuche.Utils.esc(s.verification_url)+'" target="_blank" rel="noopener" style="color:var(--amber)">'+LaRuche.Utils.esc(s.verification_url)+'</a></li>'+
+        '<li>'+LaRuche.i18n.t('settings.codexStep2')+' <span style="font-size:16px;font-weight:bold;color:var(--amber);letter-spacing:2px">'+LaRuche.Utils.esc(s.user_code)+'</span></li>'+
         '</ol>'+
-        '<div style="color:var(--text-dim);font-size:11px">⏳ En attente de validation…</div>';
+        '<div style="color:var(--text-dim);font-size:11px">'+LaRuche.i18n.t('settings.codexWaiting')+'</div>';
     } else if(s.phase === 'error') {
-      box.innerHTML = '<div style="color:var(--red)">Échec : '+LaRuche.Utils.esc(s.message||'erreur')+'</div>'+
-        '<div style="margin-top:8px"><button onclick="LaRuche.Settings.startCodexLogin()" style="background:var(--amber);border:none;color:#000;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:11px">Réessayer</button></div>';
+      box.innerHTML = '<div style="color:var(--red)">'+LaRuche.i18n.t('settings.codexError')+LaRuche.Utils.esc(s.message||'erreur')+'</div>'+
+        '<div style="margin-top:8px"><button onclick="LaRuche.Settings.startCodexLogin()" style="background:var(--amber);border:none;color:#000;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:11px">'+LaRuche.i18n.t('settings.codexRetry')+'</button></div>';
     } else {
-      box.innerHTML = '<div>Utilisez votre abonnement ChatGPT (Plus/Pro) au lieu d\'une clé API.</div>'+
-        '<div style="margin-top:8px"><button onclick="LaRuche.Settings.startCodexLogin()" style="background:var(--amber);border:none;color:#000;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:11px;font-weight:bold">Se connecter avec ChatGPT</button></div>';
+      box.innerHTML = '<div>'+LaRuche.i18n.t('settings.codexUseSubscription')+'</div>'+
+        '<div style="margin-top:8px"><button onclick="LaRuche.Settings.startCodexLogin()" style="background:var(--amber);border:none;color:#000;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:11px;font-weight:bold">'+LaRuche.i18n.t('settings.codexSignIn')+'</button></div>';
     }
   }
 
@@ -225,13 +506,13 @@ LaRuche.Settings = (function(){
 
   function startCodexLogin() {
     var box = document.getElementById('codexAuthBox');
-    if(box) box.innerHTML = '<div style="color:var(--text-dim)">Initialisation…</div>';
+    if(box) box.innerHTML = '<div style="color:var(--text-dim)">'+LaRuche.i18n.t('settings.codexInit')+'</div>';
     fetch('/api/auth/codex/start',{method:'POST'}).then(function(r){return r.json();})
       .then(function(s){
         renderCodexBox(s);
         if(s.phase === 'pending' && s.user_code) startCodexPoll();
       }).catch(function(){
-        renderCodexBox({phase:'error',message:'réseau'});
+        renderCodexBox({phase:'error',message:LaRuche.i18n.t('settings.codexNetwork')});
       });
   }
 
@@ -251,7 +532,7 @@ LaRuche.Settings = (function(){
   }
 
   function logoutCodex() {
-    if(!confirm('Déconnecter ChatGPT Codex ?')) return;
+    if(!confirm(LaRuche.i18n.t('settings.codexLogoutConfirm'))) return;
     fetch('/api/auth/codex/logout',{method:'POST'}).then(function(){ refreshCodexStatus(); });
   }
 
@@ -355,14 +636,14 @@ LaRuche.Settings = (function(){
     window._allTools = tools;
     
     var html = '<div style="display:flex;justify-content:flex-end;gap:10px;margin-bottom:20px;">';
-    html += '<button onclick="LaRuche.Settings.toggleAllTools(true)" style="background:rgba(16,185,129,0.15);color:var(--green);border:1px solid var(--green);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;" onmouseover="this.style.background=\'var(--green)\';this.style.color=\'#000\'" onmouseout="this.style.background=\'rgba(16,185,129,0.15)\';this.style.color=\'var(--green)\'">Tout Activer</button>';
-    html += '<button onclick="LaRuche.Settings.toggleAllTools(false)" style="background:rgba(239,68,68,0.15);color:var(--red);border:1px solid var(--red);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;" onmouseover="this.style.background=\'var(--red)\';this.style.color=\'#000\'" onmouseout="this.style.background=\'rgba(239,68,68,0.15)\';this.style.color=\'var(--red)\'">Tout Désactiver</button>';
+    html += '<button onclick="LaRuche.Settings.toggleAllTools(true)" style="background:rgba(16,185,129,0.15);color:var(--green);border:1px solid var(--green);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;" onmouseover="this.style.background=\'var(--green)\';this.style.color=\'#000\'" onmouseout="this.style.background=\'rgba(16,185,129,0.15)\';this.style.color=\'var(--green)\'">'+LaRuche.i18n.t('settings.enableAll')+'</button>';
+    html += '<button onclick="LaRuche.Settings.toggleAllTools(false)" style="background:rgba(239,68,68,0.15);color:var(--red);border:1px solid var(--red);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;" onmouseover="this.style.background=\'var(--red)\';this.style.color=\'#000\'" onmouseout="this.style.background=\'rgba(239,68,68,0.15)\';this.style.color=\'var(--red)\'">'+LaRuche.i18n.t('settings.disableAll')+'</button>';
     html += '</div>';
 
     html += '<div class="settings-grid">'+tools.map(function(t, idx){
       var enabled = t.enabled !== false;
       var originBadge = (t.origin === 'Custom') ? '<span style="margin-left:8px;font-size:9px;color:var(--purple);border:1px solid var(--purple-dim);background:var(--purple-dim);padding:2px 4px;border-radius:4px;">Custom</span>' : '<span style="margin-left:8px;font-size:9px;color:var(--text-dim);border:1px solid var(--border);padding:2px 4px;border-radius:4px;">Rust natif</span>';
-      var customActions = (t.origin === 'Custom') ? '<div style="margin-top:10px;display:flex;gap:8px;border-top:1px solid rgba(255,255,255,0.05);padding-top:8px;"><button style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();LaRuche.Toast.show(\'Source non disponible\',\'err\')">Voir source</button><button style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();LaRuche.Toast.show(\'JSON non modifiable ici\',\'err\')">Éditer JSON</button><button style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();fetch(\'/api/tools/\'+LaRuche.Utils.esc(t.name),{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})">Supprimer</button></div>' : '';
+      var customActions = (t.origin === 'Custom') ? '<div style="margin-top:10px;display:flex;gap:8px;border-top:1px solid rgba(255,255,255,0.05);padding-top:8px;"><button style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();LaRuche.Toast.show(LaRuche.i18n.t(\'settings.pluginSrcUnavailable\'),\'err\')">Voir source</button><button style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();LaRuche.Toast.show(LaRuche.i18n.t(\'settings.pluginJsonNoEdit\'),\'err\')">Éditer JSON</button><button style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();fetch(\'/api/tools/\'+LaRuche.Utils.esc(t.name),{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})">'+LaRuche.i18n.t('settings.tlDelete')+'</button></div>' : '';
       return '<div class="settings-card" style="cursor:pointer; transition:transform 0.2s, box-shadow 0.2s; position:relative;" onmouseover="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.3)\';" onmouseout="this.style.transform=\'\';this.style.boxShadow=\'\';" onclick="LaRuche.Utils.openMediaModal(\'text\', JSON.stringify(window._allTools['+idx+'], null, 2))">'+
         '<div class="settings-card-title" style="display:flex;justify-content:space-between;gap:8px;align-items:center">'+
           '<span style="color:var(--cyan);font-weight:600;">'+LaRuche.Utils.esc(t.name)+originBadge+'</span>'+
@@ -377,7 +658,7 @@ LaRuche.Settings = (function(){
     }).join('')+'</div>';
     
     el.innerHTML = html;
-    if(!tools.length) el.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px">Aucune abeille configurée</div>';
+    if(!tools.length) el.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px">'+LaRuche.i18n.t('settings.toolsEmpty')+'</div>';
   }
 
   async function toggleAllTools(enable) {
@@ -385,8 +666,8 @@ LaRuche.Settings = (function(){
     fetch('/api/tools/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({disabled_tools:disabled})})
       .then(function(r){return r.json();})
       .then(function(d){
-        if(d.status !== 'ok') LaRuche.Toast.show('Erreur configuration Abeilles','err');
-        else { LaRuche.Toast.show(enable ? 'Toutes les abeilles activées' : 'Toutes les abeilles désactivées','ok'); loadTab('tools'); }
+        if(d.status !== 'ok') LaRuche.Toast.show(LaRuche.i18n.t('settings.toolsConfigErr'),'err');
+        else { LaRuche.Toast.show(enable ? LaRuche.i18n.t('settings.allToolsEnabled') : LaRuche.i18n.t('settings.allToolsDisabled'),'ok'); loadTab('tools'); }
       });
   }
 
@@ -399,31 +680,31 @@ LaRuche.Settings = (function(){
     fetch('/api/tools/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({disabled_tools:disabled})})
       .then(function(r){return r.json();})
       .then(function(d){
-        if(d.status !== 'ok') LaRuche.Toast.show('Erreur configuration Abeilles','err');
+        if(d.status !== 'ok') LaRuche.Toast.show(LaRuche.i18n.t('settings.toolsConfigErr'),'err');
         else { LaRuche.Toast.show(name+(enabled?' activee':' desactivee'),'ok'); loadTab('tools'); }
       })
-      .catch(function(e){LaRuche.Toast.show('Erreur Abeilles: '+e,'err');});
+      .catch(function(e){LaRuche.Toast.show(LaRuche.i18n.t('settings.toolsErr')+e,'err');});
   }
 
   async function loadNetwork(el) {
     var codeSet=false; try{ codeSet=(await fetch('/api/mesh/code').then(function(r){return r.json();})).set; }catch(e){}
     var codeCard='<div class="settings-card"><div class="settings-card-title">Code de mesh '+
-      (codeSet?'<span style="color:var(--green);font-size:11px">(configuré)</span>':'<span style="color:var(--text-muted);font-size:11px">(non configuré — auth par IP LAN)</span>')+'</div>'+
-      '<p style="color:var(--text-dim);font-size:12px;margin:4px 0 8px">Secret partagé entre tes ruches (comme un mot de passe WiFi). Mets le <b>même</b> code sur toutes tes ruches : il authentifie les échanges du mesh (fin des « rejected » / flapping) et servira de base au chiffrement.</p>'+
-      '<div style="display:flex;gap:8px"><input id="meshCodeInput" type="password" placeholder="'+(codeSet?'•••• (vide = inchangé)':'choisis un code')+'" style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px"><button class="send-btn" id="meshCodeSave"><span>Enregistrer</span></button></div></div>';
+      (codeSet?'<span style="color:var(--green);font-size:11px">'+LaRuche.i18n.t('settings.meshCodeConfigured')+'</span>':'<span style="color:var(--text-muted);font-size:11px">'+LaRuche.i18n.t('settings.meshCodeUnconfigured')+'</span>')+'</div>'+
+      '<p style="color:var(--text-dim);font-size:12px;margin:4px 0 8px">'+LaRuche.i18n.t('settings.meshCodeHint')+'</p>'+
+      '<div style="display:flex;gap:8px"><input id="meshCodeInput" type="password" placeholder="'+(codeSet?LaRuche.i18n.t('settings.meshCodePlaceholderSet'):LaRuche.i18n.t('settings.meshCodePlaceholderNew'))+'" style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px"><button class="send-btn" id="meshCodeSave"><span>'+LaRuche.i18n.t('settings.meshSave')+'</span></button></div></div>';
     var d={nodes:[]};try{d=await fetch('/swarm').then(function(r){return r.json();});}catch(e){}
     var nodesHtml=(d.nodes||[]).map(function(n){
       var caps=(n.capabilities||[]).map(function(c){return '<span style="background:rgba(6,182,212,.15);color:var(--cyan);padding:1px 6px;border-radius:8px;font-size:10px">'+c+'</span>';}).join(' ');
       return '<div class="settings-card"><div class="settings-card-title">'+(n.name||'?')+'</div><div class="settings-row"><span class="settings-label">Host</span><span class="settings-value">'+n.host+':'+(n.port||'?')+'</span></div><div style="margin-top:4px">'+caps+'</div></div>';
-    }).join('')||'<div style="text-align:center;color:var(--text-muted);padding:20px">Aucun nœud</div>';
+    }).join('')||'<div style="text-align:center;color:var(--text-muted);padding:20px">'+LaRuche.i18n.t('settings.noNodes')+'</div>';
     el.innerHTML=codeCard+nodesHtml;
     var btn=document.getElementById('meshCodeSave');
     if(btn) btn.onclick=async function(){
       var v=(document.getElementById('meshCodeInput').value||'');
-      if(!v.trim()){ LaRuche.Toast.show('Code inchangé.','info'); return; }
+      if(!v.trim()){ LaRuche.Toast.show(LaRuche.i18n.t('settings.meshCodeUnchanged'),'info'); return; }
       try{ await fetch('/api/mesh/code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:v})});
-        LaRuche.Toast.show('Code enregistré. Mets le MÊME sur tes autres ruches, puis relance-les.','ok'); loadNetwork(el);
-      }catch(e){ LaRuche.Toast.show('Échec.','err'); }
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.meshCodeSaved'),'ok'); loadNetwork(el);
+      }catch(e){ LaRuche.Toast.show(LaRuche.i18n.t('settings.meshCodeFailed'),'err'); }
     };
   }
 
@@ -503,9 +784,9 @@ LaRuche.Settings = (function(){
     var pxPerH=_tlSpanH<=24?64:(_tlSpanH<=48?34:12); _tlPxPerH=pxPerH; var width=_tlSpanH*pxPerH;
     function seg(h,lbl){return '<button class="'+(_tlSpanH===h?'on':'')+'" onclick="LaRuche.Settings.tlZoom('+h+')">'+lbl+'</button>';}
     var html='<div class="tl-ctrls"><div class="tl-seg">'+seg(24,'24h')+seg(48,'48h')+seg(168,'7j')+'</div>'+
-      '<button class="tl-btn" onclick="LaRuche.Settings.tlRecenter()">Recentrer</button>'+
+      '<button class="tl-btn" onclick="LaRuche.Settings.tlRecenter()">'+LaRuche.i18n.t('settings.recenter')+'</button>'+
       '<span style="color:var(--text-dim);font-size:10px">'+_tlJobs.length+' cron(s)</span></div>';
-    if(!_tlJobs.length){ el.innerHTML=html+'<div style="color:var(--text-dim);padding:20px">Aucun cron planifié.</div>'; return; }
+    if(!_tlJobs.length){ el.innerHTML=html+'<div style="color:var(--text-dim);padding:20px">'+LaRuche.i18n.t('settings.noCron')+'</div>'; return; }
     // axe (ticks)
     var ticks=''; var stepH=_tlSpanH<=24?2:(_tlSpanH<=48?4:24);
     for(var h=0;h<=_tlSpanH;h+=stepH){ var d=new Date(_tlFromMs+h*3600000);
@@ -514,7 +795,7 @@ LaRuche.Settings = (function(){
     var gutter='<div class="tl-head"></div>', lanes='';
     _tlJobs.forEach(function(job,i){
       var paused=job.enabled===false;
-      gutter+='<div class="tl-name'+(paused?' tl-row paused':'')+'" onclick="LaRuche.Settings.tlDetail('+i+')"><span class="n">'+LaRuche.Utils.esc(job.name||'(sans nom)')+'</span><span class="s">'+LaRuche.Utils.esc(job.cron_expr||job.fire_at||'')+'</span></div>';
+      gutter+='<div class="tl-name'+(paused?' tl-row paused':'')+'" onclick="LaRuche.Settings.tlDetail('+i+')"><span class="n">'+LaRuche.Utils.esc(job.name||LaRuche.i18n.t('settings.tlNoName'))+'</span><span class="s">'+LaRuche.Utils.esc(job.cron_expr||job.fire_at||'')+'</span></div>';
       var occ=tlOccurrences(job,_tlFromMs,toMs); var now=Date.now();
       var nextT=occ.find(function(t){return t>=now;});
       var mk='';
@@ -543,13 +824,13 @@ LaRuche.Settings = (function(){
       row.addEventListener('pointerup',function(e){
         if(!dragging)return; dragging=false; row.style.cursor='grab'; row.style.transform='';
         if(Math.abs(moved)<8) return; // simple clic → géré par le marqueur
-        var job=_tlJobs[parseInt(row.getAttribute('data-i'))]; if(!job||!job.cron_expr){ LaRuche.Toast.show('Décalage non supporté pour ce planning','warn'); return; }
-        var p=job.cron_expr.trim().split(/\s+/); if(p.length<5||isNaN(parseInt(p[1]))){ LaRuche.Toast.show('Décalage : crons à heure fixe uniquement','warn'); return; }
+        var job=_tlJobs[parseInt(row.getAttribute('data-i'))]; if(!job||!job.cron_expr){ LaRuche.Toast.show(LaRuche.i18n.t('settings.tlShiftUnsupported'),'warn'); return; }
+        var p=job.cron_expr.trim().split(/\s+/); if(p.length<5||isNaN(parseInt(p[1]))){ LaRuche.Toast.show(LaRuche.i18n.t('settings.tlShiftFixed'),'warn'); return; }
         var dh=Math.round(moved/_tlPxPerH); if(dh===0)return;
         var nh=((parseInt(p[1])+dh)%24+24)%24; p[1]=String(nh);
         var expr=p.join(' ');
         fetch('/api/cron/'+job.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({cron_expr:expr})})
-          .then(function(){ LaRuche.Toast.show('Heure décalée → '+expr,'ok'); tlReload(); });
+          .then(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.tlHourShifted')+expr,'ok'); tlReload(); });
       });
     });
   }
@@ -558,17 +839,17 @@ LaRuche.Settings = (function(){
   function tlReload(){ if(_tlHost) loadCronTimeline(_tlHost); }
   function tlDetail(i){
     var job=_tlJobs[i]; if(!job)return; var d=document.getElementById('tlDetail'); if(!d)return;
-    d.innerHTML='<div style="font-weight:600;color:var(--amber);margin-bottom:6px">'+LaRuche.Utils.esc(job.name||'(sans nom)')+'</div>'+
-      '<div>Planning : <code>'+LaRuche.Utils.esc(job.cron_expr||job.fire_at||'-')+'</code></div>'+
-      '<div style="color:var(--text-dim)">Dernier : '+(job.last_run||'jamais')+' · Exécutions : '+(job.run_count||0)+(job.channel?(' · Canal : '+LaRuche.Utils.esc(job.channel)):'')+'</div>'+
+    d.innerHTML='<div style="font-weight:600;color:var(--amber);margin-bottom:6px">'+LaRuche.Utils.esc(job.name||LaRuche.i18n.t('settings.tlNoName'))+'</div>'+
+      '<div>'+LaRuche.i18n.t('settings.tlPlanLabel')+'<code>'+LaRuche.Utils.esc(job.cron_expr||job.fire_at||'-')+'</code></div>'+
+      '<div style="color:var(--text-dim)">'+LaRuche.i18n.t('settings.tlLastRun')+(job.last_run||LaRuche.i18n.t('settings.tlNever'))+LaRuche.i18n.t('settings.tlRuns')+(job.run_count||0)+(job.channel?(LaRuche.i18n.t('settings.tlChannel')+LaRuche.Utils.esc(job.channel)):'')+'</div>'+
       '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'+
-      '<button class="tl-btn" onclick="LaRuche.Settings.tlRun('+i+')">Lancer maintenant</button>'+
-      '<button class="tl-btn" onclick="LaRuche.Settings.tlEdit('+i+')">Éditer</button>'+
-      '<button class="tl-btn" onclick="LaRuche.Settings.tlToggle('+i+')">'+(job.enabled===false?'Réactiver':'Mettre en pause')+'</button>'+
-      '<button class="tl-btn" onclick="if(confirm(\'Supprimer ce cron ?\'))fetch(\'/api/cron/'+job.id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.tlReload&&LaRuche.Settings.tlReload();})">Supprimer</button>'+
+      '<button class="tl-btn" onclick="LaRuche.Settings.tlRun('+i+')">'+LaRuche.i18n.t('settings.tlRunNow')+'</button>'+
+      '<button class="tl-btn" onclick="LaRuche.Settings.tlEdit('+i+')">'+LaRuche.i18n.t('settings.tlEdit')+'</button>'+
+      '<button class="tl-btn" onclick="LaRuche.Settings.tlToggle('+i+')">'+(job.enabled===false?LaRuche.i18n.t('settings.tlResume'):LaRuche.i18n.t('settings.tlPause'))+'</button>'+
+      '<button class="tl-btn" onclick="if(confirm(LaRuche.i18n.t(\'settings.tlDeleteConfirm\')))fetch(\'/api/cron/'+job.id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.tlReload&&LaRuche.Settings.tlReload();})">'+LaRuche.i18n.t('settings.tlDelete')+'</button>'+
       '</div>';
   }
-  function tlRun(i){ var job=_tlJobs[i]; if(!job)return; fetch('/api/cron/'+job.id+'/run',{method:'POST'}).then(function(r){return r.json();}).then(function(d){ LaRuche.Toast.show(d.status==='started'?'Cron lancé':'Échec', d.status==='started'?'ok':'err'); }).catch(function(){LaRuche.Toast.show('Échec','err');}); }
+  function tlRun(i){ var job=_tlJobs[i]; if(!job)return; fetch('/api/cron/'+job.id+'/run',{method:'POST'}).then(function(r){return r.json();}).then(function(d){ LaRuche.Toast.show(d.status==='started'?LaRuche.i18n.t('settings.tlRunning'):LaRuche.i18n.t('settings.tlFailed'), d.status==='started'?'ok':'err'); }).catch(function(){LaRuche.Toast.show(LaRuche.i18n.t('settings.tlFailed'),'err');}); }
   function tlToggle(i){ var job=_tlJobs[i]; if(!job)return; fetch('/api/cron/'+job.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled: job.enabled===false})}).then(function(){tlReload();}); }
   async function tlEdit(i){
     var job=_tlJobs[i]; if(!job)return; var d=document.getElementById('tlDetail'); if(!d)return;
@@ -578,24 +859,24 @@ LaRuche.Settings = (function(){
     var selected=Array.isArray(job.skills)?job.skills:[];
     var skillHtml;
     if(!skillsLoaded){
-      skillHtml='<div data-skills-unavailable style="margin-top:10px;color:var(--red);font-size:11px">Skills indisponibles : les associations existantes seront conservées.</div>';
+      skillHtml='<div data-skills-unavailable style="margin-top:10px;color:var(--red);font-size:11px">'+LaRuche.i18n.t('settings.skillsUnavailable')+'</div>';
     }else if(!skills.length){
-      skillHtml='<div style="margin-top:10px;color:var(--text-dim);font-size:11px">Aucun skill disponible. Créez-en dans Settings → Skills.</div>';
+      skillHtml='<div style="margin-top:10px;color:var(--text-dim);font-size:11px">'+LaRuche.i18n.t('settings.noSkillsAvailable')+'</div>';
     }else{
-      skillHtml='<fieldset style="margin:10px 0 0;padding:8px;border:1px solid var(--border);border-radius:6px"><legend style="padding:0 4px;color:var(--text-dim);font-size:11px">Skills injectés à ce cron</legend>'+
+      skillHtml='<fieldset style="margin:10px 0 0;padding:8px;border:1px solid var(--border);border-radius:6px"><legend style="padding:0 4px;color:var(--text-dim);font-size:11px">'+LaRuche.i18n.t('settings.skillsInjected')+'</legend>'+
         skills.map(function(skill){
           var name=String(skill.name||''), enabled=skill.enabled!==false, checked=selected.indexOf(name)!==-1;
           return '<label style="display:flex;align-items:flex-start;gap:7px;margin:5px 0;cursor:'+(enabled?'pointer':'not-allowed')+';opacity:'+(enabled?'1':'0.55')+'">'+
-            '<input class="tlf-skill" type="checkbox" value="'+LaRuche.Utils.esc(name)+'" '+(checked?'checked ':'')+(enabled?'':'disabled ')+'>'+ 
-            '<span><strong>'+LaRuche.Utils.esc(name)+'</strong>'+(skill.description?' <span style="color:var(--text-dim)">— '+LaRuche.Utils.esc(skill.description)+'</span>':'')+(enabled?'':' <span style="color:var(--red)">(désactivé : non injecté)</span>')+'</span></label>';
+            '<input class="tlf-skill" type="checkbox" value="'+LaRuche.Utils.esc(name)+'" '+(checked?'checked ':'')+(enabled?'':'disabled ')+'>'+
+            '<span><strong>'+LaRuche.Utils.esc(name)+'</strong>'+(skill.description?' <span style="color:var(--text-dim)">— '+LaRuche.Utils.esc(skill.description)+'</span>':'')+(enabled?'':' <span style="color:var(--red)">'+LaRuche.i18n.t('settings.skillDisabled')+'</span>')+'</span></label>';
         }).join('')+'</fieldset>';
     }
         var profiles = window._lastProfiles || {};
-    var profOpts = '<option value="">Default (modele actif)</option>';
+    var profOpts = '<option value="">'+LaRuche.i18n.t('settings.defaultModel')+'</option>';
     Object.keys(profiles).forEach(function(k){
         profOpts += '<option value="'+k+'" '+(job.profile_id===k?'selected':'')+'>'+LaRuche.Utils.esc(profiles[k].name)+'</option>';
     });
-    var modOpts = '<option value="">D&eacute;faut du provider</option>';
+    var modOpts = '<option value="">'+LaRuche.i18n.t('settings.providerDefault')+'</option>';
     if(job.profile_id && profiles[job.profile_id]) {
         var models = profiles[job.profile_id].models || [];
         models.forEach(function(m){
@@ -605,7 +886,7 @@ LaRuche.Settings = (function(){
         modOpts += '<option value="'+LaRuche.Utils.esc(job.model)+'" selected>'+LaRuche.Utils.esc(job.model)+'</option>';
     }
 
-    d.innerHTML='<div class="tl-detail"><div style="font-weight:600;color:var(--amber);margin-bottom:8px">&Eacute;diter : '+LaRuche.Utils.esc(job.name||'')+'</div>'+
+    d.innerHTML='<div class="tl-detail"><div style="font-weight:600;color:var(--amber);margin-bottom:8px">'+LaRuche.i18n.t('settings.tlEdit')+' : '+LaRuche.Utils.esc(job.name||'')+'</div>'+
       '<label class="form-label">Nom</label><input class="form-input" id="tlfName" value="'+LaRuche.Utils.esc(job.name||'')+'">'+
       '<label class="form-label">Prompt</label><textarea class="form-input" id="tlfPrompt" rows="3">'+LaRuche.Utils.esc(job.prompt||'')+'</textarea>'+
       '<label class="form-label">Cron (5 champs) ou vide</label><input class="form-input" id="tlfCron" value="'+LaRuche.Utils.esc(job.cron_expr||'')+'" placeholder="*/30 * * * *">'+
@@ -614,15 +895,15 @@ LaRuche.Settings = (function(){
       '<label class="form-label">Mod&egrave;le</label><select class="form-input" id="tlfModel">'+modOpts+'</select>'+
       skillHtml+
       '<div style="margin-top:10px;display:flex;gap:6px">'+
-      '<button class="tl-btn" style="background:var(--amber);color:#000" onclick="LaRuche.Settings.tlSaveEdit('+i+')">Enregistrer</button>'+
-      '<button class="tl-btn" onclick="LaRuche.Settings.tlDetail('+i+')">Annuler</button></div></div>';
+      '<button class="tl-btn" style="background:var(--amber);color:#000" onclick="LaRuche.Settings.tlSaveEdit('+i+')">'+LaRuche.i18n.t('settings.tlSaveEdit')+'</button>'+
+      '<button class="tl-btn" onclick="LaRuche.Settings.tlDetail('+i+')">'+LaRuche.i18n.t('settings.tlCancel')+'</button></div></div>';
   }
   function updateCronEditModelSelect() {
       var profSel = document.getElementById('tlfProfileId');
       var modSel = document.getElementById('tlfModel');
       if(!profSel || !modSel) return;
       var pid = profSel.value;
-      modSel.innerHTML = '<option value="">D&eacute;faut du provider</option>';
+      modSel.innerHTML = '<option value="">'+LaRuche.i18n.t('settings.providerDefault')+'</option>';
       if(pid && window._lastProfiles && window._lastProfiles[pid]) {
           var models = window._lastProfiles[pid].models || [];
           models.forEach(function(m) {
@@ -644,7 +925,7 @@ LaRuche.Settings = (function(){
       profile_id: profile_id, model: model, skills:skills };
       
     fetch('/api/cron/'+job.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-      .then(function(){ LaRuche.Toast.show('Cron mis  jour','ok'); tlReload(); });
+      .then(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.tlSaved'),'ok'); tlReload(); });
   }
 
   // MCP logic
@@ -657,42 +938,42 @@ LaRuche.Settings = (function(){
     var others=names.filter(function(n){return n.indexOf('WEBHOOK')!==0;});
     function card(list,title,hint){
       var rows = list.length ? list.map(function(n){
-        return '<div class="settings-row"><span class="settings-value" style="font-family:var(--mono,monospace)">'+LaRuche.Utils.esc(n)+' <span style="color:var(--text-dim);font-size:10px">= ••••••••</span></span><button onclick="LaRuche.Settings.secretDelete(\''+LaRuche.Utils.esc(n)+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:1px 8px;cursor:pointer;font-size:10px">Suppr</button></div>';
-      }).join('') : '<div style="color:var(--text-dim);font-size:11px">Aucun.</div>';
+        return '<div class="settings-row"><span class="settings-value" style="font-family:var(--mono,monospace)">'+LaRuche.Utils.esc(n)+' <span style="color:var(--text-dim);font-size:10px">= ••••••••</span></span><button onclick="LaRuche.Settings.secretDelete(\''+LaRuche.Utils.esc(n)+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:1px 8px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.secretDeleteBtn')+'</button></div>';
+      }).join('') : '<div style="color:var(--text-dim);font-size:11px">'+LaRuche.i18n.t('settings.secretNone')+'</div>';
       return '<div class="settings-card"><div class="settings-card-title">'+title+'</div><div style="color:var(--text-dim);font-size:11px;margin-bottom:8px">'+hint+'</div>'+rows+'</div>';
     }
     el.innerHTML =
-      '<div style="color:var(--text-dim);font-size:12px;margin-bottom:12px">Les secrets sont <b>chiffrés au repos</b>. Le LLM ne voit JAMAIS leur valeur — seulement leur nom. Dans une commande, un script ou un champ clé d\'API, référence-les par <code>${NOM}</code> : la vraie valeur est substituée à l\'exécution.</div>'+
-      card(others,'Secrets','Ex: API_OPENAI, TOKEN_TELEGRAM, USERID_TELEGRAM…')+
-      card(hooks,'Webhooks','Nomme-les WEBHOOK_… (ex: WEBHOOK_DISCORD). Référence dans un script : ${WEBHOOK_DISCORD}')+
-      '<div class="settings-card"><div class="settings-card-title">Ajouter / mettre à jour</div>'+
-      '<label class="form-label">Nom (A-Z, 0-9, _)</label><input class="form-input" id="secName" placeholder="ex: WEBHOOK_DISCORD">'+
-      '<label class="form-label">Valeur (jamais ré-affichée)</label><input class="form-input" id="secVal" type="password" placeholder="collez la valeur ici">'+
-      '<button class="form-btn" style="margin-top:8px" onclick="LaRuche.Settings.secretSet()">Enregistrer</button></div>';
+      '<div style="color:var(--text-dim);font-size:12px;margin-bottom:12px">'+LaRuche.i18n.t('settings.secretsDesc')+'</div>'+
+      card(others,LaRuche.i18n.t('settings.secretsTitle'),LaRuche.i18n.t('settings.secretsHint'))+
+      card(hooks,LaRuche.i18n.t('settings.webhooksTitle'),LaRuche.i18n.t('settings.webhooksHint'))+
+      '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.addOrUpdate')+'</div>'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.secretNameLabel')+'</label><input class="form-input" id="secName" placeholder="'+LaRuche.i18n.t('settings.secretNamePlaceholder')+'">'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.secretValLabel')+'</label><input class="form-input" id="secVal" type="password" placeholder="'+LaRuche.i18n.t('settings.secretValPlaceholder')+'">'+
+      '<button class="form-btn" style="margin-top:8px" onclick="LaRuche.Settings.secretSet()">'+LaRuche.i18n.t('settings.secretSave')+'</button></div>';
   }
   function secretSet(){
     var name=(document.getElementById('secName').value||'').trim();
     var value=document.getElementById('secVal').value||'';
-    if(!name||!value){ LaRuche.Toast.show('Nom et valeur requis','warn'); return; }
+    if(!name||!value){ LaRuche.Toast.show(LaRuche.i18n.t('settings.secretNameRequired'),'warn'); return; }
     fetch(LaRuche.API.base+'/api/secrets',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,value:value})})
-      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Secret enregistré','ok'); if(LaRuche.Secrets)LaRuche.Secrets.refresh(); refreshTab(); } else { LaRuche.Toast.show('Échec (nom invalide ? A-Z/0-9/_ uniquement)','err'); } });
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.secretSaved'),'ok'); if(LaRuche.Secrets)LaRuche.Secrets.refresh(); refreshTab(); } else { LaRuche.Toast.show(LaRuche.i18n.t('settings.secretSaveFailed'),'err'); } });
   }
   function secretDelete(name){
     fetch(LaRuche.API.base+'/api/secrets/'+encodeURIComponent(name),{method:'DELETE',credentials:'include'})
-      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Secret supprimé','ok'); if(LaRuche.Secrets)LaRuche.Secrets.refresh(); refreshTab(); } });
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.secretDeleted'),'ok'); if(LaRuche.Secrets)LaRuche.Secrets.refresh(); refreshTab(); } });
   }
 
   // Onglet MCP dédié (sorti de Providers).
   function loadMcp(el){
     var html = '<div class="settings-card" style="margin-bottom:16px">';
     html += '  <div class="settings-card-title">Serveurs MCP (Model Context Protocol)</div>';
-    html += '  <div style="color:var(--text-dim);font-size:12px;margin-bottom:12px">Configurez des serveurs MCP locaux. LaRuche les utilisera pour étendre ses capacités via les agents.</div>';
+    html += '  <div style="color:var(--text-dim);font-size:12px;margin-bottom:12px">'+LaRuche.i18n.t('settings.mcpDesc')+'</div>';
     html += '  <div id="mcp-list" style="margin-bottom:12px"></div>';
     html += '  <div style="border:1px solid var(--border);border-radius:6px;padding:8px;background:var(--bg-panel)">';
     html += '     <div style="margin-bottom:8px"><label class="form-label">Nom du serveur</label><input id="mcp-new-name" class="form-input" placeholder="ex: local-sqlite"></div>';
     html += '     <div style="margin-bottom:8px"><label class="form-label">Commande</label><input id="mcp-new-cmd" class="form-input" placeholder="ex: node"></div>';
-    html += '     <div style="margin-bottom:8px"><label class="form-label">Arguments (séparés par un espace)</label><input id="mcp-new-args" class="form-input" placeholder="ex: src/index.js --db sqlite.db"></div>';
-    html += '     <button class="settings-save-btn" onclick="LaRuche.Settings.createMcpServer()">Ajouter le serveur</button>';
+    html += '     <div style="margin-bottom:8px"><label class="form-label">'+LaRuche.i18n.t('settings.mcpArgsLabel')+'</label><input id="mcp-new-args" class="form-input" placeholder="ex: src/index.js --db sqlite.db"></div>';
+    html += '     <button class="settings-save-btn" onclick="LaRuche.Settings.createMcpServer()">'+LaRuche.i18n.t('settings.mcpAddBtn')+'</button>';
     html += '  </div>';
     html += '</div>';
     el.innerHTML = html;
@@ -708,9 +989,9 @@ LaRuche.Settings = (function(){
       var html = '';
       for(var k in d.mcpServers) {
         var s = d.mcpServers[k];
-        html += '<div class="settings-row" style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(42,42,46,0.3)"><span class="settings-label" style="flex:1">'+k+' <span style="font-size:10px;color:var(--text-dim)">('+s.command+' '+(s.args?s.args.join(' '):'')+')</span></span><button onclick="LaRuche.Settings.deleteMcpServer(\''+k+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">Suppr</button></div>';
+        html += '<div class="settings-row" style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(42,42,46,0.3)"><span class="settings-label" style="flex:1">'+k+' <span style="font-size:10px;color:var(--text-dim)">('+s.command+' '+(s.args?s.args.join(' '):'')+')</span></span><button onclick="LaRuche.Settings.deleteMcpServer(\''+k+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.mcpDeleteBtn')+'</button></div>';
       }
-      if(!html) html = '<div style="color:var(--text-dim);font-size:12px;padding:8px">Aucun serveur configuré.</div>';
+      if(!html) html = '<div style="color:var(--text-dim);font-size:12px;padding:8px">'+LaRuche.i18n.t('settings.mcpNone')+'</div>';
       el.innerHTML = html;
     } catch(e) {}
   }
@@ -727,7 +1008,7 @@ LaRuche.Settings = (function(){
       body: JSON.stringify({command: c, args: args})
     }).then(function(r){
       if(r.ok) {
-         LaRuche.Toast.show('Serveur MCP ajouté','ok');
+         LaRuche.Toast.show(LaRuche.i18n.t('settings.mcpAdded'),'ok');
          document.getElementById('mcp-new-name').value = '';
          document.getElementById('mcp-new-cmd').value = '';
          document.getElementById('mcp-new-args').value = '';
@@ -737,9 +1018,9 @@ LaRuche.Settings = (function(){
   }
 
   function deleteMcpServer(n) {
-    if(!confirm('Supprimer ce serveur MCP ?')) return;
+    if(!confirm(LaRuche.i18n.t('settings.mcpDeleteConfirm'))) return;
     fetch('/api/mcp/servers/'+encodeURIComponent(n), {method:'DELETE'}).then(function(r){
-      if(r.ok) { loadMcpServers(); LaRuche.Toast.show('Serveur MCP supprimé','ok'); }
+      if(r.ok) { loadMcpServers(); LaRuche.Toast.show(LaRuche.i18n.t('settings.mcpDeleted'),'ok'); }
     });
   }
 
@@ -748,7 +1029,7 @@ LaRuche.Settings = (function(){
     var pId = document.getElementById('kanban-profile').value;
     var modelSel = document.getElementById('kanban-model');
     if(!modelSel) return;
-    modelSel.innerHTML = '<option value="">(Par défaut)</option>';
+    modelSel.innerHTML = '<option value="">'+LaRuche.i18n.t('settings.parDefault')+'</option>';
     if(pId && _profiles[pId] && _profiles[pId].models) {
       _profiles[pId].models.forEach(function(m){
         modelSel.innerHTML += '<option value="'+LaRuche.Utils.esc(m)+'">'+LaRuche.Utils.esc(m)+'</option>';
@@ -760,7 +1041,7 @@ LaRuche.Settings = (function(){
     var pId = document.getElementById('watcher-profile').value;
     var modelSel = document.getElementById('watcher-model');
     if(!modelSel) return;
-    modelSel.innerHTML = '<option value="">(Par défaut)</option>';
+    modelSel.innerHTML = '<option value="">'+LaRuche.i18n.t('settings.parDefault')+'</option>';
     if(pId && _profiles[pId] && _profiles[pId].models) {
       _profiles[pId].models.forEach(function(m){
         modelSel.innerHTML += '<option value="'+LaRuche.Utils.esc(m)+'">'+LaRuche.Utils.esc(m)+'</option>';
@@ -775,7 +1056,7 @@ LaRuche.Settings = (function(){
     var profiles = profilesResp.profiles || {};
     window._lastProfiles = profiles;
     
-    var profOpts = '<option value="">Default (modele actif)</option>';
+    var profOpts = '<option value="">'+LaRuche.i18n.t('settings.defaultModel')+'</option>';
     Object.keys(profiles).forEach(function(k){
         profOpts += '<option value="'+k+'">'+LaRuche.Utils.esc(profiles[k].name)+'</option>';
     });
@@ -784,10 +1065,10 @@ LaRuche.Settings = (function(){
       '<div id="newCronForm" style="display:none" class="settings-card">'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Name</label><input id="ncName" class="form-input"></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Prompt</label><input id="ncPrompt" class="form-input"></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Cadence (cron)</label><div id="ncCronBuilder"></div></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Canal de feedback</label><select id="ncChannel" class="form-input"><option value="">None (Activity Log)</option><option value="telegram">Telegram</option><option value="discord">Discord</option></select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpScheduleLabel')+'</label><div id="ncCronBuilder"></div></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherChannelLabel')+'</label><select id="ncChannel" class="form-input"><option value="">None (Activity Log)</option><option value="telegram">Telegram</option><option value="discord">Discord</option></select></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Provider</label><select id="ncProfileId" class="form-input" onchange="LaRuche.Settings.updateCronModelSelect()">'+profOpts+'</select></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Mod&egrave;le</label><select id="ncModel" class="form-input"><option value="">D&eacute;faut du provider</option></select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Mod&egrave;le</label><select id="ncModel" class="form-input"><option value="">'+LaRuche.i18n.t('settings.providerDefault')+'</option></select></div>'+
       '<button class="settings-save-btn" onclick="LaRuche.Settings.createCron()">Create</button></div>'+
       tasks.map(function(t){
           var effProv = "Default";
@@ -805,12 +1086,12 @@ LaRuche.Settings = (function(){
   // dans n'importe quel conteneur (page Cron OU hub Missions) — fini le F5 (refreshTab
   // rechargeait le mauvais onglet selon le contexte).
   function deleteCronTask(id, btn){
-    if(!confirm('Supprimer ce cron ?')) return;
+    if(!confirm(LaRuche.i18n.t('settings.cronDeleteConfirm'))) return;
     fetch('/api/cron/'+id,{method:'DELETE'}).then(function(r){
-      if(!r.ok){ LaRuche.Toast.show('Suppression impossible','err'); return; }
+      if(!r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.cronDeleteFailed'),'err'); return; }
       var card = btn && btn.closest('.settings-card'); if(card) card.remove();
-      LaRuche.Toast.show('Cron supprimé','ok');
-    }).catch(function(){ LaRuche.Toast.show('Suppression impossible','err'); });
+      LaRuche.Toast.show(LaRuche.i18n.t('settings.cronDeleted'),'ok');
+    }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.cronDeleteFailed'),'err'); });
   }
   
   function updateCronModelSelect() {
@@ -818,7 +1099,7 @@ LaRuche.Settings = (function(){
       var modSel = document.getElementById('ncModel');
       if(!profSel || !modSel) return;
       var pid = profSel.value;
-      modSel.innerHTML = '<option value="">D&eacute;faut du provider</option>';
+      modSel.innerHTML = '<option value="">'+LaRuche.i18n.t('settings.providerDefault')+'</option>';
       if(pid && window._lastProfiles && window._lastProfiles[pid]) {
           var models = window._lastProfiles[pid].models || [];
           models.forEach(function(m) {
@@ -848,7 +1129,7 @@ LaRuche.Settings = (function(){
     var profilesResp={profiles:{}};try{profilesResp=await fetch('/api/profiles').then(function(r){return r.json();});}catch(e){}
     var profiles = profilesResp.profiles || {};
     _profiles = profiles;
-    var profOpts = '<option value="">Défaut (modèle actif)</option>';
+    var profOpts = '<option value="">'+LaRuche.i18n.t('settings.watcherDefChannel')+'</option>';
     Object.keys(profiles).forEach(function(k){
         profOpts += '<option value="'+k+'">'+LaRuche.Utils.esc(profiles[k].name||k)+'</option>';
     });
@@ -861,17 +1142,17 @@ LaRuche.Settings = (function(){
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Condition (optional)</label><input id="nwCondition" class="form-input"></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Prompt</label><input id="nwPrompt" class="form-input"></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Provider</label><select id="watcher-profile" class="form-input" onchange="LaRuche.Settings.updateWatcherModelSelect()">'+profOpts+'</select></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Mod&egrave;le</label><select id="watcher-model" class="form-input"><option value="">(Par défaut)</option></select></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Canal (déclenchement → notification)</label><select id="nwChannel" class="form-input"><option value="">Home channel (défaut)</option></select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Mod&egrave;le</label><select id="watcher-model" class="form-input"><option value="">'+LaRuche.i18n.t('settings.parDefault')+'</option></select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Canal (déclenchement → notification)</label><select id="nwChannel" class="form-input"><option value="">'+LaRuche.i18n.t('settings.watcherHomeChannel')+'</option></select></div>'+
       '<button class="settings-save-btn" onclick="LaRuche.Settings.createWatcher()">Create</button></div>'+
       watchers.map(function(w){
-        var effProv = "Défaut";
+        var effProv = LaRuche.i18n.t('settings.watcherDefaut');
         if(w.profile_id && profiles[w.profile_id]) effProv = profiles[w.profile_id].name || w.profile_id;
         else if(w.profile_id) effProv = w.profile_id;
         else if(w.model) effProv = w.model;
         if(w.profile_id && w.model) effProv += " (" + w.model + ")";
-        return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.Utils.esc(w.name)+'</div><div class="settings-row"><span class="settings-label">Type</span><span class="settings-value">'+LaRuche.Utils.esc(w.watcher_type)+'</span></div><div class="settings-row"><span class="settings-label">Target</span><span class="settings-value">'+LaRuche.Utils.esc(w.target)+'</span></div><div class="settings-row"><span class="settings-label">Provider/Model</span><span class="settings-value">'+LaRuche.Utils.esc(effProv)+'</span></div><div class="settings-row"><span class="settings-label">Runs</span><span class="settings-value">'+(w.run_count||0)+'</span></div><div style="margin-top:6px;display:flex;gap:6px"><button onclick="LaRuche.Settings.editWatcher(\''+w.id+'\')" style="background:none;border:1px solid var(--amber);color:var(--amber);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">Éditer</button><button onclick="fetch(\'/api/watchers/'+w.id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">Delete</button></div></div>';}).join('');
-    window.__fillChannels(document.getElementById('nwChannel'), '', 'Home channel (défaut)');
+        return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.Utils.esc(w.name)+'</div><div class="settings-row"><span class="settings-label">Type</span><span class="settings-value">'+LaRuche.Utils.esc(w.watcher_type)+'</span></div><div class="settings-row"><span class="settings-label">Target</span><span class="settings-value">'+LaRuche.Utils.esc(w.target)+'</span></div><div class="settings-row"><span class="settings-label">Provider/Model</span><span class="settings-value">'+LaRuche.Utils.esc(effProv)+'</span></div><div class="settings-row"><span class="settings-label">Runs</span><span class="settings-value">'+(w.run_count||0)+'</span></div><div style="margin-top:6px;display:flex;gap:6px"><button onclick="LaRuche.Settings.editWatcher(\''+w.id+'\')" style="background:none;border:1px solid var(--amber);color:var(--amber);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.watcherEditBtn')+'</button><button onclick="fetch(\'/api/watchers/'+w.id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.deleteWatcherBtn')+'</button></div></div>';}).join('');
+    window.__fillChannels(document.getElementById('nwChannel'), '', LaRuche.i18n.t('settings.watcherHomeChannel'));
   }
 
   function createWatcher() {
@@ -895,12 +1176,12 @@ LaRuche.Settings = (function(){
   // Édition inline d'un watcher (parité avec cron/kanban).
   function editWatcher(id) {
     var w=null; try{ w=JSON.parse(_watchersLast).find(function(x){return x.id===id;}); }catch(e){}
-    if(!w){ LaRuche.Toast.show('Watcher introuvable','err'); return; }
+    if(!w){ LaRuche.Toast.show(LaRuche.i18n.t('settings.fileNotFound'),'err'); return; }
     function opt(v,label,cur){ return '<option value="'+v+'" '+(cur===v?'selected':'')+'>'+label+'</option>'; }
     var typeSel = opt('file','File',w.watcher_type)+opt('url','URL',w.watcher_type)+opt('log','Log Pattern',w.watcher_type);
-    var profOpts = '<option value="">Défaut (modèle actif)</option>';
+    var profOpts = '<option value="">'+LaRuche.i18n.t('settings.watcherDefChannel')+'</option>';
     Object.keys(_profiles).forEach(function(k){ profOpts += '<option value="'+k+'" '+((w.profile_id===k)?'selected':'')+'>'+LaRuche.Utils.esc(_profiles[k].name||k)+'</option>'; });
-    var modOpts = '<option value="">(Par défaut)</option>';
+    var modOpts = '<option value="">'+LaRuche.i18n.t('settings.parDefault')+'</option>';
     if(w.profile_id && _profiles[w.profile_id] && _profiles[w.profile_id].models){
       _profiles[w.profile_id].models.forEach(function(mm){ modOpts += '<option value="'+LaRuche.Utils.esc(mm)+'" '+((w.model===mm)?'selected':'')+'>'+LaRuche.Utils.esc(mm)+'</option>'; });
     }
@@ -908,26 +1189,26 @@ LaRuche.Settings = (function(){
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center';
     ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
     ov.innerHTML='<div style="width:480px;max-width:92vw;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;padding:16px;max-height:90vh;overflow:auto">'+
-      '<div style="font-weight:600;color:var(--amber);margin-bottom:10px">Éditer le watcher</div>'+
-      '<label class="form-label">Nom</label><input class="form-input" id="weName" value="'+LaRuche.Utils.esc(w.name||'')+'">'+
-      '<label class="form-label">Type</label><select class="form-input" id="weType">'+typeSel+'</select>'+
-      '<label class="form-label">Cible (Path/URL)</label><input class="form-input" id="weTarget" value="'+LaRuche.Utils.esc(w.target||'')+'">'+
-      '<label class="form-label">Condition</label><input class="form-input" id="weCondition" value="'+LaRuche.Utils.esc(w.condition||'')+'">'+
-      '<label class="form-label">Prompt</label><textarea class="form-input" id="wePrompt" rows="3">'+LaRuche.Utils.esc(w.prompt||'')+'</textarea>'+
-      '<label class="form-label">Provider</label><select class="form-input" id="weProfile" onchange="LaRuche.Settings.updateWatcherEditModelSelect()">'+profOpts+'</select>'+
-      '<label class="form-label">Modèle</label><select class="form-input" id="weModel">'+modOpts+'</select>'+
-      '<label class="form-label">Canal</label><select class="form-input" id="weChannel"><option value="">Home channel (défaut)</option></select>'+
-      '<label class="form-label" style="display:flex;align-items:center;gap:8px;margin-top:8px"><input type="checkbox" id="weActive" '+(w.active?'checked':'')+'> Actif</label>'+
-      '<div style="margin-top:12px;display:flex;gap:8px"><button class="form-btn" onclick="LaRuche.Settings.saveWatcherEdit(\''+id+'\',this)">Enregistrer</button>'+
-      '<button class="form-btn" style="background:none;border:1px solid var(--border);color:var(--text-dim)" onclick="this.closest(\'div[style*=fixed]\')&&this.closest(\'div[style*=fixed]\').remove()">Annuler</button></div></div>';
+      '<div style="font-weight:600;color:var(--amber);margin-bottom:10px">'+LaRuche.i18n.t('settings.watcherEditTitle')+'</div>'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.watcherNomLabel')+'</label><input class="form-input" id="weName" value="'+LaRuche.Utils.esc(w.name||'')+'">'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.watcherTypeLabel')+'</label><select class="form-input" id="weType">'+typeSel+'</select>'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.watcherTargetLabel')+'</label><input class="form-input" id="weTarget" value="'+LaRuche.Utils.esc(w.target||'')+'">'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.watcherCondLabel')+'</label><input class="form-input" id="weCondition" value="'+LaRuche.Utils.esc(w.condition||'')+'">'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.watcherPromptLabel')+'</label><textarea class="form-input" id="wePrompt" rows="3">'+LaRuche.Utils.esc(w.prompt||'')+'</textarea>'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.watcherProviderLabel')+'</label><select class="form-input" id="weProfile" onchange="LaRuche.Settings.updateWatcherEditModelSelect()">'+profOpts+'</select>'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.watcherModelLabel')+'</label><select class="form-input" id="weModel">'+modOpts+'</select>'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.watcherChannelLabel')+'</label><select class="form-input" id="weChannel"><option value="">'+LaRuche.i18n.t('settings.watcherHomeChannel')+'</option></select>'+
+      '<label class="form-label" style="display:flex;align-items:center;gap:8px;margin-top:8px"><input type="checkbox" id="weActive" '+(w.active?'checked':'')+'> '+LaRuche.i18n.t('settings.watcherActiveLabel')+'</label>'+
+      '<div style="margin-top:12px;display:flex;gap:8px"><button class="form-btn" onclick="LaRuche.Settings.saveWatcherEdit(\''+id+'\',this)">'+LaRuche.i18n.t('settings.watcherSave')+'</button>'+
+      '<button class="form-btn" style="background:none;border:1px solid var(--border);color:var(--text-dim)" onclick="this.closest(\'div[style*=fixed]\')&&this.closest(\'div[style*=fixed]\').remove()">'+LaRuche.i18n.t('settings.watcherCancel')+'</button></div></div>';
     document.body.appendChild(ov);
-    window.__fillChannels(document.getElementById('weChannel'), (w&&w.channel)||'', 'Home channel (défaut)');
+    window.__fillChannels(document.getElementById('weChannel'), (w&&w.channel)||'', LaRuche.i18n.t('settings.watcherHomeChannel'));
   }
 
   function updateWatcherEditModelSelect() {
     var pId=document.getElementById('weProfile').value, sel=document.getElementById('weModel');
     if(!sel) return;
-    sel.innerHTML='<option value="">(Par défaut)</option>';
+    sel.innerHTML='<option value="">'+LaRuche.i18n.t('settings.parDefault')+'</option>';
     if(pId && _profiles[pId] && _profiles[pId].models){ _profiles[pId].models.forEach(function(m){ sel.innerHTML+='<option value="'+LaRuche.Utils.esc(m)+'">'+LaRuche.Utils.esc(m)+'</option>'; }); }
   }
 
@@ -944,20 +1225,20 @@ LaRuche.Settings = (function(){
       channel: document.getElementById('weChannel')?document.getElementById('weChannel').value:''
     };
     fetch(LaRuche.API.base+'/api/watchers/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Watcher modifié','ok'); var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove(); refreshTab(); } else { LaRuche.Toast.show('Échec modification','err'); } });
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.watcherSaved'),'ok'); var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove(); refreshTab(); } else { LaRuche.Toast.show(LaRuche.i18n.t('settings.watcherSaveFailed'),'err'); } });
   }
 
   function addCredential(provider) {
-    var key = prompt('Nouvelle cle API pour ' + provider + ' :');
+    var key = prompt(LaRuche.i18n.t('settings.newCredKey') + provider + ' :');
     if(!key) return;
-    var label = prompt('Label optionnel (ex: Compte Dev) :') || '';
+    var label = prompt(LaRuche.i18n.t('settings.newCredLabel')) || '';
     fetch('/api/credentials', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({provider: provider, api_key: key, label: label})
     }).then(function(){
       loadProviders(document.getElementById('settingsContent'));
-    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+    }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('settings.credErr')+e, 'err'); });
   }
 
 
@@ -972,7 +1253,7 @@ LaRuche.Settings = (function(){
     .then(function(r){return r.json();})
     .then(function(d){
       if(d.status==='ok') {
-        LaRuche.Toast.show('Visibilité modifiée avec succès','ok'); window.LaRuche.forceReactivityUpdate();
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.visibilityUpdated'),'ok'); window.LaRuche.forceReactivityUpdate();
         loadTab('providers');
       } else {
         LaRuche.Toast.show('Erreur: '+(d.error||'?'),'err');
@@ -986,20 +1267,20 @@ LaRuche.Settings = (function(){
     var allowed=[]; try{ allowed=JSON.parse(decodeURIComponent(allowedEnc||'%5B%5D')); }catch(e){}
     var peers=[]; try{ peers=(await fetch('/api/mesh/peers').then(function(r){return r.json();})).peers||[]; }catch(e){}
     function peersHtml(){
-      if(!peers.length) return '<div style="color:var(--text-dim);font-size:12px">Aucune ruche découverte sur le réseau.</div>';
+      if(!peers.length) return '<div style="color:var(--text-dim);font-size:12px">'+LaRuche.i18n.t('settings.accessNoPeers')+'</div>';
       return peers.map(function(pr){ var ck=allowed.indexOf(pr.id)!==-1?'checked':''; return '<label style="display:flex;gap:8px;align-items:center;padding:3px 0;font-size:13px"><input type="checkbox" class="acc-peer" value="'+esc(pr.id)+'" '+ck+'> 🐝 '+esc(pr.name||pr.id)+'</label>'; }).join('');
     }
     var ov=document.createElement('div'); ov.className='profile-modal-overlay open';
     ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
-    ov.innerHTML='<div class="profile-modal"><div class="profile-modal-head"><span class="profile-modal-name">🔐 Accès mesh du provider</span><button class="fd-btn" id="accClose">&#x2716;</button></div>'+
-      '<p class="profile-modal-hint">Qui peut utiliser ce provider/LLM via le mesh ? (la clé API reste toujours locale)</p>'+
+    ov.innerHTML='<div class="profile-modal"><div class="profile-modal-head"><span class="profile-modal-name">'+LaRuche.i18n.t('settings.accessTitle')+'</span><button class="fd-btn" id="accClose">&#x2716;</button></div>'+
+      '<p class="profile-modal-hint">'+LaRuche.i18n.t('settings.accessHint')+'</p>'+
       '<div style="display:flex;flex-direction:column;gap:8px">'+
-        '<label><input type="radio" name="accvis" value="prive" '+(currentVis==='prive'?'checked':'')+'> 🔒 <b>Privé</b> — moi seulement</label>'+
-        '<label><input type="radio" name="accvis" value="public_proxy" '+(currentVis==='public_proxy'?'checked':'')+'> 🌐 <b>Public</b> — toutes les ruches du mesh</label>'+
-        '<label><input type="radio" name="accvis" value="restricted" '+(currentVis==='restricted'?'checked':'')+'> 🐝 <b>Restreint</b> — seulement ces ruches :</label>'+
+        '<label><input type="radio" name="accvis" value="prive" '+(currentVis==='prive'?'checked':'')+'>'+LaRuche.i18n.t('settings.accessPrivate')+'</label>'+
+        '<label><input type="radio" name="accvis" value="public_proxy" '+(currentVis==='public_proxy'?'checked':'')+'>'+LaRuche.i18n.t('settings.accessPublic')+'</label>'+
+        '<label><input type="radio" name="accvis" value="restricted" '+(currentVis==='restricted'?'checked':'')+'>'+LaRuche.i18n.t('settings.accessRestricted')+'</label>'+
         '<div id="accPeers" style="margin-left:24px;'+(currentVis==='restricted'?'':'opacity:.45;pointer-events:none')+'">'+peersHtml()+'</div>'+
       '</div>'+
-      '<div class="profile-modal-actions"><button class="send-btn" id="accSave"><span>Enregistrer</span></button></div></div>';
+      '<div class="profile-modal-actions"><button class="send-btn" id="accSave"><span>'+LaRuche.i18n.t('settings.accessSave')+'</span></button></div></div>';
     document.body.appendChild(ov);
     ov.querySelector('#accClose').onclick=function(){ ov.remove(); };
     ov.querySelectorAll('input[name=accvis]').forEach(function(r){ r.onchange=function(){
@@ -1011,21 +1292,21 @@ LaRuche.Settings = (function(){
       var aps=Array.prototype.map.call(ov.querySelectorAll('.acc-peer:checked'),function(c){return c.value;});
       fetch('/api/profiles/'+id+'/visibility',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({visibility:vis,allowed_peers:aps})})
         .then(function(r){return r.json();}).then(function(d){
-          if(d.status==='ok'){ LaRuche.Toast.show('Accès mis à jour','ok'); ov.remove(); if(window.LaRuche.forceReactivityUpdate)window.LaRuche.forceReactivityUpdate(); loadTab('providers'); }
+          if(d.status==='ok'){ LaRuche.Toast.show(LaRuche.i18n.t('settings.accessUpdated'),'ok'); ov.remove(); if(window.LaRuche.forceReactivityUpdate)window.LaRuche.forceReactivityUpdate(); loadTab('providers'); }
           else LaRuche.Toast.show('Erreur: '+(d.error||'?'),'err');
         }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e,'err'); });
     };
   }
 
   function deleteCredential(provider, apiKey) {
-    if(!confirm('Supprimer cette cle du pool ?')) return;
+    if(!confirm(LaRuche.i18n.t('settings.deleteCredConfirm'))) return;
     fetch('/api/credentials', {
       method: 'DELETE',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({provider: provider, api_key: apiKey})
     }).then(function(){
       loadProviders(document.getElementById('settingsContent'));
-    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+    }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('settings.credErr')+e, 'err'); });
   }
 
   async function loadChannels(el) {
@@ -1036,20 +1317,20 @@ LaRuche.Settings = (function(){
     var sl = config.slack || {};
     el.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">' +
       '<div class="settings-card"><div class="card-title" style="color:var(--amber)">Notifications</div>' +
-        '<div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">Envoi proactif des events (AgentCompleted, WatcherFired) via Telegram (le premier Chat ID configuré est utilisé).</div>' +
-        '<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="ch-notify-en" '+(notify.enabled?'checked':'')+'> <span>Activer Notifier proactif</span></label></div>' +
+        '<div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">'+LaRuche.i18n.t('settings.notifyHint')+'</div>' +
+        '<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="ch-notify-en" '+(notify.enabled?'checked':'')+'> <span>'+LaRuche.i18n.t('settings.notifyLabel')+'</span></label></div>' +
       '<div class="settings-card"><div class="card-title" style="color:var(--blue)">Telegram</div>' +
         '<div class="form-group"><label class="form-label">Bot Token</label><input class="form-input" id="ch-tg-token" value="'+LaRuche.Utils.esc(tg.bot_token||'')+'" placeholder="7123456789:AAH..."></div>' +
-        '<div class="form-group"><label class="form-label">Allowed Chat IDs</label><input class="form-input" id="ch-tg-chats" value="'+LaRuche.Utils.esc(tg.allowed_chats||'')+'" placeholder="vide = tous"></div>' +
-        '<div style="font-size:10px;color:var(--text-muted);margin-top:4px">Lancer: python -m src.telegram</div></div>' +
+        '<div class="form-group"><label class="form-label">Allowed Chat IDs</label><input class="form-input" id="ch-tg-chats" value="'+LaRuche.Utils.esc(tg.allowed_chats||'')+'" placeholder="'+LaRuche.i18n.t('settings.chAllowedChats')+'"></div>' +
+        '<div style="font-size:10px;color:var(--text-muted);margin-top:4px">'+LaRuche.i18n.t('settings.chTgLaunch')+'</div></div>' +
       '<div class="settings-card"><div class="card-title" style="color:var(--purple)">Discord</div>' +
         '<div class="form-group"><label class="form-label">Bot Token</label><input class="form-input" id="ch-dc-token" value="'+LaRuche.Utils.esc(dc.bot_token||'')+'" placeholder="MTIxxx..."></div>' +
-        '<div class="form-group"><label class="form-label">Allowed Channel IDs</label><input class="form-input" id="ch-dc-channels" value="'+LaRuche.Utils.esc(dc.allowed_channels||'')+'" placeholder="vide = tous"></div>' +
-        '<div style="font-size:10px;color:var(--text-muted);margin-top:4px">Lancer: python -m src.discord_bot</div></div>' +
+        '<div class="form-group"><label class="form-label">Allowed Channel IDs</label><input class="form-input" id="ch-dc-channels" value="'+LaRuche.Utils.esc(dc.allowed_channels||'')+'" placeholder="'+LaRuche.i18n.t('settings.chAllowedChats')+'"></div>' +
+        '<div style="font-size:10px;color:var(--text-muted);margin-top:4px">'+LaRuche.i18n.t('settings.chDcLaunch')+'</div></div>' +
       '<div class="settings-card"><div class="card-title" style="color:var(--green)">Slack</div>' +
         '<div class="form-group"><label class="form-label">Bot Token (xoxb-)</label><input class="form-input" id="ch-sl-bot" value="'+LaRuche.Utils.esc(sl.bot_token||'')+'" placeholder="xoxb-..."></div>' +
         '<div class="form-group"><label class="form-label">App Token (xapp-)</label><input class="form-input" id="ch-sl-app" value="'+LaRuche.Utils.esc(sl.app_token||'')+'" placeholder="xapp-..."></div>' +
-        '<div style="font-size:10px;color:var(--text-muted);margin-top:4px">Lancer: python -m src.slack_bot</div></div>' +
+        '<div style="font-size:10px;color:var(--text-muted);margin-top:4px">'+LaRuche.i18n.t('settings.chSlLaunch')+'</div></div>' +
       '<div class="settings-card" style="opacity:0.5;border-style:dashed"><div class="card-title" style="color:#25D366">WhatsApp</div>' +
         '<div style="color:var(--text-muted);font-size:12px;padding:12px 0">Coming soon</div></div>' +
       '<div class="settings-card" style="opacity:0.5;border-style:dashed"><div class="card-title" style="color:#3A76F0">Signal</div>' +
@@ -1058,9 +1339,9 @@ LaRuche.Settings = (function(){
         '<div style="color:var(--text-muted);font-size:12px;padding:12px 0">Coming soon</div></div>' +
     '</div>' +
     '<div style="margin-top:16px;display:flex;gap:8px">' +
-      '<button class="form-btn" onclick="LaRuche.Settings.saveChannels()">Sauvegarder</button>' +
-      '<button class="form-btn" style="background:var(--green)" onclick="LaRuche.Settings.startChannel(\'telegram\')" id="ch-tg-start">Demarrer Telegram</button>' +
-      '<button class="form-btn" style="background:var(--red);color:#fff" onclick="LaRuche.Settings.stopChannel(\'telegram\')" id="ch-tg-stop" style="display:none">Arreter Telegram</button>' +
+      '<button class="form-btn" onclick="LaRuche.Settings.saveChannels()">'+LaRuche.i18n.t('settings.saveChannels')+'</button>' +
+      '<button class="form-btn" style="background:var(--green)" onclick="LaRuche.Settings.startChannel(\'telegram\')" id="ch-tg-start">'+LaRuche.i18n.t('settings.startTelegram')+'</button>' +
+      '<button class="form-btn" style="background:var(--red);color:#fff" onclick="LaRuche.Settings.stopChannel(\'telegram\')" id="ch-tg-stop" style="display:none">'+LaRuche.i18n.t('settings.stopTelegram')+'</button>' +
     '</div>';
     // Check running status
     fetch(LaRuche.API.base+'/api/channels/status').then(function(r){return r.json();}).then(function(d){
@@ -1076,9 +1357,9 @@ LaRuche.Settings = (function(){
   async function loadSkills(el){
     var skills=await fetch(LaRuche.API.base+'/api/skills').then(function(r){return r.json();}).catch(function(){return [];});
     var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
-      '<div style="color:var(--text-dim);font-size:12px">Connaissances procédurales (OKF). Activées = injectables dans le contexte / attachables aux crons.</div>'+
-      '<button class="settings-save-btn" onclick="LaRuche.Settings.newSkill()">+ Nouveau skill</button></div>';
-    if(!skills.length){ html+='<div style="color:var(--text-dim);padding:20px">Aucun skill. L\'agent peut en créer (memory_write capacities.skills.*) ou clique « + Nouveau skill ».</div>'; }
+      '<div style="color:var(--text-dim);font-size:12px">'+LaRuche.i18n.t('settings.skillsDesc')+'</div>'+
+      '<button class="settings-save-btn" onclick="LaRuche.Settings.newSkill()">'+LaRuche.i18n.t('settings.newSkillBtn')+'</button></div>';
+    if(!skills.length){ html+='<div style="color:var(--text-dim);padding:20px">'+LaRuche.i18n.t('settings.noSkills')+'</div>'; }
     html+='<div class="settings-grid">';
     skills.forEach(function(s){
       html+='<div class="settings-card">'+
@@ -1088,8 +1369,8 @@ LaRuche.Settings = (function(){
         '</div>'+
         '<div style="font-size:11px;color:var(--text-dim);margin:6px 0;min-height:28px">'+LaRuche.Utils.esc(s.description||'')+'</div>'+
         '<div style="display:flex;gap:6px">'+
-        '<button class="tl-btn" onclick="LaRuche.Settings.viewSkill(\''+LaRuche.Utils.esc(s.name)+'\')">Voir / Éditer</button>'+
-        '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(\'Supprimer '+LaRuche.Utils.esc(s.name)+' ?\'))LaRuche.Settings.deleteSkill(\''+LaRuche.Utils.esc(s.name)+'\')">Suppr</button>'+
+        '<button class="tl-btn" onclick="LaRuche.Settings.viewSkill(\''+LaRuche.Utils.esc(s.name)+'\')">'+LaRuche.i18n.t('settings.skillViewEdit')+'</button>'+
+        '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(\'Supprimer '+LaRuche.Utils.esc(s.name)+' ?\'))LaRuche.Settings.deleteSkill(\''+LaRuche.Utils.esc(s.name)+'\')">'+LaRuche.i18n.t('settings.skillDelBtn')+'</button>'+
         '</div></div>';
     });
     html+='</div>';
@@ -1103,7 +1384,7 @@ LaRuche.Settings = (function(){
       document.head.appendChild(st);
     }
   }
-  function toggleSkill(name){ fetch(LaRuche.API.base+'/api/skills/'+encodeURIComponent(name)+'/toggle',{method:'POST'}).then(function(r){return r.json();}).then(function(d){ LaRuche.Toast.show('Skill '+(d.enabled?'activé':'désactivé'),'ok'); }); }
+  function toggleSkill(name){ fetch(LaRuche.API.base+'/api/skills/'+encodeURIComponent(name)+'/toggle',{method:'POST'}).then(function(r){return r.json();}).then(function(d){ LaRuche.Toast.show(LaRuche.i18n.t('settings.skillToast')+(d.enabled?LaRuche.i18n.t('settings.skillActivated'):LaRuche.i18n.t('settings.skillDeactivated')),'ok'); }); }
   function deleteSkill(name){ fetch(LaRuche.API.base+'/api/skills/'+encodeURIComponent(name),{method:'DELETE'}).then(function(){ LaRuche.Settings.refreshTab&&LaRuche.Settings.refreshTab(); }); }
   var PLUGIN_TEMPLATE = '{\n  "name": "mon_plugin",\n  "description": "Description de mon plugin",\n  "danger": "safe",\n  "parameters": {\n    "type": "object",\n    "properties": {},\n    "required": []\n  },\n  "command": "echo {{arg}}"\n}';
   function newPlugin(){ pluginEditor('nouveau_plugin', PLUGIN_TEMPLATE); }
@@ -1114,18 +1395,18 @@ LaRuche.Settings = (function(){
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center';
     ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
     ov.innerHTML='<div style="width:680px;max-width:94vw;height:80vh;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
-      '<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--amber)">'+(name?('Éditer : '+LaRuche.Utils.esc(name)):'Nouveau skill')+' <span style="color:var(--text-dim);font-size:10px;font-weight:normal">— SKILL.md (frontmatter validé au save)</span></div>'+
+      '<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--amber)">'+(name?(LaRuche.i18n.t('settings.skillEditPrefix')+LaRuche.Utils.esc(name)):LaRuche.i18n.t('settings.skillNewTitle'))+' <span style="color:var(--text-dim);font-size:10px;font-weight:normal">'+LaRuche.i18n.t('settings.skillEditorHint')+'</span></div>'+
       '<textarea id="skEditor" class="form-input" style="flex:1;margin:12px 12px 6px;font-family:var(--mono);font-size:12px;resize:none">'+LaRuche.Utils.esc(content)+'</textarea>'+
       '<div style="margin:0 12px 6px">'+
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
-          '<span style="font-size:10px;color:var(--text-dim);flex:1">Abeilles / plugins de ce skill (→ <code>tools:</code>) <span id="skToolsCount" style="color:var(--amber)"></span></span>'+
-          '<input id="skToolsSearch" placeholder="filtrer…" oninput="LaRuche.Settings.filterSkillTools()" style="font-size:11px;padding:2px 6px;width:120px;background:#16161a;border:1px solid var(--border);border-radius:4px;color:var(--text)">'+
-          '<button class="tl-btn" style="font-size:10px;padding:2px 6px" onclick="LaRuche.Settings.clearSkillTools()">Vider</button>'+
+          '<span style="font-size:10px;color:var(--text-dim);flex:1">'+LaRuche.i18n.t('settings.skillToolsHint')+'<span id="skToolsCount" style="color:var(--amber)"></span></span>'+
+          '<input id="skToolsSearch" placeholder="'+LaRuche.i18n.t('settings.skillToolsFilter')+'" oninput="LaRuche.Settings.filterSkillTools()" style="font-size:11px;padding:2px 6px;width:120px;background:#16161a;border:1px solid var(--border);border-radius:4px;color:var(--text)">'+
+          '<button class="tl-btn" style="font-size:10px;padding:2px 6px" onclick="LaRuche.Settings.clearSkillTools()">'+LaRuche.i18n.t('settings.skillToolsClear')+'</button>'+
         '</div>'+
-        '<div id="skToolsBox" style="max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:6px;padding:4px"><span style="color:var(--text-dim);font-size:11px">Chargement…</span></div></div>'+
+        '<div id="skToolsBox" style="max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:6px;padding:4px"><span style="color:var(--text-dim);font-size:11px">'+LaRuche.i18n.t('settings.skillToolsLoading')+'</span></div></div>'+
       '<div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
-      '<button class="tl-btn" onclick="this.closest(\'div[style*=fixed]\').remove()">Annuler</button>'+
-      '<button class="settings-save-btn" onclick="LaRuche.Settings.saveSkill(this)">Enregistrer</button></div></div>';
+      '<button class="tl-btn" onclick="this.closest(\'div[style*=fixed]\').remove()">'+LaRuche.i18n.t('settings.skillCancelBtn')+'</button>'+
+      '<button class="settings-save-btn" onclick="LaRuche.Settings.saveSkill(this)">'+LaRuche.i18n.t('settings.skillSaveBtn')+'</button></div></div>';
     document.body.appendChild(ov);
     mountSkillTools(content);
   }
@@ -1148,7 +1429,7 @@ LaRuche.Settings = (function(){
     pluginNames.forEach(function(n){ if(!seen[n]){ seen[n]=1; items.push({name:n, group:'Plugins', desc:''}); } });
     var m = content.match(/^\s*(?:allowed-)?tools:\s*\[([^\]]*)\]/m);
     var current = m ? m[1].split(',').map(function(s){return s.trim().replace(/['"]/g,'');}).filter(Boolean) : [];
-    current.forEach(function(n){ if(!seen[n]){ seen[n]=1; items.push({name:n, group:'Autres', desc:'(référence)'}); } });
+    current.forEach(function(n){ if(!seen[n]){ seen[n]=1; items.push({name:n, group:'Autres', desc:LaRuche.i18n.t('settings.skillToolsRef')}); } });
     window._skItems = items;
     window._skChecked = {}; current.forEach(function(n){ window._skChecked[n]=1; });
     renderSkillTools();
@@ -1175,9 +1456,9 @@ LaRuche.Settings = (function(){
       html+='<div style="font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);padding:6px 7px 2px">'+g+' ('+list.filter(function(i){return checked[i.name];}).length+'/'+list.length+')</div>';
       html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px">'+list.map(row).join('')+'</div>';
     });
-    box.innerHTML = html || '<span style="color:var(--text-dim);font-size:11px;padding:6px;display:block">Aucun résultat.</span>';
+    box.innerHTML = html || '<span style="color:var(--text-dim);font-size:11px;padding:6px;display:block">'+LaRuche.i18n.t('settings.skillToolsNone')+'</span>';
     var cnt=document.getElementById('skToolsCount');
-    if(cnt){ var n=Object.keys(checked).filter(function(k){return checked[k];}).length; cnt.textContent=n?('— '+n+' coché'+(n>1?'s':'')):''; }
+    if(cnt){ var n=Object.keys(checked).filter(function(k){return checked[k];}).length; cnt.textContent=n?('— '+n+' '+LaRuche.i18n.t('settings.skillToolsChecked')):''; }
   }
   function toggleSkillTool(name, on){ window._skChecked=window._skChecked||{}; if(on) window._skChecked[name]=1; else delete window._skChecked[name]; applySkillTools(); renderSkillTools(); }
   function filterSkillTools(){ renderSkillTools(); }
@@ -1203,23 +1484,23 @@ LaRuche.Settings = (function(){
     fetch(LaRuche.API.base+'/api/skills',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:content})})
       .then(function(r){return r.json();}).then(function(d){
         if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
-        LaRuche.Toast.show('Skill « '+d.name+' » enregistré','ok');
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.skillToast')+'« '+d.name+' »'+LaRuche.i18n.t('settings.skillSaved'),'ok');
         var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove();
         LaRuche.Settings.refreshTab&&LaRuche.Settings.refreshTab();
-      }).catch(function(){ LaRuche.Toast.show('Échec','err'); });
+      }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.skillFailed'),'err'); });
   }
 
-  function viewPlugin(name){ fetch(LaRuche.API.base+'/api/plugins/'+encodeURIComponent(name)).then(function(r){return r.json();}).then(function(d){ pluginEditor(name, d.content||''); }).catch(function(){ LaRuche.Toast.show('Fichier non trouvé','err'); }); }
+  function viewPlugin(name){ fetch(LaRuche.API.base+'/api/plugins/'+encodeURIComponent(name)).then(function(r){return r.json();}).then(function(d){ pluginEditor(name, d.content||''); }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.pluginNotFound'),'err'); }); }
   function pluginEditor(name, content){
     var ov=document.createElement('div');
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center';
     ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
     ov.innerHTML='<div style="width:680px;max-width:94vw;height:80vh;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
-      '<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--amber)">Éditer Plugin : '+LaRuche.Utils.esc(name)+' <span style="color:var(--text-dim);font-size:10px;font-weight:normal">— JSON (rechargé au save)</span></div>'+
+      '<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--amber)">'+LaRuche.i18n.t('settings.pluginEditTitle')+LaRuche.Utils.esc(name)+' <span style="color:var(--text-dim);font-size:10px;font-weight:normal">'+LaRuche.i18n.t('settings.pluginEditorHint')+'</span></div>'+
       '<textarea id="plEditor" data-name="'+LaRuche.Utils.esc(name)+'" class="form-input" style="flex:1;margin:12px;font-family:var(--mono);font-size:12px;resize:none" spellcheck="false">'+LaRuche.Utils.esc(content)+'</textarea>'+
       '<div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
-      '<button class="tl-btn" onclick="this.closest(\'div[style*=fixed]\').remove()">Annuler</button>'+
-      '<button class="settings-save-btn" onclick="LaRuche.Settings.savePlugin(this)">Enregistrer</button></div></div>';
+      '<button class="tl-btn" onclick="this.closest(\'div[style*=fixed]\').remove()">'+LaRuche.i18n.t('settings.pluginCancelBtn')+'</button>'+
+      '<button class="settings-save-btn" onclick="LaRuche.Settings.savePlugin(this)">'+LaRuche.i18n.t('settings.pluginSaveBtn')+'</button></div></div>';
     document.body.appendChild(ov);
   }
   function savePlugin(btn){
@@ -1228,17 +1509,17 @@ LaRuche.Settings = (function(){
     fetch(LaRuche.API.base+'/api/plugins/'+encodeURIComponent(name),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:content})})
       .then(function(r){return r.json();}).then(function(d){
         if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
-        LaRuche.Toast.show('Plugin « '+d.name+' » enregistré','ok');
+        LaRuche.Toast.show('Plugin « '+d.name+' »'+LaRuche.i18n.t('settings.pluginSaved'),'ok');
         var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove();
         LaRuche.Settings.refreshTab&&LaRuche.Settings.refreshTab();
-      }).catch(function(){ LaRuche.Toast.show('Échec','err'); });
+      }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.pluginFailed'),'err'); });
   }
   function deletePlugin(name){
     fetch(LaRuche.API.base+'/api/plugins/'+encodeURIComponent(name),{method:'DELETE'})
       .then(function(r){return r.json();}).then(function(d){
-        LaRuche.Toast.show('Plugin supprimé','ok');
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.pluginDeleted'),'ok');
         LaRuche.Settings.refreshTab&&LaRuche.Settings.refreshTab();
-      }).catch(function(){ LaRuche.Toast.show('Échec','err'); });
+      }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.pluginFailed'),'err'); });
   }
 
   var _kanbanTimer=null, _kanbanLast='';
@@ -1253,8 +1534,8 @@ LaRuche.Settings = (function(){
     _kanbanLast=''; refreshKanbanCols();
   }
   function kanbanToggleInner(){
-    return '<button class="tl-btn" style="border-radius:0'+(_kanbanView==='cols'?';background:var(--amber);color:#000':'')+'" onclick="LaRuche.Settings.setKanbanView(\'cols\')">Colonnes</button>'+
-      '<button class="tl-btn" style="border-radius:0'+(_kanbanView==='rows'?';background:var(--amber);color:#000':'')+'" onclick="LaRuche.Settings.setKanbanView(\'rows\')">Horizontal</button>';
+    return '<button class="tl-btn" style="border-radius:0'+(_kanbanView==='cols'?';background:var(--amber);color:#000':'')+'" onclick="LaRuche.Settings.setKanbanView(\'cols\')">'+LaRuche.i18n.t('settings.kanbanCols')+'</button>'+
+      '<button class="tl-btn" style="border-radius:0'+(_kanbanView==='rows'?';background:var(--amber);color:#000':'')+'" onclick="LaRuche.Settings.setKanbanView(\'rows\')">'+LaRuche.i18n.t('settings.kanbanHorizontal')+'</button>';
   }
   // Carte kanban (HTML) — partagee entre mode colonnes et mode horizontal.
   function kanbanCardHtml(t){
@@ -1275,14 +1556,14 @@ LaRuche.Settings = (function(){
       h+='<div class="kb-result" onclick="event.stopPropagation();LaRuche.Settings.toggleKanbanResult(this)" '+
          'data-collapsed="1" style="font-size:10px;color:var(--green);margin-bottom:6px;cursor:pointer" '+
          'title="'+(_trunc?'Cliquer pour deplier/replier':'')+'">'+
-         '<span class="kb-result-label">Résultat'+(_trunc?' ▸':'')+': </span>'+
+         '<span class="kb-result-label">'+LaRuche.i18n.t('settings.kanbanResultLabel')+(_trunc?' ▸':'')+': </span>'+
          '<span class="kb-result-short" style="white-space:pre-wrap;word-break:break-word">'+LaRuche.Utils.esc(_short)+'</span>'+
          '<span class="kb-result-full" style="display:none;white-space:pre-wrap;word-break:break-word">'+LaRuche.Utils.esc(_full)+'</span>'+
          '</div>';
     }
     h+='<div style="display:flex;justify-content:space-between;align-items:center">';
     h+='<span style="font-size:9px;color:var(--text-muted);font-family:var(--mono)">'+t.id.split('-')[0]+'</span>';
-    h+='<span><button onclick="LaRuche.Settings.editKanbanTask(\''+t.id+'\')" style="background:none;border:none;color:var(--amber);cursor:pointer;font-size:10px">Éditer</button> <button onclick="LaRuche.Settings.deleteKanbanTask(\''+t.id+'\')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:10px">Suppr</button></span>';
+    h+='<span><button onclick="LaRuche.Settings.editKanbanTask(\''+t.id+'\')" style="background:none;border:none;color:var(--amber);cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.kanbanEditBtn')+'</button> <button onclick="LaRuche.Settings.deleteKanbanTask(\''+t.id+'\')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.kanbanDelBtn')+'</button></span>';
     h+='</div></div>';
     return h;
   }
@@ -1308,25 +1589,25 @@ LaRuche.Settings = (function(){
     // P1 : profils pour le selecteur Provider de la tache kanban.
     var profilesResp={profiles:{}};try{profilesResp=await fetch('/api/profiles').then(function(r){return r.json();});}catch(e){}
     _profiles = profilesResp.profiles || {};
-    var profOpts = '<option value="">Défaut (modèle actif)</option>';
+    var profOpts = '<option value="">'+LaRuche.i18n.t('settings.kanbanDefProvider')+'</option>';
     Object.keys(_profiles).forEach(function(k){
         profOpts += '<option value="'+k+'">'+LaRuche.Utils.esc(_profiles[k].name||k)+'</option>';
     });
     el.innerHTML = '<div style="margin-bottom:16px;display:flex;gap:8px;align-items:end;flex-wrap:wrap">' +
-      '<div style="flex:1;min-width:140px"><label class="form-label">Titre de la tâche</label><input class="form-input" id="kanban-title" placeholder="Nouvelle tâche..."></div>' +
-      '<div style="flex:2;min-width:160px"><label class="form-label">Description</label><input class="form-input" id="kanban-desc" placeholder="Détails..."></div>' +
+      '<div style="flex:1;min-width:140px"><label class="form-label">'+LaRuche.i18n.t('settings.kanbanTitle')+'</label><input class="form-input" id="kanban-title" placeholder="'+LaRuche.i18n.t('settings.kanbanTitlePlaceholder')+'"></div>' +
+      '<div style="flex:2;min-width:160px"><label class="form-label">'+LaRuche.i18n.t('settings.kanbanDesc')+'</label><input class="form-input" id="kanban-desc" placeholder="'+LaRuche.i18n.t('settings.kanbanDescPlaceholder')+'"></div>' +
       '<div style="flex:1;min-width:130px"><label class="form-label">Provider</label><select class="form-input" id="kanban-profile" onchange="LaRuche.Settings.updateKanbanModelSelect()">'+profOpts+'</select></div>' +
-      '<div style="flex:1;min-width:130px"><label class="form-label">Mod&egrave;le</label><select class="form-input" id="kanban-model"><option value="">(Par défaut)</option></select></div>' +
-      '<div style="flex:1;min-width:150px"><label class="form-label">Canal</label><select class="form-input" id="kanban-channel"><option value="">Défaut du board</option></select></div>' +
-      '<button class="form-btn" onclick="LaRuche.Settings.createKanbanTask()">Créer</button></div>' +
+      '<div style="flex:1;min-width:130px"><label class="form-label">Mod&egrave;le</label><select class="form-input" id="kanban-model"><option value="">'+LaRuche.i18n.t('settings.kanbanParDefault')+'</option></select></div>' +
+      '<div style="flex:1;min-width:150px"><label class="form-label">'+LaRuche.i18n.t('settings.kanbanChannel')+'</label><select class="form-input" id="kanban-channel"><option value="">'+LaRuche.i18n.t('settings.kanbanBoardChannel')+'</option></select></div>' +
+      '<button class="form-btn" onclick="LaRuche.Settings.createKanbanTask()">'+LaRuche.i18n.t('settings.kanbanCreate')+'</button></div>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">' +
-        '<div style="display:flex;align-items:center;gap:6px"><label class="form-label" style="margin:0">Canal par défaut du board</label>' +
-        '<select class="form-input" id="kanban-default-channel" style="width:auto" onchange="LaRuche.Settings.setKanbanDefaultChannel(this.value)"><option value="">Aucun (→ home channel)</option></select></div>' +
+        '<div style="display:flex;align-items:center;gap:6px"><label class="form-label" style="margin:0">'+LaRuche.i18n.t('settings.kanbanDefaultChannelLabel')+'</label>' +
+        '<select class="form-input" id="kanban-default-channel" style="width:auto" onchange="LaRuche.Settings.setKanbanDefaultChannel(this.value)"><option value="">'+LaRuche.i18n.t('settings.kanbanBoardChannelNone')+'</option></select></div>' +
         '<div id="kanbanViewToggle" style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">'+kanbanToggleInner()+'</div></div>' +
       '<div id="kanbanCols"></div>';
     _kanbanLast='';
-    window.__fillChannels(document.getElementById('kanban-channel'), '', 'Défaut du board');
-    try{ var dc=await fetch('/api/kanban/default_channel').then(function(r){return r.json();}); window.__fillChannels(document.getElementById('kanban-default-channel'), (dc&&dc.channel)||'', 'Aucun (→ home channel)'); }catch(e){}
+    window.__fillChannels(document.getElementById('kanban-channel'), '', LaRuche.i18n.t('settings.kanbanBoardChannel'));
+    try{ var dc=await fetch('/api/kanban/default_channel').then(function(r){return r.json();}); window.__fillChannels(document.getElementById('kanban-default-channel'), (dc&&dc.channel)||'', LaRuche.i18n.t('settings.kanbanBoardChannelNone')); }catch(e){}
     await refreshKanbanCols();
     if(_kanbanTimer) clearInterval(_kanbanTimer);
     // Auto-refresh (l'agent/daemon peuvent modifier le board) : re-render seulement
@@ -1374,7 +1655,7 @@ LaRuche.Settings = (function(){
 
   function setKanbanDefaultChannel(ch){
     fetch('/api/kanban/default_channel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({channel: ch||null})})
-      .then(function(){ LaRuche.Toast.show('Canal par défaut du board mis à jour','ok'); });
+      .then(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.kanbanDefaultUpdated'),'ok'); });
   }
   function createKanbanTask() {
     var title = document.getElementById('kanban-title').value;
@@ -1384,7 +1665,7 @@ var m = document.getElementById('kanban-model')?document.getElementById('kanban-
 var ch = document.getElementById('kanban-channel')?document.getElementById('kanban-channel').value:'';
     if(!title) return;
     fetch(LaRuche.API.base+'/api/kanban',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title: title, description: desc, profile_id: pId||null, model: m||null, channel: ch||null})})
-      .then(function(r){if(r.ok) { LaRuche.Toast.show('Tâche créée','ok'); document.getElementById('kanban-title').value=''; document.getElementById('kanban-desc').value=''; _kanbanLast=''; refreshKanbanCols(); }});
+      .then(function(r){if(r.ok) { LaRuche.Toast.show(LaRuche.i18n.t('settings.kanbanTaskCreated'),'ok'); document.getElementById('kanban-title').value=''; document.getElementById('kanban-desc').value=''; _kanbanLast=''; refreshKanbanCols(); }});
   }
 
   function deleteKanbanTask(id) {
@@ -1395,11 +1676,11 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
   function editKanbanTask(id) {
     var t=null; try{ t=JSON.parse(_kanbanLast).find(function(x){return x.id===id;}); }catch(e){}
     // P1 : selecteur Provider dans l'edition kanban.
-    var profOpts = '<option value="">Défaut (modèle actif)</option>';
+    var profOpts = '<option value="">'+LaRuche.i18n.t('settings.kanbanDefProvider')+'</option>';
     Object.keys(_profiles).forEach(function(k){
         profOpts += '<option value="'+k+'" '+((t&&t.profile_id===k)?'selected':'')+'>'+LaRuche.Utils.esc(_profiles[k].name||k)+'</option>';
     });
-    var modOpts = '<option value="">(Par défaut)</option>';
+    var modOpts = '<option value="">'+LaRuche.i18n.t('settings.kanbanParDefault')+'</option>';
     if(t && t.profile_id && _profiles[t.profile_id] && _profiles[t.profile_id].models){
       _profiles[t.profile_id].models.forEach(function(mm){
         modOpts += '<option value="'+LaRuche.Utils.esc(mm)+'" '+((t.model===mm)?'selected':'')+'>'+LaRuche.Utils.esc(mm)+'</option>';
@@ -1409,16 +1690,16 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center';
     ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
     ov.innerHTML='<div style="width:480px;max-width:92vw;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;padding:16px">'+
-      '<div style="font-weight:600;color:var(--amber);margin-bottom:10px">Éditer la tâche</div>'+
-      '<label class="form-label">Titre</label><input class="form-input" id="kbeTitle" value="'+LaRuche.Utils.esc(t?t.title:'')+'">'+
-      '<label class="form-label">Description</label><textarea class="form-input" id="kbeDesc" rows="4">'+LaRuche.Utils.esc(t?(t.description||''):'')+'</textarea>'+
-      '<label class="form-label">Provider</label><select class="form-input" id="kbeProfile" onchange="LaRuche.Settings.updateKanbanEditModelSelect()">'+profOpts+'</select>'+
+      '<div style="font-weight:600;color:var(--amber);margin-bottom:10px">'+LaRuche.i18n.t('settings.kanbanEditTitle')+'</div>'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.kanbanEditTitleLabel')+'</label><input class="form-input" id="kbeTitle" value="'+LaRuche.Utils.esc(t?t.title:'')+'">'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.kanbanEditDescLabel')+'</label><textarea class="form-input" id="kbeDesc" rows="4">'+LaRuche.Utils.esc(t?(t.description||''):'')+'</textarea>'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.kanbanEditProviderLabel')+'</label><select class="form-input" id="kbeProfile" onchange="LaRuche.Settings.updateKanbanEditModelSelect()">'+profOpts+'</select>'+
       '<label class="form-label">Mod&egrave;le</label><select class="form-input" id="kbeModel">'+modOpts+'</select>'+
-      '<label class="form-label">Canal</label><select class="form-input" id="kbeChannel"><option value="">Défaut du board</option></select>'+
-      '<div style="margin-top:12px;display:flex;gap:8px"><button class="form-btn" onclick="LaRuche.Settings.saveKanbanEdit(\''+id+'\',this)">Enregistrer</button>'+
-      '<button class="form-btn" style="background:none;border:1px solid var(--border);color:var(--text-dim)" onclick="this.closest(\'div[style*=fixed]\')&&this.closest(\'div[style*=fixed]\').remove()">Annuler</button></div></div>';
+      '<label class="form-label">'+LaRuche.i18n.t('settings.kanbanEditChannelLabel')+'</label><select class="form-input" id="kbeChannel"><option value="">'+LaRuche.i18n.t('settings.kanbanBoardChannel')+'</option></select>'+
+      '<div style="margin-top:12px;display:flex;gap:8px"><button class="form-btn" onclick="LaRuche.Settings.saveKanbanEdit(\''+id+'\',this)">'+LaRuche.i18n.t('settings.kanbanEditSave')+'</button>'+
+      '<button class="form-btn" style="background:none;border:1px solid var(--border);color:var(--text-dim)" onclick="this.closest(\'div[style*=fixed]\')&&this.closest(\'div[style*=fixed]\').remove()">'+LaRuche.i18n.t('settings.kanbanEditCancel')+'</button></div></div>';
     document.body.appendChild(ov);
-    window.__fillChannels(document.getElementById('kbeChannel'), (t&&t.channel)||'', 'Défaut du board');
+    window.__fillChannels(document.getElementById('kbeChannel'), (t&&t.channel)||'', LaRuche.i18n.t('settings.kanbanBoardChannel'));
   }
 
   // P1 : repeuple le selecteur modele de l'edition kanban quand on change de provider.
@@ -1426,7 +1707,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     var pId = document.getElementById('kbeProfile').value;
     var modelSel = document.getElementById('kbeModel');
     if(!modelSel) return;
-    modelSel.innerHTML = '<option value="">(Par défaut)</option>';
+    modelSel.innerHTML = '<option value="">'+LaRuche.i18n.t('settings.kanbanParDefault')+'</option>';
     if(pId && _profiles[pId] && _profiles[pId].models) {
       _profiles[pId].models.forEach(function(m){
         modelSel.innerHTML += '<option value="'+LaRuche.Utils.esc(m)+'">'+LaRuche.Utils.esc(m)+'</option>';
@@ -1441,7 +1722,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     var m = mEl ? mEl.value : '';
     var chEl=document.getElementById('kbeChannel'); var ch = chEl ? chEl.value : '';
     fetch(LaRuche.API.base+'/api/kanban/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title: title, description: desc, profile_id: pId||null, model: m||null, channel: ch})})
-      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Tâche modifiée','ok'); _kanbanLast=''; refreshKanbanCols(); var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove(); } });
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.kanbanTaskUpdated'),'ok'); _kanbanLast=''; refreshKanbanCols(); var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove(); } });
   }
 
   function kanbanDragStart(e, id) {
@@ -1499,7 +1780,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     var max = parseInt(document.getElementById('cfgCtxMax').value, 10);
     var th = parseFloat(document.getElementById('cfgCtxThresh').value);
     fetch(LaRuche.API.base+'/api/config/compaction',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({context_max_messages:max,compaction_threshold:th})})
-      .then(function(r){if(r.ok) LaRuche.Toast.show('Configuration Contexte sauvegardée', 'ok'); else LaRuche.Toast.show('Erreur de sauvegarde', 'err');})
+      .then(function(r){if(r.ok) LaRuche.Toast.show(LaRuche.i18n.t('settings.contextSaved'), 'ok'); else LaRuche.Toast.show(LaRuche.i18n.t('settings.contextSaveFailed'), 'err');})
       .catch(function(e){LaRuche.Toast.show('Error: '+e,'err');});
   }
 
@@ -1512,21 +1793,21 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       dynamic_context_threshold: parseInt(document.getElementById('cfgCtxThreshold').value,10)
     };
     fetch(LaRuche.API.base+'/api/config/runtime',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-      .then(function(r){ if(r.ok) LaRuche.Toast.show('Génération appliquée (à chaud)','ok'); else LaRuche.Toast.show('Erreur','err'); })
+      .then(function(r){ if(r.ok) LaRuche.Toast.show(LaRuche.i18n.t('settings.generationApplied'),'ok'); else LaRuche.Toast.show(LaRuche.i18n.t('settings.errorGeneric'),'err'); })
       .catch(function(e){ LaRuche.Toast.show('Error: '+e,'err'); });
   }
 
   function toggleCurateur(on) {
     fetch(LaRuche.API.base+'/api/config/curateur',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:!!on})})
       .then(function(r){return r.json();})
-      .then(function(d){ if(d && d.status==='ok') LaRuche.Toast.show('Curateur '+(on?'activé':'désactivé'),'ok'); else LaRuche.Toast.show('Échec curateur','err'); })
-      .catch(function(){ LaRuche.Toast.show('Échec curateur','err'); });
+      .then(function(d){ if(d && d.status==='ok') LaRuche.Toast.show('Curateur '+(on?LaRuche.i18n.t('settings.curateEnabled'):LaRuche.i18n.t('settings.curateDisabled')),'ok'); else LaRuche.Toast.show(LaRuche.i18n.t('settings.curateFailed'),'err'); })
+      .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.curateFailed'),'err'); });
   }
   function toggleDynamicTools(on) {
     fetch(LaRuche.API.base+'/api/config/curateur',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({dynamic_tools:!!on})})
       .then(function(r){return r.json();})
-      .then(function(d){ if(d && d.status==='ok') LaRuche.Toast.show('Sélection dynamique des outils '+(on?'activée':'désactivée'),'ok'); else LaRuche.Toast.show('Échec','err'); })
-      .catch(function(){ LaRuche.Toast.show('Échec','err'); });
+      .then(function(d){ if(d && d.status==='ok') LaRuche.Toast.show(LaRuche.i18n.t('settings.dynToolsSaved')+(on?LaRuche.i18n.t('settings.dynToolsEnabled'):LaRuche.i18n.t('settings.dynToolsDisabled')),'ok'); else LaRuche.Toast.show(LaRuche.i18n.t('settings.dynToolsFailed'),'err'); })
+      .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.dynToolsFailed'),'err'); });
   }
 
   function saveChannels() {
@@ -1547,12 +1828,12 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
   async function loadKnowledge(el) {
     var data = await fetch(LaRuche.API.base+'/api/knowledge').then(function(r){return r.json();}).catch(function(){return {entries:[],count:0};});
     var html = '<div style="margin-bottom:16px;display:flex;gap:8px;align-items:end">' +
-      '<div style="flex:1"><label class="form-label">Ajouter une connaissance</label><input class="form-input" id="kb-text" placeholder="Information a memoriser..."></div>' +
-      '<div><label class="form-label">Source</label><input class="form-input" id="kb-source" placeholder="optionnel" style="width:150px"></div>' +
-      '<button class="form-btn" onclick="LaRuche.Settings.addKnowledge()">Ajouter</button></div>';
+      '<div style="flex:1"><label class="form-label">'+LaRuche.i18n.t('settings.kbAddLabel')+'</label><input class="form-input" id="kb-text" placeholder="'+LaRuche.i18n.t('settings.kbAddPlaceholder')+'"></div>' +
+      '<div><label class="form-label">'+LaRuche.i18n.t('settings.kbSourceLabel')+'</label><input class="form-input" id="kb-source" placeholder="optionnel" style="width:150px"></div>' +
+      '<button class="form-btn" onclick="LaRuche.Settings.addKnowledge()">'+LaRuche.i18n.t('settings.kbAddLabel')+'</button></div>';
     html += '<div style="margin-bottom:16px;display:flex;gap:8px;">' +
-      '<button class="form-btn" onclick="LaRuche.Settings.exportOkf()">Export OKF</button>' +
-      '<button class="form-btn" onclick="LaRuche.Settings.importOkf()">Import OKF</button>' +
+      '<button class="form-btn" onclick="LaRuche.Settings.exportOkf()">'+LaRuche.i18n.t('settings.kbExportBtn')+'</button>' +
+      '<button class="form-btn" onclick="LaRuche.Settings.importOkf()">'+LaRuche.i18n.t('settings.kbImportBtn')+'</button>' +
       '</div>';
     html += '<div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">'+data.count+' entree(s) dans la base de connaissances</div>';
     if(data.entries && data.entries.length > 0) {
@@ -1566,12 +1847,12 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
         html += '<td style="padding:6px;border-bottom:1px solid rgba(42,42,46,.3)">'+LaRuche.Utils.esc((e.text||'').substring(0,100))+'</td>';
         html += '<td style="padding:6px;border-bottom:1px solid rgba(42,42,46,.3);color:var(--text-dim)">'+LaRuche.Utils.esc(e.source||'-')+'</td>';
         html += '<td style="padding:6px;border-bottom:1px solid rgba(42,42,46,.3);text-align:center">' +
-          '<button onclick="LaRuche.Settings.editKnowledge(\''+e.id+'\',this)" style="background:none;border:1px solid var(--amber);color:var(--amber);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;margin-right:4px">Editer</button>' +
-          '<button onclick="LaRuche.Settings.deleteKnowledge(\''+e.id+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">Suppr</button></td></tr>';
+          '<button onclick="LaRuche.Settings.editKnowledge(\''+e.id+'\',this)" style="background:none;border:1px solid var(--amber);color:var(--amber);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;margin-right:4px">'+LaRuche.i18n.t('settings.kbEditBtn')+'</button>' +
+          '<button onclick="LaRuche.Settings.deleteKnowledge(\''+e.id+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.kbDelBtn')+'</button></td></tr>';
       });
       html += '</table>';
     } else {
-      html += '<div style="text-align:center;color:var(--text-muted);padding:30px">Base vide. L\'agent peut ajouter des connaissances via l\'outil knowledge_add, ou ajoutez-en manuellement ci-dessus.</div>';
+      html += '<div style="text-align:center;color:var(--text-muted);padding:30px">'+LaRuche.i18n.t('settings.kbEmpty')+'</div>';
     }
     el.innerHTML = html;
   }
@@ -1584,7 +1865,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       .then(function(r){return r.json();})
       .then(function(d){
         if(d.error) LaRuche.Toast.show('Erreur: '+d.error,'err');
-        else { LaRuche.Toast.show('Connaissance ajoutee ('+d.id+')','ok'); loadTab('knowledge'); }
+        else { LaRuche.Toast.show(LaRuche.i18n.t('settings.kbAdded')+d.id+')','ok'); loadTab('knowledge'); }
       })
       .catch(function(e){LaRuche.Toast.show('Erreur: '+e,'err');});
   }
@@ -1596,7 +1877,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     a.download = ''; a.style.display = 'none';
     document.body.appendChild(a); a.click();
     setTimeout(function(){ a.remove(); }, 0);
-    LaRuche.Toast.show('Telechargement OKF lance (tout)', 'ok');
+    LaRuche.Toast.show(LaRuche.i18n.t('settings.kbExportLaunched'), 'ok');
   }
 
   function importOkf() {
@@ -1604,7 +1885,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       .then(function(r){return r.json();})
       .then(function(res){
         if(res.ok) {
-            LaRuche.Toast.show('OKF importe avec succes', 'ok');
+            LaRuche.Toast.show(LaRuche.i18n.t('settings.kbImported'), 'ok');
             loadKnowledge(document.getElementById('settings-content'));
         }
         else LaRuche.Toast.show('Erreur import: ' + res.error, 'err');
@@ -1625,7 +1906,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     // Replace buttons with Save/Cancel
     var actionsCell = row.cells[3];
     actionsCell.innerHTML = '<button onclick="LaRuche.Settings.saveKnowledgeEdit(\''+id+'\',this)" style="background:var(--green);color:#000;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;margin-right:4px">OK</button>' +
-      '<button onclick="LaRuche.Settings.refreshTab()" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">Annuler</button>';
+      '<button onclick="LaRuche.Settings.refreshTab()" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.tlCancel')+'</button>';
   }
 
   function saveKnowledgeEdit(id, btn) {
@@ -1636,14 +1917,14 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       .then(function(r){return r.json();})
       .then(function(d){
         if(d.error) LaRuche.Toast.show('Erreur: '+d.error,'err');
-        else { LaRuche.Toast.show('Mis a jour','ok'); loadTab('knowledge'); }
+        else { LaRuche.Toast.show(LaRuche.i18n.t('settings.kbUpdated'),'ok'); loadTab('knowledge'); }
       })
       .catch(function(e){LaRuche.Toast.show('Erreur: '+e,'err');});
   }
 
   function deleteKnowledge(id) {
     fetch(LaRuche.API.base+'/api/knowledge/'+id,{method:'DELETE'})
-      .then(function(){LaRuche.Toast.show('Supprime','ok'); loadTab('knowledge');})
+      .then(function(){LaRuche.Toast.show(LaRuche.i18n.t('settings.kbDeleted'),'ok'); loadTab('knowledge');})
       .catch(function(e){LaRuche.Toast.show('Erreur: '+e,'err');});
   }
 
@@ -1653,8 +1934,8 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     fetch(LaRuche.API.base+'/api/channels/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({channel:name})})
       .then(function(r){return r.json();})
       .then(function(d){
-        if(d.status==='started') LaRuche.Toast.show(name+' demarre !','ok');
-        else if(d.status==='already_running') LaRuche.Toast.show(name+' deja en marche','info');
+        if(d.status==='started') LaRuche.Toast.show(name+LaRuche.i18n.t('settings.channelStarted'),'ok');
+        else if(d.status==='already_running') LaRuche.Toast.show(name+LaRuche.i18n.t('settings.channelAlreadyRunning'),'info');
         else LaRuche.Toast.show(d.message||'Erreur','err');
         loadTab('channels');
       });
@@ -1664,7 +1945,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     fetch(LaRuche.API.base+'/api/channels/stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({channel:name})})
       .then(function(r){return r.json();})
       .then(function(d){
-        LaRuche.Toast.show(name+' arrete','ok');
+        LaRuche.Toast.show(name+LaRuche.i18n.t('settings.channelStopped'),'ok');
         loadTab('channels');
       });
   }
@@ -1675,12 +1956,12 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     var bps=[];try{bps=await fetch('/api/blueprints').then(function(r){return r.json();});}catch(e){}
     window._blueprints = bps || [];
     var head = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap">' +
-      '<span style="color:var(--amber);font-size:12px;">Sélectionnez un blueprint pour l\'instancier en tant que tâche cron.</span>' +
-      '<button class="settings-save-btn" onclick="LaRuche.Settings.openNewBlueprintForm()">+ Nouveau blueprint</button>' +
+      '<span style="color:var(--amber);font-size:12px;">'+LaRuche.i18n.t('settings.blueprintsHint')+'</span>' +
+      '<button class="settings-save-btn" onclick="LaRuche.Settings.openNewBlueprintForm()">'+LaRuche.i18n.t('settings.newBlueprintBtn')+'</button>' +
       '</div>';
     var creationSlot = '<div id="bpNewFormWrap"></div>';
     var cards = (!window._blueprints.length)
-      ? '<div style="text-align:center;color:var(--text-muted);padding:20px">Aucun blueprint disponible</div>'
+      ? '<div style="text-align:center;color:var(--text-muted);padding:20px">'+LaRuche.i18n.t('settings.bpNone')+'</div>'
       : window._blueprints.map(function(b, idx) {
         return '<div class="settings-card" style="margin-bottom:12px;cursor:pointer;" onclick="LaRuche.Settings.openBlueprintForm('+idx+')">' +
           '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
@@ -1688,13 +1969,13 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
               '<div class="settings-card-title">'+LaRuche.Utils.esc(b.title||b.id)+'</div>' +
               '<div style="font-size:12px;color:var(--text-dim);margin-top:4px;">'+LaRuche.Utils.esc(b.description||'')+'</div>' +
             '</div>' +
-            '<button onclick="event.stopPropagation();LaRuche.Settings.deleteBlueprint('+idx+')" title="Supprimer ce blueprint perso" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;flex:0 0 auto">Supprimer</button>' +
+            '<button onclick="event.stopPropagation();LaRuche.Settings.deleteBlueprint('+idx+')" title="'+LaRuche.i18n.t('settings.bpDeleteBtn')+'" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;flex:0 0 auto">'+LaRuche.i18n.t('settings.bpDeleteBtn')+'</button>' +
           '</div>' +
           '<div id="bpForm_'+idx+'" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);" onclick="event.stopPropagation()">' +
             (b.slots||[]).map(function(slot){
               return '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.Utils.esc(slot.label||slot.name)+'</label><input id="bpInput_'+idx+'_'+slot.name+'" class="form-input" placeholder="'+LaRuche.Utils.esc(slot.placeholder||slot.default||'')+'" value="'+LaRuche.Utils.esc(slot.default||'')+'"></div>';
             }).join('') +
-            '<button class="settings-save-btn" style="margin-top:8px" onclick="LaRuche.Settings.instanciateBlueprint('+idx+')">Instancier</button>' +
+            '<button class="settings-save-btn" style="margin-top:8px" onclick="LaRuche.Settings.instanciateBlueprint('+idx+')">'+LaRuche.i18n.t('settings.bpInstanciateBtn')+'</button>' +
           '</div>' +
         '</div>';
       }).join('');
@@ -1707,7 +1988,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       '<input class="form-input bp-slot-name" placeholder="name" style="flex:1">' +
       '<input class="form-input bp-slot-label" placeholder="label" style="flex:1">' +
       '<input class="form-input bp-slot-default" placeholder="default" style="flex:1">' +
-      '<button onclick="this.parentNode.remove()" title="Supprimer cette variable" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;flex:0 0 auto">×</button>' +
+      '<button onclick="this.parentNode.remove()" title="'+LaRuche.i18n.t('settings.bpDeleteSlotBtn')+'" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;flex:0 0 auto">×</button>' +
       '</div>';
   }
 
@@ -1725,19 +2006,19 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     wrap.dataset.open = '1';
     wrap.innerHTML =
       '<div class="settings-card" style="margin-bottom:12px;border:1px solid var(--amber)">' +
-        '<div class="settings-card-title">Nouveau blueprint</div>' +
-        '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">Titre</label>' +
+        '<div class="settings-card-title">'+LaRuche.i18n.t('settings.bpNewTitle')+'</div>' +
+        '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpTitleLabel')+'</label>' +
           '<input id="bpNewTitle" class="form-input" placeholder="Ex: Veille quotidienne"></div>' +
-        '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">Prompt (template)</label>' +
+        '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpPromptLabel')+'</label>' +
           '<textarea id="bpNewPrompt" class="form-input" style="min-height:90px;resize:vertical" placeholder="Utilise {nom} pour referencer une variable..."></textarea></div>' +
-        '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">Cadence (cron)</label><div id="bpNewCron"></div></div>' +
-        '<div style="margin-top:10px"><label style="font-size:10px;color:var(--text-dim)">Variables (slots) — referencees via <code>{name}</code> dans les templates</label>' +
+        '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpScheduleLabel')+'</label><div id="bpNewCron"></div></div>' +
+        '<div style="margin-top:10px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpSlotsLabel')+'</label>' +
           '<div id="bpSlotsList" style="margin-top:6px"></div>' +
-          '<button onclick="LaRuche.Settings.addBlueprintSlotRow()" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:4px 10px;cursor:pointer;font-size:11px;margin-top:2px">+ Variable</button>' +
+          '<button onclick="LaRuche.Settings.addBlueprintSlotRow()" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:4px 10px;cursor:pointer;font-size:11px;margin-top:2px">'+LaRuche.i18n.t('settings.bpAddSlot')+'</button>' +
         '</div>' +
         '<div style="margin-top:12px;display:flex;gap:8px">' +
-          '<button class="settings-save-btn" onclick="LaRuche.Settings.saveNewBlueprint()">Créer le blueprint</button>' +
-          '<button onclick="LaRuche.Settings.openNewBlueprintForm()" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px">Annuler</button>' +
+          '<button class="settings-save-btn" onclick="LaRuche.Settings.saveNewBlueprint()">'+LaRuche.i18n.t('settings.bpCreateBtn')+'</button>' +
+          '<button onclick="LaRuche.Settings.openNewBlueprintForm()" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px">'+LaRuche.i18n.t('settings.bpCancelBtn')+'</button>' +
         '</div>' +
       '</div>';
     _bpCronBuilderId = (LaRuche.CronBuilder) ? LaRuche.CronBuilder.mount('bpNewCron', { value:'' }) : null;
@@ -1749,8 +2030,8 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     var prompt = (document.getElementById('bpNewPrompt')||{}).value || '';
     var cron = (_bpCronBuilderId && LaRuche.CronBuilder) ? LaRuche.CronBuilder.getValue(_bpCronBuilderId) : '';
     title = title.trim();
-    if(!title){ LaRuche.Toast.show('Titre requis','warn'); return; }
-    if(!prompt.trim()){ LaRuche.Toast.show('Prompt requis','warn'); return; }
+    if(!title){ LaRuche.Toast.show(LaRuche.i18n.t('settings.bpTitleRequired'),'warn'); return; }
+    if(!prompt.trim()){ LaRuche.Toast.show(LaRuche.i18n.t('settings.bpPromptRequired'),'warn'); return; }
     var slots = [];
     document.querySelectorAll('#bpSlotsList .bp-slot-row').forEach(function(row){
       var name = (row.querySelector('.bp-slot-name')||{}).value || '';
@@ -1768,25 +2049,25 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ return {ok:r.ok, d:d}; }); })
       .then(function(res){
         if(res.ok && !(res.d && res.d.error)){
-          LaRuche.Toast.show('Blueprint créé','ok');
+          LaRuche.Toast.show(LaRuche.i18n.t('settings.bpCreated'),'ok');
           var el = document.getElementById('autoContent'); if(el) loadBlueprints(el);
         } else {
-          LaRuche.Toast.show('Erreur création: '+((res.d&&res.d.error)||'?'),'err');
+          LaRuche.Toast.show(LaRuche.i18n.t('settings.bpCreateError')+((res.d&&res.d.error)||'?'),'err');
         }
       }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e,'err'); });
   }
 
   function deleteBlueprint(idx){
     var b = window._blueprints[idx]; if(!b) return;
-    if(!window.confirm('Supprimer le blueprint "'+(b.title||b.id)+'" ? (les blueprints intégrés ne peuvent pas être supprimés)')) return;
+    if(!window.confirm(LaRuche.i18n.t('settings.bpDeleteConfirm')+(b.title||b.id)+LaRuche.i18n.t('settings.bpDeleteConfirmSuffix'))) return;
     fetch('/api/blueprints/'+encodeURIComponent(b.id), { method:'DELETE' })
       .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ return {ok:r.ok, d:d}; }); })
       .then(function(res){
         if(res.ok && !(res.d && res.d.error)){
-          LaRuche.Toast.show('Blueprint supprimé','ok');
+          LaRuche.Toast.show(LaRuche.i18n.t('settings.bpDeleted'),'ok');
           var el = document.getElementById('autoContent'); if(el) loadBlueprints(el);
         } else {
-          LaRuche.Toast.show('Suppression refusée: '+((res.d&&res.d.error)||'blueprint intégré ?'),'err');
+          LaRuche.Toast.show(LaRuche.i18n.t('settings.bpDeleteRefused')+((res.d&&res.d.error)||LaRuche.i18n.t('settings.bpDeleteRefusedFallback')),'err');
         }
       }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e,'err'); });
   }
@@ -1814,10 +2095,10 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       body: JSON.stringify(slotsData)
     }).then(function(res) {
       if(res.ok) {
-        LaRuche.Toast.show('Blueprint instancié avec succès', 'ok');
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.bpInstanciated'), 'ok');
         document.getElementById('bpForm_'+idx).style.display = 'none';
       } else {
-        LaRuche.Toast.show('Erreur d\'instanciation', 'err');
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.bpInstanciateError'), 'err');
       }
     }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
   }

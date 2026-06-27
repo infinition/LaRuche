@@ -43,8 +43,53 @@ LaRuche.i18n = (function(){
     return s;
   }
   function setLang(l){ if(l !== lang){ localStorage.setItem('laruche_lang', l); location.reload(); } }
-  return { t:t, setLang:setLang, get:function(){ return lang; }, DICT:DICT };
+  // Chaque module enregistre SES clés au chargement (évite d'éditer un dico central = pas de conflit).
+  function add(obj){ if(obj){ for(var k in obj){ DICT[k] = obj[k]; } } }
+  return { t:t, add:add, setLang:setLang, get:function(){ return lang; }, DICT:DICT };
 })();
+
+LaRuche.i18n.add({
+  // PluginFiles
+  'core.pluginFilesTitle':   { fr:'📁 Fichiers du dossier <code>plugins/</code>', en:'📁 Files in <code>plugins/</code> folder' },
+  'core.newFile':            { fr:'+ Nouveau fichier',    en:'+ New file' },
+  'core.folderEmpty':        { fr:'Dossier vide.',        en:'Empty folder.' },
+  'core.fileHint':           { fr:"Sélectionne un fichier à gauche, ou glisse-dépose un script ici pour l'ajouter.", en:'Select a file on the left, or drag and drop a script here to add it.' },
+  'core.binaryFile':         { fr:'Fichier binaire ({size} o) — non éditable ici.', en:'Binary file ({size} bytes) — not editable here.' },
+  'core.savedPlugins':       { fr:'Enregistré (plugins rechargés)', en:'Saved (plugins reloaded)' },
+  'core.deleteFileConfirm':  { fr:'Supprimer plugins/{path} ?', en:'Delete plugins/{path}?' },
+  'core.fileDeleted':        { fr:'Fichier supprimé.',    en:'File deleted.' },
+  'core.newFilePrompt':      { fr:'Nom du fichier (ex: scripts/mon_script.py) :', en:'File name (e.g. scripts/my_script.py):' },
+  'core.invalidName':        { fr:'Nom invalide',         en:'Invalid name' },
+  'core.fileAdded':          { fr:'Ajouté : {dest}',      en:'Added: {dest}' },
+  'core.fileRejected':       { fr:'Refusé : {name}',      en:'Rejected: {name}' },
+  // Utils
+  'core.fileLabel':          { fr:'Fichier',              en:'File' },
+  // Console events / toasts
+  'core.sessionFinishedPreview': { fr:'Réponse terminée', en:'Response finished' },
+  'core.agentFinishedToast':    { fr:'Agent terminé: {preview}', en:'Agent finished: {preview}' },
+  'core.agentStartedLabel':     { fr:'Agent démarré',     en:'Agent started' },
+  'core.agentStartedToast':     { fr:'Agent démarré: {label}', en:'Agent started: {label}' },
+  'core.watcherFiredToast':     { fr:'Watcher déclenché: {name}', en:'Watcher fired: {name}' },
+  'core.kanbanTaskTitle':       { fr:'Tâche {id}',        en:'Task {id}' },
+  'core.kanbanToast':           { fr:'Kanban: {title}',   en:'Kanban: {title}' },
+  // Auth
+  'core.enrollError':           { fr:'Erreur enrollment: {msg}', en:'Enrollment error: {msg}' },
+  'core.welcomeUser':           { fr:'Bienvenue {name} !', en:'Welcome {name}!' },
+  'core.namePasswordRequired':  { fr:'Nom et mot de passe requis', en:'Name and password required' },
+  'core.badCredentials':        { fr:'Identifiants incorrects', en:'Incorrect credentials' },
+  'core.helloUser':             { fr:'Bonjour {name} !',  en:'Hello {name}!' },
+  'core.challengeExpires':      { fr:'Expire dans {s}s',  en:'Expires in {s}s' },
+  'core.challengeError':        { fr:'Erreur challenge: {msg}', en:'Challenge error: {msg}' },
+  // Header / permissions
+  'core.permChangeFailed':      { fr:'Échec changement permissions', en:'Failed to change permissions' },
+  // Blueprints
+  'core.noBlueprintsAvailable': { fr:'Aucun blueprint disponible', en:'No blueprints available' },
+  'core.blueprintHint':         { fr:"Sélectionnez un blueprint pour l'instancier en tant que tâche cron.", en:'Select a blueprint to instantiate it as a cron task.' },
+  'core.instantiate':           { fr:'Instancier',         en:'Instantiate' },
+  'core.blueprintOk':           { fr:'Blueprint instancié avec succès', en:'Blueprint instantiated successfully' },
+  'core.blueprintErr':          { fr:"Erreur d'instanciation", en:'Instantiation error' },
+  'core.errorPrefix':           { fr:'Erreur: {msg}',      en:'Error: {msg}' },
+});
 
 /* ── Navigateur de fichiers Plugins (dossier plugins/ + scripts/) ─────────────────
  * Voir/éditer/supprimer/déposer ses propres scripts (.py/.ps1/.sh/.json…) en plus du JSON.
@@ -60,14 +105,14 @@ LaRuche.PluginFiles = (function(){
     ov.onclick=function(e){ if(e.target===ov) close(); };
     ov.innerHTML='<div style="width:880px;max-width:95vw;height:84vh;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
       '<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--amber);display:flex;align-items:center;gap:10px">'+
-        '<span style="flex:1">📁 Fichiers du dossier <code>plugins/</code></span>'+
-        '<button class="tl-btn" onclick="LaRuche.PluginFiles.newFile()">+ Nouveau fichier</button>'+
-        '<button class="tl-btn" onclick="LaRuche.PluginFiles.close()">Fermer</button>'+
+        '<span style="flex:1">'+LaRuche.i18n.t('core.pluginFilesTitle')+'</span>'+
+        '<button class="tl-btn" onclick="LaRuche.PluginFiles.newFile()">'+LaRuche.i18n.t('core.newFile')+'</button>'+
+        '<button class="tl-btn" onclick="LaRuche.PluginFiles.close()">'+LaRuche.i18n.t('common.close')+'</button>'+
       '</div>'+
       '<div style="flex:1;display:flex;min-height:0">'+
         '<div id="pfTree" style="width:260px;border-right:1px solid var(--border);overflow:auto;padding:6px;font-size:12px"></div>'+
         '<div id="pfMain" style="flex:1;display:flex;flex-direction:column;min-width:0;padding:8px">'+
-          '<div id="pfHint" style="color:var(--text-dim);font-size:12px;padding:20px;text-align:center">Sélectionne un fichier à gauche, ou glisse-dépose un script ici pour l\'ajouter.</div>'+
+          '<div id="pfHint" style="color:var(--text-dim);font-size:12px;padding:20px;text-align:center">'+LaRuche.i18n.t('core.fileHint')+'</div>'+
         '</div>'+
       '</div></div>';
     document.body.appendChild(ov);
@@ -82,7 +127,7 @@ LaRuche.PluginFiles = (function(){
     fetch('/api/plugin-files').then(function(r){return r.json();}).then(function(d){
       var files=(d&&d.files)||[];
       var t=document.getElementById('pfTree'); if(!t) return;
-      if(!files.length){ t.innerHTML='<div style="color:var(--text-dim);padding:8px">Dossier vide.</div>'; return; }
+      if(!files.length){ t.innerHTML='<div style="color:var(--text-dim);padding:8px">'+LaRuche.i18n.t('core.folderEmpty')+'</div>'; return; }
       t.innerHTML=files.map(function(f){
         if(f.dir) return '<div style="padding:4px 6px;color:var(--text-dim);font-weight:600;margin-top:4px">📂 '+esc(f.path)+'</div>';
         var indent = f.path.indexOf('/')>=0 ? 16 : 4;
@@ -98,10 +143,10 @@ LaRuche.PluginFiles = (function(){
     fetch('/api/plugin-file/'+path.split('/').map(encodeURIComponent).join('/')).then(function(r){return r.json();}).then(function(d){
       var m=document.getElementById('pfMain'); if(!m) return;
       current=path;
-      if(d.binary){ m.innerHTML='<div style="color:var(--text-dim);padding:20px">Fichier binaire ('+(d.size||'?')+' o) — non éditable ici.</div>'; return; }
+      if(d.binary){ m.innerHTML='<div style="color:var(--text-dim);padding:20px">'+LaRuche.i18n.t('core.binaryFile',{size:d.size||'?'})+'</div>'; return; }
       m.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><code style="flex:1;color:var(--amber)">plugins/'+esc(path)+'</code>'+
-        '<button class="tl-btn" onclick="LaRuche.PluginFiles.save()">Enregistrer</button>'+
-        '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.PluginFiles.del()">Supprimer</button></div>'+
+        '<button class="tl-btn" onclick="LaRuche.PluginFiles.save()">'+LaRuche.i18n.t('common.save')+'</button>'+
+        '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.PluginFiles.del()">'+LaRuche.i18n.t('common.delete')+'</button></div>'+
         '<textarea id="pfEditor" spellcheck="false" style="flex:1;width:100%;font-family:var(--mono);font-size:12px;background:#16161a;border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px;resize:none">'+esc(d.content||'')+'</textarea>';
     });
   }
@@ -109,17 +154,17 @@ LaRuche.PluginFiles = (function(){
     if(!current) return;
     var ta=document.getElementById('pfEditor'); if(!ta) return;
     fetch('/api/plugin-file/'+current.split('/').map(encodeURIComponent).join('/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:ta.value})})
-      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Enregistré (plugins rechargés)','ok'); refresh(); } else LaRuche.Toast.show('Échec','err'); });
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('core.savedPlugins'),'ok'); refresh(); } else LaRuche.Toast.show(LaRuche.i18n.t('toast.failed'),'err'); });
   }
   function del(){
-    if(!current || !confirm('Supprimer plugins/'+current+' ?')) return;
+    if(!current || !confirm(LaRuche.i18n.t('core.deleteFileConfirm',{path:current}))) return;
     fetch('/api/plugin-file/'+current.split('/').map(encodeURIComponent).join('/'),{method:'DELETE'})
-      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Supprimé','ok'); current=null; document.getElementById('pfMain').innerHTML='<div id="pfHint" style="color:var(--text-dim);padding:20px;text-align:center">Fichier supprimé.</div>'; refresh(); } });
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('toast.deleted'),'ok'); current=null; document.getElementById('pfMain').innerHTML='<div id="pfHint" style="color:var(--text-dim);padding:20px;text-align:center">'+LaRuche.i18n.t('core.fileDeleted')+'</div>'; refresh(); } });
   }
   function newFile(){
-    var name=prompt('Nom du fichier (ex: scripts/mon_script.py) :',''); if(!name) return;
+    var name=prompt(LaRuche.i18n.t('core.newFilePrompt'),''); if(!name) return;
     fetch('/api/plugin-file/'+name.split('/').map(encodeURIComponent).join('/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:''})})
-      .then(function(r){ if(r.ok){ refresh(); openFile(name); } else LaRuche.Toast.show('Nom invalide','err'); });
+      .then(function(r){ if(r.ok){ refresh(); openFile(name); } else LaRuche.Toast.show(LaRuche.i18n.t('core.invalidName'),'err'); });
   }
   function handleDrop(e){
     var files=e.dataTransfer.files; if(!files||!files.length) return;
@@ -129,7 +174,7 @@ LaRuche.PluginFiles = (function(){
         var ext=(file.name.split('.').pop()||'').toLowerCase();
         var dest=(['py','sh','ps1'].indexOf(ext)>=0 ? 'scripts/' : '')+file.name;
         fetch('/api/plugin-file/'+dest.split('/').map(encodeURIComponent).join('/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:reader.result})})
-          .then(function(r){ if(r.ok){ LaRuche.Toast.show('Ajouté : '+dest,'ok'); refresh(); } else LaRuche.Toast.show('Refusé : '+file.name,'err'); });
+          .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('core.fileAdded',{dest:dest}),'ok'); refresh(); } else LaRuche.Toast.show(LaRuche.i18n.t('core.fileRejected',{name:file.name}),'err'); });
       };
       reader.readAsText(file);
     });
@@ -267,7 +312,7 @@ LaRuche.Utils = {
   createAttachmentBox: function(att, isPending, index) {
     var box = document.createElement('div');
     box.className = 'chat-attachment-box';
-    var titleStr = att.filename || (att.kind === 'image' ? 'Image' : 'Fichier');
+    var titleStr = att.filename || (att.kind === 'image' ? 'Image' : LaRuche.i18n.t('core.fileLabel'));
     box.title = titleStr;
     box.style.cssText = 'position:relative; display:inline-flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; background:rgba(0,0,0,0.3); padding:4px; border-radius:8px; border:1px solid var(--border); overflow:hidden; cursor:pointer; width: 80px; height: 80px; transition:border-color 0.2s;';
     box.onmouseover = function() { box.style.borderColor='var(--primary)'; };
@@ -392,29 +437,29 @@ LaRuche.Console = (function(){
     var tid = pl.task_id || null;
     switch(ev.kind) {
       case 'SessionFinished': {
-        var preview = pl.preview || 'Réponse terminée';
-        LaRuche.Toast.show('Agent terminé: ' + String(preview).substring(0, 60) + '…', 'ok', 8000,
+        var preview = pl.preview || LaRuche.i18n.t('core.sessionFinishedPreview');
+        LaRuche.Toast.show(LaRuche.i18n.t('core.agentFinishedToast',{preview:String(preview).substring(0,60)+'…'}), 'ok', 8000,
           sid ? function(){ openSession(sid); } : null);
         break;
       }
       case 'AgentFinished': { if (typeof LaRuche !== 'undefined' && LaRuche.Memory && typeof LaRuche.Memory.current === 'function') { var cnode = LaRuche.Memory.current(); if (cnode) { LaRuche.Memory.loadNode(cnode); } } break; } case 'AgentStarted': {
         // payload: {session_id, prompt} (chat) ou {task_id, prompt} (cron)
-        var label = pl.prompt || pl.preview || 'Agent démarré';
-        LaRuche.Toast.show('Agent démarré: ' + String(label).substring(0, 60), 'info', 6000,
+        var label = pl.prompt || pl.preview || LaRuche.i18n.t('core.agentStartedLabel');
+        LaRuche.Toast.show(LaRuche.i18n.t('core.agentStartedToast',{label:String(label).substring(0,60)}), 'info', 6000,
           sid ? function(){ openSession(sid); } : null);
         break;
       }
       case 'WatcherFired': {
         // payload: {watcher_id, prompt, context}
         var wname = pl.prompt || pl.watcher_id || 'Watcher';
-        LaRuche.Toast.show('Watcher déclenché: ' + String(wname).substring(0, 50), 'info', 7000,
+        LaRuche.Toast.show(LaRuche.i18n.t('core.watcherFiredToast',{name:String(wname).substring(0,50)}), 'info', 7000,
           sid ? function(){ openSession(sid); } : null);
         break;
       }
       case 'MemorySaved': { if (typeof LaRuche !== 'undefined' && LaRuche.Memory && typeof LaRuche.Memory.current === 'function') { var cnode = LaRuche.Memory.current(); if (cnode && pl.node_id && String(cnode) === String(pl.node_id)) { LaRuche.Memory.loadNode(cnode); } } break; } case 'KanbanTask': {
         // payload: {task_id, title}
-        var ktitle = pl.title || ('Tâche ' + (tid || '')) ;
-        LaRuche.Toast.show('Kanban: ' + String(ktitle).substring(0, 55), 'info', 7000,
+        var ktitle = pl.title || LaRuche.i18n.t('core.kanbanTaskTitle',{id:tid||''});
+        LaRuche.Toast.show(LaRuche.i18n.t('core.kanbanToast',{title:String(ktitle).substring(0,55)}), 'info', 7000,
           sid ? function(){ openSession(sid); } : null);
         break;
       }
@@ -564,12 +609,12 @@ LaRuche.Auth = (function(){
       // Show success with QR to save
       document.getElementById('login-enroll').style.display='none';
       document.getElementById('login-success').style.display='block';
-      document.getElementById('login-welcome-name').textContent='Bienvenue '+data.display_name+' !';
+      document.getElementById('login-welcome-name').textContent=LaRuche.i18n.t('core.welcomeUser',{name:data.display_name});
       document.getElementById('login-enroll-qr').innerHTML=data.qr_svg;
 
       LaRuche.Console.log('info','AUTH','User enrolled: '+data.display_name);
     }).catch(function(e){
-      LaRuche.Toast.show('Erreur enrollment: '+e.message,'error');
+      LaRuche.Toast.show(LaRuche.i18n.t('core.enrollError',{msg:e.message}),'error');
     });
   }
 
@@ -601,7 +646,7 @@ LaRuche.Auth = (function(){
     var name=(document.getElementById('loginName').value||'').trim();
     var pw=document.getElementById('loginPassword').value||'';
     var errEl=document.getElementById('loginError');
-    if(!name||!pw){if(errEl){errEl.textContent='Nom et mot de passe requis';errEl.style.display='block';}return;}
+    if(!name||!pw){if(errEl){errEl.textContent=LaRuche.i18n.t('core.namePasswordRequired');errEl.style.display='block';}return;}
     if(errEl) errEl.style.display='none';
 
     fetch('/api/auth/login',{
@@ -609,14 +654,14 @@ LaRuche.Auth = (function(){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({display_name:name,password:pw})
     }).then(function(r){
-      if(!r.ok) throw new Error('Identifiants incorrects');
+      if(!r.ok) throw new Error(LaRuche.i18n.t('core.badCredentials'));
       return r.json();
     }).then(function(data){
       currentUser={user_id:data.user_id,display_name:data.display_name,role:data.role};
       showUserBadge();
       hideAllLoginSections();
       document.getElementById('login-authenticated').style.display='block';
-      document.getElementById('login-auth-name').textContent='Bonjour '+data.display_name+' !';
+      document.getElementById('login-auth-name').textContent=LaRuche.i18n.t('core.helloUser',{name:data.display_name});
       setTimeout(function(){ LaRuche.Router.go('chat'); },1000);
     }).catch(function(e){
       if(errEl){errEl.textContent=e.message;errEl.style.display='block';}
@@ -633,7 +678,7 @@ LaRuche.Auth = (function(){
       if(challengeTimer) clearInterval(challengeTimer);
       challengeTimer=setInterval(function(){
         remaining--;
-        if(timerEl) timerEl.textContent='Expire dans '+remaining+'s';
+        if(timerEl) timerEl.textContent=LaRuche.i18n.t('core.challengeExpires',{s:remaining});
         if(remaining<=0){
           clearInterval(challengeTimer);
           startChallenge(); // auto-refresh
@@ -656,7 +701,7 @@ LaRuche.Auth = (function(){
               // Show success animation
               document.getElementById('login-scan').style.display='none';
               document.getElementById('login-authenticated').style.display='block';
-              document.getElementById('login-auth-name').textContent='Bonjour '+s.display_name+' !';
+              document.getElementById('login-auth-name').textContent=LaRuche.i18n.t('core.helloUser',{name:s.display_name});
               setTimeout(function(){ LaRuche.Router.go('chat'); },1500);
               LaRuche.Console.log('info','AUTH','Login via QR: '+s.display_name);
             } else if(s.status==='expired'){
@@ -665,7 +710,7 @@ LaRuche.Auth = (function(){
           }).catch(function(){});
       },1500);
     }).catch(function(e){
-      LaRuche.Toast.show('Erreur challenge: '+e.message,'error');
+      LaRuche.Toast.show(LaRuche.i18n.t('core.challengeError',{msg:e.message}),'error');
     });
   }
 
@@ -838,8 +883,8 @@ LaRuche.Header = (function(){
       body:JSON.stringify({mode:mode})
     }).then(function(r){return r.json();}).then(function(d){
       if(d && d.status==='ok') LaRuche.Toast.show('Permissions: '+mode,'ok');
-      else LaRuche.Toast.show('Échec changement permissions','err');
-    }).catch(function(){ LaRuche.Toast.show('Échec changement permissions','err'); });
+      else LaRuche.Toast.show(LaRuche.i18n.t('core.permChangeFailed'),'err');
+    }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('core.permChangeFailed'),'err'); });
   }
 
   function loadModels() {
@@ -943,10 +988,10 @@ LaRuche.Header = (function(){
 
     async function loadBlueprints(el) {
     var bps=[];try{bps=await fetch('/api/blueprints').then(function(r){return r.json();});}catch(e){}
-    if(!bps.length){el.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px">Aucun blueprint disponible</div>';return;}
-    
+    if(!bps.length){el.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px">'+LaRuche.i18n.t('core.noBlueprintsAvailable')+'</div>';return;}
+
     window._blueprints = bps;
-    el.innerHTML = '<div style="margin-bottom:12px;color:var(--amber);font-size:12px;">Sélectionnez un blueprint pour l\'instancier en tant que tâche cron.</div>' +
+    el.innerHTML = '<div style="margin-bottom:12px;color:var(--amber);font-size:12px;">'+LaRuche.i18n.t('core.blueprintHint')+'</div>' +
       bps.map(function(b, idx) {
         return '<div class="settings-card" style="margin-bottom:12px;cursor:pointer;" onclick="LaRuche.Settings.openBlueprintForm('+idx+')">' +
           '<div class="settings-card-title">'+LaRuche.Utils.esc(b.title||b.id)+'</div>' +
@@ -955,7 +1000,7 @@ LaRuche.Header = (function(){
             (b.slots||[]).map(function(slot){
               return '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.Utils.esc(slot.label||slot.name)+'</label><input id="bpInput_'+idx+'_'+slot.name+'" class="form-input" placeholder="'+LaRuche.Utils.esc(slot.placeholder||'')+'"></div>';
             }).join('') +
-            '<button class="settings-save-btn" style="margin-top:8px" onclick="LaRuche.Settings.instanciateBlueprint('+idx+')">Instancier</button>' +
+            '<button class="settings-save-btn" style="margin-top:8px" onclick="LaRuche.Settings.instanciateBlueprint('+idx+')">'+LaRuche.i18n.t('core.instantiate')+'</button>' +
           '</div>' +
         '</div>';
       }).join('');
@@ -982,12 +1027,12 @@ LaRuche.Header = (function(){
       body: JSON.stringify(slotsData)
     }).then(function(res) {
       if(res.ok) {
-        LaRuche.Toast.show('Blueprint instancié avec succès', 'ok');
+        LaRuche.Toast.show(LaRuche.i18n.t('core.blueprintOk'), 'ok');
         document.getElementById('bpForm_'+idx).style.display = 'none';
       } else {
-        LaRuche.Toast.show('Erreur d\'instanciation', 'err');
+        LaRuche.Toast.show(LaRuche.i18n.t('core.blueprintErr'), 'err');
       }
-    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+    }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('core.errorPrefix',{msg:e}), 'err'); });
   }
 
   return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, changeModel:changeModel, getModel:getModel, getProfileId:getProfileId, setModel:setModel, loadModels:loadModels, changePermissionMode:changePermissionMode, loadPermissionMode:loadPermissionMode };

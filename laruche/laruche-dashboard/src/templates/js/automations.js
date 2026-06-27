@@ -1,3 +1,77 @@
+LaRuche.i18n.add({
+  'automations.noCadenceManual':    {fr:'aucune cadence (manuel)', en:'no schedule (manual)'},
+  'automations.hours':              {fr:'heures', en:'hours'},
+  'automations.minutes':            {fr:'minutes', en:'minutes'},
+  'automations.modeSimple':         {fr:'Mode simple', en:'Simple mode'},
+  'automations.modeExpert':         {fr:'Mode expert', en:'Expert mode'},
+  'automations.dimanche':           {fr:'Dimanche', en:'Sunday'},
+  'automations.freqLabel':          {fr:'Frequence', en:'Frequency'},
+  'automations.chaqueJour':         {fr:'Chaque jour', en:'Every day'},
+  'automations.chaqueSemaine':      {fr:'Chaque semaine', en:'Every week'},
+  'automations.toutesNHeures':      {fr:'Toutes les N heures', en:'Every N hours'},
+  'automations.toutesNMinutes':     {fr:'Toutes les N minutes', en:'Every N minutes'},
+  'automations.chaqueMois':         {fr:'Chaque mois', en:'Every month'},
+  'automations.jourLabel':          {fr:'Jour', en:'Day'},
+  'automations.jourDuMois':         {fr:'Jour du mois', en:'Day of month'},
+  'automations.heureLabel':         {fr:'Heure', en:'Time'},
+  'automations.cronExpr5':          {fr:'Expression cron (5 champs)', en:'Cron expression (5 fields)'},
+  'automations.manuel':             {fr:'manuel', en:'manual'},
+  'automations.toutesLesMin':       {fr:'toutes les {st} min', en:'every {st} min'},
+  'automations.aLaMinute':          {fr:'a la minute {m} de chaque heure', en:'at minute {m} of every hour'},
+  'automations.chaqueJourA':        {fr:'chaque jour a {t}', en:'every day at {t}'},
+  'automations.chaqueJourSans':     {fr:'chaque jour', en:'every day'},
+  'automations.chaqueDayAt':        {fr:'chaque {days} a {t}', en:'every {days} at {t}'},
+  'automations.chaqueDaySans':      {fr:'chaque {days}', en:'every {days}'},
+  'automations.leDuMoisAt':         {fr:'le {dom} du mois a {t}', en:'the {dom} of the month at {t}'},
+  'automations.leDuMois':           {fr:'le {dom} du mois', en:'the {dom} of the month'},
+  'automations.aujourdhui':         {fr:"Aujourd'hui", en:"Today"},
+  'automations.demain':             {fr:'Demain', en:'Tomorrow'},
+  'automations.cronSansNom':        {fr:'(cron sans nom)', en:'(unnamed cron)'},
+  'automations.missionLabel':       {fr:'(mission)', en:'(mission)'},
+  'automations.aLaDemande':         {fr:'a la demande', en:'on demand'},
+  'automations.dernierLabel':       {fr:' · dernier : ', en:' · last: '},
+  'automations.jamais':             {fr:'jamais', en:'never'},
+  'automations.rienDePrevu':        {fr:'Rien de prevu.', en:'Nothing scheduled.'},
+  'automations.aucunJobGantt':      {fr:'Aucun job a cadence cron a afficher.', en:'No cron-scheduled job to display.'},
+  'automations.surveillanceCont':   {fr:'Surveillance continue', en:'Continuous monitoring'},
+  'automations.zoomLabel':          {fr:'Zoom', en:'Zoom'},
+  'automations.rafraichir':         {fr:'Rafraichir', en:'Refresh'},
+  'automations.occurrence':         {fr:'Occurrence : ', en:'Occurrence: '},
+  'automations.passee':             {fr:' (passee)', en:' (past)'},
+  'automations.aVenir':             {fr:' (a venir)', en:' (upcoming)'},
+  'automations.editerOngletCron':   {fr:'Éditer (onglet Cron)', en:'Edit (Cron tab)'},
+  'automations.supprimer':          {fr:'Supprimer', en:'Delete'},
+  'automations.supprimerMission':   {fr:'Supprimer la mission', en:'Delete mission'},
+  'automations.cadenceLabel':       {fr:'Cadence : ', en:'Schedule: '},
+  'automations.supprimerConfirm':   {fr:'Supprimer définitivement ?', en:'Delete permanently?'},
+  'automations.supprime':           {fr:'Supprimé', en:'Deleted'},
+  'automations.echecSuppression':   {fr:'Échec suppression', en:'Delete failed'},
+  'automations.agenda':             {fr:'Agenda', en:'Agenda'},
+  'automations.gantt':              {fr:'Gantt', en:'Gantt'},
+  'automations.planifications':     {fr:'{n} planification(s) · {w} monitor(s)', en:'{n} schedule(s) · {w} monitor(s)'},
+  'automations.sectionAujourd':     {fr:"Aujourd'hui", en:'Today'},
+  'automations.setteSemaine':       {fr:'Cette semaine', en:'This week'},
+  'automations.aVenirSection':      {fr:'A venir', en:'Upcoming'},
+  'automations.sansPlanning':       {fr:'Sans planning (a la demande)', en:'No schedule (on demand)'},
+  'automations.monitorsActifs':     {fr:'Monitors actifs (surveillance continue)', en:'Active monitors (continuous monitoring)'},
+  'automations.chargementPlanning': {fr:'Chargement du planning...', en:'Loading schedule...'},
+  'automations.aucunTravailFond':   {fr:'Aucun (travail de fond)', en:'None (background task)'},
+  'automations.rafraichirTitle':    {fr:'Rafraichir', en:'Refresh'},
+  'automations.objectifPlaceholder':{fr:'Objectif de la mission de recherche...', en:'Research mission objective...'},
+  'automations.defautModele':       {fr:'Défaut (modèle actif)', en:'Default (active model)'},
+  'automations.canalLabel':         {fr:'Canal (optionnel — vide = travail de fond)', en:'Channel (optional — empty = background task)'},
+  'automations.aucunTravailFond2':  {fr:'Aucun (travail de fond)', en:'None (background task)'},
+  'automations.creerMission':       {fr:'Creer la mission', en:'Create mission'},
+  'automations.chargement':         {fr:'Chargement...', en:'Loading...'},
+  'automations.selectMission':      {fr:'Selectionnez une mission pour voir son dossier, ou creez-en une.', en:'Select a mission to view its file, or create one.'},
+  'automations.cibleLabel':         {fr:'cible : ', en:'target: '},
+  'automations.surveillance':       {fr:'● surveillance', en:'● monitoring'},
+  'automations.decl':               {fr:' decl.', en:' triggered'},
+  'automations.jobsHeader':         {fr:'Jobs', en:'Jobs'},
+  'automations.cadenceOpt':         {fr:'Cadence (optionnel)', en:'Schedule (optional)'},
+  'automations.slugOpt':            {fr:'Slug (optionnel)', en:'Slug (optional)'},
+});
+
 LaRuche.CronBuilder = (function(){
   var DOW = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
   var instances = {}; // id -> config
@@ -44,7 +118,7 @@ LaRuche.CronBuilder = (function(){
 
   function humanOf(id){
     var expr = buildExpr(id);
-    if(!expr) return 'aucune cadence (manuel)';
+    if(!expr) return LaRuche.i18n.t('automations.noCadenceManual');
     // Reutilise le rendu humain de la Timeline si dispo.
     if(LaRuche.Timeline && LaRuche.Timeline.humanCron) return LaRuche.Timeline.humanCron(expr);
     return expr;
@@ -54,7 +128,7 @@ LaRuche.CronBuilder = (function(){
     var cfg = instances[id]; if(!cfg) return;
     var prevEl=document.getElementById(id+'_humanPrev'), codeEl=document.getElementById(id+'_codePrev');
     var expr = buildExpr(id);
-    if(prevEl) prevEl.textContent = expr ? humanOf(id) : 'aucune cadence (manuel)';
+    if(prevEl) prevEl.textContent = expr ? humanOf(id) : LaRuche.i18n.t('automations.noCadenceManual');
     if(codeEl) codeEl.textContent = expr || '—';
     // Affiche/cache les champs selon le preset (mode simple).
     if(!cfg.expert){
@@ -65,7 +139,7 @@ LaRuche.CronBuilder = (function(){
       show('dom', preset==='monthly');
       show('n', preset==='hours'||preset==='minutes');
       var nl=document.getElementById(id+'_nlabel');
-      if(nl) nl.textContent = preset==='hours'?'heures':'minutes';
+      if(nl) nl.textContent = preset==='hours'?LaRuche.i18n.t('automations.hours'):LaRuche.i18n.t('automations.minutes');
     }
     if(typeof cfg.onChange==='function') cfg.onChange(expr);
   }
@@ -79,7 +153,7 @@ LaRuche.CronBuilder = (function(){
     }
     if(simple) simple.style.display = cfg.expert?'none':'';
     if(expert) expert.style.display = cfg.expert?'':'none';
-    var t=document.getElementById(id+'_expertBtn'); if(t) t.textContent = cfg.expert?'Mode simple':'Mode expert';
+    var t=document.getElementById(id+'_expertBtn'); if(t) t.textContent = cfg.expert?LaRuche.i18n.t('automations.modeSimple'):LaRuche.i18n.t('automations.modeExpert');
     refresh(id);
   }
 
@@ -111,7 +185,7 @@ LaRuche.CronBuilder = (function(){
     instances[id] = { onChange: opts.onChange, expert: init.expert };
     function hopt(sel,n){ var o=''; for(var i=0;i<24;i++){ o+='<option value="'+i+'"'+(i===n?' selected':'')+'>'+('0'+i).slice(-2)+'</option>'; } return o; }
     function mopt(n){ var o=''; for(var i=0;i<60;i+=5){ o+='<option value="'+i+'"'+(i===n?' selected':'')+'>'+('0'+i).slice(-2)+'</option>'; } if(n%5){ o+='<option value="'+n+'" selected>'+('0'+n).slice(-2)+'</option>'; } return o; }
-    function dowopt(n){ var o=''; for(var i=1;i<=6;i++){ o+='<option value="'+i+'"'+(i===n?' selected':'')+'>'+DOW[i].charAt(0).toUpperCase()+DOW[i].slice(1)+'</option>'; } o+='<option value="0"'+(n===0?' selected':'')+'>Dimanche</option>'; return o; }
+    function dowopt(n){ var o=''; for(var i=1;i<=6;i++){ o+='<option value="'+i+'"'+(i===n?' selected':'')+'>'+DOW[i].charAt(0).toUpperCase()+DOW[i].slice(1)+'</option>'; } o+='<option value="0"'+(n===0?' selected':'')+'>'+LaRuche.i18n.t('automations.dimanche')+'</option>'; return o; }
     var pre=init.preset;
     function presetOpt(v,lbl){ return '<option value="'+v+'"'+(v===pre?' selected':'')+'>'+lbl+'</option>'; }
     var oc="LaRuche.CronBuilder.changed('"+id+"')";
@@ -119,22 +193,22 @@ LaRuche.CronBuilder = (function(){
       '<div class="cb-wrap">'+
         '<div id="'+id+'_simple"'+(init.expert?' style="display:none"':'')+'>'+
           '<div class="cb-row">'+
-            '<div class="cb-field"><label>Frequence</label><select class="form-input" id="'+id+'_preset" onchange="'+oc+'">'+
-              presetOpt('daily','Chaque jour')+presetOpt('weekly','Chaque semaine')+presetOpt('hours','Toutes les N heures')+presetOpt('minutes','Toutes les N minutes')+presetOpt('monthly','Chaque mois')+
+            '<div class="cb-field"><label>'+LaRuche.i18n.t('automations.freqLabel')+'</label><select class="form-input" id="'+id+'_preset" onchange="'+oc+'">'+
+              presetOpt('daily',LaRuche.i18n.t('automations.chaqueJour'))+presetOpt('weekly',LaRuche.i18n.t('automations.chaqueSemaine'))+presetOpt('hours',LaRuche.i18n.t('automations.toutesNHeures'))+presetOpt('minutes',LaRuche.i18n.t('automations.toutesNMinutes'))+presetOpt('monthly',LaRuche.i18n.t('automations.chaqueMois'))+
             '</select></div>'+
-            '<div class="cb-field" id="'+id+'_w_dow"><label>Jour</label><select class="form-input" id="'+id+'_dow" onchange="'+oc+'">'+dowopt(init.dow)+'</select></div>'+
-            '<div class="cb-field" id="'+id+'_w_dom"><label>Jour du mois</label><input class="form-input cb-num" type="number" min="1" max="31" id="'+id+'_dom" value="'+init.dom+'" oninput="'+oc+'"></div>'+
-            '<div class="cb-field" id="'+id+'_w_n"><label>N (<span id="'+id+'_nlabel">heures</span>)</label><input class="form-input cb-num" type="number" min="1" id="'+id+'_n" value="'+init.n+'" oninput="'+oc+'"></div>'+
-            '<div class="cb-field" id="'+id+'_w_time"><label>Heure</label><div style="display:flex;gap:4px;align-items:center"><select class="form-input" id="'+id+'_hh" onchange="'+oc+'">'+hopt('hh',init.hh)+'</select><span style="color:var(--text-dim)">:</span><select class="form-input" id="'+id+'_mm" onchange="'+oc+'">'+mopt(init.mm)+'</select></div></div>'+
+            '<div class="cb-field" id="'+id+'_w_dow"><label>'+LaRuche.i18n.t('automations.jourLabel')+'</label><select class="form-input" id="'+id+'_dow" onchange="'+oc+'">'+dowopt(init.dow)+'</select></div>'+
+            '<div class="cb-field" id="'+id+'_w_dom"><label>'+LaRuche.i18n.t('automations.jourDuMois')+'</label><input class="form-input cb-num" type="number" min="1" max="31" id="'+id+'_dom" value="'+init.dom+'" oninput="'+oc+'"></div>'+
+            '<div class="cb-field" id="'+id+'_w_n"><label>N (<span id="'+id+'_nlabel">'+LaRuche.i18n.t('automations.hours')+'</span>)</label><input class="form-input cb-num" type="number" min="1" id="'+id+'_n" value="'+init.n+'" oninput="'+oc+'"></div>'+
+            '<div class="cb-field" id="'+id+'_w_time"><label>'+LaRuche.i18n.t('automations.heureLabel')+'</label><div style="display:flex;gap:4px;align-items:center"><select class="form-input" id="'+id+'_hh" onchange="'+oc+'">'+hopt('hh',init.hh)+'</select><span style="color:var(--text-dim)">:</span><select class="form-input" id="'+id+'_mm" onchange="'+oc+'">'+mopt(init.mm)+'</select></div></div>'+
           '</div>'+
         '</div>'+
         '<div id="'+id+'_expert"'+(init.expert?'':' style="display:none"')+'>'+
-          '<div class="cb-field"><label>Expression cron (5 champs)</label><input class="form-input" id="'+id+'_raw" placeholder="*/30 * * * *" value="'+LaRuche.Utils.esc(init.expert?(opts.value||''):'')+'" oninput="'+oc+'"></div>'+
+          '<div class="cb-field"><label>'+LaRuche.i18n.t('automations.cronExpr5')+'</label><input class="form-input" id="'+id+'_raw" placeholder="*/30 * * * *" value="'+LaRuche.Utils.esc(init.expert?(opts.value||''):'')+'" oninput="'+oc+'"></div>'+
         '</div>'+
         '<div class="cb-preview">'+
           '<span>&#x21B3; <b id="'+id+'_humanPrev">—</b></span>'+
           '<code id="'+id+'_codePrev">—</code>'+
-          '<button type="button" class="cb-expert-toggle" id="'+id+'_expertBtn" onclick="LaRuche.CronBuilder.toggleExpert(\''+id+'\')">'+(init.expert?'Mode simple':'Mode expert')+'</button>'+
+          '<button type="button" class="cb-expert-toggle" id="'+id+'_expertBtn" onclick="LaRuche.CronBuilder.toggleExpert(\''+id+'\')">'+(init.expert?LaRuche.i18n.t('automations.modeSimple'):LaRuche.i18n.t('automations.modeExpert'))+'</button>'+
         '</div>'+
       '</div>';
     refresh(id);
@@ -202,16 +276,16 @@ LaRuche.Timeline = (function(){
 
   // Libelle humain approximatif d'une expression cron.
   function humanCron(expr){
-    if(!expr) return 'manuel';
+    if(!expr) return LaRuche.i18n.t('automations.manuel');
     var p = String(expr).trim().split(/\s+/);
     if(p.length < 5) return expr;
     var m=p[0], h=p[1], dom=p[2], mon=p[3], dow=p[4];
     function hhmm(){ var hh=parseInt(h,10), mm=parseInt(m,10); if(isNaN(hh)||isNaN(mm)) return null; return ('0'+hh).slice(-2)+'h'+('0'+mm).slice(-2); }
-    if(m.indexOf('/')===0 || m.indexOf('*/')===0){ var st=m.split('/')[1]; return 'toutes les '+st+' min'; }
-    if(h==='*' && m!=='*'){ return 'a la minute '+m+' de chaque heure'; }
-    if(dom==='*' && dow==='*' && mon==='*'){ var t=hhmm(); return t?('chaque jour a '+t):('chaque jour'); }
-    if(dow!=='*' && dom==='*'){ var t2=hhmm(); var days=dow.split(',').map(function(x){var n=parseInt(x,10);return isNaN(n)?x:DOW[n%7];}).join(', '); return 'chaque '+days+(t2?(' a '+t2):''); }
-    if(dom!=='*'){ var t3=hhmm(); return 'le '+dom+' du mois'+(t3?(' a '+t3):''); }
+    if(m.indexOf('/')===0 || m.indexOf('*/')===0){ var st=m.split('/')[1]; return LaRuche.i18n.t('automations.toutesLesMin').replace('{st}',st); }
+    if(h==='*' && m!=='*'){ return LaRuche.i18n.t('automations.aLaMinute').replace('{m}',m); }
+    if(dom==='*' && dow==='*' && mon==='*'){ var t=hhmm(); return t?LaRuche.i18n.t('automations.chaqueJourA').replace('{t}',t):LaRuche.i18n.t('automations.chaqueJourSans'); }
+    if(dow!=='*' && dom==='*'){ var t2=hhmm(); var days=dow.split(',').map(function(x){var n=parseInt(x,10);return isNaN(n)?x:DOW[n%7];}).join(', '); return t2?LaRuche.i18n.t('automations.chaqueDayAt').replace('{days}',days).replace('{t}',t2):LaRuche.i18n.t('automations.chaqueDaySans').replace('{days}',days); }
+    if(dom!=='*'){ var t3=hhmm(); return t3?LaRuche.i18n.t('automations.leDuMoisAt').replace('{dom}',dom).replace('{t}',t3):LaRuche.i18n.t('automations.leDuMois').replace('{dom}',dom); }
     return expr;
   }
 
@@ -221,8 +295,8 @@ LaRuche.Timeline = (function(){
     var sameDay = d.toDateString()===now.toDateString();
     var tom = new Date(now.getTime()+86400000);
     var time = ('0'+d.getHours()).slice(-2)+'h'+('0'+d.getMinutes()).slice(-2);
-    if(sameDay) return "Aujourd'hui "+time;
-    if(d.toDateString()===tom.toDateString()) return 'Demain '+time;
+    if(sameDay) return LaRuche.i18n.t('automations.aujourdhui')+' '+time;
+    if(d.toDateString()===tom.toDateString()) return LaRuche.i18n.t('automations.demain')+' '+time;
     return d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'})+' '+time;
   }
 
@@ -246,13 +320,13 @@ LaRuche.Timeline = (function(){
     (crons||[]).forEach(function(c){
       if(c.enabled===false) return;
       var nx = nextCron(c.cron_expr, now);
-      events.push({kind:'cron', id:c.id, name:c.name||'(cron sans nom)', expr:c.cron_expr||'', human:humanCron(c.cron_expr),
+      events.push({kind:'cron', id:c.id, name:c.name||LaRuche.i18n.t('automations.cronSansNom'), expr:c.cron_expr||'', human:humanCron(c.cron_expr),
         next:nx, last:c.last_run||null, runs:c.run_count||0, status:c.last_status||'', icon:'⏰', color:'var(--amber)'});
     });
     (missions||[]).forEach(function(mi){
       var cad = mi.cadence || mi.cron_expr || mi.schedule || '';
       var nx = cad ? nextCron(cad, now) : null;
-      events.push({kind:'mission', slug:mi.slug, name:mi.objective||mi.title||mi.slug||'(mission)', expr:cad, human:cad?humanCron(cad):'a la demande',
+      events.push({kind:'mission', slug:mi.slug, name:mi.objective||mi.title||mi.slug||LaRuche.i18n.t('automations.missionLabel'), expr:cad, human:cad?humanCron(cad):LaRuche.i18n.t('automations.aLaDemande'),
         next:nx, last:mi.last_run||mi.updated_at||null, runs:mi.run_count||0, status:mi.status||'', icon:'👑', color:'var(--purple)'});
     });
     return { events:events, watchers:(watchers||[]) };
@@ -265,7 +339,7 @@ LaRuche.Timeline = (function(){
         '<div style="font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+LaRuche.Utils.esc(e.name)+
           ' <span style="font-size:9px;border:1px solid '+e.color+';color:'+e.color+';padding:1px 5px;border-radius:8px;margin-left:6px">'+(e.kind==='cron'?'Cron':'Mission')+'</span></div>'+
         '<div style="font-size:11px;color:var(--text-dim)">'+LaRuche.Utils.esc(e.human)+(e.expr?(' · <code style="color:var(--text-dim)">'+LaRuche.Utils.esc(e.expr)+'</code>'):'')+
-          ' · dernier : '+(e.last?LaRuche.Utils.esc(String(e.last).substring(0,16).replace('T',' ')):'jamais')+'</div>'+
+          LaRuche.i18n.t('automations.dernierLabel')+(e.last?LaRuche.Utils.esc(String(e.last).substring(0,16).replace('T',' ')):LaRuche.i18n.t('automations.jamais'))+'</div>'+
       '</div>'+
       '<div style="text-align:right;white-space:nowrap"><div style="font-weight:600;color:'+e.color+';font-size:12px">'+fmtWhen(e.next)+'</div>'+
         '<div style="font-size:10px;color:var(--text-dim)">'+(e.runs||0)+' run(s)'+(e.status?(' · '+LaRuche.Utils.esc(e.status)):'')+'</div></div>'+
@@ -274,7 +348,7 @@ LaRuche.Timeline = (function(){
 
   function section(title, rows){
     return '<div style="margin-bottom:18px"><div style="font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">'+title+'</div>'+
-      (rows||'<div style="color:var(--text-dim);font-size:11px;padding:4px 0">Rien de prevu.</div>')+'</div>';
+      (rows||'<div style="color:var(--text-dim);font-size:11px;padding:4px 0">'+LaRuche.i18n.t('automations.rienDePrevu')+'</div>')+'</div>';
   }
 
   function ensureBtnStyle(){
@@ -362,12 +436,12 @@ LaRuche.Timeline = (function(){
     var nowLine = (now>=fromMs && now<=toMs) ? '<div class="gantt-now" style="left:'+xOf(now)+'px"></div>' : '';
 
     // En-tete (axe temps)
-    var head = '<div class="gantt-row gantt-head"><div class="gantt-gutter"><div class="gn">Jobs</div><div class="gs">'+fmtFull(fromMs)+' → '+fmtFull(toMs)+'</div></div>'+
+    var head = '<div class="gantt-row gantt-head"><div class="gantt-gutter"><div class="gn">'+LaRuche.i18n.t('automations.jobsHeader')+'</div><div class="gs">'+fmtFull(fromMs)+' → '+fmtFull(toMs)+'</div></div>'+
       '<div class="gantt-lane" style="width:'+graphW+'px;min-height:24px">'+ticks+'</div></div>';
 
     var rows = '';
     if(!lanes.length){
-      rows = '<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:12px">Aucun job a cadence cron a afficher.</div>';
+      rows = '<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:12px">'+LaRuche.i18n.t('automations.aucunJobGantt')+'</div>';
     }
     window._tlGanttMarks = window._tlGanttMarks || {};
     window._tlGanttLanes = {};
@@ -390,7 +464,7 @@ LaRuche.Timeline = (function(){
     // Lane de surveillance continue (watchers)
     if((data.watchers||[]).length){
       var wnames = (data.watchers||[]).map(function(w){ return w.name||'(watcher)'; }).join(', ');
-      rows += '<div class="gantt-row sect"><div class="gantt-gutter"><div class="gn">👁 Surveillance continue</div><div class="gs">'+(data.watchers||[]).length+' monitor(s)</div></div>'+
+      rows += '<div class="gantt-row sect"><div class="gantt-gutter"><div class="gn">👁 '+LaRuche.i18n.t('automations.surveillanceCont')+'</div><div class="gs">'+(data.watchers||[]).length+' monitor(s)</div></div>'+
         '<div class="gantt-lane" style="width:'+graphW+'px;display:flex;align-items:center"><div style="position:relative;width:100%">'+ticks+nowLine+
           '<div style="position:absolute;top:50%;left:0;right:8px;height:4px;transform:translateY(-50%);background:linear-gradient(90deg,rgba(6,182,212,.15),rgba(6,182,212,.5));border-radius:3px"></div>'+
           '<div style="position:absolute;top:50%;left:8px;transform:translateY(-50%);font-size:10px;color:var(--cyan);white-space:nowrap;text-shadow:0 0 4px #000">'+LaRuche.Utils.esc(wnames.substring(0,80))+'</div>'+
@@ -400,10 +474,10 @@ LaRuche.Timeline = (function(){
     var zoomBtn = function(h,lbl){ return '<button class="tl-btn"'+(_ganttSpanH===h?' style="border-color:var(--amber);color:var(--amber)"':'')+' onclick="LaRuche.Timeline.ganttZoom('+h+')">'+lbl+'</button>'; };
     var toolbar = '<div class="gantt-toolbar">'+
       viewToggleHtml()+
-      '<span style="margin-left:8px;color:var(--text-dim);font-size:11px">Zoom</span>'+
+      '<span style="margin-left:8px;color:var(--text-dim);font-size:11px">'+LaRuche.i18n.t('automations.zoomLabel')+'</span>'+
       zoomBtn(24,'24h')+zoomBtn(48,'48h')+zoomBtn(168,'7j')+
       '<button class="tl-btn" onclick="LaRuche.Timeline.ganttRecenter()">⊙ Now</button>'+
-      '<button class="tl-btn" onclick="LaRuche.Timeline.reload()">↻ Rafraichir</button>'+
+      '<button class="tl-btn" onclick="LaRuche.Timeline.reload()">↻ '+LaRuche.i18n.t('automations.rafraichir')+'</button>'+
       '</div>';
 
     el.innerHTML = toolbar +
@@ -426,21 +500,21 @@ LaRuche.Timeline = (function(){
 
   function renderGanttDetail(m){
     var host=document.getElementById('tlGanttDetail'); if(!host||!m) return;
-    var occHtml = m.when ? '<div style="color:var(--text-dim)">Occurrence : <b style="color:#fff">'+fmtFull(m.when)+'</b>'+(m.when<Date.now()?' (passee)':' (a venir)')+'</div>' : '';
+    var occHtml = m.when ? '<div style="color:var(--text-dim)">'+LaRuche.i18n.t('automations.occurrence')+'<b style="color:#fff">'+fmtFull(m.when)+'</b>'+(m.when<Date.now()?LaRuche.i18n.t('automations.passee'):LaRuche.i18n.t('automations.aVenir'))+'</div>' : '';
     // Édition/suppression depuis le détail (comme l'onglet Cron dédié).
     var actions = '';
     if(m.kind==='cron' && m.id){
       actions = '<div style="margin-top:8px;display:flex;gap:6px">'+
-        '<button class="tl-btn" onclick="LaRuche.Router.go(\'automations\');setTimeout(function(){var b=document.querySelector(\'#autoTabsBar [data-tab=cron]\');if(b)b.click();},60)">Éditer (onglet Cron)</button>'+
-        '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.Timeline.ganttDelete(\'cron\',\''+LaRuche.Utils.esc(m.id)+'\')">Supprimer</button></div>';
+        '<button class="tl-btn" onclick="LaRuche.Router.go(\'automations\');setTimeout(function(){var b=document.querySelector(\'#autoTabsBar [data-tab=cron]\');if(b)b.click();},60)">'+LaRuche.i18n.t('automations.editerOngletCron')+'</button>'+
+        '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.Timeline.ganttDelete(\'cron\',\''+LaRuche.Utils.esc(m.id)+'\')">'+LaRuche.i18n.t('automations.supprimer')+'</button></div>';
     } else if(m.kind==='mission' && m.slug){
       actions = '<div style="margin-top:8px;display:flex;gap:6px">'+
-        '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.Timeline.ganttDelete(\'mission\',\''+LaRuche.Utils.esc(m.slug)+'\')">Supprimer la mission</button></div>';
+        '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.Timeline.ganttDelete(\'mission\',\''+LaRuche.Utils.esc(m.slug)+'\')">'+LaRuche.i18n.t('automations.supprimerMission')+'</button></div>';
     }
     host.innerHTML = '<div class="gantt-detail">'+
       '<div class="gd-t">'+(m.kind==='cron'?'⏰ ':'👑 ')+LaRuche.Utils.esc(m.name)+'</div>'+
       occHtml+
-      '<div style="color:var(--text-dim)">Cadence : '+LaRuche.Utils.esc(m.human)+' · <code style="color:var(--cyan)">'+LaRuche.Utils.esc(m.expr||'-')+'</code></div>'+
+      '<div style="color:var(--text-dim)">'+LaRuche.i18n.t('automations.cadenceLabel')+LaRuche.Utils.esc(m.human)+' · <code style="color:var(--cyan)">'+LaRuche.Utils.esc(m.expr||'-')+'</code></div>'+
       actions+
       '</div>';
   }
@@ -452,18 +526,18 @@ LaRuche.Timeline = (function(){
     renderGanttDetail(mk || (ln ? { name:ln.name, expr:ln.expr, human:ln.sub, kind:ln.kind, id:ln.id, slug:ln.slug, when:0 } : null));
   }
   function ganttDelete(kind, idOrSlug){
-    if(!confirm('Supprimer définitivement ?')) return;
+    if(!confirm(LaRuche.i18n.t('automations.supprimerConfirm'))) return;
     var url = kind==='mission' ? '/api/missions/'+encodeURIComponent(idOrSlug) : '/api/cron/'+encodeURIComponent(idOrSlug);
     fetch(LaRuche.API.base+url,{method:'DELETE'}).then(function(r){
-      if(r.ok){ LaRuche.Toast.show('Supprimé','ok'); var d=document.getElementById('tlGanttDetail'); if(d)d.innerHTML=''; reload(); }
-      else LaRuche.Toast.show('Échec suppression','err');
+      if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('automations.supprime'),'ok'); var d=document.getElementById('tlGanttDetail'); if(d)d.innerHTML=''; reload(); }
+      else LaRuche.Toast.show(LaRuche.i18n.t('automations.echecSuppression'),'err');
     });
   }
 
   function viewToggleHtml(){
     return '<div style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">'+
-      '<button class="tl-btn" style="border:none;border-radius:0'+(_viewMode==='agenda'?';background:var(--amber);color:#000':'')+'" onclick="LaRuche.Timeline.setView(\'agenda\')">Agenda</button>'+
-      '<button class="tl-btn" style="border:none;border-radius:0'+(_viewMode==='gantt'?';background:var(--amber);color:#000':'')+'" onclick="LaRuche.Timeline.setView(\'gantt\')">Gantt</button>'+
+      '<button class="tl-btn" style="border:none;border-radius:0'+(_viewMode==='agenda'?';background:var(--amber);color:#000':'')+'" onclick="LaRuche.Timeline.setView(\'agenda\')">'+LaRuche.i18n.t('automations.agenda')+'</button>'+
+      '<button class="tl-btn" style="border:none;border-radius:0'+(_viewMode==='gantt'?';background:var(--amber);color:#000':'')+'" onclick="LaRuche.Timeline.setView(\'gantt\')">'+LaRuche.i18n.t('automations.gantt')+'</button>'+
       '</div>';
   }
 
@@ -481,20 +555,20 @@ LaRuche.Timeline = (function(){
         '<div style="font-size:18px;width:24px;text-align:center">👁</div>'+
         '<div style="flex:1;min-width:0"><div style="font-weight:600;color:#fff">'+LaRuche.Utils.esc(w.name||'(watcher)')+
           ' <span style="font-size:9px;border:1px solid var(--cyan);color:var(--cyan);padding:1px 5px;border-radius:8px;margin-left:6px">'+LaRuche.Utils.esc(w.watcher_type||'monitor')+'</span></div>'+
-          '<div style="font-size:11px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">cible : '+LaRuche.Utils.esc(w.target||'')+'</div></div>'+
-        '<div style="text-align:right"><div style="font-size:11px;color:var(--green)">● surveillance</div><div style="font-size:10px;color:var(--text-dim)">'+(w.run_count||0)+' decl.</div></div>'+
+          '<div style="font-size:11px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+LaRuche.i18n.t('automations.cibleLabel')+LaRuche.Utils.esc(w.target||'')+'</div></div>'+
+        '<div style="text-align:right"><div style="font-size:11px;color:var(--green)">'+LaRuche.i18n.t('automations.surveillance')+'</div><div style="font-size:10px;color:var(--text-dim)">'+(w.run_count||0)+LaRuche.i18n.t('automations.decl')+'</div></div>'+
         '</div>';
     }).join('');
 
     var html = '<div class="gantt-toolbar" style="justify-content:space-between">'+
       viewToggleHtml()+
-      '<span style="color:var(--text-dim);font-size:12px">'+ev.length+' planification(s) · '+(data.watchers||[]).length+' monitor(s) '+
-      '<button class="tl-btn" style="margin-left:8px" onclick="LaRuche.Timeline.reload()">↻ Rafraichir</button></span></div>';
-    html += section("Aujourd'hui", rowsOf(buckets.today));
-    html += section('Cette semaine', rowsOf(buckets.week));
-    html += section('A venir', rowsOf(buckets.later));
-    if(buckets.none.length) html += section('Sans planning (a la demande)', rowsOf(buckets.none));
-    html += section('Monitors actifs (surveillance continue)', watcherRows||null);
+      '<span style="color:var(--text-dim);font-size:12px">'+LaRuche.i18n.t('automations.planifications').replace('{n}',ev.length).replace('{w}',(data.watchers||[]).length)+
+      ' <button class="tl-btn" style="margin-left:8px" onclick="LaRuche.Timeline.reload()">↻ '+LaRuche.i18n.t('automations.rafraichir')+'</button></span></div>';
+    html += section(LaRuche.i18n.t('automations.sectionAujourd'), rowsOf(buckets.today));
+    html += section(LaRuche.i18n.t('automations.setteSemaine'), rowsOf(buckets.week));
+    html += section(LaRuche.i18n.t('automations.aVenirSection'), rowsOf(buckets.later));
+    if(buckets.none.length) html += section(LaRuche.i18n.t('automations.sansPlanning'), rowsOf(buckets.none));
+    html += section(LaRuche.i18n.t('automations.monitorsActifs'), watcherRows||null);
     el.innerHTML = html;
   }
 
@@ -508,7 +582,7 @@ LaRuche.Timeline = (function(){
     if(!el) return;
     ensureBtnStyle();
     _hostEl = el;
-    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">Chargement du planning...</div>';
+    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">'+LaRuche.i18n.t('automations.chargementPlanning')+'</div>';
     _lastData = await gather();
     renderInto(el);
   }
@@ -530,7 +604,7 @@ LaRuche.Automations = (function(){
   // `current` = valeur à présélectionner ; `emptyLabel` = libellé de l'option vide.
   window.__fillChannels = function(sel, current, emptyLabel){
     if(!sel) return;
-    var lbl = emptyLabel || 'Aucun (travail de fond)';
+    var lbl = emptyLabel || LaRuche.i18n.t('automations.aucunTravailFond');
     sel.innerHTML = '<option value="">'+lbl+'</option>';
     fetch('/api/channels/known').then(function(r){return r.json();}).then(function(d){
       var list=(d&&d.channels)||[]; var home=(d&&d.home)||'';
@@ -553,22 +627,22 @@ LaRuche.Automations = (function(){
       '<div class="mis-side">'+
         '<div class="mis-side-hdr">'+
           '<span class="mis-title"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> Missions</span>'+
-          '<button class="mem2-tbtn" onclick="LaRuche.Missions.refresh()" title="Rafraichir">&#x21BB;</button>'+
+          '<button class="mem2-tbtn" onclick="LaRuche.Missions.refresh()" title="'+LaRuche.i18n.t('automations.rafraichirTitle')+'">&#x21BB;</button>'+
         '</div>'+
         '<div class="mis-create">'+
-          '<textarea id="misObjective" placeholder="Objectif de la mission de recherche..."></textarea>'+
-          '<label style="font-size:10px;color:var(--text-dim);margin-top:4px">Cadence (optionnel)</label>'+
+          '<textarea id="misObjective" placeholder="'+LaRuche.i18n.t('automations.objectifPlaceholder')+'"></textarea>'+
+          '<label style="font-size:10px;color:var(--text-dim);margin-top:4px">'+LaRuche.i18n.t('automations.cadenceOpt')+'</label>'+
           '<div id="misCadenceBuilder"></div>'+
           '<label style="font-size:10px;color:var(--text-dim);margin-top:4px">Provider</label>'+
-          '<select id="misProvider" class="form-input"><option value="">Défaut (modèle actif)</option></select>'+
-          '<label style="font-size:10px;color:var(--text-dim);margin-top:4px">Canal (optionnel — vide = travail de fond)</label>'+
-          '<select id="misChannel" class="form-input"><option value="">Aucun (travail de fond)</option></select>'+
-          '<input id="misSlug" type="text" placeholder="Slug (optionnel)" spellcheck="false">'+
-          '<button class="mem2-btn-primary" onclick="LaRuche.Missions.create()">Creer la mission</button>'+
+          '<select id="misProvider" class="form-input"><option value="">'+LaRuche.i18n.t('automations.defautModele')+'</option></select>'+
+          '<label style="font-size:10px;color:var(--text-dim);margin-top:4px">'+LaRuche.i18n.t('automations.canalLabel')+'</label>'+
+          '<select id="misChannel" class="form-input"><option value="">'+LaRuche.i18n.t('automations.aucunTravailFond2')+'</option></select>'+
+          '<input id="misSlug" type="text" placeholder="'+LaRuche.i18n.t('automations.slugOpt')+'" spellcheck="false">'+
+          '<button class="mem2-btn-primary" onclick="LaRuche.Missions.create()">'+LaRuche.i18n.t('automations.creerMission')+'</button>'+
         '</div>'+
-        '<div class="mis-list" id="misList"><div class="mem2-empty">Chargement...</div></div>'+
+        '<div class="mis-list" id="misList"><div class="mem2-empty">'+LaRuche.i18n.t('automations.chargement')+'</div></div>'+
       '</div>'+
-      '<div class="mis-main" id="misMain"><div class="mem2-empty">Selectionnez une mission pour voir son dossier, ou creez-en une.</div></div>'+
+      '<div class="mis-main" id="misMain"><div class="mem2-empty">'+LaRuche.i18n.t('automations.selectMission')+'</div></div>'+
     '</div>';
     if(LaRuche.Missions && LaRuche.Missions.mountForm) LaRuche.Missions.mountForm();
     if(LaRuche.Missions && LaRuche.Missions.refresh) LaRuche.Missions.refresh();
@@ -588,7 +662,7 @@ LaRuche.Automations = (function(){
   function loadTab(tab){
     var el = document.getElementById('autoContent');
     if(!el) return;
-    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">Chargement...</div>';
+    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">'+LaRuche.i18n.t('automations.chargement')+'</div>';
     var S = LaRuche.Settings;
     switch(tab){
       case 'brief': loadBrief(el); break;

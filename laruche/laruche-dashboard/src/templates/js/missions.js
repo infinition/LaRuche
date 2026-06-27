@@ -1,3 +1,45 @@
+LaRuche.i18n.add({
+  'missions.unavailable':      { fr: 'Missions indisponibles',                                              en: 'Missions unavailable' },
+  'missions.unavailableErr':   { fr: 'Missions indisponibles: ',                                            en: 'Missions unavailable: ' },
+  'missions.never':            { fr: 'jamais',                                                              en: 'never' },
+  'missions.empty':            { fr: 'Aucune mission. Creez-en une.',                                       en: 'No missions. Create one.' },
+  'missions.manual':           { fr: 'manuel',                                                              en: 'manual' },
+  'missions.lastRun':          { fr: 'derniere: ',                                                          en: 'last: ' },
+  'missions.btnRun':           { fr: 'Lancer une iteration',                                               en: 'Run an iteration' },
+  'missions.btnDossier':       { fr: 'Dossier',                                                            en: 'Dossier' },
+  'missions.btnPause':         { fr: 'Pause',                                                              en: 'Pause' },
+  'missions.btnResume':        { fr: 'Reprendre',                                                          en: 'Resume' },
+  'missions.btnDone':          { fr: 'Terminer',                                                           en: 'Finish' },
+  'missions.btnDelete':        { fr: 'Suppr',                                                              en: 'Del' },
+  'missions.objectiveRequired':{ fr: 'Objectif requis',                                                    en: 'Objective required' },
+  'missions.created':          { fr: 'Mission creee: ',                                                     en: 'Mission created: ' },
+  'missions.createErr':        { fr: 'Creation: ',                                                         en: 'Creation: ' },
+  'missions.iterLaunched':     { fr: 'lancee (en arriere-plan)',                                            en: 'launched (in background)' },
+  'missions.statusLabel':      { fr: 'Statut: ',                                                           en: 'Status: ' },
+  'missions.confirmDelete':    { fr: 'Supprimer la mission "{slug}" ? (le savoir reste en memoire)',        en: 'Delete mission "{slug}"? (knowledge stays in memory)' },
+  'missions.deleted':          { fr: 'Mission supprimee',                                                   en: 'Mission deleted' },
+  'missions.deleteErr':        { fr: 'Suppression: ',                                                      en: 'Deletion: ' },
+  'missions.selectHint':       { fr: 'Selectionnez une mission pour voir son dossier, ou creez-en une.',   en: 'Select a mission to view its dossier, or create one.' },
+  'missions.loading':          { fr: 'Chargement du dossier...',                                           en: 'Loading dossier...' },
+  'missions.dossierPrefix':    { fr: 'Dossier · ',                                                    en: 'Dossier · ' },
+  'missions.btnEdit':          { fr: 'Modifier',                                                           en: 'Edit' },
+  'missions.btnExport':        { fr: 'Exporter',                                                           en: 'Export' },
+  'missions.editTitle':        { fr: 'Modifier la mission',                                                en: 'Edit mission' },
+  'missions.labelObjective':   { fr: 'Objectif',                                                           en: 'Objective' },
+  'missions.labelCadence':     { fr: 'Cadence',                                                            en: 'Cadence' },
+  'missions.labelStatus':      { fr: 'Statut',                                                             en: 'Status' },
+  'missions.optActive':        { fr: 'Active',                                                             en: 'Active' },
+  'missions.optPaused':        { fr: 'En pause',                                                           en: 'Paused' },
+  'missions.optDone':          { fr: 'Terminee',                                                           en: 'Done' },
+  'missions.btnSave':          { fr: 'Enregistrer',                                                        en: 'Save' },
+  'missions.btnCancel':        { fr: 'Annuler',                                                            en: 'Cancel' },
+  'missions.errorPrefix':      { fr: 'Erreur: ',                                                           en: 'Error: ' },
+  'missions.updated':          { fr: 'Mission mise a jour',                                                en: 'Mission updated' },
+  'missions.saveErr':          { fr: 'Enregistrement: ',                                                   en: 'Save: ' },
+  'missions.exported':         { fr: 'Dossier exporte',                                                    en: 'Dossier exported' },
+  'missions.exportErr':        { fr: 'Export: ',                                                           en: 'Export: ' }
+});
+
 LaRuche.Missions = (function(){
   var list = [];
   var current = null; // slug du dossier affiche
@@ -16,38 +58,38 @@ LaRuche.Missions = (function(){
       renderList();
     }).catch(function(e){
       var el = document.getElementById('misList');
-      if(el) el.innerHTML = '<div class="mem2-empty">Missions indisponibles</div>';
-      LaRuche.Toast.show('Missions indisponibles: '+e, 'err');
+      if(el) el.innerHTML = '<div class="mem2-empty">'+LaRuche.i18n.t('missions.unavailable')+'</div>';
+      LaRuche.Toast.show(LaRuche.i18n.t('missions.unavailableErr')+e, 'err');
     });
   }
 
   function fmtDate(s) {
-    if(!s) return 'jamais';
+    if(!s) return LaRuche.i18n.t('missions.never');
     try { var d = new Date(s); if(isNaN(d)) return s; return d.toLocaleString(); } catch(e){ return s; }
   }
 
   function renderList() {
     var el = document.getElementById('misList'); if(!el) return;
-    if(!list.length){ el.innerHTML = '<div class="mem2-empty">Aucune mission. Creez-en une.</div>'; return; }
+    if(!list.length){ el.innerHTML = '<div class="mem2-empty">'+LaRuche.i18n.t('missions.empty')+'</div>'; return; }
     el.innerHTML = list.map(function(m){
       var status = m.status || 'active';
-      var cad = m.cadence ? ('<span title="cadence cron">&#x23F1; '+esc(m.cadence)+'</span>') : '<span>manuel</span>';
+      var cad = m.cadence ? ('<span title="cadence cron">&#x23F1; '+esc(m.cadence)+'</span>') : '<span>'+LaRuche.i18n.t('missions.manual')+'</span>';
       return '<div class="mis-card'+(current===m.slug?' active':'')+'" data-slug="'+esc(m.slug)+'">'+
         '<div class="mis-card-obj">'+esc(m.objective || m.slug)+'</div>'+
         '<div class="mis-card-meta">'+
           '<span class="mis-badge '+esc(status)+'">'+esc(status)+'</span>'+
           '<span>&#x21BB; '+(m.iterations!=null?m.iterations:0)+' iter.</span>'+
           cad+
-          '<span>derniere: '+esc(fmtDate(m.last_run))+'</span>'+
+          '<span>'+LaRuche.i18n.t('missions.lastRun')+esc(fmtDate(m.last_run))+'</span>'+
         '</div>'+
         '<div class="mis-card-acts">'+
-          '<button class="mis-act run" data-act="run" data-slug="'+esc(m.slug)+'">Lancer une iteration</button>'+
-          '<button class="mis-act" data-act="dossier" data-slug="'+esc(m.slug)+'">Dossier</button>'+
+          '<button class="mis-act run" data-act="run" data-slug="'+esc(m.slug)+'">'+LaRuche.i18n.t('missions.btnRun')+'</button>'+
+          '<button class="mis-act" data-act="dossier" data-slug="'+esc(m.slug)+'">'+LaRuche.i18n.t('missions.btnDossier')+'</button>'+
           (status==='active'
-            ? '<button class="mis-act" data-act="pause" data-slug="'+esc(m.slug)+'">Pause</button>'
-            : '<button class="mis-act" data-act="resume" data-slug="'+esc(m.slug)+'">Reprendre</button>')+
-          '<button class="mis-act" data-act="done" data-slug="'+esc(m.slug)+'">Terminer</button>'+
-          '<button class="mis-act danger" data-act="delete" data-slug="'+esc(m.slug)+'">Suppr</button>'+
+            ? '<button class="mis-act" data-act="pause" data-slug="'+esc(m.slug)+'">'+LaRuche.i18n.t('missions.btnPause')+'</button>'
+            : '<button class="mis-act" data-act="resume" data-slug="'+esc(m.slug)+'">'+LaRuche.i18n.t('missions.btnResume')+'</button>')+
+          '<button class="mis-act" data-act="done" data-slug="'+esc(m.slug)+'">'+LaRuche.i18n.t('missions.btnDone')+'</button>'+
+          '<button class="mis-act danger" data-act="delete" data-slug="'+esc(m.slug)+'">'+LaRuche.i18n.t('missions.btnDelete')+'</button>'+
         '</div>'+
       '</div>';
     }).join('');
@@ -91,7 +133,7 @@ LaRuche.Missions = (function(){
     var chEl = document.getElementById('misChannel');
     var profile_id = provEl ? provEl.value : '';
     var channel = chEl ? (chEl.value||'').trim() : '';
-    if(!objective){ LaRuche.Toast.show('Objectif requis','warn'); return; }
+    if(!objective){ LaRuche.Toast.show(LaRuche.i18n.t('missions.objectiveRequired'),'warn'); return; }
     var body = { objective:objective };
     if(cadence) body.cadence = cadence;
     if(slug) body.slug = slug;
@@ -100,19 +142,19 @@ LaRuche.Missions = (function(){
     fetch(LaRuche.API.base+'/api/missions', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
       .then(function(r){return r.json();}).then(function(d){
         if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
-        LaRuche.Toast.show('Mission creee: '+(d.slug||''),'ok');
+        LaRuche.Toast.show(LaRuche.i18n.t('missions.created')+(d.slug||''),'ok');
         document.getElementById('misObjective').value='';
         if(chEl) chEl.value='';
         document.getElementById('misSlug').value='';
         refresh();
-      }).catch(function(e){ LaRuche.Toast.show('Creation: '+e,'err'); });
+      }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('missions.createErr')+e,'err'); });
   }
 
   function runMission(slug) {
     fetch(LaRuche.API.base+'/api/missions/'+encodeURIComponent(slug)+'/run', {method:'POST'})
       .then(function(r){return r.json();}).then(function(d){
         if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
-        LaRuche.Toast.show('Iteration '+(d.iteration!=null?'#'+d.iteration+' ':'')+'lancee (en arriere-plan)','ok');
+        LaRuche.Toast.show('Iteration '+(d.iteration!=null?'#'+d.iteration+' ':'')+LaRuche.i18n.t('missions.iterLaunched'),'ok');
         setTimeout(refresh, 1200);
       }).catch(function(e){ LaRuche.Toast.show('Run: '+e,'err'); });
   }
@@ -121,25 +163,25 @@ LaRuche.Missions = (function(){
     fetch(LaRuche.API.base+'/api/missions/'+encodeURIComponent(slug), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:status})})
       .then(function(r){return r.json();}).then(function(d){
         if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
-        LaRuche.Toast.show('Statut: '+status,'ok');
+        LaRuche.Toast.show(LaRuche.i18n.t('missions.statusLabel')+status,'ok');
         refresh();
-      }).catch(function(e){ LaRuche.Toast.show('Statut: '+e,'err'); });
+      }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('missions.statusLabel')+e,'err'); });
   }
 
   function deleteMission(slug) {
-    if(!window.confirm('Supprimer la mission "'+slug+'" ? (le savoir reste en memoire)')) return;
+    if(!window.confirm(LaRuche.i18n.t('missions.confirmDelete').replace('{slug}', slug))) return;
     fetch(LaRuche.API.base+'/api/missions/'+encodeURIComponent(slug), {method:'DELETE'})
       .then(function(r){return r.json();}).then(function(d){
         if(d && d.error){ LaRuche.Toast.show(d.error,'err'); return; }
-        LaRuche.Toast.show('Mission supprimee','ok');
+        LaRuche.Toast.show(LaRuche.i18n.t('missions.deleted'),'ok');
         if(current===slug){ current=null; renderMainEmpty(); }
         refresh();
-      }).catch(function(e){ LaRuche.Toast.show('Suppression: '+e,'err'); });
+      }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('missions.deleteErr')+e,'err'); });
   }
 
   function renderMainEmpty() {
     var main = document.getElementById('misMain'); if(!main) return;
-    main.innerHTML = '<div class="mem2-empty">Selectionnez une mission pour voir son dossier, ou creez-en une.</div>';
+    main.innerHTML = '<div class="mem2-empty">'+LaRuche.i18n.t('missions.selectHint')+'</div>';
   }
 
   /* ---- B2 : vue Dossier (markdown) ---- */
@@ -147,7 +189,7 @@ LaRuche.Missions = (function(){
     current = slug;
     renderList();
     var main = document.getElementById('misMain'); if(!main) return;
-    main.innerHTML = '<div class="mem2-empty">Chargement du dossier...</div>';
+    main.innerHTML = '<div class="mem2-empty">'+LaRuche.i18n.t('missions.loading')+'</div>';
     fetch(LaRuche.API.base+'/api/missions/'+encodeURIComponent(slug)+'/dossier').then(function(r){return r.json();}).then(function(d){
       if(d.error){ main.innerHTML = '<div class="mem2-empty">'+esc(d.error)+'</div>'; return; }
       var md = d.markdown || '';
@@ -158,20 +200,20 @@ LaRuche.Missions = (function(){
       function statOpt(v,lbl){ return '<option value="'+v+'"'+(curStatus===v?' selected':'')+'>'+lbl+'</option>'; }
       main.innerHTML =
         '<div class="mis-dossier-bar">'+
-          '<span class="mis-dossier-title">Dossier &middot; '+esc(curObjective || slug)+'</span>'+
-          '<span><button class="mem2-tbtn" id="misEditBtn">Modifier</button> '+
-          '<button class="mem2-tbtn" id="misExportBtn">Exporter</button></span>'+
+          '<span class="mis-dossier-title">'+LaRuche.i18n.t('missions.dossierPrefix')+esc(curObjective || slug)+'</span>'+
+          '<span><button class="mem2-tbtn" id="misEditBtn">'+LaRuche.i18n.t('missions.btnEdit')+'</button> '+
+          '<button class="mem2-tbtn" id="misExportBtn">'+LaRuche.i18n.t('missions.btnExport')+'</button></span>'+
         '</div>'+
         '<div id="misEditBox" style="display:none;border:1px solid var(--amber);border-radius:8px;padding:12px;margin-bottom:14px;background:rgba(245,158,11,.06)">'+
-          '<div style="font-weight:600;color:var(--amber);margin-bottom:8px">Modifier la mission</div>'+
-          '<label class="form-label" style="font-size:10px;color:var(--text-dim)">Objectif</label>'+
+          '<div style="font-weight:600;color:var(--amber);margin-bottom:8px">'+LaRuche.i18n.t('missions.editTitle')+'</div>'+
+          '<label class="form-label" style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('missions.labelObjective')+'</label>'+
           '<textarea class="form-input" id="misEditObj" rows="3" style="width:100%;margin-bottom:10px">'+esc(curObjective)+'</textarea>'+
-          '<label class="form-label" style="font-size:10px;color:var(--text-dim)">Cadence</label>'+
+          '<label class="form-label" style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('missions.labelCadence')+'</label>'+
           '<div id="misEditCadence" style="margin-bottom:10px"></div>'+
-          '<label class="form-label" style="font-size:10px;color:var(--text-dim)">Statut</label>'+
-          '<select class="form-input" id="misEditStatus" style="margin-bottom:12px">'+statOpt('active','Active')+statOpt('paused','En pause')+statOpt('done','Terminee')+'</select>'+
-          '<div style="display:flex;gap:8px"><button class="mem2-btn-primary" id="misEditSave">Enregistrer</button>'+
-          '<button class="mem2-tbtn" id="misEditCancel">Annuler</button></div>'+
+          '<label class="form-label" style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('missions.labelStatus')+'</label>'+
+          '<select class="form-input" id="misEditStatus" style="margin-bottom:12px">'+statOpt('active',LaRuche.i18n.t('missions.optActive'))+statOpt('paused',LaRuche.i18n.t('missions.optPaused'))+statOpt('done',LaRuche.i18n.t('missions.optDone'))+'</select>'+
+          '<div style="display:flex;gap:8px"><button class="mem2-btn-primary" id="misEditSave">'+LaRuche.i18n.t('missions.btnSave')+'</button>'+
+          '<button class="mem2-tbtn" id="misEditCancel">'+LaRuche.i18n.t('missions.btnCancel')+'</button></div>'+
         '</div>'+
         '<div class="mis-dossier-body mem2-md" id="misDossierMd"></div>';
       var body = document.getElementById('misDossierMd');
@@ -194,21 +236,21 @@ LaRuche.Missions = (function(){
         var cadence = _cadBuilderId ? LaRuche.CronBuilder.getValue(_cadBuilderId) : curCadence;
         saveMissionEdit(slug, { objective:objective, cadence:cadence||'', status:status });
       };
-    }).catch(function(e){ main.innerHTML = '<div class="mem2-empty">Erreur: '+esc(e)+'</div>'; });
+    }).catch(function(e){ main.innerHTML = '<div class="mem2-empty">'+LaRuche.i18n.t('missions.errorPrefix')+esc(e)+'</div>'; });
   }
 
   function saveMissionEdit(slug, payload) {
     fetch(LaRuche.API.base+'/api/missions/'+encodeURIComponent(slug), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
       .then(function(r){return r.json().catch(function(){return {};});}).then(function(d){
         if(d && d.error){ LaRuche.Toast.show(d.error,'err'); return; }
-        LaRuche.Toast.show('Mission mise a jour','ok');
+        LaRuche.Toast.show(LaRuche.i18n.t('missions.updated'),'ok');
         // refresh liste + dossier
         fetch(LaRuche.API.base+'/api/missions').then(function(r){return r.json();}).then(function(data){
           list = Array.isArray(data) ? data : (data.missions || []);
           renderList();
           openDossier(slug);
         }).catch(function(){ openDossier(slug); });
-      }).catch(function(e){ LaRuche.Toast.show('Enregistrement: '+e,'err'); });
+      }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('missions.saveErr')+e,'err'); });
   }
 
   function exportDossier(slug, md) {
@@ -219,8 +261,8 @@ LaRuche.Missions = (function(){
       a.href = url; a.download = 'dossier-'+slug+'.md';
       document.body.appendChild(a); a.click();
       setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
-      LaRuche.Toast.show('Dossier exporte','ok');
-    } catch(e){ LaRuche.Toast.show('Export: '+e,'err'); }
+      LaRuche.Toast.show(LaRuche.i18n.t('missions.exported'),'ok');
+    } catch(e){ LaRuche.Toast.show(LaRuche.i18n.t('missions.exportErr')+e,'err'); }
   }
 
   return { init:init, enter:enter, leave:leave, current:function(){return current;}, refresh:refresh, create:create, mountForm:mountForm };

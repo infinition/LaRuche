@@ -1,3 +1,73 @@
+LaRuche.i18n.add({
+  'capabilities.view':          { fr:'Voir',              en:'View' },
+  'capabilities.delete':        { fr:'Suppr',             en:'Del' },
+  'capabilities.edit':          { fr:'Editer',            en:'Edit' },
+  'capabilities.remove':        { fr:'Retirer',           en:'Remove' },
+  'capabilities.confirmDelete': { fr:'Supprimer',         en:'Delete' },
+  'capabilities.confirmPlugin': { fr:'Supprimer le plugin', en:'Delete plugin' },
+  'capabilities.loading':       { fr:'Chargement...',     en:'Loading...' },
+  'capabilities.mcpServerName': { fr:'Nom serveur MCP',   en:'MCP server name' },
+  'capabilities.command':       { fr:'Commande',          en:'Command' },
+  'capabilities.arguments':     { fr:'Arguments',         en:'Arguments' },
+  'capabilities.addMcpServer':  { fr:'+ Ajouter serveur MCP', en:'+ Add MCP server' },
+  'capabilities.colName':       { fr:'Nom',               en:'Name' },
+  'capabilities.colType':       { fr:'Type',              en:'Type' },
+  'capabilities.colOrigin':     { fr:'Origine',           en:'Origin' },
+  'capabilities.colDesc':       { fr:'Description',       en:'Description' },
+  'capabilities.colStatus':     { fr:'Statut',            en:'Status' },
+  'capabilities.colActions':    { fr:'Actions',           en:'Actions' },
+  'capabilities.active':        { fr:'● actif',           en:'● active' },
+  'capabilities.inactive':      { fr:'○ inactif',         en:'○ inactive' },
+  'capabilities.newSkill':      { fr:'+ Nouveau skill',   en:'+ New skill' },
+  'capabilities.newPlugin':     { fr:'+ Nouveau plugin',  en:'+ New plugin' },
+  'capabilities.filesScripts':  { fr:'📁 Fichiers &amp; scripts', en:'📁 Files &amp; scripts' },
+  'capabilities.enableAll':     { fr:'Tout activer',      en:'Enable all' },
+  'capabilities.disableAll':    { fr:'Tout desactiver',   en:'Disable all' },
+  'capabilities.searchPlaceholder': { fr:'Rechercher (nom ou description)...', en:'Search (name or description)...' },
+  'capabilities.capacities':    { fr:'capacite(s)',       en:'capability(-ies)' },
+  'capabilities.nativeImmutable': { fr:' — abeilles natives = immuables', en:' — native tools are immutable' },
+  'capabilities.emptyFilter':   { fr:'Aucune capacite (filtre ou famille vide).', en:'No capability found (filter or empty family).' },
+  'capabilities.mcpFormUnavailable': { fr:'Formulaire MCP indisponible', en:'MCP form unavailable' },
+  'capabilities.editingMcp':    { fr:' — modifiez puis cliquez sur le bouton', en:' — edit then click the button' },
+  'capabilities.nameAndCmdRequired': { fr:'Nom et commande requis', en:'Name and command required' },
+  'capabilities.mcpSaved':      { fr:'Serveur MCP enregistre', en:'MCP server saved' },
+  'capabilities.mcpSaveFailed': { fr:'Echec enregistrement MCP', en:'Failed to save MCP' },
+  'capabilities.hideChats':     { fr:'Masquer Chats',     en:'Hide Chats' },
+  'capabilities.showChats':     { fr:'Afficher Chats',    en:'Show Chats' },
+  'capabilities.now':           { fr:'maintenant',        en:'now' },
+  'capabilities.noScheduled':   { fr:'Aucune action programmée', en:'No scheduled action' },
+  'capabilities.cronNoName':    { fr:'(cron sans nom)',   en:'(unnamed cron)' },
+  'capabilities.missionNoName': { fr:'(mission)',         en:'(mission)' },
+  'capabilities.nextAction':    { fr:'&#x23F0; Prochaine : ', en:'&#x23F0; Next: ' },
+  'capabilities.inDelta':       { fr:'dans ',             en:'in ' },
+  'capabilities.kindMemory':    { fr:'Mémoire',           en:'Memory' },
+  'capabilities.kindAgent':     { fr:'Agent',             en:'Agent' },
+  'capabilities.kindCron':      { fr:'Cron',              en:'Cron' },
+  'capabilities.kindMission':   { fr:'Mission',           en:'Mission' },
+  'capabilities.kindWatcher':   { fr:'Watcher',           en:'Watcher' },
+  'capabilities.kindDm':        { fr:'DM',                en:'DM' },
+  'capabilities.you':           { fr:'Vous',              en:'You' },
+  'capabilities.noMatchFilter': { fr:'Aucun événement ne correspond aux filtres actifs.', en:'No event matches the active filters.' },
+  'capabilities.noActivity':    { fr:'Aucune activité pour le moment.', en:'No activity yet.' },
+  'capabilities.laruchemusing': { fr:'LaRuche réfléchit', en:'LaRuche is thinking' },
+  'capabilities.laruchemusingEllipsis': { fr:'LaRuche réfléchit…', en:'LaRuche is thinking…' },
+  'capabilities.conversations': { fr:'Conversations',    en:'Conversations' },
+  'capabilities.noConversation':{ fr:'Aucune conversation.', en:'No conversations.' },
+  'capabilities.peersDiscovered':{ fr:'Pairs LaRuche découverts', en:'LaRuche peers discovered' },
+  'capabilities.noPeers':       { fr:'Aucun pair sur le réseau.', en:'No peers on the network.' },
+  'capabilities.syncSkills':    { fr:'🔄 Synchroniser les skills du mesh', en:'🔄 Sync mesh skills' },
+  'capabilities.syncing':       { fr:'⏳ Synchronisation…', en:'⏳ Syncing…' },
+  'capabilities.syncFederated': { fr:' skill(s) fédéré(s)', en:' skill(s) federated' },
+  'capabilities.syncUpToDate':  { fr:'✅ Déjà à jour',   en:'✅ Already up to date' },
+  'capabilities.syncFailed':    { fr:'❌ Échec sync',     en:'❌ Sync failed' },
+  'capabilities.minimize':      { fr:'Réduire',           en:'Minimize' },
+  'capabilities.close':         { fr:'Fermer',            en:'Close' },
+  'capabilities.messagePlaceholder': { fr:'Message…',    en:'Message…' },
+  'capabilities.send':          { fr:'Envoyer',           en:'Send' },
+  'capabilities.youPrefix':     { fr:'Vous: ',            en:'You: ' },
+  'capabilities.editingOf':     { fr:'Edition de ',       en:'Editing ' }
+});
+
 LaRuche.Capabilities = (function(){
   var currentFamily = 'all';
   var searchTerm = '';
@@ -82,25 +152,25 @@ LaRuche.Capabilities = (function(){
   function rowActions(r, i){
     if(r.family==='abeille'){
       var tog = '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:'+(r.enabled?'var(--green)':'var(--red)')+'"><input type="checkbox" '+(r.enabled?'checked':'')+' onchange="LaRuche.Settings.toggleTool(\''+LaRuche.Utils.esc(r.name)+'\',this.checked);setTimeout(LaRuche.Capabilities.refresh,300)">'+(r.enabled?'ON':'OFF')+'</label>';
-      var view = '<button class="tl-btn" onclick="LaRuche.Capabilities.viewRaw('+i+')">Voir</button>';
-      var del = r.immutable ? '' : '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(\'Supprimer '+LaRuche.Utils.esc(r.name)+' ?\')){fetch(\'/api/tools/\'+encodeURIComponent(\''+LaRuche.Utils.esc(r.name)+'\'),{method:\'DELETE\'}).then(LaRuche.Capabilities.refresh)}">Suppr</button>';
+      var view = '<button class="tl-btn" onclick="LaRuche.Capabilities.viewRaw('+i+')">'+LaRuche.i18n.t('capabilities.view')+'</button>';
+      var del = r.immutable ? '' : '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(LaRuche.i18n.t(\'capabilities.confirmDelete\')+\' '+LaRuche.Utils.esc(r.name)+' ?\')){fetch(\'/api/tools/\'+encodeURIComponent(\''+LaRuche.Utils.esc(r.name)+'\'),{method:\'DELETE\'}).then(LaRuche.Capabilities.refresh)}">'+LaRuche.i18n.t('capabilities.delete')+'</button>';
       return tog+' '+view+' '+del;
     }
     if(r.family==='skill'){
       var tog2 = '<label class="lr-switch"><input type="checkbox" '+(r.enabled?'checked':'')+' onchange="LaRuche.Settings.toggleSkill(\''+LaRuche.Utils.esc(r.name)+'\');setTimeout(LaRuche.Capabilities.refresh,300)"><span class="lr-slider"></span></label>';
-      var edit = '<button class="tl-btn" onclick="LaRuche.Settings.viewSkill(\''+LaRuche.Utils.esc(r.name)+'\')">Editer</button>';
-      var del2 = '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(\'Supprimer '+LaRuche.Utils.esc(r.name)+' ?\')){LaRuche.Settings.deleteSkill(\''+LaRuche.Utils.esc(r.name)+'\');setTimeout(LaRuche.Capabilities.refresh,300)}">Suppr</button>';
+      var edit = '<button class="tl-btn" onclick="LaRuche.Settings.viewSkill(\''+LaRuche.Utils.esc(r.name)+'\')">'+LaRuche.i18n.t('capabilities.edit')+'</button>';
+      var del2 = '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(LaRuche.i18n.t(\'capabilities.confirmDelete\')+\' '+LaRuche.Utils.esc(r.name)+' ?\')){LaRuche.Settings.deleteSkill(\''+LaRuche.Utils.esc(r.name)+'\');setTimeout(LaRuche.Capabilities.refresh,300)}">'+LaRuche.i18n.t('capabilities.delete')+'</button>';
       return tog2+' '+edit+' '+del2;
     }
     if(r.family==='mcp'){
-      var editMcp = '<button class="tl-btn" onclick="LaRuche.Capabilities.editMcp('+i+')">Editer</button>';
-      var delMcp = '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.Settings.deleteMcpServer(\''+LaRuche.Utils.esc(r.mcpName)+'\');setTimeout(LaRuche.Capabilities.refresh,600)">Retirer</button>';
+      var editMcp = '<button class="tl-btn" onclick="LaRuche.Capabilities.editMcp('+i+')">'+LaRuche.i18n.t('capabilities.edit')+'</button>';
+      var delMcp = '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.Settings.deleteMcpServer(\''+LaRuche.Utils.esc(r.mcpName)+'\');setTimeout(LaRuche.Capabilities.refresh,600)">'+LaRuche.i18n.t('capabilities.remove')+'</button>';
       return editMcp+' '+delMcp;
     }
     if(r.family==='plugin'){
       var togP = '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:'+(r.enabled?'var(--green)':'var(--red)')+'"><input type="checkbox" '+(r.enabled?'checked':'')+' onchange="LaRuche.Settings.toggleTool(\''+LaRuche.Utils.esc(r.name)+'\',this.checked);setTimeout(LaRuche.Capabilities.refresh,300)">'+(r.enabled?'ON':'OFF')+'</label>';
-      var editP = '<button class="tl-btn" onclick="LaRuche.Settings.viewPlugin(\''+LaRuche.Utils.esc(r.name)+'\')">Editer</button>';
-      var delP = '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(\'Supprimer le plugin '+LaRuche.Utils.esc(r.name)+' ?\')){LaRuche.Settings.deletePlugin(\''+LaRuche.Utils.esc(r.name)+'\');setTimeout(LaRuche.Capabilities.refresh,300)}">Suppr</button>';
+      var editP = '<button class="tl-btn" onclick="LaRuche.Settings.viewPlugin(\''+LaRuche.Utils.esc(r.name)+'\')">'+LaRuche.i18n.t('capabilities.edit')+'</button>';
+      var delP = '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(LaRuche.i18n.t(\'capabilities.confirmPlugin\')+\' '+LaRuche.Utils.esc(r.name)+' ?\')){LaRuche.Settings.deletePlugin(\''+LaRuche.Utils.esc(r.name)+'\');setTimeout(LaRuche.Capabilities.refresh,300)}">'+LaRuche.i18n.t('capabilities.delete')+'</button>';
       return togP+' '+editP+' '+delP;
     }
     return '<span style="color:var(--text-dim);font-size:10px">—</span>';
@@ -109,7 +179,7 @@ LaRuche.Capabilities = (function(){
   async function render(){
     var el = document.getElementById('capContent');
     if(!el) return;
-    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">Chargement...</div>';
+    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">'+LaRuche.i18n.t('capabilities.loading')+'</div>';
     ensureSwitchStyle();
     var rows = await gather();
     var filtered = (currentFamily==='all') ? rows : rows.filter(function(r){ return r.family===currentFamily; });
@@ -134,15 +204,15 @@ LaRuche.Capabilities = (function(){
     var mcpAdd = '';
     if(currentFamily==='all' || currentFamily==='mcp'){
       mcpAdd = '<div style="border:1px solid var(--border);border-radius:6px;padding:10px;background:var(--bg-panel);margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:end">'+
-        '<div style="flex:1;min-width:120px"><label class="form-label">Nom serveur MCP</label><input id="capMcpName" class="form-input" placeholder="ex: local-sqlite"></div>'+
-        '<div style="flex:1;min-width:120px"><label class="form-label">Commande</label><input id="capMcpCmd" class="form-input" placeholder="ex: node"></div>'+
-        '<div style="flex:2;min-width:160px"><label class="form-label">Arguments</label><input id="capMcpArgs" class="form-input" placeholder="ex: src/index.js --db db.sqlite"></div>'+
-        '<button class="settings-save-btn" onclick="LaRuche.Capabilities.addMcp()">+ Ajouter serveur MCP</button>'+
+        '<div style="flex:1;min-width:120px"><label class="form-label">'+LaRuche.i18n.t('capabilities.mcpServerName')+'</label><input id="capMcpName" class="form-input" placeholder="ex: local-sqlite"></div>'+
+        '<div style="flex:1;min-width:120px"><label class="form-label">'+LaRuche.i18n.t('capabilities.command')+'</label><input id="capMcpCmd" class="form-input" placeholder="ex: node"></div>'+
+        '<div style="flex:2;min-width:160px"><label class="form-label">'+LaRuche.i18n.t('capabilities.arguments')+'</label><input id="capMcpArgs" class="form-input" placeholder="ex: src/index.js --db db.sqlite"></div>'+
+        '<button class="settings-save-btn" onclick="LaRuche.Capabilities.addMcp()">'+LaRuche.i18n.t('capabilities.addMcpServer')+'</button>'+
         '</div>';
     }
 
     var head = '<thead><tr>'+
-      ['Nom','Type','Origine','Description','Statut','Actions'].map(function(h){
+      [LaRuche.i18n.t('capabilities.colName'),LaRuche.i18n.t('capabilities.colType'),LaRuche.i18n.t('capabilities.colOrigin'),LaRuche.i18n.t('capabilities.colDesc'),LaRuche.i18n.t('capabilities.colStatus'),LaRuche.i18n.t('capabilities.colActions')].map(function(h){
         return '<th style="text-align:left;padding:8px;color:var(--text-dim);border-bottom:1px solid var(--border);font-weight:600">'+h+'</th>';
       }).join('')+'</tr></thead>';
 
@@ -150,8 +220,8 @@ LaRuche.Capabilities = (function(){
       var typeColor = ({abeille:'var(--amber)',skill:'var(--cyan)',mcp:'var(--purple)',plugin:'var(--green)'})[r.family]||'var(--text-dim)';
       var originColor = (r.origin==='natif')?'var(--text-dim)':'var(--purple)';
       var statut = r.enabled
-        ? '<span style="color:var(--green);font-size:10px;font-weight:bold">● actif</span>'
-        : '<span style="color:var(--red);font-size:10px;font-weight:bold">○ inactif</span>';
+        ? '<span style="color:var(--green);font-size:10px;font-weight:bold">'+LaRuche.i18n.t('capabilities.active')+'</span>'
+        : '<span style="color:var(--red);font-size:10px;font-weight:bold">'+LaRuche.i18n.t('capabilities.inactive')+'</span>';
       return '<tr style="border-bottom:1px solid rgba(42,42,46,.4)">'+
         '<td style="padding:8px;font-weight:600;color:#fff">'+LaRuche.Utils.esc(r.name)+'</td>'+
         '<td style="padding:8px">'+badge(familyLabel(r.family), typeColor)+'</td>'+
@@ -164,33 +234,33 @@ LaRuche.Capabilities = (function(){
 
     var extraActions = '';
     if(currentFamily==='all' || currentFamily==='skill'){
-      extraActions += '<button class="settings-save-btn" onclick="LaRuche.Settings.newSkill()">+ Nouveau skill</button>';
+      extraActions += '<button class="settings-save-btn" onclick="LaRuche.Settings.newSkill()">'+LaRuche.i18n.t('capabilities.newSkill')+'</button>';
     }
     if(currentFamily==='all' || currentFamily==='plugin'){
-      extraActions += ' <button class="settings-save-btn" onclick="LaRuche.Settings.newPlugin()">+ Nouveau plugin</button>';
-      extraActions += ' <button class="settings-save-btn" style="background:rgba(70,196,106,.15);color:var(--green);border:1px solid var(--green)" onclick="LaRuche.PluginFiles.open()">📁 Fichiers &amp; scripts</button>';
+      extraActions += ' <button class="settings-save-btn" onclick="LaRuche.Settings.newPlugin()">'+LaRuche.i18n.t('capabilities.newPlugin')+'</button>';
+      extraActions += ' <button class="settings-save-btn" style="background:rgba(70,196,106,.15);color:var(--green);border:1px solid var(--green)" onclick="LaRuche.PluginFiles.open()">'+LaRuche.i18n.t('capabilities.filesScripts')+'</button>';
     }
     if(currentFamily==='all' || currentFamily==='abeille'){
-      extraActions = '<button onclick="LaRuche.Capabilities.toggleAll(true)" style="background:rgba(16,185,129,0.15);color:var(--green);border:1px solid var(--green);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600">Tout activer</button>'+
-        '<button onclick="LaRuche.Capabilities.toggleAll(false)" style="background:rgba(239,68,68,0.15);color:var(--red);border:1px solid var(--red);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600">Tout desactiver</button>'+
+      extraActions = '<button onclick="LaRuche.Capabilities.toggleAll(true)" style="background:rgba(16,185,129,0.15);color:var(--green);border:1px solid var(--green);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600">'+LaRuche.i18n.t('capabilities.enableAll')+'</button>'+
+        '<button onclick="LaRuche.Capabilities.toggleAll(false)" style="background:rgba(239,68,68,0.15);color:var(--red);border:1px solid var(--red);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600">'+LaRuche.i18n.t('capabilities.disableAll')+'</button>'+
         extraActions;
     }
 
     // Champ de recherche (loupe, ambre)
     var searchBar = '<div style="position:relative;margin-bottom:12px;max-width:360px">'+
       '<span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--amber);font-size:13px;pointer-events:none">&#128269;</span>'+
-      '<input id="capSearch" class="form-input" placeholder="Rechercher (nom ou description)..." '+
+      '<input id="capSearch" class="form-input" placeholder="'+LaRuche.i18n.t('capabilities.searchPlaceholder')+'" '+
         'value="'+LaRuche.Utils.esc(searchTerm)+'" '+
         'oninput="LaRuche.Capabilities.onSearch(this.value)" '+
         'style="width:100%;padding-left:30px;border-color:var(--amber)"></div>';
 
     el.innerHTML = mcpAdd + searchBar +
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">'+
-        '<span style="color:var(--text-dim);font-size:12px">'+filtered.length+' capacite(s)'+(currentFamily==='all'?' — abeilles natives = immuables':'')+'</span>'+
+        '<span style="color:var(--text-dim);font-size:12px">'+filtered.length+' '+LaRuche.i18n.t('capabilities.capacities')+(currentFamily==='all'?LaRuche.i18n.t('capabilities.nativeImmutable'):'')+'</span>'+
         '<div style="display:flex;gap:8px;flex-wrap:wrap">'+extraActions+'</div>'+
       '</div>'+
       (filtered.length ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+head+'<tbody>'+body+'</tbody></table></div>'
-                       : '<div style="text-align:center;color:var(--text-muted);padding:30px">Aucune capacite (filtre ou famille vide).</div>');
+                       : '<div style="text-align:center;color:var(--text-muted);padding:30px">'+LaRuche.i18n.t('capabilities.emptyFilter')+'</div>');
 
     // Restaure le focus + curseur dans le champ de recherche apres re-render
     if(searchTerm){
@@ -213,21 +283,21 @@ LaRuche.Capabilities = (function(){
     var r = rows[i]; if(!r || r.family!=='mcp') return;
     var s = r.raw || {};
     var nameEl=document.getElementById('capMcpName'), cmdEl=document.getElementById('capMcpCmd'), argsEl=document.getElementById('capMcpArgs');
-    if(!nameEl||!cmdEl||!argsEl){ LaRuche.Toast.show('Formulaire MCP indisponible','err'); return; }
+    if(!nameEl||!cmdEl||!argsEl){ LaRuche.Toast.show(LaRuche.i18n.t('capabilities.mcpFormUnavailable'),'err'); return; }
     nameEl.value = r.mcpName || r.name || '';
     cmdEl.value = s.command || '';
     argsEl.value = (s.args || []).join(' ');
     nameEl.focus();
     try{ nameEl.scrollIntoView({behavior:'smooth', block:'center'}); }catch(e){}
-    LaRuche.Toast.show('Edition de '+(r.mcpName||r.name)+' — modifiez puis cliquez sur le bouton','ok');
+    LaRuche.Toast.show(LaRuche.i18n.t('capabilities.editingOf')+(r.mcpName||r.name)+LaRuche.i18n.t('capabilities.editingMcp'),'ok');
   }
 
   function addMcp(){
     var n=(document.getElementById('capMcpName')||{}).value, c=(document.getElementById('capMcpCmd')||{}).value, a=(document.getElementById('capMcpArgs')||{}).value;
     n=(n||'').trim(); c=(c||'').trim(); a=(a||'').trim();
-    if(!n||!c){ LaRuche.Toast.show('Nom et commande requis','err'); return; }
+    if(!n||!c){ LaRuche.Toast.show(LaRuche.i18n.t('capabilities.nameAndCmdRequired'),'err'); return; }
     fetch('/api/mcp/servers/'+encodeURIComponent(n),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:c,args:(a?a.split(' '):[])})})
-      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Serveur MCP enregistre','ok'); var ne=document.getElementById('capMcpName'),ce=document.getElementById('capMcpCmd'),ae=document.getElementById('capMcpArgs'); if(ne)ne.value=''; if(ce)ce.value=''; if(ae)ae.value=''; render(); } else LaRuche.Toast.show('Echec enregistrement MCP','err'); });
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('capabilities.mcpSaved'),'ok'); var ne=document.getElementById('capMcpName'),ce=document.getElementById('capMcpCmd'),ae=document.getElementById('capMcpArgs'); if(ne)ne.value=''; if(ce)ce.value=''; if(ae)ae.value=''; render(); } else LaRuche.Toast.show(LaRuche.i18n.t('capabilities.mcpSaveFailed'),'err'); });
   }
 
   function ensureSwitchStyle(){
@@ -336,12 +406,12 @@ LaRuche.Router.register('login', LaRuche.Auth);
     if(!logBody || !btn) return;
     if(logBody.classList.contains('hide-agent-chat')) {
       logBody.classList.remove('hide-agent-chat');
-      btn.textContent = 'Masquer Chats';
+      btn.textContent = LaRuche.i18n.t('capabilities.hideChats');
       btn.style.color = 'var(--text)';
       btn.style.background = 'rgba(255,255,255,0.05)';
     } else {
       logBody.classList.add('hide-agent-chat');
-      btn.textContent = 'Afficher Chats';
+      btn.textContent = LaRuche.i18n.t('capabilities.showChats');
       btn.style.color = 'var(--text-dim)';
       btn.style.background = 'none';
     }
@@ -387,7 +457,7 @@ LaRuche.Feed = (function(){
   }
 
   function humanDelta(ms){
-    if(ms<=0) return 'maintenant';
+    if(ms<=0) return LaRuche.i18n.t('capabilities.now');
     var s = Math.floor(ms/1000);
     var h = Math.floor(s/3600);
     var m = Math.floor((s%3600)/60);
@@ -401,7 +471,7 @@ LaRuche.Feed = (function(){
     var el = document.getElementById('feedNext');
     if(!el) return;
     var TL = LaRuche.Timeline;
-    if(!TL || !TL.nextCron){ el.textContent = 'Aucune action programmée'; return; }
+    if(!TL || !TL.nextCron){ el.textContent = LaRuche.i18n.t('capabilities.noScheduled'); return; }
     var crons=[], missions=[];
     try{ crons = await fetch('/api/cron').then(function(r){return r.json();}); }catch(e){}
     try{ missions = await fetch('/api/missions').then(function(r){return r.json();}); }catch(e){}
@@ -410,22 +480,23 @@ LaRuche.Feed = (function(){
     (crons||[]).forEach(function(c){
       if(c.enabled===false) return;
       var nx = TL.nextCron(c.cron_expr, now);
-      if(nx!=null && (!best || nx<best.next)) best = { next:nx, name:c.name||'(cron sans nom)', human:TL.humanCron(c.cron_expr) };
+      if(nx!=null && (!best || nx<best.next)) best = { next:nx, name:c.name||LaRuche.i18n.t('capabilities.cronNoName'), human:TL.humanCron(c.cron_expr) };
     });
     (missions||[]).forEach(function(mi){
       var cad = mi.cadence || mi.cron_expr || mi.schedule || '';
       if(!cad) return;
       var nx = TL.nextCron(cad, now);
-      if(nx!=null && (!best || nx<best.next)) best = { next:nx, name:mi.objective||mi.title||mi.slug||'(mission)', human:TL.humanCron(cad) };
+      if(nx!=null && (!best || nx<best.next)) best = { next:nx, name:mi.objective||mi.title||mi.slug||LaRuche.i18n.t('capabilities.missionNoName'), human:TL.humanCron(cad) };
     });
-    if(!best){ el.innerHTML = 'Aucune action programmée'; return; }
-    el.innerHTML = '&#x23F0; Prochaine : <strong>'+esc(best.name)+'</strong> dans '+esc(humanDelta(best.next-now))+
+    if(!best){ el.innerHTML = LaRuche.i18n.t('capabilities.noScheduled'); return; }
+    el.innerHTML = LaRuche.i18n.t('capabilities.nextAction')+'<strong>'+esc(best.name)+'</strong> '+LaRuche.i18n.t('capabilities.inDelta')+esc(humanDelta(best.next-now))+
       ' <span class="fn-sub">('+esc(best.human||'')+')</span>';
   }
 
   // ── Liste des événements ─────────────────────────────────────
   // mapping kind -> libellé du badge
-  var KIND_LABEL = { memory:'Mémoire', agent:'Agent', cron:'Cron', mission:'Mission', watcher:'Watcher', dm:'DM' };
+  var KIND_LABEL = { memory:'kindMemory', agent:'kindAgent', cron:'kindCron', mission:'kindMission', watcher:'kindWatcher', dm:'kindDm' };
+  function kindLabel(k){ var key = KIND_LABEL[k]; return key ? LaRuche.i18n.t('capabilities.'+key) : (k||''); }
   function kindOf(ev){
     var k = ev && ev.kind;
     if(k==='agent'||k==='cron'||k==='mission'||k==='watcher'||k==='dm') return k;
@@ -435,7 +506,7 @@ LaRuche.Feed = (function(){
     return (window.LaRuche && LaRuche.Auth && LaRuche.Auth.getUser) ? LaRuche.Auth.getUser() : null;
   }
   function actorName(ev){
-    if(ev.actor==='User'){ var u=feedUser(); return (u && u.display_name) ? u.display_name : 'Vous'; }
+    if(ev.actor==='User'){ var u=feedUser(); return (u && u.display_name) ? u.display_name : LaRuche.i18n.t('capabilities.you'); }
     if(ev.actor_kind==='peer') return ev.actor; // nom de la ruche pair
     return 'LaRuche';
   }
@@ -465,7 +536,7 @@ LaRuche.Feed = (function(){
     if(action==='a répondu' || action==='a demandé') action='';
     var prefix = action ? action+' ' : '';
     var badge = (ev.actor==='User' && kind==='agent') ? ''
-      : '<span class="feed-kind-badge kb-'+kind+'">'+esc(KIND_LABEL[kind]||kind)+'</span>';
+      : '<span class="feed-kind-badge kb-'+kind+'">'+esc(kindLabel(kind))+'</span>';
     // Corps : ref cliquable, OU texte dépliable au clic (message complet), OU texte simple.
     var bodyHtml, extraAttr='';
     if(ev.ref){
@@ -505,8 +576,8 @@ LaRuche.Feed = (function(){
     var prevScroll = list.scrollTop;
     if(!shown.length){
       list.innerHTML = lastEvents.length
-        ? '<div class="feed-empty">Aucun événement ne correspond aux filtres actifs.</div>'
-        : '<div class="feed-empty">Aucune activité pour le moment.</div>';
+        ? '<div class="feed-empty">'+LaRuche.i18n.t('capabilities.noMatchFilter')+'</div>'
+        : '<div class="feed-empty">'+LaRuche.i18n.t('capabilities.noActivity')+'</div>';
       return;
     }
     var html = '';
@@ -650,11 +721,11 @@ LaRuche.Feed = (function(){
     el.innerHTML =
       '<div class="feed-row-top">'+
         '<span class="feed-av feed-av-user">'+esc(init)+'</span>'+
-        '<span class="feed-actor actor-user">'+esc((u && u.display_name)||'Vous')+'</span>'+
-        '<span class="feed-ask-spin" aria-label="LaRuche réfléchit"></span>'+
-        '<span class="feed-row-time">maintenant</span>'+
+        '<span class="feed-actor actor-user">'+esc((u && u.display_name)||LaRuche.i18n.t('capabilities.you'))+'</span>'+
+        '<span class="feed-ask-spin" aria-label="'+LaRuche.i18n.t('capabilities.laruchemusing')+'"></span>'+
+        '<span class="feed-row-time">'+LaRuche.i18n.t('capabilities.now')+'</span>'+
       '</div>'+
-      '<div class="feed-row-text">'+esc(text)+' <span class="feed-pending-tag">LaRuche réfléchit…</span></div>';
+      '<div class="feed-row-text">'+esc(text)+' <span class="feed-pending-tag">'+LaRuche.i18n.t('capabilities.laruchemusingEllipsis')+'</span></div>';
     list.insertBefore(el, list.firstChild);
   }
   function ask(){
@@ -763,34 +834,34 @@ LaRuche.Mesh = (function(){
     var pop=document.getElementById('meshInbox'); if(!pop) return;
     try{ var d=await fetch('/api/mesh/peers').then(function(r){return r.json();}); peers=(d&&d.peers)||[]; }catch(e){ peers=[]; }
     var cs=convs();
-    var html='<div class="mesh-inbox-head">Conversations</div>';
-    if(!cs.length) html+='<div class="mesh-empty">Aucune conversation.</div>';
+    var html='<div class="mesh-inbox-head">'+LaRuche.i18n.t('capabilities.conversations')+'</div>';
+    if(!cs.length) html+='<div class="mesh-empty">'+LaRuche.i18n.t('capabilities.noConversation')+'</div>';
     cs.forEach(function(c){
       html+='<div class="mesh-conv" data-peer="'+esc(c.peer_id)+'" data-name="'+esc(c.peer_name||c.peer_id)+'">'+
         '<span class="mesh-conv-name">'+esc(c.peer_name||c.peer_id)+(c.unread?' <span class="mesh-unread">'+c.unread+'</span>':'')+'</span>'+
-        '<span class="mesh-conv-last">'+esc(String((c.last&&c.last.dir==='out'?'Vous: ':'')+(c.last?c.last.text:'')).slice(0,42))+'</span>'+
+        '<span class="mesh-conv-last">'+esc(String((c.last&&c.last.dir==='out'?LaRuche.i18n.t('capabilities.youPrefix'):'')+(c.last?c.last.text:'')).slice(0,42))+'</span>'+
       '</div>';
     });
-    html+='<div class="mesh-inbox-head">Pairs LaRuche découverts</div>';
-    if(!peers.length) html+='<div class="mesh-empty">Aucun pair sur le réseau.</div>';
+    html+='<div class="mesh-inbox-head">'+LaRuche.i18n.t('capabilities.peersDiscovered')+'</div>';
+    if(!peers.length) html+='<div class="mesh-empty">'+LaRuche.i18n.t('capabilities.noPeers')+'</div>';
     peers.forEach(function(p){
       html+='<div class="mesh-peer" data-peer="'+esc(p.id)+'" data-name="'+esc(p.name||p.id)+'">+ '+esc(p.name||p.id)+'</div>';
     });
     // Gap A — fédération : tire les skills vérifiés des pairs.
     html+='<div class="mesh-inbox-head">Essaim</div>'+
-      '<div class="mesh-peer" id="meshSyncSkills" style="color:var(--green,#46c46a)">🔄 Synchroniser les skills du mesh</div>';
+      '<div class="mesh-peer" id="meshSyncSkills" style="color:var(--green,#46c46a)">'+LaRuche.i18n.t('capabilities.syncSkills')+'</div>';
     pop.innerHTML=html;
     pop.querySelectorAll('[data-peer]').forEach(function(el){
       el.onclick=function(){ openChat(el.getAttribute('data-peer'), el.getAttribute('data-name')); closeInbox(); };
     });
     var syncBtn=pop.querySelector('#meshSyncSkills');
     if(syncBtn) syncBtn.onclick=function(){
-      syncBtn.textContent='⏳ Synchronisation…';
+      syncBtn.textContent=LaRuche.i18n.t('capabilities.syncing');
       fetch('/api/mesh/sync',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
         var n=(d&&d.count)||0;
-        syncBtn.textContent = n>0 ? ('✅ '+n+' skill(s) fédéré(s)') : '✅ Déjà à jour';
+        syncBtn.textContent = n>0 ? ('✅ '+n+LaRuche.i18n.t('capabilities.syncFederated')) : LaRuche.i18n.t('capabilities.syncUpToDate');
         if(n>0 && window.LaRuche && LaRuche.Memory && LaRuche.Memory.reload) LaRuche.Memory.reload();
-      }).catch(function(){ syncBtn.textContent='❌ Échec sync'; });
+      }).catch(function(){ syncBtn.textContent=LaRuche.i18n.t('capabilities.syncFailed'); });
     };
   }
   function openChat(peerId, peerName){
@@ -798,9 +869,9 @@ LaRuche.Mesh = (function(){
     if(openWins[peerId]){ openWins[peerId].style.display='flex'; markRead(peerId); renderWin(peerId); return; }
     var layer=document.getElementById('meshWindows'); if(!layer) return;
     var win=document.createElement('div'); win.className='mesh-win';
-    win.innerHTML='<div class="mesh-win-head"><span class="mesh-win-name">'+esc(peerName||peerId)+'</span><span style="display:flex;gap:4px;"><button class="mesh-win-min" title="Réduire">&#x2014;</button><button class="mesh-win-close" title="Fermer">&#x2716;</button></span></div>'+
+    win.innerHTML='<div class="mesh-win-head"><span class="mesh-win-name">'+esc(peerName||peerId)+'</span><span style="display:flex;gap:4px;"><button class="mesh-win-min" title="'+LaRuche.i18n.t('capabilities.minimize')+'">&#x2014;</button><button class="mesh-win-close" title="'+LaRuche.i18n.t('capabilities.close')+'">&#x2716;</button></span></div>'+
       '<div class="mesh-win-body"></div>'+
-      '<div class="mesh-win-input"><textarea rows="1" placeholder="Message…"></textarea><button class="mesh-win-send" title="Envoyer">'+
+      '<div class="mesh-win-input"><textarea rows="1" placeholder="'+LaRuche.i18n.t('capabilities.messagePlaceholder')+'"></textarea><button class="mesh-win-send" title="'+LaRuche.i18n.t('capabilities.send')+'">'+
       '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button></div>';
     layer.appendChild(win);
     openWins[peerId]=win;

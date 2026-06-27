@@ -1,3 +1,39 @@
+LaRuche.i18n.add({
+  'dashboard.swarmConnected':        {fr:'Swarm connecté — {n} nœud(s)', en:'Swarm connected — {n} node(s)'},
+  'dashboard.connectionEstablished': {fr:'Connexion au Swarm établie',   en:'Swarm connection established'},
+  'dashboard.newNode':               {fr:'Nouveau nœud! Total: {n}',      en:'New node! Total: {n}'},
+  'dashboard.nodeJoined':            {fr:'Nœud rejoint le Swarm',         en:'Node joined the Swarm'},
+  'dashboard.nodeDisconnected':      {fr:'Nœud déconnecté. Total: {n}',   en:'Node disconnected. Total: {n}'},
+  'dashboard.nodeLeft':              {fr:'Nœud quitte le Swarm',          en:'Node left the Swarm'},
+  'dashboard.connectionLost':        {fr:'Connexion perdue',              en:'Connection lost'},
+  'dashboard.nodeUnreachable':       {fr:'Nœud inaccessible',             en:'Node unreachable'},
+  'dashboard.modelActiveFor':        {fr:'{name} actif pour {cap}',       en:'{name} active for {cap}'},
+  'dashboard.error':                 {fr:'Erreur: {msg}',                 en:'Error: {msg}'},
+  'dashboard.noService':             {fr:'Aucun service',                 en:'No service'},
+  'dashboard.modelCount':            {fr:'{count} modèles sur {src} sources', en:'{count} models from {src} sources'},
+  'dashboard.capLlm':                {fr:'💬 Conversation (LLM)',         en:'💬 Conversation (LLM)'},
+  'dashboard.capAgent':              {fr:'🤖 Agent',                      en:'🤖 Agent'},
+  'dashboard.capCode':               {fr:'💻 Code',                       en:'💻 Code'},
+  'dashboard.capStt':                {fr:'🎙️ Voix → Texte',              en:'🎙️ Voice → Text'},
+  'dashboard.capTts':                {fr:'🔊 Texte → Voix',               en:'🔊 Text → Voice'},
+  'dashboard.capVlm':                {fr:'👁️ Vision',                     en:'👁️ Vision'},
+  'dashboard.capVla':                {fr:'🦾 Vision-Action',               en:'🦾 Vision-Action'},
+  'dashboard.myLocalModel':          {fr:'Mon modèle local',               en:'My local model'},
+  'dashboard.remoteModel':           {fr:'Modèle distant (ruche {name})',  en:'Remote model (hive {name})'},
+  'dashboard.selected':              {fr:'● SÉLECTIONNÉ',                 en:'● SELECTED'},
+  'dashboard.myLocal':               {fr:'🖥️ à moi (local)',               en:'🖥️ mine (local)'},
+  'dashboard.used':                  {fr:'✓ Utilisé',                     en:'✓ In use'},
+  'dashboard.use':                   {fr:'Utiliser',                      en:'Use'},
+  'dashboard.waitingData':           {fr:'En attente de données...',       en:'Waiting for data...'},
+  'dashboard.initialized':           {fr:'Dashboard initialisé',           en:'Dashboard initialized'},
+  'dashboard.noBlueprintAvailable':  {fr:'Aucun blueprint disponible',     en:'No blueprint available'},
+  'dashboard.selectBlueprint':       {fr:"Sélectionnez un blueprint pour l'instancier en tant que tâche cron.", en:"Select a blueprint to instantiate it as a cron task."},
+  'dashboard.instantiate':           {fr:'Instancier',                    en:'Instantiate'},
+  'dashboard.blueprintSuccess':      {fr:'Blueprint instancié avec succès', en:'Blueprint instantiated successfully'},
+  'dashboard.blueprintError':        {fr:"Erreur d'instanciation",         en:'Instantiation error'},
+  'dashboard.remoteBadge':           {fr:'🐝 {name} · distant',            en:'🐝 {name} · remote'},
+});
+
 LaRuche.Dashboard = (function(){
   var pollTimers = [];
   var connected = false;
@@ -170,12 +206,12 @@ LaRuche.Dashboard = (function(){
       var pillSwarm=document.getElementById('pill-swarm');
       if(stableCount>1){var speedup=estimateSpeedup(stableNodeList);document.getElementById('pill-swarm-text').textContent='Swarm: '+stableCount+' nodes \u00B7 '+speedup.toFixed(1)+'x';pillSwarm.classList.add('active');}
       else pillSwarm.classList.remove('active');
-      if(!connected){connected=true;LaRuche.Toast.show('Swarm connecte \u2014 '+stableCount+' n\u0153ud(s)','ok');addLog('NET','log-ok','Connexion au Swarm \u00E9tablie');lastNodeCount=stableCount;}
+      if(!connected){connected=true;LaRuche.Toast.show(LaRuche.i18n.t('dashboard.swarmConnected',{n:stableCount}),'ok');addLog('NET','log-ok',LaRuche.i18n.t('dashboard.connectionEstablished'));lastNodeCount=stableCount;}
       if(lastNodeCount>=0&&stableCount!==lastNodeCount){
         if(stableCount===pendingNodeCount)pendingNodeCountHits++;else{pendingNodeCount=stableCount;pendingNodeCountHits=1;}
         if(pendingNodeCountHits>=2){
-          if(stableCount>lastNodeCount){LaRuche.Toast.show('Nouveau n\u0153ud! Total: '+stableCount,'ok');addLog('Miel','log-ok','N\u0153ud rejoint le Swarm');}
-          else{LaRuche.Toast.show('N\u0153ud deconnecte. Total: '+stableCount,'warn');addLog('Miel','log-warn','N\u0153ud quitte le Swarm');}
+          if(stableCount>lastNodeCount){LaRuche.Toast.show(LaRuche.i18n.t('dashboard.newNode',{n:stableCount}),'ok');addLog('Miel','log-ok',LaRuche.i18n.t('dashboard.nodeJoined'));}
+          else{LaRuche.Toast.show(LaRuche.i18n.t('dashboard.nodeDisconnected',{n:stableCount}),'warn');addLog('Miel','log-warn',LaRuche.i18n.t('dashboard.nodeLeft'));}
           lastNodeCount=stableCount;pendingNodeCount=-1;pendingNodeCountHits=0;
         }
       } else{pendingNodeCount=-1;pendingNodeCountHits=0;}
@@ -196,7 +232,7 @@ LaRuche.Dashboard = (function(){
       }
       renderSharding(stableNodeList);
     } catch(e){
-      if(connected){connected=false;LaRuche.Toast.show('Connexion perdue','err');addLog('NET','log-err','N\u0153ud inaccessible');}
+      if(connected){connected=false;LaRuche.Toast.show(LaRuche.i18n.t('dashboard.connectionLost'),'err');addLog('NET','log-err',LaRuche.i18n.t('dashboard.nodeUnreachable'));}
     }
   }
 
@@ -269,14 +305,14 @@ LaRuche.Dashboard = (function(){
       host: host, name: name, capability: capability, node_id: node_id, base_url: base_url
     })}).then(function(r){return r.json();}).then(function(d){
       if(d.status==='ok') {
-        LaRuche.Toast.show(name + ' actif pour ' + capability, 'ok');
+        LaRuche.Toast.show(LaRuche.i18n.t('dashboard.modelActiveFor',{name:name,cap:capability}), 'ok');
         // P7 : re-fetch + re-render le dropdown du haut, le mesh, le recap capacites et la voix
         LaRuche.refreshAll();
       } else {
-        LaRuche.Toast.show('Erreur: '+(d.error||'?'), 'err');
+        LaRuche.Toast.show(LaRuche.i18n.t('dashboard.error',{msg:(d.error||'?')}), 'err');
         fetchModels();
       }
-    }).catch(function(e){LaRuche.Toast.show('Erreur: '+e, 'err'); fetchModels();});
+    }).catch(function(e){LaRuche.Toast.show(LaRuche.i18n.t('dashboard.error',{msg:e}), 'err'); fetchModels();});
   }
 
   async function fetchModels(){
@@ -295,12 +331,12 @@ LaRuche.Dashboard = (function(){
       var sourcesCount = sourcesSet.size;
       
       if(!d.models||d.models.length===0){
-        list.innerHTML='<div style="font-size:10px;color:var(--text-dim);text-align:center;padding:8px">Aucun service</div>';
+        list.innerHTML='<div style="font-size:10px;color:var(--text-dim);text-align:center;padding:8px">'+LaRuche.i18n.t('dashboard.noService')+'</div>';
         document.getElementById('model-badge').textContent='0 sources';
         return;
       }
       
-      document.getElementById('model-badge').textContent=d.models.length + ' modeles sur ' + sourcesCount + ' sources';
+      document.getElementById('model-badge').textContent=LaRuche.i18n.t('dashboard.modelCount',{count:d.models.length,src:sourcesCount});
       
       var groups={};
       
@@ -327,7 +363,7 @@ LaRuche.Dashboard = (function(){
         section.className = 'mesh-cap-section';
         if(cap === 'code') section.style.border = '1px solid var(--green-dim)';
         
-        var CAP_LABEL = { llm:'💬 Conversation (LLM)', agent:'🤖 Agent', code:'💻 Code', stt:'🎙️ Voix → Texte', tts:'🔊 Texte → Voix', vlm:'👁️ Vision', vla:'🦾 Vision-Action' };
+        var CAP_LABEL = { llm:LaRuche.i18n.t('dashboard.capLlm'), agent:LaRuche.i18n.t('dashboard.capAgent'), code:LaRuche.i18n.t('dashboard.capCode'), stt:LaRuche.i18n.t('dashboard.capStt'), tts:LaRuche.i18n.t('dashboard.capTts'), vlm:LaRuche.i18n.t('dashboard.capVlm'), vla:LaRuche.i18n.t('dashboard.capVla') };
         var hdr = document.createElement('div');
         hdr.className = 'mesh-cap-hdr';
         hdr.innerHTML = '<span>' + (CAP_LABEL[cap]||cap) + '</span> <span>' + groups[cap].length + '</span>';
@@ -344,12 +380,12 @@ LaRuche.Dashboard = (function(){
           var card = document.createElement('div');
           card.className = 'mesh-card';
           if(isPreferred){ card.style.borderColor = 'var(--amber)'; card.style.background = 'rgba(245,158,11,0.06)'; }
-          card.title = m.is_local ? 'Mon modèle local' : 'Modèle distant (ruche '+(m.node_name||'pair')+')';
+          card.title = m.is_local ? LaRuche.i18n.t('dashboard.myLocalModel') : LaRuche.i18n.t('dashboard.remoteModel',{name:(m.node_name||'pair')});
 
           var nameDiv = document.createElement('div');
           nameDiv.className = 'mesh-card-name';
           nameDiv.textContent = m.name;
-          if(isPreferred) nameDiv.innerHTML += ' <span style="background:var(--amber);color:var(--bg);font-size:9px;font-weight:700;padding:0 5px;border-radius:7px;margin-left:4px;vertical-align:middle;">● SÉLECTIONNÉ</span>';
+          if(isPreferred) nameDiv.innerHTML += ' <span style="background:var(--amber);color:var(--bg);font-size:9px;font-weight:700;padding:0 5px;border-radius:7px;margin-left:4px;vertical-align:middle;">'+LaRuche.i18n.t('dashboard.selected')+'</span>';
 
           var metaDiv = document.createElement('div');
           metaDiv.className = 'mesh-card-meta';
@@ -360,7 +396,7 @@ LaRuche.Dashboard = (function(){
           // Provenance CLAIRE : 🖥️ mon local · 🐝 distant (quelle ruche).
           var badgeSpan = document.createElement('span');
           badgeSpan.className = 'mesh-badge ' + (m.is_local ? 'mesh-local' : 'mesh-remote');
-          badgeSpan.textContent = m.is_local ? '🖥️ à moi (local)' : '🐝 '+(m.node_name || 'pair')+' · distant';
+          badgeSpan.textContent = m.is_local ? LaRuche.i18n.t('dashboard.myLocal') : LaRuche.i18n.t('dashboard.remoteBadge',{name:(m.node_name||'pair')});
 
           metaDiv.appendChild(sizeSpan);
           metaDiv.appendChild(badgeSpan);
@@ -371,10 +407,10 @@ LaRuche.Dashboard = (function(){
           var useBtn = document.createElement('button');
           useBtn.style.cssText = 'background:rgba(245,158,11,0.1); border:1px solid var(--amber); color:var(--amber); border-radius:4px; padding:4px 8px; font-size:10px; cursor:pointer; margin-top:4px; transition:var(--transition-fast); text-align:center;';
           if(isPreferred){
-            useBtn.textContent = '✓ Utilisé';
+            useBtn.textContent = LaRuche.i18n.t('dashboard.used');
             useBtn.style.background = 'var(--amber)'; useBtn.style.color = 'var(--bg)'; useBtn.disabled = true; useBtn.style.cursor = 'default';
           } else {
-            useBtn.textContent = 'Utiliser';
+            useBtn.textContent = LaRuche.i18n.t('dashboard.use');
             useBtn.onmouseover = function() { this.style.background = 'rgba(245,158,11,0.2)'; };
             useBtn.onmouseout = function() { this.style.background = 'rgba(245,158,11,0.1)'; };
             useBtn.onclick = function(e){
@@ -448,7 +484,7 @@ LaRuche.Dashboard = (function(){
     var rect=canvas.parentElement.getBoundingClientRect();var dpr=window.devicePixelRatio||1;
     canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;
     var ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);var W=rect.width,H=rect.height;ctx.clearRect(0,0,W,H);
-    if(metricsHistory.length<2){ctx.fillStyle='#71717a';ctx.font='11px sans-serif';ctx.textAlign='center';ctx.fillText('En attente de donnees...',W/2,H/2);return;}
+    if(metricsHistory.length<2){ctx.fillStyle='#71717a';ctx.font='11px sans-serif';ctx.textAlign='center';ctx.fillText(LaRuche.i18n.t('dashboard.waitingData'),W/2,H/2);return;}
     var pad={top:8,right:10,bottom:22,left:38};var cW=W-pad.left-pad.right;var cH=H-pad.top-pad.bottom;
     var dataMin=metricsHistory[0].epoch_ms;var dataMax=metricsHistory[metricsHistory.length-1].epoch_ms;
     var tMin=viewTMin!==null?viewTMin:dataMin;var tMax=viewTMax!==null?viewTMax:dataMax;var tRange=tMax-tMin||1;
@@ -505,7 +541,7 @@ LaRuche.Dashboard = (function(){
     pollTimers.push(setInterval(fetchStatus,5000));
     pollTimers.push(setInterval(fetchActivity,2000));
     pollTimers.push(setInterval(fetchModels,15000));
-    addLog('SYS','log-info','Dashboard initialise');
+    addLog('SYS','log-info',LaRuche.i18n.t('dashboard.initialized'));
   }
   function stopPolling(){pollTimers.forEach(function(t){clearInterval(t);});pollTimers=[];if(statsRefreshTimer){clearInterval(statsRefreshTimer);statsRefreshTimer=null;}}
 
@@ -552,10 +588,10 @@ LaRuche.Dashboard = (function(){
 
     async function loadBlueprints(el) {
     var bps=[];try{bps=await fetch('/api/blueprints').then(function(r){return r.json();});}catch(e){}
-    if(!bps.length){el.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px">Aucun blueprint disponible</div>';return;}
+    if(!bps.length){el.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px">'+LaRuche.i18n.t('dashboard.noBlueprintAvailable')+'</div>';return;}
     
     window._blueprints = bps;
-    el.innerHTML = '<div style="margin-bottom:12px;color:var(--amber);font-size:12px;">Sélectionnez un blueprint pour l\'instancier en tant que tâche cron.</div>' +
+    el.innerHTML = '<div style="margin-bottom:12px;color:var(--amber);font-size:12px;">'+LaRuche.i18n.t('dashboard.selectBlueprint')+'</div>' +
       bps.map(function(b, idx) {
         return '<div class="settings-card" style="margin-bottom:12px;cursor:pointer;" onclick="LaRuche.Settings.openBlueprintForm('+idx+')">' +
           '<div class="settings-card-title">'+LaRuche.Utils.esc(b.title||b.id)+'</div>' +
@@ -564,7 +600,7 @@ LaRuche.Dashboard = (function(){
             (b.slots||[]).map(function(slot){
               return '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.Utils.esc(slot.label||slot.name)+'</label><input id="bpInput_'+idx+'_'+slot.name+'" class="form-input" placeholder="'+LaRuche.Utils.esc(slot.placeholder||'')+'"></div>';
             }).join('') +
-            '<button class="settings-save-btn" style="margin-top:8px" onclick="LaRuche.Settings.instanciateBlueprint('+idx+')">Instancier</button>' +
+            '<button class="settings-save-btn" style="margin-top:8px" onclick="LaRuche.Settings.instanciateBlueprint('+idx+')">'+LaRuche.i18n.t('dashboard.instantiate')+'</button>' +
           '</div>' +
         '</div>';
       }).join('');
@@ -591,12 +627,12 @@ LaRuche.Dashboard = (function(){
       body: JSON.stringify(slotsData)
     }).then(function(res) {
       if(res.ok) {
-        LaRuche.Toast.show('Blueprint instancié avec succès', 'ok');
+        LaRuche.Toast.show(LaRuche.i18n.t('dashboard.blueprintSuccess'), 'ok');
         document.getElementById('bpForm_'+idx).style.display = 'none';
       } else {
-        LaRuche.Toast.show('Erreur d\'instanciation', 'err');
+        LaRuche.Toast.show(LaRuche.i18n.t('dashboard.blueprintError'), 'err');
       }
-    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+    }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('dashboard.error',{msg:e}), 'err'); });
   }
 
   return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, enter:enter, leave:leave, toggleNodeExpand:toggleNodeExpand, useMeshModel:useMeshModel, fetchModels:fetchModels, FetchModels:fetchModels };

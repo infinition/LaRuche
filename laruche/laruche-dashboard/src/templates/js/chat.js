@@ -1,3 +1,119 @@
+LaRuche.i18n.add({
+  'chat.skillNe':               {fr:'✨ Skill né : ',           en:'✨ Skill created: '},
+  'chat.reflexionEnCours':      {fr:'Réflexion en cours',       en:'Thinking'},
+  'chat.executionEnCours':      {fr:'Exécution en cours',       en:'Running'},
+  'chat.enAttente':             {fr:'En attente',               en:'Idle'},
+  'chat.orientationRecue':      {fr:'Orientation reçue',        en:'Steering received'},
+  'chat.orientationEnAttente':  {fr:'Orientation en attente',   en:'Steering pending'},
+  'chat.orientationAppliquee':  {fr:'Appliquée à la prochaine étape.', en:'Applied to the next step.'},
+  'chat.demandeReinjected':     {fr:'Demande réinjectée',       en:'Request re-injected'},
+  'chat.reinjectedDetail':      {fr:'Le run vient de reprendre : orientation transmise.', en:'The run just resumed: steering forwarded.'},
+  'chat.demandeRelancee':       {fr:'Demande relancée',         en:'Request restarted'},
+  'chat.relanceeDetail':        {fr:'Le précédent run était déjà terminé : ta demande est repartie automatiquement.', en:'The previous run was already finished: your request was restarted automatically.'},
+  'chat.orientationNonAppliquee': {fr:'Orientation non appliquée', en:'Steering not applied'},
+  'chat.tooManyOrientations':   {fr:"Trop d'orientations en attente.", en:'Too many pending steerings.'},
+  'chat.preparationExecution':  {fr:"Préparation de l'exécution", en:'Preparing execution'},
+  'chat.miseAJourAgent':        {fr:"Mise à jour de l'agent", en:'Agent update'},
+  'chat.termine':               {fr:'TERMINÉ',                  en:'DONE'},
+  'chat.aVerifier':             {fr:'À VÉRIFIER',               en:'TO CHECK'},
+  'chat.responseTimeout':       {fr:'La reponse prend plus de temps que prevu…', en:'The response is taking longer than expected…'},
+  'chat.inputPlaceholder':      {fr:'Envoyer un message…',  en:'Send a message…'},
+  'chat.steeringPlaceholder':   {fr:"Interrompre ou orienter l'agent en cours…", en:'Interrupt or steer the running agent…'},
+  'chat.generationInterrompue': {fr:'⏹ Génération interrompue', en:'⏹ Generation interrupted'},
+  'chat.noThinkActif':          {fr:'No-think actif',           en:'No-think active'},
+  'chat.thinkingActif':         {fr:'Thinking actif',           en:'Thinking active'},
+  'chat.apercu':                {fr:'Aperçu',                   en:'Preview'},
+  'chat.code':                  {fr:'Code',                     en:'Code'},
+  'chat.copier':                {fr:'Copier',                   en:'Copy'},
+  'chat.copie':                 {fr:'Copié!',                   en:'Copied!'},
+  'chat.ouvrir':                {fr:'⛶ Ouvrir',                en:'⛶ Open'},
+  'chat.lire':                  {fr:'Lire',                     en:'Read aloud'},
+  'chat.ouvrirMedia':           {fr:'Ouvrir ↗',                 en:'Open ↗'},
+  'chat.retryBtn':              {fr:'↻ Reessayer',         en:'↻ Retry'},
+  'chat.profilEnregistre':      {fr:'Profil enregistré — LaRuche en tiendra compte.', en:'Profile saved — LaRuche will take it into account.'},
+  'chat.echecProfil':           {fr:"Échec de l'enregistrement du profil.", en:'Failed to save profile.'},
+  'chat.chargement':            {fr:'Chargement…',         en:'Loading…'},
+  'chat.promptReel':            {fr:'Prompt réel envoyé au LLM', en:'Actual prompt sent to the LLM'},
+  'chat.vide':                  {fr:'(vide)',                   en:'(empty)'},
+  'chat.nouvelleActivite':      {fr:'nouvelle activité',        en:'new activity'},
+  'chat.nouvellesActivites':    {fr:'nouvelles activités',      en:'new activities'},
+  'chat.raisonnement':          {fr:'Raisonnement',             en:'Reasoning'},
+  'chat.entrezChemin':          {fr:'Entrez un chemin',         en:'Enter a path'},
+  'chat.dossier':               {fr:'Dossier: ',               en:'Folder: '},
+  'chat.erreur':                {fr:'Erreur: ',                 en:'Error: '},
+  'chat.conversationExportee':  {fr:'Conversation exportée',    en:'Conversation exported'},
+  'chat.echecExport':           {fr:'Échec export',             en:'Export failed'},
+  'chat.autorisationRequise':   {fr:'Autorisation requise',     en:'Authorization required'},
+  'chat.agentVeutExecuter':     {fr:"L'agent veut executer", en:'The agent wants to run'},
+  'chat.autoriser':             {fr:'Autoriser',                en:'Allow'},
+  'chat.refuser':               {fr:'Refuser',                  en:'Deny'},
+  'chat.aucuneConversation':    {fr:'Aucune conversation.',     en:'No conversations.'},
+  'chat.supprimerBtn':          {fr:'Supprimer',                en:'Delete'},
+  'chat.exporterBtn':           {fr:'Exporter',                 en:'Export'},
+  'chat.ouvrirBtn':             {fr:'Ouvrir',                   en:'Open'},
+  'chat.aucuneSortie':          {fr:'(aucune sortie)',          en:'(no output)'},
+  'chat.termineState':          {fr:'terminé',                  en:'done'},
+  'chat.erreurState':           {fr:'erreur',                   en:'error'},
+  'chat.apercuMedia':           {fr:'Aperçu ',                  en:'Preview '},
+  'chat.nEtapes':               {fr:' étapes',                  en:' steps'},
+  'chat.cyclesPrecedents':      {fr:'cycles précédents',        en:'previous cycles'},
+  'chat.nouveMission':          {fr:'Nouvelle mission',         en:'New mission'},
+  'chat.thoughtOrientation':    {fr:"J'analyse la demande",  en:'Analysing the request'},
+  'chat.thoughtExploration':    {fr:"J'explore les pistes utiles", en:'Exploring useful paths'},
+  'chat.thoughtImplementation': {fr:"Je prépare l'exécution", en:'Preparing execution'},
+  'chat.thoughtVerification':   {fr:'Je vérifie le résultat', en:'Verifying the result'},
+  'chat.thoughtCheckpoint':     {fr:"Point d'étape",   en:'Checkpoint'},
+  'chat.thoughtNextAction':     {fr:'Prochaine action',         en:'Next action'},
+  'chat.thoughtDefault':        {fr:'Je prépare la suite', en:'Preparing next step'},
+  'chat.tool.shell_exec':       {fr:'Commande terminal',           en:'Terminal command'},
+  'chat.tool.execute_code':     {fr:'Exécution de code',           en:'Code execution'},
+  'chat.tool.run_script':       {fr:'Script',                      en:'Script'},
+  'chat.tool.file_read':        {fr:'Lecture de fichier',          en:'File read'},
+  'chat.tool.file_write':       {fr:'Écriture de fichier',         en:'File write'},
+  'chat.tool.file_edit':        {fr:'Modification de fichier',     en:'File edit'},
+  'chat.tool.file_search':      {fr:'Recherche dans les fichiers', en:'File search'},
+  'chat.tool.read_extract':     {fr:'Lecture ciblée',              en:'Targeted read'},
+  'chat.tool.web_search':       {fr:'Recherche web',               en:'Web search'},
+  'chat.tool.web_deep_search':  {fr:'Recherche web approfondie',   en:'Deep web search'},
+  'chat.tool.web_fetch':        {fr:'Lecture de page',             en:'Page fetch'},
+  'chat.tool.memory_search':    {fr:'Recherche mémoire',           en:'Memory search'},
+  'chat.tool.memory_write':     {fr:'Mémoire mise à jour',         en:'Memory update'},
+  'chat.tool.delegate':         {fr:'Sous-agent',                  en:'Sub-agent'},
+  'chat.tool.mixture_of_agents':{fr:'Consultation multi-agents',   en:'Multi-agent consultation'},
+  'chat.dateAujourdhui':        {fr:"aujourd'hui", en:'today'},
+  'chat.dateHier':              {fr:'hier',         en:'yesterday'},
+  'chat.dateAvantHier':         {fr:'avant-hier',   en:'two days ago'},
+  'chat.dateIlYaJours':         {fr:'il y a',       en:''},
+  'chat.dateJours':             {fr:'jours · ',     en:'days · '},
+  'chat.dateSem':               {fr:'sem.',         en:'wk.'},
+  'chat.dateMois':              {fr:'mois',         en:'mo.'},
+  'chat.dateAn':                {fr:'an',           en:'year'},
+  'chat.dateAns':               {fr:'ans',          en:'years'},
+  'chat.dateMaj':               {fr:'MAJ : -',      en:'UPD: -'},
+  'chat.sansTitre':             {fr:'Sans titre',    en:'Untitled'},
+  'chat.nouveau':               {fr:'Nouveau',       en:'New'},
+  'chat.titleSuppression':      {fr:"Suppression d'une tâche planifiée", en:'Deleting a scheduled task'},
+  'chat.titleVerifCron':        {fr:'Vérification des tâches planifiées', en:'Checking scheduled tasks'},
+  'chat.titleKanban':           {fr:'Lecture du Kanban', en:'Reading Kanban'},
+  'chat.titleVerifProjet':      {fr:'Vérification du projet', en:'Project verification'},
+  'chat.titleAnalyseFichiers':  {fr:'Analyse des fichiers', en:'File analysis'},
+  'chat.titleRecherche':        {fr:'Recherche et synthèse', en:'Search and synthesis'},
+  'chat.export.user':           {fr:'🧑 Utilisateur', en:'🧑 User'},
+  'chat.export.outil':          {fr:'🔧 Outil',       en:'🔧 Tool'},
+  'chat.export.appelOutil':     {fr:'➡️ Appel outil', en:'➡️ Tool call'},
+  'chat.export.reflexion':      {fr:'💭 Réflexion',   en:'💭 Reasoning'},
+  'chat.outils':                {fr:'outils',          en:'tools'},
+  'chat.aucun':                 {fr:'Aucun',           en:'None'},
+  'chat.souvenirs':             {fr:'souvenirs',       en:'memories'},
+  'chat.leRunEstTermine':       {fr:'Le run est terminé.', en:'The run is finished.'},
+  'chat.executes':              {fr:'exécuté',             en:'executed'},
+  'chat.welcomeSubtitle':       {fr:'Agent IA propulse par LaRuche.<br>Posez votre question ou donnez une instruction.', en:'AI Agent powered by LaRuche.<br>Ask a question or give an instruction.'},
+  'chat.suggestion1':           {fr:"Explique-moi l'architecture du projet", en:'Explain the project architecture'},
+  'chat.suggestion2':           {fr:'Quels fichiers ont ete modifies recemment ?', en:'Which files were recently modified?'},
+  'chat.suggestion3':           {fr:'Analyse les erreurs dans les logs', en:'Analyze the errors in the logs'},
+  'chat.suggestion4':           {fr:"Cree un plan d'action pour optimiser les performances", en:'Create an action plan to optimize performance'},
+});
+
 LaRuche.Chat = (function(){
   var sessionId = null;
   var runningSession = null; // session dont le run tourne sur la socket PRINCIPALE (pas via attachWs)
@@ -107,7 +223,7 @@ LaRuche.Chat = (function(){
         addSkillChip(data.name);
         break;
       case 'skill_proposed':
-        LaRuche.Toast.show('✨ Skill né : ' + data.name, 'ok');
+        LaRuche.Toast.show(LaRuche.i18n.t('chat.skillNe') + data.name, 'ok');
         if (location.hash === '#capabilities' && LaRuche.Capabilities && LaRuche.Capabilities.refresh) {
           LaRuche.Capabilities.refresh();
         }
@@ -115,11 +231,11 @@ LaRuche.Chat = (function(){
 
       case 'thinking':
         setFeedLive('thinking');
-        addActivity('thinking','Réflexion en cours',data.text,false,{stepTitle:_feedTurnTitle});
+        addActivity('thinking',LaRuche.i18n.t('chat.reflexionEnCours'),data.text,false,{stepTitle:_feedTurnTitle});
         break;
       case 'steer_ack':
-        addActivity('status','Orientation reçue',data.message||'Appliquée à la prochaine étape.',false);
-        document.getElementById('iterationBadge').textContent='Orientation en attente';
+        addActivity('status',LaRuche.i18n.t('chat.orientationRecue'),data.message||LaRuche.i18n.t('chat.orientationAppliquee'),false);
+        document.getElementById('iterationBadge').textContent=LaRuche.i18n.t('chat.orientationEnAttente');
         var pendingSteers=document.querySelectorAll('.message-row.steer.pending');
         if(pendingSteers.length){
           var lastSteer=pendingSteers[pendingSteers.length-1];
@@ -143,7 +259,7 @@ LaRuche.Chat = (function(){
           // nouveau run au lieu d'etre perdus ou de bloquer l'interface.
           if(staleRecoveryActive && isStreaming){
             LaRuche.WS.send({type:'steer',text:rejectedText});
-            addActivity('status','Demande réinjectée', 'Le run vient de reprendre : orientation transmise.',false);
+            addActivity('status',LaRuche.i18n.t('chat.demandeReinjected'),LaRuche.i18n.t('chat.reinjectedDetail'),false);
             lastSteerText='';
             break;
           }
@@ -152,7 +268,7 @@ LaRuche.Chat = (function(){
           isStreaming=false;
           document.getElementById('sendBtn').disabled=false;
           document.getElementById('userInput').disabled=false;
-          document.getElementById('userInput').placeholder='Envoyer un message...';
+          document.getElementById('userInput').placeholder=LaRuche.i18n.t('chat.inputPlaceholder');
           document.getElementById('iterationBadge').textContent='';
           setFeedLive('idle');
           var staleWelcome=document.getElementById('welcomeScreen'); if(staleWelcome) staleWelcome.remove();
@@ -166,28 +282,28 @@ LaRuche.Chat = (function(){
           if(noThinkEnabled) recoveredPayload.no_think=true;
           LaRuche.WS.send(recoveredPayload);
           isStreaming=true;
-          document.getElementById('userInput').placeholder="Interrompre ou orienter l'agent en cours...";
+          document.getElementById('userInput').placeholder=LaRuche.i18n.t('chat.steeringPlaceholder');
           showTypingIndicator(); startResponseTimeout();
-          addActivity('status','Demande relancée', 'Le précédent run était déjà terminé : ta demande est repartie automatiquement.',false,{stepTitle:_feedTurnTitle});
+          addActivity('status',LaRuche.i18n.t('chat.demandeRelancee'),LaRuche.i18n.t('chat.relanceeDetail'),false,{stepTitle:_feedTurnTitle});
           break;
         }
-        addActivity('tool-err','Orientation non appliquée',data.message||'Le run est terminé.',true);
-        if(data.reason==='queue_full') LaRuche.Toast.show(data.message||'Trop d’orientations en attente.','warn');
+        addActivity('tool-err',LaRuche.i18n.t('chat.orientationNonAppliquee'),data.message||LaRuche.i18n.t('chat.leRunEstTermine'),true);
+        if(data.reason==='queue_full') LaRuche.Toast.show(data.message||LaRuche.i18n.t('chat.tooManyOrientations'),'warn');
         break;
       case 'tools_selected':
         if (window.localStorage.getItem('laruche_hide_transparency') === 'true') break;
         var tChip = document.createElement('div');
         tChip.className = 'transparency-chip tools-chip';
         tChip.style.cssText = 'display:inline-block; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.2); color:var(--amber); padding:2px 8px; border-radius:12px; font-size:10px; margin-top:4px; margin-bottom:4px; margin-right:6px; cursor:pointer; font-family:var(--mono); transition:all 0.2s;';
-        tChip.innerHTML = '🛠️ ' + (data.tools ? data.tools.length : 0) + ' outils';
+        tChip.innerHTML = '🛠️ ' + (data.tools ? data.tools.length : 0) + ' ' + LaRuche.i18n.t('chat.outils');
         tChip.title = data.tools ? data.tools.join(', ') : '';
-        tChip.dataset.tools = data.tools ? data.tools.join(', ') : 'Aucun';
+        tChip.dataset.tools = data.tools ? data.tools.join(', ') : LaRuche.i18n.t('chat.aucun');
         tChip.dataset.len = data.tools ? data.tools.length : 0;
         tChip.onclick = function() {
-            if (this.textContent.indexOf('outils') !== -1) {
+            if (this.textContent.indexOf(LaRuche.i18n.t('chat.outils')) !== -1) {
                 this.textContent = '🛠️ ' + this.dataset.tools;
             } else {
-                this.textContent = '🛠️ ' + this.dataset.len + ' outils';
+                this.textContent = '🛠️ ' + this.dataset.len + ' ' + LaRuche.i18n.t('chat.outils');
             }
         };
         if (!currentAssistantMsg) {
@@ -234,7 +350,7 @@ LaRuche.Chat = (function(){
            var mChip = document.createElement('div');
            mChip.className = 'transparency-chip mem-chip';
            mChip.style.cssText = 'display:inline-block; background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.2); color:var(--purple); padding:2px 8px; border-radius:12px; font-size:10px; margin-top:4px; margin-bottom:4px; margin-right:6px; font-family:var(--mono);';
-           mChip.innerHTML = '🧠 ' + memMatch[1] + ' souvenirs';
+           mChip.innerHTML = '🧠 ' + memMatch[1] + ' ' + LaRuche.i18n.t('chat.souvenirs');
            if (!currentAssistantMsg) {
              var r = addMessage('assistant','');
              currentAssistantRow = r.row; currentAssistantMsg = r.msgEl;
@@ -254,7 +370,7 @@ LaRuche.Chat = (function(){
         }
         var executing=/^executing:/i.test(statusMessage);
         if(executing)setFeedLive('tool');
-        addActivity('status',executing?'Préparation de l’exécution':'Mise à jour de l’agent',statusMessage,false);
+        addActivity('status',executing?LaRuche.i18n.t('chat.preparationExecution'):LaRuche.i18n.t('chat.miseAJourAgent'),statusMessage,false);
         if(isStreaming) document.getElementById('iterationBadge').textContent=statusMessage;
         if(statusMessage.indexOf('🔄')===0){
           var lm=document.getElementById('loopMonitor');
@@ -280,11 +396,11 @@ LaRuche.Chat = (function(){
         isStreaming=false; staleRecoveryActive=false;
         setRunning(false);
         document.getElementById('sendBtn').disabled=false;
-        document.getElementById('userInput').placeholder = "Envoyer un message...";
+        document.getElementById('userInput').placeholder = LaRuche.i18n.t('chat.inputPlaceholder');
         document.getElementById('userInput').disabled=false;
         document.getElementById('iterationBadge').textContent='';
         setFeedLive('idle');
-        LaRuche.Toast.show('⏹ Génération interrompue','warn');
+        LaRuche.Toast.show(LaRuche.i18n.t('chat.generationInterrompue'),'warn');
         loadSessions(); refreshSessionsPage();
         break;
       case 'done':
@@ -300,12 +416,12 @@ LaRuche.Chat = (function(){
         staleRecoveryActive=false;
         setRunning(false);
         document.getElementById('sendBtn').disabled=false;
-        document.getElementById('userInput').placeholder = "Envoyer un message...";
+        document.getElementById('userInput').placeholder = LaRuche.i18n.t('chat.inputPlaceholder');
         document.getElementById('userInput').disabled=false;
         document.getElementById('userInput').focus();
         document.getElementById('iterationBadge').textContent='';
         setFeedLive('idle');
-        if(_feedPrevCard){_feedPrevCard.classList.remove('running');var doneState=_feedPrevCard.querySelector('.feed-step-state');if(doneState)doneState.textContent='TERMINÉ';}
+        if(_feedPrevCard){_feedPrevCard.classList.remove('running');var doneState=_feedPrevCard.querySelector('.feed-step-state');if(doneState)doneState.textContent=LaRuche.i18n.t('chat.termine');}
         var detailsAtEnd=document.getElementById('feedDetailsToggle');
         if(detailsAtEnd&&detailsAtEnd.checked){detailsAtEnd.checked=false;window.lrToggleFeedDetails(false);}
         loadSessions(); refreshSessionsPage();
@@ -318,11 +434,11 @@ LaRuche.Chat = (function(){
         staleRecoveryActive=false;
         setRunning(false);
         document.getElementById('sendBtn').disabled=false;
-        document.getElementById('userInput').placeholder = "Envoyer un message...";
+        document.getElementById('userInput').placeholder = LaRuche.i18n.t('chat.inputPlaceholder');
         document.getElementById('userInput').disabled=false;
         document.getElementById('iterationBadge').textContent='';
         setFeedLive('idle');
-        if(_feedPrevCard){_feedPrevCard.classList.remove('running');var errorState=_feedPrevCard.querySelector('.feed-step-state');if(errorState)errorState.textContent='À VÉRIFIER';}
+        if(_feedPrevCard){_feedPrevCard.classList.remove('running');var errorState=_feedPrevCard.querySelector('.feed-step-state');if(errorState)errorState.textContent=LaRuche.i18n.t('chat.aVerifier');}
         break;
     }
   }
@@ -333,7 +449,7 @@ LaRuche.Chat = (function(){
       if(isStreaming && !currentAssistantMsg) {
         var w = document.createElement('div');
         w.className='timeout-warning';
-        w.innerHTML='&#x26A0; La reponse prend plus de temps que prevu...';
+        w.innerHTML='&#x26A0; '+LaRuche.i18n.t('chat.responseTimeout');
         document.getElementById('chatContainer').appendChild(w);
         scrollToBottom();
       }
@@ -396,7 +512,7 @@ LaRuche.Chat = (function(){
     document.getElementById('userInput').style.height='auto';
     isStreaming=true;
     setRunning(true);
-    document.getElementById('userInput').placeholder = "Interrompre ou orienter l'agent en cours...";
+    document.getElementById('userInput').placeholder = LaRuche.i18n.t('chat.steeringPlaceholder');
     showTypingIndicator();
     startResponseTimeout();
   }
@@ -408,7 +524,7 @@ LaRuche.Chat = (function(){
     localStorage.setItem('laruche_no_think', noThinkEnabled ? '1' : '0');
     var wrap = document.getElementById('noThinkWrap');
     if(wrap) wrap.classList.toggle('active', noThinkEnabled);
-    LaRuche.Toast.show(noThinkEnabled ? 'No-think actif' : 'Thinking actif', 'ok');
+    LaRuche.Toast.show(noThinkEnabled ? LaRuche.i18n.t('chat.noThinkActif') : LaRuche.i18n.t('chat.thinkingActif'), 'ok');
   }
   // Artifact viewer : popup dédiée pour lire/rendre le code (HTML/SVG rendus
   // dans une iframe sandboxée, façon LLM modernes ; tout langage en vue Code).
@@ -439,11 +555,11 @@ LaRuche.Chat = (function(){
       var win=document.createElement('div'); win.className='lr-art-win';
       var head=document.createElement('div'); head.className='lr-art-head';
       var title=document.createElement('span'); title.className='lr-art-title'; title.textContent=(lang||'code');
-      var tabP=document.createElement('button'); tabP.className='lr-art-tab'; tabP.textContent='Aperçu';
-      var tabC=document.createElement('button'); tabC.className='lr-art-tab'; tabC.textContent='Code';
+      var tabP=document.createElement('button'); tabP.className='lr-art-tab'; tabP.textContent=LaRuche.i18n.t('chat.apercu');
+      var tabC=document.createElement('button'); tabC.className='lr-art-tab'; tabC.textContent=LaRuche.i18n.t('chat.code');
       var act=document.createElement('div'); act.className='lr-art-act';
-      var cp=document.createElement('button'); cp.className='code-tool-btn'; cp.textContent='Copier';
-      cp.onclick=function(){navigator.clipboard.writeText(code).then(function(){cp.textContent='Copié!';setTimeout(function(){cp.textContent='Copier';},1500);});};
+      var cp=document.createElement('button'); cp.className='code-tool-btn'; cp.textContent=LaRuche.i18n.t('chat.copier');
+      cp.onclick=function(){navigator.clipboard.writeText(code).then(function(){cp.textContent=LaRuche.i18n.t('chat.copie');setTimeout(function(){cp.textContent=LaRuche.i18n.t('chat.copier');},1500);});};
       var x=document.createElement('button'); x.className='lr-art-x'; x.innerHTML='&times;';
       var body=document.createElement('div'); body.className='lr-art-body';
       function close(){ if(ov.parentNode) document.body.removeChild(ov); document.removeEventListener('keydown',onKey); }
@@ -472,15 +588,15 @@ LaRuche.Chat = (function(){
         var renderable=/^(html|xml|svg|markup)$/i.test(lang) || (!lang && /<(\!doctype|html|svg|body|div|section)\b/i.test(code));
         var bar=document.createElement('div'); bar.className='code-toolbar';
         if(renderable){
-          var prev=document.createElement('button'); prev.className='code-tool-btn'; prev.innerHTML='&#x25B6; Aperçu';
+          var prev=document.createElement('button'); prev.className='code-tool-btn'; prev.innerHTML='&#x25B6; '+LaRuche.i18n.t('chat.apercu');
           prev.onclick=function(){window.lrShowArtifact(code, lang||'html', true);};
           bar.appendChild(prev);
         }
-        var open=document.createElement('button'); open.className='code-tool-btn'; open.innerHTML='&#x26F6; Ouvrir';
+        var open=document.createElement('button'); open.className='code-tool-btn'; open.innerHTML=LaRuche.i18n.t('chat.ouvrir');
         open.onclick=function(){window.lrShowArtifact(code, lang||'text', false);};
         bar.appendChild(open);
-        var copyBtn=document.createElement('button'); copyBtn.className='code-tool-btn'; copyBtn.textContent='Copier';
-        copyBtn.onclick=function(){navigator.clipboard.writeText(code).then(function(){copyBtn.textContent='Copié!';setTimeout(function(){copyBtn.textContent='Copier';},1500);});};
+        var copyBtn=document.createElement('button'); copyBtn.className='code-tool-btn'; copyBtn.textContent=LaRuche.i18n.t('chat.copier');
+        copyBtn.onclick=function(){navigator.clipboard.writeText(code).then(function(){copyBtn.textContent=LaRuche.i18n.t('chat.copie');setTimeout(function(){copyBtn.textContent=LaRuche.i18n.t('chat.copier');},1500);});};
         bar.appendChild(copyBtn);
         pre.appendChild(bar);
       });
@@ -495,7 +611,7 @@ LaRuche.Chat = (function(){
     var bubble=row.querySelector('.message')||row;
     if(bubble.querySelector('.prompt-eye')) return;
     var btn=document.createElement('button'); btn.className='prompt-eye';
-    btn.title='Voir ce qui a été réellement envoyé au LLM';
+    btn.title=LaRuche.i18n.t('chat.promptReel');
     btn.innerHTML='&#128065;';
     btn.style.cssText='background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;opacity:.5;margin-top:4px;float:right';
     btn.onmouseenter=function(){btn.style.opacity='1';}; btn.onmouseleave=function(){btn.style.opacity='.5';};
@@ -518,10 +634,10 @@ LaRuche.Chat = (function(){
     var tokens=Math.round(JSON.stringify(msgs).length/4);
     ov.innerHTML='<div style="width:760px;max-width:94vw;height:84vh;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
       '<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">'+
-      '<span style="font-weight:600;color:var(--amber)">Prompt réel envoyé au LLM</span>'+
+      '<span style="font-weight:600;color:var(--amber)">'+LaRuche.i18n.t('chat.promptReel')+'</span>'+
       '<span style="font-size:10px;color:var(--text-dim)">'+msgs.length+' messages · ~'+tokens+' tokens · '+LaRuche.Utils.esc((data.provider||'')+'/'+(data.model||''))+'</span>'+
       '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="margin-left:auto;background:none;border:none;color:#aaa;font-size:20px;cursor:pointer">&times;</button></div>'+
-      '<div style="flex:1;overflow:auto;padding:14px">'+(body||'<div style="color:var(--text-dim)">(vide)</div>')+'</div></div>';
+      '<div style="flex:1;overflow:auto;padding:14px">'+(body||'<div style="color:var(--text-dim)">'+LaRuche.i18n.t('chat.vide')+'</div>')+'</div></div>';
     document.body.appendChild(ov);
   }
 
@@ -585,7 +701,7 @@ LaRuche.Chat = (function(){
     var nm = document.getElementById('profileModalName'); if(nm) nm.textContent = u.display_name || 'Mon profil';
     var av = document.getElementById('profileModalAvatar'); if(av) av.textContent = (u.display_name||'?').charAt(0).toUpperCase();
     var ta = document.getElementById('profileFiche');
-    if(ta){ ta.value = 'Chargement…'; ta.disabled = true; }
+    if(ta){ ta.value = LaRuche.i18n.t('chat.chargement'); ta.disabled = true; }
     ov.classList.add('open');
     try {
       var d = await fetch('/api/profile').then(function(r){return r.json();});
@@ -597,9 +713,9 @@ LaRuche.Chat = (function(){
     var ta = document.getElementById('profileFiche'); if(!ta) return;
     try {
       await fetch('/api/profile', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({fiche:ta.value}) });
-      LaRuche.Toast.show('Profil enregistré — LaRuche en tiendra compte.', 'ok');
+      LaRuche.Toast.show(LaRuche.i18n.t('chat.profilEnregistre'), 'ok');
       closeProfile();
-    } catch(e){ LaRuche.Toast.show('Échec de l\'enregistrement du profil.', 'err'); }
+    } catch(e){ LaRuche.Toast.show(LaRuche.i18n.t('chat.echecProfil'), 'err'); }
   }
 
   function addMessage(role, text, attachments) {
@@ -685,7 +801,7 @@ LaRuche.Chat = (function(){
     var msg = document.createElement('div'); msg.className='message error';
     var errorText = document.createElement('div'); errorText.textContent=text; msg.appendChild(errorText);
     var actions = document.createElement('div'); actions.className='error-actions';
-    var retryBtn = document.createElement('button'); retryBtn.className='retry-btn'; retryBtn.textContent='\u21BB Reessayer';
+    var retryBtn = document.createElement('button'); retryBtn.className='retry-btn'; retryBtn.textContent=LaRuche.i18n.t('chat.retryBtn');
     retryBtn.onclick=function(){ row.remove(); if(lastUserMessage) sendMessage(lastUserMessage); };
     actions.appendChild(retryBtn); msg.appendChild(actions);
     wrapper.appendChild(msg); row.appendChild(wrapper);
@@ -722,7 +838,7 @@ LaRuche.Chat = (function(){
     while ((tm = thinkRe.exec(buf)) !== null) {
       if (ti >= sent) {
         var tt = tm[1].trim();
-        if (tt) addActivity('thinking', 'Raisonnement', tt, true);
+        if (tt) addActivity('thinking', LaRuche.i18n.t('chat.raisonnement'), tt, true);
       }
       ti++;
     }
@@ -803,7 +919,7 @@ LaRuche.Chat = (function(){
     var gallery=document.createElement('div'); gallery.className='user-link-previews';
     previews.slice(0,3).forEach(function(preview){
       var link=document.createElement('a'); link.className='user-link-preview'; link.href=preview.url; link.target='_blank'; link.rel='noopener noreferrer';
-      var image=document.createElement('img'); image.src=preview.thumbnail; image.alt='Aperçu '+preview.kind; image.loading='lazy'; image.referrerPolicy='no-referrer';
+      var image=document.createElement('img'); image.src=preview.thumbnail; image.alt=LaRuche.i18n.t('chat.apercuMedia')+preview.kind; image.loading='lazy'; image.referrerPolicy='no-referrer';
       image.onerror=function(){image.remove();link.classList.add('no-thumbnail');};
       var caption=document.createElement('span'); caption.textContent='▶ '+preview.kind;
       link.appendChild(image); link.appendChild(caption); gallery.appendChild(link);
@@ -832,7 +948,7 @@ LaRuche.Chat = (function(){
       var head=document.createElement('figcaption'); head.className='media-card-head';
       var badge=document.createElement('span'); badge.className='media-kind'; badge.textContent=kind;
       var title=document.createElement('span'); title.textContent=item.title||'Media'; title.style.cssText='overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
-      var open=document.createElement('a'); open.className='media-open'; open.href=src; open.target='_blank'; open.rel='noopener noreferrer'; open.textContent='Ouvrir ↗';
+      var open=document.createElement('a'); open.className='media-open'; open.href=src; open.target='_blank'; open.rel='noopener noreferrer'; open.textContent=LaRuche.i18n.t('chat.ouvrirMedia');
       head.appendChild(badge); head.appendChild(title); head.appendChild(open); card.appendChild(head);
       var visual;
       if(kind==='pdf') { visual=document.createElement('iframe'); visual.className='media-visual media-pdf'; visual.src=src+'#view=FitH'; visual.title=item.title||'PDF'; visual.loading='lazy'; }
@@ -896,10 +1012,10 @@ LaRuche.Chat = (function(){
     if(text) linkifyUrls(el);
     appendMediaGallery(el,medias);
     var actions = document.createElement('div'); actions.className='msg-actions';
-    var ttsBtn = document.createElement('button'); ttsBtn.className='msg-action-btn'; ttsBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';
+    var ttsBtn = document.createElement('button'); ttsBtn.className='msg-action-btn'; ttsBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> '+LaRuche.i18n.t('chat.lire');
     ttsBtn.onclick=function(){LaRuche.Voice.speakText(text,ttsBtn);}; actions.appendChild(ttsBtn);
-    var copyBtn2 = document.createElement('button'); copyBtn2.className='msg-action-btn'; copyBtn2.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> Copier';
-    copyBtn2.onclick=function(){navigator.clipboard.writeText(text).then(function(){copyBtn2.classList.add('copied');copyBtn2.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="20 6 9 17 4 12"></polyline></svg> Copie';setTimeout(function(){copyBtn2.classList.remove('copied');copyBtn2.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> Copier';},2000);});}; actions.appendChild(copyBtn2);
+    var copyBtn2 = document.createElement('button'); copyBtn2.className='msg-action-btn'; copyBtn2.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> '+LaRuche.i18n.t('chat.copier');
+    copyBtn2.onclick=function(){navigator.clipboard.writeText(text).then(function(){copyBtn2.classList.add('copied');copyBtn2.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="20 6 9 17 4 12"></polyline></svg> '+LaRuche.i18n.t('chat.copie');setTimeout(function(){copyBtn2.classList.remove('copied');copyBtn2.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> '+LaRuche.i18n.t('chat.copier');},2000);});}; actions.appendChild(copyBtn2);
     el.appendChild(actions);
     // Enrich timestamp with model + tokens on hover
     var row = el.closest('.message-row');
@@ -980,7 +1096,7 @@ LaRuche.Chat = (function(){
     if(!button)return;
     button.classList.toggle('visible',_feedUnread>0);
     var text=button.querySelector('span');
-    if(text)text.textContent=_feedUnread===1?'nouvelle activité':_feedUnread+' nouvelles activités';
+    if(text)text.textContent=_feedUnread===1?LaRuche.i18n.t('chat.nouvelleActivite'):_feedUnread+' '+LaRuche.i18n.t('chat.nouvellesActivites');
   }
   function followFeed(af,follow){
     if(follow){
@@ -995,15 +1111,15 @@ LaRuche.Chat = (function(){
     var text=document.getElementById('feedLiveText');
     if(!status||!text)return;
     if(mode==='idle'){
-      _feedLiveStartedAt=0; status.className='feed-live-status'; text.textContent='En attente'; return;
+      _feedLiveStartedAt=0; status.className='feed-live-status'; text.textContent=LaRuche.i18n.t('chat.enAttente'); return;
     }
     if(!_feedLiveStartedAt)_feedLiveStartedAt=Date.now();
     status.className='feed-live-status active '+mode;
-    text.textContent=mode==='tool'?'Exécution en cours':'Réflexion en cours';
+    text.textContent=mode==='tool'?LaRuche.i18n.t('chat.executionEnCours'):LaRuche.i18n.t('chat.reflexionEnCours');
     if(!_feedTimer)_feedTimer=setInterval(function(){
       if(!_feedLiveStartedAt)return;
       var seconds=Math.max(1,Math.floor((Date.now()-_feedLiveStartedAt)/1000));
-      text.innerHTML=(status.classList.contains('tool')?'Exécution en cours':'Réflexion en cours')+' <span style="color:var(--green)">· '+seconds+' s</span>';
+      text.innerHTML=(status.classList.contains('tool')?LaRuche.i18n.t('chat.executionEnCours'):LaRuche.i18n.t('chat.reflexionEnCours'))+' <span style="color:var(--green)">· '+seconds+' s</span>';
     },1000);
   }
   function ensureFeedStyle(){
@@ -1023,14 +1139,14 @@ LaRuche.Chat = (function(){
   }
   function titleForUserMessage(message){
     var text=(message||'').toLowerCase();
-    if(/supprim|effac/.test(text)&&/cron|tâche planifi/.test(text))return 'Suppression d’une tâche planifiée';
-    if(/cron|tâche planifi/.test(text))return 'Vérification des tâches planifiées';
-    if(/kanban|tableau/.test(text))return 'Lecture du Kanban';
-    if(/test|compil|build|erreur/.test(text))return 'Vérification du projet';
-    if(/fichier|code|dossier/.test(text))return 'Analyse des fichiers';
-    if(/recherch/.test(text))return 'Recherche et synthèse';
+    if(/supprim|effac/.test(text)&&/cron|tâche planifi/.test(text))return LaRuche.i18n.t('chat.titleSuppression');
+    if(/cron|tâche planifi/.test(text))return LaRuche.i18n.t('chat.titleVerifCron');
+    if(/kanban|tableau/.test(text))return LaRuche.i18n.t('chat.titleKanban');
+    if(/test|compil|build|erreur/.test(text))return LaRuche.i18n.t('chat.titleVerifProjet');
+    if(/fichier|code|dossier/.test(text))return LaRuche.i18n.t('chat.titleAnalyseFichiers');
+    if(/recherch/.test(text))return LaRuche.i18n.t('chat.titleRecherche');
     var compact=(message||'').replace(/\s+/g,' ').trim();
-    return compact ? (compact.length>58?compact.slice(0,58)+'…':compact) : 'Nouvelle mission';
+    return compact ? (compact.length>58?compact.slice(0,58)+'…':compact) : LaRuche.i18n.t('chat.nouveMission');
   }
   function updateActiveFeedTitle(title){
     if(!_feedPrevCard||!title)return;
@@ -1050,7 +1166,7 @@ LaRuche.Chat = (function(){
     var history=af.querySelector('.feed-history');
     if(!history){
       history=document.createElement('details');history.className='feed-history';
-      history.innerHTML='<summary><span class="feed-history-count"></span><span>cycles précédents</span></summary><div class="feed-history-list"></div>';
+      history.innerHTML='<summary><span class="feed-history-count"></span><span>'+LaRuche.i18n.t('chat.cyclesPrecedents')+'</span></summary><div class="feed-history-list"></div>';
       af.insertBefore(history,af.firstChild);
     }
     var list=history.querySelector('.feed-history-list');
@@ -1067,16 +1183,17 @@ LaRuche.Chat = (function(){
     _feedPrevCard = null; _feedStepN++;
   }
   function humanToolName(name){
-    var names={'shell_exec':'Commande terminal','execute_code':'Exécution de code','run_script':'Script','file_read':'Lecture de fichier','file_write':'Écriture de fichier','file_edit':'Modification de fichier','file_search':'Recherche dans les fichiers','read_extract':'Lecture ciblée','web_search':'Recherche web','web_deep_search':'Recherche web approfondie','web_fetch':'Lecture de page','memory_search':'Recherche mémoire','memory_write':'Mémoire mise à jour','delegate':'Sous-agent','mixture_of_agents':'Consultation multi-agents'};
-    return names[name]||name.replace(/_/g,' ');
+    var key='chat.tool.'+name;
+    var mapped=LaRuche.i18n.t(key);
+    return (mapped&&mapped!==key)?mapped:name.replace(/_/g,' ');
   }
   function toolContext(args){
     args=args||{};if(args.command)return args.command;if(args.code)return args.code.length>300?args.code.slice(0,300)+'…':args.code;if(args.path)return args.path;if(args.query)return args.query;if(args.url)return args.url;if(args.prompt)return args.prompt;
     var raw=JSON.stringify(args);return raw==='{}'?'':raw;
   }
   function thoughtLabel(phase,kind){
-    var labels={orientation:'J’analyse la demande',exploration:'J’explore les pistes utiles',implementation:'Je prépare l’exécution',verification:'Je vérifie le résultat'};
-    if(kind==='checkpoint')return 'Point d’étape';if(kind==='next_action')return 'Prochaine action';return labels[phase]||'Je prépare la suite';
+    var labels={orientation:LaRuche.i18n.t('chat.thoughtOrientation'),exploration:LaRuche.i18n.t('chat.thoughtExploration'),implementation:LaRuche.i18n.t('chat.thoughtImplementation'),verification:LaRuche.i18n.t('chat.thoughtVerification')};
+    if(kind==='checkpoint')return LaRuche.i18n.t('chat.thoughtCheckpoint');if(kind==='next_action')return LaRuche.i18n.t('chat.thoughtNextAction');return labels[phase]||LaRuche.i18n.t('chat.thoughtDefault');
   }
   function setTerminalContent(body, command, output){
     body.textContent='';
@@ -1136,7 +1253,7 @@ LaRuche.Chat = (function(){
         var cur=acc.querySelector('.cc-status-current'); cur.textContent=label;
         cur.classList.remove('cc-anim'); void cur.offsetWidth; cur.classList.add('cc-anim'); // ré-anime
         var n=acc.querySelectorAll('.cc-status-steps > .cc-act').length;
-        acc.querySelector('.cc-status-count').textContent = n>1 ? (n+' étapes') : '';
+        acc.querySelector('.cc-status-count').textContent = n>1 ? (n+LaRuche.i18n.t('chat.nEtapes')) : '';
         acc.querySelector('.cc-status-head .act-time').textContent = item.querySelector('.act-time').textContent;
       } else { cc.appendChild(item); }
     } else {
@@ -1182,12 +1299,12 @@ LaRuche.Chat = (function(){
   function pendingTool(name){for(var i=_feedPendingTools.length-1;i>=0;i--){var item=_feedPendingTools[i];if(item&&item.dataset.toolName===name&&item.classList.contains('live'))return item;}return null;}
   function finishToolActivity(name,result,success,elapsed){
     var item=pendingTool(name);
-    if(!item)return addActivity(success?'tool-ok':'tool-err',humanToolName(name)+(success?' terminée':' en erreur'),result,true,{toolName:name});
+    if(!item)return addActivity(success?'tool-ok':'tool-err',humanToolName(name)+(success?' '+LaRuche.i18n.t('chat.termineState'):' '+LaRuche.i18n.t('chat.erreurState')),result,true,{toolName:name});
     item.classList.remove('tool-call','live');item.classList.add(success?'tool-ok':'tool-err');
     var ico=item.querySelector('.act-ico');if(ico)ico.className='act-ico '+(success?'tool-ok':'tool-err');
-    var title=item.querySelector('.act-txt');if(title)title.textContent=(item.dataset.activityLabel||humanToolName(name))+(success?' · terminé':' · erreur');
+    var title=item.querySelector('.act-txt');if(title)title.textContent=(item.dataset.activityLabel||humanToolName(name))+(success?' · '+LaRuche.i18n.t('chat.termineState'):' · '+LaRuche.i18n.t('chat.erreurState'));
     var stamp=item.querySelector('.act-time');if(stamp&&elapsed!=null)stamp.textContent=LaRuche.Utils.formatElapsed(elapsed);
-    var body=item.querySelector('.act-body');if(!body&&result){body=document.createElement('pre');body.className='act-body';item.appendChild(body);}if(body){if(item.classList.contains('terminal'))setTerminalContent(body,item.dataset.command||'',result||'(aucune sortie)');else body.textContent=result||'(aucune sortie)';}
+    var body=item.querySelector('.act-body');if(!body&&result){body=document.createElement('pre');body.className='act-body';item.appendChild(body);}if(body){if(item.classList.contains('terminal'))setTerminalContent(body,item.dataset.command||'',result||LaRuche.i18n.t('chat.aucuneSortie'));else body.textContent=result||LaRuche.i18n.t('chat.aucuneSortie');}
     if(!success){item.classList.remove('cc-collapsed');}_feedPendingTools=_feedPendingTools.filter(function(candidate){return candidate!==item;});return item;
   }
   function appendToolOutput(name,chunk){var item=pendingTool(name);if(!item)return;var body=item.querySelector('.act-body');if(!body){body=document.createElement('pre');body.className='act-body';item.appendChild(body);}if(item.classList.contains('terminal')){item._terminalOutput=(item._terminalOutput||'')+(chunk||'');setTerminalContent(body,item.dataset.command||'',item._terminalOutput);}else body.textContent+=(chunk||'');body.scrollTop=body.scrollHeight;}
@@ -1230,7 +1347,7 @@ LaRuche.Chat = (function(){
   }
   function updatePlan(items) {
     if(!Array.isArray(items)) return;
-    if(_currentPlanMission<0) startPlanMission(_feedTurnTitle||'Mission de l’agent');
+    if(_currentPlanMission<0) startPlanMission(_feedTurnTitle||LaRuche.i18n.t('chat.nouveMission'));
     var mission=_planMissions[_currentPlanMission]; mission.items=items.slice();
     var active=items.find(function(item){return !planItemDone(item);}) || items[items.length-1];
     if(active && active.task) _feedTurnTitle=active.task;
@@ -1256,10 +1373,10 @@ LaRuche.Chat = (function(){
       sessions.forEach(function(s){
         var div=document.createElement('div');
         div.className='session-item'+(s.id===sessionId?' active':'');
-        var cleanTitle = (s.title||'').split(/\[SYSTEM\]/i)[0].trim() || 'Sans titre';
+        var cleanTitle = (s.title||'').split(/\[SYSTEM\]/i)[0].trim() || LaRuche.i18n.t('chat.sansTitre');
         if(cleanTitle.length > 55) cleanTitle = cleanTitle.substring(0, 52) + '...';
         var dot = convIsUnread(s)
-          ? '<span class="conv-dot conv-dot-new" title="Nouveau"></span>'
+          ? '<span class="conv-dot conv-dot-new" title="'+LaRuche.i18n.t('chat.nouveau')+'"></span>'
           : '<span class="conv-dot"></span>';
         div.innerHTML='<div style="display:flex; align-items:center; flex:1; min-width:0; overflow:hidden;">'+dot+'<span class="session-title" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'+LaRuche.Utils.esc(cleanTitle)+'</span></div><span class="session-delete" onclick="event.stopPropagation();LaRuche.Chat.deleteSession(\''+s.id+'\')">&times;</span>';
         div.onclick=function(){switchSession(s.id);};
@@ -1286,11 +1403,11 @@ LaRuche.Chat = (function(){
     currentAssistantMsg=null; currentAssistantRow=null;
     if(typeof setRunning==='function') setRunning(false);
     var _sb=document.getElementById('sendBtn'); if(_sb) _sb.disabled=false;
-    var _ui=document.getElementById('userInput'); if(_ui){ _ui.disabled=false; _ui.placeholder='Envoyer un message...'; }
+    var _ui=document.getElementById('userInput'); if(_ui){ _ui.disabled=false; _ui.placeholder=LaRuche.i18n.t('chat.inputPlaceholder'); }
     var container=document.getElementById('chatContainer');
     container.innerHTML='';
     var welcome=document.createElement('div'); welcome.className='welcome'; welcome.id='welcomeScreen';
-    welcome.innerHTML='<div class="swarm-wrap" style="transform: scale(0.65); margin: -40px auto -30px;"><canvas class="swarm-canvas"></canvas></div><h2>L\x27Essaim</h2><p>Agent IA propulse par LaRuche.<br>Posez votre question ou donnez une instruction.</p><div class="suggested-prompts"><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">Explique-moi l\'architecture du projet</div><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">Quels fichiers ont ete modifies recemment ?</div><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">Analyse les erreurs dans les logs</div><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">Cree un plan d\'action pour optimiser les performances</div></div>';
+    welcome.innerHTML='<div class="swarm-wrap" style="transform: scale(0.65); margin: -40px auto -30px;"><canvas class="swarm-canvas"></canvas></div><h2>L\x27Essaim</h2><p>'+LaRuche.i18n.t('chat.welcomeSubtitle')+'</p><div class="suggested-prompts"><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">'+LaRuche.i18n.t('chat.suggestion1')+'</div><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">'+LaRuche.i18n.t('chat.suggestion2')+'</div><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">'+LaRuche.i18n.t('chat.suggestion3')+'</div><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">'+LaRuche.i18n.t('chat.suggestion4')+'</div></div>';
     container.appendChild(welcome);
     document.getElementById('activityFeed').innerHTML='';
     resetFeed();
@@ -1312,7 +1429,7 @@ LaRuche.Chat = (function(){
     currentAssistantMsg=null; currentAssistantRow=null;
     if(typeof setRunning==='function') setRunning(false);
     var _sb=document.getElementById('sendBtn'); if(_sb) _sb.disabled=false;
-    var _ui=document.getElementById('userInput'); if(_ui){ _ui.disabled=false; _ui.placeholder='Envoyer un message...'; }
+    var _ui=document.getElementById('userInput'); if(_ui){ _ui.disabled=false; _ui.placeholder=LaRuche.i18n.t('chat.inputPlaceholder'); }
     var container=document.getElementById('chatContainer');
     container.innerHTML='';
     document.getElementById('activityFeed').innerHTML='';
@@ -1342,10 +1459,10 @@ LaRuche.Chat = (function(){
           linkifyUrls(el);
           appendMediaGallery(el,historyMedia.concat(restored.items)); historyMedia=[];
           var actions=document.createElement('div');actions.className='msg-actions';
-          var ttsBtn=document.createElement('button');ttsBtn.className='msg-action-btn';ttsBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';
+          var ttsBtn=document.createElement('button');ttsBtn.className='msg-action-btn';ttsBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> '+LaRuche.i18n.t('chat.lire');
           ttsBtn.onclick=function(){LaRuche.Voice.speakText(restored.text,ttsBtn);};actions.appendChild(ttsBtn);
-          var copyBtn=document.createElement('button');copyBtn.className='msg-action-btn';copyBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> Copier';
-          copyBtn.onclick=function(){navigator.clipboard.writeText(restored.text).then(function(){copyBtn.classList.add('copied');copyBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="20 6 9 17 4 12"></polyline></svg> Copie';setTimeout(function(){copyBtn.classList.remove('copied');copyBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> Copier';},2000);});};actions.appendChild(copyBtn);
+          var copyBtn=document.createElement('button');copyBtn.className='msg-action-btn';copyBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> '+LaRuche.i18n.t('chat.copier');
+          copyBtn.onclick=function(){navigator.clipboard.writeText(restored.text).then(function(){copyBtn.classList.add('copied');copyBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="20 6 9 17 4 12"></polyline></svg> '+LaRuche.i18n.t('chat.copie');setTimeout(function(){copyBtn.classList.remove('copied');copyBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> '+LaRuche.i18n.t('chat.copier');},2000);});};actions.appendChild(copyBtn);
           el.appendChild(actions);
         }
         // Reconstruit le feed agentique depuis l'historique persisté.
@@ -1353,7 +1470,7 @@ LaRuche.Chat = (function(){
           var restoredArgs=msg.args||{};
           var restoredTool=msg.tool||'?';
           maybeRenderFileDiff(restoredTool,restoredArgs); // carte diff inline (replay)
-          addActivity('tool-call',toolActivityLabel(restoredTool,restoredArgs)+' · exécuté',toolContext(restoredArgs),true,{toolName:restoredTool,activityLabel:toolActivityLabel(restoredTool,restoredArgs),terminal:(restoredTool==='shell_exec'||restoredTool==='execute_code'||restoredTool==='run_script'),command:toolContext(restoredArgs)});
+          addActivity('tool-call',toolActivityLabel(restoredTool,restoredArgs)+' · '+LaRuche.i18n.t('chat.executes'),toolContext(restoredArgs),true,{toolName:restoredTool,activityLabel:toolActivityLabel(restoredTool,restoredArgs),terminal:(restoredTool==='shell_exec'||restoredTool==='execute_code'||restoredTool==='run_script'),command:toolContext(restoredArgs)});
         }
         else if(msg.role==='tool'){
           var txt=msg.text||'';
@@ -1372,7 +1489,7 @@ LaRuche.Chat = (function(){
       if(_feedPrevCard){
         _feedPrevCard.classList.remove('running');
         var restoredState=_feedPrevCard.querySelector('.feed-step-state');
-        if(restoredState) restoredState.textContent='TERMINÉ';
+        if(restoredState) restoredState.textContent=LaRuche.i18n.t('chat.termine');
       }
       setFeedLive('idle');
       // Saut vers le mot-clé recherché (clic depuis l'historique), sinon bas de page.
@@ -1420,18 +1537,18 @@ LaRuche.Chat = (function(){
   var _searchTerm = '';
   // Date RELATIVE : aujourd'hui HH:MM / hier / avant-hier / il y a N jours / sem. / mois / ans.
   function fmtRelDate(iso){
-    if(!iso) return 'MAJ : -';
-    var d=new Date(iso); if(isNaN(d.getTime())) return 'MAJ : -';
+    if(!iso) return LaRuche.i18n.t('chat.dateMaj');
+    var d=new Date(iso); if(isNaN(d.getTime())) return LaRuche.i18n.t('chat.dateMaj');
     var now=new Date(), hm=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
     function sod(x){ return new Date(x.getFullYear(),x.getMonth(),x.getDate()).getTime(); }
     var days=Math.round((sod(now)-sod(d))/86400000);
-    if(days<=0) return "aujourd'hui "+hm;
-    if(days===1) return 'hier '+hm;
-    if(days===2) return 'avant-hier '+hm;
-    if(days<7) return 'il y a '+days+' jours · '+hm;
-    if(days<31) return 'il y a '+Math.floor(days/7)+' sem.';
-    if(days<365) return 'il y a '+Math.floor(days/30)+' mois';
-    var y=Math.floor(days/365); return 'il y a '+y+' an'+(y>1?'s':'');
+    if(days<=0) return LaRuche.i18n.t('chat.dateAujourdhui')+' '+hm;
+    if(days===1) return LaRuche.i18n.t('chat.dateHier')+' '+hm;
+    if(days===2) return LaRuche.i18n.t('chat.dateAvantHier')+' '+hm;
+    if(days<7) return LaRuche.i18n.t('chat.dateIlYaJours')+' '+days+' '+LaRuche.i18n.t('chat.dateJours')+hm;
+    if(days<31) return LaRuche.i18n.t('chat.dateIlYaJours')+' '+Math.floor(days/7)+' '+LaRuche.i18n.t('chat.dateSem');
+    if(days<365) return LaRuche.i18n.t('chat.dateIlYaJours')+' '+Math.floor(days/30)+' '+LaRuche.i18n.t('chat.dateMois');
+    var y=Math.floor(days/365); return LaRuche.i18n.t('chat.dateIlYaJours')+' '+y+' '+(y>1?LaRuche.i18n.t('chat.dateAns'):LaRuche.i18n.t('chat.dateAn'));
   }
   // Surligne `term` (insensible casse) dans `text`, échappé.
   function hlt(text, term){
@@ -1484,11 +1601,11 @@ LaRuche.Chat = (function(){
   function renderHistory(sessions){
     var list = document.getElementById('historyList');
     if(!list) return;
-    if(!sessions || !sessions.length){ list.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:30px">Aucune conversation.</div>'; return; }
+    if(!sessions || !sessions.length){ list.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:30px">'+LaRuche.i18n.t('chat.aucuneConversation')+'</div>'; return; }
     list.innerHTML='';
     var term=_searchTerm||null;
     sessions.forEach(function(s){
-      var cleanTitle = (s.title||'').split(/\[SYSTEM\]/i)[0].trim() || 'Sans titre';
+      var cleanTitle = (s.title||'').split(/\[SYSTEM\]/i)[0].trim() || LaRuche.i18n.t('chat.sansTitre');
       var item = document.createElement('div');
       item.className = 'history-item';
       var matchHtml = (s._match && term) ? '<div class="hi-match">…'+hlt(s._match, term)+'…</div>' : '';
@@ -1499,14 +1616,14 @@ LaRuche.Chat = (function(){
           matchHtml+
         '</div>'+
         '<div class="hi-actions">'+
-          '<button class="hi-btn open">Ouvrir</button>'+
-          '<button class="hi-btn export">Exporter</button>'+
-          '<button class="hi-btn del">Supprimer</button>'+
+          '<button class="hi-btn open">'+LaRuche.i18n.t('chat.ouvrirBtn')+'</button>'+
+          '<button class="hi-btn export">'+LaRuche.i18n.t('chat.exporterBtn')+'</button>'+
+          '<button class="hi-btn del">'+LaRuche.i18n.t('chat.supprimerBtn')+'</button>'+
         '</div>';
       item.querySelector('.hi-main').onclick = function(){ closeHistory(); switchSession(s.id, term); };
       item.querySelector('.open').onclick = function(){ closeHistory(); switchSession(s.id, term); };
       item.querySelector('.export').onclick = function(){ exportSessionMd(s.id, cleanTitle); };
-      item.querySelector('.del').onclick = function(){ if(confirm('Supprimer « '+cleanTitle+' » ?')) deleteSession(s.id); };
+      item.querySelector('.del').onclick = function(){ if(confirm(LaRuche.i18n.t('chat.supprimerBtn')+' « '+cleanTitle+' » ?')) deleteSession(s.id); };
       list.appendChild(item);
     });
   }
@@ -1516,11 +1633,11 @@ LaRuche.Chat = (function(){
       var msgs = (data && data.messages) ? data.messages : [];
       var lines = ['# '+(title||'Conversation '+id), ''];
       msgs.forEach(function(m){
-        var who = m.role==='user' ? '## 🧑 Utilisateur'
+        var who = m.role==='user' ? '## '+LaRuche.i18n.t('chat.export.user')
                 : m.role==='assistant' ? '## 🐝 LaRuche'
-                : m.role==='tool' ? '### 🔧 Outil ('+(m.tool||'?')+')'
-                : m.role==='tool_call' ? '### ➡️ Appel outil ('+(m.tool||'?')+')'
-                : m.role==='thought' ? '### 💭 Réflexion'
+                : m.role==='tool' ? '### '+LaRuche.i18n.t('chat.export.outil')+' ('+(m.tool||'?')+')'
+                : m.role==='tool_call' ? '### '+LaRuche.i18n.t('chat.export.appelOutil')+' ('+(m.tool||'?')+')'
+                : m.role==='thought' ? '### '+LaRuche.i18n.t('chat.export.reflexion')
                 : null;
         if(!who) return;
         var txt = (m.text||'').trim();
@@ -1535,14 +1652,14 @@ LaRuche.Chat = (function(){
       a.download = safe + '.md';
       a.click();
       setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
-      LaRuche.Toast.show('Conversation exportée','ok');
-    }).catch(function(){ LaRuche.Toast.show('Échec export','err'); });
+      LaRuche.Toast.show(LaRuche.i18n.t('chat.conversationExportee'),'ok');
+    }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('chat.echecExport'),'err'); });
   }
 
   function showApprovalDialog(toolCallId, toolName, args) {
     var container=document.getElementById('chatContainer');
     var row=document.createElement('div'); row.className='approval-dialog';
-    row.innerHTML='<div class="approval-icon">&#x26A0;</div><div class="approval-content"><div class="approval-title">Autorisation requise</div><div class="approval-detail">L\'agent veut executer <strong>'+LaRuche.Utils.esc(toolName)+'</strong></div><pre class="approval-args">'+LaRuche.Utils.esc(JSON.stringify(args,null,2))+'</pre><div class="approval-buttons"><button class="approval-btn approve" onclick="LaRuche.Chat.respondApproval(\''+toolCallId+'\',true,this)">Autoriser</button><button class="approval-btn deny" onclick="LaRuche.Chat.respondApproval(\''+toolCallId+'\',false,this)">Refuser</button></div></div>';
+    row.innerHTML='<div class="approval-icon">&#x26A0;</div><div class="approval-content"><div class="approval-title">'+LaRuche.i18n.t('chat.autorisationRequise')+'</div><div class="approval-detail">'+LaRuche.i18n.t('chat.agentVeutExecuter')+' <strong>'+LaRuche.Utils.esc(toolName)+'</strong></div><pre class="approval-args">'+LaRuche.Utils.esc(JSON.stringify(args,null,2))+'</pre><div class="approval-buttons"><button class="approval-btn approve" onclick="LaRuche.Chat.respondApproval(\''+toolCallId+'\',true,this)">'+LaRuche.i18n.t('chat.autoriser')+'</button><button class="approval-btn deny" onclick="LaRuche.Chat.respondApproval(\''+toolCallId+'\',false,this)">'+LaRuche.i18n.t('chat.refuser')+'</button></div></div>';
     container.appendChild(row); scrollToBottom();
     addActivity('status','Approval','En attente: '+toolName,false);
   }
@@ -1658,14 +1775,14 @@ LaRuche.Chat = (function(){
   function browseCwd() {
     var input = document.getElementById('cwdInput');
     var path = input.value.trim();
-    if(!path) { LaRuche.Toast.show('Entrez un chemin','warn'); return; }
+    if(!path) { LaRuche.Toast.show(LaRuche.i18n.t('chat.entrezChemin'),'warn'); return; }
     fetch(LaRuche.API.base+'/api/cwd',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cwd:path})})
       .then(function(r){return r.json();})
       .then(function(d){
         if(d.error) LaRuche.Toast.show(d.error,'err');
-        else { LaRuche.Toast.show('Dossier: '+d.cwd,'ok'); input.value = d.cwd; }
+        else { LaRuche.Toast.show(LaRuche.i18n.t('chat.dossier')+d.cwd,'ok'); input.value = d.cwd; }
       })
-      .catch(function(e){LaRuche.Toast.show('Erreur: '+e,'err');});
+      .catch(function(e){LaRuche.Toast.show(LaRuche.i18n.t('chat.erreur')+e,'err');});
   }
 
   // Enter key on cwd input = apply
@@ -1735,7 +1852,7 @@ LaRuche.Voice = (function(){
   }
 
   async function speakText(text, btn) {
-    if(btn && btn.classList.contains('playing')){stopAllTts();btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';return;}
+    if(btn && btn.classList.contains('playing')){stopAllTts();btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> '+LaRuche.i18n.t('chat.lire')+'';return;}
     var cleanText=cleanTextForTTS(text);
     if(!cleanText)return;
     if(btn){btn.classList.add('playing');btn.innerHTML='&#x23F9; Stop';}
@@ -1744,8 +1861,8 @@ LaRuche.Voice = (function(){
       if(!resp.ok){speakBrowser(cleanText,btn);return;}
       var blob=await resp.blob(); var url=URL.createObjectURL(blob);
       currentTtsAudio=new Audio(url);
-      currentTtsAudio.onended=function(){if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';}currentTtsAudio=null;};
-      currentTtsAudio.onerror=function(){if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';}currentTtsAudio=null;};
+      currentTtsAudio.onended=function(){if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> '+LaRuche.i18n.t('chat.lire')+'';}currentTtsAudio=null;};
+      currentTtsAudio.onerror=function(){if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> '+LaRuche.i18n.t('chat.lire')+'';}currentTtsAudio=null;};
       currentTtsAudio.play();
     } catch(e){speakBrowser(cleanText,btn);}
   }
@@ -1756,11 +1873,11 @@ LaRuche.Voice = (function(){
       var utter=new SpeechSynthesisUtterance(text);
       utter.lang='fr-FR'; utter.rate=1.0;
       currentTtsUtterance=utter;
-      utter.onend=function(){if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';}currentTtsUtterance=null;};
-      utter.onerror=function(){if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';}currentTtsUtterance=null;};
+      utter.onend=function(){if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> '+LaRuche.i18n.t('chat.lire')+'';}currentTtsUtterance=null;};
+      utter.onerror=function(){if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> '+LaRuche.i18n.t('chat.lire')+'';}currentTtsUtterance=null;};
       speechSynthesis.speak(utter);
     } else {
-      if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';}
+      if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> '+LaRuche.i18n.t('chat.lire')+'';}
     }
   }
 

@@ -1,3 +1,130 @@
+LaRuche.i18n.add({
+  'memory.searchExactTitle':      {fr:'Recherche de contenu exacte (cliquer pour revenir au sémantique)', en:'Exact content search (click to switch back to semantic)'},
+  'memory.searchSemanticTitle':   {fr:'Recherche sémantique (cliquer pour passer en recherche de contenu exacte)', en:'Semantic search (click to switch to exact content search)'},
+  'memory.searchExactPlaceholder':{fr:'Recherche de contenu exacte...', en:'Exact content search...'},
+  'memory.searchPlaceholder':     {fr:'Rechercher...', en:'Search...'},
+  'memory.searchExactError':      {fr:'Recherche exacte: ', en:'Exact search: '},
+  'memory.memoryUnavailable':     {fr:'Memoire indisponible', en:'Memory unavailable'},
+  'memory.memoryUnavailableError':{fr:'Memoire indisponible: ', en:'Memory unavailable: '},
+  'memory.statsLabel':            {fr:' items · ', en:' items · '},
+  'memory.statsNodes':            {fr:' noeuds', en:' nodes'},
+  'memory.searchError':           {fr:'Recherche: ', en:'Search: '},
+  'memory.nodeUnavailable':       {fr:'Noeud indisponible', en:'Node unavailable'},
+  'memory.readNodeError':         {fr:'Lecture noeud: ', en:'Read node: '},
+  'memory.managedBySystem':       {fr:'Gere par le systeme', en:'Managed by the system'},
+  'memory.addSubfolderTitle':     {fr:'Ajouter un sous-dossier', en:'Add a subfolder'},
+  'memory.renameTitle':           {fr:'Renommer', en:'Rename'},
+  'memory.deleteTitle':           {fr:'Supprimer', en:'Delete'},
+  'memory.noNodes':               {fr:'Aucun noeud', en:'No nodes'},
+  'memory.systemGroupLabel':      {fr:'Systeme', en:'System'},
+  'memory.systemDropForbidden':   {fr:'Noeud systeme : depot interdit', en:'System node: drop forbidden'},
+  'memory.moveImpossible':        {fr:'Deplacement impossible', en:'Move impossible'},
+  'memory.memoryMovedTo':         {fr:'Souvenir deplace vers ', en:'Memory moved to '},
+  'memory.moveError':             {fr:'Deplacement: ', en:'Move: '},
+  'memory.systemNodeNotMovable':  {fr:'Noeud systeme : non deplacable', en:'System node: cannot be moved'},
+  'memory.systemTargetForbidden': {fr:'Cible systeme : depot interdit', en:'System target: drop forbidden'},
+  'memory.cantMoveIntoSubtree':   {fr:'Impossible : cible dans le sous-arbre', en:'Impossible: target is inside the subtree'},
+  'memory.reparentImpossible':    {fr:'Reparentage impossible', en:'Reparenting impossible'},
+  'memory.folderMovedUnder':      {fr:'Dossier deplace sous ', en:'Folder moved under '},
+  'memory.folderPromotedRoot':    {fr:'Dossier promu en racine', en:'Folder promoted to root'},
+  'memory.reparentError':         {fr:'Reparentage: ', en:'Reparent: '},
+  'memory.editModeActive':        {fr:'Mode edition active : glissez les dossiers', en:'Edit mode active: drag folders'},
+  'memory.editModeDisabled':      {fr:'Mode edition desactive', en:'Edit mode disabled'},
+  'memory.newRootPrompt':         {fr:'Nom du nouveau dossier racine :', en:'Name of the new root folder:'},
+  'memory.invalidName':           {fr:'Nom invalide', en:'Invalid name'},
+  'memory.createImpossible':      {fr:'Creation impossible', en:'Creation impossible'},
+  'memory.rootCreated':           {fr:'Racine créée', en:'Root created'},
+  'memory.createError':           {fr:'Creation: ', en:'Creation: '},
+  'memory.cognitiveCrumb':        {fr:'Memoire cognitive', en:'Cognitive memory'},
+  'memory.systemProtectedNote':   {fr:'Noeud gere par le systeme. L\'agent ne peut pas le modifier', en:'Node managed by the system. The agent cannot modify it'},
+  'memory.readOnly':              {fr:' (lecture seule).', en:' (read only).'},
+  'memory.notReadOnly':           {fr:'.', en:'.'},
+  'memory.noMemoriesInNode':      {fr:'Aucun souvenir dans ce noeud.', en:'No memories in this node.'},
+  'memory.editBtn':               {fr:'Editer', en:'Edit'},
+  'memory.moveBtn':               {fr:'Deplacer', en:'Move'},
+  'memory.deleteBtn':             {fr:'Suppr', en:'Del'},
+  'memory.agentRunningTitle':     {fr:'Agent en cours...', en:'Agent running...'},
+  'memory.agentDoneTitle':        {fr:'Terminé', en:'Done'},
+  'memory.noId':                  {fr:'(sans id)', en:'(no id)'},
+  'memory.newMemoryPlaceholder':  {fr:'Nouveau souvenir (markdown, [[liens]] supportes)...', en:'New memory (markdown, [[links]] supported)...'},
+  'memory.addToNode':             {fr:'Ajouter a ', en:'Add to '},
+  'memory.loading':               {fr:'Chargement...', en:'Loading...'},
+  'memory.titleSoul':             {fr:'SOUL — personnalite', en:'SOUL — personality'},
+  'memory.titleBehavior':         {fr:'Comportement', en:'Behavior'},
+  'memory.titleCurateur':         {fr:'Prompt Curateur', en:'Curateur Prompt'},
+  'memory.titleExtraction':       {fr:'Prompt Consolidation', en:'Consolidation Prompt'},
+  'memory.titlePlanning':         {fr:'Prompt Planification', en:'Planning Prompt'},
+  'memory.titleIdentity':         {fr:'Identite', en:'Identity'},
+  'memory.soulEnabled':           {fr:'Activee', en:'Enabled'},
+  'memory.soulDisabled':          {fr:'Desactivee', en:'Disabled'},
+  'memory.systemProtectedAdmin':  {fr:'Gere par le systeme : l\'agent ne peut pas modifier ce contenu. Edition reservee a l\'administrateur ici.', en:'Managed by the system: the agent cannot modify this content. Editing reserved for the administrator here.'},
+  'memory.customizedNote':        {fr:'✎ Personnalise : ce texte REMPLACE le defaut du code.', en:'✎ Customized: this text REPLACES the code default.'},
+  'memory.defaultNote':           {fr:'Defaut du code (pre-rempli) : c\'est ce texte qui est utilise tant que tu n\'enregistres pas. Edite-le pour le personnaliser ; il sera applique au prochain message, sans redemarrage.', en:'Code default (pre-filled): this is the text used as long as you do not save. Edit it to customize; it will be applied on the next message, without restart.'},
+  'memory.soulPlaceholder':       {fr:'Personnalite (format OKF avec frontmatter)...', en:'Personality (OKF format with frontmatter)...'},
+  'memory.sectionPlaceholder':    {fr:'Texte de la section...', en:'Section text...'},
+  'memory.saveBtn':               {fr:'Enregistrer', en:'Save'},
+  'memory.restoreDefaultBtn':     {fr:'Restaurer le defaut', en:'Restore default'},
+  'memory.systemFormatNote':      {fr:'Le format des appels d\'outils et des plans reste gere par le systeme et n\'est pas editable ici.', en:'The format of tool calls and plans remains managed by the system and is not editable here.'},
+  'memory.contentRequired':       {fr:'Contenu requis', en:'Content required'},
+  'memory.writeImpossible':       {fr:'Ecriture impossible', en:'Write impossible'},
+  'memory.soulSaved':             {fr:'SOUL enregistree', en:'SOUL saved'},
+  'memory.sectionSaved':          {fr:'Section enregistree', en:'Section saved'},
+  'memory.restoreConfirmSoul':    {fr:'Restaurer le SOUL par defaut ? Le contenu actuel sera supprime.', en:'Restore the default SOUL? The current content will be deleted.'},
+  'memory.restoreConfirmPrompt':  {fr:'Restaurer le system prompt par defaut ? Le contenu actuel sera supprime.', en:'Restore the default system prompt? The current content will be deleted.'},
+  'memory.alreadyDefault':        {fr:'Deja au defaut (aucun item)', en:'Already at default (no item)'},
+  'memory.partialDelete':         {fr:'Suppression partielle: ', en:'Partial deletion: '},
+  'memory.defaultRestored':       {fr:'Defaut restaure', en:'Default restored'},
+  'memory.restoreError':          {fr:'Restauration: ', en:'Restore: '},
+  'memory.cancelBtn':             {fr:'Annuler', en:'Cancel'},
+  'memory.previewBtn':            {fr:'Apercu', en:'Preview'},
+  'memory.updateImpossible':      {fr:'Update impossible', en:'Update impossible'},
+  'memory.memoryUpdated':         {fr:'Souvenir mis a jour', en:'Memory updated'},
+  'memory.updateError':           {fr:'Update: ', en:'Update: '},
+  'memory.deleteConfirm':         {fr:'Supprimer ce souvenir ?', en:'Delete this memory?'},
+  'memory.deleteImpossible':      {fr:'Suppression impossible', en:'Deletion impossible'},
+  'memory.memoryDeleted':         {fr:'Souvenir supprime', en:'Memory deleted'},
+  'memory.deleteError':           {fr:'Suppression: ', en:'Deletion: '},
+  'memory.movePrompt':            {fr:'Deplacer vers node_id', en:'Move to node_id'},
+  'memory.nodeIdRequired':        {fr:'node_id requis', en:'node_id required'},
+  'memory.missionCreating':       {fr:'Création de la mission...', en:'Creating mission...'},
+  'memory.missionCreateError':    {fr:'Erreur creation', en:'Creation error'},
+  'memory.agentOnMission':        {fr:'Agent en mission !', en:'Agent on mission!'},
+  'memory.agentError':            {fr:'Erreur: ', en:'Error: '},
+  'memory.missionCreateErrorMsg': {fr:'Erreur creation: ', en:'Creation error: '},
+  'memory.memorySaved':           {fr:'Souvenir memorise', en:'Memory saved'},
+  'memory.writeError':            {fr:'Ecriture: ', en:'Write: '},
+  'memory.downloadStarted':       {fr:'Telechargement OKF lance', en:'OKF download started'},
+  'memory.downloadAll':           {fr:' (tout)', en:' (all)'},
+  'memory.exportNodeBtn':         {fr:'Exporter ce noeud (', en:'Export this node ('},
+  'memory.exportNodeNone':        {fr:'Exporter ce noeud (aucun selectionne)', en:'Export this node (none selected)'},
+  'memory.exportAllBtn':          {fr:'Exporter tout', en:'Export all'},
+  'memory.importResult':          {fr:'Import: ', en:'Import: '},
+  'memory.importItems':           {fr:' item(s)', en:' item(s)'},
+  'memory.importErrors':          {fr:' erreur(s)', en:' error(s)'},
+  'memory.consolidatingScope':    {fr:'Consolidation de ', en:'Consolidating '},
+  'memory.consolidatingWait':     {fr:'… (peut prendre quelques secondes)', en:'… (may take a few seconds)'},
+  'memory.consolidationResult':   {fr:'Consolidation: ', en:'Consolidation: '},
+  'memory.nodesConsolidated':     {fr:' nœud(s) consolidé(s)', en:' node(s) consolidated'},
+  'memory.deleteFolderConfirm':   {fr:'Voulez-vous vraiment supprimer le dossier "', en:'Do you really want to delete the folder "'},
+  'memory.deleteFolderConfirm2':  {fr:'" et tout son contenu de maniere irreversible ?', en:'" and all its content irreversibly?'},
+  'memory.folderDeleted':         {fr:'Dossier supprime', en:'Folder deleted'},
+  'memory.errorMsg':              {fr:'Erreur: ', en:'Error: '},
+  'memory.renamePrompt':          {fr:'Nouveau nom pour le dossier:', en:'New name for the folder:'},
+  'memory.newSubfolderPrompt':    {fr:'Nom du nouveau sous-dossier:', en:'Name of the new subfolder:'},
+  'memory.segSystem':             {fr:'Systeme', en:'System'},
+  'memory.segIdentity':           {fr:'Identite', en:'Identity'},
+  'memory.segBehavior':           {fr:'Comportement', en:'Behavior'},
+  'memory.segCapacities':         {fr:'Capacites', en:'Capacities'},
+  'memory.segTools':              {fr:'Outils', en:'Tools'},
+  'memory.segPlugins':            {fr:'Plugins', en:'Plugins'},
+  'memory.segMcp':                {fr:'MCP', en:'MCP'},
+  'memory.segSkills':             {fr:'Skills', en:'Skills'},
+  'memory.consolidateAllScope':   {fr:'mémoire (nœuds surchargés)', en:'memory (overloaded nodes)'},
+  'memory.consolidateDone':       {fr:'fait', en:'done'},
+  'memory.consolidateError':      {fr:'Erreur: ', en:'Error: '},
+  'memory.welcomeTitle':          {fr:'Mémoire Cognitive', en:'Cognitive Memory'},
+  'memory.welcomeSubtitle':       {fr:'Sélectionnez un noeud dans l\'arborescence pour afficher ses souvenirs.', en:'Select a node in the tree to display its memories.'},
+});
 LaRuche.Memory = (function(){
   var nodes = {};        // id -> {id,label,one_liner,count}
   var expanded = {};     // node id -> bool
@@ -33,11 +160,11 @@ LaRuche.Memory = (function(){
       btn.style.color = exactMode ? 'var(--amber)' : 'var(--text-muted)';
       btn.style.borderColor = exactMode ? 'var(--amber)' : 'var(--border)';
       btn.title = exactMode
-        ? 'Recherche de contenu exacte (cliquer pour revenir au sémantique)'
-        : 'Recherche sémantique (cliquer pour passer en recherche de contenu exacte)';
+        ? LaRuche.i18n.t('memory.searchExactTitle')
+        : LaRuche.i18n.t('memory.searchSemanticTitle');
     }
     if(input){
-      input.placeholder = exactMode ? 'Recherche de contenu exacte...' : 'Rechercher...';
+      input.placeholder = exactMode ? LaRuche.i18n.t('memory.searchExactPlaceholder') : LaRuche.i18n.t('memory.searchPlaceholder');
       var q = input.value.trim();
       if(q) runSearch(q); else refreshTree();
     }
@@ -62,7 +189,7 @@ LaRuche.Memory = (function(){
       current = null;
       renderTree();
       renderDoc();
-    }).catch(function(e){ LaRuche.Toast.show('Recherche exacte: '+e, 'err'); });
+    }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.searchExactError')+e, 'err'); });
   }
 
   var memPollTimer = null;
@@ -116,8 +243,8 @@ LaRuche.Memory = (function(){
     }).catch(function(e){
       if(silent) return;
       var t = document.getElementById('mem2Tree');
-      if(t) t.innerHTML = '<div class="mem2-empty">Memoire indisponible</div>';
-      LaRuche.Toast.show('Memoire indisponible: '+e, 'err');
+      if(t) t.innerHTML = '<div class="mem2-empty">'+LaRuche.i18n.t('memory.memoryUnavailable')+'</div>';
+      LaRuche.Toast.show(LaRuche.i18n.t('memory.memoryUnavailableError')+e, 'err');
     });
   }
 
@@ -129,7 +256,7 @@ LaRuche.Memory = (function(){
       if(d.error) { el.textContent = '--'; return; }
       var items = d.items != null ? d.items : (d.item_count != null ? d.item_count : '?');
       var nn = d.nodes != null ? d.nodes : (d.node_count != null ? d.node_count : Object.keys(nodes).length);
-      el.textContent = items+' items · '+nn+' noeuds';
+      el.textContent = items+LaRuche.i18n.t('memory.statsLabel')+nn+LaRuche.i18n.t('memory.statsNodes');
     }).catch(function(){});
   }
 
@@ -143,14 +270,14 @@ LaRuche.Memory = (function(){
       current = null;
       renderTree();
       renderDoc();
-    }).catch(function(e){ LaRuche.Toast.show('Recherche: '+e, 'err'); });
+    }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.searchError')+e, 'err'); });
   }
 
   var lastNodeSig = '';
   function loadNode(id, silent) {
     id = String(id || '').trim(); if(!id) return;
     fetch(LaRuche.API.base+'/api/memory/node/'+encodeURIComponent(id)).then(function(r){return r.json();}).then(function(data){
-      if(data.status === 'error' || data.error) { if(!silent) LaRuche.Toast.show(data.error || 'Noeud indisponible', 'err'); return; }
+      if(data.status === 'error' || data.error) { if(!silent) LaRuche.Toast.show(data.error || LaRuche.i18n.t('memory.nodeUnavailable'), 'err'); return; }
       var node = data.node || data;
       var sig = JSON.stringify(node);
       if(silent && sig === lastNodeSig && current === id) return;
@@ -171,7 +298,7 @@ LaRuche.Memory = (function(){
       }
       renderDoc();
       if(view === 'graph') renderGraph();
-    }).catch(function(e){ if(!silent) LaRuche.Toast.show('Lecture noeud: '+e, 'err'); });
+    }).catch(function(e){ if(!silent) LaRuche.Toast.show(LaRuche.i18n.t('memory.readNodeError')+e, 'err'); });
   }
 
   /* ---- helpers icones / protection ---- */
@@ -264,12 +391,12 @@ LaRuche.Memory = (function(){
       '<span class="mem2-caret" data-toggle="'+esc(c.id)+'">'+caret+'</span>'+
       '<span class="mem2-icon">'+nodeIcon(c.id, kids>0)+'</span>'+
       '<span class="mem2-label">'+esc(mem2SegLabel(c.seg))+'</span>'+
-      (locked ? '<span class="mem2-lock" title="Gere par le systeme">'+SVG.lock+'</span>' : '')+
+      (locked ? '<span class="mem2-lock" title="'+LaRuche.i18n.t('memory.managedBySystem')+'">'+SVG.lock+'</span>' : '')+
       (meta.count != null ? '<span class="mem2-count">'+meta.count+'</span>' : (kids?'<span class="mem2-count">'+kids+'</span>':''))+
       '<span class="node-actions">'+
-        '<button title="Ajouter un sous-dossier" onclick="event.stopPropagation();LaRuche.Memory.createSubnode(\''+esc(c.id)+'\')">➕</button>'+
-        (!locked ? '<button title="Renommer" onclick="event.stopPropagation();LaRuche.Memory.renameNode(\''+esc(c.id)+'\',\''+esc(c.seg)+'\')">✏️</button>'+
-        '<button title="Supprimer" onclick="event.stopPropagation();LaRuche.Memory.deleteNode(\''+esc(c.id)+'\')">❌</button>' : '')+
+        '<button title="'+LaRuche.i18n.t('memory.addSubfolderTitle')+'" onclick="event.stopPropagation();LaRuche.Memory.createSubnode(\''+esc(c.id)+'\')">➕</button>'+
+        (!locked ? '<button title="'+LaRuche.i18n.t('memory.renameTitle')+'" onclick="event.stopPropagation();LaRuche.Memory.renameNode(\''+esc(c.id)+'\',\''+esc(c.seg)+'\')">✏️</button>'+
+        '<button title="'+LaRuche.i18n.t('memory.deleteTitle')+'" onclick="event.stopPropagation();LaRuche.Memory.deleteNode(\''+esc(c.id)+'\')">❌</button>' : '')+
       '</span>'+
     '</div>';
     if(kids && open) html += treeHtml(c, depth+1);
@@ -286,7 +413,7 @@ LaRuche.Memory = (function(){
 
   function renderTree() {
     var el = document.getElementById('mem2Tree'); if(!el) return;
-    if(!Object.keys(nodes).length) { el.innerHTML = '<div class="mem2-empty">Aucun noeud</div>'; return; }
+    if(!Object.keys(nodes).length) { el.innerHTML = '<div class="mem2-empty">'+LaRuche.i18n.t('memory.noNodes')+'</div>'; return; }
     var root = buildTree();
     // Groupe SYSTEM en tete (system + capacities), separe visuellement du reste.
     var isSys = function(k){ return k==='system' || k==='capacities' || k==='tools'; };
@@ -295,7 +422,7 @@ LaRuche.Memory = (function(){
     var html = '';
     if(sysKeys.length){
       html += '<div class="mem2-sysgroup">'+
-        '<div class="mem2-grouplabel">Systeme</div>'+
+        '<div class="mem2-grouplabel">'+LaRuche.i18n.t('memory.systemGroupLabel')+'</div>'+
         sysKeys.map(function(k){ return rowHtml(root.children[k], 0); }).join('')+
       '</div>';
     }
@@ -360,7 +487,7 @@ LaRuche.Memory = (function(){
       var nodeId = dt.getData('application/x-node');
       var itemId = dt.getData('text/plain');
       if(isProtected(targetId)){
-        LaRuche.Toast.show('Noeud systeme : depot interdit', 'err');
+        LaRuche.Toast.show(LaRuche.i18n.t('memory.systemDropForbidden'), 'err');
         return;
       }
       if(nodeId){
@@ -402,29 +529,29 @@ LaRuche.Memory = (function(){
 
   // Deplace un ITEM vers un noeud (POST /api/memory/move {item_id, node_id}).
   function dropItem(itemId, nodeId){
-    if(isProtected(nodeId)){ LaRuche.Toast.show('Noeud systeme : depot interdit', 'err'); return; }
+    if(isProtected(nodeId)){ LaRuche.Toast.show(LaRuche.i18n.t('memory.systemDropForbidden'), 'err'); return; }
     postJson('/api/memory/move', {item_id:itemId, node_id:nodeId}).then(function(d){
-      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Deplacement impossible','err'); return; }
+      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||LaRuche.i18n.t('memory.moveImpossible'),'err'); return; }
       mergeNodes([{id:nodeId, label:nodeId.split('.').pop()}]);
-      LaRuche.Toast.show('Souvenir deplace vers '+nodeId, 'ok');
+      LaRuche.Toast.show(LaRuche.i18n.t('memory.memoryMovedTo')+nodeId, 'ok');
       loadTree(false);
       if(current) loadNode(current, true);
-    }).catch(function(e){ LaRuche.Toast.show('Deplacement: '+e, 'err'); });
+    }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.moveError')+e, 'err'); });
   }
 
   // Reparente un NOEUD (sous-arbre) (POST /api/memory/node/move {node_id, new_parent}).
   function reparentNode(nodeId, newParent){
     if(nodeId === newParent){ return; }
-    if(isProtected(nodeId)){ LaRuche.Toast.show('Noeud systeme : non deplacable', 'err'); return; }
-    if(newParent && isProtected(newParent)){ LaRuche.Toast.show('Cible systeme : depot interdit', 'err'); return; }
+    if(isProtected(nodeId)){ LaRuche.Toast.show(LaRuche.i18n.t('memory.systemNodeNotMovable'), 'err'); return; }
+    if(newParent && isProtected(newParent)){ LaRuche.Toast.show(LaRuche.i18n.t('memory.systemTargetForbidden'), 'err'); return; }
     if(newParent && (newParent === nodeId || newParent.indexOf(nodeId+'.') === 0)){
-      LaRuche.Toast.show('Impossible : cible dans le sous-arbre', 'err'); return;
+      LaRuche.Toast.show(LaRuche.i18n.t('memory.cantMoveIntoSubtree'), 'err'); return;
     }
     postJson('/api/memory/node/move', {node_id:nodeId, new_parent:newParent||''}).then(function(d){
-      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Reparentage impossible','err'); return; }
-      LaRuche.Toast.show(newParent ? ('Dossier deplace sous '+newParent) : 'Dossier promu en racine', 'ok');
+      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||LaRuche.i18n.t('memory.reparentImpossible'),'err'); return; }
+      LaRuche.Toast.show(newParent ? (LaRuche.i18n.t('memory.folderMovedUnder')+newParent) : LaRuche.i18n.t('memory.folderPromotedRoot'), 'ok');
       loaded=false; nodes={}; current=null; loadTree(false);
-    }).catch(function(e){ LaRuche.Toast.show('Reparentage: '+e, 'err'); });
+    }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.reparentError')+e, 'err'); });
   }
 
   /* ---- mode edition (toggle) + creation de racine ---- */
@@ -436,33 +563,33 @@ LaRuche.Memory = (function(){
     if(nr) nr.style.display = editMode ? '' : 'none';
     clearSpring();
     renderTree();
-    LaRuche.Toast.show(editMode ? 'Mode edition active : glissez les dossiers' : 'Mode edition desactive', 'ok');
+    LaRuche.Toast.show(editMode ? LaRuche.i18n.t('memory.editModeActive') : LaRuche.i18n.t('memory.editModeDisabled'), 'ok');
   }
 
   function createRoot(){
-    var label = window.prompt('Nom du nouveau dossier racine :');
+    var label = window.prompt(LaRuche.i18n.t('memory.newRootPrompt'));
     if(!label) return;
     label = label.trim(); if(!label) return;
     var slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-    if(!slug){ LaRuche.Toast.show('Nom invalide', 'err'); return; }
+    if(!slug){ LaRuche.Toast.show(LaRuche.i18n.t('memory.invalidName'), 'err'); return; }
     postJson('/api/memory/node/create', {node_id:slug, label:label, source:'ui-admin'}).then(function(d){
-      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Creation impossible','err'); return; }
-      LaRuche.Toast.show('Racine "'+slug+'" creee', 'ok');
+      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||LaRuche.i18n.t('memory.createImpossible'),'err'); return; }
+      LaRuche.Toast.show(LaRuche.i18n.t('memory.rootCreated')+' "'+slug+'"', 'ok');
       loadTree(false);
-    }).catch(function(e){ LaRuche.Toast.show('Creation: '+e, 'err'); });
+    }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.createError')+e, 'err'); });
   }
 
   /* ---- panneau document (markdown + CRUD) ---- */
   // Libelle lisible d'un segment d'id (unifie l'affichage : "prompt" -> "Identite", etc.).
-  var MEM2_SEG_LABELS = {
-    system:'Systeme', prompt:'Identite', behavior:'Comportement', soul:'SOUL',
-    capacities:'Capacites', tools:'Outils', plugins:'Plugins', mcp:'MCP', skills:'Skills'
+  var MEM2_SEG_LABEL_KEYS = {
+    system:'memory.segSystem', prompt:'memory.segIdentity', behavior:'memory.segBehavior', soul:'SOUL',
+    capacities:'memory.segCapacities', tools:'memory.segTools', plugins:'memory.segPlugins', mcp:'memory.segMcp', skills:'memory.segSkills'
   };
-  function mem2SegLabel(seg){ return MEM2_SEG_LABELS[seg] || seg; }
+  function mem2SegLabel(seg){ var k=MEM2_SEG_LABEL_KEYS[seg]; return k ? (k==='SOUL' ? 'SOUL' : LaRuche.i18n.t(k)) : seg; }
 
   function setCrumb() {
     var el = document.getElementById('mem2Crumb'); if(!el) return;
-    if(!currentNode){ el.textContent = 'Memoire cognitive'; return; }
+    if(!currentNode){ el.textContent = LaRuche.i18n.t('memory.cognitiveCrumb'); return; }
     var id = currentNode.node_id || '';
     if(id.indexOf('recherche:')===0){ el.textContent = id; return; }
     var parts = id.split('.'), acc='', html='';
@@ -504,7 +631,7 @@ LaRuche.Memory = (function(){
   function renderDoc() {
     setCrumb();
     var el = document.getElementById('mem2Doc'); if(!el) return;
-    if(!currentNode){ el.innerHTML = '<div class="welcome" style="margin-top:15vh;"><div style="font-size:70px; color:var(--amber); display:inline-block; filter: drop-shadow(0 0 30px rgba(245,158,11,0.5)); margin-bottom: 20px;"><svg width="1em" height="1em" style="vertical-align: middle;" viewBox="0 0 500 500" version="1.1" xmlns="http://www.w3.org/2000/svg" desc="Created with imagetracer.js version 1.2.6" ><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 285.5 45 Q 295.5 44.5 299 50.5 L 301.5 54 L 323.5 56 L 345.5 65 L 350.5 65 Q 353.6 60.1 363.5 62 L 370 67.5 L 372.5 75 L 396.5 84 L 403 90.5 L 414.5 104 L 416 105.5 L 428 119 Q 440.5 117.8 445 125.5 L 446 135.5 L 461 153 L 463 155.5 L 470.5 186 L 477 190.5 L 479 201.5 L 477 207.5 L 482 218.5 L 482 262.5 L 489 271.5 L 489 277.5 L 486 284 L 479.5 288 L 471 288 L 469 293 L 467 294.5 L 451.5 316 L 439 316 L 439 351.5 L 427 366 L 425 367.5 L 408.5 385 L 361.5 396 L 349 396 L 359 447.5 L 354.5 450 L 351.5 449 L 349.5 450 L 346.5 449 L 338.5 450 L 336.5 450 L 328 445.5 L 315 422 L 313 420.5 L 289 380 L 263 366 L 251.5 345 L 211.5 355 L 208 357.5 L 206 362 L 201.5 364 L 194.5 366 L 185 359.5 L 182.5 351 L 147 330.5 L 140 301.5 L 135.5 293 L 109.5 294 L 76.5 293 L 65 281.5 L 63 278.5 L 56 270 L 54 268.5 L 46 259 L 44 257.5 Q 36.7 253.3 39 239.5 L 40 198.5 Q 31.3 195.3 33 181.5 L 35 177 L 38.5 175 L 46 170.5 L 52 151.5 L 61 140 L 65 137.5 L 69 132.5 L 74 127.5 Q 72.1 114.6 78.5 110 L 89.5 106 L 94.5 107 L 132.5 73 L 183 61 L 188.5 53 L 197.5 51 L 209.5 57 L 239.5 50 L 250.5 50 L 276.5 52 L 285.5 45 Z M 243 58 L 212 66 L 241 75 L 248 73 L 251 74 L 253 79 L 248 87 L 245 105 L 242 106 Q 240 95 244 89 L 242 82 L 240 79 L 210 71 L 207 72 L 222 94 L 224 95 L 233 110 L 240 107 L 247 110 L 277 68 L 276 63 L 270 60 L 243 58 Z M 302 63 L 297 69 L 304 89 L 307 88 L 318 94 L 345 78 L 345 77 Q 331 75 323 79 Q 318 78 319 81 Q 313 83 311 79 L 314 72 L 320 74 Q 333 76 340 72 L 322 64 L 302 63 Z M 284 71 L 254 113 L 256 115 L 258 118 L 258 128 L 294 138 L 295 141 L 285 140 L 259 132 L 256 138 L 285 179 L 289 180 L 291 176 L 299 123 L 293 118 L 290 116 L 289 109 L 290 98 L 293 95 L 297 93 L 291 74 Q 290 70 284 71 Z M 175 72 L 137 81 L 118 99 L 111 105 L 102 115 L 154 112 L 156 112 L 162 104 L 164 102 L 177 84 L 179 79 L 142 101 L 140 105 Q 139 108 133 107 Q 129 106 130 100 L 133 97 L 144 95 L 178 73 L 175 72 Z M 199 77 L 193 121 L 193 128 L 200 134 L 221 129 L 223 122 L 213 118 L 208 119 L 202 118 L 201 116 L 204 109 L 210 110 L 211 114 L 221 117 L 227 115 L 207 86 L 205 84 L 203 80 L 199 77 Z M 189 78 L 165 114 L 165 115 L 166 117 L 181 129 L 185 128 L 191 81 L 189 78 Z M 369 83 L 385 111 L 388 111 L 422 125 L 421 124 L 420 122 L 414 116 L 412 114 L 401 101 L 391 90 L 369 83 Z M 349 84 L 325 99 L 323 100 L 323 106 L 352 108 L 354 86 L 349 84 Z M 361 88 L 361 93 L 361 95 L 359 109 L 376 110 L 364 90 L 361 88 Z M 323 110 L 322 115 L 323 117 L 325 118 L 342 136 L 347 134 L 350 131 L 352 112 L 323 110 Z M 360 112 L 357 133 L 367 138 L 369 142 L 389 138 L 392 136 L 382 118 L 379 114 L 362 114 L 360 112 Z M 389 116 L 401 134 L 420 131 L 389 116 Z M 151 118 L 107 123 Q 100 120 101 126 L 101 128 L 103 129 L 126 153 L 133 149 L 139 150 L 153 120 L 151 118 Z M 316 120 L 306 125 L 297 181 L 300 182 L 305 179 L 306 177 L 321 168 L 322 166 L 334 160 L 335 159 L 336 142 L 334 137 L 316 120 Z M 161 121 L 146 153 L 149 156 L 174 144 L 176 137 L 175 133 L 161 121 Z M 95 133 L 92 134 L 96 171 L 116 167 L 119 158 L 117 155 L 95 133 Z M 80 135 L 75 138 L 62 154 L 60 155 L 54 175 L 64 168 L 65 166 L 70 164 L 80 139 L 80 135 Z M 220 136 L 202 141 L 198 148 L 200 155 L 214 173 L 229 142 L 220 136 Z M 85 137 L 79 155 L 80 160 L 79 164 L 66 172 L 60 179 L 88 173 L 85 137 Z M 420 138 L 401 142 L 398 171 L 399 192 L 423 145 L 423 141 L 420 138 Z M 250 142 L 245 146 L 251 175 L 253 177 L 255 181 L 253 187 Q 246 188 245 185 L 247 178 L 242 147 L 236 145 L 219 178 L 220 183 L 241 210 L 278 194 L 281 186 L 263 161 L 261 159 L 257 153 L 255 151 L 250 142 Z M 441 143 L 444 163 L 448 175 L 452 179 L 451 183 L 447 185 L 444 184 L 443 182 L 444 177 L 437 150 L 435 155 L 432 228 L 436 230 L 455 206 L 453 200 Q 454 190 460 187 L 457 161 L 447 150 L 445 146 L 441 143 Z M 390 144 L 370 149 Q 372 159 366 163 L 375 176 L 377 177 L 389 193 L 391 192 L 394 151 Q 397 142 390 144 Z M 429 149 L 405 195 L 407 203 L 405 211 Q 404 215 407 214 L 418 229 L 422 230 L 425 227 L 427 176 L 429 165 L 429 149 Z M 176 150 L 156 161 L 153 164 L 153 177 L 150 181 L 160 194 L 167 190 L 168 189 L 174 186 L 176 192 L 162 198 L 183 224 L 184 223 L 184 154 Q 182 149 176 150 Z M 193 152 L 191 154 L 190 218 L 191 221 L 211 180 L 193 152 Z M 340 164 L 312 183 L 310 185 L 304 189 L 305 193 L 338 204 L 345 166 L 340 164 Z M 359 167 L 353 170 L 346 198 L 347 203 L 350 199 L 352 197 L 360 185 L 364 186 L 365 190 L 364 192 L 360 194 L 351 204 L 376 203 L 382 200 L 382 197 L 362 169 L 359 167 Z M 115 174 L 96 180 L 99 202 L 99 207 L 101 209 L 104 210 L 106 209 L 122 183 L 120 181 L 117 176 L 115 174 Z M 87 180 L 60 187 L 59 191 L 74 203 L 75 205 L 87 213 L 92 210 L 89 182 L 87 180 Z M 142 185 L 136 189 L 129 186 L 111 215 L 116 217 L 153 199 L 147 191 L 145 188 L 142 185 Z M 217 185 L 197 225 L 199 228 L 235 212 L 217 185 Z M 55 198 L 62 217 L 67 222 L 66 227 L 68 237 Q 77 237 81 232 L 80 218 L 55 198 Z M 155 200 L 146 207 L 118 221 L 116 223 L 116 234 L 149 252 L 143 232 L 141 230 L 138 227 L 139 223 L 146 220 L 148 223 L 148 234 L 156 254 L 173 242 L 175 240 L 176 232 L 175 227 L 164 213 L 162 211 L 155 200 Z M 303 200 L 296 205 L 293 209 L 292 230 L 292 232 L 291 246 L 298 244 L 314 229 L 315 227 L 334 211 L 303 200 Z M 50 201 L 48 246 L 65 240 L 56 213 L 50 201 Z M 280 201 L 245 216 L 247 221 L 253 223 L 256 228 L 254 232 L 252 233 L 246 232 L 244 225 L 242 222 L 241 219 L 205 234 L 203 236 L 251 246 L 256 242 L 257 240 L 263 237 L 272 221 L 274 218 L 281 204 L 280 201 Z M 287 208 L 267 243 L 265 245 L 261 248 L 273 251 L 282 246 L 285 239 Q 283 226 287 219 L 287 208 Z M 367 209 L 344 212 L 351 252 L 354 255 L 356 252 L 358 250 L 367 237 L 369 235 L 382 216 Q 386 214 382 212 L 382 209 L 367 209 Z M 462 210 L 459 211 L 454 219 L 452 220 L 443 233 L 446 238 L 446 252 L 448 252 L 457 239 L 462 220 L 462 210 Z M 467 211 L 464 232 L 466 239 L 461 241 L 450 256 L 466 265 L 472 262 L 473 261 L 474 234 L 473 231 L 474 225 L 474 223 L 470 213 L 467 211 Z M 339 216 L 336 219 L 334 221 L 326 228 L 324 230 L 314 239 L 310 243 L 300 250 L 299 254 L 301 255 L 337 257 L 345 259 L 349 259 L 340 218 L 339 216 Z M 399 217 L 390 218 L 368 247 L 366 248 L 356 264 L 372 287 L 377 285 L 378 280 Q 380 271 376 268 L 380 261 L 384 262 L 409 252 L 410 251 L 410 239 L 413 235 L 400 219 L 399 217 Z M 80 239 L 71 243 L 75 260 Q 78 268 72 266 L 66 245 L 52 252 L 58 260 L 64 265 L 73 277 L 77 279 L 88 243 Q 86 238 80 239 Z M 112 240 L 107 244 L 112 260 L 119 265 L 134 267 L 133 271 L 120 269 L 109 271 L 95 281 L 92 280 L 93 276 L 108 267 L 108 260 L 103 246 L 96 247 L 84 284 L 86 285 L 138 285 L 149 262 L 112 240 Z M 199 243 L 196 247 L 193 249 L 191 250 L 191 275 L 197 273 L 207 278 L 243 252 L 199 243 Z M 179 247 L 164 258 L 161 262 L 183 280 L 186 279 L 184 250 L 179 247 Z M 252 254 L 220 278 L 217 280 L 215 289 L 243 298 L 262 278 L 265 275 L 274 267 L 275 265 L 274 258 L 260 254 L 252 254 Z M 410 257 L 389 265 L 385 270 L 383 271 L 381 286 L 384 287 L 395 274 L 399 272 L 401 270 L 411 259 L 410 257 Z M 443 259 L 430 267 L 418 262 L 389 293 L 390 296 L 445 307 L 446 299 L 446 297 L 445 284 L 422 284 L 419 287 L 412 285 L 415 278 L 421 280 L 432 279 L 439 280 L 444 279 L 445 260 L 443 259 Z M 308 262 L 366 290 L 367 290 L 354 270 L 349 265 L 331 264 L 329 264 L 308 262 Z M 448 263 L 451 303 L 464 284 L 463 273 L 448 263 Z M 160 265 L 163 293 L 166 300 L 161 302 L 158 299 L 159 296 L 155 270 L 146 288 L 146 295 L 154 324 L 179 304 L 180 302 L 180 284 L 179 282 L 177 280 L 160 265 Z M 298 265 L 292 270 L 299 300 L 312 306 L 326 288 L 331 289 L 332 292 L 330 297 L 325 297 L 323 301 L 316 307 L 318 311 L 364 299 L 362 295 L 298 265 Z M 281 269 L 263 287 L 261 290 L 256 294 L 252 299 L 250 300 L 281 311 L 293 304 L 285 270 L 281 269 Z M 215 297 L 215 304 L 203 311 L 200 327 L 200 340 L 202 341 L 205 339 L 207 337 L 218 325 L 224 319 L 237 305 L 215 297 Z M 390 305 L 382 312 Q 371 314 369 308 L 367 306 L 318 319 L 317 332 L 307 339 L 308 351 L 312 359 L 354 318 L 396 317 L 398 317 L 425 318 L 426 321 L 424 322 L 357 322 L 342 334 L 338 340 L 334 342 L 331 347 L 318 359 L 315 364 L 343 385 L 357 388 L 403 378 L 406 373 L 412 369 L 414 367 L 426 354 L 369 353 L 367 351 L 375 348 L 401 349 L 403 349 L 419 348 L 421 348 L 423 349 L 426 348 L 429 349 L 430 343 L 417 343 L 414 345 L 409 343 L 365 343 L 357 350 L 369 359 L 411 359 L 413 360 L 411 364 L 367 364 L 352 352 Q 351 345 357 343 L 358 342 L 365 338 L 408 338 L 411 335 L 417 338 L 430 338 L 430 333 L 360 333 L 351 342 L 349 344 L 343 348 L 341 345 L 359 328 L 430 328 L 431 313 L 390 305 Z M 181 306 L 179 310 L 157 328 L 185 343 L 194 340 L 195 312 L 181 306 Z M 245 306 L 221 331 L 217 334 L 208 347 L 250 338 L 282 324 L 283 320 L 281 317 L 245 306 Z M 283 332 L 261 343 L 269 360 L 290 371 L 289 368 L 290 366 L 289 356 L 276 346 L 278 342 L 290 349 L 294 354 L 295 376 L 334 439 L 336 440 L 348 440 L 339 394 L 323 381 L 344 432 L 341 433 L 315 373 L 308 368 L 305 366 L 299 340 L 283 332 Z " /><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 306.5 142 L 319 145 L 320 150.5 L 319 153 Q 312.6 154.5 313 151.5 L 309.5 147 L 305 144.5 L 306.5 142 Z " /><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 261.5 318 L 266 319.5 L 263.5 325 L 253.5 324 L 240.5 329 Q 236.8 327.8 238 321.5 L 244.5 320 L 248.5 321 L 261.5 318 Z " /><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 336.5 319 L 340 320.5 L 340 323 L 332 330.5 L 327 334 L 325 337.5 L 321 340 L 317 346 L 313.5 346 L 312 343.5 L 313 341 L 336.5 319 Z " /><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 338.5 348 L 347 354 L 350.5 358 L 363.5 369 L 403 370 L 401.5 374 L 362.5 374 L 354 368 L 352.5 366 L 349 364 L 347.5 362 L 341 357 L 339.5 355 L 337.5 355 L 334 358.5 L 331 360 L 325.5 366 L 322.5 367 L 322 364.5 L 336.5 349 L 338.5 348 Z " /><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 338.5 363 L 362 380 Q 364.1 385.2 359.5 384 L 356 383 L 354.5 381 L 340 370 L 338 366.5 L 337 364.5 L 338.5 363 Z " /><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 304 371 L 307 372.5 L 319 395.5 L 319 401 L 315 399.5 L 304 375.5 L 304 371 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 0 0 L 500 0 L 500 500 L 0 500 L 0 0 Z M 286 45 L 277 52 L 251 50 L 240 50 L 210 57 L 198 51 L 189 53 L 183 61 L 133 73 L 95 107 L 90 106 L 79 110 Q 72 115 74 128 L 69 133 L 65 138 L 61 140 L 52 152 L 46 171 L 39 175 L 35 177 L 33 182 Q 31 195 40 199 L 39 240 Q 37 253 44 258 L 46 259 L 54 269 L 56 270 L 63 279 L 65 282 L 77 293 L 110 294 L 136 293 L 140 302 L 147 331 L 183 351 L 185 360 L 195 366 L 202 364 L 206 362 L 208 358 L 212 355 L 252 345 L 263 366 L 289 380 L 313 421 L 315 422 L 328 446 L 337 450 L 339 450 L 347 449 L 350 450 L 352 449 L 355 450 L 359 448 L 349 396 L 362 396 L 409 385 L 425 368 L 427 366 L 439 352 L 439 316 L 452 316 L 467 295 L 469 293 L 471 288 L 480 288 L 486 284 L 489 278 L 489 272 L 482 263 L 482 219 L 477 208 L 479 202 L 477 191 L 471 186 L 463 156 L 461 153 L 446 136 L 445 126 Q 441 118 428 119 L 416 106 L 415 104 L 403 91 L 397 84 L 373 75 L 370 68 L 364 62 Q 354 60 351 65 L 346 65 L 324 56 L 302 54 L 299 51 Q 295 45 286 45 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 242.5 58 L 269.5 60 L 276 62.5 L 277 67.5 L 246.5 110 L 239.5 107 L 233 110 L 224 95 L 222 93.5 L 207 71.5 L 209.5 71 L 239.5 79 L 242 81.5 L 244 88.5 Q 240.1 94.8 242 106 L 245 104.5 L 248 86.5 L 253 78.5 L 250.5 74 L 247.5 73 L 240.5 75 L 212 65.5 L 242.5 58 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 301.5 63 L 321.5 64 L 340 71.5 Q 332.6 75.6 319.5 74 L 313.5 72 L 311 78.5 Q 312.7 82.5 319 81 Q 317.7 77.7 322.5 79 Q 330.8 75.3 344.5 77 L 344.5 78 L 317.5 94 L 306.5 88 L 304 89 L 297 68.5 L 301.5 63 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 283.5 71 Q 289.8 69.8 291 73.5 L 297 93 L 292.5 95 L 290 97.5 L 289 108.5 L 290 115.5 L 292.5 118 L 299 122.5 L 291 175.5 L 288.5 180 L 285 178.5 L 256 137.5 L 258.5 132 L 284.5 140 L 295 141 L 293.5 138 L 258 128 L 258 117.5 L 255.5 115 L 254 112.5 L 283.5 71 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 174.5 72 L 178 72.5 L 143.5 95 L 132.5 97 L 130 99.5 Q 128.8 105.8 132.5 107 Q 138.8 108.3 140 104.5 L 141.5 101 L 179 79 L 177 83.5 L 164 102 L 162 103.5 L 155.5 112 L 153.5 112 L 101.5 115 L 110.5 105 L 117.5 99 L 136.5 81 L 174.5 72 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 199 77 L 203 79.5 L 205 84 L 207 85.5 L 227 115 L 220.5 117 L 211 114 L 209.5 110 L 203.5 109 L 201 115.5 L 202 118 L 207.5 119 L 212.5 118 L 223 122 L 220.5 129 L 199.5 134 L 193 127.5 L 193 120.5 L 199 77 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 189 78 L 191 80.5 L 184.5 128 L 180.5 129 L 166 116.5 L 164.5 115 L 165 113.5 L 189 78 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 369 83 L 390.5 90 L 401 100.5 L 412 114 L 414 115.5 L 419.5 122 L 421 123.5 L 421.5 125 L 387.5 111 L 385 110.5 L 369 83 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 348.5 84 L 354 86 L 352 108 L 323 106 L 323 99.5 L 324.5 99 L 348.5 84 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 361 88 L 364 89.5 L 376 110 L 359 109 L 361 94.5 L 361 92.5 L 361 88 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 323 110 L 352 112 L 350 130.5 L 346.5 134 L 341.5 136 L 325 118 L 323 116.5 L 322 114.5 L 323 110 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 359.5 112 L 361.5 114 L 378.5 114 L 382 117.5 L 392 135.5 L 388.5 138 L 369 142 L 366.5 138 L 357 132.5 L 359.5 112 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 389 116 L 420 130.5 L 400.5 134 L 389 116 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 150.5 118 L 153 119.5 L 138.5 150 L 132.5 149 L 125.5 153 L 102.5 129 L 101 127.5 L 101 125.5 Q 99.6 120.5 106.5 123 L 150.5 118 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 315.5 120 L 334 137 L 336 141.5 L 335 158.5 L 333.5 160 L 322 166 L 320.5 168 L 306 177 L 304.5 179 L 299.5 182 L 297 181 L 306 125 L 315.5 120 Z M 307 142 L 305 145 L 310 147 L 313 152 Q 313 155 319 153 L 320 151 L 319 145 L 307 142 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 160.5 121 L 175 133 L 176 136.5 L 173.5 144 L 148.5 156 L 146 152.5 L 160.5 121 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 94.5 133 L 117 154.5 L 119 157.5 L 115.5 167 L 96 171 L 92 134 L 94.5 133 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 79.5 135 L 80 138.5 L 70 164 L 65 166 L 63.5 168 L 54 175 L 60 155 L 62 153.5 L 75 138 L 79.5 135 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 219.5 136 L 229 141.5 L 213.5 173 L 200 154.5 L 198 147.5 L 201.5 141 L 219.5 136 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 84.5 137 L 88 173 L 59.5 179 L 65.5 172 L 79 163.5 L 80 159.5 L 79 154.5 L 84.5 137 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 419.5 138 L 423 140.5 L 423 144.5 L 398.5 192 L 398 170.5 L 401 142 L 419.5 138 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 249.5 142 L 255 151 L 257 152.5 L 261 159 L 263 160.5 L 281 185.5 L 277.5 194 L 240.5 210 L 220 182.5 L 219 177.5 L 235.5 145 L 242 147 L 247 177.5 L 245 184.5 Q 246.3 188.3 252.5 187 L 255 180.5 L 252.5 177 L 251 174.5 L 245 145.5 L 249.5 142 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 440.5 143 L 445 146 L 447 149.5 L 457 160.5 L 460 186.5 Q 453.5 190 453 199.5 L 455 205.5 L 435.5 230 L 432 227.5 L 435 154.5 L 436.5 150 L 444 176.5 L 443 181.5 L 444 184 L 446.5 185 L 451 182.5 L 452 178.5 L 448 174.5 L 444 162.5 L 440.5 143 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 389.5 144 Q 397.2 141.7 394 150.5 L 391 192 L 388.5 193 L 377 177 L 375 175.5 L 366 162.5 Q 372 159.3 370 149 L 389.5 144 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 428.5 149 L 429 164.5 L 427 175.5 L 425 226.5 L 421.5 230 L 418 228.5 L 407 214 Q 403.7 215.3 405 210.5 L 407 202.5 L 405 194.5 L 428.5 149 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 175.5 150 Q 182.4 149.1 184 153.5 L 184 222.5 L 182.5 224 L 162 197.5 L 176 191.5 L 173.5 186 L 168 188.5 L 166.5 190 L 159.5 194 L 150 180.5 L 153 176.5 L 153 163.5 L 155.5 161 L 175.5 150 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 192.5 152 L 211 179.5 L 190.5 221 L 190 217.5 L 191 153.5 L 192.5 152 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 339.5 164 L 345 166 L 338 204 L 305 193 L 304 188.5 L 310 185 L 311.5 183 L 339.5 164 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 358.5 167 L 362 168.5 L 382 196.5 L 382 199.5 L 375.5 203 Q 360 201.5 349.5 205 L 359.5 194 L 364 191.5 L 365 189.5 L 364 186 L 359.5 185 L 351.5 197 L 350 198.5 L 346.5 203 L 346 197.5 L 352.5 170 L 358.5 167 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 114.5 174 L 117 175.5 L 119.5 181 L 122 182.5 L 106 209 L 103.5 210 L 101 209 L 99 206.5 L 99 201.5 L 96 179.5 L 114.5 174 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 86.5 180 L 89 181.5 L 92 209.5 L 86.5 213 L 75 205 L 73.5 203 L 59 190.5 L 60 187 L 86.5 180 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 141.5 185 L 145 187.5 L 147 190.5 L 153 199 L 115.5 217 L 111 215 L 128.5 186 L 135.5 189 L 141.5 185 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 216.5 185 L 235 212 L 198.5 228 L 197 224.5 L 216.5 185 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 55 198 L 80 217.5 L 81 231.5 Q 77.3 237.4 68 237 L 66 226.5 L 67 221.5 L 62 216.5 L 55 198 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 154.5 200 L 162 211 L 164 212.5 L 175 226.5 L 176 231.5 L 175 239.5 L 172.5 242 L 155.5 254 L 148 233.5 L 148 222.5 L 145.5 220 L 139 222.5 L 138 226.5 L 140.5 230 L 143 231.5 L 149 252 L 116 233.5 L 116 222.5 L 117.5 221 L 145.5 207 L 154.5 200 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 302.5 200 L 334 210.5 L 315 227 L 313.5 229 L 297.5 244 L 291 246 L 292 231.5 L 292 229.5 L 293 208.5 L 295.5 205 L 302.5 200 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 49.5 201 L 56 212.5 L 65 240 L 48 246 L 49.5 201 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 279.5 201 L 281 203.5 L 274 218 L 272 220.5 L 263 237 L 257 240 L 255.5 242 L 250.5 246 L 203 236 L 204.5 234 L 240.5 219 L 242 222 L 244 224.5 L 246 232 L 251.5 233 L 254 232 L 256 227.5 L 252.5 223 L 247 220.5 L 245 216 L 279.5 201 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 286.5 208 L 287 218.5 Q 283.3 225.8 285 238.5 L 281.5 246 L 272.5 251 L 261 247.5 L 265 245 L 266.5 243 L 286.5 208 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 366.5 209 L 381.5 209 L 382 211.5 Q 386 213.5 382 215.5 L 369 235 L 367 236.5 L 358 250 L 356 251.5 L 353.5 255 L 351 251.5 L 344 212 L 366.5 209 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 461.5 210 L 462 219.5 L 457 238.5 L 448 252 L 446 251.5 L 446 237.5 L 443 232.5 L 452 220 L 454 218.5 L 459 211 L 461.5 210 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 467 211 L 470 212.5 L 474 222.5 L 474 224.5 L 473 230.5 L 474 233.5 L 473 260.5 L 471.5 262 L 465.5 265 L 450 256 L 460.5 241 L 466 238.5 L 464 231.5 L 467 211 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 338.5 216 L 340 217.5 L 349 258.5 L 344.5 259 L 336.5 257 L 300.5 255 L 299 253.5 L 300 250 L 310 243 L 313.5 239 L 324 230 L 325.5 228 L 334 221 L 335.5 219 L 338.5 216 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 398.5 217 L 400 218.5 L 413 234.5 L 410 238.5 L 410 250.5 L 408.5 252 L 383.5 262 L 379.5 261 L 376 267.5 Q 379.8 270.7 378 279.5 L 377 285 L 371.5 287 L 356 263.5 L 366 248 L 368 246.5 L 389.5 218 L 398.5 217 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 79.5 239 Q 86.4 238.1 88 242.5 L 76.5 279 L 73 276.5 L 64 265 L 58 259.5 L 52 251.5 L 65.5 245 L 72 266 Q 77.6 267.9 75 259.5 L 71 243 L 79.5 239 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 111.5 240 L 149 261.5 L 137.5 285 L 85.5 285 L 84 283.5 L 95.5 247 L 103 246 L 108 259.5 L 108 267 L 93 276 L 92 279.5 L 94.5 281 L 108.5 271 L 119.5 269 L 132.5 271 L 134 267 L 118.5 265 L 112 259.5 L 107 243.5 L 111.5 240 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 198.5 243 L 243 251.5 L 206.5 278 L 196.5 273 L 191 275 L 191 249.5 L 192.5 249 L 196 247 L 198.5 243 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 178.5 247 L 184 249.5 L 186 279 L 182.5 280 L 161 261.5 L 163.5 258 L 178.5 247 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 251.5 254 L 259.5 254 L 274 258 L 275 264.5 L 274 267 L 265 274.5 L 261.5 278 L 242.5 298 L 215 288.5 L 216.5 280 L 219.5 278 L 251.5 254 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 409.5 257 L 411 258.5 L 401 270 L 399 271.5 L 395 274 L 383.5 287 L 381 285.5 L 383 271 L 385 269.5 L 388.5 265 L 409.5 257 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 442.5 259 L 445 260 L 444 279 L 438.5 280 L 431.5 279 L 420.5 280 L 414.5 278 L 412 284.5 L 418.5 287 L 421.5 284 L 445 284 L 446 296.5 L 446 298.5 L 444.5 307 L 390 296 L 389 292.5 L 417.5 262 L 429.5 267 L 442.5 259 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 307.5 262 L 328.5 264 L 330.5 264 L 348.5 265 L 354 269.5 L 367 289.5 L 365.5 290 L 307.5 262 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 448 263 L 463 272.5 L 464 283.5 L 450.5 303 L 448 263 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 159.5 265 L 177 280 L 178.5 282 L 180 283.5 L 180 301.5 L 179 304 L 153.5 324 L 146 294.5 L 146 287.5 L 154.5 270 L 159 295.5 L 158 298.5 L 160.5 302 L 166 299.5 L 163 292.5 L 159.5 265 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 297.5 265 L 362 295 L 364 299 L 317.5 311 L 316 306.5 L 323 301 L 325 297 L 329.5 297 L 332 291.5 L 331 289 L 325.5 288 L 311.5 306 L 299 299.5 L 292 269.5 L 297.5 265 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 280.5 269 L 285 270 L 293 303.5 L 280.5 311 L 250 299.5 L 252 299 L 256 293.5 L 261 289.5 L 263 286.5 L 280.5 269 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 215 297 L 237 304.5 L 224 319 L 218 324.5 L 207 337 L 205 338.5 L 201.5 341 L 200 339.5 L 200 326.5 L 202.5 311 L 215 304 L 215 297 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 389.5 305 L 431 313 L 430 328 L 358.5 328 L 341 344.5 L 342.5 348 L 349 343.5 L 350.5 342 L 359.5 333 L 430 333 L 430 338 L 416.5 338 L 410.5 335 L 407.5 338 L 364.5 338 L 358 341.5 L 356.5 343 Q 350.7 344.7 352 352 L 366.5 364 L 410.5 364 L 413 360 L 410.5 359 L 368.5 359 L 357 349.5 L 364.5 343 L 408.5 343 L 413.5 345 L 416.5 343 L 430 343 L 428.5 349 L 425.5 348 L 422.5 349 L 420.5 348 L 418.5 348 L 402.5 349 L 400.5 349 L 374.5 348 L 367 350.5 L 368.5 353 L 426 353.5 L 414 367 L 412 368.5 L 406 373 L 402.5 378 L 356.5 388 L 342.5 385 L 315 363.5 L 317.5 359 L 330.5 347 L 334 342 L 337.5 340 L 342 334 L 356.5 322 L 423.5 322 L 426 321 L 424.5 318 L 397.5 317 L 395.5 317 L 353.5 318 L 311.5 359 L 308 350.5 L 307 338.5 L 317 331.5 L 318 319 L 367 306 L 368.5 308 Q 371.2 313.8 381.5 312 L 389.5 305 Z M 337 319 L 313 341 L 312 344 L 314 346 L 317 346 L 321 340 L 325 338 L 327 334 L 332 331 L 340 323 L 340 321 L 337 319 Z M 339 348 L 337 349 L 322 365 L 323 367 L 326 366 L 331 360 L 334 359 L 338 355 L 340 355 L 341 357 L 348 362 L 349 364 L 353 366 L 354 368 L 363 374 L 402 374 L 403 370 L 364 369 L 351 358 L 347 354 L 339 348 Z M 339 363 L 337 365 L 338 367 L 340 370 L 355 381 L 356 383 L 360 384 Q 364 385 362 380 L 339 363 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 181 306 L 195 312 L 194 340 L 184.5 343 L 157 327.5 L 179 310 L 181 306 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 244.5 306 L 280.5 317 L 283 319.5 L 281.5 324 L 249.5 338 L 208 347 L 217 334 L 221 330.5 L 244.5 306 Z M 262 318 L 249 321 L 245 320 L 238 322 Q 237 328 241 329 L 254 324 L 264 325 L 266 320 L 262 318 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 282.5 332 L 299 340 L 304.5 366 L 307.5 368 L 315 373 L 340.5 433 L 344 431.5 L 322 380.5 L 323.5 381 L 339 393.5 L 348 440 L 335.5 440 L 334 438.5 L 295 375.5 L 294 353.5 L 289.5 349 L 277.5 342 L 276 345.5 L 289 355.5 L 290 365.5 L 289 367.5 L 290 371 L 269 360 L 261 342.5 L 282.5 332 Z M 304 371 L 304 376 L 315 400 L 319 401 L 319 396 L 307 373 L 304 371 Z " /></svg></div><h2>M&eacute;moire Cognitive</h2><p style="color:var(--text-dim); margin-top:10px;">S&eacute;lectionnez un noeud dans l\'arborescence pour afficher ses souvenirs.</p></div>'; return; }
+    if(!currentNode){ el.innerHTML = '<div class="welcome" style="margin-top:15vh;"><div style="font-size:70px; color:var(--amber); display:inline-block; filter: drop-shadow(0 0 30px rgba(245,158,11,0.5)); margin-bottom: 20px;"><svg width="1em" height="1em" style="vertical-align: middle;" viewBox="0 0 500 500" version="1.1" xmlns="http://www.w3.org/2000/svg" desc="Created with imagetracer.js version 1.2.6" ><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 285.5 45 Q 295.5 44.5 299 50.5 L 301.5 54 L 323.5 56 L 345.5 65 L 350.5 65 Q 353.6 60.1 363.5 62 L 370 67.5 L 372.5 75 L 396.5 84 L 403 90.5 L 414.5 104 L 416 105.5 L 428 119 Q 440.5 117.8 445 125.5 L 446 135.5 L 461 153 L 463 155.5 L 470.5 186 L 477 190.5 L 479 201.5 L 477 207.5 L 482 218.5 L 482 262.5 L 489 271.5 L 489 277.5 L 486 284 L 479.5 288 L 471 288 L 469 293 L 467 294.5 L 451.5 316 L 439 316 L 439 351.5 L 427 366 L 425 367.5 L 408.5 385 L 361.5 396 L 349 396 L 359 447.5 L 354.5 450 L 351.5 449 L 349.5 450 L 346.5 449 L 338.5 450 L 336.5 450 L 328 445.5 L 315 422 L 313 420.5 L 289 380 L 263 366 L 251.5 345 L 211.5 355 L 208 357.5 L 206 362 L 201.5 364 L 194.5 366 L 185 359.5 L 182.5 351 L 147 330.5 L 140 301.5 L 135.5 293 L 109.5 294 L 76.5 293 L 65 281.5 L 63 278.5 L 56 270 L 54 268.5 L 46 259 L 44 257.5 Q 36.7 253.3 39 239.5 L 40 198.5 Q 31.3 195.3 33 181.5 L 35 177 L 38.5 175 L 46 170.5 L 52 151.5 L 61 140 L 65 137.5 L 69 132.5 L 74 127.5 Q 72.1 114.6 78.5 110 L 89.5 106 L 94.5 107 L 132.5 73 L 183 61 L 188.5 53 L 197.5 51 L 209.5 57 L 239.5 50 L 250.5 50 L 276.5 52 L 285.5 45 Z M 243 58 L 212 66 L 241 75 L 248 73 L 251 74 L 253 79 L 248 87 L 245 105 L 242 106 Q 240 95 244 89 L 242 82 L 240 79 L 210 71 L 207 72 L 222 94 L 224 95 L 233 110 L 240 107 L 247 110 L 277 68 L 276 63 L 270 60 L 243 58 Z M 302 63 L 297 69 L 304 89 L 307 88 L 318 94 L 345 78 L 345 77 Q 331 75 323 79 Q 318 78 319 81 Q 313 83 311 79 L 314 72 L 320 74 Q 333 76 340 72 L 322 64 L 302 63 Z M 284 71 L 254 113 L 256 115 L 258 118 L 258 128 L 294 138 L 295 141 L 285 140 L 259 132 L 256 138 L 285 179 L 289 180 L 291 176 L 299 123 L 293 118 L 290 116 L 289 109 L 290 98 L 293 95 L 297 93 L 291 74 Q 290 70 284 71 Z M 175 72 L 137 81 L 118 99 L 111 105 L 102 115 L 154 112 L 156 112 L 162 104 L 164 102 L 177 84 L 179 79 L 142 101 L 140 105 Q 139 108 133 107 Q 129 106 130 100 L 133 97 L 144 95 L 178 73 L 175 72 Z M 199 77 L 193 121 L 193 128 L 200 134 L 221 129 L 223 122 L 213 118 L 208 119 L 202 118 L 201 116 L 204 109 L 210 110 L 211 114 L 221 117 L 227 115 L 207 86 L 205 84 L 203 80 L 199 77 Z M 189 78 L 165 114 L 165 115 L 166 117 L 181 129 L 185 128 L 191 81 L 189 78 Z M 369 83 L 385 111 L 388 111 L 422 125 L 421 124 L 420 122 L 414 116 L 412 114 L 401 101 L 391 90 L 369 83 Z M 349 84 L 325 99 L 323 100 L 323 106 L 352 108 L 354 86 L 349 84 Z M 361 88 L 361 93 L 361 95 L 359 109 L 376 110 L 364 90 L 361 88 Z M 323 110 L 322 115 L 323 117 L 325 118 L 342 136 L 347 134 L 350 131 L 352 112 L 323 110 Z M 360 112 L 357 133 L 367 138 L 369 142 L 389 138 L 392 136 L 382 118 L 379 114 L 362 114 L 360 112 Z M 389 116 L 401 134 L 420 131 L 389 116 Z M 151 118 L 107 123 Q 100 120 101 126 L 101 128 L 103 129 L 126 153 L 133 149 L 139 150 L 153 120 L 151 118 Z M 316 120 L 306 125 L 297 181 L 300 182 L 305 179 L 306 177 L 321 168 L 322 166 L 334 160 L 335 159 L 336 142 L 334 137 L 316 120 Z M 161 121 L 146 153 L 149 156 L 174 144 L 176 137 L 175 133 L 161 121 Z M 95 133 L 92 134 L 96 171 L 116 167 L 119 158 L 117 155 L 95 133 Z M 80 135 L 75 138 L 62 154 L 60 155 L 54 175 L 64 168 L 65 166 L 70 164 L 80 139 L 80 135 Z M 220 136 L 202 141 L 198 148 L 200 155 L 214 173 L 229 142 L 220 136 Z M 85 137 L 79 155 L 80 160 L 79 164 L 66 172 L 60 179 L 88 173 L 85 137 Z M 420 138 L 401 142 L 398 171 L 399 192 L 423 145 L 423 141 L 420 138 Z M 250 142 L 245 146 L 251 175 L 253 177 L 255 181 L 253 187 Q 246 188 245 185 L 247 178 L 242 147 L 236 145 L 219 178 L 220 183 L 241 210 L 278 194 L 281 186 L 263 161 L 261 159 L 257 153 L 255 151 L 250 142 Z M 441 143 L 444 163 L 448 175 L 452 179 L 451 183 L 447 185 L 444 184 L 443 182 L 444 177 L 437 150 L 435 155 L 432 228 L 436 230 L 455 206 L 453 200 Q 454 190 460 187 L 457 161 L 447 150 L 445 146 L 441 143 Z M 390 144 L 370 149 Q 372 159 366 163 L 375 176 L 377 177 L 389 193 L 391 192 L 394 151 Q 397 142 390 144 Z M 429 149 L 405 195 L 407 203 L 405 211 Q 404 215 407 214 L 418 229 L 422 230 L 425 227 L 427 176 L 429 165 L 429 149 Z M 176 150 L 156 161 L 153 164 L 153 177 L 150 181 L 160 194 L 167 190 L 168 189 L 174 186 L 176 192 L 162 198 L 183 224 L 184 223 L 184 154 Q 182 149 176 150 Z M 193 152 L 191 154 L 190 218 L 191 221 L 211 180 L 193 152 Z M 340 164 L 312 183 L 310 185 L 304 189 L 305 193 L 338 204 L 345 166 L 340 164 Z M 359 167 L 353 170 L 346 198 L 347 203 L 350 199 L 352 197 L 360 185 L 364 186 L 365 190 L 364 192 L 360 194 L 351 204 L 376 203 L 382 200 L 382 197 L 362 169 L 359 167 Z M 115 174 L 96 180 L 99 202 L 99 207 L 101 209 L 104 210 L 106 209 L 122 183 L 120 181 L 117 176 L 115 174 Z M 87 180 L 60 187 L 59 191 L 74 203 L 75 205 L 87 213 L 92 210 L 89 182 L 87 180 Z M 142 185 L 136 189 L 129 186 L 111 215 L 116 217 L 153 199 L 147 191 L 145 188 L 142 185 Z M 217 185 L 197 225 L 199 228 L 235 212 L 217 185 Z M 55 198 L 62 217 L 67 222 L 66 227 L 68 237 Q 77 237 81 232 L 80 218 L 55 198 Z M 155 200 L 146 207 L 118 221 L 116 223 L 116 234 L 149 252 L 143 232 L 141 230 L 138 227 L 139 223 L 146 220 L 148 223 L 148 234 L 156 254 L 173 242 L 175 240 L 176 232 L 175 227 L 164 213 L 162 211 L 155 200 Z M 303 200 L 296 205 L 293 209 L 292 230 L 292 232 L 291 246 L 298 244 L 314 229 L 315 227 L 334 211 L 303 200 Z M 50 201 L 48 246 L 65 240 L 56 213 L 50 201 Z M 280 201 L 245 216 L 247 221 L 253 223 L 256 228 L 254 232 L 252 233 L 246 232 L 244 225 L 242 222 L 241 219 L 205 234 L 203 236 L 251 246 L 256 242 L 257 240 L 263 237 L 272 221 L 274 218 L 281 204 L 280 201 Z M 287 208 L 267 243 L 265 245 L 261 248 L 273 251 L 282 246 L 285 239 Q 283 226 287 219 L 287 208 Z M 367 209 L 344 212 L 351 252 L 354 255 L 356 252 L 358 250 L 367 237 L 369 235 L 382 216 Q 386 214 382 212 L 382 209 L 367 209 Z M 462 210 L 459 211 L 454 219 L 452 220 L 443 233 L 446 238 L 446 252 L 448 252 L 457 239 L 462 220 L 462 210 Z M 467 211 L 464 232 L 466 239 L 461 241 L 450 256 L 466 265 L 472 262 L 473 261 L 474 234 L 473 231 L 474 225 L 474 223 L 470 213 L 467 211 Z M 339 216 L 336 219 L 334 221 L 326 228 L 324 230 L 314 239 L 310 243 L 300 250 L 299 254 L 301 255 L 337 257 L 345 259 L 349 259 L 340 218 L 339 216 Z M 399 217 L 390 218 L 368 247 L 366 248 L 356 264 L 372 287 L 377 285 L 378 280 Q 380 271 376 268 L 380 261 L 384 262 L 409 252 L 410 251 L 410 239 L 413 235 L 400 219 L 399 217 Z M 80 239 L 71 243 L 75 260 Q 78 268 72 266 L 66 245 L 52 252 L 58 260 L 64 265 L 73 277 L 77 279 L 88 243 Q 86 238 80 239 Z M 112 240 L 107 244 L 112 260 L 119 265 L 134 267 L 133 271 L 120 269 L 109 271 L 95 281 L 92 280 L 93 276 L 108 267 L 108 260 L 103 246 L 96 247 L 84 284 L 86 285 L 138 285 L 149 262 L 112 240 Z M 199 243 L 196 247 L 193 249 L 191 250 L 191 275 L 197 273 L 207 278 L 243 252 L 199 243 Z M 179 247 L 164 258 L 161 262 L 183 280 L 186 279 L 184 250 L 179 247 Z M 252 254 L 220 278 L 217 280 L 215 289 L 243 298 L 262 278 L 265 275 L 274 267 L 275 265 L 274 258 L 260 254 L 252 254 Z M 410 257 L 389 265 L 385 270 L 383 271 L 381 286 L 384 287 L 395 274 L 399 272 L 401 270 L 411 259 L 410 257 Z M 443 259 L 430 267 L 418 262 L 389 293 L 390 296 L 445 307 L 446 299 L 446 297 L 445 284 L 422 284 L 419 287 L 412 285 L 415 278 L 421 280 L 432 279 L 439 280 L 444 279 L 445 260 L 443 259 Z M 308 262 L 366 290 L 367 290 L 354 270 L 349 265 L 331 264 L 329 264 L 308 262 Z M 448 263 L 451 303 L 464 284 L 463 273 L 448 263 Z M 160 265 L 163 293 L 166 300 L 161 302 L 158 299 L 159 296 L 155 270 L 146 288 L 146 295 L 154 324 L 179 304 L 180 302 L 180 284 L 179 282 L 177 280 L 160 265 Z M 298 265 L 292 270 L 299 300 L 312 306 L 326 288 L 331 289 L 332 292 L 330 297 L 325 297 L 323 301 L 316 307 L 318 311 L 364 299 L 362 295 L 298 265 Z M 281 269 L 263 287 L 261 290 L 256 294 L 252 299 L 250 300 L 281 311 L 293 304 L 285 270 L 281 269 Z M 215 297 L 215 304 L 203 311 L 200 327 L 200 340 L 202 341 L 205 339 L 207 337 L 218 325 L 224 319 L 237 305 L 215 297 Z M 390 305 L 382 312 Q 371 314 369 308 L 367 306 L 318 319 L 317 332 L 307 339 L 308 351 L 312 359 L 354 318 L 396 317 L 398 317 L 425 318 L 426 321 L 424 322 L 357 322 L 342 334 L 338 340 L 334 342 L 331 347 L 318 359 L 315 364 L 343 385 L 357 388 L 403 378 L 406 373 L 412 369 L 414 367 L 426 354 L 369 353 L 367 351 L 375 348 L 401 349 L 403 349 L 419 348 L 421 348 L 423 349 L 426 348 L 429 349 L 430 343 L 417 343 L 414 345 L 409 343 L 365 343 L 357 350 L 369 359 L 411 359 L 413 360 L 411 364 L 367 364 L 352 352 Q 351 345 357 343 L 358 342 L 365 338 L 408 338 L 411 335 L 417 338 L 430 338 L 430 333 L 360 333 L 351 342 L 349 344 L 343 348 L 341 345 L 359 328 L 430 328 L 431 313 L 390 305 Z M 181 306 L 179 310 L 157 328 L 185 343 L 194 340 L 195 312 L 181 306 Z M 245 306 L 221 331 L 217 334 L 208 347 L 250 338 L 282 324 L 283 320 L 281 317 L 245 306 Z M 283 332 L 261 343 L 269 360 L 290 371 L 289 368 L 290 366 L 289 356 L 276 346 L 278 342 L 290 349 L 294 354 L 295 376 L 334 439 L 336 440 L 348 440 L 339 394 L 323 381 L 344 432 L 341 433 L 315 373 L 308 368 L 305 366 L 299 340 L 283 332 Z " /><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 306.5 142 L 319 145 L 320 150.5 L 319 153 Q 312.6 154.5 313 151.5 L 309.5 147 L 305 144.5 L 306.5 142 Z " /><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 261.5 318 L 266 319.5 L 263.5 325 L 253.5 324 L 240.5 329 Q 236.8 327.8 238 321.5 L 244.5 320 L 248.5 321 L 261.5 318 Z " /><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 336.5 319 L 340 320.5 L 340 323 L 332 330.5 L 327 334 L 325 337.5 L 321 340 L 317 346 L 313.5 346 L 312 343.5 L 313 341 L 336.5 319 Z " /><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 338.5 348 L 347 354 L 350.5 358 L 363.5 369 L 403 370 L 401.5 374 L 362.5 374 L 354 368 L 352.5 366 L 349 364 L 347.5 362 L 341 357 L 339.5 355 L 337.5 355 L 334 358.5 L 331 360 L 325.5 366 L 322.5 367 L 322 364.5 L 336.5 349 L 338.5 348 Z " /><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 338.5 363 L 362 380 Q 364.1 385.2 359.5 384 L 356 383 L 354.5 381 L 340 370 L 338 366.5 L 337 364.5 L 338.5 363 Z " /><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 304 371 L 307 372.5 L 319 395.5 L 319 401 L 315 399.5 L 304 375.5 L 304 371 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 0 0 L 500 0 L 500 500 L 0 500 L 0 0 Z M 286 45 L 277 52 L 251 50 L 240 50 L 210 57 L 198 51 L 189 53 L 183 61 L 133 73 L 95 107 L 90 106 L 79 110 Q 72 115 74 128 L 69 133 L 65 138 L 61 140 L 52 152 L 46 171 L 39 175 L 35 177 L 33 182 Q 31 195 40 199 L 39 240 Q 37 253 44 258 L 46 259 L 54 269 L 56 270 L 63 279 L 65 282 L 77 293 L 110 294 L 136 293 L 140 302 L 147 331 L 183 351 L 185 360 L 195 366 L 202 364 L 206 362 L 208 358 L 212 355 L 252 345 L 263 366 L 289 380 L 313 421 L 315 422 L 328 446 L 337 450 L 339 450 L 347 449 L 350 450 L 352 449 L 355 450 L 359 448 L 349 396 L 362 396 L 409 385 L 425 368 L 427 366 L 439 352 L 439 316 L 452 316 L 467 295 L 469 293 L 471 288 L 480 288 L 486 284 L 489 278 L 489 272 L 482 263 L 482 219 L 477 208 L 479 202 L 477 191 L 471 186 L 463 156 L 461 153 L 446 136 L 445 126 Q 441 118 428 119 L 416 106 L 415 104 L 403 91 L 397 84 L 373 75 L 370 68 L 364 62 Q 354 60 351 65 L 346 65 L 324 56 L 302 54 L 299 51 Q 295 45 286 45 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 242.5 58 L 269.5 60 L 276 62.5 L 277 67.5 L 246.5 110 L 239.5 107 L 233 110 L 224 95 L 222 93.5 L 207 71.5 L 209.5 71 L 239.5 79 L 242 81.5 L 244 88.5 Q 240.1 94.8 242 106 L 245 104.5 L 248 86.5 L 253 78.5 L 250.5 74 L 247.5 73 L 240.5 75 L 212 65.5 L 242.5 58 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 301.5 63 L 321.5 64 L 340 71.5 Q 332.6 75.6 319.5 74 L 313.5 72 L 311 78.5 Q 312.7 82.5 319 81 Q 317.7 77.7 322.5 79 Q 330.8 75.3 344.5 77 L 344.5 78 L 317.5 94 L 306.5 88 L 304 89 L 297 68.5 L 301.5 63 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 283.5 71 Q 289.8 69.8 291 73.5 L 297 93 L 292.5 95 L 290 97.5 L 289 108.5 L 290 115.5 L 292.5 118 L 299 122.5 L 291 175.5 L 288.5 180 L 285 178.5 L 256 137.5 L 258.5 132 L 284.5 140 L 295 141 L 293.5 138 L 258 128 L 258 117.5 L 255.5 115 L 254 112.5 L 283.5 71 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 174.5 72 L 178 72.5 L 143.5 95 L 132.5 97 L 130 99.5 Q 128.8 105.8 132.5 107 Q 138.8 108.3 140 104.5 L 141.5 101 L 179 79 L 177 83.5 L 164 102 L 162 103.5 L 155.5 112 L 153.5 112 L 101.5 115 L 110.5 105 L 117.5 99 L 136.5 81 L 174.5 72 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 199 77 L 203 79.5 L 205 84 L 207 85.5 L 227 115 L 220.5 117 L 211 114 L 209.5 110 L 203.5 109 L 201 115.5 L 202 118 L 207.5 119 L 212.5 118 L 223 122 L 220.5 129 L 199.5 134 L 193 127.5 L 193 120.5 L 199 77 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 189 78 L 191 80.5 L 184.5 128 L 180.5 129 L 166 116.5 L 164.5 115 L 165 113.5 L 189 78 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 369 83 L 390.5 90 L 401 100.5 L 412 114 L 414 115.5 L 419.5 122 L 421 123.5 L 421.5 125 L 387.5 111 L 385 110.5 L 369 83 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 348.5 84 L 354 86 L 352 108 L 323 106 L 323 99.5 L 324.5 99 L 348.5 84 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 361 88 L 364 89.5 L 376 110 L 359 109 L 361 94.5 L 361 92.5 L 361 88 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 323 110 L 352 112 L 350 130.5 L 346.5 134 L 341.5 136 L 325 118 L 323 116.5 L 322 114.5 L 323 110 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 359.5 112 L 361.5 114 L 378.5 114 L 382 117.5 L 392 135.5 L 388.5 138 L 369 142 L 366.5 138 L 357 132.5 L 359.5 112 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 389 116 L 420 130.5 L 400.5 134 L 389 116 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 150.5 118 L 153 119.5 L 138.5 150 L 132.5 149 L 125.5 153 L 102.5 129 L 101 127.5 L 101 125.5 Q 99.6 120.5 106.5 123 L 150.5 118 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 315.5 120 L 334 137 L 336 141.5 L 335 158.5 L 333.5 160 L 322 166 L 320.5 168 L 306 177 L 304.5 179 L 299.5 182 L 297 181 L 306 125 L 315.5 120 Z M 307 142 L 305 145 L 310 147 L 313 152 Q 313 155 319 153 L 320 151 L 319 145 L 307 142 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 160.5 121 L 175 133 L 176 136.5 L 173.5 144 L 148.5 156 L 146 152.5 L 160.5 121 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 94.5 133 L 117 154.5 L 119 157.5 L 115.5 167 L 96 171 L 92 134 L 94.5 133 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 79.5 135 L 80 138.5 L 70 164 L 65 166 L 63.5 168 L 54 175 L 60 155 L 62 153.5 L 75 138 L 79.5 135 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 219.5 136 L 229 141.5 L 213.5 173 L 200 154.5 L 198 147.5 L 201.5 141 L 219.5 136 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 84.5 137 L 88 173 L 59.5 179 L 65.5 172 L 79 163.5 L 80 159.5 L 79 154.5 L 84.5 137 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 419.5 138 L 423 140.5 L 423 144.5 L 398.5 192 L 398 170.5 L 401 142 L 419.5 138 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 249.5 142 L 255 151 L 257 152.5 L 261 159 L 263 160.5 L 281 185.5 L 277.5 194 L 240.5 210 L 220 182.5 L 219 177.5 L 235.5 145 L 242 147 L 247 177.5 L 245 184.5 Q 246.3 188.3 252.5 187 L 255 180.5 L 252.5 177 L 251 174.5 L 245 145.5 L 249.5 142 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 440.5 143 L 445 146 L 447 149.5 L 457 160.5 L 460 186.5 Q 453.5 190 453 199.5 L 455 205.5 L 435.5 230 L 432 227.5 L 435 154.5 L 436.5 150 L 444 176.5 L 443 181.5 L 444 184 L 446.5 185 L 451 182.5 L 452 178.5 L 448 174.5 L 444 162.5 L 440.5 143 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 389.5 144 Q 397.2 141.7 394 150.5 L 391 192 L 388.5 193 L 377 177 L 375 175.5 L 366 162.5 Q 372 159.3 370 149 L 389.5 144 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 428.5 149 L 429 164.5 L 427 175.5 L 425 226.5 L 421.5 230 L 418 228.5 L 407 214 Q 403.7 215.3 405 210.5 L 407 202.5 L 405 194.5 L 428.5 149 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 175.5 150 Q 182.4 149.1 184 153.5 L 184 222.5 L 182.5 224 L 162 197.5 L 176 191.5 L 173.5 186 L 168 188.5 L 166.5 190 L 159.5 194 L 150 180.5 L 153 176.5 L 153 163.5 L 155.5 161 L 175.5 150 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 192.5 152 L 211 179.5 L 190.5 221 L 190 217.5 L 191 153.5 L 192.5 152 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 339.5 164 L 345 166 L 338 204 L 305 193 L 304 188.5 L 310 185 L 311.5 183 L 339.5 164 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 358.5 167 L 362 168.5 L 382 196.5 L 382 199.5 L 375.5 203 Q 360 201.5 349.5 205 L 359.5 194 L 364 191.5 L 365 189.5 L 364 186 L 359.5 185 L 351.5 197 L 350 198.5 L 346.5 203 L 346 197.5 L 352.5 170 L 358.5 167 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 114.5 174 L 117 175.5 L 119.5 181 L 122 182.5 L 106 209 L 103.5 210 L 101 209 L 99 206.5 L 99 201.5 L 96 179.5 L 114.5 174 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 86.5 180 L 89 181.5 L 92 209.5 L 86.5 213 L 75 205 L 73.5 203 L 59 190.5 L 60 187 L 86.5 180 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 141.5 185 L 145 187.5 L 147 190.5 L 153 199 L 115.5 217 L 111 215 L 128.5 186 L 135.5 189 L 141.5 185 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 216.5 185 L 235 212 L 198.5 228 L 197 224.5 L 216.5 185 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 55 198 L 80 217.5 L 81 231.5 Q 77.3 237.4 68 237 L 66 226.5 L 67 221.5 L 62 216.5 L 55 198 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 154.5 200 L 162 211 L 164 212.5 L 175 226.5 L 176 231.5 L 175 239.5 L 172.5 242 L 155.5 254 L 148 233.5 L 148 222.5 L 145.5 220 L 139 222.5 L 138 226.5 L 140.5 230 L 143 231.5 L 149 252 L 116 233.5 L 116 222.5 L 117.5 221 L 145.5 207 L 154.5 200 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 302.5 200 L 334 210.5 L 315 227 L 313.5 229 L 297.5 244 L 291 246 L 292 231.5 L 292 229.5 L 293 208.5 L 295.5 205 L 302.5 200 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 49.5 201 L 56 212.5 L 65 240 L 48 246 L 49.5 201 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 279.5 201 L 281 203.5 L 274 218 L 272 220.5 L 263 237 L 257 240 L 255.5 242 L 250.5 246 L 203 236 L 204.5 234 L 240.5 219 L 242 222 L 244 224.5 L 246 232 L 251.5 233 L 254 232 L 256 227.5 L 252.5 223 L 247 220.5 L 245 216 L 279.5 201 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 286.5 208 L 287 218.5 Q 283.3 225.8 285 238.5 L 281.5 246 L 272.5 251 L 261 247.5 L 265 245 L 266.5 243 L 286.5 208 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 366.5 209 L 381.5 209 L 382 211.5 Q 386 213.5 382 215.5 L 369 235 L 367 236.5 L 358 250 L 356 251.5 L 353.5 255 L 351 251.5 L 344 212 L 366.5 209 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 461.5 210 L 462 219.5 L 457 238.5 L 448 252 L 446 251.5 L 446 237.5 L 443 232.5 L 452 220 L 454 218.5 L 459 211 L 461.5 210 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 467 211 L 470 212.5 L 474 222.5 L 474 224.5 L 473 230.5 L 474 233.5 L 473 260.5 L 471.5 262 L 465.5 265 L 450 256 L 460.5 241 L 466 238.5 L 464 231.5 L 467 211 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 338.5 216 L 340 217.5 L 349 258.5 L 344.5 259 L 336.5 257 L 300.5 255 L 299 253.5 L 300 250 L 310 243 L 313.5 239 L 324 230 L 325.5 228 L 334 221 L 335.5 219 L 338.5 216 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 398.5 217 L 400 218.5 L 413 234.5 L 410 238.5 L 410 250.5 L 408.5 252 L 383.5 262 L 379.5 261 L 376 267.5 Q 379.8 270.7 378 279.5 L 377 285 L 371.5 287 L 356 263.5 L 366 248 L 368 246.5 L 389.5 218 L 398.5 217 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 79.5 239 Q 86.4 238.1 88 242.5 L 76.5 279 L 73 276.5 L 64 265 L 58 259.5 L 52 251.5 L 65.5 245 L 72 266 Q 77.6 267.9 75 259.5 L 71 243 L 79.5 239 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 111.5 240 L 149 261.5 L 137.5 285 L 85.5 285 L 84 283.5 L 95.5 247 L 103 246 L 108 259.5 L 108 267 L 93 276 L 92 279.5 L 94.5 281 L 108.5 271 L 119.5 269 L 132.5 271 L 134 267 L 118.5 265 L 112 259.5 L 107 243.5 L 111.5 240 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 198.5 243 L 243 251.5 L 206.5 278 L 196.5 273 L 191 275 L 191 249.5 L 192.5 249 L 196 247 L 198.5 243 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 178.5 247 L 184 249.5 L 186 279 L 182.5 280 L 161 261.5 L 163.5 258 L 178.5 247 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 251.5 254 L 259.5 254 L 274 258 L 275 264.5 L 274 267 L 265 274.5 L 261.5 278 L 242.5 298 L 215 288.5 L 216.5 280 L 219.5 278 L 251.5 254 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 409.5 257 L 411 258.5 L 401 270 L 399 271.5 L 395 274 L 383.5 287 L 381 285.5 L 383 271 L 385 269.5 L 388.5 265 L 409.5 257 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 442.5 259 L 445 260 L 444 279 L 438.5 280 L 431.5 279 L 420.5 280 L 414.5 278 L 412 284.5 L 418.5 287 L 421.5 284 L 445 284 L 446 296.5 L 446 298.5 L 444.5 307 L 390 296 L 389 292.5 L 417.5 262 L 429.5 267 L 442.5 259 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 307.5 262 L 328.5 264 L 330.5 264 L 348.5 265 L 354 269.5 L 367 289.5 L 365.5 290 L 307.5 262 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 448 263 L 463 272.5 L 464 283.5 L 450.5 303 L 448 263 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 159.5 265 L 177 280 L 178.5 282 L 180 283.5 L 180 301.5 L 179 304 L 153.5 324 L 146 294.5 L 146 287.5 L 154.5 270 L 159 295.5 L 158 298.5 L 160.5 302 L 166 299.5 L 163 292.5 L 159.5 265 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 297.5 265 L 362 295 L 364 299 L 317.5 311 L 316 306.5 L 323 301 L 325 297 L 329.5 297 L 332 291.5 L 331 289 L 325.5 288 L 311.5 306 L 299 299.5 L 292 269.5 L 297.5 265 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 280.5 269 L 285 270 L 293 303.5 L 280.5 311 L 250 299.5 L 252 299 L 256 293.5 L 261 289.5 L 263 286.5 L 280.5 269 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 215 297 L 237 304.5 L 224 319 L 218 324.5 L 207 337 L 205 338.5 L 201.5 341 L 200 339.5 L 200 326.5 L 202.5 311 L 215 304 L 215 297 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 389.5 305 L 431 313 L 430 328 L 358.5 328 L 341 344.5 L 342.5 348 L 349 343.5 L 350.5 342 L 359.5 333 L 430 333 L 430 338 L 416.5 338 L 410.5 335 L 407.5 338 L 364.5 338 L 358 341.5 L 356.5 343 Q 350.7 344.7 352 352 L 366.5 364 L 410.5 364 L 413 360 L 410.5 359 L 368.5 359 L 357 349.5 L 364.5 343 L 408.5 343 L 413.5 345 L 416.5 343 L 430 343 L 428.5 349 L 425.5 348 L 422.5 349 L 420.5 348 L 418.5 348 L 402.5 349 L 400.5 349 L 374.5 348 L 367 350.5 L 368.5 353 L 426 353.5 L 414 367 L 412 368.5 L 406 373 L 402.5 378 L 356.5 388 L 342.5 385 L 315 363.5 L 317.5 359 L 330.5 347 L 334 342 L 337.5 340 L 342 334 L 356.5 322 L 423.5 322 L 426 321 L 424.5 318 L 397.5 317 L 395.5 317 L 353.5 318 L 311.5 359 L 308 350.5 L 307 338.5 L 317 331.5 L 318 319 L 367 306 L 368.5 308 Q 371.2 313.8 381.5 312 L 389.5 305 Z M 337 319 L 313 341 L 312 344 L 314 346 L 317 346 L 321 340 L 325 338 L 327 334 L 332 331 L 340 323 L 340 321 L 337 319 Z M 339 348 L 337 349 L 322 365 L 323 367 L 326 366 L 331 360 L 334 359 L 338 355 L 340 355 L 341 357 L 348 362 L 349 364 L 353 366 L 354 368 L 363 374 L 402 374 L 403 370 L 364 369 L 351 358 L 347 354 L 339 348 Z M 339 363 L 337 365 L 338 367 L 340 370 L 355 381 L 356 383 L 360 384 Q 364 385 362 380 L 339 363 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 181 306 L 195 312 L 194 340 L 184.5 343 L 157 327.5 L 179 310 L 181 306 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 244.5 306 L 280.5 317 L 283 319.5 L 281.5 324 L 249.5 338 L 208 347 L 217 334 L 221 330.5 L 244.5 306 Z M 262 318 L 249 321 L 245 320 L 238 322 Q 237 328 241 329 L 254 324 L 264 325 L 266 320 L 262 318 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 282.5 332 L 299 340 L 304.5 366 L 307.5 368 L 315 373 L 340.5 433 L 344 431.5 L 322 380.5 L 323.5 381 L 339 393.5 L 348 440 L 335.5 440 L 334 438.5 L 295 375.5 L 294 353.5 L 289.5 349 L 277.5 342 L 276 345.5 L 289 355.5 L 290 365.5 L 289 367.5 L 290 371 L 269 360 L 261 342.5 L 282.5 332 Z M 304 371 L 304 376 L 315 400 L 319 401 L 319 396 L 307 373 L 304 371 Z " /></svg></div><h2>'+LaRuche.i18n.t('memory.welcomeTitle')+'</h2><p style="color:var(--text-dim); margin-top:10px;">'+LaRuche.i18n.t('memory.welcomeSubtitle')+'</p></div>'; return; }
     var nodeId = currentNode.node_id || '';
     // Editeur dedie pour le system prompt et la SOUL.
     if(isSystemEditor(nodeId)){ renderSystemEditor(el, nodeId); return; }
@@ -519,8 +646,8 @@ LaRuche.Memory = (function(){
     if(nd){ html += '<div class="mem2-nodedates">'+nd+'</div>'; }
     if(locked){
       html += '<div class="mem2-protnote">'+SVG.lock+
-        '<span>Noeud gere par le systeme. L\'agent ne peut pas le modifier'+
-        (readOnly ? ' (lecture seule).' : '.')+'</span></div>';
+        '<span>'+LaRuche.i18n.t('memory.systemProtectedNote')+
+        (readOnly ? LaRuche.i18n.t('memory.readOnly') : LaRuche.i18n.t('memory.notReadOnly'))+'</span></div>';
     }
     var children = currentNode.children || [];
     if(children.length){
@@ -532,38 +659,38 @@ LaRuche.Memory = (function(){
     var items = currentNode.items || [];
     var isSearch = nodeId.indexOf('recherche:')===0;
     if(!items.length){
-      html += '<div class="mem2-empty">Aucun souvenir dans ce noeud.</div>';
+      html += '<div class="mem2-empty">'+LaRuche.i18n.t('memory.noMemoriesInNode')+'</div>';
     } else {
       html += items.map(function(it){
         var id = it.id || '';
         var node = it.node_id || it.node || nodeId;
         var content = it.content || it.text || '';
-        var dis = locked ? ' disabled title="Gere par le systeme"' : '';
+        var dis = locked ? ' disabled title="'+LaRuche.i18n.t('memory.managedBySystem')+'"' : '';
         var acts = '';
         if(id){
           acts = '<span class="mem2-item-acts">';
           // L'edition reste possible sauf en lecture seule (tools.*).
-          if(!readOnly) acts += '<button class="mem2-iact" data-act="edit" data-id="'+esc(id)+'">Editer</button>';
+          if(!readOnly) acts += '<button class="mem2-iact" data-act="edit" data-id="'+esc(id)+'">'+LaRuche.i18n.t('memory.editBtn')+'</button>';
           // Mutations destructives cote agent : desactivees si protege.
-          acts += '<button class="mem2-iact" data-act="move" data-id="'+esc(id)+'" data-node="'+esc(node)+'"'+dis+'>Deplacer</button>'+
-            '<button class="mem2-iact danger" data-act="delete" data-id="'+esc(id)+'"'+dis+'>Suppr</button>'+
+          acts += '<button class="mem2-iact" data-act="move" data-id="'+esc(id)+'" data-node="'+esc(node)+'"'+dis+'>'+LaRuche.i18n.t('memory.moveBtn')+'</button>'+
+            '<button class="mem2-iact danger" data-act="delete" data-id="'+esc(id)+'"'+dis+'>'+LaRuche.i18n.t('memory.deleteBtn')+'</button>'+
           '</span>';
         }
         var isAgentCall = it.source === 'agent-call';
         var isAgentRunning = isAgentCall && content.indexOf('**Synthèse LaRuche :**') === -1 && content.indexOf('**Erreur LaRuche :**') === -1;
         var agentStatusIcon = '';
         if (isAgentRunning) {
-          agentStatusIcon = '<span class="agent-spinner" title="Agent en cours..." style="margin-left:6px; display:inline-block; width:10px; height:10px; border:2px solid var(--amber); border-right-color:transparent; border-radius:50%; animation:spin 1s linear infinite;"></span>';
+          agentStatusIcon = '<span class="agent-spinner" title="'+LaRuche.i18n.t('memory.agentRunningTitle')+'" style="margin-left:6px; display:inline-block; width:10px; height:10px; border:2px solid var(--amber); border-right-color:transparent; border-radius:50%; animation:spin 1s linear infinite;"></span>';
           acts = ''; // Hide actions while running
         } else if (isAgentCall) {
-          agentStatusIcon = '<span title="Terminé" style="margin-left:6px; color:var(--green); font-weight:bold;">✓</span>';
+          agentStatusIcon = '<span title="'+LaRuche.i18n.t('memory.agentDoneTitle')+'" style="margin-left:6px; color:var(--green); font-weight:bold;">✓</span>';
         }
         var extraClass = isAgentCall ? ' mem2-item-agent-call' : '';
         return '<div class="mem2-item' + extraClass + '" draggable="true" ondragstart="event.dataTransfer.setData(\'text/plain\',\''+esc(id)+'\')" data-itemwrap="'+esc(id)+'">'+
           '<div class="mem2-item-bar">'+
-            '<span class="mem2-item-id">'+esc(id || '(sans id)')+'</span>'+
+            '<span class="mem2-item-id">'+esc(id || LaRuche.i18n.t('memory.noId'))+'</span>'+
             (isAgentCall ? '<span style="margin-left:6px; font-weight:bold; font-size:10px;">[ Mission @LaRuche ]</span>' + agentStatusIcon : '') +
-            (locked ? '<span class="mem2-lock" title="Gere par le systeme">'+SVG.lock+'</span>' : '')+
+            (locked ? '<span class="mem2-lock" title="'+LaRuche.i18n.t('memory.managedBySystem')+'">'+SVG.lock+'</span>' : '')+
             '<span class="mem2-item-meta">'+esc(node)+(function(){var d=mem2Dates(it.created_at,it.updated_at);var s=formatSource(it.source);return (d?' · '+esc(d):'')+(s?' · '+s:'');})()+'</span>'+
             acts+
           '</div>'+
@@ -575,8 +702,8 @@ LaRuche.Memory = (function(){
     // bloc ajout (sauf recherche, noeud protege ou lecture seule)
     if(!isSearch && nodeId && !locked){
       html += '<div class="mem2-add">'+
-        '<textarea id="mem2AddText" placeholder="Nouveau souvenir (markdown, [[liens]] supportes)..."></textarea>'+
-        '<div style="margin-top:8px"><button class="mem2-btn-primary" id="mem2AddBtn">Ajouter a '+esc(nodeId)+'</button></div>'+
+        '<textarea id="mem2AddText" placeholder="'+LaRuche.i18n.t('memory.newMemoryPlaceholder')+'"></textarea>'+
+        '<div style="margin-top:8px"><button class="mem2-btn-primary" id="mem2AddBtn">'+LaRuche.i18n.t('memory.addToNode')+esc(nodeId)+'</button></div>'+
       '</div>';
     }
     el.innerHTML = html;
@@ -635,7 +762,7 @@ LaRuche.Memory = (function(){
     // Charge une fois les defauts codes pour PRE-REMPLIR identite/comportement (l'utilisateur
     // voit et edite le prompt complet, au lieu d'un champ vide).
     if(!isSoul && !_sysDefaults){
-      el.innerHTML = '<div class="mem2-empty">Chargement...</div>';
+      el.innerHTML = '<div class="mem2-empty">'+LaRuche.i18n.t('memory.loading')+'</div>';
       fetch(LaRuche.API.base+'/api/system/prompt-defaults').then(function(r){return r.json();})
         .then(function(d){ _sysDefaults = d || {}; renderSystemEditor(el, nodeId); })
         .catch(function(){ _sysDefaults = {}; renderSystemEditor(el, nodeId); });
@@ -662,27 +789,27 @@ LaRuche.Memory = (function(){
               : (nodeId === 'system.prompt_planning') ? (_sysDefaults.prompt_planning || '')
               : (_sysDefaults.identity || '');
     }
-    var title = isSoul ? 'SOUL — personnalite'
-              : (nodeId === 'system.behavior' ? 'Comportement'
-              : (nodeId === 'system.prompt_curateur' ? 'Prompt Curateur'
-              : (nodeId === 'system.prompt_extraction' ? 'Prompt Consolidation'
-              : (nodeId === 'system.prompt_planning' ? 'Prompt Planification' : 'Identite'))));
+    var title = isSoul ? LaRuche.i18n.t('memory.titleSoul')
+              : (nodeId === 'system.behavior' ? LaRuche.i18n.t('memory.titleBehavior')
+              : (nodeId === 'system.prompt_curateur' ? LaRuche.i18n.t('memory.titleCurateur')
+              : (nodeId === 'system.prompt_extraction' ? LaRuche.i18n.t('memory.titleExtraction')
+              : (nodeId === 'system.prompt_planning' ? LaRuche.i18n.t('memory.titlePlanning') : LaRuche.i18n.t('memory.titleIdentity')))));
     var icon = isSoul ? SVG.soul : (nodeId === 'system.behavior' ? SVG.system : SVG.prompt);
     var html = '<div class="mem2-syseditor">'+
       '<div class="mem2-syseditor-head">'+
         '<h3>'+icon+esc(title)+'</h3>'+
-        (isSoul ? '<label class="mem2-toggle"><input type="checkbox" id="mem2SoulToggle"'+(soulEnabled?' checked':'')+'><span class="mem2-toggle-track"></span><span>'+(soulEnabled?'Activee':'Desactivee')+'</span></label>' : '')+
+        (isSoul ? '<label class="mem2-toggle"><input type="checkbox" id="mem2SoulToggle"'+(soulEnabled?' checked':'')+'><span class="mem2-toggle-track"></span><span>'+(soulEnabled?LaRuche.i18n.t('memory.soulEnabled'):LaRuche.i18n.t('memory.soulDisabled'))+'</span></label>' : '')+
       '</div>'+
-      '<div class="mem2-protnote">'+SVG.lock+'<span>Gere par le systeme : l\'agent ne peut pas modifier ce contenu. Edition reservee a l\'administrateur ici.</span></div>'+
+      '<div class="mem2-protnote">'+SVG.lock+'<span>'+LaRuche.i18n.t('memory.systemProtectedAdmin')+'</span></div>'+
       (isSoul ? '' : '<div class="mem2-nodedates">'+(hasOverride
-          ? '✎ Personnalise : ce texte REMPLACE le defaut du code.'
-          : 'Defaut du code (pre-rempli) : c\'est ce texte qui est utilise tant que tu n\'enregistres pas. Edite-le pour le personnaliser ; il sera applique au prochain message, sans redemarrage.')+'</div>')+
-      '<textarea id="mem2SysText" spellcheck="false" placeholder="'+(isSoul?'Personnalite (format OKF avec frontmatter)...':'Texte de la section...')+'">'+esc(taValue)+'</textarea>'+
+          ? LaRuche.i18n.t('memory.customizedNote')
+          : LaRuche.i18n.t('memory.defaultNote'))+'</div>')+
+      '<textarea id="mem2SysText" spellcheck="false" placeholder="'+(isSoul?LaRuche.i18n.t('memory.soulPlaceholder'):LaRuche.i18n.t('memory.sectionPlaceholder'))+'">'+esc(taValue)+'</textarea>'+
       '<div class="mem2-syseditor-acts">'+
-        '<button class="mem2-btn-primary" id="mem2SysSave">Enregistrer</button>'+
-        '<button class="mem2-btn-ghost" id="mem2SysRestore">Restaurer le defaut</button>'+
+        '<button class="mem2-btn-primary" id="mem2SysSave">'+LaRuche.i18n.t('memory.saveBtn')+'</button>'+
+        '<button class="mem2-btn-ghost" id="mem2SysRestore">'+LaRuche.i18n.t('memory.restoreDefaultBtn')+'</button>'+
       '</div>'+
-      '<div class="mem2-syseditor-note">Le format des appels d\'outils et des plans reste gere par le systeme et n\'est pas editable ici.</div>'+
+      '<div class="mem2-syseditor-note">'+LaRuche.i18n.t('memory.systemFormatNote')+'</div>'+
     '</div>';
     el.innerHTML = html;
 
@@ -692,7 +819,7 @@ LaRuche.Memory = (function(){
     if(isSoul && toggle){
       var lbl = toggle.parentNode.querySelector('span:last-child');
       toggle.onchange = function(){
-        if(lbl) lbl.textContent = toggle.checked ? 'Activee' : 'Desactivee';
+        if(lbl) lbl.textContent = toggle.checked ? LaRuche.i18n.t('memory.soulEnabled') : LaRuche.i18n.t('memory.soulDisabled');
         // synchronise le frontmatter dans le textarea (conserve le corps)
         var p = parseSoul(ta.value);
         ta.value = buildSoul(toggle.checked, p.body);
@@ -707,7 +834,7 @@ LaRuche.Memory = (function(){
         content = buildSoul(toggle ? toggle.checked : p.enabled, p.body);
       } else {
         content = content.trim();
-        if(!content){ LaRuche.Toast.show('Contenu requis','warn'); return; }
+        if(!content){ LaRuche.Toast.show(LaRuche.i18n.t('memory.contentRequired'),'warn'); return; }
       }
       // ITEM UNIQUE : un nœud système = exactement un item. On supprime les anciens puis on écrit
       // (pas d'accumulation de versions).
@@ -715,23 +842,23 @@ LaRuche.Memory = (function(){
       Promise.all(oldIds.map(function(id){ return postJson('/api/memory/delete', {item_id:id, reason:'ui-admin'}); }))
         .then(function(){ return postJson('/api/memory/write', {node_id:nodeId, content:content, source:'ui-admin'}); })
         .then(function(d){
-          if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Ecriture impossible','err'); return; }
-          LaRuche.Toast.show((isSoul?'SOUL':'Section')+' enregistree','ok');
+          if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||LaRuche.i18n.t('memory.writeImpossible'),'err'); return; }
+          LaRuche.Toast.show(isSoul ? LaRuche.i18n.t('memory.soulSaved') : LaRuche.i18n.t('memory.sectionSaved'),'ok');
           loadNode(nodeId); loadStats();
-        }).catch(function(e){ LaRuche.Toast.show('Ecriture: '+e,'err'); });
+        }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.writeError')+e,'err'); });
     };
 
     document.getElementById('mem2SysRestore').onclick = function(){
-      if(!window.confirm('Restaurer le '+(isSoul?'SOUL':'system prompt')+' par defaut ? Le contenu actuel sera supprime.')) return;
+      if(!window.confirm(isSoul ? LaRuche.i18n.t('memory.restoreConfirmSoul') : LaRuche.i18n.t('memory.restoreConfirmPrompt'))) return;
       var ids = items.map(function(it){ return it.id; }).filter(Boolean);
-      if(!ids.length){ LaRuche.Toast.show('Deja au defaut (aucun item)','ok'); loadNode(nodeId); return; }
+      if(!ids.length){ LaRuche.Toast.show(LaRuche.i18n.t('memory.alreadyDefault'),'ok'); loadNode(nodeId); return; }
       Promise.all(ids.map(function(id){ return postJson('/api/memory/delete', {item_id:id, reason:'ui-admin-restore'}); }))
         .then(function(res){
           var bad = res.filter(function(d){ return d && (d.status==='error'||d.error); });
-          if(bad.length){ LaRuche.Toast.show('Suppression partielle: '+(bad[0].error||'?'),'err'); }
-          else LaRuche.Toast.show('Defaut restaure','ok');
+          if(bad.length){ LaRuche.Toast.show(LaRuche.i18n.t('memory.partialDelete')+(bad[0].error||'?'),'err'); }
+          else LaRuche.Toast.show(LaRuche.i18n.t('memory.defaultRestored'),'ok');
           loadNode(nodeId); loadStats();
-        }).catch(function(e){ LaRuche.Toast.show('Restauration: '+e,'err'); });
+        }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.restoreError')+e,'err'); });
     };
   }
 
@@ -751,9 +878,9 @@ LaRuche.Memory = (function(){
     box.className = 'mem2-edit';
     box.innerHTML = '<textarea>'+esc(cur)+'</textarea>'+
       '<div class="mem2-edit-acts">'+
-        '<button class="mem2-btn-primary" data-save>Enregistrer</button>'+
-        '<button class="mem2-btn-ghost" data-cancel>Annuler</button>'+
-        '<button class="mem2-btn-ghost" data-preview>Apercu</button>'+
+        '<button class="mem2-btn-primary" data-save>'+LaRuche.i18n.t('memory.saveBtn')+'</button>'+
+        '<button class="mem2-btn-ghost" data-cancel>'+LaRuche.i18n.t('memory.cancelBtn')+'</button>'+
+        '<button class="mem2-btn-ghost" data-preview>'+LaRuche.i18n.t('memory.previewBtn')+'</button>'+
       '</div>';
     wrap.appendChild(box);
     var ta = box.querySelector('textarea');
@@ -764,73 +891,73 @@ LaRuche.Memory = (function(){
     };
     box.querySelector('[data-save]').onclick = function(){
       var next = ta.value.trim();
-      if(!next){ LaRuche.Toast.show('Contenu requis','warn'); return; }
+      if(!next){ LaRuche.Toast.show(LaRuche.i18n.t('memory.contentRequired'),'warn'); return; }
       var node = (currentNode && (currentNode.node_id || currentNode.id)) || '';
       // Edit = supprime + réécrit, tagué 'ui-memory' → attribué à User dans le Feed
       // (l'update direct ne porte pas de src, donc serait attribué a LaRuche).
       postJson('/api/memory/delete', {item_id:id, reason:'ui-memory'})
         .then(function(){ return postJson('/api/memory/write', {node_id:node, content:next, source:'ui-memory'}); })
         .then(function(d){
-          if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Update impossible','err'); return; }
-          LaRuche.Toast.show('Souvenir mis a jour','ok');
+          if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||LaRuche.i18n.t('memory.updateImpossible'),'err'); return; }
+          LaRuche.Toast.show(LaRuche.i18n.t('memory.memoryUpdated'),'ok');
           box.remove();
           loadNode(node);
-        }).catch(function(e){ LaRuche.Toast.show('Update: '+e,'err'); });
+        }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.updateError')+e,'err'); });
     };
   }
 
   function deleteItem(id) {
-    if(!window.confirm('Supprimer ce souvenir ?')) return;
+    if(!window.confirm(LaRuche.i18n.t('memory.deleteConfirm'))) return;
     postJson('/api/memory/delete', {item_id:id, reason:'ui-memory'}).then(function(d){
-      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Suppression impossible','err'); return; }
+      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||LaRuche.i18n.t('memory.deleteImpossible'),'err'); return; }
       if(currentNode && currentNode.items) currentNode.items = currentNode.items.filter(function(it){ return String(it.id)!==String(id); });
-      LaRuche.Toast.show('Souvenir supprime','ok');
+      LaRuche.Toast.show(LaRuche.i18n.t('memory.memoryDeleted'),'ok');
       renderDoc(); loadStats();
-    }).catch(function(e){ LaRuche.Toast.show('Suppression: '+e,'err'); });
+    }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.deleteError')+e,'err'); });
   }
 
   function moveItem(id, fromNode) {
-    var next = window.prompt('Deplacer vers node_id', fromNode || '');
+    var next = window.prompt(LaRuche.i18n.t('memory.movePrompt'), fromNode || '');
     if(next == null) return; next = next.trim();
-    if(!next){ LaRuche.Toast.show('node_id requis','warn'); return; }
+    if(!next){ LaRuche.Toast.show(LaRuche.i18n.t('memory.nodeIdRequired'),'warn'); return; }
     postJson('/api/memory/move', {item_id:id, node_id:next}).then(function(d){
-      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Deplacement impossible','err'); return; }
+      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||LaRuche.i18n.t('memory.moveImpossible'),'err'); return; }
       mergeNodes([{id:next, label:next}]);
-      LaRuche.Toast.show('Souvenir deplace vers '+next,'ok');
+      LaRuche.Toast.show(LaRuche.i18n.t('memory.memoryMovedTo')+next,'ok');
       if(current) loadNode(current); else renderDoc();
-    }).catch(function(e){ LaRuche.Toast.show('Deplacement: '+e,'err'); });
+    }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.moveError')+e,'err'); });
   }
 
   function addItem(nodeId) {
     var ta = document.getElementById('mem2AddText'); if(!ta) return;
     var content = ta.value.trim();
-    if(!content){ LaRuche.Toast.show('Contenu requis','warn'); return; }
-    
+    if(!content){ LaRuche.Toast.show(LaRuche.i18n.t('memory.contentRequired'),'warn'); return; }
+
     // Intercept @LaRuche for memory enrichment
     if(content.toLowerCase().startsWith('@laruche')) {
       var prompt = content.substring(8).trim();
       ta.value = '';
       var w = document.querySelector('.mem2-add');
       if (w) w.classList.remove('is-agent-call');
-      LaRuche.Toast.show('Création de la mission...', 'info');
+      LaRuche.Toast.show(LaRuche.i18n.t('memory.missionCreating'), 'info');
       postJson('/api/memory/write', {node_id:nodeId, content:content, source:'agent-call'}).then(function(res){
-        if(res.status==='error' || res.error){ LaRuche.Toast.show(res.error||'Erreur creation','err'); return; }
+        if(res.status==='error' || res.error){ LaRuche.Toast.show(res.error||LaRuche.i18n.t('memory.missionCreateError'),'err'); return; }
         var itemId = res.result || res.id || res.item_id;
         if (res.result && typeof res.result === 'object') itemId = res.result.item_id || res.result.id;
         loadNode(nodeId);
         postJson('/api/memory/enrich', {node_id: nodeId, prompt: prompt, item_id: itemId}).then(function(d){
-          if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Erreur lancement agent','err'); return; }
-          LaRuche.Toast.show('Agent en mission !', 'ok');
-        }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e,'err'); });
-      }).catch(function(e){ LaRuche.Toast.show('Erreur creation: '+e,'err'); });
+          if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||LaRuche.i18n.t('memory.missionCreateError'),'err'); return; }
+          LaRuche.Toast.show(LaRuche.i18n.t('memory.agentOnMission'), 'ok');
+        }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.agentError')+e,'err'); });
+      }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.missionCreateErrorMsg')+e,'err'); });
       return;
     }
 
     postJson('/api/memory/write', {node_id:nodeId, content:content, source:'ui-memory'}).then(function(d){
-      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Ecriture impossible','err'); return; }
-      LaRuche.Toast.show('Souvenir memorise','ok');
+      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||LaRuche.i18n.t('memory.writeImpossible'),'err'); return; }
+      LaRuche.Toast.show(LaRuche.i18n.t('memory.memorySaved'),'ok');
       loadNode(nodeId); loadStats();
-    }).catch(function(e){ LaRuche.Toast.show('Ecriture: '+e,'err'); });
+    }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.writeError')+e,'err'); });
   }
 
   /* ---- vues / toolbar ---- */
@@ -853,7 +980,7 @@ LaRuche.Memory = (function(){
     a.href = url; a.download = ''; a.style.display = 'none';
     document.body.appendChild(a); a.click();
     setTimeout(function(){ a.remove(); }, 0);
-    LaRuche.Toast.show('Telechargement OKF lance'+(nodeId?(' ('+nodeId+')'):' (tout)'),'ok');
+    LaRuche.Toast.show(LaRuche.i18n.t('memory.downloadStarted')+(nodeId?(' ('+nodeId+')'):LaRuche.i18n.t('memory.downloadAll')),'ok');
   }
 
   function exportOkf(){
@@ -866,13 +993,13 @@ LaRuche.Memory = (function(){
       'border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:4px;min-width:200px;';
     var btnNode = document.createElement('button');
     btnNode.className = 'mem2-tbtn';
-    btnNode.textContent = current ? ('Exporter ce noeud ('+current+')') : 'Exporter ce noeud (aucun selectionne)';
+    btnNode.textContent = current ? (LaRuche.i18n.t('memory.exportNodeBtn')+current+')') : LaRuche.i18n.t('memory.exportNodeNone');
     btnNode.disabled = !current;
     if(!current) btnNode.style.opacity = '.5';
     btnNode.onclick = function(){ menu.remove(); if(current) downloadExportZip(current); };
     var btnAll = document.createElement('button');
     btnAll.className = 'mem2-tbtn';
-    btnAll.textContent = 'Exporter tout';
+    btnAll.textContent = LaRuche.i18n.t('memory.exportAllBtn');
     btnAll.onclick = function(){ menu.remove(); downloadExportZip(null); };
     menu.appendChild(btnNode);
     menu.appendChild(btnAll);
@@ -923,7 +1050,7 @@ LaRuche.Memory = (function(){
   function importOkf() {
     // Refuse l'import dans un noeud courant protege (system.*, capacities.*, tools.*).
     if(current && isProtected(current)){
-      LaRuche.Toast.show('Noeud courant protege : import interdit ici','err');
+      LaRuche.Toast.show(LaRuche.i18n.t('memory.systemDropForbidden'),'err');
       return;
     }
     var inp = document.createElement('input');
@@ -934,7 +1061,7 @@ LaRuche.Memory = (function(){
       var done = 0, written = 0, errors = 0;
       function finish(){
         if(done < files.length) return;
-        LaRuche.Toast.show('Import: '+written+' item(s)'+(errors?(', '+errors+' erreur(s)'):''), errors?'err':'ok');
+        LaRuche.Toast.show(LaRuche.i18n.t('memory.importResult')+written+LaRuche.i18n.t('memory.importItems')+(errors?(', '+errors+LaRuche.i18n.t('memory.importErrors')):''), errors?'err':'ok');
         loaded=false; nodes={}; loadTree();
       }
       files.forEach(function(file){
@@ -963,15 +1090,15 @@ LaRuche.Memory = (function(){
     // n'est pas système, on le consolide ; sinon passe globale sur les nœuds surchargés.
     var node = (current && current.indexOf('system')!==0 && current.indexOf('capacities')!==0 && current.indexOf('recherche:')!==0) ? current : '';
     var url = LaRuche.API.base+'/api/memory/consolidate'+(node?('?node='+encodeURIComponent(node)):'');
-    var scope = node ? ('« '+node+' »') : 'mémoire (nœuds surchargés)';
-    LaRuche.Toast.show('Consolidation de '+scope+'… (peut prendre quelques secondes)','ok');
+    var scope = node ? ('« '+node+' »') : LaRuche.i18n.t('memory.consolidateAllScope');
+    LaRuche.Toast.show(LaRuche.i18n.t('memory.consolidatingScope')+scope+LaRuche.i18n.t('memory.consolidatingWait'),'ok');
     fetch(url, {method:'POST'}).then(function(r){return r.json();}).then(function(res){
-      if(res.error){ LaRuche.Toast.show('Erreur: '+res.error,'err'); return; }
-      var n = (res.consolidated!=null) ? res.consolidated+' nœud(s) consolidé(s)'
-            : (res.before!=null ? (res.before+'→'+res.after+' items') : 'fait');
-      LaRuche.Toast.show('Consolidation: '+n,'ok');
+      if(res.error){ LaRuche.Toast.show(LaRuche.i18n.t('memory.consolidateError')+res.error,'err'); return; }
+      var n = (res.consolidated!=null) ? res.consolidated+LaRuche.i18n.t('memory.nodesConsolidated')
+            : (res.before!=null ? (res.before+'→'+res.after+' items') : LaRuche.i18n.t('memory.consolidateDone'));
+      LaRuche.Toast.show(LaRuche.i18n.t('memory.consolidationResult')+n,'ok');
       loaded=false; nodes={}; loadTree(); if(node) loadNode(node);
-    }).catch(function(e){ LaRuche.Toast.show('Consolidation: '+e,'err'); });
+    }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.consolidationResult')+e,'err'); });
   }
 
   /* ---- vue graphe (bonus A4) ---- */
@@ -984,7 +1111,7 @@ LaRuche.Memory = (function(){
   function renderGraph() {
     var svg = document.getElementById('mem2Graph'); if(!svg) return;
     var ids = Object.keys(nodes);
-    if(!ids.length){ svg.innerHTML='<text x="500" y="350" text-anchor="middle" fill="var(--text-muted)" font-size="16">Aucun noeud</text>'; return; }
+    if(!ids.length){ svg.innerHTML='<text x="500" y="350" text-anchor="middle" fill="var(--text-muted)" font-size="16">'+LaRuche.i18n.t('memory.noNodes')+'</text>'; return; }
     var cols = Math.max(3, Math.ceil(Math.sqrt(ids.length)));
     var gapX=170, gapY=140, r=52, startX=120, startY=90;
     var html = '<defs><filter id="mem2Glow"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
@@ -1012,24 +1139,24 @@ LaRuche.Memory = (function(){
   }
 
   function deleteNode(id) {
-    if(!window.confirm('Voulez-vous vraiment supprimer le dossier "'+id+'" et tout son contenu de maniere irreversible ?')) return;
+    if(!window.confirm(LaRuche.i18n.t('memory.deleteFolderConfirm')+id+LaRuche.i18n.t('memory.deleteFolderConfirm2'))) return;
     fetch(LaRuche.API.base+'/api/memory/node/delete', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body:JSON.stringify({node_id:id})
     }).then(function(r){return r.json();}).then(function(d){
       if(d.error) { LaRuche.Toast.show(d.error, 'err'); return; }
-      LaRuche.Toast.show('Dossier supprime', 'ok');
+      LaRuche.Toast.show(LaRuche.i18n.t('memory.folderDeleted'), 'ok');
       if(current === id) current = null;
       delete nodes[id];
       Object.keys(nodes).forEach(function(k){ if(k.indexOf(id+'.') === 0) delete nodes[k]; });
       renderTree();
       renderDoc();
       loadTree(false);
-    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+    }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.errorMsg')+e, 'err'); });
   }
 
   function renameNode(id, oldLabel) {
-    var newLabel = window.prompt('Nouveau nom pour le dossier:', oldLabel);
+    var newLabel = window.prompt(LaRuche.i18n.t('memory.renamePrompt'), oldLabel);
     if(!newLabel || newLabel === oldLabel) return;
     fetch(LaRuche.API.base+'/api/memory/node/update', {
       method:'POST', headers:{'Content-Type':'application/json'},
@@ -1037,11 +1164,11 @@ LaRuche.Memory = (function(){
     }).then(function(r){return r.json();}).then(function(d){
       if(d.error) { LaRuche.Toast.show(d.error, 'err'); return; }
       loadTree(false);
-    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+    }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.errorMsg')+e, 'err'); });
   }
 
   function createSubnode(parentId) {
-    var label = window.prompt('Nom du nouveau sous-dossier:');
+    var label = window.prompt(LaRuche.i18n.t('memory.newSubfolderPrompt'));
     if(!label) return;
     // Generate an ID based on label (lowercase, no spaces)
     var slug = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
@@ -1054,7 +1181,7 @@ LaRuche.Memory = (function(){
       if(d.error) { LaRuche.Toast.show(d.error, 'err'); return; }
       expanded[parentId] = true;
       loadTree(false);
-    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+    }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.errorMsg')+e, 'err'); });
   }
 
   function toggleAll(forceOpen) {
