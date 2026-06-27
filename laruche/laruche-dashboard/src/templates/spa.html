@@ -10225,7 +10225,9 @@ LaRuche.Mesh = (function(){
       var o=sel.options[i], d=document.createElement('div');
       d.textContent=o.text; d.dataset.value=o.value;
       if(o.selected) d.className='active';
-      d.onclick=function(){ sel.value=this.dataset.value; sel.onchange(); drop.classList.remove('open'); };
+      // dispatchEvent (et non sel.onchange()) → déclenche AUSSI les listeners addEventListener
+      // (dont _updateLabel) : le label sbModelLabel se met à jour immédiatement, sans F5.
+      d.onclick=function(){ sel.value=this.dataset.value; sel.dispatchEvent(new Event('change')); sel._updateLabel(); buildDrop(); drop.classList.remove('open'); };
       drop.appendChild(d);
     }
   }
