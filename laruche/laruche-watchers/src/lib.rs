@@ -108,8 +108,12 @@ impl WatchersRegistry {
         active: Option<bool>,
         model: Option<Option<String>>,
         profile_id: Option<Option<String>>,
+        channel: Option<Option<String>>,
     ) -> bool {
         if let Some(w) = self.watchers.get_mut(id) {
+            if let Some(v) = channel {
+                w.channel = v;
+            }
             if let Some(v) = name {
                 w.name = v;
             }
@@ -281,6 +285,7 @@ mod tests {
             target: target.clone(),
             condition: "".into(),
             prompt: "Do something".into(),
+            channel: None,
             active: true,
             created_at: Utc::now(),
             last_run: None,

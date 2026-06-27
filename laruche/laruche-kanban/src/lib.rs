@@ -329,8 +329,8 @@ mod tests {
         let path = dir.path().join("board.json");
         let mut board = KanbanBoard::new(&path);
 
-        let t1 = board.create("Task 1".into(), "Desc 1".into(), None, None, None);
-        let t2 = board.create("Task 2".into(), "Desc 2".into(), None, None, None);
+        let t1 = board.create("Task 1".into(), "Desc 1".into(), None, None, None, None);
+        let t2 = board.create("Task 2".into(), "Desc 2".into(), None, None, None, None);
 
         // t2 depends on t1
         board.add_dependency(t2.id, t1.id);
@@ -351,8 +351,8 @@ mod tests {
         let path = dir.path().join("board.json");
         let mut board = KanbanBoard::new(&path);
 
-        let t1 = board.create("A".into(), "B".into(), Some("my_key".into()), None, None);
-        let t2 = board.create("C".into(), "D".into(), Some("my_key".into()), None, None);
+        let t1 = board.create("A".into(), "B".into(), Some("my_key".into()), None, None, None);
+        let t2 = board.create("C".into(), "D".into(), Some("my_key".into()), None, None, None);
 
         assert_eq!(t1.id, t2.id);
         assert_eq!(board.list().len(), 1);
@@ -364,8 +364,8 @@ mod tests {
         let path = dir.path().join("board.json");
         let mut board = KanbanBoard::new(&path);
 
-        let first = board.create("First".into(), "".into(), None, None, None);
-        let ready = board.create("Ready".into(), "".into(), None, None, None);
+        let first = board.create("First".into(), "".into(), None, None, None, None);
+        let ready = board.create("Ready".into(), "".into(), None, None, None, None);
         board.change_status(ready.id, TaskStatus::Ready);
 
         assert_eq!(board.next_ready().unwrap().id, ready.id);
@@ -380,8 +380,8 @@ mod tests {
         let path = dir.path().join("board.json");
         let mut board = KanbanBoard::new(&path);
 
-        let parent = board.create("Parent".into(), "".into(), None, None, None);
-        let child = board.create("Child".into(), "".into(), None, None, None);
+        let parent = board.create("Parent".into(), "".into(), None, None, None, None);
+        let child = board.create("Child".into(), "".into(), None, None, None, None);
         assert!(board.add_dependency(child.id, parent.id));
         board.change_status(parent.id, TaskStatus::Archived);
 

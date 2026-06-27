@@ -8028,6 +8028,7 @@ LaRuche.Settings = (function(){
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Prompt</label><input id="nwPrompt" class="form-input"></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Provider</label><select id="watcher-profile" class="form-input" onchange="LaRuche.Settings.updateWatcherModelSelect()">'+profOpts+'</select></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Mod&egrave;le</label><select id="watcher-model" class="form-input"><option value="">(Par défaut)</option></select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Canal (déclenchement → notification)</label><select id="nwChannel" class="form-input"><option value="">Home channel (défaut)</option></select></div>'+
       '<button class="settings-save-btn" onclick="LaRuche.Settings.createWatcher()">Create</button></div>'+
       watchers.map(function(w){
         var effProv = "Défaut";
@@ -8036,6 +8037,7 @@ LaRuche.Settings = (function(){
         else if(w.model) effProv = w.model;
         if(w.profile_id && w.model) effProv += " (" + w.model + ")";
         return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.Utils.esc(w.name)+'</div><div class="settings-row"><span class="settings-label">Type</span><span class="settings-value">'+LaRuche.Utils.esc(w.watcher_type)+'</span></div><div class="settings-row"><span class="settings-label">Target</span><span class="settings-value">'+LaRuche.Utils.esc(w.target)+'</span></div><div class="settings-row"><span class="settings-label">Provider/Model</span><span class="settings-value">'+LaRuche.Utils.esc(effProv)+'</span></div><div class="settings-row"><span class="settings-label">Runs</span><span class="settings-value">'+(w.run_count||0)+'</span></div><div style="margin-top:6px;display:flex;gap:6px"><button onclick="LaRuche.Settings.editWatcher(\''+w.id+'\')" style="background:none;border:1px solid var(--amber);color:var(--amber);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">Éditer</button><button onclick="fetch(\'/api/watchers/'+w.id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">Delete</button></div></div>';}).join('');
+    window.__fillChannels(document.getElementById('nwChannel'), '', 'Home channel (défaut)');
   }
 
   function createWatcher() {
@@ -8048,9 +8050,11 @@ LaRuche.Settings = (function(){
     var modEl=document.getElementById('watcher-model');
     var profile_id = profEl ? profEl.value : '';
     var model = modEl ? modEl.value : '';
+    var chEl=document.getElementById('nwChannel'); var channel = chEl ? chEl.value : '';
     var body={name:name,watcher_type:type,target:target,condition:cond,prompt:prompt};
     if(profile_id) body.profile_id = profile_id;
     if(model) body.model = model;
+    if(channel) body.channel = channel;
     fetch('/api/watchers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(){loadTab('watchers');LaRuche.Toast.show('Watcher created','ok');});
   }
 
@@ -8078,10 +8082,12 @@ LaRuche.Settings = (function(){
       '<label class="form-label">Prompt</label><textarea class="form-input" id="wePrompt" rows="3">'+LaRuche.Utils.esc(w.prompt||'')+'</textarea>'+
       '<label class="form-label">Provider</label><select class="form-input" id="weProfile" onchange="LaRuche.Settings.updateWatcherEditModelSelect()">'+profOpts+'</select>'+
       '<label class="form-label">Modèle</label><select class="form-input" id="weModel">'+modOpts+'</select>'+
+      '<label class="form-label">Canal</label><select class="form-input" id="weChannel"><option value="">Home channel (défaut)</option></select>'+
       '<label class="form-label" style="display:flex;align-items:center;gap:8px;margin-top:8px"><input type="checkbox" id="weActive" '+(w.active?'checked':'')+'> Actif</label>'+
       '<div style="margin-top:12px;display:flex;gap:8px"><button class="form-btn" onclick="LaRuche.Settings.saveWatcherEdit(\''+id+'\',this)">Enregistrer</button>'+
       '<button class="form-btn" style="background:none;border:1px solid var(--border);color:var(--text-dim)" onclick="this.closest(\'div[style*=fixed]\')&&this.closest(\'div[style*=fixed]\').remove()">Annuler</button></div></div>';
     document.body.appendChild(ov);
+    window.__fillChannels(document.getElementById('weChannel'), (w&&w.channel)||'', 'Home channel (défaut)');
   }
 
   function updateWatcherEditModelSelect() {
@@ -8100,7 +8106,8 @@ LaRuche.Settings = (function(){
       prompt: document.getElementById('wePrompt').value,
       active: document.getElementById('weActive').checked,
       profile_id: document.getElementById('weProfile').value,
-      model: document.getElementById('weModel').value
+      model: document.getElementById('weModel').value,
+      channel: document.getElementById('weChannel')?document.getElementById('weChannel').value:''
     };
     fetch(LaRuche.API.base+'/api/watchers/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
       .then(function(r){ if(r.ok){ LaRuche.Toast.show('Watcher modifié','ok'); var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove(); refreshTab(); } else { LaRuche.Toast.show('Échec modification','err'); } });
@@ -8434,10 +8441,16 @@ LaRuche.Settings = (function(){
       '<div style="flex:2;min-width:160px"><label class="form-label">Description</label><input class="form-input" id="kanban-desc" placeholder="Détails..."></div>' +
       '<div style="flex:1;min-width:130px"><label class="form-label">Provider</label><select class="form-input" id="kanban-profile" onchange="LaRuche.Settings.updateKanbanModelSelect()">'+profOpts+'</select></div>' +
       '<div style="flex:1;min-width:130px"><label class="form-label">Mod&egrave;le</label><select class="form-input" id="kanban-model"><option value="">(Par défaut)</option></select></div>' +
+      '<div style="flex:1;min-width:150px"><label class="form-label">Canal</label><select class="form-input" id="kanban-channel"><option value="">Défaut du board</option></select></div>' +
       '<button class="form-btn" onclick="LaRuche.Settings.createKanbanTask()">Créer</button></div>' +
-      '<div style="display:flex;justify-content:flex-end;margin-bottom:10px"><div id="kanbanViewToggle" style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">'+kanbanToggleInner()+'</div></div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">' +
+        '<div style="display:flex;align-items:center;gap:6px"><label class="form-label" style="margin:0">Canal par défaut du board</label>' +
+        '<select class="form-input" id="kanban-default-channel" style="width:auto" onchange="LaRuche.Settings.setKanbanDefaultChannel(this.value)"><option value="">Aucun (→ home channel)</option></select></div>' +
+        '<div id="kanbanViewToggle" style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">'+kanbanToggleInner()+'</div></div>' +
       '<div id="kanbanCols"></div>';
     _kanbanLast='';
+    window.__fillChannels(document.getElementById('kanban-channel'), '', 'Défaut du board');
+    try{ var dc=await fetch('/api/kanban/default_channel').then(function(r){return r.json();}); window.__fillChannels(document.getElementById('kanban-default-channel'), (dc&&dc.channel)||'', 'Aucun (→ home channel)'); }catch(e){}
     await refreshKanbanCols();
     if(_kanbanTimer) clearInterval(_kanbanTimer);
     // Auto-refresh (l'agent/daemon peuvent modifier le board) : re-render seulement
@@ -8483,13 +8496,18 @@ LaRuche.Settings = (function(){
     host.innerHTML=html;
   }
 
+  function setKanbanDefaultChannel(ch){
+    fetch('/api/kanban/default_channel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({channel: ch||null})})
+      .then(function(){ LaRuche.Toast.show('Canal par défaut du board mis à jour','ok'); });
+  }
   function createKanbanTask() {
     var title = document.getElementById('kanban-title').value;
     var desc = document.getElementById('kanban-desc').value;
 var pId = document.getElementById('kanban-profile')?document.getElementById('kanban-profile').value:'';
 var m = document.getElementById('kanban-model')?document.getElementById('kanban-model').value:'';
+var ch = document.getElementById('kanban-channel')?document.getElementById('kanban-channel').value:'';
     if(!title) return;
-    fetch(LaRuche.API.base+'/api/kanban',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title: title, description: desc, profile_id: pId||null, model: m||null})})
+    fetch(LaRuche.API.base+'/api/kanban',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title: title, description: desc, profile_id: pId||null, model: m||null, channel: ch||null})})
       .then(function(r){if(r.ok) { LaRuche.Toast.show('Tâche créée','ok'); document.getElementById('kanban-title').value=''; document.getElementById('kanban-desc').value=''; _kanbanLast=''; refreshKanbanCols(); }});
   }
 
@@ -8520,9 +8538,11 @@ var m = document.getElementById('kanban-model')?document.getElementById('kanban-
       '<label class="form-label">Description</label><textarea class="form-input" id="kbeDesc" rows="4">'+LaRuche.Utils.esc(t?(t.description||''):'')+'</textarea>'+
       '<label class="form-label">Provider</label><select class="form-input" id="kbeProfile" onchange="LaRuche.Settings.updateKanbanEditModelSelect()">'+profOpts+'</select>'+
       '<label class="form-label">Mod&egrave;le</label><select class="form-input" id="kbeModel">'+modOpts+'</select>'+
+      '<label class="form-label">Canal</label><select class="form-input" id="kbeChannel"><option value="">Défaut du board</option></select>'+
       '<div style="margin-top:12px;display:flex;gap:8px"><button class="form-btn" onclick="LaRuche.Settings.saveKanbanEdit(\''+id+'\',this)">Enregistrer</button>'+
       '<button class="form-btn" style="background:none;border:1px solid var(--border);color:var(--text-dim)" onclick="this.closest(\'div[style*=fixed]\')&&this.closest(\'div[style*=fixed]\').remove()">Annuler</button></div></div>';
     document.body.appendChild(ov);
+    window.__fillChannels(document.getElementById('kbeChannel'), (t&&t.channel)||'', 'Défaut du board');
   }
 
   // P1 : repeuple le selecteur modele de l'edition kanban quand on change de provider.
@@ -8543,7 +8563,8 @@ var m = document.getElementById('kanban-model')?document.getElementById('kanban-
     var pEl=document.getElementById('kbeProfile'), mEl=document.getElementById('kbeModel');
     var pId = pEl ? pEl.value : '';
     var m = mEl ? mEl.value : '';
-    fetch(LaRuche.API.base+'/api/kanban/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title: title, description: desc, profile_id: pId||null, model: m||null})})
+    var chEl=document.getElementById('kbeChannel'); var ch = chEl ? chEl.value : '';
+    fetch(LaRuche.API.base+'/api/kanban/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title: title, description: desc, profile_id: pId||null, model: m||null, channel: ch})})
       .then(function(r){ if(r.ok){ LaRuche.Toast.show('Tâche modifiée','ok'); _kanbanLast=''; refreshKanbanCols(); var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove(); } });
   }
 
@@ -8913,7 +8934,7 @@ var m = document.getElementById('kanban-model')?document.getElementById('kanban-
   }
 
   return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder : composant "human-friendly" reutilisable (missions + cron) ── */
@@ -9445,6 +9466,27 @@ LaRuche.Timeline = (function(){
 LaRuche.Automations = (function(){
   var currentTab = 'brief';
   // Brief = l'endroit où l'on « missionne » LaRuche (créer/suivre des missions de recherche).
+  // Helper partagé : peuple un <select> avec les canaux RÉELS (/api/channels/known).
+  // `current` = valeur à présélectionner ; `emptyLabel` = libellé de l'option vide.
+  window.__fillChannels = function(sel, current, emptyLabel){
+    if(!sel) return;
+    var lbl = emptyLabel || 'Aucun (travail de fond)';
+    sel.innerHTML = '<option value="">'+lbl+'</option>';
+    fetch('/api/channels/known').then(function(r){return r.json();}).then(function(d){
+      var list=(d&&d.channels)||[]; var home=(d&&d.home)||'';
+      list.forEach(function(c){
+        var tag = (c===home) ? ' (home)' : '';
+        sel.innerHTML += '<option value="'+LaRuche.Utils.esc(c)+'">'+LaRuche.Utils.esc(c)+tag+'</option>';
+      });
+      if(current!=null) sel.value = current;
+      // valeur courante hors-liste (ex: canal déjà saisi) → on l'ajoute.
+      if(current && sel.value!==current){
+        sel.innerHTML += '<option value="'+LaRuche.Utils.esc(current)+'">'+LaRuche.Utils.esc(current)+'</option>';
+        sel.value = current;
+      }
+    }).catch(function(){});
+  };
+
   // Rend le layout missions dans le hub puis délègue au module Missions (mêmes IDs).
   function loadBrief(el){
     el.innerHTML = '<div class="mis-layout">'+
@@ -9460,7 +9502,7 @@ LaRuche.Automations = (function(){
           '<label style="font-size:10px;color:var(--text-dim);margin-top:4px">Provider</label>'+
           '<select id="misProvider" class="form-input"><option value="">Défaut (modèle actif)</option></select>'+
           '<label style="font-size:10px;color:var(--text-dim);margin-top:4px">Canal (optionnel — vide = travail de fond)</label>'+
-          '<input id="misChannel" type="text" placeholder="ex: telegram:123456 (vide = pas de notification)" spellcheck="false">'+
+          '<select id="misChannel" class="form-input"><option value="">Aucun (travail de fond)</option></select>'+
           '<input id="misSlug" type="text" placeholder="Slug (optionnel)" spellcheck="false">'+
           '<button class="mem2-btn-primary" onclick="LaRuche.Missions.create()">Creer la mission</button>'+
         '</div>'+
@@ -9470,6 +9512,7 @@ LaRuche.Automations = (function(){
     '</div>';
     if(LaRuche.Missions && LaRuche.Missions.mountForm) LaRuche.Missions.mountForm();
     if(LaRuche.Missions && LaRuche.Missions.refresh) LaRuche.Missions.refresh();
+    window.__fillChannels(document.getElementById('misChannel'), '');
   }
   function init() {
     var bar = document.getElementById('autoTabsBar');

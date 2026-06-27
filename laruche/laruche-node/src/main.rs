@@ -5087,6 +5087,7 @@ async fn api_update_watcher(
         body.get("active").and_then(|v| v.as_bool()),
         opt("model"),
         opt("profile_id"),
+        opt("channel"),
     );
     if ok {
         StatusCode::OK
