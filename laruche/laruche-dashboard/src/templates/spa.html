@@ -7019,20 +7019,41 @@ LaRuche.Missions = (function(){
     });
   }
 
+  var _cadenceId = null;
+  // Monte le builder de cadence (réutilise celui des Crons) + peuple le sélecteur provider.
+  function mountForm() {
+    if(LaRuche.CronBuilder){ _cadenceId = LaRuche.CronBuilder.mount('misCadenceBuilder', { value:'' }); }
+    var sel = document.getElementById('misProvider');
+    if(sel){
+      fetch('/api/profiles').then(function(r){return r.json();}).then(function(d){
+        var profs = (d && d.profiles) || {};
+        Object.keys(profs).forEach(function(k){
+          var o=document.createElement('option'); o.value=k; o.textContent=profs[k].name||k; sel.appendChild(o);
+        });
+      }).catch(function(){});
+    }
+  }
+
   function create() {
     var objective = (document.getElementById('misObjective').value || '').trim();
-    var cadence = (document.getElementById('misCadence').value || '').trim();
+    var cadence = (_cadenceId && LaRuche.CronBuilder) ? LaRuche.CronBuilder.getValue(_cadenceId) : '';
     var slug = (document.getElementById('misSlug').value || '').trim();
+    var provEl = document.getElementById('misProvider');
+    var chEl = document.getElementById('misChannel');
+    var profile_id = provEl ? provEl.value : '';
+    var channel = chEl ? (chEl.value||'').trim() : '';
     if(!objective){ LaRuche.Toast.show('Objectif requis','warn'); return; }
     var body = { objective:objective };
     if(cadence) body.cadence = cadence;
     if(slug) body.slug = slug;
+    if(profile_id) body.profile_id = profile_id;
+    if(channel) body.channel = channel;
     fetch(LaRuche.API.base+'/api/missions', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
       .then(function(r){return r.json();}).then(function(d){
         if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
         LaRuche.Toast.show('Mission creee: '+(d.slug||''),'ok');
         document.getElementById('misObjective').value='';
-        document.getElementById('misCadence').value='';
+        if(chEl) chEl.value='';
         document.getElementById('misSlug').value='';
         refresh();
       }).catch(function(e){ LaRuche.Toast.show('Creation: '+e,'err'); });
@@ -7153,7 +7174,7 @@ LaRuche.Missions = (function(){
     } catch(e){ LaRuche.Toast.show('Export: '+e,'err'); }
   }
 
-  return { init:init, enter:enter, leave:leave, current:function(){return current;}, refresh:refresh, create:create };
+  return { init:init, enter:enter, leave:leave, current:function(){return current;}, refresh:refresh, create:create, mountForm:mountForm };
 })();
 
 
@@ -9302,7 +9323,12 @@ LaRuche.Automations = (function(){
         '</div>'+
         '<div class="mis-create">'+
           '<textarea id="misObjective" placeholder="Objectif de la mission de recherche..."></textarea>'+
-          '<input id="misCadence" type="text" placeholder="Cadence cron (optionnel) ex: 0 9 * * 1" spellcheck="false">'+
+          '<label style="font-size:10px;color:var(--text-dim);margin-top:4px">Cadence (optionnel)</label>'+
+          '<div id="misCadenceBuilder"></div>'+
+          '<label style="font-size:10px;color:var(--text-dim);margin-top:4px">Provider</label>'+
+          '<select id="misProvider" class="form-input"><option value="">Défaut (modèle actif)</option></select>'+
+          '<label style="font-size:10px;color:var(--text-dim);margin-top:4px">Canal (optionnel — vide = travail de fond)</label>'+
+          '<input id="misChannel" type="text" placeholder="ex: telegram:123456 (vide = pas de notification)" spellcheck="false">'+
           '<input id="misSlug" type="text" placeholder="Slug (optionnel)" spellcheck="false">'+
           '<button class="mem2-btn-primary" onclick="LaRuche.Missions.create()">Creer la mission</button>'+
         '</div>'+
@@ -9310,6 +9336,7 @@ LaRuche.Automations = (function(){
       '</div>'+
       '<div class="mis-main" id="misMain"><div class="mem2-empty">Selectionnez une mission pour voir son dossier, ou creez-en une.</div></div>'+
     '</div>';
+    if(LaRuche.Missions && LaRuche.Missions.mountForm) LaRuche.Missions.mountForm();
     if(LaRuche.Missions && LaRuche.Missions.refresh) LaRuche.Missions.refresh();
   }
   function init() {

@@ -16,6 +16,16 @@ pub struct Mission {
     /// Cadence cron (ex. "0 9 * * 1" = lundi 9h) ; None = manuel uniquement.
     #[serde(default)]
     pub cadence: Option<String>,
+    /// Profil provider à utiliser pour les itérations (résout provider/modèle/clé). None = défaut.
+    #[serde(default)]
+    pub profile_id: Option<String>,
+    /// Modèle explicite (override du profil). None = modèle du profil/défaut.
+    #[serde(default)]
+    pub model: Option<String>,
+    /// Canal de livraison du bilan d'itération (ex. `telegram:123`). None = travail de fond
+    /// (résultat écrit en mémoire `missions.<slug>` uniquement, pas de notification).
+    #[serde(default)]
+    pub channel: Option<String>,
     /// "active" | "paused" | "done".
     #[serde(default = "default_status")]
     pub status: String,

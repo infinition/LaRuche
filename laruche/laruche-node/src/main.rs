@@ -4164,10 +4164,19 @@ async fn api_create_mission(
         .as_str()
         .filter(|s| !s.trim().is_empty())
         .map(|s| s.to_string());
+    let opt = |k: &str| {
+        body[k]
+            .as_str()
+            .filter(|s| !s.trim().is_empty())
+            .map(|s| s.to_string())
+    };
     let m = missions::Mission {
         slug: slug.clone(),
         objective,
         cadence,
+        profile_id: opt("profile_id"),
+        model: opt("model"),
+        channel: opt("channel"),
         status: "active".to_string(),
         iterations: 0,
         last_run: None,
@@ -4204,14 +4213,25 @@ async fn lancer_iteration_mission(state: Arc<AppState>, mission: missions::Missi
     };
     let prompt = missions::prompt_iteration(&mission, &etat);
     let iteration = mission.iterations + 1;
+    let profile_id = mission.profile_id.clone();
+    let model_override = mission.model.clone();
+    let channel = mission.channel.clone();
     let run_state = state.clone();
     tokio::spawn(async move {
-        let cfg = run_state.essaim_config.read().await.clone();
+        // Provider/modèle de la mission (sinon défaut global).
+        let mut cfg = run_state.essaim_config.read().await.clone();
+        if let Some(pid) = &profile_id {
+            appliquer_profil(&run_state, &mut cfg, pid, model_override.as_deref()).await;
+        } else if let Some(m) = &model_override {
+            cfg.model = m.clone();
+        }
+        // Canal d'origine → un cron créé par la mission y répondra ; sert aussi de cible de livraison.
+        cfg.origin_channel = channel.clone();
         let sessions_dir = std::path::Path::new("sessions");
         let mut session = Session::new_with_path(&cfg.model, sessions_dir);
         let (tx, mut rx) = broadcast::channel::<ChatEvent>(64);
         tokio::spawn(async move { while rx.recv().await.is_ok() {} });
-        let _ = boucle_react_memoire(
+        let result = boucle_react_memoire(
             &prompt,
             &mut session,
             &run_state.essaim_registry,
@@ -4225,8 +4245,44 @@ async fn lancer_iteration_mission(state: Arc<AppState>, mission: missions::Missi
             .write()
             .await
             .mark_run(&slug, chrono::Utc::now().to_rfc3339());
+        // Livraison du bilan au canal de la mission (si défini ; sinon travail de fond muet).
+        if let (Some(ch), Ok(bilan)) = (channel.as_ref(), &result) {
+            let txt = bilan.trim();
+            if !txt.is_empty() {
+                livrer_telegram(ch, &format!("📋 Mission « {slug} » — itération {iteration} :\n\n{txt}"))
+                    .await;
+            }
+        }
     });
     iteration
+}
+
+/// Livraison minimale d'un message texte sur un canal Telegram (`telegram:<chat_id>`).
+/// No-op si le canal n'est pas Telegram ou si le bot n'est pas configuré.
+async fn livrer_telegram(channel: &str, text: &str) {
+    if !channel.starts_with("telegram") {
+        return; // autres canaux : à étendre (discord/slack) ultérieurement
+    }
+    let chat_id = channel.strip_prefix("telegram:").unwrap_or("").trim();
+    if chat_id.is_empty() {
+        return;
+    }
+    let Ok(content) = std::fs::read_to_string(std::path::Path::new("channels-config.json")) else {
+        return;
+    };
+    let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&content) else {
+        return;
+    };
+    let token = cfg["telegram"]["bot_token"].as_str().unwrap_or("");
+    if token.is_empty() {
+        return;
+    }
+    let client = reqwest::Client::new();
+    let _ = client
+        .post(format!("https://api.telegram.org/bot{}/sendMessage", token))
+        .json(&serde_json::json!({ "chat_id": chat_id, "text": text }))
+        .send()
+        .await;
 }
 
 /// POST /api/missions/:slug/run — déclenche UNE itération.
