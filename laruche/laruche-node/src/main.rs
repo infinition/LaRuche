@@ -117,6 +117,9 @@ struct PersistentState {
     context_max_tokens: Option<u32>,
     #[serde(default)]
     compaction_threshold: Option<f32>,
+    /// Curateur (auto-skills/tools) activé depuis Settings — survit au redémarrage.
+    #[serde(default)]
+    curateur_actif: Option<bool>,
 }
 
 const METRICS_HISTORY_LIMIT: usize = 360; // ~1 hour at 10s intervals
@@ -5113,6 +5116,34 @@ async fn api_set_permission_config(
     })))
 }
 
+/// GET /api/config/curateur — état du curateur (auto-skills/tools).
+async fn api_get_curateur_config(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let actif = state.essaim_config.read().await.curateur_actif;
+    let env_force = std::env::var("RUCHE_CURATEUR").as_deref() == Ok("1");
+    Json(serde_json::json!({
+        "enabled": actif,
+        // si l'env force l'activation, on le signale pour que l'UI l'explique
+        "env_forced": env_force,
+    }))
+}
+
+/// POST /api/config/curateur — active/désactive le curateur (auth, persisté).
+async fn api_set_curateur_config(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let enabled = body["enabled"].as_bool().ok_or(StatusCode::BAD_REQUEST)?;
+    {
+        let mut ec = state.essaim_config.write().await;
+        ec.curateur_actif = enabled;
+    }
+    save_persistent_state(&state).await;
+    Ok(Json(serde_json::json!({ "status": "ok", "enabled": enabled })))
+}
+
 /// GET /api/config/provider — get current LLM provider settings.
 async fn api_get_provider_config(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let ec = state.essaim_config.read().await;
@@ -7938,10 +7969,13 @@ async fn ws_chat_connection(
             );
 
             // CURATEUR (moteur butinage) : auto-création/patch de skills & tools VÉRIFIÉS,
-            // en ARRIÈRE-PLAN. OPT-IN (désactivé par défaut) pour ne pas polluer la bibliothèque :
-            // activer avec RUCHE_CURATEUR=1. Conservateur (la plupart des missions => rien).
+            // en ARRIÈRE-PLAN. OPT-IN (désactivé par défaut) pour ne pas polluer la bibliothèque.
+            // Activation : toggle Settings (config.curateur_actif, persistant) OU env RUCHE_CURATEUR=1.
+            // Conservateur (la plupart des missions => rien).
+            let curateur_on = config.curateur_actif
+                || std::env::var("RUCHE_CURATEUR").as_deref() == Ok("1");
             if std::env::var("RUCHE_MOTEUR").as_deref() == Ok("butinage")
-                && std::env::var("RUCHE_CURATEUR").as_deref() == Ok("1")
+                && curateur_on
                 && session.messages.len() >= 6
             {
                 let msgs = session.messages.clone();
@@ -8784,6 +8818,9 @@ async fn main() -> Result<()> {
     if let Some(th) = persistent.compaction_threshold {
         essaim_config.compaction_threshold = th;
     }
+    if let Some(c) = persistent.curateur_actif {
+        essaim_config.curateur_actif = c;
+    }
     if let Some(ref m) = persistent.permission_mode {
         if let Some(mode) = permission_mode_from_str(m) {
             essaim_config.permission_mode = mode;
@@ -9192,6 +9229,10 @@ async fn main() -> Result<()> {
         .route(
             "/api/config/permission",
             get(api_get_permission_config).post(api_set_permission_config),
+        )
+        .route(
+            "/api/config/curateur",
+            get(api_get_curateur_config).post(api_set_curateur_config),
         )
         .route(
             "/api/profiles",
@@ -10453,6 +10494,7 @@ async fn save_persistent_state(state: &Arc<AppState>) {
         context_max_messages: Some(state.essaim_config.read().await.context_max_messages),
         compaction_threshold: Some(state.essaim_config.read().await.compaction_threshold),
         context_max_tokens: Some(state.essaim_config.read().await.context_max_tokens),
+        curateur_actif: Some(state.essaim_config.read().await.curateur_actif),
     };
     drop(logs);
     drop(dm);

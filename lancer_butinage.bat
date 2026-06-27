@@ -14,7 +14,8 @@ REM --- Backend memoire : native | sqlite | sidecar ---
 set "LARUCHE_MEMOIRE_BACKEND=sqlite"
 
 REM --- CURATEUR (auto-creation de skills/tools, OPT-IN, conservateur) ---
-REM   Decommente pour l'activer (sinon desactive : ne cree rien) :
+REM   Active/desactive depuis l'UI : Settings > General > "Curateur - Butinage".
+REM   (Le reglage est persistant.) Cette variable d'env le FORCE en plus, si besoin :
 REM set "RUCHE_CURATEUR=1"
 
 REM --- RECHERCHE WEB : decommente UNE ligne pour une vraie API (gros boost qualite) ---

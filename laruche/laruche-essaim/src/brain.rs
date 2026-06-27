@@ -107,6 +107,10 @@ pub struct EssaimConfig {
     /// Skill names désactivés (non injectés / non attachables). État persisté.
     #[serde(default)]
     pub disabled_skills: Vec<String>,
+    /// Curateur (auto-création de skills/tools vérifiés en arrière-plan). Toggle persistant
+    /// piloté depuis Settings ; fallback env `RUCHE_CURATEUR=1`. Off par défaut (anti-bloat).
+    #[serde(default)]
+    pub curateur_actif: bool,
     /// Dynamically inject only the most relevant Abeilles into the prompt.
     #[serde(default)]
     pub dynamic_tool_selection: bool,
@@ -184,6 +188,7 @@ impl Default for EssaimConfig {
             api_base: None,
             disabled_tools: Vec::new(),
             disabled_skills: Vec::new(),
+            curateur_actif: false,
             dynamic_tool_selection: false,
             tool_selection_limit: default_tool_selection_limit(),
             stable_toolset: false,
