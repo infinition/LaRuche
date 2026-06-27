@@ -194,7 +194,18 @@ async fn appeler_modele(
                     Reaction::RotationCle | Reaction::Deroutement => {
                         emet.emettre(Evenement::Statut("Reprise après erreur provider.".into()));
                     }
-                    Reaction::Stopper(motif) => return Err(motif),
+                    Reaction::Stopper(motif) => {
+                        // Erreur diagnostique : on remonte le VRAI code HTTP + un extrait du
+                        // corps du provider, sinon « erreur fatale » est opaque (impossible de
+                        // savoir si c'est un modèle introuvable, une clé absente, un payload…).
+                        let corps: String = e.corps.chars().take(300).collect();
+                        let detail = if corps.trim().is_empty() {
+                            format!("{motif} [HTTP {}]", e.status)
+                        } else {
+                            format!("{motif} [HTTP {}] {}", e.status, corps.trim())
+                        };
+                        return Err(detail);
+                    }
                 }
             }
         }
