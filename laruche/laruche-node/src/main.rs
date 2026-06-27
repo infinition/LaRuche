@@ -6789,7 +6789,12 @@ async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState
                             let sessions_dir = std::path::Path::new("sessions");
 
                             let session_id =
-                                *tg_sessions.entry(chat_id).or_insert_with(Uuid::new_v4);
+                                // Id déterministe (canal:chat_id) → l'historique survit aux
+                                // redémarrages/rebuilds du serveur. /clear pose un id aléatoire
+                                // temporaire (réinitialisation jusqu'au prochain redémarrage).
+                                *tg_sessions.entry(chat_id).or_insert_with(|| {
+                                    session_id_channel("telegram", &chat_id.to_string())
+                                });
                             let mut session = if let Ok(mut loaded) =
                                 Session::charger(&sessions_dir.join(format!("{}.json", session_id)))
                             {
@@ -6942,15 +6947,41 @@ async fn send_telegram_text(
 }
 
 /// Helper: run agent query and return cleaned response text.
-async fn run_agent_query(state: &Arc<AppState>, text: &str) -> String {
+/// Identifiant de session DÉTERMINISTE pour un (canal, utilisateur) — survit aux
+/// redémarrages, contrairement à un UUID aléatoire. Même (canal, clé) → même session →
+/// mémoire conversationnelle. Clé d'exemple : `telegram:12345`, `discord:bob`, `slack:C07…`.
+fn session_id_channel(channel: &str, user_key: &str) -> Uuid {
+    Uuid::new_v5(
+        &Uuid::NAMESPACE_OID,
+        format!("{channel}:{user_key}").as_bytes(),
+    )
+}
+
+/// Exécute une requête agent pour un CANAL (Discord, Slack, …) avec **session persistante**
+/// par (canal, utilisateur) → mémoire conversationnelle entre messages, comme Telegram.
+/// Tout nouveau canal qui appelle cette fonction obtient la mémoire gratuitement.
+async fn run_agent_query(
+    state: &Arc<AppState>,
+    channel: &str,
+    user_key: &str,
+    text: &str,
+) -> String {
     let current_model = get_llm_default(state).await;
     let sessions_dir = std::path::Path::new("sessions");
-    let session_id = Uuid::new_v4();
-    let mut session = Session::new_with_id(session_id, &current_model, sessions_dir);
+    let session_id = session_id_channel(channel, user_key);
+    let mut session = match Session::charger(&sessions_dir.join(format!("{}.json", session_id))) {
+        Ok(mut loaded) => {
+            loaded.model = current_model.clone();
+            loaded
+        }
+        Err(_) => Session::new_with_id(session_id, &current_model, sessions_dir),
+    };
     let (tx, _rx) = broadcast::channel::<ChatEvent>(64);
 
     let mut config = state.essaim_config.read().await.clone();
     config.model = current_model;
+    // Canal d'origine → cron_create y renverra le récurrent ; sert aussi de clé maison.
+    config.origin_channel = Some(format!("{channel}:{user_key}"));
 
     let result = boucle_react_memoire(
         text,
@@ -6961,6 +6992,15 @@ async fn run_agent_query(state: &Arc<AppState>, text: &str) -> String {
         state.memoire.clone(),
     )
     .await;
+
+    // Persiste la session (l'agent y a déjà ajouté le tour courant + ses réponses) → le
+    // prochain message du même (canal, utilisateur) la rechargera avec tout l'historique.
+    let _ = session.sauvegarder();
+    state
+        .essaim_sessions
+        .write()
+        .await
+        .insert(session.id, session);
 
     match result {
         Ok(r) => {
@@ -7043,8 +7083,8 @@ async fn api_discord_webhook(
                 "Discord slash command"
             );
 
-            // Run agent query
-            let response = run_agent_query(&state, input).await;
+            // Run agent query — session persistante par utilisateur Discord (mémoire conv.).
+            let response = run_agent_query(&state, "discord", user, input).await;
 
             // Truncate if needed (Discord max: 2000 chars)
             let truncated = if response.len() > 1990 {
@@ -7131,8 +7171,8 @@ async fn api_slack_events(
                         return Json(serde_json::json!({"ok": true}));
                     }
 
-                    // Run agent query
-                    let response = run_agent_query(&state, clean_text).await;
+                    // Run agent query — session persistante par canal Slack (mémoire conv.).
+                    let response = run_agent_query(&state, "slack", channel, clean_text).await;
 
                     // Post reply via Slack API
                     let config_path = std::path::Path::new("channels-config.json");
