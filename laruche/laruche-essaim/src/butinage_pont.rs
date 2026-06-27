@@ -1032,7 +1032,9 @@ pub async fn executer(
     // on FORCE la sélection dynamique des outils → on n'injecte qu'un noyau d'outils (texte +
     // schémas natifs) au lieu de TOUS, sinon le system prompt seul dépasse n_ctx (HTTP 400).
     let cfg_local;
-    let config: &EssaimConfig = if config.context_max_tokens <= 40_000 && !config.dynamic_tool_selection {
+    let config: &EssaimConfig = if config.context_max_tokens <= config.dynamic_context_threshold
+        && !config.dynamic_tool_selection
+    {
         cfg_local = EssaimConfig { dynamic_tool_selection: true, ..config.clone() };
         let _ = tx.send(ChatEvent::Status {
             message: "Contexte modèle étroit → sélection dynamique des outils (prompt allégé).".into(),
@@ -1255,7 +1257,9 @@ pub async fn reprendre_carnet(
     // Même garde « petit modèle » que executer : sélection dynamique si contexte étroit.
     let cfg_local;
     let config: &EssaimConfig =
-        if config.context_max_tokens <= 40_000 && !config.dynamic_tool_selection {
+        if config.context_max_tokens <= config.dynamic_context_threshold
+            && !config.dynamic_tool_selection
+        {
             cfg_local = EssaimConfig { dynamic_tool_selection: true, ..config.clone() };
             &cfg_local
         } else {

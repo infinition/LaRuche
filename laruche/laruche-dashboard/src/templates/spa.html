@@ -7405,6 +7405,7 @@ LaRuche.Settings = (function(){
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Température</span><input type="number" id="cfgTemp" class="form-input" style="width:80px;padding:2px 6px;" step="0.05" min="0" max="2" value="'+(rt.temperature!=null?rt.temperature:0.7)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Max tokens (sortie)</span><input type="number" id="cfgMaxTok" class="form-input" style="width:90px;padding:2px 6px;" value="'+(rt.max_tokens||4096)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="Nb d\'outils injectés en sélection dynamique">Limite outils dyn.</span><input type="number" id="cfgToolLim" class="form-input" style="width:80px;padding:2px 6px;" value="'+(rt.tool_selection_limit||24)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="Sous ce n_ctx, outils ET catalogue de skills passent en sélection dynamique (DB sémantique)">Seuil contexte étroit</span><input type="number" id="cfgCtxThreshold" class="form-input" style="width:90px;padding:2px 6px;" value="'+(rt.dynamic_context_threshold||40000)+'"></div>'+
       '<button class="form-btn" onclick="LaRuche.Settings.saveRuntimeCfg()" style="margin-top:8px;">Appliquer</button></div></div>'+
       '<div class="settings-card"><div class="settings-card-title">Contexte &amp; compaction</div>'+
       '<div class="settings-row" style="flex-direction:column;align-items:stretch;gap:4px;">'+
@@ -8851,7 +8852,8 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       max_iterations: parseInt(document.getElementById('cfgMaxIter').value,10),
       temperature: parseFloat(document.getElementById('cfgTemp').value),
       max_tokens: parseInt(document.getElementById('cfgMaxTok').value,10),
-      tool_selection_limit: parseInt(document.getElementById('cfgToolLim').value,10)
+      tool_selection_limit: parseInt(document.getElementById('cfgToolLim').value,10),
+      dynamic_context_threshold: parseInt(document.getElementById('cfgCtxThreshold').value,10)
     };
     fetch(LaRuche.API.base+'/api/config/runtime',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
       .then(function(r){ if(r.ok) LaRuche.Toast.show('Génération appliquée (à chaud)','ok'); else LaRuche.Toast.show('Erreur','err'); })

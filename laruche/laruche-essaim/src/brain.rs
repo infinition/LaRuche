@@ -158,6 +158,10 @@ pub struct EssaimConfig {
     /// Pointer un petit modèle rapide évite de concurrencer le KV-cache du chat principal.
     #[serde(default)]
     pub aux_model: Option<String>,
+    /// Seuil (tokens) sous lequel le contexte est jugé « étroit » → sélection dynamique des outils
+    /// ET du catalogue de skills (la DB sémantique ne surface que le pertinent). Réglable.
+    #[serde(default = "default_dynamic_context_threshold")]
+    pub dynamic_context_threshold: u32,
     #[serde(default = "default_permission_mode")]
     pub permission_mode: PermissionMode,
     #[serde(default)]
@@ -177,6 +181,10 @@ fn default_tool_selection_limit() -> usize {
 
 fn default_permission_mode() -> PermissionMode {
     PermissionMode::Default
+}
+
+fn default_dynamic_context_threshold() -> u32 {
+    40_000
 }
 
 impl Default for EssaimConfig {
@@ -213,6 +221,7 @@ impl Default for EssaimConfig {
             skills_index: None,
             mesh_peers_hint: None,
             aux_model: None,
+            dynamic_context_threshold: default_dynamic_context_threshold(),
             permission_mode: default_permission_mode(),
             permission_rules: Vec::new(),
             credential_pool: None,
@@ -1711,7 +1720,8 @@ pub async fn boucle_react_memoire_multimodal(
     // Index des skills disponibles (toujours présent → le modèle connaît son répertoire complet).
     // Catalogue skills DYNAMIQUE quand le contexte est étroit (même condition que la sélection
     // dynamique des outils) : la DB sémantique ne liste que les skills pertinents + pointeur.
-    let dyn_skills = cfg.dynamic_tool_selection || cfg.context_max_tokens <= 40_000;
+    let dyn_skills =
+        cfg.dynamic_tool_selection || cfg.context_max_tokens <= cfg.dynamic_context_threshold;
     cfg.skills_index = construire_index_skills(&memoire, prompt_utilisateur, dyn_skills).await;
 
     // Pré-récupération → contexte ÉPHÉMÈRE trailing (PAS dans le system prompt :
