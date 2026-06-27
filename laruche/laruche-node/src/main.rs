@@ -9543,6 +9543,30 @@ async fn main() -> Result<()> {
         }
     });
 
+    // Background: rêve mémoire (consolidation + dédup) périodique — hygiène anti-bloat.
+    // Intervalle long (6 h par défaut), 1re passe différée de 10 min pour ne pas charger
+    // le démarrage. Désactivable via LARUCHE_DREAM_INTERVAL_SECS=0.
+    {
+        let dream_state = state.clone();
+        let secs: u64 = std::env::var("LARUCHE_DREAM_INTERVAL_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(6 * 3600);
+        if secs > 0 {
+            tokio::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(600)).await;
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(secs));
+                loop {
+                    interval.tick().await;
+                    match dream_state.memoire.dream().await {
+                        Ok(_) => info!("Rêve mémoire périodique terminé (consolidation + dédup)"),
+                        Err(e) => warn!(error = %e, "Rêve mémoire périodique échoué"),
+                    }
+                }
+            });
+        }
+    }
+
     // Background: Ollama heartbeat (every 60 seconds)
     let heartbeat_state = state.clone();
     tokio::spawn(async move {
