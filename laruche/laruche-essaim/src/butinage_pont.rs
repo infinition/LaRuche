@@ -815,6 +815,13 @@ pub async fn lancer_curateur_arriere_plan(
     if transcript.chars().count() < 120 {
         return; // trop court pour valoir une revue
     }
+    crate::feed_journal::record(
+        "Curateur",
+        "curator",
+        "a lancé une revue de capacités",
+        "(arrière-plan)",
+        chrono::Utc::now(),
+    );
 
     let permis: std::collections::HashSet<String> =
         CURATEUR_OUTILS.iter().map(|s| s.to_string()).collect();

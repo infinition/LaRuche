@@ -3249,6 +3249,15 @@ async fn api_feed(
     // Normalise tous les `ts` en MILLISECONDES (certaines sources sont en secondes : mémoire,
     // missions, watchers, crons). Sans ça, les events agent (déjà en ms) flottaient TOUJOURS
     // au-dessus des autres, quel que soit le temps réel. Heuristique : ts < 1e12 → secondes.
+    // Journal système PERSISTANT : créations (cron/watcher/mission/kanban) + runs curateur.
+    // Survit au redémarrage (avant : seules les exécutions via last_run apparaissaient).
+    for ev in laruche_essaim::feed_journal::recent(limit) {
+        events.push(serde_json::json!({
+            "ts": ev.ts, "actor": ev.actor, "kind": ev.kind,
+            "action": ev.action, "object": ev.object, "ref": serde_json::Value::Null
+        }));
+    }
+
     for e in events.iter_mut() {
         if let Some(ts) = e.get("ts").and_then(|v| v.as_i64()) {
             if ts != 0 && ts < 1_000_000_000_000 {
@@ -4094,10 +4103,18 @@ async fn api_create_cron(
         run_count: 0,
     };
 
+    let cron_name = task.name.clone();
     let id = {
         let mut cron = state.essaim_cron.write().await;
         cron.add(task)
     };
+    laruche_essaim::feed_journal::record(
+        "User",
+        "cron",
+        "a créé la tâche planifiée",
+        cron_name,
+        chrono::Utc::now(),
+    );
 
     Ok(Json(
         serde_json::json!({"id": id.to_string(), "status": "created"}),
@@ -4157,6 +4174,13 @@ async fn api_create_mission(
         created_at: chrono::Utc::now().to_rfc3339(),
     };
     state.missions.write().await.upsert(m);
+    laruche_essaim::feed_journal::record(
+        "User",
+        "mission",
+        "a créé la mission",
+        slug.clone(),
+        chrono::Utc::now(),
+    );
     Json(serde_json::json!({"status": "ok", "slug": slug}))
 }
 
@@ -4713,8 +4737,17 @@ async fn api_create_watcher(
             .map(|s| s.to_string()),
     };
 
+    let log_name = watcher.name.clone();
     let mut registry = state.watchers.write().await;
     registry.add(watcher);
+    drop(registry);
+    laruche_essaim::feed_journal::record(
+        "User",
+        "watcher",
+        "a créé le watcher",
+        log_name,
+        chrono::Utc::now(),
+    );
     StatusCode::CREATED
 }
 
@@ -4790,8 +4823,17 @@ async fn api_kanban_create(
 
     let profile_id = body["profile_id"].as_str().map(|s| s.to_string());
     let model = body["model"].as_str().map(|s| s.to_string());
+    let log_title = title.clone();
     let mut board = state.kanban_board.write().await;
     board.create(title, description, idempotency_key, profile_id, model);
+    drop(board);
+    laruche_essaim::feed_journal::record(
+        "User",
+        "kanban",
+        "a créé la tâche kanban",
+        log_title,
+        chrono::Utc::now(),
+    );
     StatusCode::CREATED
 }
 
@@ -8689,6 +8731,9 @@ async fn main() -> Result<()> {
     // NOTE confidentialité : on N'annonce PLUS les backends locaux détectés au démarrage. Le mesh
     // ne doit exposer que les providers explicitement publics (`public_proxy`) — c'est la boucle
     // de re-annonce (plus bas) qui reconstruit les capacités à partir du public uniquement.
+
+    // Journal du Feed (persistant) : charge l'historique des événements système au démarrage.
+    laruche_essaim::feed_journal::init(std::path::PathBuf::from("feed-journal.ndjson"), 500);
 
     let mut broadcaster = MielBroadcaster::new()?;
     broadcaster.register(&manifest)?;

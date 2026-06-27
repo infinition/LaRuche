@@ -134,6 +134,7 @@ impl Abeille for AbeilleCronCreate {
             .map(|s| s.to_string())
             .or_else(|| ctx.channel.clone());
 
+        let log_name = name.clone();
         let task = ScheduledTask {
             id: Uuid::new_v4(),
             name,
@@ -155,6 +156,13 @@ impl Abeille for AbeilleCronCreate {
             let mut cron = self.cron_store.write().await;
             cron.add(task)
         };
+        laruche_essaim::feed_journal::record(
+            "LaRuche",
+            "cron",
+            "a créé la tâche planifiée",
+            log_name,
+            chrono::Utc::now(),
+        );
 
         Ok(ResultatAbeille::ok(format!(
             "Tâche cron créée avec l'ID {}",
@@ -335,6 +343,7 @@ impl Abeille for AbeilleWatcherCreate {
             .get("model")
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
+        let log_name = name.clone();
         let watcher = laruche_watchers::Watcher {
             id: Uuid::new_v4(),
             name,
@@ -354,6 +363,13 @@ impl Abeille for AbeilleWatcherCreate {
         let id = watcher.id.clone();
         let mut registry = self.watcher_store.write().await;
         registry.add(watcher);
+        laruche_essaim::feed_journal::record(
+            "LaRuche",
+            "watcher",
+            "a créé le watcher",
+            log_name,
+            chrono::Utc::now(),
+        );
 
         Ok(ResultatAbeille::ok(format!(
             "Watcher créé avec l'ID {}",
@@ -606,6 +622,13 @@ impl Abeille for AbeilleKanbanCreate {
             let mut board = self.kanban_board.write().await;
             board.create(title.to_string(), desc.to_string(), None, profile_id, model)
         };
+        laruche_essaim::feed_journal::record(
+            "LaRuche",
+            "kanban",
+            "a créé la tâche kanban",
+            title.to_string(),
+            chrono::Utc::now(),
+        );
         Ok(ResultatAbeille::ok(format!(
             "Tâche Kanban créée avec succès. ID: {}",
             task.id
