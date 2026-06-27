@@ -531,7 +531,14 @@ impl but::Outils for OutilsPont<'_> {
     }
 
     fn schemas(&self) -> Vec<serde_json::Value> {
-        match self.registry.schema_complet() {
+        // Le champ `tools:` NATIF (envoyé à l'API du provider) doit porter EXACTEMENT le même
+        // jeu d'outils que la sélection dynamique du prompt — sinon on envoyait `schema_complet()`
+        // (TOUS les ~80 outils en JSON complet, ~30-36K tokens) en doublon de l'index épuré du
+        // texte, ce qui faisait déborder le contexte (n_ctx). On réutilise la MÊME sélection que
+        // `## Outils disponibles` (relevant_tools / limite / stable). `schema_outils_pour_prompt`
+        // applique déjà le filtre `disabled_tools` ; on re-filtre par sécurité.
+        let selection = schema_outils_pour_prompt(self.registry, self.config, "");
+        match selection {
             serde_json::Value::Array(a) => a
                 .into_iter()
                 .filter(|t| {
