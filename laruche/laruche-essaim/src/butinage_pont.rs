@@ -1045,6 +1045,7 @@ pub async fn executer(
         &tool_schema,
         config.system_prompt_override.as_deref(),
         config.behavior_override.as_deref(),
+        config.planning_override.as_deref(),
         Some(&index_capacites),
         config.custom_instructions.as_deref(),
     );
@@ -1251,6 +1252,7 @@ pub async fn reprendre_carnet(
         &tool_schema,
         config.system_prompt_override.as_deref(),
         config.behavior_override.as_deref(),
+        config.planning_override.as_deref(),
         Some(&index),
         config.custom_instructions.as_deref(),
     );

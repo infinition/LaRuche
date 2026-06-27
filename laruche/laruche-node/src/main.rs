@@ -3440,6 +3440,7 @@ async fn api_system_prompt_defaults() -> Json<serde_json::Value> {
         "behavior": laruche_essaim::prompt::section_comportement(),
         "prompt_curateur": laruche_essaim::butinage_pont::prompt_curateur_defaut(),
         "prompt_extraction": laruche_essaim::butinage_pont::prompt_extraction_defaut(),
+        "prompt_planning": laruche_essaim::prompt::section_planification(),
     }))
 }
 
@@ -9851,6 +9852,11 @@ async fn main() -> Result<()> {
             "system.prompt_extraction",
             "Prompt Consolidation",
             "Prompt de consolidation memoire / escale (vide = defaut code, hot-reload)",
+        ),
+        (
+            "system.prompt_planning",
+            "Prompt Planification",
+            "Section planification du system prompt (vide = defaut code, hot-reload)",
         ),
     ] {
         let _ = memoire

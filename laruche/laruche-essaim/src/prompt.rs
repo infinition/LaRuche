@@ -16,6 +16,7 @@ pub fn build_system_prompt(
     tools_schema: &serde_json::Value,
     identity_override: Option<&str>,
     behavior_override: Option<&str>,
+    planning_override: Option<&str>,
     capability_index: Option<&str>,
     custom_instructions: Option<&str>,
 ) -> String {
@@ -31,7 +32,13 @@ pub fn build_system_prompt(
     // 2) Protocole VERROUILLÉ + outils générés + index de capacités.
     prompt.push_str(&section_outils(tools_schema));
     push_capability_index(&mut prompt, capability_index);
-    prompt.push_str(&section_planification());
+    match planning_override {
+        Some(o) if !o.trim().is_empty() => {
+            prompt.push_str(o.trim());
+            prompt.push_str("\n\n");
+        }
+        _ => prompt.push_str(section_planification()),
+    }
     // 3) Comportement (éditable) ou défaut codé.
     match behavior_override {
         Some(o) if !o.trim().is_empty() => {
@@ -227,7 +234,7 @@ fn section_outils(tools_schema: &serde_json::Value) -> String {
     )
 }
 
-fn section_planification() -> &'static str {
+pub fn section_planification() -> &'static str {
     "## Planification\n\n\
      Quand l'utilisateur te demande une tache complexe (plusieurs etapes), \
      tu DOIS d'abord etablir un plan avant d'agir.\n\n\
@@ -281,7 +288,7 @@ mod tests {
     #[test]
     fn prompt_place_sections_stables_avant_outils_et_custom() {
         let tools = serde_json::json!([{"name":"file_read","description":"read","parameters":{}}]);
-        let prompt = build_system_prompt(&tools, None, None, None, Some("custom volatile"));
+        let prompt = build_system_prompt(&tools, None, None, None, None, Some("custom volatile"));
 
         let env = prompt.find("## Environnement").unwrap();
         let outils = prompt.find("## Outils disponibles").unwrap();

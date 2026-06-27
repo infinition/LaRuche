@@ -142,6 +142,9 @@ pub struct EssaimConfig {
     /// Comportement éditable (nœud `system.behavior`). Idem, remplace le comportement par défaut.
     #[serde(skip)]
     pub behavior_override: Option<String>,
+    /// Section planification éditable (nœud `system.prompt_planning`). Hot-reload.
+    #[serde(skip)]
+    pub planning_override: Option<String>,
     /// Index compact des skills disponibles (`nom — description`), construit par tour depuis la
     /// carte cognitive. Toujours injecté dans le préfixe stable pour que le modèle connaisse son
     /// répertoire complet (corps via `skill_view` à la demande). `None` hors contexte mémoire.
@@ -206,6 +209,7 @@ impl Default for EssaimConfig {
             relevant_tools: None,
             system_prompt_override: None,
             behavior_override: None,
+            planning_override: None,
             skills_index: None,
             mesh_peers_hint: None,
             aux_model: None,
@@ -1672,6 +1676,7 @@ pub async fn boucle_react_memoire_multimodal(
     // si absents/désactivés → on retombe sur le prompt par défaut codé.
     cfg.system_prompt_override = charger_doc_systeme(&memoire, "system.prompt").await;
     cfg.behavior_override = charger_doc_systeme(&memoire, "system.behavior").await;
+    cfg.planning_override = charger_doc_systeme(&memoire, "system.prompt_planning").await;
     if let Some(soul) = charger_doc_systeme(&memoire, "system.soul").await {
         cfg.custom_instructions = Some(soul);
     }
@@ -2999,6 +3004,7 @@ pub async fn boucle_react_multimodal_ext(
         &tool_schema,
         config.system_prompt_override.as_deref(),
         config.behavior_override.as_deref(),
+        config.planning_override.as_deref(),
         Some(&capability_index),
         config.custom_instructions.as_deref(),
     );

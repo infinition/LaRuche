@@ -6232,7 +6232,7 @@ LaRuche.Memory = (function(){
   }
   // system.prompt / system.soul : editables par l'admin via l'editeur dedie
   function isSystemEditor(id){
-    return id === 'system.prompt' || id === 'system.behavior' || id === 'system.soul' || id === 'system.prompt_curateur' || id === 'system.prompt_extraction';
+    return id === 'system.prompt' || id === 'system.behavior' || id === 'system.soul' || id === 'system.prompt_curateur' || id === 'system.prompt_extraction' || id === 'system.prompt_planning';
   }
 
   // SVG inline (heritent currentColor)
@@ -6696,12 +6696,14 @@ LaRuche.Memory = (function(){
       taValue = (nodeId === 'system.behavior') ? (_sysDefaults.behavior || '')
               : (nodeId === 'system.prompt_curateur') ? (_sysDefaults.prompt_curateur || '')
               : (nodeId === 'system.prompt_extraction') ? (_sysDefaults.prompt_extraction || '')
+              : (nodeId === 'system.prompt_planning') ? (_sysDefaults.prompt_planning || '')
               : (_sysDefaults.identity || '');
     }
     var title = isSoul ? 'SOUL — personnalite'
               : (nodeId === 'system.behavior' ? 'Comportement'
               : (nodeId === 'system.prompt_curateur' ? 'Prompt Curateur'
-              : (nodeId === 'system.prompt_extraction' ? 'Prompt Consolidation' : 'Identite')));
+              : (nodeId === 'system.prompt_extraction' ? 'Prompt Consolidation'
+              : (nodeId === 'system.prompt_planning' ? 'Prompt Planification' : 'Identite'))));
     var icon = isSoul ? SVG.soul : (nodeId === 'system.behavior' ? SVG.system : SVG.prompt);
     var html = '<div class="mem2-syseditor">'+
       '<div class="mem2-syseditor-head">'+
