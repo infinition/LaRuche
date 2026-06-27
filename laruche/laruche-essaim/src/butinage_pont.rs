@@ -67,10 +67,19 @@ impl but::Fournisseur for FournisseurPont {
         let mut texte = String::new();
         let mut finish: Option<String> = None;
         let mut natifs: Option<Vec<crate::brain::ToolCall>> = None;
+        // Tokens réels (renvoyés sur le chunk final par Ollama) → calibrent la jauge.
+        let mut tok_entree: u64 = 0;
+        let mut tok_sortie: u64 = 0;
 
         while let Some(chunk) = stream.next().await {
             if chunk.finish_reason.is_some() {
                 finish = chunk.finish_reason.clone();
+            }
+            if let Some(p) = chunk.prompt_eval_count {
+                tok_entree = p;
+            }
+            if let Some(e) = chunk.eval_count {
+                tok_sortie = e;
             }
             if chunk.tool_calls.is_some() {
                 natifs = chunk.tool_calls.clone();
@@ -80,6 +89,11 @@ impl but::Fournisseur for FournisseurPont {
                 let _ = self.tx.send(ChatEvent::Token { text: chunk.text.clone() });
             }
         }
+        let usage = if tok_entree > 0 || tok_sortie > 0 {
+            Some(but::Usage { entree: tok_entree as u32, sortie: tok_sortie as u32 })
+        } else {
+            None
+        };
 
         // Appels : natifs (API) sinon parsés du texte (rail pour modèles faibles).
         let mut appels: Vec<but::Appel> = match natifs {
@@ -114,7 +128,7 @@ impl but::Fournisseur for FournisseurPont {
             texte: texte_propre,
             stop,
             appels,
-            usage: None,
+            usage,
         })
     }
 }

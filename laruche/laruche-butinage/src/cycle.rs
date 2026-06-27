@@ -90,6 +90,12 @@ pub async fn butiner(
             }
         };
 
+        // Tokens d'entrée réels du provider (si fournis) → recalibre la jauge pour des
+        // décisions de compaction/consolidation précises au tour suivant.
+        if let Some(u) = reponse.usage {
+            jauge.maj_usage(u.entree as usize);
+        }
+
         if !reponse.texte.is_empty() {
             emet.emettre(Evenement::Texte(reponse.texte.clone()));
         }
