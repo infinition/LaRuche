@@ -94,7 +94,7 @@ impl Abeille for AbeilleCronCreate {
     async fn executer(
         &self,
         args: Value,
-        _ctx: &ContextExecution,
+        ctx: &ContextExecution,
     ) -> anyhow::Result<ResultatAbeille> {
         let name = args["name"].as_str().unwrap_or("Unnamed task").to_string();
         let prompt = match args["prompt"].as_str() {
@@ -127,13 +127,20 @@ impl Abeille for AbeilleCronCreate {
             })
             .unwrap_or_default();
 
+        // Canal d'origine (ex. `telegram:12345`) → le récurrent répond là où il a été demandé.
+        // L'agent peut forcer un autre canal via l'argument `channel`.
+        let channel = args["channel"]
+            .as_str()
+            .map(|s| s.to_string())
+            .or_else(|| ctx.channel.clone());
+
         let task = ScheduledTask {
             id: Uuid::new_v4(),
             name,
             prompt,
             cron_expr,
             fire_at,
-            channel: None,
+            channel,
             provider: None,
             model: None,
             profile_id: None,

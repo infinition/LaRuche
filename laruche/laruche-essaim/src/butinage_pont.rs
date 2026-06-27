@@ -376,6 +376,8 @@ impl but::Outils for OutilsPont<'_> {
         if let Some(wd) = &self.working_dir {
             ctx.working_dir = wd.clone();
         }
+        // Canal d'origine → les outils (cron_create) savent d'où vient la demande.
+        ctx.channel = self.config.origin_channel.clone();
 
         // Garde anti-injection/exfiltration (threat_patterns) sur les outils d'action.
         if let Some(reason) = garde_injection(&appel.nom, &appel.args) {

@@ -120,6 +120,9 @@ struct PersistentState {
     /// Curateur (auto-skills/tools) activé depuis Settings — survit au redémarrage.
     #[serde(default)]
     curateur_actif: Option<bool>,
+    /// Canal « maison » (/sethome) : destination par défaut des messages proactifs.
+    #[serde(default)]
+    home_channel: Option<String>,
 }
 
 const METRICS_HISTORY_LIMIT: usize = 360; // ~1 hour at 10s intervals
@@ -6665,6 +6668,27 @@ async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState
                                 continue;
                             }
 
+                            // /sethome — définit CE chat comme « home channel » : destination par
+                            // défaut des messages proactifs (cron, missions) sans canal explicite.
+                            if text == "/sethome" {
+                                let home = format!("telegram:{}", chat_id);
+                                {
+                                    let mut ec = state.essaim_config.write().await;
+                                    ec.home_channel = Some(home.clone());
+                                }
+                                save_persistent_state(state).await;
+                                let _ = client
+                                    .post(format!("{}/sendMessage", api))
+                                    .json(&serde_json::json!({
+                                        "chat_id": chat_id,
+                                        "text": "🏠 Ce chat est désormais ton *home channel*. Les tâches planifiées et missions sans destination explicite te répondront ici.",
+                                        "parse_mode": "Markdown",
+                                    }))
+                                    .send()
+                                    .await;
+                                continue;
+                            }
+
                             // Check for active steering
                             let mut steers_lock = active_steers.write().await;
                             if let Some(steer_tx) = steers_lock.get(&chat_id) {
@@ -6779,6 +6803,9 @@ async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState
 
                             let mut config = state.essaim_config.read().await.clone();
                             config.model = current_model;
+                            // Canal d'origine → cron_create y renverra le récurrent, et la
+                            // mémoire conversationnelle est déjà liée à cette session Telegram.
+                            config.origin_channel = Some(format!("telegram:{}", chat_id));
 
                             let state_clone = state.clone();
                             let client_clone = client.clone();
@@ -8821,6 +8848,9 @@ async fn main() -> Result<()> {
     if let Some(c) = persistent.curateur_actif {
         essaim_config.curateur_actif = c;
     }
+    if persistent.home_channel.is_some() {
+        essaim_config.home_channel = persistent.home_channel.clone();
+    }
     if let Some(ref m) = persistent.permission_mode {
         if let Some(mode) = permission_mode_from_str(m) {
             essaim_config.permission_mode = mode;
@@ -9749,7 +9779,12 @@ async fn main() -> Result<()> {
                     }
                 }
 
-                if let Some(ch) = channel.filter(|s| !s.is_empty()) {
+                // Canal de livraison : celui de la tâche, sinon le « home channel » (/sethome).
+                // Sans aucun des deux, le résultat reste dans le feed UI seulement.
+                let delivery_channel = channel
+                    .filter(|s| !s.is_empty())
+                    .or_else(|| cron_config.home_channel.clone());
+                if let Some(ch) = delivery_channel {
                     if ch.starts_with("telegram") {
                         let chat_id = ch.strip_prefix("telegram:").unwrap_or("").trim();
                         let config_path = std::path::Path::new("channels-config.json");
@@ -10560,6 +10595,7 @@ async fn save_persistent_state(state: &Arc<AppState>) {
         compaction_threshold: Some(state.essaim_config.read().await.compaction_threshold),
         context_max_tokens: Some(state.essaim_config.read().await.context_max_tokens),
         curateur_actif: Some(state.essaim_config.read().await.curateur_actif),
+        home_channel: state.essaim_config.read().await.home_channel.clone(),
     };
     drop(logs);
     drop(dm);

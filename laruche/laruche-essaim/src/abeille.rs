@@ -132,6 +132,9 @@ pub struct ContextExecution {
     pub working_dir: PathBuf,
     /// Optional live process-output channel consumed by the chat transport.
     pub live_output: Option<mpsc::UnboundedSender<ToolOutputChunk>>,
+    /// Canal d'origine de la demande (`telegram:12345`, `discord:bob`, `web`…). Permet aux
+    /// outils comme `cron_create` de renvoyer le récurrent là d'où il a été demandé.
+    pub channel: Option<String>,
 }
 
 impl Default for ContextExecution {
@@ -141,6 +144,7 @@ impl Default for ContextExecution {
             shell_allowlist: vec![],
             working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
             live_output: None,
+            channel: None,
         }
     }
 }

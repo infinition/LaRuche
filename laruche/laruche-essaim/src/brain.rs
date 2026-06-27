@@ -111,6 +111,15 @@ pub struct EssaimConfig {
     /// piloté depuis Settings ; fallback env `RUCHE_CURATEUR=1`. Off par défaut (anti-bloat).
     #[serde(default)]
     pub curateur_actif: bool,
+    /// Canal d'origine du run courant (ex. `telegram:12345`, `discord:bob`, `web`). Runtime
+    /// uniquement (jamais persisté) : sert à ce que les outils (`cron_create`) sachent d'où
+    /// vient la demande et y renvoient le récurrent.
+    #[serde(skip)]
+    pub origin_channel: Option<String>,
+    /// Canal « maison » (défini par l'utilisateur via `/sethome`) : destination par défaut des
+    /// messages proactifs (cron/missions) quand aucun canal d'origine n'est connu. Persisté.
+    #[serde(default)]
+    pub home_channel: Option<String>,
     /// Dynamically inject only the most relevant Abeilles into the prompt.
     #[serde(default)]
     pub dynamic_tool_selection: bool,
@@ -189,6 +198,8 @@ impl Default for EssaimConfig {
             disabled_tools: Vec::new(),
             disabled_skills: Vec::new(),
             curateur_actif: false,
+            origin_channel: None,
+            home_channel: None,
             dynamic_tool_selection: false,
             tool_selection_limit: default_tool_selection_limit(),
             stable_toolset: false,
