@@ -78,6 +78,12 @@ pub async fn butiner(
             jauge.estimer(&reglages.systeme, &carnet.historique);
         }
 
+        // Garde-fou DUR (fenêtre glissante) : la compaction d'escale ne garantit pas qu'on
+        // tienne dans la fenêtre RÉELLE du modèle (ex. llama.cpp n_ctx=32768). On retire les
+        // messages les PLUS ANCIENS jusqu'à tenir dans le budget, en gardant les récents →
+        // le modèle conserve le fil de conversation sans dépasser sa fenêtre.
+        tronquer_historique(carnet, &reglages.systeme, reglages.context_max_tokens);
+
         let messages = assembler(carnet, reglages);
         let reponse = match appeler_modele(fournisseur, &messages, &schemas, reglages, emet).await {
             Ok(r) => r,
@@ -144,6 +150,24 @@ pub async fn butiner(
                 tracing::warn!(error = %e, "échec du checkpoint carnet");
             }
         }
+    }
+}
+
+/// Fenêtre glissante : retire les messages les PLUS ANCIENS de l'historique jusqu'à ce que
+/// (système + historique) tienne dans `budget_tokens`. Estimation **conservatrice** (`chars/3` :
+/// les schémas d'outils / JSON tokenisent plus dense que `chars/4`, ce qui sous-estimait et
+/// laissait passer des requêtes au-delà de `n_ctx`). Garde toujours le dernier message (tour
+/// courant) → le modèle conserve le fil récent de la conversation.
+fn tronquer_historique(carnet: &mut Carnet, systeme: &str, budget_tokens: usize) {
+    if budget_tokens == 0 {
+        return;
+    }
+    let cible_chars = (budget_tokens as f32 * 0.72 * 3.0) as usize; // ~72% du budget, chars/3
+    let total_chars = |h: &[Message]| -> usize {
+        systeme.len() + h.iter().map(|m| m.contenu.len()).sum::<usize>()
+    };
+    while carnet.historique.len() > 1 && total_chars(&carnet.historique) > cible_chars {
+        carnet.historique.remove(0);
     }
 }
 
@@ -333,6 +357,22 @@ mod tests {
 
     fn t0() -> chrono::DateTime<chrono::Utc> {
         chrono::DateTime::from_timestamp(1_700_000_000, 0).unwrap()
+    }
+
+    #[test]
+    fn tronque_garde_les_recents_et_tient_dans_le_budget() {
+        let mut carnet = Carnet::ouvrir("m", ModeMission::Standard, t0());
+        carnet.historique.clear();
+        for i in 0..50 {
+            carnet.historique.push(Message::utilisateur("x".repeat(300) + &i.to_string()));
+        }
+        let avant = carnet.historique.len();
+        // budget serré → on doit retirer des anciens, garder au moins le dernier
+        tronquer_historique(&mut carnet, "systeme", 1000);
+        assert!(carnet.historique.len() < avant, "des anciens retires");
+        assert!(!carnet.historique.is_empty(), "garde au moins le tour courant");
+        // le DERNIER message (le plus recent) est preserve
+        assert!(carnet.historique.last().unwrap().contenu.ends_with("49"));
     }
 
     /// Fournisseur mock : débite des réponses pré-enregistrées, ou une erreur fixe.
