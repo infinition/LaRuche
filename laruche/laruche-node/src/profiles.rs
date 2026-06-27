@@ -257,9 +257,13 @@ pub async fn refresh_ollama_profiles(config: &mut ProfilesConfig) {
 
     for (id, base_url) in ollama_ids {
         let models = discover_ollama_models(&base_url).await;
-        if !models.is_empty() {
-            if let Some(profile) = config.profiles.get_mut(&id) {
+        if let Some(profile) = config.profiles.get_mut(&id) {
+            if !models.is_empty() {
                 profile.models = models;
+            } else {
+                // Ollama est local : injoignable (serveur fermé) → liste VIDE (reflète l'état
+                // réel) ; elle se repeuplera dès qu'il répond à nouveau.
+                profile.models.clear();
             }
         }
     }
@@ -273,12 +277,23 @@ pub async fn refresh_ollama_profiles(config: &mut ProfilesConfig) {
         .collect();
     for (id, base_url) in openai_ids {
         let models = discover_llamacpp_models(&base_url).await;
-        if !models.is_empty() {
-            if let Some(profile) = config.profiles.get_mut(&id) {
+        if let Some(profile) = config.profiles.get_mut(&id) {
+            if !models.is_empty() {
                 profile.models = models;
+            } else if est_endpoint_local(&base_url) {
+                // Provider local (llama.cpp/LM Studio) fermé → liste VIDE. On NE touche PAS
+                // aux providers cloud (OpenAI distant) dont /v1/models peut échouer transitoirement.
+                profile.models.clear();
             }
         }
     }
+}
+
+/// Un endpoint est-il LOCAL (serveur sur la machine) ? Sert à vider la liste de modèles
+/// quand un provider local est injoignable, sans affecter les providers cloud.
+fn est_endpoint_local(url: &str) -> bool {
+    let u = url.to_lowercase();
+    u.contains("127.0.0.1") || u.contains("localhost") || u.contains("0.0.0.0") || u.contains("[::1]")
 }
 
 /// Add a local llama.cpp profile when an OpenAI-compatible server is listening on :8001.

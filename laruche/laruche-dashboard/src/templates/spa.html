@@ -2950,6 +2950,15 @@ LaRuche.Header = (function(){
   function init() {
     loadModels();
     loadPermissionMode();
+    // Rafraîchit la liste de modèles en arrière-plan (sans F5) : un provider local fermé
+    // (llama.cpp/ollama) disparaît, et réapparaît dès qu'il revient. On évite de re-render
+    // pendant que l'utilisateur a le menu ouvert.
+    setInterval(function(){
+      var drop=document.getElementById('sbModelDrop');
+      if(drop && drop.classList.contains('open')) return;
+      if(Date.now()-lastModelChangeAt < 8000) return; // pas juste après un choix manuel
+      loadModels();
+    }, 20000);
     setInterval(fetchContextStats, 1500);
     fetchContextStats();
   }
