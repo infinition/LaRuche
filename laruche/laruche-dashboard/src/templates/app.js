@@ -3,6 +3,49 @@
 /* ================================================================ */
 window.LaRuche = {};
 
+/* ── i18n : choix de langue FR/EN ─────────────────────────────────────────────────
+ * Dictionnaire central { "clé": { fr, en } }. `t('clé')` renvoie la chaîne dans la langue
+ * courante (localStorage). Les TERMES DE MARQUE (LaRuche, L'Essaim, abeilles, butinage, miel,
+ * ruche, Curateur…) ne sont JAMAIS traduits — c'est la french touch. Le toggle recharge la page
+ * (le plus simple : tout se re-render via `t()` avec la nouvelle langue).
+ * La migration des ~500 chaînes vers `t()` se fait module par module (en cours). */
+LaRuche.i18n = (function(){
+  var DICT = {
+    // Commun
+    'common.save':    { fr:'Enregistrer', en:'Save' },
+    'common.cancel':  { fr:'Annuler',     en:'Cancel' },
+    'common.delete':  { fr:'Supprimer',   en:'Delete' },
+    'common.close':   { fr:'Fermer',      en:'Close' },
+    'common.edit':    { fr:'Éditer',      en:'Edit' },
+    'common.apply':   { fr:'Appliquer',   en:'Apply' },
+    'common.create':  { fr:'Créer',       en:'Create' },
+    'common.loading': { fr:'Chargement…', en:'Loading…' },
+    'common.search':  { fr:'Rechercher',  en:'Search' },
+    'common.none':    { fr:'Aucun',       en:'None' },
+    // Toasts fréquents
+    'toast.saved':    { fr:'Enregistré',  en:'Saved' },
+    'toast.deleted':  { fr:'Supprimé',    en:'Deleted' },
+    'toast.failed':   { fr:'Échec',       en:'Failed' },
+    'toast.added':    { fr:'Ajouté',      en:'Added' },
+    // Navigation
+    'nav.chat':         { fr:'Chat',        en:'Chat' },
+    'nav.memory':       { fr:'Mémoire',     en:'Memory' },
+    'nav.missions':     { fr:'Missions',    en:'Missions' },
+    'nav.capabilities': { fr:'Capacités',   en:'Capabilities' },
+    'nav.dashboard':    { fr:'Dashboard',   en:'Dashboard' },
+    'nav.settings':     { fr:'Settings',    en:'Settings' },
+  };
+  var lang = (localStorage.getItem('laruche_lang') === 'en') ? 'en' : 'fr';
+  function t(key, vars){
+    var e = DICT[key];
+    var s = e ? (e[lang] || e.fr || key) : key;
+    if(vars){ for(var k in vars){ s = s.split('{'+k+'}').join(vars[k]); } }
+    return s;
+  }
+  function setLang(l){ if(l !== lang){ localStorage.setItem('laruche_lang', l); location.reload(); } }
+  return { t:t, setLang:setLang, get:function(){ return lang; }, DICT:DICT };
+})();
+
 /* ── Navigateur de fichiers Plugins (dossier plugins/ + scripts/) ─────────────────
  * Voir/éditer/supprimer/déposer ses propres scripts (.py/.ps1/.sh/.json…) en plus du JSON.
  * Confiné côté serveur à plugins/ (anti-traversal). Glisser-déposer = upload. */
@@ -8260,6 +8303,25 @@ LaRuche.Mesh = (function(){
 /* ── Boot ── */
 (function(){
   LaRuche.Header.init();
+  // Toggle de langue FR/EN dans le header (injecté à droite).
+  (function(){
+    var hr = document.querySelector('.header-right');
+    if(!hr || document.getElementById('langToggle')) return;
+    var cur = LaRuche.i18n.get();
+    var btn = document.createElement('button');
+    btn.id = 'langToggle';
+    btn.title = 'Langue / Language';
+    btn.style.cssText = 'background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;font-weight:600;margin-right:8px';
+    btn.textContent = cur.toUpperCase();
+    btn.onclick = function(){ LaRuche.i18n.setLang(cur === 'fr' ? 'en' : 'fr'); };
+    hr.insertBefore(btn, hr.firstChild);
+    // Traduit les libellés de navigation (preuve visible du switch ; le reste de l'UI migre ensuite).
+    document.querySelectorAll('.header-nav a[data-page], .mobile-tabs a[data-page]').forEach(function(a){
+      var key = 'nav.' + a.dataset.page;
+      var span = a.querySelector('.tab-text');
+      if(span && LaRuche.i18n.DICT[key]) span.textContent = LaRuche.i18n.t(key);
+    });
+  })();
   LaRuche.Voice.init();
   LaRuche.Feed.init();
   if(LaRuche.Secrets && LaRuche.Secrets.init) LaRuche.Secrets.init();
