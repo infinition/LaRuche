@@ -33,6 +33,10 @@ pub struct Carnet {
     /// Historique de conversation (système exclu — reconstruit depuis les réglages).
     #[serde(default)]
     pub historique: Vec<Message>,
+    /// Pièces jointes multimodales du message d'amorce (images multiples, audio…).
+    /// Attachées au 1er message utilisateur quand la boucle l'injecte.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pieces: Vec<crate::messagerie::Piece>,
     /// Numéro de la passe courante (0-based).
     pub passe: usize,
     /// Auto-continuations consommées depuis la dernière récolte d'outil.
@@ -53,6 +57,7 @@ impl Carnet {
             mode,
             itineraire: Itineraire::vide(),
             historique: Vec::new(),
+            pieces: Vec::new(),
             passe: 0,
             auto_continue: 0,
             recolte_web: 0,

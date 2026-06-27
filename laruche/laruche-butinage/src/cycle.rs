@@ -33,7 +33,8 @@ pub async fn butiner(
 ) -> anyhow::Result<Bilan> {
     if carnet.historique.is_empty() {
         let mission = carnet.mission.clone();
-        carnet.historique.push(Message::utilisateur(mission));
+        let pieces = std::mem::take(&mut carnet.pieces);
+        carnet.historique.push(Message::utilisateur_multimodal(mission, pieces));
     }
     let mut vigie = Vigie::nouvelle(reglages.profil.seuils_vigie());
     let mut jauge = crate::cap::jauge::Jauge::nouvelle(reglages.context_max_tokens, 0.70, 0.85);

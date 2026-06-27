@@ -2930,9 +2930,9 @@ pub async fn boucle_react_multimodal_ext(
     ephemeral_context: Option<String>,
     memoire: Option<Arc<dyn laruche_memoire::MemoireCognitive>>,
 ) -> Result<String> {
-    // Cohabitation : moteur ReAct « butinage » (nouveau) activable par flag, sans
-    // toucher au node. Les attachments multimodaux ne sont pas (encore) transmis au
-    // pont → POC text-first. À défaut de flag, on garde l'ancien moteur ci-dessous.
+    // Cohabitation : moteur ReAct « butinage » (nouveau) activable par flag, sans toucher
+    // au node. Les attachments multimodaux (images multiples + audio) sont transmis au pont.
+    // À défaut de flag, on garde l'ancien moteur ci-dessous.
     if std::env::var("RUCHE_MOTEUR").as_deref() == Ok("butinage") {
         return crate::butinage_pont::executer(
             prompt_utilisateur,
@@ -2943,6 +2943,7 @@ pub async fn boucle_react_multimodal_ext(
             &ephemeral_context,
             &memoire,
             steer_rx,
+            &attachments,
         )
         .await;
     }

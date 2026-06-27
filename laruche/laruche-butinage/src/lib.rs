@@ -42,7 +42,7 @@ pub use evenement::{Emetteur, Evenement, Silencieux};
 pub use fournisseur::{ErreurFournisseur, Fournisseur, ReponseModele, Usage};
 pub use issue::{Appel, Bilan, FinDeVol, Issue, StopReason, TexteSeul};
 pub use itineraire::{Etape, Itineraire, StatutEtape};
-pub use messagerie::{Message, Role};
+pub use messagerie::{Message, Piece, Role};
 pub use meteo::{ClasseErreur, Reaction};
 pub use nectar::Source;
 pub use outils::{Outils, ResultatOutil};

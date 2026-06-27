@@ -137,6 +137,30 @@ fn convertir_messages(messages: &[but::Message]) -> Vec<serde_json::Value> {
                 ),
                 _ => m.contenu.clone(),
             };
+            // Multimodal : un message utilisateur peut porter des images (multiples) et/ou
+            // de l'audio. Format Ollama : `images: [base64]` pour la vision, `attachments`
+            // pour le reste (audio/fichiers) — le streaming provider sait le consommer.
+            if !m.pieces.is_empty() && matches!(m.role, Role::Utilisateur) {
+                let images: Vec<&str> =
+                    m.pieces.iter().filter(|p| p.est_image()).map(|p| p.data.as_str()).collect();
+                let attachments: Vec<serde_json::Value> = m
+                    .pieces
+                    .iter()
+                    .map(|p| {
+                        serde_json::json!({
+                            "kind": p.kind,
+                            "mime_type": p.mime,
+                            "data": p.data,
+                        })
+                    })
+                    .collect();
+                return serde_json::json!({
+                    "role": role,
+                    "content": contenu,
+                    "images": images,
+                    "attachments": attachments,
+                });
+            }
             serde_json::json!({ "role": role, "content": contenu })
         })
         .collect()
@@ -814,6 +838,7 @@ pub async fn executer(
     ephemeral_context: &Option<String>,
     memoire: &Option<Arc<dyn MemoireCognitive>>,
     mut steer_rx: Option<tokio::sync::mpsc::Receiver<String>>,
+    attachments: &[crate::session::Attachment],
 ) -> Result<String> {
     let _ = tx.send(ChatEvent::Status {
         message: "Moteur butinage actif (RUCHE_MOTEUR=butinage).".into(),
@@ -865,6 +890,23 @@ pub async fn executer(
     });
 
     let mut carnet = but::Carnet::ouvrir(prompt_utilisateur, mode, chrono::Utc::now());
+    // Multimodal : images multiples + audio attachés au message d'amorce. La boucle les
+    // collera au 1er message utilisateur ; `convertir_messages` les traduit pour le provider.
+    if !attachments.is_empty() {
+        carnet.pieces = attachments
+            .iter()
+            .map(|a| but::Piece {
+                kind: a.kind.clone(),
+                mime: a.mime_type.clone(),
+                data: a.data.clone(),
+            })
+            .collect();
+        let n_img = attachments.iter().filter(|a| a.kind == "image").count();
+        let n_audio = attachments.iter().filter(|a| a.kind == "audio").count();
+        let _ = tx.send(ChatEvent::Status {
+            message: format!("Pièces multimodales : {n_img} image(s), {n_audio} audio."),
+        });
+    }
 
     let four = FournisseurPont {
         provider: config.provider.clone(),
@@ -924,6 +966,21 @@ pub async fn executer(
             continue; // nudges internes (steering) : jamais persistés ni affichés
         }
         match m.role {
+            but::Role::Utilisateur if !m.pieces.is_empty() => {
+                // Message d'amorce multimodal : on persiste texte + pièces (images/audio)
+                // pour la relecture/feed.
+                let atts: Vec<crate::session::Attachment> = m
+                    .pieces
+                    .iter()
+                    .map(|p| crate::session::Attachment {
+                        kind: p.kind.clone(),
+                        mime_type: p.mime.clone(),
+                        data: p.data.clone(),
+                        filename: None,
+                    })
+                    .collect();
+                session.ajouter_user_multimodal(&m.contenu, atts);
+            }
             but::Role::Utilisateur => session.ajouter_user(&m.contenu),
             but::Role::Assistant if !m.contenu.is_empty() => session.ajouter_assistant(&m.contenu),
             but::Role::Observation => {
