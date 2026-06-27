@@ -86,6 +86,11 @@ DO NOT memorize the agent's OWN capabilities, tool names, or anything already in
 NOT a durable fact. NEVER use the reserved domains `system.*` or `capacities.*` (system-managed). \
 If nothing durable, output []. No prose, JSON only.";
 
+/// Prompt d'extraction par défaut (pour l'exposer dans l'UI « restaurer défaut »).
+pub fn prompt_extraction_defaut() -> &'static str {
+    PROMPT_EXTRACTION
+}
+
 /// **Consolidation cognitive** (escale lourde) : extrait les faits durables de l'historique
 /// via un appel LLM auxiliaire, les écrit en mémoire (`source`), puis repart sur un contexte
 /// frais (ancre + reprise). Rend la mission *cumulative* sans saturer le contexte.
@@ -94,10 +99,11 @@ pub async fn consolider(
     fournisseur: &dyn Fournisseur,
     source: &dyn Source,
     emet: &dyn Emetteur,
+    prompt_extraction: Option<&str>,
 ) -> Option<Evenement> {
     emet.emettre(Evenement::Statut("🧠 Consolidation cognitive…".into()));
     let messages = vec![
-        Message::systeme(PROMPT_EXTRACTION),
+        Message::systeme(prompt_extraction.unwrap_or(PROMPT_EXTRACTION)),
         Message::utilisateur(rendu_historique(&carnet.historique)),
     ];
     let reponse = fournisseur.repondre(&messages, &[]).await.ok()?;

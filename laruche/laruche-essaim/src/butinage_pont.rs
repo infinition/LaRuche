@@ -878,6 +878,11 @@ pub fn prompt_curateur_defaut() -> &'static str {
     PROMPT_CURATEUR
 }
 
+/// Prompt par défaut de consolidation mémoire (escale) — re-export pour l'UI.
+pub fn prompt_extraction_defaut() -> &'static str {
+    but::escale::prompt_extraction_defaut()
+}
+
 pub async fn lancer_curateur_arriere_plan(
     messages: Vec<crate::Message>,
     registry: Arc<AbeilleRegistry>,
@@ -1059,11 +1064,17 @@ pub async fn executer(
             .join("butinage")
             .join(format!("{}.carnet.json", uuid::Uuid::new_v4())),
     );
+    // Miroir mémoire : override éditable du prompt de consolidation (system.prompt_extraction).
+    let prompt_extraction = match memoire {
+        Some(m) => crate::brain::charger_doc_systeme(m, "system.prompt_extraction").await,
+        None => None,
+    };
     let reglages = but::Reglages {
         plafond_passes: config.max_iterations.max(1),
         context_max_tokens: (config.context_max_tokens as usize).max(8_000),
         chemin_carnet: chemin_carnet.clone(),
         systeme,
+        prompt_extraction,
         profil: profil_pour(config),
         ..but::Reglages::default()
     };
@@ -1243,11 +1254,16 @@ pub async fn reprendre_carnet(
         Some(&index),
         config.custom_instructions.as_deref(),
     );
+    let prompt_extraction = match memoire {
+        Some(m) => crate::brain::charger_doc_systeme(m, "system.prompt_extraction").await,
+        None => None,
+    };
     let reglages = but::Reglages {
         plafond_passes: config.max_iterations.max(1),
         context_max_tokens: (config.context_max_tokens as usize).max(8_000),
         chemin_carnet: Some(chemin.to_path_buf()),
         systeme,
+        prompt_extraction,
         profil: profil_pour(config),
         ..but::Reglages::default()
     };

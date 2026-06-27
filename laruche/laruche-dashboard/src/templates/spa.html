@@ -2365,6 +2365,97 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 /* ================================================================ */
 window.LaRuche = {};
 
+/* ── Navigateur de fichiers Plugins (dossier plugins/ + scripts/) ─────────────────
+ * Voir/éditer/supprimer/déposer ses propres scripts (.py/.ps1/.sh/.json…) en plus du JSON.
+ * Confiné côté serveur à plugins/ (anti-traversal). Glisser-déposer = upload. */
+LaRuche.PluginFiles = (function(){
+  var ov=null, current=null;
+  function esc(s){ return LaRuche.Utils.esc(s); }
+  function close(){ if(ov){ ov.remove(); ov=null; current=null; } }
+  function open(){
+    if(ov) close();
+    ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center';
+    ov.onclick=function(e){ if(e.target===ov) close(); };
+    ov.innerHTML='<div style="width:880px;max-width:95vw;height:84vh;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
+      '<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--amber);display:flex;align-items:center;gap:10px">'+
+        '<span style="flex:1">📁 Fichiers du dossier <code>plugins/</code></span>'+
+        '<button class="tl-btn" onclick="LaRuche.PluginFiles.newFile()">+ Nouveau fichier</button>'+
+        '<button class="tl-btn" onclick="LaRuche.PluginFiles.close()">Fermer</button>'+
+      '</div>'+
+      '<div style="flex:1;display:flex;min-height:0">'+
+        '<div id="pfTree" style="width:260px;border-right:1px solid var(--border);overflow:auto;padding:6px;font-size:12px"></div>'+
+        '<div id="pfMain" style="flex:1;display:flex;flex-direction:column;min-width:0;padding:8px">'+
+          '<div id="pfHint" style="color:var(--text-dim);font-size:12px;padding:20px;text-align:center">Sélectionne un fichier à gauche, ou glisse-dépose un script ici pour l\'ajouter.</div>'+
+        '</div>'+
+      '</div></div>';
+    document.body.appendChild(ov);
+    // Glisser-déposer = upload dans plugins/ (ou plugins/scripts/ si .py/.sh/.ps1).
+    var card=ov.firstChild;
+    card.addEventListener('dragover', function(e){ e.preventDefault(); card.style.outline='2px dashed var(--amber)'; });
+    card.addEventListener('dragleave', function(){ card.style.outline=''; });
+    card.addEventListener('drop', function(e){ e.preventDefault(); card.style.outline=''; handleDrop(e); });
+    refresh();
+  }
+  function refresh(){
+    fetch('/api/plugin-files').then(function(r){return r.json();}).then(function(d){
+      var files=(d&&d.files)||[];
+      var t=document.getElementById('pfTree'); if(!t) return;
+      if(!files.length){ t.innerHTML='<div style="color:var(--text-dim);padding:8px">Dossier vide.</div>'; return; }
+      t.innerHTML=files.map(function(f){
+        if(f.dir) return '<div style="padding:4px 6px;color:var(--text-dim);font-weight:600;margin-top:4px">📂 '+esc(f.path)+'</div>';
+        var indent = f.path.indexOf('/')>=0 ? 16 : 4;
+        var kb = f.size!=null ? ' <span style="color:var(--text-dim);font-size:10px">'+Math.max(1,Math.round(f.size/1024))+'k</span>' : '';
+        return '<div class="pf-file" data-path="'+esc(f.path)+'" style="padding:4px 6px;padding-left:'+indent+'px;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:5px"><span>📄</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(f.path.split('/').pop())+'</span>'+kb+'</div>';
+      }).join('');
+      Array.prototype.forEach.call(t.querySelectorAll('.pf-file'), function(el){
+        el.onclick=function(){ openFile(el.dataset.path); Array.prototype.forEach.call(t.querySelectorAll('.pf-file'),function(x){x.style.background='';}); el.style.background='rgba(245,158,11,.15)'; };
+      });
+    });
+  }
+  function openFile(path){
+    fetch('/api/plugin-file/'+path.split('/').map(encodeURIComponent).join('/')).then(function(r){return r.json();}).then(function(d){
+      var m=document.getElementById('pfMain'); if(!m) return;
+      current=path;
+      if(d.binary){ m.innerHTML='<div style="color:var(--text-dim);padding:20px">Fichier binaire ('+(d.size||'?')+' o) — non éditable ici.</div>'; return; }
+      m.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><code style="flex:1;color:var(--amber)">plugins/'+esc(path)+'</code>'+
+        '<button class="tl-btn" onclick="LaRuche.PluginFiles.save()">Enregistrer</button>'+
+        '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.PluginFiles.del()">Supprimer</button></div>'+
+        '<textarea id="pfEditor" spellcheck="false" style="flex:1;width:100%;font-family:var(--mono);font-size:12px;background:#16161a;border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px;resize:none">'+esc(d.content||'')+'</textarea>';
+    });
+  }
+  function save(){
+    if(!current) return;
+    var ta=document.getElementById('pfEditor'); if(!ta) return;
+    fetch('/api/plugin-file/'+current.split('/').map(encodeURIComponent).join('/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:ta.value})})
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Enregistré (plugins rechargés)','ok'); refresh(); } else LaRuche.Toast.show('Échec','err'); });
+  }
+  function del(){
+    if(!current || !confirm('Supprimer plugins/'+current+' ?')) return;
+    fetch('/api/plugin-file/'+current.split('/').map(encodeURIComponent).join('/'),{method:'DELETE'})
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Supprimé','ok'); current=null; document.getElementById('pfMain').innerHTML='<div id="pfHint" style="color:var(--text-dim);padding:20px;text-align:center">Fichier supprimé.</div>'; refresh(); } });
+  }
+  function newFile(){
+    var name=prompt('Nom du fichier (ex: scripts/mon_script.py) :',''); if(!name) return;
+    fetch('/api/plugin-file/'+name.split('/').map(encodeURIComponent).join('/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:''})})
+      .then(function(r){ if(r.ok){ refresh(); openFile(name); } else LaRuche.Toast.show('Nom invalide','err'); });
+  }
+  function handleDrop(e){
+    var files=e.dataTransfer.files; if(!files||!files.length) return;
+    Array.prototype.forEach.call(files, function(file){
+      var reader=new FileReader();
+      reader.onload=function(){
+        var ext=(file.name.split('.').pop()||'').toLowerCase();
+        var dest=(['py','sh','ps1'].indexOf(ext)>=0 ? 'scripts/' : '')+file.name;
+        fetch('/api/plugin-file/'+dest.split('/').map(encodeURIComponent).join('/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:reader.result})})
+          .then(function(r){ if(r.ok){ LaRuche.Toast.show('Ajouté : '+dest,'ok'); refresh(); } else LaRuche.Toast.show('Refusé : '+file.name,'err'); });
+      };
+      reader.readAsText(file);
+    });
+  }
+  return { open:open, close:close, save:save, del:del, newFile:newFile, refresh:refresh };
+})();
+
 /* ── @@secret : autocomplétion CENTRALE des secrets ──────────────────────────────
  * Tape `@@` dans N'IMPORTE quel champ texte (chat, prompts de cron/mission/skill/watcher,
  * éditeur mémoire, formulaires…) → liste cliquable des secrets enregistrés. La VALEUR n'est
@@ -6141,7 +6232,7 @@ LaRuche.Memory = (function(){
   }
   // system.prompt / system.soul : editables par l'admin via l'editeur dedie
   function isSystemEditor(id){
-    return id === 'system.prompt' || id === 'system.behavior' || id === 'system.soul' || id === 'system.prompt_curateur';
+    return id === 'system.prompt' || id === 'system.behavior' || id === 'system.soul' || id === 'system.prompt_curateur' || id === 'system.prompt_extraction';
   }
 
   // SVG inline (heritent currentColor)
@@ -6604,11 +6695,13 @@ LaRuche.Memory = (function(){
       // Vide en DB → pre-remplit avec le defaut du code (c'est CE texte qui est utilise).
       taValue = (nodeId === 'system.behavior') ? (_sysDefaults.behavior || '')
               : (nodeId === 'system.prompt_curateur') ? (_sysDefaults.prompt_curateur || '')
+              : (nodeId === 'system.prompt_extraction') ? (_sysDefaults.prompt_extraction || '')
               : (_sysDefaults.identity || '');
     }
     var title = isSoul ? 'SOUL — personnalite'
               : (nodeId === 'system.behavior' ? 'Comportement'
-              : (nodeId === 'system.prompt_curateur' ? 'Prompt Curateur' : 'Identite'));
+              : (nodeId === 'system.prompt_curateur' ? 'Prompt Curateur'
+              : (nodeId === 'system.prompt_extraction' ? 'Prompt Consolidation' : 'Identite')));
     var icon = isSoul ? SVG.soul : (nodeId === 'system.behavior' ? SVG.system : SVG.prompt);
     var html = '<div class="mem2-syseditor">'+
       '<div class="mem2-syseditor-head">'+
@@ -9832,6 +9925,7 @@ LaRuche.Capabilities = (function(){
     }
     if(currentFamily==='all' || currentFamily==='plugin'){
       extraActions += ' <button class="settings-save-btn" onclick="LaRuche.Settings.newPlugin()">+ Nouveau plugin</button>';
+      extraActions += ' <button class="settings-save-btn" style="background:rgba(70,196,106,.15);color:var(--green);border:1px solid var(--green)" onclick="LaRuche.PluginFiles.open()">📁 Fichiers &amp; scripts</button>';
     }
     if(currentFamily==='all' || currentFamily==='abeille'){
       extraActions = '<button onclick="LaRuche.Capabilities.toggleAll(true)" style="background:rgba(16,185,129,0.15);color:var(--green);border:1px solid var(--green);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600">Tout activer</button>'+

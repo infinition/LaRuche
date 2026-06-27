@@ -3439,6 +3439,7 @@ async fn api_system_prompt_defaults() -> Json<serde_json::Value> {
         "identity": laruche_essaim::prompt::section_identite_stable(),
         "behavior": laruche_essaim::prompt::section_comportement(),
         "prompt_curateur": laruche_essaim::butinage_pont::prompt_curateur_defaut(),
+        "prompt_extraction": laruche_essaim::butinage_pont::prompt_extraction_defaut(),
     }))
 }
 
@@ -9123,6 +9124,120 @@ async fn api_plugin_delete(
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
+// ─── Navigateur de fichiers du dossier plugins/ (+ scripts/) ────────────────────────
+// Voir/éditer/supprimer/déposer ses propres scripts (.py/.ps1/.sh/.json…) en plus du JSON.
+// Garde anti-traversal : tout chemin est confiné à plugins/.
+
+/// Résout un chemin relatif DANS plugins/ en refusant tout échappement (`..`, absolu).
+fn plugin_safe_path(rel: &str) -> Option<std::path::PathBuf> {
+    let rel = rel.trim_start_matches(['/', '\\']);
+    if rel.is_empty() {
+        return None;
+    }
+    for comp in std::path::Path::new(rel).components() {
+        use std::path::Component::*;
+        match comp {
+            Normal(_) | CurDir => {}
+            _ => return None, // ParentDir, RootDir, Prefix → refus
+        }
+    }
+    Some(std::path::Path::new("plugins").join(rel))
+}
+
+/// GET /api/plugins/files — arbre plat des fichiers de plugins/ (récursif, profondeur bornée).
+async fn api_plugin_files() -> Json<serde_json::Value> {
+    fn walk(
+        dir: &std::path::Path,
+        base: &std::path::Path,
+        depth: usize,
+        out: &mut Vec<serde_json::Value>,
+    ) {
+        if depth > 3 {
+            return;
+        }
+        let Ok(rd) = std::fs::read_dir(dir) else { return };
+        for e in rd.flatten() {
+            let p = e.path();
+            let rel = p
+                .strip_prefix(base)
+                .unwrap_or(&p)
+                .to_string_lossy()
+                .replace('\\', "/");
+            if p.is_dir() {
+                if e.file_name().to_string_lossy() == "__pycache__" {
+                    continue;
+                }
+                out.push(serde_json::json!({ "path": rel, "dir": true }));
+                walk(&p, base, depth + 1, out);
+            } else {
+                let size = e.metadata().map(|m| m.len()).unwrap_or(0);
+                out.push(serde_json::json!({ "path": rel, "dir": false, "size": size }));
+            }
+        }
+    }
+    let base = std::path::Path::new("plugins");
+    let mut out = Vec::new();
+    if base.exists() {
+        walk(base, base, 0, &mut out);
+    }
+    out.sort_by(|a, b| a["path"].as_str().cmp(&b["path"].as_str()));
+    Json(serde_json::json!({ "files": out }))
+}
+
+/// GET /api/plugins/file/*path — contenu d'un fichier (texte, ≤ 512 KiB).
+async fn api_plugin_file_get(
+    axum::extract::Path(path): axum::extract::Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let p = plugin_safe_path(&path).ok_or(StatusCode::BAD_REQUEST)?;
+    let meta = tokio::fs::metadata(&p).await.map_err(|_| StatusCode::NOT_FOUND)?;
+    if meta.len() > 512 * 1024 {
+        return Ok(Json(serde_json::json!({ "binary": true, "size": meta.len() })));
+    }
+    match tokio::fs::read_to_string(&p).await {
+        Ok(content) => Ok(Json(serde_json::json!({ "path": path, "content": content }))),
+        Err(_) => Ok(Json(serde_json::json!({ "binary": true }))),
+    }
+}
+
+/// POST /api/plugins/file/*path {content} — crée/écrit un fichier. Recharge les plugins.
+async fn api_plugin_file_save(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(path): axum::extract::Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let p = plugin_safe_path(&path).ok_or(StatusCode::BAD_REQUEST)?;
+    let content = body["content"].as_str().unwrap_or("");
+    if let Some(parent) = p.parent() {
+        tokio::fs::create_dir_all(parent).await.ok();
+    }
+    tokio::fs::write(&p, content)
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    laruche_essaim::abeilles::plugins::charger_plugins(
+        std::path::Path::new("plugins"),
+        &state.essaim_registry,
+    );
+    Ok(Json(serde_json::json!({ "status": "ok", "path": path })))
+}
+
+/// DELETE /api/plugins/file/*path — supprime un fichier. Recharge les plugins.
+async fn api_plugin_file_delete(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(path): axum::extract::Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let p = plugin_safe_path(&path).ok_or(StatusCode::BAD_REQUEST)?;
+    if p.is_file() {
+        tokio::fs::remove_file(&p)
+            .await
+            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    }
+    laruche_essaim::abeilles::plugins::charger_plugins(
+        std::path::Path::new("plugins"),
+        &state.essaim_registry,
+    );
+    Ok(Json(serde_json::json!({ "status": "ok", "path": path })))
+}
+
 // ======================== Main ========================
 
 /// GET /api/mcp/servers
@@ -9690,6 +9805,11 @@ async fn main() -> Result<()> {
             "Prompt Curateur",
             "Prompt du curateur d'auto-amelioration (vide = defaut code, hot-reload)",
         ),
+        (
+            "system.prompt_extraction",
+            "Prompt Consolidation",
+            "Prompt de consolidation memoire / escale (vide = defaut code, hot-reload)",
+        ),
     ] {
         let _ = memoire
             .create_node(id, label, Some(desc), Some(1.0), None)
@@ -10109,6 +10229,13 @@ async fn main() -> Result<()> {
             get(api_plugin_get)
                 .post(api_plugin_save)
                 .delete(api_plugin_delete),
+        )
+        .route("/api/plugin-files", get(api_plugin_files))
+        .route(
+            "/api/plugin-file/*path",
+            get(api_plugin_file_get)
+                .post(api_plugin_file_save)
+                .delete(api_plugin_file_delete),
         )
         .route("/api/channels/discord/webhook", post(api_discord_webhook))
         .route("/api/channels/slack/events", post(api_slack_events))

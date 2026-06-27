@@ -68,7 +68,14 @@ pub async fn butiner(
             matches!(jauge.besoin(), crate::cap::jauge::Besoin::Consolider) && source.is_some();
         if consolide {
             if let Some(ev) =
-                crate::escale::consolider(carnet, fournisseur, source.unwrap(), emet).await
+                crate::escale::consolider(
+                    carnet,
+                    fournisseur,
+                    source.unwrap(),
+                    emet,
+                    reglages.prompt_extraction.as_deref(),
+                )
+                .await
             {
                 emet.emettre(ev);
                 jauge.estimer(&reglages.systeme, &carnet.historique);

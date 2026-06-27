@@ -56,6 +56,9 @@ pub struct Reglages {
     pub garder_recents: usize,
     /// Prompt système (tier stable). En anglais (best practice).
     pub systeme: String,
+    /// Override du prompt de consolidation mémoire (escale). `None` = défaut code.
+    /// Permet à l'utilisateur de l'éditer via `system.prompt_extraction` (miroir mémoire).
+    pub prompt_extraction: Option<String>,
     /// Profil de la cible.
     pub profil: ProfilModele,
     /// Chemin de persistance du carnet (checkpoint). `None` = pas de reprise disque.
@@ -73,6 +76,7 @@ impl Default for Reglages {
             context_max_tokens: 128_000,
             garder_recents: 12,
             systeme: String::new(),
+            prompt_extraction: None,
             profil: ProfilModele::default(),
             chemin_carnet: None,
         }
