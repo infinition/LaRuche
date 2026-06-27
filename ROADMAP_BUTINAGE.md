@@ -42,7 +42,7 @@ UI : auto-scroll · sélection texte mémoire · bouton 👁 PromptDebug.
 ## 🔜 À FAIRE (lot 3, suite — features lourdes, passes dédiées)
 A. [ ] **Vault Secrets chiffré** (onglet Secrets + section Webhooks) : AES-GCM clé locale, noms→valeurs, le LLM voit les NOMS, substitution `${NOM}` à l'exécution tool/shell, dropdown secrets dans les champs API Key des providers, contexte LLM informé. **GROS — sécurité-sensible, passe dédiée.**
 B. [ ] **Modèles dynamiques par provider** : liste fetchée live (`/v1/models`,`/api/tags`), vidée si injoignable (llama.cpp fermé), repeuplée au retour.
-C. [ ] **Missions** : sélecteurs provider + channel (channel optionnel), cadence cron simplifiée (réutiliser le sélecteur facile des Crons).
+C. [x] **Missions** : provider + channel (optionnel) + cadence simplifiée (CronBuilder réutilisé). Runner applique le profil + livre au canal (telegram). ✅ `039cf4f`
 D. [ ] **Timeline** : clic sur la ligne (pas que la pastille), zoom molette, édition/suppression depuis le détail.
 E. [ ] **Skill ↔ abeilles/plugins** (façon third-party) : déclarer tools/plugins par skill, hint injecté au chargement.
 
