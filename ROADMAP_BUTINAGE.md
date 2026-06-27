@@ -54,11 +54,15 @@ E. [ ] **Skill ↔ abeilles/plugins** (façon third-party) : déclarer tools/plu
 - **E — Skill↔outils** (cœur) : `extraire_outils_skill` + hint « outils recommandés pour ce skill » injecté au chargement.
 - Fix **consolidation** : ne pollue plus `system.*`/`capacities.*`.
 
-## 🔜 RESTE (polish, non bloquant)
-- **E (UI)** : picker à cocher des tools dans l'éditeur de skill (le format `tools:` + l'injection marchent déjà ; reste l'UX).
-- **F (mémoire)** : ~80% via le Mode édition existant (créer/renommer/supprimer node, drag dossiers, add/edit/delete item) ; reste le **drag d'items** entre nœuds (endpoint `move_item` existe).
-- **Audit QoL/responsive** approfondi du spa.html (JS vérifié `node --check` à chaque commit ; pas d'audit responsive profond fait).
+## ✅ Lot 5 — E/F/audit + cohérence + fix Telegram complet
+- **Telegram** entièrement résolu (la cause = dépassement `n_ctx`) : **fenêtre glissante** (`tronquer_historique`, garde les récents) + **sonde du vrai n_ctx** llama.cpp (`/props`) → le profil s'aligne sur 32768 → jauge+trim mordent. (+ coalescing rôles + erreur diagnostique des lots précédents.)
+- **E complet** : UI cases-à-cocher des outils dans l'éditeur de skill (sync la ligne `tools:`).
+- **F** : déjà couvert par le Mode édition existant — créer node (racine+enfant), renommer, supprimer, **drag nodes (reparent)**, add/edit/delete item, **drag items entre nœuds** (`draggable`+`dropItem`+`move_item`). Toute la mémoire est éditable.
+- **Audit** : `cargo test --workspace` → 2 tests pré-existants cassés réparés (Watcher literal, naming `capacities.skills.*`) ; barres d'onglets rendues **scrollables** (responsive, anti-débordement). Workspace **entièrement vert** (33 suites).
+
+## 🔜 RESTE
 - **Fédération mesh** : propager skills VÉRIFIÉS via `miel-protocol` (GROS — besoin test multi-nœuds).
+- Audit responsive CSS plus poussé (mobile fin), si besoin.
 10. [ ] Discord/Slack : commandes `/sethome` `/clear` (aujourd'hui Telegram seul) · per-tâche channel pour kanban/cron via UI · home channel par utilisateur (aujourd'hui global, OK en POC mono-user).
 8. [ ] Tokens réels openai/anthropic/codex (aujourd'hui Ollama seul) · Feed backlog des runs en fond non-attachés (buffer serveur) · `executionMode` par outil · tokenizer réel.
 9. [ ] **Reprise effective** d'un carnet inachevé (aujourd'hui : détectés+log seulement ; reste à recharger le carnet dans un run via une UI « missions reprises »).
