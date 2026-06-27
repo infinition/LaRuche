@@ -736,6 +736,29 @@ fn rendre_session_messages(messages: &[crate::Message]) -> String {
     out.join("\n\n")
 }
 
+/// Convertit l'historique de session (tours précédents) en messages butinage, pour
+/// réinjecter la **mémoire conversationnelle** dans un nouveau carnet. Sinon le moteur
+/// repart de zéro à chaque message (amnésie, flagrante sur Telegram). Les images des
+/// anciens tours ne sont PAS ré-envoyées (seul le texte est gardé → économie de contexte) ;
+/// le system, les pensées, le prompt-debug et les tool_call bruts sont ignorés (le butinage
+/// a son propre prompt système et les résultats d'outils vivent dans les observations).
+fn prelude_butinage(messages: &[crate::Message]) -> Vec<but::Message> {
+    use crate::Message as M;
+    let mut out = Vec::new();
+    for m in messages {
+        match m {
+            M::User(t) => out.push(but::Message::utilisateur(t.clone())),
+            M::UserMultimodal { text, .. } => out.push(but::Message::utilisateur(text.clone())),
+            M::Assistant(t) if !t.is_empty() => out.push(but::Message::assistant(t.clone())),
+            M::Observation { tool, result, .. } => {
+                out.push(but::Message::observation(tool.clone(), result.clone()))
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
 /// Cherche en mémoire un skill SÉMANTIQUEMENT proche (via `memory_search`) d'un nouveau
 /// skill (nom + description). Renvoie le slug du skill existant si trouvé. Model-independent :
 /// c'est le code, pas le LLM, qui détecte le doublon.
@@ -948,23 +971,32 @@ pub async fn executer(
     });
 
     let mut carnet = but::Carnet::ouvrir(prompt_utilisateur, mode, chrono::Utc::now());
-    // Multimodal : images multiples + audio attachés au message d'amorce. La boucle les
-    // collera au 1er message utilisateur ; `convertir_messages` les traduit pour le provider.
-    if !attachments.is_empty() {
-        carnet.pieces = attachments
-            .iter()
-            .map(|a| but::Piece {
-                kind: a.kind.clone(),
-                mime: a.mime_type.clone(),
-                data: a.data.clone(),
-            })
-            .collect();
+    // Mémoire conversationnelle : on réinjecte les tours précédents de la session AVANT le
+    // message courant. Sans ça, le moteur ouvrait un carnet vierge → amnésie à chaque message
+    // (flagrant sur Telegram : il « oublie » la question d'avant). `nb_prelude` = nombre de
+    // messages d'historique réinjectés → la recompose finale ne ré-ajoutera QUE le neuf.
+    carnet.historique = prelude_butinage(&session.messages);
+    let nb_prelude = carnet.historique.len();
+
+    // Message courant + pièces multimodales (images multiples / audio).
+    let pieces: Vec<but::Piece> = attachments
+        .iter()
+        .map(|a| but::Piece {
+            kind: a.kind.clone(),
+            mime: a.mime_type.clone(),
+            data: a.data.clone(),
+        })
+        .collect();
+    if !pieces.is_empty() {
         let n_img = attachments.iter().filter(|a| a.kind == "image").count();
         let n_audio = attachments.iter().filter(|a| a.kind == "audio").count();
         let _ = tx.send(ChatEvent::Status {
             message: format!("Pièces multimodales : {n_img} image(s), {n_audio} audio."),
         });
     }
+    carnet
+        .historique
+        .push(but::Message::utilisateur_multimodal(prompt_utilisateur.to_string(), pieces));
 
     let four = FournisseurPont {
         provider: config.provider.clone(),
@@ -1022,8 +1054,11 @@ pub async fn executer(
         let _ = tx.send(ChatEvent::Plan { items });
     }
 
-    // Recompose la session depuis le carnet (persistance disque + relecture UI).
-    for m in &carnet.historique {
+    // Recompose la session depuis le carnet (persistance disque + relecture UI). On saute
+    // `nb_prelude` : ces messages d'historique étaient DÉJÀ dans la session (réinjectés pour
+    // la mémoire), les ré-ajouter créerait des doublons. On ne persiste donc que le message
+    // courant + les réponses de ce tour.
+    for m in carnet.historique.iter().skip(nb_prelude) {
         if m.interne {
             continue; // nudges internes (steering) : jamais persistés ni affichés
         }
@@ -1065,4 +1100,51 @@ pub async fn executer(
     // l'Arc<AbeilleRegistry> nécessaire au spawn 'static) → voir lancer_curateur_arriere_plan.
 
     Ok(bilan.texte)
+}
+
+#[cfg(test)]
+mod tests_prelude {
+    use super::*;
+
+    #[test]
+    fn prelude_reinjecte_les_tours_et_ignore_le_bruit() {
+        let session = vec![
+            crate::Message::System("sys".into()),
+            crate::Message::User("bonjour".into()),
+            crate::Message::Assistant("salut".into()),
+            crate::Message::Observation {
+                tool: "web".into(),
+                result: "r".into(),
+                images: vec![],
+            },
+            crate::Message::ToolCall {
+                name: "x".into(),
+                args: serde_json::json!({}),
+            },
+        ];
+        let p = prelude_butinage(&session);
+        // system + tool_call ignorés ; user + assistant + observation conservés (dans l'ordre).
+        assert_eq!(p.len(), 3);
+        assert_eq!(p[0].role, but::Role::Utilisateur);
+        assert_eq!(p[0].contenu, "bonjour");
+        assert_eq!(p[1].role, but::Role::Assistant);
+        assert_eq!(p[2].role, but::Role::Observation);
+    }
+
+    #[test]
+    fn prelude_multimodal_garde_le_texte_sans_re_envoyer_les_images() {
+        let session = vec![crate::Message::UserMultimodal {
+            text: "décris cette image".into(),
+            attachments: vec![crate::session::Attachment {
+                kind: "image".into(),
+                mime_type: "image/png".into(),
+                data: "BASE64ENORME".into(),
+                filename: None,
+            }],
+        }];
+        let p = prelude_butinage(&session);
+        assert_eq!(p.len(), 1);
+        assert_eq!(p[0].contenu, "décris cette image");
+        assert!(p[0].pieces.is_empty(), "les images des anciens tours ne sont pas ré-envoyées");
+    }
 }
