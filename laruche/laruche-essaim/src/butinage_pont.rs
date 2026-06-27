@@ -990,6 +990,20 @@ pub async fn executer(
         message: "Moteur butinage actif (RUCHE_MOTEUR=butinage).".into(),
     });
 
+    // Petits modèles : si la fenêtre est étroite (≤ 40k, ex. gemma/llama.cpp n_ctx=32768),
+    // on FORCE la sélection dynamique des outils → on n'injecte qu'un noyau d'outils (texte +
+    // schémas natifs) au lieu de TOUS, sinon le system prompt seul dépasse n_ctx (HTTP 400).
+    let cfg_local;
+    let config: &EssaimConfig = if config.context_max_tokens <= 40_000 && !config.dynamic_tool_selection {
+        cfg_local = EssaimConfig { dynamic_tool_selection: true, ..config.clone() };
+        let _ = tx.send(ChatEvent::Status {
+            message: "Contexte modèle étroit → sélection dynamique des outils (prompt allégé).".into(),
+        });
+        &cfg_local
+    } else {
+        config
+    };
+
     // System prompt : on réutilise les assembleurs existants (tier stable).
     let tool_schema = schema_outils_pour_prompt(registry, config, prompt_utilisateur);
     let mut systeme = build_system_prompt(
