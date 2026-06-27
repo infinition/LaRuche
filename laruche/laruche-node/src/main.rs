@@ -4290,6 +4290,83 @@ async fn livrer_telegram(channel: &str, text: &str) {
         .await;
 }
 
+/// GET /api/butinage/carnets — liste les carnets de butinage INACHEVÉS (repris possibles).
+async fn api_carnets_list() -> Json<serde_json::Value> {
+    let dir = std::path::Path::new("sessions").join("butinage");
+    let mut out = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for e in entries.flatten() {
+            let p = e.path();
+            if p.extension().and_then(|x| x.to_str()) != Some("json") {
+                continue;
+            }
+            if let Ok(raw) = std::fs::read_to_string(&p) {
+                if let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw) {
+                    let id = p
+                        .file_name()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("")
+                        .trim_end_matches(".carnet.json")
+                        .to_string();
+                    out.push(serde_json::json!({
+                        "id": id,
+                        "mission": v.get("mission").and_then(|m| m.as_str()).unwrap_or(""),
+                        "passe": v.get("passe").and_then(|m| m.as_u64()).unwrap_or(0),
+                        "maj_le": v.get("maj_le").cloned().unwrap_or(serde_json::Value::Null),
+                    }));
+                }
+            }
+        }
+    }
+    Json(serde_json::json!({ "carnets": out }))
+}
+
+/// POST /api/butinage/carnets/:id/resume — REPREND un carnet inachevé (arrière-plan).
+async fn api_carnet_resume(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Json<serde_json::Value> {
+    let path = std::path::Path::new("sessions")
+        .join("butinage")
+        .join(format!("{id}.carnet.json"));
+    if !path.exists() {
+        return Json(serde_json::json!({ "error": "carnet introuvable" }));
+    }
+    let st = state.clone();
+    let id_spawn = id.clone();
+    tokio::spawn(async move {
+        let cfg = st.essaim_config.read().await.clone();
+        let (tx, mut rx) = broadcast::channel::<ChatEvent>(64);
+        tokio::spawn(async move { while rx.recv().await.is_ok() {} });
+        let memoire = Some(st.memoire.clone());
+        match laruche_essaim::butinage_pont::reprendre_carnet(
+            &path,
+            &st.essaim_registry,
+            &cfg,
+            &tx,
+            &memoire,
+        )
+        .await
+        {
+            Ok(txt) => {
+                laruche_essaim::feed_journal::record(
+                    "LaRuche",
+                    "mission",
+                    "a repris et terminé un carnet",
+                    id_spawn,
+                    chrono::Utc::now(),
+                );
+                if let Some(ch) = cfg.home_channel.as_ref() {
+                    livrer_telegram(ch, &format!("✅ Carnet repris — terminé :\n\n{}", txt.trim()))
+                        .await;
+                }
+            }
+            Err(e) => warn!(error = %e, "Reprise de carnet échouée"),
+        }
+    });
+    Json(serde_json::json!({ "status": "resuming", "id": id }))
+}
+
 /// POST /api/missions/:slug/run — déclenche UNE itération.
 async fn api_run_mission(
     State(state): State<Arc<AppState>>,
@@ -9607,6 +9684,8 @@ async fn main() -> Result<()> {
             get(api_list_missions).post(api_create_mission),
         )
         .route("/api/missions/:slug/run", post(api_run_mission))
+        .route("/api/butinage/carnets", get(api_carnets_list))
+        .route("/api/butinage/carnets/:id/resume", post(api_carnet_resume))
         .route("/api/missions/:slug/dossier", get(api_mission_dossier))
         .route("/api/missions/:slug/decompose", post(api_decompose_mission))
         .route(

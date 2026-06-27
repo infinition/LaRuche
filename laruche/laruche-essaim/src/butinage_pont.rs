@@ -1185,6 +1185,77 @@ pub async fn executer(
     Ok(bilan.texte)
 }
 
+/// **Reprise effective** d'un carnet inachevé (crash/arrêt en plein vol) : recharge l'état
+/// depuis le disque (mission + historique + itinéraire) et **continue** la boucle là où elle
+/// s'était arrêtée. Supprime le carnet à la réussite. Gap F.
+pub async fn reprendre_carnet(
+    chemin: &std::path::Path,
+    registry: &AbeilleRegistry,
+    config: &EssaimConfig,
+    tx: &broadcast::Sender<ChatEvent>,
+    memoire: &Option<Arc<dyn MemoireCognitive>>,
+) -> Result<String> {
+    let raw = std::fs::read_to_string(chemin)?;
+    let mut carnet: but::Carnet = serde_json::from_str(&raw)?;
+
+    // Même garde « petit modèle » que executer : sélection dynamique si contexte étroit.
+    let cfg_local;
+    let config: &EssaimConfig =
+        if config.context_max_tokens <= 40_000 && !config.dynamic_tool_selection {
+            cfg_local = EssaimConfig { dynamic_tool_selection: true, ..config.clone() };
+            &cfg_local
+        } else {
+            config
+        };
+
+    let tool_schema = schema_outils_pour_prompt(registry, config, &carnet.mission);
+    let index = crate::brain::build_capability_index(registry);
+    let systeme = build_system_prompt(
+        &tool_schema,
+        config.system_prompt_override.as_deref(),
+        config.behavior_override.as_deref(),
+        Some(&index),
+        config.custom_instructions.as_deref(),
+    );
+    let reglages = but::Reglages {
+        plafond_passes: config.max_iterations.max(1),
+        context_max_tokens: (config.context_max_tokens as usize).max(8_000),
+        chemin_carnet: Some(chemin.to_path_buf()),
+        systeme,
+        profil: profil_pour(config),
+        ..but::Reglages::default()
+    };
+    let four = FournisseurPont {
+        provider: config.provider.clone(),
+        model: config.model.clone(),
+        api_key: config.api_key.clone(),
+        api_base: config.api_base.clone(),
+        ollama_url: config.ollama_url.clone(),
+        temperature: config.temperature,
+        max_tokens: config.max_tokens,
+        tx: tx.clone(),
+    };
+    let outils = OutilsPont {
+        registry,
+        config,
+        reglages: &reglages,
+        working_dir: None,
+        disabled: config.disabled_tools.clone(),
+        tx: tx.clone(),
+        approval: None,
+    };
+    let emet = EmetteurPont { tx: tx.clone() };
+    let source_pont = memoire.as_ref().map(|m| SourcePont { mem: m.clone() });
+    let source: Option<&dyn but::Source> = source_pont.as_ref().map(|s| s as &dyn but::Source);
+
+    let bilan =
+        but::butiner(&mut carnet, &reglages, &four, &outils, &emet, source, None).await?;
+    if bilan.est_succes() {
+        let _ = std::fs::remove_file(chemin);
+    }
+    Ok(bilan.texte)
+}
+
 #[cfg(test)]
 mod tests_prelude {
     use super::*;
