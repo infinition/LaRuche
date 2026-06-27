@@ -14,14 +14,40 @@ pub fn assembler_prompt_skills(base_prompt: &str, skills: &[(String, String)]) -
     let mut out = String::new();
     out.push_str("# Compétences activées pour cette tâche\n\n");
     for (name, body) in skills {
-        out.push_str(&format!(
-            "## Skill : {}\n{}\n\n---\n\n",
-            name.trim(),
-            body.trim()
-        ));
+        // Hint « façon third-party » : on remonte explicitement les abeilles/plugins déclarés utiles
+        // pour ce skill (frontmatter `tools:`/`allowed-tools:`), même si le frontmatter est
+        // retiré du corps → le modèle sait QUELS outils privilégier pour cette compétence.
+        let outils = extraire_outils_skill(body);
+        let hint = if outils.is_empty() {
+            String::new()
+        } else {
+            format!("**Outils/plugins recommandés pour ce skill : {}**\n\n", outils.join(", "))
+        };
+        out.push_str(&format!("## Skill : {}\n{}{}\n\n---\n\n", name.trim(), hint, body.trim()));
     }
     out.push_str(base_prompt);
     out
+}
+
+/// Extrait la liste d'outils déclarés dans le frontmatter d'un skill OKF
+/// (`tools: [a, b]` ou `allowed-tools: [a, b]`). Vide si absent.
+pub fn extraire_outils_skill(body: &str) -> Vec<String> {
+    for ligne in body.lines() {
+        let l = ligne.trim();
+        let reste = l
+            .strip_prefix("tools:")
+            .or_else(|| l.strip_prefix("allowed-tools:"));
+        if let Some(reste) = reste {
+            let reste = reste.trim().trim_start_matches('[').trim_end_matches(']');
+            let outils: Vec<String> = reste
+                .split(',')
+                .map(|s| s.trim().trim_matches('"').trim_matches('\'').to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            return outils;
+        }
+    }
+    Vec::new()
 }
 
 /// Vue minimale d'une tâche kanban pour la sélection orchestrateur (11.B).
@@ -81,6 +107,16 @@ pub fn board_a_du_travail(taches: &[TacheLite]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn extrait_les_outils_du_frontmatter_skill() {
+        let body = "---\ntype: skill\ntools: [web_search, web_fetch]\n---\n# Proc";
+        assert_eq!(extraire_outils_skill(body), vec!["web_search", "web_fetch"]);
+        assert!(extraire_outils_skill("# pas de frontmatter").is_empty());
+        // le hint doit apparaitre dans l'assemblage
+        let out = assembler_prompt_skills("BASE", &[("meteo".into(), body.to_string())]);
+        assert!(out.contains("Outils/plugins recommandés pour ce skill : web_search, web_fetch"));
+    }
 
     #[test]
     fn assemblage_prefixe_les_skills_dans_l_ordre() {
