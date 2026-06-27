@@ -2880,6 +2880,160 @@ async fn api_mesh_peers(State(state): State<Arc<AppState>>) -> Json<serde_json::
     Json(serde_json::json!({ "peers": peers }))
 }
 
+// ─── Gap A — FÉDÉRATION DES SKILLS VÉRIFIÉS ENTRE NŒUDS ──────────────────────────────
+// Un essaim qui apprend collectivement : quand un nœud a (créé/vérifié) un skill, les autres
+// peuvent le récupérer. Mécanique : chaque nœud ANNONCE ses skills (slug + hash de contenu),
+// et SYNCHRONISE en tirant chez les pairs les skills qu'il n'a pas (ou dont le hash diffère).
+
+/// Liste les skills locaux sur disque (`skills/<slug>/SKILL.md`) avec un hash de contenu.
+fn lister_skills_locaux() -> Vec<(String, String, String)> {
+    // (slug, hash, contenu)
+    let mut out = Vec::new();
+    let Ok(rd) = std::fs::read_dir("skills") else {
+        return out;
+    };
+    for e in rd.flatten() {
+        if !e.path().is_dir() {
+            continue;
+        }
+        let slug = e.file_name().to_string_lossy().to_string();
+        let md = e.path().join("SKILL.md");
+        if let Ok(content) = std::fs::read_to_string(&md) {
+            let hash = blake3::hash(content.as_bytes()).to_hex().to_string();
+            out.push((slug, hash, content));
+        }
+    }
+    out
+}
+
+/// GET /api/mesh/skills — annonce les skills vérifiés de CE nœud (slug + hash, sans le contenu).
+async fn api_mesh_skills_list() -> Json<serde_json::Value> {
+    let skills: Vec<serde_json::Value> = lister_skills_locaux()
+        .into_iter()
+        .map(|(slug, hash, _)| serde_json::json!({ "slug": slug, "hash": hash }))
+        .collect();
+    Json(serde_json::json!({ "skills": skills }))
+}
+
+/// GET /api/mesh/skills/:slug — renvoie le contenu SKILL.md d'un skill (pour qu'un pair le tire).
+async fn api_mesh_skill_get(Path(slug): Path<String>) -> Json<serde_json::Value> {
+    // Garde-fou anti-traversal : slug = un seul segment alphanumérique/_/-.
+    if slug.is_empty() || !slug.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
+        return Json(serde_json::json!({ "status": "error", "error": "slug invalide" }));
+    }
+    match std::fs::read_to_string(format!("skills/{slug}/SKILL.md")) {
+        Ok(content) => Json(serde_json::json!({ "slug": slug, "content": content })),
+        Err(_) => Json(serde_json::json!({ "status": "error", "error": "introuvable" })),
+    }
+}
+
+/// POST /api/mesh/sync — tire chez tous les pairs actifs les skills vérifiés manquants/différents,
+/// les écrit sur disque puis les ré-indexe en mémoire. Renvoie le rapport. **Additif** : n'écrase
+/// un skill local que si le hash distant diffère ; ne supprime jamais.
+async fn api_mesh_skills_sync(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let locaux: std::collections::HashMap<String, String> = lister_skills_locaux()
+        .into_iter()
+        .map(|(slug, hash, _)| (slug, hash))
+        .collect();
+
+    let nodes = state.listener.read().await.get_nodes().await;
+    let m = state.manifest.read().await;
+    let self_id = m.node_id;
+    let self_host = m.api_endpoint.host.clone();
+    drop(m);
+
+    let http = reqwest::Client::builder()
+        .timeout(Duration::from_millis(PEER_FETCH_TIMEOUT_MS))
+        .build()
+        .unwrap_or_else(|_| reqwest::Client::new());
+
+    let mut importes: Vec<String> = Vec::new();
+    let mut vus_pairs = 0usize;
+
+    for node in nodes.values() {
+        if node.manifest.node_id == Some(self_id)
+            || node.manifest.host == self_host
+            || is_stale(node.last_seen)
+        {
+            continue;
+        }
+        let host = node.manifest.host.clone();
+        let port = node.manifest.port.unwrap_or(miel_protocol::DEFAULT_API_PORT);
+        let base = format!("http://{host}:{port}");
+        vus_pairs += 1;
+
+        // 1) annonce du pair
+        let Ok(resp) = http.get(format!("{base}/api/mesh/skills")).send().await else {
+            continue;
+        };
+        let Ok(val) = resp.json::<serde_json::Value>().await else {
+            continue;
+        };
+        let Some(liste) = val.get("skills").and_then(|s| s.as_array()) else {
+            continue;
+        };
+
+        for sk in liste {
+            let slug = sk.get("slug").and_then(|s| s.as_str()).unwrap_or("");
+            let hash = sk.get("hash").and_then(|s| s.as_str()).unwrap_or("");
+            if slug.is_empty()
+                || !slug.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+            {
+                continue;
+            }
+            // déjà à jour ?
+            if locaux.get(slug).map(|h| h == hash).unwrap_or(false) {
+                continue;
+            }
+            // 2) tire le contenu
+            let Ok(r) = http
+                .get(format!("{base}/api/mesh/skills/{slug}"))
+                .send()
+                .await
+            else {
+                continue;
+            };
+            let Ok(body) = r.json::<serde_json::Value>().await else {
+                continue;
+            };
+            let Some(content) = body.get("content").and_then(|c| c.as_str()) else {
+                continue;
+            };
+            // 3) écrit sur disque
+            let dir = format!("skills/{slug}");
+            let peer_name = node
+                .manifest
+                .node_name
+                .clone()
+                .unwrap_or_else(|| host.clone());
+            if std::fs::create_dir_all(&dir).is_ok()
+                && std::fs::write(format!("{dir}/SKILL.md"), content).is_ok()
+            {
+                importes.push(format!("{slug} ⇐ {peer_name}"));
+                laruche_essaim::feed_journal::record(
+                    "LaRuche",
+                    "mesh",
+                    "a fédéré le skill",
+                    format!("{slug} (depuis {peer_name})"),
+                    chrono::Utc::now(),
+                );
+            }
+        }
+    }
+
+    // 4) ré-indexe disque → SQL pour rendre les skills tirés immédiatement utilisables.
+    if !importes.is_empty() {
+        sync_skills_disk_to_sql(&state.memoire).await;
+    }
+
+    Json(serde_json::json!({
+        "status": "ok",
+        "peers_scanned": vus_pairs,
+        "imported": importes,
+        "count": importes.len(),
+    }))
+}
+
 /// POST /api/mesh/send {to_id, text} — envoie un DM à un pair (résout l'hôte par ID, POST sur son
 /// /api/mesh/receive). Garde une copie locale (dir=out) pour le fil de conversation.
 async fn api_mesh_send(
@@ -9618,6 +9772,9 @@ async fn main() -> Result<()> {
         .route("/api/mesh/identity", get(api_mesh_identity))
         .route("/api/mesh/code", get(api_mesh_code_get).post(api_mesh_code_set))
         .route("/api/mesh/peers", get(api_mesh_peers))
+        .route("/api/mesh/skills", get(api_mesh_skills_list))
+        .route("/api/mesh/skills/:slug", get(api_mesh_skill_get))
+        .route("/api/mesh/sync", post(api_mesh_skills_sync))
         .route("/api/mesh/send", post(api_mesh_send))
         .route("/api/mesh/receive", post(api_mesh_receive))
         .route("/api/inbox", get(api_inbox_get))

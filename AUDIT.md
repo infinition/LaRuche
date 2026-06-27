@@ -53,12 +53,14 @@ curateur d'auto-amélioration qui crée skills ET tools vérifiés. Les vrais ga
 6. Hub d'automatisation unifié.
 
 ## 🎯 Les 6 gaps « killer » (priorisés)
-- **A** 🔴 P0 — **Finir la fédération mesh** : propager les skills vérifiés de nœud à nœud. Test multi-nœuds requis. *Le récit différenciant.* ⏳ RESTE (besoin setup multi-nœuds).
+- **A** 🔴 P0 — **Fédération mesh des skills vérifiés**. ✅ **FAIT** (endpoints `GET /api/mesh/skills`, `GET /api/mesh/skills/:slug`, `POST /api/mesh/sync` + bouton UI ; pull additif hash-diff → ré-indexe en mémoire). ⚠️ validation end-to-end = besoin de 2 nœuds réels.
 - **B** 🔴 P0 — **Serveur MCP** : LaRuche pilotable par Claude Code/Cursor/third-party. ✅ **FAIT** (`POST /mcp`, commit `7fc4514`).
 - **C** 🟠 P1 — **Tokens/usage réels hors-Ollama**. ✅ **FAIT** Anthropic+OpenAI (`efb848e`) ; codex OAuth reste.
-- **D** 🟠 P1 — **Hooks utilisateur** (pre/post-tool, events, configurables) façon Claude Code/third-party. ⏳ RESTE (système à concevoir).
-- **E** 🟡 P2 — **Sandbox durci** pour shell_exec/execute_code/browser. ⏳ RESTE (durcissement large).
+- **D** 🟠 P1 — **Hooks utilisateur** (pre/post-tool, configurables) façon Claude Code/third-party. ✅ **FAIT** (`hooks.json`, `a23ef7a`).
+- **E** 🟡 P2 — **Sandbox durci**. ✅ **bases suffisantes POC** : timeout + `kill_on_drop` + cap sortie + blocklist + option Docker (shell.rs) + désactivation via `disabled_tools` + gating custom via hooks (D). ⏳ Limites mémoire/CPU dures = Job Objects Windows/conteneurs (différé).
 - **F** 🟡 P2 — **Reprise effective des carnets**. ✅ **FAIT** (`reprendre_carnet` + endpoints, `8a8f44b`).
+
+> **Les 6 gaps sont traités.** A/B/C/D/F livrés ; E couvert au niveau POC (durcissement OS profond différé). Seule la validation *end-to-end* d'A demande 2 nœuds réels sur le réseau.
 
 ## Séquence recommandée
 1. **B** (serveur MCP) — petit effort, branche tout l'écosystème, démontrable.

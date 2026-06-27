@@ -10280,10 +10280,22 @@ LaRuche.Mesh = (function(){
     peers.forEach(function(p){
       html+='<div class="mesh-peer" data-peer="'+esc(p.id)+'" data-name="'+esc(p.name||p.id)+'">+ '+esc(p.name||p.id)+'</div>';
     });
+    // Gap A — fédération : tire les skills vérifiés des pairs.
+    html+='<div class="mesh-inbox-head">Essaim</div>'+
+      '<div class="mesh-peer" id="meshSyncSkills" style="color:var(--green,#46c46a)">🔄 Synchroniser les skills du mesh</div>';
     pop.innerHTML=html;
     pop.querySelectorAll('[data-peer]').forEach(function(el){
       el.onclick=function(){ openChat(el.getAttribute('data-peer'), el.getAttribute('data-name')); closeInbox(); };
     });
+    var syncBtn=pop.querySelector('#meshSyncSkills');
+    if(syncBtn) syncBtn.onclick=function(){
+      syncBtn.textContent='⏳ Synchronisation…';
+      fetch('/api/mesh/sync',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
+        var n=(d&&d.count)||0;
+        syncBtn.textContent = n>0 ? ('✅ '+n+' skill(s) fédéré(s)') : '✅ Déjà à jour';
+        if(n>0 && window.LaRuche && LaRuche.Memory && LaRuche.Memory.reload) LaRuche.Memory.reload();
+      }).catch(function(){ syncBtn.textContent='❌ Échec sync'; });
+    };
   }
   function openChat(peerId, peerName){
     start();
