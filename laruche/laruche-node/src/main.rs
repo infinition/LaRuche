@@ -124,6 +124,10 @@ struct PersistentState {
     /// Canal « maison » (/sethome) : destination par défaut des messages proactifs.
     #[serde(default)]
     home_channel: Option<String>,
+    /// Sélection dynamique des outils (n'injecte que les schémas pertinents → prompt plus léger
+    /// pour les modèles à petit contexte). Survit au redémarrage.
+    #[serde(default)]
+    dynamic_tool_selection: Option<bool>,
 }
 
 const METRICS_HISTORY_LIMIT: usize = 360; // ~1 hour at 10s intervals
@@ -5261,12 +5265,14 @@ async fn api_set_permission_config(
 
 /// GET /api/config/curateur — état du curateur (auto-skills/tools).
 async fn api_get_curateur_config(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    let actif = state.essaim_config.read().await.curateur_actif;
+    let ec = state.essaim_config.read().await;
     let env_force = std::env::var("RUCHE_CURATEUR").as_deref() == Ok("1");
     Json(serde_json::json!({
-        "enabled": actif,
+        "enabled": ec.curateur_actif,
         // si l'env force l'activation, on le signale pour que l'UI l'explique
         "env_forced": env_force,
+        // toggle co-localisé : sélection dynamique des outils (prompt léger / petits modèles)
+        "dynamic_tools": ec.dynamic_tool_selection,
     }))
 }
 
@@ -5278,13 +5284,17 @@ async fn api_set_curateur_config(
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
         .ok_or(StatusCode::UNAUTHORIZED)?;
-    let enabled = body["enabled"].as_bool().ok_or(StatusCode::BAD_REQUEST)?;
     {
         let mut ec = state.essaim_config.write().await;
-        ec.curateur_actif = enabled;
+        if let Some(v) = body["enabled"].as_bool() {
+            ec.curateur_actif = v;
+        }
+        if let Some(v) = body["dynamic_tools"].as_bool() {
+            ec.dynamic_tool_selection = v;
+        }
     }
     save_persistent_state(&state).await;
-    Ok(Json(serde_json::json!({ "status": "ok", "enabled": enabled })))
+    Ok(Json(serde_json::json!({ "status": "ok" })))
 }
 
 /// GET /api/secrets — liste les NOMS de secrets (JAMAIS les valeurs).
@@ -9081,6 +9091,9 @@ async fn main() -> Result<()> {
     if let Some(c) = persistent.curateur_actif {
         essaim_config.curateur_actif = c;
     }
+    if let Some(d) = persistent.dynamic_tool_selection {
+        essaim_config.dynamic_tool_selection = d;
+    }
     if persistent.home_channel.is_some() {
         essaim_config.home_channel = persistent.home_channel.clone();
     }
@@ -10833,6 +10846,7 @@ async fn save_persistent_state(state: &Arc<AppState>) {
         compaction_threshold: Some(state.essaim_config.read().await.compaction_threshold),
         context_max_tokens: Some(state.essaim_config.read().await.context_max_tokens),
         curateur_actif: Some(state.essaim_config.read().await.curateur_actif),
+        dynamic_tool_selection: Some(state.essaim_config.read().await.dynamic_tool_selection),
         home_channel: state.essaim_config.read().await.home_channel.clone(),
     };
     drop(logs);
