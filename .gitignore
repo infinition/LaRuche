@@ -51,3 +51,19 @@ laruche/essaim-calendar.json
 laruche/cron-tasks.json
 laruche/laruche-state.json
 laruche/sessions/
+
+# Runtime / secrets supplementaires (jamais versionner)
+laruche/credentials.json
+laruche/identity.json
+laruche/mesh-secret.json
+laruche/mcp_servers.json
+laruche/watchers.json
+laruche/provider-profiles.json
+laruche/channels-config.json
+laruche/kanban.json
+laruche/missions.json
+laruche/inbox.json
+laruche/*.db
+laruche/*.db-wal
+laruche/*.db-shm
+laruche/*.log
