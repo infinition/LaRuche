@@ -6272,7 +6272,19 @@ async fn api_get_unified_models(State(state): State<Arc<AppState>>) -> Json<serd
     let _ = profiles::save_profiles(&state.profiles_path, &cfg);
     let models = profiles::build_unified_models(&cfg);
     let active = cfg.active_model.clone();
+    // Sonde n_ctx → moteur : aligne context_max_tokens sur le n_ctx RÉEL du modèle actif.
+    // Sans ça, le défaut (128000) reste pour un modèle local 32768 → le chemin compact
+    // (index ~4K + sélection dynamique, actif si ≤ 40000) ne s'enclenche pas → débordement
+    // « request exceeds context size ». Ici la valeur sondée se propage automatiquement.
+    let (.., mcl) = profiles::active_to_essaim_fields(&cfg);
     drop(cfg);
+    {
+        let mut ec = state.essaim_config.write().await;
+        if ec.context_max_tokens != mcl {
+            ec.context_max_tokens = mcl;
+        }
+    }
+    save_persistent_state(&state).await;
     Json(serde_json::json!({
         "models": models,
         "active": active,
