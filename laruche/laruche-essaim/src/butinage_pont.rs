@@ -135,7 +135,7 @@ impl but::Fournisseur for FournisseurPont {
 
 fn convertir_messages(messages: &[but::Message]) -> Vec<serde_json::Value> {
     use but::Role;
-    messages
+    let brut: Vec<serde_json::Value> = messages
         .iter()
         .map(|m| {
             let role = match m.role {
@@ -177,7 +177,46 @@ fn convertir_messages(messages: &[but::Message]) -> Vec<serde_json::Value> {
             }
             serde_json::json!({ "role": role, "content": contenu })
         })
-        .collect()
+        .collect();
+
+    // Fusion des messages CONSÉCUTIFS de même rôle. Les providers à alternance stricte
+    // (Anthropic/Claude) renvoient un 400 quand deux messages `user` se suivent — ce qui
+    // arrive avec les observations d'outils parallèles ou un tour échoué (message user
+    // orphelin re-injecté). Sans effet pour Ollama/OpenAI (alternance non requise).
+    let mut out: Vec<serde_json::Value> = Vec::with_capacity(brut.len());
+    for m in brut {
+        let meme_role = out.last().map(|l| l.get("role") == m.get("role")).unwrap_or(false);
+        if meme_role {
+            let last = out.last_mut().unwrap();
+            let a = last.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let b = m.get("content").and_then(|v| v.as_str()).unwrap_or("");
+            last["content"] = serde_json::Value::String(if a.is_empty() {
+                b.to_string()
+            } else if b.is_empty() {
+                a
+            } else {
+                format!("{a}\n\n{b}")
+            });
+            // Union des pièces multimodales si présentes.
+            for cle in ["images", "attachments"] {
+                if let Some(src) = m.get(cle).and_then(|v| v.as_array()) {
+                    if !src.is_empty() {
+                        let dst = last
+                            .as_object_mut()
+                            .unwrap()
+                            .entry(cle.to_string())
+                            .or_insert_with(|| serde_json::json!([]));
+                        if let Some(arr) = dst.as_array_mut() {
+                            arr.extend(src.iter().cloned());
+                        }
+                    }
+                }
+            }
+            continue;
+        }
+        out.push(m);
+    }
+    out
 }
 
 fn appel_depuis_toolcall(tc: crate::brain::ToolCall) -> but::Appel {
@@ -1153,6 +1192,23 @@ mod tests_prelude {
         assert_eq!(p[0].contenu, "bonjour");
         assert_eq!(p[1].role, but::Role::Assistant);
         assert_eq!(p[2].role, but::Role::Observation);
+    }
+
+    #[test]
+    fn convertir_fusionne_les_roles_consecutifs() {
+        // user + observation (tous deux rôle "user") consécutifs → fusionnés en UN seul user
+        // (sinon Anthropic renvoie 400 « roles must alternate »).
+        let msgs = vec![
+            but::Message::systeme("sys"),
+            but::Message::utilisateur("question"),
+            but::Message::observation("web", "resultat"),
+        ];
+        let out = convertir_messages(&msgs);
+        assert_eq!(out.len(), 2, "system + un seul bloc user fusionné");
+        assert_eq!(out[0]["role"], "system");
+        assert_eq!(out[1]["role"], "user");
+        let c = out[1]["content"].as_str().unwrap();
+        assert!(c.contains("question") && c.contains("resultat"), "contenu fusionné");
     }
 
     #[test]
