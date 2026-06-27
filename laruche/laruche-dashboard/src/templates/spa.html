@@ -7210,7 +7210,15 @@ LaRuche.Settings = (function(){
   function leave() {}
 
   function loadTab(tab) {
-    var el = document.getElementById('settingsContent');
+    var host = document.getElementById('settingsContent');
+    if(!host) return;
+    // Anti-course : on donne à CHAQUE chargement un canvas neuf. Si un loader async lent se
+    // termine APRÈS qu'on a changé d'onglet, il écrit dans SON ancien `el` (désormais détaché
+    // du DOM) → invisible. Fini le « General s'affiche alors que j'ai cliqué Provider ».
+    var el = document.createElement('div');
+    el.className = 'settings-tab-canvas';
+    host.innerHTML = '';
+    host.appendChild(el);
     el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">Chargement...</div>';
     switch(tab) {
       case 'general': loadGeneral(el); break;
@@ -7232,13 +7240,14 @@ LaRuche.Settings = (function(){
   }
 
   async function loadGeneral(el) {
-    var doc={},voice={},provCfg={},ctxStats={},ctxCfg={},curCfg={};
-    try{doc=await fetch('/api/doctor').then(function(r){return r.json();});}catch(e){}
-    try{voice=await fetch('/api/voice/status').then(function(r){return r.json();});}catch(e){}
-    try{provCfg=await fetch('/api/config/provider').then(function(r){return r.json();});}catch(e){}
-    try{ctxStats=await fetch('/api/context/stats').then(function(r){return r.json();});}catch(e){}
-    try{ctxCfg=await fetch('/api/config/compaction').then(function(r){return r.json();});}catch(e){}
-    try{curCfg=await fetch('/api/config/curateur').then(function(r){return r.json();});}catch(e){}
+    // Les 6 appels sont INDÉPENDANTS → en PARALLÈLE (Promise.all) au lieu de 6 await en série
+    // (c'était ça la lenteur : chaque fetch attendait le précédent). gj = fetch tolérant aux erreurs.
+    function gj(u){ return fetch(u).then(function(r){return r.json();}).catch(function(){return {};}); }
+    var _r = await Promise.all([
+      gj('/api/doctor'), gj('/api/voice/status'), gj('/api/config/provider'),
+      gj('/api/context/stats'), gj('/api/config/compaction'), gj('/api/config/curateur')
+    ]);
+    var doc=_r[0], voice=_r[1], provCfg=_r[2], ctxStats=_r[3], ctxCfg=_r[4], curCfg=_r[5];
     el.innerHTML = '<div class="settings-grid">'+
       '<div class="settings-card"><div class="settings-card-title">Contexte &amp; compaction</div>'+
       '<div class="settings-row" style="flex-direction:column;align-items:stretch;gap:4px;">'+
