@@ -886,7 +886,7 @@ pub async fn executer(
     let reglages = but::Reglages {
         plafond_passes: config.max_iterations.max(1),
         context_max_tokens: (config.context_max_tokens as usize).max(8_000),
-        chemin_carnet,
+        chemin_carnet: chemin_carnet.clone(),
         systeme,
         profil: profil_pour(config),
         ..but::Reglages::default()
@@ -1001,6 +1001,15 @@ pub async fn executer(
                 session.ajouter_observation(m.outil.as_deref().unwrap_or("tool"), &m.contenu)
             }
             _ => {}
+        }
+    }
+
+    // Mission réussie → le carnet de reprise n'a plus d'utilité : on le supprime pour ne pas
+    // accumuler un checkpoint mort par tour. En cas d'échec/plafond on le GARDE (la reprise
+    // au boot les détecte ; voir purger_carnets_au_boot côté node).
+    if bilan.est_succes() {
+        if let Some(p) = &chemin_carnet {
+            let _ = std::fs::remove_file(p);
         }
     }
 

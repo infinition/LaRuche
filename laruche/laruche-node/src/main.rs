@@ -9543,6 +9543,11 @@ async fn main() -> Result<()> {
         }
     });
 
+    // Reprise au boot : purge les carnets de butinage périmés (missions crashées/abandonnées)
+    // et journalise ceux encore récents (repris possibles). Les missions réussies ont déjà
+    // supprimé leur carnet (voir butinage_pont::executer).
+    purger_carnets_au_boot();
+
     // Background: rêve mémoire (consolidation + dédup) périodique — hygiène anti-bloat.
     // Intervalle long (6 h par défaut), 1re passe différée de 10 min pour ne pas charger
     // le démarrage. Désactivable via LARUCHE_DREAM_INTERVAL_SECS=0.
@@ -10477,6 +10482,42 @@ fn resolve_state_file_path() -> PathBuf {
         PathBuf::from(dir).join("laruche-state.json")
     } else {
         PathBuf::from("laruche-state.json")
+    }
+}
+
+/// Au démarrage : purge les carnets de butinage périmés (checkpoints de missions
+/// crashées/abandonnées, > 3 jours) et journalise ceux encore récents (repris possibles).
+/// Les missions réussies suppriment déjà leur carnet à la fin.
+fn purger_carnets_au_boot() {
+    let dir = std::path::Path::new("sessions").join("butinage");
+    let entries = match std::fs::read_dir(&dir) {
+        Ok(e) => e,
+        Err(_) => return, // pas de dossier = rien à faire
+    };
+    let max_age = std::time::Duration::from_secs(3 * 24 * 3600); // 3 jours
+    let now = std::time::SystemTime::now();
+    let (mut purges, mut repris) = (0u32, 0u32);
+    for e in entries.flatten() {
+        let p = e.path();
+        if p.extension().and_then(|x| x.to_str()) != Some("json") {
+            continue;
+        }
+        let age = e
+            .metadata()
+            .ok()
+            .and_then(|m| m.modified().ok())
+            .and_then(|t| now.duration_since(t).ok())
+            .unwrap_or_default();
+        if age > max_age {
+            if std::fs::remove_file(&p).is_ok() {
+                purges += 1;
+            }
+        } else {
+            repris += 1;
+        }
+    }
+    if purges > 0 || repris > 0 {
+        info!(purges, repris, "Carnets butinage : nettoyage au démarrage");
     }
 }
 
