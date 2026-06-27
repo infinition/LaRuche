@@ -2484,7 +2484,10 @@ fn parser_frontmatter_enabled(content: &str) -> (bool, String) {
 
 /// Charge un document système (`system.prompt`, `system.soul`) depuis la carte cognitive :
 /// prend le dernier item du nœud, lit son frontmatter. Renvoie le corps si activé et non vide.
-async fn charger_doc_systeme(memoire: &Arc<dyn MemoireCognitive>, node_id: &str) -> Option<String> {
+pub(crate) async fn charger_doc_systeme(
+    memoire: &Arc<dyn MemoireCognitive>,
+    node_id: &str,
+) -> Option<String> {
     let node = memoire.read_node(node_id).await.ok()?;
     let items = node.get("items")?.as_array()?;
     let content = items

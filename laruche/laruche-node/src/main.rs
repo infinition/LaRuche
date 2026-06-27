@@ -3438,6 +3438,7 @@ async fn api_system_prompt_defaults() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "identity": laruche_essaim::prompt::section_identite_stable(),
         "behavior": laruche_essaim::prompt::section_comportement(),
+        "prompt_curateur": laruche_essaim::butinage_pont::prompt_curateur_defaut(),
     }))
 }
 
@@ -8616,9 +8617,10 @@ async fn ws_chat_connection(
                 let reg = state_clone.essaim_registry.clone();
                 let cfg = config.clone();
                 let txc = tx_clone.clone();
+                let mem = Some(state_clone.memoire.clone());
                 tokio::spawn(async move {
                     laruche_essaim::butinage_pont::lancer_curateur_arriere_plan(
-                        msgs, reg, cfg, txc,
+                        msgs, reg, cfg, txc, mem,
                     )
                     .await;
                 });
@@ -9594,6 +9596,11 @@ async fn main() -> Result<()> {
             "system.soul",
             "SOUL",
             "Couche de personnalisation injectable (frontmatter enabled)",
+        ),
+        (
+            "system.prompt_curateur",
+            "Prompt Curateur",
+            "Prompt du curateur d'auto-amelioration (vide = defaut code, hot-reload)",
         ),
     ] {
         let _ = memoire

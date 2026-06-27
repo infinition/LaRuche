@@ -873,16 +873,30 @@ fn slug_simple(s: &str) -> String {
 
 /// Lance le curateur en ARRIÈRE-PLAN (tout possédé → `tokio::spawn` depuis le node).
 /// Best-effort : crée/patche skills & plugins VÉRIFIÉS, dédup avant création.
+/// Prompt par défaut du curateur (pour l'exposer dans l'UI « restaurer défaut »).
+pub fn prompt_curateur_defaut() -> &'static str {
+    PROMPT_CURATEUR
+}
+
 pub async fn lancer_curateur_arriere_plan(
     messages: Vec<crate::Message>,
     registry: Arc<AbeilleRegistry>,
     config: EssaimConfig,
     tx: broadcast::Sender<ChatEvent>,
+    memoire: Option<Arc<dyn MemoireCognitive>>,
 ) {
     let transcript = rendre_session_messages(&messages);
     if transcript.chars().count() < 120 {
         return; // trop court pour valoir une revue
     }
+    // PROMPT EN DUR → MIROIR MÉMOIRE : l'utilisateur peut surcharger ce prompt via le nœud
+    // `system.prompt_curateur` (hot-reload, sans redémarrage). Vide/absent → défaut code.
+    let systeme = match &memoire {
+        Some(m) => crate::brain::charger_doc_systeme(m, "system.prompt_curateur")
+            .await
+            .unwrap_or_else(|| PROMPT_CURATEUR.to_string()),
+        None => PROMPT_CURATEUR.to_string(),
+    };
     crate::feed_journal::record(
         "Curateur",
         "curator",
@@ -895,7 +909,7 @@ pub async fn lancer_curateur_arriere_plan(
         CURATEUR_OUTILS.iter().map(|s| s.to_string()).collect();
     let reglages = but::Reglages {
         plafond_passes: 8,
-        systeme: PROMPT_CURATEUR.to_string(),
+        systeme,
         profil: profil_pour(&config),
         ..but::Reglages::default()
     };

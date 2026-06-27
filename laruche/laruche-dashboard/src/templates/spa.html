@@ -6091,7 +6091,7 @@ LaRuche.Memory = (function(){
   }
   // system.prompt / system.soul : editables par l'admin via l'editeur dedie
   function isSystemEditor(id){
-    return id === 'system.prompt' || id === 'system.behavior' || id === 'system.soul';
+    return id === 'system.prompt' || id === 'system.behavior' || id === 'system.soul' || id === 'system.prompt_curateur';
   }
 
   // SVG inline (heritent currentColor)
@@ -6552,9 +6552,13 @@ LaRuche.Memory = (function(){
       }
     } else if(!rawContent){
       // Vide en DB → pre-remplit avec le defaut du code (c'est CE texte qui est utilise).
-      taValue = (nodeId === 'system.behavior') ? (_sysDefaults.behavior || '') : (_sysDefaults.identity || '');
+      taValue = (nodeId === 'system.behavior') ? (_sysDefaults.behavior || '')
+              : (nodeId === 'system.prompt_curateur') ? (_sysDefaults.prompt_curateur || '')
+              : (_sysDefaults.identity || '');
     }
-    var title = isSoul ? 'SOUL — personnalite' : (nodeId === 'system.behavior' ? 'Comportement' : 'Identite');
+    var title = isSoul ? 'SOUL — personnalite'
+              : (nodeId === 'system.behavior' ? 'Comportement'
+              : (nodeId === 'system.prompt_curateur' ? 'Prompt Curateur' : 'Identite'));
     var icon = isSoul ? SVG.soul : (nodeId === 'system.behavior' ? SVG.system : SVG.prompt);
     var html = '<div class="mem2-syseditor">'+
       '<div class="mem2-syseditor-head">'+
