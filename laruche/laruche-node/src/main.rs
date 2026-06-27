@@ -10394,6 +10394,11 @@ async fn main() -> Result<()> {
                         cron_config.disabled_tools.push(t.to_string());
                     }
                 }
+                // ANTI-RUNAWAY : un cron est une tâche courte et ciblée. On plafonne ses passes
+                // bas (≤ 12) — sinon un prompt vague (« écris un message de test ») fait boucler
+                // l'agent jusqu'au plafond global (100) : écrit/relit/réécrit le log à l'infini,
+                // d'où le « Plafond de 100 passes atteint » et le spam.
+                cron_config.max_iterations = cron_config.max_iterations.min(12);
 
                 let current_model = cron_config.model.clone();
                 let sessions_dir = std::path::Path::new("sessions");
@@ -10444,11 +10449,11 @@ async fn main() -> Result<()> {
                     }
                 }
 
-                // Canal de livraison : celui de la tâche, sinon le « home channel » (/sethome).
-                // Sans aucun des deux, le résultat reste dans le feed UI seulement.
-                let delivery_channel = channel
-                    .filter(|s| !s.is_empty())
-                    .or_else(|| cron_config.home_channel.clone());
+                // Canal de livraison : UNIQUEMENT celui de la tâche. PAS de fallback home_channel
+                // (sinon un cron de test sans canal spamme Telegram). Un cron créé DEPUIS Telegram
+                // capture déjà ctx.channel=telegram → « préviens-moi » fonctionne ; un cron créé
+                // dans l'UI sans canal reste silencieux (feed/UI seulement).
+                let delivery_channel = channel.filter(|s| !s.is_empty());
                 if let Some(ch) = delivery_channel {
                     if ch.starts_with("telegram") {
                         let chat_id = ch.strip_prefix("telegram:").unwrap_or("").trim();
