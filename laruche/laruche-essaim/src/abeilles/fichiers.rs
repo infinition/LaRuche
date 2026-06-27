@@ -250,8 +250,8 @@ impl Abeille for FileRead {
             "type": "object",
             "properties": {
                 "path": { "type": "string", "description": "The file path to read" },
-                "offset": { "type": "integer", "description": "Ligne de départ (1-based), optionnel" },
-                "limit": { "type": "integer", "description": "Nombre de lignes à lire, optionnel" }
+                "offset": { "type": "integer", "description": "Start line (1-based), optional" },
+                "limit": { "type": "integer", "description": "Number of lines to read, optional" }
             },
             "required": ["path"]
         })
@@ -343,10 +343,10 @@ impl Abeille for FileEdit {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "path": { "type": "string", "description": "Fichier à éditer" },
-                "old_string": { "type": "string", "description": "Texte exact à remplacer (doit être unique)" },
-                "new_string": { "type": "string", "description": "Texte de remplacement" },
-                "replace_all": { "type": "boolean", "description": "Remplacer toutes les occurrences (défaut false)" }
+                "path": { "type": "string", "description": "File to edit" },
+                "old_string": { "type": "string", "description": "Exact text to replace (must be unique)" },
+                "new_string": { "type": "string", "description": "Replacement text" },
+                "replace_all": { "type": "boolean", "description": "Replace all occurrences (default false)" }
             },
             "required": ["path", "old_string", "new_string"]
         })

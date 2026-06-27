@@ -185,7 +185,7 @@ impl Abeille for RunScript {
             "properties": {
                 "steps": {
                     "type": "array",
-                    "description": "Liste ordonnée d'étapes",
+                    "description": "Ordered list of steps",
                     "items": {
                         "type": "object",
                         "properties": {

@@ -37,7 +37,7 @@ impl Abeille for SpawnSpecialist {
                 "role": {
                     "type": "string",
                     "enum": ["research", "experiment", "critique", "synthesis"],
-                    "description": "Type d'agent spécialisé"
+                    "description": "Type of specialized agent"
                 },
                 "task": { "type": "string" },
                 "context": { "type": "string" },
@@ -47,7 +47,7 @@ impl Abeille for SpawnSpecialist {
                 },
                 "model": {
                     "type": "string",
-                    "description": "Modèle override (ex. deepseek-chat, gemma4:e4b)"
+                    "description": "Model override (e.g. deepseek-chat, gemma4:e4b)"
                 }
             },
             "required": ["role", "task"]

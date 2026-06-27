@@ -87,11 +87,11 @@ impl Abeille for McpReadResource {
             "properties": {
                 "server_name": {
                     "type": "string",
-                    "description": "Nom du serveur MCP hébergeant la ressource"
+                    "description": "Name of the MCP server hosting the resource"
                 },
                 "uri": {
                     "type": "string",
-                    "description": "L'URI de la ressource à lire"
+                    "description": "The URI of the resource to read"
                 }
             },
             "required": ["server_name", "uri"],

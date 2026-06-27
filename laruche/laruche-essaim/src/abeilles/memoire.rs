@@ -42,8 +42,8 @@ impl Abeille for MemoireSearch {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "query": { "type": "string", "description": "Termes de recherche (intention de l'utilisateur)" },
-                "limit": { "type": "integer", "description": "Nombre max d'items (défaut 8)" }
+                "query": { "type": "string", "description": "Search terms (the user's intent)" },
+                "limit": { "type": "integer", "description": "Max items (default 8)" }
             },
             "required": ["query"]
         })
@@ -101,9 +101,9 @@ impl Abeille for MemoireWrite {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "node_id": { "type": "string", "description": "Nœud pointé, ex. decisions.archi" },
-                "content": { "type": "string", "description": "Le fait à mémoriser" },
-                "source": { "type": "string", "description": "Provenance optionnelle" }
+                "node_id": { "type": "string", "description": "Dotted node, e.g. decisions.archi" },
+                "content": { "type": "string", "description": "The fact to memorize" },
+                "source": { "type": "string", "description": "Optional provenance" }
             },
             "required": ["node_id", "content"]
         })
@@ -467,7 +467,7 @@ impl Abeille for MemoireMutations {
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
-            "properties": { "limit": { "type": "integer", "description": "Nombre d'entrées (défaut 50)" } }
+            "properties": { "limit": { "type": "integer", "description": "Number of entries (default 50)" } }
         })
     }
     fn niveau_danger(&self) -> NiveauDanger {

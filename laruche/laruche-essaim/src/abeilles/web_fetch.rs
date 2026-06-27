@@ -29,7 +29,7 @@ impl Abeille for WebFetch {
                 },
                 "render": {
                     "type": "boolean",
-                    "description": "Si true, tente un rendu headless Chrome/Edge avant extraction (pages JS)."
+                    "description": "If true, attempt a headless Chrome/Edge render before extraction (JS pages)."
                 }
             },
             "required": ["url"]

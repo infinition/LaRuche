@@ -26,7 +26,7 @@ impl Abeille for Clarify {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "question": { "type": "string", "description": "La question à poser à l'utilisateur" }
+                "question": { "type": "string", "description": "The question to ask the user" }
             },
             "required": ["question"]
         })

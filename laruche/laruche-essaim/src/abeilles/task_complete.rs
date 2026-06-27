@@ -28,16 +28,16 @@ impl Abeille for TaskComplete {
             "properties": {
                 "summary": {
                     "type": "string",
-                    "description": "Ce qui a été accompli (2-3 phrases max)"
+                    "description": "What was accomplished (2-3 sentences max)"
                 },
                 "confidence": {
                     "type": "number",
-                    "description": "0.0 à 1.0 — confiance dans le résultat"
+                    "description": "0.0 to 1.0 — confidence in the result"
                 },
                 "artifacts": {
                     "type": "array",
                     "items": { "type": "string" },
-                    "description": "Fichiers/résultats produits (chemins)"
+                    "description": "Files/results produced (paths)"
                 }
             },
             "required": ["summary", "confidence"]

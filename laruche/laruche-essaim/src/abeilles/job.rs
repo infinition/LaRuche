@@ -35,11 +35,11 @@ impl Abeille for SubmitJob {
             "properties": {
                 "script": {
                     "type": "string",
-                    "description": "Le script shell à exécuter"
+                    "description": "The shell script to execute"
                 },
                 "label": {
                     "type": "string",
-                    "description": "Étiquette optionnelle pour identifier le job"
+                    "description": "Optional label to identify the job"
                 }
             },
             "required": ["script"]
@@ -94,7 +94,7 @@ impl Abeille for CheckJobStatus {
             "properties": {
                 "job_id": {
                     "type": "string",
-                    "description": "Le job_id retourné par submit_job"
+                    "description": "The job_id returned by submit_job"
                 }
             },
             "required": ["job_id"]

@@ -56,9 +56,9 @@ impl Abeille for WebSearch {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "query": { "type": "string", "description": "Requête de recherche (min 2 caractères)" },
-                "allowed_domains": { "type": "array", "items": { "type": "string" }, "description": "Ne garder que ces domaines" },
-                "blocked_domains": { "type": "array", "items": { "type": "string" }, "description": "Exclure ces domaines" }
+                "query": { "type": "string", "description": "Search query (min 2 characters)" },
+                "allowed_domains": { "type": "array", "items": { "type": "string" }, "description": "Keep only these domains" },
+                "blocked_domains": { "type": "array", "items": { "type": "string" }, "description": "Exclude these domains" }
             },
             "required": ["query"]
         })

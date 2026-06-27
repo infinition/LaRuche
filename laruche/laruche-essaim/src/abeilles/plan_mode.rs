@@ -21,7 +21,7 @@ impl Abeille for PlanModeTool {
             "properties": {
                 "titre": {
                     "type": "string",
-                    "description": "Titre du plan d'implémentation"
+                    "description": "Implementation plan title"
                 }
             },
             "required": ["titre"],
