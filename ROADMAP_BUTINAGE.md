@@ -24,6 +24,9 @@ UI : auto-scroll · sélection texte mémoire · bouton 👁 PromptDebug.
 5. ✅ **Reprise/hygiène carnets** : suppression du carnet à la réussite (`executer`) + `purger_carnets_au_boot()` (efface > 3 j, log les repris).
 6. ✅ **dream/dédup auto** : `memoire.dream()` périodique (6 h, +10 min au boot ; `LARUCHE_DREAM_INTERVAL_SECS=0` pour couper).
 
+## ✅ Fix de fond (27/06)
+- **Mémoire conversationnelle** : butinage ouvrait un carnet vierge par message → amnésie (flagrant Telegram). `executer` réinjecte l'historique de session (`prelude_butinage`) avant le message courant ; recompose `skip(nb_prelude)` → pas de doublon. Images des anciens tours non ré-envoyées. ⚠️ **Limite connue** : si l'escale **compacte** l'historique pendant un run, le `skip(nb_prelude)` peut désaligner la persistance session (cosmétique : fidélité du log/relecture, pas la mémoire live). Rare en chat. À durcir si besoin (marquer les messages neufs autrement qu'en comptant le préfixe).
+
 ## 🔜 À FAIRE
 7. [ ] **Fédération mesh** : propager skills VÉRIFIÉS aux ruches via `miel-protocol` (GROS — besoin test multi-nœuds).
 8. [ ] Tokens réels openai/anthropic/codex (aujourd'hui Ollama seul) · Feed backlog des runs en fond non-attachés (buffer serveur) · `executionMode` par outil · tokenizer réel.
