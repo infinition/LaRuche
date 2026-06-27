@@ -27,6 +27,9 @@ pub struct KanbanTask {
     #[serde(default)]
     pub model: Option<String>,
     pub description: String,
+    /// Canal de livraison du résultat (ex: `telegram:123`). `None` → défaut du board → home channel.
+    #[serde(default)]
+    pub channel: Option<String>,
     pub status: TaskStatus,
     #[serde(default)]
     pub blocks: Vec<Uuid>,
@@ -42,6 +45,9 @@ pub struct KanbanTask {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KanbanBoard {
     tasks: HashMap<Uuid, KanbanTask>,
+    /// Canal par défaut du board : utilisé pour livrer le résultat d'une tâche sans canal propre.
+    #[serde(default)]
+    default_channel: Option<String>,
     #[serde(skip)]
     storage_path: PathBuf,
 }
@@ -50,6 +56,7 @@ impl KanbanBoard {
     pub fn new(path: &Path) -> Self {
         let mut board = Self {
             tasks: HashMap::new(),
+            default_channel: None,
             storage_path: path.to_path_buf(),
         };
         board.load();
@@ -112,6 +119,7 @@ impl KanbanBoard {
         idempotency_key: Option<String>,
         profile_id: Option<String>,
         model: Option<String>,
+        channel: Option<String>,
     ) -> KanbanTask {
         // Idempotency check
         if let Some(ref key) = idempotency_key {
@@ -129,6 +137,7 @@ impl KanbanBoard {
             idempotency_key,
             title,
             description,
+            channel,
             profile_id,
             model,
             status: TaskStatus::Todo,
@@ -142,6 +151,36 @@ impl KanbanBoard {
         self.tasks.insert(task.id, task.clone());
         self.save();
         task
+    }
+
+    /// Canal par défaut du board (livraison des tâches sans canal propre).
+    pub fn default_channel(&self) -> Option<String> {
+        self.default_channel.clone()
+    }
+
+    /// Définit le canal par défaut du board (`None`/vide = aucun).
+    pub fn set_default_channel(&mut self, channel: Option<String>) {
+        self.default_channel = channel.filter(|c| !c.trim().is_empty());
+        self.save();
+    }
+
+    /// Met à jour le canal d'une tâche (`None`/vide = hérite du défaut).
+    pub fn set_channel(&mut self, id: Uuid, channel: Option<String>) -> bool {
+        if let Some(t) = self.tasks.get_mut(&id) {
+            t.channel = channel.filter(|c| !c.trim().is_empty());
+            self.save();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Canal effectif d'une tâche : son canal propre, sinon le défaut du board.
+    pub fn effective_channel(&self, id: Uuid) -> Option<String> {
+        self.tasks
+            .get(&id)
+            .and_then(|t| t.channel.clone())
+            .or_else(|| self.default_channel.clone())
     }
 
     pub fn update(

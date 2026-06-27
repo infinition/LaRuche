@@ -4686,6 +4686,7 @@ async fn decomposer_mission(
             None,
             None,
             None,
+            None, // canal : la mission livre son propre résultat
         );
         board.change_status(task.id, laruche_kanban::TaskStatus::Ready);
         n += 1;
@@ -5020,6 +5021,10 @@ async fn api_create_watcher(
         target,
         condition,
         prompt,
+        channel: body["channel"]
+            .as_str()
+            .filter(|s| !s.trim().is_empty())
+            .map(|s| s.to_string()),
         active: true,
         created_at: chrono::Utc::now(),
         last_run: None,
@@ -5121,9 +5126,13 @@ async fn api_kanban_create(
 
     let profile_id = body["profile_id"].as_str().map(|s| s.to_string());
     let model = body["model"].as_str().map(|s| s.to_string());
+    let channel = body["channel"]
+        .as_str()
+        .map(|s| s.to_string())
+        .filter(|s| !s.trim().is_empty());
     let log_title = title.clone();
     let mut board = state.kanban_board.write().await;
-    board.create(title, description, idempotency_key, profile_id, model);
+    board.create(title, description, idempotency_key, profile_id, model, channel);
     drop(board);
     laruche_essaim::feed_journal::record(
         "User",
@@ -5133,6 +5142,58 @@ async fn api_kanban_create(
         chrono::Utc::now(),
     );
     StatusCode::CREATED
+}
+
+/// GET /api/channels/known — canaux RÉELS connus (pour peupler les dropdowns).
+/// Agrège : home channel + canaux des crons + défaut/tâches kanban + watchers. Dédupliqué.
+async fn api_channels_known(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    use std::collections::BTreeSet;
+    let mut set: BTreeSet<String> = BTreeSet::new();
+    let mut push = |c: Option<String>| {
+        if let Some(c) = c {
+            let c = c.trim().to_string();
+            if !c.is_empty() {
+                set.insert(c);
+            }
+        }
+    };
+    let home = state.essaim_config.read().await.home_channel.clone();
+    push(home.clone());
+    for t in state.essaim_cron.read().await.list() {
+        push(t.channel.clone());
+    }
+    {
+        let board = state.kanban_board.read().await;
+        push(board.default_channel());
+        for t in board.list() {
+            push(t.channel.clone());
+        }
+    }
+    for w in state.watchers.read().await.list() {
+        push(w.channel.clone());
+    }
+    Json(serde_json::json!({
+        "channels": set.into_iter().collect::<Vec<_>>(),
+        "home": home,
+    }))
+}
+
+/// GET /api/kanban/default_channel — canal par défaut du board.
+async fn api_kanban_default_channel_get(
+    State(state): State<Arc<AppState>>,
+) -> Json<serde_json::Value> {
+    let ch = state.kanban_board.read().await.default_channel();
+    Json(serde_json::json!({ "channel": ch }))
+}
+
+/// POST /api/kanban/default_channel {channel} — définit le canal par défaut du board.
+async fn api_kanban_default_channel_set(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Json(body): axum::extract::Json<serde_json::Value>,
+) -> StatusCode {
+    let ch = body["channel"].as_str().map(|s| s.to_string());
+    state.kanban_board.write().await.set_default_channel(ch);
+    StatusCode::OK
 }
 
 /// PUT /api/kanban/:id/status — update status
@@ -5171,6 +5232,10 @@ async fn api_kanban_update(
         let title = body["title"].as_str().map(|s| s.to_string());
         let description = body["description"].as_str().map(|s| s.to_string());
         let mut board = state.kanban_board.write().await;
+        // Canal par tâche : présent dans le body (même vide) → on l'applique (vide = hérite défaut).
+        if body.get("channel").is_some() {
+            board.set_channel(uuid, body["channel"].as_str().map(|s| s.to_string()));
+        }
         if board.update(uuid, title, description).is_some() {
             return StatusCode::OK;
         }
@@ -9918,6 +9983,11 @@ async fn main() -> Result<()> {
             "/api/watchers/:id",
             axum::routing::patch(api_update_watcher).delete(api_delete_watcher),
         )
+        .route("/api/channels/known", get(api_channels_known))
+        .route(
+            "/api/kanban/default_channel",
+            get(api_kanban_default_channel_get).post(api_kanban_default_channel_set),
+        )
         .route("/api/kanban", get(api_kanban_list).post(api_kanban_create))
         .route(
             "/api/kanban/:id",
@@ -10453,13 +10523,13 @@ async fn main() -> Result<()> {
                 let sessions_dir = std::path::Path::new("sessions");
                 let mut session = Session::new_with_path(&current_model, sessions_dir);
                 let (tx, _rx) = broadcast::channel::<ChatEvent>(64);
-                let (w_profile, w_model) = {
+                let (w_profile, w_model, w_channel) = {
                     let reg = watcher_state.watchers.read().await;
                     reg.list()
                         .into_iter()
                         .find(|w| w.id == watcher_id)
-                        .map(|w| (w.profile_id.clone(), w.model.clone()))
-                        .unwrap_or((None, None))
+                        .map(|w| (w.profile_id.clone(), w.model.clone(), w.channel.clone()))
+                        .unwrap_or((None, None, None))
                 };
                 let mut config = watcher_state.essaim_config.read().await.clone();
                 if let Some(pid) = w_profile {
@@ -10478,6 +10548,15 @@ async fn main() -> Result<()> {
                     watcher_state.memoire.clone(),
                 )
                 .await;
+
+                // Livraison : canal du watcher → home channel.
+                let livr_channel = match w_channel {
+                    Some(c) => Some(c),
+                    None => watcher_state.essaim_config.read().await.home_channel.clone(),
+                };
+                if let (Some(ch), Ok(res)) = (livr_channel, &result) {
+                    livrer_telegram(&ch, &format!("🔔 Watcher déclenché\n\n{}", res)).await;
+                }
 
                 let now = chrono::Utc::now().to_rfc3339();
                 let mut activity = watcher_state.activity_log.write().await;
@@ -10681,6 +10760,17 @@ async fn main() -> Result<()> {
                         board.complete(kanban_task.id, format!("ERROR: {}", e));
                         board.change_status(kanban_task.id, laruche_kanban::TaskStatus::Blocked);
                     }
+                }
+                // Livraison : canal de la tâche → défaut du board → home channel.
+                let task_channel = board.effective_channel(kanban_task.id);
+                drop(board);
+                let livr_channel = match task_channel {
+                    Some(c) => Some(c),
+                    None => kanban_state.essaim_config.read().await.home_channel.clone(),
+                };
+                if let (Some(ch), Ok(res)) = (livr_channel, &result) {
+                    livrer_telegram(&ch, &format!("✅ Kanban « {} »\n\n{}", kanban_task.title, res))
+                        .await;
                 }
 
                 // Log

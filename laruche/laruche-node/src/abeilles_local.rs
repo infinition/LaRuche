@@ -351,6 +351,7 @@ impl Abeille for AbeilleWatcherCreate {
             target,
             condition,
             prompt,
+            channel: _ctx.channel.clone(), // hérite du canal d'origine de l'agent
             active: true,
             created_at: chrono::Utc::now(),
             last_run: None,
@@ -620,7 +621,14 @@ impl Abeille for AbeilleKanbanCreate {
             .map(|s| s.to_string());
         let task = {
             let mut board = self.kanban_board.write().await;
-            board.create(title.to_string(), desc.to_string(), None, profile_id, model)
+            board.create(
+                title.to_string(),
+                desc.to_string(),
+                None,
+                profile_id,
+                model,
+                _ctx.channel.clone(), // hérite du canal d'origine de l'agent
+            )
         };
         laruche_essaim::feed_journal::record(
             "LaRuche",

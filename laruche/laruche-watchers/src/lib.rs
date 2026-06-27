@@ -29,6 +29,9 @@ pub struct Watcher {
     pub target: String,
     pub condition: String,
     pub prompt: String,
+    /// Canal de livraison du résultat (ex: `telegram:123`). `None` → home channel.
+    #[serde(default)]
+    pub channel: Option<String>,
     pub active: bool,
     pub created_at: DateTime<Utc>,
     pub last_run: Option<DateTime<Utc>>,
