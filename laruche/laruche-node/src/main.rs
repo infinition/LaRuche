@@ -5818,6 +5818,48 @@ async fn api_set_compaction_config(
     })))
 }
 
+/// GET /api/config/runtime — leviers de génération réglables À CHAUD (sans redémarrage).
+async fn api_get_runtime_config(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let ec = state.essaim_config.read().await;
+    Json(serde_json::json!({
+        "max_iterations": ec.max_iterations,
+        "temperature": ec.temperature,
+        "max_tokens": ec.max_tokens,
+        "tool_selection_limit": ec.tool_selection_limit,
+        "dynamic_tool_selection": ec.dynamic_tool_selection,
+    }))
+}
+
+/// POST /api/config/runtime — met à jour les leviers fournis (partiel). Hot-reload + persistance.
+async fn api_set_runtime_config(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    {
+        let mut ec = state.essaim_config.write().await;
+        if let Some(v) = body["max_iterations"].as_u64() {
+            ec.max_iterations = (v as usize).clamp(1, 200);
+        }
+        if let Some(v) = body["temperature"].as_f64() {
+            ec.temperature = (v as f32).clamp(0.0, 2.0);
+        }
+        if let Some(v) = body["max_tokens"].as_u64() {
+            ec.max_tokens = (v as u32).clamp(256, 32768);
+        }
+        if let Some(v) = body["tool_selection_limit"].as_u64() {
+            ec.tool_selection_limit = (v as usize).clamp(4, 128);
+        }
+        if let Some(v) = body["dynamic_tool_selection"].as_bool() {
+            ec.dynamic_tool_selection = v;
+        }
+    }
+    save_persistent_state(&state).await;
+    Ok(Json(serde_json::json!({ "status": "ok" })))
+}
+
 /// POST /api/config/provider — update LLM provider settings at runtime.
 async fn api_save_provider_config(
     State(state): State<Arc<AppState>>,
@@ -10102,6 +10144,10 @@ async fn main() -> Result<()> {
         .route(
             "/api/config/compaction",
             get(api_get_compaction_config).post(api_set_compaction_config),
+        )
+        .route(
+            "/api/config/runtime",
+            get(api_get_runtime_config).post(api_set_runtime_config),
         )
         .route(
             "/api/config/permission",

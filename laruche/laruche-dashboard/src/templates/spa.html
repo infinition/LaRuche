@@ -7392,10 +7392,18 @@ LaRuche.Settings = (function(){
     function gj(u){ return fetch(u).then(function(r){return r.json();}).catch(function(){return {};}); }
     var _r = await Promise.all([
       gj('/api/doctor'), gj('/api/voice/status'), gj('/api/config/provider'),
-      gj('/api/context/stats'), gj('/api/config/compaction'), gj('/api/config/curateur')
+      gj('/api/context/stats'), gj('/api/config/compaction'), gj('/api/config/curateur'),
+      gj('/api/config/runtime')
     ]);
-    var doc=_r[0], voice=_r[1], provCfg=_r[2], ctxStats=_r[3], ctxCfg=_r[4], curCfg=_r[5];
+    var doc=_r[0], voice=_r[1], provCfg=_r[2], ctxStats=_r[3], ctxCfg=_r[4], curCfg=_r[5], rt=_r[6]||{};
     el.innerHTML = '<div class="settings-grid">'+
+      '<div class="settings-card"><div class="settings-card-title">Génération (à chaud, sans redémarrage)</div>'+
+      '<div class="settings-row" style="flex-direction:column;align-items:stretch;gap:4px;">'+
+      '<div class="settings-row" style="padding:0;"><span class="settings-label" title="Passes ReAct max par tâche (anti-runaway)">Max passes</span><input type="number" id="cfgMaxIter" class="form-input" style="width:80px;padding:2px 6px;" value="'+(rt.max_iterations||40)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Température</span><input type="number" id="cfgTemp" class="form-input" style="width:80px;padding:2px 6px;" step="0.05" min="0" max="2" value="'+(rt.temperature!=null?rt.temperature:0.7)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Max tokens (sortie)</span><input type="number" id="cfgMaxTok" class="form-input" style="width:90px;padding:2px 6px;" value="'+(rt.max_tokens||4096)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="Nb d\'outils injectés en sélection dynamique">Limite outils dyn.</span><input type="number" id="cfgToolLim" class="form-input" style="width:80px;padding:2px 6px;" value="'+(rt.tool_selection_limit||24)+'"></div>'+
+      '<button class="form-btn" onclick="LaRuche.Settings.saveRuntimeCfg()" style="margin-top:8px;">Appliquer</button></div></div>'+
       '<div class="settings-card"><div class="settings-card-title">Contexte &amp; compaction</div>'+
       '<div class="settings-row" style="flex-direction:column;align-items:stretch;gap:4px;">'+
       '<div class="settings-row" style="padding:0;"><span class="settings-label">Max Messages</span><input type="number" id="cfgCtxMax" class="form-input" style="width:80px;padding:2px 6px;" value="'+(ctxCfg.context_max_messages||50)+'"></div>'+
@@ -8836,6 +8844,18 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       .catch(function(e){LaRuche.Toast.show('Error: '+e,'err');});
   }
 
+  function saveRuntimeCfg() {
+    var body = {
+      max_iterations: parseInt(document.getElementById('cfgMaxIter').value,10),
+      temperature: parseFloat(document.getElementById('cfgTemp').value),
+      max_tokens: parseInt(document.getElementById('cfgMaxTok').value,10),
+      tool_selection_limit: parseInt(document.getElementById('cfgToolLim').value,10)
+    };
+    fetch(LaRuche.API.base+'/api/config/runtime',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      .then(function(r){ if(r.ok) LaRuche.Toast.show('Génération appliquée (à chaud)','ok'); else LaRuche.Toast.show('Erreur','err'); })
+      .catch(function(e){ LaRuche.Toast.show('Error: '+e,'err'); });
+  }
+
   function toggleCurateur(on) {
     fetch(LaRuche.API.base+'/api/config/curateur',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:!!on})})
       .then(function(r){return r.json();})
@@ -9143,7 +9163,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
   }
 
   return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder : composant "human-friendly" reutilisable (missions + cron) ── */
