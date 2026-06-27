@@ -1,56 +1,76 @@
-# Audit & cartographie LaRuche v2 — manques et chantiers
+# Audit & état des lieux — LaRuche vs third-party / third-party / Claude Code
 
-État au 27/06/2026, branche `butinage`. Tout le workspace compile, 33 suites de tests vertes.
-Légende effort : 🟢 quick-win · 🟡 moyen · 🔴 gros. Priorité : ⭐⭐⭐ haute → ⭐ basse.
+Scan du 27/06/2026 sur les 4 projets du bureau. Légende effort : 🟢 quick · 🟡 moyen · 🔴 gros.
 
-## 1. Contexte & petits modèles (lié au bug Telegram résolu)
-- ⭐⭐⭐ 🟢 **Toggle `dynamic_tool_selection` dans Settings** — par défaut `false` → TOUS les schémas
-  d'outils sont injectés (~20-30k tokens), ce qui sature les modèles à petit `n_ctx` (gemma/llama.cpp
-  32768). L'exposer en toggle (comme le curateur) réduirait drastiquement le prompt. **Quick-win recommandé.**
-- ⭐⭐ 🟡 **Auto-activer la sélection dynamique** quand `n_ctx ≤ 32768` (heuristique). Évite à l'utilisateur
-  d'y penser. (Le n_ctx réel est maintenant sondé via `/props`.)
-- ⭐ 🟢 Indicateur visuel « contexte X/n_ctx » par message (la jauge existe déjà côté stats).
+## TL;DR
+LaRuche **n'est pas en retard** — c'est déjà le produit le plus complet des quatre. Il réunit ce
+qu'aucun autre n'a : multi-canal (Telegram/Discord/Slack) avec mémoire par canal, moteur edge en
+Rust, multimodal, vault secrets chiffré, dashboard web complet, mesh (`miel-protocol`), et un
+curateur d'auto-amélioration qui crée skills ET tools vérifiés. Les vrais gaps restants = **6 chantiers**.
 
-## 2. Channels
-- ⭐⭐ 🟡 **Discord/Slack** : commandes `/sethome` + `/clear` (aujourd'hui Telegram seul) ; livraison
-  proactive (cron/missions) ne gère QUE Telegram (`livrer_telegram`) → étendre à Discord/Slack.
-- ⭐ 🔴 **WhatsApp** : channel non implémenté (mentionné comme futur). L'abstraction session est prête.
-- ⭐ 🟡 **Home channel par utilisateur** (aujourd'hui global, OK en POC mono-user).
+## Projets de référence
+| Projet | Nature | Stack | Réf de |
+|---|---|---|---|
+| third-party agent | Agent ReAct autonome | Python | auto-amélioration (background_review + curator) |
+| third-party | Harness d'agent | TypeScript | boucle propre (stopReason + hooks + steering) |
+| claude-code | Source leakée (31/03/2026) | TS | harness produit (Tool/Task/QueryEngine, permissions, hooks, MCP) |
+| **laruche-v2** | Agent edge networké | **Rust** (16 crates) | — |
 
-## 3. Mémoire
-- ⭐ 🟡 **dream/dédup plus intelligent** : la passe périodique existe ; pourrait fusionner les quasi-doublons
-  sémantiquement (au-delà du nettoyage).
-- ⭐ 🟢 Bouton « purge des projections `tools.*` mortes » (auto-régénérées mais s'accumulent).
+## Comparatif (✅ fait · 🟡 partiel · ❌ absent)
+| Capacité | LaRuche | third-party | third-party | CC |
+|---|:--:|:--:|:--:|:--:|
+| Boucle stop_reason (texte=fin) | ✅ | ✅ | ✅ | ✅ |
+| Anti-boucle (contrôleur pur) | ✅ vigie | ✅ | ✅ | ✅ |
+| Outils ∥ + bascule séquentielle | ✅ recolte | 🟡 | ✅ | ✅ |
+| Sous-agents isolés + budgets | ✅ eclaireuse | ✅ | ✅ | ✅ |
+| Compaction entre tours | ✅ escale | ✅ | ✅ | ✅ |
+| System prompt en tiers (cache) | ✅ | ✅ | ✅ | ✅ |
+| Steering live | ✅ | 🟡 | ✅ | ✅ |
+| **Auto-création skills/tools vérifiés** | ✅ curateur | ✅(réf) | ❌ | 🟡 |
+| Mémoire + dream/consolidation | ✅ | ✅ | 🟡 | 🟡 |
+| Multimodal (images mult.+audio) | ✅ | 🟡 | 🟡 | 🟡 |
+| RAG | ✅ | ✅ | 🟡 | ❌ |
+| MCP **client** | ✅ | 🟡 | ✅ | ✅ |
+| MCP **serveur** (s'exposer) | ❌ | ❌ | 🟡 | ✅ |
+| Permissions / popup | ✅ | 🟡 | ✅ | ✅ |
+| **Hooks utilisateur** | 🟡 interne | 🟡 | ✅ | ✅ |
+| Sandbox durci | 🟡 | ✅ Docker | ✅ | ✅ |
+| Vault secrets chiffré + `${NOM}` | ✅ | ❌ | ❌ | 🟡 |
+| Browser / LSP / worktree git | ✅ | 🟡 | 🟡 | ✅ |
+| **Multi-canal (TG/Discord/Slack)** | ✅ | ❌ | ❌ | ❌ |
+| Cron/watchers/kanban/missions | ✅ | ✅ cron | ❌ | ❌ |
+| Dashboard web complet | ✅ | 🟡 | ✅ | 🟡 TUI |
+| **Mesh / fédération nœuds** | 🟡 miel | ❌ | ❌ | ❌ |
+| Tokens/usage réels | 🟡 Ollama | ✅ | ✅ | ✅ |
+| Edge / Rust natif | ✅ | ❌ | ❌ | ❌ |
 
-## 4. Moteur butinage
-- ⭐⭐ 🟡 **Tokens réels openai/anthropic/codex** : seul Ollama renvoie `prompt_eval_count` aujourd'hui
-  (la jauge se calibre via le facteur appris pour les autres, mais c'est approximatif).
-- ⭐⭐ 🔴 **Reprise EFFECTIVE d'un carnet inachevé** : aujourd'hui détectés + journalisés au boot, mais
-  pas re-injectés dans un run (il manque l'UI « missions reprises » + le rechargement du carnet).
-- ⭐ 🟡 Popup d'approbation : câblé pour butinage ; à étendre aux sous-agents si besoin (volontairement off).
+## Moats (à mettre en avant, NE PAS reconstruire)
+1. Multi-canal natif + mémoire persistante par canal (UUIDv5 déterministe).
+2. `miel-protocol` (mesh) — fédération de nœuds edge.
+3. Edge / Rust — un binaire, faible empreinte.
+4. Curateur qui crée skills ET tools **vérifiés** (au-delà de third-party).
+5. Vault secrets chiffré (LLM voit les NOMS seulement).
+6. Hub d'automatisation unifié.
 
-## 5. Fédération mesh
-- ⭐ 🔴 **Propager les skills VÉRIFIÉS** aux autres ruches via `miel-protocol`. Infra présente
-  (discovery, capabilities, manifest, `sync.rs`) mais **besoin d'un setup multi-nœuds pour tester**.
+## 🎯 Les 6 gaps « killer » (priorisés)
+- **A** 🔴 P0 — **Finir la fédération mesh** : propager les skills vérifiés de nœud à nœud (« essaim qui apprend collectivement »). Test multi-nœuds requis. *Le récit différenciant.*
+- **B** 🔴 P0 — **Exposer un serveur MCP** : LaRuche pilotable comme outil par Claude Code/Cursor/third-party. Effet réseau. Effort moyen, ROI énorme. **← à commencer.**
+- **C** 🟠 P1 — **Tokens/usage réels hors-Ollama** (OpenAI/Anthropic/codex) : jauge/budget aveugle sur le cloud sinon. Effort faible-moyen.
+- **D** 🟠 P1 — **Hooks utilisateur** (pre/post-tool, events, configurables) façon Claude Code/third-party.
+- **E** 🟡 P2 — **Sandbox durci** pour shell_exec/execute_code/browser (isolation process, limites ressources).
+- **F** 🟡 P2 — **Reprise effective des missions/carnets** : recharger un carnet dans un run + UI « missions reprises ».
 
-## 6. Kanban / Missions / Automatisations
-- ⭐ 🟢 **Channel par tâche kanban** (modèle par tâche existe déjà ; channel non).
-- ⭐ 🟢 Édition d'une mission existante (création OK ; pas d'édition in-place comme cron/watcher).
+## Séquence recommandée
+1. **B** (serveur MCP) — petit effort, branche tout l'écosystème, démontrable.
+2. **C + F** — crédibilité (coûts réels) + fiabilité (reprise).
+3. **A** (mesh) — chantier de fond, démo sur 2-3 nœuds.
+4. **D + E** — maturité production.
 
-## 7. UI / QoL
-- ⭐⭐ 🟢 **Audit responsive mobile fin** : barres d'onglets rendues scrollables (fait) ; reste à valider
-  les modales (skill editor, secrets) et le chat sur petit écran.
-- ⭐ 🟢 **Cleanup warnings** : quelques imports inutilisés (`PathBuf`, `ChildStdin`, `RwLock`…) dans main.rs.
-- ⭐ 🟡 **Export PDF** (TODO existant `main.rs:3783`) : nécessite une lib (printpdf / headless Chrome).
+Pitch une fois A+B faits : *« agent IA edge en Rust, multi-canal, qui s'auto-améliore, se fédère
+en essaim, et s'expose/consomme en MCP »* — aucune des 3 réfs ne coche ces cases ensemble.
 
-## 8. Sécurité / Secrets
-- ⭐⭐ 🟡 **Substitution `${NOM}` dans plus de surfaces** : aujourd'hui shell_exec + clé API provider.
-  À étendre à execute_code (scripts Python) + forge (templates de plugins) + webhooks sortants.
-- ⭐ 🟡 Chiffrement : keystream blake3 (correct au repos, sans dépendance) ; passer à AES-GCM si on
-  accepte d'ajouter une crate (`chacha20poly1305`).
-
-## ✅ Déjà fait cette session (rappel)
-Secrets chiffrés+Webhooks · modèles dynamiques + sonde n_ctx · Missions provider/channel/cadence ·
-Timeline interactive · Skill↔tools/plugins (hint + UI cases) · MCP onglet · feed persistant ·
-mémoire conv. multi-canal + fenêtre glissante · /sethome · curateur Settings · multimodal ·
-**édition complète mémoire (admin peut supprimer system.*/capacities.*)** · cohérence workspace.
+## ✅ Déjà fait (rappel, ne pas refaire)
+Boucle/anti-boucle/parallélisme/sous-agents/compaction/steering · curateur (skills+tools vérifiés) ·
+multimodal · vault secrets+webhooks · multi-canal+mémoire par canal+/sethome · modèles dynamiques+sonde
+n_ctx · missions/cron/watchers/kanban/timeline · MCP client+onglet · feed persistant · édition complète
+mémoire · **Telegram résolu** (index compact ~4K + auto-sélection dynamique + fenêtre glissante + sonde n_ctx).
