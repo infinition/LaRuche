@@ -17,7 +17,7 @@ impl Abeille for McpListResources {
     }
 
     fn description(&self) -> &str {
-        "Liste les ressources disponibles depuis tous les serveurs MCP connectés. Affiche leur URI, nom, et description."
+        "List all resources available across connected MCP servers. Returns URI, name, MIME type, and description for each resource."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -38,27 +38,27 @@ impl Abeille for McpListResources {
         _ctx: &ContextExecution,
     ) -> Result<ResultatAbeille> {
         if self.clients.is_empty() {
-            return Ok(ResultatAbeille::ok("Aucun serveur MCP n'est connecté."));
+            return Ok(ResultatAbeille::ok("No MCP server is connected."));
         }
 
         let mut output = String::new();
         for (server_name, client) in self.clients.iter() {
-            output.push_str(&format!("--- Serveur MCP: {} ---\n", server_name));
+            output.push_str(&format!("--- MCP Server: {} ---\n", server_name));
             match client.list_resources().await {
                 Ok(resources) => {
                     if resources.is_empty() {
-                        output.push_str("Aucune ressource disponible.\n");
+                        output.push_str("No resources available.\n");
                     } else {
                         for res in resources {
                             output.push_str(&format!(
-                                "- URI: {}\n  Nom: {}\n  Type: {}\n  Description: {}\n",
+                                "- URI: {}\n  Name: {}\n  Type: {}\n  Description: {}\n",
                                 res.uri, res.name, res.mime_type, res.description
                             ));
                         }
                     }
                 }
                 Err(e) => {
-                    output.push_str(&format!("Erreur lors de la récupération: {}\n", e));
+                    output.push_str(&format!("Error fetching resources: {}\n", e));
                 }
             }
         }
@@ -78,7 +78,7 @@ impl Abeille for McpReadResource {
     }
 
     fn description(&self) -> &str {
-        "Lit le contenu d'une ressource MCP spécifique en utilisant son URI. Pour trouver l'URI, utiliser list_mcp_resources d'abord."
+        "Read the content of a specific MCP resource by URI. Use list_mcp_resources first to discover available URIs."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -115,7 +115,7 @@ impl Abeille for McpReadResource {
         let uri = args.get("uri").and_then(|v| v.as_str()).unwrap_or("");
 
         if server_name.is_empty() || uri.is_empty() {
-            return Ok(ResultatAbeille::err("server_name et uri sont requis"));
+            return Ok(ResultatAbeille::err("server_name and uri are required"));
         }
 
         if let Some(client) = self.clients.get(server_name) {
@@ -134,11 +134,11 @@ impl Abeille for McpReadResource {
                     }
                     Ok(ResultatAbeille::ok(text_output))
                 }
-                Err(e) => Ok(ResultatAbeille::err(format!("Erreur: {}", e))),
+                Err(e) => Ok(ResultatAbeille::err(format!("Error: {}", e))),
             }
         } else {
             Ok(ResultatAbeille::err(format!(
-                "Serveur MCP '{}' introuvable.",
+                "MCP server '{}' not found.",
                 server_name
             )))
         }

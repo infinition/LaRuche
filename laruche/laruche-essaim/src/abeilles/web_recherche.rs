@@ -48,8 +48,8 @@ impl Abeille for WebSearch {
     }
 
     fn description(&self) -> &str {
-        "Recherche web. Renvoie une liste title/url/snippet. Filtres optionnels `allowed_domains` \
-         OU `blocked_domains` (jamais les deux). Tu DOIS citer les sources en liens Markdown dans ta réponse."
+        "Search the web. Returns a list of title/url/snippet results. Optional filters: `allowed_domains` \
+         OR `blocked_domains` (never both). Always cite sources as Markdown links in your response."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -75,13 +75,13 @@ impl Abeille for WebSearch {
     ) -> Result<ResultatAbeille> {
         let query = args["query"].as_str().unwrap_or("").trim().to_string();
         if query.len() < 2 {
-            return Ok(ResultatAbeille::err("query trop courte (min 2 caractères)"));
+            return Ok(ResultatAbeille::err("query too short (min 2 characters)"));
         }
         let allowed = str_vec(&args["allowed_domains"]);
         let blocked = str_vec(&args["blocked_domains"]);
         if allowed.is_some() && blocked.is_some() {
             return Ok(ResultatAbeille::err(
-                "Impossible de spécifier à la fois allowed_domains et blocked_domains.",
+                "Cannot specify both allowed_domains and blocked_domains.",
             ));
         }
 
@@ -111,11 +111,11 @@ impl Abeille for WebSearch {
 
         if results.is_empty() {
             return Ok(ResultatAbeille::ok(format!(
-                "Aucun résultat pour : \"{query}\". Si l'information est indisponible, réponds honnêtement à l'utilisateur."
+                "No results for: \"{query}\". If the information is unavailable, tell the user honestly."
             )));
         }
 
-        let mut out = format!("Résultats de recherche Web pour : \"{query}\"\n\n");
+        let mut out = format!("Web search results for: \"{query}\"\n\n");
         for (i, r) in results.iter().enumerate() {
             out.push_str(&format!(
                 "[{}] Titre: {}\n    URL: {}\n    Extrait: {}\n\n",
@@ -126,8 +126,8 @@ impl Abeille for WebSearch {
             ));
         }
         out.push_str(&format!(
-            "RAPPEL CRITIQUE : inclus ces sources dans ta réponse finale en liens Markdown ([Titre](URL)). \
-             N'invente jamais de liens et n'en réutilise pas hors de cette liste.\n(recherche en {:.2}s)",
+            "IMPORTANT: cite these sources in your final response as Markdown links ([Title](URL)). \
+             Never fabricate links or reuse links not in this list.\n(search completed in {:.2}s)",
             start.elapsed().as_secs_f64()
         ));
         Ok(ResultatAbeille::ok(out))

@@ -21,15 +21,15 @@ impl Abeille for ImageSearch {
     }
 
     fn description(&self) -> &str {
-        "Recherche des images publiques sur Wikimedia Commons et les affiche directement dans le chat. Utilise cet outil pour une image sur le web; n'utilise pas de Google dorks et n'invente jamais d'URL d'image."
+        "Search Wikimedia Commons for public images and display them in chat. Use this tool whenever you need a real image; never guess or fabricate image URLs."
     }
 
     fn schema(&self) -> Value {
         json!({
             "type": "object",
             "properties": {
-                "query": { "type": "string", "description": "Description de l'image recherchee" },
-                "limit": { "type": "integer", "minimum": 1, "maximum": 8, "description": "Nombre de resultats a afficher (defaut 4)" }
+                "query": { "type": "string", "description": "Image search terms" },
+                "limit": { "type": "integer", "minimum": 1, "maximum": 8, "description": "Number of results to return (default 4)" }
             },
             "required": ["query"],
             "additionalProperties": false
@@ -48,7 +48,7 @@ impl Abeille for ImageSearch {
             .trim();
         if query.chars().count() < 2 {
             return Ok(ResultatAbeille::err(
-                "La recherche d'image doit contenir au moins 2 caracteres.",
+                "Image query must be at least 2 characters.",
             ));
         }
         let limit = args
@@ -78,7 +78,7 @@ impl Abeille for ImageSearch {
             .await?;
         if !response.status().is_success() {
             return Ok(ResultatAbeille::err(format!(
-                "Recherche d'image indisponible (Wikimedia Commons HTTP {}).",
+                "Image search unavailable (Wikimedia Commons HTTP {}).",
                 response.status()
             )));
         }
@@ -100,7 +100,7 @@ impl Abeille for ImageSearch {
                 let title = page
                     .get("title")
                     .and_then(Value::as_str)
-                    .unwrap_or("Image Wikimedia")
+                    .unwrap_or("Wikimedia Image")
                     .trim_start_matches("File:")
                     .trim_start_matches("Fichier:");
                 let source = info
@@ -111,7 +111,7 @@ impl Abeille for ImageSearch {
                     "url": url,
                     "kind": "image",
                     "title": title,
-                    "caption": format!("Source : Wikimedia Commons — {source}")
+                    "caption": format!("Source: Wikimedia Commons — {source}")
                 }));
                 if items.len() >= limit as usize {
                     break;
@@ -120,11 +120,11 @@ impl Abeille for ImageSearch {
         }
         if items.is_empty() {
             return Ok(ResultatAbeille::ok(format!(
-                "Aucune image publique trouvee sur Wikimedia Commons pour : {query}."
+                "No public images found on Wikimedia Commons for: {query}."
             )));
         }
         Ok(ResultatAbeille::ok(format!(
-            "<laruche-media>{}</laruche-media>\n{} image(s) publique(s) trouvee(s) pour : {query}. Reponds brievement et n'utilise pas de dork.",
+            "<laruche-media>{}</laruche-media>\n{} public image(s) found for: {query}. Reply briefly; do not use dorks or invent URLs.",
             serde_json::to_string(&items)?,
             items.len()
         )))

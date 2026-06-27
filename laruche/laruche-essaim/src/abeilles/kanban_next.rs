@@ -19,7 +19,7 @@ impl Abeille for KanbanNext {
     }
 
     fn description(&self) -> &str {
-        "Renvoie la prochaine tache Kanban executable : Ready en priorite, sinon une tache dont toutes les dependances sont terminees."
+        "Returns the next actionable Kanban task: a Ready task first, or a task whose dependencies are all completed."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -44,7 +44,7 @@ impl Abeille for KanbanNext {
             Some(task) => Ok(ResultatAbeille::ok(
                 serde_json::to_string(&task).expect("KanbanTask is serializable"),
             )),
-            None => Ok(ResultatAbeille::ok("Aucune tache Kanban executable.")),
+            None => Ok(ResultatAbeille::ok("No actionable Kanban task.")),
         }
     }
 }
@@ -60,15 +60,15 @@ impl Abeille for KanbanComplete {
     }
 
     fn description(&self) -> &str {
-        "Marque une tache Kanban terminee et enregistre son resultat. Les enfants bloques sont debloques automatiquement."
+        "Marks a Kanban task as done and records its result. Blocked children are unblocked automatically."
     }
 
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "id": { "type": "string", "description": "UUID de la tache Kanban" },
-                "result": { "type": "string", "description": "Resultat final de la tache" }
+                "id": { "type": "string", "description": "UUID of the Kanban task" },
+                "result": { "type": "string", "description": "Final result of the task" }
             },
             "required": ["id", "result"],
             "additionalProperties": false
@@ -86,19 +86,19 @@ impl Abeille for KanbanComplete {
     ) -> Result<ResultatAbeille> {
         let id = args["id"]
             .as_str()
-            .ok_or_else(|| anyhow!("'id' manquant"))?
+            .ok_or_else(|| anyhow!("'id' is required"))?
             .parse::<Uuid>()
-            .map_err(|_| anyhow!("'id' doit etre un UUID valide"))?;
+            .map_err(|_| anyhow!("'id' must be a valid UUID"))?;
         let result = args["result"]
             .as_str()
-            .ok_or_else(|| anyhow!("'result' manquant"))?;
+            .ok_or_else(|| anyhow!("'result' is required"))?;
 
         let mut board = self.kanban_board.write().await;
         if board.complete(id, result.to_string()) {
-            Ok(ResultatAbeille::ok(format!("Tache Kanban {id} terminee.")))
+            Ok(ResultatAbeille::ok(format!("Kanban task {id} completed.")))
         } else {
             Ok(ResultatAbeille::err(format!(
-                "Tache Kanban introuvable: {id}"
+                "Kanban task not found: {id}"
             )))
         }
     }

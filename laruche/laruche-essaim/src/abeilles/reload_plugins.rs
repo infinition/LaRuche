@@ -16,7 +16,7 @@ impl Abeille for ReloadPluginsTool {
     }
 
     fn description(&self) -> &str {
-        "Recharge à chaud le dossier 'plugins/' et 'plugins/scripts/'. À appeler IMMÉDIATEMENT après avoir créé ou modifié un fichier JSON de plugin pour qu'il devienne utilisable."
+        "Hot-reload the 'plugins/' and 'plugins/scripts/' directories. Call this immediately after creating or editing a plugin JSON file to make it available."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -39,7 +39,7 @@ impl Abeille for ReloadPluginsTool {
         let plugins_dir = ctx.working_dir.join("plugins");
         let count = crate::abeilles::plugins::charger_plugins(&plugins_dir, &self.registry);
         Ok(ResultatAbeille::ok(format!(
-            "{} plugins chargés ou rechargés avec succès depuis {}.",
+            "{} plugin(s) loaded or reloaded from {}.",
             count,
             plugins_dir.display()
         )))

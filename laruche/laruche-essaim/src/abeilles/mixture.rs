@@ -35,7 +35,7 @@ impl Abeille for MixtureOfAgents {
     }
 
     fn description(&self) -> &str {
-        "Interroge plusieurs modeles en parallele sur une question, puis synthese leurs reponses. Utile pour comparer des raisonnements ou obtenir une reponse robuste."
+        "Query multiple models in parallel on a prompt, then synthesize their responses. Use to cross-check reasoning or get a robust answer."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -44,11 +44,11 @@ impl Abeille for MixtureOfAgents {
             "properties": {
                 "prompt": {
                     "type": "string",
-                    "description": "Question ou tache a poser aux modeles candidats"
+                    "description": "The prompt or task to send to all candidate models"
                 },
                 "candidates": {
                     "type": "array",
-                    "description": "Liste de candidats {model, provider?, api_base?}. Si vide, utilise le modele principal et les fallback_models.",
+                    "description": "Candidate models as {model, provider?, api_base?}. Empty = use primary model + fallback_models.",
                     "items": {
                         "type": "object",
                         "properties": {
@@ -76,7 +76,7 @@ impl Abeille for MixtureOfAgents {
         let args: MixtureArgs = serde_json::from_value(args)?;
         let candidates = candidats_ou_defaut(&self.config, args.candidates);
         if candidates.is_empty() {
-            return Ok(ResultatAbeille::err("Aucun modele candidat disponible."));
+            return Ok(ResultatAbeille::err("No candidate models available."));
         }
 
         let futures = candidates
@@ -89,7 +89,7 @@ impl Abeille for MixtureOfAgents {
                 Ok(text) if !text.trim().is_empty() => {
                     blocs.push((candidate.model.clone(), text.trim().to_string()));
                 }
-                Ok(_) => blocs.push((candidate.model.clone(), "[reponse vide]".to_string())),
+                Ok(_) => blocs.push((candidate.model.clone(), "[empty response]".to_string())),
                 Err(e) => blocs.push((candidate.model.clone(), format!("[erreur: {e}]"))),
             }
         }
@@ -170,11 +170,11 @@ async fn synthetiser(
     let messages = vec![
         serde_json::json!({
             "role": "system",
-            "content": "Tu syntheses plusieurs reponses de modeles. Garde les points fiables, signale les divergences utiles, et reponds clairement."
+            "content": "You synthesize multiple model responses. Keep reliable points, flag meaningful divergences, and answer clearly."
         }),
         serde_json::json!({
             "role": "user",
-            "content": format!("Question:\n{prompt}\n\nReponses candidates:\n{joined}\n\nSynthese:")
+            "content": format!("Question:\n{prompt}\n\nCandidate responses:\n{joined}\n\nSynthesis:")
         }),
     ];
     let stream_result = tokio::time::timeout(
@@ -204,7 +204,7 @@ async fn synthetiser(
 }
 
 pub(crate) fn synthese_extractive(prompt: &str, blocs: &[(String, String)]) -> String {
-    let mut out = format!("Synthese multi-modeles pour: {prompt}\n\n");
+    let mut out = format!("Multi-model synthesis for: {prompt}\n\n");
     for (model, text) in blocs {
         out.push_str(&format!("## {model}\n{}\n\n", text.trim()));
     }

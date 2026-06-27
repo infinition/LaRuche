@@ -226,14 +226,14 @@ impl Abeille for SkillList {
     }
 
     fn description(&self) -> &str {
-        "Liste les skills OKF stockes dans la memoire cognitive sous capacities.skills.*."
+        "List all OKF skills stored in cognitive memory under capacities.skills.*."
     }
 
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "limit": { "type": "integer", "description": "Nombre max de skills a lister" }
+                "limit": { "type": "integer", "description": "Max number of skills to return" }
             }
         })
     }
@@ -252,7 +252,7 @@ impl Abeille for SkillList {
             Ok(root) => root,
             Err(e) => {
                 return Ok(ResultatAbeille::err(format!(
-                    "Lecture skills impossible: {e}"
+                    "Failed to read skills: {e}"
                 )))
             }
         };
@@ -275,19 +275,19 @@ impl Abeille for SkillList {
                     let text = pack.to_prompt_text();
                     if text.trim().is_empty() {
                         Ok(ResultatAbeille::ok(
-                            "Aucun skill OKF trouve sous capacities.skills.",
+                            "No OKF skill found under capacities.skills.",
                         ))
                     } else {
-                        Ok(ResultatAbeille::ok(format!("Skills trouves:\n{text}")))
+                        Ok(ResultatAbeille::ok(format!("Skills found:\n{text}")))
                     }
                 }
                 Err(e) => Ok(ResultatAbeille::err(format!(
-                    "Recherche skills impossible: {e}"
+                    "Skill search failed: {e}"
                 ))),
             }
         } else {
             Ok(ResultatAbeille::ok(format!(
-                "Skills OKF sous capacities.skills:\n{}",
+                "OKF skills under capacities.skills:\n{}",
                 lines.join("\n")
             )))
         }
@@ -305,14 +305,14 @@ impl Abeille for SkillView {
     }
 
     fn description(&self) -> &str {
-        "Lit un skill OKF par nom depuis capacities.skills.<nom> et renvoie son Markdown complet."
+        "Read a named OKF skill from capacities.skills.<name> and return its full Markdown content."
     }
 
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "name": { "type": "string", "description": "Nom du skill ou node_id capacities.skills.<nom>" }
+                "name": { "type": "string", "description": "Skill name or full node_id (capacities.skills.<name>)" }
             },
             "required": ["name"]
         })
@@ -329,19 +329,19 @@ impl Abeille for SkillView {
     ) -> Result<ResultatAbeille> {
         let name = args["name"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("'name' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'name' is required"))?;
         let node_id = skill_node_id(name);
         let node = match self.mem.read_node(&node_id).await {
             Ok(node) => node,
             Err(e) => {
                 return Ok(ResultatAbeille::err(format!(
-                    "Lecture skill impossible: {e}"
+                    "Failed to read skill: {e}"
                 )))
             }
         };
         let Some(items) = node["items"].as_array() else {
             return Ok(ResultatAbeille::err(format!(
-                "Skill introuvable: {node_id}"
+                "Skill not found: {node_id}"
             )));
         };
         for item in items.iter().rev() {
@@ -352,7 +352,7 @@ impl Abeille for SkillView {
             }
         }
         Ok(ResultatAbeille::err(format!(
-            "Aucun document OKF actif dans {node_id}"
+            "No active OKF document found in {node_id}"
         )))
     }
 }

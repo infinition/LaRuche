@@ -12,7 +12,7 @@ impl Abeille for PlanModeTool {
     }
 
     fn description(&self) -> &str {
-        "Active le mode planification. Crée un fichier plan.md où tu dois écrire ton plan technique détaillé avant toute modification. Utilise-le pour demander la validation de l'utilisateur sur tes changements majeurs."
+        "Enter plan mode. Creates plan.md where you must write a detailed technical plan before making any changes. Use it to request user approval for major modifications."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -41,13 +41,13 @@ impl Abeille for PlanModeTool {
         let titre = args
             .get("titre")
             .and_then(|t| t.as_str())
-            .unwrap_or("Plan d'implémentation");
+            .unwrap_or("Implementation Plan");
         let path = ctx.working_dir.join("plan.md");
-        let initial_content = format!("# {}\n\n## Contexte\n\n## Étapes proposées\n\n## Validation requise\n(Pose tes questions ici)\n", titre);
+        let initial_content = format!("# {}\n\n## Context\n\n## Proposed Steps\n\n## Approval Required\n(Write your questions here)\n", titre);
 
         match std::fs::write(&path, initial_content) {
-            Ok(_) => Ok(ResultatAbeille::ok(format!("Mode Plan activé. Fichier '{}' créé. Édite ce fichier avec ton plan détaillé puis demande la validation de l'utilisateur.", path.display()))),
-            Err(e) => Ok(ResultatAbeille::err(format!("Erreur lors de la création de plan.md: {}", e)))
+            Ok(_) => Ok(ResultatAbeille::ok(format!("Plan mode active. File '{}' created. Write your detailed plan in it, then request user approval.", path.display()))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Failed to create plan.md: {}", e)))
         }
     }
 }

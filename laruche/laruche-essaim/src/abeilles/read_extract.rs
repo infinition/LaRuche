@@ -16,14 +16,14 @@ impl Abeille for ReadExtract {
     }
 
     fn description(&self) -> &str {
-        "Extrait le texte d'un fichier PDF, .txt ou .md. Renvoie une sortie tronquee tete+queue si le contenu est long."
+        "Extract text from a PDF, .txt, or .md file. Returns head+tail output when content exceeds the limit."
     }
 
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "path": { "type": "string", "description": "Chemin du fichier PDF, TXT ou Markdown a lire" }
+                "path": { "type": "string", "description": "Path to the PDF, TXT, or Markdown file to read" }
             },
             "required": ["path"]
         })
@@ -59,17 +59,17 @@ impl Abeille for ReadExtract {
                 Ok(text) => text,
                 Err(e) => {
                     return Ok(ResultatAbeille::err(format!(
-                        "Extraction PDF impossible: {e}"
+                        "PDF extraction failed: {e}"
                     )))
                 }
             },
             "txt" | "md" | "markdown" => match std::fs::read_to_string(path) {
                 Ok(text) => text,
-                Err(e) => return Ok(ResultatAbeille::err(format!("Lecture impossible: {e}"))),
+                Err(e) => return Ok(ResultatAbeille::err(format!("File read failed: {e}"))),
             },
             _ => {
                 return Ok(ResultatAbeille::err(format!(
-                    "Format non supporte pour read_extract: .{ext} (attendu: pdf, txt, md)"
+                    "Unsupported format for read_extract: .{ext} (expected: pdf, txt, md)"
                 )))
             }
         };
@@ -77,7 +77,7 @@ impl Abeille for ReadExtract {
         let text = normalize_text(&text);
         if text.trim().is_empty() {
             return Ok(ResultatAbeille::ok(format!(
-                "Aucun texte extrait de {path_str}."
+                "No text extracted from {path_str}."
             )));
         }
         Ok(ResultatAbeille::ok(cap_head_tail(&text)))
@@ -102,7 +102,7 @@ fn cap_head_tail(text: &str) -> String {
     let tail_start = chars.len().saturating_sub(TAIL_CHARS);
     let tail: String = chars[tail_start..].iter().collect();
     format!(
-        "{head}\n\n...(milieu tronque: {} caracteres omis)...\n\n{tail}",
+        "{head}\n\n...(middle truncated: {} chars omitted)...\n\n{tail}",
         chars.len().saturating_sub(HEAD_CHARS + TAIL_CHARS)
     )
 }
@@ -116,7 +116,7 @@ mod tests {
         let text = format!("{}MIDDLE{}", "A".repeat(9_000), "Z".repeat(4_000));
         let capped = cap_head_tail(&text);
         assert!(capped.starts_with('A'));
-        assert!(capped.contains("milieu tronque"));
+        assert!(capped.contains("middle truncated"));
         assert!(capped.ends_with('Z'));
         assert!(!capped.contains("MIDDLE"));
     }

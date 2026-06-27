@@ -27,15 +27,14 @@ impl Abeille for ToolSearch {
         "tool_search"
     }
     fn description(&self) -> &str {
-        "Cherche un outil par mots-cles parmi TOUS les outils disponibles (au-dela de ceux \
-         listes ce tour). Renvoie nom + origine + description. Puis execute-le avec tool_call."
+        "Search ALL registered tools by keyword (beyond those listed this turn). Returns name + origin + description. Then call it with tool_call."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "query": { "type": "string", "description": "Mots-cles (intention)" },
-                "limit": { "type": "integer", "description": "Nb max de resultats (defaut 15)" }
+                "query": { "type": "string", "description": "Search keywords" },
+                "limit": { "type": "integer", "description": "Max results (default 15)" }
             },
             "required": ["query"]
         })
@@ -71,11 +70,11 @@ impl Abeille for ToolSearch {
             }
         }
         if lignes.is_empty() {
-            return Ok(ResultatAbeille::ok("Aucun outil ne correspond."));
+            return Ok(ResultatAbeille::ok("No matching tools."));
         }
         lignes.truncate(limit);
         Ok(ResultatAbeille::ok(format!(
-            "Outils trouves (execute avec tool_call):\n{}",
+            "Matching tools (call with tool_call):\n{}",
             lignes.join("\n")
         )))
     }
@@ -94,16 +93,15 @@ impl Abeille for ToolCall {
         "tool_call"
     }
     fn description(&self) -> &str {
-        "Execute un outil par son nom, meme absent de ta liste ce tour (decouvre-le via \
-         tool_search). `tool` = nom, `args` = ses arguments. Les outils sensibles (validation \
-         requise) doivent etre appeles directement, pas via tool_call."
+        "Execute any registered tool by name, even if not listed this turn (discover via tool_search). \
+         `tool` = tool name, `args` = its arguments. Sensitive tools (requiring approval) must be called directly, not via tool_call."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "tool": { "type": "string", "description": "Nom de l'outil a executer" },
-                "args": { "type": "object", "description": "Arguments de l'outil cible" }
+                "tool": { "type": "string", "description": "Tool name to execute" },
+                "args": { "type": "object", "description": "Arguments for the target tool" }
             },
             "required": ["tool"]
         })
@@ -118,17 +116,17 @@ impl Abeille for ToolCall {
     ) -> Result<ResultatAbeille> {
         let tool = args["tool"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("'tool' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'tool' field missing"))?;
         if matches!(tool, "tool_call" | "run_script" | "delegate") {
             return Ok(ResultatAbeille::err(format!(
-                "Recursion interdite via tool_call: {tool}"
+                "Recursion not allowed via tool_call: {tool}"
             )));
         }
         match self.registry.get(tool) {
-            None => Ok(ResultatAbeille::err(format!("Outil inconnu: {tool}"))),
+            None => Ok(ResultatAbeille::err(format!("Unknown tool: {tool}"))),
             Some(a) if a.niveau_danger() != NiveauDanger::Safe => {
                 Ok(ResultatAbeille::err(format!(
-                "'{tool}' requiert une validation : appelle-le DIRECTEMENT (pas via tool_call)."
+                "'{tool}' requires approval: call it DIRECTLY (not via tool_call)."
             )))
             }
             Some(_) => {
@@ -139,7 +137,7 @@ impl Abeille for ToolCall {
                 match self.registry.executer(tool, inner, ctx).await {
                     Ok(result) => Ok(result),
                     Err(err) => Ok(ResultatAbeille::err(format!(
-                        "Erreur d'execution de l'outil '{tool}': {err}"
+                        "Tool execution error '{tool}': {err}"
                     ))),
                 }
             }
@@ -173,10 +171,9 @@ impl Abeille for RunScript {
     }
 
     fn description(&self) -> &str {
-        "Exécute une SÉQUENCE d'outils en un seul tour, sans repasser par le LLM entre les étapes \
-         (pipeline). `steps` = liste d'objets {tool, args}. La sortie de l'étape N est injectable \
-         dans les args suivants via le jeton {{N}} (1-based). Idéal pour enchaîner \
-         ex. web_search → web_fetch → file_write sans aller-retours. (run_script et delegate sont interdits comme étapes.)"
+        "Execute a SEQUENCE of tools in one turn without re-prompting the LLM between steps. \
+         `steps` = list of {tool, args} objects. Step N output is injectable into later args via {{N}} (1-based). \
+         Ideal for chaining e.g. web_search → web_fetch → file_write. (run_script and delegate are forbidden as steps.)"
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -189,8 +186,8 @@ impl Abeille for RunScript {
                     "items": {
                         "type": "object",
                         "properties": {
-                            "tool": { "type": "string", "description": "Nom de l'outil" },
-                            "args": { "type": "object", "description": "Arguments de l'outil (peuvent contenir {{N}})" }
+                            "tool": { "type": "string", "description": "Tool name" },
+                            "args": { "type": "object", "description": "Tool arguments (may contain {{N}} references)" }
                         },
                         "required": ["tool"]
                     }
@@ -211,12 +208,12 @@ impl Abeille for RunScript {
     ) -> Result<ResultatAbeille> {
         let steps = args["steps"]
             .as_array()
-            .ok_or_else(|| anyhow::anyhow!("'steps' (array) manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'steps' (array) missing"))?;
         if steps.is_empty() {
-            return Ok(ResultatAbeille::err("steps vide"));
+            return Ok(ResultatAbeille::err("steps is empty"));
         }
         if steps.len() > 12 {
-            return Ok(ResultatAbeille::err("trop d'étapes (max 12)"));
+            return Ok(ResultatAbeille::err("too many steps (max 12)"));
         }
 
         let mut outputs: Vec<String> = Vec::new();
@@ -225,12 +222,12 @@ impl Abeille for RunScript {
         for (i, step) in steps.iter().enumerate() {
             let tool = step["tool"]
                 .as_str()
-                .ok_or_else(|| anyhow::anyhow!("étape {}: 'tool' manquant", i + 1))?;
+                .ok_or_else(|| anyhow::anyhow!("step {}: 'tool' missing", i + 1))?;
 
             // Garde-fou : pas de récursion ni de délégation imbriquée.
             if tool == "run_script" || tool == "delegate" {
                 report.push_str(&format!(
-                    "── étape {} ({tool}) ──\n(interdit dans un pipeline)\n\n",
+                    "── step {} ({tool}) ──\n(not allowed inside a pipeline)\n\n",
                     i + 1
                 ));
                 outputs.push(String::new());
@@ -246,21 +243,21 @@ impl Abeille for RunScript {
             let res = match self.registry.executer(tool, step_args, ctx).await {
                 Ok(res) => res,
                 Err(err) => ResultatAbeille::err(format!(
-                    "Erreur d'execution de l'etape {} ({tool}): {err}",
+                    "Step {} ({tool}) execution error: {err}",
                     i + 1
                 )),
             };
             let out = if res.success {
                 res.output
             } else {
-                format!("Erreur: {}", res.error.unwrap_or_default())
+                format!("Error: {}", res.error.unwrap_or_default())
             };
             let preview: String = out.chars().take(1500).collect();
-            report.push_str(&format!("── étape {} ({tool}) ──\n{preview}\n\n", i + 1));
+            report.push_str(&format!("── step {} ({tool}) ──\n{preview}\n\n", i + 1));
             let failed = !res.success;
             outputs.push(out);
             if failed {
-                report.push_str("(pipeline interrompu : étape en échec)\n");
+                report.push_str("(pipeline stopped: step failed)\n");
                 break;
             }
         }

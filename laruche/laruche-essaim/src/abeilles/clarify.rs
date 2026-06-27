@@ -18,8 +18,8 @@ impl Abeille for Clarify {
     }
 
     fn description(&self) -> &str {
-        "Pose UNE question de clarification à l'utilisateur quand la demande est ambiguë ou qu'il \
-         manque une info essentielle. Préfère ça à deviner. Le tour s'arrête et l'utilisateur répond."
+        "Ask the user ONE clarifying question when the request is ambiguous or a required detail is \
+         missing. Prefer this over guessing. The turn stops and the user answers next."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -42,9 +42,9 @@ impl Abeille for Clarify {
         _ctx: &ContextExecution,
     ) -> Result<ResultatAbeille> {
         // Normalement court-circuité par brain.rs ; ce repli sert si appelé hors boucle.
-        let q = args["question"].as_str().unwrap_or("(question vide)");
+        let q = args["question"].as_str().unwrap_or("(empty question)");
         Ok(ResultatAbeille::ok(format!(
-            "Question posée à l'utilisateur : {q}"
+            "Question sent to user: {q}"
         )))
     }
 }

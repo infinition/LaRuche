@@ -17,14 +17,14 @@ impl Abeille for ExecuteCode {
     }
 
     fn description(&self) -> &str {
-        "Execute un court snippet Python via le binaire python du systeme. Timeout 30s, sortie tronquee tete+queue."
+        "Run a short Python snippet using the system python binary. 30s timeout; output truncated head+tail if too large."
     }
 
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "code": { "type": "string", "description": "Snippet Python a executer" }
+                "code": { "type": "string", "description": "Python snippet to execute" }
             },
             "required": ["code"]
         })
@@ -44,7 +44,7 @@ impl Abeille for ExecuteCode {
             .ok_or_else(|| anyhow::anyhow!("Missing 'code' argument"))?;
         if code.chars().count() > MAX_CODE_CHARS {
             return Ok(ResultatAbeille::err(format!(
-                "Snippet trop long (max {MAX_CODE_CHARS} caracteres)"
+                "Snippet too long (max {MAX_CODE_CHARS} chars)"
             )));
         }
 
@@ -61,7 +61,7 @@ impl Abeille for ExecuteCode {
             Ok(child) => child,
             Err(e) => {
                 return Ok(ResultatAbeille::err(format!(
-                    "Impossible de lancer python ({python}): {e}"
+                    "Failed to launch python ({python}): {e}"
                 )))
             }
         };
@@ -69,11 +69,11 @@ impl Abeille for ExecuteCode {
         let stdout = child
             .stdout
             .take()
-            .ok_or_else(|| anyhow::anyhow!("stdout Python indisponible"))?;
+            .ok_or_else(|| anyhow::anyhow!("Python stdout unavailable"))?;
         let stderr = child
             .stderr
             .take()
-            .ok_or_else(|| anyhow::anyhow!("stderr Python indisponible"))?;
+            .ok_or_else(|| anyhow::anyhow!("Python stderr unavailable"))?;
         let stdout_task = tokio::spawn(crate::abeille::capture_process_stream(
             stdout,
             ctx.clone(),
@@ -131,9 +131,9 @@ impl Abeille for ExecuteCode {
                 }
             }
             Ok(Err(e)) => Ok(ResultatAbeille::err(format!(
-                "Execution Python echouee: {e}"
+                "Python execution failed: {e}"
             ))),
-            Err(_) => Ok(ResultatAbeille::err("Snippet Python interrompu apres 30s")),
+            Err(_) => Ok(ResultatAbeille::err("Python snippet timed out after 30s")),
         }
     }
 }

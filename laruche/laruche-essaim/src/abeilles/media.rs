@@ -21,7 +21,7 @@ impl Abeille for MediaPresent {
     }
 
     fn description(&self) -> &str {
-        "Affiche un ou plusieurs medias directement sous la reponse: image, PDF, video ou audio. Accepte des URL http(s) et des chemins locaux situes dans le dossier de travail. Utilise-le apres avoir trouve ou cree un media que l'utilisateur doit pouvoir consulter."
+        "Display one or more media items (image, PDF, video, audio) directly below the response. Accepts http(s) URLs and local paths inside the working directory. Call after finding or creating a media file the user needs to see."
     }
 
     fn schema(&self) -> Value {
@@ -32,14 +32,14 @@ impl Abeille for MediaPresent {
                     "type": "array",
                     "minItems": 1,
                     "maxItems": MAX_MEDIA_ITEMS,
-                    "description": "Medias a afficher dans la conversation.",
+                    "description": "Media items to display in the conversation.",
                     "items": {
                         "type": "object",
                         "properties": {
-                            "url": { "type": "string", "description": "URL http(s) ou chemin local absolu/relatif" },
-                            "kind": { "type": "string", "enum": ["image", "pdf", "video", "audio", "auto"], "description": "Type du media; auto detecte depuis l'extension" },
-                            "title": { "type": "string", "description": "Legende courte visible dans le chat" },
-                            "caption": { "type": "string", "description": "Contexte optionnel sous le media" }
+                            "url": { "type": "string", "description": "http(s) URL or absolute/relative local path" },
+                            "kind": { "type": "string", "enum": ["image", "pdf", "video", "audio", "auto"], "description": "Media type; auto-detected from file extension when omitted" },
+                            "title": { "type": "string", "description": "Short caption shown in the chat" },
+                            "caption": { "type": "string", "description": "Optional context shown below the media" }
                         },
                         "required": ["url"]
                     }
@@ -56,23 +56,23 @@ impl Abeille for MediaPresent {
     async fn executer(&self, args: Value, ctx: &ContextExecution) -> Result<ResultatAbeille> {
         let Some(items) = args.get("items").and_then(Value::as_array) else {
             return Ok(ResultatAbeille::err(
-                "'items' doit etre une liste de medias.",
+                "'items' must be a list of media objects.",
             ));
         };
         if items.is_empty() || items.len() > MAX_MEDIA_ITEMS {
             return Ok(ResultatAbeille::err(format!(
-                "Ajoute entre 1 et {MAX_MEDIA_ITEMS} medias."
+                "Provide between 1 and {MAX_MEDIA_ITEMS} media items."
             )));
         }
 
         let mut normalized = Vec::with_capacity(items.len());
         for item in items {
             let Some(raw_url) = item.get("url").and_then(Value::as_str).map(str::trim) else {
-                return Ok(ResultatAbeille::err("Chaque media doit contenir une URL."));
+                return Ok(ResultatAbeille::err("Each media item must include a URL."));
             };
             if raw_url.is_empty() {
                 return Ok(ResultatAbeille::err(
-                    "Une URL de media ne peut pas etre vide.",
+                    "Media URL cannot be empty.",
                 ));
             }
             let (url, local) = normalize_media_url(raw_url, ctx)?;
@@ -100,7 +100,7 @@ impl Abeille for MediaPresent {
         // Marqueur compact : l'UI l'intercepte dans l'evenement outil et ne
         // l'affiche jamais comme du texte au modele ou a l'utilisateur.
         Ok(ResultatAbeille::ok(format!(
-            "<laruche-media>{}</laruche-media>\n{} media(s) pret(s) a afficher.",
+            "<laruche-media>{}</laruche-media>\n{} media item(s) ready to display.",
             serde_json::to_string(&normalized)?,
             normalized.len()
         )))
@@ -112,7 +112,7 @@ fn normalize_media_url(raw: &str, ctx: &ContextExecution) -> Result<(String, boo
         return Ok((raw.to_string(), false));
     }
     if raw.starts_with("file://") {
-        anyhow::bail!("Utilise un chemin local, pas une URL file://.");
+        anyhow::bail!("Use a local path, not a file:// URL.");
     }
     let candidate = Path::new(raw);
     let path = if candidate.is_absolute() {
@@ -121,17 +121,17 @@ fn normalize_media_url(raw: &str, ctx: &ContextExecution) -> Result<(String, boo
         ctx.working_dir.join(candidate)
     };
     let canonical = std::fs::canonicalize(&path)
-        .map_err(|_| anyhow::anyhow!("Media local introuvable: {}", path.display()))?;
+        .map_err(|_| anyhow::anyhow!("Local media not found: {}", path.display()))?;
     if !canonical.is_file() {
         anyhow::bail!(
-            "Le media local doit etre un fichier: {}",
+            "Local media must be a file: {}",
             canonical.display()
         );
     }
     let root = std::fs::canonicalize(&ctx.working_dir).unwrap_or_else(|_| ctx.working_dir.clone());
     if !canonical.starts_with(&root) {
         anyhow::bail!(
-            "Le media local doit etre situe dans le dossier de travail: {}",
+            "Local media must be inside the working directory: {}",
             root.display()
         );
     }

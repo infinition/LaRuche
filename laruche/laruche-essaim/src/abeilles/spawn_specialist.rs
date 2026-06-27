@@ -24,10 +24,10 @@ impl Abeille for SpawnSpecialist {
     }
 
     fn description(&self) -> &str {
-        "Spawne un agent spécialisé pour une tâche complexe. \
-         Types : 'research' (web, 25 iter), 'experiment' (code, 15 iter), \
-         'critique' (validation, 8 iter), 'synthesis' (rapport, 5 iter). \
-         Optionnel : 'provider' et 'model' pour choisir le LLM cible."
+        "Spawn a role-specific sub-agent for a complex task. \
+         Roles: 'research' (web, 25 iter), 'experiment' (code, 15 iter), \
+         'critique' (validation, 8 iter), 'synthesis' (report, 5 iter). \
+         Optional: 'provider' and 'model' to override the target LLM."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -69,7 +69,7 @@ impl Abeille for SpawnSpecialist {
             .unwrap_or(AgentRole::Recherche);
         let task = args["task"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("Argument 'task' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("Missing required argument 'task'"))?;
         let context = args["context"].as_str();
 
         let provider_override = match (args["provider"].as_str(), args["model"].as_str()) {
@@ -100,7 +100,7 @@ impl Abeille for SpawnSpecialist {
         );
 
         Ok(ResultatAbeille::ok(format!(
-            "Agent spécialisé ({}) terminé (max {} itérations) :\n{}",
+            "Specialist agent '{}' done (max {} iterations):\n{}",
             args["role"].as_str().unwrap_or("?"),
             result.iterations_limit,
             result.summary

@@ -37,16 +37,16 @@ impl Abeille for Todo {
     }
 
     fn description(&self) -> &str {
-        "Gere une liste de taches structuree en memoire pour la session courante: add, done, list."
+        "Manage an in-memory task list for the current session. Actions: add a task, mark one done, list all."
     }
 
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "action": { "type": "string", "enum": ["add", "done", "list"], "description": "Action a executer" },
-                "text": { "type": "string", "description": "Texte de la tache pour action=add" },
-                "id": { "type": "integer", "description": "Identifiant de tache pour action=done" }
+                "action": { "type": "string", "enum": ["add", "done", "list"], "description": "Action to perform" },
+                "text": { "type": "string", "description": "Task text (required for action=add)" },
+                "id": { "type": "integer", "description": "Task ID (required for action=done)" }
             },
             "required": ["action"]
         })
@@ -71,7 +71,7 @@ impl Abeille for Todo {
                     .ok_or_else(|| anyhow::anyhow!("Missing 'text' for todo add"))?
                     .trim();
                 if text.is_empty() {
-                    return Ok(ResultatAbeille::err("Texte de tache vide"));
+                    return Ok(ResultatAbeille::err("Task text is empty"));
                 }
                 let mut guard = store().lock().unwrap();
                 let id = guard.next_id;
@@ -81,7 +81,7 @@ impl Abeille for Todo {
                     text: text.to_string(),
                     done: false,
                 });
-                Ok(ResultatAbeille::ok(format!("Tache ajoutee #{id}: {text}")))
+                Ok(ResultatAbeille::ok(format!("Task added #{id}: {text}")))
             }
             "done" => {
                 let id = args["id"]
@@ -91,17 +91,17 @@ impl Abeille for Todo {
                 if let Some(item) = guard.items.iter_mut().find(|item| item.id == id) {
                     item.done = true;
                     Ok(ResultatAbeille::ok(format!(
-                        "Tache terminee #{id}: {}",
+                        "Task done #{id}: {}",
                         item.text
                     )))
                 } else {
-                    Ok(ResultatAbeille::err(format!("Tache inconnue: #{id}")))
+                    Ok(ResultatAbeille::err(format!("Unknown task: #{id}")))
                 }
             }
             "list" => {
                 let guard = store().lock().unwrap();
                 if guard.items.is_empty() {
-                    return Ok(ResultatAbeille::ok("Aucune tache."));
+                    return Ok(ResultatAbeille::ok("No tasks."));
                 }
                 let lines = guard
                     .items
@@ -119,7 +119,7 @@ impl Abeille for Todo {
                 Ok(ResultatAbeille::ok(lines))
             }
             other => Ok(ResultatAbeille::err(format!(
-                "Action todo inconnue: {other}"
+                "Unknown todo action: {other}"
             ))),
         }
     }

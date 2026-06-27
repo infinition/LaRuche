@@ -47,14 +47,14 @@ impl Abeille for SkillFileWrite {
         "skill_file_write"
     }
     fn description(&self) -> &str {
-        "Cree OU ecrase un fichier bundle d'un skill (script, reference...). Ex: \
-         skill_file_write(skill='arxiv', path='scripts/search.py', content='...'). Le script \
-         s'execute ensuite via shell_exec/execute_code. NE cree PAS un outil (pour ca: plugin_create)."
+        "Create or overwrite a file in a skill bundle (script, reference, etc.). \
+         The script is then run via shell_exec/execute_code. \
+         Does NOT create a tool — use plugin_create for that."
     }
     fn schema(&self) -> serde_json::Value {
         json!({"type":"object","properties":{
-            "skill":{"type":"string","description":"nom du skill"},
-            "path":{"type":"string","description":"chemin relatif sous skills/<skill>/, ex. scripts/run.py"},
+            "skill":{"type":"string","description":"skill name"},
+            "path":{"type":"string","description":"relative path under skills/<skill>/, e.g. scripts/run.py"},
             "content":{"type":"string"}},"required":["skill","path","content"]})
     }
     fn niveau_danger(&self) -> NiveauDanger {
@@ -69,14 +69,14 @@ impl Abeille for SkillFileWrite {
         let path = args["path"].as_str().unwrap_or("");
         let content = args["content"].as_str().unwrap_or("");
         let Some(full) = skill_file_path(skill, path) else {
-            return Ok(ResultatAbeille::err("chemin invalide (.. interdit)"));
+            return Ok(ResultatAbeille::err("invalid path (.. not allowed)"));
         };
         if let Some(p) = full.parent() {
             let _ = std::fs::create_dir_all(p);
         }
         match std::fs::write(&full, content) {
-            Ok(_) => Ok(ResultatAbeille::ok(format!("Ecrit: {}", full.display()))),
-            Err(e) => Ok(ResultatAbeille::err(format!("Echec ecriture: {e}"))),
+            Ok(_) => Ok(ResultatAbeille::ok(format!("Written: {}", full.display()))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Write failed: {e}"))),
         }
     }
 }
@@ -88,7 +88,7 @@ impl Abeille for SkillFileRead {
         "skill_file_read"
     }
     fn description(&self) -> &str {
-        "Lit un fichier bundle d'un skill (skill, path)."
+        "Read a file from a skill bundle (skill, path)."
     }
     fn schema(&self) -> serde_json::Value {
         json!({"type":"object","properties":{"skill":{"type":"string"},"path":{"type":"string"}},"required":["skill","path"]})
@@ -102,11 +102,11 @@ impl Abeille for SkillFileRead {
         _ctx: &ContextExecution,
     ) -> Result<ResultatAbeille> {
         let Some(full) = skill_file_path(args["skill"].as_str().unwrap_or(""), args["path"].as_str().unwrap_or("")) else {
-            return Ok(ResultatAbeille::err("chemin invalide"));
+            return Ok(ResultatAbeille::err("invalid path"));
         };
         match std::fs::read_to_string(&full) {
             Ok(c) => Ok(ResultatAbeille::ok(c)),
-            Err(e) => Ok(ResultatAbeille::err(format!("Lecture impossible: {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Read failed: {e}"))),
         }
     }
 }
@@ -118,7 +118,7 @@ impl Abeille for SkillFileDelete {
         "skill_file_delete"
     }
     fn description(&self) -> &str {
-        "Supprime un fichier bundle d'un skill (skill, path)."
+        "Delete a file from a skill bundle (skill, path)."
     }
     fn schema(&self) -> serde_json::Value {
         json!({"type":"object","properties":{"skill":{"type":"string"},"path":{"type":"string"}},"required":["skill","path"]})
@@ -132,11 +132,11 @@ impl Abeille for SkillFileDelete {
         _ctx: &ContextExecution,
     ) -> Result<ResultatAbeille> {
         let Some(full) = skill_file_path(args["skill"].as_str().unwrap_or(""), args["path"].as_str().unwrap_or("")) else {
-            return Ok(ResultatAbeille::err("chemin invalide"));
+            return Ok(ResultatAbeille::err("invalid path"));
         };
         match std::fs::remove_file(&full) {
-            Ok(_) => Ok(ResultatAbeille::ok(format!("Supprime: {}", full.display()))),
-            Err(e) => Ok(ResultatAbeille::err(format!("Echec suppression: {e}"))),
+            Ok(_) => Ok(ResultatAbeille::ok(format!("Deleted: {}", full.display()))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Delete failed: {e}"))),
         }
     }
 }
@@ -148,7 +148,7 @@ impl Abeille for SkillFileList {
         "skill_file_list"
     }
     fn description(&self) -> &str {
-        "Liste les fichiers bundles d'un skill (recursif)."
+        "List all files in a skill bundle (recursive)."
     }
     fn schema(&self) -> serde_json::Value {
         json!({"type":"object","properties":{"skill":{"type":"string"}},"required":["skill"]})
@@ -163,7 +163,7 @@ impl Abeille for SkillFileList {
     ) -> Result<ResultatAbeille> {
         let slug = slugify(args["skill"].as_str().unwrap_or(""));
         if slug.is_empty() {
-            return Ok(ResultatAbeille::err("skill manquant"));
+            return Ok(ResultatAbeille::err("skill name required"));
         }
         let base = PathBuf::from("skills").join(&slug);
         let mut out = Vec::new();
@@ -181,7 +181,7 @@ impl Abeille for SkillFileList {
             }
         }
         if out.is_empty() {
-            Ok(ResultatAbeille::ok("(aucun fichier)"))
+            Ok(ResultatAbeille::ok("(no files)"))
         } else {
             out.sort();
             Ok(ResultatAbeille::ok(out.join("\n")))
@@ -200,19 +200,19 @@ impl Abeille for PluginCreate {
         "plugin_create"
     }
     fn description(&self) -> &str {
-        "Forge un OUTIL persistant (plugin) appelable comme une abeille. `command` = template \
-         shell avec {{slots}} (ex. 'python plugins/scripts/x.py {{arg}}'). `schema` = JSON Schema \
-         des arguments. Optionnel `script_path`+`script_content` pour ecrire le script appele. \
-         Recharge automatiquement. Pour une PROCEDURE (pas un outil), utilise skill_create."
+        "Create a persistent tool (plugin) callable like any built-in. `command` = shell template \
+         with {{slots}} (e.g. 'python plugins/scripts/x.py {{arg}}'). `schema` = JSON Schema for \
+         the tool's arguments. Optional `script_path`+`script_content` to write the script inline. \
+         Hot-reloads automatically. For a PROCEDURE (not a tool), use skill_create."
     }
     fn schema(&self) -> serde_json::Value {
         json!({"type":"object","properties":{
             "name":{"type":"string"},
             "description":{"type":"string"},
-            "command":{"type":"string","description":"template shell avec {{slots}}"},
-            "schema":{"type":"object","description":"JSON Schema des arguments du tool"},
-            "script_path":{"type":"string","description":"optionnel: ex. plugins/scripts/x.py"},
-            "script_content":{"type":"string","description":"optionnel: contenu du script"}
+            "command":{"type":"string","description":"shell template with {{slots}}"},
+            "schema":{"type":"object","description":"JSON Schema for the tool's arguments"},
+            "script_path":{"type":"string","description":"optional: e.g. plugins/scripts/x.py"},
+            "script_content":{"type":"string","description":"optional: script source code"}
         },"required":["name","description","command"]})
     }
     fn niveau_danger(&self) -> NiveauDanger {
@@ -225,20 +225,20 @@ impl Abeille for PluginCreate {
     ) -> Result<ResultatAbeille> {
         let name = args["name"].as_str().unwrap_or("").trim();
         if name.is_empty() {
-            return Ok(ResultatAbeille::err("name manquant"));
+            return Ok(ResultatAbeille::err("name required"));
         }
         let slug = slugify(name);
         // Script optionnel (refuse ../).
         if let (Some(sp), Some(sc)) = (args["script_path"].as_str(), args["script_content"].as_str()) {
             if sp.contains("..") {
-                return Ok(ResultatAbeille::err("script_path invalide"));
+                return Ok(ResultatAbeille::err("invalid script_path"));
             }
             let p = PathBuf::from(sp);
             if let Some(parent) = p.parent() {
                 let _ = std::fs::create_dir_all(parent);
             }
             if let Err(e) = std::fs::write(&p, sc) {
-                return Ok(ResultatAbeille::err(format!("Echec ecriture script: {e}")));
+                return Ok(ResultatAbeille::err(format!("Script write failed: {e}")));
             }
         }
         let def = json!({
@@ -250,12 +250,12 @@ impl Abeille for PluginCreate {
         let _ = std::fs::create_dir_all("plugins");
         let path = PathBuf::from("plugins").join(format!("{slug}.json"));
         if let Err(e) = std::fs::write(&path, serde_json::to_string_pretty(&def).unwrap_or_default()) {
-            return Ok(ResultatAbeille::err(format!("Echec ecriture plugin: {e}")));
+            return Ok(ResultatAbeille::err(format!("Plugin write failed: {e}")));
         }
         // Recharge à chaud dans le registre principal.
         crate::abeilles::charger_plugins(Path::new("plugins"), &self.registry);
         Ok(ResultatAbeille::ok(format!(
-            "Plugin `{name}` cree et charge ({}).",
+            "Plugin `{name}` created and loaded ({}).",
             path.display()
         )))
     }
@@ -268,7 +268,7 @@ impl Abeille for PluginList {
         "plugin_list"
     }
     fn description(&self) -> &str {
-        "Liste les plugins (outils forges) presents dans plugins/*.json."
+        "List all forged plugins present in plugins/*.json."
     }
     fn schema(&self) -> serde_json::Value {
         json!({"type":"object","properties":{}})
@@ -294,7 +294,7 @@ impl Abeille for PluginList {
         }
         out.sort();
         Ok(ResultatAbeille::ok(if out.is_empty() {
-            "(aucun plugin)".to_string()
+            "(no plugins)".to_string()
         } else {
             out.join("\n")
         }))
@@ -310,7 +310,7 @@ impl Abeille for PluginDelete {
         "plugin_delete"
     }
     fn description(&self) -> &str {
-        "Supprime un plugin (plugins/<nom>.json) et le retire du registre."
+        "Delete a plugin (plugins/<name>.json) and remove it from the registry."
     }
     fn schema(&self) -> serde_json::Value {
         json!({"type":"object","properties":{"name":{"type":"string"}},"required":["name"]})
@@ -325,14 +325,14 @@ impl Abeille for PluginDelete {
     ) -> Result<ResultatAbeille> {
         let slug = slugify(args["name"].as_str().unwrap_or(""));
         if slug.is_empty() {
-            return Ok(ResultatAbeille::err("name manquant"));
+            return Ok(ResultatAbeille::err("name required"));
         }
         let path = PathBuf::from("plugins").join(format!("{slug}.json"));
         let _ = std::fs::remove_file(&path);
         // Vide les plugins custom du registre puis recharge ceux qui restent.
         self.registry.supprimer_par_origine(ToolOrigin::Custom);
         crate::abeilles::charger_plugins(Path::new("plugins"), &self.registry);
-        Ok(ResultatAbeille::ok(format!("Plugin `{slug}` supprime.")))
+        Ok(ResultatAbeille::ok(format!("Plugin `{slug}` deleted.")))
     }
 }
 
@@ -355,7 +355,7 @@ impl Abeille for McpAdd {
         "mcp_add"
     }
     fn description(&self) -> &str {
-        "Ajoute (ou met a jour) un serveur MCP dans mcp_servers.json. Prend effet au redemarrage."
+        "Add or update an MCP server in mcp_servers.json. Takes effect on restart."
     }
     fn schema(&self) -> serde_json::Value {
         json!({"type":"object","properties":{
@@ -374,7 +374,7 @@ impl Abeille for McpAdd {
     ) -> Result<ResultatAbeille> {
         let name = args["name"].as_str().unwrap_or("").trim();
         if name.is_empty() {
-            return Ok(ResultatAbeille::err("name manquant"));
+            return Ok(ResultatAbeille::err("name required"));
         }
         let mut v = lire_mcp();
         if !v["mcpServers"].is_object() {
@@ -386,9 +386,9 @@ impl Abeille for McpAdd {
         });
         match ecrire_mcp(&v) {
             Ok(_) => Ok(ResultatAbeille::ok(format!(
-                "Serveur MCP `{name}` enregistre (actif au redemarrage)."
+                "MCP server `{name}` registered (active on restart)."
             ))),
-            Err(e) => Ok(ResultatAbeille::err(format!("Echec: {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Failed: {e}"))),
         }
     }
 }
@@ -400,7 +400,7 @@ impl Abeille for McpRemove {
         "mcp_remove"
     }
     fn description(&self) -> &str {
-        "Retire un serveur MCP de mcp_servers.json."
+        "Remove an MCP server from mcp_servers.json."
     }
     fn schema(&self) -> serde_json::Value {
         json!({"type":"object","properties":{"name":{"type":"string"}},"required":["name"]})
@@ -419,8 +419,8 @@ impl Abeille for McpRemove {
             obj.remove(name);
         }
         match ecrire_mcp(&v) {
-            Ok(_) => Ok(ResultatAbeille::ok(format!("Serveur MCP `{name}` retire."))),
-            Err(e) => Ok(ResultatAbeille::err(format!("Echec: {e}"))),
+            Ok(_) => Ok(ResultatAbeille::ok(format!("MCP server `{name}` removed."))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Failed: {e}"))),
         }
     }
 }
@@ -432,7 +432,7 @@ impl Abeille for McpList {
         "mcp_list"
     }
     fn description(&self) -> &str {
-        "Liste les serveurs MCP configures."
+        "List configured MCP servers."
     }
     fn schema(&self) -> serde_json::Value {
         json!({"type":"object","properties":{}})
@@ -451,7 +451,7 @@ impl Abeille for McpList {
             .map(|o| o.keys().cloned().collect())
             .unwrap_or_default();
         Ok(ResultatAbeille::ok(if noms.is_empty() {
-            "(aucun serveur MCP)".to_string()
+            "(no MCP servers)".to_string()
         } else {
             noms.join("\n")
         }))

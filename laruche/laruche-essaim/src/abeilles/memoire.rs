@@ -34,9 +34,9 @@ impl Abeille for MemoireSearch {
         "memory_search"
     }
     fn description(&self) -> &str {
-        "Recherche dans la mémoire cognitive durable (carte de nœuds + items, activation \
-         + retrieval hybride). Renvoie les faits/décisions/préférences pertinents stockés \
-         lors de conversations précédentes. À appeler avant un travail de fond pour s'orienter."
+        "Search the persistent cognitive memory (node map + items, hybrid activation + retrieval). \
+         Returns relevant facts, decisions and preferences stored in previous conversations. \
+         Call before starting a task to orient yourself."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
@@ -59,7 +59,7 @@ impl Abeille for MemoireSearch {
     ) -> Result<ResultatAbeille> {
         let query = args["query"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("'query' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'query' required"))?;
         let opts = SearchOpts {
             depth: None,
             limit: args["limit"].as_u64().map(|l| l as u8),
@@ -68,13 +68,13 @@ impl Abeille for MemoireSearch {
             Ok(pack) => {
                 let text = pack.to_prompt_text();
                 if text.is_empty() {
-                    Ok(ResultatAbeille::ok("Aucun souvenir pertinent."))
+                    Ok(ResultatAbeille::ok("No relevant memory found."))
                 } else {
-                    Ok(ResultatAbeille::ok(format!("Mémoire pertinente :\n{text}")))
+                    Ok(ResultatAbeille::ok(format!("Relevant memory:\n{text}")))
                 }
             }
             Err(e) => Ok(ResultatAbeille::err(format!(
-                "Recherche mémoire échouée : {e}"
+                "Memory search failed: {e}"
             ))),
         }
     }
@@ -93,9 +93,9 @@ impl Abeille for MemoireWrite {
         "memory_write"
     }
     fn description(&self) -> &str {
-        "Mémorise un fait, une décision ou une préférence durable dans la carte cognitive. \
-         Utiliser un node_id pointé : `projects.<nom>`, `decisions.<sujet>`, `people.<nom>`. \
-         À appeler après une décision ou un fait qui doit survivre aux conversations."
+        "Store a lasting fact, decision or preference in the cognitive map. \
+         Use a dotted node_id: `projects.<name>`, `decisions.<topic>`, `people.<name>`. \
+         Call after any decision or fact that must persist across conversations."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
@@ -119,19 +119,19 @@ impl Abeille for MemoireWrite {
     ) -> Result<ResultatAbeille> {
         let node_id = args["node_id"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("'node_id' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'node_id' required"))?;
         let content = args["content"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("'content' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'content' required"))?;
         // Garde-fou : memory_write NE DOIT PAS écrire dans les nœuds système (capacities.*/
         // system.*). Sinon l'agent dumpe des « skills » en items dans capacities.skills.* et
         // pollue (vu en prod : web_research avec 2 items, recherche_programme_tv créé à tort).
         // Un SKILL se crée avec skill_create (item unique, fichier .md), pas memory_write.
         if noeud_reserve(node_id) {
             return Ok(ResultatAbeille::err(format!(
-                "Refus : `{node_id}` est un nœud SYSTÈME réservé (capacities.*/system.*). \
-                 Pour créer ou mettre à jour un SKILL, utilise `skill_create` (jamais \
-                 memory_write). Range les faits durables sous projects.*/decisions.*/people.*."
+                "Refused: `{node_id}` is a reserved SYSTEM node (capacities.*/system.*). \
+                 To create or update a SKILL, use `skill_create` (never memory_write). \
+                 Store lasting facts under projects.*/decisions.*/people.*."
             )));
         }
         let mut item = MemoryItem::new(node_id, content);
@@ -147,14 +147,14 @@ impl Abeille for MemoireWrite {
 
         match res {
             Ok(_) => Ok(ResultatAbeille::ok(format!(
-                "Mémorisé dans `{node_id}`{}.",
+                "Stored in `{node_id}`{}.",
                 if self.propose {
-                    " (proposé, en attente de revue)"
+                    " (proposed, pending review)"
                 } else {
                     ""
                 }
             ))),
-            Err(e) => Ok(ResultatAbeille::err(format!("Échec de mémorisation : {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Memory write failed: {e}"))),
         }
     }
 }
@@ -169,14 +169,14 @@ impl Abeille for MemoireUpdateItem {
         "memory_update_item"
     }
     fn description(&self) -> &str {
-        "Met a jour le contenu d'un item de memoire existant. Audite par le backend."
+        "Update the content of an existing memory item. Audited by the backend."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "item_id": { "type": "string", "description": "ID de l'item, ex. itm_42" },
-                "content": { "type": "string", "description": "Nouveau contenu durable" }
+                "item_id": { "type": "string", "description": "Item ID, e.g. itm_42" },
+                "content": { "type": "string", "description": "New lasting content" }
             },
             "required": ["item_id", "content"]
         })
@@ -191,15 +191,15 @@ impl Abeille for MemoireUpdateItem {
     ) -> Result<ResultatAbeille> {
         let item_id = args["item_id"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("'item_id' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'item_id' required"))?;
         let content = args["content"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("'content' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'content' required"))?;
         match self.mem.update_item(item_id, content).await {
             Ok(_) => Ok(ResultatAbeille::ok(format!(
-                "Memoire mise a jour: {item_id}"
+                "Memory item updated: {item_id}"
             ))),
-            Err(e) => Ok(ResultatAbeille::err(format!("Echec update memoire: {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Memory update failed: {e}"))),
         }
     }
 }
@@ -214,14 +214,14 @@ impl Abeille for MemoireDelete {
         "memory_delete"
     }
     fn description(&self) -> &str {
-        "Supprime logiquement un item de memoire existant. A utiliser quand l'utilisateur demande d'oublier, retirer ou corriger un souvenir."
+        "Soft-delete an existing memory item. Use when the user asks to forget, remove or correct a stored fact."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "item_id": { "type": "string", "description": "ID de l'item, ex. itm_42" },
-                "reason": { "type": "string", "description": "Raison de suppression" }
+                "item_id": { "type": "string", "description": "Item ID, e.g. itm_42" },
+                "reason": { "type": "string", "description": "Reason for deletion" }
             },
             "required": ["item_id"]
         })
@@ -236,11 +236,11 @@ impl Abeille for MemoireDelete {
     ) -> Result<ResultatAbeille> {
         let item_id = args["item_id"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("'item_id' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'item_id' required"))?;
         let reason = args["reason"].as_str();
         match self.mem.delete_item(item_id, reason).await {
-            Ok(_) => Ok(ResultatAbeille::ok(format!("Memoire supprimee: {item_id}"))),
-            Err(e) => Ok(ResultatAbeille::err(format!("Echec delete memoire: {e}"))),
+            Ok(_) => Ok(ResultatAbeille::ok(format!("Memory item deleted: {item_id}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Memory delete failed: {e}"))),
         }
     }
 }
@@ -255,14 +255,14 @@ impl Abeille for MemoireMoveItem {
         "memory_move_item"
     }
     fn description(&self) -> &str {
-        "Deplace un item de memoire vers un autre node_id."
+        "Move a memory item to a different node_id."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
                 "item_id": { "type": "string" },
-                "node_id": { "type": "string", "description": "Nouveau node_id" }
+                "node_id": { "type": "string", "description": "Destination node_id" }
             },
             "required": ["item_id", "node_id"]
         })
@@ -277,20 +277,20 @@ impl Abeille for MemoireMoveItem {
     ) -> Result<ResultatAbeille> {
         let item_id = args["item_id"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("'item_id' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'item_id' required"))?;
         let node_id = args["node_id"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("'node_id' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'node_id' required"))?;
         if noeud_reserve(node_id) {
             return Ok(ResultatAbeille::err(format!(
-                "Refus: impossible de deplacer un item vers `{node_id}` (noeud systeme reserve)."
+                "Refused: cannot move item to `{node_id}` (reserved system node)."
             )));
         }
         match self.mem.move_item(item_id, node_id).await {
             Ok(_) => Ok(ResultatAbeille::ok(format!(
-                "Memoire deplacee: {item_id} -> {node_id}"
+                "Memory item moved: {item_id} -> {node_id}"
             ))),
-            Err(e) => Ok(ResultatAbeille::err(format!("Echec move memoire: {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Memory move failed: {e}"))),
         }
     }
 }
@@ -305,7 +305,7 @@ impl Abeille for MemoireReview {
         "memory_review"
     }
     fn description(&self) -> &str {
-        "Accepte ou rejette un item propose en attente de revue."
+        "Accept or reject a proposed memory item pending review."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
@@ -328,14 +328,14 @@ impl Abeille for MemoireReview {
     ) -> Result<ResultatAbeille> {
         let item_id = args["item_id"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("'item_id' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'item_id' required"))?;
         let action = args["action"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("'action' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'action' required"))?;
         let reason = args["reason"].as_str();
         match self.mem.review_item(item_id, action, reason).await {
             Ok(_) => Ok(ResultatAbeille::ok(format!("Review {action}: {item_id}"))),
-            Err(e) => Ok(ResultatAbeille::err(format!("Echec review memoire: {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Memory review failed: {e}"))),
         }
     }
 }
@@ -350,7 +350,7 @@ impl Abeille for MemoireListProposed {
         "memory_list_proposed"
     }
     fn description(&self) -> &str {
-        "Liste les items de memoire proposes en attente de revue."
+        "List proposed memory items pending review."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
@@ -372,7 +372,7 @@ impl Abeille for MemoireListProposed {
             .await
         {
             Ok(value) => Ok(ResultatAbeille::ok(serde_json::to_string_pretty(&value)?)),
-            Err(e) => Ok(ResultatAbeille::err(format!("Echec liste proposed: {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("List proposed failed: {e}"))),
         }
     }
 }
@@ -387,7 +387,7 @@ impl Abeille for MemoireSuggestNodes {
         "memory_suggest_nodes"
     }
     fn description(&self) -> &str {
-        "Suggere des node_id existants pour autocomplete ou classement d'un souvenir."
+        "Suggest existing node_ids for autocomplete or to classify a new memory item."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
@@ -414,7 +414,7 @@ impl Abeille for MemoireSuggestNodes {
         {
             Ok(value) => Ok(ResultatAbeille::ok(serde_json::to_string_pretty(&value)?)),
             Err(e) => Ok(ResultatAbeille::err(format!(
-                "Echec suggestions noeuds: {e}"
+                "Node suggestions failed: {e}"
             ))),
         }
     }
@@ -431,7 +431,7 @@ impl Abeille for MemoireStats {
         "memory_stats"
     }
     fn description(&self) -> &str {
-        "Renvoie des statistiques de la mémoire cognitive : compteurs d'items (actifs, proposés, supprimés), de nœuds et de mutations."
+        "Return cognitive memory statistics: item counts (active, proposed, deleted), node count, and mutation count."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({ "type": "object", "properties": {} })
@@ -446,7 +446,7 @@ impl Abeille for MemoireStats {
     ) -> Result<ResultatAbeille> {
         match self.mem.stats().await {
             Ok(v) => Ok(ResultatAbeille::ok(serde_json::to_string_pretty(&v)?)),
-            Err(e) => Ok(ResultatAbeille::err(format!("Echec stats memoire: {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Memory stats failed: {e}"))),
         }
     }
 }
@@ -462,7 +462,7 @@ impl Abeille for MemoireMutations {
         "memory_mutations"
     }
     fn description(&self) -> &str {
-        "Liste le journal d'audit des mutations récentes de la mémoire (write, update, delete, review, move). Utile pour expliquer ce qui a été mémorisé/modifié et quand."
+        "List the audit log of recent memory mutations (write, update, delete, review, move). Useful to explain what was stored or changed and when."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
@@ -484,7 +484,7 @@ impl Abeille for MemoireMutations {
             .await
         {
             Ok(v) => Ok(ResultatAbeille::ok(serde_json::to_string_pretty(&v)?)),
-            Err(e) => Ok(ResultatAbeille::err(format!("Echec audit memoire: {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Memory audit log failed: {e}"))),
         }
     }
 }
@@ -500,9 +500,9 @@ impl Abeille for MemoireTree {
         "memory_tree"
     }
     fn description(&self) -> &str {
-        "Enumere TOUS les noeuds de la carte cognitive (arbre complet : id, parent, label). \
-         A utiliser pour auditer/ranger sa memoire : reperer les noeuds en double, generiques \
-         (projects.1, decisions.1) ou fragmentes avant de les fusionner avec memory_delete_node."
+        "List ALL nodes in the cognitive map (full tree: id, parent, label). \
+         Use to audit memory: spot duplicate, generic (projects.1, decisions.1) or fragmented \
+         nodes before merging them with memory_delete_node."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({ "type": "object", "properties": {} })
@@ -517,7 +517,7 @@ impl Abeille for MemoireTree {
     ) -> Result<ResultatAbeille> {
         match self.mem.list_nodes().await {
             Ok(v) => Ok(ResultatAbeille::ok(serde_json::to_string_pretty(&v)?)),
-            Err(e) => Ok(ResultatAbeille::err(format!("Echec arbre memoire: {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Memory tree failed: {e}"))),
         }
     }
 }
@@ -533,15 +533,15 @@ impl Abeille for MemoireDeleteNode {
         "memory_delete_node"
     }
     fn description(&self) -> &str {
-        "Supprime un noeud entier de la carte cognitive : ses items (et sous-noeuds) sont \
-         rattaches au noeud parent. La primitive de FUSION : pour nettoyer un noeud en double, \
-         generique ou fragmente sans perdre son contenu. Donne le node_id pointe (ex. projects.1)."
+        "Delete an entire node from the cognitive map: its items (and child nodes) are re-attached \
+         to the parent. The MERGE primitive: clean up a duplicate, generic or fragmented node \
+         without losing its content. Provide the dotted node_id (e.g. projects.1)."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "node_id": { "type": "string", "description": "Noeud pointe a supprimer, ex. projects.1" }
+                "node_id": { "type": "string", "description": "Dotted node to delete, e.g. projects.1" }
             },
             "required": ["node_id"]
         })
@@ -556,19 +556,19 @@ impl Abeille for MemoireDeleteNode {
     ) -> Result<ResultatAbeille> {
         let node_id = args["node_id"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("'node_id' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'node_id' required"))?;
         if noeud_reserve(node_id) {
             return Ok(ResultatAbeille::err(format!(
-                "Refus: `{node_id}` est un noeud systeme (tools.*/system.*), gere automatiquement. \
-                 Ne range que ta memoire (people/projects/decisions...)."
+                "Refused: `{node_id}` is a system node (tools.*/system.*), managed automatically. \
+                 Only reorganize your own memory (people/projects/decisions/...)."
             )));
         }
         match self.mem.delete_node(node_id).await {
             Ok(v) => Ok(ResultatAbeille::ok(format!(
-                "Noeud supprime/fusionne: {}",
+                "Node deleted/merged: {}",
                 serde_json::to_string(&v).unwrap_or_default()
             ))),
-            Err(e) => Ok(ResultatAbeille::err(format!("Echec delete_node: {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("delete_node failed: {e}"))),
         }
     }
 }
@@ -598,14 +598,14 @@ impl Abeille for MemoireReadNode {
         "memory_read_node"
     }
     fn description(&self) -> &str {
-        "Lit un noeud de la carte cognitive : ses items avec leur HORODATAGE (cree / modifie le), \
-         ses sous-noeuds et ses metadonnees. Pour inspecter le contenu ET la fraicheur d'un noeud."
+        "Read a cognitive map node: its items with TIMESTAMPS (created / last modified), \
+         its child nodes and its metadata. Use to inspect content AND freshness of a node."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "node_id": { "type": "string", "description": "Noeud pointe, ex. projects.laruche" }
+                "node_id": { "type": "string", "description": "Dotted node, e.g. projects.laruche" }
             },
             "required": ["node_id"]
         })
@@ -620,13 +620,13 @@ impl Abeille for MemoireReadNode {
     ) -> Result<ResultatAbeille> {
         let node_id = args["node_id"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("'node_id' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'node_id' required"))?;
         let node = match self.mem.read_node(node_id).await {
             Ok(n) => n,
-            Err(e) => return Ok(ResultatAbeille::err(format!("Lecture impossible: {e}"))),
+            Err(e) => return Ok(ResultatAbeille::err(format!("Cannot read node: {e}"))),
         };
         let mut out = format!(
-            "Noeud `{node_id}` (cree {}, maj {})\n",
+            "Node `{node_id}` (created {}, updated {})\n",
             fmt_ts(&node["created_at"]),
             fmt_ts(&node["updated_at"])
         );
@@ -636,7 +636,7 @@ impl Abeille for MemoireReadNode {
                     .iter()
                     .filter_map(|c| c["id"].as_str().map(String::from))
                     .collect();
-                out.push_str(&format!("Sous-noeuds: {}\n", noms.join(", ")));
+                out.push_str(&format!("Children: {}\n", noms.join(", ")));
             }
         }
         out.push_str("\nItems:\n");
@@ -646,13 +646,13 @@ impl Abeille for MemoireReadNode {
                     let id = it["id"].as_str().unwrap_or("?");
                     let content = it["content"].as_str().unwrap_or("");
                     out.push_str(&format!(
-                        "- [{id}] {content}  (cree {}, maj {})\n",
+                        "- [{id}] {content}  (created {}, updated {})\n",
                         fmt_ts(&it["created_at"]),
                         fmt_ts(&it["updated_at"])
                     ));
                 }
             }
-            _ => out.push_str("(aucun item)\n"),
+            _ => out.push_str("(no items)\n"),
         }
         Ok(ResultatAbeille::ok(out))
     }
@@ -670,8 +670,8 @@ impl Abeille for MemoireDoctor {
         "memory_doctor"
     }
     fn description(&self) -> &str {
-        "Audit lecture seule de la memoire : compteurs, noeuds les plus charges, doublons/surcharges. \
-         Pour decider quoi consolider (memory_consolidate) ou ranger. N'applique aucune modif."
+        "Read-only memory audit: counters, heaviest nodes, duplicates/overloads. \
+         Use to decide what to consolidate (memory_consolidate) or reorganize. Applies no changes."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({ "type": "object", "properties": {} })
@@ -707,21 +707,21 @@ impl Abeille for MemoireDoctor {
         tops.sort_by(|a, b| b.1.cmp(&a.1));
         tops.truncate(8);
 
-        let mut out = String::from("# Audit mémoire\n\n");
+        let mut out = String::from("# Memory audit\n\n");
         out.push_str(&format!(
             "Stats: {}\n\n",
             serde_json::to_string(&stats).unwrap_or_default()
         ));
         if !tops.is_empty() {
-            out.push_str("Nœuds les plus chargés (candidats à consolider) :\n");
+            out.push_str("Heaviest nodes (candidates for consolidation):\n");
             for (id, c) in &tops {
-                out.push_str(&format!("- {id} : {c} items\n"));
+                out.push_str(&format!("- {id}: {c} items\n"));
             }
             out.push('\n');
         }
         if let Some(sug) = dream.get("suggestions").and_then(|s| s.as_array()) {
             if !sug.is_empty() {
-                out.push_str(&format!("Suggestions (doublons/surcharges) : {}\n", sug.len()));
+                out.push_str(&format!("Suggestions (duplicates/overloads): {}\n", sug.len()));
                 for s in sug.iter().take(10) {
                     if let Some(msg) = s.get("message").and_then(|m| m.as_str()) {
                         out.push_str(&format!("- {msg}\n"));
@@ -729,7 +729,7 @@ impl Abeille for MemoireDoctor {
                 }
             }
         }
-        out.push_str("\nAction : `memory_consolidate(node_id)` pour fusionner un nœud chargé.");
+        out.push_str("\nAction: `memory_consolidate(node_id)` to merge a heavy node.");
         Ok(ResultatAbeille::ok(out))
     }
 }
@@ -747,16 +747,15 @@ impl Abeille for MemoireGrep {
         "memory_grep"
     }
     fn description(&self) -> &str {
-        "Recherche un texte EXACT (sous-chaine, insensible casse) dans le contenu de tous les \
-         items de la memoire. Complementaire de memory_search (semantique). Pour retrouver un nom, \
-         une URL, un terme precis."
+        "Exact substring search (case-insensitive) across all memory item content. \
+         Complements memory_search (semantic). Use to find a specific name, URL, or term."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "pattern": { "type": "string", "description": "texte a chercher" },
-                "limit": { "type": "integer", "description": "max resultats (defaut 30)" }
+                "pattern": { "type": "string", "description": "text to search for" },
+                "limit": { "type": "integer", "description": "max results (default 30)" }
             },
             "required": ["pattern"]
         })
@@ -771,14 +770,14 @@ impl Abeille for MemoireGrep {
     ) -> Result<ResultatAbeille> {
         let pattern = args["pattern"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("'pattern' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'pattern' required"))?;
         match self
             .mem
             .grep(pattern, args["limit"].as_u64().map(|l| l as u8))
             .await
         {
             Ok(v) => Ok(ResultatAbeille::ok(serde_json::to_string_pretty(&v)?)),
-            Err(e) => Ok(ResultatAbeille::err(format!("Echec memory_grep: {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("memory_grep failed: {e}"))),
         }
     }
 }
@@ -797,9 +796,9 @@ impl Abeille for MemoireConsolidate {
         "memory_consolidate"
     }
     fn description(&self) -> &str {
-        "Consolide un noeud : fusionne ses items en un ensemble minimal et synthetique sans \
-         perdre d'info (ex. un noeud 'people.<nom>' plein de notes -> 1-2 items qui resument tout). \
-         A utiliser pour ranger un noeud surcharge."
+        "Consolidate a node: merge its items into a minimal, lossless summary \
+         (e.g. a 'people.<name>' node packed with notes -> 1-2 items that cover everything). \
+         Use to clean up an overloaded node."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
@@ -818,13 +817,13 @@ impl Abeille for MemoireConsolidate {
     ) -> Result<ResultatAbeille> {
         let node_id = args["node_id"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("'node_id' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'node_id' required"))?;
         match crate::brain::consolider_node(&self.mem, &self.config, node_id).await {
             Ok(v) => Ok(ResultatAbeille::ok(format!(
                 "Consolidation: {}",
                 serde_json::to_string(&v).unwrap_or_default()
             ))),
-            Err(e) => Ok(ResultatAbeille::err(format!("Echec consolidation: {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Consolidation failed: {e}"))),
         }
     }
 }
@@ -918,20 +917,20 @@ impl Abeille for MemoireSkillCreate {
         "skill_create"
     }
     fn description(&self) -> &str {
-        "Cree (ou remplace) un SKILL = procedure reutilisable, ecrit bien formate sous \
-         capacities.skills.<nom>. A faire APRES une tache complexe REUSSIE (>=2 outils enchaines, \
-         erreurs surmontees, workflow non-trivial). Declare les outils/scripts que le skill \
-         orchestre (champ tools/scripts) pour le borner. Pour un OUTIL atomique: plugin_create."
+        "Create (or replace) a SKILL = reusable procedure, stored under \
+         capacities.skills.<name>. Do this AFTER a complex SUCCESSFUL task (>=2 chained tools, \
+         errors overcome, non-trivial workflow). Declare the tools/scripts the skill \
+         orchestrates (tools/scripts fields) to scope it. For an atomic tool: plugin_create."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "name": { "type": "string", "description": "nom court, ex. arxiv-search" },
-                "description": { "type": "string", "description": "une ligne: quand l'utiliser" },
-                "body": { "type": "string", "description": "Markdown: procedure etape par etape, pieges, commandes exactes" },
-                "tools": { "type": "array", "items": { "type": "string" }, "description": "outils orchestres, ex. [shell_exec, web_fetch]" },
-                "scripts": { "type": "array", "items": { "type": "string" }, "description": "scripts bundles, ex. [scripts/search.py]" }
+                "name": { "type": "string", "description": "short name, e.g. arxiv-search" },
+                "description": { "type": "string", "description": "one line: when to use it" },
+                "body": { "type": "string", "description": "Markdown: step-by-step procedure, pitfalls, exact commands" },
+                "tools": { "type": "array", "items": { "type": "string" }, "description": "orchestrated tools, e.g. [shell_exec, web_fetch]" },
+                "scripts": { "type": "array", "items": { "type": "string" }, "description": "bundled scripts, e.g. [scripts/search.py]" }
             },
             "required": ["name", "description", "body"]
         })
@@ -946,7 +945,7 @@ impl Abeille for MemoireSkillCreate {
     ) -> Result<ResultatAbeille> {
         let name = args["name"].as_str().unwrap_or("").trim();
         if name.is_empty() {
-            return Ok(ResultatAbeille::err("'name' manquant"));
+            return Ok(ResultatAbeille::err("'name' required"));
         }
         let node_id = crate::abeilles::skill_node_id(name);
         let content = build_skill_okf(
@@ -960,10 +959,10 @@ impl Abeille for MemoireSkillCreate {
             Ok(_) => {
                 ecrire_skill_md(&node_id, &content); // sync SQL → disque (flat-file)
                 Ok(ResultatAbeille::ok(format!(
-                    "Skill `{name}` enregistre dans `{node_id}` (+ skills/.../SKILL.md)."
+                    "Skill `{name}` saved to `{node_id}` (+ skills/.../SKILL.md)."
                 )))
             }
-            Err(e) => Ok(ResultatAbeille::err(format!("Echec skill_create: {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("skill_create failed: {e}"))),
         }
     }
 }
@@ -980,16 +979,16 @@ impl Abeille for MemoireSkillPatch {
         "skill_patch"
     }
     fn description(&self) -> &str {
-        "Corrige un skill EN PLACE : remplace `old` par `new` dans son corps. A utiliser des \
-         qu'un skill echoue, est perime, ou qu'un piege apparait (iteration). `old` doit etre unique."
+        "Patch a skill IN PLACE: replace `old` with `new` in its body. Use as soon as a skill \
+         fails, is outdated, or a pitfall emerges (iteration). `old` must be unique."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
                 "name": { "type": "string" },
-                "old": { "type": "string", "description": "texte exact a remplacer" },
-                "new": { "type": "string", "description": "remplacement" }
+                "old": { "type": "string", "description": "exact text to replace" },
+                "new": { "type": "string", "description": "replacement text" }
             },
             "required": ["name", "old", "new"]
         })
@@ -1006,24 +1005,24 @@ impl Abeille for MemoireSkillPatch {
         let old = args["old"].as_str().unwrap_or("");
         let new = args["new"].as_str().unwrap_or("");
         if name.is_empty() || old.is_empty() {
-            return Ok(ResultatAbeille::err("'name' et 'old' requis"));
+            return Ok(ResultatAbeille::err("'name' and 'old' required"));
         }
         let node_id = crate::abeilles::skill_node_id(name);
         let Some(content) = read_skill_content(&self.mem, &node_id).await else {
-            return Ok(ResultatAbeille::err(format!("Skill introuvable: {name}")));
+            return Ok(ResultatAbeille::err(format!("Skill not found: {name}")));
         };
         if !content.contains(old) {
             return Ok(ResultatAbeille::err(
-                "'old' introuvable dans le skill (verifie le texte exact)",
+                "'old' not found in skill (check exact text)",
             ));
         }
         let patched = content.replacen(old, new, 1);
         match set_skill_content(&self.mem, &node_id, &patched).await {
             Ok(_) => {
                 ecrire_skill_md(&node_id, &patched); // sync SQL → disque
-                Ok(ResultatAbeille::ok(format!("Skill `{name}` patche.")))
+                Ok(ResultatAbeille::ok(format!("Skill `{name}` patched.")))
             }
-            Err(e) => Ok(ResultatAbeille::err(format!("Echec skill_patch: {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("skill_patch failed: {e}"))),
         }
     }
 }
@@ -1039,7 +1038,7 @@ impl Abeille for MemoireSkillDelete {
         "skill_delete"
     }
     fn description(&self) -> &str {
-        "Supprime un skill (son document et ses fichiers/scripts bundles)."
+        "Delete a skill (its document and any bundled files/scripts)."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
@@ -1058,7 +1057,7 @@ impl Abeille for MemoireSkillDelete {
     ) -> Result<ResultatAbeille> {
         let name = args["name"].as_str().unwrap_or("").trim();
         if name.is_empty() {
-            return Ok(ResultatAbeille::err("'name' manquant"));
+            return Ok(ResultatAbeille::err("'name' required"));
         }
         let node_id = crate::abeilles::skill_node_id(name);
         if let Ok(node) = self.mem.read_node(&node_id).await {
@@ -1074,7 +1073,7 @@ impl Abeille for MemoireSkillDelete {
             .strip_prefix("capacities.skills.")
             .unwrap_or(&node_id);
         let _ = std::fs::remove_dir_all(std::path::PathBuf::from("skills").join(slug));
-        Ok(ResultatAbeille::ok(format!("Skill `{name}` supprime.")))
+        Ok(ResultatAbeille::ok(format!("Skill `{name}` deleted.")))
     }
 }
 
@@ -1089,18 +1088,18 @@ impl Abeille for MemoireCreateNode {
         "memory_create_node"
     }
     fn description(&self) -> &str {
-        "Cree un noeud dans la carte cognitive (le parent est cree au besoin). node_id pointe \
-         en snake_case, ex. projects.football_bot. A utiliser pour ranger la memoire : creer un \
-         noeud parlant avant d'y deplacer des items (memory_move_item) ou fusionner des doublons."
+        "Create a node in the cognitive map (parent created if needed). node_id in snake_case, \
+         e.g. projects.football_bot. Use to organise memory: create a meaningful node before \
+         moving items into it (memory_move_item) or merging duplicates."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "node_id": { "type": "string", "description": "Noeud pointe, ex. projects.football_bot" },
-                "label": { "type": "string", "description": "Nom lisible du noeud" },
-                "one_liner": { "type": "string", "description": "Resume court (optionnel)" },
-                "importance": { "type": "number", "description": "0..1 (optionnel)" }
+                "node_id": { "type": "string", "description": "Dotted node, e.g. projects.football_bot" },
+                "label": { "type": "string", "description": "Human-readable node name" },
+                "one_liner": { "type": "string", "description": "Short summary (optional)" },
+                "importance": { "type": "number", "description": "0..1 (optional)" }
             },
             "required": ["node_id", "label"]
         })
@@ -1115,15 +1114,15 @@ impl Abeille for MemoireCreateNode {
     ) -> Result<ResultatAbeille> {
         let node_id = args["node_id"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("'node_id' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'node_id' required"))?;
         let label = args["label"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("'label' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'label' required"))?;
         let one_liner = args["one_liner"].as_str();
         let importance = args["importance"].as_f64().map(|v| v as f32);
         if noeud_reserve(node_id) {
             return Ok(ResultatAbeille::err(format!(
-                "Refus: `{node_id}` est sous un prefixe systeme (tools.*/system.*) reserve."
+                "Refused: `{node_id}` is under a reserved system prefix (tools.*/system.*)."
             )));
         }
         let res = self
@@ -1132,9 +1131,9 @@ impl Abeille for MemoireCreateNode {
             .await;
         match res {
             Ok(_) => Ok(ResultatAbeille::ok(format!(
-                "Noeud cree: {node_id} ({label})"
+                "Node created: {node_id} ({label})"
             ))),
-            Err(e) => Ok(ResultatAbeille::err(format!("Echec create_node: {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("create_node failed: {e}"))),
         }
     }
 }
@@ -1150,18 +1149,18 @@ impl Abeille for MemoireUpdateNode {
         "memory_update_node"
     }
     fn description(&self) -> &str {
-        "Met a jour le label, le resume (one_liner) ou l'importance d'un noeud existant. \
-         A utiliser pour RENOMMER un noeud generique (ex. projects.1) en noeud parlant, \
-         sans perdre ses items."
+        "Update the label, summary (one_liner) or importance of an existing node. \
+         Use to RENAME a generic node (e.g. projects.1) to a meaningful name \
+         without losing its items."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "node_id": { "type": "string", "description": "Noeud pointe a modifier" },
-                "label": { "type": "string", "description": "Nouveau nom lisible (optionnel)" },
-                "one_liner": { "type": "string", "description": "Nouveau resume court (optionnel)" },
-                "importance": { "type": "number", "description": "0..1 (optionnel)" }
+                "node_id": { "type": "string", "description": "Dotted node to update" },
+                "label": { "type": "string", "description": "New human-readable name (optional)" },
+                "one_liner": { "type": "string", "description": "New short summary (optional)" },
+                "importance": { "type": "number", "description": "0..1 (optional)" }
             },
             "required": ["node_id"]
         })
@@ -1176,13 +1175,13 @@ impl Abeille for MemoireUpdateNode {
     ) -> Result<ResultatAbeille> {
         let node_id = args["node_id"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("'node_id' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("'node_id' required"))?;
         let label = args["label"].as_str();
         let one_liner = args["one_liner"].as_str();
         let importance = args["importance"].as_f64().map(|v| v as f32);
         if noeud_reserve(node_id) {
             return Ok(ResultatAbeille::err(format!(
-                "Refus: `{node_id}` est un noeud systeme (tools.*/system.*), non modifiable."
+                "Refused: `{node_id}` is a system node (tools.*/system.*), not editable."
             )));
         }
         match self
@@ -1191,10 +1190,10 @@ impl Abeille for MemoireUpdateNode {
             .await
         {
             Ok(v) => Ok(ResultatAbeille::ok(format!(
-                "Noeud mis a jour: {}",
+                "Node updated: {}",
                 serde_json::to_string(&v).unwrap_or_default()
             ))),
-            Err(e) => Ok(ResultatAbeille::err(format!("Echec update_node: {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("update_node failed: {e}"))),
         }
     }
 }

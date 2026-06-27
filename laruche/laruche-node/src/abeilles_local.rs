@@ -22,16 +22,16 @@ impl Abeille for AbeilleMeshSend {
         NiveauDanger::NeedsApproval
     }
     fn description(&self) -> &str {
-        "Envoie un message direct a une AUTRE instance LaRuche (ou son utilisateur) via le mesh, \
-         par son ID laruche. Liste les destinataires possibles avec le bouton Messages / mesh peers. \
-         Outil SORTANT : validation requise."
+        "Send a direct message to another LaRuche instance (or its user) over the mesh, \
+         identified by its laruche ID. List available recipients via the Messages / mesh peers button. \
+         OUTBOUND: requires approval."
     }
     fn schema(&self) -> Value {
         json!({
             "type": "object",
             "properties": {
-                "to_id": { "type": "string", "description": "ID laruche du destinataire" },
-                "text": { "type": "string", "description": "Le message à envoyer" }
+                "to_id": { "type": "string", "description": "Laruche ID of the recipient" },
+                "text": { "type": "string", "description": "Message to send" }
             },
             "required": ["to_id", "text"]
         })
@@ -41,7 +41,7 @@ impl Abeille for AbeilleMeshSend {
         let text = args["text"].as_str().unwrap_or("").to_string();
         if to_id.is_empty() || text.trim().is_empty() {
             return Ok(ResultatAbeille::err(
-                "'to_id' et 'text' sont requis.".to_string(),
+                "'to_id' and 'text' are required.".to_string(),
             ));
         }
         let client = reqwest::Client::new();
@@ -52,10 +52,10 @@ impl Abeille for AbeilleMeshSend {
             .await;
         match res {
             Ok(r) if r.status().is_success() => {
-                Ok(ResultatAbeille::ok(format!("Message envoyé à `{to_id}`.")))
+                Ok(ResultatAbeille::ok(format!("Message sent to `{to_id}`.")))
             }
-            Ok(r) => Ok(ResultatAbeille::err(format!("Échec de l'envoi (HTTP {}).", r.status()))),
-            Err(e) => Ok(ResultatAbeille::err(format!("Échec de l'envoi : {e}"))),
+            Ok(r) => Ok(ResultatAbeille::err(format!("Send failed (HTTP {}).", r.status()))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Send failed: {e}"))),
         }
     }
 }
@@ -75,17 +75,17 @@ impl Abeille for AbeilleCronCreate {
     }
 
     fn description(&self) -> &str {
-        "Crée une tâche planifiée (cron ou fire_at) qui exécutera un prompt spécifié."
+        "Create a scheduled task (cron or one-shot fire_at) that runs a given prompt."
     }
 
     fn schema(&self) -> Value {
         json!({
             "type": "object",
             "properties": {
-                "name": { "type": "string", "description": "Nom de la tâche" },
-                "prompt": { "type": "string", "description": "Le prompt à exécuter" },
-                "cron_expr": { "type": "string", "description": "Expression cron (ex: '*/5 * * * *')" },
-                "fire_at": { "type": "string", "description": "Date ISO8601 (ex: '2026-12-31T23:59:00Z')" }
+                "name": { "type": "string", "description": "Task name" },
+                "prompt": { "type": "string", "description": "Prompt to execute" },
+                "cron_expr": { "type": "string", "description": "Cron expression (e.g. '*/5 * * * *')" },
+                "fire_at": { "type": "string", "description": "ISO8601 datetime (e.g. '2026-12-31T23:59:00Z')" }
             },
             "required": ["name", "prompt"]
         })
@@ -101,7 +101,7 @@ impl Abeille for AbeilleCronCreate {
             Some(p) => p.to_string(),
             None => {
                 return Ok(ResultatAbeille::err(
-                    "Le paramètre 'prompt' est requis.".to_string(),
+                    "Parameter 'prompt' is required.".to_string(),
                 ))
             }
         };
@@ -114,7 +114,7 @@ impl Abeille for AbeilleCronCreate {
 
         if cron_expr.is_none() && fire_at.is_none() {
             return Ok(ResultatAbeille::err(
-                "Vous devez spécifier soit 'cron_expr' soit 'fire_at'.".to_string(),
+                "Specify either 'cron_expr' or 'fire_at'.".to_string(),
             ));
         }
 
@@ -165,7 +165,7 @@ impl Abeille for AbeilleCronCreate {
         );
 
         Ok(ResultatAbeille::ok(format!(
-            "Tâche cron créée avec l'ID {}",
+            "Cron task created with ID {}",
             id
         )))
     }
@@ -186,7 +186,7 @@ impl Abeille for AbeilleCronList {
     }
 
     fn description(&self) -> &str {
-        "Liste les tâches planifiées."
+        "List all scheduled tasks."
     }
 
     fn schema(&self) -> Value {
@@ -237,7 +237,7 @@ impl Abeille for AbeilleCronDelete {
     }
 
     fn description(&self) -> &str {
-        "Supprime une tâche planifiée par son ID."
+        "Delete a scheduled task by ID."
     }
 
     fn schema(&self) -> Value {
@@ -259,7 +259,7 @@ impl Abeille for AbeilleCronDelete {
             Some(i) => i,
             None => {
                 return Ok(ResultatAbeille::err(
-                    "Le paramètre 'id' est requis.".to_string(),
+                    "Parameter 'id' is required.".to_string(),
                 ))
             }
         };
@@ -267,11 +267,11 @@ impl Abeille for AbeilleCronDelete {
         if let Ok(uuid) = Uuid::parse_str(id_str) {
             let mut cron = self.cron_store.write().await;
             if cron.remove(&uuid) {
-                return Ok(ResultatAbeille::ok(format!("Tâche {} supprimée", uuid)));
+                return Ok(ResultatAbeille::ok(format!("Task {} deleted", uuid)));
             }
         }
         Ok(ResultatAbeille::err(
-            "Tâche non trouvée ou ID invalide".to_string(),
+            "Task not found or invalid ID".to_string(),
         ))
     }
 }
@@ -291,7 +291,7 @@ impl Abeille for AbeilleWatcherCreate {
     }
 
     fn description(&self) -> &str {
-        "Crée un watcher (surveille un fichier, une URL ou des logs) qui déclenchera un prompt si une condition est remplie."
+        "Create a watcher that monitors a file, URL, or log stream and fires a prompt when a condition is met."
     }
 
     fn schema(&self) -> Value {
@@ -299,10 +299,10 @@ impl Abeille for AbeilleWatcherCreate {
             "type": "object",
             "properties": {
                 "name": { "type": "string" },
-                "watcher_type": { "type": "string", "description": "'file', 'url' ou 'log'" },
-                "target": { "type": "string", "description": "Le fichier ou URL à surveiller" },
-                "condition": { "type": "string", "description": "Condition pour déclencher" },
-                "prompt": { "type": "string", "description": "Le prompt à exécuter" }
+                "watcher_type": { "type": "string", "description": "'file', 'url', or 'log'" },
+                "target": { "type": "string", "description": "File path or URL to watch" },
+                "condition": { "type": "string", "description": "Condition that triggers the prompt" },
+                "prompt": { "type": "string", "description": "Prompt to run when triggered" }
             },
             "required": ["name", "watcher_type", "target", "prompt"]
         })
@@ -321,7 +321,7 @@ impl Abeille for AbeilleWatcherCreate {
             Some(p) => p.to_string(),
             None => {
                 return Ok(ResultatAbeille::err(
-                    "Le paramètre 'prompt' est requis.".to_string(),
+                    "Parameter 'prompt' is required.".to_string(),
                 ))
             }
         };
@@ -373,7 +373,7 @@ impl Abeille for AbeilleWatcherCreate {
         );
 
         Ok(ResultatAbeille::ok(format!(
-            "Watcher créé avec l'ID {}",
+            "Watcher created with ID {}",
             id
         )))
     }
@@ -394,7 +394,7 @@ impl Abeille for AbeilleWatcherList {
     }
 
     fn description(&self) -> &str {
-        "Liste les watchers."
+        "List all active watchers."
     }
 
     fn schema(&self) -> Value {
@@ -445,7 +445,7 @@ impl Abeille for AbeilleWatcherDelete {
     }
 
     fn description(&self) -> &str {
-        "Supprime un watcher par son ID."
+        "Delete a watcher by ID."
     }
 
     fn schema(&self) -> Value {
@@ -467,7 +467,7 @@ impl Abeille for AbeilleWatcherDelete {
             Some(i) => i,
             None => {
                 return Ok(ResultatAbeille::err(
-                    "Le paramètre 'id' est requis.".to_string(),
+                    "Parameter 'id' is required.".to_string(),
                 ))
             }
         };
@@ -475,11 +475,11 @@ impl Abeille for AbeilleWatcherDelete {
         if let Ok(uuid) = Uuid::parse_str(id_str) {
             let mut registry = self.watcher_store.write().await;
             if registry.remove(&uuid) {
-                return Ok(ResultatAbeille::ok(format!("Watcher {} supprimé", uuid)));
+                return Ok(ResultatAbeille::ok(format!("Watcher {} deleted", uuid)));
             }
         }
         Ok(ResultatAbeille::err(
-            "Watcher non trouvé ou ID invalide".to_string(),
+            "Watcher not found or invalid ID".to_string(),
         ))
     }
 }
@@ -500,15 +500,15 @@ impl Abeille for AbeilleSessionSearch {
     }
 
     fn description(&self) -> &str {
-        "Recherche textuelle dans les conversations/sessions passees. Retourne les extraits pertinents."
+        "Full-text search across past sessions. Returns matching excerpts."
     }
 
     fn schema(&self) -> Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "query": { "type": "string", "description": "Le texte a chercher" },
-                "limit": { "type": "integer", "description": "Nombre maximum de résultats (défaut 20)" }
+                "query": { "type": "string", "description": "Text to search for" },
+                "limit": { "type": "integer", "description": "Max results to return (default 20)" }
             },
             "required": ["query"]
         })
@@ -523,7 +523,7 @@ impl Abeille for AbeilleSessionSearch {
             Some(q) => q.to_lowercase(),
             None => {
                 return Ok(ResultatAbeille::err(
-                    "Le paramètre 'query' est requis.".to_string(),
+                    "Parameter 'query' is required.".to_string(),
                 ))
             }
         };
@@ -588,13 +588,13 @@ impl Abeille for AbeilleKanbanCreate {
     }
 
     fn description(&self) -> &str {
-        "Ajoute une nouvelle tâche au Kanban global de LaRuche."
+        "Add a new task to the LaRuche global Kanban board."
     }
 
     fn schema(&self) -> Value {
         json!({
-            "title": { "type": "string", "description": "Titre court de la tâche" },
-            "description": { "type": "string", "description": "Description détaillée de la tâche à accomplir" }
+            "title": { "type": "string", "description": "Short task title" },
+            "description": { "type": "string", "description": "Detailed description of the task to accomplish" }
         })
     }
 
@@ -606,7 +606,7 @@ impl Abeille for AbeilleKanbanCreate {
         let title = arguments
             .get("title")
             .and_then(|v| v.as_str())
-            .unwrap_or("Sans titre");
+            .unwrap_or("Untitled");
         let desc = arguments
             .get("description")
             .and_then(|v| v.as_str())
@@ -638,7 +638,7 @@ impl Abeille for AbeilleKanbanCreate {
             chrono::Utc::now(),
         );
         Ok(ResultatAbeille::ok(format!(
-            "Tâche Kanban créée avec succès. ID: {}",
+            "Kanban task created. ID: {}",
             task.id
         )))
     }
@@ -659,7 +659,7 @@ impl Abeille for AbeilleKanbanList {
     }
 
     fn description(&self) -> &str {
-        "Liste toutes les tâches du Kanban de LaRuche avec leur statut actuel."
+        "List all LaRuche Kanban tasks with their current status."
     }
 
     fn schema(&self) -> Value {
@@ -675,7 +675,7 @@ impl Abeille for AbeilleKanbanList {
         let tasks = board.list();
 
         if tasks.is_empty() {
-            return Ok(ResultatAbeille::ok("Le Kanban est actuellement vide."));
+            return Ok(ResultatAbeille::ok("The Kanban board is currently empty."));
         }
 
         let mut output = String::new();

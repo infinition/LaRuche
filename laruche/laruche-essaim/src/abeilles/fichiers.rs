@@ -37,14 +37,14 @@ fn check_timestamp_lock(path: &Path) -> Result<Option<String>> {
         .and_then(|states| states.get(&key).copied())
     else {
         return Ok(Some(
-            "Aucun file_read anterieur enregistre pour ce fichier; garde read-before-write best-effort."
+            "No prior file_read recorded for this file; read-before-write not enforced."
                 .to_string(),
         ));
     };
 
     if current != previous {
         anyhow::bail!(
-            "Refus d'edition: le fichier a change depuis le dernier file_read de la session."
+            "Edit refused: file has changed since the last file_read in this session."
         );
     }
     Ok(None)
@@ -119,7 +119,7 @@ fn fuzzy_replace(
     if exact_count > 0 {
         if exact_count > 1 && !replace_all {
             return Err(format!(
-                "old_string trouve {exact_count}x - ajoute du contexte pour le rendre unique, ou replace_all=true"
+                "old_string found {exact_count}x — add more context to make it unique, or set replace_all=true"
             ));
         }
         let updated = if replace_all {
@@ -133,12 +133,12 @@ fn fuzzy_replace(
     let occurrences = fuzzy_occurrences(source, old);
     if occurrences.is_empty() {
         return Err(
-            "old_string introuvable, meme apres normalisation espaces/guillemets".to_string(),
+            "old_string not found, even after whitespace/quote normalization".to_string(),
         );
     }
     if occurrences.len() > 1 && !replace_all {
         return Err(format!(
-            "old_string trouve {}x en fuzzy - ajoute du contexte pour le rendre unique, ou replace_all=true",
+            "old_string found {}x (fuzzy) — add more context to make it unique, or set replace_all=true",
             occurrences.len()
         ));
     }
@@ -241,8 +241,8 @@ impl Abeille for FileRead {
     }
 
     fn description(&self) -> &str {
-        "Lit un fichier et renvoie son contenu AVEC numéros de ligne. Pour un gros fichier, \
-         utilise `offset` (ligne de départ, 1-based) et `limit` (nombre de lignes) pour lire une plage."
+        "Read a file and return its content WITH line numbers. For large files, use `offset` \
+         (1-based start line) and `limit` (line count) to read a specific range."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -303,7 +303,7 @@ impl Abeille for FileRead {
         };
         if total > 0 && start >= total {
             return Ok(ResultatAbeille::err(format!(
-                "offset {} dépasse le fichier ({} lignes)",
+                "offset {} is past the end of the file ({} lines)",
                 start + 1,
                 total
             )));
@@ -315,7 +315,7 @@ impl Abeille for FileRead {
         }
         if end < total {
             out.push_str(&format!(
-                "\n... ({} lignes restantes — utilise offset={} pour lire la suite)",
+                "\n... ({} lines remaining — use offset={} to read more)",
                 total - end,
                 end + 1
             ));
@@ -334,9 +334,9 @@ impl Abeille for FileEdit {
     }
 
     fn description(&self) -> &str {
-        "Édite un fichier en remplaçant une chaîne EXACTE par une autre (patch ciblé, sans \
-         réécrire tout le fichier). `old_string` doit être unique dans le fichier (sinon échec), \
-         sauf si `replace_all`=true. Idéal pour modifier du code précisément."
+        "Edit a file by replacing an EXACT string with another (targeted patch, no full rewrite). \
+         `old_string` must be unique in the file (fails otherwise) unless `replace_all`=true. \
+         Prefer this over file_write for precise code edits."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -373,7 +373,7 @@ impl Abeille for FileEdit {
         let replace_all = args["replace_all"].as_bool().unwrap_or(false);
 
         if old.is_empty() {
-            return Ok(ResultatAbeille::err("old_string vide"));
+            return Ok(ResultatAbeille::err("old_string is empty"));
         }
         let path = Path::new(path_str);
         let timestamp_warning = match check_timestamp_lock(path) {
@@ -382,7 +382,7 @@ impl Abeille for FileEdit {
         };
         let content = match std::fs::read_to_string(path) {
             Ok(c) => c,
-            Err(e) => return Ok(ResultatAbeille::err(format!("Lecture impossible: {e}"))),
+            Err(e) => return Ok(ResultatAbeille::err(format!("Cannot read file: {e}"))),
         };
         let (updated, count, fuzzy) = match fuzzy_replace(&content, old, new, replace_all) {
             Ok(result) => result,
@@ -390,12 +390,12 @@ impl Abeille for FileEdit {
         };
         if count == 0 {
             return Ok(ResultatAbeille::err(
-                "old_string introuvable — copie le texte exact (indentation comprise)",
+                "old_string not found — copy the exact text (indentation included)",
             ));
         }
         if count > 1 && !replace_all {
             return Ok(ResultatAbeille::err(format!(
-                "old_string trouvé {count}× — ajoute du contexte pour le rendre unique, ou replace_all=true"
+                "old_string found {count}x — add more context to make it unique, or set replace_all=true"
             )));
         }
         let _unused_updated = if replace_all {
@@ -409,10 +409,10 @@ impl Abeille for FileEdit {
         remember_read(path);
         match write_result {
             Ok(()) => Ok(ResultatAbeille::ok(format!(
-                "Édité: {path_str} ({} remplacement(s))",
+                "Edited: {path_str} ({} replacement(s))",
                 if replace_all { count } else { 1 }
             ))),
-            Err(e) => Ok(ResultatAbeille::err(format!("Écriture impossible: {e}"))),
+            Err(e) => Ok(ResultatAbeille::err(format!("Cannot write file: {e}"))),
         }
     }
 }
