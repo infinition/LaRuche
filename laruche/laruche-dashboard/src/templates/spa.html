@@ -6075,16 +6075,21 @@ LaRuche.Memory = (function(){
   function isProtected(id){
     var meta = nodes[id] || {};
     if(meta.protected) return true;
-    // securite cote UI : tout ce qui est system.* ou capacities/capacities.* est gere par le systeme
+    // Les RACINES ne se suppriment/deplacent pas (casserait tout l'arbre). Les projections
+    // d'outils `tools.*` sont auto-generees (re-seedees au boot, suppression inutile). TOUT
+    // le reste — y compris `system.*` et `capacities.*` cree par le LLM — est editable et
+    // SUPPRIMABLE par l'ADMIN (toi) ici ; seul l'AGENT en est empeche (garde-fou backend).
     if(id === 'system' || id === 'capacities' || id === 'tools') return true;
-    if(id.indexOf('system.') === 0 || id.indexOf('capacities.') === 0 || id.indexOf('tools.') === 0) return true;
+    if(id.indexOf('tools.') === 0) return true;
     return false;
   }
-  // Projections d'outils = strictement lecture seule. capacities.skills reste editable (admin).
+  // Lecture seule UNIQUEMENT pour les projections d'outils auto-generees (`tools.*`,
+  // re-seedees au boot) et les racines. Tout le reste de `capacities.*` (skills, plugins,
+  // mcp, knowledge cree par le LLM) est EDITABLE par l'admin (toi) ici.
   function isReadOnly(id){
-    if(id === 'capacities.skills' || id.indexOf('capacities.skills.') === 0) return false;
-    return id === 'capacities' || id === 'tools'
-      || id.indexOf('capacities.') === 0 || id.indexOf('tools.') === 0;
+    if(id === 'capacities' || id === 'tools') return true;
+    if(id.indexOf('tools.') === 0) return true;
+    return false;
   }
   // system.prompt / system.soul : editables par l'admin via l'editeur dedie
   function isSystemEditor(id){
@@ -8284,12 +8289,18 @@ LaRuche.Settings = (function(){
     var box=document.getElementById('skToolsBox'); if(!box) return;
     var tools = window._allTools;
     if(!tools){ try{ tools=await fetch('/api/tools').then(function(r){return r.json();}); window._allTools=tools; }catch(e){ tools=[]; } }
+    var plugins = [];
+    try{ plugins=await fetch('/api/plugins').then(function(r){return r.json();}); }catch(e){}
+    // Liste unifiee abeilles (tools) + plugins, sans doublon.
+    var noms = (tools||[]).map(function(t){return t.name||t;});
+    (plugins||[]).forEach(function(p){ var n=p.name||p; if(noms.indexOf(n)<0) noms.push(n); });
     var m = content.match(/^\s*(?:allowed-)?tools:\s*\[([^\]]*)\]/m);
     var current = m ? m[1].split(',').map(function(s){return s.trim().replace(/['"]/g,'');}).filter(Boolean) : [];
-    box.innerHTML = (tools||[]).map(function(t){
-      var n = t.name || t;
+    // Inclut aussi les references deja presentes meme si absentes des listes (robustesse).
+    current.forEach(function(n){ if(noms.indexOf(n)<0) noms.push(n); });
+    box.innerHTML = noms.map(function(n){
       return '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" value="'+LaRuche.Utils.esc(n)+'" '+(current.indexOf(n)>=0?'checked':'')+' onchange="LaRuche.Settings.applySkillTools()"> '+LaRuche.Utils.esc(n)+'</label>';
-    }).join('') || '<span style="color:var(--text-dim)">Aucun outil.</span>';
+    }).join('') || '<span style="color:var(--text-dim)">Aucune abeille/plugin.</span>';
   }
   function applySkillTools(){
     var checked = Array.prototype.map.call(document.querySelectorAll('#skToolsBox input:checked'), function(i){return i.value;});
