@@ -78,10 +78,13 @@ fn resumer(msgs: &[Message]) -> String {
 }
 
 const PROMPT_EXTRACTION: &str = "You are a memory consolidator. From the agent conversation below, extract \
-the DURABLE facts worth remembering across sessions: discoveries, decisions, stable user preferences, key \
-results, useful URLs. Output STRICT JSON only, an array of objects: \
+the DURABLE facts about the WORLD, the MISSION and the USER worth remembering across sessions: discoveries, \
+decisions, stable user preferences, key results, useful URLs. Output STRICT JSON only, an array of objects: \
 [{\"node_id\":\"<domain>.<subject>\",\"content\":\"<concise fact>\"}]. Use snake_case dotted node_ids \
-(e.g. research.dungeon_siege, decisions.archi, people.fabien). If nothing durable, output []. No prose, JSON only.";
+(e.g. research.dungeon_siege, decisions.archi, people.fabien). \
+DO NOT memorize the agent's OWN capabilities, tool names, or anything already in its system prompt — that is \
+NOT a durable fact. NEVER use the reserved domains `system.*` or `capacities.*` (system-managed). \
+If nothing durable, output []. No prose, JSON only.";
 
 /// **Consolidation cognitive** (escale lourde) : extrait les faits durables de l'historique
 /// via un appel LLM auxiliaire, les écrit en mémoire (`source`), puis repart sur un contexte

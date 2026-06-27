@@ -556,6 +556,21 @@ impl but::Source for SourcePont {
     }
 
     async fn consigner(&self, node_id: &str, fait: &str) {
+        // Garde model-independent : la consolidation ne doit JAMAIS écrire dans les domaines
+        // gérés par le système (`system.*` = identité/comportement/capacités, `capacities.*`
+        // = skills/plugins/MCP). Le LLM y dumpait parfois sa propre liste d'outils (déjà dans
+        // le prompt) → bruit + nœuds « non modifiables par l'agent » pollués. On rejette.
+        let n = node_id.trim();
+        if n.is_empty()
+            || n.starts_with("system.")
+            || n == "system"
+            || n.starts_with("capacities.")
+            || n == "capacities"
+            || n.starts_with("capabilities")
+        {
+            tracing::debug!(node_id = %node_id, "Consolidation: écriture dans un domaine réservé ignorée");
+            return;
+        }
         let _ = self
             .mem
             .write(MemoryItem::new(node_id, fait).with_source("butinage-consolidation"))
