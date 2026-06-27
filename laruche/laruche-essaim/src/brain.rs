@@ -2807,12 +2807,36 @@ async fn charger_skill_corps(memoire: &Arc<dyn MemoireCognitive>, node_id: &str)
 /// Rappel automatique : cherche les skills pertinents, les injecte dans le contexte
 /// éphémère trailing et les signale. Sur une intention de recherche, FORCE le skill
 /// `web_research` (sinon le réflexe « web_deep_search en boucle » l'emporte).
+/// Vrai si le message est du smalltalk (salutation/remerciement/« test »…) — aucun corps de skill
+/// ne doit être injecté (le catalogue `## Available skills` suffit, `skill_view` à la demande).
+fn requete_triviale(q: &str) -> bool {
+    let q = q.trim().to_lowercase();
+    let toks: Vec<&str> = q
+        .split(|c: char| !c.is_alphanumeric())
+        .filter(|t| !t.is_empty())
+        .collect();
+    const SMALLTALK: &[&str] = &[
+        "salut", "bonjour", "bonsoir", "coucou", "hello", "hi", "hey", "yo", "test", "merci",
+        "thanks", "thx", "ok", "oui", "non", "cc", "slt", "ca", "ça", "va", "comment", "vas",
+        "tu", "bien", "yep", "nope", "stp", "svp",
+    ];
+    !toks.is_empty() && toks.iter().all(|t| SMALLTALK.contains(t))
+}
+
 async fn augmenter_ephemere_avec_skills(
     memoire: &Arc<dyn MemoireCognitive>,
     query: &str,
     ephemeral: Option<String>,
     tx: &tokio::sync::broadcast::Sender<ChatEvent>,
 ) -> Option<String> {
+    // La requête de pertinence = le VRAI message user, SANS le suffixe `[SYSTEM] …` ajouté par le
+    // canal (il contient « planifier/surveiller/chercher » qui faisaient matcher cron_manager et
+    // force-injecter web_research À CHAQUE TOUR = gâchis de contexte). Et aucun corps de skill pour
+    // du smalltalk : le catalogue de noms+descriptions suffit, le modèle fait `skill_view` au besoin.
+    let query = query.split("[SYSTEM]").next().unwrap_or(query).trim();
+    if requete_triviale(query) {
+        return ephemeral;
+    }
     let mut skills = recuperer_skills_pertinents(memoire, query, 3).await;
     if intention_recherche(query) && !skills.iter().any(|(n, _)| n == "web_research") {
         if let Some(body) = charger_skill_corps(memoire, "capacities.skills.web_research").await {
