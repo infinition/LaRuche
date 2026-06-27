@@ -3274,6 +3274,7 @@ LaRuche.Chat = (function(){
   var sessionId = null;
   var runningSession = null; // session dont le run tourne sur la socket PRINCIPALE (pas via attachWs)
   var unreadSessions = {}; // conversations (autres que l'active) avec du NOUVEAU terminé → pastille
+  var feedCache = {}; // session_id → HTML du feed d'activité (live-only) pour le restaurer au switch
   var currentAssistantMsg = null;
   var currentAssistantRow = null;
   var isStreaming = false;
@@ -3350,6 +3351,7 @@ LaRuche.Chat = (function(){
       // (sessionId null) : on ne rend RIEN dans la vue courante. Pastille sur terminal.
       if(data.type==='done' || data.type==='error' || data.type==='approval_request'){
         unreadSessions[data.session_id]=true;
+        if(data.type!=='approval_request') delete feedCache[data.session_id]; // terminée → /messages fera foi
         loadSessions();
       }
       return;
@@ -3559,6 +3561,7 @@ LaRuche.Chat = (function(){
         break;
       case 'done':
         clearResponseTimeout(); removeTypingIndicator();
+        if(sessionId) delete feedCache[sessionId]; // run fini : /messages fait foi, plus besoin du cache feed
         if(!currentAssistantMsg && (data.full_response||pendingMedia.length)){
           var finalRow=addMessage('assistant','');
           currentAssistantRow=finalRow.row; currentAssistantMsg=finalRow.msgEl; currentAssistantMsg._rawBuf='';
@@ -4545,6 +4548,7 @@ LaRuche.Chat = (function(){
   }
 
   function newSession() {
+    var _af0=document.getElementById('activityFeed'); if(sessionId && _af0) feedCache[sessionId]=_af0.innerHTML;
     sessionId=null;
     if(LaRuche.WS && LaRuche.WS.detach) LaRuche.WS.detach();
     // Le run en cours continue EN FOND ; la nouvelle conv est prête à envoyer (pas « Stop »).
@@ -4568,6 +4572,7 @@ LaRuche.Chat = (function(){
   }
 
   function switchSession(id, scrollTerm) {
+    var _af0=document.getElementById('activityFeed'); if(sessionId && _af0) feedCache[sessionId]=_af0.innerHTML; // sauve le feed quitté
     sessionId=id;
     delete unreadSessions[id]; // ouvrir = marquer lu (efface la pastille)
     markConvSeen(id);
@@ -4584,6 +4589,9 @@ LaRuche.Chat = (function(){
     container.innerHTML='';
     document.getElementById('activityFeed').innerHTML='';
     resetFeed();
+    // Restaure le backlog du feed de la conversation ouverte (live-only sinon perdu). Les
+    // nouvelles étapes (reattach) s'ajoutent en dessous via une nouvelle étape.
+    var _af1=document.getElementById('activityFeed'); if(_af1 && feedCache[id]) _af1.innerHTML = feedCache[id];
     document.getElementById('planSection').innerHTML='<div class="plan-title">Plan</div>';
     fetch('/api/sessions/'+id+'/messages').then(function(r){return r.ok?r.json():null;}).then(function(data){
       if(!data||!data.messages)return;
