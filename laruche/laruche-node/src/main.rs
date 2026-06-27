@@ -58,6 +58,9 @@ use laruche_essaim::{
 use std::collections::VecDeque;
 
 const SPA_HTML: &str = include_str!("../../laruche-dashboard/src/templates/spa.html");
+// CSS + JS extraits de spa.html (servis séparément, compilés dans le binaire).
+const APP_CSS: &str = include_str!("../../laruche-dashboard/src/templates/app.css");
+const APP_JS: &str = include_str!("../../laruche-dashboard/src/templates/app.js");
 const PEER_FETCH_TIMEOUT_MS: u64 = 4000;
 // Fenêtre de péremption d'un pair. DOIT être > l'intervalle de ré-annonce mDNS (30s ci-dessous),
 // sinon un pair « clignote » : il devient périmé entre deux annonces. 90s = tolère 2 annonces ratées.
@@ -2017,6 +2020,22 @@ async fn api_voice_status(State(state): State<Arc<AppState>>) -> Json<serde_json
 
 async fn spa_page() -> Html<&'static str> {
     Html(SPA_HTML)
+}
+
+/// CSS de l'app (extrait de spa.html). Content-Type explicite pour que le navigateur l'applique.
+async fn app_css() -> impl axum::response::IntoResponse {
+    ([(axum::http::header::CONTENT_TYPE, "text/css; charset=utf-8")], APP_CSS)
+}
+
+/// JS de l'app (extrait de spa.html). Servi avant le petit script d'init inline de spa.html.
+async fn app_js() -> impl axum::response::IntoResponse {
+    (
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "application/javascript; charset=utf-8",
+        )],
+        APP_JS,
+    )
 }
 
 async fn api_list_tools(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
@@ -10045,6 +10064,8 @@ async fn main() -> Result<()> {
 
     let app = Router::new()
         .route("/", get(spa_page))
+        .route("/app.css", get(app_css))
+        .route("/app.js", get(app_js))
         .route("/api/status", get(get_status))
         .route(
             "/api/blueprints",

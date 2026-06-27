@@ -1,0 +1,8298 @@
+/* ================================================================ */
+/*  LaRuche SPA - Global Namespace                                  */
+/* ================================================================ */
+window.LaRuche = {};
+
+/* ── Navigateur de fichiers Plugins (dossier plugins/ + scripts/) ─────────────────
+ * Voir/éditer/supprimer/déposer ses propres scripts (.py/.ps1/.sh/.json…) en plus du JSON.
+ * Confiné côté serveur à plugins/ (anti-traversal). Glisser-déposer = upload. */
+LaRuche.PluginFiles = (function(){
+  var ov=null, current=null;
+  function esc(s){ return LaRuche.Utils.esc(s); }
+  function close(){ if(ov){ ov.remove(); ov=null; current=null; } }
+  function open(){
+    if(ov) close();
+    ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center';
+    ov.onclick=function(e){ if(e.target===ov) close(); };
+    ov.innerHTML='<div style="width:880px;max-width:95vw;height:84vh;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
+      '<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--amber);display:flex;align-items:center;gap:10px">'+
+        '<span style="flex:1">📁 Fichiers du dossier <code>plugins/</code></span>'+
+        '<button class="tl-btn" onclick="LaRuche.PluginFiles.newFile()">+ Nouveau fichier</button>'+
+        '<button class="tl-btn" onclick="LaRuche.PluginFiles.close()">Fermer</button>'+
+      '</div>'+
+      '<div style="flex:1;display:flex;min-height:0">'+
+        '<div id="pfTree" style="width:260px;border-right:1px solid var(--border);overflow:auto;padding:6px;font-size:12px"></div>'+
+        '<div id="pfMain" style="flex:1;display:flex;flex-direction:column;min-width:0;padding:8px">'+
+          '<div id="pfHint" style="color:var(--text-dim);font-size:12px;padding:20px;text-align:center">Sélectionne un fichier à gauche, ou glisse-dépose un script ici pour l\'ajouter.</div>'+
+        '</div>'+
+      '</div></div>';
+    document.body.appendChild(ov);
+    // Glisser-déposer = upload dans plugins/ (ou plugins/scripts/ si .py/.sh/.ps1).
+    var card=ov.firstChild;
+    card.addEventListener('dragover', function(e){ e.preventDefault(); card.style.outline='2px dashed var(--amber)'; });
+    card.addEventListener('dragleave', function(){ card.style.outline=''; });
+    card.addEventListener('drop', function(e){ e.preventDefault(); card.style.outline=''; handleDrop(e); });
+    refresh();
+  }
+  function refresh(){
+    fetch('/api/plugin-files').then(function(r){return r.json();}).then(function(d){
+      var files=(d&&d.files)||[];
+      var t=document.getElementById('pfTree'); if(!t) return;
+      if(!files.length){ t.innerHTML='<div style="color:var(--text-dim);padding:8px">Dossier vide.</div>'; return; }
+      t.innerHTML=files.map(function(f){
+        if(f.dir) return '<div style="padding:4px 6px;color:var(--text-dim);font-weight:600;margin-top:4px">📂 '+esc(f.path)+'</div>';
+        var indent = f.path.indexOf('/')>=0 ? 16 : 4;
+        var kb = f.size!=null ? ' <span style="color:var(--text-dim);font-size:10px">'+Math.max(1,Math.round(f.size/1024))+'k</span>' : '';
+        return '<div class="pf-file" data-path="'+esc(f.path)+'" style="padding:4px 6px;padding-left:'+indent+'px;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:5px"><span>📄</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(f.path.split('/').pop())+'</span>'+kb+'</div>';
+      }).join('');
+      Array.prototype.forEach.call(t.querySelectorAll('.pf-file'), function(el){
+        el.onclick=function(){ openFile(el.dataset.path); Array.prototype.forEach.call(t.querySelectorAll('.pf-file'),function(x){x.style.background='';}); el.style.background='rgba(245,158,11,.15)'; };
+      });
+    });
+  }
+  function openFile(path){
+    fetch('/api/plugin-file/'+path.split('/').map(encodeURIComponent).join('/')).then(function(r){return r.json();}).then(function(d){
+      var m=document.getElementById('pfMain'); if(!m) return;
+      current=path;
+      if(d.binary){ m.innerHTML='<div style="color:var(--text-dim);padding:20px">Fichier binaire ('+(d.size||'?')+' o) — non éditable ici.</div>'; return; }
+      m.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><code style="flex:1;color:var(--amber)">plugins/'+esc(path)+'</code>'+
+        '<button class="tl-btn" onclick="LaRuche.PluginFiles.save()">Enregistrer</button>'+
+        '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.PluginFiles.del()">Supprimer</button></div>'+
+        '<textarea id="pfEditor" spellcheck="false" style="flex:1;width:100%;font-family:var(--mono);font-size:12px;background:#16161a;border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px;resize:none">'+esc(d.content||'')+'</textarea>';
+    });
+  }
+  function save(){
+    if(!current) return;
+    var ta=document.getElementById('pfEditor'); if(!ta) return;
+    fetch('/api/plugin-file/'+current.split('/').map(encodeURIComponent).join('/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:ta.value})})
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Enregistré (plugins rechargés)','ok'); refresh(); } else LaRuche.Toast.show('Échec','err'); });
+  }
+  function del(){
+    if(!current || !confirm('Supprimer plugins/'+current+' ?')) return;
+    fetch('/api/plugin-file/'+current.split('/').map(encodeURIComponent).join('/'),{method:'DELETE'})
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Supprimé','ok'); current=null; document.getElementById('pfMain').innerHTML='<div id="pfHint" style="color:var(--text-dim);padding:20px;text-align:center">Fichier supprimé.</div>'; refresh(); } });
+  }
+  function newFile(){
+    var name=prompt('Nom du fichier (ex: scripts/mon_script.py) :',''); if(!name) return;
+    fetch('/api/plugin-file/'+name.split('/').map(encodeURIComponent).join('/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:''})})
+      .then(function(r){ if(r.ok){ refresh(); openFile(name); } else LaRuche.Toast.show('Nom invalide','err'); });
+  }
+  function handleDrop(e){
+    var files=e.dataTransfer.files; if(!files||!files.length) return;
+    Array.prototype.forEach.call(files, function(file){
+      var reader=new FileReader();
+      reader.onload=function(){
+        var ext=(file.name.split('.').pop()||'').toLowerCase();
+        var dest=(['py','sh','ps1'].indexOf(ext)>=0 ? 'scripts/' : '')+file.name;
+        fetch('/api/plugin-file/'+dest.split('/').map(encodeURIComponent).join('/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:reader.result})})
+          .then(function(r){ if(r.ok){ LaRuche.Toast.show('Ajouté : '+dest,'ok'); refresh(); } else LaRuche.Toast.show('Refusé : '+file.name,'err'); });
+      };
+      reader.readAsText(file);
+    });
+  }
+  return { open:open, close:close, save:save, del:del, newFile:newFile, refresh:refresh };
+})();
+
+/* ── @@secret : autocomplétion CENTRALE des secrets ──────────────────────────────
+ * Tape `@@` dans N'IMPORTE quel champ texte (chat, prompts de cron/mission/skill/watcher,
+ * éditeur mémoire, formulaires…) → liste cliquable des secrets enregistrés. La VALEUR n'est
+ * jamais affichée : on insère la référence `@@NOM`, que le backend substitue à l'exécution
+ * (shell, web_fetch, provider, webhook via curl). Marche sans câblage par champ : un seul
+ * écouteur en capture sur tout le document. */
+LaRuche.Secrets = (function(){
+  var names=[], box=null, items=[], sel=-1, targetEl=null, tokenStart=-1;
+  function refresh(){ fetch('/api/secrets').then(function(r){return r.json();}).then(function(d){ names=(d&&d.names)||[]; }).catch(function(){}); }
+  function isText(el){ return el && (el.tagName==='TEXTAREA' || (el.tagName==='INPUT' && (el.type==='text'||el.type==='search'||el.type===''))); }
+  function ensureBox(){ if(box)return box; box=document.createElement('div'); box.id='secretAC'; box.style.cssText='position:fixed;z-index:100001;display:none;background:#16161a;border:1px solid var(--amber);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.55);max-height:220px;overflow:auto;min-width:170px;font-size:12px'; document.body.appendChild(box); return box; }
+  function hide(){ if(box) box.style.display='none'; targetEl=null; sel=-1; }
+  function currentToken(el){ var pos=el.selectionStart; if(pos==null)return null; var m=el.value.slice(0,pos).match(/@@([A-Za-z0-9_\-]*)$/); return m?{start:pos-m[0].length, partial:m[1]}:null; }
+  function paint(){ if(!box)return; Array.prototype.forEach.call(box.querySelectorAll('.sac-item'), function(it,i){ it.style.background=(i===sel)?'rgba(245,158,11,.2)':''; }); }
+  function render(el, tok){
+    var f=tok.partial.toLowerCase();
+    items = names.filter(function(n){ return n.toLowerCase().indexOf(f)>=0; });
+    if(!items.length){ hide(); return; }
+    sel=0; targetEl=el; tokenStart=tok.start;
+    var b=ensureBox();
+    b.innerHTML = '<div style="padding:3px 10px;color:var(--text-dim);font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Secrets</div>'+
+      items.map(function(n,i){ return '<div class="sac-item" data-i="'+i+'" style="padding:6px 10px;cursor:pointer;color:var(--amber);'+(i===0?'background:rgba(245,158,11,.2)':'')+'">@@'+LaRuche.Utils.esc(n)+'</div>'; }).join('');
+    var r=el.getBoundingClientRect();
+    b.style.left=Math.min(r.left, window.innerWidth-200)+'px'; b.style.top=(r.bottom+2)+'px'; b.style.display='block';
+    Array.prototype.forEach.call(b.querySelectorAll('.sac-item'), function(it){ it.onmousedown=function(e){ e.preventDefault(); choose(parseInt(it.dataset.i)); }; });
+  }
+  function choose(i){
+    if(!targetEl||!items[i])return;
+    var el=targetEl, name=items[i], pos=el.selectionStart;
+    el.value = el.value.slice(0,tokenStart)+'@@'+name+el.value.slice(pos);
+    var caret=tokenStart+2+name.length; el.selectionStart=el.selectionEnd=caret;
+    el.dispatchEvent(new Event('input',{bubbles:true})); hide(); el.focus();
+  }
+  function onInput(e){ var el=e.target; if(!isText(el)||!names.length){ return; } var t=currentToken(el); if(t) render(el,t); else hide(); }
+  function onKey(e){
+    if(!box||box.style.display==='none')return;
+    if(e.key==='ArrowDown'){ e.preventDefault(); e.stopPropagation(); sel=Math.min(sel+1,items.length-1); paint(); }
+    else if(e.key==='ArrowUp'){ e.preventDefault(); e.stopPropagation(); sel=Math.max(sel-1,0); paint(); }
+    else if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); e.stopPropagation(); choose(sel); }
+    else if(e.key==='Escape'){ e.stopPropagation(); hide(); }
+  }
+  function init(){
+    refresh(); setInterval(refresh, 45000);
+    document.addEventListener('input', onInput, true);
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('click', function(e){ if(box && box.style.display!=='none' && !box.contains(e.target)) hide(); }, true);
+  }
+  return { init:init, refresh:refresh };
+})();
+
+/* ── Rafraichissement dynamique global (P7) ──────────────────────
+ * Apres toute action mutante (choix de modele, visibilite, capacite,
+ * cron...), on re-fetch + re-render les composants concernes SANS F5.
+ * Les references aux modules sont resolues a l'appel (lazy) car cette
+ * fonction est definie avant les modules. parts = sous-ensemble optionnel
+ * a rafraichir : 'models','mesh','capabilities','profiles','voice','cron'.
+ */
+LaRuche.refreshAll = function(parts) {
+  var all = !parts || !parts.length;
+  function want(p){ return all || parts.indexOf(p) !== -1; }
+  try {
+    // Dropdown modele du haut + badge capacite global
+    if(want('models') && LaRuche.Header && LaRuche.Header.loadModels) LaRuche.Header.loadModels();
+    // Panneau "Services du mesh" + recap capacites + sélecteurs voix (Dashboard.fetchModels
+    // re-lit /swarm/models ET /api/capabilities/selection, et met à jour les voix).
+    if((want('mesh') || want('capabilities') || want('voice')) && LaRuche.Dashboard && LaRuche.Dashboard.fetchModels) LaRuche.Dashboard.fetchModels();
+    // Statut voix (STT/TTS selectionne)
+    if(want('voice') && LaRuche.Voice && LaRuche.Voice.refreshStatus) LaRuche.Voice.refreshStatus();
+    // Onglet Settings courant (profils, cron, watchers, kanban...) si visible
+    if(want('profiles') || want('cron')) {
+      if(LaRuche.Settings && LaRuche.Settings.refreshTab && LaRuche.Router && LaRuche.Router.current && LaRuche.Router.current() === 'settings') {
+        LaRuche.Settings.refreshTab();
+      }
+    }
+  } catch(e){ /* best-effort, ne jamais casser l'action */ }
+};
+// Alias historique (deja appele dans le code visibilite)
+LaRuche.forceReactivityUpdate = function(){ LaRuche.refreshAll(); };
+
+/* ── Utils ─────────────────────────────────────────────────────── */
+LaRuche.Utils = {
+  esc: function(t) { var d=document.createElement('div'); d.textContent=t; return d.innerHTML; },
+  clamp: function(v,lo,hi) { return Math.min(hi,Math.max(lo,v)); },
+  fmtMB: function(mb) { return mb>=1024?(mb/1024).toFixed(1)+' GB':mb+' MB'; },
+  fmtTime: function(d) {
+    return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0');
+  },
+  fmtDuration: function(ms) {
+    var s=Math.floor(ms/1000);
+    if(s<60)return s+'s';
+    if(s<3600)return Math.floor(s/60)+'m';
+    var h=Math.floor(s/3600),m=Math.floor((s%3600)/60);
+    return h+'h'+(m>0?m+'m':'');
+  },
+  formatElapsed: function(ms) { return ms<1000?ms+'ms':(ms/1000).toFixed(1)+'s'; },
+  normalizeCap: function(cap) { return String(cap||'').toLowerCase().replace(/^capability:/,'').trim(); },
+  b64ToUtf8: function(b64) {
+    try {
+      var bin = atob(b64);
+      var bytes = new Uint8Array(bin.length);
+      for(var i=0; i<bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new TextDecoder().decode(bytes);
+    } catch(e) { return decodeURIComponent(escape(window.atob(b64))); }
+  },
+  openMediaModal: function(type, srcOrText) {
+    var m = document.getElementById('mediaModal');
+    var img = document.getElementById('mediaModalImg');
+    var txt = document.getElementById('mediaModalText');
+    if(!m) {
+      m = document.createElement('div'); m.id='mediaModal';
+      m.style.cssText = 'position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:10000; display:none; align-items:center; justify-content:center; backdrop-filter:blur(5px);';
+      m.onclick=function(){m.style.display='none';};
+      m.innerHTML='<div style="position:relative; max-width:90%; max-height:90%; display:flex; flex-direction:column; align-items:center;" onclick="event.stopPropagation()"><span onclick="document.getElementById(\'mediaModal\').style.display=\'none\'" style="position:absolute; top:-40px; right:0; color:#fff; font-size:30px; cursor:pointer; font-weight:bold;">&times;</span><img id="mediaModalImg" style="display:none; max-width:100%; max-height:85vh; object-fit:contain; border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,0.5);"><div id="mediaModalText" style="display:none; width:80vw; height:80vh; overflow:auto; background:#1e1e1e; color:#ccc; padding:20px; font-family:monospace; font-size:13px; white-space:pre-wrap; border-radius:8px; text-align:left; box-shadow:0 10px 30px rgba(0,0,0,0.5);"></div></div>';
+      document.body.appendChild(m);
+      img = document.getElementById('mediaModalImg');
+      txt = document.getElementById('mediaModalText');
+    }
+    img.style.display='none'; txt.style.display='none';
+    if(type === 'image') {
+      img.src = srcOrText;
+      img.style.display='block';
+    } else {
+      txt.textContent = srcOrText;
+      txt.style.display='block';
+    }
+    m.style.display='flex';
+  },
+  createAttachmentBox: function(att, isPending, index) {
+    var box = document.createElement('div');
+    box.className = 'chat-attachment-box';
+    var titleStr = att.filename || (att.kind === 'image' ? 'Image' : 'Fichier');
+    box.title = titleStr;
+    box.style.cssText = 'position:relative; display:inline-flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; background:rgba(0,0,0,0.3); padding:4px; border-radius:8px; border:1px solid var(--border); overflow:hidden; cursor:pointer; width: 80px; height: 80px; transition:border-color 0.2s;';
+    box.onmouseover = function() { box.style.borderColor='var(--primary)'; };
+    box.onmouseout = function() { box.style.borderColor='var(--border)'; };
+
+    var nameOverlay = document.createElement('div');
+    nameOverlay.textContent = titleStr;
+    nameOverlay.style.cssText = 'position:absolute; bottom:0; left:0; width:100%; background:rgba(0,0,0,0.85); color:#fff; font-size:10px; padding:4px; text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; opacity:0; transition:opacity 0.2s; pointer-events:none; box-sizing:border-box;';
+    
+    box.onmouseenter = function() { box.style.borderColor='var(--primary)'; nameOverlay.style.opacity='1'; };
+    box.onmouseleave = function() { box.style.borderColor='var(--border)'; nameOverlay.style.opacity='0'; };
+
+    if (att.kind === 'image') {
+        var img = document.createElement('img');
+        var src = att.fileUrl || ('data:' + att.mime_type + ';base64,' + att.data);
+        img.src = src;
+        img.style.cssText = 'width:100%; height:100%; object-fit:cover; border-radius:4px;';
+        box.onclick = function() { LaRuche.Utils.openMediaModal('image', src); };
+        box.appendChild(img);
+    } else {
+        var icon = document.createElement('div');
+        icon.textContent = '\uD83D\uDCC4';
+        icon.style.cssText = 'font-size:28px; color:var(--text-dim); margin-top: 4px;';
+        box.appendChild(icon);
+        
+        var ext = document.createElement('div');
+        var extMatch = titleStr.match(/\.([^.]+)$/);
+        ext.textContent = extMatch ? extMatch[1].toUpperCase() : 'FILE';
+        ext.style.cssText = 'font-size:10px; font-weight:bold; color:var(--text-dim); margin-top: -2px;';
+        box.appendChild(ext);
+        
+        box.onclick = function() { 
+            if(att.fileUrl) { 
+                fetch(att.fileUrl).then(function(r){return r.text();}).then(function(txt){
+                    LaRuche.Utils.openMediaModal('text', txt);
+                }).catch(function(){
+                    LaRuche.Utils.openMediaModal('text', 'Cannot preview this file.');
+                });
+            } else if(att.data) {
+                try {
+                    var text = LaRuche.Utils.b64ToUtf8(att.data);
+                    LaRuche.Utils.openMediaModal('text', text); 
+                } catch(e) {
+                    LaRuche.Utils.openMediaModal('text', 'Cannot preview binary file.'); 
+                }
+            } else {
+                LaRuche.Utils.openMediaModal('text', 'File content not available.');
+            }
+        };
+    }
+    
+    if(isPending) {
+        var rm = document.createElement('div');
+        rm.innerHTML = '&times;';
+        rm.style.cssText = 'position:absolute; top:2px; right:2px; width:16px; height:16px; background:rgba(0,0,0,0.6); color:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; cursor:pointer; transition:background 0.2s; z-index:10;';
+        rm.onmouseover = function(e){ rm.style.background='var(--red)'; e.stopPropagation(); };
+        rm.onmouseout = function(e){ rm.style.background='rgba(0,0,0,0.6)'; e.stopPropagation(); };
+        rm.onclick = function(e) { e.stopPropagation(); LaRuche.Chat.removePendingFile(index); };
+        box.appendChild(rm);
+    }
+
+    box.appendChild(nameOverlay);
+    return box;
+  }
+};
+
+/* ── API ───────────────────────────────────────────────────────── */
+LaRuche.API = (function(){
+  var base = window.location.protocol+'//'+window.location.hostname+':'+(window.location.port||'8419');
+  if(window.location.port==='8420') base=window.location.protocol+'//'+window.location.hostname+':8419';
+  return {
+    base: base,
+    get: function(path){ return fetch(base+path).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}); },
+    post: function(path,body){ return fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}); },
+    del: function(path){ return fetch(base+path,{method:'DELETE'}); },
+    getText: function(path){ return fetch(base+path).then(function(r){return r.text();}); },
+    getLocal: function(path){ return fetch(path).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}); },
+    postLocal: function(path,body){ return fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){return r.json();}); },
+    delLocal: function(path){ return fetch(path,{method:'DELETE'}); }
+  };
+})();
+
+/* ── Toast ─────────────────────────────────────────────────────── */
+LaRuche.Toast = {
+  show: function(msg, type, duration, onClick) {
+    type = type || 'info';
+    duration = duration || 5100;
+    var c = document.getElementById('toasts');
+    var t = document.createElement('div');
+    t.className = 'toast toast-'+type;
+    t.textContent = msg;
+    if(onClick) {
+      t.style.cursor = 'pointer';
+      t.addEventListener('click', function(){ onClick(); t.remove(); });
+    }
+    c.appendChild(t);
+    setTimeout(function(){ if(t.parentElement) t.remove(); }, duration);
+  }
+};
+
+/* ── Console ───────────────────────────────────────────────────── */
+LaRuche.Console = (function(){
+  var entries = [];
+  var activeFilter = 'all';
+  var origError = console.error;
+  var origWarn = console.warn;
+  var lastEventId = 0;
+  var pollTimer = null;
+
+  // P8 : ouvre la session liee a un event (onglet Chat + re-attach flux live).
+  function openSession(sid) {
+    if(!sid) return;
+    LaRuche.Router.go('chat');
+    setTimeout(function(){ if(LaRuche.Chat && LaRuche.Chat.switchSession) LaRuche.Chat.switchSession(sid); }, 120);
+  }
+
+  // P8 : notification/toast cliquable pour les events porteurs d'un session_id/task_id.
+  function notifyEvent(ev) {
+    if(!ev || !ev.payload) return;
+    var pl = ev.payload;
+    var sid = pl.session_id || pl.task_session_id || null;
+    var tid = pl.task_id || null;
+    switch(ev.kind) {
+      case 'SessionFinished': {
+        var preview = pl.preview || 'Réponse terminée';
+        LaRuche.Toast.show('Agent terminé: ' + String(preview).substring(0, 60) + '…', 'ok', 8000,
+          sid ? function(){ openSession(sid); } : null);
+        break;
+      }
+      case 'AgentFinished': { if (typeof LaRuche !== 'undefined' && LaRuche.Memory && typeof LaRuche.Memory.current === 'function') { var cnode = LaRuche.Memory.current(); if (cnode) { LaRuche.Memory.loadNode(cnode); } } break; } case 'AgentStarted': {
+        // payload: {session_id, prompt} (chat) ou {task_id, prompt} (cron)
+        var label = pl.prompt || pl.preview || 'Agent démarré';
+        LaRuche.Toast.show('Agent démarré: ' + String(label).substring(0, 60), 'info', 6000,
+          sid ? function(){ openSession(sid); } : null);
+        break;
+      }
+      case 'WatcherFired': {
+        // payload: {watcher_id, prompt, context}
+        var wname = pl.prompt || pl.watcher_id || 'Watcher';
+        LaRuche.Toast.show('Watcher déclenché: ' + String(wname).substring(0, 50), 'info', 7000,
+          sid ? function(){ openSession(sid); } : null);
+        break;
+      }
+      case 'MemorySaved': { if (typeof LaRuche !== 'undefined' && LaRuche.Memory && typeof LaRuche.Memory.current === 'function') { var cnode = LaRuche.Memory.current(); if (cnode && pl.node_id && String(cnode) === String(pl.node_id)) { LaRuche.Memory.loadNode(cnode); } } break; } case 'KanbanTask': {
+        // payload: {task_id, title}
+        var ktitle = pl.title || ('Tâche ' + (tid || '')) ;
+        LaRuche.Toast.show('Kanban: ' + String(ktitle).substring(0, 55), 'info', 7000,
+          sid ? function(){ openSession(sid); } : null);
+        break;
+      }
+    }
+  }
+
+  function pollEvents() {
+    fetch(LaRuche.API.base+'/api/events?since='+lastEventId).then(function(r){return r.json();}).then(function(evts){
+      if(!evts || !evts.length) return;
+      evts.forEach(function(ev){
+        if(ev.id > lastEventId) lastEventId = ev.id;
+        var p = typeof ev.payload === 'object' ? JSON.stringify(ev.payload) : ev.payload;
+        log('event', ev.actor || 'system', '['+ev.kind+'] ' + p);
+        notifyEvent(ev);
+      });
+    }).catch(function(){});
+  }
+
+  function log(level, source, msg) {
+    var entry = { time: new Date(), level: level, source: source, msg: String(msg) };
+    entries.push(entry);
+    if(entries.length > 500) entries.shift();
+    renderIfActive();
+  }
+
+  function renderIfActive() {
+    var el = document.getElementById('consoleEntries');
+    if(!el || !document.getElementById('page-dashboard').classList.contains('active')) return;
+    render();
+  }
+
+  function render() {
+    var el = document.getElementById('consoleEntries');
+    if(!el) return;
+    var filtered = activeFilter === 'all' ? entries : entries.filter(function(e){ return e.level === activeFilter; });
+    el.innerHTML = '';
+    filtered.forEach(function(e){
+      var row = document.createElement('div');
+      row.className = 'console-entry';
+      row.innerHTML =
+        '<span class="console-entry-time">'+LaRuche.Utils.fmtTime(e.time)+'</span>'+
+        '<span class="console-entry-level '+e.level+'">'+e.level+'</span>'+
+        '<span class="console-entry-source">'+LaRuche.Utils.esc(e.source)+'</span>'+
+        '<span class="console-entry-msg">'+LaRuche.Utils.esc(e.msg)+'</span>';
+      el.appendChild(row);
+    });
+    el.scrollTop = el.scrollHeight;
+    var countEl = document.getElementById('consoleCount');
+    if(countEl) countEl.textContent = filtered.length+' entries';
+  }
+
+  function clear() { entries=[]; render(); }
+
+  function setFilter(level) {
+    activeFilter = level;
+    document.querySelectorAll('.console-toolbar .filter-btn').forEach(function(b){
+      b.classList.toggle('active', b.dataset.level === level);
+    });
+    render();
+  }
+
+  // Capture window errors
+  window.onerror = function(msg, src, line, col, err) {
+    log('error', 'window', msg + (src ? ' ('+src+':'+line+':'+col+')' : ''));
+  };
+  window.addEventListener('unhandledrejection', function(e) {
+    log('error', 'promise', e.reason ? String(e.reason) : 'Unhandled rejection');
+  });
+  // Wrap console.error and console.warn
+  console.error = function() {
+    var args = Array.prototype.slice.call(arguments);
+    log('error', 'console', args.join(' '));
+    origError.apply(console, arguments);
+  };
+  console.warn = function() {
+    var args = Array.prototype.slice.call(arguments);
+    log('warn', 'console', args.join(' '));
+    origWarn.apply(console, arguments);
+  };
+
+  return { log:log, render:render, clear:clear, setFilter:setFilter, init:function(){
+    document.querySelector('.console-toolbar').addEventListener('click', function(e){
+      var btn = e.target.closest('.filter-btn');
+      if(btn) setFilter(btn.dataset.level);
+    });
+    pollTimer = setInterval(pollEvents, 3000);
+    pollEvents();
+  }, enter:render, leave:function(){} };
+})();
+
+/* ── Auth ──────────────────────────────────────────────────────── */
+LaRuche.Auth = (function(){
+  var currentUser = null;
+  var pollTimer = null;
+  var challengeTimer = null;
+
+  function init(cb) {
+    fetch('/api/auth/me',{credentials:'include'}).then(function(r){
+      if(r.ok) return r.json();
+      throw new Error('not auth');
+    }).then(function(u){
+      currentUser = u;
+      showUserBadge();
+      if(cb) cb(true);
+    }).catch(function(){
+      currentUser = null;
+      if(cb) cb(false);
+    });
+  }
+
+  function isAuthenticated(){ return !!currentUser; }
+  function getUser(){ return currentUser; }
+
+  function showUserBadge(){
+    if(!currentUser) return;
+    var badge=document.getElementById('userBadge');
+    var avatar=document.getElementById('userAvatar');
+    var name=document.getElementById('userName');
+    if(badge){badge.style.display='flex';}
+    var initial=(currentUser.display_name||'?').charAt(0).toUpperCase();
+    if(avatar){avatar.textContent=initial; if(currentUser.role==='admin') avatar.style.borderColor='var(--amber)';}
+    if(name){name.textContent=currentUser.display_name+(currentUser.role==='admin'?' (admin)':'');}
+  }
+  function isAdmin(){ return currentUser && currentUser.role==='admin'; }
+
+  function hideUserBadge(){
+    var badge=document.getElementById('userBadge');
+    if(badge) badge.style.display='none';
+  }
+
+  function enroll(){
+    var nameEl=document.getElementById('enrollName');
+    var displayName=(nameEl?nameEl.value:'').trim();
+    if(!displayName){nameEl.focus();return;}
+
+    var pwEl=document.getElementById('enrollPassword');
+    var password=(pwEl?pwEl.value:'').trim();
+
+    fetch('/api/auth/enroll',{
+      method:'POST',credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({display_name:displayName, password:password||undefined})
+    }).then(function(r){return r.json();}).then(function(data){
+      currentUser={user_id:data.user_id,display_name:data.display_name,role:data.role};
+      showUserBadge();
+
+      // Show success with QR to save
+      document.getElementById('login-enroll').style.display='none';
+      document.getElementById('login-success').style.display='block';
+      document.getElementById('login-welcome-name').textContent='Bienvenue '+data.display_name+' !';
+      document.getElementById('login-enroll-qr').innerHTML=data.qr_svg;
+
+      LaRuche.Console.log('info','AUTH','User enrolled: '+data.display_name);
+    }).catch(function(e){
+      LaRuche.Toast.show('Erreur enrollment: '+e.message,'error');
+    });
+  }
+
+  function hideAllLoginSections(){
+    ['login-enroll','login-scan','login-password','login-success','login-authenticated'].forEach(function(id){
+      var el=document.getElementById(id); if(el) el.style.display='none';
+    });
+  }
+
+  function showLoginMode(){
+    stopPolling();
+    hideAllLoginSections();
+    document.getElementById('login-password').style.display='block';
+  }
+
+  function showQrMode(){
+    hideAllLoginSections();
+    document.getElementById('login-scan').style.display='block';
+    startChallenge();
+  }
+
+  function showEnrollMode(){
+    stopPolling();
+    hideAllLoginSections();
+    document.getElementById('login-enroll').style.display='block';
+  }
+
+  function loginPassword(){
+    var name=(document.getElementById('loginName').value||'').trim();
+    var pw=document.getElementById('loginPassword').value||'';
+    var errEl=document.getElementById('loginError');
+    if(!name||!pw){if(errEl){errEl.textContent='Nom et mot de passe requis';errEl.style.display='block';}return;}
+    if(errEl) errEl.style.display='none';
+
+    fetch('/api/auth/login',{
+      method:'POST',credentials:'include',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({display_name:name,password:pw})
+    }).then(function(r){
+      if(!r.ok) throw new Error('Identifiants incorrects');
+      return r.json();
+    }).then(function(data){
+      currentUser={user_id:data.user_id,display_name:data.display_name,role:data.role};
+      showUserBadge();
+      hideAllLoginSections();
+      document.getElementById('login-authenticated').style.display='block';
+      document.getElementById('login-auth-name').textContent='Bonjour '+data.display_name+' !';
+      setTimeout(function(){ LaRuche.Router.go('chat'); },1000);
+    }).catch(function(e){
+      if(errEl){errEl.textContent=e.message;errEl.style.display='block';}
+    });
+  }
+
+  function startChallenge(){
+    fetch('/api/auth/challenge',{credentials:'include'}).then(function(r){return r.json();}).then(function(data){
+      document.getElementById('login-qr').innerHTML=data.qr_svg;
+      var remaining=data.expires_in||60;
+      var timerEl=document.getElementById('login-timer');
+
+      // Countdown
+      if(challengeTimer) clearInterval(challengeTimer);
+      challengeTimer=setInterval(function(){
+        remaining--;
+        if(timerEl) timerEl.textContent='Expire dans '+remaining+'s';
+        if(remaining<=0){
+          clearInterval(challengeTimer);
+          startChallenge(); // auto-refresh
+        }
+      },1000);
+
+      // Poll status
+      stopPolling();
+      pollTimer=setInterval(function(){
+        fetch('/api/auth/status/'+data.challenge_id,{credentials:'include'})
+          .then(function(r){return r.json();})
+          .then(function(s){
+            if(s.status==='authenticated'){
+              stopPolling();
+              if(challengeTimer) clearInterval(challengeTimer);
+              // Set cookie from token
+              document.cookie='laruche_auth='+s.token+'; path=/; max-age=2592000; samesite=lax';
+              currentUser={user_id:s.user_id,display_name:s.display_name};
+              showUserBadge();
+              // Show success animation
+              document.getElementById('login-scan').style.display='none';
+              document.getElementById('login-authenticated').style.display='block';
+              document.getElementById('login-auth-name').textContent='Bonjour '+s.display_name+' !';
+              setTimeout(function(){ LaRuche.Router.go('chat'); },1500);
+              LaRuche.Console.log('info','AUTH','Login via QR: '+s.display_name);
+            } else if(s.status==='expired'){
+              startChallenge();
+            }
+          }).catch(function(){});
+      },1500);
+    }).catch(function(e){
+      LaRuche.Toast.show('Erreur challenge: '+e.message,'error');
+    });
+  }
+
+  function stopPolling(){
+    if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
+  }
+
+  function continueToChat(){
+    LaRuche.Router.go('chat');
+  }
+
+  function logout(){
+    LaRuche.WS.close(); // Close WebSocket before logout
+    fetch('/api/auth/logout',{method:'POST',credentials:'include'}).then(function(){
+      currentUser=null;
+      hideUserBadge();
+      document.cookie='laruche_auth=; path=/; max-age=0';
+      // Reset login page
+      document.getElementById('login-enroll').style.display='block';
+      document.getElementById('login-scan').style.display='none';
+      document.getElementById('login-success').style.display='none';
+      document.getElementById('login-authenticated').style.display='none';
+      LaRuche.Router.go('login');
+    }).catch(function(){});
+  }
+
+  return {
+    init:init, isAuthenticated:isAuthenticated, getUser:getUser, isAdmin:isAdmin,
+    enroll:enroll, loginPassword:loginPassword,
+    showLoginMode:showLoginMode, showEnrollMode:showEnrollMode, showQrMode:showQrMode,
+    startChallenge:startChallenge, continueToChat:continueToChat, logout:logout
+  };
+})();
+
+/* ── Router ────────────────────────────────────────────────────── */
+LaRuche.Router = (function(){
+  var currentPage = null;
+  var pages = ['chat','dashboard','memory','missions','automations','capabilities','settings','console','login'];
+  var modules = {};
+
+  function go(page) {
+    if(pages.indexOf(page) < 0) page = 'chat';
+    // Auth guard: redirect to login if not authenticated (except login page itself)
+    if(page !== 'login' && !LaRuche.Auth.isAuthenticated()) { page = 'login'; }
+    if(currentPage === page) return;
+    // leave old page
+    if(currentPage && modules[currentPage] && modules[currentPage].leave) modules[currentPage].leave();
+    // hide all
+    pages.forEach(function(p) {
+      var el = document.getElementById('page-'+p);
+      if(el) el.classList.remove('active');
+    });
+    // show new
+    var newEl = document.getElementById('page-'+page);
+    if(newEl) newEl.classList.add('active');
+    currentPage = page;
+    // update nav
+    document.querySelectorAll('.header-nav a').forEach(function(a){
+      a.classList.toggle('active', a.dataset.page === page);
+    });
+    document.querySelectorAll('.mobile-tabs a').forEach(function(a){
+      a.classList.toggle('active', a.dataset.page === page);
+    });
+    // Hide nav on login page
+    var isLogin = (page === 'login');
+    var headerNav = document.getElementById('headerNav');
+    var mobileTabs = document.getElementById('mobileTabs');
+    var headerRight = document.querySelector('.header-right');
+    if(headerNav) headerNav.style.display = isLogin ? 'none' : '';
+    if(mobileTabs) mobileTabs.style.display = isLogin ? 'none' : '';
+    if(headerRight) headerRight.style.display = isLogin ? 'none' : '';
+    // enter new page
+    if(modules[page] && modules[page].enter) modules[page].enter();
+    // Repositionne les fenêtres mesh : les barres du bas changent selon l'onglet (input chat absent
+    // hors chat). go() utilise replaceState (pas de hashchange) → on doit l'appeler explicitement.
+    if(window.LaRuche && LaRuche.Mesh && LaRuche.Mesh.repositionWindows){
+      LaRuche.Mesh.repositionWindows();
+      requestAnimationFrame(function(){ LaRuche.Mesh.repositionWindows(); }); // après reflow de la nouvelle page
+    }
+    // update hash without triggering hashchange
+    if(location.hash !== '#'+page) {
+      history.replaceState(null, '', '#'+page);
+    }
+  }
+
+  function register(name, mod) { modules[name] = mod; }
+
+  function init() {
+    // Init all modules
+    pages.forEach(function(p) { if(modules[p] && modules[p].init) modules[p].init(); });
+    // Listen for hash changes
+    window.addEventListener('hashchange', function(){ go(location.hash.replace('#','')||'chat'); });
+    // Navigate to initial page
+    go(location.hash.replace('#','')||'chat');
+  }
+
+  return { go:go, register:register, init:init, current:function(){return currentPage;} };
+})();
+
+/* ── Header ────────────────────────────────────────────────────── */
+LaRuche.Header = (function(){
+  var currentModelName = '';
+  var currentProfileId = '';
+  var lastModelChangeAt = 0;
+
+  function init() {
+    loadModels();
+    loadPermissionMode();
+    // Rafraîchit la liste de modèles en arrière-plan (sans F5) : un provider local fermé
+    // (llama.cpp/ollama) disparaît, et réapparaît dès qu'il revient. On évite de re-render
+    // pendant que l'utilisateur a le menu ouvert.
+    setInterval(function(){
+      var drop=document.getElementById('sbModelDrop');
+      if(drop && drop.classList.contains('open')) return;
+      if(Date.now()-lastModelChangeAt < 8000) return; // pas juste après un choix manuel
+      loadModels();
+    }, 20000);
+    setInterval(fetchContextStats, 1500);
+    fetchContextStats();
+  }
+
+  async function fetchContextStats(){
+    try{
+      var chatPage = document.getElementById('page-chat');
+      var gauge = document.getElementById('chatCtxGauge');
+      if(!chatPage || !gauge) return;
+      var isChat = chatPage.classList.contains('active');
+      gauge.style.display = isChat ? 'flex' : 'none';
+      if(!isChat) return;
+
+      var sid = (window.LaRuche && LaRuche.Chat && typeof LaRuche.Chat.getSessionId === 'function') ? LaRuche.Chat.getSessionId() : null;
+      var url = '/api/context/stats';
+      if(sid) url += '?session_id=' + encodeURIComponent(sid);
+      var r=await fetch(url);
+      if(!r.ok)return;
+      var d=await r.json();
+      var pct = Math.round((d.ratio||0)*100);
+      var fill = document.getElementById('chatCtxFill');
+      if(fill) { fill.style.width=pct+'%'; fill.className='chat-ctx-fill'+(pct>66?' hot':pct>33?' warm':''); }
+      var pctEl = document.getElementById('chatCtxPct');
+      if(pctEl) pctEl.textContent = pct+'%';
+      var detail = document.getElementById('chatCtxDetail');
+      if(detail) {
+        var used = d.used_tokens||0; var max = d.max_tokens||0;
+        var usedStr = used >= 1000 ? (used/1000).toFixed(1)+'k' : used;
+        var maxStr = max >= 1000 ? (max/1000).toFixed(0)+'k' : max;
+        detail.textContent = usedStr+' / '+maxStr+' tokens · '+d.messages+' msg';
+      }
+    }catch(e){}
+  }
+
+  function loadPermissionMode() {
+    fetch('/api/config/permission').then(function(r){return r.json();}).then(function(data){
+      var sel = document.getElementById('permModeSelect');
+      if(!sel) return;
+      sel.innerHTML = '';
+      (data.modes||[]).forEach(function(m){
+        var opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = m.label;
+        if(m.id === data.mode) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    }).catch(function(){});
+  }
+
+  function changePermissionMode(mode) {
+    if(!mode) return;
+    fetch('/api/config/permission',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({mode:mode})
+    }).then(function(r){return r.json();}).then(function(d){
+      if(d && d.status==='ok') LaRuche.Toast.show('Permissions: '+mode,'ok');
+      else LaRuche.Toast.show('Échec changement permissions','err');
+    }).catch(function(){ LaRuche.Toast.show('Échec changement permissions','err'); });
+  }
+
+  function loadModels() {
+    fetch('/api/profiles/models').then(function(r){return r.json();}).then(function(data){
+      var models = data.models || [];
+      var active = data.active || {};
+      var select = document.getElementById('modelSelect');
+      select.innerHTML = '';
+
+      // Group models by profile_name
+      var groups = {};
+      var groupOrder = [];
+      models.forEach(function(m){
+        if(!groups[m.profile_name]) {
+          groups[m.profile_name] = [];
+          groupOrder.push(m.profile_name);
+        }
+        groups[m.profile_name].push(m);
+      });
+
+      // Icône de SOURCE par groupe : 🐝 mesh/partagé · 🖥️ local · ☁️ cloud.
+      function srcIcon(name){
+        var n=(name||'').toLowerCase();
+        if(/mesh|partag|\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/.test(n)) return '🐝 ';
+        if(/llama|local|127\.0\.0\.1|ollama|vllm|lm studio/.test(n)) return '🖥️ ';
+        return '☁️ ';
+      }
+      groupOrder.forEach(function(gname){
+        var optGroup = document.createElement('optgroup');
+        optGroup.label = srcIcon(gname)+gname;
+        groups[gname].forEach(function(m){
+          var opt = document.createElement('option');
+          opt.value = m.id; // "profile_id/model_name"
+          opt.textContent = m.name;
+          if(m.profile === active.profile_id && m.name === active.model) opt.selected = true;
+          optGroup.appendChild(opt);
+        });
+        select.appendChild(optGroup);
+      });
+
+      // If active model not in list, add it
+      if(active.profile_id && active.model && !select.querySelector('option[selected]')) {
+        var opt = document.createElement('option');
+        opt.value = active.profile_id + '/' + active.model;
+        opt.textContent = active.model + ' (active)';
+        opt.selected = true;
+        select.appendChild(opt);
+      }
+
+      if (Date.now() - lastModelChangeAt > 2000) {
+        currentModelName = active.model || '';
+        currentProfileId = active.profile_id || '';
+        var recapEl = document.getElementById('sessionCapsRecap');
+        if (recapEl) recapEl.textContent = currentModelName || 'Auto';
+      }
+    }).catch(function(){});
+  }
+
+  function changeModel(value) {
+    // value format: "profile_id/model_name"
+    var slashIdx = value.indexOf('/');
+    if(slashIdx === -1) return;
+    var profileId = value.substring(0, slashIdx);
+    var modelName = value.substring(slashIdx + 1);
+    currentModelName = modelName;
+    currentProfileId = profileId;
+    lastModelChangeAt = Date.now();
+
+    var recapEl = document.getElementById('sessionCapsRecap');
+    if (recapEl) recapEl.textContent = modelName;
+
+    var select = document.getElementById('modelSelect');
+    select.disabled = true;
+    LaRuche.Console.log('info','Header','Switching to '+profileId+'/'+modelName);
+
+    // Met à jour le modèle actif global (persisté + sync moteur) pour que
+    // l'onglet General et l'état reflètent le vrai modèle, et conserve aussi
+    // la préférence par-utilisateur.
+    fetch('/api/profiles/active',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({profile_id:profileId, model:modelName})
+    }).catch(function(){});
+    fetch('/api/auth/model',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:modelName, provider:profileId})
+    }).then(function(r){return r.json();}).then(function(d){
+      select.disabled = false;
+      // Preload for Ollama profiles
+      if(profileId.indexOf('ollama') !== -1) {
+        fetch('/api/preload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:modelName})}).then(function(r){return r.json();}).then(function(data){
+          if(data.status==='loaded') LaRuche.Toast.show('Model '+modelName+' ready ('+data.elapsed_ms+'ms)','ok');
+        }).catch(function(){});
+      }
+      LaRuche.Toast.show('Model: '+modelName,'ok');
+      // P7 : refleter le nouveau modele actif dans le mesh/recap capacites sans F5
+      LaRuche.refreshAll(['mesh','capabilities']);
+    }).catch(function(){ select.disabled = false; });
+  }
+
+  function getModel() { return currentModelName; }
+  function getProfileId() { return currentProfileId; }
+  function setModel(name) { currentModelName = name; var s = document.getElementById('modelSelect'); if(s) s.value = name; }
+
+    async function loadBlueprints(el) {
+    var bps=[];try{bps=await fetch('/api/blueprints').then(function(r){return r.json();});}catch(e){}
+    if(!bps.length){el.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px">Aucun blueprint disponible</div>';return;}
+    
+    window._blueprints = bps;
+    el.innerHTML = '<div style="margin-bottom:12px;color:var(--amber);font-size:12px;">Sélectionnez un blueprint pour l\'instancier en tant que tâche cron.</div>' +
+      bps.map(function(b, idx) {
+        return '<div class="settings-card" style="margin-bottom:12px;cursor:pointer;" onclick="LaRuche.Settings.openBlueprintForm('+idx+')">' +
+          '<div class="settings-card-title">'+LaRuche.Utils.esc(b.title||b.id)+'</div>' +
+          '<div style="font-size:12px;color:var(--text-dim);margin-top:4px;">'+LaRuche.Utils.esc(b.description||'')+'</div>' +
+          '<div id="bpForm_'+idx+'" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);" onclick="event.stopPropagation()">' +
+            (b.slots||[]).map(function(slot){
+              return '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.Utils.esc(slot.label||slot.name)+'</label><input id="bpInput_'+idx+'_'+slot.name+'" class="form-input" placeholder="'+LaRuche.Utils.esc(slot.placeholder||'')+'"></div>';
+            }).join('') +
+            '<button class="settings-save-btn" style="margin-top:8px" onclick="LaRuche.Settings.instanciateBlueprint('+idx+')">Instancier</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+  }
+
+  function openBlueprintForm(idx) {
+    var form = document.getElementById('bpForm_'+idx);
+    if (form.style.display === 'none') {
+      form.style.display = 'block';
+    } else {
+      form.style.display = 'none';
+    }
+  }
+
+  function instanciateBlueprint(idx) {
+    var b = window._blueprints[idx];
+    var slotsData = {};
+    (b.slots||[]).forEach(function(slot){
+      slotsData[slot.name] = document.getElementById('bpInput_'+idx+'_'+slot.name).value;
+    });
+    fetch('/api/blueprints/'+b.id+'/instancier', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(slotsData)
+    }).then(function(res) {
+      if(res.ok) {
+        LaRuche.Toast.show('Blueprint instancié avec succès', 'ok');
+        document.getElementById('bpForm_'+idx).style.display = 'none';
+      } else {
+        LaRuche.Toast.show('Erreur d\'instanciation', 'err');
+      }
+    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+  }
+
+  return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, changeModel:changeModel, getModel:getModel, getProfileId:getProfileId, setModel:setModel, loadModels:loadModels, changePermissionMode:changePermissionMode, loadPermissionMode:loadPermissionMode };
+})();
+
+/* ── WS (Chat WebSocket) ──────────────────────────────────────── */
+LaRuche.WS = (function(){
+  var ws = null;
+  var reconnectAttempts = 0;
+
+  function connect() {
+    var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(protocol+'//'+location.host+'/ws/chat');
+    ws.onopen = function(){
+      document.getElementById('statusHoneycomb').className = 'honeycomb-loader hc-sm';
+      
+      document.getElementById('sendBtn').disabled = false;
+      document.getElementById('reconnectBanner').classList.remove('visible');
+      reconnectAttempts = 0;
+      LaRuche.Console.log('info','WS','Chat WebSocket connected');
+    };
+    ws.onclose = function(){
+      document.getElementById('statusHoneycomb').className = 'honeycomb-loader hc-sm offline';
+      
+      document.getElementById('sendBtn').disabled = true;
+      scheduleReconnect();
+    };
+    ws.onerror = function(){
+      document.getElementById('statusHoneycomb').className = 'honeycomb-loader hc-sm offline';
+      
+    };
+    ws.onmessage = function(e){ LaRuche.Chat.handleEvent(JSON.parse(e.data)); };
+  }
+
+  function scheduleReconnect() {
+    reconnectAttempts++;
+    if(reconnectAttempts > 20) {
+      document.getElementById('statusHoneycomb').className = 'honeycomb-loader hc-sm offline';
+      
+      document.getElementById('reconnectBanner').classList.remove('visible');
+      return;
+    }
+    var delay = Math.min(2000*Math.pow(1.5, reconnectAttempts-1), 30000);
+    document.getElementById('statusHoneycomb').className = 'honeycomb-loader hc-sm offline';
+    
+    document.getElementById('reconnectBanner').classList.add('visible');
+    setTimeout(connect, delay);
+  }
+
+  function send(obj) { if(ws && ws.readyState===WebSocket.OPEN) ws.send(JSON.stringify(obj)); }
+  function isOpen() { return ws && ws.readyState===WebSocket.OPEN; }
+  function close() { if(ws){ ws.onclose=null; ws.close(); ws=null; } reconnectAttempts=0; }
+
+  /* P8 — Re-attach au flux live d'une session en cours.
+   * On ouvre une connexion WS SECONDAIRE dediee (le serveur, sur reception de
+   * {type:"subscribe",session_id}, bloque la socket dans une boucle de relais des
+   * events ChatEvent de cette session : on ne peut donc PAS reutiliser la socket
+   * principale du chat). Si la session n'est plus en cours, le serveur ne renvoie
+   * rien d'actif et on referme apres un court delai. Sur 'done'/'error' on referme. */
+  var attachWs = null;
+  var attachTimer = null;
+  function reattach(sessionId) {
+    if(!sessionId) return;
+    // Fermer une eventuelle re-attache precedente
+    detach();
+    try {
+      var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      attachWs = new WebSocket(protocol+'//'+location.host+'/ws/chat');
+    } catch(e){ return; }
+    attachWs.onopen = function(){
+      try { attachWs.send(JSON.stringify({type:'subscribe', session_id:sessionId})); } catch(e){}
+      // Filet de securite : si aucun event live n'arrive (session deja terminee),
+      // on referme la socket inutile au bout de 8 s. Reinitialise a chaque event.
+      armIdleClose();
+    };
+    attachWs.onmessage = function(e){
+      armIdleClose();
+      var data; try { data = JSON.parse(e.data); } catch(err){ return; }
+      // On ignore l'ack 'session' (deja gere par switchSession) ; on relaie le reste
+      // au pipeline de rendu du chat (tokens, tool_call, done, ...).
+      if(data.type === 'session') return;
+      if(LaRuche.Chat && LaRuche.Chat.handleEvent) LaRuche.Chat.handleEvent(data);
+      if(data.type === 'done' || data.type === 'error') detach();
+    };
+    attachWs.onclose = function(){ if(attachTimer){clearTimeout(attachTimer);attachTimer=null;} };
+    attachWs.onerror = function(){ detach(); };
+  }
+  function armIdleClose(){
+    if(attachTimer) clearTimeout(attachTimer);
+    attachTimer = setTimeout(function(){ detach(); }, 8000);
+  }
+  function detach() {
+    if(attachTimer){ clearTimeout(attachTimer); attachTimer=null; }
+    if(attachWs){ try{ attachWs.onclose=null; attachWs.close(); }catch(e){} attachWs=null; }
+  }
+
+  return { connect:connect, send:send, isOpen:isOpen, close:close, reattach:reattach, detach:detach };
+})();
+
+/* ── Chat Module ──────────────────────────────────────────────── */
+LaRuche.Chat = (function(){
+  var sessionId = null;
+  var runningSession = null; // session dont le run tourne sur la socket PRINCIPALE (pas via attachWs)
+  var unreadSessions = {}; // conversations (autres que l'active) avec du NOUVEAU terminé → pastille
+  var feedCache = {}; // session_id → HTML du feed d'activité (live-only) pour le restaurer au switch
+  var currentAssistantMsg = null;
+  var currentAssistantRow = null;
+  var isStreaming = false;
+  var autoTtsEnabled = false;
+  var noThinkEnabled = false;
+  var lastUserMessage = '';
+  var responseTimeout = null;
+  var typingIndicatorEl = null;
+  var pendingFiles = [];
+  var pendingMedia = [];
+  var lastSteerText = '';
+  var staleRecoveryActive = false;
+
+  function init() {
+    ensureFeedStyle();
+    var userInput = document.getElementById('userInput');
+    userInput.addEventListener('input', function(){
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight,120)+'px';
+    });
+    userInput.addEventListener('keydown', function(e){
+      if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); }
+    });
+    // File upload
+    var fileInput = document.getElementById('fileInput');
+    fileInput.addEventListener('change', function(){
+      for(var i=0;i<fileInput.files.length;i++) addPendingFile(fileInput.files[i]);
+      fileInput.value='';
+    });
+    // Drag & drop
+    var chatMain = document.querySelector('.chat-main');
+    chatMain.addEventListener('dragover', function(e){ e.preventDefault(); document.getElementById('dropZone').style.display='flex'; });
+    chatMain.addEventListener('dragleave', function(e){ if(!chatMain.contains(e.relatedTarget)) document.getElementById('dropZone').style.display='none'; });
+    chatMain.addEventListener('drop', function(e){
+      e.preventDefault(); document.getElementById('dropZone').style.display='none';
+      for(var i=0;i<e.dataTransfer.files.length;i++) addPendingFile(e.dataTransfer.files[i]);
+    });
+    // Mic button
+    var micBtn = document.getElementById('micBtn');
+    micBtn.addEventListener('click', function(e){ e.preventDefault(); LaRuche.Voice.toggleMic(); });
+    micBtn.addEventListener('touchend', function(e){ e.preventDefault(); LaRuche.Voice.toggleMic(); }, {passive:false});
+    // Touch swipe for sidebar
+    var touchStartX=0, touchStartY=0, touchTracking=false;
+    document.addEventListener('touchstart', function(e){
+      var t=e.touches[0];
+      if(t.clientX<30 && !document.getElementById('chatSidebar').classList.contains('open')){
+        touchStartX=t.clientX; touchStartY=t.clientY; touchTracking=true;
+      }
+    },{passive:true});
+    document.addEventListener('touchmove', function(e){
+      if(!touchTracking) return;
+      var t=e.touches[0], dx=t.clientX-touchStartX, dy=Math.abs(t.clientY-touchStartY);
+      if(dx>60 && dy<40){ touchTracking=false; toggleSidebar(); }
+    },{passive:true});
+    document.addEventListener('touchend', function(){ touchTracking=false; },{passive:true});
+    // Load sessions
+    loadSessions();
+    noThinkEnabled = localStorage.getItem('laruche_no_think') === '1';
+    var noThink = document.getElementById('noThinkToggle');
+    var noThinkWrap = document.getElementById('noThinkWrap');
+    if(noThink) noThink.checked = noThinkEnabled;
+    if(noThinkWrap) noThinkWrap.classList.toggle('active', noThinkEnabled);
+  }
+
+  function enter() { loadCwd(); }
+  function leave() {}
+
+  function handleEvent(data) {
+    // Cloisonnement par conversation : un event tagué d'une AUTRE conversation
+    // (job parallèle qui tourne en fond) ne doit JAMAIS s'écrire dans la vue courante.
+    // On note seulement un "nouveau" sur les events terminaux (pas la réflexion).
+    if(data.session_id && data.type!=='session' && String(data.session_id)!==String(sessionId||'')){
+      // Event d'une AUTRE conversation (job en fond) — y compris quand l'active est neuve
+      // (sessionId null) : on ne rend RIEN dans la vue courante. Pastille sur terminal.
+      if(data.type==='done' || data.type==='error' || data.type==='approval_request'){
+        unreadSessions[data.session_id]=true;
+        if(data.type!=='approval_request') delete feedCache[data.session_id]; // terminée → /messages fera foi
+        loadSessions();
+      }
+      return;
+    }
+    switch(data.type) {
+      case 'session':
+        // La socket principale confirme la session de SON run. On ne change la vue que si
+        // aucune n'est ouverte (nouvelle conv) ; sinon on garde celle que l'utilisateur regarde.
+        if(!sessionId) sessionId = data.session_id;
+        runningSession = data.session_id;
+        loadSessions(); refreshSessionsPage(); break;
+      case 'token':
+        clearResponseTimeout();
+        if(!currentAssistantMsg) {
+          removeTypingIndicator();
+          var r = addMessage('assistant','');
+          currentAssistantRow = r.row; currentAssistantMsg = r.msgEl;
+          currentAssistantMsg._rawBuf = ''; currentAssistantMsg._inToolTag = false;
+        }
+        currentAssistantMsg._rawBuf += data.text;
+        streamToken(currentAssistantMsg, data.text);
+        break;
+      
+      case 'skill_applied':
+        addSkillChip(data.name);
+        break;
+      case 'skill_proposed':
+        LaRuche.Toast.show('✨ Skill né : ' + data.name, 'ok');
+        if (location.hash === '#capabilities' && LaRuche.Capabilities && LaRuche.Capabilities.refresh) {
+          LaRuche.Capabilities.refresh();
+        }
+        break;
+
+      case 'thinking':
+        setFeedLive('thinking');
+        addActivity('thinking','Réflexion en cours',data.text,false,{stepTitle:_feedTurnTitle});
+        break;
+      case 'steer_ack':
+        addActivity('status','Orientation reçue',data.message||'Appliquée à la prochaine étape.',false);
+        document.getElementById('iterationBadge').textContent='Orientation en attente';
+        var pendingSteers=document.querySelectorAll('.message-row.steer.pending');
+        if(pendingSteers.length){
+          var lastSteer=pendingSteers[pendingSteers.length-1];
+          lastSteer.classList.remove('pending');
+          lastSteer.classList.add('acknowledged');
+        }
+        if(data.text && data.text===lastSteerText) lastSteerText='';
+        break;
+      case 'steer_rejected':
+        var rejectedText=(data.text||lastSteerText||'').trim();
+        var canRecover=(data.reason==='no_active_run'||data.reason==='run_finished') && !!rejectedText;
+        if(canRecover){
+          var rejectedRows=document.querySelectorAll('.message-row.steer.pending');
+          if(rejectedRows.length){
+            var rejectedRow=rejectedRows[rejectedRows.length-1];
+            rejectedRow.classList.remove('pending','steer');
+            rejectedRow.classList.add('user','acknowledged');
+          }
+          // Deux messages peuvent croiser la fin d'un run. Le premier relance
+          // proprement la demande; les suivants deviennent des orientations du
+          // nouveau run au lieu d'etre perdus ou de bloquer l'interface.
+          if(staleRecoveryActive && isStreaming){
+            LaRuche.WS.send({type:'steer',text:rejectedText});
+            addActivity('status','Demande réinjectée', 'Le run vient de reprendre : orientation transmise.',false);
+            lastSteerText='';
+            break;
+          }
+          staleRecoveryActive=true;
+          clearResponseTimeout(); removeTypingIndicator();
+          isStreaming=false;
+          document.getElementById('sendBtn').disabled=false;
+          document.getElementById('userInput').disabled=false;
+          document.getElementById('userInput').placeholder='Envoyer un message...';
+          document.getElementById('iterationBadge').textContent='';
+          setFeedLive('idle');
+          var staleWelcome=document.getElementById('welcomeScreen'); if(staleWelcome) staleWelcome.remove();
+          _feedBody=null; _feedTurnTitle=titleForUserMessage(rejectedText);
+          var staleUsage=document.getElementById('feedUsage'); if(staleUsage) staleUsage.textContent='';
+          lastUserMessage=rejectedText; pendingMedia=[]; lastSteerText='';
+          var recoveredPayload={type:'message',text:rejectedText};
+          if(sessionId) recoveredPayload.session_id=sessionId;
+          var recoveredModel=LaRuche.Header.getModel(); if(recoveredModel) recoveredPayload.model=recoveredModel;
+          var recoveredProvider=LaRuche.Header.getProfileId?LaRuche.Header.getProfileId():''; if(recoveredProvider) recoveredPayload.provider=recoveredProvider;
+          if(noThinkEnabled) recoveredPayload.no_think=true;
+          LaRuche.WS.send(recoveredPayload);
+          isStreaming=true;
+          document.getElementById('userInput').placeholder="Interrompre ou orienter l'agent en cours...";
+          showTypingIndicator(); startResponseTimeout();
+          addActivity('status','Demande relancée', 'Le précédent run était déjà terminé : ta demande est repartie automatiquement.',false,{stepTitle:_feedTurnTitle});
+          break;
+        }
+        addActivity('tool-err','Orientation non appliquée',data.message||'Le run est terminé.',true);
+        if(data.reason==='queue_full') LaRuche.Toast.show(data.message||'Trop d’orientations en attente.','warn');
+        break;
+      case 'tools_selected':
+        if (window.localStorage.getItem('laruche_hide_transparency') === 'true') break;
+        var tChip = document.createElement('div');
+        tChip.className = 'transparency-chip tools-chip';
+        tChip.style.cssText = 'display:inline-block; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.2); color:var(--amber); padding:2px 8px; border-radius:12px; font-size:10px; margin-top:4px; margin-bottom:4px; margin-right:6px; cursor:pointer; font-family:var(--mono); transition:all 0.2s;';
+        tChip.innerHTML = '🛠️ ' + (data.tools ? data.tools.length : 0) + ' outils';
+        tChip.title = data.tools ? data.tools.join(', ') : '';
+        tChip.dataset.tools = data.tools ? data.tools.join(', ') : 'Aucun';
+        tChip.dataset.len = data.tools ? data.tools.length : 0;
+        tChip.onclick = function() {
+            if (this.textContent.indexOf('outils') !== -1) {
+                this.textContent = '🛠️ ' + this.dataset.tools;
+            } else {
+                this.textContent = '🛠️ ' + this.dataset.len + ' outils';
+            }
+        };
+        if (!currentAssistantMsg) {
+          var r = addMessage('assistant','');
+          currentAssistantRow = r.row; currentAssistantMsg = r.msgEl;
+          currentAssistantMsg._rawBuf = ''; currentAssistantMsg._inToolTag = false;
+        }
+        currentAssistantMsg.appendChild(tChip);
+        break;
+      case 'thought':
+        setFeedLive('thinking');
+        if(data.kind!=='next_action') addActivity('thinking',thoughtLabel(data.phase||'',data.kind||''),data.text,false);
+        break;
+      case 'tool_call':
+        closeAssistantSegmentForTool();
+        setFeedLive('tool');
+        var toolLabel=toolActivityLabel(data.name,data.args);
+        maybeRenderFileDiff(data.name,data.args); // carte diff inline pour les éditions de fichier
+        addActivity('tool-call',toolLabel+' · en cours',toolContext(data.args),true,{toolName:data.name,activityLabel:toolLabel,live:true,terminal:(data.name==='shell_exec'||data.name==='execute_code'||data.name==='run_script'),command:toolContext(data.args)});
+        break;
+      case 'tool_output':
+        appendToolOutput(data.name,data.text||data.chunk||'');
+        break;
+      case 'tool_result':
+        var toolResult=data.result||'';
+        if(data.success){
+          var declaredMedia=takeMediaDeclarations(toolResult);
+          if(declaredMedia.items.length){
+            pendingMedia=pendingMedia.concat(declaredMedia.items);
+            toolResult=declaredMedia.text || (declaredMedia.items.length+' media ajoute(s) a la reponse.');
+          }
+        }
+        finishToolActivity(data.name,toolResult,!!data.success,data.elapsed_ms);
+        addToolMessage(data.name,toolResult,!!data.success,data.elapsed_ms,false,null);
+        if(isStreaming)setFeedLive('thinking');
+        break;
+      case 'prompt_debug': onPromptDebug(data); break;
+      case 'plan': updatePlan(data.items); break;
+      case 'approval_request': showApprovalDialog(data.tool_call_id,data.name,data.args); break;
+      case 'status':
+        var statusMessage=data.message||'';
+        var memMatch = statusMessage.match(/Mémoire\s*:\s*(\d+)\s*souvenir/i);
+        if (memMatch && window.localStorage.getItem('laruche_hide_transparency') !== 'true') {
+           var mChip = document.createElement('div');
+           mChip.className = 'transparency-chip mem-chip';
+           mChip.style.cssText = 'display:inline-block; background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.2); color:var(--purple); padding:2px 8px; border-radius:12px; font-size:10px; margin-top:4px; margin-bottom:4px; margin-right:6px; font-family:var(--mono);';
+           mChip.innerHTML = '🧠 ' + memMatch[1] + ' souvenirs';
+           if (!currentAssistantMsg) {
+             var r = addMessage('assistant','');
+             currentAssistantRow = r.row; currentAssistantMsg = r.msgEl;
+             currentAssistantMsg._rawBuf = ''; currentAssistantMsg._inToolTag = false;
+           }
+           currentAssistantMsg.appendChild(mChip);
+        }
+        if(statusMessage.indexOf('__tool_output__|')===0){
+          var markerFirst=statusMessage.indexOf('|');
+          var markerSecond=statusMessage.indexOf('|',markerFirst+1);
+          var markerThird=statusMessage.indexOf('|',markerSecond+1);
+          if(markerThird>=0)appendToolOutput(
+            statusMessage.slice(markerFirst+1,markerSecond),
+            statusMessage.slice(markerThird+1)
+          );
+          break;
+        }
+        var executing=/^executing:/i.test(statusMessage);
+        if(executing)setFeedLive('tool');
+        addActivity('status',executing?'Préparation de l’exécution':'Mise à jour de l’agent',statusMessage,false);
+        if(isStreaming) document.getElementById('iterationBadge').textContent=statusMessage;
+        if(statusMessage.indexOf('🔄')===0){
+          var lm=document.getElementById('loopMonitor');
+          if(lm){lm.style.borderColor='var(--amber)';lm.title=statusMessage;}
+        }
+        break;
+      case 'usage':
+        var usageBar=document.getElementById('feedUsage');
+        if(usageBar)usageBar.textContent='CTX '+data.input_tokens+' · SORTIE '+data.output_tokens+(data.cost_usd > 0 ? ' · $'+data.cost_usd.toFixed(4) : '');
+        // Enrich the most recent assistant message timestamp with cost info
+        if(currentAssistantRow) {
+          var tsEl = currentAssistantRow.querySelector('.msg-timestamp');
+          if(tsEl) {
+            var costStr = data.cost_usd > 0 ? '  ·  $' + data.cost_usd.toFixed(4) : '';
+            tsEl.textContent = (tsEl.dataset.time||tsEl.textContent) + '  ·  in:' + data.input_tokens + ' out:' + data.output_tokens + costStr;
+          }
+        }
+        break;
+      case 'stopped':
+        clearResponseTimeout(); removeTypingIndicator();
+        if(currentAssistantMsg) finalizeMessage(currentAssistantMsg, '');
+        currentAssistantMsg=null; currentAssistantRow=null;
+        isStreaming=false; staleRecoveryActive=false;
+        setRunning(false);
+        document.getElementById('sendBtn').disabled=false;
+        document.getElementById('userInput').placeholder = "Envoyer un message...";
+        document.getElementById('userInput').disabled=false;
+        document.getElementById('iterationBadge').textContent='';
+        setFeedLive('idle');
+        LaRuche.Toast.show('⏹ Génération interrompue','warn');
+        loadSessions(); refreshSessionsPage();
+        break;
+      case 'done':
+        clearResponseTimeout(); removeTypingIndicator();
+        if(sessionId) delete feedCache[sessionId]; // run fini : /messages fait foi, plus besoin du cache feed
+        if(!currentAssistantMsg && (data.full_response||pendingMedia.length)){
+          var finalRow=addMessage('assistant','');
+          currentAssistantRow=finalRow.row; currentAssistantMsg=finalRow.msgEl; currentAssistantMsg._rawBuf='';
+        }
+        if(currentAssistantMsg) finalizeMessage(currentAssistantMsg, data.full_response);
+        currentAssistantMsg=null; currentAssistantRow=null;
+        isStreaming=false;
+        staleRecoveryActive=false;
+        setRunning(false);
+        document.getElementById('sendBtn').disabled=false;
+        document.getElementById('userInput').placeholder = "Envoyer un message...";
+        document.getElementById('userInput').disabled=false;
+        document.getElementById('userInput').focus();
+        document.getElementById('iterationBadge').textContent='';
+        setFeedLive('idle');
+        if(_feedPrevCard){_feedPrevCard.classList.remove('running');var doneState=_feedPrevCard.querySelector('.feed-step-state');if(doneState)doneState.textContent='TERMINÉ';}
+        var detailsAtEnd=document.getElementById('feedDetailsToggle');
+        if(detailsAtEnd&&detailsAtEnd.checked){detailsAtEnd.checked=false;window.lrToggleFeedDetails(false);}
+        loadSessions(); refreshSessionsPage();
+        break;
+      case 'error':
+        clearResponseTimeout(); removeTypingIndicator();
+        addErrorMessage(data.message);
+        currentAssistantMsg=null; currentAssistantRow=null;
+        isStreaming=false;
+        staleRecoveryActive=false;
+        setRunning(false);
+        document.getElementById('sendBtn').disabled=false;
+        document.getElementById('userInput').placeholder = "Envoyer un message...";
+        document.getElementById('userInput').disabled=false;
+        document.getElementById('iterationBadge').textContent='';
+        setFeedLive('idle');
+        if(_feedPrevCard){_feedPrevCard.classList.remove('running');var errorState=_feedPrevCard.querySelector('.feed-step-state');if(errorState)errorState.textContent='À VÉRIFIER';}
+        break;
+    }
+  }
+
+  function startResponseTimeout() {
+    clearResponseTimeout();
+    responseTimeout = setTimeout(function(){
+      if(isStreaming && !currentAssistantMsg) {
+        var w = document.createElement('div');
+        w.className='timeout-warning';
+        w.innerHTML='&#x26A0; La reponse prend plus de temps que prevu...';
+        document.getElementById('chatContainer').appendChild(w);
+        scrollToBottom();
+      }
+    },30000);
+  }
+  function clearResponseTimeout() {
+    if(responseTimeout){clearTimeout(responseTimeout);responseTimeout=null;}
+    document.getElementById('chatContainer').querySelectorAll('.timeout-warning').forEach(function(el){el.remove();});
+  }
+
+  async function sendMessage(text) {
+    var msg = (text !== undefined && text !== null) ? text : document.getElementById('userInput').value.trim();
+    if((!msg && pendingFiles.length === 0) || !LaRuche.WS.isOpen()) return;
+
+    if (isStreaming) {
+      if (!msg) return;
+      LaRuche.WS.send({ type: 'steer', text: msg });
+      lastSteerText=msg;
+      document.getElementById('userInput').value = '';
+      document.getElementById('userInput').style.height = 'auto';
+      var steerMessage=addMessage('steer', msg);
+      steerMessage.row.classList.add('pending');
+      return;
+    }
+    // P8 — si on etait re-attache en lecture seule a une session en cours, on coupe
+    // la socket secondaire : le nouveau tour passe par la socket principale du chat.
+    if(LaRuche.WS && LaRuche.WS.detach) LaRuche.WS.detach();
+    var welcome = document.getElementById('welcomeScreen');
+    if(welcome) welcome.remove();
+    var fileData = await getFileContentsForPrompt();
+    var fullMsg = msg + fileData.text;
+    startPlanMission(msg);
+    addMessage('user', msg, fileData.attachments);
+    // nouveau tour → vide la section Skills du volet gauche
+    var spChips0=document.getElementById('skillsPanelChips'); if(spChips0) spChips0.innerHTML='';
+    var sp0=document.getElementById('skillsPanel'); if(sp0) sp0.style.display='none';
+    _feedBody = null; // nouveau tour → nouvelle étape (les cartes précédentes restent, repliées)
+    var usageOnNewTurn=document.getElementById('feedUsage');
+    if(usageOnNewTurn)usageOnNewTurn.textContent='';
+    setFeedLive('thinking');
+    lastUserMessage = msg;
+    pendingMedia=[];
+    staleRecoveryActive=false;
+    lastSteerText='';
+    // La socket principale va streamer CE run : on ferme tout réabonnement attachWs résiduel
+    // (sinon double rendu des tokens : « VoiciVoici les les »).
+    if(LaRuche.WS && LaRuche.WS.detach) LaRuche.WS.detach();
+    var payload = {type:'message', text:fullMsg};
+    if(sessionId) payload.session_id = sessionId;
+    var model = LaRuche.Header.getModel();
+    if(model) payload.model = model;
+    var pid = LaRuche.Header.getProfileId ? LaRuche.Header.getProfileId() : '';
+    if(pid) payload.provider = pid;
+    if(noThinkEnabled) payload.no_think = true;
+    var codingTog = document.getElementById('codingModeToggle');
+    if(codingTog && codingTog.checked) payload.capability = 'code';
+    if(fileData.attachments && fileData.attachments.length>0) payload.attachments = fileData.attachments;
+    LaRuche.WS.send(payload);
+    document.getElementById('userInput').value='';
+    document.getElementById('userInput').style.height='auto';
+    isStreaming=true;
+    setRunning(true);
+    document.getElementById('userInput').placeholder = "Interrompre ou orienter l'agent en cours...";
+    showTypingIndicator();
+    startResponseTimeout();
+  }
+
+  function useSuggestion(el) { var text=el.textContent; document.getElementById('userInput').value=text; sendMessage(text); }
+
+  function toggleNoThink(enabled) {
+    noThinkEnabled = !!enabled;
+    localStorage.setItem('laruche_no_think', noThinkEnabled ? '1' : '0');
+    var wrap = document.getElementById('noThinkWrap');
+    if(wrap) wrap.classList.toggle('active', noThinkEnabled);
+    LaRuche.Toast.show(noThinkEnabled ? 'No-think actif' : 'Thinking actif', 'ok');
+  }
+  // Artifact viewer : popup dédiée pour lire/rendre le code (HTML/SVG rendus
+  // dans une iframe sandboxée, façon LLM modernes ; tout langage en vue Code).
+  if(!window.lrShowArtifact){
+    window.lrShowArtifact = function(code, lang, preferPreview){
+      if(!document.getElementById('lr-artifact-style')){
+        var st=document.createElement('style'); st.id='lr-artifact-style';
+        st.textContent=
+          '.code-toolbar{position:absolute;top:6px;right:6px;display:flex;gap:4px;z-index:3}'+
+          '.code-tool-btn{background:rgba(0,0,0,.55);border:1px solid var(--border,#333);color:#cfcfcf;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer}'+
+          '.code-tool-btn:hover{background:var(--amber,#f5a623);color:#000;border-color:transparent}'+
+          '.lr-art-ov{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center;animation:lrfade .12s ease}'+
+          '@keyframes lrfade{from{opacity:0}to{opacity:1}}'+
+          '.lr-art-win{width:92vw;height:90vh;background:#0d0d10;border:1px solid var(--amber,#f5a623);border-radius:10px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6)}'+
+          '.lr-art-head{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #2a2a2e}'+
+          '.lr-art-title{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-right:6px}'+
+          '.lr-art-tab{background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:4px 14px;cursor:pointer;font-size:12px}'+
+          '.lr-art-tab.on{background:var(--amber,#f5a623);color:#000;border-color:transparent}'+
+          '.lr-art-act{margin-left:auto;display:flex;gap:6px}'+
+          '.lr-art-x{background:none;border:none;color:#aaa;font-size:20px;cursor:pointer;line-height:1}'+
+          '.lr-art-body{flex:1;overflow:auto;background:#101014}'+
+          '.lr-art-body iframe{width:100%;height:100%;border:0;background:#fff}'+
+          '.lr-art-body pre{margin:0;padding:16px;white-space:pre-wrap;word-break:break-word;color:#e0e0e0;font:12.5px/1.6 ui-monospace,Consolas,monospace}';
+        document.head.appendChild(st);
+      }
+      var renderable=/^(html|xml|svg|markup)$/i.test(lang||'');
+      var ov=document.createElement('div'); ov.className='lr-art-ov';
+      var win=document.createElement('div'); win.className='lr-art-win';
+      var head=document.createElement('div'); head.className='lr-art-head';
+      var title=document.createElement('span'); title.className='lr-art-title'; title.textContent=(lang||'code');
+      var tabP=document.createElement('button'); tabP.className='lr-art-tab'; tabP.textContent='Aperçu';
+      var tabC=document.createElement('button'); tabC.className='lr-art-tab'; tabC.textContent='Code';
+      var act=document.createElement('div'); act.className='lr-art-act';
+      var cp=document.createElement('button'); cp.className='code-tool-btn'; cp.textContent='Copier';
+      cp.onclick=function(){navigator.clipboard.writeText(code).then(function(){cp.textContent='Copié!';setTimeout(function(){cp.textContent='Copier';},1500);});};
+      var x=document.createElement('button'); x.className='lr-art-x'; x.innerHTML='&times;';
+      var body=document.createElement('div'); body.className='lr-art-body';
+      function close(){ if(ov.parentNode) document.body.removeChild(ov); document.removeEventListener('keydown',onKey); }
+      function onKey(e){ if(e.key==='Escape') close(); }
+      function showPreview(){ tabP.classList.add('on'); tabC.classList.remove('on'); body.innerHTML='';
+        var f=document.createElement('iframe'); f.setAttribute('sandbox','allow-scripts allow-popups allow-forms'); f.srcdoc=code; body.appendChild(f); }
+      function showCode(){ tabC.classList.add('on'); tabP.classList.remove('on'); body.innerHTML='';
+        var p=document.createElement('pre'); p.textContent=code; body.appendChild(p); }
+      tabP.onclick=showPreview; tabC.onclick=showCode; x.onclick=close;
+      ov.onclick=function(e){ if(e.target===ov) close(); };
+      document.addEventListener('keydown',onKey);
+      head.appendChild(title);
+      if(renderable){ head.appendChild(tabP); head.appendChild(tabC); }
+      act.appendChild(cp); act.appendChild(x); head.appendChild(act);
+      win.appendChild(head); win.appendChild(body); ov.appendChild(win); document.body.appendChild(ov);
+      if(renderable && preferPreview!==false){ showPreview(); } else { showCode(); }
+    };
+    // Ajoute la barre (Aperçu/Ouvrir/Copier) sous chaque bloc de code d'un message.
+    window.lrEnhanceCode = function(el){
+      el.querySelectorAll('pre code').forEach(function(block){
+        var pre=block.parentElement; if(!pre || pre.querySelector('.code-toolbar')) return;
+        if(!(block.textContent||'').trim()) return; // skip empty/vides
+        pre.style.position='relative';
+        var lang=''; (block.className||'').split(/\s+/).forEach(function(c){if(c.indexOf('language-')===0)lang=c.slice(9);});
+        var code=block.textContent||'';
+        var renderable=/^(html|xml|svg|markup)$/i.test(lang) || (!lang && /<(\!doctype|html|svg|body|div|section)\b/i.test(code));
+        var bar=document.createElement('div'); bar.className='code-toolbar';
+        if(renderable){
+          var prev=document.createElement('button'); prev.className='code-tool-btn'; prev.innerHTML='&#x25B6; Aperçu';
+          prev.onclick=function(){window.lrShowArtifact(code, lang||'html', true);};
+          bar.appendChild(prev);
+        }
+        var open=document.createElement('button'); open.className='code-tool-btn'; open.innerHTML='&#x26F6; Ouvrir';
+        open.onclick=function(){window.lrShowArtifact(code, lang||'text', false);};
+        bar.appendChild(open);
+        var copyBtn=document.createElement('button'); copyBtn.className='code-tool-btn'; copyBtn.textContent='Copier';
+        copyBtn.onclick=function(){navigator.clipboard.writeText(code).then(function(){copyBtn.textContent='Copié!';setTimeout(function(){copyBtn.textContent='Copier';},1500);});};
+        bar.appendChild(copyBtn);
+        pre.appendChild(bar);
+      });
+    };
+  }
+
+  // 👁 Aperçu du prompt réel envoyé au LLM (event prompt_debug).
+  function onPromptDebug(data){
+    var rows=document.querySelectorAll('.message-row.user');
+    var row=rows[rows.length-1]; if(!row) return;
+    row._promptDebug=data;
+    var bubble=row.querySelector('.message')||row;
+    if(bubble.querySelector('.prompt-eye')) return;
+    var btn=document.createElement('button'); btn.className='prompt-eye';
+    btn.title='Voir ce qui a été réellement envoyé au LLM';
+    btn.innerHTML='&#128065;';
+    btn.style.cssText='background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;opacity:.5;margin-top:4px;float:right';
+    btn.onmouseenter=function(){btn.style.opacity='1';}; btn.onmouseleave=function(){btn.style.opacity='.5';};
+    btn.onclick=function(){ showPromptPreview(row._promptDebug); };
+    bubble.appendChild(btn);
+  }
+  function showPromptPreview(data){
+    if(!data) return; var msgs=data.payload||[];
+    var ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center';
+    ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
+    var roleColor={system:'#f5a623',user:'#4aa3ff',assistant:'#46c46a',tool:'#bbb'};
+    var body='';
+    msgs.forEach(function(m){
+      var role=(m.role||'?'); var c=roleColor[role]||'#bbb';
+      var content=(typeof m.content==='string')?m.content:JSON.stringify(m.content,null,2);
+      body+='<div style="margin-bottom:10px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:'+c+';font-weight:600;margin-bottom:3px">'+LaRuche.Utils.esc(role)+'</div>'+
+        '<pre style="margin:0;white-space:pre-wrap;word-break:break-word;font:11px/1.5 ui-monospace,monospace;color:#ddd;background:rgba(255,255,255,.03);border-left:2px solid '+c+';padding:6px 8px;border-radius:3px">'+LaRuche.Utils.esc(content)+'</pre></div>';
+    });
+    var tokens=Math.round(JSON.stringify(msgs).length/4);
+    ov.innerHTML='<div style="width:760px;max-width:94vw;height:84vh;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
+      '<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">'+
+      '<span style="font-weight:600;color:var(--amber)">Prompt réel envoyé au LLM</span>'+
+      '<span style="font-size:10px;color:var(--text-dim)">'+msgs.length+' messages · ~'+tokens+' tokens · '+LaRuche.Utils.esc((data.provider||'')+'/'+(data.model||''))+'</span>'+
+      '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="margin-left:auto;background:none;border:none;color:#aaa;font-size:20px;cursor:pointer">&times;</button></div>'+
+      '<div style="flex:1;overflow:auto;padding:14px">'+(body||'<div style="color:var(--text-dim)">(vide)</div>')+'</div></div>';
+    document.body.appendChild(ov);
+  }
+
+  // Skills appliqués → volet gauche (compact, sous le label « Skills »), PAS dans le fil de chat
+  // (gain de place). Chips dédupliqués, remis à zéro à chaque tour.
+  // Skills activés → ligne de puces INLINE dans la conversation (une par tour).
+  function addSkillChip(name) {
+    var cc = document.getElementById('chatContainer'); if(!cc) return;
+    if(!_skillsInlineEl || !_skillsInlineEl.isConnected){
+      var welcome=document.getElementById('welcomeScreen'); if(welcome) welcome.remove();
+      _skillsInlineEl=document.createElement('div'); _skillsInlineEl.className='cc-skills cc-block';
+      _skillsInlineEl.innerHTML='<span class="cc-skills-label">🧩 Skills</span>';
+      cc.appendChild(_skillsInlineEl);
+      if(typeof scrollToBottom==='function') scrollToBottom();
+    }
+    if (_skillsInlineEl.querySelector('[data-skill="' + CSS.escape(name) + '"]')) return; // déjà là
+    var chip = document.createElement('span');
+    chip.className = 'skill-chip';
+    chip.dataset.skill = name;
+    chip.textContent = name;
+    _skillsInlineEl.appendChild(chip);
+  }
+
+  // Avatar abeille affiché uniquement sur le DERNIER message assistant (visibility → garde
+  // l'alignement, pas de saut de mise en page). Recalculé à chaque ajout de message.
+  function updateAssistantAvatars() {
+    // Pendant l'animation des abeilles volantes (typingIndicator), on n'affiche AUCUNE abeille
+    // statique : elle réapparaît sur le nouveau message quand l'animation disparaît.
+    if (document.getElementById('typingIndicator')) {
+      document.querySelectorAll('#chatContainer .avatar.assistant-avatar')
+        .forEach(function(a){ a.style.visibility = 'hidden'; });
+      return;
+    }
+    var rows = document.querySelectorAll('#chatContainer .message-row.assistant:not(#typingIndicator)');
+    for (var i = 0; i < rows.length; i++) {
+      var av = rows[i].querySelector('.avatar.assistant-avatar');
+      if (av) av.style.visibility = (i === rows.length - 1) ? 'visible' : 'hidden';
+    }
+  }
+
+  // Bascule Envoyer ↔ Stop selon l'état du run (UX type assistant : pendant la génération,
+  // le bouton d'envoi devient un bouton d'arrêt).
+  function setRunning(running) {
+    var snd = document.getElementById('sendBtn');
+    var stp = document.getElementById('stopBtn');
+    if (snd) snd.style.display = running ? 'none' : '';
+    if (stp) stp.style.display = running ? '' : 'none';
+  }
+
+  // Demande l'arrêt de la génération en cours au backend (abort de la tâche agent côté serveur).
+  function stopRun() {
+    if (!isStreaming) return;
+    LaRuche.WS.send({ type: 'stop' });
+    setRunning(false);
+  }
+
+  // ── Profil : fiche utilisateur verrouillée, injectée au contexte de LaRuche ──
+  async function openProfile() {
+    var ov = document.getElementById('profileModal'); if(!ov) return;
+    var u = (window.LaRuche && LaRuche.Auth && LaRuche.Auth.getUser && LaRuche.Auth.getUser()) || {};
+    var nm = document.getElementById('profileModalName'); if(nm) nm.textContent = u.display_name || 'Mon profil';
+    var av = document.getElementById('profileModalAvatar'); if(av) av.textContent = (u.display_name||'?').charAt(0).toUpperCase();
+    var ta = document.getElementById('profileFiche');
+    if(ta){ ta.value = 'Chargement…'; ta.disabled = true; }
+    ov.classList.add('open');
+    try {
+      var d = await fetch('/api/profile').then(function(r){return r.json();});
+      if(ta){ ta.value = (d && d.fiche) ? d.fiche : ''; ta.disabled = false; ta.focus(); }
+    } catch(e){ if(ta){ ta.value=''; ta.disabled=false; } }
+  }
+  function closeProfile(){ var ov=document.getElementById('profileModal'); if(ov) ov.classList.remove('open'); }
+  async function saveProfile(){
+    var ta = document.getElementById('profileFiche'); if(!ta) return;
+    try {
+      await fetch('/api/profile', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({fiche:ta.value}) });
+      LaRuche.Toast.show('Profil enregistré — LaRuche en tiendra compte.', 'ok');
+      closeProfile();
+    } catch(e){ LaRuche.Toast.show('Échec de l\'enregistrement du profil.', 'err'); }
+  }
+
+  function addMessage(role, text, attachments) {
+    closeStatusAccumulator(); // un message (raisonnement / réponse / user) casse l'accumulation
+    var container = document.getElementById('chatContainer');
+    var row = document.createElement('div');
+    row.className = 'message-row '+(role==='error'?'error-row':role);
+    if(role!=='error') {
+      var avatar = document.createElement('div');
+      if(role==='user' || role==='steer'){ avatar.className='avatar user-avatar'; avatar.textContent='U'; }
+      else { avatar.className='avatar assistant-avatar'; avatar.innerHTML='<div class="bee"><div class="bee--wings"></div><div class="bee--body"><span></span><span></span></div><div class="bee--head"><div class="bee--head-eyes"></div><div class="bee--head-antennas"></div></div></div>'; }
+      row.appendChild(avatar);
+    }
+    var wrapper = document.createElement('div'); wrapper.className='message-wrapper';
+    var msg = document.createElement('div'); msg.className='message '+role; msg.textContent=text;
+    
+    if (attachments && attachments.length > 0) {
+      var attContainer = document.createElement('div');
+      attContainer.className = 'chat-attachments';
+      attContainer.style.cssText = 'display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;';
+      attachments.forEach(function(att) {
+         attContainer.appendChild(LaRuche.Utils.createAttachmentBox(att, false, 0));
+      });
+      msg.appendChild(attContainer);
+    }
+    if(role==='user' || role==='steer') {
+      linkifyUrls(msg);
+      appendUserLinkPreviews(msg, text);
+    }
+    
+    if(role==='assistant') { var cursor=document.createElement('span'); cursor.className='cursor'; msg.appendChild(cursor); }
+    wrapper.appendChild(msg);
+    var ts = document.createElement('div'); ts.className='msg-timestamp';
+    var timeStr = new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+    ts.textContent = timeStr;
+    // Store metadata for hover enrichment
+    ts.dataset.time = timeStr;
+    wrapper.appendChild(ts);
+    row.appendChild(wrapper);
+    container.appendChild(row);
+    if(role==='assistant') updateAssistantAvatars();
+    scrollToBottom(role==='user'); // l'utilisateur qui envoie force le retour en bas ; sinon on respecte sa position
+    return {row:row, msgEl:msg, tsEl:ts};
+  }
+
+  function closeAssistantSegmentForTool() {
+    if(!currentAssistantMsg || !currentAssistantRow) return;
+    var hasVisibleText=currentAssistantMsg.textContent.trim().length>0;
+    if(hasVisibleText) {
+      // Raisonnement du LLM en TEXTE CLAIR. Mémorise le texte
+      // pour dédupliquer le « thought » jumeau que le backend renvoie aussi.
+      var raison = currentAssistantMsg.textContent.trim();
+      _lastReasoningText = raison;
+      finalizeMessage(currentAssistantMsg,'');
+      currentAssistantRow.classList.add('assistant-intermediate');
+      // Supprimer les activities thinking du status accumulator (éviter le doublon)
+      if(_statusAcc && _statusAcc.isConnected){
+        var steps=_statusAcc.querySelector('.cc-status-steps');
+        if(steps){
+          var thinks=steps.querySelectorAll('.cc-act.thinking');
+          thinks.forEach(function(t){ t.remove(); });
+          if(!steps.children.length){
+            steps.innerHTML='<div class="cc-act-empty" style="display:none"></div>';
+            _statusAcc.querySelector('.cc-status-count').textContent='';
+          }
+        }
+      }
+      var label=document.createElement('div'); label.className='assistant-segment-label';
+      label.textContent='💭 raisonnement';
+      var wrapper=currentAssistantRow.querySelector('.message-wrapper');
+      if(wrapper) wrapper.appendChild(label);
+    } else {
+      currentAssistantRow.remove();
+    }
+    currentAssistantMsg=null; currentAssistantRow=null;
+    updateAssistantAvatars();
+  }
+
+  function addErrorMessage(text) {
+    var container = document.getElementById('chatContainer');
+    var row = document.createElement('div'); row.className='message-row error-row'; row.style.maxWidth='90%';
+    var wrapper = document.createElement('div'); wrapper.className='message-wrapper';
+    var msg = document.createElement('div'); msg.className='message error';
+    var errorText = document.createElement('div'); errorText.textContent=text; msg.appendChild(errorText);
+    var actions = document.createElement('div'); actions.className='error-actions';
+    var retryBtn = document.createElement('button'); retryBtn.className='retry-btn'; retryBtn.textContent='\u21BB Reessayer';
+    retryBtn.onclick=function(){ row.remove(); if(lastUserMessage) sendMessage(lastUserMessage); };
+    actions.appendChild(retryBtn); msg.appendChild(actions);
+    wrapper.appendChild(msg); row.appendChild(wrapper);
+    container.appendChild(row); scrollToBottom();
+  }
+
+  function showTypingIndicator() {
+    removeTypingIndicator();
+    var container = document.getElementById('chatContainer');
+    var row = document.createElement('div'); row.className='message-row assistant'; row.id='typingIndicator';
+    var wrapper = document.createElement('div'); wrapper.className='message-wrapper';
+    var msg = document.createElement('div'); msg.className='message assistant';
+    var beeHtml = '<div class="tb-bee"><div class="tb-body"></div><div class="tb-wing1"></div><div class="tb-wing2"></div><div class="tb-stinger"></div><div class="tb9-cute-eyes"></div><div class="tb9-antenna-l"></div><div class="tb9-antenna-r"></div></div>';
+    msg.innerHTML='<div class="typing-bees"><div class="tb-bounce">'+beeHtml+'</div><div class="tb-bounce">'+beeHtml+'</div><div class="tb-bounce">'+beeHtml+'</div></div>';
+    wrapper.appendChild(msg); row.appendChild(wrapper);
+    container.appendChild(row); typingIndicatorEl=row; scrollToBottom();
+    updateAssistantAvatars(); // masque les abeilles statiques tant que l'animation tourne
+  }
+  function removeTypingIndicator() {
+    if(typingIndicatorEl){typingIndicatorEl.remove();typingIndicatorEl=null;}
+    var e=document.getElementById('typingIndicator'); if(e)e.remove();
+    updateAssistantAvatars(); // l'animation est partie → réaffiche l'abeille sur le dernier message
+  }
+
+  function streamToken(el, _text) {
+    // Rebuild visible text from the full buffer every time.
+    // This ensures protocol/reasoning tags are NEVER shown, even partially.
+    var buf = el._rawBuf;
+
+    // Capture du RAISONNEMENT du LLM : chaque bloc <think>…</think> COMPLET est routé une seule
+    // fois vers le feed du volet gauche (visible en mode détaillé, classe act-noise). Le chat,
+    // lui, continue de masquer le raisonnement.
+    var thinkRe = /<think>([\s\S]*?)<\/think>/g, tm, ti = 0, sent = el._thinkEmitted || 0;
+    while ((tm = thinkRe.exec(buf)) !== null) {
+      if (ti >= sent) {
+        var tt = tm[1].trim();
+        if (tt) addActivity('thinking', 'Raisonnement', tt, true);
+      }
+      ti++;
+    }
+    el._thinkEmitted = ti;
+
+    // Strip all complete hidden blocks.
+    var clean = buf.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '');
+    clean = clean.replace(/<plan>[\s\S]*?<\/plan>/g, '');
+    clean = clean.replace(/<think>[\s\S]*?<\/think>/g, '');
+
+    // Strip incomplete opening tags at the end
+    var tcIdx = clean.indexOf('<tool_call>');
+    if(tcIdx !== -1) clean = clean.substring(0, tcIdx);
+    var plIdx = clean.indexOf('<plan>');
+    if(plIdx !== -1) clean = clean.substring(0, plIdx);
+    var thIdx = clean.indexOf('<think>');
+    if(thIdx !== -1) clean = clean.substring(0, thIdx);
+
+    // Strip partial tag building up at the very end (e.g., "<tool" or "<pla")
+    var lt = clean.lastIndexOf('<');
+    if(lt !== -1 && lt > clean.length - 13) {
+      var tail = clean.substring(lt);
+      if('<tool_call>'.startsWith(tail) || '<plan>'.startsWith(tail) || '<think>'.startsWith(tail) || '</tool_call>'.startsWith(tail) || '</plan>'.startsWith(tail) || '</think>'.startsWith(tail)) {
+        clean = clean.substring(0, lt);
+      }
+    }
+
+    // trim() (pas seulement trimEnd) : sinon les sauts de ligne EN TÊTE laissés par un bloc
+    // <think> retiré s'affichent en blanc au-dessus de la bulle pendant le streaming (pre-wrap).
+    clean = clean.trim();
+
+    // Update DOM: clear all text nodes and re-set content
+    var cursor = el.querySelector('.cursor');
+    while(el.firstChild && el.firstChild !== cursor) el.removeChild(el.firstChild);
+    if(clean) el.insertBefore(document.createTextNode(clean), cursor);
+    scrollToBottom();
+  }
+
+  function takeMediaDeclarations(text) {
+    var items=[];
+    var clean=String(text||'').replace(/<laruche-media>([\s\S]*?)<\/laruche-media>/g,function(_all,raw){
+      try {
+        var parsed=JSON.parse(raw);
+        if(Array.isArray(parsed)) items=items.concat(parsed.filter(isSafeMedia));
+      } catch(_e) {}
+      return '';
+    });
+    return {text:clean.trim(),items:items.slice(0,8)};
+  }
+  function isSafeMedia(item) {
+    if(!item || typeof item.url!=='string') return false;
+    var value=item.url.trim();
+    return !!value && (item.local===true || /^https?:\/\//i.test(value));
+  }
+  function videoPreviewFromUrl(raw) {
+    try {
+      var url=new URL(raw), host=url.hostname.toLowerCase().replace(/^www\./,'');
+      var id='';
+      if(host==='youtu.be') id=url.pathname.split('/').filter(Boolean)[0]||'';
+      else if(host==='youtube.com' || host==='m.youtube.com') id=url.searchParams.get('v') || (url.pathname.match(/^\/(?:shorts|embed)\/([^/?#]+)/)||[])[1] || '';
+      if(/^[A-Za-z0-9_-]{6,}$/.test(id)) return {kind:'YouTube',url:raw,thumbnail:'https://i.ytimg.com/vi/'+id+'/hqdefault.jpg'};
+      id='';
+      if(host==='dai.ly') id=url.pathname.split('/').filter(Boolean)[0]||'';
+      else if(host==='dailymotion.com' || host==='www.dailymotion.com') id=(url.pathname.match(/^\/video\/([^/?#]+)/)||[])[1]||'';
+      if(/^[A-Za-z0-9]+$/.test(id)) return {kind:'Dailymotion',url:raw,thumbnail:'https://www.dailymotion.com/thumbnail/video/'+id};
+    } catch(_e) {}
+    return null;
+  }
+  function appendUserLinkPreviews(el, text) {
+    var matches=String(text||'').match(/https?:\/\/[^\s<]+/gi)||[], seen={}, previews=[];
+    matches.forEach(function(raw){
+      var clean=raw.replace(/[.,;:!?)}\]]+$/,'');
+      var preview=videoPreviewFromUrl(clean);
+      if(preview && !seen[preview.url]) { seen[preview.url]=true; previews.push(preview); }
+    });
+    if(!previews.length) return;
+    ensureMediaStyle();
+    var gallery=document.createElement('div'); gallery.className='user-link-previews';
+    previews.slice(0,3).forEach(function(preview){
+      var link=document.createElement('a'); link.className='user-link-preview'; link.href=preview.url; link.target='_blank'; link.rel='noopener noreferrer';
+      var image=document.createElement('img'); image.src=preview.thumbnail; image.alt='Aperçu '+preview.kind; image.loading='lazy'; image.referrerPolicy='no-referrer';
+      image.onerror=function(){image.remove();link.classList.add('no-thumbnail');};
+      var caption=document.createElement('span'); caption.textContent='▶ '+preview.kind;
+      link.appendChild(image); link.appendChild(caption); gallery.appendChild(link);
+    });
+    if(gallery.children.length) el.appendChild(gallery);
+  }
+  function mediaSource(item) {
+    return item.local===true
+      ? LaRuche.API.base+'/api/media/local?path='+encodeURIComponent(item.url)
+      : item.url;
+  }
+  function ensureMediaStyle() {
+    if(document.getElementById('lr-media-style')) return;
+    var style=document.createElement('style'); style.id='lr-media-style';
+    style.textContent='.media-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:14px 0 4px}.media-card{min-width:0;overflow:hidden;border:1px solid rgba(245,166,35,.27);border-radius:11px;background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(0,0,0,.16));box-shadow:0 8px 20px rgba(0,0,0,.16)}.media-card-head{display:flex;align-items:center;gap:7px;padding:8px 10px;color:var(--text,#e8e8e8);font-size:11px;font-weight:650}.media-kind{color:var(--amber,#f5a623);font:9px var(--mono,monospace);letter-spacing:.5px;text-transform:uppercase}.media-open{margin-left:auto;color:var(--amber,#f5a623);text-decoration:none;font-size:10px;font-weight:500}.media-open:hover{text-decoration:underline}.media-visual{display:block;width:100%;max-height:340px;min-height:110px;border:0;background:#090a0c;object-fit:contain}.media-pdf{height:300px;object-fit:initial}.media-video{max-height:340px}.media-audio{min-height:48px;padding:8px;box-sizing:border-box}.media-caption{padding:7px 10px 9px;color:var(--text-muted,#9a9a9a);font-size:11px;line-height:1.45;border-top:1px solid rgba(255,255,255,.055)}.message.rendered a{color:#f7b733;text-decoration-color:rgba(247,183,51,.45);text-underline-offset:2px}.message.rendered a:hover{color:#ffd166;text-decoration-color:currentColor}.user-link-previews{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.user-link-preview{display:grid;grid-template-columns:88px minmax(0,1fr);align-items:center;gap:8px;min-width:210px;max-width:330px;overflow:hidden;border:1px solid rgba(22,18,10,.38);border-radius:8px;background:rgba(255,255,255,.2);color:#16120a!important;text-decoration:none!important;font-size:11px;font-weight:700}.user-link-preview:hover{background:rgba(255,255,255,.32)}.user-link-preview img{display:block;width:88px;height:50px;object-fit:cover;background:rgba(0,0,0,.2)}.user-link-preview.no-thumbnail{grid-template-columns:1fr;padding:9px}';
+    document.head.appendChild(style);
+  }
+  function appendMediaGallery(el, items) {
+    if(!items || !items.length) return;
+    ensureMediaStyle();
+    var gallery=document.createElement('div'); gallery.className='media-gallery';
+    items.slice(0,8).forEach(function(item){
+      if(!isSafeMedia(item)) return;
+      var src=mediaSource(item), kind=['image','pdf','video','audio'].indexOf(item.kind)>=0?item.kind:'image';
+      var card=document.createElement('figure'); card.className='media-card';
+      var head=document.createElement('figcaption'); head.className='media-card-head';
+      var badge=document.createElement('span'); badge.className='media-kind'; badge.textContent=kind;
+      var title=document.createElement('span'); title.textContent=item.title||'Media'; title.style.cssText='overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      var open=document.createElement('a'); open.className='media-open'; open.href=src; open.target='_blank'; open.rel='noopener noreferrer'; open.textContent='Ouvrir ↗';
+      head.appendChild(badge); head.appendChild(title); head.appendChild(open); card.appendChild(head);
+      var visual;
+      if(kind==='pdf') { visual=document.createElement('iframe'); visual.className='media-visual media-pdf'; visual.src=src+'#view=FitH'; visual.title=item.title||'PDF'; visual.loading='lazy'; }
+      else if(kind==='video') { visual=document.createElement('video'); visual.className='media-visual media-video'; visual.src=src; visual.controls=true; visual.preload='metadata'; }
+      else if(kind==='audio') { visual=document.createElement('audio'); visual.className='media-visual media-audio'; visual.src=src; visual.controls=true; visual.preload='metadata'; }
+      else { visual=document.createElement('img'); visual.className='media-visual'; visual.src=src; visual.alt=item.title||'Image'; visual.loading='lazy'; visual.onclick=function(){LaRuche.Utils.openMediaModal('image',src);}; visual.style.cursor='zoom-in'; }
+      card.appendChild(visual);
+      if(item.caption){var caption=document.createElement('div');caption.className='media-caption';caption.textContent=item.caption;card.appendChild(caption);}
+      gallery.appendChild(card);
+    });
+    if(gallery.children.length) el.appendChild(gallery);
+  }
+  function linkifyUrls(el) {
+    if(!el || !window.NodeFilter) return;
+    var walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,{acceptNode:function(node){
+      if(!node.nodeValue || !/https?:\/\//i.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
+      var parent=node.parentElement;
+      return parent && !parent.closest('a,pre,code,.media-gallery') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    }});
+    var nodes=[],node; while((node=walker.nextNode())) nodes.push(node);
+    nodes.forEach(function(textNode){
+      var text=textNode.nodeValue, re=/https?:\/\/[^\s<]+/gi, match, last=0, fragment=document.createDocumentFragment();
+      while((match=re.exec(text))){
+        var raw=match[0], trailing=(raw.match(/[.,;:!?)}\]]+$/)||[''])[0], url=raw.slice(0,raw.length-trailing.length);
+        fragment.appendChild(document.createTextNode(text.slice(last,match.index)));
+        var link=document.createElement('a');link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.textContent=url;fragment.appendChild(link);
+        if(trailing)fragment.appendChild(document.createTextNode(trailing)); last=match.index+raw.length;
+      }
+      fragment.appendChild(document.createTextNode(text.slice(last))); textNode.parentNode.replaceChild(fragment,textNode);
+    });
+  }
+
+  function finalizeMessage(el, fallbackText) {
+    var cursor=el.querySelector('.cursor'); if(cursor) cursor.remove();
+    var text = el._rawBuf||'';
+    text=text.replace(/<tool_call>[\s\S]*?<\/tool_call>/g,'');
+    text=text.replace(/<plan>[\s\S]*?<\/plan>/g,'');
+    text=text.replace(/<think>[\s\S]*?<\/think>/g,'');
+    var pi=text.indexOf('<tool_call>'); if(pi!==-1) text=text.substring(0,pi);
+    var pp=text.indexOf('<plan>'); if(pp!==-1) text=text.substring(0,pp);
+    var pt=text.indexOf('<think>'); if(pt!==-1) text=text.substring(0,pt);
+    var inlineMedia=takeMediaDeclarations(text);
+    text=inlineMedia.text.trim();
+    var medias=pendingMedia.concat(inlineMedia.items); pendingMedia=[];
+    if(!text && fallbackText) {
+      var fallbackMedia=takeMediaDeclarations(fallbackText);
+      text=fallbackMedia.text;
+      medias=medias.concat(fallbackMedia.items);
+    }
+    if(!text && !medias.length) return;
+    if(text && typeof marked!=='undefined') {
+      marked.setOptions({breaks:true,gfm:true,highlight:function(code,lang){
+        if(typeof hljs!=='undefined'&&lang&&hljs.getLanguage(lang)){try{return hljs.highlight(code,{language:lang}).value;}catch(e){}}
+        if(typeof hljs!=='undefined'){try{return hljs.highlightAuto(code).value;}catch(e){}}
+        return code;
+      }});
+      el.innerHTML = marked.parse(text);
+      el.classList.add('rendered');
+      if(window.lrEnhanceCode) window.lrEnhanceCode(el);
+    }
+    if(text) linkifyUrls(el);
+    appendMediaGallery(el,medias);
+    var actions = document.createElement('div'); actions.className='msg-actions';
+    var ttsBtn = document.createElement('button'); ttsBtn.className='msg-action-btn'; ttsBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';
+    ttsBtn.onclick=function(){LaRuche.Voice.speakText(text,ttsBtn);}; actions.appendChild(ttsBtn);
+    var copyBtn2 = document.createElement('button'); copyBtn2.className='msg-action-btn'; copyBtn2.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> Copier';
+    copyBtn2.onclick=function(){navigator.clipboard.writeText(text).then(function(){copyBtn2.classList.add('copied');copyBtn2.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="20 6 9 17 4 12"></polyline></svg> Copie';setTimeout(function(){copyBtn2.classList.remove('copied');copyBtn2.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> Copier';},2000);});}; actions.appendChild(copyBtn2);
+    el.appendChild(actions);
+    // Enrich timestamp with model + tokens on hover
+    var row = el.closest('.message-row');
+    if(row) {
+      var tsEl = row.querySelector('.msg-timestamp');
+      if(tsEl) {
+        var modelName = LaRuche.Header.getModel() || '?';
+        var tokens = Math.round(text.length / 4); // rough estimate
+        var baseTime = tsEl.dataset.time || tsEl.textContent;
+        tsEl.textContent = baseTime + '  ·  ' + modelName + '  ·  ~' + tokens + ' tokens';
+      }
+    }
+    scrollToBottom();
+    if(LaRuche.Voice.isAutoTts()) LaRuche.Voice.speakText(text,ttsBtn);
+  }
+
+  // Auto-scroll « collé en bas » : on ne re-scrolle QUE si l'utilisateur était déjà en bas.
+  // Dès qu'il remonte lire, on arrête de le ramener (jusqu'à ce qu'il redescende lui-même).
+  // `force=true` pour les actions explicites (l'utilisateur envoie un message).
+  var _chatStick = true, _chatScrollBound = false;
+  function _bindChatScroll(){
+    if(_chatScrollBound) return;
+    var c=document.getElementById('chatContainer'); if(!c) return;
+    c.addEventListener('scroll', function(){
+      _chatStick = (c.scrollHeight - c.scrollTop - c.clientHeight) < 120;
+    });
+    _chatScrollBound = true;
+  }
+  function scrollToBottom(force) {
+    _bindChatScroll();
+    if(force) _chatStick = true;
+    if(!_chatStick) return;
+    requestAnimationFrame(function(){ var c=document.getElementById('chatContainer'); if(c) c.scrollTop=c.scrollHeight; });
+  }
+
+  // \u2500\u2500 Feed agentique : timeline en \u00e9tapes repliables \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  var _feedStepN=0, _feedBody=null, _feedPrevCard=null, _feedLiveStartedAt=0, _feedTurnTitle='';
+  var _feedTimer=null, _feedUnread=0, _feedPendingTools=[];
+  var _planMissions=[], _currentPlanMission=-1, _planInlineEl=null, _skillsInlineEl=null;
+  var _lastReasoningText=''; // dernier raisonnement affiché (bulle intermédiaire) → dédup du thought jumeau
+  var _statusAcc=null; // accumulateur de statut « bruit » : 1 ligne animée pour N phases (façon Claude Code)
+  // Crée/retourne la ligne d'accumulation de statut (en bas du fil). Les phases « bruit » s'y empilent.
+  function statusAccumulator(){
+    if(_statusAcc && _statusAcc.isConnected) return _statusAcc;
+    var cc=document.getElementById('chatContainer'); if(!cc) return null;
+    var w=document.getElementById('welcomeScreen'); if(w) w.remove();
+    var el=document.createElement('div'); el.className='cc-status cc-collapsed';
+    el.innerHTML='<div class="cc-status-head"><span class="act-ico thinking">◍</span><span class="cc-status-current"></span><span class="cc-status-count"></span><span class="act-time"></span></div><div class="cc-status-steps"></div>';
+    var head=el.querySelector('.cc-status-head');
+    head.onclick=function(){ el.classList.toggle('cc-collapsed'); };
+    cc.appendChild(el); _statusAcc=el; return el;
+  }
+  // Stoppe l'accumulation : la prochaine phase « bruit » repartira sur une nouvelle ligne.
+  function closeStatusAccumulator(){ _statusAcc=null; }
+
+  window.lrToggleFeedDetails=function(on){
+    var af=document.getElementById('activityFeed');
+    if(!af)return;
+    af.classList.toggle('compact',!on);
+    localStorage.setItem('laruche_feed_details',on?'1':'0');
+  };
+  window.lrFeedJump=function(){
+    var af=document.getElementById('activityFeed');
+    if(!af)return;
+    af.scrollTop=af.scrollHeight;
+    _feedUnread=0;
+    updateFeedJump();
+  };
+  function resetFeed(){
+    _feedStepN=0; _feedBody=null; _feedPrevCard=null; _feedPendingTools=[]; _feedUnread=0; _feedTurnTitle='';
+    _planMissions=[]; _currentPlanMission=-1; _planInlineEl=null; _skillsInlineEl=null;
+    _statusAcc=null; _lastReasoningText='';
+    updateFeedJump();
+  }
+  function feedAtBottom(af){ return af.scrollHeight-af.scrollTop-af.clientHeight<150; }
+  function updateFeedJump(){
+    var button=document.getElementById('feedJump');
+    if(!button)return;
+    button.classList.toggle('visible',_feedUnread>0);
+    var text=button.querySelector('span');
+    if(text)text.textContent=_feedUnread===1?'nouvelle activité':_feedUnread+' nouvelles activités';
+  }
+  function followFeed(af,follow){
+    if(follow){
+      af.scrollTop=af.scrollHeight;
+      setTimeout(function(){if(af.scrollHeight-af.scrollTop-af.clientHeight>10)af.scrollTop=af.scrollHeight;},30);
+      _feedUnread=0;
+    }else{_feedUnread++;}
+    updateFeedJump();
+  }
+  function setFeedLive(mode){
+    var status=document.getElementById('feedLiveStatus');
+    var text=document.getElementById('feedLiveText');
+    if(!status||!text)return;
+    if(mode==='idle'){
+      _feedLiveStartedAt=0; status.className='feed-live-status'; text.textContent='En attente'; return;
+    }
+    if(!_feedLiveStartedAt)_feedLiveStartedAt=Date.now();
+    status.className='feed-live-status active '+mode;
+    text.textContent=mode==='tool'?'Exécution en cours':'Réflexion en cours';
+    if(!_feedTimer)_feedTimer=setInterval(function(){
+      if(!_feedLiveStartedAt)return;
+      var seconds=Math.max(1,Math.floor((Date.now()-_feedLiveStartedAt)/1000));
+      text.innerHTML=(status.classList.contains('tool')?'Exécution en cours':'Réflexion en cours')+' <span style="color:var(--green)">· '+seconds+' s</span>';
+    },1000);
+  }
+  function ensureFeedStyle(){
+    if(document.getElementById('lr-feed-style'))return;
+    var s=document.createElement('style');s.id='lr-feed-style';
+    s.textContent=[
+      '.agent-header{min-height:37px}.agent-header-actions{margin-left:auto;display:flex;align-items:center;gap:8px;min-width:0}.feed-live-status{display:inline-flex;align-items:center;gap:5px;color:var(--text-muted,#888);font:10px var(--mono,monospace);white-space:nowrap}.feed-live-dot{width:6px;height:6px;border-radius:50%;background:#555}.feed-live-status.active{color:var(--amber,#f5a623)}.feed-live-status.active .feed-live-dot{background:currentColor;animation:feedPulse 1.5s infinite}.feed-live-status.tool{color:var(--blue,#60a5fa)}@keyframes feedPulse{50%{box-shadow:0 0 0 6px transparent}100%{box-shadow:0 0 0 0 transparent}}',
+      '.feed-details-toggle{display:inline-flex;gap:3px;align-items:center;cursor:pointer;color:var(--text-muted,#888);font-size:9px}.feed-details-toggle input{margin:0;accent-color:var(--amber,#f5a623)}.iteration-badge{font:10px var(--mono,monospace);color:var(--text-muted,#888);max-width:78px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.agent-feed-wrap{position:relative;display:flex;flex:1;min-height:0}.activity-feed{padding:8px 7px 12px;scroll-behavior:smooth}.feed-jump{display:none;position:absolute;right:12px;bottom:12px;z-index:4;border:1px solid rgba(245,166,35,.45);border-radius:999px;background:#1a1711;color:var(--amber,#f5a623);box-shadow:0 8px 22px rgba(0,0,0,.35);font-size:10px;padding:6px 9px;cursor:pointer;animation:feedIn .18s ease-out}.feed-jump.visible{display:block}.feed-jump:hover{background:var(--amber,#f5a623);color:#16120a}',
+      '.feed-step{position:relative;border:1px solid rgba(64,64,70,.75);border-radius:10px;margin:0 0 8px;overflow:hidden;background:linear-gradient(135deg,rgba(255,255,255,.035),rgba(255,255,255,.012));box-shadow:0 8px 20px rgba(0,0,0,.12);animation:feedIn .24s ease-out}.feed-step.running{border-color:rgba(245,166,35,.52);box-shadow:0 0 0 1px rgba(245,166,35,.08),0 10px 26px rgba(0,0,0,.2)}@keyframes feedIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}.feed-step-head{display:flex;align-items:center;gap:7px;padding:9px 10px;cursor:pointer;font-size:11px;color:var(--text,#e6e6e6);user-select:none}.feed-step-head:hover{background:rgba(255,255,255,.035)}.feed-step-caret{color:var(--text-muted,#888);font-size:10px;transition:transform .18s}.feed-step:not(.expanded) .feed-step-caret{transform:rotate(-90deg)}.feed-step-title{font-weight:650;letter-spacing:.1px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.feed-step-state{font:8px var(--mono,monospace);letter-spacing:.55px;color:var(--green,#46c46a);margin-left:auto}.feed-step.running .feed-step-state{color:var(--amber,#f5a623)}.feed-step-meta{font:9px var(--mono,monospace);color:var(--text-muted,#777);white-space:nowrap}.feed-step-body{display:none;padding:1px 9px 9px}.feed-step.expanded .feed-step-body{display:block}',
+       '.act{position:relative;padding:7px 6px;border-radius:7px;animation:feedIn .2s ease-out}.act:hover{background:rgba(255,255,255,.035)}.act-line{display:flex;gap:7px;align-items:flex-start;font-size:11px;line-height:1.45}.act-ico{display:grid;place-items:center;flex:0 0 18px;width:18px;height:18px;border-radius:6px;background:rgba(255,255,255,.055);font-size:10px}.act-ico.thinking{color:#c4a8ff;background:rgba(147,112,219,.16)}.act-ico.tool-call{color:var(--blue,#60a5fa);background:rgba(96,165,250,.13)}.act-ico.tool-ok{color:var(--green,#46c46a);background:rgba(70,196,106,.12)}.act-ico.tool-err{color:var(--red,#ef6a6a);background:rgba(239,106,106,.12)}.act-ico.status{color:var(--amber,#f5a623);background:rgba(245,166,35,.1)}.act-txt{flex:1;min-width:0;color:var(--text,#ddd);word-break:break-word}.act.tool-call .act-txt{font-weight:600}.act-noise .act-txt{color:var(--text-muted,#9a9a9a)}.act-time{flex:0 0 auto;font:9px var(--mono,monospace);color:var(--text-muted,#777);padding-top:2px}.act-body{margin:5px 0 0 25px;border-left:1px solid rgba(255,255,255,.1);padding:5px 7px;color:var(--text-muted,#aaa);font:10px/1.5 var(--mono,monospace);white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto;background:rgba(0,0,0,.16);border-radius:0 5px 5px 0}.act.terminal .act-body{background:#090b0d;border:1px solid rgba(96,165,250,.32);border-left:2px solid var(--blue,#60a5fa);box-shadow:inset 0 1px rgba(255,255,255,.03);color:#e6edf7}.terminal-command{display:block;color:#a7f3d0;font-weight:600;white-space:pre-wrap}.terminal-command::before{content:"PS> ";color:#60a5fa}.terminal-output{display:block;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.09);color:#d5dfef;white-space:pre-wrap}.act.collapsible .act-line{cursor:pointer}.act.collapsible .act-body{display:none}.act.open .act-body{display:block}.act.tool-call.live .act-ico{animation:feedPulse 1.45s infinite}.act.live{background:linear-gradient(135deg,rgba(255,255,255,.08),rgba(255,255,255,.01));box-shadow:inset 0 0 15px rgba(245,166,35,.05),0 0 12px rgba(245,166,35,.15);border:1px solid rgba(245,166,35,.2);animation:actHaloPulse 2s infinite alternate}@keyframes actHaloPulse{from{box-shadow:inset 0 0 15px rgba(245,166,35,.02),0 0 5px rgba(245,166,35,.05);border-color:rgba(245,166,35,.1)}to{box-shadow:inset 0 0 20px rgba(245,166,35,.12),0 0 18px rgba(245,166,35,.3);border-color:rgba(245,166,35,.35)}}.act.tool-err .act-body{border-left-color:rgba(239,106,106,.55)}.act.tool-ok .act-body{border-left-color:rgba(70,196,106,.35)}.activity-feed.compact .act-noise{display:none}.feed-usage-bar{min-height:0;color:var(--text-muted,#777);font:9px var(--mono,monospace);padding:0 12px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.feed-usage-bar:empty{display:none}.feed-history{margin:2px 1px 9px;color:var(--text-muted,#888);font-size:10px}.feed-history summary{cursor:pointer;list-style:none;display:flex;gap:5px;align-items:center;padding:5px 7px;border:1px dashed rgba(255,255,255,.12);border-radius:7px}.feed-history summary::-webkit-details-marker{display:none}.feed-history-count{color:var(--amber,#f5a623);font-family:var(--mono,monospace)}.feed-history-list{padding-top:7px;opacity:.72}.feed-history-list .feed-step{margin-bottom:6px}@media (prefers-reduced-motion:reduce){.feed-step,.act,.feed-live-status.active .feed-live-dot{animation:none!important}.activity-feed{scroll-behavior:auto}}'
+    ].join('');
+    document.head.appendChild(s);
+    var af=document.getElementById('activityFeed');
+    if(af)af.addEventListener('scroll',function(){if(feedAtBottom(af)){_feedUnread=0;updateFeedJump();}});
+    var details=document.getElementById('feedDetailsToggle');
+    if(details){details.checked=localStorage.getItem('laruche_feed_details')==='1';window.lrToggleFeedDetails(details.checked);}
+  }
+  function titleForUserMessage(message){
+    var text=(message||'').toLowerCase();
+    if(/supprim|effac/.test(text)&&/cron|tâche planifi/.test(text))return 'Suppression d’une tâche planifiée';
+    if(/cron|tâche planifi/.test(text))return 'Vérification des tâches planifiées';
+    if(/kanban|tableau/.test(text))return 'Lecture du Kanban';
+    if(/test|compil|build|erreur/.test(text))return 'Vérification du projet';
+    if(/fichier|code|dossier/.test(text))return 'Analyse des fichiers';
+    if(/recherch/.test(text))return 'Recherche et synthèse';
+    var compact=(message||'').replace(/\s+/g,' ').trim();
+    return compact ? (compact.length>58?compact.slice(0,58)+'…':compact) : 'Nouvelle mission';
+  }
+  function updateActiveFeedTitle(title){
+    if(!_feedPrevCard||!title)return;
+    var target=_feedPrevCard.querySelector('.feed-step-title');
+    if(target)target.textContent=title;
+  }
+  function toolActivityLabel(name,args){
+    var base=humanToolName(name);
+    var detail=(toolContext(args)||'').replace(/\s+/g,' ').trim();
+    if(!detail)return base;
+    return base+' · '+(detail.length>42?detail.slice(0,42)+'…':detail);
+  }
+  function pruneFeedHistory(af){
+    var cards=[];
+    for(var i=0;i<af.children.length;i++)if(af.children[i].classList.contains('feed-step'))cards.push(af.children[i]);
+    if(cards.length<=3)return;
+    var history=af.querySelector('.feed-history');
+    if(!history){
+      history=document.createElement('details');history.className='feed-history';
+      history.innerHTML='<summary><span class="feed-history-count"></span><span>cycles précédents</span></summary><div class="feed-history-list"></div>';
+      af.insertBefore(history,af.firstChild);
+    }
+    var list=history.querySelector('.feed-history-list');
+    while(cards.length>3)list.appendChild(cards.shift());
+    var count=list.querySelectorAll('.feed-step').length;
+    history.querySelector('.feed-history-count').textContent=count;
+  }
+  // MODE CLAUDE CODE : plus de carte « cycle » dans un volet séparé. Les activités (raisonnement,
+  // outils, plan) s'insèrent INLINE dans la conversation, dans l'ordre chronologique. On pointe
+  // simplement la cible d'ajout sur le conteneur du chat.
+  function newFeedStep(label){
+    ensureFeedStyle();
+    _feedBody = document.getElementById('chatContainer');
+    _feedPrevCard = null; _feedStepN++;
+  }
+  function humanToolName(name){
+    var names={'shell_exec':'Commande terminal','execute_code':'Exécution de code','run_script':'Script','file_read':'Lecture de fichier','file_write':'Écriture de fichier','file_edit':'Modification de fichier','file_search':'Recherche dans les fichiers','read_extract':'Lecture ciblée','web_search':'Recherche web','web_deep_search':'Recherche web approfondie','web_fetch':'Lecture de page','memory_search':'Recherche mémoire','memory_write':'Mémoire mise à jour','delegate':'Sous-agent','mixture_of_agents':'Consultation multi-agents'};
+    return names[name]||name.replace(/_/g,' ');
+  }
+  function toolContext(args){
+    args=args||{};if(args.command)return args.command;if(args.code)return args.code.length>300?args.code.slice(0,300)+'…':args.code;if(args.path)return args.path;if(args.query)return args.query;if(args.url)return args.url;if(args.prompt)return args.prompt;
+    var raw=JSON.stringify(args);return raw==='{}'?'':raw;
+  }
+  function thoughtLabel(phase,kind){
+    var labels={orientation:'J’analyse la demande',exploration:'J’explore les pistes utiles',implementation:'Je prépare l’exécution',verification:'Je vérifie le résultat'};
+    if(kind==='checkpoint')return 'Point d’étape';if(kind==='next_action')return 'Prochaine action';return labels[phase]||'Je prépare la suite';
+  }
+  function setTerminalContent(body, command, output){
+    body.textContent='';
+    if(command){
+      var commandCode=document.createElement('code'); commandCode.className='terminal-command language-powershell'; commandCode.textContent=command;
+      body.appendChild(commandCode);
+      if(window.hljs){try{window.hljs.highlightElement(commandCode);}catch(_e){}}
+    }
+    if(output){
+      var outputCode=document.createElement('code'); outputCode.className='terminal-output'; outputCode.textContent=output;
+      body.appendChild(outputCode);
+    }
+  }
+  function addActivity(type,label,body,collapsible,options){
+    ensureFeedStyle();
+    var cc=document.getElementById('chatContainer'); if(!cc) return null;
+    options=options||{};
+    // Dédup : ne pas re-rendre un raisonnement déjà affiché comme bulle intermédiaire (le backend
+    // renvoie parfois la même narration en « thought »). Seulement pour du vrai texte (>20 car.).
+    if(type==='thinking' && body){
+      var bt=String(body).trim(), rt=String(_lastReasoningText).trim();
+      if(rt.length>20 && bt && (bt===rt || bt.indexOf(rt)!==-1 || rt.indexOf(bt)!==-1)) return null;
+    }
+    // Pollution post-réponse : on ne veut PAS de « Point d'étape : Réponse finale prête ».
+    if(/r[ée]ponse finale/i.test(String(body||'')) || /r[ée]ponse finale/i.test(String(label||''))) return null;
+    var welcome=document.getElementById('welcomeScreen'); if(welcome) welcome.remove();
+    // ● filled dot coloré par statut (façon Claude Code) ; ◍ pour le raisonnement.
+    var iconMap={'thinking':'◍','tool-call':'●','tool-ok':'●','tool-err':'●','status':'•'};
+    var item=document.createElement('article');
+    item.className='cc-act '+type+(type.indexOf('tool-')===0?' act-major':' act-noise')+(collapsible?' collapsible':'')+(options.live?' live':'')+(options.terminal?' terminal':'');
+    if(options.toolName)item.dataset.toolName=options.toolName;
+    if(options.activityLabel)item.dataset.activityLabel=options.activityLabel;
+    // Horodatage avec secondes pour éviter le mélange d'événements d'une même minute
+    var now=new Date();
+    var timeStr=now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    item.dataset.feedSeq=String(now.getTime())+':'+String(Math.random()).slice(2,8);
+    var line=document.createElement('div');line.className='act-line';
+    line.innerHTML='<span class="act-ico '+type+'">'+(iconMap[type]||'•')+'</span><span class="act-txt">'+LaRuche.Utils.esc(label)+'</span><span class="act-time">'+timeStr+'</span>';
+    item.appendChild(line);
+    if(body!==undefined&&body!==null&&body!==''){
+      var bodyEl=document.createElement('pre');bodyEl.className='act-body';
+      if(options.terminal){item.dataset.command=options.command||body;setTerminalContent(bodyEl,item.dataset.command,'');}
+      else bodyEl.textContent=body;
+      item.appendChild(bodyEl);
+      // Façon Claude Code : TOUJOURS replié par défaut (on ne voit que le libellé), clic pour déplier.
+      item.classList.add('cc-collapsed'); line.style.cursor='pointer';
+      line.onclick=function(){ item.classList.toggle('cc-collapsed'); };
+    }
+    if(options.live)_feedPendingTools.push(item);
+    // ROUTAGE façon Claude Code : les phases « bruit » (thinking/status) s'empilent dans UNE ligne
+    // animée (l'accumulateur) ; un outil casse l'accumulation et s'affiche sur sa propre ligne.
+    var isNoise = (type==='thinking' || type==='status');
+    if(isNoise){
+      var acc=statusAccumulator();
+      if(acc){
+        acc.querySelector('.cc-status-steps').appendChild(item);
+        var cur=acc.querySelector('.cc-status-current'); cur.textContent=label;
+        cur.classList.remove('cc-anim'); void cur.offsetWidth; cur.classList.add('cc-anim'); // ré-anime
+        var n=acc.querySelectorAll('.cc-status-steps > .cc-act').length;
+        acc.querySelector('.cc-status-count').textContent = n>1 ? (n+' étapes') : '';
+        acc.querySelector('.cc-status-head .act-time').textContent = item.querySelector('.act-time').textContent;
+      } else { cc.appendChild(item); }
+    } else {
+      closeStatusAccumulator(); // outil → prochain cycle sur un nouveau groupe
+      cc.appendChild(item);
+    }
+    if(typeof scrollToBottom==='function') scrollToBottom();
+    LaRuche.Console.log('info','Chat','['+type+'] '+label);return item;
+  }
+  function updateFeedMeta(){if(!_feedPrevCard||!_feedBody)return;var meta=_feedPrevCard.querySelector('.feed-step-meta');if(meta){var tools=_feedBody.querySelectorAll('.act-major').length;meta.textContent=tools?(tools+' action'+(tools>1?'s':'')):'';}}
+  // ===== Diffs de fichiers inline (façon Claude Code : 📄 chemin  +N -M, repliable) =====
+  function buildDiffHtml(oldStr, newStr){
+    var html='';
+    if(oldStr){ String(oldStr).split('\n').forEach(function(l){ html+='<span class="dl dl-del">- '+LaRuche.Utils.esc(l)+'</span>'; }); }
+    if(newStr){ String(newStr).split('\n').forEach(function(l){ html+='<span class="dl dl-add">+ '+LaRuche.Utils.esc(l)+'</span>'; }); }
+    return html;
+  }
+  function renderFileDiff(path, added, removed, diffHtml){
+    var cc=document.getElementById('chatContainer'); if(!cc) return;
+    var welcome=document.getElementById('welcomeScreen'); if(welcome) welcome.remove();
+    var el=document.createElement('div'); el.className='cc-diff cc-block cc-collapsed';
+    el.innerHTML='<div class="cc-diff-head"><span class="cc-diff-file">📄 '+LaRuche.Utils.esc(path)+'</span><span class="cc-diff-stat"><span class="cc-diff-add">+'+added+'</span> <span class="cc-diff-del">-'+removed+'</span></span></div><div class="cc-diff-body">'+diffHtml+'</div>';
+    var head=el.querySelector('.cc-diff-head');
+    head.onclick=function(){ el.classList.toggle('cc-collapsed'); };
+    cc.appendChild(el);
+    if(typeof scrollToBottom==='function') scrollToBottom();
+  }
+  // Rend une carte diff si l'outil est une écriture/édition de fichier (args connus côté client).
+  function maybeRenderFileDiff(name, args){
+    args=args||{};
+    if(name==='file_edit' && (args.old_string!=null || args.new_string!=null)){
+      var o=args.old_string||'', n=args.new_string||'';
+      renderFileDiff(args.path||'(fichier)', String(n).split('\n').length, String(o).split('\n').length, buildDiffHtml(o,n));
+      return true;
+    }
+    if((name==='file_write'||name==='skill_file_write') && args.content!=null){
+      var c=String(args.content);
+      renderFileDiff(args.path||args.skill||'(fichier)', c.split('\n').length, 0, buildDiffHtml('', c));
+      return true;
+    }
+    return false;
+  }
+  function pendingTool(name){for(var i=_feedPendingTools.length-1;i>=0;i--){var item=_feedPendingTools[i];if(item&&item.dataset.toolName===name&&item.classList.contains('live'))return item;}return null;}
+  function finishToolActivity(name,result,success,elapsed){
+    var item=pendingTool(name);
+    if(!item)return addActivity(success?'tool-ok':'tool-err',humanToolName(name)+(success?' terminée':' en erreur'),result,true,{toolName:name});
+    item.classList.remove('tool-call','live');item.classList.add(success?'tool-ok':'tool-err');
+    var ico=item.querySelector('.act-ico');if(ico)ico.className='act-ico '+(success?'tool-ok':'tool-err');
+    var title=item.querySelector('.act-txt');if(title)title.textContent=(item.dataset.activityLabel||humanToolName(name))+(success?' · terminé':' · erreur');
+    var stamp=item.querySelector('.act-time');if(stamp&&elapsed!=null)stamp.textContent=LaRuche.Utils.formatElapsed(elapsed);
+    var body=item.querySelector('.act-body');if(!body&&result){body=document.createElement('pre');body.className='act-body';item.appendChild(body);}if(body){if(item.classList.contains('terminal'))setTerminalContent(body,item.dataset.command||'',result||'(aucune sortie)');else body.textContent=result||'(aucune sortie)';}
+    if(!success){item.classList.remove('cc-collapsed');}_feedPendingTools=_feedPendingTools.filter(function(candidate){return candidate!==item;});return item;
+  }
+  function appendToolOutput(name,chunk){var item=pendingTool(name);if(!item)return;var body=item.querySelector('.act-body');if(!body){body=document.createElement('pre');body.className='act-body';item.appendChild(body);}if(item.classList.contains('terminal')){item._terminalOutput=(item._terminalOutput||'')+(chunk||'');setTerminalContent(body,item.dataset.command||'',item._terminalOutput);}else body.textContent+=(chunk||'');body.scrollTop=body.scrollHeight;}
+  function startPlanMission(message){
+    var title=titleForUserMessage(message);
+    _planMissions.push({title:title,items:[],activeTask:''});
+    _currentPlanMission=_planMissions.length-1;
+    _feedTurnTitle=title;
+    _skillsInlineEl=null; // nouveau tour → nouvelle ligne skills (le plan sticky, lui, est réutilisé)
+    renderPlanMissions();
+  }
+  function planItemDone(item){
+    var status=String((item&&item.status)||'').toLowerCase();
+    return status.indexOf('done')!==-1 || status.indexOf('termin')!==-1 || status.indexOf('complet')!==-1 || status.indexOf('fait')!==-1 || status==='ok';
+  }
+  function planDotClass(item){
+    if(planItemDone(item)) return 'done';
+    var status=String((item&&item.status)||'').toLowerCase();
+    return status.indexOf('progress')!==-1 || status.indexOf('cours')!==-1 ? 'in_progress' : 'pending';
+  }
+  // Plan rendu INLINE dans la conversation (carte « 📋 Plan » mise à jour en place, repliable).
+  // Une carte par mission/tour ; un nouveau tour repart d'une carte fraîche (_planInlineEl reset).
+  function renderPlanMissions(){
+    var cc=document.getElementById('chatContainer'); if(!cc) return;
+    var mission=_planMissions[_currentPlanMission]; if(!mission || !mission.items.length) return;
+    // Barre PLAN épinglée EN HAUT du chat (sticky), réutilisée et mise à jour en place à chaque
+    // évolution. Toujours 1er enfant du conteneur pour rester collée au sommet pendant le scroll.
+    if(!_planInlineEl || !_planInlineEl.isConnected){
+      var welcome=document.getElementById('welcomeScreen'); if(welcome) welcome.remove();
+      _planInlineEl=document.createElement('div'); _planInlineEl.className='cc-plan cc-block cc-plan-sticky';
+    }
+    if(cc.firstChild!==_planInlineEl) cc.insertBefore(_planInlineEl, cc.firstChild);
+    var doneCount=mission.items.filter(planItemDone).length;
+    var rows=mission.items.map(function(item){
+      return '<div class="plan-item"><span class="plan-dot '+planDotClass(item)+'"></span><span class="plan-text'+(planItemDone(item)?' done':'')+'">'+LaRuche.Utils.esc(item.task||'')+'</span></div>';
+    }).join('');
+    _planInlineEl.innerHTML='<div class="cc-plan-head"><span class="cc-plan-title">📋 Plan</span><span class="cc-plan-meta">'+doneCount+'/'+mission.items.length+'</span></div><div class="cc-plan-body">'+rows+'</div>';
+    var head=_planInlineEl.querySelector('.cc-plan-head');
+    head.onclick=function(){ _planInlineEl.classList.toggle('cc-collapsed'); };
+  }
+  function updatePlan(items) {
+    if(!Array.isArray(items)) return;
+    if(_currentPlanMission<0) startPlanMission(_feedTurnTitle||'Mission de l’agent');
+    var mission=_planMissions[_currentPlanMission]; mission.items=items.slice();
+    var active=items.find(function(item){return !planItemDone(item);}) || items[items.length-1];
+    if(active && active.task) _feedTurnTitle=active.task;
+    renderPlanMissions();
+  }
+
+  // Suivi « lu / non-lu » des conversations (localStorage). La pastille n'apparaît QUE s'il y a du
+  // nouveau dans une conversation NON ouverte (plus de couleurs aléatoires « barriolées »).
+  function getSeenMap(){ try{ return JSON.parse(localStorage.getItem('lr_conv_seen')||'{}'); }catch(e){ return {}; } }
+  function markConvSeen(id, updatedAt){ if(!id) return; var m=getSeenMap(); m[id]=updatedAt||new Date().toISOString(); try{ localStorage.setItem('lr_conv_seen', JSON.stringify(m)); }catch(e){} }
+  function convIsUnread(s){
+    if(s.id===sessionId) return false; // ouverte = lue
+    // Pastille UNIQUEMENT sur du NOUVEAU terminé (message final / popup), jamais sur
+    // la réflexion en cours. Pilotée par les events terminaux reçus (unreadSessions),
+    // pas par updated_at (qui bougeait à chaque sauvegarde intermédiaire).
+    return !!unreadSessions[s.id];
+  }
+  function loadSessions() {
+    fetch('/api/sessions').then(function(r){return r.json();}).then(function(sessions){
+      var list = document.getElementById('sessionsSidebarList');
+      list.innerHTML='';
+      sessions.sort(function(a,b){return new Date(b.updated_at)-new Date(a.updated_at);});
+      sessions.forEach(function(s){
+        var div=document.createElement('div');
+        div.className='session-item'+(s.id===sessionId?' active':'');
+        var cleanTitle = (s.title||'').split(/\[SYSTEM\]/i)[0].trim() || 'Sans titre';
+        if(cleanTitle.length > 55) cleanTitle = cleanTitle.substring(0, 52) + '...';
+        var dot = convIsUnread(s)
+          ? '<span class="conv-dot conv-dot-new" title="Nouveau"></span>'
+          : '<span class="conv-dot"></span>';
+        div.innerHTML='<div style="display:flex; align-items:center; flex:1; min-width:0; overflow:hidden;">'+dot+'<span class="session-title" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'+LaRuche.Utils.esc(cleanTitle)+'</span></div><span class="session-delete" onclick="event.stopPropagation();LaRuche.Chat.deleteSession(\''+s.id+'\')">&times;</span>';
+        div.onclick=function(){switchSession(s.id);};
+        list.appendChild(div);
+      });
+    }).catch(function(){});
+  }
+
+  // P8 — re-fetch la liste de l'historique si l'overlay du Chat est ouvert.
+  function refreshSessionsPage() {
+    if(LaRuche.Chat && LaRuche.Chat.refreshHistoryOverlay) {
+      LaRuche.Chat.refreshHistoryOverlay();
+    }
+  }
+
+  function newSession() {
+    var _af0=document.getElementById('activityFeed'); if(sessionId && _af0) feedCache[sessionId]=_af0.innerHTML;
+    sessionId=null;
+    if(LaRuche.WS && LaRuche.WS.detach) LaRuche.WS.detach();
+    // Le run en cours continue EN FOND ; la nouvelle conv est prête à envoyer (pas « Stop »).
+    isStreaming=false; staleRecoveryActive=false;
+    if(typeof clearResponseTimeout==='function') clearResponseTimeout();
+    if(typeof removeTypingIndicator==='function') removeTypingIndicator();
+    currentAssistantMsg=null; currentAssistantRow=null;
+    if(typeof setRunning==='function') setRunning(false);
+    var _sb=document.getElementById('sendBtn'); if(_sb) _sb.disabled=false;
+    var _ui=document.getElementById('userInput'); if(_ui){ _ui.disabled=false; _ui.placeholder='Envoyer un message...'; }
+    var container=document.getElementById('chatContainer');
+    container.innerHTML='';
+    var welcome=document.createElement('div'); welcome.className='welcome'; welcome.id='welcomeScreen';
+    welcome.innerHTML='<div class="swarm-wrap" style="transform: scale(0.65); margin: -40px auto -30px;"><canvas class="swarm-canvas"></canvas></div><h2>L\x27Essaim</h2><p>Agent IA propulse par LaRuche.<br>Posez votre question ou donnez une instruction.</p><div class="suggested-prompts"><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">Explique-moi l\'architecture du projet</div><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">Quels fichiers ont ete modifies recemment ?</div><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">Analyse les erreurs dans les logs</div><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">Cree un plan d\'action pour optimiser les performances</div></div>';
+    container.appendChild(welcome);
+    document.getElementById('activityFeed').innerHTML='';
+    resetFeed();
+    document.getElementById('planSection').innerHTML='<div class="plan-title">Plan</div>';
+    loadSessions();
+    closeSidebarMobile();
+  }
+
+  function switchSession(id, scrollTerm) {
+    var _af0=document.getElementById('activityFeed'); if(sessionId && _af0) feedCache[sessionId]=_af0.innerHTML; // sauve le feed quitté
+    sessionId=id;
+    delete unreadSessions[id]; // ouvrir = marquer lu (efface la pastille)
+    markConvSeen(id);
+    // Le run qu'on regardait continue EN FOND ; cette vue redevient prête à envoyer.
+    // Sans ça, le bouton reste « Stop » (rouge) et on ne peut pas écrire dans la nouvelle conv.
+    isStreaming=false; staleRecoveryActive=false;
+    if(typeof clearResponseTimeout==='function') clearResponseTimeout();
+    if(typeof removeTypingIndicator==='function') removeTypingIndicator();
+    currentAssistantMsg=null; currentAssistantRow=null;
+    if(typeof setRunning==='function') setRunning(false);
+    var _sb=document.getElementById('sendBtn'); if(_sb) _sb.disabled=false;
+    var _ui=document.getElementById('userInput'); if(_ui){ _ui.disabled=false; _ui.placeholder='Envoyer un message...'; }
+    var container=document.getElementById('chatContainer');
+    container.innerHTML='';
+    document.getElementById('activityFeed').innerHTML='';
+    resetFeed();
+    // Restaure le backlog du feed de la conversation ouverte (live-only sinon perdu). Les
+    // nouvelles étapes (reattach) s'ajoutent en dessous via une nouvelle étape.
+    var _af1=document.getElementById('activityFeed'); if(_af1 && feedCache[id]) _af1.innerHTML = feedCache[id];
+    document.getElementById('planSection').innerHTML='<div class="plan-title">Plan</div>';
+    fetch('/api/sessions/'+id+'/messages').then(function(r){return r.ok?r.json():null;}).then(function(data){
+      if(!data||!data.messages)return;
+      var historyMedia=[];
+      data.messages.forEach(function(msg){
+        if(Array.isArray(msg.plan)) updatePlan(msg.plan);
+        if(msg.role==='user'){startPlanMission(msg.text);addMessage('user',msg.text, msg.attachments); _feedBody=null; /* nouveau tour → nouvelle étape */ }
+        else if(msg.role==='thought'){
+          if(msg.kind!=='next_action') addActivity('thinking',thoughtLabel(msg.phase||'',msg.kind||''),msg.text||'',false,{stepTitle:_feedTurnTitle});
+        }
+        else if(msg.role==='prompt_debug'){
+          onPromptDebug(msg);
+        }
+        else if(msg.role==='assistant'&&((msg.text&&msg.text.trim())||historyMedia.length)){
+          var restored=takeMediaDeclarations(msg.text||'');
+          var result=addMessage('assistant','');
+          var el=result.msgEl;
+          if(restored.text&&typeof marked!=='undefined'){marked.setOptions({breaks:true,gfm:true});el.innerHTML=marked.parse(restored.text);el.classList.add('rendered');if(window.lrEnhanceCode)window.lrEnhanceCode(el);}
+          else el.textContent=restored.text;
+          linkifyUrls(el);
+          appendMediaGallery(el,historyMedia.concat(restored.items)); historyMedia=[];
+          var actions=document.createElement('div');actions.className='msg-actions';
+          var ttsBtn=document.createElement('button');ttsBtn.className='msg-action-btn';ttsBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';
+          ttsBtn.onclick=function(){LaRuche.Voice.speakText(restored.text,ttsBtn);};actions.appendChild(ttsBtn);
+          var copyBtn=document.createElement('button');copyBtn.className='msg-action-btn';copyBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> Copier';
+          copyBtn.onclick=function(){navigator.clipboard.writeText(restored.text).then(function(){copyBtn.classList.add('copied');copyBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="20 6 9 17 4 12"></polyline></svg> Copie';setTimeout(function(){copyBtn.classList.remove('copied');copyBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> Copier';},2000);});};actions.appendChild(copyBtn);
+          el.appendChild(actions);
+        }
+        // Reconstruit le feed agentique depuis l'historique persisté.
+        else if(msg.role==='tool_call'){
+          var restoredArgs=msg.args||{};
+          var restoredTool=msg.tool||'?';
+          maybeRenderFileDiff(restoredTool,restoredArgs); // carte diff inline (replay)
+          addActivity('tool-call',toolActivityLabel(restoredTool,restoredArgs)+' · exécuté',toolContext(restoredArgs),true,{toolName:restoredTool,activityLabel:toolActivityLabel(restoredTool,restoredArgs),terminal:(restoredTool==='shell_exec'||restoredTool==='execute_code'||restoredTool==='run_script'),command:toolContext(restoredArgs)});
+        }
+        else if(msg.role==='tool'){
+          var txt=msg.text||'';
+          if(txt.indexOf('<laruche-media>')!==-1){
+            var declared=takeMediaDeclarations(txt);
+            historyMedia=historyMedia.concat(declared.items);
+            txt=declared.text || (declared.items.length+' media ajoute(s) a la reponse.');
+          }
+          var ok=!/^\s*error[:\s]/i.test(txt);
+          addActivity(ok?'tool-ok':'tool-err', (msg.tool||'outil')+(ok?' OK':' ERR'), txt.substring(0,1200), true);
+        }
+      });
+      // Tout replier sauf la dernière étape, pour un historique lisible.
+      var steps=document.querySelectorAll('#activityFeed .feed-step');
+      steps.forEach(function(c,i){ if(i<steps.length-1) c.classList.remove('expanded'); });
+      if(_feedPrevCard){
+        _feedPrevCard.classList.remove('running');
+        var restoredState=_feedPrevCard.querySelector('.feed-step-state');
+        if(restoredState) restoredState.textContent='TERMINÉ';
+      }
+      setFeedLive('idle');
+      // Saut vers le mot-clé recherché (clic depuis l'historique), sinon bas de page.
+      if(scrollTerm){ scrollToMessageTerm(scrollTerm); } else { scrollToBottom(); }
+    }).catch(function(){});
+    loadSessions(); closeSidebarMobile();
+    // Re-attach au flux live SEULEMENT si la session n'est pas déjà streamée par la socket
+    // principale (sinon double abonnement -> chaque token rendu 2x : « VoiciVoici les les »).
+    if(id !== runningSession && LaRuche.WS && LaRuche.WS.reattach) LaRuche.WS.reattach(id);
+  }
+
+  function deleteSession(id) {
+    fetch('/api/sessions/'+id,{method:'DELETE'}).then(function(){
+      if(id===sessionId) newSession(); else loadSessions();
+      refreshHistoryOverlay();
+    });
+  }
+
+  /* ── Historique overlay (absorbe l'ancien onglet Sessions) ── */
+  var _historySessions = [];
+  function openHistory(){
+    var ov = document.getElementById('historyOverlay');
+    if(!ov) return;
+    ov.classList.add('open');
+    var search = document.getElementById('historySearch');
+    if(search) search.value = '';
+    loadHistory();
+  }
+  function closeHistory(){
+    var ov = document.getElementById('historyOverlay');
+    if(ov) ov.classList.remove('open');
+  }
+  function isHistoryOpen(){
+    var ov = document.getElementById('historyOverlay');
+    return !!(ov && ov.classList.contains('open'));
+  }
+  function refreshHistoryOverlay(){ if(isHistoryOpen()) loadHistory(); }
+  function loadHistory(){
+    fetch('/api/sessions').then(function(r){return r.json();}).then(function(sessions){
+      _historySessions = (sessions||[]).slice();
+      _historySessions.sort(function(a,b){return new Date(b.updated_at)-new Date(a.updated_at);});
+      renderHistory(_historySessions);
+    }).catch(function(){ renderHistory([]); });
+  }
+  var _searchTerm = '';
+  // Date RELATIVE : aujourd'hui HH:MM / hier / avant-hier / il y a N jours / sem. / mois / ans.
+  function fmtRelDate(iso){
+    if(!iso) return 'MAJ : -';
+    var d=new Date(iso); if(isNaN(d.getTime())) return 'MAJ : -';
+    var now=new Date(), hm=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+    function sod(x){ return new Date(x.getFullYear(),x.getMonth(),x.getDate()).getTime(); }
+    var days=Math.round((sod(now)-sod(d))/86400000);
+    if(days<=0) return "aujourd'hui "+hm;
+    if(days===1) return 'hier '+hm;
+    if(days===2) return 'avant-hier '+hm;
+    if(days<7) return 'il y a '+days+' jours · '+hm;
+    if(days<31) return 'il y a '+Math.floor(days/7)+' sem.';
+    if(days<365) return 'il y a '+Math.floor(days/30)+' mois';
+    var y=Math.floor(days/365); return 'il y a '+y+' an'+(y>1?'s':'');
+  }
+  // Surligne `term` (insensible casse) dans `text`, échappé.
+  function hlt(text, term){
+    text=String(text||'');
+    if(!term) return LaRuche.Utils.esc(text);
+    var i=text.toLowerCase().indexOf(term);
+    if(i<0) return LaRuche.Utils.esc(text);
+    return LaRuche.Utils.esc(text.slice(0,i))+'<mark class="hk">'+LaRuche.Utils.esc(text.slice(i,i+term.length))+'</mark>'+LaRuche.Utils.esc(text.slice(i+term.length));
+  }
+  // Saute au 1er message contenant `term` et le surligne brièvement.
+  function scrollToMessageTerm(term){
+    if(!term){ scrollToBottom(); return; }
+    var t=String(term).toLowerCase();
+    var msgs=document.querySelectorAll('#chatContainer .message');
+    for(var i=0;i<msgs.length;i++){
+      if((msgs[i].textContent||'').toLowerCase().indexOf(t)!==-1){
+        msgs[i].scrollIntoView({behavior:'smooth',block:'center'});
+        msgs[i].classList.add('msg-highlight');
+        (function(el){ setTimeout(function(){ el.classList.remove('msg-highlight'); }, 2600); })(msgs[i]);
+        return;
+      }
+    }
+    scrollToBottom();
+  }
+  function searchHistory(q){
+    q = (q||'').trim();
+    _searchTerm = q.toLowerCase();
+    if(!q){ renderHistory(_historySessions); return; }
+    fetch('/api/sessions/search?q='+encodeURIComponent(q)).then(function(r){ return r.ok?r.json():[]; })
+      .then(function(results){
+        // Résultats backend = {session_id, session_title, role, preview}. On regroupe par session
+        // et on ENRICHIT avec les métadonnées complètes (title/updated_at/messages) — sinon « Sans titre ».
+        var byId={};
+        (results||[]).forEach(function(r){
+          var sid=r.session_id; if(!sid) return;
+          if(!byId[sid]){
+            var full=_historySessions.filter(function(s){return s.id===sid;})[0];
+            byId[sid]=full?Object.assign({},full):{ id:sid, title:r.session_title };
+            byId[sid]._match=r.preview;
+          }
+        });
+        var merged=Object.keys(byId).map(function(k){return byId[k];});
+        merged.sort(function(a,b){return new Date(b.updated_at||0)-new Date(a.updated_at||0);});
+        renderHistory(merged);
+      })
+      .catch(function(){
+        renderHistory(_historySessions.filter(function(s){ return (s.title||'').toLowerCase().indexOf(_searchTerm)!==-1; }));
+      });
+  }
+  function renderHistory(sessions){
+    var list = document.getElementById('historyList');
+    if(!list) return;
+    if(!sessions || !sessions.length){ list.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:30px">Aucune conversation.</div>'; return; }
+    list.innerHTML='';
+    var term=_searchTerm||null;
+    sessions.forEach(function(s){
+      var cleanTitle = (s.title||'').split(/\[SYSTEM\]/i)[0].trim() || 'Sans titre';
+      var item = document.createElement('div');
+      item.className = 'history-item';
+      var matchHtml = (s._match && term) ? '<div class="hi-match">…'+hlt(s._match, term)+'…</div>' : '';
+      item.innerHTML =
+        '<div class="hi-main">'+
+          '<div class="hi-title">'+hlt(cleanTitle, term)+'</div>'+
+          '<div class="hi-meta">'+fmtRelDate(s.updated_at)+(s.messages?(' · '+s.messages+' msg'):'')+'</div>'+
+          matchHtml+
+        '</div>'+
+        '<div class="hi-actions">'+
+          '<button class="hi-btn open">Ouvrir</button>'+
+          '<button class="hi-btn export">Exporter</button>'+
+          '<button class="hi-btn del">Supprimer</button>'+
+        '</div>';
+      item.querySelector('.hi-main').onclick = function(){ closeHistory(); switchSession(s.id, term); };
+      item.querySelector('.open').onclick = function(){ closeHistory(); switchSession(s.id, term); };
+      item.querySelector('.export').onclick = function(){ exportSessionMd(s.id, cleanTitle); };
+      item.querySelector('.del').onclick = function(){ if(confirm('Supprimer « '+cleanTitle+' » ?')) deleteSession(s.id); };
+      list.appendChild(item);
+    });
+  }
+  // Export client-side d'une conversation en .md depuis ses messages charges.
+  function exportSessionMd(id, title){
+    fetch('/api/sessions/'+id+'/messages').then(function(r){ return r.ok?r.json():null; }).then(function(data){
+      var msgs = (data && data.messages) ? data.messages : [];
+      var lines = ['# '+(title||'Conversation '+id), ''];
+      msgs.forEach(function(m){
+        var who = m.role==='user' ? '## 🧑 Utilisateur'
+                : m.role==='assistant' ? '## 🐝 LaRuche'
+                : m.role==='tool' ? '### 🔧 Outil ('+(m.tool||'?')+')'
+                : m.role==='tool_call' ? '### ➡️ Appel outil ('+(m.tool||'?')+')'
+                : m.role==='thought' ? '### 💭 Réflexion'
+                : null;
+        if(!who) return;
+        var txt = (m.text||'').trim();
+        if(m.role==='tool_call' && m.args){ try{ txt = '```json\n'+JSON.stringify(m.args,null,2)+'\n```'; }catch(e){} }
+        if(!txt) return;
+        lines.push(who, '', txt, '');
+      });
+      var blob = new Blob([lines.join('\n')], {type:'text/markdown'});
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      var safe = (title||'conversation').replace(/[^a-z0-9-_]+/gi,'_').substring(0,40);
+      a.download = safe + '.md';
+      a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+      LaRuche.Toast.show('Conversation exportée','ok');
+    }).catch(function(){ LaRuche.Toast.show('Échec export','err'); });
+  }
+
+  function showApprovalDialog(toolCallId, toolName, args) {
+    var container=document.getElementById('chatContainer');
+    var row=document.createElement('div'); row.className='approval-dialog';
+    row.innerHTML='<div class="approval-icon">&#x26A0;</div><div class="approval-content"><div class="approval-title">Autorisation requise</div><div class="approval-detail">L\'agent veut executer <strong>'+LaRuche.Utils.esc(toolName)+'</strong></div><pre class="approval-args">'+LaRuche.Utils.esc(JSON.stringify(args,null,2))+'</pre><div class="approval-buttons"><button class="approval-btn approve" onclick="LaRuche.Chat.respondApproval(\''+toolCallId+'\',true,this)">Autoriser</button><button class="approval-btn deny" onclick="LaRuche.Chat.respondApproval(\''+toolCallId+'\',false,this)">Refuser</button></div></div>';
+    container.appendChild(row); scrollToBottom();
+    addActivity('status','Approval','En attente: '+toolName,false);
+  }
+
+  function respondApproval(toolCallId, approved, btn) {
+    LaRuche.WS.send({type:'approval',tool_call_id:toolCallId,approved:approved});
+    var dialog=btn.closest('.approval-dialog');
+    if(dialog){
+      // Une fois la décision prise, l'approbation disparaît de la conversation.
+      dialog.style.transition='opacity .2s ease';
+      dialog.style.opacity='0';
+      setTimeout(function(){ if(dialog.parentNode) dialog.parentNode.removeChild(dialog); }, 200);
+    }
+    addActivity('status','Approval',(approved?'Autorise: ':'Refuse: ')+toolCallId,false);
+  }
+
+  function toggleSidebar() {
+    var activePage = document.querySelector('.page.active');
+    if(!activePage) return;
+    var side;
+    if(activePage.id === 'page-chat') side = document.getElementById('chatSidebar');
+    else if(activePage.id === 'page-missions') side = activePage.querySelector('.mis-side');
+    else if(activePage.id === 'page-memory') side = activePage.querySelector('.mem2-side');
+    if(!side) return;
+    if(window.innerWidth > 900){
+      // PC : repli/dépli de la colonne (largeur 0). Le honeycomb du bandeau haut la fait revenir.
+      side.classList.toggle('collapsed');
+      try{ localStorage.setItem('lr_sidebar_collapsed', side.classList.contains('collapsed')?'1':'0'); }catch(e){}
+    } else {
+      side.classList.toggle('open');
+      document.getElementById('sidebarOverlay').classList.toggle('open');
+    }
+  }
+  function closeSidebarMobile() {
+    if(window.innerWidth<=900){
+      var activePage = document.querySelector('.page.active');
+      if(activePage) {
+        var side;
+        if(activePage.id === 'page-chat') side = document.getElementById('chatSidebar');
+        else if(activePage.id === 'page-missions') side = activePage.querySelector('.mis-side');
+        else if(activePage.id === 'page-memory') side = activePage.querySelector('.mem2-side');
+        if(side) side.classList.remove('open');
+      }
+      var overlay = document.getElementById('sidebarOverlay');
+      if(overlay) overlay.classList.remove('open');
+    }
+  }
+
+  function addPendingFile(file) {
+    if(file.size>5*1024*1024){LaRuche.Toast.show('File too large (max 5MB): '+file.name,'err');return;}
+    pendingFiles.push(file); renderAttachments();
+  }
+  function removePendingFile(idx) { pendingFiles.splice(idx,1); renderAttachments(); }
+  function renderAttachments() {
+    var el=document.getElementById('attachmentPreview');
+    if(pendingFiles.length===0){el.style.display='none';return;}
+    el.style.display='flex';
+    el.innerHTML='';
+    pendingFiles.forEach(function(f, i) {
+      var att = {
+        kind: f.type.startsWith('image/') ? 'image' : 'file',
+        mime_type: f.type,
+        filename: f.name,
+        fileUrl: URL.createObjectURL(f)
+      };
+      el.appendChild(LaRuche.Utils.createAttachmentBox(att, true, i));
+    });
+  }
+  async function getFileContentsForPrompt() {
+    if(pendingFiles.length===0)return{text:'',attachments:[]};
+    var parts=[], attachments=[];
+    
+    // Safe base64 conversion for large files
+    var getBase64 = async (file) => {
+      return new Promise((resolve, reject) => {
+        var reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    };
+
+    for(var i=0;i<pendingFiles.length;i++){
+      var f=pendingFiles[i];
+      if(f.type.startsWith('image/')){
+        try{var b64=await getBase64(f); attachments.push({kind:'image', mime_type:f.type, data:b64, filename:f.name}); parts.push('[Image: '+f.name+']');}
+        catch(e){parts.push('[Image: '+f.name+' - could not read]');}
+      } else if(f.type.startsWith('audio/')) {
+        try{var b64=await getBase64(f); attachments.push({kind:'audio', mime_type:f.type, data:b64, filename:f.name}); parts.push('[Audio: '+f.name+']');}
+        catch(e){parts.push('[Audio: '+f.name+' - could not read]');}
+      } else if(f.type === 'application/pdf') {
+        try{var b64=await getBase64(f); attachments.push({kind:'file', mime_type:f.type, data:b64, filename:f.name}); parts.push('[Document: '+f.name+']');}
+        catch(e){parts.push('[Document: '+f.name+' - could not read]');}
+      } else {
+        try{var text=await f.text(); var truncated=text.substring(0,8000); attachments.push({kind:'file', mime_type:f.type||'text/plain', data:btoa(unescape(encodeURIComponent(truncated))), filename:f.name}); parts.push('[File: '+f.name+']\n'+truncated+(text.length>8000?'\n...(truncated)':''));}
+        catch(e){parts.push('[File: '+f.name+' - could not read]');}
+      }
+    }
+    pendingFiles=[]; renderAttachments();
+    return {text:parts.length>0?'\n\n'+parts.join('\n\n'):'', attachments:attachments};
+  }
+
+  function getSessionId(){return sessionId;}
+
+  // ===== Working Directory =====
+  function loadCwd() {
+    fetch(LaRuche.API.base+'/api/cwd').then(function(r){return r.json();}).then(function(d){
+      var input = document.getElementById('cwdInput');
+      if(input && d.cwd) input.value = d.cwd;
+    }).catch(function(){});
+  }
+
+  function browseCwd() {
+    var input = document.getElementById('cwdInput');
+    var path = input.value.trim();
+    if(!path) { LaRuche.Toast.show('Entrez un chemin','warn'); return; }
+    fetch(LaRuche.API.base+'/api/cwd',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cwd:path})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.error) LaRuche.Toast.show(d.error,'err');
+        else { LaRuche.Toast.show('Dossier: '+d.cwd,'ok'); input.value = d.cwd; }
+      })
+      .catch(function(e){LaRuche.Toast.show('Erreur: '+e,'err');});
+  }
+
+  // Enter key on cwd input = apply
+  var cwdEl = document.getElementById('cwdInput');
+  if(cwdEl) cwdEl.addEventListener('keydown', function(e){
+    if(e.key==='Enter') { e.preventDefault(); browseCwd(); }
+  });
+
+  return {
+    init:init, enter:enter, leave:leave, current:function(){return current;}, handleEvent:handleEvent, sendMessage:sendMessage,
+    useSuggestion:useSuggestion, newSession:newSession, deleteSession:deleteSession,
+    respondApproval:respondApproval, toggleSidebar:toggleSidebar,
+    removePendingFile:removePendingFile, loadSessions:loadSessions,
+    getSessionId:getSessionId, switchSession:switchSession,
+    openProfile:openProfile, closeProfile:closeProfile, saveProfile:saveProfile,
+    browseCwd:browseCwd, loadCwd:loadCwd, toggleNoThink:toggleNoThink, stopRun:stopRun,
+    openHistory:openHistory, closeHistory:closeHistory, searchHistory:searchHistory,
+    refreshHistoryOverlay:refreshHistoryOverlay, exportSessionMd:exportSessionMd
+  };
+})();
+
+/* ── Voice Module ─────────────────────────────────────────────── */
+LaRuche.Voice = (function(){
+  var TTS_URL = 'http://127.0.0.1:8422';
+  var currentTtsAudio = null;
+  var currentTtsUtterance = null;
+  var autoTtsEnabled = false;
+  var audioWs = null;
+  var isRecording = false;
+  var audioContext = null;
+  var audioStream = null;
+  var scriptNode = null;
+  var recordedSamples = [];
+  var sttAvailable = false;
+  var ttsAvailable = false;
+
+  function cleanTextForTTS(text) {
+    var clean = text;
+    clean=clean.replace(/```[\s\S]*?```/g,'');
+    clean=clean.replace(/`[^`]+`/g,'');
+    clean=clean.replace(/!\[([^\]]*)\]\([^)]+\)/g,'');
+    clean=clean.replace(/\[([^\]]+)\]\([^)]+\)/g,'$1');
+    clean=clean.replace(/\*\*\*([^*]+)\*\*\*/g,'$1');
+    clean=clean.replace(/\*\*([^*]+)\*\*/g,'$1');
+    clean=clean.replace(/__([^_]+)__/g,'$1');
+    clean=clean.replace(/\*([^*]+)\*/g,'$1');
+    clean=clean.replace(/_([^_]+)_/g,'$1');
+    clean=clean.replace(/~~([^~]+)~~/g,'$1');
+    clean=clean.replace(/\*/g,'');
+    clean=clean.replace(/_/g,' ');
+    clean=clean.replace(/^#{1,6}\s*/gm,'');
+    clean=clean.replace(/^[\s]*[-+]\s+/gm,'. ');
+    clean=clean.replace(/^[\s]*\d+[\.\)]\s+/gm,'. ');
+    clean=clean.replace(/^[-]{3,}$/gm,'');
+    clean=clean.replace(/^>\s*/gm,'');
+    clean=clean.replace(/<[^>]+>/g,'');
+    clean=clean.replace(/\|/g,', ');
+    clean=clean.replace(/^[\s]*[-:]+[\s]*$/gm,'');
+    clean=clean.replace(/\n{2,}/g,'. ');
+    clean=clean.replace(/\n/g,' ');
+    clean=clean.replace(/\s{2,}/g,' ');
+    clean=clean.replace(/[.,]{2,}/g,'.');
+    clean=clean.replace(/\.\s*\./g,'.');
+    clean=clean.trim();
+    if(clean.startsWith('.'))clean=clean.substring(1).trim();
+    return clean;
+  }
+
+  async function speakText(text, btn) {
+    if(btn && btn.classList.contains('playing')){stopAllTts();btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';return;}
+    var cleanText=cleanTextForTTS(text);
+    if(!cleanText)return;
+    if(btn){btn.classList.add('playing');btn.innerHTML='&#x23F9; Stop';}
+    try {
+      var resp=await fetch(TTS_URL+'/synthesize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:cleanText})});
+      if(!resp.ok){speakBrowser(cleanText,btn);return;}
+      var blob=await resp.blob(); var url=URL.createObjectURL(blob);
+      currentTtsAudio=new Audio(url);
+      currentTtsAudio.onended=function(){if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';}currentTtsAudio=null;};
+      currentTtsAudio.onerror=function(){if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';}currentTtsAudio=null;};
+      currentTtsAudio.play();
+    } catch(e){speakBrowser(cleanText,btn);}
+  }
+
+  function speakBrowser(text, btn) {
+    if('speechSynthesis' in window){
+      speechSynthesis.cancel();
+      var utter=new SpeechSynthesisUtterance(text);
+      utter.lang='fr-FR'; utter.rate=1.0;
+      currentTtsUtterance=utter;
+      utter.onend=function(){if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';}currentTtsUtterance=null;};
+      utter.onerror=function(){if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';}currentTtsUtterance=null;};
+      speechSynthesis.speak(utter);
+    } else {
+      if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';}
+    }
+  }
+
+  function stopAllTts() {
+    if(currentTtsAudio){currentTtsAudio.pause();currentTtsAudio.currentTime=0;currentTtsAudio=null;}
+    if('speechSynthesis' in window) speechSynthesis.cancel();
+    currentTtsUtterance=null;
+  }
+
+  function connectAudioWS() {
+    var protocol=location.protocol==='https:'?'wss:':'ws:';
+    audioWs=new WebSocket(protocol+'//'+location.host+'/ws/audio');
+    audioWs.binaryType='arraybuffer';
+    audioWs.onmessage=function(e){
+      if(e.data instanceof ArrayBuffer){playAudio(e.data);}
+      else {
+        var data=JSON.parse(e.data);
+        if(data.type==='transcript'){LaRuche.Console.log('info','Voice','Transcription: '+data.text);}
+        else if(data.type==='error'){LaRuche.Console.log('error','Voice',data.message);}
+      }
+    };
+  }
+
+  async function toggleMic() {
+    if(isRecording) stopRecording(); else await startRecording();
+  }
+
+  async function startRecording() {
+    try {
+      audioStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
+      var AudioCtx=window.AudioContext||window.webkitAudioContext;
+      audioContext=new AudioCtx();
+      var source=audioContext.createMediaStreamSource(audioStream);
+      scriptNode=audioContext.createScriptProcessor(4096,1,1);
+      recordedSamples=[];
+      scriptNode.onaudioprocess=function(e){recordedSamples.push(new Float32Array(e.inputBuffer.getChannelData(0)));};
+      source.connect(scriptNode); scriptNode.connect(audioContext.destination);
+      isRecording=true;
+      document.getElementById('micBtn').classList.add('recording');
+      var hw=document.getElementById('honeyWave'); if(hw) hw.style.display='flex';
+      LaRuche.Console.log('info','Voice','Recording started');
+    } catch(e){LaRuche.Toast.show('Mic error: '+e.message,'err');}
+  }
+
+  function stopRecording() {
+    if(!isRecording)return;
+    isRecording=false;
+    document.getElementById('micBtn').classList.remove('recording');
+    var hw=document.getElementById('honeyWave'); if(hw) hw.style.display='none';
+    if(scriptNode){scriptNode.disconnect();scriptNode=null;}
+    if(audioStream){audioStream.getTracks().forEach(function(t){t.stop();});audioStream=null;}
+    if(recordedSamples.length>0){
+      var sampleRate=audioContext?audioContext.sampleRate:16000;
+      var totalLength=recordedSamples.reduce(function(acc,s){return acc+s.length;},0);
+      var pcm=new Float32Array(totalLength); var offset=0;
+      recordedSamples.forEach(function(chunk){pcm.set(chunk,offset);offset+=chunk.length;});
+      var finalPcm=pcm, finalRate=sampleRate;
+      if(sampleRate!==16000){
+        var ratio=16000/sampleRate;
+        var newLen=Math.round(pcm.length*ratio);
+        finalPcm=new Float32Array(newLen);
+        for(var i=0;i<newLen;i++){var srcIdx=i/ratio;var idx0=Math.floor(srcIdx);var idx1=Math.min(idx0+1,pcm.length-1);var frac=srcIdx-idx0;finalPcm[i]=pcm[idx0]*(1-frac)+pcm[idx1]*frac;}
+        finalRate=16000;
+      }
+      var wavBlob=encodeWAV(finalPcm,finalRate);
+      sendAudio(wavBlob);
+      LaRuche.Console.log('info','Voice','Recorded '+(totalLength/sampleRate).toFixed(1)+'s');
+    }
+    if(audioContext){audioContext.close();audioContext=null;}
+    recordedSamples=[];
+  }
+
+  function encodeWAV(samples, sampleRate) {
+    var buffer=new ArrayBuffer(44+samples.length*2);
+    var view=new DataView(buffer);
+    var writeStr=function(o,s){for(var i=0;i<s.length;i++)view.setUint8(o+i,s.charCodeAt(i));};
+    writeStr(0,'RIFF'); view.setUint32(4,36+samples.length*2,true); writeStr(8,'WAVE');
+    writeStr(12,'fmt '); view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,1,true);
+    view.setUint32(24,sampleRate,true); view.setUint32(28,sampleRate*2,true); view.setUint16(32,2,true); view.setUint16(34,16,true);
+    writeStr(36,'data'); view.setUint32(40,samples.length*2,true);
+    for(var i=0;i<samples.length;i++){var s=Math.max(-1,Math.min(1,samples[i]));view.setInt16(44+i*2,s<0?s*0x8000:s*0x7FFF,true);}
+    return new Blob([buffer],{type:'audio/wav'});
+  }
+
+  function sendAudio(blob) {
+    if(!audioWs||audioWs.readyState!==WebSocket.OPEN){connectAudioWS();setTimeout(function(){sendAudio(blob);},500);return;}
+    blob.arrayBuffer().then(function(buf){audioWs.send(buf);});
+  }
+
+  function playAudio(arrayBuffer) {
+    var ctx=new (window.AudioContext||window.webkitAudioContext)();
+    ctx.decodeAudioData(arrayBuffer,function(buffer){var src=ctx.createBufferSource();src.buffer=buffer;src.connect(ctx.destination);src.start(0);}).catch(function(e){LaRuche.Console.log('error','Audio','Decode failed: '+e.message);});
+  }
+
+  function toggleAutoTts() {
+    autoTtsEnabled=!autoTtsEnabled;
+    var btn=document.getElementById('autoTtsToggle');
+    btn.classList.toggle('active',autoTtsEnabled);
+    btn.title=autoTtsEnabled?'Lecture automatique activee':'Lecture automatique desactivee';
+  }
+
+  function checkVoiceStatus() {
+    fetch('/api/voice/status').then(function(r){return r.json();}).then(function(data){
+      sttAvailable=data.stt&&data.stt.available;
+      ttsAvailable=data.tts&&data.tts.available;
+      var micBtn=document.getElementById('micBtn');
+      if(!sttAvailable){micBtn.style.opacity='0.3';micBtn.style.pointerEvents='none';micBtn.title='STT non disponible';}
+      else {micBtn.style.opacity='1';micBtn.style.pointerEvents='auto';micBtn.title='Cliquer pour enregistrer / arreter';}
+      var autoTtsBtn=document.getElementById('autoTtsToggle');
+      if(!ttsAvailable){autoTtsBtn.style.opacity='0.3';autoTtsBtn.title='TTS non disponible';}
+      else {autoTtsBtn.style.opacity='1';autoTtsBtn.title='Lecture automatique des reponses';}
+    }).catch(function(){sttAvailable=false;ttsAvailable=false;});
+  }
+
+  function init() {
+    connectAudioWS();
+    checkVoiceStatus();
+    setInterval(checkVoiceStatus,15000);
+  }
+
+  return {
+    init:init, speakText:speakText, toggleMic:toggleMic, toggleAutoTts:toggleAutoTts,
+    refreshStatus:checkVoiceStatus,
+    isAutoTts:function(){return autoTtsEnabled;}, cleanTextForTTS:cleanTextForTTS,
+    selectTTS: function(v){ if(!v)return; var p=v.split('|'); LaRuche.Dashboard.useMeshModel(p[0],p[1],'tts'); },
+    selectSTT: function(v){ if(!v)return; var p=v.split('|'); LaRuche.Dashboard.useMeshModel(p[0],p[1],'stt'); },
+    updateVoiceSelectors: function(models) {
+      var tts = document.getElementById('ttsSelect');
+      var stt = document.getElementById('sttSelect');
+      if(!tts || !stt || !models) return;
+      var currentTts = tts.value; var currentStt = stt.value;
+      tts.innerHTML = '<option value="">Auto (premier detecte)</option>';
+      stt.innerHTML = '<option value="">Auto (premier detecte)</option>';
+      models.forEach(function(m){
+        var cap=(m.capability||'llm').toLowerCase();
+        if(cap==='tts') tts.innerHTML += '<option value="'+m.host+'|'+m.name+'">'+m.name+'</option>';
+        if(cap==='stt') stt.innerHTML += '<option value="'+m.host+'|'+m.name+'">'+m.name+'</option>';
+      });
+      fetch('/api/voice/status').then(function(r){return r.json();}).then(function(d){
+         if(d.tts && d.tts.is_selected) tts.value = d.tts.selected_host + '|' + d.tts.selected_model;
+         if(d.stt && d.stt.is_selected) stt.value = d.stt.selected_host + '|' + d.stt.selected_model;
+      }).catch(function(){});
+    }
+  };
+})();
+
+/* ── Dashboard Module ─────────────────────────────────────────── */
+LaRuche.Dashboard = (function(){
+  var pollTimers = [];
+  var connected = false;
+  var maxTps = 1;
+  var lastNodeCount = -1;
+  var lastModelCount = -1;
+  var lastActivityTs = '';
+  var activityInitialized = false;
+  var logCount = 0;
+  var logUserScrolled = false;
+  var expandedNodes = new Set();
+  var stableNodes = new Map();
+  var NODE_GRACE_POLLS = 10;
+  var pendingNodeCount = -1;
+  var pendingNodeCountHits = 0;
+  var NODE_COLORS = ['#22c55e','#3b82f6','#f59e0b','#a855f7','#06b6d4','#ef4444','#ec4899','#14b8a6','#f97316','#8b5cf6'];
+
+  /* Infer detail popover state */
+  var inferDetailMap = new Map();
+  var inferDetailCounter = 0;
+  var activePopover = null;
+  var popoverHoverTimer = null;
+  var popoverPinned = false;
+
+  /* Stats chart */
+  var statsCardOpen = false;
+  var statsMetric = 'all';
+  var metricsHistory = [];
+  var nodeEvents = [];
+  var statsRefreshTimer = null;
+  var chartCrosshairX = -1;
+  var viewTMin = null;
+  var viewTMax = null;
+  var isPanning = false;
+  var panStartX = 0;
+  var panStartTMin = 0;
+  var panStartTMax = 0;
+  var lastPinchDist = 0;
+  var preferredModels = (function(){try{return JSON.parse(localStorage.getItem('laruche_preferred_models')||'{}');}catch(e){return {};}})();
+  var modelPriority = (function(){try{return JSON.parse(localStorage.getItem('laruche_model_priority')||'[]');}catch(e){return [];}})();
+
+  var CHART_COLORS = {cpu:{line:'#22c55e',fill:'rgba(34,197,94,.10)'},ram:{line:'#f59e0b',fill:'rgba(245,158,11,.10)'},tps:{line:'#fbbf24',fill:'rgba(251,191,36,.10)'},queue:{line:'#a855f7',fill:'rgba(168,85,247,.10)'},gpu:{line:'#c084fc',fill:'rgba(192,132,252,.10)'},vram:{line:'#e879f9',fill:'rgba(232,121,249,.10)'}};
+  var METRIC_KEYS = ['cpu','ram','gpu','vram','tps','queue'];
+  var METRIC_LABELS = {cpu:'CPU %',ram:'RAM %',gpu:'GPU %',vram:'VRAM %',tps:'Tokens/s',queue:'Queue'};
+  var METRIC_FIELDS = {cpu:'cpu_pct',ram:'ram_pct',gpu:'gpu_pct',vram:'vram_pct',tps:'tokens_per_sec',queue:'queue_depth'};
+
+  function esc(s){return LaRuche.Utils.esc(s);}
+  function clamp(v,lo,hi){return LaRuche.Utils.clamp(v,lo,hi);}
+  function fmtMB(mb){return LaRuche.Utils.fmtMB(mb);}
+
+  function capBadge(cap){var c=LaRuche.Utils.normalizeCap(cap);if(c.includes('vlm')||c.includes('vla'))return'b-vlm';if(c.includes('code'))return'b-code';if(c.includes('audio')||c==='stt')return'b-audio';if(c==='tts')return'b-tts';if(c.includes('image'))return'b-image';if(c==='embed')return'b-embed';if(c.includes('rag'))return'b-rag';if(c==='agent')return'b-agent';return'b-llm';}
+  function setGauge(id,pct,color){var el=document.getElementById(id);if(!el)return;var outer=el.querySelector('.hex-outer');if(outer){outer.style.setProperty('--gauge',clamp(pct,0,100));if(color)outer.style.setProperty('--gauge-color',color);}}
+  function gaugeColor(pct){if(pct>80)return'var(--red)';if(pct>50)return'var(--amber)';return'var(--green)';}
+  function tempColor(temp){if(temp>85)return'fill-red';if(temp>65)return'fill-amber';return'fill-cyan';}
+  function estimateSpeedup(nodes){if(nodes.length<=1)return 1.0;var best=0,total=0;for(var i=0;i<nodes.length;i++){var t=nodes[i].tokens_per_sec||0;total+=t;if(t>best)best=t;}if(best<=0)return 1+(nodes.length-1)*0.85;return total/best;}
+
+  function updateStableNodes(incomingNodes){
+    var incomingIds=new Set();
+    for(var i=0;i<incomingNodes.length;i++){var n=incomingNodes[i];var id=n.node_id||(n.host+':'+(n.port||8419));incomingIds.add(id);stableNodes.set(id,{node:n,missedPolls:0});}
+    for(var entry of stableNodes){if(!incomingIds.has(entry[0])){entry[1].missedPolls++;if(entry[1].missedPolls>=NODE_GRACE_POLLS)stableNodes.delete(entry[0]);}}
+    var result=[];for(var e of stableNodes.values())result.push(e.node);return result;
+  }
+
+  function toggleNodeExpand(nodeId){
+    if(expandedNodes.has(nodeId))expandedNodes.delete(nodeId);else expandedNodes.add(nodeId);
+    var el=document.querySelector('[data-node-id="'+CSS.escape(nodeId)+'"]');if(el)el.classList.toggle('expanded');
+  }
+
+  function buildNodeDetail(n){
+    var html='';
+    if(n.cpu_usage_pct!=null){var cpuPct=clamp(n.cpu_usage_pct,0,100);var cpuFill=cpuPct>80?'fill-red':cpuPct>50?'fill-amber':'fill-green';html+='<div class="n-detail-row"><span class="n-detail-label">CPU</span><div class="n-detail-track"><div class="n-detail-fill '+cpuFill+'" style="width:'+cpuPct+'%"></div></div><span class="n-detail-val">'+cpuPct.toFixed(0)+'%</span></div>';}
+    if(n.memory_usage_pct!=null){var memPct=clamp(n.memory_usage_pct,0,100);var memFill=memPct>80?'fill-red':memPct>50?'fill-amber':'fill-green';var memLabel=n.memory_used_mb?fmtMB(n.memory_used_mb)+'/'+fmtMB(n.memory_total_mb):memPct.toFixed(0)+'%';html+='<div class="n-detail-row"><span class="n-detail-label">RAM</span><div class="n-detail-track"><div class="n-detail-fill '+memFill+'" style="width:'+memPct+'%"></div></div><span class="n-detail-val">'+esc(memLabel)+'</span></div>';}
+    else if(n.memory_total_mb!=null){html+='<div class="n-detail-stat"><span class="n-detail-stat-label">RAM Total</span><span class="n-detail-stat-val">'+fmtMB(n.memory_total_mb)+'</span></div>';}
+    if(n.vram_usage_pct!=null){var vramPct=clamp(n.vram_usage_pct,0,100);var vramFill=vramPct>80?'fill-red':vramPct>50?'fill-amber':'fill-purple';var vramLabel=n.vram_used_mb?fmtMB(n.vram_used_mb)+'/'+fmtMB(n.vram_total_mb):vramPct.toFixed(0)+'%';html+='<div class="n-detail-row"><span class="n-detail-label">VRAM</span><div class="n-detail-track"><div class="n-detail-fill '+vramFill+'" style="width:'+vramPct+'%"></div></div><span class="n-detail-val">'+esc(vramLabel)+'</span></div>';}
+    else if(n.vram_total_mb!=null&&n.vram_total_mb>0){html+='<div class="n-detail-stat"><span class="n-detail-stat-label">VRAM Total</span><span class="n-detail-stat-val">'+fmtMB(n.vram_total_mb)+'</span></div>';}
+    if(n.temperature_c!=null){var temp=n.temperature_c;var tFill=tempColor(temp);var tPct=clamp((temp/100)*100,0,100);html+='<div class="n-detail-row"><span class="n-detail-label">Temp</span><div class="n-detail-track"><div class="n-detail-fill '+tFill+'" style="width:'+tPct+'%"></div></div><span class="n-detail-val">'+temp.toFixed(0)+'&deg;C</span></div>';}
+    else if(n.gpu_temperature_c!=null){var gTemp=n.gpu_temperature_c;var gtFill=tempColor(gTemp);var gtPct=clamp((gTemp/100)*100,0,100);html+='<div class="n-detail-row"><span class="n-detail-label">GPU</span><div class="n-detail-track"><div class="n-detail-fill '+gtFill+'" style="width:'+gtPct+'%"></div></div><span class="n-detail-val">'+gTemp.toFixed(0)+'&deg;C</span></div>';}
+    var tps=n.tokens_per_sec?n.tokens_per_sec.toFixed(1):'0.0';
+    html+='<div class="n-detail-stat"><span class="n-detail-stat-label">Tokens/sec</span><span class="n-detail-stat-val">'+tps+' t/s</span></div>';
+    html+='<div class="n-detail-stat"><span class="n-detail-stat-label">Queue</span><span class="n-detail-stat-val">'+(n.queue_depth||0)+'</span></div>';
+    if(!html)html='<div style="font-size:9px;color:var(--text-dim);padding:2px 0">No detailed metrics</div>';
+    return html;
+  }
+
+  function renderSharding(nodes){
+    var section=document.getElementById('shard-section');
+    if(nodes.length<2){section.classList.remove('active');return;}
+    section.classList.add('active');
+    var speedup=estimateSpeedup(nodes);
+    document.getElementById('shard-speedup').textContent=speedup.toFixed(1)+'x with '+nodes.length+' nodes';
+    var nodeWeights=[],totalWeight=0;
+    for(var i=0;i<nodes.length;i++){var w=nodes[i].vram_total_mb||nodes[i].memory_total_mb||1024;nodeWeights.push(w);totalWeight+=w;}
+    var nodePcts=nodeWeights.map(function(w){return(w/totalWeight)*100;});
+    var layerGroups=['Attention','FFN','Embedding','Output'];
+    var layersEl=document.getElementById('shard-layers');layersEl.innerHTML='';
+    for(var g=0;g<layerGroups.length;g++){
+      var row=document.createElement('div');row.className='shard-layer-row';
+      var segmentsHtml='';
+      for(var j=0;j<nodes.length;j++){var color=NODE_COLORS[j%NODE_COLORS.length];segmentsHtml+='<div class="shard-segment" style="width:'+nodePcts[j].toFixed(1)+'%;background:'+color+';opacity:'+(0.6+(g%2)*0.15)+'"></div>';}
+      row.innerHTML='<span class="shard-layer-label">'+layerGroups[g]+'</span><div class="shard-layer-bar">'+segmentsHtml+'</div>';
+      layersEl.appendChild(row);
+    }
+    var legendEl=document.getElementById('shard-legend');legendEl.innerHTML='';
+    for(var k=0;k<nodes.length;k++){var color=NODE_COLORS[k%NODE_COLORS.length];var name=nodes[k].name||('Node '+(k+1));legendEl.innerHTML+='<div class="shard-legend-item"><div class="shard-legend-dot" style="background:'+color+'"></div>'+esc(name)+' ('+nodePcts[k].toFixed(0)+'%)</div>';}
+  }
+
+  /* Log */
+  function highlightMsg(raw){
+    var s=esc(raw);
+    s=s.replace(/\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?::\d+)?)\b/g,'<span class="hl-ip">$1</span>');
+    s=s.replace(/\b(\d+)\s*(tokens?\b)/gi,'<span class="hl-tok">$1 $2</span>');
+    s=s.replace(/(\d+\.?\d*)\s*(t\/s)/g,'<span class="hl-tok">$1 $2</span>');
+    s=s.replace(/\b(in\s+\d+m?s)/gi,'<span class="hl-tok">$1</span>');
+    s=s.replace(/(via\s+)([^\s,]+)/g,'$1<span class="hl-model">$2</span>');
+    s=s.replace(/(\[System\]:?\s*)([^|]*)/g,'<span class="hl-sys">$1</span><span class="hl-prompt">$2</span>');
+    return s;
+  }
+
+  function addLog(tag,cls,msg,serverTs,detail){
+    var log=document.getElementById('log');
+    var ts;
+    if(serverTs){try{ts=LaRuche.Utils.fmtTime(new Date(serverTs));}catch(e){ts=LaRuche.Utils.fmtTime(new Date());}}
+    else ts=LaRuche.Utils.fmtTime(new Date());
+    var row=document.createElement('div');row.className='log-row';
+    row.setAttribute('data-tag', (tag || '').toLowerCase());
+    if(detail&&detail.full_prompt){var id=++inferDetailCounter;inferDetailMap.set(id,detail);row.setAttribute('data-infer-id',id);}
+    row.innerHTML='<span class="log-t">'+ts+'</span><span class="log-tag '+cls+'">'+esc(tag)+'</span><span class="log-msg">'+highlightMsg(msg)+'</span>';
+    log.appendChild(row);
+    while(log.children.length>200){var removed=log.firstChild;if(removed&&removed.dataset&&removed.dataset.inferId)inferDetailMap.delete(parseInt(removed.dataset.inferId));log.removeChild(removed);}
+    logCount=Math.min(logCount+1,200);
+    document.getElementById('log-badge').textContent=logCount;
+    var logBody=document.getElementById('log-body');
+    if(!logUserScrolled)logBody.scrollTop=logBody.scrollHeight;
+  }
+
+  /* Popover for INFER log entries */
+  function showInferPopover(anchorEl,detail){
+    hideInferPopover();
+    var pop=document.createElement('div');pop.className='log-popover';
+    pop.innerHTML='<div class="log-popover-hdr"><div class="pop-meta">'+(detail.model_used?'<span class="pop-model">'+esc(detail.model_used)+'</span>':'')+(detail.tokens_generated?'<span class="pop-tok">'+detail.tokens_generated+' tokens</span>':'')+(detail.latency_ms?'<span>'+detail.latency_ms+'ms</span>':'')+'</div><button class="log-popover-close">&times;</button></div><div class="log-popover-body"><div class="log-popover-section"><div class="pop-label">PROMPT</div><div class="pop-content">'+esc(detail.full_prompt||'')+'</div></div><div class="log-popover-section"><div class="pop-label">RESPONSE</div><div class="pop-content">'+esc(detail.full_response||'(empty)')+'</div></div></div>';
+    document.body.appendChild(pop);activePopover=pop;
+    var rect=anchorEl.getBoundingClientRect();var popH=300,popW=Math.min(520,window.innerWidth*0.9);
+    var top=rect.bottom+4;if(top+popH>window.innerHeight)top=rect.top-popH-4;if(top<4)top=4;
+    var left=Math.min(rect.left,window.innerWidth-popW-8);if(left<4)left=4;
+    pop.style.top=top+'px';pop.style.left=left+'px';
+    requestAnimationFrame(function(){pop.classList.add('visible');});
+    pop.querySelector('.log-popover-close').addEventListener('click',function(e){e.stopPropagation();hideInferPopover();});
+    pop.addEventListener('mouseenter',function(){clearTimeout(popoverHoverTimer);});
+    pop.addEventListener('mouseleave',function(){if(!popoverPinned)popoverHoverTimer=setTimeout(hideInferPopover,200);});
+  }
+  function hideInferPopover(){if(activePopover){activePopover.remove();activePopover=null;popoverPinned=false;}clearTimeout(popoverHoverTimer);}
+
+  /* Fetchers */
+  async function fetchSwarm(){
+    try{
+      var r=await fetch(LaRuche.API.base+'/swarm');if(!r.ok)throw new Error('HTTP '+r.status);var d=await r.json();
+      var stableNodeList=updateStableNodes(d.nodes);var stableCount=stableNodeList.length;
+      document.getElementById('kpi-nodes').textContent=stableCount;
+      document.getElementById('kpi-tps').textContent=d.collective_tps.toFixed(1);
+      document.getElementById('kpi-queue').textContent=d.collective_queue;
+      setGauge('hg-nodes',Math.min(stableCount*33,100),'var(--green)');
+      if(d.collective_tps>maxTps)maxTps=d.collective_tps;
+      setGauge('hg-tps',(d.collective_tps/maxTps)*100,'var(--amber)');
+      setGauge('hg-queue',Math.min(d.collective_queue*10,100),d.collective_queue>5?'var(--red)':'var(--blue)');
+      document.getElementById('s-ram').textContent=d.total_ram_mb>0?fmtMB(d.total_ram_mb):'\u2014';
+      document.getElementById('s-vram').textContent=d.total_vram_mb>0?fmtMB(d.total_vram_mb):'\u2014';
+      document.getElementById('s-tps').textContent=d.collective_tps.toFixed(1)+' t/s';
+      document.getElementById('s-queue').textContent=d.collective_queue;
+      document.getElementById('swarm-badge').textContent=stableCount+' node'+(stableCount>1?'s':'');
+      var pillSwarm=document.getElementById('pill-swarm');
+      if(stableCount>1){var speedup=estimateSpeedup(stableNodeList);document.getElementById('pill-swarm-text').textContent='Swarm: '+stableCount+' nodes \u00B7 '+speedup.toFixed(1)+'x';pillSwarm.classList.add('active');}
+      else pillSwarm.classList.remove('active');
+      if(!connected){connected=true;LaRuche.Toast.show('Swarm connecte \u2014 '+stableCount+' n\u0153ud(s)','ok');addLog('NET','log-ok','Connexion au Swarm \u00E9tablie');lastNodeCount=stableCount;}
+      if(lastNodeCount>=0&&stableCount!==lastNodeCount){
+        if(stableCount===pendingNodeCount)pendingNodeCountHits++;else{pendingNodeCount=stableCount;pendingNodeCountHits=1;}
+        if(pendingNodeCountHits>=2){
+          if(stableCount>lastNodeCount){LaRuche.Toast.show('Nouveau n\u0153ud! Total: '+stableCount,'ok');addLog('Miel','log-ok','N\u0153ud rejoint le Swarm');}
+          else{LaRuche.Toast.show('N\u0153ud deconnecte. Total: '+stableCount,'warn');addLog('Miel','log-warn','N\u0153ud quitte le Swarm');}
+          lastNodeCount=stableCount;pendingNodeCount=-1;pendingNodeCountHits=0;
+        }
+      } else{pendingNodeCount=-1;pendingNodeCountHits=0;}
+      /* Render node list */
+      var list=document.getElementById('node-list');list.innerHTML='';
+      for(var i=0;i<stableNodeList.length;i++){
+        var n=stableNodeList[i];var nodeId=n.node_id||(n.host+':'+(n.port||8419));
+        var tps=n.tokens_per_sec?n.tokens_per_sec.toFixed(1):'0.0';var q=n.queue_depth||0;
+        var normalizedCaps=[];(n.capabilities||[]).forEach(function(c){var cc=LaRuche.Utils.normalizeCap(c);if(cc&&normalizedCaps.indexOf(cc)===-1)normalizedCaps.push(cc);});
+        var caps=normalizedCaps.map(function(c){return'<span class="badge '+capBadge(c)+'">'+esc(c)+'</span>';}).join('');
+        if(!caps)caps='<span class="badge b-rag">none</span>';
+        var modelHtml=n.model?'<div class="n-model">\u25C8 '+esc(n.model)+'</div>':'';
+        var hostLabel=n.host+((n.port&&n.port!==8419)?(':'+n.port):'');
+        var isExpanded=expandedNodes.has(nodeId);
+        var item=document.createElement('div');item.className='n-item'+(isExpanded?' expanded':'');item.setAttribute('data-node-id',nodeId);
+        item.innerHTML='<div class="n-item-row" onclick="LaRuche.Dashboard.toggleNodeExpand(\''+esc(nodeId.replace(/'/g,"\\'"))+'\')">'+'<span class="expand-icon">\u25B6</span><div class="n-hex '+(q>3?'busy':'ok')+'"></div><div class="n-info"><div class="n-name">'+esc(n.name||'Unknown')+'</div>'+modelHtml+'<div class="n-meta">'+esc(hostLabel)+' \u00B7 '+tps+' t/s \u00B7 Q:'+q+'</div></div><div class="n-right"><div class="badges">'+caps+'</div></div></div><div class="n-detail">'+buildNodeDetail(n)+'</div>';
+        list.appendChild(item);
+      }
+      renderSharding(stableNodeList);
+    } catch(e){
+      if(connected){connected=false;LaRuche.Toast.show('Connexion perdue','err');addLog('NET','log-err','N\u0153ud inaccessible');}
+    }
+  }
+
+  async function fetchStatus(){
+    try{
+      var r=await fetch(LaRuche.API.base+'/api/status');if(!r.ok)return;var d=await r.json();
+      var cpu=d.cpu_usage_pct||0;
+      document.getElementById('kpi-cpu').textContent=cpu.toFixed(0)+'%';
+      document.getElementById('r-cpu').textContent=cpu.toFixed(0)+'%';
+      document.getElementById('b-cpu').style.width=clamp(cpu,0,100)+'%';
+      document.getElementById('b-cpu').className='res-fill '+(cpu>80?'fill-red':cpu>50?'fill-amber':'fill-green');
+      setGauge('hg-cpu',cpu,gaugeColor(cpu));
+      var mem=d.memory_usage_pct||0;
+      var memLabel=d.memory_used_mb?fmtMB(d.memory_used_mb)+'/'+fmtMB(d.memory_total_mb):mem.toFixed(0)+'%';
+      document.getElementById('kpi-ram').textContent=mem.toFixed(0)+'%';
+      document.getElementById('r-mem').textContent=memLabel;
+      document.getElementById('b-mem').style.width=clamp(mem,0,100)+'%';
+      document.getElementById('b-mem').className='res-fill '+(mem>80?'fill-red':mem>50?'fill-amber':'fill-green');
+      setGauge('hg-ram',mem,gaugeColor(mem));
+      // GPU bar
+      var gpuRow=document.getElementById('gpu-row');
+      if(d.gpu_usage_pct!=null){
+        gpuRow.style.display='';
+        var gpuPct=clamp(d.gpu_usage_pct,0,100);
+        document.getElementById('r-gpu').textContent=gpuPct.toFixed(0)+'%';
+        document.getElementById('b-gpu').style.width=gpuPct+'%';
+        document.getElementById('b-gpu').className='res-fill '+(gpuPct>80?'fill-red':gpuPct>50?'fill-amber':'fill-purple');
+      } else gpuRow.style.display='none';
+      var vramRow=document.getElementById('vram-row');
+      if(d.vram_usage_pct!=null||d.vram_used_mb!=null||d.vram_total_mb!=null){
+        vramRow.style.display='';
+        var vramPct=d.vram_usage_pct||(d.vram_total_mb>0?((d.vram_used_mb||0)/d.vram_total_mb)*100:0);
+        var vramLabel=d.vram_used_mb!=null&&d.vram_total_mb!=null?fmtMB(d.vram_used_mb)+'/'+fmtMB(d.vram_total_mb):vramPct.toFixed(0)+'%';
+        document.getElementById('r-vram').textContent=vramLabel;
+        document.getElementById('b-vram').style.width=clamp(vramPct,0,100)+'%';
+        document.getElementById('b-vram').className='res-fill '+(vramPct>80?'fill-red':vramPct>50?'fill-amber':'fill-purple');
+      } else vramRow.style.display='none';
+      // GPU hex gauge
+      var hgGpu=document.getElementById('hg-gpu');
+      if(d.gpu_usage_pct!=null||d.accelerator_usage_pct!=null){
+        var gpuPct=d.gpu_usage_pct||d.accelerator_usage_pct||0;
+        hgGpu.style.display='';
+        document.getElementById('kpi-gpu').textContent=gpuPct.toFixed(0)+'%';
+        setGauge('hg-gpu',gpuPct,gpuPct>80?'var(--red)':gpuPct>50?'var(--amber)':'var(--purple)');
+      }
+      // VRAM hex gauge
+      var hgVram=document.getElementById('hg-vram');
+      if(d.vram_used_mb!=null&&d.vram_total_mb!=null&&d.vram_total_mb>0){
+        hgVram.style.display='';
+        var vPct2=(d.vram_used_mb/d.vram_total_mb)*100;
+        document.getElementById('kpi-vram').textContent=fmtMB(d.vram_used_mb);
+        setGauge('hg-vram',vPct2,vPct2>80?'var(--red)':vPct2>50?'var(--amber)':'var(--purple)');
+      }
+      var tempRow=document.getElementById('temp-row');
+      var tempVal=d.temperature_c!=null?d.temperature_c:(d.gpu_temperature_c!=null?d.gpu_temperature_c:null);
+      if(tempVal!=null){tempRow.style.display='';var tPct=clamp((tempVal/100)*100,0,100);document.getElementById('r-temp').textContent=tempVal.toFixed(0)+'\u00B0C';document.getElementById('b-temp').style.width=tPct+'%';document.getElementById('b-temp').className='res-fill '+tempColor(tempVal);}
+      else tempRow.style.display='none';
+      var tps=d.tokens_per_sec||0;if(tps>maxTps)maxTps=tps;
+      document.getElementById('r-tps').textContent=tps.toFixed(1)+' t/s';
+      document.getElementById('b-tps').style.width=clamp((tps/maxTps)*100,0,100)+'%';
+      var q=d.queue_depth||0;document.getElementById('r-queue').textContent=q;document.getElementById('b-queue').style.width=clamp(q*10,0,100)+'%';
+      document.getElementById('kpi-uptime').textContent=LaRuche.Utils.fmtDuration(d.uptime_secs*1000);
+      setGauge('hg-uptime',Math.min((d.uptime_secs/86400)*100,100),'var(--cyan)');
+    } catch(e){}
+  }
+
+  
+  function useMeshModel(host, name, capability, node_id, base_url) {
+    fetch('/api/models/use', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({
+      host: host, name: name, capability: capability, node_id: node_id, base_url: base_url
+    })}).then(function(r){return r.json();}).then(function(d){
+      if(d.status==='ok') {
+        LaRuche.Toast.show(name + ' actif pour ' + capability, 'ok');
+        // P7 : re-fetch + re-render le dropdown du haut, le mesh, le recap capacites et la voix
+        LaRuche.refreshAll();
+      } else {
+        LaRuche.Toast.show('Erreur: '+(d.error||'?'), 'err');
+        fetchModels();
+      }
+    }).catch(function(e){LaRuche.Toast.show('Erreur: '+e, 'err'); fetchModels();});
+  }
+
+  async function fetchModels(){
+    try{
+      var r=await fetch(LaRuche.API.base+'/swarm/models');if(!r.ok)return;var d=await r.json();
+      var selData = await fetch('/api/capabilities/selection').then(r=>r.json()).catch(e=>({selection:{}}));
+      var serverPreferred = selData.selection || {};
+      var list=document.getElementById('model-list');list.innerHTML='';
+      
+      var sourcesSet = new Set();
+      if(d.models) {
+        d.models.forEach(function(m) {
+           sourcesSet.add(m.is_local ? 'local' : m.node_id);
+        });
+      }
+      var sourcesCount = sourcesSet.size;
+      
+      if(!d.models||d.models.length===0){
+        list.innerHTML='<div style="font-size:10px;color:var(--text-dim);text-align:center;padding:8px">Aucun service</div>';
+        document.getElementById('model-badge').textContent='0 sources';
+        return;
+      }
+      
+      document.getElementById('model-badge').textContent=d.models.length + ' modeles sur ' + sourcesCount + ' sources';
+      
+      var groups={};
+      
+      d.models.forEach(function(m){
+        var cap=(m.capability||'llm').toLowerCase();
+        if(!groups[cap]){groups[cap]=[];}
+        // DÉDUP : un même modèle (nom + source) ne doit apparaître qu'une fois (sinon « Utilisé
+        // partout » et cartes en double quand un modèle vient de plusieurs sources).
+        var dup = groups[cap].some(function(x){ return x.name===m.name && x.host===m.host && x.node_id===m.node_id; });
+        if(!dup) groups[cap].push(m);
+      });
+      
+      var allCaps = Object.keys(groups);
+      var orderedCaps = ['llm', 'code', 'stt', 'tts', 'vlm', 'vla'];
+      var groupOrder = orderedCaps.filter(c => allCaps.includes(c));
+      allCaps.forEach(c => { if(!groupOrder.includes(c)) groupOrder.push(c); });
+      
+      if(LaRuche.Voice && LaRuche.Voice.updateVoiceSelectors) {
+        LaRuche.Voice.updateVoiceSelectors(d.models);
+      }
+      
+      groupOrder.forEach(function(cap){
+        var section = document.createElement('div');
+        section.className = 'mesh-cap-section';
+        if(cap === 'code') section.style.border = '1px solid var(--green-dim)';
+        
+        var CAP_LABEL = { llm:'💬 Conversation (LLM)', agent:'🤖 Agent', code:'💻 Code', stt:'🎙️ Voix → Texte', tts:'🔊 Texte → Voix', vlm:'👁️ Vision', vla:'🦾 Vision-Action' };
+        var hdr = document.createElement('div');
+        hdr.className = 'mesh-cap-hdr';
+        hdr.innerHTML = '<span>' + (CAP_LABEL[cap]||cap) + '</span> <span>' + groups[cap].length + '</span>';
+        section.appendChild(hdr);
+        
+        var grid = document.createElement('div');
+        grid.className = 'mesh-grid';
+        
+        groups[cap].forEach(function(m){
+          // Sélectionné = correspond EXACTEMENT au choix serveur pour cette capacité (nom + source).
+          // Pas de fallback sur is_default (qui pouvait marquer plusieurs cartes « Utilisé »).
+          var _sp = serverPreferred[cap];
+          var isPreferred = !!(_sp && m.name === _sp.model && (_sp.backend == null || m.host === _sp.backend));
+          var card = document.createElement('div');
+          card.className = 'mesh-card';
+          if(isPreferred){ card.style.borderColor = 'var(--amber)'; card.style.background = 'rgba(245,158,11,0.06)'; }
+          card.title = m.is_local ? 'Mon modèle local' : 'Modèle distant (ruche '+(m.node_name||'pair')+')';
+
+          var nameDiv = document.createElement('div');
+          nameDiv.className = 'mesh-card-name';
+          nameDiv.textContent = m.name;
+          if(isPreferred) nameDiv.innerHTML += ' <span style="background:var(--amber);color:var(--bg);font-size:9px;font-weight:700;padding:0 5px;border-radius:7px;margin-left:4px;vertical-align:middle;">● SÉLECTIONNÉ</span>';
+
+          var metaDiv = document.createElement('div');
+          metaDiv.className = 'mesh-card-meta';
+
+          var sizeSpan = document.createElement('span');
+          sizeSpan.textContent = m.size_gb > 0 ? m.size_gb.toFixed(1) + ' GB' : '';
+
+          // Provenance CLAIRE : 🖥️ mon local · 🐝 distant (quelle ruche).
+          var badgeSpan = document.createElement('span');
+          badgeSpan.className = 'mesh-badge ' + (m.is_local ? 'mesh-local' : 'mesh-remote');
+          badgeSpan.textContent = m.is_local ? '🖥️ à moi (local)' : '🐝 '+(m.node_name || 'pair')+' · distant';
+
+          metaDiv.appendChild(sizeSpan);
+          metaDiv.appendChild(badgeSpan);
+
+          card.appendChild(nameDiv);
+          card.appendChild(metaDiv);
+
+          var useBtn = document.createElement('button');
+          useBtn.style.cssText = 'background:rgba(245,158,11,0.1); border:1px solid var(--amber); color:var(--amber); border-radius:4px; padding:4px 8px; font-size:10px; cursor:pointer; margin-top:4px; transition:var(--transition-fast); text-align:center;';
+          if(isPreferred){
+            useBtn.textContent = '✓ Utilisé';
+            useBtn.style.background = 'var(--amber)'; useBtn.style.color = 'var(--bg)'; useBtn.disabled = true; useBtn.style.cursor = 'default';
+          } else {
+            useBtn.textContent = 'Utiliser';
+            useBtn.onmouseover = function() { this.style.background = 'rgba(245,158,11,0.2)'; };
+            useBtn.onmouseout = function() { this.style.background = 'rgba(245,158,11,0.1)'; };
+            useBtn.onclick = function(e){
+              e.stopPropagation();
+              useBtn.disabled = true;
+              useBtn.textContent = '...';
+              useMeshModel(m.host, m.name, cap, m.node_id, m.base_url);
+            };
+          }
+          card.appendChild(useBtn);
+          
+          card.addEventListener('click', function(){ setPreferredModel(m.name, cap); });
+          
+          grid.appendChild(card);
+        });
+        
+        section.appendChild(grid);
+        list.appendChild(section);
+      });
+      
+      lastModelCount=d.models.length;
+    } catch(e){}
+  }
+
+  function setPreferredModel(name,capability){
+    capability=capability||'llm';preferredModels[capability]=name;localStorage.setItem('laruche_preferred_models',JSON.stringify(preferredModels));
+    LaRuche.Toast.show('Default '+capability+' model: '+name,'ok');addLog('MODEL','log-ok','Default '+capability+' set to '+name);fetchModels();
+    fetch('/config/default_model',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:name,capability:capability})}).catch(function(){});
+  }
+  function moveModelPriority(name,dir){
+    var idx=modelPriority.indexOf(name);if(idx<0)return;var newIdx=idx+dir;if(newIdx<0||newIdx>=modelPriority.length)return;
+    var tmp=modelPriority[newIdx];modelPriority[newIdx]=modelPriority[idx];modelPriority[idx]=tmp;
+    localStorage.setItem('laruche_model_priority',JSON.stringify(modelPriority));fetchModels();
+  }
+
+  async function fetchActivity(){
+    try{
+      var r=await fetch(LaRuche.API.base+'/activity');if(!r.ok)return;var d=await r.json();
+      if(!activityInitialized){var recent=(d.logs||[]).slice(-30);recent.forEach(function(log){var detail=(log.full_prompt||log.full_response)?log:null;addLog(log.tag,log.level,log.message,log.timestamp,detail);});if(d.logs&&d.logs.length>0)lastActivityTs=d.logs[d.logs.length-1].timestamp;activityInitialized=true;return;}
+      d.logs.forEach(function(log){if(log.timestamp>lastActivityTs){var detail=(log.full_prompt||log.full_response)?log:null;addLog(log.tag,log.level,log.message,log.timestamp,detail);lastActivityTs=log.timestamp;}});
+    } catch(e){}
+  }
+
+  /* Inference */
+  var inferRunning = false;
+  async function runInference(){
+    var prompt=document.getElementById('infer-input').value.trim();if(!prompt||inferRunning)return;
+    inferRunning=true;var btn=document.getElementById('infer-btn');btn.disabled=true;btn.classList.add('running');btn.textContent='\u2026';
+    var result=document.getElementById('infer-result');result.textContent='';result.classList.add('active');
+    document.getElementById('infer-meta').classList.remove('active');
+    var t0=performance.now();
+    try{
+      var payload={prompt:prompt,capability:'llm'};if(preferredModels['llm'])payload.model=preferredModels['llm'];
+      var r=await fetch(LaRuche.API.base+'/infer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      var elapsed=performance.now()-t0;
+      if(!r.ok){result.textContent='Error '+r.status;result.style.color='var(--red)';addLog('INFER','log-err','Failed: HTTP '+r.status);return;}
+      var d=await r.json();var response=d.response||d.text||d.content||d.message||JSON.stringify(d);
+      result.textContent=response;result.style.color='var(--text-mid)';
+      document.getElementById('infer-latency').textContent='\u23F1 '+(elapsed/1000).toFixed(2)+'s';
+      if(d.tokens_generated||d.eval_count){var tokCount=d.tokens_generated||d.eval_count;var tokRate=d.tokens_per_sec||d.eval_rate||(tokCount/(elapsed/1000));document.getElementById('infer-tokens').textContent=tokCount+' tok @ '+tokRate.toFixed(1)+' t/s';}else document.getElementById('infer-tokens').textContent='';
+      if(d.model)document.getElementById('infer-model').textContent='\u25C8 '+d.model;else document.getElementById('infer-model').textContent='';
+      document.getElementById('infer-meta').classList.add('active');
+      addLog('INFER','log-ok','Response in '+(elapsed/1000).toFixed(2)+'s'+(d.model?' via '+d.model:''));
+    } catch(e){result.textContent='Network error: '+e.message;result.style.color='var(--red)';addLog('INFER','log-err','Error: '+e.message);}
+    finally{inferRunning=false;btn.disabled=false;btn.classList.remove('running');btn.textContent='Send';}
+  }
+
+  /* Chart rendering */
+  function renderChart(){
+    var canvas=document.getElementById('stats-canvas');
+    var rect=canvas.parentElement.getBoundingClientRect();var dpr=window.devicePixelRatio||1;
+    canvas.width=rect.width*dpr;canvas.height=rect.height*dpr;
+    var ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);var W=rect.width,H=rect.height;ctx.clearRect(0,0,W,H);
+    if(metricsHistory.length<2){ctx.fillStyle='#71717a';ctx.font='11px sans-serif';ctx.textAlign='center';ctx.fillText('En attente de donnees...',W/2,H/2);return;}
+    var pad={top:8,right:10,bottom:22,left:38};var cW=W-pad.left-pad.right;var cH=H-pad.top-pad.bottom;
+    var dataMin=metricsHistory[0].epoch_ms;var dataMax=metricsHistory[metricsHistory.length-1].epoch_ms;
+    var tMin=viewTMin!==null?viewTMin:dataMin;var tMax=viewTMax!==null?viewTMax:dataMax;var tRange=tMax-tMin||1;
+    var resetBtn=document.getElementById('stats-reset-zoom');if(resetBtn)resetBtn.className='stats-reset-zoom'+(viewTMin!==null?' visible':'');
+    var keys=statsMetric==='all'?METRIC_KEYS:[statsMetric];
+    var yMax=1;keys.forEach(function(k){var field=METRIC_FIELDS[k];metricsHistory.forEach(function(s){if(s.epoch_ms<tMin||s.epoch_ms>tMax)return;var v=s[field]||0;if(v>yMax)yMax=v;});});
+    yMax=Math.ceil(yMax*1.15);if(yMax<10)yMax=10;
+    ctx.strokeStyle='rgba(255,255,255,.06)';ctx.lineWidth=1;
+    for(var gi=0;gi<=4;gi++){var gy=pad.top+cH-(gi/4)*cH;ctx.beginPath();ctx.moveTo(pad.left,gy);ctx.lineTo(pad.left+cW,gy);ctx.stroke();ctx.fillStyle='#71717a';ctx.font='9px monospace';ctx.textAlign='right';ctx.fillText(Math.round((gi/4)*yMax),pad.left-4,gy+3);}
+    ctx.textAlign='center';ctx.fillStyle='#71717a';ctx.font='9px monospace';
+    for(var ti=0;ti<=6;ti++){var tt=tMin+(ti/6)*tRange;var tx=pad.left+(ti/6)*cW;var d=new Date(tt);ctx.fillText(('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2),tx,H-4);}
+    nodeEvents.forEach(function(ev){var ex=pad.left+((ev.epoch_ms-tMin)/tRange)*cW;if(ex<pad.left||ex>pad.left+cW)return;ctx.strokeStyle=ev.event_type==='connected'?'rgba(34,197,94,.5)':'rgba(239,68,68,.5)';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(ex,pad.top);ctx.lineTo(ex,pad.top+cH);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=ev.event_type==='connected'?'#22c55e':'#ef4444';ctx.font='8px sans-serif';ctx.textAlign='left';ctx.fillText((ev.event_type==='connected'?'+ ':'- ')+ev.node_name,ex+2,pad.top+10);});
+    ctx.save();ctx.beginPath();ctx.rect(pad.left,pad.top,cW,cH);ctx.clip();
+    keys.forEach(function(k){var col=CHART_COLORS[k];var field=METRIC_FIELDS[k];ctx.strokeStyle=col.line;ctx.lineWidth=1.5;ctx.lineJoin='round';ctx.beginPath();var pts=[];metricsHistory.forEach(function(s,i){var x=pad.left+((s.epoch_ms-tMin)/tRange)*cW;var v=s[field]||0;var y=pad.top+cH-(v/yMax)*cH;pts.push({x:x,y:y,v:v});if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);});ctx.stroke();ctx.fillStyle=col.fill;ctx.beginPath();pts.forEach(function(p,i){i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y);});ctx.lineTo(pts[pts.length-1].x,pad.top+cH);ctx.lineTo(pts[0].x,pad.top+cH);ctx.closePath();ctx.fill();});
+    ctx.restore();
+    if(!isPanning&&chartCrosshairX>=pad.left&&chartCrosshairX<=pad.left+cW){
+      ctx.strokeStyle='rgba(255,255,255,.2)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(chartCrosshairX,pad.top);ctx.lineTo(chartCrosshairX,pad.top+cH);ctx.stroke();
+      var hoverT=tMin+((chartCrosshairX-pad.left)/cW)*tRange;var closest=metricsHistory[0],minDist=Infinity;
+      metricsHistory.forEach(function(s){var dist=Math.abs(s.epoch_ms-hoverT);if(dist<minDist){minDist=dist;closest=s;}});
+      var lines=[];keys.forEach(function(k){var v=closest[METRIC_FIELDS[k]]||0;var unit=(k==='cpu'||k==='ram')?'%':'';lines.push(METRIC_LABELS[k]+': '+(typeof v==='number'?v.toFixed(1):v)+unit);});
+      var tt2=new Date(closest.epoch_ms);lines.unshift(('0'+tt2.getHours()).slice(-2)+':'+('0'+tt2.getMinutes()).slice(-2)+':'+('0'+tt2.getSeconds()).slice(-2));
+      ctx.font='9px monospace';var maxW=0;lines.forEach(function(l){var m=ctx.measureText(l).width;if(m>maxW)maxW=m;});
+      var boxW=maxW+12,boxH=lines.length*13+8;var bx=chartCrosshairX+8;if(bx+boxW>W-4)bx=chartCrosshairX-boxW-8;var by=pad.top+4;
+      ctx.fillStyle='rgba(9,9,11,.9)';ctx.strokeStyle='rgba(245,158,11,.4)';ctx.lineWidth=1;ctx.beginPath();
+      if(ctx.roundRect)ctx.roundRect(bx,by,boxW,boxH,4);else ctx.rect(bx,by,boxW,boxH);ctx.fill();ctx.stroke();
+      ctx.textAlign='left';lines.forEach(function(l,i){ctx.fillStyle=i===0?'#fbbf24':'#a1a1aa';ctx.fillText(l,bx+6,by+12+i*13);});
+    }
+  }
+
+  function chartDataRange(){if(metricsHistory.length<2)return{min:0,max:1};return{min:metricsHistory[0].epoch_ms,max:metricsHistory[metricsHistory.length-1].epoch_ms};}
+  function chartResetZoom(){viewTMin=null;viewTMax=null;if(metricsHistory.length>=2)renderChart();}
+  function chartClampView(){var d=chartDataRange();var fullRange=d.max-d.min;if(fullRange<=0)return;var range=viewTMax-viewTMin;if(range>=fullRange*0.98){viewTMin=null;viewTMax=null;return;}if(range<5000){var mid=(viewTMin+viewTMax)/2;viewTMin=mid-2500;viewTMax=mid+2500;}if(viewTMin<d.min){viewTMax+=(d.min-viewTMin);viewTMin=d.min;}if(viewTMax>d.max){viewTMin-=(viewTMax-d.max);viewTMax=d.max;}if(viewTMin<d.min)viewTMin=d.min;}
+
+  function toggleStatsCard(metric){
+    if(statsCardOpen&&statsMetric===metric){closeStatsCard();return;}
+    statsMetric=metric||'all';statsCardOpen=true;document.getElementById('stats-card').classList.add('active');
+    document.querySelectorAll('.hex-gauge').forEach(function(h){h.classList.remove('active-chart');});
+    var hexMap={cpu:'hg-cpu',ram:'hg-ram',tps:'hg-tps',queue:'hg-queue',nodes:'hg-nodes'};
+    if(hexMap[metric]){var el=document.getElementById(hexMap[metric]);if(el)el.classList.add('active-chart');}
+    document.querySelectorAll('#stats-pills .stats-pill').forEach(function(p){p.classList.toggle('active',p.dataset.metric===statsMetric);});
+    fetchMetricsHistory();
+    if(statsRefreshTimer)clearInterval(statsRefreshTimer);
+    statsRefreshTimer=setInterval(fetchMetricsHistory,5000);
+  }
+  function closeStatsCard(){statsCardOpen=false;document.getElementById('stats-card').classList.remove('active');document.querySelectorAll('.hex-gauge').forEach(function(h){h.classList.remove('active-chart');});if(statsRefreshTimer){clearInterval(statsRefreshTimer);statsRefreshTimer=null;}viewTMin=null;viewTMax=null;}
+
+  async function fetchMetricsHistory(){
+    try{var res=await fetch(LaRuche.API.base+'/metrics/history');if(!res.ok)return;var data=await res.json();metricsHistory=data.snapshots||[];nodeEvents=data.events||[];renderChart();}catch(e){}
+  }
+
+  function startPolling(){
+    fetchSwarm();fetchStatus();fetchModels();fetchActivity();
+    pollTimers.push(setInterval(fetchSwarm,3000));
+    pollTimers.push(setInterval(fetchStatus,5000));
+    pollTimers.push(setInterval(fetchActivity,2000));
+    pollTimers.push(setInterval(fetchModels,15000));
+    addLog('SYS','log-info','Dashboard initialise');
+  }
+  function stopPolling(){pollTimers.forEach(function(t){clearInterval(t);});pollTimers=[];if(statsRefreshTimer){clearInterval(statsRefreshTimer);statsRefreshTimer=null;}}
+
+  function init(){
+    // Log scroll tracking
+    var logBody=document.getElementById('log-body');
+    logBody.addEventListener('scroll',function(){logUserScrolled=!(logBody.scrollHeight-logBody.scrollTop-logBody.clientHeight<20);});
+    // Mobile tabs
+    document.getElementById('dash-mob-tabs').addEventListener('click',function(e){var btn=e.target.closest('button');if(!btn)return;var idx=parseInt(btn.dataset.tab);document.querySelectorAll('#dash-mob-tabs button').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');document.querySelectorAll('.dash-mob-panel').forEach(function(p,i){p.classList.toggle('mob-active',i===idx);});});
+    // Hex click handlers
+    document.getElementById('hg-cpu').addEventListener('click',function(){toggleStatsCard('cpu');});
+    document.getElementById('hg-ram').addEventListener('click',function(){toggleStatsCard('ram');});
+    document.getElementById('hg-tps').addEventListener('click',function(){toggleStatsCard('tps');});
+    document.getElementById('hg-queue').addEventListener('click',function(){toggleStatsCard('queue');});
+    document.getElementById('hg-nodes').addEventListener('click',function(){toggleStatsCard('all');});
+    document.getElementById('hg-uptime').addEventListener('click',function(){toggleStatsCard('all');});
+    document.getElementById('stats-close').addEventListener('click',closeStatsCard);
+    document.getElementById('stats-pills').addEventListener('click',function(e){var pill=e.target.closest('.stats-pill');if(!pill)return;statsMetric=pill.dataset.metric;document.querySelectorAll('#stats-pills .stats-pill').forEach(function(p){p.classList.toggle('active',p.dataset.metric===statsMetric);});renderChart();});
+    document.getElementById('stats-reset-zoom').addEventListener('click',function(e){e.stopPropagation();chartResetZoom();});
+    // Chart interactions
+    var statsCanvas=document.getElementById('stats-canvas');
+    statsCanvas.addEventListener('wheel',function(e){e.preventDefault();if(metricsHistory.length<2)return;var d=chartDataRange();var rect=statsCanvas.getBoundingClientRect();var cW=rect.width-48;var mx=e.clientX-rect.left-38;var ratio=Math.max(0,Math.min(1,mx/cW));var curMin=viewTMin!==null?viewTMin:d.min;var curMax=viewTMax!==null?viewTMax:d.max;var curRange=curMax-curMin;var factor=e.deltaY>0?1.25:0.8;var newRange=curRange*factor;if(newRange>=(d.max-d.min)*0.98){chartResetZoom();return;}if(newRange<5000)newRange=5000;var pivot=curMin+ratio*curRange;viewTMin=pivot-ratio*newRange;viewTMax=pivot+(1-ratio)*newRange;chartClampView();renderChart();},{passive:false});
+    statsCanvas.addEventListener('mousedown',function(e){if(e.button!==0||metricsHistory.length<2)return;var d=chartDataRange();isPanning=true;panStartX=e.clientX;panStartTMin=viewTMin!==null?viewTMin:d.min;panStartTMax=viewTMax!==null?viewTMax:d.max;statsCanvas.style.cursor='grabbing';e.preventDefault();});
+    statsCanvas.addEventListener('mousemove',function(e){var rect=statsCanvas.getBoundingClientRect();if(isPanning){var cW=rect.width-48;var panRange=panStartTMax-panStartTMin;var dx=e.clientX-panStartX;var dt=-(dx/cW)*panRange;viewTMin=panStartTMin+dt;viewTMax=panStartTMax+dt;chartClampView();if(metricsHistory.length>=2)renderChart();}else{chartCrosshairX=e.clientX-rect.left;if(metricsHistory.length>=2)renderChart();}});
+    window.addEventListener('mouseup',function(){if(isPanning){isPanning=false;document.getElementById('stats-canvas').style.cursor='';}});
+    statsCanvas.addEventListener('mouseleave',function(){chartCrosshairX=-1;if(!isPanning&&metricsHistory.length>=2)renderChart();});
+    statsCanvas.addEventListener('dblclick',function(e){e.preventDefault();chartResetZoom();});
+    // Touch interactions
+    statsCanvas.addEventListener('touchstart',function(e){if(metricsHistory.length<2)return;if(e.touches.length===1){var d=chartDataRange();isPanning=true;panStartX=e.touches[0].clientX;panStartTMin=viewTMin!==null?viewTMin:d.min;panStartTMax=viewTMax!==null?viewTMax:d.max;}else if(e.touches.length===2){isPanning=false;var dx=e.touches[0].clientX-e.touches[1].clientX;var dy=e.touches[0].clientY-e.touches[1].clientY;lastPinchDist=Math.sqrt(dx*dx+dy*dy);}e.preventDefault();},{passive:false});
+    statsCanvas.addEventListener('touchmove',function(e){if(metricsHistory.length<2)return;if(e.touches.length===1&&isPanning){var rect=statsCanvas.getBoundingClientRect();var cW=rect.width-48;var panRange=panStartTMax-panStartTMin;var dx=e.touches[0].clientX-panStartX;var dt=-(dx/cW)*panRange;viewTMin=panStartTMin+dt;viewTMax=panStartTMax+dt;chartClampView();renderChart();}else if(e.touches.length===2){var dx2=e.touches[0].clientX-e.touches[1].clientX;var dy2=e.touches[0].clientY-e.touches[1].clientY;var dist=Math.sqrt(dx2*dx2+dy2*dy2);if(lastPinchDist>0){var d=chartDataRange();var curMin=viewTMin!==null?viewTMin:d.min;var curMax=viewTMax!==null?viewTMax:d.max;var factor=lastPinchDist/dist;var mid=(curMin+curMax)/2;var halfNew=((curMax-curMin)*factor)/2;viewTMin=mid-halfNew;viewTMax=mid+halfNew;chartClampView();renderChart();}lastPinchDist=dist;}e.preventDefault();},{passive:false});
+    statsCanvas.addEventListener('touchend',function(){isPanning=false;lastPinchDist=0;});
+    // Popover delegation
+    var logBodyEl=document.getElementById('log-body');
+    logBodyEl.addEventListener('mouseenter',function(e){var row=e.target.closest('.log-row[data-infer-id]');if(!row||popoverPinned)return;clearTimeout(popoverHoverTimer);popoverHoverTimer=setTimeout(function(){var id=parseInt(row.dataset.inferId);var detail=inferDetailMap.get(id);if(detail)showInferPopover(row,detail);},300);},true);
+    logBodyEl.addEventListener('mouseleave',function(e){var row=e.target.closest('.log-row[data-infer-id]');if(!row||popoverPinned)return;clearTimeout(popoverHoverTimer);popoverHoverTimer=setTimeout(hideInferPopover,200);},true);
+    logBodyEl.addEventListener('click',function(e){var row=e.target.closest('.log-row[data-infer-id]');if(!row){hideInferPopover();return;}var id=parseInt(row.dataset.inferId);var detail=inferDetailMap.get(id);if(!detail)return;if(popoverPinned&&activePopover){hideInferPopover();}else{showInferPopover(row,detail);popoverPinned=true;if(activePopover)activePopover.classList.add('pinned');}});
+    document.addEventListener('click',function(e){if(activePopover&&popoverPinned&&!activePopover.contains(e.target)&&!e.target.closest('.log-row[data-infer-id]'))hideInferPopover();});
+    // Sync preferred models from backend
+    fetch('/config/default_model').then(function(r){return r.json();}).then(function(d){if(d.default_models){preferredModels=d.default_models;localStorage.setItem('laruche_preferred_models',JSON.stringify(preferredModels));}else if(d.default_model){preferredModels['llm']=d.default_model;localStorage.setItem('laruche_preferred_models',JSON.stringify(preferredModels));}}).catch(function(){});
+  }
+
+  function enter() { startPolling(); }
+  function leave() { stopPolling(); closeStatsCard(); }
+
+    async function loadBlueprints(el) {
+    var bps=[];try{bps=await fetch('/api/blueprints').then(function(r){return r.json();});}catch(e){}
+    if(!bps.length){el.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px">Aucun blueprint disponible</div>';return;}
+    
+    window._blueprints = bps;
+    el.innerHTML = '<div style="margin-bottom:12px;color:var(--amber);font-size:12px;">Sélectionnez un blueprint pour l\'instancier en tant que tâche cron.</div>' +
+      bps.map(function(b, idx) {
+        return '<div class="settings-card" style="margin-bottom:12px;cursor:pointer;" onclick="LaRuche.Settings.openBlueprintForm('+idx+')">' +
+          '<div class="settings-card-title">'+LaRuche.Utils.esc(b.title||b.id)+'</div>' +
+          '<div style="font-size:12px;color:var(--text-dim);margin-top:4px;">'+LaRuche.Utils.esc(b.description||'')+'</div>' +
+          '<div id="bpForm_'+idx+'" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);" onclick="event.stopPropagation()">' +
+            (b.slots||[]).map(function(slot){
+              return '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.Utils.esc(slot.label||slot.name)+'</label><input id="bpInput_'+idx+'_'+slot.name+'" class="form-input" placeholder="'+LaRuche.Utils.esc(slot.placeholder||'')+'"></div>';
+            }).join('') +
+            '<button class="settings-save-btn" style="margin-top:8px" onclick="LaRuche.Settings.instanciateBlueprint('+idx+')">Instancier</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+  }
+
+  function openBlueprintForm(idx) {
+    var form = document.getElementById('bpForm_'+idx);
+    if (form.style.display === 'none') {
+      form.style.display = 'block';
+    } else {
+      form.style.display = 'none';
+    }
+  }
+
+  function instanciateBlueprint(idx) {
+    var b = window._blueprints[idx];
+    var slotsData = {};
+    (b.slots||[]).forEach(function(slot){
+      slotsData[slot.name] = document.getElementById('bpInput_'+idx+'_'+slot.name).value;
+    });
+    fetch('/api/blueprints/'+b.id+'/instancier', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(slotsData)
+    }).then(function(res) {
+      if(res.ok) {
+        LaRuche.Toast.show('Blueprint instancié avec succès', 'ok');
+        document.getElementById('bpForm_'+idx).style.display = 'none';
+      } else {
+        LaRuche.Toast.show('Erreur d\'instanciation', 'err');
+      }
+    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+  }
+
+  return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, enter:enter, leave:leave, toggleNodeExpand:toggleNodeExpand, useMeshModel:useMeshModel, fetchModels:fetchModels, FetchModels:fetchModels };
+})();
+
+/* ── Settings Page Module ─────────────────────────────────────── */
+/* --- Rendu Markdown inline (repris de scriptorium, sans dependances) ----- */
+LaRuche.MD = (function(){
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+  function inline(s){
+    var stash = [];
+    function stashPush(html){ var tok='\x00X'+stash.length+'\x00'; stash.push(html); return tok; }
+    // Wikilinks: [[node_id]] ou [[node_id|alias]]  -> navigation memoire
+    s = s.replace(/\[\[([^\[\]\n|]+)(?:\|([^\[\]\n]+))?\]\]/g, function(m, name, alias){
+      var label = (alias || name).trim();
+      var target = name.trim();
+      return stashPush('<span class="mem2-wikilink" data-wikilink="'+esc(target)+'">'+esc(label)+'</span>');
+    });
+    // Images
+    s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(m, alt, url){
+      return stashPush('<img alt="'+esc(alt)+'" src="'+esc(url)+'"/>');
+    });
+    // Liens
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(m, text, url){
+      return stashPush('<a href="'+esc(url)+'" target="_blank" rel="noopener">'+esc(text)+'</a>');
+    });
+    s = esc(s);
+    s = s.replace(/\x00IC(\d+)\x00/g, function(m){ return m; });
+    s = s.replace(/==([^=\n]+)==/g, '<mark>$1</mark>');
+    s = s.replace(/\*\*([^\*\n]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/__([^_\n]+)__/g, '<strong>$1</strong>');
+    s = s.replace(/(^|[^\*])\*([^\*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+    s = s.replace(/(^|[^_])_([^_\n]+)_(?!_)/g, '$1<em>$2</em>');
+    s = s.replace(/~~([^~\n]+)~~/g, '<del>$1</del>');
+    s = s.replace(/\n/g, '<br/>');
+    s = s.replace(/\x00X(\d+)\x00/g, function(m, n){ return stash[+n] || ''; });
+    return s;
+  }
+
+  function render(src){
+    if(!src) return '';
+    src = String(src).replace(/\r\n?/g, '\n'); // normalise CRLF -> LF (sinon les blocs de code
+    // ne sont pas extraits et leur contenu passe dans les regex inline -> freeze navigateur)
+    var planBlocks = [];
+    src = String(src).replace(/<plan>\s*([\s\S]*?)\s*<\/plan>/gi, function(m, jsonText){
+      try {
+        var plan = JSON.parse(jsonText);
+        var html = '<div class="mem2-plan" style="margin: 10px 0; border: 1px solid var(--border); border-radius: 4px; padding: 8px; background: var(--bg2);">';
+        plan.forEach(function(t){
+           var icon = t.status === 'done' ? '✅' : (t.status === 'in_progress' ? '⏳' : '⬜');
+           var color = t.status === 'done' ? 'var(--text)' : (t.status === 'in_progress' ? 'var(--gold)' : 'var(--text-dim)');
+           html += '<div style="margin: 4px 0; color: '+color+'; display: flex; gap: 8px;"><span style="flex-shrink:0;">' + icon + '</span><span>' + esc(t.task) + '</span></div>';
+        });
+        html += '</div>';
+        planBlocks.push(html);
+        return '\n\x00PB'+(planBlocks.length-1)+'\x00\n';
+      } catch(e) {
+        return m;
+      }
+    });
+    var codeBlocks = [];
+    src = src.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, function(m, lang, code){
+      codeBlocks.push({lang:lang, code:code});
+      return '\n\x00CB'+(codeBlocks.length-1)+'\x00\n';
+    });
+    var inlineCodes = [];
+    src = src.replace(/`([^`\n]+)`/g, function(m, c){ inlineCodes.push(c); return '\x00IC'+(inlineCodes.length-1)+'\x00'; });
+    var lines = src.split('\n'), html='', i=0;
+    while(i < lines.length){
+      var line = lines[i];
+      var h = line.match(/^(#{1,6})\s+(.*)$/);
+      if(h){ html += '<h'+h[1].length+'>'+inline(h[2])+'</h'+h[1].length+'>'; i++; continue; }
+      if(/^(---+|\*\*\*+|___+)\s*$/.test(line)){ html += '<hr/>'; i++; continue; }
+      if(/^>\s?/.test(line)){
+        var bq=[]; while(i<lines.length && /^>\s?/.test(lines[i])){ bq.push(lines[i].replace(/^>\s?/,'')); i++; }
+        html += '<blockquote>'+render(bq.join('\n'))+'</blockquote>'; continue;
+      }
+      if(/^\s*[\-\*\+]\s+/.test(line)){
+        var ul=[]; while(i<lines.length && /^\s*[\-\*\+]\s+/.test(lines[i])){ ul.push(lines[i].replace(/^\s*[\-\*\+]\s+/,'')); i++; }
+        html += '<ul>'+ul.map(function(b){return '<li>'+inline(b)+'</li>';}).join('')+'</ul>'; continue;
+      }
+      if(/^\s*\d+\.\s+/.test(line)){
+        var ol=[]; while(i<lines.length && /^\s*\d+\.\s+/.test(lines[i])){ ol.push(lines[i].replace(/^\s*\d+\.\s+/,'')); i++; }
+        html += '<ol>'+ol.map(function(b){return '<li>'+inline(b)+'</li>';}).join('')+'</ol>'; continue;
+      }
+      var pb = line.match(/^\x00PB(\d+)\x00$/);
+      if(pb){ html += planBlocks[+pb[1]]; i++; continue; }
+      var cb = line.match(/^\x00CB(\d+)\x00$/);
+      if(cb){ html += '<pre><code>'+esc(codeBlocks[+cb[1]].code)+'</code></pre>'; i++; continue; }
+      if(i+1 < lines.length && /\|/.test(line) && /^[\s\|:\-]+$/.test(lines[i+1]) && /\|/.test(lines[i+1])){
+        var hcells = line.split('|').slice(1,-1).map(function(s){return s.trim();});
+        var rows=[]; i+=2;
+        while(i<lines.length && /\|/.test(lines[i])){ rows.push(lines[i].split('|').slice(1,-1).map(function(s){return s.trim();})); i++; }
+        html += '<table><thead><tr>'+hcells.map(function(c){return '<th>'+inline(c)+'</th>';}).join('')+'</tr></thead><tbody>'+
+          rows.map(function(r){return '<tr>'+r.map(function(c){return '<td>'+inline(c)+'</td>';}).join('')+'</tr>';}).join('')+'</tbody></table>';
+        continue;
+      }
+      if(line.trim()===''){ i++; continue; }
+      var buf=[];
+      while(i<lines.length && lines[i].trim()!=='' && !/^(#{1,6}\s|>\s?|[\-\*\+]\s+|\d+\.\s+|---+|\*\*\*+|___+|\x00CB|\x00PB)/.test(lines[i])){ buf.push(lines[i]); i++; }
+      html += '<p>'+inline(buf.join('\n'))+'</p>';
+    }
+    html = html.replace(/\x00IC(\d+)\x00/g, function(m, n){ return '<code>'+esc(inlineCodes[+n])+'</code>'; });
+    return html;
+  }
+
+  // Cable les liens [[node]] d'un conteneur deja rendu vers un callback de navigation.
+  function wireWikilinks(container, onNav){
+    if(!container) return;
+    container.querySelectorAll('.mem2-wikilink').forEach(function(el){
+      el.onclick = function(e){ e.preventDefault(); e.stopPropagation(); onNav(el.dataset.wikilink); };
+    });
+  }
+
+  return { render:render, wireWikilinks:wireWikilinks };
+})();
+
+/* --- Memory Page Module (drive mem2-* : arbre Obsidian + markdown + CRUD) - */
+LaRuche.Memory = (function(){
+  var nodes = {};        // id -> {id,label,one_liner,count}
+  var expanded = {};     // node id -> bool
+  var loaded = false;
+  var current = null;    // node id actif
+  var currentNode = null;// dernier objet node charge (items/children)
+  var view = 'tree';     // 'tree' (document) | 'graph'
+  var searchTimer = null;
+  var exactMode = false; // false = recherche semantique (/search) ; true = contenu exact (/grep)
+  var editMode = false;  // mode edition : noeuds draggables (reparent) + creer racine
+  var springTimer = null;// spring-loaded : timer d'auto-ouverture au survol pendant un drag
+  var springId = null;   // noeud actuellement en attente d'auto-ouverture
+
+  function init() {
+    var input = document.getElementById('mem2Search');
+    if(input) input.addEventListener('input', function(){
+      clearTimeout(searchTimer);
+      var q = input.value.trim();
+      searchTimer = setTimeout(function(){ q ? runSearch(q) : refreshTree(); }, 220);
+    });
+  }
+
+  // dispatch selon le mode courant (semantique vs contenu exact)
+  function runSearch(q){ exactMode ? doGrep(q) : doSearch(q); }
+
+  // bascule semantique <-> exact ; relance la recherche si une requete est en cours
+  function toggleExact(){
+    exactMode = !exactMode;
+    var btn = document.getElementById('mem2SearchExact');
+    var input = document.getElementById('mem2Search');
+    if(btn){
+      btn.textContent = exactMode ? '🔍' : '≈';
+      btn.style.color = exactMode ? 'var(--amber)' : 'var(--text-muted)';
+      btn.style.borderColor = exactMode ? 'var(--amber)' : 'var(--border)';
+      btn.title = exactMode
+        ? 'Recherche de contenu exacte (cliquer pour revenir au sémantique)'
+        : 'Recherche sémantique (cliquer pour passer en recherche de contenu exacte)';
+    }
+    if(input){
+      input.placeholder = exactMode ? 'Recherche de contenu exacte...' : 'Rechercher...';
+      var q = input.value.trim();
+      if(q) runSearch(q); else refreshTree();
+    }
+  }
+
+  // recherche de contenu exacte : GET /api/memory/grep -> {count, items:[{id,node_id,content}]}
+  function doGrep(q){
+    fetch(LaRuche.API.base+'/api/memory/grep?q='+encodeURIComponent(q)+'&limit=30').then(function(r){return r.json();}).then(function(data){
+      if(data.error){ LaRuche.Toast.show(data.error, 'err'); return; }
+      var items = data.items || [];
+      // noeuds uniques -> chips cliquables (data-chip -> loadNode via renderDoc)
+      var seen = {}, children = [];
+      items.forEach(function(it){
+        var nid = it.node_id || it.node;
+        if(nid && !seen[nid]){ seen[nid] = 1; children.push({ node_id:nid, label:nid }); }
+      });
+      currentNode = {
+        node_id: 'recherche: «'+q+'» ('+(data.count!=null?data.count:items.length)+' resultat'+((data.count||items.length)>1?'s':'')+')',
+        items: items,
+        children: children
+      };
+      current = null;
+      renderTree();
+      renderDoc();
+    }).catch(function(e){ LaRuche.Toast.show('Recherche exacte: '+e, 'err'); });
+  }
+
+  var memPollTimer = null;
+  function enter() { 
+    setView('tree'); 
+    if(!loaded) loadTree(); else renderTree(); 
+    if(!memPollTimer) memPollTimer = setInterval(function(){
+      var input = document.getElementById('mem2Search');
+      if (input && input.value.trim()) return; // Pause auto-refresh during search
+      loadTree(true);
+      if(current && view==='tree') loadNode(current, true);
+    }, 2000);
+  }
+  function leave() {
+    if(memPollTimer) { clearInterval(memPollTimer); memPollTimer = null; }
+  }
+
+  function esc(t){ return LaRuche.Utils.esc(t); }
+
+  function mergeNodes(list){
+    (list || []).forEach(function(n){
+      var id = n.id || n.node_id || n.label; if(!id) return;
+      var prev = nodes[id] || {};
+      nodes[id] = {
+        id:id,
+        label:n.label || prev.label || id.split('.').pop(),
+        one_liner:n.one_liner || n.summary || prev.one_liner || '',
+        count:(n.item_count != null ? n.item_count : (n.count != null ? n.count : prev.count)),
+        parent_id:(n.parent_id != null ? n.parent_id : prev.parent_id),
+        protected:(n.protected != null ? n.protected : prev.protected)
+      };
+    });
+  }
+
+  /* ---- chargement ---- */
+  var lastTreeSig = '';
+  function loadTree(silent) {
+    fetch(LaRuche.API.base+'/api/memory/tree', {cache: 'no-store'}).then(function(r){return r.json();}).then(function(data){
+      loaded = true;
+      var sig = JSON.stringify(data.nodes || []);
+      if(silent && sig === lastTreeSig) return;
+      lastTreeSig = sig;
+      
+      var newIds = {};
+      (data.nodes || []).forEach(function(n){ newIds[n.id || n.node_id] = true; });
+      Object.keys(nodes).forEach(function(id){ if(!newIds[id]) delete nodes[id]; });
+      
+      mergeNodes(data.nodes || []);
+      renderTree();
+      loadStats();
+    }).catch(function(e){
+      if(silent) return;
+      var t = document.getElementById('mem2Tree');
+      if(t) t.innerHTML = '<div class="mem2-empty">Memoire indisponible</div>';
+      LaRuche.Toast.show('Memoire indisponible: '+e, 'err');
+    });
+  }
+
+  function refreshTree() { renderTree(); }
+
+  function loadStats() {
+    fetch(LaRuche.API.base+'/api/memory/stats').then(function(r){return r.json();}).then(function(d){
+      var el = document.getElementById('mem2Stats'); if(!el) return;
+      if(d.error) { el.textContent = '--'; return; }
+      var items = d.items != null ? d.items : (d.item_count != null ? d.item_count : '?');
+      var nn = d.nodes != null ? d.nodes : (d.node_count != null ? d.node_count : Object.keys(nodes).length);
+      el.textContent = items+' items · '+nn+' noeuds';
+    }).catch(function(){});
+  }
+
+  function doSearch(q) {
+    fetch(LaRuche.API.base+'/api/memory/search?q='+encodeURIComponent(q)+'&limit=20').then(function(r){return r.json();}).then(function(data){
+      if(data.error) { LaRuche.Toast.show(data.error, 'err'); return; }
+      var raw = data.raw || {};
+      mergeNodes(raw.nodes || []);
+      // affiche les souvenirs trouves directement a droite
+      currentNode = { node_id:'recherche: '+q, items:(raw.items || []), children:[] };
+      current = null;
+      renderTree();
+      renderDoc();
+    }).catch(function(e){ LaRuche.Toast.show('Recherche: '+e, 'err'); });
+  }
+
+  var lastNodeSig = '';
+  function loadNode(id, silent) {
+    id = String(id || '').trim(); if(!id) return;
+    fetch(LaRuche.API.base+'/api/memory/node/'+encodeURIComponent(id)).then(function(r){return r.json();}).then(function(data){
+      if(data.status === 'error' || data.error) { if(!silent) LaRuche.Toast.show(data.error || 'Noeud indisponible', 'err'); return; }
+      var node = data.node || data;
+      var sig = JSON.stringify(node);
+      if(silent && sig === lastNodeSig && current === id) return;
+      lastNodeSig = sig;
+      node.node_id = node.node_id || node.id || id;
+      currentNode = node;
+      current = node.node_id;
+      mergeNodes([{id:node.node_id, label:node.label, one_liner:node.one_liner}].concat(node.children || []));
+      // ouvre les ANCETRES dans l'arbre (pas le noeud lui-meme : sinon un clic pour
+      // replier le rouvre aussitot). L'etat plie/deplie du noeud reste pilote par le clic.
+      if (!silent) {
+        var parts = current.split('.'); var acc='';
+        for (var i = 0; i < parts.length - 1; i++) {
+          acc = acc ? acc + '.' + parts[i] : parts[i];
+          expanded[acc] = true;
+        }
+        renderTree();
+      }
+      renderDoc();
+      if(view === 'graph') renderGraph();
+    }).catch(function(e){ if(!silent) LaRuche.Toast.show('Lecture noeud: '+e, 'err'); });
+  }
+
+  /* ---- helpers icones / protection ---- */
+  // True si l'agent ne doit pas muter ce noeud (cadenas).
+  function isProtected(id){
+    // NB: on N'utilise PAS `meta.protected` ici. Le backend pose ce flag sur system.*/
+    // capacities.* pour brider l'AGENT (garde-fou `noeud_reserve`), mais l'ADMIN (toi, dans
+    // l'UI) a le droit de les editer/supprimer (le backend l'autorise). Seules les RACINES
+    // (casserait l'arbre) et les projections d'outils `tools.*` (auto-regenerees) restent verrouillees.
+    if(id === 'system' || id === 'capacities' || id === 'tools') return true;
+    if(id.indexOf('tools.') === 0) return true;
+    return false;
+  }
+  // Lecture seule UNIQUEMENT pour les projections d'outils auto-generees (`tools.*`,
+  // re-seedees au boot) et les racines. Tout le reste de `capacities.*` (skills, plugins,
+  // mcp, knowledge cree par le LLM) est EDITABLE par l'admin (toi) ici.
+  function isReadOnly(id){
+    if(id === 'capacities' || id === 'tools') return true;
+    if(id.indexOf('tools.') === 0) return true;
+    return false;
+  }
+  // system.prompt / system.soul : editables par l'admin via l'editeur dedie
+  function isSystemEditor(id){
+    return id === 'system.prompt' || id === 'system.behavior' || id === 'system.soul' || id === 'system.prompt_curateur' || id === 'system.prompt_extraction' || id === 'system.prompt_planning';
+  }
+
+  // SVG inline (heritent currentColor)
+  var SVG = {
+    folder:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+    file:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>',
+    tools:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 1 5.4-5.4l-2.5 2.5-2-2z"/></svg>',
+    system:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>',
+    prompt:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg>',
+    soul:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z"/><path d="M18 16l.7 1.8L20.5 18.5l-1.8.7L18 21l-.7-1.8L15.5 18.5l1.8-.7z"/></svg>',
+    lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
+  };
+
+  // Icone d'un noeud de l'arbre selon son id et s'il a des enfants.
+  function nodeIcon(id, hasKids){
+    if(id === 'system') return SVG.system;
+    if(id === 'system.prompt') return SVG.prompt;
+    if(id === 'system.behavior') return SVG.system;
+    if(id === 'system.soul') return SVG.soul;
+    if(id === 'capacities.skills' || id.indexOf('capacities.skills.') === 0) return SVG.file;
+    if(id === 'capacities' || id.indexOf('capacities.') === 0
+       || id === 'tools' || id.indexOf('tools.') === 0) return SVG.tools;
+    return '<span style="color:var(--amber)">'+SVG.folder+'</span>';
+  }
+
+  // Ordre racine : SYSTEM puis CAPACITIES en premier, le reste alphabetique.
+  function rootOrder(a, b){
+    function rank(seg){
+      if(seg === 'system') return 0;
+      if(seg === 'capacities' || seg === 'tools') return 1;
+      return 2;
+    }
+    var ra = rank(a), rb = rank(b);
+    if(ra !== rb) return ra - rb;
+    return a < b ? -1 : (a > b ? 1 : 0);
+  }
+
+  /* ---- arbre repliable (Obsidian-like) ---- */
+  function buildTree() {
+    var root = { children:{} };
+    Object.keys(nodes).forEach(function(id){
+      var cur = root, path = '';
+      id.split('.').forEach(function(p){
+        path = path ? path+'.'+p : p;
+        if(!cur.children[p]) cur.children[p] = { children:{}, id:path, seg:p };
+        cur = cur.children[p];
+      });
+    });
+    return root;
+  }
+
+  function rowHtml(c, depth){
+    var kids = Object.keys(c.children).length;
+    var open = !!expanded[c.id];
+    var caret = kids ? (open ? '▾' : '▸') : '·';
+    var meta = nodes[c.id] || {};
+    var locked = isProtected(c.id);
+    // En mode edition, les noeuds NON proteges deviennent draggables (reparent).
+    // Type dataTransfer DISTINCT des items (application/x-node) pour ne pas confondre.
+    var nodeDrag = (editMode && !locked)
+      ? ' draggable="true" ondragstart="event.dataTransfer.setData(\'application/x-node\',\''+esc(c.id)+'\');event.dataTransfer.effectAllowed=\'move\'"'
+      : '';
+    var dts = mem2Dates(meta.created_at, meta.updated_at);
+    var dtAttr = dts ? ' title="'+esc(dts)+'"' : '';
+    var html = '<div class="mem2-row'+(current===c.id?' active':'')+'"'+nodeDrag+dtAttr+' style="padding-left:'+(6+depth*13)+'px" data-node="'+esc(c.id)+'">'+
+      '<span class="mem2-caret" data-toggle="'+esc(c.id)+'">'+caret+'</span>'+
+      '<span class="mem2-icon">'+nodeIcon(c.id, kids>0)+'</span>'+
+      '<span class="mem2-label">'+esc(mem2SegLabel(c.seg))+'</span>'+
+      (locked ? '<span class="mem2-lock" title="Gere par le systeme">'+SVG.lock+'</span>' : '')+
+      (meta.count != null ? '<span class="mem2-count">'+meta.count+'</span>' : (kids?'<span class="mem2-count">'+kids+'</span>':''))+
+      '<span class="node-actions">'+
+        '<button title="Ajouter un sous-dossier" onclick="event.stopPropagation();LaRuche.Memory.createSubnode(\''+esc(c.id)+'\')">➕</button>'+
+        (!locked ? '<button title="Renommer" onclick="event.stopPropagation();LaRuche.Memory.renameNode(\''+esc(c.id)+'\',\''+esc(c.seg)+'\')">✏️</button>'+
+        '<button title="Supprimer" onclick="event.stopPropagation();LaRuche.Memory.deleteNode(\''+esc(c.id)+'\')">❌</button>' : '')+
+      '</span>'+
+    '</div>';
+    if(kids && open) html += treeHtml(c, depth+1);
+    return html;
+  }
+
+  function treeHtml(node, depth) {
+    var html = '';
+    var keys = Object.keys(node.children);
+    keys.sort(depth===0 ? rootOrder : undefined);
+    keys.forEach(function(k){ html += rowHtml(node.children[k], depth); });
+    return html;
+  }
+
+  function renderTree() {
+    var el = document.getElementById('mem2Tree'); if(!el) return;
+    if(!Object.keys(nodes).length) { el.innerHTML = '<div class="mem2-empty">Aucun noeud</div>'; return; }
+    var root = buildTree();
+    // Groupe SYSTEM en tete (system + capacities), separe visuellement du reste.
+    var isSys = function(k){ return k==='system' || k==='capacities' || k==='tools'; };
+    var sysKeys = Object.keys(root.children).filter(isSys).sort(rootOrder);
+    var otherKeys = Object.keys(root.children).filter(function(k){ return !isSys(k); }).sort();
+    var html = '';
+    if(sysKeys.length){
+      html += '<div class="mem2-sysgroup">'+
+        '<div class="mem2-grouplabel">Systeme</div>'+
+        sysKeys.map(function(k){ return rowHtml(root.children[k], 0); }).join('')+
+      '</div>';
+    }
+    html += otherKeys.map(function(k){ return rowHtml(root.children[k], 0); }).join('');
+    el.innerHTML = html;
+    el.classList.toggle('editmode', editMode);
+    el.querySelectorAll('.mem2-caret').forEach(function(c){
+      c.onclick = function(e){ e.stopPropagation(); var id=c.dataset.toggle; expanded[id]=!expanded[id]; renderTree(); };
+    });
+    el.querySelectorAll('.mem2-row').forEach(function(row){
+      row.onclick = function(e){
+        if(!e.target.closest('.mem2-caret')) {
+          var id = row.dataset.node;
+          expanded[id] = !expanded[id];
+          renderTree();
+        }
+        loadNode(row.dataset.node);
+      };
+      wireRowDnd(row);
+    });
+    wireRootDnd(el);
+  }
+
+  /* ---- drag & drop : items vers noeuds + reparent noeuds (mode edition) ---- */
+  function clearSpring(){ if(springTimer){ clearTimeout(springTimer); springTimer=null; } springId=null; }
+
+  function wireRowDnd(row){
+    var targetId = row.dataset.node;
+    row.addEventListener('dragover', function(e){
+      // Refuse de survoler un noeud protege comme cible de drop.
+      if(isProtected(targetId)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      try { e.dataTransfer.dropEffect = 'move'; } catch(_){}
+      row.classList.add('drag-over');
+      // Spring-loaded : auto-ouvre un noeud REPLIE qui a des enfants apres ~600ms.
+      var hasChildren = Object.keys(nodes).some(function(id){ return id.indexOf(targetId+'.')===0; });
+      if(hasChildren && !expanded[targetId]){
+        if(springId !== targetId){
+          clearSpring();
+          springId = targetId;
+          springTimer = setTimeout(function(){
+            expanded[targetId] = true;
+            springTimer = null; springId = null;
+            renderTree();
+          }, 600);
+        }
+      } else {
+        clearSpring();
+      }
+    });
+    row.addEventListener('dragleave', function(e){
+      row.classList.remove('drag-over');
+      if(springId === targetId) clearSpring();
+    });
+    row.addEventListener('drop', function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      row.classList.remove('drag-over');
+      clearSpring();
+      var dt = e.dataTransfer;
+      var nodeId = dt.getData('application/x-node');
+      var itemId = dt.getData('text/plain');
+      if(isProtected(targetId)){
+        LaRuche.Toast.show('Noeud systeme : depot interdit', 'err');
+        return;
+      }
+      if(nodeId){
+        // node-drag : reparenter le sous-arbre nodeId sous targetId
+        reparentNode(nodeId, targetId);
+      } else if(itemId){
+        // item-drag : deplacer l'item vers targetId
+        dropItem(itemId, targetId);
+      }
+    });
+  }
+
+  function wireRootDnd(el){
+    el.addEventListener('dragover', function(e){
+      // Zone vide / racine : uniquement en mode edition pour un node-drag.
+      if(!editMode) return;
+      if(e.target.closest('.mem2-row')) return; // un noeud gere son propre dragover
+      var types = e.dataTransfer.types || [];
+      var hasNode = Array.prototype.indexOf.call(types, 'application/x-node') >= 0;
+      if(!hasNode) return;
+      e.preventDefault();
+      try { e.dataTransfer.dropEffect = 'move'; } catch(_){}
+      el.classList.add('drag-over-root');
+    });
+    el.addEventListener('dragleave', function(e){
+      if(e.target === el) el.classList.remove('drag-over-root');
+    });
+    el.addEventListener('drop', function(e){
+      el.classList.remove('drag-over-root');
+      if(!editMode) return;
+      if(e.target.closest('.mem2-row')) return; // le noeud cible a deja gere le drop
+      var nodeId = e.dataTransfer.getData('application/x-node');
+      if(!nodeId) return;
+      e.preventDefault();
+      clearSpring();
+      reparentNode(nodeId, ''); // racine
+    });
+  }
+
+  // Deplace un ITEM vers un noeud (POST /api/memory/move {item_id, node_id}).
+  function dropItem(itemId, nodeId){
+    if(isProtected(nodeId)){ LaRuche.Toast.show('Noeud systeme : depot interdit', 'err'); return; }
+    postJson('/api/memory/move', {item_id:itemId, node_id:nodeId}).then(function(d){
+      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Deplacement impossible','err'); return; }
+      mergeNodes([{id:nodeId, label:nodeId.split('.').pop()}]);
+      LaRuche.Toast.show('Souvenir deplace vers '+nodeId, 'ok');
+      loadTree(false);
+      if(current) loadNode(current, true);
+    }).catch(function(e){ LaRuche.Toast.show('Deplacement: '+e, 'err'); });
+  }
+
+  // Reparente un NOEUD (sous-arbre) (POST /api/memory/node/move {node_id, new_parent}).
+  function reparentNode(nodeId, newParent){
+    if(nodeId === newParent){ return; }
+    if(isProtected(nodeId)){ LaRuche.Toast.show('Noeud systeme : non deplacable', 'err'); return; }
+    if(newParent && isProtected(newParent)){ LaRuche.Toast.show('Cible systeme : depot interdit', 'err'); return; }
+    if(newParent && (newParent === nodeId || newParent.indexOf(nodeId+'.') === 0)){
+      LaRuche.Toast.show('Impossible : cible dans le sous-arbre', 'err'); return;
+    }
+    postJson('/api/memory/node/move', {node_id:nodeId, new_parent:newParent||''}).then(function(d){
+      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Reparentage impossible','err'); return; }
+      LaRuche.Toast.show(newParent ? ('Dossier deplace sous '+newParent) : 'Dossier promu en racine', 'ok');
+      loaded=false; nodes={}; current=null; loadTree(false);
+    }).catch(function(e){ LaRuche.Toast.show('Reparentage: '+e, 'err'); });
+  }
+
+  /* ---- mode edition (toggle) + creation de racine ---- */
+  function toggleEditMode(){
+    editMode = !editMode;
+    var btn = document.getElementById('mem2EditMode');
+    var nr = document.getElementById('mem2NewRoot');
+    if(btn) btn.classList.toggle('on', editMode);
+    if(nr) nr.style.display = editMode ? '' : 'none';
+    clearSpring();
+    renderTree();
+    LaRuche.Toast.show(editMode ? 'Mode edition active : glissez les dossiers' : 'Mode edition desactive', 'ok');
+  }
+
+  function createRoot(){
+    var label = window.prompt('Nom du nouveau dossier racine :');
+    if(!label) return;
+    label = label.trim(); if(!label) return;
+    var slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    if(!slug){ LaRuche.Toast.show('Nom invalide', 'err'); return; }
+    postJson('/api/memory/node/create', {node_id:slug, label:label, source:'ui-admin'}).then(function(d){
+      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Creation impossible','err'); return; }
+      LaRuche.Toast.show('Racine "'+slug+'" creee', 'ok');
+      loadTree(false);
+    }).catch(function(e){ LaRuche.Toast.show('Creation: '+e, 'err'); });
+  }
+
+  /* ---- panneau document (markdown + CRUD) ---- */
+  // Libelle lisible d'un segment d'id (unifie l'affichage : "prompt" -> "Identite", etc.).
+  var MEM2_SEG_LABELS = {
+    system:'Systeme', prompt:'Identite', behavior:'Comportement', soul:'SOUL',
+    capacities:'Capacites', tools:'Outils', plugins:'Plugins', mcp:'MCP', skills:'Skills'
+  };
+  function mem2SegLabel(seg){ return MEM2_SEG_LABELS[seg] || seg; }
+
+  function setCrumb() {
+    var el = document.getElementById('mem2Crumb'); if(!el) return;
+    if(!currentNode){ el.textContent = 'Memoire cognitive'; return; }
+    var id = currentNode.node_id || '';
+    if(id.indexOf('recherche:')===0){ el.textContent = id; return; }
+    var parts = id.split('.'), acc='', html='';
+    parts.forEach(function(p, idx){
+      acc = acc ? acc+'.'+p : p;
+      var cls = idx===parts.length-1 ? 'seg cur' : 'seg';
+      html += (idx?'<span class="seg"> / </span>':'')+'<span class="'+cls+'" data-crumb="'+esc(acc)+'">'+esc(mem2SegLabel(p))+'</span>';
+    });
+    el.innerHTML = html;
+    el.querySelectorAll('[data-crumb]').forEach(function(s){ s.onclick=function(){ loadNode(s.dataset.crumb); }; });
+  }
+
+  // Horodatage unix (s) -> "22/06/2026 14:32". Vide si absent/0.
+  function mem2FmtTs(sec){
+    var n = Number(sec);
+    if(!n || n<=0) return '';
+    var d = new Date(n*1000);
+    if(isNaN(d.getTime())) return '';
+    function p(x){ return (x<10?'0':'')+x; }
+    return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+d.getFullYear()+' '+p(d.getHours())+':'+p(d.getMinutes());
+  }
+  // "cree X · maj Y" (maj seulement si differente). "" si aucune date.
+  function formatSource(s){
+    if(!s) return '';
+    if(s === 'ui-admin' || s === 'ui-memory') return '👤 par User';
+    if(s === 'agent-call' || s === 'memory_write' || s === 'agent') return '🐝 par LaRuche';
+    if(s === 'watcher') return '🐝 par LaRuche (Watcher)';
+    return '🔌 par ' + LaRuche.Utils.esc(s);
+  }
+
+  function mem2Dates(created, updated){
+    var c = mem2FmtTs(created), u = mem2FmtTs(updated);
+    if(!c && !u) return '';
+    var out = c ? ('cree '+c) : '';
+    if(u && u!==c) out += (out?' · ':'')+'maj '+u;
+    return out;
+  }
+
+  function renderDoc() {
+    setCrumb();
+    var el = document.getElementById('mem2Doc'); if(!el) return;
+    if(!currentNode){ el.innerHTML = '<div class="welcome" style="margin-top:15vh;"><div style="font-size:70px; color:var(--amber); display:inline-block; filter: drop-shadow(0 0 30px rgba(245,158,11,0.5)); margin-bottom: 20px;"><svg width="1em" height="1em" style="vertical-align: middle;" viewBox="0 0 500 500" version="1.1" xmlns="http://www.w3.org/2000/svg" desc="Created with imagetracer.js version 1.2.6" ><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 285.5 45 Q 295.5 44.5 299 50.5 L 301.5 54 L 323.5 56 L 345.5 65 L 350.5 65 Q 353.6 60.1 363.5 62 L 370 67.5 L 372.5 75 L 396.5 84 L 403 90.5 L 414.5 104 L 416 105.5 L 428 119 Q 440.5 117.8 445 125.5 L 446 135.5 L 461 153 L 463 155.5 L 470.5 186 L 477 190.5 L 479 201.5 L 477 207.5 L 482 218.5 L 482 262.5 L 489 271.5 L 489 277.5 L 486 284 L 479.5 288 L 471 288 L 469 293 L 467 294.5 L 451.5 316 L 439 316 L 439 351.5 L 427 366 L 425 367.5 L 408.5 385 L 361.5 396 L 349 396 L 359 447.5 L 354.5 450 L 351.5 449 L 349.5 450 L 346.5 449 L 338.5 450 L 336.5 450 L 328 445.5 L 315 422 L 313 420.5 L 289 380 L 263 366 L 251.5 345 L 211.5 355 L 208 357.5 L 206 362 L 201.5 364 L 194.5 366 L 185 359.5 L 182.5 351 L 147 330.5 L 140 301.5 L 135.5 293 L 109.5 294 L 76.5 293 L 65 281.5 L 63 278.5 L 56 270 L 54 268.5 L 46 259 L 44 257.5 Q 36.7 253.3 39 239.5 L 40 198.5 Q 31.3 195.3 33 181.5 L 35 177 L 38.5 175 L 46 170.5 L 52 151.5 L 61 140 L 65 137.5 L 69 132.5 L 74 127.5 Q 72.1 114.6 78.5 110 L 89.5 106 L 94.5 107 L 132.5 73 L 183 61 L 188.5 53 L 197.5 51 L 209.5 57 L 239.5 50 L 250.5 50 L 276.5 52 L 285.5 45 Z M 243 58 L 212 66 L 241 75 L 248 73 L 251 74 L 253 79 L 248 87 L 245 105 L 242 106 Q 240 95 244 89 L 242 82 L 240 79 L 210 71 L 207 72 L 222 94 L 224 95 L 233 110 L 240 107 L 247 110 L 277 68 L 276 63 L 270 60 L 243 58 Z M 302 63 L 297 69 L 304 89 L 307 88 L 318 94 L 345 78 L 345 77 Q 331 75 323 79 Q 318 78 319 81 Q 313 83 311 79 L 314 72 L 320 74 Q 333 76 340 72 L 322 64 L 302 63 Z M 284 71 L 254 113 L 256 115 L 258 118 L 258 128 L 294 138 L 295 141 L 285 140 L 259 132 L 256 138 L 285 179 L 289 180 L 291 176 L 299 123 L 293 118 L 290 116 L 289 109 L 290 98 L 293 95 L 297 93 L 291 74 Q 290 70 284 71 Z M 175 72 L 137 81 L 118 99 L 111 105 L 102 115 L 154 112 L 156 112 L 162 104 L 164 102 L 177 84 L 179 79 L 142 101 L 140 105 Q 139 108 133 107 Q 129 106 130 100 L 133 97 L 144 95 L 178 73 L 175 72 Z M 199 77 L 193 121 L 193 128 L 200 134 L 221 129 L 223 122 L 213 118 L 208 119 L 202 118 L 201 116 L 204 109 L 210 110 L 211 114 L 221 117 L 227 115 L 207 86 L 205 84 L 203 80 L 199 77 Z M 189 78 L 165 114 L 165 115 L 166 117 L 181 129 L 185 128 L 191 81 L 189 78 Z M 369 83 L 385 111 L 388 111 L 422 125 L 421 124 L 420 122 L 414 116 L 412 114 L 401 101 L 391 90 L 369 83 Z M 349 84 L 325 99 L 323 100 L 323 106 L 352 108 L 354 86 L 349 84 Z M 361 88 L 361 93 L 361 95 L 359 109 L 376 110 L 364 90 L 361 88 Z M 323 110 L 322 115 L 323 117 L 325 118 L 342 136 L 347 134 L 350 131 L 352 112 L 323 110 Z M 360 112 L 357 133 L 367 138 L 369 142 L 389 138 L 392 136 L 382 118 L 379 114 L 362 114 L 360 112 Z M 389 116 L 401 134 L 420 131 L 389 116 Z M 151 118 L 107 123 Q 100 120 101 126 L 101 128 L 103 129 L 126 153 L 133 149 L 139 150 L 153 120 L 151 118 Z M 316 120 L 306 125 L 297 181 L 300 182 L 305 179 L 306 177 L 321 168 L 322 166 L 334 160 L 335 159 L 336 142 L 334 137 L 316 120 Z M 161 121 L 146 153 L 149 156 L 174 144 L 176 137 L 175 133 L 161 121 Z M 95 133 L 92 134 L 96 171 L 116 167 L 119 158 L 117 155 L 95 133 Z M 80 135 L 75 138 L 62 154 L 60 155 L 54 175 L 64 168 L 65 166 L 70 164 L 80 139 L 80 135 Z M 220 136 L 202 141 L 198 148 L 200 155 L 214 173 L 229 142 L 220 136 Z M 85 137 L 79 155 L 80 160 L 79 164 L 66 172 L 60 179 L 88 173 L 85 137 Z M 420 138 L 401 142 L 398 171 L 399 192 L 423 145 L 423 141 L 420 138 Z M 250 142 L 245 146 L 251 175 L 253 177 L 255 181 L 253 187 Q 246 188 245 185 L 247 178 L 242 147 L 236 145 L 219 178 L 220 183 L 241 210 L 278 194 L 281 186 L 263 161 L 261 159 L 257 153 L 255 151 L 250 142 Z M 441 143 L 444 163 L 448 175 L 452 179 L 451 183 L 447 185 L 444 184 L 443 182 L 444 177 L 437 150 L 435 155 L 432 228 L 436 230 L 455 206 L 453 200 Q 454 190 460 187 L 457 161 L 447 150 L 445 146 L 441 143 Z M 390 144 L 370 149 Q 372 159 366 163 L 375 176 L 377 177 L 389 193 L 391 192 L 394 151 Q 397 142 390 144 Z M 429 149 L 405 195 L 407 203 L 405 211 Q 404 215 407 214 L 418 229 L 422 230 L 425 227 L 427 176 L 429 165 L 429 149 Z M 176 150 L 156 161 L 153 164 L 153 177 L 150 181 L 160 194 L 167 190 L 168 189 L 174 186 L 176 192 L 162 198 L 183 224 L 184 223 L 184 154 Q 182 149 176 150 Z M 193 152 L 191 154 L 190 218 L 191 221 L 211 180 L 193 152 Z M 340 164 L 312 183 L 310 185 L 304 189 L 305 193 L 338 204 L 345 166 L 340 164 Z M 359 167 L 353 170 L 346 198 L 347 203 L 350 199 L 352 197 L 360 185 L 364 186 L 365 190 L 364 192 L 360 194 L 351 204 L 376 203 L 382 200 L 382 197 L 362 169 L 359 167 Z M 115 174 L 96 180 L 99 202 L 99 207 L 101 209 L 104 210 L 106 209 L 122 183 L 120 181 L 117 176 L 115 174 Z M 87 180 L 60 187 L 59 191 L 74 203 L 75 205 L 87 213 L 92 210 L 89 182 L 87 180 Z M 142 185 L 136 189 L 129 186 L 111 215 L 116 217 L 153 199 L 147 191 L 145 188 L 142 185 Z M 217 185 L 197 225 L 199 228 L 235 212 L 217 185 Z M 55 198 L 62 217 L 67 222 L 66 227 L 68 237 Q 77 237 81 232 L 80 218 L 55 198 Z M 155 200 L 146 207 L 118 221 L 116 223 L 116 234 L 149 252 L 143 232 L 141 230 L 138 227 L 139 223 L 146 220 L 148 223 L 148 234 L 156 254 L 173 242 L 175 240 L 176 232 L 175 227 L 164 213 L 162 211 L 155 200 Z M 303 200 L 296 205 L 293 209 L 292 230 L 292 232 L 291 246 L 298 244 L 314 229 L 315 227 L 334 211 L 303 200 Z M 50 201 L 48 246 L 65 240 L 56 213 L 50 201 Z M 280 201 L 245 216 L 247 221 L 253 223 L 256 228 L 254 232 L 252 233 L 246 232 L 244 225 L 242 222 L 241 219 L 205 234 L 203 236 L 251 246 L 256 242 L 257 240 L 263 237 L 272 221 L 274 218 L 281 204 L 280 201 Z M 287 208 L 267 243 L 265 245 L 261 248 L 273 251 L 282 246 L 285 239 Q 283 226 287 219 L 287 208 Z M 367 209 L 344 212 L 351 252 L 354 255 L 356 252 L 358 250 L 367 237 L 369 235 L 382 216 Q 386 214 382 212 L 382 209 L 367 209 Z M 462 210 L 459 211 L 454 219 L 452 220 L 443 233 L 446 238 L 446 252 L 448 252 L 457 239 L 462 220 L 462 210 Z M 467 211 L 464 232 L 466 239 L 461 241 L 450 256 L 466 265 L 472 262 L 473 261 L 474 234 L 473 231 L 474 225 L 474 223 L 470 213 L 467 211 Z M 339 216 L 336 219 L 334 221 L 326 228 L 324 230 L 314 239 L 310 243 L 300 250 L 299 254 L 301 255 L 337 257 L 345 259 L 349 259 L 340 218 L 339 216 Z M 399 217 L 390 218 L 368 247 L 366 248 L 356 264 L 372 287 L 377 285 L 378 280 Q 380 271 376 268 L 380 261 L 384 262 L 409 252 L 410 251 L 410 239 L 413 235 L 400 219 L 399 217 Z M 80 239 L 71 243 L 75 260 Q 78 268 72 266 L 66 245 L 52 252 L 58 260 L 64 265 L 73 277 L 77 279 L 88 243 Q 86 238 80 239 Z M 112 240 L 107 244 L 112 260 L 119 265 L 134 267 L 133 271 L 120 269 L 109 271 L 95 281 L 92 280 L 93 276 L 108 267 L 108 260 L 103 246 L 96 247 L 84 284 L 86 285 L 138 285 L 149 262 L 112 240 Z M 199 243 L 196 247 L 193 249 L 191 250 L 191 275 L 197 273 L 207 278 L 243 252 L 199 243 Z M 179 247 L 164 258 L 161 262 L 183 280 L 186 279 L 184 250 L 179 247 Z M 252 254 L 220 278 L 217 280 L 215 289 L 243 298 L 262 278 L 265 275 L 274 267 L 275 265 L 274 258 L 260 254 L 252 254 Z M 410 257 L 389 265 L 385 270 L 383 271 L 381 286 L 384 287 L 395 274 L 399 272 L 401 270 L 411 259 L 410 257 Z M 443 259 L 430 267 L 418 262 L 389 293 L 390 296 L 445 307 L 446 299 L 446 297 L 445 284 L 422 284 L 419 287 L 412 285 L 415 278 L 421 280 L 432 279 L 439 280 L 444 279 L 445 260 L 443 259 Z M 308 262 L 366 290 L 367 290 L 354 270 L 349 265 L 331 264 L 329 264 L 308 262 Z M 448 263 L 451 303 L 464 284 L 463 273 L 448 263 Z M 160 265 L 163 293 L 166 300 L 161 302 L 158 299 L 159 296 L 155 270 L 146 288 L 146 295 L 154 324 L 179 304 L 180 302 L 180 284 L 179 282 L 177 280 L 160 265 Z M 298 265 L 292 270 L 299 300 L 312 306 L 326 288 L 331 289 L 332 292 L 330 297 L 325 297 L 323 301 L 316 307 L 318 311 L 364 299 L 362 295 L 298 265 Z M 281 269 L 263 287 L 261 290 L 256 294 L 252 299 L 250 300 L 281 311 L 293 304 L 285 270 L 281 269 Z M 215 297 L 215 304 L 203 311 L 200 327 L 200 340 L 202 341 L 205 339 L 207 337 L 218 325 L 224 319 L 237 305 L 215 297 Z M 390 305 L 382 312 Q 371 314 369 308 L 367 306 L 318 319 L 317 332 L 307 339 L 308 351 L 312 359 L 354 318 L 396 317 L 398 317 L 425 318 L 426 321 L 424 322 L 357 322 L 342 334 L 338 340 L 334 342 L 331 347 L 318 359 L 315 364 L 343 385 L 357 388 L 403 378 L 406 373 L 412 369 L 414 367 L 426 354 L 369 353 L 367 351 L 375 348 L 401 349 L 403 349 L 419 348 L 421 348 L 423 349 L 426 348 L 429 349 L 430 343 L 417 343 L 414 345 L 409 343 L 365 343 L 357 350 L 369 359 L 411 359 L 413 360 L 411 364 L 367 364 L 352 352 Q 351 345 357 343 L 358 342 L 365 338 L 408 338 L 411 335 L 417 338 L 430 338 L 430 333 L 360 333 L 351 342 L 349 344 L 343 348 L 341 345 L 359 328 L 430 328 L 431 313 L 390 305 Z M 181 306 L 179 310 L 157 328 L 185 343 L 194 340 L 195 312 L 181 306 Z M 245 306 L 221 331 L 217 334 L 208 347 L 250 338 L 282 324 L 283 320 L 281 317 L 245 306 Z M 283 332 L 261 343 L 269 360 L 290 371 L 289 368 L 290 366 L 289 356 L 276 346 L 278 342 L 290 349 L 294 354 L 295 376 L 334 439 L 336 440 L 348 440 L 339 394 L 323 381 L 344 432 L 341 433 L 315 373 L 308 368 L 305 366 L 299 340 L 283 332 Z " /><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 306.5 142 L 319 145 L 320 150.5 L 319 153 Q 312.6 154.5 313 151.5 L 309.5 147 L 305 144.5 L 306.5 142 Z " /><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 261.5 318 L 266 319.5 L 263.5 325 L 253.5 324 L 240.5 329 Q 236.8 327.8 238 321.5 L 244.5 320 L 248.5 321 L 261.5 318 Z " /><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 336.5 319 L 340 320.5 L 340 323 L 332 330.5 L 327 334 L 325 337.5 L 321 340 L 317 346 L 313.5 346 L 312 343.5 L 313 341 L 336.5 319 Z " /><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 338.5 348 L 347 354 L 350.5 358 L 363.5 369 L 403 370 L 401.5 374 L 362.5 374 L 354 368 L 352.5 366 L 349 364 L 347.5 362 L 341 357 L 339.5 355 L 337.5 355 L 334 358.5 L 331 360 L 325.5 366 L 322.5 367 L 322 364.5 L 336.5 349 L 338.5 348 Z " /><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 338.5 363 L 362 380 Q 364.1 385.2 359.5 384 L 356 383 L 354.5 381 L 340 370 L 338 366.5 L 337 364.5 L 338.5 363 Z " /><path fill="currentColor" stroke="currentColor" stroke-width="0" opacity="0.8" d="M 304 371 L 307 372.5 L 319 395.5 L 319 401 L 315 399.5 L 304 375.5 L 304 371 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 0 0 L 500 0 L 500 500 L 0 500 L 0 0 Z M 286 45 L 277 52 L 251 50 L 240 50 L 210 57 L 198 51 L 189 53 L 183 61 L 133 73 L 95 107 L 90 106 L 79 110 Q 72 115 74 128 L 69 133 L 65 138 L 61 140 L 52 152 L 46 171 L 39 175 L 35 177 L 33 182 Q 31 195 40 199 L 39 240 Q 37 253 44 258 L 46 259 L 54 269 L 56 270 L 63 279 L 65 282 L 77 293 L 110 294 L 136 293 L 140 302 L 147 331 L 183 351 L 185 360 L 195 366 L 202 364 L 206 362 L 208 358 L 212 355 L 252 345 L 263 366 L 289 380 L 313 421 L 315 422 L 328 446 L 337 450 L 339 450 L 347 449 L 350 450 L 352 449 L 355 450 L 359 448 L 349 396 L 362 396 L 409 385 L 425 368 L 427 366 L 439 352 L 439 316 L 452 316 L 467 295 L 469 293 L 471 288 L 480 288 L 486 284 L 489 278 L 489 272 L 482 263 L 482 219 L 477 208 L 479 202 L 477 191 L 471 186 L 463 156 L 461 153 L 446 136 L 445 126 Q 441 118 428 119 L 416 106 L 415 104 L 403 91 L 397 84 L 373 75 L 370 68 L 364 62 Q 354 60 351 65 L 346 65 L 324 56 L 302 54 L 299 51 Q 295 45 286 45 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 242.5 58 L 269.5 60 L 276 62.5 L 277 67.5 L 246.5 110 L 239.5 107 L 233 110 L 224 95 L 222 93.5 L 207 71.5 L 209.5 71 L 239.5 79 L 242 81.5 L 244 88.5 Q 240.1 94.8 242 106 L 245 104.5 L 248 86.5 L 253 78.5 L 250.5 74 L 247.5 73 L 240.5 75 L 212 65.5 L 242.5 58 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 301.5 63 L 321.5 64 L 340 71.5 Q 332.6 75.6 319.5 74 L 313.5 72 L 311 78.5 Q 312.7 82.5 319 81 Q 317.7 77.7 322.5 79 Q 330.8 75.3 344.5 77 L 344.5 78 L 317.5 94 L 306.5 88 L 304 89 L 297 68.5 L 301.5 63 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 283.5 71 Q 289.8 69.8 291 73.5 L 297 93 L 292.5 95 L 290 97.5 L 289 108.5 L 290 115.5 L 292.5 118 L 299 122.5 L 291 175.5 L 288.5 180 L 285 178.5 L 256 137.5 L 258.5 132 L 284.5 140 L 295 141 L 293.5 138 L 258 128 L 258 117.5 L 255.5 115 L 254 112.5 L 283.5 71 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 174.5 72 L 178 72.5 L 143.5 95 L 132.5 97 L 130 99.5 Q 128.8 105.8 132.5 107 Q 138.8 108.3 140 104.5 L 141.5 101 L 179 79 L 177 83.5 L 164 102 L 162 103.5 L 155.5 112 L 153.5 112 L 101.5 115 L 110.5 105 L 117.5 99 L 136.5 81 L 174.5 72 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 199 77 L 203 79.5 L 205 84 L 207 85.5 L 227 115 L 220.5 117 L 211 114 L 209.5 110 L 203.5 109 L 201 115.5 L 202 118 L 207.5 119 L 212.5 118 L 223 122 L 220.5 129 L 199.5 134 L 193 127.5 L 193 120.5 L 199 77 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 189 78 L 191 80.5 L 184.5 128 L 180.5 129 L 166 116.5 L 164.5 115 L 165 113.5 L 189 78 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 369 83 L 390.5 90 L 401 100.5 L 412 114 L 414 115.5 L 419.5 122 L 421 123.5 L 421.5 125 L 387.5 111 L 385 110.5 L 369 83 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 348.5 84 L 354 86 L 352 108 L 323 106 L 323 99.5 L 324.5 99 L 348.5 84 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 361 88 L 364 89.5 L 376 110 L 359 109 L 361 94.5 L 361 92.5 L 361 88 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 323 110 L 352 112 L 350 130.5 L 346.5 134 L 341.5 136 L 325 118 L 323 116.5 L 322 114.5 L 323 110 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 359.5 112 L 361.5 114 L 378.5 114 L 382 117.5 L 392 135.5 L 388.5 138 L 369 142 L 366.5 138 L 357 132.5 L 359.5 112 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 389 116 L 420 130.5 L 400.5 134 L 389 116 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 150.5 118 L 153 119.5 L 138.5 150 L 132.5 149 L 125.5 153 L 102.5 129 L 101 127.5 L 101 125.5 Q 99.6 120.5 106.5 123 L 150.5 118 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 315.5 120 L 334 137 L 336 141.5 L 335 158.5 L 333.5 160 L 322 166 L 320.5 168 L 306 177 L 304.5 179 L 299.5 182 L 297 181 L 306 125 L 315.5 120 Z M 307 142 L 305 145 L 310 147 L 313 152 Q 313 155 319 153 L 320 151 L 319 145 L 307 142 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 160.5 121 L 175 133 L 176 136.5 L 173.5 144 L 148.5 156 L 146 152.5 L 160.5 121 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 94.5 133 L 117 154.5 L 119 157.5 L 115.5 167 L 96 171 L 92 134 L 94.5 133 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 79.5 135 L 80 138.5 L 70 164 L 65 166 L 63.5 168 L 54 175 L 60 155 L 62 153.5 L 75 138 L 79.5 135 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 219.5 136 L 229 141.5 L 213.5 173 L 200 154.5 L 198 147.5 L 201.5 141 L 219.5 136 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 84.5 137 L 88 173 L 59.5 179 L 65.5 172 L 79 163.5 L 80 159.5 L 79 154.5 L 84.5 137 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 419.5 138 L 423 140.5 L 423 144.5 L 398.5 192 L 398 170.5 L 401 142 L 419.5 138 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 249.5 142 L 255 151 L 257 152.5 L 261 159 L 263 160.5 L 281 185.5 L 277.5 194 L 240.5 210 L 220 182.5 L 219 177.5 L 235.5 145 L 242 147 L 247 177.5 L 245 184.5 Q 246.3 188.3 252.5 187 L 255 180.5 L 252.5 177 L 251 174.5 L 245 145.5 L 249.5 142 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 440.5 143 L 445 146 L 447 149.5 L 457 160.5 L 460 186.5 Q 453.5 190 453 199.5 L 455 205.5 L 435.5 230 L 432 227.5 L 435 154.5 L 436.5 150 L 444 176.5 L 443 181.5 L 444 184 L 446.5 185 L 451 182.5 L 452 178.5 L 448 174.5 L 444 162.5 L 440.5 143 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 389.5 144 Q 397.2 141.7 394 150.5 L 391 192 L 388.5 193 L 377 177 L 375 175.5 L 366 162.5 Q 372 159.3 370 149 L 389.5 144 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 428.5 149 L 429 164.5 L 427 175.5 L 425 226.5 L 421.5 230 L 418 228.5 L 407 214 Q 403.7 215.3 405 210.5 L 407 202.5 L 405 194.5 L 428.5 149 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 175.5 150 Q 182.4 149.1 184 153.5 L 184 222.5 L 182.5 224 L 162 197.5 L 176 191.5 L 173.5 186 L 168 188.5 L 166.5 190 L 159.5 194 L 150 180.5 L 153 176.5 L 153 163.5 L 155.5 161 L 175.5 150 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 192.5 152 L 211 179.5 L 190.5 221 L 190 217.5 L 191 153.5 L 192.5 152 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 339.5 164 L 345 166 L 338 204 L 305 193 L 304 188.5 L 310 185 L 311.5 183 L 339.5 164 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 358.5 167 L 362 168.5 L 382 196.5 L 382 199.5 L 375.5 203 Q 360 201.5 349.5 205 L 359.5 194 L 364 191.5 L 365 189.5 L 364 186 L 359.5 185 L 351.5 197 L 350 198.5 L 346.5 203 L 346 197.5 L 352.5 170 L 358.5 167 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 114.5 174 L 117 175.5 L 119.5 181 L 122 182.5 L 106 209 L 103.5 210 L 101 209 L 99 206.5 L 99 201.5 L 96 179.5 L 114.5 174 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 86.5 180 L 89 181.5 L 92 209.5 L 86.5 213 L 75 205 L 73.5 203 L 59 190.5 L 60 187 L 86.5 180 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 141.5 185 L 145 187.5 L 147 190.5 L 153 199 L 115.5 217 L 111 215 L 128.5 186 L 135.5 189 L 141.5 185 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 216.5 185 L 235 212 L 198.5 228 L 197 224.5 L 216.5 185 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 55 198 L 80 217.5 L 81 231.5 Q 77.3 237.4 68 237 L 66 226.5 L 67 221.5 L 62 216.5 L 55 198 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 154.5 200 L 162 211 L 164 212.5 L 175 226.5 L 176 231.5 L 175 239.5 L 172.5 242 L 155.5 254 L 148 233.5 L 148 222.5 L 145.5 220 L 139 222.5 L 138 226.5 L 140.5 230 L 143 231.5 L 149 252 L 116 233.5 L 116 222.5 L 117.5 221 L 145.5 207 L 154.5 200 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 302.5 200 L 334 210.5 L 315 227 L 313.5 229 L 297.5 244 L 291 246 L 292 231.5 L 292 229.5 L 293 208.5 L 295.5 205 L 302.5 200 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 49.5 201 L 56 212.5 L 65 240 L 48 246 L 49.5 201 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 279.5 201 L 281 203.5 L 274 218 L 272 220.5 L 263 237 L 257 240 L 255.5 242 L 250.5 246 L 203 236 L 204.5 234 L 240.5 219 L 242 222 L 244 224.5 L 246 232 L 251.5 233 L 254 232 L 256 227.5 L 252.5 223 L 247 220.5 L 245 216 L 279.5 201 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 286.5 208 L 287 218.5 Q 283.3 225.8 285 238.5 L 281.5 246 L 272.5 251 L 261 247.5 L 265 245 L 266.5 243 L 286.5 208 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 366.5 209 L 381.5 209 L 382 211.5 Q 386 213.5 382 215.5 L 369 235 L 367 236.5 L 358 250 L 356 251.5 L 353.5 255 L 351 251.5 L 344 212 L 366.5 209 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 461.5 210 L 462 219.5 L 457 238.5 L 448 252 L 446 251.5 L 446 237.5 L 443 232.5 L 452 220 L 454 218.5 L 459 211 L 461.5 210 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 467 211 L 470 212.5 L 474 222.5 L 474 224.5 L 473 230.5 L 474 233.5 L 473 260.5 L 471.5 262 L 465.5 265 L 450 256 L 460.5 241 L 466 238.5 L 464 231.5 L 467 211 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 338.5 216 L 340 217.5 L 349 258.5 L 344.5 259 L 336.5 257 L 300.5 255 L 299 253.5 L 300 250 L 310 243 L 313.5 239 L 324 230 L 325.5 228 L 334 221 L 335.5 219 L 338.5 216 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 398.5 217 L 400 218.5 L 413 234.5 L 410 238.5 L 410 250.5 L 408.5 252 L 383.5 262 L 379.5 261 L 376 267.5 Q 379.8 270.7 378 279.5 L 377 285 L 371.5 287 L 356 263.5 L 366 248 L 368 246.5 L 389.5 218 L 398.5 217 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 79.5 239 Q 86.4 238.1 88 242.5 L 76.5 279 L 73 276.5 L 64 265 L 58 259.5 L 52 251.5 L 65.5 245 L 72 266 Q 77.6 267.9 75 259.5 L 71 243 L 79.5 239 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 111.5 240 L 149 261.5 L 137.5 285 L 85.5 285 L 84 283.5 L 95.5 247 L 103 246 L 108 259.5 L 108 267 L 93 276 L 92 279.5 L 94.5 281 L 108.5 271 L 119.5 269 L 132.5 271 L 134 267 L 118.5 265 L 112 259.5 L 107 243.5 L 111.5 240 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 198.5 243 L 243 251.5 L 206.5 278 L 196.5 273 L 191 275 L 191 249.5 L 192.5 249 L 196 247 L 198.5 243 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 178.5 247 L 184 249.5 L 186 279 L 182.5 280 L 161 261.5 L 163.5 258 L 178.5 247 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 251.5 254 L 259.5 254 L 274 258 L 275 264.5 L 274 267 L 265 274.5 L 261.5 278 L 242.5 298 L 215 288.5 L 216.5 280 L 219.5 278 L 251.5 254 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 409.5 257 L 411 258.5 L 401 270 L 399 271.5 L 395 274 L 383.5 287 L 381 285.5 L 383 271 L 385 269.5 L 388.5 265 L 409.5 257 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 442.5 259 L 445 260 L 444 279 L 438.5 280 L 431.5 279 L 420.5 280 L 414.5 278 L 412 284.5 L 418.5 287 L 421.5 284 L 445 284 L 446 296.5 L 446 298.5 L 444.5 307 L 390 296 L 389 292.5 L 417.5 262 L 429.5 267 L 442.5 259 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 307.5 262 L 328.5 264 L 330.5 264 L 348.5 265 L 354 269.5 L 367 289.5 L 365.5 290 L 307.5 262 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 448 263 L 463 272.5 L 464 283.5 L 450.5 303 L 448 263 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 159.5 265 L 177 280 L 178.5 282 L 180 283.5 L 180 301.5 L 179 304 L 153.5 324 L 146 294.5 L 146 287.5 L 154.5 270 L 159 295.5 L 158 298.5 L 160.5 302 L 166 299.5 L 163 292.5 L 159.5 265 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 297.5 265 L 362 295 L 364 299 L 317.5 311 L 316 306.5 L 323 301 L 325 297 L 329.5 297 L 332 291.5 L 331 289 L 325.5 288 L 311.5 306 L 299 299.5 L 292 269.5 L 297.5 265 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 280.5 269 L 285 270 L 293 303.5 L 280.5 311 L 250 299.5 L 252 299 L 256 293.5 L 261 289.5 L 263 286.5 L 280.5 269 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 215 297 L 237 304.5 L 224 319 L 218 324.5 L 207 337 L 205 338.5 L 201.5 341 L 200 339.5 L 200 326.5 L 202.5 311 L 215 304 L 215 297 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 389.5 305 L 431 313 L 430 328 L 358.5 328 L 341 344.5 L 342.5 348 L 349 343.5 L 350.5 342 L 359.5 333 L 430 333 L 430 338 L 416.5 338 L 410.5 335 L 407.5 338 L 364.5 338 L 358 341.5 L 356.5 343 Q 350.7 344.7 352 352 L 366.5 364 L 410.5 364 L 413 360 L 410.5 359 L 368.5 359 L 357 349.5 L 364.5 343 L 408.5 343 L 413.5 345 L 416.5 343 L 430 343 L 428.5 349 L 425.5 348 L 422.5 349 L 420.5 348 L 418.5 348 L 402.5 349 L 400.5 349 L 374.5 348 L 367 350.5 L 368.5 353 L 426 353.5 L 414 367 L 412 368.5 L 406 373 L 402.5 378 L 356.5 388 L 342.5 385 L 315 363.5 L 317.5 359 L 330.5 347 L 334 342 L 337.5 340 L 342 334 L 356.5 322 L 423.5 322 L 426 321 L 424.5 318 L 397.5 317 L 395.5 317 L 353.5 318 L 311.5 359 L 308 350.5 L 307 338.5 L 317 331.5 L 318 319 L 367 306 L 368.5 308 Q 371.2 313.8 381.5 312 L 389.5 305 Z M 337 319 L 313 341 L 312 344 L 314 346 L 317 346 L 321 340 L 325 338 L 327 334 L 332 331 L 340 323 L 340 321 L 337 319 Z M 339 348 L 337 349 L 322 365 L 323 367 L 326 366 L 331 360 L 334 359 L 338 355 L 340 355 L 341 357 L 348 362 L 349 364 L 353 366 L 354 368 L 363 374 L 402 374 L 403 370 L 364 369 L 351 358 L 347 354 L 339 348 Z M 339 363 L 337 365 L 338 367 L 340 370 L 355 381 L 356 383 L 360 384 Q 364 385 362 380 L 339 363 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 181 306 L 195 312 L 194 340 L 184.5 343 L 157 327.5 L 179 310 L 181 306 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 244.5 306 L 280.5 317 L 283 319.5 L 281.5 324 L 249.5 338 L 208 347 L 217 334 L 221 330.5 L 244.5 306 Z M 262 318 L 249 321 L 245 320 L 238 322 Q 237 328 241 329 L 254 324 L 264 325 L 266 320 L 262 318 Z " /><path fill="rgb(0,0,0)" stroke="rgb(0,0,0)" stroke-width="0" opacity="0" d="M 282.5 332 L 299 340 L 304.5 366 L 307.5 368 L 315 373 L 340.5 433 L 344 431.5 L 322 380.5 L 323.5 381 L 339 393.5 L 348 440 L 335.5 440 L 334 438.5 L 295 375.5 L 294 353.5 L 289.5 349 L 277.5 342 L 276 345.5 L 289 355.5 L 290 365.5 L 289 367.5 L 290 371 L 269 360 L 261 342.5 L 282.5 332 Z M 304 371 L 304 376 L 315 400 L 319 401 L 319 396 L 307 373 L 304 371 Z " /></svg></div><h2>M&eacute;moire Cognitive</h2><p style="color:var(--text-dim); margin-top:10px;">S&eacute;lectionnez un noeud dans l\'arborescence pour afficher ses souvenirs.</p></div>'; return; }
+    var nodeId = currentNode.node_id || '';
+    // Editeur dedie pour le system prompt et la SOUL.
+    if(isSystemEditor(nodeId)){ renderSystemEditor(el, nodeId); return; }
+    var html = '';
+    var locked = isProtected(nodeId);
+    var readOnly = isReadOnly(nodeId);
+    // Horodatage du noeud (cree / maj) si fourni par le backend.
+    var nd = mem2Dates(currentNode.created_at, currentNode.updated_at);
+    if(currentNode.source) {
+      nd += (nd ? ' · ' : '') + formatSource(currentNode.source);
+    }
+    if(nd){ html += '<div class="mem2-nodedates">'+nd+'</div>'; }
+    if(locked){
+      html += '<div class="mem2-protnote">'+SVG.lock+
+        '<span>Noeud gere par le systeme. L\'agent ne peut pas le modifier'+
+        (readOnly ? ' (lecture seule).' : '.')+'</span></div>';
+    }
+    var children = currentNode.children || [];
+    if(children.length){
+      html += '<div class="mem2-children">'+children.map(function(c){
+        var id = c.node_id || c.id || c.label;
+        return '<span class="mem2-chip" data-chip="'+esc(id)+'">'+esc((c.label || id))+'</span>';
+      }).join('')+'</div>';
+    }
+    var items = currentNode.items || [];
+    var isSearch = nodeId.indexOf('recherche:')===0;
+    if(!items.length){
+      html += '<div class="mem2-empty">Aucun souvenir dans ce noeud.</div>';
+    } else {
+      html += items.map(function(it){
+        var id = it.id || '';
+        var node = it.node_id || it.node || nodeId;
+        var content = it.content || it.text || '';
+        var dis = locked ? ' disabled title="Gere par le systeme"' : '';
+        var acts = '';
+        if(id){
+          acts = '<span class="mem2-item-acts">';
+          // L'edition reste possible sauf en lecture seule (tools.*).
+          if(!readOnly) acts += '<button class="mem2-iact" data-act="edit" data-id="'+esc(id)+'">Editer</button>';
+          // Mutations destructives cote agent : desactivees si protege.
+          acts += '<button class="mem2-iact" data-act="move" data-id="'+esc(id)+'" data-node="'+esc(node)+'"'+dis+'>Deplacer</button>'+
+            '<button class="mem2-iact danger" data-act="delete" data-id="'+esc(id)+'"'+dis+'>Suppr</button>'+
+          '</span>';
+        }
+        var isAgentCall = it.source === 'agent-call';
+        var isAgentRunning = isAgentCall && content.indexOf('**Synthèse LaRuche :**') === -1 && content.indexOf('**Erreur LaRuche :**') === -1;
+        var agentStatusIcon = '';
+        if (isAgentRunning) {
+          agentStatusIcon = '<span class="agent-spinner" title="Agent en cours..." style="margin-left:6px; display:inline-block; width:10px; height:10px; border:2px solid var(--amber); border-right-color:transparent; border-radius:50%; animation:spin 1s linear infinite;"></span>';
+          acts = ''; // Hide actions while running
+        } else if (isAgentCall) {
+          agentStatusIcon = '<span title="Terminé" style="margin-left:6px; color:var(--green); font-weight:bold;">✓</span>';
+        }
+        var extraClass = isAgentCall ? ' mem2-item-agent-call' : '';
+        return '<div class="mem2-item' + extraClass + '" draggable="true" ondragstart="event.dataTransfer.setData(\'text/plain\',\''+esc(id)+'\')" data-itemwrap="'+esc(id)+'">'+
+          '<div class="mem2-item-bar">'+
+            '<span class="mem2-item-id">'+esc(id || '(sans id)')+'</span>'+
+            (isAgentCall ? '<span style="margin-left:6px; font-weight:bold; font-size:10px;">[ Mission @LaRuche ]</span>' + agentStatusIcon : '') +
+            (locked ? '<span class="mem2-lock" title="Gere par le systeme">'+SVG.lock+'</span>' : '')+
+            '<span class="mem2-item-meta">'+esc(node)+(function(){var d=mem2Dates(it.created_at,it.updated_at);var s=formatSource(it.source);return (d?' · '+esc(d):'')+(s?' · '+s:'');})()+'</span>'+
+            acts+
+          '</div>'+
+          '<div class="mem2-md" data-md="'+esc(id)+'">'+LaRuche.MD.render(content)+'</div>'+
+          '<div class="mem2-rawholder" data-raw="'+esc(id)+'" style="display:none">'+esc(content)+'</div>'+
+        '</div>';
+      }).join('');
+    }
+    // bloc ajout (sauf recherche, noeud protege ou lecture seule)
+    if(!isSearch && nodeId && !locked){
+      html += '<div class="mem2-add">'+
+        '<textarea id="mem2AddText" placeholder="Nouveau souvenir (markdown, [[liens]] supportes)..."></textarea>'+
+        '<div style="margin-top:8px"><button class="mem2-btn-primary" id="mem2AddBtn">Ajouter a '+esc(nodeId)+'</button></div>'+
+      '</div>';
+    }
+    el.innerHTML = html;
+    // wikilinks
+    LaRuche.MD.wireWikilinks(el, loadNode);
+    // chips enfants
+    el.querySelectorAll('[data-chip]').forEach(function(c){ c.onclick=function(){ loadNode(c.dataset.chip); }; });
+    // actions items
+    el.querySelectorAll('[data-act]').forEach(function(b){
+      b.onclick = function(){
+        var act=b.dataset.act, id=b.dataset.id;
+        if(act==='edit') startEdit(id);
+        else if(act==='delete') deleteItem(id);
+        else if(act==='move') moveItem(id, b.dataset.node);
+      };
+    });
+    var addBtn = document.getElementById('mem2AddBtn');
+    if(addBtn) addBtn.onclick = function(){ addItem(nodeId); };
+    var ta = document.getElementById('mem2AddText');
+    if(ta) {
+      ta.oninput = function() {
+        var w = document.querySelector('.mem2-add');
+        if (w) {
+          if (this.value.trim().toLowerCase().startsWith('@laruche')) w.classList.add('is-agent-call');
+          else w.classList.remove('is-agent-call');
+        }
+      };
+    }
+  }
+
+  /* ---- editeur System Prompt / SOUL ---- */
+  var SOUL_TEMPLATE = '---\ntype: soul\nenabled: false\n---\nTon de voix direct et chaleureux, sans bla-bla.\nTutoiement, humour leger, va droit au but.\n';
+
+  // Parse un frontmatter OKF minimal -> { enabled:bool, hasFm:bool, body:str }
+  function parseSoul(content){
+    content = content || '';
+    var m = content.match(/^---\s*\n([\s\S]*?)\n---\s*\n?([\s\S]*)$/);
+    if(!m) return { enabled:true, hasFm:false, body:content, fm:{} };
+    var fm = {};
+    m[1].split('\n').forEach(function(line){
+      var kv = line.match(/^\s*([A-Za-z0-9_-]+)\s*:\s*(.*)\s*$/);
+      if(kv) fm[kv[1].toLowerCase()] = kv[2].trim();
+    });
+    var enabled = String(fm.enabled || '').toLowerCase() !== 'false';
+    return { enabled:enabled, hasFm:true, body:m[2], fm:fm };
+  }
+
+  // Reconstruit le contenu SOUL avec frontmatter selon enabled + corps.
+  function buildSoul(enabled, body){
+    return '---\ntype: soul\nenabled: '+(enabled?'true':'false')+'\n---\n'+(body || '');
+  }
+
+  var _sysDefaults = null; // cache des textes par defaut (codes en dur)
+  function renderSystemEditor(el, nodeId){
+    var isSoul = (nodeId === 'system.soul');
+    // Charge une fois les defauts codes pour PRE-REMPLIR identite/comportement (l'utilisateur
+    // voit et edite le prompt complet, au lieu d'un champ vide).
+    if(!isSoul && !_sysDefaults){
+      el.innerHTML = '<div class="mem2-empty">Chargement...</div>';
+      fetch(LaRuche.API.base+'/api/system/prompt-defaults').then(function(r){return r.json();})
+        .then(function(d){ _sysDefaults = d || {}; renderSystemEditor(el, nodeId); })
+        .catch(function(){ _sysDefaults = {}; renderSystemEditor(el, nodeId); });
+      return;
+    }
+    var items = (currentNode && currentNode.items) || [];
+    // dernier item = contenu courant
+    var last = items.length ? items[items.length-1] : null;
+    var rawContent = last ? (last.content || last.text || '') : '';
+    var hasOverride = !!rawContent;
+    var taValue = rawContent, soulEnabled = false;
+    if(isSoul){
+      if(!rawContent){ taValue = SOUL_TEMPLATE; soulEnabled = false; }
+      else {
+        var parsed = parseSoul(rawContent);
+        soulEnabled = parsed.enabled;
+        taValue = rawContent; // on garde le frontmatter visible/editable
+      }
+    } else if(!rawContent){
+      // Vide en DB → pre-remplit avec le defaut du code (c'est CE texte qui est utilise).
+      taValue = (nodeId === 'system.behavior') ? (_sysDefaults.behavior || '')
+              : (nodeId === 'system.prompt_curateur') ? (_sysDefaults.prompt_curateur || '')
+              : (nodeId === 'system.prompt_extraction') ? (_sysDefaults.prompt_extraction || '')
+              : (nodeId === 'system.prompt_planning') ? (_sysDefaults.prompt_planning || '')
+              : (_sysDefaults.identity || '');
+    }
+    var title = isSoul ? 'SOUL — personnalite'
+              : (nodeId === 'system.behavior' ? 'Comportement'
+              : (nodeId === 'system.prompt_curateur' ? 'Prompt Curateur'
+              : (nodeId === 'system.prompt_extraction' ? 'Prompt Consolidation'
+              : (nodeId === 'system.prompt_planning' ? 'Prompt Planification' : 'Identite'))));
+    var icon = isSoul ? SVG.soul : (nodeId === 'system.behavior' ? SVG.system : SVG.prompt);
+    var html = '<div class="mem2-syseditor">'+
+      '<div class="mem2-syseditor-head">'+
+        '<h3>'+icon+esc(title)+'</h3>'+
+        (isSoul ? '<label class="mem2-toggle"><input type="checkbox" id="mem2SoulToggle"'+(soulEnabled?' checked':'')+'><span class="mem2-toggle-track"></span><span>'+(soulEnabled?'Activee':'Desactivee')+'</span></label>' : '')+
+      '</div>'+
+      '<div class="mem2-protnote">'+SVG.lock+'<span>Gere par le systeme : l\'agent ne peut pas modifier ce contenu. Edition reservee a l\'administrateur ici.</span></div>'+
+      (isSoul ? '' : '<div class="mem2-nodedates">'+(hasOverride
+          ? '✎ Personnalise : ce texte REMPLACE le defaut du code.'
+          : 'Defaut du code (pre-rempli) : c\'est ce texte qui est utilise tant que tu n\'enregistres pas. Edite-le pour le personnaliser ; il sera applique au prochain message, sans redemarrage.')+'</div>')+
+      '<textarea id="mem2SysText" spellcheck="false" placeholder="'+(isSoul?'Personnalite (format OKF avec frontmatter)...':'Texte de la section...')+'">'+esc(taValue)+'</textarea>'+
+      '<div class="mem2-syseditor-acts">'+
+        '<button class="mem2-btn-primary" id="mem2SysSave">Enregistrer</button>'+
+        '<button class="mem2-btn-ghost" id="mem2SysRestore">Restaurer le defaut</button>'+
+      '</div>'+
+      '<div class="mem2-syseditor-note">Le format des appels d\'outils et des plans reste gere par le systeme et n\'est pas editable ici.</div>'+
+    '</div>';
+    el.innerHTML = html;
+
+    var ta = document.getElementById('mem2SysText');
+    var toggle = document.getElementById('mem2SoulToggle');
+
+    if(isSoul && toggle){
+      var lbl = toggle.parentNode.querySelector('span:last-child');
+      toggle.onchange = function(){
+        if(lbl) lbl.textContent = toggle.checked ? 'Activee' : 'Desactivee';
+        // synchronise le frontmatter dans le textarea (conserve le corps)
+        var p = parseSoul(ta.value);
+        ta.value = buildSoul(toggle.checked, p.body);
+      };
+    }
+
+    document.getElementById('mem2SysSave').onclick = function(){
+      var content = ta.value;
+      if(isSoul){
+        // garantit un frontmatter coherent avec le toggle
+        var p = parseSoul(content);
+        content = buildSoul(toggle ? toggle.checked : p.enabled, p.body);
+      } else {
+        content = content.trim();
+        if(!content){ LaRuche.Toast.show('Contenu requis','warn'); return; }
+      }
+      // ITEM UNIQUE : un nœud système = exactement un item. On supprime les anciens puis on écrit
+      // (pas d'accumulation de versions).
+      var oldIds = items.map(function(it){ return it.id; }).filter(Boolean);
+      Promise.all(oldIds.map(function(id){ return postJson('/api/memory/delete', {item_id:id, reason:'ui-admin'}); }))
+        .then(function(){ return postJson('/api/memory/write', {node_id:nodeId, content:content, source:'ui-admin'}); })
+        .then(function(d){
+          if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Ecriture impossible','err'); return; }
+          LaRuche.Toast.show((isSoul?'SOUL':'Section')+' enregistree','ok');
+          loadNode(nodeId); loadStats();
+        }).catch(function(e){ LaRuche.Toast.show('Ecriture: '+e,'err'); });
+    };
+
+    document.getElementById('mem2SysRestore').onclick = function(){
+      if(!window.confirm('Restaurer le '+(isSoul?'SOUL':'system prompt')+' par defaut ? Le contenu actuel sera supprime.')) return;
+      var ids = items.map(function(it){ return it.id; }).filter(Boolean);
+      if(!ids.length){ LaRuche.Toast.show('Deja au defaut (aucun item)','ok'); loadNode(nodeId); return; }
+      Promise.all(ids.map(function(id){ return postJson('/api/memory/delete', {item_id:id, reason:'ui-admin-restore'}); }))
+        .then(function(res){
+          var bad = res.filter(function(d){ return d && (d.status==='error'||d.error); });
+          if(bad.length){ LaRuche.Toast.show('Suppression partielle: '+(bad[0].error||'?'),'err'); }
+          else LaRuche.Toast.show('Defaut restaure','ok');
+          loadNode(nodeId); loadStats();
+        }).catch(function(e){ LaRuche.Toast.show('Restauration: '+e,'err'); });
+    };
+  }
+
+  /* ---- CRUD ---- */
+  function postJson(url, payload) {
+    return fetch(LaRuche.API.base+url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)}).then(function(r){return r.json();});
+  }
+
+  function startEdit(id) {
+    var wrap = document.querySelector('[data-itemwrap="'+CSS.escape(id)+'"]'); if(!wrap) return;
+    if(wrap.querySelector('.mem2-edit')) return; // deja en edition
+    var raw = wrap.querySelector('[data-raw="'+CSS.escape(id)+'"]');
+    var md = wrap.querySelector('[data-md="'+CSS.escape(id)+'"]');
+    var cur = raw ? raw.textContent : '';
+    if(md) md.style.display = 'none';
+    var box = document.createElement('div');
+    box.className = 'mem2-edit';
+    box.innerHTML = '<textarea>'+esc(cur)+'</textarea>'+
+      '<div class="mem2-edit-acts">'+
+        '<button class="mem2-btn-primary" data-save>Enregistrer</button>'+
+        '<button class="mem2-btn-ghost" data-cancel>Annuler</button>'+
+        '<button class="mem2-btn-ghost" data-preview>Apercu</button>'+
+      '</div>';
+    wrap.appendChild(box);
+    var ta = box.querySelector('textarea');
+    ta.focus();
+    box.querySelector('[data-cancel]').onclick = function(){ box.remove(); if(md) md.style.display=''; };
+    box.querySelector('[data-preview]').onclick = function(){
+      if(md){ md.innerHTML = LaRuche.MD.render(ta.value); md.style.display = (md.style.display==='none'?'':'none'); LaRuche.MD.wireWikilinks(md, loadNode); }
+    };
+    box.querySelector('[data-save]').onclick = function(){
+      var next = ta.value.trim();
+      if(!next){ LaRuche.Toast.show('Contenu requis','warn'); return; }
+      var node = (currentNode && (currentNode.node_id || currentNode.id)) || '';
+      // Edit = supprime + réécrit, tagué 'ui-memory' → attribué à User dans le Feed
+      // (l'update direct ne porte pas de src, donc serait attribué a LaRuche).
+      postJson('/api/memory/delete', {item_id:id, reason:'ui-memory'})
+        .then(function(){ return postJson('/api/memory/write', {node_id:node, content:next, source:'ui-memory'}); })
+        .then(function(d){
+          if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Update impossible','err'); return; }
+          LaRuche.Toast.show('Souvenir mis a jour','ok');
+          box.remove();
+          loadNode(node);
+        }).catch(function(e){ LaRuche.Toast.show('Update: '+e,'err'); });
+    };
+  }
+
+  function deleteItem(id) {
+    if(!window.confirm('Supprimer ce souvenir ?')) return;
+    postJson('/api/memory/delete', {item_id:id, reason:'ui-memory'}).then(function(d){
+      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Suppression impossible','err'); return; }
+      if(currentNode && currentNode.items) currentNode.items = currentNode.items.filter(function(it){ return String(it.id)!==String(id); });
+      LaRuche.Toast.show('Souvenir supprime','ok');
+      renderDoc(); loadStats();
+    }).catch(function(e){ LaRuche.Toast.show('Suppression: '+e,'err'); });
+  }
+
+  function moveItem(id, fromNode) {
+    var next = window.prompt('Deplacer vers node_id', fromNode || '');
+    if(next == null) return; next = next.trim();
+    if(!next){ LaRuche.Toast.show('node_id requis','warn'); return; }
+    postJson('/api/memory/move', {item_id:id, node_id:next}).then(function(d){
+      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Deplacement impossible','err'); return; }
+      mergeNodes([{id:next, label:next}]);
+      LaRuche.Toast.show('Souvenir deplace vers '+next,'ok');
+      if(current) loadNode(current); else renderDoc();
+    }).catch(function(e){ LaRuche.Toast.show('Deplacement: '+e,'err'); });
+  }
+
+  function addItem(nodeId) {
+    var ta = document.getElementById('mem2AddText'); if(!ta) return;
+    var content = ta.value.trim();
+    if(!content){ LaRuche.Toast.show('Contenu requis','warn'); return; }
+    
+    // Intercept @LaRuche for memory enrichment
+    if(content.toLowerCase().startsWith('@laruche')) {
+      var prompt = content.substring(8).trim();
+      ta.value = '';
+      var w = document.querySelector('.mem2-add');
+      if (w) w.classList.remove('is-agent-call');
+      LaRuche.Toast.show('Création de la mission...', 'info');
+      postJson('/api/memory/write', {node_id:nodeId, content:content, source:'agent-call'}).then(function(res){
+        if(res.status==='error' || res.error){ LaRuche.Toast.show(res.error||'Erreur creation','err'); return; }
+        var itemId = res.result || res.id || res.item_id;
+        if (res.result && typeof res.result === 'object') itemId = res.result.item_id || res.result.id;
+        loadNode(nodeId);
+        postJson('/api/memory/enrich', {node_id: nodeId, prompt: prompt, item_id: itemId}).then(function(d){
+          if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Erreur lancement agent','err'); return; }
+          LaRuche.Toast.show('Agent en mission !', 'ok');
+        }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e,'err'); });
+      }).catch(function(e){ LaRuche.Toast.show('Erreur creation: '+e,'err'); });
+      return;
+    }
+
+    postJson('/api/memory/write', {node_id:nodeId, content:content, source:'ui-memory'}).then(function(d){
+      if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||'Ecriture impossible','err'); return; }
+      LaRuche.Toast.show('Souvenir memorise','ok');
+      loadNode(nodeId); loadStats();
+    }).catch(function(e){ LaRuche.Toast.show('Ecriture: '+e,'err'); });
+  }
+
+  /* ---- vues / toolbar ---- */
+  function setView(v) {
+    view = v;
+    var body = document.getElementById('mem2Body');
+    var gwrap = document.getElementById('mem2GraphWrap');
+    var bt = document.getElementById('mem2ViewTree');
+    var bg = document.getElementById('mem2ViewGraph');
+    if(bt) bt.classList.toggle('on', v==='tree');
+    if(bg) bg.classList.toggle('on', v==='graph');
+    if(v==='graph'){ if(body) body.style.display='none'; if(gwrap) gwrap.style.display=''; renderGraph(); }
+    else { if(gwrap) gwrap.style.display='none'; if(body) body.style.display='block'; }
+  }
+
+  // Telecharge un .zip OKF via le navigateur (Content-Disposition cote serveur).
+  function downloadExportZip(nodeId){
+    var url = LaRuche.API.base+'/api/memory/export.zip'+(nodeId?('?node='+encodeURIComponent(nodeId)):'');
+    var a = document.createElement('a');
+    a.href = url; a.download = ''; a.style.display = 'none';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ a.remove(); }, 0);
+    LaRuche.Toast.show('Telechargement OKF lance'+(nodeId?(' ('+nodeId+')'):' (tout)'),'ok');
+  }
+
+  function exportOkf(){
+    // Petit menu flottant : ce noeud / tout. Telechargement .zip navigateur.
+    var old = document.getElementById('mem2ExportMenu');
+    if(old){ old.remove(); return; }
+    var menu = document.createElement('div');
+    menu.id = 'mem2ExportMenu';
+    menu.style.cssText = 'position:fixed;z-index:9999;background:var(--bg-elev,#18181b);border:1px solid var(--amber,#f59e0b);'+
+      'border-radius:8px;padding:6px;box-shadow:0 8px 24px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:4px;min-width:200px;';
+    var btnNode = document.createElement('button');
+    btnNode.className = 'mem2-tbtn';
+    btnNode.textContent = current ? ('Exporter ce noeud ('+current+')') : 'Exporter ce noeud (aucun selectionne)';
+    btnNode.disabled = !current;
+    if(!current) btnNode.style.opacity = '.5';
+    btnNode.onclick = function(){ menu.remove(); if(current) downloadExportZip(current); };
+    var btnAll = document.createElement('button');
+    btnAll.className = 'mem2-tbtn';
+    btnAll.textContent = 'Exporter tout';
+    btnAll.onclick = function(){ menu.remove(); downloadExportZip(null); };
+    menu.appendChild(btnNode);
+    menu.appendChild(btnAll);
+    document.body.appendChild(menu);
+    // positionne sous le bouton declencheur si trouvable, sinon coin haut-droit
+    var trigger = document.querySelector('.mem2-toolbar [onclick*="exportOkf"]');
+    if(trigger){
+      var r = trigger.getBoundingClientRect();
+      menu.style.top = (r.bottom+4)+'px';
+      menu.style.left = Math.max(8, Math.min(r.left, window.innerWidth - 220))+'px';
+    } else { menu.style.top = '60px'; menu.style.right = '12px'; }
+    // ferme au clic exterieur
+    setTimeout(function(){
+      function onDoc(e){ if(!menu.contains(e.target)){ menu.remove(); document.removeEventListener('mousedown', onDoc); } }
+      document.addEventListener('mousedown', onDoc);
+    }, 0);
+  }
+
+  // Parse un .md/.okf : node_id depuis le frontmatter `id:` (sinon derive du nom de fichier),
+  // items depuis les puces `- ...` du corps (suffixe _(source: ...)_ retire). Reprend le format
+  // produit par l'export OKF du backend.
+  function parseOkfMarkdown(text, filename){
+    var base = String(filename||'note').replace(/\.[^.]+$/, '');
+    var slug = base.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'') || 'note';
+    var fallbackId = 'knowledge.' + slug; // defaut si pas d'id en frontmatter ni noeud courant
+    var explicitId = null; // id: explicite dans le frontmatter (prioritaire)
+    var lines = String(text||'').split(/\r?\n/);
+    var front = 0, items = [];
+    for(var i=0;i<lines.length;i++){
+      var ln = lines[i];
+      if(ln.trim() === '---'){ front++; continue; }
+      if(front === 1){
+        var m = ln.trim().match(/^id:\s*(.+)$/);
+        if(m){ var v = m[1].trim().replace(/^["']|["']$/g,'').trim(); if(v) explicitId = v; }
+      } else if(front >= 2 && /^\s*-\s+/.test(ln)){
+        var c = ln.replace(/^\s*-\s+/, '').split('  _(source:')[0].trim();
+        if(c) items.push(c);
+      }
+    }
+    if(!items.length){ // ni puces : importer le corps entier comme un seul item
+      var body = String(text||'').replace(/^---[\s\S]*?---/, '').trim();
+      if(body) items.push(body.slice(0, 4000));
+    }
+    return { explicitId: explicitId, fallbackId: fallbackId, items: items };
+  }
+
+  // Import direct de fichiers .md/.okf choisis par l'utilisateur (pas un dossier serveur).
+  function importOkf() {
+    // Refuse l'import dans un noeud courant protege (system.*, capacities.*, tools.*).
+    if(current && isProtected(current)){
+      LaRuche.Toast.show('Noeud courant protege : import interdit ici','err');
+      return;
+    }
+    var inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = '.md,.markdown,.okf,.txt'; inp.multiple = true;
+    inp.onchange = function(){
+      var files = Array.prototype.slice.call(inp.files || []);
+      if(!files.length) return;
+      var done = 0, written = 0, errors = 0;
+      function finish(){
+        if(done < files.length) return;
+        LaRuche.Toast.show('Import: '+written+' item(s)'+(errors?(', '+errors+' erreur(s)'):''), errors?'err':'ok');
+        loaded=false; nodes={}; loadTree();
+      }
+      files.forEach(function(file){
+        var reader = new FileReader();
+        reader.onload = function(){
+          var parsed = parseOkfMarkdown(String(reader.result||''), file.name);
+          if(!parsed.items.length){ done++; finish(); return; }
+          // Priorite cible : id: explicite (frontmatter) > noeud courant selectionne > knowledge.<slug>
+          var targetId = parsed.explicitId || (current || parsed.fallbackId);
+          Promise.all(parsed.items.map(function(content){
+            return fetch(LaRuche.API.base+'/api/memory/write', {
+              method:'POST', headers:{'Content-Type':'application/json'},
+              body: JSON.stringify({node_id: targetId, content: content})
+            }).then(function(r){ if(r.ok) written++; else errors++; }).catch(function(){ errors++; });
+          })).then(function(){ done++; finish(); });
+        };
+        reader.onerror = function(){ errors++; done++; finish(); };
+        reader.readAsText(file);
+      });
+    };
+    inp.click();
+  }
+
+  function triggerDream() {
+    // Consolide RÉELLEMENT (fusion d'items via le modèle aux). Si un nœud est sélectionné et
+    // n'est pas système, on le consolide ; sinon passe globale sur les nœuds surchargés.
+    var node = (current && current.indexOf('system')!==0 && current.indexOf('capacities')!==0 && current.indexOf('recherche:')!==0) ? current : '';
+    var url = LaRuche.API.base+'/api/memory/consolidate'+(node?('?node='+encodeURIComponent(node)):'');
+    var scope = node ? ('« '+node+' »') : 'mémoire (nœuds surchargés)';
+    LaRuche.Toast.show('Consolidation de '+scope+'… (peut prendre quelques secondes)','ok');
+    fetch(url, {method:'POST'}).then(function(r){return r.json();}).then(function(res){
+      if(res.error){ LaRuche.Toast.show('Erreur: '+res.error,'err'); return; }
+      var n = (res.consolidated!=null) ? res.consolidated+' nœud(s) consolidé(s)'
+            : (res.before!=null ? (res.before+'→'+res.after+' items') : 'fait');
+      LaRuche.Toast.show('Consolidation: '+n,'ok');
+      loaded=false; nodes={}; loadTree(); if(node) loadNode(node);
+    }).catch(function(e){ LaRuche.Toast.show('Consolidation: '+e,'err'); });
+  }
+
+  /* ---- vue graphe (bonus A4) ---- */
+  function hexPoints(cx, cy, r){
+    var pts=[]; for(var i=0;i<6;i++){ var a=Math.PI/180*(60*i-30); pts.push((cx+r*Math.cos(a)).toFixed(1)+','+(cy+r*Math.sin(a)).toFixed(1)); }
+    return pts.join(' ');
+  }
+  function shortLabel(s){ s=String(s||''); return s.length>16 ? s.slice(0,15)+'…' : s; }
+
+  function renderGraph() {
+    var svg = document.getElementById('mem2Graph'); if(!svg) return;
+    var ids = Object.keys(nodes);
+    if(!ids.length){ svg.innerHTML='<text x="500" y="350" text-anchor="middle" fill="var(--text-muted)" font-size="16">Aucun noeud</text>'; return; }
+    var cols = Math.max(3, Math.ceil(Math.sqrt(ids.length)));
+    var gapX=170, gapY=140, r=52, startX=120, startY=90;
+    var html = '<defs><filter id="mem2Glow"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
+    // liens parent->enfant
+    var pos = {};
+    ids.forEach(function(id, idx){
+      var row=Math.floor(idx/cols), col=idx%cols;
+      pos[id] = { x:startX+col*gapX+(row%2?gapX/2:0), y:startY+row*gapY };
+    });
+    ids.forEach(function(id){
+      var p = id.indexOf('.')>=0 ? id.slice(0,id.lastIndexOf('.')) : null;
+      if(p && pos[p]) html += '<line x1="'+pos[p].x+'" y1="'+pos[p].y+'" x2="'+pos[id].x+'" y2="'+pos[id].y+'" stroke="var(--border-light)" stroke-width="1"/>';
+    });
+    ids.forEach(function(id){
+      var x=pos[id].x, y=pos[id].y, isActive=current===id;
+      var fill=isActive?'rgba(245,158,11,.42)':'rgba(24,24,27,.9)';
+      var stroke=isActive?'var(--amber)':'var(--border-light)';
+      html += '<g class="mem2-gnode" data-node="'+esc(id)+'" style="cursor:pointer">'+
+        '<polygon points="'+hexPoints(x,y,r)+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+(isActive?3:1.5)+'"'+(isActive?' filter="url(#mem2Glow)"':'')+'></polygon>'+
+        '<text x="'+x+'" y="'+(y+4)+'" text-anchor="middle" fill="var(--text)" font-size="12" font-weight="700">'+esc(shortLabel(id.split('.').pop()))+'</text>'+
+      '</g>';
+    });
+    svg.innerHTML = html;
+    svg.querySelectorAll('.mem2-gnode').forEach(function(g){ g.addEventListener('click', function(){ loadNode(g.dataset.node); }); });
+  }
+
+  function deleteNode(id) {
+    if(!window.confirm('Voulez-vous vraiment supprimer le dossier "'+id+'" et tout son contenu de maniere irreversible ?')) return;
+    fetch(LaRuche.API.base+'/api/memory/node/delete', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({node_id:id})
+    }).then(function(r){return r.json();}).then(function(d){
+      if(d.error) { LaRuche.Toast.show(d.error, 'err'); return; }
+      LaRuche.Toast.show('Dossier supprime', 'ok');
+      if(current === id) current = null;
+      delete nodes[id];
+      Object.keys(nodes).forEach(function(k){ if(k.indexOf(id+'.') === 0) delete nodes[k]; });
+      renderTree();
+      renderDoc();
+      loadTree(false);
+    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+  }
+
+  function renameNode(id, oldLabel) {
+    var newLabel = window.prompt('Nouveau nom pour le dossier:', oldLabel);
+    if(!newLabel || newLabel === oldLabel) return;
+    fetch(LaRuche.API.base+'/api/memory/node/update', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({node_id:id, label:newLabel})
+    }).then(function(r){return r.json();}).then(function(d){
+      if(d.error) { LaRuche.Toast.show(d.error, 'err'); return; }
+      loadTree(false);
+    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+  }
+
+  function createSubnode(parentId) {
+    var label = window.prompt('Nom du nouveau sous-dossier:');
+    if(!label) return;
+    // Generate an ID based on label (lowercase, no spaces)
+    var slug = label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    if(!slug) return;
+    var newId = parentId + '.' + slug;
+    fetch(LaRuche.API.base+'/api/memory/node/create', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({node_id:newId, label:label, source:'ui-admin'})
+    }).then(function(r){return r.json();}).then(function(d){
+      if(d.error) { LaRuche.Toast.show(d.error, 'err'); return; }
+      expanded[parentId] = true;
+      loadTree(false);
+    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+  }
+
+  function toggleAll(forceOpen) {
+    Object.keys(nodes).forEach(function(id) {
+      expanded[id] = forceOpen;
+    });
+    renderTree();
+  }
+
+  return {
+    init:init, enter:enter, leave:leave, current:function(){return current;},
+    loadNode:loadNode, setView:setView,
+    exportOkf:exportOkf, importOkf:importOkf, triggerDream:triggerDream,
+    toggleAll:toggleAll, deleteNode:deleteNode, renameNode:renameNode,
+    createSubnode:createSubnode, moveItem:moveItem,
+    toggleEditMode:toggleEditMode, createRoot:createRoot,
+    toggleExact:toggleExact
+  };
+})();
+
+/* --- Missions Page Module (La Reine : recherche au long cours) ----------- */
+LaRuche.Missions = (function(){
+  var list = [];
+  var current = null; // slug du dossier affiche
+  var loaded = false;
+
+  function esc(t){ return LaRuche.Utils.esc(t); }
+
+  function init() {}
+  function enter() { if(!loaded) refresh(); }
+  function leave() {}
+
+  function refresh() {
+    fetch(LaRuche.API.base+'/api/missions').then(function(r){return r.json();}).then(function(data){
+      loaded = true;
+      list = Array.isArray(data) ? data : (data.missions || []);
+      renderList();
+    }).catch(function(e){
+      var el = document.getElementById('misList');
+      if(el) el.innerHTML = '<div class="mem2-empty">Missions indisponibles</div>';
+      LaRuche.Toast.show('Missions indisponibles: '+e, 'err');
+    });
+  }
+
+  function fmtDate(s) {
+    if(!s) return 'jamais';
+    try { var d = new Date(s); if(isNaN(d)) return s; return d.toLocaleString(); } catch(e){ return s; }
+  }
+
+  function renderList() {
+    var el = document.getElementById('misList'); if(!el) return;
+    if(!list.length){ el.innerHTML = '<div class="mem2-empty">Aucune mission. Creez-en une.</div>'; return; }
+    el.innerHTML = list.map(function(m){
+      var status = m.status || 'active';
+      var cad = m.cadence ? ('<span title="cadence cron">&#x23F1; '+esc(m.cadence)+'</span>') : '<span>manuel</span>';
+      return '<div class="mis-card'+(current===m.slug?' active':'')+'" data-slug="'+esc(m.slug)+'">'+
+        '<div class="mis-card-obj">'+esc(m.objective || m.slug)+'</div>'+
+        '<div class="mis-card-meta">'+
+          '<span class="mis-badge '+esc(status)+'">'+esc(status)+'</span>'+
+          '<span>&#x21BB; '+(m.iterations!=null?m.iterations:0)+' iter.</span>'+
+          cad+
+          '<span>derniere: '+esc(fmtDate(m.last_run))+'</span>'+
+        '</div>'+
+        '<div class="mis-card-acts">'+
+          '<button class="mis-act run" data-act="run" data-slug="'+esc(m.slug)+'">Lancer une iteration</button>'+
+          '<button class="mis-act" data-act="dossier" data-slug="'+esc(m.slug)+'">Dossier</button>'+
+          (status==='active'
+            ? '<button class="mis-act" data-act="pause" data-slug="'+esc(m.slug)+'">Pause</button>'
+            : '<button class="mis-act" data-act="resume" data-slug="'+esc(m.slug)+'">Reprendre</button>')+
+          '<button class="mis-act" data-act="done" data-slug="'+esc(m.slug)+'">Terminer</button>'+
+          '<button class="mis-act danger" data-act="delete" data-slug="'+esc(m.slug)+'">Suppr</button>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+    el.querySelectorAll('.mis-card').forEach(function(card){
+      card.onclick = function(e){ if(e.target.closest('[data-act]')) return; openDossier(card.dataset.slug); };
+    });
+    el.querySelectorAll('[data-act]').forEach(function(b){
+      b.onclick = function(e){
+        e.stopPropagation();
+        var act=b.dataset.act, slug=b.dataset.slug;
+        if(act==='run') runMission(slug);
+        else if(act==='dossier') openDossier(slug);
+        else if(act==='pause') setStatus(slug,'paused');
+        else if(act==='resume') setStatus(slug,'active');
+        else if(act==='done') setStatus(slug,'done');
+        else if(act==='delete') deleteMission(slug);
+      };
+    });
+  }
+
+  var _cadenceId = null;
+  // Monte le builder de cadence (réutilise celui des Crons) + peuple le sélecteur provider.
+  function mountForm() {
+    if(LaRuche.CronBuilder){ _cadenceId = LaRuche.CronBuilder.mount('misCadenceBuilder', { value:'' }); }
+    var sel = document.getElementById('misProvider');
+    if(sel){
+      fetch('/api/profiles').then(function(r){return r.json();}).then(function(d){
+        var profs = (d && d.profiles) || {};
+        Object.keys(profs).forEach(function(k){
+          var o=document.createElement('option'); o.value=k; o.textContent=profs[k].name||k; sel.appendChild(o);
+        });
+      }).catch(function(){});
+    }
+  }
+
+  function create() {
+    var objective = (document.getElementById('misObjective').value || '').trim();
+    var cadence = (_cadenceId && LaRuche.CronBuilder) ? LaRuche.CronBuilder.getValue(_cadenceId) : '';
+    var slug = (document.getElementById('misSlug').value || '').trim();
+    var provEl = document.getElementById('misProvider');
+    var chEl = document.getElementById('misChannel');
+    var profile_id = provEl ? provEl.value : '';
+    var channel = chEl ? (chEl.value||'').trim() : '';
+    if(!objective){ LaRuche.Toast.show('Objectif requis','warn'); return; }
+    var body = { objective:objective };
+    if(cadence) body.cadence = cadence;
+    if(slug) body.slug = slug;
+    if(profile_id) body.profile_id = profile_id;
+    if(channel) body.channel = channel;
+    fetch(LaRuche.API.base+'/api/missions', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
+        LaRuche.Toast.show('Mission creee: '+(d.slug||''),'ok');
+        document.getElementById('misObjective').value='';
+        if(chEl) chEl.value='';
+        document.getElementById('misSlug').value='';
+        refresh();
+      }).catch(function(e){ LaRuche.Toast.show('Creation: '+e,'err'); });
+  }
+
+  function runMission(slug) {
+    fetch(LaRuche.API.base+'/api/missions/'+encodeURIComponent(slug)+'/run', {method:'POST'})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
+        LaRuche.Toast.show('Iteration '+(d.iteration!=null?'#'+d.iteration+' ':'')+'lancee (en arriere-plan)','ok');
+        setTimeout(refresh, 1200);
+      }).catch(function(e){ LaRuche.Toast.show('Run: '+e,'err'); });
+  }
+
+  function setStatus(slug, status) {
+    fetch(LaRuche.API.base+'/api/missions/'+encodeURIComponent(slug), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status:status})})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
+        LaRuche.Toast.show('Statut: '+status,'ok');
+        refresh();
+      }).catch(function(e){ LaRuche.Toast.show('Statut: '+e,'err'); });
+  }
+
+  function deleteMission(slug) {
+    if(!window.confirm('Supprimer la mission "'+slug+'" ? (le savoir reste en memoire)')) return;
+    fetch(LaRuche.API.base+'/api/missions/'+encodeURIComponent(slug), {method:'DELETE'})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d && d.error){ LaRuche.Toast.show(d.error,'err'); return; }
+        LaRuche.Toast.show('Mission supprimee','ok');
+        if(current===slug){ current=null; renderMainEmpty(); }
+        refresh();
+      }).catch(function(e){ LaRuche.Toast.show('Suppression: '+e,'err'); });
+  }
+
+  function renderMainEmpty() {
+    var main = document.getElementById('misMain'); if(!main) return;
+    main.innerHTML = '<div class="mem2-empty">Selectionnez une mission pour voir son dossier, ou creez-en une.</div>';
+  }
+
+  /* ---- B2 : vue Dossier (markdown) ---- */
+  function openDossier(slug) {
+    current = slug;
+    renderList();
+    var main = document.getElementById('misMain'); if(!main) return;
+    main.innerHTML = '<div class="mem2-empty">Chargement du dossier...</div>';
+    fetch(LaRuche.API.base+'/api/missions/'+encodeURIComponent(slug)+'/dossier').then(function(r){return r.json();}).then(function(d){
+      if(d.error){ main.innerHTML = '<div class="mem2-empty">'+esc(d.error)+'</div>'; return; }
+      var md = d.markdown || '';
+      var mObj = list.filter(function(m){return m.slug===slug;})[0] || {};
+      var curObjective = d.objective || mObj.objective || '';
+      var curCadence = mObj.cadence || d.cadence || '';
+      var curStatus = mObj.status || d.status || 'active';
+      function statOpt(v,lbl){ return '<option value="'+v+'"'+(curStatus===v?' selected':'')+'>'+lbl+'</option>'; }
+      main.innerHTML =
+        '<div class="mis-dossier-bar">'+
+          '<span class="mis-dossier-title">Dossier &middot; '+esc(curObjective || slug)+'</span>'+
+          '<span><button class="mem2-tbtn" id="misEditBtn">Modifier</button> '+
+          '<button class="mem2-tbtn" id="misExportBtn">Exporter</button></span>'+
+        '</div>'+
+        '<div id="misEditBox" style="display:none;border:1px solid var(--amber);border-radius:8px;padding:12px;margin-bottom:14px;background:rgba(245,158,11,.06)">'+
+          '<div style="font-weight:600;color:var(--amber);margin-bottom:8px">Modifier la mission</div>'+
+          '<label class="form-label" style="font-size:10px;color:var(--text-dim)">Objectif</label>'+
+          '<textarea class="form-input" id="misEditObj" rows="3" style="width:100%;margin-bottom:10px">'+esc(curObjective)+'</textarea>'+
+          '<label class="form-label" style="font-size:10px;color:var(--text-dim)">Cadence</label>'+
+          '<div id="misEditCadence" style="margin-bottom:10px"></div>'+
+          '<label class="form-label" style="font-size:10px;color:var(--text-dim)">Statut</label>'+
+          '<select class="form-input" id="misEditStatus" style="margin-bottom:12px">'+statOpt('active','Active')+statOpt('paused','En pause')+statOpt('done','Terminee')+'</select>'+
+          '<div style="display:flex;gap:8px"><button class="mem2-btn-primary" id="misEditSave">Enregistrer</button>'+
+          '<button class="mem2-tbtn" id="misEditCancel">Annuler</button></div>'+
+        '</div>'+
+        '<div class="mis-dossier-body mem2-md" id="misDossierMd"></div>';
+      var body = document.getElementById('misDossierMd');
+      body.innerHTML = LaRuche.MD.render(md);
+      LaRuche.MD.wireWikilinks(body, function(node){ LaRuche.Router.go('memory'); setTimeout(function(){ LaRuche.Memory.loadNode(node); }, 60); });
+      document.getElementById('misExportBtn').onclick = function(){ exportDossier(slug, md); };
+      var _cadBuilderId = null;
+      document.getElementById('misEditBtn').onclick = function(){
+        var box=document.getElementById('misEditBox');
+        var open = box.style.display==='none';
+        box.style.display = open?'block':'none';
+        if(open && !_cadBuilderId && LaRuche.CronBuilder){
+          _cadBuilderId = LaRuche.CronBuilder.mount('misEditCadence', { value: curCadence });
+        }
+      };
+      document.getElementById('misEditCancel').onclick = function(){ document.getElementById('misEditBox').style.display='none'; };
+      document.getElementById('misEditSave').onclick = function(){
+        var objective = (document.getElementById('misEditObj').value||'').trim();
+        var status = document.getElementById('misEditStatus').value;
+        var cadence = _cadBuilderId ? LaRuche.CronBuilder.getValue(_cadBuilderId) : curCadence;
+        saveMissionEdit(slug, { objective:objective, cadence:cadence||'', status:status });
+      };
+    }).catch(function(e){ main.innerHTML = '<div class="mem2-empty">Erreur: '+esc(e)+'</div>'; });
+  }
+
+  function saveMissionEdit(slug, payload) {
+    fetch(LaRuche.API.base+'/api/missions/'+encodeURIComponent(slug), {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)})
+      .then(function(r){return r.json().catch(function(){return {};});}).then(function(d){
+        if(d && d.error){ LaRuche.Toast.show(d.error,'err'); return; }
+        LaRuche.Toast.show('Mission mise a jour','ok');
+        // refresh liste + dossier
+        fetch(LaRuche.API.base+'/api/missions').then(function(r){return r.json();}).then(function(data){
+          list = Array.isArray(data) ? data : (data.missions || []);
+          renderList();
+          openDossier(slug);
+        }).catch(function(){ openDossier(slug); });
+      }).catch(function(e){ LaRuche.Toast.show('Enregistrement: '+e,'err'); });
+  }
+
+  function exportDossier(slug, md) {
+    try {
+      var blob = new Blob([md], {type:'text/markdown;charset=utf-8'});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = 'dossier-'+slug+'.md';
+      document.body.appendChild(a); a.click();
+      setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+      LaRuche.Toast.show('Dossier exporte','ok');
+    } catch(e){ LaRuche.Toast.show('Export: '+e,'err'); }
+  }
+
+  return { init:init, enter:enter, leave:leave, current:function(){return current;}, refresh:refresh, create:create, mountForm:mountForm };
+})();
+
+
+LaRuche.Settings = (function(){
+  var currentTab = 'general';
+
+  function init() {
+    document.getElementById('settingsTabsBar').addEventListener('click', function(e){
+      var btn = e.target.closest('.settings-tab-btn');
+      if(!btn) return;
+      currentTab = btn.dataset.tab;
+      document.querySelectorAll('#settingsTabsBar .settings-tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===currentTab);});
+      loadTab(currentTab);
+    });
+  }
+
+  function enter() { loadTab(currentTab); }
+  function leave() {}
+
+  function loadTab(tab) {
+    var host = document.getElementById('settingsContent');
+    if(!host) return;
+    // Anti-course : on donne à CHAQUE chargement un canvas neuf. Si un loader async lent se
+    // termine APRÈS qu'on a changé d'onglet, il écrit dans SON ancien `el` (désormais détaché
+    // du DOM) → invisible. Fini le « General s'affiche alors que j'ai cliqué Provider ».
+    var el = document.createElement('div');
+    el.className = 'settings-tab-canvas';
+    host.innerHTML = '';
+    host.appendChild(el);
+    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">Chargement...</div>';
+    switch(tab) {
+      case 'general': loadGeneral(el); break;
+      case 'providers': loadProviders(el); break;
+      case 'mcp': loadMcp(el); break;
+      case 'secrets': loadSecrets(el); break;
+      case 'tools': loadTools(el); break;
+      case 'channels': loadChannels(el); break;
+      case 'knowledge': loadKnowledge(el); break;
+      case 'network': loadNetwork(el); break;
+      case 'cron': loadCron(el); break;
+      case 'cron-timeline': loadCronTimeline(el); break;
+      case 'blueprints': loadBlueprints(el); break;
+      case 'watchers': loadWatchers(el); break;
+      case 'kanban': loadKanban(el); break;
+      case 'skills': loadSkills(el); break;
+      case 'onboarding': loadOnboarding(el); break;
+    }
+  }
+
+  async function loadGeneral(el) {
+    // Les 6 appels sont INDÉPENDANTS → en PARALLÈLE (Promise.all) au lieu de 6 await en série
+    // (c'était ça la lenteur : chaque fetch attendait le précédent). gj = fetch tolérant aux erreurs.
+    function gj(u){ return fetch(u).then(function(r){return r.json();}).catch(function(){return {};}); }
+    var _r = await Promise.all([
+      gj('/api/doctor'), gj('/api/voice/status'), gj('/api/config/provider'),
+      gj('/api/context/stats'), gj('/api/config/compaction'), gj('/api/config/curateur'),
+      gj('/api/config/runtime')
+    ]);
+    var doc=_r[0], voice=_r[1], provCfg=_r[2], ctxStats=_r[3], ctxCfg=_r[4], curCfg=_r[5], rt=_r[6]||{};
+    el.innerHTML = '<div class="settings-grid">'+
+      '<div class="settings-card"><div class="settings-card-title">Génération (à chaud, sans redémarrage)</div>'+
+      '<div class="settings-row" style="flex-direction:column;align-items:stretch;gap:4px;">'+
+      '<div class="settings-row" style="padding:0;"><span class="settings-label" title="Passes ReAct max par tâche (anti-runaway)">Max passes</span><input type="number" id="cfgMaxIter" class="form-input" style="width:80px;padding:2px 6px;" value="'+(rt.max_iterations||40)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Température</span><input type="number" id="cfgTemp" class="form-input" style="width:80px;padding:2px 6px;" step="0.05" min="0" max="2" value="'+(rt.temperature!=null?rt.temperature:0.7)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Max tokens (sortie)</span><input type="number" id="cfgMaxTok" class="form-input" style="width:90px;padding:2px 6px;" value="'+(rt.max_tokens||4096)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="Nb d\'outils injectés en sélection dynamique">Limite outils dyn.</span><input type="number" id="cfgToolLim" class="form-input" style="width:80px;padding:2px 6px;" value="'+(rt.tool_selection_limit||24)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="Sous ce n_ctx, outils ET catalogue de skills passent en sélection dynamique (DB sémantique)">Seuil contexte étroit</span><input type="number" id="cfgCtxThreshold" class="form-input" style="width:90px;padding:2px 6px;" value="'+(rt.dynamic_context_threshold||40000)+'"></div>'+
+      '<button class="form-btn" onclick="LaRuche.Settings.saveRuntimeCfg()" style="margin-top:8px;">Appliquer</button></div></div>'+
+      '<div class="settings-card"><div class="settings-card-title">Contexte &amp; compaction</div>'+
+      '<div class="settings-row" style="flex-direction:column;align-items:stretch;gap:4px;">'+
+      '<div class="settings-row" style="padding:0;"><span class="settings-label">Max Messages</span><input type="number" id="cfgCtxMax" class="form-input" style="width:80px;padding:2px 6px;" value="'+(ctxCfg.context_max_messages||50)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Seuil Compaction</span><input type="number" id="cfgCtxThresh" class="form-input" style="width:80px;padding:2px 6px;" step="0.05" value="'+(ctxCfg.compaction_threshold||0.75)+'"></div>'+
+      '<button class="form-btn" onclick="LaRuche.Settings.saveContextCfg()" style="margin-top:8px;">Sauvegarder</button></div>'+
+      '<div class="settings-card"><div class="settings-card-title">Inference Config</div>'+
+      '<div class="settings-row" style="padding:0;"><span class="settings-label">Fallback Models</span><input type="text" id="cfgProvFallback" class="form-input" style="width:120px;padding:2px 6px;" value="'+(provCfg.fallback_models||'')+'" placeholder="claude-3-haiku, ..."></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Max Tokens</span><input type="number" id="cfgProvMaxTokens" class="form-input" style="width:80px;padding:2px 6px;" value="'+(provCfg.max_tokens||4096)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Temperature</span><input type="number" id="cfgProvTemp" class="form-input" style="width:80px;padding:2px 6px;" step="0.1" value="'+(provCfg.temperature||0.7)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Review Model</span><input type="text" id="cfgProvReview" class="form-input" style="width:120px;padding:2px 6px;" value="'+(provCfg.review_model||'')+'" placeholder="ex: gpt-4o"></div>'+
+      '<button class="form-btn" onclick="LaRuche.Settings.saveProviderCfg()" style="margin-top:8px;">Sauvegarder</button>'+
+      '<div style="font-size:10px;color:var(--text-dim);margin-top:8px">Active: '+(provCfg.provider||'ollama')+' / '+(provCfg.model||'-')+'</div></div>'+
+      '<div class="settings-card"><div class="settings-card-title">Voice</div>'+
+      '<div class="settings-row"><span class="settings-label">STT</span><span style="color:'+(voice.stt&&voice.stt.available?'var(--green)':'var(--red)')+'">'+(voice.stt&&voice.stt.available?'OK':'Off')+'</span></div>'+
+      '<div class="settings-row"><span class="settings-label">TTS</span><span style="color:'+(voice.tts&&voice.tts.available?'var(--green)':'var(--red)')+'">'+(voice.tts&&voice.tts.available?'OK':'Off')+'</span></div></div>'+
+      '<div class="settings-card"><div class="settings-card-title">Security</div>'+
+      '<div class="settings-row"><span class="settings-label">Secrets</span><span class="settings-value">17 patterns</span></div>'+
+      '<div class="settings-row"><span class="settings-label">Protocol</span><span class="settings-value">Miel v'+(doc.version||'0.2.0')+'</span></div></div>'+
+      '<div class="settings-card"><div class="settings-card-title">Curateur · Butinage</div>'+
+      '<div class="settings-row"><span class="settings-label">Auto-création de skills/outils vérifiés</span><label class="lr-switch"><input type="checkbox" id="cfgCurateur" '+(curCfg.enabled?'checked':'')+' '+(curCfg.env_forced?'disabled':'')+' onchange="LaRuche.Settings.toggleCurateur(this.checked)"><span class="lr-slider"></span></label></div>'+
+      '<div class="settings-row"><span class="settings-label">Sélection dynamique des outils <span style="color:var(--text-dim);font-size:10px">(prompt léger — recommandé pour petits modèles / llama.cpp)</span></span><label class="lr-switch"><input type="checkbox" id="cfgDynTools" '+(curCfg.dynamic_tools?'checked':'')+' onchange="LaRuche.Settings.toggleDynamicTools(this.checked)"><span class="lr-slider"></span></label></div>'+
+      '<div style="font-size:10px;color:var(--text-dim);margin-top:6px">'+(curCfg.env_forced?'Forcé par RUCHE_CURATEUR=1 (variable d\'env).':'En arrière-plan, conservateur (dédup auto). Off = ne crée rien.')+'</div></div>'+
+      '<div class="settings-card"><div class="settings-card-title">System</div>'+
+      '<div class="settings-row"><span class="settings-label">Afficher la transparence (outils/mémoire)</span><label class="lr-switch"><input type="checkbox" id="cfgTransparence" onchange="window.localStorage.setItem(\'laruche_hide_transparency\', this.checked ? \'false\' : \'true\')" \'+(window.localStorage.getItem(\'laruche_hide_transparency\') !== \'true\' ? \'checked\' : \'\')+\'><span class="lr-slider"></span></label></div>'+
+      ((doc.checks||[]).map(function(c){return '<div class="settings-row"><span class="settings-label">'+c.name+'</span><span style="color:'+(c.status==='ok'?'var(--green)':'var(--red)')+'">'+c.status+'</span></div>';}).join('')||'<div class="settings-row"><span class="settings-label">Status</span><span class="settings-value">OK</span></div>')+
+      '</div></div>';
+  }
+
+  // ── Providers Tab ─────────────────────────────────────────────
+
+  async function loadProviders(el) {
+    var data = {};
+    try { data = await fetch('/api/profiles').then(function(r){return r.json();}); } catch(e) {}
+    var profiles = data.profiles || {};
+    var active = data.active_model || {};
+    var ids = Object.keys(profiles).sort();
+
+    var credsData = {};
+    try { credsData = await fetch('/api/credentials').then(function(r){return r.json();}); } catch(e) {}
+    var allCreds = credsData.credentials || [];
+
+    // Carte dǸdiǸe : connexion ChatGPT Codex via abonnement (OAuth).
+    var html = '<div class="settings-card" id="codexAuthCard" style="margin-bottom:16px;border:1px solid var(--amber)">'+
+      '<div class="settings-card-title">ChatGPT Codex <span style="color:var(--text-dim);font-size:10px;font-weight:normal">— abonnement (OAuth, sans clé API)</span></div>'+
+      '<div id="codexAuthBox" style="font-size:12px;color:var(--text-dim)">Chargement…</div>'+
+      '</div>';
+
+    html += '<div style="margin-bottom:12px"><button class="settings-save-btn" onclick="LaRuche.Settings.showProfileForm()">+ Add Provider</button></div>';
+    html += '<div id="profileFormContainer" style="display:none"></div>';
+
+    // (Les serveurs MCP ont désormais leur propre onglet « MCP » — voir loadMcp.)
+
+    html += '<div class="settings-grid">';
+    var sharedHtml = '';
+
+    ids.forEach(function(id) {
+      var p = profiles[id];
+      var isActive = (id === active.profile_id);
+      var modelCount = (p.models || []).length;
+      var provLabel = p.provider === 'ollama' ? 'Ollama' : p.provider === 'anthropic' ? 'Anthropic' : p.provider === 'codex' ? 'ChatGPT Codex' : 'OpenAI-compat';
+      // PARTAGÉ PAR UN PAIR : base_url = IP LAN privée (≠ loopback) → carte séparée, lecture seule
+      // (on ne re-partage pas / n'édite pas le provider d'un autre).
+      var _bu = (p.base_url||'').toLowerCase();
+      var _shared = /(^|\/\/)(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(_bu) && !/127\.0\.0\.1|localhost/.test(_bu);
+      if(_shared){
+        sharedHtml += '<div class="settings-card">'+
+          '<div class="settings-card-title" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span>'+LaRuche.Utils.esc(p.name)+'</span>'+
+          '<span style="color:var(--cyan);font-size:10px;font-weight:normal">🐝 partagé par un pair · lecture seule</span></div>'+
+          '<div class="settings-row"><span class="settings-label">URL</span><span class="settings-value" style="font-size:10px;word-break:break-all">'+LaRuche.Utils.esc(p.base_url)+'</span></div>'+
+          '<div class="settings-row"><span class="settings-label">Modèles</span><span class="settings-value">'+modelCount+'</span></div>'+
+          '<div style="margin-top:10px"><button onclick="LaRuche.Settings.deleteProfile(\''+id+'\')" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:10px">Retirer de ma liste</button></div>'+
+          '</div>';
+        return; // pas de carte normale : ni « Rendre Public », ni « Edit »
+      }
+
+      var pCreds = allCreds.filter(function(c){ return c.provider.toLowerCase() === p.provider.toLowerCase(); });
+      var credsHtml = '';
+      if(pCreds.length > 0) {
+        credsHtml += '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">';
+        credsHtml += '<div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;font-weight:bold">Pool de Credentials</div>';
+        pCreds.forEach(function(c){
+           var maskedKey = c.api_key ? (c.api_key.substring(0,6) + '...' + c.api_key.substring(c.api_key.length-4)) : '';
+           var cdText = c.cooldown_until ? (' <span style="color:var(--red)">(cooldown)</span>') : '';
+           var lbl = c.label ? ('<span style="color:var(--amber);margin-right:6px">['+LaRuche.Utils.esc(c.label)+']</span>') : '';
+           credsHtml += '<div style="font-size:10px;display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;background:var(--bg-lighter);padding:4px;border-radius:4px">'+
+             '<div>'+lbl+'<span style="font-family:monospace">'+LaRuche.Utils.esc(maskedKey)+'</span> '+cdText+' <span style="color:var(--text-dim)">['+c.request_count+' reqs]</span></div>'+
+             '<button onclick="LaRuche.Settings.deleteCredential(\''+p.provider+'\', \''+c.api_key+'\')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:12px;padding:0 4px" title="Supprimer">&times;</button>'+
+             '</div>';
+        });
+        credsHtml += '</div>';
+      }
+      var addCredBtn = '<button onclick="LaRuche.Settings.addCredential(\''+p.provider+'\')" style="margin-top:8px;background:none;border:1px dashed var(--border);color:var(--text-dim);border-radius:4px;padding:4px 10px;cursor:pointer;font-size:10px;width:100%">+ Add Credential Key</button>';
+
+      var _vis = p.visibility || 'prive';
+      var _nAllowed = (p.allowed_peers||[]).length;
+      var visBadge = _vis==='public_proxy'
+        ? '<span style="color:var(--blue);font-size:10px;font-weight:bold;margin-left:8px;">🌐 Public 📡</span>'
+        : _vis==='restricted'
+        ? '<span style="color:var(--cyan);font-size:10px;font-weight:bold;margin-left:8px;">🐝 Restreint ('+_nAllowed+')</span>'
+        : '<span style="color:var(--text-dim);font-size:10px;font-weight:bold;margin-left:8px;">🔒 Privé</span>';
+      var visToggleBtn = '<button onclick="LaRuche.Settings.openAccess(\''+id+'\', \''+_vis+'\', \''+encodeURIComponent(JSON.stringify(p.allowed_peers||[]))+'\')" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;">🔐 Accès</button>';
+      html += '<div class="settings-card" style="'+(isActive?'border:1px solid var(--amber);':'')+'">'+
+        '<div class="settings-card-title" style="display:flex;align-items:center;"><span>'+LaRuche.Utils.esc(p.name)+'</span>'+
+        (isActive?' <span style="color:var(--amber);font-size:10px;font-weight:normal;margin-left:4px;">(active)</span>':'')+
+        visBadge+visToggleBtn+
+        '</div>'+
+        '<div class="settings-row"><span class="settings-label">Type</span><span class="settings-value">'+provLabel+'</span></div>'+
+        '<div class="settings-row"><span class="settings-label">URL</span><span class="settings-value" style="font-size:10px;word-break:break-all">'+LaRuche.Utils.esc(p.base_url)+'</span></div>'+
+        '<div class="settings-row"><span class="settings-label">API Key</span><span class="settings-value">'+(p.api_key?'***set***':'(none)')+'</span></div>'+
+        '<div class="settings-row"><span class="settings-label">Models</span><span class="settings-value">'+modelCount+'</span></div>'+
+        credsHtml + addCredBtn +
+        '<div style="margin-top:12px;display:flex;gap:6px">'+
+        '<button onclick="LaRuche.Settings.editProfile(\''+id+'\')" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:10px">Edit</button>'+
+        '<button onclick="LaRuche.Settings.deleteProfile(\''+id+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:10px">Delete</button>'+
+        '</div></div>';
+    });
+
+    html += '</div>';
+    if(sharedHtml){
+      html += '<div class="settings-card-title" style="margin:18px 0 8px;color:var(--cyan)">🐝 Partagés avec moi (mesh)</div>'+
+        '<div style="color:var(--text-dim);font-size:11px;margin-bottom:10px">Modèles exposés par d\'autres ruches. Tu peux les utiliser, mais pas les éditer ni les re-partager.</div>'+
+        '<div class="settings-grid">'+sharedHtml+'</div>';
+    }
+    el.innerHTML = html;
+    refreshCodexStatus();
+  }
+
+  // ── ChatGPT Codex (OAuth abonnement) ──────────────────────────
+  var _codexPoll = null;
+
+  function renderCodexBox(s) {
+    var box = document.getElementById('codexAuthBox');
+    if(!box) return;
+    s = s || {};
+    if(s.phase === 'connected') {
+      box.innerHTML = '<div style="color:var(--green)">✓ Connecté'+
+        (s.account_id?(' <span style="color:var(--text-dim)">('+LaRuche.Utils.esc(s.account_id)+')</span>'):'')+'</div>'+
+        (s.expiring?'<div style="color:var(--amber);font-size:10px;margin-top:4px">Token expiré — refresh auto au prochain appel.</div>':'')+
+        '<div style="margin-top:8px"><button onclick="LaRuche.Settings.logoutCodex()" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:10px">Déconnecter</button></div>';
+    } else if(s.phase === 'pending' && s.user_code) {
+      box.innerHTML = '<div>Pour vous connecter :</div>'+
+        '<ol style="margin:6px 0 6px 16px;padding:0;line-height:1.7">'+
+        '<li>Ouvrez <a href="'+LaRuche.Utils.esc(s.verification_url)+'" target="_blank" rel="noopener" style="color:var(--amber)">'+LaRuche.Utils.esc(s.verification_url)+'</a></li>'+
+        '<li>Entrez ce code : <span style="font-size:16px;font-weight:bold;color:var(--amber);letter-spacing:2px">'+LaRuche.Utils.esc(s.user_code)+'</span></li>'+
+        '</ol>'+
+        '<div style="color:var(--text-dim);font-size:11px">⏳ En attente de validation…</div>';
+    } else if(s.phase === 'error') {
+      box.innerHTML = '<div style="color:var(--red)">Échec : '+LaRuche.Utils.esc(s.message||'erreur')+'</div>'+
+        '<div style="margin-top:8px"><button onclick="LaRuche.Settings.startCodexLogin()" style="background:var(--amber);border:none;color:#000;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:11px">Réessayer</button></div>';
+    } else {
+      box.innerHTML = '<div>Utilisez votre abonnement ChatGPT (Plus/Pro) au lieu d\'une clé API.</div>'+
+        '<div style="margin-top:8px"><button onclick="LaRuche.Settings.startCodexLogin()" style="background:var(--amber);border:none;color:#000;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:11px;font-weight:bold">Se connecter avec ChatGPT</button></div>';
+    }
+  }
+
+  function refreshCodexStatus() {
+    fetch('/api/auth/codex/status').then(function(r){return r.json();})
+      .then(renderCodexBox).catch(function(){});
+  }
+
+  function startCodexLogin() {
+    var box = document.getElementById('codexAuthBox');
+    if(box) box.innerHTML = '<div style="color:var(--text-dim)">Initialisation…</div>';
+    fetch('/api/auth/codex/start',{method:'POST'}).then(function(r){return r.json();})
+      .then(function(s){
+        renderCodexBox(s);
+        if(s.phase === 'pending' && s.user_code) startCodexPoll();
+      }).catch(function(){
+        renderCodexBox({phase:'error',message:'réseau'});
+      });
+  }
+
+  function startCodexPoll() {
+    if(_codexPoll) clearInterval(_codexPoll);
+    _codexPoll = setInterval(function(){
+      fetch('/api/auth/codex/status').then(function(r){return r.json();}).then(function(s){
+        if(s.phase === 'connected' || s.phase === 'error') {
+          clearInterval(_codexPoll); _codexPoll = null;
+          renderCodexBox(s);
+          if(s.phase === 'connected' && LaRuche.Models && LaRuche.Models.loadModels) LaRuche.Models.loadModels();
+        } else {
+          renderCodexBox(s);
+        }
+      }).catch(function(){});
+    }, 3000);
+  }
+
+  function logoutCodex() {
+    if(!confirm('Déconnecter ChatGPT Codex ?')) return;
+    fetch('/api/auth/codex/logout',{method:'POST'}).then(function(){ refreshCodexStatus(); });
+  }
+
+  function showProfileForm(editId) {
+    var container = document.getElementById('profileFormContainer');
+    if(!container) return;
+    // If editing, fetch current data
+    if(editId) {
+      fetch('/api/profiles').then(function(r){return r.json();}).then(function(data){
+        var p = (data.profiles||{})[editId];
+        if(p) renderProfileForm(container, editId, p);
+      });
+    } else {
+      renderProfileForm(container, '', null);
+    }
+  }
+
+  function renderProfileForm(container, editId, existing) {
+    var p = existing || {};
+    var provType = p.provider || 'ollama';
+    var defaultUrls = {ollama:'http://127.0.0.1:11434', openai:'https://api.openai.com', anthropic:'https://api.anthropic.com'};
+    container.style.display = 'block';
+    container.innerHTML = '<div class="settings-card" style="margin-bottom:16px">'+
+      '<div class="settings-card-title">'+(editId?'Edit':'Add')+' Provider</div>'+
+      '<div class="form-group"><label class="form-label">Profile ID'+(editId?' (read-only)':'')+'</label>'+
+      '<input class="form-input" id="pfId" value="'+LaRuche.Utils.esc(editId)+'" '+(editId?'readonly':'')+' placeholder="e.g. groq-free"></div>'+
+      '<div class="form-group"><label class="form-label">Display Name</label>'+
+      '<input class="form-input" id="pfName" value="'+LaRuche.Utils.esc(p.name||'')+'" placeholder="e.g. Groq Free Tier"></div>'+
+      '<div class="form-group"><label class="form-label">Provider Type</label>'+
+      '<select class="form-select" id="pfProvider" onchange="LaRuche.Settings.onProfileProviderChange()">'+
+      '<option value="ollama"'+(provType==='ollama'?' selected':'')+'>Ollama</option>'+
+      '<option value="openai"'+(provType==='openai'?' selected':'')+'>OpenAI-compatible</option>'+
+      '<option value="anthropic"'+(provType==='anthropic'?' selected':'')+'>Anthropic</option>'+
+      '</select></div>'+
+      '<div class="form-group"><label class="form-label">Base URL</label>'+
+      '<input class="form-input" id="pfBaseUrl" value="'+LaRuche.Utils.esc(p.base_url||defaultUrls[provType]||'')+'" placeholder="'+defaultUrls[provType]+'"></div>'+
+      '<div class="form-group"><label class="form-label">API Key</label>'+
+      '<input class="form-input" id="pfApiKey" type="password" value="'+LaRuche.Utils.esc(p.api_key||'')+'" placeholder="sk-... (leave empty for Ollama)" autocomplete="off"></div>'+
+      '<div class="form-group"><label class="form-label">Models (comma-separated, auto-detected for Ollama)</label>'+
+      '<input class="form-input" id="pfModels" value="'+LaRuche.Utils.esc((p.models||[]).join(', '))+'" placeholder="gpt-4o, gpt-4o-mini"></div>'+
+      '<div style="display:flex;gap:8px;margin-top:8px">'+
+      '<button class="settings-save-btn" onclick="LaRuche.Settings.saveProfile()">Save</button>'+
+      '<button style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:6px 16px;cursor:pointer" onclick="document.getElementById(\'profileFormContainer\').style.display=\'none\'">Cancel</button>'+
+      '</div></div>';
+  }
+
+  function onProfileProviderChange() {
+    var prov = document.getElementById('pfProvider').value;
+    var urlField = document.getElementById('pfBaseUrl');
+    var defaultUrls = {ollama:'http://127.0.0.1:11434', openai:'https://api.openai.com', anthropic:'https://api.anthropic.com'};
+    if(urlField && !urlField.value || urlField.value.indexOf('127.0.0.1') !== -1 || urlField.value.indexOf('api.openai.com') !== -1 || urlField.value.indexOf('api.anthropic.com') !== -1) {
+      urlField.value = defaultUrls[prov] || '';
+    }
+  }
+
+  function saveProfile() {
+    var id = (document.getElementById('pfId').value||'').trim();
+    if(!id) { LaRuche.Toast.show('Profile ID is required','err'); return; }
+    var name = document.getElementById('pfName').value || id;
+    var provider = document.getElementById('pfProvider').value;
+    var baseUrl = document.getElementById('pfBaseUrl').value;
+    var apiKey = document.getElementById('pfApiKey').value;
+    var modelsRaw = document.getElementById('pfModels').value;
+    var models = modelsRaw ? modelsRaw.split(',').map(function(s){return s.trim();}).filter(function(s){return s;}) : [];
+
+    fetch('/api/profiles',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      id:id, name:name, provider:provider, base_url:baseUrl, api_key:apiKey, models:models
+    })}).then(function(r){return r.json();}).then(function(d){
+      if(d.status==='ok') {
+        LaRuche.Toast.show('Profile "'+d.name+'" saved','ok');
+        document.getElementById('profileFormContainer').style.display = 'none';
+        loadTab('providers');
+        // Refresh dropdown after a short delay to ensure server has processed
+        setTimeout(function(){ LaRuche.Header.loadModels(); }, 300);
+      } else {
+        LaRuche.Toast.show('Error: '+(d.error||'?'),'err');
+      }
+    }).catch(function(e){LaRuche.Toast.show('Error: '+e,'err');});
+  }
+
+  function editProfile(id) {
+    showProfileForm(id);
+  }
+
+  function deleteProfile(id) {
+    if(!confirm('Delete provider profile "'+id+'"?')) return;
+    fetch('/api/profiles/'+id,{method:'DELETE'}).then(function(r){return r.json();}).then(function(d){
+      if(d.status==='ok') {
+        LaRuche.Toast.show('Profile deleted','ok');
+        loadTab('providers');
+        LaRuche.Header.loadModels();
+      } else {
+        LaRuche.Toast.show('Error: '+(d.error||'?'),'err');
+      }
+    });
+  }
+
+  async function loadTools(el) {
+    var tools=[];try{tools=await fetch('/api/tools').then(function(r){return r.json();});}catch(e){}
+    tools.sort(function(a,b){return String(a.name).localeCompare(String(b.name));});
+    window._allTools = tools;
+    
+    var html = '<div style="display:flex;justify-content:flex-end;gap:10px;margin-bottom:20px;">';
+    html += '<button onclick="LaRuche.Settings.toggleAllTools(true)" style="background:rgba(16,185,129,0.15);color:var(--green);border:1px solid var(--green);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;" onmouseover="this.style.background=\'var(--green)\';this.style.color=\'#000\'" onmouseout="this.style.background=\'rgba(16,185,129,0.15)\';this.style.color=\'var(--green)\'">Tout Activer</button>';
+    html += '<button onclick="LaRuche.Settings.toggleAllTools(false)" style="background:rgba(239,68,68,0.15);color:var(--red);border:1px solid var(--red);padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;transition:all 0.2s;" onmouseover="this.style.background=\'var(--red)\';this.style.color=\'#000\'" onmouseout="this.style.background=\'rgba(239,68,68,0.15)\';this.style.color=\'var(--red)\'">Tout Désactiver</button>';
+    html += '</div>';
+
+    html += '<div class="settings-grid">'+tools.map(function(t, idx){
+      var enabled = t.enabled !== false;
+      var originBadge = (t.origin === 'Custom') ? '<span style="margin-left:8px;font-size:9px;color:var(--purple);border:1px solid var(--purple-dim);background:var(--purple-dim);padding:2px 4px;border-radius:4px;">Custom</span>' : '<span style="margin-left:8px;font-size:9px;color:var(--text-dim);border:1px solid var(--border);padding:2px 4px;border-radius:4px;">Rust natif</span>';
+      var customActions = (t.origin === 'Custom') ? '<div style="margin-top:10px;display:flex;gap:8px;border-top:1px solid rgba(255,255,255,0.05);padding-top:8px;"><button style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();LaRuche.Toast.show(\'Source non disponible\',\'err\')">Voir source</button><button style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();LaRuche.Toast.show(\'JSON non modifiable ici\',\'err\')">Éditer JSON</button><button style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();fetch(\'/api/tools/\'+LaRuche.Utils.esc(t.name),{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})">Supprimer</button></div>' : '';
+      return '<div class="settings-card" style="cursor:pointer; transition:transform 0.2s, box-shadow 0.2s; position:relative;" onmouseover="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.3)\';" onmouseout="this.style.transform=\'\';this.style.boxShadow=\'\';" onclick="LaRuche.Utils.openMediaModal(\'text\', JSON.stringify(window._allTools['+idx+'], null, 2))">'+
+        '<div class="settings-card-title" style="display:flex;justify-content:space-between;gap:8px;align-items:center">'+
+          '<span style="color:var(--cyan);font-weight:600;">'+LaRuche.Utils.esc(t.name)+originBadge+'</span>'+
+          '<label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:6px;color:'+(enabled?'var(--green)':'var(--red)')+';font-size:10px;text-transform:none;letter-spacing:0;background:'+(enabled?'rgba(16,185,129,0.1)':'rgba(239,68,68,0.1)')+';padding:3px 8px;border-radius:12px;font-weight:bold;">'+
+            '<input type="checkbox" '+(enabled?'checked':'')+' onchange="LaRuche.Settings.toggleTool(\''+LaRuche.Utils.esc(t.name)+'\',this.checked)"> '+(enabled?'ON':'OFF')+
+          '</label>'+
+        '</div>'+
+        '<div class="settings-row" style="margin-top:8px;"><span class="settings-label">Danger</span><span class="settings-value" style="color:'+(t.danger==='high'?'var(--red)':(t.danger==='medium'?'var(--orange)':'var(--text-dim)'))+';font-weight:bold;">'+LaRuche.Utils.esc(t.danger||'safe')+'</span></div>'+
+        '<div style="font-size:12px;color:var(--text-dim);line-height:1.5;margin-top:10px;border-top:1px solid rgba(255,255,255,0.05);padding-top:10px;">'+LaRuche.Utils.esc((t.description||'').substring(0,180))+'</div>'+
+        customActions+
+      '</div>';
+    }).join('')+'</div>';
+    
+    el.innerHTML = html;
+    if(!tools.length) el.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:20px">Aucune abeille configurée</div>';
+  }
+
+  async function toggleAllTools(enable) {
+    var disabled = enable ? [] : (window._allTools || []).map(function(t){return t.name;});
+    fetch('/api/tools/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({disabled_tools:disabled})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.status !== 'ok') LaRuche.Toast.show('Erreur configuration Abeilles','err');
+        else { LaRuche.Toast.show(enable ? 'Toutes les abeilles activées' : 'Toutes les abeilles désactivées','ok'); loadTab('tools'); }
+      });
+  }
+
+  async function toggleTool(name, enabled) {
+    var tools=[];try{tools=await fetch('/api/tools').then(function(r){return r.json();});}catch(e){}
+    var disabled = tools.filter(function(t){return t.enabled === false;}).map(function(t){return t.name;});
+    var idx = disabled.indexOf(name);
+    if(enabled && idx !== -1) disabled.splice(idx,1);
+    if(!enabled && idx === -1) disabled.push(name);
+    fetch('/api/tools/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({disabled_tools:disabled})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.status !== 'ok') LaRuche.Toast.show('Erreur configuration Abeilles','err');
+        else { LaRuche.Toast.show(name+(enabled?' activee':' desactivee'),'ok'); loadTab('tools'); }
+      })
+      .catch(function(e){LaRuche.Toast.show('Erreur Abeilles: '+e,'err');});
+  }
+
+  async function loadNetwork(el) {
+    var codeSet=false; try{ codeSet=(await fetch('/api/mesh/code').then(function(r){return r.json();})).set; }catch(e){}
+    var codeCard='<div class="settings-card"><div class="settings-card-title">Code de mesh '+
+      (codeSet?'<span style="color:var(--green);font-size:11px">(configuré)</span>':'<span style="color:var(--text-muted);font-size:11px">(non configuré — auth par IP LAN)</span>')+'</div>'+
+      '<p style="color:var(--text-dim);font-size:12px;margin:4px 0 8px">Secret partagé entre tes ruches (comme un mot de passe WiFi). Mets le <b>même</b> code sur toutes tes ruches : il authentifie les échanges du mesh (fin des « rejected » / flapping) et servira de base au chiffrement.</p>'+
+      '<div style="display:flex;gap:8px"><input id="meshCodeInput" type="password" placeholder="'+(codeSet?'•••• (vide = inchangé)':'choisis un code')+'" style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px"><button class="send-btn" id="meshCodeSave"><span>Enregistrer</span></button></div></div>';
+    var d={nodes:[]};try{d=await fetch('/swarm').then(function(r){return r.json();});}catch(e){}
+    var nodesHtml=(d.nodes||[]).map(function(n){
+      var caps=(n.capabilities||[]).map(function(c){return '<span style="background:rgba(6,182,212,.15);color:var(--cyan);padding:1px 6px;border-radius:8px;font-size:10px">'+c+'</span>';}).join(' ');
+      return '<div class="settings-card"><div class="settings-card-title">'+(n.name||'?')+'</div><div class="settings-row"><span class="settings-label">Host</span><span class="settings-value">'+n.host+':'+(n.port||'?')+'</span></div><div style="margin-top:4px">'+caps+'</div></div>';
+    }).join('')||'<div style="text-align:center;color:var(--text-muted);padding:20px">Aucun nœud</div>';
+    el.innerHTML=codeCard+nodesHtml;
+    var btn=document.getElementById('meshCodeSave');
+    if(btn) btn.onclick=async function(){
+      var v=(document.getElementById('meshCodeInput').value||'');
+      if(!v.trim()){ LaRuche.Toast.show('Code inchangé.','info'); return; }
+      try{ await fetch('/api/mesh/code',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:v})});
+        LaRuche.Toast.show('Code enregistré. Mets le MÊME sur tes autres ruches, puis relance-les.','ok'); loadNetwork(el);
+      }catch(e){ LaRuche.Toast.show('Échec.','err'); }
+    };
+  }
+
+  // ── Timeline des crons (porté de la PR third-party #47944, en vanilla JS) ──────
+  var _tlSpanH = 24;            // fenêtre : 24 / 48 / 168 h
+  var _tlFromMs = 0;           // bord gauche
+  var _tlJobs = [];
+  var _tlTimer = null;
+  var _tlHost = null;          // élément conteneur du rendu
+  var _tlPxPerH = 64;          // px par heure (selon le zoom)
+  function ensureTimelineStyle(){
+    if(document.getElementById('lr-tl-style'))return;
+    var s=document.createElement('style'); s.id='lr-tl-style';
+    s.textContent=
+      '.tl-ctrls{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}'+
+      '.tl-seg{display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden}'+
+      '.tl-seg button{background:none;border:none;color:var(--text-dim);padding:4px 12px;cursor:pointer;font-size:11px}'+
+      '.tl-seg button.on{background:var(--amber);color:#000;font-weight:600}'+
+      '.tl-btn{background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:4px 12px;cursor:pointer;font-size:11px}'+
+      '.tl-wrap{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:rgba(20,20,24,.5)}'+
+      '.tl-gutter{flex:0 0 130px;border-right:1px solid var(--border);background:rgba(30,30,34,.7);position:sticky;left:0;z-index:2}'+
+      '.tl-scroll{flex:1;overflow-x:auto;overflow-y:hidden;touch-action:pan-x pan-y;position:relative}'+
+      '.tl-strip{position:relative}'+
+      '.tl-row{height:44px;border-bottom:1px solid rgba(255,255,255,.04);position:relative}'+
+      '.tl-name{height:44px;display:flex;flex-direction:column;justify-content:center;padding:0 10px;border-bottom:1px solid rgba(255,255,255,.04);font-size:11px;overflow:hidden}'+
+      '.tl-name .n{color:var(--text);white-space:nowrap;text-overflow:ellipsis;overflow:hidden;font-weight:600}'+
+      '.tl-name .s{color:var(--text-dim);font-size:9px}'+
+      '.tl-head{height:24px;border-bottom:1px solid var(--border);position:relative}'+
+      '.tl-tick{position:absolute;top:0;bottom:0;border-left:1px solid rgba(255,255,255,.06);font-size:9px;color:var(--text-dim);padding-left:3px}'+
+      '.tl-now{position:absolute;top:0;bottom:0;width:2px;background:var(--amber);box-shadow:0 0 8px 1px var(--amber);z-index:3;pointer-events:none}'+
+      '.tl-mk{position:absolute;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;border-radius:50%;background:var(--text-dim);cursor:pointer;transition:transform .1s}'+
+      '.tl-mk:hover{transform:translate(-50%,-50%) scale(1.4)}'+
+      '.tl-mk.next{width:13px;height:13px;border-radius:2px;transform:translate(-50%,-50%) rotate(45deg);background:var(--amber);box-shadow:0 0 8px 1px var(--amber)}'+
+      '.tl-mk.past{opacity:.4}.tl-mk.future{opacity:.65}.tl-mk.err{background:var(--red)!important}'+
+      '.tl-row.paused{opacity:.45}'+
+      '.tl-detail{margin-top:12px;border:1px solid var(--amber);border-radius:8px;padding:12px;font-size:12px}';
+    document.head.appendChild(s);
+  }
+  function tlMatches(expr, d){
+    var p=(expr||'').trim().split(/\s+/); if(p.length<5)return false;
+    function f(field,val,min,max){
+      if(field==='*'||field==='?')return true;
+      return field.split(',').some(function(tok){
+        var step=1,range=tok,sl=tok.split('/'); if(sl.length===2){range=sl[0];step=parseInt(sl[1])||1;}
+        var lo,hi;
+        if(range==='*'){lo=min;hi=max;}
+        else if(range.indexOf('-')>=0){var r=range.split('-');lo=parseInt(r[0]);hi=parseInt(r[1]);}
+        else {lo=hi=parseInt(range);}
+        if(isNaN(lo))return false; if(val<lo||val>hi)return false; return ((val-lo)%step)===0;
+      });
+    }
+    return f(p[0],d.getMinutes(),0,59)&&f(p[1],d.getHours(),0,23)&&f(p[2],d.getDate(),1,31)&&f(p[3],d.getMonth()+1,1,12)&&f(p[4],d.getDay(),0,6);
+  }
+  function tlOccurrences(job, fromMs, toMs){
+    var occ=[];
+    if(job.fire_at){var t=Date.parse(job.fire_at); if(t>=fromMs&&t<=toMs)occ.push(t); return occ;}
+    if(!job.cron_expr)return occ;
+    var start=Math.ceil(fromMs/60000)*60000;
+    for(var t=start;t<=toMs&&occ.length<600;t+=60000){ if(tlMatches(job.cron_expr,new Date(t)))occ.push(t); }
+    return occ;
+  }
+  async function loadCronTimeline(el){
+    ensureTimelineStyle(); _tlHost=el;
+    try{_tlJobs=await fetch('/api/cron').then(function(r){return r.json();});}catch(e){_tlJobs=[];}
+    var spanMs=_tlSpanH*3600000; _tlFromMs=Date.now()-0.28*spanMs;
+    renderTimeline(el);
+    if(_tlTimer)clearInterval(_tlTimer);
+    _tlTimer=setInterval(function(){ var nowLine=document.getElementById('tlNow'); if(!nowLine){clearInterval(_tlTimer);return;} positionNow(); },1000);
+  }
+  function positionNow(){
+    var strip=document.getElementById('tlStrip'); var nowEl=document.getElementById('tlNow'); if(!strip||!nowEl)return;
+    var spanMs=_tlSpanH*3600000; var w=strip.offsetWidth;
+    nowEl.style.left=((Date.now()-_tlFromMs)/spanMs*w)+'px';
+  }
+  function renderTimeline(el){
+    var spanMs=_tlSpanH*3600000, toMs=_tlFromMs+spanMs;
+    var pxPerH=_tlSpanH<=24?64:(_tlSpanH<=48?34:12); _tlPxPerH=pxPerH; var width=_tlSpanH*pxPerH;
+    function seg(h,lbl){return '<button class="'+(_tlSpanH===h?'on':'')+'" onclick="LaRuche.Settings.tlZoom('+h+')">'+lbl+'</button>';}
+    var html='<div class="tl-ctrls"><div class="tl-seg">'+seg(24,'24h')+seg(48,'48h')+seg(168,'7j')+'</div>'+
+      '<button class="tl-btn" onclick="LaRuche.Settings.tlRecenter()">Recentrer</button>'+
+      '<span style="color:var(--text-dim);font-size:10px">'+_tlJobs.length+' cron(s)</span></div>';
+    if(!_tlJobs.length){ el.innerHTML=html+'<div style="color:var(--text-dim);padding:20px">Aucun cron planifié.</div>'; return; }
+    // axe (ticks)
+    var ticks=''; var stepH=_tlSpanH<=24?2:(_tlSpanH<=48?4:24);
+    for(var h=0;h<=_tlSpanH;h+=stepH){ var d=new Date(_tlFromMs+h*3600000);
+      var lbl=_tlSpanH<=48?(('0'+d.getHours()).slice(-2)+'h'):((d.getDate())+'/'+(d.getMonth()+1));
+      ticks+='<div class="tl-tick" style="left:'+(h*pxPerH)+'px">'+lbl+'</div>'; }
+    var gutter='<div class="tl-head"></div>', lanes='';
+    _tlJobs.forEach(function(job,i){
+      var paused=job.enabled===false;
+      gutter+='<div class="tl-name'+(paused?' tl-row paused':'')+'" onclick="LaRuche.Settings.tlDetail('+i+')"><span class="n">'+LaRuche.Utils.esc(job.name||'(sans nom)')+'</span><span class="s">'+LaRuche.Utils.esc(job.cron_expr||job.fire_at||'')+'</span></div>';
+      var occ=tlOccurrences(job,_tlFromMs,toMs); var now=Date.now();
+      var nextT=occ.find(function(t){return t>=now;});
+      var mk='';
+      occ.forEach(function(t){
+        var cls=t<now?'past':(t===nextT?'next':'future');
+        var err=(job.last_status==='error');
+        mk+='<span class="tl-mk '+cls+(err&&cls==='next'?' err':'')+'" style="left:'+((t-_tlFromMs)/spanMs*width)+'px" title="'+new Date(t).toLocaleString('fr-FR')+'" onclick="LaRuche.Settings.tlDetail('+i+')"></span>';
+      });
+      lanes+='<div class="tl-row'+(paused?' paused':'')+'" data-i="'+i+'" title="Glisser horizontalement pour décaler l\'heure (crons à heure fixe)">'+mk+'</div>';
+    });
+    html+='<div class="tl-wrap"><div class="tl-gutter">'+gutter+'</div><div class="tl-scroll"><div class="tl-strip" id="tlStrip" style="width:'+width+'px">'+
+      '<div class="tl-head" style="width:'+width+'px">'+ticks+'</div>'+lanes+
+      '<div class="tl-now" id="tlNow"></div></div></div></div><div id="tlDetail"></div>';
+    el.innerHTML=html; positionNow();
+    // auto-scroll pour placer "now" ~28% du bord gauche
+    var sc=el.querySelector('.tl-scroll'); if(sc){ var nowX=(Date.now()-_tlFromMs)/spanMs*width; sc.scrollLeft=Math.max(0,nowX-sc.offsetWidth*0.28); }
+    wireTlDrag(el);
+  }
+  // Drag horizontal d'une lane → décale l'heure d'un cron à heure fixe ("m h * * ...").
+  function wireTlDrag(el){
+    el.querySelectorAll('.tl-row[data-i]').forEach(function(row){
+      var startX=0, dragging=false, moved=0;
+      row.style.cursor='grab';
+      row.addEventListener('pointerdown',function(e){ startX=e.clientX; dragging=true; moved=0; row.setPointerCapture(e.pointerId); row.style.cursor='grabbing'; });
+      row.addEventListener('pointermove',function(e){ if(!dragging)return; moved=e.clientX-startX; row.style.transform='translateX('+(moved*0.15)+'px)'; });
+      row.addEventListener('pointerup',function(e){
+        if(!dragging)return; dragging=false; row.style.cursor='grab'; row.style.transform='';
+        if(Math.abs(moved)<8) return; // simple clic → géré par le marqueur
+        var job=_tlJobs[parseInt(row.getAttribute('data-i'))]; if(!job||!job.cron_expr){ LaRuche.Toast.show('Décalage non supporté pour ce planning','warn'); return; }
+        var p=job.cron_expr.trim().split(/\s+/); if(p.length<5||isNaN(parseInt(p[1]))){ LaRuche.Toast.show('Décalage : crons à heure fixe uniquement','warn'); return; }
+        var dh=Math.round(moved/_tlPxPerH); if(dh===0)return;
+        var nh=((parseInt(p[1])+dh)%24+24)%24; p[1]=String(nh);
+        var expr=p.join(' ');
+        fetch('/api/cron/'+job.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({cron_expr:expr})})
+          .then(function(){ LaRuche.Toast.show('Heure décalée → '+expr,'ok'); tlReload(); });
+      });
+    });
+  }
+  function tlZoom(h){ _tlSpanH=h; var spanMs=h*3600000; _tlFromMs=Date.now()-0.28*spanMs; if(_tlHost)renderTimeline(_tlHost); }
+  function tlRecenter(){ tlZoom(_tlSpanH); }
+  function tlReload(){ if(_tlHost) loadCronTimeline(_tlHost); }
+  function tlDetail(i){
+    var job=_tlJobs[i]; if(!job)return; var d=document.getElementById('tlDetail'); if(!d)return;
+    d.innerHTML='<div style="font-weight:600;color:var(--amber);margin-bottom:6px">'+LaRuche.Utils.esc(job.name||'(sans nom)')+'</div>'+
+      '<div>Planning : <code>'+LaRuche.Utils.esc(job.cron_expr||job.fire_at||'-')+'</code></div>'+
+      '<div style="color:var(--text-dim)">Dernier : '+(job.last_run||'jamais')+' · Exécutions : '+(job.run_count||0)+(job.channel?(' · Canal : '+LaRuche.Utils.esc(job.channel)):'')+'</div>'+
+      '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'+
+      '<button class="tl-btn" onclick="LaRuche.Settings.tlRun('+i+')">Lancer maintenant</button>'+
+      '<button class="tl-btn" onclick="LaRuche.Settings.tlEdit('+i+')">Éditer</button>'+
+      '<button class="tl-btn" onclick="LaRuche.Settings.tlToggle('+i+')">'+(job.enabled===false?'Réactiver':'Mettre en pause')+'</button>'+
+      '<button class="tl-btn" onclick="if(confirm(\'Supprimer ce cron ?\'))fetch(\'/api/cron/'+job.id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.tlReload&&LaRuche.Settings.tlReload();})">Supprimer</button>'+
+      '</div>';
+  }
+  function tlRun(i){ var job=_tlJobs[i]; if(!job)return; fetch('/api/cron/'+job.id+'/run',{method:'POST'}).then(function(r){return r.json();}).then(function(d){ LaRuche.Toast.show(d.status==='started'?'Cron lancé':'Échec', d.status==='started'?'ok':'err'); }).catch(function(){LaRuche.Toast.show('Échec','err');}); }
+  function tlToggle(i){ var job=_tlJobs[i]; if(!job)return; fetch('/api/cron/'+job.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled: job.enabled===false})}).then(function(){tlReload();}); }
+  async function tlEdit(i){
+    var job=_tlJobs[i]; if(!job)return; var d=document.getElementById('tlDetail'); if(!d)return;
+    var skillsLoaded=true, skills=[];
+    try{ skills=await fetch(LaRuche.API.base+'/api/skills').then(function(r){ if(!r.ok)throw new Error('skills'); return r.json(); }); }
+    catch(e){ skillsLoaded=false; }
+    var selected=Array.isArray(job.skills)?job.skills:[];
+    var skillHtml;
+    if(!skillsLoaded){
+      skillHtml='<div data-skills-unavailable style="margin-top:10px;color:var(--red);font-size:11px">Skills indisponibles : les associations existantes seront conservées.</div>';
+    }else if(!skills.length){
+      skillHtml='<div style="margin-top:10px;color:var(--text-dim);font-size:11px">Aucun skill disponible. Créez-en dans Settings → Skills.</div>';
+    }else{
+      skillHtml='<fieldset style="margin:10px 0 0;padding:8px;border:1px solid var(--border);border-radius:6px"><legend style="padding:0 4px;color:var(--text-dim);font-size:11px">Skills injectés à ce cron</legend>'+
+        skills.map(function(skill){
+          var name=String(skill.name||''), enabled=skill.enabled!==false, checked=selected.indexOf(name)!==-1;
+          return '<label style="display:flex;align-items:flex-start;gap:7px;margin:5px 0;cursor:'+(enabled?'pointer':'not-allowed')+';opacity:'+(enabled?'1':'0.55')+'">'+
+            '<input class="tlf-skill" type="checkbox" value="'+LaRuche.Utils.esc(name)+'" '+(checked?'checked ':'')+(enabled?'':'disabled ')+'>'+ 
+            '<span><strong>'+LaRuche.Utils.esc(name)+'</strong>'+(skill.description?' <span style="color:var(--text-dim)">— '+LaRuche.Utils.esc(skill.description)+'</span>':'')+(enabled?'':' <span style="color:var(--red)">(désactivé : non injecté)</span>')+'</span></label>';
+        }).join('')+'</fieldset>';
+    }
+        var profiles = window._lastProfiles || {};
+    var profOpts = '<option value="">Default (modele actif)</option>';
+    Object.keys(profiles).forEach(function(k){
+        profOpts += '<option value="'+k+'" '+(job.profile_id===k?'selected':'')+'>'+LaRuche.Utils.esc(profiles[k].name)+'</option>';
+    });
+    var modOpts = '<option value="">D&eacute;faut du provider</option>';
+    if(job.profile_id && profiles[job.profile_id]) {
+        var models = profiles[job.profile_id].models || [];
+        models.forEach(function(m){
+            modOpts += '<option value="'+LaRuche.Utils.esc(m)+'" '+(job.model===m?'selected':'')+'>'+LaRuche.Utils.esc(m)+'</option>';
+        });
+    } else if (!job.profile_id && job.model) {
+        modOpts += '<option value="'+LaRuche.Utils.esc(job.model)+'" selected>'+LaRuche.Utils.esc(job.model)+'</option>';
+    }
+
+    d.innerHTML='<div class="tl-detail"><div style="font-weight:600;color:var(--amber);margin-bottom:8px">&Eacute;diter : '+LaRuche.Utils.esc(job.name||'')+'</div>'+
+      '<label class="form-label">Nom</label><input class="form-input" id="tlfName" value="'+LaRuche.Utils.esc(job.name||'')+'">'+
+      '<label class="form-label">Prompt</label><textarea class="form-input" id="tlfPrompt" rows="3">'+LaRuche.Utils.esc(job.prompt||'')+'</textarea>'+
+      '<label class="form-label">Cron (5 champs) ou vide</label><input class="form-input" id="tlfCron" value="'+LaRuche.Utils.esc(job.cron_expr||'')+'" placeholder="*/30 * * * *">'+
+      '<label class="form-label">Canal</label><input class="form-input" id="tlfChannel" value="'+LaRuche.Utils.esc(job.channel||'')+'" placeholder="telegram / vide">'+
+      '<label class="form-label">Provider</label><select class="form-input" id="tlfProfileId" onchange="LaRuche.Settings.updateCronEditModelSelect()">'+profOpts+'</select>'+
+      '<label class="form-label">Mod&egrave;le</label><select class="form-input" id="tlfModel">'+modOpts+'</select>'+
+      skillHtml+
+      '<div style="margin-top:10px;display:flex;gap:6px">'+
+      '<button class="tl-btn" style="background:var(--amber);color:#000" onclick="LaRuche.Settings.tlSaveEdit('+i+')">Enregistrer</button>'+
+      '<button class="tl-btn" onclick="LaRuche.Settings.tlDetail('+i+')">Annuler</button></div></div>';
+  }
+  function updateCronEditModelSelect() {
+      var profSel = document.getElementById('tlfProfileId');
+      var modSel = document.getElementById('tlfModel');
+      if(!profSel || !modSel) return;
+      var pid = profSel.value;
+      modSel.innerHTML = '<option value="">D&eacute;faut du provider</option>';
+      if(pid && window._lastProfiles && window._lastProfiles[pid]) {
+          var models = window._lastProfiles[pid].models || [];
+          models.forEach(function(m) {
+              modSel.innerHTML += '<option value="'+LaRuche.Utils.esc(m)+'">'+LaRuche.Utils.esc(m)+'</option>';
+          });
+      }
+  }
+
+  function tlSaveEdit(i){
+    var job=_tlJobs[i]; if(!job)return;
+    var skillBox=document.querySelector('#tlDetail [data-skills-unavailable]');
+    var skills=skillBox ? (Array.isArray(job.skills)?job.skills:[]) : Array.prototype.map.call(document.querySelectorAll('#tlDetail .tlf-skill:checked'),function(input){return input.value;});
+    
+    var profile_id = document.getElementById('tlfProfileId').value || null;
+    var model = document.getElementById('tlfModel').value || null;
+
+    var body={ name:(document.getElementById('tlfName').value||''), prompt:(document.getElementById('tlfPrompt').value||''),
+      cron_expr:(document.getElementById('tlfCron').value||''), channel:(document.getElementById('tlfChannel').value||''),
+      profile_id: profile_id, model: model, skills:skills };
+      
+    fetch('/api/cron/'+job.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      .then(function(){ LaRuche.Toast.show('Cron mis  jour','ok'); tlReload(); });
+  }
+
+  // MCP logic
+  // Onglet Secrets : vault chiffré. L'UI ne reçoit JAMAIS les valeurs, seulement les noms.
+  async function loadSecrets(el){
+    var data={names:[]};
+    try{ data=await fetch('/api/secrets').then(function(r){return r.json();}); }catch(e){}
+    var names=(data.names||[]);
+    var hooks=names.filter(function(n){return n.indexOf('WEBHOOK')===0;});
+    var others=names.filter(function(n){return n.indexOf('WEBHOOK')!==0;});
+    function card(list,title,hint){
+      var rows = list.length ? list.map(function(n){
+        return '<div class="settings-row"><span class="settings-value" style="font-family:var(--mono,monospace)">'+LaRuche.Utils.esc(n)+' <span style="color:var(--text-dim);font-size:10px">= ••••••••</span></span><button onclick="LaRuche.Settings.secretDelete(\''+LaRuche.Utils.esc(n)+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:1px 8px;cursor:pointer;font-size:10px">Suppr</button></div>';
+      }).join('') : '<div style="color:var(--text-dim);font-size:11px">Aucun.</div>';
+      return '<div class="settings-card"><div class="settings-card-title">'+title+'</div><div style="color:var(--text-dim);font-size:11px;margin-bottom:8px">'+hint+'</div>'+rows+'</div>';
+    }
+    el.innerHTML =
+      '<div style="color:var(--text-dim);font-size:12px;margin-bottom:12px">Les secrets sont <b>chiffrés au repos</b>. Le LLM ne voit JAMAIS leur valeur — seulement leur nom. Dans une commande, un script ou un champ clé d\'API, référence-les par <code>${NOM}</code> : la vraie valeur est substituée à l\'exécution.</div>'+
+      card(others,'Secrets','Ex: API_OPENAI, TOKEN_TELEGRAM, USERID_TELEGRAM…')+
+      card(hooks,'Webhooks','Nomme-les WEBHOOK_… (ex: WEBHOOK_DISCORD). Référence dans un script : ${WEBHOOK_DISCORD}')+
+      '<div class="settings-card"><div class="settings-card-title">Ajouter / mettre à jour</div>'+
+      '<label class="form-label">Nom (A-Z, 0-9, _)</label><input class="form-input" id="secName" placeholder="ex: WEBHOOK_DISCORD">'+
+      '<label class="form-label">Valeur (jamais ré-affichée)</label><input class="form-input" id="secVal" type="password" placeholder="collez la valeur ici">'+
+      '<button class="form-btn" style="margin-top:8px" onclick="LaRuche.Settings.secretSet()">Enregistrer</button></div>';
+  }
+  function secretSet(){
+    var name=(document.getElementById('secName').value||'').trim();
+    var value=document.getElementById('secVal').value||'';
+    if(!name||!value){ LaRuche.Toast.show('Nom et valeur requis','warn'); return; }
+    fetch(LaRuche.API.base+'/api/secrets',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,value:value})})
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Secret enregistré','ok'); if(LaRuche.Secrets)LaRuche.Secrets.refresh(); refreshTab(); } else { LaRuche.Toast.show('Échec (nom invalide ? A-Z/0-9/_ uniquement)','err'); } });
+  }
+  function secretDelete(name){
+    fetch(LaRuche.API.base+'/api/secrets/'+encodeURIComponent(name),{method:'DELETE',credentials:'include'})
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Secret supprimé','ok'); if(LaRuche.Secrets)LaRuche.Secrets.refresh(); refreshTab(); } });
+  }
+
+  // Onglet MCP dédié (sorti de Providers).
+  function loadMcp(el){
+    var html = '<div class="settings-card" style="margin-bottom:16px">';
+    html += '  <div class="settings-card-title">Serveurs MCP (Model Context Protocol)</div>';
+    html += '  <div style="color:var(--text-dim);font-size:12px;margin-bottom:12px">Configurez des serveurs MCP locaux. LaRuche les utilisera pour étendre ses capacités via les agents.</div>';
+    html += '  <div id="mcp-list" style="margin-bottom:12px"></div>';
+    html += '  <div style="border:1px solid var(--border);border-radius:6px;padding:8px;background:var(--bg-panel)">';
+    html += '     <div style="margin-bottom:8px"><label class="form-label">Nom du serveur</label><input id="mcp-new-name" class="form-input" placeholder="ex: local-sqlite"></div>';
+    html += '     <div style="margin-bottom:8px"><label class="form-label">Commande</label><input id="mcp-new-cmd" class="form-input" placeholder="ex: node"></div>';
+    html += '     <div style="margin-bottom:8px"><label class="form-label">Arguments (séparés par un espace)</label><input id="mcp-new-args" class="form-input" placeholder="ex: src/index.js --db sqlite.db"></div>';
+    html += '     <button class="settings-save-btn" onclick="LaRuche.Settings.createMcpServer()">Ajouter le serveur</button>';
+    html += '  </div>';
+    html += '</div>';
+    el.innerHTML = html;
+    loadMcpServers();
+  }
+
+  async function loadMcpServers() {
+    try {
+      var r = await fetch('/api/mcp/servers');
+      var d = await r.json();
+      var el = document.getElementById('mcp-list');
+      if(!el) return;
+      var html = '';
+      for(var k in d.mcpServers) {
+        var s = d.mcpServers[k];
+        html += '<div class="settings-row" style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(42,42,46,0.3)"><span class="settings-label" style="flex:1">'+k+' <span style="font-size:10px;color:var(--text-dim)">('+s.command+' '+(s.args?s.args.join(' '):'')+')</span></span><button onclick="LaRuche.Settings.deleteMcpServer(\''+k+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">Suppr</button></div>';
+      }
+      if(!html) html = '<div style="color:var(--text-dim);font-size:12px;padding:8px">Aucun serveur configuré.</div>';
+      el.innerHTML = html;
+    } catch(e) {}
+  }
+
+  function createMcpServer() {
+    var n = document.getElementById('mcp-new-name').value.trim();
+    var c = document.getElementById('mcp-new-cmd').value.trim();
+    var a = document.getElementById('mcp-new-args').value.trim();
+    if(!n || !c) return;
+    var args = a ? a.split(' ') : [];
+    fetch('/api/mcp/servers/'+encodeURIComponent(n), {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({command: c, args: args})
+    }).then(function(r){
+      if(r.ok) {
+         LaRuche.Toast.show('Serveur MCP ajouté','ok');
+         document.getElementById('mcp-new-name').value = '';
+         document.getElementById('mcp-new-cmd').value = '';
+         document.getElementById('mcp-new-args').value = '';
+         loadMcpServers();
+      }
+    });
+  }
+
+  function deleteMcpServer(n) {
+    if(!confirm('Supprimer ce serveur MCP ?')) return;
+    fetch('/api/mcp/servers/'+encodeURIComponent(n), {method:'DELETE'}).then(function(r){
+      if(r.ok) { loadMcpServers(); LaRuche.Toast.show('Serveur MCP supprimé','ok'); }
+    });
+  }
+
+  // Provider/Model selectors logic for Kanban/Watcher
+  function updateKanbanModelSelect() {
+    var pId = document.getElementById('kanban-profile').value;
+    var modelSel = document.getElementById('kanban-model');
+    if(!modelSel) return;
+    modelSel.innerHTML = '<option value="">(Par défaut)</option>';
+    if(pId && _profiles[pId] && _profiles[pId].models) {
+      _profiles[pId].models.forEach(function(m){
+        modelSel.innerHTML += '<option value="'+LaRuche.Utils.esc(m)+'">'+LaRuche.Utils.esc(m)+'</option>';
+      });
+    }
+  }
+
+  function updateWatcherModelSelect() {
+    var pId = document.getElementById('watcher-profile').value;
+    var modelSel = document.getElementById('watcher-model');
+    if(!modelSel) return;
+    modelSel.innerHTML = '<option value="">(Par défaut)</option>';
+    if(pId && _profiles[pId] && _profiles[pId].models) {
+      _profiles[pId].models.forEach(function(m){
+        modelSel.innerHTML += '<option value="'+LaRuche.Utils.esc(m)+'">'+LaRuche.Utils.esc(m)+'</option>';
+      });
+    }
+  }
+
+  var _ncCronBuilderId = null;
+  async function loadCron(el) {
+    var tasks=[];try{tasks=await fetch('/api/cron').then(function(r){return r.json();});}catch(e){}
+    var profilesResp={profiles:{}};try{profilesResp=await fetch('/api/profiles').then(function(r){return r.json();});}catch(e){}
+    var profiles = profilesResp.profiles || {};
+    window._lastProfiles = profiles;
+    
+    var profOpts = '<option value="">Default (modele actif)</option>';
+    Object.keys(profiles).forEach(function(k){
+        profOpts += '<option value="'+k+'">'+LaRuche.Utils.esc(profiles[k].name)+'</option>';
+    });
+
+    el.innerHTML='<div style="margin-bottom:12px"><button class="settings-save-btn" onclick="document.getElementById(\'newCronForm\').style.display=\'block\'">+ New Task</button></div>'+
+      '<div id="newCronForm" style="display:none" class="settings-card">'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Name</label><input id="ncName" class="form-input"></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Prompt</label><input id="ncPrompt" class="form-input"></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Cadence (cron)</label><div id="ncCronBuilder"></div></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Canal de feedback</label><select id="ncChannel" class="form-input"><option value="">None (Activity Log)</option><option value="telegram">Telegram</option><option value="discord">Discord</option></select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Provider</label><select id="ncProfileId" class="form-input" onchange="LaRuche.Settings.updateCronModelSelect()">'+profOpts+'</select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Mod&egrave;le</label><select id="ncModel" class="form-input"><option value="">D&eacute;faut du provider</option></select></div>'+
+      '<button class="settings-save-btn" onclick="LaRuche.Settings.createCron()">Create</button></div>'+
+      tasks.map(function(t){
+          var effProv = "Default";
+          if(t.profile_id && profiles[t.profile_id]) effProv = profiles[t.profile_id].name;
+          else if(t.profile_id) effProv = t.profile_id;
+          else if(t.provider) effProv = t.provider + (t.model ? " / " + t.model : "");
+          else if(t.model) effProv = t.model;
+          if(t.profile_id && t.model) effProv += " (" + t.model + ")";
+          return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.Utils.esc(t.name)+'</div><div class="settings-row"><span class="settings-label">Schedule</span><span class="settings-value">'+(t.cron_expr||t.fire_at||'-')+'</span></div><div class="settings-row"><span class="settings-label">Runs</span><span class="settings-value">'+(t.run_count||0)+'</span></div><div class="settings-row"><span class="settings-label">Channel</span><span class="settings-value">'+LaRuche.Utils.esc(t.channel||'None')+'</span></div><div class="settings-row"><span class="settings-label">Provider/Model</span><span class="settings-value">'+LaRuche.Utils.esc(effProv)+'</span></div><button onclick="LaRuche.Settings.deleteCronTask(\''+t.id+'\',this)" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;margin-top:6px">Delete</button></div>';
+      }).join('');
+    // Builder cron human-friendly pour le formulaire de creation.
+    if(LaRuche.CronBuilder){ _ncCronBuilderId = LaRuche.CronBuilder.mount('ncCronBuilder', { value:'' }); }
+  }
+  // Suppression cron OPTIMISTE : retire la carte du DOM des que le DELETE reussit. Marche
+  // dans n'importe quel conteneur (page Cron OU hub Missions) — fini le F5 (refreshTab
+  // rechargeait le mauvais onglet selon le contexte).
+  function deleteCronTask(id, btn){
+    if(!confirm('Supprimer ce cron ?')) return;
+    fetch('/api/cron/'+id,{method:'DELETE'}).then(function(r){
+      if(!r.ok){ LaRuche.Toast.show('Suppression impossible','err'); return; }
+      var card = btn && btn.closest('.settings-card'); if(card) card.remove();
+      LaRuche.Toast.show('Cron supprimé','ok');
+    }).catch(function(){ LaRuche.Toast.show('Suppression impossible','err'); });
+  }
+  
+  function updateCronModelSelect() {
+      var profSel = document.getElementById('ncProfileId');
+      var modSel = document.getElementById('ncModel');
+      if(!profSel || !modSel) return;
+      var pid = profSel.value;
+      modSel.innerHTML = '<option value="">D&eacute;faut du provider</option>';
+      if(pid && window._lastProfiles && window._lastProfiles[pid]) {
+          var models = window._lastProfiles[pid].models || [];
+          models.forEach(function(m) {
+              modSel.innerHTML += '<option value="'+LaRuche.Utils.esc(m)+'">'+LaRuche.Utils.esc(m)+'</option>';
+          });
+      }
+  }
+  function createCron() {
+    var name=document.getElementById('ncName').value;
+    var prompt=document.getElementById('ncPrompt').value;
+    var cron=(_ncCronBuilderId && LaRuche.CronBuilder) ? LaRuche.CronBuilder.getValue(_ncCronBuilderId) : '';
+    var channel=document.getElementById('ncChannel').value;
+    var profile_id=document.getElementById('ncProfileId').value;
+    var model=document.getElementById('ncModel').value;
+    
+    var payload = {name:name,prompt:prompt,cron_expr:cron,channel:channel||null};
+    if(profile_id) payload.profile_id = profile_id;
+    if(model) payload.model = model;
+    
+    fetch('/api/cron',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(function(){loadTab('cron');LaRuche.Toast.show('Cron task created','ok');});
+  }
+
+  async function loadWatchers(el) {
+    var watchers=[];try{watchers=await fetch('/api/watchers').then(function(r){return r.json();});}catch(e){}
+    _watchersLast = JSON.stringify(watchers);
+    // P1 : profils pour le selecteur Provider du watcher.
+    var profilesResp={profiles:{}};try{profilesResp=await fetch('/api/profiles').then(function(r){return r.json();});}catch(e){}
+    var profiles = profilesResp.profiles || {};
+    _profiles = profiles;
+    var profOpts = '<option value="">Défaut (modèle actif)</option>';
+    Object.keys(profiles).forEach(function(k){
+        profOpts += '<option value="'+k+'">'+LaRuche.Utils.esc(profiles[k].name||k)+'</option>';
+    });
+    el.innerHTML='<div style="margin-bottom:12px"><button class="settings-save-btn" onclick="document.getElementById(\'newWatcherForm\').style.display=\'block\'">+ New Watcher</button></div>'+
+      '<div id="newWatcherForm" style="display:none" class="settings-card">'+
+      '<div style="font-weight:600;margin-bottom:8px">New Watcher</div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Name</label><input id="nwName" class="form-input"></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Type</label><select id="nwType" class="form-input"><option value="file">File</option><option value="url">URL</option><option value="log">Log Pattern</option></select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Target (Path/URL)</label><input id="nwTarget" class="form-input"></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Condition (optional)</label><input id="nwCondition" class="form-input"></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Prompt</label><input id="nwPrompt" class="form-input"></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Provider</label><select id="watcher-profile" class="form-input" onchange="LaRuche.Settings.updateWatcherModelSelect()">'+profOpts+'</select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Mod&egrave;le</label><select id="watcher-model" class="form-input"><option value="">(Par défaut)</option></select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Canal (déclenchement → notification)</label><select id="nwChannel" class="form-input"><option value="">Home channel (défaut)</option></select></div>'+
+      '<button class="settings-save-btn" onclick="LaRuche.Settings.createWatcher()">Create</button></div>'+
+      watchers.map(function(w){
+        var effProv = "Défaut";
+        if(w.profile_id && profiles[w.profile_id]) effProv = profiles[w.profile_id].name || w.profile_id;
+        else if(w.profile_id) effProv = w.profile_id;
+        else if(w.model) effProv = w.model;
+        if(w.profile_id && w.model) effProv += " (" + w.model + ")";
+        return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.Utils.esc(w.name)+'</div><div class="settings-row"><span class="settings-label">Type</span><span class="settings-value">'+LaRuche.Utils.esc(w.watcher_type)+'</span></div><div class="settings-row"><span class="settings-label">Target</span><span class="settings-value">'+LaRuche.Utils.esc(w.target)+'</span></div><div class="settings-row"><span class="settings-label">Provider/Model</span><span class="settings-value">'+LaRuche.Utils.esc(effProv)+'</span></div><div class="settings-row"><span class="settings-label">Runs</span><span class="settings-value">'+(w.run_count||0)+'</span></div><div style="margin-top:6px;display:flex;gap:6px"><button onclick="LaRuche.Settings.editWatcher(\''+w.id+'\')" style="background:none;border:1px solid var(--amber);color:var(--amber);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">Éditer</button><button onclick="fetch(\'/api/watchers/'+w.id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">Delete</button></div></div>';}).join('');
+    window.__fillChannels(document.getElementById('nwChannel'), '', 'Home channel (défaut)');
+  }
+
+  function createWatcher() {
+    var name=document.getElementById('nwName').value;
+    var type=document.getElementById('nwType').value;
+    var target=document.getElementById('nwTarget').value;
+    var cond=document.getElementById('nwCondition').value;
+    var prompt=document.getElementById('nwPrompt').value;
+    var profEl=document.getElementById('watcher-profile');
+    var modEl=document.getElementById('watcher-model');
+    var profile_id = profEl ? profEl.value : '';
+    var model = modEl ? modEl.value : '';
+    var chEl=document.getElementById('nwChannel'); var channel = chEl ? chEl.value : '';
+    var body={name:name,watcher_type:type,target:target,condition:cond,prompt:prompt};
+    if(profile_id) body.profile_id = profile_id;
+    if(model) body.model = model;
+    if(channel) body.channel = channel;
+    fetch('/api/watchers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(){loadTab('watchers');LaRuche.Toast.show('Watcher created','ok');});
+  }
+
+  // Édition inline d'un watcher (parité avec cron/kanban).
+  function editWatcher(id) {
+    var w=null; try{ w=JSON.parse(_watchersLast).find(function(x){return x.id===id;}); }catch(e){}
+    if(!w){ LaRuche.Toast.show('Watcher introuvable','err'); return; }
+    function opt(v,label,cur){ return '<option value="'+v+'" '+(cur===v?'selected':'')+'>'+label+'</option>'; }
+    var typeSel = opt('file','File',w.watcher_type)+opt('url','URL',w.watcher_type)+opt('log','Log Pattern',w.watcher_type);
+    var profOpts = '<option value="">Défaut (modèle actif)</option>';
+    Object.keys(_profiles).forEach(function(k){ profOpts += '<option value="'+k+'" '+((w.profile_id===k)?'selected':'')+'>'+LaRuche.Utils.esc(_profiles[k].name||k)+'</option>'; });
+    var modOpts = '<option value="">(Par défaut)</option>';
+    if(w.profile_id && _profiles[w.profile_id] && _profiles[w.profile_id].models){
+      _profiles[w.profile_id].models.forEach(function(mm){ modOpts += '<option value="'+LaRuche.Utils.esc(mm)+'" '+((w.model===mm)?'selected':'')+'>'+LaRuche.Utils.esc(mm)+'</option>'; });
+    }
+    var ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center';
+    ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
+    ov.innerHTML='<div style="width:480px;max-width:92vw;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;padding:16px;max-height:90vh;overflow:auto">'+
+      '<div style="font-weight:600;color:var(--amber);margin-bottom:10px">Éditer le watcher</div>'+
+      '<label class="form-label">Nom</label><input class="form-input" id="weName" value="'+LaRuche.Utils.esc(w.name||'')+'">'+
+      '<label class="form-label">Type</label><select class="form-input" id="weType">'+typeSel+'</select>'+
+      '<label class="form-label">Cible (Path/URL)</label><input class="form-input" id="weTarget" value="'+LaRuche.Utils.esc(w.target||'')+'">'+
+      '<label class="form-label">Condition</label><input class="form-input" id="weCondition" value="'+LaRuche.Utils.esc(w.condition||'')+'">'+
+      '<label class="form-label">Prompt</label><textarea class="form-input" id="wePrompt" rows="3">'+LaRuche.Utils.esc(w.prompt||'')+'</textarea>'+
+      '<label class="form-label">Provider</label><select class="form-input" id="weProfile" onchange="LaRuche.Settings.updateWatcherEditModelSelect()">'+profOpts+'</select>'+
+      '<label class="form-label">Modèle</label><select class="form-input" id="weModel">'+modOpts+'</select>'+
+      '<label class="form-label">Canal</label><select class="form-input" id="weChannel"><option value="">Home channel (défaut)</option></select>'+
+      '<label class="form-label" style="display:flex;align-items:center;gap:8px;margin-top:8px"><input type="checkbox" id="weActive" '+(w.active?'checked':'')+'> Actif</label>'+
+      '<div style="margin-top:12px;display:flex;gap:8px"><button class="form-btn" onclick="LaRuche.Settings.saveWatcherEdit(\''+id+'\',this)">Enregistrer</button>'+
+      '<button class="form-btn" style="background:none;border:1px solid var(--border);color:var(--text-dim)" onclick="this.closest(\'div[style*=fixed]\')&&this.closest(\'div[style*=fixed]\').remove()">Annuler</button></div></div>';
+    document.body.appendChild(ov);
+    window.__fillChannels(document.getElementById('weChannel'), (w&&w.channel)||'', 'Home channel (défaut)');
+  }
+
+  function updateWatcherEditModelSelect() {
+    var pId=document.getElementById('weProfile').value, sel=document.getElementById('weModel');
+    if(!sel) return;
+    sel.innerHTML='<option value="">(Par défaut)</option>';
+    if(pId && _profiles[pId] && _profiles[pId].models){ _profiles[pId].models.forEach(function(m){ sel.innerHTML+='<option value="'+LaRuche.Utils.esc(m)+'">'+LaRuche.Utils.esc(m)+'</option>'; }); }
+  }
+
+  function saveWatcherEdit(id, btn) {
+    var body={
+      name: document.getElementById('weName').value,
+      watcher_type: document.getElementById('weType').value,
+      target: document.getElementById('weTarget').value,
+      condition: document.getElementById('weCondition').value,
+      prompt: document.getElementById('wePrompt').value,
+      active: document.getElementById('weActive').checked,
+      profile_id: document.getElementById('weProfile').value,
+      model: document.getElementById('weModel').value,
+      channel: document.getElementById('weChannel')?document.getElementById('weChannel').value:''
+    };
+    fetch(LaRuche.API.base+'/api/watchers/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Watcher modifié','ok'); var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove(); refreshTab(); } else { LaRuche.Toast.show('Échec modification','err'); } });
+  }
+
+  function addCredential(provider) {
+    var key = prompt('Nouvelle cle API pour ' + provider + ' :');
+    if(!key) return;
+    var label = prompt('Label optionnel (ex: Compte Dev) :') || '';
+    fetch('/api/credentials', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({provider: provider, api_key: key, label: label})
+    }).then(function(){
+      loadProviders(document.getElementById('settingsContent'));
+    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+  }
+
+
+  function toggleVisibility(id, providerType, currentVis) {
+    var newVis = currentVis === 'public_proxy' ? 'prive' : 'public_proxy';
+    if(newVis === 'public_proxy' && (providerType === 'openai' || providerType === 'anthropic' || providerType === 'codex')) {
+      if(!confirm("Public = le mesh utilise ce provider VIA ce node (ta clé reste locale, ce node relaie et exécute les appels). N'expose jamais une clé que tu ne veux pas voir consommée par le réseau. Continuer ?")) {
+        return;
+      }
+    }
+    fetch('/api/profiles/'+id+'/visibility', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({visibility: newVis})})
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.status==='ok') {
+        LaRuche.Toast.show('Visibilité modifiée avec succès','ok'); window.LaRuche.forceReactivityUpdate();
+        loadTab('providers');
+      } else {
+        LaRuche.Toast.show('Erreur: '+(d.error||'?'),'err');
+      }
+    }).catch(function(e){LaRuche.Toast.show('Erreur: '+e,'err');});
+  }
+
+  // Menu permissions : Privé / Public / Restreint (cases par ruche) → couche grants.
+  async function openAccess(id, currentVis, allowedEnc){
+    var esc = LaRuche.Utils.esc;
+    var allowed=[]; try{ allowed=JSON.parse(decodeURIComponent(allowedEnc||'%5B%5D')); }catch(e){}
+    var peers=[]; try{ peers=(await fetch('/api/mesh/peers').then(function(r){return r.json();})).peers||[]; }catch(e){}
+    function peersHtml(){
+      if(!peers.length) return '<div style="color:var(--text-dim);font-size:12px">Aucune ruche découverte sur le réseau.</div>';
+      return peers.map(function(pr){ var ck=allowed.indexOf(pr.id)!==-1?'checked':''; return '<label style="display:flex;gap:8px;align-items:center;padding:3px 0;font-size:13px"><input type="checkbox" class="acc-peer" value="'+esc(pr.id)+'" '+ck+'> 🐝 '+esc(pr.name||pr.id)+'</label>'; }).join('');
+    }
+    var ov=document.createElement('div'); ov.className='profile-modal-overlay open';
+    ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
+    ov.innerHTML='<div class="profile-modal"><div class="profile-modal-head"><span class="profile-modal-name">🔐 Accès mesh du provider</span><button class="fd-btn" id="accClose">&#x2716;</button></div>'+
+      '<p class="profile-modal-hint">Qui peut utiliser ce provider/LLM via le mesh ? (la clé API reste toujours locale)</p>'+
+      '<div style="display:flex;flex-direction:column;gap:8px">'+
+        '<label><input type="radio" name="accvis" value="prive" '+(currentVis==='prive'?'checked':'')+'> 🔒 <b>Privé</b> — moi seulement</label>'+
+        '<label><input type="radio" name="accvis" value="public_proxy" '+(currentVis==='public_proxy'?'checked':'')+'> 🌐 <b>Public</b> — toutes les ruches du mesh</label>'+
+        '<label><input type="radio" name="accvis" value="restricted" '+(currentVis==='restricted'?'checked':'')+'> 🐝 <b>Restreint</b> — seulement ces ruches :</label>'+
+        '<div id="accPeers" style="margin-left:24px;'+(currentVis==='restricted'?'':'opacity:.45;pointer-events:none')+'">'+peersHtml()+'</div>'+
+      '</div>'+
+      '<div class="profile-modal-actions"><button class="send-btn" id="accSave"><span>Enregistrer</span></button></div></div>';
+    document.body.appendChild(ov);
+    ov.querySelector('#accClose').onclick=function(){ ov.remove(); };
+    ov.querySelectorAll('input[name=accvis]').forEach(function(r){ r.onchange=function(){
+      var isR=ov.querySelector('input[name=accvis]:checked').value==='restricted';
+      var ap=ov.querySelector('#accPeers'); ap.style.opacity=isR?'1':'.45'; ap.style.pointerEvents=isR?'auto':'none';
+    };});
+    ov.querySelector('#accSave').onclick=function(){
+      var vis=ov.querySelector('input[name=accvis]:checked').value;
+      var aps=Array.prototype.map.call(ov.querySelectorAll('.acc-peer:checked'),function(c){return c.value;});
+      fetch('/api/profiles/'+id+'/visibility',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({visibility:vis,allowed_peers:aps})})
+        .then(function(r){return r.json();}).then(function(d){
+          if(d.status==='ok'){ LaRuche.Toast.show('Accès mis à jour','ok'); ov.remove(); if(window.LaRuche.forceReactivityUpdate)window.LaRuche.forceReactivityUpdate(); loadTab('providers'); }
+          else LaRuche.Toast.show('Erreur: '+(d.error||'?'),'err');
+        }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e,'err'); });
+    };
+  }
+
+  function deleteCredential(provider, apiKey) {
+    if(!confirm('Supprimer cette cle du pool ?')) return;
+    fetch('/api/credentials', {
+      method: 'DELETE',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({provider: provider, api_key: apiKey})
+    }).then(function(){
+      loadProviders(document.getElementById('settingsContent'));
+    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+  }
+
+  async function loadChannels(el) {
+    var config = await fetch(LaRuche.API.base+'/api/config/channels').then(function(r){return r.json();}).catch(function(){return {};});
+    var notify = await fetch(LaRuche.API.base+'/api/config/notify').then(function(r){return r.json();}).catch(function(){return {};});
+    var tg = config.telegram || {};
+    var dc = config.discord || {};
+    var sl = config.slack || {};
+    el.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">' +
+      '<div class="settings-card"><div class="card-title" style="color:var(--amber)">Notifications</div>' +
+        '<div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">Envoi proactif des events (AgentCompleted, WatcherFired) via Telegram (le premier Chat ID configuré est utilisé).</div>' +
+        '<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="ch-notify-en" '+(notify.enabled?'checked':'')+'> <span>Activer Notifier proactif</span></label></div>' +
+      '<div class="settings-card"><div class="card-title" style="color:var(--blue)">Telegram</div>' +
+        '<div class="form-group"><label class="form-label">Bot Token</label><input class="form-input" id="ch-tg-token" value="'+LaRuche.Utils.esc(tg.bot_token||'')+'" placeholder="7123456789:AAH..."></div>' +
+        '<div class="form-group"><label class="form-label">Allowed Chat IDs</label><input class="form-input" id="ch-tg-chats" value="'+LaRuche.Utils.esc(tg.allowed_chats||'')+'" placeholder="vide = tous"></div>' +
+        '<div style="font-size:10px;color:var(--text-muted);margin-top:4px">Lancer: python -m src.telegram</div></div>' +
+      '<div class="settings-card"><div class="card-title" style="color:var(--purple)">Discord</div>' +
+        '<div class="form-group"><label class="form-label">Bot Token</label><input class="form-input" id="ch-dc-token" value="'+LaRuche.Utils.esc(dc.bot_token||'')+'" placeholder="MTIxxx..."></div>' +
+        '<div class="form-group"><label class="form-label">Allowed Channel IDs</label><input class="form-input" id="ch-dc-channels" value="'+LaRuche.Utils.esc(dc.allowed_channels||'')+'" placeholder="vide = tous"></div>' +
+        '<div style="font-size:10px;color:var(--text-muted);margin-top:4px">Lancer: python -m src.discord_bot</div></div>' +
+      '<div class="settings-card"><div class="card-title" style="color:var(--green)">Slack</div>' +
+        '<div class="form-group"><label class="form-label">Bot Token (xoxb-)</label><input class="form-input" id="ch-sl-bot" value="'+LaRuche.Utils.esc(sl.bot_token||'')+'" placeholder="xoxb-..."></div>' +
+        '<div class="form-group"><label class="form-label">App Token (xapp-)</label><input class="form-input" id="ch-sl-app" value="'+LaRuche.Utils.esc(sl.app_token||'')+'" placeholder="xapp-..."></div>' +
+        '<div style="font-size:10px;color:var(--text-muted);margin-top:4px">Lancer: python -m src.slack_bot</div></div>' +
+      '<div class="settings-card" style="opacity:0.5;border-style:dashed"><div class="card-title" style="color:#25D366">WhatsApp</div>' +
+        '<div style="color:var(--text-muted);font-size:12px;padding:12px 0">Coming soon</div></div>' +
+      '<div class="settings-card" style="opacity:0.5;border-style:dashed"><div class="card-title" style="color:#3A76F0">Signal</div>' +
+        '<div style="color:var(--text-muted);font-size:12px;padding:12px 0">Coming soon</div></div>' +
+      '<div class="settings-card" style="opacity:0.5;border-style:dashed"><div class="card-title" style="color:#0DBD8B">Matrix</div>' +
+        '<div style="color:var(--text-muted);font-size:12px;padding:12px 0">Coming soon</div></div>' +
+    '</div>' +
+    '<div style="margin-top:16px;display:flex;gap:8px">' +
+      '<button class="form-btn" onclick="LaRuche.Settings.saveChannels()">Sauvegarder</button>' +
+      '<button class="form-btn" style="background:var(--green)" onclick="LaRuche.Settings.startChannel(\'telegram\')" id="ch-tg-start">Demarrer Telegram</button>' +
+      '<button class="form-btn" style="background:var(--red);color:#fff" onclick="LaRuche.Settings.stopChannel(\'telegram\')" id="ch-tg-stop" style="display:none">Arreter Telegram</button>' +
+    '</div>';
+    // Check running status
+    fetch(LaRuche.API.base+'/api/channels/status').then(function(r){return r.json();}).then(function(d){
+      var running = d.running || [];
+      if(running.indexOf('telegram')!==-1) {
+        var startBtn=document.getElementById('ch-tg-start'); if(startBtn) startBtn.style.display='none';
+        var stopBtn=document.getElementById('ch-tg-stop'); if(stopBtn) stopBtn.style.display='';
+      }
+    }).catch(function(){});
+  }
+  // ── Page Skills (OKF en mémoire, capacities.skills.*) ──────────────────
+  var SKILL_TEMPLATE='---\ntype: skill\nname: mon-skill\ndescription: "Ce que ce skill apprend a faire."\nallowed-tools: []\n---\n\n# Mon Skill\n\n## Quand l\'utiliser\n- ...\n\n## Procedure\n1. ...\n';
+  async function loadSkills(el){
+    var skills=await fetch(LaRuche.API.base+'/api/skills').then(function(r){return r.json();}).catch(function(){return [];});
+    var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
+      '<div style="color:var(--text-dim);font-size:12px">Connaissances procédurales (OKF). Activées = injectables dans le contexte / attachables aux crons.</div>'+
+      '<button class="settings-save-btn" onclick="LaRuche.Settings.newSkill()">+ Nouveau skill</button></div>';
+    if(!skills.length){ html+='<div style="color:var(--text-dim);padding:20px">Aucun skill. L\'agent peut en créer (memory_write capacities.skills.*) ou clique « + Nouveau skill ».</div>'; }
+    html+='<div class="settings-grid">';
+    skills.forEach(function(s){
+      html+='<div class="settings-card">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'+
+        '<div class="settings-card-title" style="margin:0">'+LaRuche.Utils.esc(s.name)+'</div>'+
+        '<label class="lr-switch"><input type="checkbox" '+(s.enabled?'checked':'')+' onchange="LaRuche.Settings.toggleSkill(\''+LaRuche.Utils.esc(s.name)+'\')"><span class="lr-slider"></span></label>'+
+        '</div>'+
+        '<div style="font-size:11px;color:var(--text-dim);margin:6px 0;min-height:28px">'+LaRuche.Utils.esc(s.description||'')+'</div>'+
+        '<div style="display:flex;gap:6px">'+
+        '<button class="tl-btn" onclick="LaRuche.Settings.viewSkill(\''+LaRuche.Utils.esc(s.name)+'\')">Voir / Éditer</button>'+
+        '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(\'Supprimer '+LaRuche.Utils.esc(s.name)+' ?\'))LaRuche.Settings.deleteSkill(\''+LaRuche.Utils.esc(s.name)+'\')">Suppr</button>'+
+        '</div></div>';
+    });
+    html+='</div>';
+    el.innerHTML=html;
+    if(!document.getElementById('lr-switch-style')){
+      var st=document.createElement('style'); st.id='lr-switch-style';
+      st.textContent='.lr-switch{position:relative;display:inline-block;width:38px;height:20px;flex:0 0 auto}.lr-switch input{display:none}'+
+        '.lr-slider{position:absolute;inset:0;background:#444;border-radius:20px;transition:.2s;cursor:pointer}'+
+        '.lr-slider:before{content:"";position:absolute;height:14px;width:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}'+
+        '.lr-switch input:checked+.lr-slider{background:var(--amber)}.lr-switch input:checked+.lr-slider:before{transform:translateX(18px)}';
+      document.head.appendChild(st);
+    }
+  }
+  function toggleSkill(name){ fetch(LaRuche.API.base+'/api/skills/'+encodeURIComponent(name)+'/toggle',{method:'POST'}).then(function(r){return r.json();}).then(function(d){ LaRuche.Toast.show('Skill '+(d.enabled?'activé':'désactivé'),'ok'); }); }
+  function deleteSkill(name){ fetch(LaRuche.API.base+'/api/skills/'+encodeURIComponent(name),{method:'DELETE'}).then(function(){ LaRuche.Settings.refreshTab&&LaRuche.Settings.refreshTab(); }); }
+  var PLUGIN_TEMPLATE = '{\n  "name": "mon_plugin",\n  "description": "Description de mon plugin",\n  "danger": "safe",\n  "parameters": {\n    "type": "object",\n    "properties": {},\n    "required": []\n  },\n  "command": "echo {{arg}}"\n}';
+  function newPlugin(){ pluginEditor('nouveau_plugin', PLUGIN_TEMPLATE); }
+  function newSkill(){ skillEditor('', SKILL_TEMPLATE); }
+  function viewSkill(name){ fetch(LaRuche.API.base+'/api/skills/'+encodeURIComponent(name)).then(function(r){return r.json();}).then(function(d){ skillEditor(name, d.content||''); }); }
+  function skillEditor(name, content){
+    var ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center';
+    ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
+    ov.innerHTML='<div style="width:680px;max-width:94vw;height:80vh;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
+      '<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--amber)">'+(name?('Éditer : '+LaRuche.Utils.esc(name)):'Nouveau skill')+' <span style="color:var(--text-dim);font-size:10px;font-weight:normal">— SKILL.md (frontmatter validé au save)</span></div>'+
+      '<textarea id="skEditor" class="form-input" style="flex:1;margin:12px 12px 6px;font-family:var(--mono);font-size:12px;resize:none">'+LaRuche.Utils.esc(content)+'</textarea>'+
+      '<div style="margin:0 12px 6px">'+
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
+          '<span style="font-size:10px;color:var(--text-dim);flex:1">Abeilles / plugins de ce skill (→ <code>tools:</code>) <span id="skToolsCount" style="color:var(--amber)"></span></span>'+
+          '<input id="skToolsSearch" placeholder="filtrer…" oninput="LaRuche.Settings.filterSkillTools()" style="font-size:11px;padding:2px 6px;width:120px;background:#16161a;border:1px solid var(--border);border-radius:4px;color:var(--text)">'+
+          '<button class="tl-btn" style="font-size:10px;padding:2px 6px" onclick="LaRuche.Settings.clearSkillTools()">Vider</button>'+
+        '</div>'+
+        '<div id="skToolsBox" style="max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:6px;padding:4px"><span style="color:var(--text-dim);font-size:11px">Chargement…</span></div></div>'+
+      '<div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
+      '<button class="tl-btn" onclick="this.closest(\'div[style*=fixed]\').remove()">Annuler</button>'+
+      '<button class="settings-save-btn" onclick="LaRuche.Settings.saveSkill(this)">Enregistrer</button></div></div>';
+    document.body.appendChild(ov);
+    mountSkillTools(content);
+  }
+  // Construit la checklist d'outils du skill (groupée Abeilles/Plugins, recherchable,
+  // sélectionnés en tête) et synchronise la ligne `tools:` du frontmatter.
+  async function mountSkillTools(content){
+    var box=document.getElementById('skToolsBox'); if(!box) return;
+    var tools = window._allTools;
+    if(!tools){ try{ tools=await fetch('/api/tools').then(function(r){return r.json();}); window._allTools=tools; }catch(e){ tools=[]; } }
+    var plugins = [];
+    try{ plugins=await fetch('/api/plugins').then(function(r){return r.json();}); }catch(e){}
+    var pluginNames = (plugins||[]).map(function(p){return p.name||p;});
+    // Modèle unifié : {name, group, desc}. group = Plugins | Abeilles | Autres.
+    var items = [];
+    var seen = {};
+    (tools||[]).forEach(function(t){
+      var n=t.name||t; if(seen[n])return; seen[n]=1;
+      items.push({name:n, group:(pluginNames.indexOf(n)>=0?'Plugins':'Abeilles'), desc:(t.description||'')});
+    });
+    pluginNames.forEach(function(n){ if(!seen[n]){ seen[n]=1; items.push({name:n, group:'Plugins', desc:''}); } });
+    var m = content.match(/^\s*(?:allowed-)?tools:\s*\[([^\]]*)\]/m);
+    var current = m ? m[1].split(',').map(function(s){return s.trim().replace(/['"]/g,'');}).filter(Boolean) : [];
+    current.forEach(function(n){ if(!seen[n]){ seen[n]=1; items.push({name:n, group:'Autres', desc:'(référence)'}); } });
+    window._skItems = items;
+    window._skChecked = {}; current.forEach(function(n){ window._skChecked[n]=1; });
+    renderSkillTools();
+  }
+  // (Ré)affiche la liste selon le filtre + l'état coché courant. Sélectionnés en tête de groupe.
+  function renderSkillTools(){
+    var box=document.getElementById('skToolsBox'); if(!box) return;
+    var items=window._skItems||[]; var checked=window._skChecked||{};
+    var f=(document.getElementById('skToolsSearch')||{}).value||''; f=f.toLowerCase();
+    function row(it){
+      var on=!!checked[it.name];
+      return '<label title="'+LaRuche.Utils.esc(it.desc||'')+'" style="display:flex;align-items:center;gap:7px;padding:4px 7px;border-radius:5px;cursor:pointer;'+(on?'background:rgba(245,158,11,.13)':'')+'" onmouseover="this.style.background=\''+(on?'rgba(245,158,11,.2)':'rgba(255,255,255,.05)')+'\'" onmouseout="this.style.background=\''+(on?'rgba(245,158,11,.13)':'transparent')+'\'">'+
+        '<input type="checkbox" value="'+LaRuche.Utils.esc(it.name)+'" '+(on?'checked':'')+' onchange="LaRuche.Settings.toggleSkillTool(this.value,this.checked)" style="accent-color:var(--amber)">'+
+        '<span style="font-size:12px;'+(on?'color:var(--amber)':'')+'">'+LaRuche.Utils.esc(it.name)+'</span>'+
+        (it.desc?'<span style="font-size:10px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">'+LaRuche.Utils.esc(it.desc)+'</span>':'')+
+      '</label>';
+    }
+    var groups=['Abeilles','Plugins','Autres']; var html='';
+    groups.forEach(function(g){
+      var list=items.filter(function(it){return it.group===g && (!f || it.name.toLowerCase().indexOf(f)>=0);});
+      if(!list.length) return;
+      // sélectionnés d'abord, puis alpha
+      list.sort(function(a,b){ var ca=checked[a.name]?0:1, cb=checked[b.name]?0:1; return ca-cb || a.name.localeCompare(b.name); });
+      html+='<div style="font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);padding:6px 7px 2px">'+g+' ('+list.filter(function(i){return checked[i.name];}).length+'/'+list.length+')</div>';
+      html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px">'+list.map(row).join('')+'</div>';
+    });
+    box.innerHTML = html || '<span style="color:var(--text-dim);font-size:11px;padding:6px;display:block">Aucun résultat.</span>';
+    var cnt=document.getElementById('skToolsCount');
+    if(cnt){ var n=Object.keys(checked).filter(function(k){return checked[k];}).length; cnt.textContent=n?('— '+n+' coché'+(n>1?'s':'')):''; }
+  }
+  function toggleSkillTool(name, on){ window._skChecked=window._skChecked||{}; if(on) window._skChecked[name]=1; else delete window._skChecked[name]; applySkillTools(); renderSkillTools(); }
+  function filterSkillTools(){ renderSkillTools(); }
+  function clearSkillTools(){ window._skChecked={}; applySkillTools(); renderSkillTools(); }
+  function applySkillTools(){
+    // Lit le MODÈLE (_skChecked), pas le DOM : sinon un filtre actif masquerait des cochés
+    // et on les perdrait à l'enregistrement.
+    var checked = Object.keys(window._skChecked||{}).filter(function(k){return window._skChecked[k];});
+    var line = 'tools: ['+checked.join(', ')+']';
+    var ta=document.getElementById('skEditor'); if(!ta) return;
+    var c=ta.value;
+    if(/^\s*(?:allowed-)?tools:.*$/m.test(c)){
+      c = c.replace(/^\s*(?:allowed-)?tools:.*$/m, line);
+    } else {
+      var parts=c.split('---');
+      if(parts.length>=3){ parts[1]=parts[1].replace(/\n*$/,'\n')+line+'\n'; c=parts.join('---'); }
+      else { c='---\n'+line+'\n---\n'+c; }
+    }
+    ta.value=c;
+  }
+  function saveSkill(btn){
+    var content=document.getElementById('skEditor').value;
+    fetch(LaRuche.API.base+'/api/skills',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:content})})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
+        LaRuche.Toast.show('Skill « '+d.name+' » enregistré','ok');
+        var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove();
+        LaRuche.Settings.refreshTab&&LaRuche.Settings.refreshTab();
+      }).catch(function(){ LaRuche.Toast.show('Échec','err'); });
+  }
+
+  function viewPlugin(name){ fetch(LaRuche.API.base+'/api/plugins/'+encodeURIComponent(name)).then(function(r){return r.json();}).then(function(d){ pluginEditor(name, d.content||''); }).catch(function(){ LaRuche.Toast.show('Fichier non trouvé','err'); }); }
+  function pluginEditor(name, content){
+    var ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center';
+    ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
+    ov.innerHTML='<div style="width:680px;max-width:94vw;height:80vh;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
+      '<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--amber)">Éditer Plugin : '+LaRuche.Utils.esc(name)+' <span style="color:var(--text-dim);font-size:10px;font-weight:normal">— JSON (rechargé au save)</span></div>'+
+      '<textarea id="plEditor" data-name="'+LaRuche.Utils.esc(name)+'" class="form-input" style="flex:1;margin:12px;font-family:var(--mono);font-size:12px;resize:none" spellcheck="false">'+LaRuche.Utils.esc(content)+'</textarea>'+
+      '<div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
+      '<button class="tl-btn" onclick="this.closest(\'div[style*=fixed]\').remove()">Annuler</button>'+
+      '<button class="settings-save-btn" onclick="LaRuche.Settings.savePlugin(this)">Enregistrer</button></div></div>';
+    document.body.appendChild(ov);
+  }
+  function savePlugin(btn){
+    var ta=document.getElementById('plEditor');
+    var content=ta.value; var name=ta.dataset.name;
+    fetch(LaRuche.API.base+'/api/plugins/'+encodeURIComponent(name),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:content})})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
+        LaRuche.Toast.show('Plugin « '+d.name+' » enregistré','ok');
+        var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove();
+        LaRuche.Settings.refreshTab&&LaRuche.Settings.refreshTab();
+      }).catch(function(){ LaRuche.Toast.show('Échec','err'); });
+  }
+  function deletePlugin(name){
+    fetch(LaRuche.API.base+'/api/plugins/'+encodeURIComponent(name),{method:'DELETE'})
+      .then(function(r){return r.json();}).then(function(d){
+        LaRuche.Toast.show('Plugin supprimé','ok');
+        LaRuche.Settings.refreshTab&&LaRuche.Settings.refreshTab();
+      }).catch(function(){ LaRuche.Toast.show('Échec','err'); });
+  }
+
+  var _kanbanTimer=null, _kanbanLast='';
+  var _kanbanView=(function(){ try{ return localStorage.getItem('lr_kanban_view')||'cols'; }catch(e){ return 'cols'; } })();
+  var _profiles={}; // P1 : cache des profils pour les selecteurs Provider (kanban/watcher)
+  var _watchersLast='[]'; // cache des watchers pour l'edition inline
+
+  function setKanbanView(mode){
+    _kanbanView = mode;
+    try{ localStorage.setItem('lr_kanban_view', mode); }catch(e){}
+    var tg=document.getElementById('kanbanViewToggle'); if(tg) tg.innerHTML = kanbanToggleInner();
+    _kanbanLast=''; refreshKanbanCols();
+  }
+  function kanbanToggleInner(){
+    return '<button class="tl-btn" style="border-radius:0'+(_kanbanView==='cols'?';background:var(--amber);color:#000':'')+'" onclick="LaRuche.Settings.setKanbanView(\'cols\')">Colonnes</button>'+
+      '<button class="tl-btn" style="border-radius:0'+(_kanbanView==='rows'?';background:var(--amber);color:#000':'')+'" onclick="LaRuche.Settings.setKanbanView(\'rows\')">Horizontal</button>';
+  }
+  // Carte kanban (HTML) — partagee entre mode colonnes et mode horizontal.
+  function kanbanCardHtml(t){
+    var h='<div draggable="true" ondragstart="LaRuche.Settings.kanbanDragStart(event,\''+t.id+'\')" style="background:#2a2a2e;border:1px solid var(--border);border-radius:4px;padding:8px;cursor:grab">';
+    h+='<div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:4px">'+LaRuche.Utils.esc(t.title)+'</div>';
+    h+='<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">'+LaRuche.Utils.esc(t.description||'')+'</div>';
+    if(t.profile_id || t.model){
+      var kProv = (t.profile_id && _profiles[t.profile_id]) ? (_profiles[t.profile_id].name||t.profile_id) : (t.profile_id||'');
+      if(t.model) kProv += (kProv?' ':'') + '(' + t.model + ')';
+      if(kProv) h+='<div style="font-size:10px;color:var(--amber);margin-bottom:6px">⚙ '+LaRuche.Utils.esc(kProv)+'</div>';
+    }
+    if(t.result){
+      var _full = String(t.result||'');
+      var _trunc = _full.length>60;
+      var _short = _trunc ? (_full.substring(0,60)+'…') : _full;
+      // Accordeon : clic pour deplier/replier le commentaire LLM (lisible en entier, mobile-friendly).
+      // stopPropagation evite d'interferer avec le drag&drop de la carte.
+      h+='<div class="kb-result" onclick="event.stopPropagation();LaRuche.Settings.toggleKanbanResult(this)" '+
+         'data-collapsed="1" style="font-size:10px;color:var(--green);margin-bottom:6px;cursor:pointer" '+
+         'title="'+(_trunc?'Cliquer pour deplier/replier':'')+'">'+
+         '<span class="kb-result-label">Résultat'+(_trunc?' ▸':'')+': </span>'+
+         '<span class="kb-result-short" style="white-space:pre-wrap;word-break:break-word">'+LaRuche.Utils.esc(_short)+'</span>'+
+         '<span class="kb-result-full" style="display:none;white-space:pre-wrap;word-break:break-word">'+LaRuche.Utils.esc(_full)+'</span>'+
+         '</div>';
+    }
+    h+='<div style="display:flex;justify-content:space-between;align-items:center">';
+    h+='<span style="font-size:9px;color:var(--text-muted);font-family:var(--mono)">'+t.id.split('-')[0]+'</span>';
+    h+='<span><button onclick="LaRuche.Settings.editKanbanTask(\''+t.id+'\')" style="background:none;border:none;color:var(--amber);cursor:pointer;font-size:10px">Éditer</button> <button onclick="LaRuche.Settings.deleteKanbanTask(\''+t.id+'\')" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:10px">Suppr</button></span>';
+    h+='</div></div>';
+    return h;
+  }
+  // Deplie/replie le commentaire LLM (champ result) d'une carte kanban.
+  function toggleKanbanResult(elDiv){
+    if(!elDiv) return;
+    var collapsed = elDiv.dataset.collapsed === '1';
+    var shortEl = elDiv.querySelector('.kb-result-short');
+    var fullEl = elDiv.querySelector('.kb-result-full');
+    var labelEl = elDiv.querySelector('.kb-result-label');
+    if(!shortEl || !fullEl) return;
+    if(collapsed){
+      shortEl.style.display='none'; fullEl.style.display='';
+      elDiv.dataset.collapsed='0';
+      if(labelEl && /▸/.test(labelEl.textContent)) labelEl.textContent = labelEl.textContent.replace('▸','▾');
+    } else {
+      shortEl.style.display=''; fullEl.style.display='none';
+      elDiv.dataset.collapsed='1';
+      if(labelEl && /▾/.test(labelEl.textContent)) labelEl.textContent = labelEl.textContent.replace('▾','▸');
+    }
+  }
+  async function loadKanban(el) {
+    // P1 : profils pour le selecteur Provider de la tache kanban.
+    var profilesResp={profiles:{}};try{profilesResp=await fetch('/api/profiles').then(function(r){return r.json();});}catch(e){}
+    _profiles = profilesResp.profiles || {};
+    var profOpts = '<option value="">Défaut (modèle actif)</option>';
+    Object.keys(_profiles).forEach(function(k){
+        profOpts += '<option value="'+k+'">'+LaRuche.Utils.esc(_profiles[k].name||k)+'</option>';
+    });
+    el.innerHTML = '<div style="margin-bottom:16px;display:flex;gap:8px;align-items:end;flex-wrap:wrap">' +
+      '<div style="flex:1;min-width:140px"><label class="form-label">Titre de la tâche</label><input class="form-input" id="kanban-title" placeholder="Nouvelle tâche..."></div>' +
+      '<div style="flex:2;min-width:160px"><label class="form-label">Description</label><input class="form-input" id="kanban-desc" placeholder="Détails..."></div>' +
+      '<div style="flex:1;min-width:130px"><label class="form-label">Provider</label><select class="form-input" id="kanban-profile" onchange="LaRuche.Settings.updateKanbanModelSelect()">'+profOpts+'</select></div>' +
+      '<div style="flex:1;min-width:130px"><label class="form-label">Mod&egrave;le</label><select class="form-input" id="kanban-model"><option value="">(Par défaut)</option></select></div>' +
+      '<div style="flex:1;min-width:150px"><label class="form-label">Canal</label><select class="form-input" id="kanban-channel"><option value="">Défaut du board</option></select></div>' +
+      '<button class="form-btn" onclick="LaRuche.Settings.createKanbanTask()">Créer</button></div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">' +
+        '<div style="display:flex;align-items:center;gap:6px"><label class="form-label" style="margin:0">Canal par défaut du board</label>' +
+        '<select class="form-input" id="kanban-default-channel" style="width:auto" onchange="LaRuche.Settings.setKanbanDefaultChannel(this.value)"><option value="">Aucun (→ home channel)</option></select></div>' +
+        '<div id="kanbanViewToggle" style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">'+kanbanToggleInner()+'</div></div>' +
+      '<div id="kanbanCols"></div>';
+    _kanbanLast='';
+    window.__fillChannels(document.getElementById('kanban-channel'), '', 'Défaut du board');
+    try{ var dc=await fetch('/api/kanban/default_channel').then(function(r){return r.json();}); window.__fillChannels(document.getElementById('kanban-default-channel'), (dc&&dc.channel)||'', 'Aucun (→ home channel)'); }catch(e){}
+    await refreshKanbanCols();
+    if(_kanbanTimer) clearInterval(_kanbanTimer);
+    // Auto-refresh (l'agent/daemon peuvent modifier le board) : re-render seulement
+    // si le contenu a changé → ne casse pas la saisie en cours.
+    _kanbanTimer=setInterval(function(){
+      if(!document.getElementById('kanbanCols')){ clearInterval(_kanbanTimer); _kanbanTimer=null; return; }
+      refreshKanbanCols();
+    }, 4000);
+  }
+
+  async function refreshKanbanCols(){
+    var host=document.getElementById('kanbanCols'); if(!host)return;
+    var tasks=await fetch(LaRuche.API.base+'/api/kanban').then(function(r){return r.json();}).catch(function(){return [];});
+    var sig=_kanbanView+'|'+JSON.stringify(tasks); if(sig===_kanbanLast) return; _kanbanLast=sig;
+    var cols=['Triage','Todo','Ready','Running','Blocked','Done','Archived'];
+    var html;
+    if(_kanbanView==='rows'){
+      // Mode horizontal condense : chaque statut = une bande, cartes en flex-wrap, hauteur = contenu.
+      html='<div style="display:flex;flex-direction:column;gap:10px">';
+      cols.forEach(function(c){
+        var colTasks=tasks.filter(function(t){return t.status===c;});
+        html+='<div style="background:rgba(30,30,32,0.8);border:1px solid var(--amber-dim);border-radius:6px;overflow:hidden" ondragover="LaRuche.Settings.kanbanDragOver(event)" ondrop="LaRuche.Settings.kanbanDrop(event,\''+c+'\')">';
+        html+='<div style="padding:6px 10px;font-weight:600;color:var(--amber);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><span>'+c+'</span><span style="font-size:10px;color:var(--text-dim)">'+colTasks.length+'</span></div>';
+        html+='<div style="padding:8px;display:flex;flex-wrap:wrap;gap:8px;min-height:36px">';
+        if(!colTasks.length){ html+='<span style="font-size:10px;color:var(--text-muted);align-self:center">—</span>'; }
+        colTasks.forEach(function(t){ html+='<div style="flex:0 0 230px;max-width:230px">'+kanbanCardHtml(t)+'</div>'; });
+        html+='</div></div>';
+      });
+      html+='</div>';
+    } else {
+      // Mode colonnes (existant).
+      html='<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:10px;min-height:400px">';
+      cols.forEach(function(c){
+        html+='<div style="flex:0 0 250px;background:rgba(30,30,32,0.8);border:1px solid var(--amber-dim);border-radius:6px;display:flex;flex-direction:column" ondragover="LaRuche.Settings.kanbanDragOver(event)" ondrop="LaRuche.Settings.kanbanDrop(event,\''+c+'\')">';
+        var colTasks=tasks.filter(function(t){return t.status===c;});
+        html+='<div style="padding:10px;font-weight:600;color:var(--amber);border-bottom:1px solid var(--border);text-align:center">'+c+(colTasks.length?(' ('+colTasks.length+')'):'')+'</div>';
+        html+='<div style="flex:1;padding:8px;display:flex;flex-direction:column;gap:8px">';
+        colTasks.forEach(function(t){ html+=kanbanCardHtml(t); });
+        html+='</div></div>';
+      });
+      html+='</div>';
+    }
+    host.innerHTML=html;
+  }
+
+  function setKanbanDefaultChannel(ch){
+    fetch('/api/kanban/default_channel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({channel: ch||null})})
+      .then(function(){ LaRuche.Toast.show('Canal par défaut du board mis à jour','ok'); });
+  }
+  function createKanbanTask() {
+    var title = document.getElementById('kanban-title').value;
+    var desc = document.getElementById('kanban-desc').value;
+var pId = document.getElementById('kanban-profile')?document.getElementById('kanban-profile').value:'';
+var m = document.getElementById('kanban-model')?document.getElementById('kanban-model').value:'';
+var ch = document.getElementById('kanban-channel')?document.getElementById('kanban-channel').value:'';
+    if(!title) return;
+    fetch(LaRuche.API.base+'/api/kanban',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title: title, description: desc, profile_id: pId||null, model: m||null, channel: ch||null})})
+      .then(function(r){if(r.ok) { LaRuche.Toast.show('Tâche créée','ok'); document.getElementById('kanban-title').value=''; document.getElementById('kanban-desc').value=''; _kanbanLast=''; refreshKanbanCols(); }});
+  }
+
+  function deleteKanbanTask(id) {
+    fetch(LaRuche.API.base+'/api/kanban/'+id,{method:'DELETE'})
+      .then(function(r){if(r.ok) { _kanbanLast=''; refreshKanbanCols(); }});
+  }
+
+  function editKanbanTask(id) {
+    var t=null; try{ t=JSON.parse(_kanbanLast).find(function(x){return x.id===id;}); }catch(e){}
+    // P1 : selecteur Provider dans l'edition kanban.
+    var profOpts = '<option value="">Défaut (modèle actif)</option>';
+    Object.keys(_profiles).forEach(function(k){
+        profOpts += '<option value="'+k+'" '+((t&&t.profile_id===k)?'selected':'')+'>'+LaRuche.Utils.esc(_profiles[k].name||k)+'</option>';
+    });
+    var modOpts = '<option value="">(Par défaut)</option>';
+    if(t && t.profile_id && _profiles[t.profile_id] && _profiles[t.profile_id].models){
+      _profiles[t.profile_id].models.forEach(function(mm){
+        modOpts += '<option value="'+LaRuche.Utils.esc(mm)+'" '+((t.model===mm)?'selected':'')+'>'+LaRuche.Utils.esc(mm)+'</option>';
+      });
+    }
+    var ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center';
+    ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
+    ov.innerHTML='<div style="width:480px;max-width:92vw;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;padding:16px">'+
+      '<div style="font-weight:600;color:var(--amber);margin-bottom:10px">Éditer la tâche</div>'+
+      '<label class="form-label">Titre</label><input class="form-input" id="kbeTitle" value="'+LaRuche.Utils.esc(t?t.title:'')+'">'+
+      '<label class="form-label">Description</label><textarea class="form-input" id="kbeDesc" rows="4">'+LaRuche.Utils.esc(t?(t.description||''):'')+'</textarea>'+
+      '<label class="form-label">Provider</label><select class="form-input" id="kbeProfile" onchange="LaRuche.Settings.updateKanbanEditModelSelect()">'+profOpts+'</select>'+
+      '<label class="form-label">Mod&egrave;le</label><select class="form-input" id="kbeModel">'+modOpts+'</select>'+
+      '<label class="form-label">Canal</label><select class="form-input" id="kbeChannel"><option value="">Défaut du board</option></select>'+
+      '<div style="margin-top:12px;display:flex;gap:8px"><button class="form-btn" onclick="LaRuche.Settings.saveKanbanEdit(\''+id+'\',this)">Enregistrer</button>'+
+      '<button class="form-btn" style="background:none;border:1px solid var(--border);color:var(--text-dim)" onclick="this.closest(\'div[style*=fixed]\')&&this.closest(\'div[style*=fixed]\').remove()">Annuler</button></div></div>';
+    document.body.appendChild(ov);
+    window.__fillChannels(document.getElementById('kbeChannel'), (t&&t.channel)||'', 'Défaut du board');
+  }
+
+  // P1 : repeuple le selecteur modele de l'edition kanban quand on change de provider.
+  function updateKanbanEditModelSelect() {
+    var pId = document.getElementById('kbeProfile').value;
+    var modelSel = document.getElementById('kbeModel');
+    if(!modelSel) return;
+    modelSel.innerHTML = '<option value="">(Par défaut)</option>';
+    if(pId && _profiles[pId] && _profiles[pId].models) {
+      _profiles[pId].models.forEach(function(m){
+        modelSel.innerHTML += '<option value="'+LaRuche.Utils.esc(m)+'">'+LaRuche.Utils.esc(m)+'</option>';
+      });
+    }
+  }
+
+  function saveKanbanEdit(id, btn) {
+    var title=document.getElementById('kbeTitle').value, desc=document.getElementById('kbeDesc').value;
+    var pEl=document.getElementById('kbeProfile'), mEl=document.getElementById('kbeModel');
+    var pId = pEl ? pEl.value : '';
+    var m = mEl ? mEl.value : '';
+    var chEl=document.getElementById('kbeChannel'); var ch = chEl ? chEl.value : '';
+    fetch(LaRuche.API.base+'/api/kanban/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({title: title, description: desc, profile_id: pId||null, model: m||null, channel: ch})})
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Tâche modifiée','ok'); _kanbanLast=''; refreshKanbanCols(); var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove(); } });
+  }
+
+  function kanbanDragStart(e, id) {
+    e.dataTransfer.setData('text/plain', id);
+  }
+
+  function kanbanDragOver(e) {
+    e.preventDefault();
+  }
+
+  function kanbanDrop(e, status) {
+    e.preventDefault();
+    var id = e.dataTransfer.getData('text/plain');
+    if(id) {
+       fetch(LaRuche.API.base+'/api/kanban/'+id+'/status',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:status})})
+         .then(function(r){if(r.ok) { _kanbanLast=''; refreshKanbanCols(); }});
+    }
+  }
+
+  async function saveProviderCfg() {
+    var fallback_models = document.getElementById('cfgProvFallback').value;
+    var max_tokens = parseInt(document.getElementById('cfgProvMaxTokens').value, 10);
+    var temperature = parseFloat(document.getElementById('cfgProvTemp').value);
+    try {
+      var res = await fetch(LaRuche.API.base+'/api/config/provider', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          fallback_models: fallback_models,
+          max_tokens: max_tokens,
+          temperature: temperature
+        })
+      });
+      if(res.ok) LaRuche.Toast.show('Inference config saved','ok');
+      else LaRuche.Toast.show('Save failed','err');
+    } catch(e) { LaRuche.Toast.show('Error: '+e,'err'); }
+  }
+
+  async function loadOnboarding(el) {
+    var data = await fetch(LaRuche.API.base+'/api/onboarding').then(function(r){return r.json();}).catch(function(){return {steps:[],progress:'0/0',complete:false};});
+    var html = '<div style="margin-bottom:16px"><span style="font-size:18px;font-weight:600">Setup Checklist</span>' +
+      '<span style="margin-left:12px;padding:2px 10px;border-radius:10px;font-size:12px;background:'+(data.complete?'var(--green)':'var(--amber)')+';color:#000">'+LaRuche.Utils.esc(data.progress)+'</span></div>';
+    html += '<div style="display:flex;flex-direction:column;gap:12px">';
+    (data.steps||[]).forEach(function(s){
+      var icon = s.done ? '<span style="color:var(--green);font-size:18px;margin-right:8px"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="20 6 9 17 4 12"></polyline></svg></span>' : '<span style="color:var(--red);font-size:18px;margin-right:8px">&#x2717;</span>';
+      html += '<div class="settings-card" style="display:flex;align-items:center">' + icon +
+        '<div><div style="font-weight:600">'+LaRuche.Utils.esc(s.title)+'</div>' +
+        '<div style="font-size:11px;color:var(--text-muted);margin-top:2px">'+LaRuche.Utils.esc(s.instruction)+'</div></div></div>';
+    });
+    html += '</div>';
+    el.innerHTML = html;
+  }
+
+  function saveContextCfg() {
+    var max = parseInt(document.getElementById('cfgCtxMax').value, 10);
+    var th = parseFloat(document.getElementById('cfgCtxThresh').value);
+    fetch(LaRuche.API.base+'/api/config/compaction',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({context_max_messages:max,compaction_threshold:th})})
+      .then(function(r){if(r.ok) LaRuche.Toast.show('Configuration Contexte sauvegardée', 'ok'); else LaRuche.Toast.show('Erreur de sauvegarde', 'err');})
+      .catch(function(e){LaRuche.Toast.show('Error: '+e,'err');});
+  }
+
+  function saveRuntimeCfg() {
+    var body = {
+      max_iterations: parseInt(document.getElementById('cfgMaxIter').value,10),
+      temperature: parseFloat(document.getElementById('cfgTemp').value),
+      max_tokens: parseInt(document.getElementById('cfgMaxTok').value,10),
+      tool_selection_limit: parseInt(document.getElementById('cfgToolLim').value,10),
+      dynamic_context_threshold: parseInt(document.getElementById('cfgCtxThreshold').value,10)
+    };
+    fetch(LaRuche.API.base+'/api/config/runtime',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      .then(function(r){ if(r.ok) LaRuche.Toast.show('Génération appliquée (à chaud)','ok'); else LaRuche.Toast.show('Erreur','err'); })
+      .catch(function(e){ LaRuche.Toast.show('Error: '+e,'err'); });
+  }
+
+  function toggleCurateur(on) {
+    fetch(LaRuche.API.base+'/api/config/curateur',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:!!on})})
+      .then(function(r){return r.json();})
+      .then(function(d){ if(d && d.status==='ok') LaRuche.Toast.show('Curateur '+(on?'activé':'désactivé'),'ok'); else LaRuche.Toast.show('Échec curateur','err'); })
+      .catch(function(){ LaRuche.Toast.show('Échec curateur','err'); });
+  }
+  function toggleDynamicTools(on) {
+    fetch(LaRuche.API.base+'/api/config/curateur',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({dynamic_tools:!!on})})
+      .then(function(r){return r.json();})
+      .then(function(d){ if(d && d.status==='ok') LaRuche.Toast.show('Sélection dynamique des outils '+(on?'activée':'désactivée'),'ok'); else LaRuche.Toast.show('Échec','err'); })
+      .catch(function(){ LaRuche.Toast.show('Échec','err'); });
+  }
+
+  function saveChannels() {
+    var config = {
+      telegram: { bot_token: document.getElementById('ch-tg-token').value, allowed_chats: document.getElementById('ch-tg-chats').value, enabled: !!document.getElementById('ch-tg-token').value },
+      discord: { bot_token: document.getElementById('ch-dc-token').value, allowed_channels: document.getElementById('ch-dc-channels').value, enabled: !!document.getElementById('ch-dc-token').value },
+      slack: { bot_token: document.getElementById('ch-sl-bot').value, app_token: document.getElementById('ch-sl-app').value, enabled: !!document.getElementById('ch-sl-bot').value },
+    };
+    var notifyEnabled = document.getElementById('ch-notify-en') ? document.getElementById('ch-notify-en').checked : false;
+    Promise.all([
+      fetch(LaRuche.API.base+'/api/config/channels',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)}),
+      fetch(LaRuche.API.base+'/api/config/notify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:notifyEnabled})})
+    ])
+      .then(function(){LaRuche.Toast.show('Channels config saved','ok');})
+      .catch(function(e){LaRuche.Toast.show('Error: '+e,'err');});
+  }
+
+  async function loadKnowledge(el) {
+    var data = await fetch(LaRuche.API.base+'/api/knowledge').then(function(r){return r.json();}).catch(function(){return {entries:[],count:0};});
+    var html = '<div style="margin-bottom:16px;display:flex;gap:8px;align-items:end">' +
+      '<div style="flex:1"><label class="form-label">Ajouter une connaissance</label><input class="form-input" id="kb-text" placeholder="Information a memoriser..."></div>' +
+      '<div><label class="form-label">Source</label><input class="form-input" id="kb-source" placeholder="optionnel" style="width:150px"></div>' +
+      '<button class="form-btn" onclick="LaRuche.Settings.addKnowledge()">Ajouter</button></div>';
+    html += '<div style="margin-bottom:16px;display:flex;gap:8px;">' +
+      '<button class="form-btn" onclick="LaRuche.Settings.exportOkf()">Export OKF</button>' +
+      '<button class="form-btn" onclick="LaRuche.Settings.importOkf()">Import OKF</button>' +
+      '</div>';
+    html += '<div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">'+data.count+' entree(s) dans la base de connaissances</div>';
+    if(data.entries && data.entries.length > 0) {
+      html += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
+      html += '<tr><th style="text-align:left;padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">ID</th>';
+      html += '<th style="text-align:left;padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">Texte</th>';
+      html += '<th style="padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">Source</th>';
+      html += '<th style="padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">Actions</th></tr>';
+      data.entries.forEach(function(e) {
+        html += '<tr><td style="padding:6px;border-bottom:1px solid rgba(42,42,46,.3);font-family:var(--mono);font-size:10px;color:var(--text-muted)">'+LaRuche.Utils.esc(e.id)+'</td>';
+        html += '<td style="padding:6px;border-bottom:1px solid rgba(42,42,46,.3)">'+LaRuche.Utils.esc((e.text||'').substring(0,100))+'</td>';
+        html += '<td style="padding:6px;border-bottom:1px solid rgba(42,42,46,.3);color:var(--text-dim)">'+LaRuche.Utils.esc(e.source||'-')+'</td>';
+        html += '<td style="padding:6px;border-bottom:1px solid rgba(42,42,46,.3);text-align:center">' +
+          '<button onclick="LaRuche.Settings.editKnowledge(\''+e.id+'\',this)" style="background:none;border:1px solid var(--amber);color:var(--amber);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;margin-right:4px">Editer</button>' +
+          '<button onclick="LaRuche.Settings.deleteKnowledge(\''+e.id+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">Suppr</button></td></tr>';
+      });
+      html += '</table>';
+    } else {
+      html += '<div style="text-align:center;color:var(--text-muted);padding:30px">Base vide. L\'agent peut ajouter des connaissances via l\'outil knowledge_add, ou ajoutez-en manuellement ci-dessus.</div>';
+    }
+    el.innerHTML = html;
+  }
+
+  function addKnowledge() {
+    var text = document.getElementById('kb-text').value;
+    var source = document.getElementById('kb-source').value;
+    if(!text) return;
+    fetch(LaRuche.API.base+'/api/knowledge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text,source:source||'manual'})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.error) LaRuche.Toast.show('Erreur: '+d.error,'err');
+        else { LaRuche.Toast.show('Connaissance ajoutee ('+d.id+')','ok'); loadTab('knowledge'); }
+      })
+      .catch(function(e){LaRuche.Toast.show('Erreur: '+e,'err');});
+  }
+
+  function exportOkf() {
+    // Telechargement .zip navigateur (toute la memoire) au lieu d'un dossier serveur.
+    var a = document.createElement('a');
+    a.href = LaRuche.API.base+'/api/memory/export.zip';
+    a.download = ''; a.style.display = 'none';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ a.remove(); }, 0);
+    LaRuche.Toast.show('Telechargement OKF lance (tout)', 'ok');
+  }
+
+  function importOkf() {
+    fetch(LaRuche.API.base+'/api/memory/import_okf?dir=okf-export', {method:'POST'})
+      .then(function(r){return r.json();})
+      .then(function(res){
+        if(res.ok) {
+            LaRuche.Toast.show('OKF importe avec succes', 'ok');
+            loadKnowledge(document.getElementById('settings-content'));
+        }
+        else LaRuche.Toast.show('Erreur import: ' + res.error, 'err');
+      });
+  }
+
+  function editKnowledge(id, btn) {
+    var row = btn.closest('tr');
+    var textCell = row.cells[1];
+    var sourceCell = row.cells[2];
+    var currentText = textCell.textContent;
+    var currentSource = sourceCell.textContent === '-' ? '' : sourceCell.textContent;
+
+    // Replace cells with inputs
+    textCell.innerHTML = '<textarea style="width:100%;background:var(--bg-input);border:1px solid var(--amber);border-radius:4px;color:var(--text);padding:4px;font-size:11px;min-height:50px;resize:vertical">'+LaRuche.Utils.esc(currentText)+'</textarea>';
+    sourceCell.innerHTML = '<input style="width:100%;background:var(--bg-input);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:4px;font-size:11px" value="'+LaRuche.Utils.esc(currentSource)+'">';
+
+    // Replace buttons with Save/Cancel
+    var actionsCell = row.cells[3];
+    actionsCell.innerHTML = '<button onclick="LaRuche.Settings.saveKnowledgeEdit(\''+id+'\',this)" style="background:var(--green);color:#000;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;margin-right:4px">OK</button>' +
+      '<button onclick="LaRuche.Settings.refreshTab()" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">Annuler</button>';
+  }
+
+  function saveKnowledgeEdit(id, btn) {
+    var row = btn.closest('tr');
+    var newText = row.cells[1].querySelector('textarea').value;
+    var newSource = row.cells[2].querySelector('input').value;
+    fetch(LaRuche.API.base+'/api/knowledge/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:newText,source:newSource||'manual'})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.error) LaRuche.Toast.show('Erreur: '+d.error,'err');
+        else { LaRuche.Toast.show('Mis a jour','ok'); loadTab('knowledge'); }
+      })
+      .catch(function(e){LaRuche.Toast.show('Erreur: '+e,'err');});
+  }
+
+  function deleteKnowledge(id) {
+    fetch(LaRuche.API.base+'/api/knowledge/'+id,{method:'DELETE'})
+      .then(function(){LaRuche.Toast.show('Supprime','ok'); loadTab('knowledge');})
+      .catch(function(e){LaRuche.Toast.show('Erreur: '+e,'err');});
+  }
+
+  function refreshTab() { loadTab(currentTab); }
+
+  function startChannel(name) {
+    fetch(LaRuche.API.base+'/api/channels/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({channel:name})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.status==='started') LaRuche.Toast.show(name+' demarre !','ok');
+        else if(d.status==='already_running') LaRuche.Toast.show(name+' deja en marche','info');
+        else LaRuche.Toast.show(d.message||'Erreur','err');
+        loadTab('channels');
+      });
+  }
+
+  function stopChannel(name) {
+    fetch(LaRuche.API.base+'/api/channels/stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({channel:name})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        LaRuche.Toast.show(name+' arrete','ok');
+        loadTab('channels');
+      });
+  }
+
+    var _bpCronBuilderId = null; // instance CronBuilder du formulaire de creation
+
+    async function loadBlueprints(el) {
+    var bps=[];try{bps=await fetch('/api/blueprints').then(function(r){return r.json();});}catch(e){}
+    window._blueprints = bps || [];
+    var head = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap">' +
+      '<span style="color:var(--amber);font-size:12px;">Sélectionnez un blueprint pour l\'instancier en tant que tâche cron.</span>' +
+      '<button class="settings-save-btn" onclick="LaRuche.Settings.openNewBlueprintForm()">+ Nouveau blueprint</button>' +
+      '</div>';
+    var creationSlot = '<div id="bpNewFormWrap"></div>';
+    var cards = (!window._blueprints.length)
+      ? '<div style="text-align:center;color:var(--text-muted);padding:20px">Aucun blueprint disponible</div>'
+      : window._blueprints.map(function(b, idx) {
+        return '<div class="settings-card" style="margin-bottom:12px;cursor:pointer;" onclick="LaRuche.Settings.openBlueprintForm('+idx+')">' +
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
+            '<div style="flex:1">' +
+              '<div class="settings-card-title">'+LaRuche.Utils.esc(b.title||b.id)+'</div>' +
+              '<div style="font-size:12px;color:var(--text-dim);margin-top:4px;">'+LaRuche.Utils.esc(b.description||'')+'</div>' +
+            '</div>' +
+            '<button onclick="event.stopPropagation();LaRuche.Settings.deleteBlueprint('+idx+')" title="Supprimer ce blueprint perso" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;flex:0 0 auto">Supprimer</button>' +
+          '</div>' +
+          '<div id="bpForm_'+idx+'" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border);" onclick="event.stopPropagation()">' +
+            (b.slots||[]).map(function(slot){
+              return '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.Utils.esc(slot.label||slot.name)+'</label><input id="bpInput_'+idx+'_'+slot.name+'" class="form-input" placeholder="'+LaRuche.Utils.esc(slot.placeholder||slot.default||'')+'" value="'+LaRuche.Utils.esc(slot.default||'')+'"></div>';
+            }).join('') +
+            '<button class="settings-save-btn" style="margin-top:8px" onclick="LaRuche.Settings.instanciateBlueprint('+idx+')">Instancier</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    el.innerHTML = head + creationSlot + cards;
+  }
+
+  // --- Formulaire de creation d'un blueprint perso ---
+  function bpSlotRowHtml(){
+    return '<div class="bp-slot-row" style="display:flex;gap:6px;margin-bottom:6px;align-items:center">' +
+      '<input class="form-input bp-slot-name" placeholder="name" style="flex:1">' +
+      '<input class="form-input bp-slot-label" placeholder="label" style="flex:1">' +
+      '<input class="form-input bp-slot-default" placeholder="default" style="flex:1">' +
+      '<button onclick="this.parentNode.remove()" title="Supprimer cette variable" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;flex:0 0 auto">×</button>' +
+      '</div>';
+  }
+
+  function addBlueprintSlotRow(){
+    var box = document.getElementById('bpSlotsList');
+    if(!box) return;
+    var tmp = document.createElement('div'); tmp.innerHTML = bpSlotRowHtml();
+    box.appendChild(tmp.firstChild);
+  }
+
+  function openNewBlueprintForm(){
+    var wrap = document.getElementById('bpNewFormWrap');
+    if(!wrap) return;
+    if(wrap.dataset.open === '1'){ wrap.innerHTML=''; wrap.dataset.open='0'; _bpCronBuilderId=null; return; }
+    wrap.dataset.open = '1';
+    wrap.innerHTML =
+      '<div class="settings-card" style="margin-bottom:12px;border:1px solid var(--amber)">' +
+        '<div class="settings-card-title">Nouveau blueprint</div>' +
+        '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">Titre</label>' +
+          '<input id="bpNewTitle" class="form-input" placeholder="Ex: Veille quotidienne"></div>' +
+        '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">Prompt (template)</label>' +
+          '<textarea id="bpNewPrompt" class="form-input" style="min-height:90px;resize:vertical" placeholder="Utilise {nom} pour referencer une variable..."></textarea></div>' +
+        '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">Cadence (cron)</label><div id="bpNewCron"></div></div>' +
+        '<div style="margin-top:10px"><label style="font-size:10px;color:var(--text-dim)">Variables (slots) — referencees via <code>{name}</code> dans les templates</label>' +
+          '<div id="bpSlotsList" style="margin-top:6px"></div>' +
+          '<button onclick="LaRuche.Settings.addBlueprintSlotRow()" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:4px 10px;cursor:pointer;font-size:11px;margin-top:2px">+ Variable</button>' +
+        '</div>' +
+        '<div style="margin-top:12px;display:flex;gap:8px">' +
+          '<button class="settings-save-btn" onclick="LaRuche.Settings.saveNewBlueprint()">Créer le blueprint</button>' +
+          '<button onclick="LaRuche.Settings.openNewBlueprintForm()" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px">Annuler</button>' +
+        '</div>' +
+      '</div>';
+    _bpCronBuilderId = (LaRuche.CronBuilder) ? LaRuche.CronBuilder.mount('bpNewCron', { value:'' }) : null;
+    addBlueprintSlotRow();
+  }
+
+  function saveNewBlueprint(){
+    var title = (document.getElementById('bpNewTitle')||{}).value || '';
+    var prompt = (document.getElementById('bpNewPrompt')||{}).value || '';
+    var cron = (_bpCronBuilderId && LaRuche.CronBuilder) ? LaRuche.CronBuilder.getValue(_bpCronBuilderId) : '';
+    title = title.trim();
+    if(!title){ LaRuche.Toast.show('Titre requis','warn'); return; }
+    if(!prompt.trim()){ LaRuche.Toast.show('Prompt requis','warn'); return; }
+    var slots = [];
+    document.querySelectorAll('#bpSlotsList .bp-slot-row').forEach(function(row){
+      var name = (row.querySelector('.bp-slot-name')||{}).value || '';
+      name = name.trim();
+      if(!name) return;
+      slots.push({
+        name: name,
+        label: ((row.querySelector('.bp-slot-label')||{}).value || '').trim() || name,
+        default: ((row.querySelector('.bp-slot-default')||{}).value || '').trim()
+      });
+    });
+    var body = { title:title, prompt_template:prompt, schedule_template:cron, slots:slots };
+    fetch('/api/blueprints', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+    }).then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ return {ok:r.ok, d:d}; }); })
+      .then(function(res){
+        if(res.ok && !(res.d && res.d.error)){
+          LaRuche.Toast.show('Blueprint créé','ok');
+          var el = document.getElementById('autoContent'); if(el) loadBlueprints(el);
+        } else {
+          LaRuche.Toast.show('Erreur création: '+((res.d&&res.d.error)||'?'),'err');
+        }
+      }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e,'err'); });
+  }
+
+  function deleteBlueprint(idx){
+    var b = window._blueprints[idx]; if(!b) return;
+    if(!window.confirm('Supprimer le blueprint "'+(b.title||b.id)+'" ? (les blueprints intégrés ne peuvent pas être supprimés)')) return;
+    fetch('/api/blueprints/'+encodeURIComponent(b.id), { method:'DELETE' })
+      .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ return {ok:r.ok, d:d}; }); })
+      .then(function(res){
+        if(res.ok && !(res.d && res.d.error)){
+          LaRuche.Toast.show('Blueprint supprimé','ok');
+          var el = document.getElementById('autoContent'); if(el) loadBlueprints(el);
+        } else {
+          LaRuche.Toast.show('Suppression refusée: '+((res.d&&res.d.error)||'blueprint intégré ?'),'err');
+        }
+      }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e,'err'); });
+  }
+
+  function openBlueprintForm(idx) {
+    var form = document.getElementById('bpForm_'+idx);
+    if(!form) return;
+    if (form.style.display === 'none') {
+      form.style.display = 'block';
+    } else {
+      form.style.display = 'none';
+    }
+  }
+
+  function instanciateBlueprint(idx) {
+    var b = window._blueprints[idx];
+    var slotsData = {};
+    (b.slots||[]).forEach(function(slot){
+      var inp = document.getElementById('bpInput_'+idx+'_'+slot.name);
+      slotsData[slot.name] = inp ? inp.value : '';
+    });
+    fetch('/api/blueprints/'+encodeURIComponent(b.id)+'/instancier', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(slotsData)
+    }).then(function(res) {
+      if(res.ok) {
+        LaRuche.Toast.show('Blueprint instancié avec succès', 'ok');
+        document.getElementById('bpForm_'+idx).style.display = 'none';
+      } else {
+        LaRuche.Toast.show('Erreur d\'instanciation', 'err');
+      }
+    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+  }
+
+  return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+})();
+
+/* ── CronBuilder : composant "human-friendly" reutilisable (missions + cron) ── */
+LaRuche.CronBuilder = (function(){
+  var DOW = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+  var instances = {}; // id -> config
+
+  function ensureStyle(){
+    if(document.getElementById('lr-cb-style')) return;
+    var s=document.createElement('style'); s.id='lr-cb-style';
+    s.textContent='.cb-wrap{border:1px solid var(--border);border-radius:8px;padding:10px;background:rgba(20,20,22,0.5)}'+
+      '.cb-row{display:flex;flex-wrap:wrap;gap:8px;align-items:end;margin-bottom:8px}'+
+      '.cb-field{display:flex;flex-direction:column;gap:3px}'+
+      '.cb-field label{font-size:10px;color:var(--text-dim)}'+
+      '.cb-wrap select.form-input,.cb-wrap input.form-input{padding:5px 7px}'+
+      '.cb-num{width:72px}'+
+      '.cb-preview{font-size:11px;color:var(--text-dim);display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:4px}'+
+      '.cb-preview b{color:var(--amber);font-weight:600}'+
+      '.cb-preview code{color:var(--cyan);background:rgba(0,0,0,.3);padding:1px 6px;border-radius:4px;font-family:var(--mono,monospace)}'+
+      '.cb-expert-toggle{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:10px;text-decoration:underline;padding:0;margin-left:auto}'+
+      '.cb-expert-toggle:hover{color:var(--amber)}';
+    document.head.appendChild(s);
+  }
+
+  // Lit l'etat des controles d'une instance et produit l'expression cron 5 champs.
+  function buildExpr(id){
+    var cfg = instances[id]; if(!cfg) return '';
+    if(cfg.expert){
+      var raw=document.getElementById(id+'_raw'); return raw?(raw.value||'').trim():'';
+    }
+    function val(suf, dflt){ var e=document.getElementById(id+'_'+suf); return e?e.value:dflt; }
+    var preset = val('preset','daily');
+    var hh = parseInt(val('hh','9'),10); if(isNaN(hh))hh=0;
+    var mm = parseInt(val('mm','0'),10); if(isNaN(mm))mm=0;
+    var n = parseInt(val('n','1'),10); if(isNaN(n)||n<1)n=1;
+    var dow = val('dow','1');
+    var dom = parseInt(val('dom','1'),10); if(isNaN(dom)||dom<1)dom=1; if(dom>31)dom=31;
+    switch(preset){
+      case 'daily':   return mm+' '+hh+' * * *';
+      case 'weekly':  return mm+' '+hh+' * * '+dow;
+      case 'hours':   return '0 */'+n+' * * *';
+      case 'minutes': return '*/'+n+' * * * *';
+      case 'monthly': return mm+' '+hh+' '+dom+' * *';
+      default:        return mm+' '+hh+' * * *';
+    }
+  }
+
+  function humanOf(id){
+    var expr = buildExpr(id);
+    if(!expr) return 'aucune cadence (manuel)';
+    // Reutilise le rendu humain de la Timeline si dispo.
+    if(LaRuche.Timeline && LaRuche.Timeline.humanCron) return LaRuche.Timeline.humanCron(expr);
+    return expr;
+  }
+
+  function refresh(id){
+    var cfg = instances[id]; if(!cfg) return;
+    var prevEl=document.getElementById(id+'_humanPrev'), codeEl=document.getElementById(id+'_codePrev');
+    var expr = buildExpr(id);
+    if(prevEl) prevEl.textContent = expr ? humanOf(id) : 'aucune cadence (manuel)';
+    if(codeEl) codeEl.textContent = expr || '—';
+    // Affiche/cache les champs selon le preset (mode simple).
+    if(!cfg.expert){
+      var preset=(document.getElementById(id+'_preset')||{}).value||'daily';
+      function show(suf, on){ var w=document.getElementById(id+'_w_'+suf); if(w) w.style.display = on?'':'none'; }
+      show('time', preset==='daily'||preset==='weekly'||preset==='monthly');
+      show('dow', preset==='weekly');
+      show('dom', preset==='monthly');
+      show('n', preset==='hours'||preset==='minutes');
+      var nl=document.getElementById(id+'_nlabel');
+      if(nl) nl.textContent = preset==='hours'?'heures':'minutes';
+    }
+    if(typeof cfg.onChange==='function') cfg.onChange(expr);
+  }
+
+  function toggleExpert(id){
+    var cfg=instances[id]; if(!cfg) return;
+    cfg.expert = !cfg.expert;
+    var simple=document.getElementById(id+'_simple'), expert=document.getElementById(id+'_expert');
+    if(cfg.expert && simple){ // bascule simple -> expert : pre-remplit l'expression
+      var raw=document.getElementById(id+'_raw'); if(raw) raw.value = buildExpr(id);
+    }
+    if(simple) simple.style.display = cfg.expert?'none':'';
+    if(expert) expert.style.display = cfg.expert?'':'none';
+    var t=document.getElementById(id+'_expertBtn'); if(t) t.textContent = cfg.expert?'Mode simple':'Mode expert';
+    refresh(id);
+  }
+
+  // Devine un preset depuis une expression existante (best-effort) pour pre-remplir.
+  function parseInitial(expr){
+    var def={preset:'daily',hh:9,mm:0,n:1,dow:1,dom:1,expert:false};
+    if(!expr) return def;
+    var p=String(expr).trim().split(/\s+/);
+    if(p.length<5){ def.expert=true; return def; }
+    var m=p[0],h=p[1],dom=p[2],dow=p[4];
+    function isInt(x){ return /^\d+$/.test(x); }
+    if(/^\*\/\d+$/.test(m) && h==='*'){ return {preset:'minutes',n:parseInt(m.split('/')[1],10),hh:9,mm:0,dow:1,dom:1,expert:false}; }
+    if(m==='0' && /^\*\/\d+$/.test(h)){ return {preset:'hours',n:parseInt(h.split('/')[1],10),hh:9,mm:0,dow:1,dom:1,expert:false}; }
+    if(isInt(m)&&isInt(h)&&dom==='*'&&dow==='*'){ return {preset:'daily',hh:+h,mm:+m,n:1,dow:1,dom:1,expert:false}; }
+    if(isInt(m)&&isInt(h)&&dom==='*'&&isInt(dow)){ return {preset:'weekly',hh:+h,mm:+m,dow:+dow,n:1,dom:1,expert:false}; }
+    if(isInt(m)&&isInt(h)&&isInt(dom)){ return {preset:'monthly',hh:+h,mm:+m,dom:+dom,n:1,dow:1,expert:false}; }
+    def.expert=true; return def; // non reconnu -> mode expert
+  }
+
+  // Cree un builder dans le conteneur (host = element OU id). Retourne l'id d'instance.
+  // opts: { value: exprInitiale, onChange: fn(expr) }
+  function mount(host, opts){
+    ensureStyle();
+    opts = opts || {};
+    var el = (typeof host==='string') ? document.getElementById(host) : host;
+    if(!el) return null;
+    var id = 'cb_'+Math.random().toString(36).slice(2,9);
+    var init = parseInitial(opts.value||'');
+    instances[id] = { onChange: opts.onChange, expert: init.expert };
+    function hopt(sel,n){ var o=''; for(var i=0;i<24;i++){ o+='<option value="'+i+'"'+(i===n?' selected':'')+'>'+('0'+i).slice(-2)+'</option>'; } return o; }
+    function mopt(n){ var o=''; for(var i=0;i<60;i+=5){ o+='<option value="'+i+'"'+(i===n?' selected':'')+'>'+('0'+i).slice(-2)+'</option>'; } if(n%5){ o+='<option value="'+n+'" selected>'+('0'+n).slice(-2)+'</option>'; } return o; }
+    function dowopt(n){ var o=''; for(var i=1;i<=6;i++){ o+='<option value="'+i+'"'+(i===n?' selected':'')+'>'+DOW[i].charAt(0).toUpperCase()+DOW[i].slice(1)+'</option>'; } o+='<option value="0"'+(n===0?' selected':'')+'>Dimanche</option>'; return o; }
+    var pre=init.preset;
+    function presetOpt(v,lbl){ return '<option value="'+v+'"'+(v===pre?' selected':'')+'>'+lbl+'</option>'; }
+    var oc="LaRuche.CronBuilder.changed('"+id+"')";
+    el.innerHTML =
+      '<div class="cb-wrap">'+
+        '<div id="'+id+'_simple"'+(init.expert?' style="display:none"':'')+'>'+
+          '<div class="cb-row">'+
+            '<div class="cb-field"><label>Frequence</label><select class="form-input" id="'+id+'_preset" onchange="'+oc+'">'+
+              presetOpt('daily','Chaque jour')+presetOpt('weekly','Chaque semaine')+presetOpt('hours','Toutes les N heures')+presetOpt('minutes','Toutes les N minutes')+presetOpt('monthly','Chaque mois')+
+            '</select></div>'+
+            '<div class="cb-field" id="'+id+'_w_dow"><label>Jour</label><select class="form-input" id="'+id+'_dow" onchange="'+oc+'">'+dowopt(init.dow)+'</select></div>'+
+            '<div class="cb-field" id="'+id+'_w_dom"><label>Jour du mois</label><input class="form-input cb-num" type="number" min="1" max="31" id="'+id+'_dom" value="'+init.dom+'" oninput="'+oc+'"></div>'+
+            '<div class="cb-field" id="'+id+'_w_n"><label>N (<span id="'+id+'_nlabel">heures</span>)</label><input class="form-input cb-num" type="number" min="1" id="'+id+'_n" value="'+init.n+'" oninput="'+oc+'"></div>'+
+            '<div class="cb-field" id="'+id+'_w_time"><label>Heure</label><div style="display:flex;gap:4px;align-items:center"><select class="form-input" id="'+id+'_hh" onchange="'+oc+'">'+hopt('hh',init.hh)+'</select><span style="color:var(--text-dim)">:</span><select class="form-input" id="'+id+'_mm" onchange="'+oc+'">'+mopt(init.mm)+'</select></div></div>'+
+          '</div>'+
+        '</div>'+
+        '<div id="'+id+'_expert"'+(init.expert?'':' style="display:none"')+'>'+
+          '<div class="cb-field"><label>Expression cron (5 champs)</label><input class="form-input" id="'+id+'_raw" placeholder="*/30 * * * *" value="'+LaRuche.Utils.esc(init.expert?(opts.value||''):'')+'" oninput="'+oc+'"></div>'+
+        '</div>'+
+        '<div class="cb-preview">'+
+          '<span>&#x21B3; <b id="'+id+'_humanPrev">—</b></span>'+
+          '<code id="'+id+'_codePrev">—</code>'+
+          '<button type="button" class="cb-expert-toggle" id="'+id+'_expertBtn" onclick="LaRuche.CronBuilder.toggleExpert(\''+id+'\')">'+(init.expert?'Mode simple':'Mode expert')+'</button>'+
+        '</div>'+
+      '</div>';
+    refresh(id);
+    return id;
+  }
+
+  function getValue(id){ return buildExpr(id); }
+
+  return { mount:mount, getValue:getValue, changed:refresh, toggleExpert:toggleExpert };
+})();
+
+/* ── Timeline (planning global cron + missions + watchers) ── */
+LaRuche.Timeline = (function(){
+  var DOW = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+
+  // Parse un champ cron (5 champs) en liste de valeurs autorisees [min,max].
+  function parseField(field, min, max){
+    var out = [];
+    String(field).split(',').forEach(function(part){
+      var step = 1, range = part;
+      var sl = part.split('/');
+      if(sl.length===2){ range = sl[0]; step = parseInt(sl[1],10)||1; }
+      var lo, hi;
+      if(range==='*' || range===''){ lo=min; hi=max; }
+      else if(range.indexOf('-')!==-1){ var pr=range.split('-'); lo=parseInt(pr[0],10); hi=parseInt(pr[1],10); }
+      else { lo=hi=parseInt(range,10); }
+      if(isNaN(lo)) return;
+      if(isNaN(hi)) hi=lo;
+      for(var v=lo; v<=hi; v+=step){ if(v>=min && v<=max) out.push(v); }
+    });
+    return out.length ? out : null;
+  }
+
+  // Prochaine occurrence (ms epoch) d'une expression cron 5 champs, ou null.
+  function nextCron(expr, fromMs){
+    if(!expr) return null;
+    var p = String(expr).trim().split(/\s+/);
+    if(p.length < 5) return null;
+    var mins = parseField(p[0],0,59), hours = parseField(p[1],0,23),
+        doms = parseField(p[2],1,31), mons = parseField(p[3],1,12), dows = parseField(p[4],0,6);
+    if(!mins||!hours||!doms||!mons||!dows) return null;
+    var domRestricted = (p[2]!=='*'), dowRestricted = (p[4]!=='*');
+    var d = new Date(fromMs||Date.now());
+    d.setSeconds(0,0); d.setMinutes(d.getMinutes()+1);
+    for(var guard=0; guard<525600; guard++){ // <= 1 an de minutes
+      if(mons.indexOf(d.getMonth()+1)===-1){ d.setMonth(d.getMonth()+1,1); d.setHours(0,0,0,0); continue; }
+      var domOk = doms.indexOf(d.getDate())!==-1, dowOk = dows.indexOf(d.getDay())!==-1;
+      var dayOk = (domRestricted && dowRestricted) ? (domOk||dowOk) : (domOk && dowOk);
+      if(!dayOk){ d.setDate(d.getDate()+1); d.setHours(0,0,0,0); continue; }
+      if(hours.indexOf(d.getHours())===-1){ d.setHours(d.getHours()+1,0,0,0); continue; }
+      if(mins.indexOf(d.getMinutes())===-1){ d.setMinutes(d.getMinutes()+1,0,0); continue; }
+      return d.getTime();
+    }
+    return null;
+  }
+
+  // Liste les occurrences d'une expression cron dans [fromMs, toMs] (max ~400).
+  function occurrencesIn(expr, fromMs, toMs){
+    var out=[]; if(!expr) return out;
+    var t = nextCron(expr, fromMs-60000);
+    var guard=0;
+    while(t!=null && t<=toMs && guard<400){ out.push(t); t = nextCron(expr, t); guard++; }
+    return out;
+  }
+
+  // Libelle humain approximatif d'une expression cron.
+  function humanCron(expr){
+    if(!expr) return 'manuel';
+    var p = String(expr).trim().split(/\s+/);
+    if(p.length < 5) return expr;
+    var m=p[0], h=p[1], dom=p[2], mon=p[3], dow=p[4];
+    function hhmm(){ var hh=parseInt(h,10), mm=parseInt(m,10); if(isNaN(hh)||isNaN(mm)) return null; return ('0'+hh).slice(-2)+'h'+('0'+mm).slice(-2); }
+    if(m.indexOf('/')===0 || m.indexOf('*/')===0){ var st=m.split('/')[1]; return 'toutes les '+st+' min'; }
+    if(h==='*' && m!=='*'){ return 'a la minute '+m+' de chaque heure'; }
+    if(dom==='*' && dow==='*' && mon==='*'){ var t=hhmm(); return t?('chaque jour a '+t):('chaque jour'); }
+    if(dow!=='*' && dom==='*'){ var t2=hhmm(); var days=dow.split(',').map(function(x){var n=parseInt(x,10);return isNaN(n)?x:DOW[n%7];}).join(', '); return 'chaque '+days+(t2?(' a '+t2):''); }
+    if(dom!=='*'){ var t3=hhmm(); return 'le '+dom+' du mois'+(t3?(' a '+t3):''); }
+    return expr;
+  }
+
+  function fmtWhen(ms){
+    if(!ms) return '—';
+    var d = new Date(ms), now = new Date();
+    var sameDay = d.toDateString()===now.toDateString();
+    var tom = new Date(now.getTime()+86400000);
+    var time = ('0'+d.getHours()).slice(-2)+'h'+('0'+d.getMinutes()).slice(-2);
+    if(sameDay) return "Aujourd'hui "+time;
+    if(d.toDateString()===tom.toDateString()) return 'Demain '+time;
+    return d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'})+' '+time;
+  }
+
+  function bucketOf(ms){
+    if(!ms) return 'later';
+    var now = new Date();
+    var endToday = new Date(now); endToday.setHours(23,59,59,999);
+    var endWeek = new Date(now.getTime()+7*86400000);
+    if(ms <= endToday.getTime()) return 'today';
+    if(ms <= endWeek.getTime()) return 'week';
+    return 'later';
+  }
+
+  async function gather(){
+    var crons=[], missions=[], watchers=[];
+    try{ crons = await fetch('/api/cron').then(function(r){return r.json();}); }catch(e){}
+    try{ missions = await fetch('/api/missions').then(function(r){return r.json();}); }catch(e){}
+    try{ watchers = await fetch('/api/watchers').then(function(r){return r.json();}); }catch(e){}
+    var now = Date.now();
+    var events = [];
+    (crons||[]).forEach(function(c){
+      if(c.enabled===false) return;
+      var nx = nextCron(c.cron_expr, now);
+      events.push({kind:'cron', id:c.id, name:c.name||'(cron sans nom)', expr:c.cron_expr||'', human:humanCron(c.cron_expr),
+        next:nx, last:c.last_run||null, runs:c.run_count||0, status:c.last_status||'', icon:'⏰', color:'var(--amber)'});
+    });
+    (missions||[]).forEach(function(mi){
+      var cad = mi.cadence || mi.cron_expr || mi.schedule || '';
+      var nx = cad ? nextCron(cad, now) : null;
+      events.push({kind:'mission', slug:mi.slug, name:mi.objective||mi.title||mi.slug||'(mission)', expr:cad, human:cad?humanCron(cad):'a la demande',
+        next:nx, last:mi.last_run||mi.updated_at||null, runs:mi.run_count||0, status:mi.status||'', icon:'👑', color:'var(--purple)'});
+    });
+    return { events:events, watchers:(watchers||[]) };
+  }
+
+  function eventRow(e){
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-panel);margin-bottom:8px">'+
+      '<div style="font-size:18px;width:24px;text-align:center">'+e.icon+'</div>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+LaRuche.Utils.esc(e.name)+
+          ' <span style="font-size:9px;border:1px solid '+e.color+';color:'+e.color+';padding:1px 5px;border-radius:8px;margin-left:6px">'+(e.kind==='cron'?'Cron':'Mission')+'</span></div>'+
+        '<div style="font-size:11px;color:var(--text-dim)">'+LaRuche.Utils.esc(e.human)+(e.expr?(' · <code style="color:var(--text-dim)">'+LaRuche.Utils.esc(e.expr)+'</code>'):'')+
+          ' · dernier : '+(e.last?LaRuche.Utils.esc(String(e.last).substring(0,16).replace('T',' ')):'jamais')+'</div>'+
+      '</div>'+
+      '<div style="text-align:right;white-space:nowrap"><div style="font-weight:600;color:'+e.color+';font-size:12px">'+fmtWhen(e.next)+'</div>'+
+        '<div style="font-size:10px;color:var(--text-dim)">'+(e.runs||0)+' run(s)'+(e.status?(' · '+LaRuche.Utils.esc(e.status)):'')+'</div></div>'+
+      '</div>';
+  }
+
+  function section(title, rows){
+    return '<div style="margin-bottom:18px"><div style="font-size:12px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">'+title+'</div>'+
+      (rows||'<div style="color:var(--text-dim);font-size:11px;padding:4px 0">Rien de prevu.</div>')+'</div>';
+  }
+
+  function ensureBtnStyle(){
+    if(document.getElementById('lr-tlbtn-style')) return;
+    var s=document.createElement('style'); s.id='lr-tlbtn-style';
+    s.textContent='.tl-btn{background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:4px 12px;cursor:pointer;font-size:11px}.tl-btn:hover{border-color:var(--amber);color:var(--amber)}';
+    document.head.appendChild(s);
+  }
+
+  // ── Etat partage (mode d'affichage + fenetre Gantt) ──
+  var _viewMode = (function(){ try{ return localStorage.getItem('lr_tl_view')||'agenda'; }catch(e){ return 'agenda'; } })();
+  var _ganttSpanH = 24;          // fenetre visible en heures (24/48/168)
+  var _ganttFromMs = null;       // bord gauche de la fenetre
+  var _lastData = null;          // donnees gather() en cache (pour re-render rapide)
+  var _hostEl = null;
+
+  function ensureGanttStyle(){
+    if(document.getElementById('lr-gantt-style')) return;
+    var s=document.createElement('style'); s.id='lr-gantt-style';
+    s.textContent=
+      '.gantt-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px}'+
+      '.gantt-scroll{overflow-x:auto;overflow-y:hidden;border:1px solid var(--border);border-radius:8px;background:var(--bg-panel);-webkit-overflow-scrolling:touch}'+
+      '.gantt-grid{position:relative}'+
+      '.gantt-row{display:flex;align-items:stretch;border-bottom:1px solid rgba(42,42,46,.5);min-height:42px}'+
+      '.gantt-row.sect{background:rgba(245,158,11,.06)}'+
+      '.gantt-gutter{position:sticky;left:0;z-index:3;flex:0 0 auto;width:170px;background:var(--bg-panel);border-right:1px solid var(--border);padding:6px 8px;display:flex;flex-direction:column;justify-content:center;overflow:hidden}'+
+      '.gantt-gutter .gn{font-size:11px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
+      '.gantt-gutter .gs{font-size:9px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
+      '.gantt-lane{position:relative;flex:1 1 auto}'+
+      '.gantt-head{position:sticky;top:0;z-index:2;background:var(--bg-panel);border-bottom:1px solid var(--border)}'+
+      '.gantt-tick{position:absolute;top:0;bottom:0;border-left:1px solid rgba(42,42,46,.55)}'+
+      '.gantt-tick span{position:absolute;top:2px;left:3px;font-size:9px;color:var(--text-dim);white-space:nowrap}'+
+      '.gantt-now{position:absolute;top:0;bottom:0;width:2px;background:var(--red);z-index:4;pointer-events:none}'+
+      '.gantt-now:before{content:"now";position:absolute;top:0;left:3px;font-size:8px;color:var(--red);font-weight:700}'+
+      '.gantt-mark{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;transform:translate(-50%,-50%);cursor:pointer;border:1px solid rgba(0,0,0,.4);transition:transform .1s}'+
+      '.gantt-mark:hover{transform:translate(-50%,-50%) scale(1.5);z-index:5}'+
+      '.gantt-mark.past{opacity:.4}'+
+      '.gantt-detail{margin-top:10px;border:1px solid var(--amber);border-radius:8px;padding:10px;background:rgba(245,158,11,.07);font-size:12px}'+
+      '.gantt-detail .gd-t{font-weight:600;color:var(--amber);margin-bottom:4px}'+
+      '@media(max-width:640px){.gantt-gutter{width:110px}}';
+    document.head.appendChild(s);
+  }
+
+  function setView(mode){
+    _viewMode = mode;
+    try{ localStorage.setItem('lr_tl_view', mode); }catch(e){}
+    if(_hostEl) renderInto(_hostEl);
+  }
+  function ganttZoom(h){ _ganttSpanH=h; _ganttFromMs=Date.now()-0.25*h*3600000; if(_hostEl) renderInto(_hostEl); }
+  function ganttRecenter(){ _ganttFromMs=Date.now()-0.25*_ganttSpanH*3600000; if(_hostEl) renderInto(_hostEl); }
+
+  function fmtFull(ms){
+    if(!ms) return '—';
+    var d=new Date(ms);
+    return d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'})+' '+('0'+d.getHours()).slice(-2)+'h'+('0'+d.getMinutes()).slice(-2);
+  }
+
+  function renderGantt(el, data){
+    ensureGanttStyle();
+    var now = Date.now();
+    if(_ganttFromMs==null) _ganttFromMs = now - 0.25*_ganttSpanH*3600000;
+    var spanMs = _ganttSpanH*3600000;
+    var fromMs = _ganttFromMs, toMs = fromMs + spanMs;
+    // Largeur du graphe en px (densite par heure adaptee au zoom).
+    var pxPerH = _ganttSpanH<=24 ? 70 : (_ganttSpanH<=48 ? 42 : 14);
+    var graphW = Math.max(_ganttSpanH*pxPerH, 320);
+    function xOf(ms){ return (ms-fromMs)/spanMs*graphW; }
+
+    // Lanes : 1 par cron + 1 par mission a cadence ; watchers = 1 lane "surveillance".
+    var lanes = [];
+    (data.events||[]).forEach(function(e){
+      if(!e.expr) return; // pas de cadence -> pas de barre dans le Gantt
+      lanes.push({ name:e.name, sub:e.human, color:e.color, expr:e.expr, kind:e.kind, id:e.id, slug:e.slug });
+    });
+
+    // Graduations : pas adapte (3h en 24h, 6h en 48h, 1j en 7j).
+    var tickStepH = _ganttSpanH<=24 ? 3 : (_ganttSpanH<=48 ? 6 : 24);
+    var ticks='';
+    var firstTick = Math.ceil(fromMs/(tickStepH*3600000))*(tickStepH*3600000);
+    for(var tk=firstTick; tk<=toMs; tk+=tickStepH*3600000){
+      var d=new Date(tk);
+      var lbl = (tickStepH>=24) ? d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric'}) : (('0'+d.getHours()).slice(-2)+'h');
+      ticks += '<div class="gantt-tick" style="left:'+xOf(tk)+'px"><span>'+lbl+'</span></div>';
+    }
+    var nowLine = (now>=fromMs && now<=toMs) ? '<div class="gantt-now" style="left:'+xOf(now)+'px"></div>' : '';
+
+    // En-tete (axe temps)
+    var head = '<div class="gantt-row gantt-head"><div class="gantt-gutter"><div class="gn">Jobs</div><div class="gs">'+fmtFull(fromMs)+' → '+fmtFull(toMs)+'</div></div>'+
+      '<div class="gantt-lane" style="width:'+graphW+'px;min-height:24px">'+ticks+'</div></div>';
+
+    var rows = '';
+    if(!lanes.length){
+      rows = '<div style="padding:20px;text-align:center;color:var(--text-dim);font-size:12px">Aucun job a cadence cron a afficher.</div>';
+    }
+    window._tlGanttMarks = window._tlGanttMarks || {};
+    window._tlGanttLanes = {};
+    lanes.forEach(function(ln, li){
+      window._tlGanttLanes[li] = ln;
+      var occs = occurrencesIn(ln.expr, fromMs, toMs);
+      var marks='';
+      occs.forEach(function(t){
+        var past = t < now;
+        window._tlGanttMarks[li+'_'+t] = { name:ln.name, when:t, expr:ln.expr, human:ln.sub, kind:ln.kind, id:ln.id, slug:ln.slug };
+        marks += '<div class="gantt-mark'+(past?' past':'')+'" style="left:'+xOf(t)+'px;background:'+ln.color+'" '+
+          'onclick="LaRuche.Timeline.ganttMark('+li+','+t+')" title="'+LaRuche.Utils.esc(ln.name+' · '+fmtFull(t))+'"></div>';
+      });
+      // Clic sur TOUTE la ligne (pas que les pastilles) → détail de la prochaine occurrence.
+      var firstT = occs.length ? occs[occs.length-1] : '';
+      rows += '<div class="gantt-row" style="cursor:pointer" onclick="LaRuche.Timeline.ganttLine('+li+','+(firstT||0)+')"><div class="gantt-gutter"><div class="gn">'+(ln.kind==='cron'?'⏰ ':'👑 ')+LaRuche.Utils.esc(ln.name)+'</div><div class="gs">'+LaRuche.Utils.esc(ln.sub)+'</div></div>'+
+        '<div class="gantt-lane" style="width:'+graphW+'px">'+ticks+nowLine+marks+'</div></div>';
+    });
+
+    // Lane de surveillance continue (watchers)
+    if((data.watchers||[]).length){
+      var wnames = (data.watchers||[]).map(function(w){ return w.name||'(watcher)'; }).join(', ');
+      rows += '<div class="gantt-row sect"><div class="gantt-gutter"><div class="gn">👁 Surveillance continue</div><div class="gs">'+(data.watchers||[]).length+' monitor(s)</div></div>'+
+        '<div class="gantt-lane" style="width:'+graphW+'px;display:flex;align-items:center"><div style="position:relative;width:100%">'+ticks+nowLine+
+          '<div style="position:absolute;top:50%;left:0;right:8px;height:4px;transform:translateY(-50%);background:linear-gradient(90deg,rgba(6,182,212,.15),rgba(6,182,212,.5));border-radius:3px"></div>'+
+          '<div style="position:absolute;top:50%;left:8px;transform:translateY(-50%);font-size:10px;color:var(--cyan);white-space:nowrap;text-shadow:0 0 4px #000">'+LaRuche.Utils.esc(wnames.substring(0,80))+'</div>'+
+        '</div></div></div>';
+    }
+
+    var zoomBtn = function(h,lbl){ return '<button class="tl-btn"'+(_ganttSpanH===h?' style="border-color:var(--amber);color:var(--amber)"':'')+' onclick="LaRuche.Timeline.ganttZoom('+h+')">'+lbl+'</button>'; };
+    var toolbar = '<div class="gantt-toolbar">'+
+      viewToggleHtml()+
+      '<span style="margin-left:8px;color:var(--text-dim);font-size:11px">Zoom</span>'+
+      zoomBtn(24,'24h')+zoomBtn(48,'48h')+zoomBtn(168,'7j')+
+      '<button class="tl-btn" onclick="LaRuche.Timeline.ganttRecenter()">⊙ Now</button>'+
+      '<button class="tl-btn" onclick="LaRuche.Timeline.reload()">↻ Rafraichir</button>'+
+      '</div>';
+
+    el.innerHTML = toolbar +
+      '<div class="gantt-scroll" id="tlGanttScroll"><div class="gantt-grid">'+head+rows+'</div></div>'+
+      '<div id="tlGanttDetail"></div>';
+    // Zoom molette : la roulette dézoome/zoome la fenêtre temporelle (réutilise ganttZoom).
+    var scrollEl = el.querySelector('#tlGanttScroll');
+    if(scrollEl){
+      scrollEl.addEventListener('wheel', function(e){
+        e.preventDefault();
+        var f = e.deltaY>0 ? 1.25 : 0.8;
+        var nh = Math.max(6, Math.min(720, Math.round(_ganttSpanH * f)));
+        if(nh !== _ganttSpanH) ganttZoom(nh);
+      }, {passive:false});
+    }
+    // Centre le scroll sur "Now" au premier rendu de la fenetre.
+    var sc=document.getElementById('tlGanttScroll');
+    if(sc && now>=fromMs && now<=toMs){ sc.scrollLeft = Math.max(0, xOf(now) - sc.clientWidth*0.4); }
+  }
+
+  function renderGanttDetail(m){
+    var host=document.getElementById('tlGanttDetail'); if(!host||!m) return;
+    var occHtml = m.when ? '<div style="color:var(--text-dim)">Occurrence : <b style="color:#fff">'+fmtFull(m.when)+'</b>'+(m.when<Date.now()?' (passee)':' (a venir)')+'</div>' : '';
+    // Édition/suppression depuis le détail (comme l'onglet Cron dédié).
+    var actions = '';
+    if(m.kind==='cron' && m.id){
+      actions = '<div style="margin-top:8px;display:flex;gap:6px">'+
+        '<button class="tl-btn" onclick="LaRuche.Router.go(\'automations\');setTimeout(function(){var b=document.querySelector(\'#autoTabsBar [data-tab=cron]\');if(b)b.click();},60)">Éditer (onglet Cron)</button>'+
+        '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.Timeline.ganttDelete(\'cron\',\''+LaRuche.Utils.esc(m.id)+'\')">Supprimer</button></div>';
+    } else if(m.kind==='mission' && m.slug){
+      actions = '<div style="margin-top:8px;display:flex;gap:6px">'+
+        '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.Timeline.ganttDelete(\'mission\',\''+LaRuche.Utils.esc(m.slug)+'\')">Supprimer la mission</button></div>';
+    }
+    host.innerHTML = '<div class="gantt-detail">'+
+      '<div class="gd-t">'+(m.kind==='cron'?'⏰ ':'👑 ')+LaRuche.Utils.esc(m.name)+'</div>'+
+      occHtml+
+      '<div style="color:var(--text-dim)">Cadence : '+LaRuche.Utils.esc(m.human)+' · <code style="color:var(--cyan)">'+LaRuche.Utils.esc(m.expr||'-')+'</code></div>'+
+      actions+
+      '</div>';
+  }
+  function ganttMark(li, t){ renderGanttDetail((window._tlGanttMarks||{})[li+'_'+t]); }
+  // Clic sur la ligne entière : détail de la tâche (occurrence si connue).
+  function ganttLine(li, t){
+    var mk = t ? (window._tlGanttMarks||{})[li+'_'+t] : null;
+    var ln = (window._tlGanttLanes||{})[li];
+    renderGanttDetail(mk || (ln ? { name:ln.name, expr:ln.expr, human:ln.sub, kind:ln.kind, id:ln.id, slug:ln.slug, when:0 } : null));
+  }
+  function ganttDelete(kind, idOrSlug){
+    if(!confirm('Supprimer définitivement ?')) return;
+    var url = kind==='mission' ? '/api/missions/'+encodeURIComponent(idOrSlug) : '/api/cron/'+encodeURIComponent(idOrSlug);
+    fetch(LaRuche.API.base+url,{method:'DELETE'}).then(function(r){
+      if(r.ok){ LaRuche.Toast.show('Supprimé','ok'); var d=document.getElementById('tlGanttDetail'); if(d)d.innerHTML=''; reload(); }
+      else LaRuche.Toast.show('Échec suppression','err');
+    });
+  }
+
+  function viewToggleHtml(){
+    return '<div style="display:inline-flex;border:1px solid var(--border);border-radius:6px;overflow:hidden">'+
+      '<button class="tl-btn" style="border:none;border-radius:0'+(_viewMode==='agenda'?';background:var(--amber);color:#000':'')+'" onclick="LaRuche.Timeline.setView(\'agenda\')">Agenda</button>'+
+      '<button class="tl-btn" style="border:none;border-radius:0'+(_viewMode==='gantt'?';background:var(--amber);color:#000':'')+'" onclick="LaRuche.Timeline.setView(\'gantt\')">Gantt</button>'+
+      '</div>';
+  }
+
+  function renderAgenda(el, data){
+    var ev = data.events.slice().sort(function(a,b){ return (a.next||Infinity)-(b.next||Infinity); });
+    var buckets = {today:[], week:[], later:[], none:[]};
+    ev.forEach(function(e){
+      if(!e.next){ buckets.none.push(e); return; }
+      buckets[bucketOf(e.next)].push(e);
+    });
+    function rowsOf(arr){ return arr.length ? arr.map(eventRow).join('') : null; }
+
+    var watcherRows = (data.watchers||[]).map(function(w){
+      return '<div style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-panel);margin-bottom:8px">'+
+        '<div style="font-size:18px;width:24px;text-align:center">👁</div>'+
+        '<div style="flex:1;min-width:0"><div style="font-weight:600;color:#fff">'+LaRuche.Utils.esc(w.name||'(watcher)')+
+          ' <span style="font-size:9px;border:1px solid var(--cyan);color:var(--cyan);padding:1px 5px;border-radius:8px;margin-left:6px">'+LaRuche.Utils.esc(w.watcher_type||'monitor')+'</span></div>'+
+          '<div style="font-size:11px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">cible : '+LaRuche.Utils.esc(w.target||'')+'</div></div>'+
+        '<div style="text-align:right"><div style="font-size:11px;color:var(--green)">● surveillance</div><div style="font-size:10px;color:var(--text-dim)">'+(w.run_count||0)+' decl.</div></div>'+
+        '</div>';
+    }).join('');
+
+    var html = '<div class="gantt-toolbar" style="justify-content:space-between">'+
+      viewToggleHtml()+
+      '<span style="color:var(--text-dim);font-size:12px">'+ev.length+' planification(s) · '+(data.watchers||[]).length+' monitor(s) '+
+      '<button class="tl-btn" style="margin-left:8px" onclick="LaRuche.Timeline.reload()">↻ Rafraichir</button></span></div>';
+    html += section("Aujourd'hui", rowsOf(buckets.today));
+    html += section('Cette semaine', rowsOf(buckets.week));
+    html += section('A venir', rowsOf(buckets.later));
+    if(buckets.none.length) html += section('Sans planning (a la demande)', rowsOf(buckets.none));
+    html += section('Monitors actifs (surveillance continue)', watcherRows||null);
+    el.innerHTML = html;
+  }
+
+  function renderInto(el){
+    if(!el || !_lastData) return;
+    if(_viewMode==='gantt') renderGantt(el, _lastData);
+    else renderAgenda(el, _lastData);
+  }
+
+  async function render(el){
+    if(!el) return;
+    ensureBtnStyle();
+    _hostEl = el;
+    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">Chargement du planning...</div>';
+    _lastData = await gather();
+    renderInto(el);
+  }
+
+  function reload(){
+    var el = document.getElementById('autoContent') || _hostEl;
+    if(el) render(el);
+  }
+
+  return { render:render, reload:reload, nextCron:nextCron, humanCron:humanCron, occurrencesIn:occurrencesIn,
+    setView:setView, ganttZoom:ganttZoom, ganttRecenter:ganttRecenter, ganttMark:ganttMark, ganttLine:ganttLine, ganttDelete:ganttDelete };
+})();
+
+/* ── Automatisations (Cron · Watchers · Kanban · Blueprints · Timeline) ── */
+LaRuche.Automations = (function(){
+  var currentTab = 'brief';
+  // Brief = l'endroit où l'on « missionne » LaRuche (créer/suivre des missions de recherche).
+  // Helper partagé : peuple un <select> avec les canaux RÉELS (/api/channels/known).
+  // `current` = valeur à présélectionner ; `emptyLabel` = libellé de l'option vide.
+  window.__fillChannels = function(sel, current, emptyLabel){
+    if(!sel) return;
+    var lbl = emptyLabel || 'Aucun (travail de fond)';
+    sel.innerHTML = '<option value="">'+lbl+'</option>';
+    fetch('/api/channels/known').then(function(r){return r.json();}).then(function(d){
+      var list=(d&&d.channels)||[]; var home=(d&&d.home)||'';
+      list.forEach(function(c){
+        var tag = (c===home) ? ' (home)' : '';
+        sel.innerHTML += '<option value="'+LaRuche.Utils.esc(c)+'">'+LaRuche.Utils.esc(c)+tag+'</option>';
+      });
+      if(current!=null) sel.value = current;
+      // valeur courante hors-liste (ex: canal déjà saisi) → on l'ajoute.
+      if(current && sel.value!==current){
+        sel.innerHTML += '<option value="'+LaRuche.Utils.esc(current)+'">'+LaRuche.Utils.esc(current)+'</option>';
+        sel.value = current;
+      }
+    }).catch(function(){});
+  };
+
+  // Rend le layout missions dans le hub puis délègue au module Missions (mêmes IDs).
+  function loadBrief(el){
+    el.innerHTML = '<div class="mis-layout">'+
+      '<div class="mis-side">'+
+        '<div class="mis-side-hdr">'+
+          '<span class="mis-title"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> Missions</span>'+
+          '<button class="mem2-tbtn" onclick="LaRuche.Missions.refresh()" title="Rafraichir">&#x21BB;</button>'+
+        '</div>'+
+        '<div class="mis-create">'+
+          '<textarea id="misObjective" placeholder="Objectif de la mission de recherche..."></textarea>'+
+          '<label style="font-size:10px;color:var(--text-dim);margin-top:4px">Cadence (optionnel)</label>'+
+          '<div id="misCadenceBuilder"></div>'+
+          '<label style="font-size:10px;color:var(--text-dim);margin-top:4px">Provider</label>'+
+          '<select id="misProvider" class="form-input"><option value="">Défaut (modèle actif)</option></select>'+
+          '<label style="font-size:10px;color:var(--text-dim);margin-top:4px">Canal (optionnel — vide = travail de fond)</label>'+
+          '<select id="misChannel" class="form-input"><option value="">Aucun (travail de fond)</option></select>'+
+          '<input id="misSlug" type="text" placeholder="Slug (optionnel)" spellcheck="false">'+
+          '<button class="mem2-btn-primary" onclick="LaRuche.Missions.create()">Creer la mission</button>'+
+        '</div>'+
+        '<div class="mis-list" id="misList"><div class="mem2-empty">Chargement...</div></div>'+
+      '</div>'+
+      '<div class="mis-main" id="misMain"><div class="mem2-empty">Selectionnez une mission pour voir son dossier, ou creez-en une.</div></div>'+
+    '</div>';
+    if(LaRuche.Missions && LaRuche.Missions.mountForm) LaRuche.Missions.mountForm();
+    if(LaRuche.Missions && LaRuche.Missions.refresh) LaRuche.Missions.refresh();
+    window.__fillChannels(document.getElementById('misChannel'), '');
+  }
+  function init() {
+    var bar = document.getElementById('autoTabsBar');
+    if(!bar) return;
+    bar.addEventListener('click', function(e){
+      var btn = e.target.closest('.settings-tab-btn');
+      if(!btn) return;
+      currentTab = btn.dataset.tab;
+      bar.querySelectorAll('.settings-tab-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.tab===currentTab); });
+      loadTab(currentTab);
+    });
+  }
+  function loadTab(tab){
+    var el = document.getElementById('autoContent');
+    if(!el) return;
+    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">Chargement...</div>';
+    var S = LaRuche.Settings;
+    switch(tab){
+      case 'brief': loadBrief(el); break;
+      case 'timeline': (LaRuche.Timeline && LaRuche.Timeline.render) ? LaRuche.Timeline.render(el) : S.loadCronTimeline(el); break;
+      case 'cron': S.loadCron(el); break;
+      case 'watchers': S.loadWatchers(el); break;
+      case 'kanban': S.loadKanban(el); break;
+      case 'blueprints': S.loadBlueprints(el); break;
+    }
+  }
+  function enter(){ loadTab(currentTab); }
+  function leave(){}
+  function refresh(){ loadTab(currentTab); }
+  return { init:init, enter:enter, leave:leave, current:function(){return current;}, refresh:refresh };
+})();
+
+/* ── Capacités (Abeilles · Skills · MCP · Plugins) — tableau unifié ── */
+LaRuche.Capabilities = (function(){
+  var currentFamily = 'all';
+  var searchTerm = '';
+  function init(){
+    var bar = document.getElementById('capTabsBar');
+    if(!bar) return;
+    bar.addEventListener('click', function(e){
+      var btn = e.target.closest('.settings-tab-btn');
+      if(!btn) return;
+      currentFamily = btn.dataset.tab;
+      bar.querySelectorAll('.settings-tab-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.tab===currentFamily); });
+      render();
+    });
+  }
+  function enter(){ render(); }
+  function leave(){}
+  function refresh(){ render(); }
+
+  function familyLabel(f){ return ({abeille:'Abeille',skill:'Skill',mcp:'MCP',plugin:'Plugin'})[f]||f; }
+
+  async function gather(){
+    var rows = [];
+    // Abeilles (outils natifs/custom)
+    try {
+      var tools = await fetch('/api/tools').then(function(r){return r.json();});
+      (tools||[]).forEach(function(t){
+        var isPlugin = (t.origin==='custom' || t.origin==='Custom');
+        rows.push({
+          family: isPlugin ? 'plugin' : 'abeille', name:t.name,
+          origin: isPlugin ? 'custom' : 'natif',
+          desc:(t.description||''), enabled:(t.enabled!==false),
+          danger:(t.danger||'safe'), raw:t,
+          editable:false, immutable:!isPlugin
+        });
+      });
+    } catch(e){}
+    // Skills
+    try {
+      var skills = await fetch('/api/skills').then(function(r){return r.json();});
+      (skills||[]).forEach(function(s){
+        rows.push({
+          family:'skill', name:s.name, origin:'custom',
+          desc:(s.description||''), enabled:!!s.enabled, raw:s, editable:true
+        });
+      });
+    } catch(e){}
+    // MCP servers
+    try {
+      var mcp = await fetch('/api/mcp/servers').then(function(r){return r.json();});
+      var srv = (mcp&&mcp.mcpServers)||{};
+      Object.keys(srv).forEach(function(k){
+        var s = srv[k];
+        rows.push({
+          family:'mcp', name:k, origin:'custom',
+          desc:((s.command||'')+' '+((s.args||[]).join(' '))).trim(),
+          enabled:true, raw:s, mcpName:k
+        });
+      });
+    } catch(e){}
+
+    // Tri alphabetique par nom a l'interieur de chaque famille
+    var famOrder = {abeille:0, skill:1, mcp:2, plugin:3};
+    rows.sort(function(a,b){
+      var fa=(famOrder[a.family]==null?9:famOrder[a.family]);
+      var fb=(famOrder[b.family]==null?9:famOrder[b.family]);
+      if(fa!==fb) return fa-fb;
+      return String(a.name).toLowerCase().localeCompare(String(b.name).toLowerCase());
+    });
+    return rows;
+  }
+
+  function badge(txt, color){
+    return '<span style="font-size:9px;border:1px solid '+color+';color:'+color+';padding:2px 6px;border-radius:8px;white-space:nowrap">'+LaRuche.Utils.esc(txt)+'</span>';
+  }
+
+  function viewRaw(i){
+    var rows = window._capRows || [];
+    var r = rows[i]; if(!r) return;
+    LaRuche.Utils.openMediaModal('text', JSON.stringify(r.raw, null, 2));
+  }
+
+  function rowActions(r, i){
+    if(r.family==='abeille'){
+      var tog = '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:'+(r.enabled?'var(--green)':'var(--red)')+'"><input type="checkbox" '+(r.enabled?'checked':'')+' onchange="LaRuche.Settings.toggleTool(\''+LaRuche.Utils.esc(r.name)+'\',this.checked);setTimeout(LaRuche.Capabilities.refresh,300)">'+(r.enabled?'ON':'OFF')+'</label>';
+      var view = '<button class="tl-btn" onclick="LaRuche.Capabilities.viewRaw('+i+')">Voir</button>';
+      var del = r.immutable ? '' : '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(\'Supprimer '+LaRuche.Utils.esc(r.name)+' ?\')){fetch(\'/api/tools/\'+encodeURIComponent(\''+LaRuche.Utils.esc(r.name)+'\'),{method:\'DELETE\'}).then(LaRuche.Capabilities.refresh)}">Suppr</button>';
+      return tog+' '+view+' '+del;
+    }
+    if(r.family==='skill'){
+      var tog2 = '<label class="lr-switch"><input type="checkbox" '+(r.enabled?'checked':'')+' onchange="LaRuche.Settings.toggleSkill(\''+LaRuche.Utils.esc(r.name)+'\');setTimeout(LaRuche.Capabilities.refresh,300)"><span class="lr-slider"></span></label>';
+      var edit = '<button class="tl-btn" onclick="LaRuche.Settings.viewSkill(\''+LaRuche.Utils.esc(r.name)+'\')">Editer</button>';
+      var del2 = '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(\'Supprimer '+LaRuche.Utils.esc(r.name)+' ?\')){LaRuche.Settings.deleteSkill(\''+LaRuche.Utils.esc(r.name)+'\');setTimeout(LaRuche.Capabilities.refresh,300)}">Suppr</button>';
+      return tog2+' '+edit+' '+del2;
+    }
+    if(r.family==='mcp'){
+      var editMcp = '<button class="tl-btn" onclick="LaRuche.Capabilities.editMcp('+i+')">Editer</button>';
+      var delMcp = '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.Settings.deleteMcpServer(\''+LaRuche.Utils.esc(r.mcpName)+'\');setTimeout(LaRuche.Capabilities.refresh,600)">Retirer</button>';
+      return editMcp+' '+delMcp;
+    }
+    if(r.family==='plugin'){
+      var togP = '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:'+(r.enabled?'var(--green)':'var(--red)')+'"><input type="checkbox" '+(r.enabled?'checked':'')+' onchange="LaRuche.Settings.toggleTool(\''+LaRuche.Utils.esc(r.name)+'\',this.checked);setTimeout(LaRuche.Capabilities.refresh,300)">'+(r.enabled?'ON':'OFF')+'</label>';
+      var editP = '<button class="tl-btn" onclick="LaRuche.Settings.viewPlugin(\''+LaRuche.Utils.esc(r.name)+'\')">Editer</button>';
+      var delP = '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(\'Supprimer le plugin '+LaRuche.Utils.esc(r.name)+' ?\')){LaRuche.Settings.deletePlugin(\''+LaRuche.Utils.esc(r.name)+'\');setTimeout(LaRuche.Capabilities.refresh,300)}">Suppr</button>';
+      return togP+' '+editP+' '+delP;
+    }
+    return '<span style="color:var(--text-dim);font-size:10px">—</span>';
+  }
+
+  async function render(){
+    var el = document.getElementById('capContent');
+    if(!el) return;
+    el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">Chargement...</div>';
+    ensureSwitchStyle();
+    var rows = await gather();
+    var filtered = (currentFamily==='all') ? rows : rows.filter(function(r){ return r.family===currentFamily; });
+    var q = (searchTerm||'').trim().toLowerCase();
+    if(q){
+      filtered = filtered.filter(function(r){
+        return (String(r.name||'').toLowerCase().indexOf(q)!==-1) ||
+               (String(r.desc||'').toLowerCase().indexOf(q)!==-1);
+      });
+    }
+    window._capRows = filtered;
+
+    var counts = {all:rows.length, abeille:0, skill:0, mcp:0, plugin:0};
+    rows.forEach(function(r){ counts[r.family] = (counts[r.family]||0)+1; });
+    document.querySelectorAll('#capTabsBar .settings-tab-btn').forEach(function(b){
+      var f=b.dataset.tab; var base=b.textContent.replace(/\s*\(\d+\)$/,'');
+      var c = f==='all'?counts.all:counts[f];
+      b.textContent = base + (typeof c==='number' ? ' ('+c+')' : '');
+    });
+
+    // Barre d'ajout MCP (visible sur Tout + MCP)
+    var mcpAdd = '';
+    if(currentFamily==='all' || currentFamily==='mcp'){
+      mcpAdd = '<div style="border:1px solid var(--border);border-radius:6px;padding:10px;background:var(--bg-panel);margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:end">'+
+        '<div style="flex:1;min-width:120px"><label class="form-label">Nom serveur MCP</label><input id="capMcpName" class="form-input" placeholder="ex: local-sqlite"></div>'+
+        '<div style="flex:1;min-width:120px"><label class="form-label">Commande</label><input id="capMcpCmd" class="form-input" placeholder="ex: node"></div>'+
+        '<div style="flex:2;min-width:160px"><label class="form-label">Arguments</label><input id="capMcpArgs" class="form-input" placeholder="ex: src/index.js --db db.sqlite"></div>'+
+        '<button class="settings-save-btn" onclick="LaRuche.Capabilities.addMcp()">+ Ajouter serveur MCP</button>'+
+        '</div>';
+    }
+
+    var head = '<thead><tr>'+
+      ['Nom','Type','Origine','Description','Statut','Actions'].map(function(h){
+        return '<th style="text-align:left;padding:8px;color:var(--text-dim);border-bottom:1px solid var(--border);font-weight:600">'+h+'</th>';
+      }).join('')+'</tr></thead>';
+
+    var body = filtered.map(function(r, i){
+      var typeColor = ({abeille:'var(--amber)',skill:'var(--cyan)',mcp:'var(--purple)',plugin:'var(--green)'})[r.family]||'var(--text-dim)';
+      var originColor = (r.origin==='natif')?'var(--text-dim)':'var(--purple)';
+      var statut = r.enabled
+        ? '<span style="color:var(--green);font-size:10px;font-weight:bold">● actif</span>'
+        : '<span style="color:var(--red);font-size:10px;font-weight:bold">○ inactif</span>';
+      return '<tr style="border-bottom:1px solid rgba(42,42,46,.4)">'+
+        '<td style="padding:8px;font-weight:600;color:#fff">'+LaRuche.Utils.esc(r.name)+'</td>'+
+        '<td style="padding:8px">'+badge(familyLabel(r.family), typeColor)+'</td>'+
+        '<td style="padding:8px">'+badge(r.origin, originColor)+'</td>'+
+        '<td style="padding:8px;color:var(--text-dim);font-size:11px;max-width:360px">'+LaRuche.Utils.esc((r.desc||'').substring(0,200))+'</td>'+
+        '<td style="padding:8px">'+statut+'</td>'+
+        '<td style="padding:8px;white-space:nowrap">'+rowActions(r, i)+'</td>'+
+        '</tr>';
+    }).join('');
+
+    var extraActions = '';
+    if(currentFamily==='all' || currentFamily==='skill'){
+      extraActions += '<button class="settings-save-btn" onclick="LaRuche.Settings.newSkill()">+ Nouveau skill</button>';
+    }
+    if(currentFamily==='all' || currentFamily==='plugin'){
+      extraActions += ' <button class="settings-save-btn" onclick="LaRuche.Settings.newPlugin()">+ Nouveau plugin</button>';
+      extraActions += ' <button class="settings-save-btn" style="background:rgba(70,196,106,.15);color:var(--green);border:1px solid var(--green)" onclick="LaRuche.PluginFiles.open()">📁 Fichiers &amp; scripts</button>';
+    }
+    if(currentFamily==='all' || currentFamily==='abeille'){
+      extraActions = '<button onclick="LaRuche.Capabilities.toggleAll(true)" style="background:rgba(16,185,129,0.15);color:var(--green);border:1px solid var(--green);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600">Tout activer</button>'+
+        '<button onclick="LaRuche.Capabilities.toggleAll(false)" style="background:rgba(239,68,68,0.15);color:var(--red);border:1px solid var(--red);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600">Tout desactiver</button>'+
+        extraActions;
+    }
+
+    // Champ de recherche (loupe, ambre)
+    var searchBar = '<div style="position:relative;margin-bottom:12px;max-width:360px">'+
+      '<span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--amber);font-size:13px;pointer-events:none">&#128269;</span>'+
+      '<input id="capSearch" class="form-input" placeholder="Rechercher (nom ou description)..." '+
+        'value="'+LaRuche.Utils.esc(searchTerm)+'" '+
+        'oninput="LaRuche.Capabilities.onSearch(this.value)" '+
+        'style="width:100%;padding-left:30px;border-color:var(--amber)"></div>';
+
+    el.innerHTML = mcpAdd + searchBar +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">'+
+        '<span style="color:var(--text-dim);font-size:12px">'+filtered.length+' capacite(s)'+(currentFamily==='all'?' — abeilles natives = immuables':'')+'</span>'+
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">'+extraActions+'</div>'+
+      '</div>'+
+      (filtered.length ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+head+'<tbody>'+body+'</tbody></table></div>'
+                       : '<div style="text-align:center;color:var(--text-muted);padding:30px">Aucune capacite (filtre ou famille vide).</div>');
+
+    // Restaure le focus + curseur dans le champ de recherche apres re-render
+    if(searchTerm){
+      var si = document.getElementById('capSearch');
+      if(si){ si.focus(); try{ si.setSelectionRange(si.value.length, si.value.length); }catch(e){} }
+    }
+  }
+
+  function onSearch(v){ searchTerm = v||''; render(); }
+
+  function toggleAll(enable){
+    if(LaRuche.Settings && LaRuche.Settings.toggleAllTools){
+      LaRuche.Settings.toggleAllTools(enable);
+      setTimeout(refresh, 400);
+    }
+  }
+
+  function editMcp(i){
+    var rows = window._capRows || [];
+    var r = rows[i]; if(!r || r.family!=='mcp') return;
+    var s = r.raw || {};
+    var nameEl=document.getElementById('capMcpName'), cmdEl=document.getElementById('capMcpCmd'), argsEl=document.getElementById('capMcpArgs');
+    if(!nameEl||!cmdEl||!argsEl){ LaRuche.Toast.show('Formulaire MCP indisponible','err'); return; }
+    nameEl.value = r.mcpName || r.name || '';
+    cmdEl.value = s.command || '';
+    argsEl.value = (s.args || []).join(' ');
+    nameEl.focus();
+    try{ nameEl.scrollIntoView({behavior:'smooth', block:'center'}); }catch(e){}
+    LaRuche.Toast.show('Edition de '+(r.mcpName||r.name)+' — modifiez puis cliquez sur le bouton','ok');
+  }
+
+  function addMcp(){
+    var n=(document.getElementById('capMcpName')||{}).value, c=(document.getElementById('capMcpCmd')||{}).value, a=(document.getElementById('capMcpArgs')||{}).value;
+    n=(n||'').trim(); c=(c||'').trim(); a=(a||'').trim();
+    if(!n||!c){ LaRuche.Toast.show('Nom et commande requis','err'); return; }
+    fetch('/api/mcp/servers/'+encodeURIComponent(n),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:c,args:(a?a.split(' '):[])})})
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Serveur MCP enregistre','ok'); var ne=document.getElementById('capMcpName'),ce=document.getElementById('capMcpCmd'),ae=document.getElementById('capMcpArgs'); if(ne)ne.value=''; if(ce)ce.value=''; if(ae)ae.value=''; render(); } else LaRuche.Toast.show('Echec enregistrement MCP','err'); });
+  }
+
+  function ensureSwitchStyle(){
+    if(document.getElementById('lr-switch-style')) return;
+    var st=document.createElement('style'); st.id='lr-switch-style';
+    st.textContent='.lr-switch{position:relative;display:inline-block;width:38px;height:20px;flex:0 0 auto;vertical-align:middle}.lr-switch input{display:none}'+
+      '.lr-slider{position:absolute;inset:0;background:#444;border-radius:20px;transition:.2s;cursor:pointer}'+
+      '.lr-slider:before{content:"";position:absolute;height:14px;width:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}'+
+      '.lr-switch input:checked+.lr-slider{background:var(--amber)}.lr-switch input:checked+.lr-slider:before{transform:translateX(18px)}';
+    document.head.appendChild(st);
+  }
+
+  return { init:init, enter:enter, leave:leave, current:function(){return current;}, refresh:refresh, addMcp:addMcp, viewRaw:viewRaw, onSearch:onSearch, toggleAll:toggleAll, editMcp:editMcp };
+})();
+
+/* ── Register all page modules ── */
+LaRuche.Router.register('chat', LaRuche.Chat);
+LaRuche.Router.register('automations', LaRuche.Automations);
+LaRuche.Router.register('capabilities', LaRuche.Capabilities);
+LaRuche.Router.register('dashboard', LaRuche.Dashboard);
+LaRuche.Router.register('memory', LaRuche.Memory);
+LaRuche.Router.register('missions', LaRuche.Missions);
+LaRuche.Router.register('settings', LaRuche.Settings);
+LaRuche.Router.register('login', LaRuche.Auth);
+
+/* ── Swarm Animation ── */
+(function(){
+  const SIZE = 260;
+  const center = { x: SIZE / 2, y: SIZE / 2 };
+  const MAX_PARTICLES = 58;
+  const particles = [];
+  class Particle {
+    constructor() {
+      const angle = Math.random() * Math.PI * 2;
+      const distance = Math.random() * 70;
+      this.x = center.x + Math.cos(angle) * distance;
+      this.y = center.y + Math.sin(angle) * distance;
+      this.vx = (Math.random() - 0.5) * 0.9;
+      this.vy = (Math.random() - 0.5) * 0.9;
+      this.size = 2.7 + Math.random() * 2.3;
+      this.alpha = 0.55 + Math.random() * 0.45;
+      this.phase = Math.random() * Math.PI * 2;
+      this.speed = 0.006 + Math.random() * 0.008;
+      this.color = Math.random() > 0.25 ? "255, 205, 40" : "255, 235, 125";
+    }
+    update(t) {
+      const orbit = 48 + Math.sin(t * 0.018 + this.phase) * 18;
+      const angle = t * this.speed + this.phase;
+      const targetX = center.x + Math.cos(angle * 2.1) * orbit + Math.sin(t * 0.015 + this.phase) * 18;
+      const targetY = center.y + Math.sin(angle * 1.7) * orbit * 0.72 + Math.cos(t * 0.012 + this.phase) * 12;
+      this.vx += (targetX - this.x) * 0.004;
+      this.vy += (targetY - this.y) * 0.004;
+      this.vx *= 0.94;
+      this.vy *= 0.94;
+      this.x += this.vx;
+      this.y += this.vy;
+    }
+    draw(ctx, t) {
+      const pulse = 0.75 + Math.sin(t * 0.08 + this.phase) * 0.25;
+      const r = this.size * pulse;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${this.color}, ${this.alpha})`;
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = `rgba(${this.color}, 0.65)`;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  }
+  for (let i = 0; i < MAX_PARTICLES; i++) particles.push(new Particle());
+  let t = 0;
+  function animate() {
+    t++;
+    const canvases = document.querySelectorAll('.swarm-canvas');
+    if (canvases.length > 0) {
+      particles.forEach(p => p.update(t));
+      canvases.forEach(canvas => {
+        if (!canvas.ctx) {
+          const DPR = window.devicePixelRatio || 1;
+          canvas.width = SIZE * DPR;
+          canvas.height = SIZE * DPR;
+          canvas.style.width = SIZE + "px";
+          canvas.style.height = SIZE + "px";
+          canvas.ctx = canvas.getContext("2d");
+          canvas.ctx.scale(DPR, DPR);
+        }
+        const ctx = canvas.ctx;
+        ctx.clearRect(0, 0, SIZE, SIZE);
+        const gradient = ctx.createRadialGradient(center.x, center.y, 0, center.x, center.y, 95);
+        gradient.addColorStop(0, "rgba(255, 210, 50, 0.08)");
+        gradient.addColorStop(0.55, "rgba(255, 180, 0, 0.025)");
+        gradient.addColorStop(1, "rgba(255, 180, 0, 0)");
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, SIZE, SIZE);
+        particles.forEach(p => p.draw(ctx, t));
+      });
+    }
+    requestAnimationFrame(animate);
+  }
+  animate();
+})();
+
+  window.lrToggleAgentChat = function() {
+    var logBody = document.getElementById('log-body');
+    var btn = document.getElementById('toggleAgentChatBtn');
+    if(!logBody || !btn) return;
+    if(logBody.classList.contains('hide-agent-chat')) {
+      logBody.classList.remove('hide-agent-chat');
+      btn.textContent = 'Masquer Chats';
+      btn.style.color = 'var(--text)';
+      btn.style.background = 'rgba(255,255,255,0.05)';
+    } else {
+      logBody.classList.add('hide-agent-chat');
+      btn.textContent = 'Afficher Chats';
+      btn.style.color = 'var(--text-dim)';
+      btn.style.background = 'none';
+    }
+  };
+
+/* ── Global Feed Drawer ── */
+LaRuche.Feed = (function(){
+  var open = false;
+  var anchored = false;
+  var pollTimer = null;
+  var nextTimer = null;
+  var lastSig = '';
+  var lastEvents = [];               // derniers events chargés (pour re-render client-side)
+  var DEFAULT_FILTERS = { memory:true, agent:true, cron:true, mission:true, watcher:true, user:true, laruche:true };
+  var filters = { memory:true, agent:true, cron:true, mission:true, watcher:true, user:true, laruche:true };
+
+  function loadFilters(){
+    try{
+      var raw = localStorage.getItem('lr_feed_filters');
+      if(raw){ var o = JSON.parse(raw); for(var k in DEFAULT_FILTERS){ if(typeof o[k]==='boolean') filters[k]=o[k]; } }
+    }catch(e){}
+  }
+  function saveFilters(){ try{ localStorage.setItem('lr_feed_filters', JSON.stringify(filters)); }catch(e){} }
+
+  function passFilter(ev){
+    var kind = kindOf(ev);
+    if(filters[kind]===false) return false; // kinds inconnus (dm) passent par défaut
+    var actor = (ev.actor==='User') ? 'user' : 'laruche';
+    if(filters[actor]===false) return false;
+    return true;
+  }
+
+  function esc(s){ return LaRuche.Utils.esc(s==null?'':String(s)); }
+
+  function fmtTime(ts){
+    // ts en millisecondes (>1e12) ou secondes : on gère les deux.
+    var d = new Date(ts > 1000000000000 ? ts : ts*1000);
+    var now = new Date();
+    var hm = ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+    var sameDay = d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth() && d.getDate()===now.getDate();
+    if(sameDay) return hm;
+    return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+' '+hm;
+  }
+
+  function humanDelta(ms){
+    if(ms<=0) return 'maintenant';
+    var s = Math.floor(ms/1000);
+    var h = Math.floor(s/3600);
+    var m = Math.floor((s%3600)/60);
+    if(h>=24){ var dd=Math.floor(h/24); var rh=h%24; return rh? (dd+'j'+rh+'h') : (dd+'j'); }
+    if(h>0) return h+'h'+('0'+m).slice(-2);
+    return m+'min';
+  }
+
+  // ── Prochaine action programmée ──────────────────────────────
+  async function refreshNext(){
+    var el = document.getElementById('feedNext');
+    if(!el) return;
+    var TL = LaRuche.Timeline;
+    if(!TL || !TL.nextCron){ el.textContent = 'Aucune action programmée'; return; }
+    var crons=[], missions=[];
+    try{ crons = await fetch('/api/cron').then(function(r){return r.json();}); }catch(e){}
+    try{ missions = await fetch('/api/missions').then(function(r){return r.json();}); }catch(e){}
+    var now = Date.now();
+    var best = null;
+    (crons||[]).forEach(function(c){
+      if(c.enabled===false) return;
+      var nx = TL.nextCron(c.cron_expr, now);
+      if(nx!=null && (!best || nx<best.next)) best = { next:nx, name:c.name||'(cron sans nom)', human:TL.humanCron(c.cron_expr) };
+    });
+    (missions||[]).forEach(function(mi){
+      var cad = mi.cadence || mi.cron_expr || mi.schedule || '';
+      if(!cad) return;
+      var nx = TL.nextCron(cad, now);
+      if(nx!=null && (!best || nx<best.next)) best = { next:nx, name:mi.objective||mi.title||mi.slug||'(mission)', human:TL.humanCron(cad) };
+    });
+    if(!best){ el.innerHTML = 'Aucune action programmée'; return; }
+    el.innerHTML = '&#x23F0; Prochaine : <strong>'+esc(best.name)+'</strong> dans '+esc(humanDelta(best.next-now))+
+      ' <span class="fn-sub">('+esc(best.human||'')+')</span>';
+  }
+
+  // ── Liste des événements ─────────────────────────────────────
+  // mapping kind -> libellé du badge
+  var KIND_LABEL = { memory:'Mémoire', agent:'Agent', cron:'Cron', mission:'Mission', watcher:'Watcher', dm:'DM' };
+  function kindOf(ev){
+    var k = ev && ev.kind;
+    if(k==='agent'||k==='cron'||k==='mission'||k==='watcher'||k==='dm') return k;
+    return 'memory';
+  }
+  function feedUser(){
+    return (window.LaRuche && LaRuche.Auth && LaRuche.Auth.getUser) ? LaRuche.Auth.getUser() : null;
+  }
+  function actorName(ev){
+    if(ev.actor==='User'){ var u=feedUser(); return (u && u.display_name) ? u.display_name : 'Vous'; }
+    if(ev.actor_kind==='peer') return ev.actor; // nom de la ruche pair
+    return 'LaRuche';
+  }
+  function actorClass(ev){
+    if(ev.actor_kind==='peer') return 'actor-peer';
+    return (ev.actor==='User') ? 'actor-user' : 'actor-laruche';
+  }
+  // Avatar : initiale (User / ruche pair) / nid d'abeille STATIQUE (LaRuche).
+  function actorAvatar(ev){
+    if(ev.actor==='User'){
+      var u=feedUser(); var init=((u && u.display_name)||'?').charAt(0).toUpperCase();
+      return '<span class="feed-av feed-av-user">'+esc(init)+'</span>';
+    }
+    if(ev.actor_kind==='peer'){
+      return '<span class="feed-av feed-av-peer">'+esc((ev.actor||'?').charAt(0).toUpperCase())+'</span>';
+    }
+    return '<span class="feed-av feed-av-laruche"><span class="honeycomb-loader hc-sm hc-static">'+
+      '<span class="hexagon hx1"></span><span class="hexagon hx2"></span><span class="hexagon hx3"></span>'+
+      '<span class="hexagon hx4"></span><span class="hexagon hx5"></span><span class="hexagon hx6"></span>'+
+      '<span class="hexagon hx7"></span></span></span>';
+  }
+  function rowHtml(ev){
+    var actorCls = actorClass(ev);
+    var kind = kindOf(ev);
+    // On retire les verbes de chat « a répondu / a demandé » (l'acteur + le badge suffisent).
+    var action = ev.action || '';
+    if(action==='a répondu' || action==='a demandé') action='';
+    var prefix = action ? action+' ' : '';
+    var badge = (ev.actor==='User' && kind==='agent') ? ''
+      : '<span class="feed-kind-badge kb-'+kind+'">'+esc(KIND_LABEL[kind]||kind)+'</span>';
+    // Corps : ref cliquable, OU texte dépliable au clic (message complet), OU texte simple.
+    var bodyHtml, extraAttr='';
+    if(ev.ref){
+      bodyHtml = esc(prefix)+'<span class="feed-obj-ref" data-ref="'+esc(ev.ref)+'">'+esc(ev.object)+'</span>';
+    } else {
+      var expandable = ev.full && String(ev.full).length > String(ev.object||'').length;
+      bodyHtml = esc(prefix+ev.object) + (expandable ? ' <span class="feed-more">⌄</span>' : '');
+      if(expandable){
+        extraAttr = ' class="feed-row-text feed-expandable" data-short="'+esc(prefix+ev.object)+'" data-full="'+esc(prefix+ev.full)+'"';
+      }
+    }
+    var textOpen = extraAttr ? '<div'+extraAttr+'>' : '<div class="feed-row-text">';
+    return '<div class="feed-row kind-'+kind+'">'+
+      '<div class="feed-row-top">'+
+        actorAvatar(ev)+
+        '<span class="feed-actor '+actorCls+'">'+esc(actorName(ev))+'</span>'+
+        badge+
+        '<span class="feed-row-time">'+esc(fmtTime(ev.ts))+'</span>'+
+      '</div>'+
+      textOpen+bodyHtml+'</div>'+
+    '</div>';
+  }
+
+  function render(events){
+    var list = document.getElementById('feedList');
+    if(!list) return;
+    lastEvents = events || [];
+    // filtrage client-side sur les events déjà chargés
+    var shown = [];
+    for(var k=0;k<lastEvents.length;k++){ if(passFilter(lastEvents[k])) shown.push(lastEvents[k]); }
+    // signature inclut l'état des filtres pour re-render quand ils changent
+    var sig = 'f:'+(filters.memory?1:0)+(filters.agent?1:0)+(filters.cron?1:0)+(filters.mission?1:0)+(filters.watcher?1:0)+(filters.user?1:0)+(filters.laruche?1:0)+';n:'+shown.length;
+    for(var i=0;i<shown.length;i++){ var e=shown[i]; sig += '|'+e.ts+e.actor+e.action+e.object+(e.ref||''); }
+    if(sig === lastSig) return; // pas de changement : évite le flicker
+    lastSig = sig;
+    var atTop = list.scrollTop <= 4;
+    var prevScroll = list.scrollTop;
+    if(!shown.length){
+      list.innerHTML = lastEvents.length
+        ? '<div class="feed-empty">Aucun événement ne correspond aux filtres actifs.</div>'
+        : '<div class="feed-empty">Aucune activité pour le moment.</div>';
+      return;
+    }
+    var html = '';
+    for(var j=0;j<shown.length;j++){ html += rowHtml(shown[j]); }
+    list.innerHTML = html;
+    // refs cliquables → onglet Mémoire + ouverture du nœud
+    list.querySelectorAll('.feed-obj-ref').forEach(function(s){
+      s.onclick = function(){
+        var ref = s.dataset.ref;
+        if(!ref) return;
+        LaRuche.Router.go('memory');
+        setTimeout(function(){ if(LaRuche.Memory && LaRuche.Memory.loadNode) LaRuche.Memory.loadNode(ref); }, 60);
+      };
+    });
+    // clic pour déplier le message complet
+    list.querySelectorAll('.feed-expandable').forEach(function(t){
+      t.onclick = function(){
+        if(t.dataset.exp==='1'){ t.textContent=t.dataset.short; t.insertAdjacentHTML('beforeend',' <span class="feed-more">⌄</span>'); t.dataset.exp='0'; }
+        else { t.textContent=t.dataset.full; t.insertAdjacentHTML('beforeend',' <span class="feed-more">⌃</span>'); t.dataset.exp='1'; }
+      };
+    });
+    // préserve la position de scroll (sauf si on était tout en haut → reste en haut pour voir le récent)
+    list.scrollTop = atTop ? 0 : prevScroll;
+  }
+
+  async function poll(){
+    var head = document.getElementById('feedDrawerHead');
+    try{
+      var data = await fetch('/api/feed?limit=200').then(function(r){return r.json();});
+      var events = (data && data.events) ? data.events : [];
+      render(events);
+      if(head) head.classList.add('live');
+    }catch(e){
+      if(head) head.classList.remove('live');
+    }
+  }
+
+  // ── Cycle de vie polling ─────────────────────────────────────
+  function startPolling(){
+    if(pollTimer) return;
+    poll(); refreshNext();
+    pollTimer = setInterval(poll, 4000);
+    nextTimer = setInterval(refreshNext, 30000);
+  }
+  function stopPolling(){
+    if(pollTimer){ clearInterval(pollTimer); pollTimer=null; }
+    if(nextTimer){ clearInterval(nextTimer); nextTimer=null; }
+  }
+
+  // ── Filtres ──────────────────────────────────────────────────
+  function applyFilterUI(){
+    var bar = document.getElementById('feedFilters');
+    if(!bar) return;
+    bar.querySelectorAll('.ff-chip').forEach(function(c){
+      var f = c.dataset.filter;
+      c.classList.toggle('active', !!filters[f]);
+    });
+  }
+  function reRender(){
+    lastSig = '';                 // force le re-render malgré l'anti-flicker
+    render(lastEvents);
+  }
+
+  // ── Ouverture / fermeture ────────────────────────────────────
+  function applyAnchorUI(){
+    var btn = document.getElementById('feedAnchorBtn');
+    var ov = document.getElementById('feedDrawerOverlay');
+    if(btn) btn.classList.toggle('active', anchored);
+    if(ov) ov.classList.toggle('anchored', anchored && open);
+    // mode docké : on pousse le contenu (uniquement ancré ET ouvert)
+    document.body.classList.toggle('feed-docked', anchored && open);
+    if(LaRuche.Mesh) LaRuche.Mesh.repositionWindows();
+  }
+
+  function openDrawer(){
+    var ov = document.getElementById('feedDrawerOverlay');
+    if(!ov) return;
+    open = true;
+    ov.classList.add('open');
+    var btn = document.getElementById('feedToggleBtn');
+    if(btn) btn.classList.add('active');
+    applyAnchorUI();
+    startPolling();
+  }
+  function closeDrawer(){
+    var ov = document.getElementById('feedDrawerOverlay');
+    if(!ov) return;
+    open = false;
+    ov.classList.remove('open');
+    var btn = document.getElementById('feedToggleBtn');
+    if(btn) btn.classList.remove('active');
+    ov.classList.remove('anchored');
+    document.body.classList.remove('feed-docked');
+    stopPolling();
+  }
+  function toggle(){ open ? closeDrawer() : openDrawer(); }
+
+  function toggleAnchor(){
+    anchored = !anchored;
+    try{ localStorage.setItem('lr_feed_anchored', anchored?'1':'0'); }catch(e){}
+    applyAnchorUI();
+    if(LaRuche.Mesh) LaRuche.Mesh.repositionWindows();
+  }
+
+  function init(){
+    try{ anchored = localStorage.getItem('lr_feed_anchored')==='1'; }catch(e){}
+    loadFilters();
+    applyAnchorUI();
+    applyFilterUI();
+    var bar = document.getElementById('feedFilters');
+    if(bar){
+      bar.querySelectorAll('.ff-chip').forEach(function(c){
+        c.onclick = function(){
+          var f = c.dataset.filter;
+          filters[f] = !filters[f];
+          saveFilters();
+          applyFilterUI();
+          reRender();
+        };
+      });
+    }
+    var ov = document.getElementById('feedDrawerOverlay');
+    if(ov){
+      // clic extérieur (sur l'overlay, pas le drawer) → ferme si non ancré
+      ov.addEventListener('mousedown', function(e){
+        if(e.target===ov && open && !anchored) closeDrawer();
+      });
+    }
+    document.addEventListener('keydown', function(e){
+      if(e.key==='Escape' && open && !anchored) closeDrawer();
+    });
+  }
+
+  // ── Parler à LaRuche depuis le Feed (Phase 2) ────────────────
+  function showPending(text){
+    var list = document.getElementById('feedList'); if(!list) return;
+    var old = document.getElementById('feedPending'); if(old) old.remove();
+    var u = feedUser(); var init = ((u && u.display_name)||'?').charAt(0).toUpperCase();
+    var el = document.createElement('div');
+    el.id = 'feedPending'; el.className = 'feed-row kind-agent feed-pending';
+    el.innerHTML =
+      '<div class="feed-row-top">'+
+        '<span class="feed-av feed-av-user">'+esc(init)+'</span>'+
+        '<span class="feed-actor actor-user">'+esc((u && u.display_name)||'Vous')+'</span>'+
+        '<span class="feed-ask-spin" aria-label="LaRuche réfléchit"></span>'+
+        '<span class="feed-row-time">maintenant</span>'+
+      '</div>'+
+      '<div class="feed-row-text">'+esc(text)+' <span class="feed-pending-tag">LaRuche réfléchit…</span></div>';
+    list.insertBefore(el, list.firstChild);
+  }
+  function ask(){
+    var inp = document.getElementById('feedAskInput'); if(!inp) return;
+    var text = (inp.value||'').trim(); if(!text) return;
+    inp.value=''; inp.style.height='auto';
+    fetch('/api/feed/ask', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text:text}) }).catch(function(){});
+    showPending(text);
+    setTimeout(poll, 1500); // récupère la réponse rapidement
+  }
+
+  return { init:init, toggle:toggle, open:openDrawer, close:closeDrawer, toggleAnchor:toggleAnchor, ask:ask };
+})();
+
+// ========================= Messagerie mesh (Phase 4) =========================
+LaRuche.Mesh = (function(){
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+  var messages = [], peers = [], openWins = {}, pollTimer = null, lastUnread = 0, started = false;
+
+  function unread(){ return messages.filter(function(m){return m.dir==='in' && !m.read;}).length; }
+  function convs(){
+    var map = {};
+    messages.forEach(function(m){
+      if(!map[m.peer_id]) map[m.peer_id] = { peer_id:m.peer_id, peer_name:m.peer_name, msgs:[] };
+      if(m.peer_name) map[m.peer_id].peer_name = m.peer_name;
+      map[m.peer_id].msgs.push(m);
+    });
+    var arr = Object.keys(map).map(function(k){ return map[k]; });
+    arr.forEach(function(c){
+      c.msgs.sort(function(a,b){return a.ts-b.ts;});
+      c.last = c.msgs[c.msgs.length-1];
+      c.unread = c.msgs.filter(function(m){return m.dir==='in' && !m.read;}).length;
+    });
+    arr.sort(function(a,b){ return (b.last?b.last.ts:0)-(a.last?a.last.ts:0); });
+    return arr;
+  }
+  function updateBadge(){ var b=document.getElementById('meshBadge'); if(!b)return; var u=unread(); b.textContent=u; b.style.display=u>0?'':'none'; }
+  async function refresh(){
+    try{ var d=await fetch('/api/inbox').then(function(r){return r.json();}); messages=(d&&d.messages)||[]; }catch(e){}
+    updateBadge();
+    Object.keys(openWins).forEach(function(pid){ renderWin(pid); });
+    var u=unread();
+    if(u>lastUnread){
+      var ins=messages.filter(function(m){return m.dir==='in';});
+      var n=ins[ins.length-1];
+      if(n && LaRuche.Toast) LaRuche.Toast.show('💬 '+esc(n.peer_name)+' : '+esc(String(n.text).slice(0,60)),'ok');
+    }
+    lastUnread=u;
+  }
+  function start(){ if(pollTimer) return; refresh(); pollTimer=setInterval(refresh,5000); }
+  // Position les fenêtres de chat mesh JUSTE AU-DESSUS des barres du bas réellement visibles :
+  // barre de statut (PC) + barre d'onglets mobile + barre d'input du chat (page chat uniquement).
+  // Mesure dynamique (offsetParent != null = réellement affiché) → correct sur chaque onglet.
+  function repositionWindows(){
+    var w=document.getElementById('meshWindows'); if(!w) return;
+    var visible=function(el){ return el && el.offsetParent!==null && getComputedStyle(el).display!=='none'; };
+    var b=6; // petit espace de base
+    var sb=document.querySelector('.status-bar');      if(visible(sb)) b+=sb.offsetHeight;   // barre statut bas (PC)
+    var mt=document.getElementById('mobileTabs');       if(visible(mt)) b+=mt.offsetHeight;   // barre onglets (mobile)
+    var pc=document.getElementById('page-chat');
+    if(pc&&pc.classList.contains('active')){
+      var ia=pc.querySelector('.input-area');           if(visible(ia)) b+=ia.offsetHeight;  // input du chat
+      var cg=pc.querySelector('.chat-ctx-gauge');      if(visible(cg)) b+=cg.offsetHeight;  // jauge de contexte
+    }
+    w.style.bottom=b+'px';
+    // décaler à droite si le feed-drawer est ancré
+    var feed=document.getElementById('feedDrawerOverlay');
+    if(feed&&feed.classList.contains('anchored')){ w.style.right='374px'; }
+    else { w.style.right='14px'; }
+  }
+  function init(){ if(started) return; started=true; start(); repositionWindows(); }
+
+  function positionInbox(){
+    var pop=document.getElementById('meshInbox'); var btn=document.getElementById('meshBtn');
+    if(!pop||!btn) return;
+    var br=btn.getBoundingClientRect();
+    var w=pop.offsetWidth||300;
+    var left=br.right-w; var top=br.bottom+6;
+    // recaler si le feed-drawer est ouvert (chevauchement)
+    var feed=document.getElementById('feedDrawer');
+    if(feed){
+      var fr=feed.getBoundingClientRect();
+      var inboxRight=left+w;
+      if(inboxRight>fr.left-8){ left=fr.left-w-8; if(left<8) left=8; }
+    }
+    pop.style.left=left+'px'; pop.style.top=top+'px';
+  }
+  function closeInbox(){
+    var pop=document.getElementById('meshInbox'); if(!pop) return;
+    pop.classList.remove('open');
+    var btn=document.getElementById('meshBtn'); if(btn) btn.classList.remove('active');
+  }
+  function toggle(){
+    var pop=document.getElementById('meshInbox'); if(!pop) return;
+    if(pop.classList.contains('open')){ closeInbox(); return; }
+    renderInbox(); pop.classList.add('open'); positionInbox(); start();
+    var btn=document.getElementById('meshBtn'); if(btn) btn.classList.add('active');
+  }
+  document.addEventListener('click', function(e){
+    var pop=document.getElementById('meshInbox'); if(!pop||!pop.classList.contains('open')) return;
+    var btn=document.getElementById('meshBtn');
+    if(pop.contains(e.target)||(btn&&btn.contains(e.target))) return;
+    closeInbox();
+  });
+  async function renderInbox(){
+    var pop=document.getElementById('meshInbox'); if(!pop) return;
+    try{ var d=await fetch('/api/mesh/peers').then(function(r){return r.json();}); peers=(d&&d.peers)||[]; }catch(e){ peers=[]; }
+    var cs=convs();
+    var html='<div class="mesh-inbox-head">Conversations</div>';
+    if(!cs.length) html+='<div class="mesh-empty">Aucune conversation.</div>';
+    cs.forEach(function(c){
+      html+='<div class="mesh-conv" data-peer="'+esc(c.peer_id)+'" data-name="'+esc(c.peer_name||c.peer_id)+'">'+
+        '<span class="mesh-conv-name">'+esc(c.peer_name||c.peer_id)+(c.unread?' <span class="mesh-unread">'+c.unread+'</span>':'')+'</span>'+
+        '<span class="mesh-conv-last">'+esc(String((c.last&&c.last.dir==='out'?'Vous: ':'')+(c.last?c.last.text:'')).slice(0,42))+'</span>'+
+      '</div>';
+    });
+    html+='<div class="mesh-inbox-head">Pairs LaRuche découverts</div>';
+    if(!peers.length) html+='<div class="mesh-empty">Aucun pair sur le réseau.</div>';
+    peers.forEach(function(p){
+      html+='<div class="mesh-peer" data-peer="'+esc(p.id)+'" data-name="'+esc(p.name||p.id)+'">+ '+esc(p.name||p.id)+'</div>';
+    });
+    // Gap A — fédération : tire les skills vérifiés des pairs.
+    html+='<div class="mesh-inbox-head">Essaim</div>'+
+      '<div class="mesh-peer" id="meshSyncSkills" style="color:var(--green,#46c46a)">🔄 Synchroniser les skills du mesh</div>';
+    pop.innerHTML=html;
+    pop.querySelectorAll('[data-peer]').forEach(function(el){
+      el.onclick=function(){ openChat(el.getAttribute('data-peer'), el.getAttribute('data-name')); closeInbox(); };
+    });
+    var syncBtn=pop.querySelector('#meshSyncSkills');
+    if(syncBtn) syncBtn.onclick=function(){
+      syncBtn.textContent='⏳ Synchronisation…';
+      fetch('/api/mesh/sync',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
+        var n=(d&&d.count)||0;
+        syncBtn.textContent = n>0 ? ('✅ '+n+' skill(s) fédéré(s)') : '✅ Déjà à jour';
+        if(n>0 && window.LaRuche && LaRuche.Memory && LaRuche.Memory.reload) LaRuche.Memory.reload();
+      }).catch(function(){ syncBtn.textContent='❌ Échec sync'; });
+    };
+  }
+  function openChat(peerId, peerName){
+    start();
+    if(openWins[peerId]){ openWins[peerId].style.display='flex'; markRead(peerId); renderWin(peerId); return; }
+    var layer=document.getElementById('meshWindows'); if(!layer) return;
+    var win=document.createElement('div'); win.className='mesh-win';
+    win.innerHTML='<div class="mesh-win-head"><span class="mesh-win-name">'+esc(peerName||peerId)+'</span><span style="display:flex;gap:4px;"><button class="mesh-win-min" title="Réduire">&#x2014;</button><button class="mesh-win-close" title="Fermer">&#x2716;</button></span></div>'+
+      '<div class="mesh-win-body"></div>'+
+      '<div class="mesh-win-input"><textarea rows="1" placeholder="Message…"></textarea><button class="mesh-win-send" title="Envoyer">'+
+      '<svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button></div>';
+    layer.appendChild(win);
+    openWins[peerId]=win;
+    var hd=win.querySelector('.mesh-win-head');
+    win.querySelector('.mesh-win-close').onclick=function(){ win.remove(); delete openWins[peerId]; };
+    win.querySelector('.mesh-win-min').onclick=function(){ win.classList.toggle('minimized'); };
+    hd.onclick=function(e){ if(e.target.closest('button')) return; win.classList.remove('minimized'); };
+    var ta=win.querySelector('textarea');
+    var doIt=function(){ var t=(ta.value||'').trim(); if(!t)return; ta.value=''; send(peerId,t); };
+    win.querySelector('.mesh-win-send').onclick=doIt;
+    ta.onkeydown=function(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); doIt(); } };
+    markRead(peerId);
+    renderWin(peerId);
+  }
+  function renderWin(peerId){
+    var win=openWins[peerId]; if(!win) return;
+    var body=win.querySelector('.mesh-win-body'); if(!body) return;
+    var ms=messages.filter(function(m){return m.peer_id===peerId;}).sort(function(a,b){return a.ts-b.ts;});
+    body.innerHTML=ms.map(function(m){ return '<div class="mesh-msg '+(m.dir==='out'?'out':'in')+'">'+esc(m.text)+'</div>'; }).join('');
+    body.scrollTop=body.scrollHeight;
+    // maj du nom si connu
+    var nm=win.querySelector('.mesh-win-name'); var c=convs().filter(function(x){return x.peer_id===peerId;})[0];
+    if(nm && c && c.peer_name) nm.textContent=c.peer_name;
+  }
+  function markRead(peerId){
+    fetch('/api/inbox/read',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({peer_id:peerId})}).then(function(){ return refresh(); }).catch(function(){});
+  }
+  async function send(peerId, text){
+    var name=(openWins[peerId]?openWins[peerId].querySelector('.mesh-win-name').textContent:peerId);
+    messages.push({id:'tmp'+Date.now(),peer_id:peerId,peer_name:name,dir:'out',text:text,ts:Math.floor(Date.now()/1000),read:true});
+    renderWin(peerId);
+    try{ await fetch('/api/mesh/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({to_id:peerId,text:text})}); }catch(e){}
+    setTimeout(refresh,700);
+  }
+  return { init:init, toggle:toggle, openChat:openChat, repositionWindows:repositionWindows };
+})();
+
+/* ── Boot ── */
+(function(){
+  LaRuche.Header.init();
+  LaRuche.Voice.init();
+  LaRuche.Feed.init();
+  if(LaRuche.Secrets && LaRuche.Secrets.init) LaRuche.Secrets.init();
+  if(LaRuche.Mesh && LaRuche.Mesh.init) LaRuche.Mesh.init();
+  // reposition mesh windows on page change and resize
+  window.addEventListener('hashchange', function(){ if(LaRuche.Mesh) LaRuche.Mesh.repositionWindows(); });
+  window.addEventListener('resize', function(){ if(LaRuche.Mesh) LaRuche.Mesh.repositionWindows(); });
+  // Check auth first, then init router
+  LaRuche.Auth.init(function(authenticated){
+    LaRuche.WS.connect();
+    LaRuche.Router.init();
+    LaRuche.Console.log('info','SPA','LaRuche SPA initialized');
+
+    // iOS virtual keyboard handler — adjust layout when keyboard opens/closes
+    if(window.visualViewport) {
+      var inputArea = document.querySelector('.input-area');
+      var mobileTabs = document.getElementById('mobileTabs');
+      window.visualViewport.addEventListener('resize', function(){
+        var offset = window.innerHeight - window.visualViewport.height;
+        if(offset > 100) {
+          // Keyboard is open
+          if(mobileTabs) mobileTabs.style.display = 'none';
+          document.body.style.height = window.visualViewport.height + 'px';
+        } else {
+          // Keyboard is closed
+          if(mobileTabs) mobileTabs.style.display = '';
+          document.body.style.height = '';
+        }
+      });
+      window.visualViewport.addEventListener('scroll', function(){
+        // Prevent viewport scroll offset on iOS
+        window.scrollTo(0,0);
+      });
+    }
+  });
+})();
