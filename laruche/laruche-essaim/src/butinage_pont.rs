@@ -1047,7 +1047,16 @@ pub async fn executer(
     // (comme le chat) → le modèle sait ce qui existe sans qu'on injecte tous les schémas
     // complets. C'était l'erreur : butinage passait `None` ici et gonflait le prompt.
     let tool_schema = schema_outils_pour_prompt(registry, config, prompt_utilisateur);
-    let index_capacites = crate::brain::build_capability_index(registry);
+    // Outils déjà détaillés ce tour (signatures) → exclus du catalogue de noms (anti-double).
+    let exclus: std::collections::HashSet<&str> = tool_schema
+        .as_array()
+        .map(|a| a.iter().filter_map(|t| t["name"].as_str()).collect())
+        .unwrap_or_default();
+    let mut index_capacites = crate::brain::build_capability_index(registry, &exclus);
+    // Catalogue compact des SKILLS (nom — description) : le modèle connaît tout son répertoire.
+    if let Some(sk) = config.skills_index.as_deref() {
+        index_capacites.push_str(sk);
+    }
     let mut systeme = build_system_prompt(
         &tool_schema,
         config.system_prompt_override.as_deref(),
@@ -1254,7 +1263,14 @@ pub async fn reprendre_carnet(
         };
 
     let tool_schema = schema_outils_pour_prompt(registry, config, &carnet.mission);
-    let index = crate::brain::build_capability_index(registry);
+    let exclus: std::collections::HashSet<&str> = tool_schema
+        .as_array()
+        .map(|a| a.iter().filter_map(|t| t["name"].as_str()).collect())
+        .unwrap_or_default();
+    let mut index = crate::brain::build_capability_index(registry, &exclus);
+    if let Some(sk) = config.skills_index.as_deref() {
+        index.push_str(sk);
+    }
     let systeme = build_system_prompt(
         &tool_schema,
         config.system_prompt_override.as_deref(),

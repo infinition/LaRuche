@@ -346,14 +346,17 @@ fn tool_score(
 /// Index COMPACT de toutes les capacités (noms par famille) pour le tier stable du prompt :
 /// le LLM sait ce qui EXISTE même hors des outils injectés ce tour, et peut tout atteindre via
 /// `tool_call`. Inspiré de l'index de skills d'third-party. Stable dans la session → cacheable.
-pub fn build_capability_index(registry: &AbeilleRegistry) -> String {
+pub fn build_capability_index(
+    registry: &AbeilleRegistry,
+    exclude: &HashSet<&str>,
+) -> String {
     let schema = registry.schema_complet();
     let Some(tools) = schema.as_array() else {
         return String::new();
     };
-    // Natifs : NOMS seuls (~70, déjà couverts par leur signature complète quand pertinents).
-    // Plugins + MCP : NOM — DESCRIPTION (peu nombreux, capacités custom → méritent d'être décrites,
-    // comme les skills). Résumé court via `resumer_description`.
+    // Natifs : NOMS seuls (~70). Plugins + MCP : NOM — DESCRIPTION (peu nombreux, capacités custom).
+    // `exclude` = outils DÉJÀ détaillés ce tour (section `## Available tools`) → on ne les répète
+    // PAS ici, sinon double injection des mêmes abeilles (signatures + noms).
     let mut builtin: Vec<&str> = Vec::new();
     let mut plugins: Vec<(&str, String)> = Vec::new();
     let mut mcp: Vec<(&str, String)> = Vec::new();
@@ -361,6 +364,9 @@ pub fn build_capability_index(registry: &AbeilleRegistry) -> String {
         let Some(name) = t["name"].as_str().filter(|n| !n.is_empty()) else {
             continue;
         };
+        if exclude.contains(name) {
+            continue;
+        }
         match t["origin"].as_str().unwrap_or("builtin") {
             "custom" => plugins.push((
                 name,
@@ -2660,8 +2666,8 @@ async fn construire_index_skills(memoire: &Arc<dyn MemoireCognitive>) -> Option<
     }
     lignes.sort();
     let mut out = String::from(
-        "## Compétences (skills) disponibles\n\nProcédures réutilisables. Pour appliquer la \
-         procédure complète de l'une d'elles, appelle `skill_view(nom)`.\n",
+        "## Available skills\n\nReusable procedures. To apply the full procedure of one, \
+         call `skill_view(name)`.\n",
     );
     for (n, d) in lignes {
         if d.is_empty() {
@@ -2981,7 +2987,11 @@ pub async fn boucle_react_multimodal_ext(
     } else {
         Some(native_tools.as_slice())
     };
-    let mut capability_index = build_capability_index(registry);
+    let exclus_idx: HashSet<&str> = tool_schema
+        .as_array()
+        .map(|a| a.iter().filter_map(|t| t["name"].as_str()).collect())
+        .unwrap_or_default();
+    let mut capability_index = build_capability_index(registry, &exclus_idx);
     // Ajoute l'index des skills (s'il a été construit par le caller mémoire) au catalogue stable.
     if let Some(sk) = config.skills_index.as_deref() {
         capability_index.push_str(sk);
