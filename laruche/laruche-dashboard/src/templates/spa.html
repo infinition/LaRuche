@@ -8291,34 +8291,76 @@ LaRuche.Settings = (function(){
     ov.innerHTML='<div style="width:680px;max-width:94vw;height:80vh;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
       '<div style="padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;color:var(--amber)">'+(name?('Éditer : '+LaRuche.Utils.esc(name)):'Nouveau skill')+' <span style="color:var(--text-dim);font-size:10px;font-weight:normal">— SKILL.md (frontmatter validé au save)</span></div>'+
       '<textarea id="skEditor" class="form-input" style="flex:1;margin:12px 12px 6px;font-family:var(--mono);font-size:12px;resize:none">'+LaRuche.Utils.esc(content)+'</textarea>'+
-      '<div style="margin:0 12px 6px"><div style="font-size:10px;color:var(--text-dim);margin-bottom:4px">Abeilles / plugins utiles pour ce skill (coche → met à jour <code>tools:</code>) :</div>'+
-      '<div id="skToolsBox" style="max-height:110px;overflow:auto;border:1px solid var(--border);border-radius:6px;padding:6px;display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px"><span style="color:var(--text-dim)">Chargement…</span></div></div>'+
+      '<div style="margin:0 12px 6px">'+
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">'+
+          '<span style="font-size:10px;color:var(--text-dim);flex:1">Abeilles / plugins de ce skill (→ <code>tools:</code>) <span id="skToolsCount" style="color:var(--amber)"></span></span>'+
+          '<input id="skToolsSearch" placeholder="filtrer…" oninput="LaRuche.Settings.filterSkillTools()" style="font-size:11px;padding:2px 6px;width:120px;background:#16161a;border:1px solid var(--border);border-radius:4px;color:var(--text)">'+
+          '<button class="tl-btn" style="font-size:10px;padding:2px 6px" onclick="LaRuche.Settings.clearSkillTools()">Vider</button>'+
+        '</div>'+
+        '<div id="skToolsBox" style="max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:6px;padding:4px"><span style="color:var(--text-dim);font-size:11px">Chargement…</span></div></div>'+
       '<div style="padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end">'+
       '<button class="tl-btn" onclick="this.closest(\'div[style*=fixed]\').remove()">Annuler</button>'+
       '<button class="settings-save-btn" onclick="LaRuche.Settings.saveSkill(this)">Enregistrer</button></div></div>';
     document.body.appendChild(ov);
     mountSkillTools(content);
   }
-  // Construit la checklist d'outils du skill et synchronise la ligne `tools:` du frontmatter.
+  // Construit la checklist d'outils du skill (groupée Abeilles/Plugins, recherchable,
+  // sélectionnés en tête) et synchronise la ligne `tools:` du frontmatter.
   async function mountSkillTools(content){
     var box=document.getElementById('skToolsBox'); if(!box) return;
     var tools = window._allTools;
     if(!tools){ try{ tools=await fetch('/api/tools').then(function(r){return r.json();}); window._allTools=tools; }catch(e){ tools=[]; } }
     var plugins = [];
     try{ plugins=await fetch('/api/plugins').then(function(r){return r.json();}); }catch(e){}
-    // Liste unifiee abeilles (tools) + plugins, sans doublon.
-    var noms = (tools||[]).map(function(t){return t.name||t;});
-    (plugins||[]).forEach(function(p){ var n=p.name||p; if(noms.indexOf(n)<0) noms.push(n); });
+    var pluginNames = (plugins||[]).map(function(p){return p.name||p;});
+    // Modèle unifié : {name, group, desc}. group = Plugins | Abeilles | Autres.
+    var items = [];
+    var seen = {};
+    (tools||[]).forEach(function(t){
+      var n=t.name||t; if(seen[n])return; seen[n]=1;
+      items.push({name:n, group:(pluginNames.indexOf(n)>=0?'Plugins':'Abeilles'), desc:(t.description||'')});
+    });
+    pluginNames.forEach(function(n){ if(!seen[n]){ seen[n]=1; items.push({name:n, group:'Plugins', desc:''}); } });
     var m = content.match(/^\s*(?:allowed-)?tools:\s*\[([^\]]*)\]/m);
     var current = m ? m[1].split(',').map(function(s){return s.trim().replace(/['"]/g,'');}).filter(Boolean) : [];
-    // Inclut aussi les references deja presentes meme si absentes des listes (robustesse).
-    current.forEach(function(n){ if(noms.indexOf(n)<0) noms.push(n); });
-    box.innerHTML = noms.map(function(n){
-      return '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" value="'+LaRuche.Utils.esc(n)+'" '+(current.indexOf(n)>=0?'checked':'')+' onchange="LaRuche.Settings.applySkillTools()"> '+LaRuche.Utils.esc(n)+'</label>';
-    }).join('') || '<span style="color:var(--text-dim)">Aucune abeille/plugin.</span>';
+    current.forEach(function(n){ if(!seen[n]){ seen[n]=1; items.push({name:n, group:'Autres', desc:'(référence)'}); } });
+    window._skItems = items;
+    window._skChecked = {}; current.forEach(function(n){ window._skChecked[n]=1; });
+    renderSkillTools();
   }
+  // (Ré)affiche la liste selon le filtre + l'état coché courant. Sélectionnés en tête de groupe.
+  function renderSkillTools(){
+    var box=document.getElementById('skToolsBox'); if(!box) return;
+    var items=window._skItems||[]; var checked=window._skChecked||{};
+    var f=(document.getElementById('skToolsSearch')||{}).value||''; f=f.toLowerCase();
+    function row(it){
+      var on=!!checked[it.name];
+      return '<label title="'+LaRuche.Utils.esc(it.desc||'')+'" style="display:flex;align-items:center;gap:7px;padding:4px 7px;border-radius:5px;cursor:pointer;'+(on?'background:rgba(245,158,11,.13)':'')+'" onmouseover="this.style.background=\''+(on?'rgba(245,158,11,.2)':'rgba(255,255,255,.05)')+'\'" onmouseout="this.style.background=\''+(on?'rgba(245,158,11,.13)':'transparent')+'\'">'+
+        '<input type="checkbox" value="'+LaRuche.Utils.esc(it.name)+'" '+(on?'checked':'')+' onchange="LaRuche.Settings.toggleSkillTool(this.value,this.checked)" style="accent-color:var(--amber)">'+
+        '<span style="font-size:12px;'+(on?'color:var(--amber)':'')+'">'+LaRuche.Utils.esc(it.name)+'</span>'+
+        (it.desc?'<span style="font-size:10px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">'+LaRuche.Utils.esc(it.desc)+'</span>':'')+
+      '</label>';
+    }
+    var groups=['Abeilles','Plugins','Autres']; var html='';
+    groups.forEach(function(g){
+      var list=items.filter(function(it){return it.group===g && (!f || it.name.toLowerCase().indexOf(f)>=0);});
+      if(!list.length) return;
+      // sélectionnés d'abord, puis alpha
+      list.sort(function(a,b){ var ca=checked[a.name]?0:1, cb=checked[b.name]?0:1; return ca-cb || a.name.localeCompare(b.name); });
+      html+='<div style="font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);padding:6px 7px 2px">'+g+' ('+list.filter(function(i){return checked[i.name];}).length+'/'+list.length+')</div>';
+      html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px">'+list.map(row).join('')+'</div>';
+    });
+    box.innerHTML = html || '<span style="color:var(--text-dim);font-size:11px;padding:6px;display:block">Aucun résultat.</span>';
+    var cnt=document.getElementById('skToolsCount');
+    if(cnt){ var n=Object.keys(checked).filter(function(k){return checked[k];}).length; cnt.textContent=n?('— '+n+' coché'+(n>1?'s':'')):''; }
+  }
+  function toggleSkillTool(name, on){ window._skChecked=window._skChecked||{}; if(on) window._skChecked[name]=1; else delete window._skChecked[name]; applySkillTools(); renderSkillTools(); }
+  function filterSkillTools(){ renderSkillTools(); }
+  function clearSkillTools(){ window._skChecked={}; applySkillTools(); renderSkillTools(); }
   function applySkillTools(){
-    var checked = Array.prototype.map.call(document.querySelectorAll('#skToolsBox input:checked'), function(i){return i.value;});
+    // Lit le MODÈLE (_skChecked), pas le DOM : sinon un filtre actif masquerait des cochés
+    // et on les perdrait à l'enregistrement.
+    var checked = Object.keys(window._skChecked||{}).filter(function(k){return window._skChecked[k];});
     var line = 'tools: ['+checked.join(', ')+']';
     var ta=document.getElementById('skEditor'); if(!ta) return;
     var c=ta.value;
@@ -8943,7 +8985,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
   }
 
   return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder : composant "human-friendly" reutilisable (missions + cron) ── */
