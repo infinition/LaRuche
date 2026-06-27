@@ -12,20 +12,22 @@ Réfs : `ARCHI_BUTINAGE.md` + mémoire `~/.claude/.../memory/` (third-party-work
 - Hook : `brain.rs` → top de `boucle_react_multimodal_ext` : si `RUCHE_MOTEUR=butinage`, délègue à `butinage_pont::executer`.
 - Node `main.rs` : `ws_chat_connection` (loop avec `pending_text` pour multi-job), spawn curateur après run (gate `RUCHE_CURATEUR==Ok("1")`), `api_feed` (3088, ts normalisés ms).
 
-## ✅ Fait (≈30 commits)
-Noyau testable (59 tests) · boucle pilotée par stop_reason (**texte seul = fin**, plus de rambling) · traits + pont + flag · récolte parallèle · escale+jauge (compaction + consolidation LLM→mémoire) · éclaireuses (sous-agents) · web multi-moteurs + Brave + fallback fetch (r.jina/Wayback) · plan `<plan>`→itinéraire→UI (3/3) · gardes injection+permissions · **steering live** · **curateur** (auto skills+tools VÉRIFIÉS, arrière-plan, conservateur, opt-in `RUCHE_CURATEUR=1`, **dédup côté code** via memory_search).
-**Chat multi-conversation (solide)** : tag `session_id` sur events WS · garde routage front (même conv neuve) · multi-job (un message pendant un run détache+démarre) · bouton Envoyer réinit au switch · nudges internes non persistés (`Message::interne`) · texte dédoublé corrigé (`runningSession`, reattach conditionnel) · backlog feed restauré (`feedCache`) · ordre Feed (ts ms + réponse au-dessus question).
-UI : auto-scroll stick-to-bottom · sélection texte mémoire · bouton 👁 PromptDebug.
+## ✅ Fait (≈37 commits)
+Noyau testable (60 tests) · boucle pilotée par stop_reason (**texte seul = fin**, plus de rambling) · traits + pont + flag · récolte parallèle · escale+jauge (compaction + consolidation LLM→mémoire) · éclaireuses (sous-agents) · web multi-moteurs + Brave + fallback fetch (r.jina/Wayback) · plan `<plan>`→itinéraire→UI (3/3) · gardes injection+permissions · **steering live** · **curateur** (auto skills+tools VÉRIFIÉS, arrière-plan, conservateur, **dédup côté code**).
+**Chat multi-conversation (solide)** : tag `session_id` · garde routage front · multi-job · bouton Envoyer réinit · nudges internes (`Message::interne`) · texte dédoublé corrigé · backlog feed restauré · ordre Feed.
+UI : auto-scroll · sélection texte mémoire · bouton 👁 PromptDebug.
+**Chantiers nuit (faits)** :
+1. ✅ **Curateur = toggle Settings** : `EssaimConfig.curateur_actif` persisté (PersistentState) · `GET/POST /api/config/curateur` · gate `config||env` · UI Settings>General. Fallback env `RUCHE_CURATEUR=1`.
+2. ✅ **Multimodal** images multiples + audio : `messagerie::Piece` + `Message.pieces` · `Carnet.pieces` · `convertir_messages` émet `images[]`+`attachments[]` (format Ollama) · hook→executer transmet les attachments · recompose persiste les pièces · input UI accepte `audio/*`.
+3. ✅ **Tokens réels** : `OllamaChunk.prompt_eval_count` (Ollama ; None openai/anthropic/codex) → `FournisseurPont` peuple `ReponseModele.usage` → `cycle` appelle `jauge.maj_usage` → **facteur de calibration** appris (réel/estimé, borné, capte le coût images).
+4. ✅ **Popup d'approbation** : `OutilsPont.approval: Mutex<ApprovalReceiver>` · outil mutant `Ask` → `ChatEvent::ApprovalRequest` + attente (timeout 180s → refus) · None chez éclaireuses. UI déjà câblée. Mode `auto` ne prompte jamais.
+5. ✅ **Reprise/hygiène carnets** : suppression du carnet à la réussite (`executer`) + `purger_carnets_au_boot()` (efface > 3 j, log les repris).
+6. ✅ **dream/dédup auto** : `memoire.dream()` périodique (6 h, +10 min au boot ; `LARUCHE_DREAM_INTERVAL_SECS=0` pour couper).
 
-## 🔜 À FAIRE (priorité ↓) — chantiers de la nuit
-1. [ ] **Curateur = toggle dans SETTINGS** (au lieu de l'env var `RUCHE_CURATEUR`). Plus simple pour l'user. → ajouter un champ persisté (EssaimConfig ou settings) + UI Settings + le node lit ce champ au lieu de l'env. Garder fallback env.
-2. [ ] **Multimodal** : envoi d'**images MULTIPLES** ET d'**audio**. Le pont butinage ignore `attachments`. Format ollama existant (`session.rs:310`) : `{"role":"user","content":text,"images":[base64],"attachments":[...]}`. Plan : ajouter `attachments: Vec<Attachment>` sur `Message` butinage (ou un champ images/audio) ; thread `attachments` hook→executer→1er message carnet ; `FournisseurPont::convertir_messages` produit le format multimodal (images[] + audio dans attachments). Tester avec modèle vision/audio.
-3. [ ] **Tokens réels** : jauge en `chars/4`. Capter `prompt_eval_count` (ollama) / usage (openai/anthropic) dans `OllamaChunk` (streaming.rs) → `ReponseModele.usage` → jauge. ⚠️ streaming.rs/providers.rs sont dans le WIP user (modifs non commitées) → éditer prudemment.
-4. [ ] **Popup d'approbation** : `Ask` auto-approuvé en butinage. Câbler `approval_rx` (thread comme steering) → sur outil mutant, émettre `ApprovalRequest` + attendre la réponse dans la récolte.
-5. [ ] **Reprise au boot** : carnet écrit (`sessions/butinage/*.carnet.json`) mais rien ne le relit. Hook node au démarrage (lister/reprendre).
-6. [ ] **dream/dédup auto** : passe de consolidation mémoire (`memoire.dream()`) périodique (cron ou idle).
-7. [ ] **Fédération mesh** : propager skills VÉRIFIÉS aux ruches via `miel-protocol`.
-8. [ ] Feed backlog des runs en fond non-attachés (event buffer côté serveur) ; `executionMode` par outil ; tokenizer réel.
+## 🔜 À FAIRE
+7. [ ] **Fédération mesh** : propager skills VÉRIFIÉS aux ruches via `miel-protocol` (GROS — besoin test multi-nœuds).
+8. [ ] Tokens réels openai/anthropic/codex (aujourd'hui Ollama seul) · Feed backlog des runs en fond non-attachés (buffer serveur) · `executionMode` par outil · tokenizer réel.
+9. [ ] **Reprise effective** d'un carnet inachevé (aujourd'hui : détectés+log seulement ; reste à recharger le carnet dans un run via une UI « missions reprises »).
 
 ## Décisions ouvertes
 - Garder `brain.rs` fallback ou supprimer quand butinage validé ? · un seul backend mémoire prod (sidecar/native/sqlite) · `memoire.db` 155 Mo à profiler.
