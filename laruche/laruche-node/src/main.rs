@@ -4232,6 +4232,12 @@ async fn lancer_iteration_mission(state: Arc<AppState>, mission: missions::Missi
         }
         // Canal d'origine → un cron créé par la mission y répondra ; sert aussi de cible de livraison.
         cfg.origin_channel = channel.clone();
+        // Anti-réplication : une itération de mission ne crée pas de tâches planifiées.
+        for t in ["cron_create", "watcher_create", "mission_create", "kanban_create"] {
+            if !cfg.disabled_tools.iter().any(|d| d == t) {
+                cfg.disabled_tools.push(t.to_string());
+            }
+        }
         let sessions_dir = std::path::Path::new("sessions");
         let mut session = Session::new_with_path(&cfg.model, sessions_dir);
         let (tx, mut rx) = broadcast::channel::<ChatEvent>(64);
@@ -10127,6 +10133,19 @@ async fn main() -> Result<()> {
                     cron_config.model = m;
                 } else {
                     cron_config.model = get_llm_default(&cron_state).await;
+                }
+
+                // ANTI-RÉPLICATION : un run DÉCLENCHÉ par un cron ne doit PAS pouvoir créer
+                // d'autres tâches planifiées (cron/watcher/mission/kanban). Sinon un prompt du
+                // genre « message de test pour le cron » fait recréer un cron → qui re-fire →
+                // boucle infinie de crons fantômes. On désactive ces outils pour ce run.
+                for t in [
+                    "cron_create", "cron_delete", "watcher_create", "mission_create",
+                    "kanban_create",
+                ] {
+                    if !cron_config.disabled_tools.iter().any(|d| d == t) {
+                        cron_config.disabled_tools.push(t.to_string());
+                    }
                 }
 
                 let current_model = cron_config.model.clone();
