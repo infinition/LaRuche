@@ -2216,6 +2216,7 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
         <button class="settings-tab-btn active" data-tab="general">General</button>
         <button class="settings-tab-btn" data-tab="providers">Providers</button>
         <button class="settings-tab-btn" data-tab="mcp">MCP</button>
+        <button class="settings-tab-btn" data-tab="secrets">Secrets</button>
         <button class="settings-tab-btn" data-tab="channels">Channels</button>
         <button class="settings-tab-btn" data-tab="network">Reseau</button>
         <button class="settings-tab-btn" data-tab="onboarding">Onboarding</button>
@@ -7201,6 +7202,7 @@ LaRuche.Settings = (function(){
       case 'general': loadGeneral(el); break;
       case 'providers': loadProviders(el); break;
       case 'mcp': loadMcp(el); break;
+      case 'secrets': loadSecrets(el); break;
       case 'tools': loadTools(el); break;
       case 'channels': loadChannels(el); break;
       case 'knowledge': loadKnowledge(el); break;
@@ -7808,6 +7810,40 @@ LaRuche.Settings = (function(){
   }
 
   // MCP logic
+  // Onglet Secrets : vault chiffré. L'UI ne reçoit JAMAIS les valeurs, seulement les noms.
+  async function loadSecrets(el){
+    var data={names:[]};
+    try{ data=await fetch('/api/secrets').then(function(r){return r.json();}); }catch(e){}
+    var names=(data.names||[]);
+    var hooks=names.filter(function(n){return n.indexOf('WEBHOOK')===0;});
+    var others=names.filter(function(n){return n.indexOf('WEBHOOK')!==0;});
+    function card(list,title,hint){
+      var rows = list.length ? list.map(function(n){
+        return '<div class="settings-row"><span class="settings-value" style="font-family:var(--mono,monospace)">'+LaRuche.Utils.esc(n)+' <span style="color:var(--text-dim);font-size:10px">= ••••••••</span></span><button onclick="LaRuche.Settings.secretDelete(\''+LaRuche.Utils.esc(n)+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:1px 8px;cursor:pointer;font-size:10px">Suppr</button></div>';
+      }).join('') : '<div style="color:var(--text-dim);font-size:11px">Aucun.</div>';
+      return '<div class="settings-card"><div class="settings-card-title">'+title+'</div><div style="color:var(--text-dim);font-size:11px;margin-bottom:8px">'+hint+'</div>'+rows+'</div>';
+    }
+    el.innerHTML =
+      '<div style="color:var(--text-dim);font-size:12px;margin-bottom:12px">Les secrets sont <b>chiffrés au repos</b>. Le LLM ne voit JAMAIS leur valeur — seulement leur nom. Dans une commande, un script ou un champ clé d\'API, référence-les par <code>${NOM}</code> : la vraie valeur est substituée à l\'exécution.</div>'+
+      card(others,'Secrets','Ex: API_OPENAI, TOKEN_TELEGRAM, USERID_TELEGRAM…')+
+      card(hooks,'Webhooks','Nomme-les WEBHOOK_… (ex: WEBHOOK_DISCORD). Référence dans un script : ${WEBHOOK_DISCORD}')+
+      '<div class="settings-card"><div class="settings-card-title">Ajouter / mettre à jour</div>'+
+      '<label class="form-label">Nom (A-Z, 0-9, _)</label><input class="form-input" id="secName" placeholder="ex: WEBHOOK_DISCORD">'+
+      '<label class="form-label">Valeur (jamais ré-affichée)</label><input class="form-input" id="secVal" type="password" placeholder="collez la valeur ici">'+
+      '<button class="form-btn" style="margin-top:8px" onclick="LaRuche.Settings.secretSet()">Enregistrer</button></div>';
+  }
+  function secretSet(){
+    var name=(document.getElementById('secName').value||'').trim();
+    var value=document.getElementById('secVal').value||'';
+    if(!name||!value){ LaRuche.Toast.show('Nom et valeur requis','warn'); return; }
+    fetch(LaRuche.API.base+'/api/secrets',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,value:value})})
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Secret enregistré','ok'); refreshTab(); } else { LaRuche.Toast.show('Échec (nom invalide ? A-Z/0-9/_ uniquement)','err'); } });
+  }
+  function secretDelete(name){
+    fetch(LaRuche.API.base+'/api/secrets/'+encodeURIComponent(name),{method:'DELETE',credentials:'include'})
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show('Secret supprimé','ok'); refreshTab(); } });
+  }
+
   // Onglet MCP dédié (sorti de Providers).
   function loadMcp(el){
     var html = '<div class="settings-card" style="margin-bottom:16px">';
@@ -8821,7 +8857,7 @@ var m = document.getElementById('kanban-model')?document.getElementById('kanban-
   }
 
   return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, toggleCurateur:toggleCurateur, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, toggleCurateur:toggleCurateur, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder : composant "human-friendly" reutilisable (missions + cron) ── */

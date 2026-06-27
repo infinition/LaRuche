@@ -114,6 +114,11 @@ impl Abeille for ShellExec {
             }
         }
 
+        // Substitue les secrets `${NOM}` APRÈS les contrôles anti-secret (le LLM n'a fourni
+        // que des placeholders ; la vraie valeur entre ici, sans jamais transiter par le LLM).
+        let command_sub = crate::secrets::substituer(command);
+        let command = command_sub.as_str();
+
         // Check allowlist if configured
         if !ctx.shell_allowlist.is_empty() {
             let first_word = command.split_whitespace().next().unwrap_or("");

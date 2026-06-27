@@ -46,6 +46,8 @@ impl but::Fournisseur for FournisseurPont {
     ) -> std::result::Result<but::ReponseModele, but::ErreurFournisseur> {
         let msgs = convertir_messages(messages);
         let tools = if schemas.is_empty() { None } else { Some(schemas) };
+        // La clé API peut être une référence `${NOM}` vers le coffre → substitution avant l'appel.
+        let api_key = crate::secrets::substituer(&self.api_key);
 
         let mut stream = match provider_chat_stream(
             &self.provider,
@@ -53,7 +55,7 @@ impl but::Fournisseur for FournisseurPont {
             &msgs,
             self.temperature,
             self.max_tokens,
-            &self.api_key,
+            &api_key,
             self.api_base.as_deref(),
             &self.ollama_url,
             tools,

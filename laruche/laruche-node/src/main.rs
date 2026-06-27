@@ -17,6 +17,7 @@ mod local_inference;
 mod mcp;
 mod missions;
 mod profiles;
+mod secrets_vault;
 mod sync;
 mod systray;
 mod tui;
@@ -5286,6 +5287,52 @@ async fn api_set_curateur_config(
     Ok(Json(serde_json::json!({ "status": "ok", "enabled": enabled })))
 }
 
+/// GET /api/secrets — liste les NOMS de secrets (JAMAIS les valeurs).
+async fn api_secrets_list() -> Json<serde_json::Value> {
+    Json(serde_json::json!({ "names": laruche_essaim::secrets::noms() }))
+}
+
+/// POST /api/secrets — définit/maj un secret {name, value} (auth, chiffré au repos).
+async fn api_secrets_set(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<serde_json::Value>,
+) -> StatusCode {
+    if auth_user::extract_user_from_headers(&headers, &state.cookie_secret).is_none() {
+        return StatusCode::UNAUTHORIZED;
+    }
+    let name = body["name"].as_str().unwrap_or("").trim().to_string();
+    let value = body["value"].as_str().unwrap_or("").to_string();
+    // Nom propre pour `${NOM}` : lettres/chiffres/underscore uniquement.
+    if name.is_empty()
+        || value.is_empty()
+        || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+    {
+        return StatusCode::BAD_REQUEST;
+    }
+    laruche_essaim::secrets::definir(&name, &value);
+    let mut map = secrets_vault::charger();
+    map.insert(name, value);
+    secrets_vault::sauver(&map);
+    StatusCode::OK
+}
+
+/// DELETE /api/secrets/:name — supprime un secret (auth).
+async fn api_secrets_delete(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Path(name): axum::extract::Path<String>,
+) -> StatusCode {
+    if auth_user::extract_user_from_headers(&headers, &state.cookie_secret).is_none() {
+        return StatusCode::UNAUTHORIZED;
+    }
+    laruche_essaim::secrets::retirer(&name);
+    let mut map = secrets_vault::charger();
+    map.remove(&name);
+    secrets_vault::sauver(&map);
+    StatusCode::OK
+}
+
 /// GET /api/config/provider — get current LLM provider settings.
 async fn api_get_provider_config(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let ec = state.essaim_config.read().await;
@@ -8791,6 +8838,10 @@ async fn main() -> Result<()> {
     // Journal du Feed (persistant) : charge l'historique des événements système au démarrage.
     laruche_essaim::feed_journal::init(std::path::PathBuf::from("feed-journal.ndjson"), 500);
 
+    // Coffre à secrets : déchiffre le fichier au repos → vue mémoire (jamais re-sérialisée).
+    // Les outils/providers substitueront `${NOM}` par la vraie valeur sans la montrer au LLM.
+    laruche_essaim::secrets::init(secrets_vault::charger());
+
     let mut broadcaster = MielBroadcaster::new()?;
     broadcaster.register(&manifest)?;
     let broadcaster = Arc::new(broadcaster);
@@ -9446,6 +9497,11 @@ async fn main() -> Result<()> {
             "/api/config/curateur",
             get(api_get_curateur_config).post(api_set_curateur_config),
         )
+        .route(
+            "/api/secrets",
+            get(api_secrets_list).post(api_secrets_set),
+        )
+        .route("/api/secrets/:name", axum::routing::delete(api_secrets_delete))
         .route(
             "/api/profiles",
             get(api_get_profiles).post(api_upsert_profile),

@@ -44,6 +44,19 @@ pub fn build_system_prompt(
     if let Some(instructions) = custom_instructions {
         prompt.push_str(&section_contexte_dynamique(instructions));
     }
+    // 5) Secrets : on expose les NOMS (jamais les valeurs). Le LLM les référence par `${NOM}`
+    //    dans les commandes shell/scripts ; le node substitue la vraie valeur à l'exécution.
+    let noms = crate::secrets::noms();
+    if !noms.is_empty() {
+        prompt.push_str(&format!(
+            "\n## Secrets disponibles\nL'utilisateur a enregistré des secrets (clés d'API, tokens, \
+             URLs de webhook). Tu n'en connais JAMAIS la valeur — seulement le nom. Pour t'en \
+             servir dans une commande shell_exec ou un script, écris `${{NOM}}` : le système \
+             remplacera par la vraie valeur au moment de l'exécution (jamais affichée).\n\
+             Secrets : {}\n\n",
+            noms.join(", ")
+        ));
+    }
     prompt
 }
 
