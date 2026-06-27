@@ -6073,12 +6073,10 @@ LaRuche.Memory = (function(){
   /* ---- helpers icones / protection ---- */
   // True si l'agent ne doit pas muter ce noeud (cadenas).
   function isProtected(id){
-    var meta = nodes[id] || {};
-    if(meta.protected) return true;
-    // Les RACINES ne se suppriment/deplacent pas (casserait tout l'arbre). Les projections
-    // d'outils `tools.*` sont auto-generees (re-seedees au boot, suppression inutile). TOUT
-    // le reste — y compris `system.*` et `capacities.*` cree par le LLM — est editable et
-    // SUPPRIMABLE par l'ADMIN (toi) ici ; seul l'AGENT en est empeche (garde-fou backend).
+    // NB: on N'utilise PAS `meta.protected` ici. Le backend pose ce flag sur system.*/
+    // capacities.* pour brider l'AGENT (garde-fou `noeud_reserve`), mais l'ADMIN (toi, dans
+    // l'UI) a le droit de les editer/supprimer (le backend l'autorise). Seules les RACINES
+    // (casserait l'arbre) et les projections d'outils `tools.*` (auto-regenerees) restent verrouillees.
     if(id === 'system' || id === 'capacities' || id === 'tools') return true;
     if(id.indexOf('tools.') === 0) return true;
     return false;
