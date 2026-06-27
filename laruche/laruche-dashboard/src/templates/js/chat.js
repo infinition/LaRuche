@@ -1,0 +1,1910 @@
+LaRuche.Chat = (function(){
+  var sessionId = null;
+  var runningSession = null; // session dont le run tourne sur la socket PRINCIPALE (pas via attachWs)
+  var unreadSessions = {}; // conversations (autres que l'active) avec du NOUVEAU terminé → pastille
+  var feedCache = {}; // session_id → HTML du feed d'activité (live-only) pour le restaurer au switch
+  var currentAssistantMsg = null;
+  var currentAssistantRow = null;
+  var isStreaming = false;
+  var autoTtsEnabled = false;
+  var noThinkEnabled = false;
+  var lastUserMessage = '';
+  var responseTimeout = null;
+  var typingIndicatorEl = null;
+  var pendingFiles = [];
+  var pendingMedia = [];
+  var lastSteerText = '';
+  var staleRecoveryActive = false;
+
+  function init() {
+    ensureFeedStyle();
+    var userInput = document.getElementById('userInput');
+    userInput.addEventListener('input', function(){
+      this.style.height = 'auto';
+      this.style.height = Math.min(this.scrollHeight,120)+'px';
+    });
+    userInput.addEventListener('keydown', function(e){
+      if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); }
+    });
+    // File upload
+    var fileInput = document.getElementById('fileInput');
+    fileInput.addEventListener('change', function(){
+      for(var i=0;i<fileInput.files.length;i++) addPendingFile(fileInput.files[i]);
+      fileInput.value='';
+    });
+    // Drag & drop
+    var chatMain = document.querySelector('.chat-main');
+    chatMain.addEventListener('dragover', function(e){ e.preventDefault(); document.getElementById('dropZone').style.display='flex'; });
+    chatMain.addEventListener('dragleave', function(e){ if(!chatMain.contains(e.relatedTarget)) document.getElementById('dropZone').style.display='none'; });
+    chatMain.addEventListener('drop', function(e){
+      e.preventDefault(); document.getElementById('dropZone').style.display='none';
+      for(var i=0;i<e.dataTransfer.files.length;i++) addPendingFile(e.dataTransfer.files[i]);
+    });
+    // Mic button
+    var micBtn = document.getElementById('micBtn');
+    micBtn.addEventListener('click', function(e){ e.preventDefault(); LaRuche.Voice.toggleMic(); });
+    micBtn.addEventListener('touchend', function(e){ e.preventDefault(); LaRuche.Voice.toggleMic(); }, {passive:false});
+    // Touch swipe for sidebar
+    var touchStartX=0, touchStartY=0, touchTracking=false;
+    document.addEventListener('touchstart', function(e){
+      var t=e.touches[0];
+      if(t.clientX<30 && !document.getElementById('chatSidebar').classList.contains('open')){
+        touchStartX=t.clientX; touchStartY=t.clientY; touchTracking=true;
+      }
+    },{passive:true});
+    document.addEventListener('touchmove', function(e){
+      if(!touchTracking) return;
+      var t=e.touches[0], dx=t.clientX-touchStartX, dy=Math.abs(t.clientY-touchStartY);
+      if(dx>60 && dy<40){ touchTracking=false; toggleSidebar(); }
+    },{passive:true});
+    document.addEventListener('touchend', function(){ touchTracking=false; },{passive:true});
+    // Load sessions
+    loadSessions();
+    noThinkEnabled = localStorage.getItem('laruche_no_think') === '1';
+    var noThink = document.getElementById('noThinkToggle');
+    var noThinkWrap = document.getElementById('noThinkWrap');
+    if(noThink) noThink.checked = noThinkEnabled;
+    if(noThinkWrap) noThinkWrap.classList.toggle('active', noThinkEnabled);
+  }
+
+  function enter() { loadCwd(); }
+  function leave() {}
+
+  function handleEvent(data) {
+    // Cloisonnement par conversation : un event tagué d'une AUTRE conversation
+    // (job parallèle qui tourne en fond) ne doit JAMAIS s'écrire dans la vue courante.
+    // On note seulement un "nouveau" sur les events terminaux (pas la réflexion).
+    if(data.session_id && data.type!=='session' && String(data.session_id)!==String(sessionId||'')){
+      // Event d'une AUTRE conversation (job en fond) — y compris quand l'active est neuve
+      // (sessionId null) : on ne rend RIEN dans la vue courante. Pastille sur terminal.
+      if(data.type==='done' || data.type==='error' || data.type==='approval_request'){
+        unreadSessions[data.session_id]=true;
+        if(data.type!=='approval_request') delete feedCache[data.session_id]; // terminée → /messages fera foi
+        loadSessions();
+      }
+      return;
+    }
+    switch(data.type) {
+      case 'session':
+        // La socket principale confirme la session de SON run. On ne change la vue que si
+        // aucune n'est ouverte (nouvelle conv) ; sinon on garde celle que l'utilisateur regarde.
+        if(!sessionId) sessionId = data.session_id;
+        runningSession = data.session_id;
+        loadSessions(); refreshSessionsPage(); break;
+      case 'token':
+        clearResponseTimeout();
+        if(!currentAssistantMsg) {
+          removeTypingIndicator();
+          var r = addMessage('assistant','');
+          currentAssistantRow = r.row; currentAssistantMsg = r.msgEl;
+          currentAssistantMsg._rawBuf = ''; currentAssistantMsg._inToolTag = false;
+        }
+        currentAssistantMsg._rawBuf += data.text;
+        streamToken(currentAssistantMsg, data.text);
+        break;
+      
+      case 'skill_applied':
+        addSkillChip(data.name);
+        break;
+      case 'skill_proposed':
+        LaRuche.Toast.show('✨ Skill né : ' + data.name, 'ok');
+        if (location.hash === '#capabilities' && LaRuche.Capabilities && LaRuche.Capabilities.refresh) {
+          LaRuche.Capabilities.refresh();
+        }
+        break;
+
+      case 'thinking':
+        setFeedLive('thinking');
+        addActivity('thinking','Réflexion en cours',data.text,false,{stepTitle:_feedTurnTitle});
+        break;
+      case 'steer_ack':
+        addActivity('status','Orientation reçue',data.message||'Appliquée à la prochaine étape.',false);
+        document.getElementById('iterationBadge').textContent='Orientation en attente';
+        var pendingSteers=document.querySelectorAll('.message-row.steer.pending');
+        if(pendingSteers.length){
+          var lastSteer=pendingSteers[pendingSteers.length-1];
+          lastSteer.classList.remove('pending');
+          lastSteer.classList.add('acknowledged');
+        }
+        if(data.text && data.text===lastSteerText) lastSteerText='';
+        break;
+      case 'steer_rejected':
+        var rejectedText=(data.text||lastSteerText||'').trim();
+        var canRecover=(data.reason==='no_active_run'||data.reason==='run_finished') && !!rejectedText;
+        if(canRecover){
+          var rejectedRows=document.querySelectorAll('.message-row.steer.pending');
+          if(rejectedRows.length){
+            var rejectedRow=rejectedRows[rejectedRows.length-1];
+            rejectedRow.classList.remove('pending','steer');
+            rejectedRow.classList.add('user','acknowledged');
+          }
+          // Deux messages peuvent croiser la fin d'un run. Le premier relance
+          // proprement la demande; les suivants deviennent des orientations du
+          // nouveau run au lieu d'etre perdus ou de bloquer l'interface.
+          if(staleRecoveryActive && isStreaming){
+            LaRuche.WS.send({type:'steer',text:rejectedText});
+            addActivity('status','Demande réinjectée', 'Le run vient de reprendre : orientation transmise.',false);
+            lastSteerText='';
+            break;
+          }
+          staleRecoveryActive=true;
+          clearResponseTimeout(); removeTypingIndicator();
+          isStreaming=false;
+          document.getElementById('sendBtn').disabled=false;
+          document.getElementById('userInput').disabled=false;
+          document.getElementById('userInput').placeholder='Envoyer un message...';
+          document.getElementById('iterationBadge').textContent='';
+          setFeedLive('idle');
+          var staleWelcome=document.getElementById('welcomeScreen'); if(staleWelcome) staleWelcome.remove();
+          _feedBody=null; _feedTurnTitle=titleForUserMessage(rejectedText);
+          var staleUsage=document.getElementById('feedUsage'); if(staleUsage) staleUsage.textContent='';
+          lastUserMessage=rejectedText; pendingMedia=[]; lastSteerText='';
+          var recoveredPayload={type:'message',text:rejectedText};
+          if(sessionId) recoveredPayload.session_id=sessionId;
+          var recoveredModel=LaRuche.Header.getModel(); if(recoveredModel) recoveredPayload.model=recoveredModel;
+          var recoveredProvider=LaRuche.Header.getProfileId?LaRuche.Header.getProfileId():''; if(recoveredProvider) recoveredPayload.provider=recoveredProvider;
+          if(noThinkEnabled) recoveredPayload.no_think=true;
+          LaRuche.WS.send(recoveredPayload);
+          isStreaming=true;
+          document.getElementById('userInput').placeholder="Interrompre ou orienter l'agent en cours...";
+          showTypingIndicator(); startResponseTimeout();
+          addActivity('status','Demande relancée', 'Le précédent run était déjà terminé : ta demande est repartie automatiquement.',false,{stepTitle:_feedTurnTitle});
+          break;
+        }
+        addActivity('tool-err','Orientation non appliquée',data.message||'Le run est terminé.',true);
+        if(data.reason==='queue_full') LaRuche.Toast.show(data.message||'Trop d’orientations en attente.','warn');
+        break;
+      case 'tools_selected':
+        if (window.localStorage.getItem('laruche_hide_transparency') === 'true') break;
+        var tChip = document.createElement('div');
+        tChip.className = 'transparency-chip tools-chip';
+        tChip.style.cssText = 'display:inline-block; background:rgba(245,158,11,0.1); border:1px solid rgba(245,158,11,0.2); color:var(--amber); padding:2px 8px; border-radius:12px; font-size:10px; margin-top:4px; margin-bottom:4px; margin-right:6px; cursor:pointer; font-family:var(--mono); transition:all 0.2s;';
+        tChip.innerHTML = '🛠️ ' + (data.tools ? data.tools.length : 0) + ' outils';
+        tChip.title = data.tools ? data.tools.join(', ') : '';
+        tChip.dataset.tools = data.tools ? data.tools.join(', ') : 'Aucun';
+        tChip.dataset.len = data.tools ? data.tools.length : 0;
+        tChip.onclick = function() {
+            if (this.textContent.indexOf('outils') !== -1) {
+                this.textContent = '🛠️ ' + this.dataset.tools;
+            } else {
+                this.textContent = '🛠️ ' + this.dataset.len + ' outils';
+            }
+        };
+        if (!currentAssistantMsg) {
+          var r = addMessage('assistant','');
+          currentAssistantRow = r.row; currentAssistantMsg = r.msgEl;
+          currentAssistantMsg._rawBuf = ''; currentAssistantMsg._inToolTag = false;
+        }
+        currentAssistantMsg.appendChild(tChip);
+        break;
+      case 'thought':
+        setFeedLive('thinking');
+        if(data.kind!=='next_action') addActivity('thinking',thoughtLabel(data.phase||'',data.kind||''),data.text,false);
+        break;
+      case 'tool_call':
+        closeAssistantSegmentForTool();
+        setFeedLive('tool');
+        var toolLabel=toolActivityLabel(data.name,data.args);
+        maybeRenderFileDiff(data.name,data.args); // carte diff inline pour les éditions de fichier
+        addActivity('tool-call',toolLabel+' · en cours',toolContext(data.args),true,{toolName:data.name,activityLabel:toolLabel,live:true,terminal:(data.name==='shell_exec'||data.name==='execute_code'||data.name==='run_script'),command:toolContext(data.args)});
+        break;
+      case 'tool_output':
+        appendToolOutput(data.name,data.text||data.chunk||'');
+        break;
+      case 'tool_result':
+        var toolResult=data.result||'';
+        if(data.success){
+          var declaredMedia=takeMediaDeclarations(toolResult);
+          if(declaredMedia.items.length){
+            pendingMedia=pendingMedia.concat(declaredMedia.items);
+            toolResult=declaredMedia.text || (declaredMedia.items.length+' media ajoute(s) a la reponse.');
+          }
+        }
+        finishToolActivity(data.name,toolResult,!!data.success,data.elapsed_ms);
+        addToolMessage(data.name,toolResult,!!data.success,data.elapsed_ms,false,null);
+        if(isStreaming)setFeedLive('thinking');
+        break;
+      case 'prompt_debug': onPromptDebug(data); break;
+      case 'plan': updatePlan(data.items); break;
+      case 'approval_request': showApprovalDialog(data.tool_call_id,data.name,data.args); break;
+      case 'status':
+        var statusMessage=data.message||'';
+        var memMatch = statusMessage.match(/Mémoire\s*:\s*(\d+)\s*souvenir/i);
+        if (memMatch && window.localStorage.getItem('laruche_hide_transparency') !== 'true') {
+           var mChip = document.createElement('div');
+           mChip.className = 'transparency-chip mem-chip';
+           mChip.style.cssText = 'display:inline-block; background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.2); color:var(--purple); padding:2px 8px; border-radius:12px; font-size:10px; margin-top:4px; margin-bottom:4px; margin-right:6px; font-family:var(--mono);';
+           mChip.innerHTML = '🧠 ' + memMatch[1] + ' souvenirs';
+           if (!currentAssistantMsg) {
+             var r = addMessage('assistant','');
+             currentAssistantRow = r.row; currentAssistantMsg = r.msgEl;
+             currentAssistantMsg._rawBuf = ''; currentAssistantMsg._inToolTag = false;
+           }
+           currentAssistantMsg.appendChild(mChip);
+        }
+        if(statusMessage.indexOf('__tool_output__|')===0){
+          var markerFirst=statusMessage.indexOf('|');
+          var markerSecond=statusMessage.indexOf('|',markerFirst+1);
+          var markerThird=statusMessage.indexOf('|',markerSecond+1);
+          if(markerThird>=0)appendToolOutput(
+            statusMessage.slice(markerFirst+1,markerSecond),
+            statusMessage.slice(markerThird+1)
+          );
+          break;
+        }
+        var executing=/^executing:/i.test(statusMessage);
+        if(executing)setFeedLive('tool');
+        addActivity('status',executing?'Préparation de l’exécution':'Mise à jour de l’agent',statusMessage,false);
+        if(isStreaming) document.getElementById('iterationBadge').textContent=statusMessage;
+        if(statusMessage.indexOf('🔄')===0){
+          var lm=document.getElementById('loopMonitor');
+          if(lm){lm.style.borderColor='var(--amber)';lm.title=statusMessage;}
+        }
+        break;
+      case 'usage':
+        var usageBar=document.getElementById('feedUsage');
+        if(usageBar)usageBar.textContent='CTX '+data.input_tokens+' · SORTIE '+data.output_tokens+(data.cost_usd > 0 ? ' · $'+data.cost_usd.toFixed(4) : '');
+        // Enrich the most recent assistant message timestamp with cost info
+        if(currentAssistantRow) {
+          var tsEl = currentAssistantRow.querySelector('.msg-timestamp');
+          if(tsEl) {
+            var costStr = data.cost_usd > 0 ? '  ·  $' + data.cost_usd.toFixed(4) : '';
+            tsEl.textContent = (tsEl.dataset.time||tsEl.textContent) + '  ·  in:' + data.input_tokens + ' out:' + data.output_tokens + costStr;
+          }
+        }
+        break;
+      case 'stopped':
+        clearResponseTimeout(); removeTypingIndicator();
+        if(currentAssistantMsg) finalizeMessage(currentAssistantMsg, '');
+        currentAssistantMsg=null; currentAssistantRow=null;
+        isStreaming=false; staleRecoveryActive=false;
+        setRunning(false);
+        document.getElementById('sendBtn').disabled=false;
+        document.getElementById('userInput').placeholder = "Envoyer un message...";
+        document.getElementById('userInput').disabled=false;
+        document.getElementById('iterationBadge').textContent='';
+        setFeedLive('idle');
+        LaRuche.Toast.show('⏹ Génération interrompue','warn');
+        loadSessions(); refreshSessionsPage();
+        break;
+      case 'done':
+        clearResponseTimeout(); removeTypingIndicator();
+        if(sessionId) delete feedCache[sessionId]; // run fini : /messages fait foi, plus besoin du cache feed
+        if(!currentAssistantMsg && (data.full_response||pendingMedia.length)){
+          var finalRow=addMessage('assistant','');
+          currentAssistantRow=finalRow.row; currentAssistantMsg=finalRow.msgEl; currentAssistantMsg._rawBuf='';
+        }
+        if(currentAssistantMsg) finalizeMessage(currentAssistantMsg, data.full_response);
+        currentAssistantMsg=null; currentAssistantRow=null;
+        isStreaming=false;
+        staleRecoveryActive=false;
+        setRunning(false);
+        document.getElementById('sendBtn').disabled=false;
+        document.getElementById('userInput').placeholder = "Envoyer un message...";
+        document.getElementById('userInput').disabled=false;
+        document.getElementById('userInput').focus();
+        document.getElementById('iterationBadge').textContent='';
+        setFeedLive('idle');
+        if(_feedPrevCard){_feedPrevCard.classList.remove('running');var doneState=_feedPrevCard.querySelector('.feed-step-state');if(doneState)doneState.textContent='TERMINÉ';}
+        var detailsAtEnd=document.getElementById('feedDetailsToggle');
+        if(detailsAtEnd&&detailsAtEnd.checked){detailsAtEnd.checked=false;window.lrToggleFeedDetails(false);}
+        loadSessions(); refreshSessionsPage();
+        break;
+      case 'error':
+        clearResponseTimeout(); removeTypingIndicator();
+        addErrorMessage(data.message);
+        currentAssistantMsg=null; currentAssistantRow=null;
+        isStreaming=false;
+        staleRecoveryActive=false;
+        setRunning(false);
+        document.getElementById('sendBtn').disabled=false;
+        document.getElementById('userInput').placeholder = "Envoyer un message...";
+        document.getElementById('userInput').disabled=false;
+        document.getElementById('iterationBadge').textContent='';
+        setFeedLive('idle');
+        if(_feedPrevCard){_feedPrevCard.classList.remove('running');var errorState=_feedPrevCard.querySelector('.feed-step-state');if(errorState)errorState.textContent='À VÉRIFIER';}
+        break;
+    }
+  }
+
+  function startResponseTimeout() {
+    clearResponseTimeout();
+    responseTimeout = setTimeout(function(){
+      if(isStreaming && !currentAssistantMsg) {
+        var w = document.createElement('div');
+        w.className='timeout-warning';
+        w.innerHTML='&#x26A0; La reponse prend plus de temps que prevu...';
+        document.getElementById('chatContainer').appendChild(w);
+        scrollToBottom();
+      }
+    },30000);
+  }
+  function clearResponseTimeout() {
+    if(responseTimeout){clearTimeout(responseTimeout);responseTimeout=null;}
+    document.getElementById('chatContainer').querySelectorAll('.timeout-warning').forEach(function(el){el.remove();});
+  }
+
+  async function sendMessage(text) {
+    var msg = (text !== undefined && text !== null) ? text : document.getElementById('userInput').value.trim();
+    if((!msg && pendingFiles.length === 0) || !LaRuche.WS.isOpen()) return;
+
+    if (isStreaming) {
+      if (!msg) return;
+      LaRuche.WS.send({ type: 'steer', text: msg });
+      lastSteerText=msg;
+      document.getElementById('userInput').value = '';
+      document.getElementById('userInput').style.height = 'auto';
+      var steerMessage=addMessage('steer', msg);
+      steerMessage.row.classList.add('pending');
+      return;
+    }
+    // P8 — si on etait re-attache en lecture seule a une session en cours, on coupe
+    // la socket secondaire : le nouveau tour passe par la socket principale du chat.
+    if(LaRuche.WS && LaRuche.WS.detach) LaRuche.WS.detach();
+    var welcome = document.getElementById('welcomeScreen');
+    if(welcome) welcome.remove();
+    var fileData = await getFileContentsForPrompt();
+    var fullMsg = msg + fileData.text;
+    startPlanMission(msg);
+    addMessage('user', msg, fileData.attachments);
+    // nouveau tour → vide la section Skills du volet gauche
+    var spChips0=document.getElementById('skillsPanelChips'); if(spChips0) spChips0.innerHTML='';
+    var sp0=document.getElementById('skillsPanel'); if(sp0) sp0.style.display='none';
+    _feedBody = null; // nouveau tour → nouvelle étape (les cartes précédentes restent, repliées)
+    var usageOnNewTurn=document.getElementById('feedUsage');
+    if(usageOnNewTurn)usageOnNewTurn.textContent='';
+    setFeedLive('thinking');
+    lastUserMessage = msg;
+    pendingMedia=[];
+    staleRecoveryActive=false;
+    lastSteerText='';
+    // La socket principale va streamer CE run : on ferme tout réabonnement attachWs résiduel
+    // (sinon double rendu des tokens : « VoiciVoici les les »).
+    if(LaRuche.WS && LaRuche.WS.detach) LaRuche.WS.detach();
+    var payload = {type:'message', text:fullMsg};
+    if(sessionId) payload.session_id = sessionId;
+    var model = LaRuche.Header.getModel();
+    if(model) payload.model = model;
+    var pid = LaRuche.Header.getProfileId ? LaRuche.Header.getProfileId() : '';
+    if(pid) payload.provider = pid;
+    if(noThinkEnabled) payload.no_think = true;
+    var codingTog = document.getElementById('codingModeToggle');
+    if(codingTog && codingTog.checked) payload.capability = 'code';
+    if(fileData.attachments && fileData.attachments.length>0) payload.attachments = fileData.attachments;
+    LaRuche.WS.send(payload);
+    document.getElementById('userInput').value='';
+    document.getElementById('userInput').style.height='auto';
+    isStreaming=true;
+    setRunning(true);
+    document.getElementById('userInput').placeholder = "Interrompre ou orienter l'agent en cours...";
+    showTypingIndicator();
+    startResponseTimeout();
+  }
+
+  function useSuggestion(el) { var text=el.textContent; document.getElementById('userInput').value=text; sendMessage(text); }
+
+  function toggleNoThink(enabled) {
+    noThinkEnabled = !!enabled;
+    localStorage.setItem('laruche_no_think', noThinkEnabled ? '1' : '0');
+    var wrap = document.getElementById('noThinkWrap');
+    if(wrap) wrap.classList.toggle('active', noThinkEnabled);
+    LaRuche.Toast.show(noThinkEnabled ? 'No-think actif' : 'Thinking actif', 'ok');
+  }
+  // Artifact viewer : popup dédiée pour lire/rendre le code (HTML/SVG rendus
+  // dans une iframe sandboxée, façon LLM modernes ; tout langage en vue Code).
+  if(!window.lrShowArtifact){
+    window.lrShowArtifact = function(code, lang, preferPreview){
+      if(!document.getElementById('lr-artifact-style')){
+        var st=document.createElement('style'); st.id='lr-artifact-style';
+        st.textContent=
+          '.code-toolbar{position:absolute;top:6px;right:6px;display:flex;gap:4px;z-index:3}'+
+          '.code-tool-btn{background:rgba(0,0,0,.55);border:1px solid var(--border,#333);color:#cfcfcf;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer}'+
+          '.code-tool-btn:hover{background:var(--amber,#f5a623);color:#000;border-color:transparent}'+
+          '.lr-art-ov{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center;animation:lrfade .12s ease}'+
+          '@keyframes lrfade{from{opacity:0}to{opacity:1}}'+
+          '.lr-art-win{width:92vw;height:90vh;background:#0d0d10;border:1px solid var(--amber,#f5a623);border-radius:10px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6)}'+
+          '.lr-art-head{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #2a2a2e}'+
+          '.lr-art-title{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:1px;margin-right:6px}'+
+          '.lr-art-tab{background:none;border:1px solid #333;color:#aaa;border-radius:6px;padding:4px 14px;cursor:pointer;font-size:12px}'+
+          '.lr-art-tab.on{background:var(--amber,#f5a623);color:#000;border-color:transparent}'+
+          '.lr-art-act{margin-left:auto;display:flex;gap:6px}'+
+          '.lr-art-x{background:none;border:none;color:#aaa;font-size:20px;cursor:pointer;line-height:1}'+
+          '.lr-art-body{flex:1;overflow:auto;background:#101014}'+
+          '.lr-art-body iframe{width:100%;height:100%;border:0;background:#fff}'+
+          '.lr-art-body pre{margin:0;padding:16px;white-space:pre-wrap;word-break:break-word;color:#e0e0e0;font:12.5px/1.6 ui-monospace,Consolas,monospace}';
+        document.head.appendChild(st);
+      }
+      var renderable=/^(html|xml|svg|markup)$/i.test(lang||'');
+      var ov=document.createElement('div'); ov.className='lr-art-ov';
+      var win=document.createElement('div'); win.className='lr-art-win';
+      var head=document.createElement('div'); head.className='lr-art-head';
+      var title=document.createElement('span'); title.className='lr-art-title'; title.textContent=(lang||'code');
+      var tabP=document.createElement('button'); tabP.className='lr-art-tab'; tabP.textContent='Aperçu';
+      var tabC=document.createElement('button'); tabC.className='lr-art-tab'; tabC.textContent='Code';
+      var act=document.createElement('div'); act.className='lr-art-act';
+      var cp=document.createElement('button'); cp.className='code-tool-btn'; cp.textContent='Copier';
+      cp.onclick=function(){navigator.clipboard.writeText(code).then(function(){cp.textContent='Copié!';setTimeout(function(){cp.textContent='Copier';},1500);});};
+      var x=document.createElement('button'); x.className='lr-art-x'; x.innerHTML='&times;';
+      var body=document.createElement('div'); body.className='lr-art-body';
+      function close(){ if(ov.parentNode) document.body.removeChild(ov); document.removeEventListener('keydown',onKey); }
+      function onKey(e){ if(e.key==='Escape') close(); }
+      function showPreview(){ tabP.classList.add('on'); tabC.classList.remove('on'); body.innerHTML='';
+        var f=document.createElement('iframe'); f.setAttribute('sandbox','allow-scripts allow-popups allow-forms'); f.srcdoc=code; body.appendChild(f); }
+      function showCode(){ tabC.classList.add('on'); tabP.classList.remove('on'); body.innerHTML='';
+        var p=document.createElement('pre'); p.textContent=code; body.appendChild(p); }
+      tabP.onclick=showPreview; tabC.onclick=showCode; x.onclick=close;
+      ov.onclick=function(e){ if(e.target===ov) close(); };
+      document.addEventListener('keydown',onKey);
+      head.appendChild(title);
+      if(renderable){ head.appendChild(tabP); head.appendChild(tabC); }
+      act.appendChild(cp); act.appendChild(x); head.appendChild(act);
+      win.appendChild(head); win.appendChild(body); ov.appendChild(win); document.body.appendChild(ov);
+      if(renderable && preferPreview!==false){ showPreview(); } else { showCode(); }
+    };
+    // Ajoute la barre (Aperçu/Ouvrir/Copier) sous chaque bloc de code d'un message.
+    window.lrEnhanceCode = function(el){
+      el.querySelectorAll('pre code').forEach(function(block){
+        var pre=block.parentElement; if(!pre || pre.querySelector('.code-toolbar')) return;
+        if(!(block.textContent||'').trim()) return; // skip empty/vides
+        pre.style.position='relative';
+        var lang=''; (block.className||'').split(/\s+/).forEach(function(c){if(c.indexOf('language-')===0)lang=c.slice(9);});
+        var code=block.textContent||'';
+        var renderable=/^(html|xml|svg|markup)$/i.test(lang) || (!lang && /<(\!doctype|html|svg|body|div|section)\b/i.test(code));
+        var bar=document.createElement('div'); bar.className='code-toolbar';
+        if(renderable){
+          var prev=document.createElement('button'); prev.className='code-tool-btn'; prev.innerHTML='&#x25B6; Aperçu';
+          prev.onclick=function(){window.lrShowArtifact(code, lang||'html', true);};
+          bar.appendChild(prev);
+        }
+        var open=document.createElement('button'); open.className='code-tool-btn'; open.innerHTML='&#x26F6; Ouvrir';
+        open.onclick=function(){window.lrShowArtifact(code, lang||'text', false);};
+        bar.appendChild(open);
+        var copyBtn=document.createElement('button'); copyBtn.className='code-tool-btn'; copyBtn.textContent='Copier';
+        copyBtn.onclick=function(){navigator.clipboard.writeText(code).then(function(){copyBtn.textContent='Copié!';setTimeout(function(){copyBtn.textContent='Copier';},1500);});};
+        bar.appendChild(copyBtn);
+        pre.appendChild(bar);
+      });
+    };
+  }
+
+  // 👁 Aperçu du prompt réel envoyé au LLM (event prompt_debug).
+  function onPromptDebug(data){
+    var rows=document.querySelectorAll('.message-row.user');
+    var row=rows[rows.length-1]; if(!row) return;
+    row._promptDebug=data;
+    var bubble=row.querySelector('.message')||row;
+    if(bubble.querySelector('.prompt-eye')) return;
+    var btn=document.createElement('button'); btn.className='prompt-eye';
+    btn.title='Voir ce qui a été réellement envoyé au LLM';
+    btn.innerHTML='&#128065;';
+    btn.style.cssText='background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;opacity:.5;margin-top:4px;float:right';
+    btn.onmouseenter=function(){btn.style.opacity='1';}; btn.onmouseleave=function(){btn.style.opacity='.5';};
+    btn.onclick=function(){ showPromptPreview(row._promptDebug); };
+    bubble.appendChild(btn);
+  }
+  function showPromptPreview(data){
+    if(!data) return; var msgs=data.payload||[];
+    var ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center';
+    ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
+    var roleColor={system:'#f5a623',user:'#4aa3ff',assistant:'#46c46a',tool:'#bbb'};
+    var body='';
+    msgs.forEach(function(m){
+      var role=(m.role||'?'); var c=roleColor[role]||'#bbb';
+      var content=(typeof m.content==='string')?m.content:JSON.stringify(m.content,null,2);
+      body+='<div style="margin-bottom:10px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:'+c+';font-weight:600;margin-bottom:3px">'+LaRuche.Utils.esc(role)+'</div>'+
+        '<pre style="margin:0;white-space:pre-wrap;word-break:break-word;font:11px/1.5 ui-monospace,monospace;color:#ddd;background:rgba(255,255,255,.03);border-left:2px solid '+c+';padding:6px 8px;border-radius:3px">'+LaRuche.Utils.esc(content)+'</pre></div>';
+    });
+    var tokens=Math.round(JSON.stringify(msgs).length/4);
+    ov.innerHTML='<div style="width:760px;max-width:94vw;height:84vh;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;display:flex;flex-direction:column">'+
+      '<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px">'+
+      '<span style="font-weight:600;color:var(--amber)">Prompt réel envoyé au LLM</span>'+
+      '<span style="font-size:10px;color:var(--text-dim)">'+msgs.length+' messages · ~'+tokens+' tokens · '+LaRuche.Utils.esc((data.provider||'')+'/'+(data.model||''))+'</span>'+
+      '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="margin-left:auto;background:none;border:none;color:#aaa;font-size:20px;cursor:pointer">&times;</button></div>'+
+      '<div style="flex:1;overflow:auto;padding:14px">'+(body||'<div style="color:var(--text-dim)">(vide)</div>')+'</div></div>';
+    document.body.appendChild(ov);
+  }
+
+  // Skills appliqués → volet gauche (compact, sous le label « Skills »), PAS dans le fil de chat
+  // (gain de place). Chips dédupliqués, remis à zéro à chaque tour.
+  // Skills activés → ligne de puces INLINE dans la conversation (une par tour).
+  function addSkillChip(name) {
+    var cc = document.getElementById('chatContainer'); if(!cc) return;
+    if(!_skillsInlineEl || !_skillsInlineEl.isConnected){
+      var welcome=document.getElementById('welcomeScreen'); if(welcome) welcome.remove();
+      _skillsInlineEl=document.createElement('div'); _skillsInlineEl.className='cc-skills cc-block';
+      _skillsInlineEl.innerHTML='<span class="cc-skills-label">🧩 Skills</span>';
+      cc.appendChild(_skillsInlineEl);
+      if(typeof scrollToBottom==='function') scrollToBottom();
+    }
+    if (_skillsInlineEl.querySelector('[data-skill="' + CSS.escape(name) + '"]')) return; // déjà là
+    var chip = document.createElement('span');
+    chip.className = 'skill-chip';
+    chip.dataset.skill = name;
+    chip.textContent = name;
+    _skillsInlineEl.appendChild(chip);
+  }
+
+  // Avatar abeille affiché uniquement sur le DERNIER message assistant (visibility → garde
+  // l'alignement, pas de saut de mise en page). Recalculé à chaque ajout de message.
+  function updateAssistantAvatars() {
+    // Pendant l'animation des abeilles volantes (typingIndicator), on n'affiche AUCUNE abeille
+    // statique : elle réapparaît sur le nouveau message quand l'animation disparaît.
+    if (document.getElementById('typingIndicator')) {
+      document.querySelectorAll('#chatContainer .avatar.assistant-avatar')
+        .forEach(function(a){ a.style.visibility = 'hidden'; });
+      return;
+    }
+    var rows = document.querySelectorAll('#chatContainer .message-row.assistant:not(#typingIndicator)');
+    for (var i = 0; i < rows.length; i++) {
+      var av = rows[i].querySelector('.avatar.assistant-avatar');
+      if (av) av.style.visibility = (i === rows.length - 1) ? 'visible' : 'hidden';
+    }
+  }
+
+  // Bascule Envoyer ↔ Stop selon l'état du run (UX type assistant : pendant la génération,
+  // le bouton d'envoi devient un bouton d'arrêt).
+  function setRunning(running) {
+    var snd = document.getElementById('sendBtn');
+    var stp = document.getElementById('stopBtn');
+    if (snd) snd.style.display = running ? 'none' : '';
+    if (stp) stp.style.display = running ? '' : 'none';
+  }
+
+  // Demande l'arrêt de la génération en cours au backend (abort de la tâche agent côté serveur).
+  function stopRun() {
+    if (!isStreaming) return;
+    LaRuche.WS.send({ type: 'stop' });
+    setRunning(false);
+  }
+
+  // ── Profil : fiche utilisateur verrouillée, injectée au contexte de LaRuche ──
+  async function openProfile() {
+    var ov = document.getElementById('profileModal'); if(!ov) return;
+    var u = (window.LaRuche && LaRuche.Auth && LaRuche.Auth.getUser && LaRuche.Auth.getUser()) || {};
+    var nm = document.getElementById('profileModalName'); if(nm) nm.textContent = u.display_name || 'Mon profil';
+    var av = document.getElementById('profileModalAvatar'); if(av) av.textContent = (u.display_name||'?').charAt(0).toUpperCase();
+    var ta = document.getElementById('profileFiche');
+    if(ta){ ta.value = 'Chargement…'; ta.disabled = true; }
+    ov.classList.add('open');
+    try {
+      var d = await fetch('/api/profile').then(function(r){return r.json();});
+      if(ta){ ta.value = (d && d.fiche) ? d.fiche : ''; ta.disabled = false; ta.focus(); }
+    } catch(e){ if(ta){ ta.value=''; ta.disabled=false; } }
+  }
+  function closeProfile(){ var ov=document.getElementById('profileModal'); if(ov) ov.classList.remove('open'); }
+  async function saveProfile(){
+    var ta = document.getElementById('profileFiche'); if(!ta) return;
+    try {
+      await fetch('/api/profile', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({fiche:ta.value}) });
+      LaRuche.Toast.show('Profil enregistré — LaRuche en tiendra compte.', 'ok');
+      closeProfile();
+    } catch(e){ LaRuche.Toast.show('Échec de l\'enregistrement du profil.', 'err'); }
+  }
+
+  function addMessage(role, text, attachments) {
+    closeStatusAccumulator(); // un message (raisonnement / réponse / user) casse l'accumulation
+    var container = document.getElementById('chatContainer');
+    var row = document.createElement('div');
+    row.className = 'message-row '+(role==='error'?'error-row':role);
+    if(role!=='error') {
+      var avatar = document.createElement('div');
+      if(role==='user' || role==='steer'){ avatar.className='avatar user-avatar'; avatar.textContent='U'; }
+      else { avatar.className='avatar assistant-avatar'; avatar.innerHTML='<div class="bee"><div class="bee--wings"></div><div class="bee--body"><span></span><span></span></div><div class="bee--head"><div class="bee--head-eyes"></div><div class="bee--head-antennas"></div></div></div>'; }
+      row.appendChild(avatar);
+    }
+    var wrapper = document.createElement('div'); wrapper.className='message-wrapper';
+    var msg = document.createElement('div'); msg.className='message '+role; msg.textContent=text;
+    
+    if (attachments && attachments.length > 0) {
+      var attContainer = document.createElement('div');
+      attContainer.className = 'chat-attachments';
+      attContainer.style.cssText = 'display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;';
+      attachments.forEach(function(att) {
+         attContainer.appendChild(LaRuche.Utils.createAttachmentBox(att, false, 0));
+      });
+      msg.appendChild(attContainer);
+    }
+    if(role==='user' || role==='steer') {
+      linkifyUrls(msg);
+      appendUserLinkPreviews(msg, text);
+    }
+    
+    if(role==='assistant') { var cursor=document.createElement('span'); cursor.className='cursor'; msg.appendChild(cursor); }
+    wrapper.appendChild(msg);
+    var ts = document.createElement('div'); ts.className='msg-timestamp';
+    var timeStr = new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+    ts.textContent = timeStr;
+    // Store metadata for hover enrichment
+    ts.dataset.time = timeStr;
+    wrapper.appendChild(ts);
+    row.appendChild(wrapper);
+    container.appendChild(row);
+    if(role==='assistant') updateAssistantAvatars();
+    scrollToBottom(role==='user'); // l'utilisateur qui envoie force le retour en bas ; sinon on respecte sa position
+    return {row:row, msgEl:msg, tsEl:ts};
+  }
+
+  function closeAssistantSegmentForTool() {
+    if(!currentAssistantMsg || !currentAssistantRow) return;
+    var hasVisibleText=currentAssistantMsg.textContent.trim().length>0;
+    if(hasVisibleText) {
+      // Raisonnement du LLM en TEXTE CLAIR. Mémorise le texte
+      // pour dédupliquer le « thought » jumeau que le backend renvoie aussi.
+      var raison = currentAssistantMsg.textContent.trim();
+      _lastReasoningText = raison;
+      finalizeMessage(currentAssistantMsg,'');
+      currentAssistantRow.classList.add('assistant-intermediate');
+      // Supprimer les activities thinking du status accumulator (éviter le doublon)
+      if(_statusAcc && _statusAcc.isConnected){
+        var steps=_statusAcc.querySelector('.cc-status-steps');
+        if(steps){
+          var thinks=steps.querySelectorAll('.cc-act.thinking');
+          thinks.forEach(function(t){ t.remove(); });
+          if(!steps.children.length){
+            steps.innerHTML='<div class="cc-act-empty" style="display:none"></div>';
+            _statusAcc.querySelector('.cc-status-count').textContent='';
+          }
+        }
+      }
+      var label=document.createElement('div'); label.className='assistant-segment-label';
+      label.textContent='💭 raisonnement';
+      var wrapper=currentAssistantRow.querySelector('.message-wrapper');
+      if(wrapper) wrapper.appendChild(label);
+    } else {
+      currentAssistantRow.remove();
+    }
+    currentAssistantMsg=null; currentAssistantRow=null;
+    updateAssistantAvatars();
+  }
+
+  function addErrorMessage(text) {
+    var container = document.getElementById('chatContainer');
+    var row = document.createElement('div'); row.className='message-row error-row'; row.style.maxWidth='90%';
+    var wrapper = document.createElement('div'); wrapper.className='message-wrapper';
+    var msg = document.createElement('div'); msg.className='message error';
+    var errorText = document.createElement('div'); errorText.textContent=text; msg.appendChild(errorText);
+    var actions = document.createElement('div'); actions.className='error-actions';
+    var retryBtn = document.createElement('button'); retryBtn.className='retry-btn'; retryBtn.textContent='\u21BB Reessayer';
+    retryBtn.onclick=function(){ row.remove(); if(lastUserMessage) sendMessage(lastUserMessage); };
+    actions.appendChild(retryBtn); msg.appendChild(actions);
+    wrapper.appendChild(msg); row.appendChild(wrapper);
+    container.appendChild(row); scrollToBottom();
+  }
+
+  function showTypingIndicator() {
+    removeTypingIndicator();
+    var container = document.getElementById('chatContainer');
+    var row = document.createElement('div'); row.className='message-row assistant'; row.id='typingIndicator';
+    var wrapper = document.createElement('div'); wrapper.className='message-wrapper';
+    var msg = document.createElement('div'); msg.className='message assistant';
+    var beeHtml = '<div class="tb-bee"><div class="tb-body"></div><div class="tb-wing1"></div><div class="tb-wing2"></div><div class="tb-stinger"></div><div class="tb9-cute-eyes"></div><div class="tb9-antenna-l"></div><div class="tb9-antenna-r"></div></div>';
+    msg.innerHTML='<div class="typing-bees"><div class="tb-bounce">'+beeHtml+'</div><div class="tb-bounce">'+beeHtml+'</div><div class="tb-bounce">'+beeHtml+'</div></div>';
+    wrapper.appendChild(msg); row.appendChild(wrapper);
+    container.appendChild(row); typingIndicatorEl=row; scrollToBottom();
+    updateAssistantAvatars(); // masque les abeilles statiques tant que l'animation tourne
+  }
+  function removeTypingIndicator() {
+    if(typingIndicatorEl){typingIndicatorEl.remove();typingIndicatorEl=null;}
+    var e=document.getElementById('typingIndicator'); if(e)e.remove();
+    updateAssistantAvatars(); // l'animation est partie → réaffiche l'abeille sur le dernier message
+  }
+
+  function streamToken(el, _text) {
+    // Rebuild visible text from the full buffer every time.
+    // This ensures protocol/reasoning tags are NEVER shown, even partially.
+    var buf = el._rawBuf;
+
+    // Capture du RAISONNEMENT du LLM : chaque bloc <think>…</think> COMPLET est routé une seule
+    // fois vers le feed du volet gauche (visible en mode détaillé, classe act-noise). Le chat,
+    // lui, continue de masquer le raisonnement.
+    var thinkRe = /<think>([\s\S]*?)<\/think>/g, tm, ti = 0, sent = el._thinkEmitted || 0;
+    while ((tm = thinkRe.exec(buf)) !== null) {
+      if (ti >= sent) {
+        var tt = tm[1].trim();
+        if (tt) addActivity('thinking', 'Raisonnement', tt, true);
+      }
+      ti++;
+    }
+    el._thinkEmitted = ti;
+
+    // Strip all complete hidden blocks.
+    var clean = buf.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '');
+    clean = clean.replace(/<plan>[\s\S]*?<\/plan>/g, '');
+    clean = clean.replace(/<think>[\s\S]*?<\/think>/g, '');
+
+    // Strip incomplete opening tags at the end
+    var tcIdx = clean.indexOf('<tool_call>');
+    if(tcIdx !== -1) clean = clean.substring(0, tcIdx);
+    var plIdx = clean.indexOf('<plan>');
+    if(plIdx !== -1) clean = clean.substring(0, plIdx);
+    var thIdx = clean.indexOf('<think>');
+    if(thIdx !== -1) clean = clean.substring(0, thIdx);
+
+    // Strip partial tag building up at the very end (e.g., "<tool" or "<pla")
+    var lt = clean.lastIndexOf('<');
+    if(lt !== -1 && lt > clean.length - 13) {
+      var tail = clean.substring(lt);
+      if('<tool_call>'.startsWith(tail) || '<plan>'.startsWith(tail) || '<think>'.startsWith(tail) || '</tool_call>'.startsWith(tail) || '</plan>'.startsWith(tail) || '</think>'.startsWith(tail)) {
+        clean = clean.substring(0, lt);
+      }
+    }
+
+    // trim() (pas seulement trimEnd) : sinon les sauts de ligne EN TÊTE laissés par un bloc
+    // <think> retiré s'affichent en blanc au-dessus de la bulle pendant le streaming (pre-wrap).
+    clean = clean.trim();
+
+    // Update DOM: clear all text nodes and re-set content
+    var cursor = el.querySelector('.cursor');
+    while(el.firstChild && el.firstChild !== cursor) el.removeChild(el.firstChild);
+    if(clean) el.insertBefore(document.createTextNode(clean), cursor);
+    scrollToBottom();
+  }
+
+  function takeMediaDeclarations(text) {
+    var items=[];
+    var clean=String(text||'').replace(/<laruche-media>([\s\S]*?)<\/laruche-media>/g,function(_all,raw){
+      try {
+        var parsed=JSON.parse(raw);
+        if(Array.isArray(parsed)) items=items.concat(parsed.filter(isSafeMedia));
+      } catch(_e) {}
+      return '';
+    });
+    return {text:clean.trim(),items:items.slice(0,8)};
+  }
+  function isSafeMedia(item) {
+    if(!item || typeof item.url!=='string') return false;
+    var value=item.url.trim();
+    return !!value && (item.local===true || /^https?:\/\//i.test(value));
+  }
+  function videoPreviewFromUrl(raw) {
+    try {
+      var url=new URL(raw), host=url.hostname.toLowerCase().replace(/^www\./,'');
+      var id='';
+      if(host==='youtu.be') id=url.pathname.split('/').filter(Boolean)[0]||'';
+      else if(host==='youtube.com' || host==='m.youtube.com') id=url.searchParams.get('v') || (url.pathname.match(/^\/(?:shorts|embed)\/([^/?#]+)/)||[])[1] || '';
+      if(/^[A-Za-z0-9_-]{6,}$/.test(id)) return {kind:'YouTube',url:raw,thumbnail:'https://i.ytimg.com/vi/'+id+'/hqdefault.jpg'};
+      id='';
+      if(host==='dai.ly') id=url.pathname.split('/').filter(Boolean)[0]||'';
+      else if(host==='dailymotion.com' || host==='www.dailymotion.com') id=(url.pathname.match(/^\/video\/([^/?#]+)/)||[])[1]||'';
+      if(/^[A-Za-z0-9]+$/.test(id)) return {kind:'Dailymotion',url:raw,thumbnail:'https://www.dailymotion.com/thumbnail/video/'+id};
+    } catch(_e) {}
+    return null;
+  }
+  function appendUserLinkPreviews(el, text) {
+    var matches=String(text||'').match(/https?:\/\/[^\s<]+/gi)||[], seen={}, previews=[];
+    matches.forEach(function(raw){
+      var clean=raw.replace(/[.,;:!?)}\]]+$/,'');
+      var preview=videoPreviewFromUrl(clean);
+      if(preview && !seen[preview.url]) { seen[preview.url]=true; previews.push(preview); }
+    });
+    if(!previews.length) return;
+    ensureMediaStyle();
+    var gallery=document.createElement('div'); gallery.className='user-link-previews';
+    previews.slice(0,3).forEach(function(preview){
+      var link=document.createElement('a'); link.className='user-link-preview'; link.href=preview.url; link.target='_blank'; link.rel='noopener noreferrer';
+      var image=document.createElement('img'); image.src=preview.thumbnail; image.alt='Aperçu '+preview.kind; image.loading='lazy'; image.referrerPolicy='no-referrer';
+      image.onerror=function(){image.remove();link.classList.add('no-thumbnail');};
+      var caption=document.createElement('span'); caption.textContent='▶ '+preview.kind;
+      link.appendChild(image); link.appendChild(caption); gallery.appendChild(link);
+    });
+    if(gallery.children.length) el.appendChild(gallery);
+  }
+  function mediaSource(item) {
+    return item.local===true
+      ? LaRuche.API.base+'/api/media/local?path='+encodeURIComponent(item.url)
+      : item.url;
+  }
+  function ensureMediaStyle() {
+    if(document.getElementById('lr-media-style')) return;
+    var style=document.createElement('style'); style.id='lr-media-style';
+    style.textContent='.media-gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:14px 0 4px}.media-card{min-width:0;overflow:hidden;border:1px solid rgba(245,166,35,.27);border-radius:11px;background:linear-gradient(145deg,rgba(255,255,255,.045),rgba(0,0,0,.16));box-shadow:0 8px 20px rgba(0,0,0,.16)}.media-card-head{display:flex;align-items:center;gap:7px;padding:8px 10px;color:var(--text,#e8e8e8);font-size:11px;font-weight:650}.media-kind{color:var(--amber,#f5a623);font:9px var(--mono,monospace);letter-spacing:.5px;text-transform:uppercase}.media-open{margin-left:auto;color:var(--amber,#f5a623);text-decoration:none;font-size:10px;font-weight:500}.media-open:hover{text-decoration:underline}.media-visual{display:block;width:100%;max-height:340px;min-height:110px;border:0;background:#090a0c;object-fit:contain}.media-pdf{height:300px;object-fit:initial}.media-video{max-height:340px}.media-audio{min-height:48px;padding:8px;box-sizing:border-box}.media-caption{padding:7px 10px 9px;color:var(--text-muted,#9a9a9a);font-size:11px;line-height:1.45;border-top:1px solid rgba(255,255,255,.055)}.message.rendered a{color:#f7b733;text-decoration-color:rgba(247,183,51,.45);text-underline-offset:2px}.message.rendered a:hover{color:#ffd166;text-decoration-color:currentColor}.user-link-previews{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}.user-link-preview{display:grid;grid-template-columns:88px minmax(0,1fr);align-items:center;gap:8px;min-width:210px;max-width:330px;overflow:hidden;border:1px solid rgba(22,18,10,.38);border-radius:8px;background:rgba(255,255,255,.2);color:#16120a!important;text-decoration:none!important;font-size:11px;font-weight:700}.user-link-preview:hover{background:rgba(255,255,255,.32)}.user-link-preview img{display:block;width:88px;height:50px;object-fit:cover;background:rgba(0,0,0,.2)}.user-link-preview.no-thumbnail{grid-template-columns:1fr;padding:9px}';
+    document.head.appendChild(style);
+  }
+  function appendMediaGallery(el, items) {
+    if(!items || !items.length) return;
+    ensureMediaStyle();
+    var gallery=document.createElement('div'); gallery.className='media-gallery';
+    items.slice(0,8).forEach(function(item){
+      if(!isSafeMedia(item)) return;
+      var src=mediaSource(item), kind=['image','pdf','video','audio'].indexOf(item.kind)>=0?item.kind:'image';
+      var card=document.createElement('figure'); card.className='media-card';
+      var head=document.createElement('figcaption'); head.className='media-card-head';
+      var badge=document.createElement('span'); badge.className='media-kind'; badge.textContent=kind;
+      var title=document.createElement('span'); title.textContent=item.title||'Media'; title.style.cssText='overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      var open=document.createElement('a'); open.className='media-open'; open.href=src; open.target='_blank'; open.rel='noopener noreferrer'; open.textContent='Ouvrir ↗';
+      head.appendChild(badge); head.appendChild(title); head.appendChild(open); card.appendChild(head);
+      var visual;
+      if(kind==='pdf') { visual=document.createElement('iframe'); visual.className='media-visual media-pdf'; visual.src=src+'#view=FitH'; visual.title=item.title||'PDF'; visual.loading='lazy'; }
+      else if(kind==='video') { visual=document.createElement('video'); visual.className='media-visual media-video'; visual.src=src; visual.controls=true; visual.preload='metadata'; }
+      else if(kind==='audio') { visual=document.createElement('audio'); visual.className='media-visual media-audio'; visual.src=src; visual.controls=true; visual.preload='metadata'; }
+      else { visual=document.createElement('img'); visual.className='media-visual'; visual.src=src; visual.alt=item.title||'Image'; visual.loading='lazy'; visual.onclick=function(){LaRuche.Utils.openMediaModal('image',src);}; visual.style.cursor='zoom-in'; }
+      card.appendChild(visual);
+      if(item.caption){var caption=document.createElement('div');caption.className='media-caption';caption.textContent=item.caption;card.appendChild(caption);}
+      gallery.appendChild(card);
+    });
+    if(gallery.children.length) el.appendChild(gallery);
+  }
+  function linkifyUrls(el) {
+    if(!el || !window.NodeFilter) return;
+    var walker=document.createTreeWalker(el,NodeFilter.SHOW_TEXT,{acceptNode:function(node){
+      if(!node.nodeValue || !/https?:\/\//i.test(node.nodeValue)) return NodeFilter.FILTER_REJECT;
+      var parent=node.parentElement;
+      return parent && !parent.closest('a,pre,code,.media-gallery') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    }});
+    var nodes=[],node; while((node=walker.nextNode())) nodes.push(node);
+    nodes.forEach(function(textNode){
+      var text=textNode.nodeValue, re=/https?:\/\/[^\s<]+/gi, match, last=0, fragment=document.createDocumentFragment();
+      while((match=re.exec(text))){
+        var raw=match[0], trailing=(raw.match(/[.,;:!?)}\]]+$/)||[''])[0], url=raw.slice(0,raw.length-trailing.length);
+        fragment.appendChild(document.createTextNode(text.slice(last,match.index)));
+        var link=document.createElement('a');link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.textContent=url;fragment.appendChild(link);
+        if(trailing)fragment.appendChild(document.createTextNode(trailing)); last=match.index+raw.length;
+      }
+      fragment.appendChild(document.createTextNode(text.slice(last))); textNode.parentNode.replaceChild(fragment,textNode);
+    });
+  }
+
+  function finalizeMessage(el, fallbackText) {
+    var cursor=el.querySelector('.cursor'); if(cursor) cursor.remove();
+    var text = el._rawBuf||'';
+    text=text.replace(/<tool_call>[\s\S]*?<\/tool_call>/g,'');
+    text=text.replace(/<plan>[\s\S]*?<\/plan>/g,'');
+    text=text.replace(/<think>[\s\S]*?<\/think>/g,'');
+    var pi=text.indexOf('<tool_call>'); if(pi!==-1) text=text.substring(0,pi);
+    var pp=text.indexOf('<plan>'); if(pp!==-1) text=text.substring(0,pp);
+    var pt=text.indexOf('<think>'); if(pt!==-1) text=text.substring(0,pt);
+    var inlineMedia=takeMediaDeclarations(text);
+    text=inlineMedia.text.trim();
+    var medias=pendingMedia.concat(inlineMedia.items); pendingMedia=[];
+    if(!text && fallbackText) {
+      var fallbackMedia=takeMediaDeclarations(fallbackText);
+      text=fallbackMedia.text;
+      medias=medias.concat(fallbackMedia.items);
+    }
+    if(!text && !medias.length) return;
+    if(text && typeof marked!=='undefined') {
+      marked.setOptions({breaks:true,gfm:true,highlight:function(code,lang){
+        if(typeof hljs!=='undefined'&&lang&&hljs.getLanguage(lang)){try{return hljs.highlight(code,{language:lang}).value;}catch(e){}}
+        if(typeof hljs!=='undefined'){try{return hljs.highlightAuto(code).value;}catch(e){}}
+        return code;
+      }});
+      el.innerHTML = marked.parse(text);
+      el.classList.add('rendered');
+      if(window.lrEnhanceCode) window.lrEnhanceCode(el);
+    }
+    if(text) linkifyUrls(el);
+    appendMediaGallery(el,medias);
+    var actions = document.createElement('div'); actions.className='msg-actions';
+    var ttsBtn = document.createElement('button'); ttsBtn.className='msg-action-btn'; ttsBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';
+    ttsBtn.onclick=function(){LaRuche.Voice.speakText(text,ttsBtn);}; actions.appendChild(ttsBtn);
+    var copyBtn2 = document.createElement('button'); copyBtn2.className='msg-action-btn'; copyBtn2.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> Copier';
+    copyBtn2.onclick=function(){navigator.clipboard.writeText(text).then(function(){copyBtn2.classList.add('copied');copyBtn2.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="20 6 9 17 4 12"></polyline></svg> Copie';setTimeout(function(){copyBtn2.classList.remove('copied');copyBtn2.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> Copier';},2000);});}; actions.appendChild(copyBtn2);
+    el.appendChild(actions);
+    // Enrich timestamp with model + tokens on hover
+    var row = el.closest('.message-row');
+    if(row) {
+      var tsEl = row.querySelector('.msg-timestamp');
+      if(tsEl) {
+        var modelName = LaRuche.Header.getModel() || '?';
+        var tokens = Math.round(text.length / 4); // rough estimate
+        var baseTime = tsEl.dataset.time || tsEl.textContent;
+        tsEl.textContent = baseTime + '  ·  ' + modelName + '  ·  ~' + tokens + ' tokens';
+      }
+    }
+    scrollToBottom();
+    if(LaRuche.Voice.isAutoTts()) LaRuche.Voice.speakText(text,ttsBtn);
+  }
+
+  // Auto-scroll « collé en bas » : on ne re-scrolle QUE si l'utilisateur était déjà en bas.
+  // Dès qu'il remonte lire, on arrête de le ramener (jusqu'à ce qu'il redescende lui-même).
+  // `force=true` pour les actions explicites (l'utilisateur envoie un message).
+  var _chatStick = true, _chatScrollBound = false;
+  function _bindChatScroll(){
+    if(_chatScrollBound) return;
+    var c=document.getElementById('chatContainer'); if(!c) return;
+    c.addEventListener('scroll', function(){
+      _chatStick = (c.scrollHeight - c.scrollTop - c.clientHeight) < 120;
+    });
+    _chatScrollBound = true;
+  }
+  function scrollToBottom(force) {
+    _bindChatScroll();
+    if(force) _chatStick = true;
+    if(!_chatStick) return;
+    requestAnimationFrame(function(){ var c=document.getElementById('chatContainer'); if(c) c.scrollTop=c.scrollHeight; });
+  }
+
+  // \u2500\u2500 Feed agentique : timeline en \u00e9tapes repliables \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  var _feedStepN=0, _feedBody=null, _feedPrevCard=null, _feedLiveStartedAt=0, _feedTurnTitle='';
+  var _feedTimer=null, _feedUnread=0, _feedPendingTools=[];
+  var _planMissions=[], _currentPlanMission=-1, _planInlineEl=null, _skillsInlineEl=null;
+  var _lastReasoningText=''; // dernier raisonnement affiché (bulle intermédiaire) → dédup du thought jumeau
+  var _statusAcc=null; // accumulateur de statut « bruit » : 1 ligne animée pour N phases (façon Claude Code)
+  // Crée/retourne la ligne d'accumulation de statut (en bas du fil). Les phases « bruit » s'y empilent.
+  function statusAccumulator(){
+    if(_statusAcc && _statusAcc.isConnected) return _statusAcc;
+    var cc=document.getElementById('chatContainer'); if(!cc) return null;
+    var w=document.getElementById('welcomeScreen'); if(w) w.remove();
+    var el=document.createElement('div'); el.className='cc-status cc-collapsed';
+    el.innerHTML='<div class="cc-status-head"><span class="act-ico thinking">◍</span><span class="cc-status-current"></span><span class="cc-status-count"></span><span class="act-time"></span></div><div class="cc-status-steps"></div>';
+    var head=el.querySelector('.cc-status-head');
+    head.onclick=function(){ el.classList.toggle('cc-collapsed'); };
+    cc.appendChild(el); _statusAcc=el; return el;
+  }
+  // Stoppe l'accumulation : la prochaine phase « bruit » repartira sur une nouvelle ligne.
+  function closeStatusAccumulator(){ _statusAcc=null; }
+
+  window.lrToggleFeedDetails=function(on){
+    var af=document.getElementById('activityFeed');
+    if(!af)return;
+    af.classList.toggle('compact',!on);
+    localStorage.setItem('laruche_feed_details',on?'1':'0');
+  };
+  window.lrFeedJump=function(){
+    var af=document.getElementById('activityFeed');
+    if(!af)return;
+    af.scrollTop=af.scrollHeight;
+    _feedUnread=0;
+    updateFeedJump();
+  };
+  function resetFeed(){
+    _feedStepN=0; _feedBody=null; _feedPrevCard=null; _feedPendingTools=[]; _feedUnread=0; _feedTurnTitle='';
+    _planMissions=[]; _currentPlanMission=-1; _planInlineEl=null; _skillsInlineEl=null;
+    _statusAcc=null; _lastReasoningText='';
+    updateFeedJump();
+  }
+  function feedAtBottom(af){ return af.scrollHeight-af.scrollTop-af.clientHeight<150; }
+  function updateFeedJump(){
+    var button=document.getElementById('feedJump');
+    if(!button)return;
+    button.classList.toggle('visible',_feedUnread>0);
+    var text=button.querySelector('span');
+    if(text)text.textContent=_feedUnread===1?'nouvelle activité':_feedUnread+' nouvelles activités';
+  }
+  function followFeed(af,follow){
+    if(follow){
+      af.scrollTop=af.scrollHeight;
+      setTimeout(function(){if(af.scrollHeight-af.scrollTop-af.clientHeight>10)af.scrollTop=af.scrollHeight;},30);
+      _feedUnread=0;
+    }else{_feedUnread++;}
+    updateFeedJump();
+  }
+  function setFeedLive(mode){
+    var status=document.getElementById('feedLiveStatus');
+    var text=document.getElementById('feedLiveText');
+    if(!status||!text)return;
+    if(mode==='idle'){
+      _feedLiveStartedAt=0; status.className='feed-live-status'; text.textContent='En attente'; return;
+    }
+    if(!_feedLiveStartedAt)_feedLiveStartedAt=Date.now();
+    status.className='feed-live-status active '+mode;
+    text.textContent=mode==='tool'?'Exécution en cours':'Réflexion en cours';
+    if(!_feedTimer)_feedTimer=setInterval(function(){
+      if(!_feedLiveStartedAt)return;
+      var seconds=Math.max(1,Math.floor((Date.now()-_feedLiveStartedAt)/1000));
+      text.innerHTML=(status.classList.contains('tool')?'Exécution en cours':'Réflexion en cours')+' <span style="color:var(--green)">· '+seconds+' s</span>';
+    },1000);
+  }
+  function ensureFeedStyle(){
+    if(document.getElementById('lr-feed-style'))return;
+    var s=document.createElement('style');s.id='lr-feed-style';
+    s.textContent=[
+      '.agent-header{min-height:37px}.agent-header-actions{margin-left:auto;display:flex;align-items:center;gap:8px;min-width:0}.feed-live-status{display:inline-flex;align-items:center;gap:5px;color:var(--text-muted,#888);font:10px var(--mono,monospace);white-space:nowrap}.feed-live-dot{width:6px;height:6px;border-radius:50%;background:#555}.feed-live-status.active{color:var(--amber,#f5a623)}.feed-live-status.active .feed-live-dot{background:currentColor;animation:feedPulse 1.5s infinite}.feed-live-status.tool{color:var(--blue,#60a5fa)}@keyframes feedPulse{50%{box-shadow:0 0 0 6px transparent}100%{box-shadow:0 0 0 0 transparent}}',
+      '.feed-details-toggle{display:inline-flex;gap:3px;align-items:center;cursor:pointer;color:var(--text-muted,#888);font-size:9px}.feed-details-toggle input{margin:0;accent-color:var(--amber,#f5a623)}.iteration-badge{font:10px var(--mono,monospace);color:var(--text-muted,#888);max-width:78px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.agent-feed-wrap{position:relative;display:flex;flex:1;min-height:0}.activity-feed{padding:8px 7px 12px;scroll-behavior:smooth}.feed-jump{display:none;position:absolute;right:12px;bottom:12px;z-index:4;border:1px solid rgba(245,166,35,.45);border-radius:999px;background:#1a1711;color:var(--amber,#f5a623);box-shadow:0 8px 22px rgba(0,0,0,.35);font-size:10px;padding:6px 9px;cursor:pointer;animation:feedIn .18s ease-out}.feed-jump.visible{display:block}.feed-jump:hover{background:var(--amber,#f5a623);color:#16120a}',
+      '.feed-step{position:relative;border:1px solid rgba(64,64,70,.75);border-radius:10px;margin:0 0 8px;overflow:hidden;background:linear-gradient(135deg,rgba(255,255,255,.035),rgba(255,255,255,.012));box-shadow:0 8px 20px rgba(0,0,0,.12);animation:feedIn .24s ease-out}.feed-step.running{border-color:rgba(245,166,35,.52);box-shadow:0 0 0 1px rgba(245,166,35,.08),0 10px 26px rgba(0,0,0,.2)}@keyframes feedIn{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}.feed-step-head{display:flex;align-items:center;gap:7px;padding:9px 10px;cursor:pointer;font-size:11px;color:var(--text,#e6e6e6);user-select:none}.feed-step-head:hover{background:rgba(255,255,255,.035)}.feed-step-caret{color:var(--text-muted,#888);font-size:10px;transition:transform .18s}.feed-step:not(.expanded) .feed-step-caret{transform:rotate(-90deg)}.feed-step-title{font-weight:650;letter-spacing:.1px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.feed-step-state{font:8px var(--mono,monospace);letter-spacing:.55px;color:var(--green,#46c46a);margin-left:auto}.feed-step.running .feed-step-state{color:var(--amber,#f5a623)}.feed-step-meta{font:9px var(--mono,monospace);color:var(--text-muted,#777);white-space:nowrap}.feed-step-body{display:none;padding:1px 9px 9px}.feed-step.expanded .feed-step-body{display:block}',
+       '.act{position:relative;padding:7px 6px;border-radius:7px;animation:feedIn .2s ease-out}.act:hover{background:rgba(255,255,255,.035)}.act-line{display:flex;gap:7px;align-items:flex-start;font-size:11px;line-height:1.45}.act-ico{display:grid;place-items:center;flex:0 0 18px;width:18px;height:18px;border-radius:6px;background:rgba(255,255,255,.055);font-size:10px}.act-ico.thinking{color:#c4a8ff;background:rgba(147,112,219,.16)}.act-ico.tool-call{color:var(--blue,#60a5fa);background:rgba(96,165,250,.13)}.act-ico.tool-ok{color:var(--green,#46c46a);background:rgba(70,196,106,.12)}.act-ico.tool-err{color:var(--red,#ef6a6a);background:rgba(239,106,106,.12)}.act-ico.status{color:var(--amber,#f5a623);background:rgba(245,166,35,.1)}.act-txt{flex:1;min-width:0;color:var(--text,#ddd);word-break:break-word}.act.tool-call .act-txt{font-weight:600}.act-noise .act-txt{color:var(--text-muted,#9a9a9a)}.act-time{flex:0 0 auto;font:9px var(--mono,monospace);color:var(--text-muted,#777);padding-top:2px}.act-body{margin:5px 0 0 25px;border-left:1px solid rgba(255,255,255,.1);padding:5px 7px;color:var(--text-muted,#aaa);font:10px/1.5 var(--mono,monospace);white-space:pre-wrap;word-break:break-word;max-height:220px;overflow:auto;background:rgba(0,0,0,.16);border-radius:0 5px 5px 0}.act.terminal .act-body{background:#090b0d;border:1px solid rgba(96,165,250,.32);border-left:2px solid var(--blue,#60a5fa);box-shadow:inset 0 1px rgba(255,255,255,.03);color:#e6edf7}.terminal-command{display:block;color:#a7f3d0;font-weight:600;white-space:pre-wrap}.terminal-command::before{content:"PS> ";color:#60a5fa}.terminal-output{display:block;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.09);color:#d5dfef;white-space:pre-wrap}.act.collapsible .act-line{cursor:pointer}.act.collapsible .act-body{display:none}.act.open .act-body{display:block}.act.tool-call.live .act-ico{animation:feedPulse 1.45s infinite}.act.live{background:linear-gradient(135deg,rgba(255,255,255,.08),rgba(255,255,255,.01));box-shadow:inset 0 0 15px rgba(245,166,35,.05),0 0 12px rgba(245,166,35,.15);border:1px solid rgba(245,166,35,.2);animation:actHaloPulse 2s infinite alternate}@keyframes actHaloPulse{from{box-shadow:inset 0 0 15px rgba(245,166,35,.02),0 0 5px rgba(245,166,35,.05);border-color:rgba(245,166,35,.1)}to{box-shadow:inset 0 0 20px rgba(245,166,35,.12),0 0 18px rgba(245,166,35,.3);border-color:rgba(245,166,35,.35)}}.act.tool-err .act-body{border-left-color:rgba(239,106,106,.55)}.act.tool-ok .act-body{border-left-color:rgba(70,196,106,.35)}.activity-feed.compact .act-noise{display:none}.feed-usage-bar{min-height:0;color:var(--text-muted,#777);font:9px var(--mono,monospace);padding:0 12px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.feed-usage-bar:empty{display:none}.feed-history{margin:2px 1px 9px;color:var(--text-muted,#888);font-size:10px}.feed-history summary{cursor:pointer;list-style:none;display:flex;gap:5px;align-items:center;padding:5px 7px;border:1px dashed rgba(255,255,255,.12);border-radius:7px}.feed-history summary::-webkit-details-marker{display:none}.feed-history-count{color:var(--amber,#f5a623);font-family:var(--mono,monospace)}.feed-history-list{padding-top:7px;opacity:.72}.feed-history-list .feed-step{margin-bottom:6px}@media (prefers-reduced-motion:reduce){.feed-step,.act,.feed-live-status.active .feed-live-dot{animation:none!important}.activity-feed{scroll-behavior:auto}}'
+    ].join('');
+    document.head.appendChild(s);
+    var af=document.getElementById('activityFeed');
+    if(af)af.addEventListener('scroll',function(){if(feedAtBottom(af)){_feedUnread=0;updateFeedJump();}});
+    var details=document.getElementById('feedDetailsToggle');
+    if(details){details.checked=localStorage.getItem('laruche_feed_details')==='1';window.lrToggleFeedDetails(details.checked);}
+  }
+  function titleForUserMessage(message){
+    var text=(message||'').toLowerCase();
+    if(/supprim|effac/.test(text)&&/cron|tâche planifi/.test(text))return 'Suppression d’une tâche planifiée';
+    if(/cron|tâche planifi/.test(text))return 'Vérification des tâches planifiées';
+    if(/kanban|tableau/.test(text))return 'Lecture du Kanban';
+    if(/test|compil|build|erreur/.test(text))return 'Vérification du projet';
+    if(/fichier|code|dossier/.test(text))return 'Analyse des fichiers';
+    if(/recherch/.test(text))return 'Recherche et synthèse';
+    var compact=(message||'').replace(/\s+/g,' ').trim();
+    return compact ? (compact.length>58?compact.slice(0,58)+'…':compact) : 'Nouvelle mission';
+  }
+  function updateActiveFeedTitle(title){
+    if(!_feedPrevCard||!title)return;
+    var target=_feedPrevCard.querySelector('.feed-step-title');
+    if(target)target.textContent=title;
+  }
+  function toolActivityLabel(name,args){
+    var base=humanToolName(name);
+    var detail=(toolContext(args)||'').replace(/\s+/g,' ').trim();
+    if(!detail)return base;
+    return base+' · '+(detail.length>42?detail.slice(0,42)+'…':detail);
+  }
+  function pruneFeedHistory(af){
+    var cards=[];
+    for(var i=0;i<af.children.length;i++)if(af.children[i].classList.contains('feed-step'))cards.push(af.children[i]);
+    if(cards.length<=3)return;
+    var history=af.querySelector('.feed-history');
+    if(!history){
+      history=document.createElement('details');history.className='feed-history';
+      history.innerHTML='<summary><span class="feed-history-count"></span><span>cycles précédents</span></summary><div class="feed-history-list"></div>';
+      af.insertBefore(history,af.firstChild);
+    }
+    var list=history.querySelector('.feed-history-list');
+    while(cards.length>3)list.appendChild(cards.shift());
+    var count=list.querySelectorAll('.feed-step').length;
+    history.querySelector('.feed-history-count').textContent=count;
+  }
+  // MODE CLAUDE CODE : plus de carte « cycle » dans un volet séparé. Les activités (raisonnement,
+  // outils, plan) s'insèrent INLINE dans la conversation, dans l'ordre chronologique. On pointe
+  // simplement la cible d'ajout sur le conteneur du chat.
+  function newFeedStep(label){
+    ensureFeedStyle();
+    _feedBody = document.getElementById('chatContainer');
+    _feedPrevCard = null; _feedStepN++;
+  }
+  function humanToolName(name){
+    var names={'shell_exec':'Commande terminal','execute_code':'Exécution de code','run_script':'Script','file_read':'Lecture de fichier','file_write':'Écriture de fichier','file_edit':'Modification de fichier','file_search':'Recherche dans les fichiers','read_extract':'Lecture ciblée','web_search':'Recherche web','web_deep_search':'Recherche web approfondie','web_fetch':'Lecture de page','memory_search':'Recherche mémoire','memory_write':'Mémoire mise à jour','delegate':'Sous-agent','mixture_of_agents':'Consultation multi-agents'};
+    return names[name]||name.replace(/_/g,' ');
+  }
+  function toolContext(args){
+    args=args||{};if(args.command)return args.command;if(args.code)return args.code.length>300?args.code.slice(0,300)+'…':args.code;if(args.path)return args.path;if(args.query)return args.query;if(args.url)return args.url;if(args.prompt)return args.prompt;
+    var raw=JSON.stringify(args);return raw==='{}'?'':raw;
+  }
+  function thoughtLabel(phase,kind){
+    var labels={orientation:'J’analyse la demande',exploration:'J’explore les pistes utiles',implementation:'Je prépare l’exécution',verification:'Je vérifie le résultat'};
+    if(kind==='checkpoint')return 'Point d’étape';if(kind==='next_action')return 'Prochaine action';return labels[phase]||'Je prépare la suite';
+  }
+  function setTerminalContent(body, command, output){
+    body.textContent='';
+    if(command){
+      var commandCode=document.createElement('code'); commandCode.className='terminal-command language-powershell'; commandCode.textContent=command;
+      body.appendChild(commandCode);
+      if(window.hljs){try{window.hljs.highlightElement(commandCode);}catch(_e){}}
+    }
+    if(output){
+      var outputCode=document.createElement('code'); outputCode.className='terminal-output'; outputCode.textContent=output;
+      body.appendChild(outputCode);
+    }
+  }
+  function addActivity(type,label,body,collapsible,options){
+    ensureFeedStyle();
+    var cc=document.getElementById('chatContainer'); if(!cc) return null;
+    options=options||{};
+    // Dédup : ne pas re-rendre un raisonnement déjà affiché comme bulle intermédiaire (le backend
+    // renvoie parfois la même narration en « thought »). Seulement pour du vrai texte (>20 car.).
+    if(type==='thinking' && body){
+      var bt=String(body).trim(), rt=String(_lastReasoningText).trim();
+      if(rt.length>20 && bt && (bt===rt || bt.indexOf(rt)!==-1 || rt.indexOf(bt)!==-1)) return null;
+    }
+    // Pollution post-réponse : on ne veut PAS de « Point d'étape : Réponse finale prête ».
+    if(/r[ée]ponse finale/i.test(String(body||'')) || /r[ée]ponse finale/i.test(String(label||''))) return null;
+    var welcome=document.getElementById('welcomeScreen'); if(welcome) welcome.remove();
+    // ● filled dot coloré par statut (façon Claude Code) ; ◍ pour le raisonnement.
+    var iconMap={'thinking':'◍','tool-call':'●','tool-ok':'●','tool-err':'●','status':'•'};
+    var item=document.createElement('article');
+    item.className='cc-act '+type+(type.indexOf('tool-')===0?' act-major':' act-noise')+(collapsible?' collapsible':'')+(options.live?' live':'')+(options.terminal?' terminal':'');
+    if(options.toolName)item.dataset.toolName=options.toolName;
+    if(options.activityLabel)item.dataset.activityLabel=options.activityLabel;
+    // Horodatage avec secondes pour éviter le mélange d'événements d'une même minute
+    var now=new Date();
+    var timeStr=now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    item.dataset.feedSeq=String(now.getTime())+':'+String(Math.random()).slice(2,8);
+    var line=document.createElement('div');line.className='act-line';
+    line.innerHTML='<span class="act-ico '+type+'">'+(iconMap[type]||'•')+'</span><span class="act-txt">'+LaRuche.Utils.esc(label)+'</span><span class="act-time">'+timeStr+'</span>';
+    item.appendChild(line);
+    if(body!==undefined&&body!==null&&body!==''){
+      var bodyEl=document.createElement('pre');bodyEl.className='act-body';
+      if(options.terminal){item.dataset.command=options.command||body;setTerminalContent(bodyEl,item.dataset.command,'');}
+      else bodyEl.textContent=body;
+      item.appendChild(bodyEl);
+      // Façon Claude Code : TOUJOURS replié par défaut (on ne voit que le libellé), clic pour déplier.
+      item.classList.add('cc-collapsed'); line.style.cursor='pointer';
+      line.onclick=function(){ item.classList.toggle('cc-collapsed'); };
+    }
+    if(options.live)_feedPendingTools.push(item);
+    // ROUTAGE façon Claude Code : les phases « bruit » (thinking/status) s'empilent dans UNE ligne
+    // animée (l'accumulateur) ; un outil casse l'accumulation et s'affiche sur sa propre ligne.
+    var isNoise = (type==='thinking' || type==='status');
+    if(isNoise){
+      var acc=statusAccumulator();
+      if(acc){
+        acc.querySelector('.cc-status-steps').appendChild(item);
+        var cur=acc.querySelector('.cc-status-current'); cur.textContent=label;
+        cur.classList.remove('cc-anim'); void cur.offsetWidth; cur.classList.add('cc-anim'); // ré-anime
+        var n=acc.querySelectorAll('.cc-status-steps > .cc-act').length;
+        acc.querySelector('.cc-status-count').textContent = n>1 ? (n+' étapes') : '';
+        acc.querySelector('.cc-status-head .act-time').textContent = item.querySelector('.act-time').textContent;
+      } else { cc.appendChild(item); }
+    } else {
+      closeStatusAccumulator(); // outil → prochain cycle sur un nouveau groupe
+      cc.appendChild(item);
+    }
+    if(typeof scrollToBottom==='function') scrollToBottom();
+    LaRuche.Console.log('info','Chat','['+type+'] '+label);return item;
+  }
+  function updateFeedMeta(){if(!_feedPrevCard||!_feedBody)return;var meta=_feedPrevCard.querySelector('.feed-step-meta');if(meta){var tools=_feedBody.querySelectorAll('.act-major').length;meta.textContent=tools?(tools+' action'+(tools>1?'s':'')):'';}}
+  // ===== Diffs de fichiers inline (façon Claude Code : 📄 chemin  +N -M, repliable) =====
+  function buildDiffHtml(oldStr, newStr){
+    var html='';
+    if(oldStr){ String(oldStr).split('\n').forEach(function(l){ html+='<span class="dl dl-del">- '+LaRuche.Utils.esc(l)+'</span>'; }); }
+    if(newStr){ String(newStr).split('\n').forEach(function(l){ html+='<span class="dl dl-add">+ '+LaRuche.Utils.esc(l)+'</span>'; }); }
+    return html;
+  }
+  function renderFileDiff(path, added, removed, diffHtml){
+    var cc=document.getElementById('chatContainer'); if(!cc) return;
+    var welcome=document.getElementById('welcomeScreen'); if(welcome) welcome.remove();
+    var el=document.createElement('div'); el.className='cc-diff cc-block cc-collapsed';
+    el.innerHTML='<div class="cc-diff-head"><span class="cc-diff-file">📄 '+LaRuche.Utils.esc(path)+'</span><span class="cc-diff-stat"><span class="cc-diff-add">+'+added+'</span> <span class="cc-diff-del">-'+removed+'</span></span></div><div class="cc-diff-body">'+diffHtml+'</div>';
+    var head=el.querySelector('.cc-diff-head');
+    head.onclick=function(){ el.classList.toggle('cc-collapsed'); };
+    cc.appendChild(el);
+    if(typeof scrollToBottom==='function') scrollToBottom();
+  }
+  // Rend une carte diff si l'outil est une écriture/édition de fichier (args connus côté client).
+  function maybeRenderFileDiff(name, args){
+    args=args||{};
+    if(name==='file_edit' && (args.old_string!=null || args.new_string!=null)){
+      var o=args.old_string||'', n=args.new_string||'';
+      renderFileDiff(args.path||'(fichier)', String(n).split('\n').length, String(o).split('\n').length, buildDiffHtml(o,n));
+      return true;
+    }
+    if((name==='file_write'||name==='skill_file_write') && args.content!=null){
+      var c=String(args.content);
+      renderFileDiff(args.path||args.skill||'(fichier)', c.split('\n').length, 0, buildDiffHtml('', c));
+      return true;
+    }
+    return false;
+  }
+  function pendingTool(name){for(var i=_feedPendingTools.length-1;i>=0;i--){var item=_feedPendingTools[i];if(item&&item.dataset.toolName===name&&item.classList.contains('live'))return item;}return null;}
+  function finishToolActivity(name,result,success,elapsed){
+    var item=pendingTool(name);
+    if(!item)return addActivity(success?'tool-ok':'tool-err',humanToolName(name)+(success?' terminée':' en erreur'),result,true,{toolName:name});
+    item.classList.remove('tool-call','live');item.classList.add(success?'tool-ok':'tool-err');
+    var ico=item.querySelector('.act-ico');if(ico)ico.className='act-ico '+(success?'tool-ok':'tool-err');
+    var title=item.querySelector('.act-txt');if(title)title.textContent=(item.dataset.activityLabel||humanToolName(name))+(success?' · terminé':' · erreur');
+    var stamp=item.querySelector('.act-time');if(stamp&&elapsed!=null)stamp.textContent=LaRuche.Utils.formatElapsed(elapsed);
+    var body=item.querySelector('.act-body');if(!body&&result){body=document.createElement('pre');body.className='act-body';item.appendChild(body);}if(body){if(item.classList.contains('terminal'))setTerminalContent(body,item.dataset.command||'',result||'(aucune sortie)');else body.textContent=result||'(aucune sortie)';}
+    if(!success){item.classList.remove('cc-collapsed');}_feedPendingTools=_feedPendingTools.filter(function(candidate){return candidate!==item;});return item;
+  }
+  function appendToolOutput(name,chunk){var item=pendingTool(name);if(!item)return;var body=item.querySelector('.act-body');if(!body){body=document.createElement('pre');body.className='act-body';item.appendChild(body);}if(item.classList.contains('terminal')){item._terminalOutput=(item._terminalOutput||'')+(chunk||'');setTerminalContent(body,item.dataset.command||'',item._terminalOutput);}else body.textContent+=(chunk||'');body.scrollTop=body.scrollHeight;}
+  function startPlanMission(message){
+    var title=titleForUserMessage(message);
+    _planMissions.push({title:title,items:[],activeTask:''});
+    _currentPlanMission=_planMissions.length-1;
+    _feedTurnTitle=title;
+    _skillsInlineEl=null; // nouveau tour → nouvelle ligne skills (le plan sticky, lui, est réutilisé)
+    renderPlanMissions();
+  }
+  function planItemDone(item){
+    var status=String((item&&item.status)||'').toLowerCase();
+    return status.indexOf('done')!==-1 || status.indexOf('termin')!==-1 || status.indexOf('complet')!==-1 || status.indexOf('fait')!==-1 || status==='ok';
+  }
+  function planDotClass(item){
+    if(planItemDone(item)) return 'done';
+    var status=String((item&&item.status)||'').toLowerCase();
+    return status.indexOf('progress')!==-1 || status.indexOf('cours')!==-1 ? 'in_progress' : 'pending';
+  }
+  // Plan rendu INLINE dans la conversation (carte « 📋 Plan » mise à jour en place, repliable).
+  // Une carte par mission/tour ; un nouveau tour repart d'une carte fraîche (_planInlineEl reset).
+  function renderPlanMissions(){
+    var cc=document.getElementById('chatContainer'); if(!cc) return;
+    var mission=_planMissions[_currentPlanMission]; if(!mission || !mission.items.length) return;
+    // Barre PLAN épinglée EN HAUT du chat (sticky), réutilisée et mise à jour en place à chaque
+    // évolution. Toujours 1er enfant du conteneur pour rester collée au sommet pendant le scroll.
+    if(!_planInlineEl || !_planInlineEl.isConnected){
+      var welcome=document.getElementById('welcomeScreen'); if(welcome) welcome.remove();
+      _planInlineEl=document.createElement('div'); _planInlineEl.className='cc-plan cc-block cc-plan-sticky';
+    }
+    if(cc.firstChild!==_planInlineEl) cc.insertBefore(_planInlineEl, cc.firstChild);
+    var doneCount=mission.items.filter(planItemDone).length;
+    var rows=mission.items.map(function(item){
+      return '<div class="plan-item"><span class="plan-dot '+planDotClass(item)+'"></span><span class="plan-text'+(planItemDone(item)?' done':'')+'">'+LaRuche.Utils.esc(item.task||'')+'</span></div>';
+    }).join('');
+    _planInlineEl.innerHTML='<div class="cc-plan-head"><span class="cc-plan-title">📋 Plan</span><span class="cc-plan-meta">'+doneCount+'/'+mission.items.length+'</span></div><div class="cc-plan-body">'+rows+'</div>';
+    var head=_planInlineEl.querySelector('.cc-plan-head');
+    head.onclick=function(){ _planInlineEl.classList.toggle('cc-collapsed'); };
+  }
+  function updatePlan(items) {
+    if(!Array.isArray(items)) return;
+    if(_currentPlanMission<0) startPlanMission(_feedTurnTitle||'Mission de l’agent');
+    var mission=_planMissions[_currentPlanMission]; mission.items=items.slice();
+    var active=items.find(function(item){return !planItemDone(item);}) || items[items.length-1];
+    if(active && active.task) _feedTurnTitle=active.task;
+    renderPlanMissions();
+  }
+
+  // Suivi « lu / non-lu » des conversations (localStorage). La pastille n'apparaît QUE s'il y a du
+  // nouveau dans une conversation NON ouverte (plus de couleurs aléatoires « barriolées »).
+  function getSeenMap(){ try{ return JSON.parse(localStorage.getItem('lr_conv_seen')||'{}'); }catch(e){ return {}; } }
+  function markConvSeen(id, updatedAt){ if(!id) return; var m=getSeenMap(); m[id]=updatedAt||new Date().toISOString(); try{ localStorage.setItem('lr_conv_seen', JSON.stringify(m)); }catch(e){} }
+  function convIsUnread(s){
+    if(s.id===sessionId) return false; // ouverte = lue
+    // Pastille UNIQUEMENT sur du NOUVEAU terminé (message final / popup), jamais sur
+    // la réflexion en cours. Pilotée par les events terminaux reçus (unreadSessions),
+    // pas par updated_at (qui bougeait à chaque sauvegarde intermédiaire).
+    return !!unreadSessions[s.id];
+  }
+  function loadSessions() {
+    fetch('/api/sessions').then(function(r){return r.json();}).then(function(sessions){
+      var list = document.getElementById('sessionsSidebarList');
+      list.innerHTML='';
+      sessions.sort(function(a,b){return new Date(b.updated_at)-new Date(a.updated_at);});
+      sessions.forEach(function(s){
+        var div=document.createElement('div');
+        div.className='session-item'+(s.id===sessionId?' active':'');
+        var cleanTitle = (s.title||'').split(/\[SYSTEM\]/i)[0].trim() || 'Sans titre';
+        if(cleanTitle.length > 55) cleanTitle = cleanTitle.substring(0, 52) + '...';
+        var dot = convIsUnread(s)
+          ? '<span class="conv-dot conv-dot-new" title="Nouveau"></span>'
+          : '<span class="conv-dot"></span>';
+        div.innerHTML='<div style="display:flex; align-items:center; flex:1; min-width:0; overflow:hidden;">'+dot+'<span class="session-title" style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">'+LaRuche.Utils.esc(cleanTitle)+'</span></div><span class="session-delete" onclick="event.stopPropagation();LaRuche.Chat.deleteSession(\''+s.id+'\')">&times;</span>';
+        div.onclick=function(){switchSession(s.id);};
+        list.appendChild(div);
+      });
+    }).catch(function(){});
+  }
+
+  // P8 — re-fetch la liste de l'historique si l'overlay du Chat est ouvert.
+  function refreshSessionsPage() {
+    if(LaRuche.Chat && LaRuche.Chat.refreshHistoryOverlay) {
+      LaRuche.Chat.refreshHistoryOverlay();
+    }
+  }
+
+  function newSession() {
+    var _af0=document.getElementById('activityFeed'); if(sessionId && _af0) feedCache[sessionId]=_af0.innerHTML;
+    sessionId=null;
+    if(LaRuche.WS && LaRuche.WS.detach) LaRuche.WS.detach();
+    // Le run en cours continue EN FOND ; la nouvelle conv est prête à envoyer (pas « Stop »).
+    isStreaming=false; staleRecoveryActive=false;
+    if(typeof clearResponseTimeout==='function') clearResponseTimeout();
+    if(typeof removeTypingIndicator==='function') removeTypingIndicator();
+    currentAssistantMsg=null; currentAssistantRow=null;
+    if(typeof setRunning==='function') setRunning(false);
+    var _sb=document.getElementById('sendBtn'); if(_sb) _sb.disabled=false;
+    var _ui=document.getElementById('userInput'); if(_ui){ _ui.disabled=false; _ui.placeholder='Envoyer un message...'; }
+    var container=document.getElementById('chatContainer');
+    container.innerHTML='';
+    var welcome=document.createElement('div'); welcome.className='welcome'; welcome.id='welcomeScreen';
+    welcome.innerHTML='<div class="swarm-wrap" style="transform: scale(0.65); margin: -40px auto -30px;"><canvas class="swarm-canvas"></canvas></div><h2>L\x27Essaim</h2><p>Agent IA propulse par LaRuche.<br>Posez votre question ou donnez une instruction.</p><div class="suggested-prompts"><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">Explique-moi l\'architecture du projet</div><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">Quels fichiers ont ete modifies recemment ?</div><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">Analyse les erreurs dans les logs</div><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">Cree un plan d\'action pour optimiser les performances</div></div>';
+    container.appendChild(welcome);
+    document.getElementById('activityFeed').innerHTML='';
+    resetFeed();
+    document.getElementById('planSection').innerHTML='<div class="plan-title">Plan</div>';
+    loadSessions();
+    closeSidebarMobile();
+  }
+
+  function switchSession(id, scrollTerm) {
+    var _af0=document.getElementById('activityFeed'); if(sessionId && _af0) feedCache[sessionId]=_af0.innerHTML; // sauve le feed quitté
+    sessionId=id;
+    delete unreadSessions[id]; // ouvrir = marquer lu (efface la pastille)
+    markConvSeen(id);
+    // Le run qu'on regardait continue EN FOND ; cette vue redevient prête à envoyer.
+    // Sans ça, le bouton reste « Stop » (rouge) et on ne peut pas écrire dans la nouvelle conv.
+    isStreaming=false; staleRecoveryActive=false;
+    if(typeof clearResponseTimeout==='function') clearResponseTimeout();
+    if(typeof removeTypingIndicator==='function') removeTypingIndicator();
+    currentAssistantMsg=null; currentAssistantRow=null;
+    if(typeof setRunning==='function') setRunning(false);
+    var _sb=document.getElementById('sendBtn'); if(_sb) _sb.disabled=false;
+    var _ui=document.getElementById('userInput'); if(_ui){ _ui.disabled=false; _ui.placeholder='Envoyer un message...'; }
+    var container=document.getElementById('chatContainer');
+    container.innerHTML='';
+    document.getElementById('activityFeed').innerHTML='';
+    resetFeed();
+    // Restaure le backlog du feed de la conversation ouverte (live-only sinon perdu). Les
+    // nouvelles étapes (reattach) s'ajoutent en dessous via une nouvelle étape.
+    var _af1=document.getElementById('activityFeed'); if(_af1 && feedCache[id]) _af1.innerHTML = feedCache[id];
+    document.getElementById('planSection').innerHTML='<div class="plan-title">Plan</div>';
+    fetch('/api/sessions/'+id+'/messages').then(function(r){return r.ok?r.json():null;}).then(function(data){
+      if(!data||!data.messages)return;
+      var historyMedia=[];
+      data.messages.forEach(function(msg){
+        if(Array.isArray(msg.plan)) updatePlan(msg.plan);
+        if(msg.role==='user'){startPlanMission(msg.text);addMessage('user',msg.text, msg.attachments); _feedBody=null; /* nouveau tour → nouvelle étape */ }
+        else if(msg.role==='thought'){
+          if(msg.kind!=='next_action') addActivity('thinking',thoughtLabel(msg.phase||'',msg.kind||''),msg.text||'',false,{stepTitle:_feedTurnTitle});
+        }
+        else if(msg.role==='prompt_debug'){
+          onPromptDebug(msg);
+        }
+        else if(msg.role==='assistant'&&((msg.text&&msg.text.trim())||historyMedia.length)){
+          var restored=takeMediaDeclarations(msg.text||'');
+          var result=addMessage('assistant','');
+          var el=result.msgEl;
+          if(restored.text&&typeof marked!=='undefined'){marked.setOptions({breaks:true,gfm:true});el.innerHTML=marked.parse(restored.text);el.classList.add('rendered');if(window.lrEnhanceCode)window.lrEnhanceCode(el);}
+          else el.textContent=restored.text;
+          linkifyUrls(el);
+          appendMediaGallery(el,historyMedia.concat(restored.items)); historyMedia=[];
+          var actions=document.createElement('div');actions.className='msg-actions';
+          var ttsBtn=document.createElement('button');ttsBtn.className='msg-action-btn';ttsBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';
+          ttsBtn.onclick=function(){LaRuche.Voice.speakText(restored.text,ttsBtn);};actions.appendChild(ttsBtn);
+          var copyBtn=document.createElement('button');copyBtn.className='msg-action-btn';copyBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> Copier';
+          copyBtn.onclick=function(){navigator.clipboard.writeText(restored.text).then(function(){copyBtn.classList.add('copied');copyBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="20 6 9 17 4 12"></polyline></svg> Copie';setTimeout(function(){copyBtn.classList.remove('copied');copyBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> Copier';},2000);});};actions.appendChild(copyBtn);
+          el.appendChild(actions);
+        }
+        // Reconstruit le feed agentique depuis l'historique persisté.
+        else if(msg.role==='tool_call'){
+          var restoredArgs=msg.args||{};
+          var restoredTool=msg.tool||'?';
+          maybeRenderFileDiff(restoredTool,restoredArgs); // carte diff inline (replay)
+          addActivity('tool-call',toolActivityLabel(restoredTool,restoredArgs)+' · exécuté',toolContext(restoredArgs),true,{toolName:restoredTool,activityLabel:toolActivityLabel(restoredTool,restoredArgs),terminal:(restoredTool==='shell_exec'||restoredTool==='execute_code'||restoredTool==='run_script'),command:toolContext(restoredArgs)});
+        }
+        else if(msg.role==='tool'){
+          var txt=msg.text||'';
+          if(txt.indexOf('<laruche-media>')!==-1){
+            var declared=takeMediaDeclarations(txt);
+            historyMedia=historyMedia.concat(declared.items);
+            txt=declared.text || (declared.items.length+' media ajoute(s) a la reponse.');
+          }
+          var ok=!/^\s*error[:\s]/i.test(txt);
+          addActivity(ok?'tool-ok':'tool-err', (msg.tool||'outil')+(ok?' OK':' ERR'), txt.substring(0,1200), true);
+        }
+      });
+      // Tout replier sauf la dernière étape, pour un historique lisible.
+      var steps=document.querySelectorAll('#activityFeed .feed-step');
+      steps.forEach(function(c,i){ if(i<steps.length-1) c.classList.remove('expanded'); });
+      if(_feedPrevCard){
+        _feedPrevCard.classList.remove('running');
+        var restoredState=_feedPrevCard.querySelector('.feed-step-state');
+        if(restoredState) restoredState.textContent='TERMINÉ';
+      }
+      setFeedLive('idle');
+      // Saut vers le mot-clé recherché (clic depuis l'historique), sinon bas de page.
+      if(scrollTerm){ scrollToMessageTerm(scrollTerm); } else { scrollToBottom(); }
+    }).catch(function(){});
+    loadSessions(); closeSidebarMobile();
+    // Re-attach au flux live SEULEMENT si la session n'est pas déjà streamée par la socket
+    // principale (sinon double abonnement -> chaque token rendu 2x : « VoiciVoici les les »).
+    if(id !== runningSession && LaRuche.WS && LaRuche.WS.reattach) LaRuche.WS.reattach(id);
+  }
+
+  function deleteSession(id) {
+    fetch('/api/sessions/'+id,{method:'DELETE'}).then(function(){
+      if(id===sessionId) newSession(); else loadSessions();
+      refreshHistoryOverlay();
+    });
+  }
+
+  /* ── Historique overlay (absorbe l'ancien onglet Sessions) ── */
+  var _historySessions = [];
+  function openHistory(){
+    var ov = document.getElementById('historyOverlay');
+    if(!ov) return;
+    ov.classList.add('open');
+    var search = document.getElementById('historySearch');
+    if(search) search.value = '';
+    loadHistory();
+  }
+  function closeHistory(){
+    var ov = document.getElementById('historyOverlay');
+    if(ov) ov.classList.remove('open');
+  }
+  function isHistoryOpen(){
+    var ov = document.getElementById('historyOverlay');
+    return !!(ov && ov.classList.contains('open'));
+  }
+  function refreshHistoryOverlay(){ if(isHistoryOpen()) loadHistory(); }
+  function loadHistory(){
+    fetch('/api/sessions').then(function(r){return r.json();}).then(function(sessions){
+      _historySessions = (sessions||[]).slice();
+      _historySessions.sort(function(a,b){return new Date(b.updated_at)-new Date(a.updated_at);});
+      renderHistory(_historySessions);
+    }).catch(function(){ renderHistory([]); });
+  }
+  var _searchTerm = '';
+  // Date RELATIVE : aujourd'hui HH:MM / hier / avant-hier / il y a N jours / sem. / mois / ans.
+  function fmtRelDate(iso){
+    if(!iso) return 'MAJ : -';
+    var d=new Date(iso); if(isNaN(d.getTime())) return 'MAJ : -';
+    var now=new Date(), hm=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
+    function sod(x){ return new Date(x.getFullYear(),x.getMonth(),x.getDate()).getTime(); }
+    var days=Math.round((sod(now)-sod(d))/86400000);
+    if(days<=0) return "aujourd'hui "+hm;
+    if(days===1) return 'hier '+hm;
+    if(days===2) return 'avant-hier '+hm;
+    if(days<7) return 'il y a '+days+' jours · '+hm;
+    if(days<31) return 'il y a '+Math.floor(days/7)+' sem.';
+    if(days<365) return 'il y a '+Math.floor(days/30)+' mois';
+    var y=Math.floor(days/365); return 'il y a '+y+' an'+(y>1?'s':'');
+  }
+  // Surligne `term` (insensible casse) dans `text`, échappé.
+  function hlt(text, term){
+    text=String(text||'');
+    if(!term) return LaRuche.Utils.esc(text);
+    var i=text.toLowerCase().indexOf(term);
+    if(i<0) return LaRuche.Utils.esc(text);
+    return LaRuche.Utils.esc(text.slice(0,i))+'<mark class="hk">'+LaRuche.Utils.esc(text.slice(i,i+term.length))+'</mark>'+LaRuche.Utils.esc(text.slice(i+term.length));
+  }
+  // Saute au 1er message contenant `term` et le surligne brièvement.
+  function scrollToMessageTerm(term){
+    if(!term){ scrollToBottom(); return; }
+    var t=String(term).toLowerCase();
+    var msgs=document.querySelectorAll('#chatContainer .message');
+    for(var i=0;i<msgs.length;i++){
+      if((msgs[i].textContent||'').toLowerCase().indexOf(t)!==-1){
+        msgs[i].scrollIntoView({behavior:'smooth',block:'center'});
+        msgs[i].classList.add('msg-highlight');
+        (function(el){ setTimeout(function(){ el.classList.remove('msg-highlight'); }, 2600); })(msgs[i]);
+        return;
+      }
+    }
+    scrollToBottom();
+  }
+  function searchHistory(q){
+    q = (q||'').trim();
+    _searchTerm = q.toLowerCase();
+    if(!q){ renderHistory(_historySessions); return; }
+    fetch('/api/sessions/search?q='+encodeURIComponent(q)).then(function(r){ return r.ok?r.json():[]; })
+      .then(function(results){
+        // Résultats backend = {session_id, session_title, role, preview}. On regroupe par session
+        // et on ENRICHIT avec les métadonnées complètes (title/updated_at/messages) — sinon « Sans titre ».
+        var byId={};
+        (results||[]).forEach(function(r){
+          var sid=r.session_id; if(!sid) return;
+          if(!byId[sid]){
+            var full=_historySessions.filter(function(s){return s.id===sid;})[0];
+            byId[sid]=full?Object.assign({},full):{ id:sid, title:r.session_title };
+            byId[sid]._match=r.preview;
+          }
+        });
+        var merged=Object.keys(byId).map(function(k){return byId[k];});
+        merged.sort(function(a,b){return new Date(b.updated_at||0)-new Date(a.updated_at||0);});
+        renderHistory(merged);
+      })
+      .catch(function(){
+        renderHistory(_historySessions.filter(function(s){ return (s.title||'').toLowerCase().indexOf(_searchTerm)!==-1; }));
+      });
+  }
+  function renderHistory(sessions){
+    var list = document.getElementById('historyList');
+    if(!list) return;
+    if(!sessions || !sessions.length){ list.innerHTML='<div style="text-align:center;color:var(--text-muted);padding:30px">Aucune conversation.</div>'; return; }
+    list.innerHTML='';
+    var term=_searchTerm||null;
+    sessions.forEach(function(s){
+      var cleanTitle = (s.title||'').split(/\[SYSTEM\]/i)[0].trim() || 'Sans titre';
+      var item = document.createElement('div');
+      item.className = 'history-item';
+      var matchHtml = (s._match && term) ? '<div class="hi-match">…'+hlt(s._match, term)+'…</div>' : '';
+      item.innerHTML =
+        '<div class="hi-main">'+
+          '<div class="hi-title">'+hlt(cleanTitle, term)+'</div>'+
+          '<div class="hi-meta">'+fmtRelDate(s.updated_at)+(s.messages?(' · '+s.messages+' msg'):'')+'</div>'+
+          matchHtml+
+        '</div>'+
+        '<div class="hi-actions">'+
+          '<button class="hi-btn open">Ouvrir</button>'+
+          '<button class="hi-btn export">Exporter</button>'+
+          '<button class="hi-btn del">Supprimer</button>'+
+        '</div>';
+      item.querySelector('.hi-main').onclick = function(){ closeHistory(); switchSession(s.id, term); };
+      item.querySelector('.open').onclick = function(){ closeHistory(); switchSession(s.id, term); };
+      item.querySelector('.export').onclick = function(){ exportSessionMd(s.id, cleanTitle); };
+      item.querySelector('.del').onclick = function(){ if(confirm('Supprimer « '+cleanTitle+' » ?')) deleteSession(s.id); };
+      list.appendChild(item);
+    });
+  }
+  // Export client-side d'une conversation en .md depuis ses messages charges.
+  function exportSessionMd(id, title){
+    fetch('/api/sessions/'+id+'/messages').then(function(r){ return r.ok?r.json():null; }).then(function(data){
+      var msgs = (data && data.messages) ? data.messages : [];
+      var lines = ['# '+(title||'Conversation '+id), ''];
+      msgs.forEach(function(m){
+        var who = m.role==='user' ? '## 🧑 Utilisateur'
+                : m.role==='assistant' ? '## 🐝 LaRuche'
+                : m.role==='tool' ? '### 🔧 Outil ('+(m.tool||'?')+')'
+                : m.role==='tool_call' ? '### ➡️ Appel outil ('+(m.tool||'?')+')'
+                : m.role==='thought' ? '### 💭 Réflexion'
+                : null;
+        if(!who) return;
+        var txt = (m.text||'').trim();
+        if(m.role==='tool_call' && m.args){ try{ txt = '```json\n'+JSON.stringify(m.args,null,2)+'\n```'; }catch(e){} }
+        if(!txt) return;
+        lines.push(who, '', txt, '');
+      });
+      var blob = new Blob([lines.join('\n')], {type:'text/markdown'});
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      var safe = (title||'conversation').replace(/[^a-z0-9-_]+/gi,'_').substring(0,40);
+      a.download = safe + '.md';
+      a.click();
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+      LaRuche.Toast.show('Conversation exportée','ok');
+    }).catch(function(){ LaRuche.Toast.show('Échec export','err'); });
+  }
+
+  function showApprovalDialog(toolCallId, toolName, args) {
+    var container=document.getElementById('chatContainer');
+    var row=document.createElement('div'); row.className='approval-dialog';
+    row.innerHTML='<div class="approval-icon">&#x26A0;</div><div class="approval-content"><div class="approval-title">Autorisation requise</div><div class="approval-detail">L\'agent veut executer <strong>'+LaRuche.Utils.esc(toolName)+'</strong></div><pre class="approval-args">'+LaRuche.Utils.esc(JSON.stringify(args,null,2))+'</pre><div class="approval-buttons"><button class="approval-btn approve" onclick="LaRuche.Chat.respondApproval(\''+toolCallId+'\',true,this)">Autoriser</button><button class="approval-btn deny" onclick="LaRuche.Chat.respondApproval(\''+toolCallId+'\',false,this)">Refuser</button></div></div>';
+    container.appendChild(row); scrollToBottom();
+    addActivity('status','Approval','En attente: '+toolName,false);
+  }
+
+  function respondApproval(toolCallId, approved, btn) {
+    LaRuche.WS.send({type:'approval',tool_call_id:toolCallId,approved:approved});
+    var dialog=btn.closest('.approval-dialog');
+    if(dialog){
+      // Une fois la décision prise, l'approbation disparaît de la conversation.
+      dialog.style.transition='opacity .2s ease';
+      dialog.style.opacity='0';
+      setTimeout(function(){ if(dialog.parentNode) dialog.parentNode.removeChild(dialog); }, 200);
+    }
+    addActivity('status','Approval',(approved?'Autorise: ':'Refuse: ')+toolCallId,false);
+  }
+
+  function toggleSidebar() {
+    var activePage = document.querySelector('.page.active');
+    if(!activePage) return;
+    var side;
+    if(activePage.id === 'page-chat') side = document.getElementById('chatSidebar');
+    else if(activePage.id === 'page-missions') side = activePage.querySelector('.mis-side');
+    else if(activePage.id === 'page-memory') side = activePage.querySelector('.mem2-side');
+    if(!side) return;
+    if(window.innerWidth > 900){
+      // PC : repli/dépli de la colonne (largeur 0). Le honeycomb du bandeau haut la fait revenir.
+      side.classList.toggle('collapsed');
+      try{ localStorage.setItem('lr_sidebar_collapsed', side.classList.contains('collapsed')?'1':'0'); }catch(e){}
+    } else {
+      side.classList.toggle('open');
+      document.getElementById('sidebarOverlay').classList.toggle('open');
+    }
+  }
+  function closeSidebarMobile() {
+    if(window.innerWidth<=900){
+      var activePage = document.querySelector('.page.active');
+      if(activePage) {
+        var side;
+        if(activePage.id === 'page-chat') side = document.getElementById('chatSidebar');
+        else if(activePage.id === 'page-missions') side = activePage.querySelector('.mis-side');
+        else if(activePage.id === 'page-memory') side = activePage.querySelector('.mem2-side');
+        if(side) side.classList.remove('open');
+      }
+      var overlay = document.getElementById('sidebarOverlay');
+      if(overlay) overlay.classList.remove('open');
+    }
+  }
+
+  function addPendingFile(file) {
+    if(file.size>5*1024*1024){LaRuche.Toast.show('File too large (max 5MB): '+file.name,'err');return;}
+    pendingFiles.push(file); renderAttachments();
+  }
+  function removePendingFile(idx) { pendingFiles.splice(idx,1); renderAttachments(); }
+  function renderAttachments() {
+    var el=document.getElementById('attachmentPreview');
+    if(pendingFiles.length===0){el.style.display='none';return;}
+    el.style.display='flex';
+    el.innerHTML='';
+    pendingFiles.forEach(function(f, i) {
+      var att = {
+        kind: f.type.startsWith('image/') ? 'image' : 'file',
+        mime_type: f.type,
+        filename: f.name,
+        fileUrl: URL.createObjectURL(f)
+      };
+      el.appendChild(LaRuche.Utils.createAttachmentBox(att, true, i));
+    });
+  }
+  async function getFileContentsForPrompt() {
+    if(pendingFiles.length===0)return{text:'',attachments:[]};
+    var parts=[], attachments=[];
+    
+    // Safe base64 conversion for large files
+    var getBase64 = async (file) => {
+      return new Promise((resolve, reject) => {
+        var reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    };
+
+    for(var i=0;i<pendingFiles.length;i++){
+      var f=pendingFiles[i];
+      if(f.type.startsWith('image/')){
+        try{var b64=await getBase64(f); attachments.push({kind:'image', mime_type:f.type, data:b64, filename:f.name}); parts.push('[Image: '+f.name+']');}
+        catch(e){parts.push('[Image: '+f.name+' - could not read]');}
+      } else if(f.type.startsWith('audio/')) {
+        try{var b64=await getBase64(f); attachments.push({kind:'audio', mime_type:f.type, data:b64, filename:f.name}); parts.push('[Audio: '+f.name+']');}
+        catch(e){parts.push('[Audio: '+f.name+' - could not read]');}
+      } else if(f.type === 'application/pdf') {
+        try{var b64=await getBase64(f); attachments.push({kind:'file', mime_type:f.type, data:b64, filename:f.name}); parts.push('[Document: '+f.name+']');}
+        catch(e){parts.push('[Document: '+f.name+' - could not read]');}
+      } else {
+        try{var text=await f.text(); var truncated=text.substring(0,8000); attachments.push({kind:'file', mime_type:f.type||'text/plain', data:btoa(unescape(encodeURIComponent(truncated))), filename:f.name}); parts.push('[File: '+f.name+']\n'+truncated+(text.length>8000?'\n...(truncated)':''));}
+        catch(e){parts.push('[File: '+f.name+' - could not read]');}
+      }
+    }
+    pendingFiles=[]; renderAttachments();
+    return {text:parts.length>0?'\n\n'+parts.join('\n\n'):'', attachments:attachments};
+  }
+
+  function getSessionId(){return sessionId;}
+
+  // ===== Working Directory =====
+  function loadCwd() {
+    fetch(LaRuche.API.base+'/api/cwd').then(function(r){return r.json();}).then(function(d){
+      var input = document.getElementById('cwdInput');
+      if(input && d.cwd) input.value = d.cwd;
+    }).catch(function(){});
+  }
+
+  function browseCwd() {
+    var input = document.getElementById('cwdInput');
+    var path = input.value.trim();
+    if(!path) { LaRuche.Toast.show('Entrez un chemin','warn'); return; }
+    fetch(LaRuche.API.base+'/api/cwd',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({cwd:path})})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.error) LaRuche.Toast.show(d.error,'err');
+        else { LaRuche.Toast.show('Dossier: '+d.cwd,'ok'); input.value = d.cwd; }
+      })
+      .catch(function(e){LaRuche.Toast.show('Erreur: '+e,'err');});
+  }
+
+  // Enter key on cwd input = apply
+  var cwdEl = document.getElementById('cwdInput');
+  if(cwdEl) cwdEl.addEventListener('keydown', function(e){
+    if(e.key==='Enter') { e.preventDefault(); browseCwd(); }
+  });
+
+  return {
+    init:init, enter:enter, leave:leave, current:function(){return current;}, handleEvent:handleEvent, sendMessage:sendMessage,
+    useSuggestion:useSuggestion, newSession:newSession, deleteSession:deleteSession,
+    respondApproval:respondApproval, toggleSidebar:toggleSidebar,
+    removePendingFile:removePendingFile, loadSessions:loadSessions,
+    getSessionId:getSessionId, switchSession:switchSession,
+    openProfile:openProfile, closeProfile:closeProfile, saveProfile:saveProfile,
+    browseCwd:browseCwd, loadCwd:loadCwd, toggleNoThink:toggleNoThink, stopRun:stopRun,
+    openHistory:openHistory, closeHistory:closeHistory, searchHistory:searchHistory,
+    refreshHistoryOverlay:refreshHistoryOverlay, exportSessionMd:exportSessionMd
+  };
+})();
+
+/* ── Voice Module ─────────────────────────────────────────────── */
+LaRuche.Voice = (function(){
+  var TTS_URL = 'http://127.0.0.1:8422';
+  var currentTtsAudio = null;
+  var currentTtsUtterance = null;
+  var autoTtsEnabled = false;
+  var audioWs = null;
+  var isRecording = false;
+  var audioContext = null;
+  var audioStream = null;
+  var scriptNode = null;
+  var recordedSamples = [];
+  var sttAvailable = false;
+  var ttsAvailable = false;
+
+  function cleanTextForTTS(text) {
+    var clean = text;
+    clean=clean.replace(/```[\s\S]*?```/g,'');
+    clean=clean.replace(/`[^`]+`/g,'');
+    clean=clean.replace(/!\[([^\]]*)\]\([^)]+\)/g,'');
+    clean=clean.replace(/\[([^\]]+)\]\([^)]+\)/g,'$1');
+    clean=clean.replace(/\*\*\*([^*]+)\*\*\*/g,'$1');
+    clean=clean.replace(/\*\*([^*]+)\*\*/g,'$1');
+    clean=clean.replace(/__([^_]+)__/g,'$1');
+    clean=clean.replace(/\*([^*]+)\*/g,'$1');
+    clean=clean.replace(/_([^_]+)_/g,'$1');
+    clean=clean.replace(/~~([^~]+)~~/g,'$1');
+    clean=clean.replace(/\*/g,'');
+    clean=clean.replace(/_/g,' ');
+    clean=clean.replace(/^#{1,6}\s*/gm,'');
+    clean=clean.replace(/^[\s]*[-+]\s+/gm,'. ');
+    clean=clean.replace(/^[\s]*\d+[\.\)]\s+/gm,'. ');
+    clean=clean.replace(/^[-]{3,}$/gm,'');
+    clean=clean.replace(/^>\s*/gm,'');
+    clean=clean.replace(/<[^>]+>/g,'');
+    clean=clean.replace(/\|/g,', ');
+    clean=clean.replace(/^[\s]*[-:]+[\s]*$/gm,'');
+    clean=clean.replace(/\n{2,}/g,'. ');
+    clean=clean.replace(/\n/g,' ');
+    clean=clean.replace(/\s{2,}/g,' ');
+    clean=clean.replace(/[.,]{2,}/g,'.');
+    clean=clean.replace(/\.\s*\./g,'.');
+    clean=clean.trim();
+    if(clean.startsWith('.'))clean=clean.substring(1).trim();
+    return clean;
+  }
+
+  async function speakText(text, btn) {
+    if(btn && btn.classList.contains('playing')){stopAllTts();btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';return;}
+    var cleanText=cleanTextForTTS(text);
+    if(!cleanText)return;
+    if(btn){btn.classList.add('playing');btn.innerHTML='&#x23F9; Stop';}
+    try {
+      var resp=await fetch(TTS_URL+'/synthesize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:cleanText})});
+      if(!resp.ok){speakBrowser(cleanText,btn);return;}
+      var blob=await resp.blob(); var url=URL.createObjectURL(blob);
+      currentTtsAudio=new Audio(url);
+      currentTtsAudio.onended=function(){if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';}currentTtsAudio=null;};
+      currentTtsAudio.onerror=function(){if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';}currentTtsAudio=null;};
+      currentTtsAudio.play();
+    } catch(e){speakBrowser(cleanText,btn);}
+  }
+
+  function speakBrowser(text, btn) {
+    if('speechSynthesis' in window){
+      speechSynthesis.cancel();
+      var utter=new SpeechSynthesisUtterance(text);
+      utter.lang='fr-FR'; utter.rate=1.0;
+      currentTtsUtterance=utter;
+      utter.onend=function(){if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';}currentTtsUtterance=null;};
+      utter.onerror=function(){if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';}currentTtsUtterance=null;};
+      speechSynthesis.speak(utter);
+    } else {
+      if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> Lire';}
+    }
+  }
+
+  function stopAllTts() {
+    if(currentTtsAudio){currentTtsAudio.pause();currentTtsAudio.currentTime=0;currentTtsAudio=null;}
+    if('speechSynthesis' in window) speechSynthesis.cancel();
+    currentTtsUtterance=null;
+  }
+
+  function connectAudioWS() {
+    var protocol=location.protocol==='https:'?'wss:':'ws:';
+    audioWs=new WebSocket(protocol+'//'+location.host+'/ws/audio');
+    audioWs.binaryType='arraybuffer';
+    audioWs.onmessage=function(e){
+      if(e.data instanceof ArrayBuffer){playAudio(e.data);}
+      else {
+        var data=JSON.parse(e.data);
+        if(data.type==='transcript'){LaRuche.Console.log('info','Voice','Transcription: '+data.text);}
+        else if(data.type==='error'){LaRuche.Console.log('error','Voice',data.message);}
+      }
+    };
+  }
+
+  async function toggleMic() {
+    if(isRecording) stopRecording(); else await startRecording();
+  }
+
+  async function startRecording() {
+    try {
+      audioStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true}});
+      var AudioCtx=window.AudioContext||window.webkitAudioContext;
+      audioContext=new AudioCtx();
+      var source=audioContext.createMediaStreamSource(audioStream);
+      scriptNode=audioContext.createScriptProcessor(4096,1,1);
+      recordedSamples=[];
+      scriptNode.onaudioprocess=function(e){recordedSamples.push(new Float32Array(e.inputBuffer.getChannelData(0)));};
+      source.connect(scriptNode); scriptNode.connect(audioContext.destination);
+      isRecording=true;
+      document.getElementById('micBtn').classList.add('recording');
+      var hw=document.getElementById('honeyWave'); if(hw) hw.style.display='flex';
+      LaRuche.Console.log('info','Voice','Recording started');
+    } catch(e){LaRuche.Toast.show('Mic error: '+e.message,'err');}
+  }
+
+  function stopRecording() {
+    if(!isRecording)return;
+    isRecording=false;
+    document.getElementById('micBtn').classList.remove('recording');
+    var hw=document.getElementById('honeyWave'); if(hw) hw.style.display='none';
+    if(scriptNode){scriptNode.disconnect();scriptNode=null;}
+    if(audioStream){audioStream.getTracks().forEach(function(t){t.stop();});audioStream=null;}
+    if(recordedSamples.length>0){
+      var sampleRate=audioContext?audioContext.sampleRate:16000;
+      var totalLength=recordedSamples.reduce(function(acc,s){return acc+s.length;},0);
+      var pcm=new Float32Array(totalLength); var offset=0;
+      recordedSamples.forEach(function(chunk){pcm.set(chunk,offset);offset+=chunk.length;});
+      var finalPcm=pcm, finalRate=sampleRate;
+      if(sampleRate!==16000){
+        var ratio=16000/sampleRate;
+        var newLen=Math.round(pcm.length*ratio);
+        finalPcm=new Float32Array(newLen);
+        for(var i=0;i<newLen;i++){var srcIdx=i/ratio;var idx0=Math.floor(srcIdx);var idx1=Math.min(idx0+1,pcm.length-1);var frac=srcIdx-idx0;finalPcm[i]=pcm[idx0]*(1-frac)+pcm[idx1]*frac;}
+        finalRate=16000;
+      }
+      var wavBlob=encodeWAV(finalPcm,finalRate);
+      sendAudio(wavBlob);
+      LaRuche.Console.log('info','Voice','Recorded '+(totalLength/sampleRate).toFixed(1)+'s');
+    }
+    if(audioContext){audioContext.close();audioContext=null;}
+    recordedSamples=[];
+  }
+
+  function encodeWAV(samples, sampleRate) {
+    var buffer=new ArrayBuffer(44+samples.length*2);
+    var view=new DataView(buffer);
+    var writeStr=function(o,s){for(var i=0;i<s.length;i++)view.setUint8(o+i,s.charCodeAt(i));};
+    writeStr(0,'RIFF'); view.setUint32(4,36+samples.length*2,true); writeStr(8,'WAVE');
+    writeStr(12,'fmt '); view.setUint32(16,16,true); view.setUint16(20,1,true); view.setUint16(22,1,true);
+    view.setUint32(24,sampleRate,true); view.setUint32(28,sampleRate*2,true); view.setUint16(32,2,true); view.setUint16(34,16,true);
+    writeStr(36,'data'); view.setUint32(40,samples.length*2,true);
+    for(var i=0;i<samples.length;i++){var s=Math.max(-1,Math.min(1,samples[i]));view.setInt16(44+i*2,s<0?s*0x8000:s*0x7FFF,true);}
+    return new Blob([buffer],{type:'audio/wav'});
+  }
+
+  function sendAudio(blob) {
+    if(!audioWs||audioWs.readyState!==WebSocket.OPEN){connectAudioWS();setTimeout(function(){sendAudio(blob);},500);return;}
+    blob.arrayBuffer().then(function(buf){audioWs.send(buf);});
+  }
+
+  function playAudio(arrayBuffer) {
+    var ctx=new (window.AudioContext||window.webkitAudioContext)();
+    ctx.decodeAudioData(arrayBuffer,function(buffer){var src=ctx.createBufferSource();src.buffer=buffer;src.connect(ctx.destination);src.start(0);}).catch(function(e){LaRuche.Console.log('error','Audio','Decode failed: '+e.message);});
+  }
+
+  function toggleAutoTts() {
+    autoTtsEnabled=!autoTtsEnabled;
+    var btn=document.getElementById('autoTtsToggle');
+    btn.classList.toggle('active',autoTtsEnabled);
+    btn.title=autoTtsEnabled?'Lecture automatique activee':'Lecture automatique desactivee';
+  }
+
+  function checkVoiceStatus() {
+    fetch('/api/voice/status').then(function(r){return r.json();}).then(function(data){
+      sttAvailable=data.stt&&data.stt.available;
+      ttsAvailable=data.tts&&data.tts.available;
+      var micBtn=document.getElementById('micBtn');
+      if(!sttAvailable){micBtn.style.opacity='0.3';micBtn.style.pointerEvents='none';micBtn.title='STT non disponible';}
+      else {micBtn.style.opacity='1';micBtn.style.pointerEvents='auto';micBtn.title='Cliquer pour enregistrer / arreter';}
+      var autoTtsBtn=document.getElementById('autoTtsToggle');
+      if(!ttsAvailable){autoTtsBtn.style.opacity='0.3';autoTtsBtn.title='TTS non disponible';}
+      else {autoTtsBtn.style.opacity='1';autoTtsBtn.title='Lecture automatique des reponses';}
+    }).catch(function(){sttAvailable=false;ttsAvailable=false;});
+  }
+
+  function init() {
+    connectAudioWS();
+    checkVoiceStatus();
+    setInterval(checkVoiceStatus,15000);
+  }
+
+  return {
+    init:init, speakText:speakText, toggleMic:toggleMic, toggleAutoTts:toggleAutoTts,
+    refreshStatus:checkVoiceStatus,
+    isAutoTts:function(){return autoTtsEnabled;}, cleanTextForTTS:cleanTextForTTS,
+    selectTTS: function(v){ if(!v)return; var p=v.split('|'); LaRuche.Dashboard.useMeshModel(p[0],p[1],'tts'); },
+    selectSTT: function(v){ if(!v)return; var p=v.split('|'); LaRuche.Dashboard.useMeshModel(p[0],p[1],'stt'); },
+    updateVoiceSelectors: function(models) {
+      var tts = document.getElementById('ttsSelect');
+      var stt = document.getElementById('sttSelect');
+      if(!tts || !stt || !models) return;
+      var currentTts = tts.value; var currentStt = stt.value;
+      tts.innerHTML = '<option value="">Auto (premier detecte)</option>';
+      stt.innerHTML = '<option value="">Auto (premier detecte)</option>';
+      models.forEach(function(m){
+        var cap=(m.capability||'llm').toLowerCase();
+        if(cap==='tts') tts.innerHTML += '<option value="'+m.host+'|'+m.name+'">'+m.name+'</option>';
+        if(cap==='stt') stt.innerHTML += '<option value="'+m.host+'|'+m.name+'">'+m.name+'</option>';
+      });
+      fetch('/api/voice/status').then(function(r){return r.json();}).then(function(d){
+         if(d.tts && d.tts.is_selected) tts.value = d.tts.selected_host + '|' + d.tts.selected_model;
+         if(d.stt && d.stt.is_selected) stt.value = d.stt.selected_host + '|' + d.stt.selected_model;
+      }).catch(function(){});
+    }
+  };
+})();
+
+/* ── Dashboard Module ─────────────────────────────────────────── */

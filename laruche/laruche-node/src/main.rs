@@ -60,7 +60,27 @@ use std::collections::VecDeque;
 const SPA_HTML: &str = include_str!("../../laruche-dashboard/src/templates/spa.html");
 // CSS + JS extraits de spa.html (servis séparément, compilés dans le binaire).
 const APP_CSS: &str = include_str!("../../laruche-dashboard/src/templates/app.css");
-const APP_JS: &str = include_str!("../../laruche-dashboard/src/templates/app.js");
+// app.js est découpé en modules dans `templates/js/` (un agent i18n par module). Le node les
+// CONCATÈNE au compile-time dans l'ORDRE de dépendance → un seul `/app.js` servi, un seul binaire.
+const APP_JS: &str = concat!(
+    include_str!("../../laruche-dashboard/src/templates/js/core.js"),
+    "\n",
+    include_str!("../../laruche-dashboard/src/templates/js/chat.js"),
+    "\n",
+    include_str!("../../laruche-dashboard/src/templates/js/dashboard.js"),
+    "\n",
+    include_str!("../../laruche-dashboard/src/templates/js/memory.js"),
+    "\n",
+    include_str!("../../laruche-dashboard/src/templates/js/missions.js"),
+    "\n",
+    include_str!("../../laruche-dashboard/src/templates/js/settings.js"),
+    "\n",
+    include_str!("../../laruche-dashboard/src/templates/js/automations.js"),
+    "\n",
+    include_str!("../../laruche-dashboard/src/templates/js/capabilities.js"),
+    "\n",
+    include_str!("../../laruche-dashboard/src/templates/js/boot.js"),
+);
 const PEER_FETCH_TIMEOUT_MS: u64 = 4000;
 // Fenêtre de péremption d'un pair. DOIT être > l'intervalle de ré-annonce mDNS (30s ci-dessous),
 // sinon un pair « clignote » : il devient périmé entre deux annonces. 90s = tolère 2 annonces ratées.
