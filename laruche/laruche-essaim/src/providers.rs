@@ -168,6 +168,9 @@ async fn openai_chat_stream(
         // Accumulateur de tool_calls indexé par index (delta streaming)
         // Chaque entrée : (id, name, partial_args_string)
         let mut tool_call_acc: std::collections::HashMap<u32, (String, String, String)> = std::collections::HashMap::new();
+        // Usage réel (si le serveur l'inclut : OpenAI avec stream_options, llama.cpp par défaut…).
+        let mut in_tok: Option<u64> = None;
+        let mut out_tok: Option<u64> = None;
 
         loop {
             match response.chunk().await {
@@ -205,6 +208,9 @@ async fn openai_chat_stream(
                         }
                         let json_str = if let Some(stripped) = line.strip_prefix("data: ") { stripped } else { &line };
                         if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(json_str) {
+                            // Usage réel (top-level, présent sur le chunk final ou un chunk dédié).
+                            if let Some(u) = parsed["usage"]["prompt_tokens"].as_u64() { in_tok = Some(u); }
+                            if let Some(u) = parsed["usage"]["completion_tokens"].as_u64() { out_tok = Some(u); }
                             let text = parsed["choices"][0]["delta"]["content"].as_str().unwrap_or("").to_string();
                             let finish_reason = parsed["choices"][0]["finish_reason"].as_str().map(str::to_string);
                             let done = finish_reason.is_some();
@@ -251,8 +257,9 @@ async fn openai_chat_stream(
 
                                 let chunk = OllamaChunk {
                                     text, done, finish_reason,
-                                    eval_count: None, eval_duration: None,
-                                    prompt_eval_count: None,
+                                    eval_count: if done { out_tok } else { None },
+                                    eval_duration: None,
+                                    prompt_eval_count: if done { in_tok } else { None },
                                     tool_calls,
                                 };
                                 if tx.send(chunk).await.is_err() { return; }
@@ -336,6 +343,10 @@ async fn _anthropic_send_request(
 
     tokio::spawn(async move {
         let mut buffer = String::new();
+        // Usage RÉEL fourni par Anthropic dans le flux : input au `message_start`,
+        // output au `message_delta`. On les émet sur le chunk final → jauge précise.
+        let mut in_tok: Option<u64> = None;
+        let mut out_tok: Option<u64> = None;
         loop {
             match response.chunk().await {
                 Ok(Some(bytes)) => {
@@ -349,6 +360,15 @@ async fn _anthropic_send_request(
                         if let Some(data) = line.strip_prefix("data: ") {
                             if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
                                 let chunk_type = parsed.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                                if chunk_type == "message_start" {
+                                    if let Some(u) = parsed["message"]["usage"]["input_tokens"].as_u64() {
+                                        in_tok = Some(u);
+                                    }
+                                } else if chunk_type == "message_delta" {
+                                    if let Some(u) = parsed["usage"]["output_tokens"].as_u64() {
+                                        out_tok = Some(u);
+                                    }
+                                }
                                 let text = match chunk_type {
                                     "content_block_delta" => parsed["delta"]["text"].as_str().unwrap_or("").to_string(),
                                     _ => String::new(),
@@ -359,8 +379,9 @@ async fn _anthropic_send_request(
                                 if !text.is_empty() || done {
                                     let _ = tx.send(OllamaChunk {
                                         text, done, finish_reason,
-                                        eval_count: None, eval_duration: None,
-                                        prompt_eval_count: None,
+                                        eval_count: if done { out_tok } else { None },
+                                        eval_duration: None,
+                                        prompt_eval_count: if done { in_tok } else { None },
                                         tool_calls: None,
                                     }).await;
                                 }
