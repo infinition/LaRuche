@@ -2215,6 +2215,7 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
       <div class="settings-tabs-bar" id="settingsTabsBar">
         <button class="settings-tab-btn active" data-tab="general">General</button>
         <button class="settings-tab-btn" data-tab="providers">Providers</button>
+        <button class="settings-tab-btn" data-tab="mcp">MCP</button>
         <button class="settings-tab-btn" data-tab="channels">Channels</button>
         <button class="settings-tab-btn" data-tab="network">Reseau</button>
         <button class="settings-tab-btn" data-tab="onboarding">Onboarding</button>
@@ -7178,6 +7179,7 @@ LaRuche.Settings = (function(){
     switch(tab) {
       case 'general': loadGeneral(el); break;
       case 'providers': loadProviders(el); break;
+      case 'mcp': loadMcp(el); break;
       case 'tools': loadTools(el); break;
       case 'channels': loadChannels(el); break;
       case 'knowledge': loadKnowledge(el); break;
@@ -7250,18 +7252,7 @@ LaRuche.Settings = (function(){
     html += '<div style="margin-bottom:12px"><button class="settings-save-btn" onclick="LaRuche.Settings.showProfileForm()">+ Add Provider</button></div>';
     html += '<div id="profileFormContainer" style="display:none"></div>';
 
-    // MCP Section
-    html += '<div class="settings-card" style="margin-bottom:16px">';
-    html += '  <div class="settings-card-title">Serveurs MCP (Model Context Protocol)</div>';
-    html += '  <div style="color:var(--text-dim);font-size:12px;margin-bottom:12px">Configurez des serveurs MCP locaux. LaRuche les utilisera pour étendre ses capacités via les agents.</div>';
-    html += '  <div id="mcp-list" style="margin-bottom:12px"></div>';
-    html += '  <div style="border:1px solid var(--border);border-radius:6px;padding:8px;background:var(--bg-panel)">';
-    html += '     <div style="margin-bottom:8px"><label class="form-label">Nom du serveur</label><input id="mcp-new-name" class="form-input" placeholder="ex: local-sqlite"></div>';
-    html += '     <div style="margin-bottom:8px"><label class="form-label">Commande</label><input id="mcp-new-cmd" class="form-input" placeholder="ex: node"></div>';
-    html += '     <div style="margin-bottom:8px"><label class="form-label">Arguments (séparés par un espace)</label><input id="mcp-new-args" class="form-input" placeholder="ex: src/index.js --db sqlite.db"></div>';
-    html += '     <button class="settings-save-btn" onclick="LaRuche.Settings.createMcpServer()">Ajouter le serveur</button>';
-    html += '  </div>';
-    html += '</div>';
+    // (Les serveurs MCP ont désormais leur propre onglet « MCP » — voir loadMcp.)
 
     html += '<div class="settings-grid">';
     var sharedHtml = '';
@@ -7796,6 +7787,23 @@ LaRuche.Settings = (function(){
   }
 
   // MCP logic
+  // Onglet MCP dédié (sorti de Providers).
+  function loadMcp(el){
+    var html = '<div class="settings-card" style="margin-bottom:16px">';
+    html += '  <div class="settings-card-title">Serveurs MCP (Model Context Protocol)</div>';
+    html += '  <div style="color:var(--text-dim);font-size:12px;margin-bottom:12px">Configurez des serveurs MCP locaux. LaRuche les utilisera pour étendre ses capacités via les agents.</div>';
+    html += '  <div id="mcp-list" style="margin-bottom:12px"></div>';
+    html += '  <div style="border:1px solid var(--border);border-radius:6px;padding:8px;background:var(--bg-panel)">';
+    html += '     <div style="margin-bottom:8px"><label class="form-label">Nom du serveur</label><input id="mcp-new-name" class="form-input" placeholder="ex: local-sqlite"></div>';
+    html += '     <div style="margin-bottom:8px"><label class="form-label">Commande</label><input id="mcp-new-cmd" class="form-input" placeholder="ex: node"></div>';
+    html += '     <div style="margin-bottom:8px"><label class="form-label">Arguments (séparés par un espace)</label><input id="mcp-new-args" class="form-input" placeholder="ex: src/index.js --db sqlite.db"></div>';
+    html += '     <button class="settings-save-btn" onclick="LaRuche.Settings.createMcpServer()">Ajouter le serveur</button>';
+    html += '  </div>';
+    html += '</div>';
+    el.innerHTML = html;
+    loadMcpServers();
+  }
+
   async function loadMcpServers() {
     try {
       var r = await fetch('/api/mcp/servers');
@@ -8792,7 +8800,7 @@ var m = document.getElementById('kanban-model')?document.getElementById('kanban-
   }
 
   return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, toggleCurateur:toggleCurateur, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, toggleCurateur:toggleCurateur, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder : composant "human-friendly" reutilisable (missions + cron) ── */
