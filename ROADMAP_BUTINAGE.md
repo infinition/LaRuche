@@ -27,8 +27,16 @@ UI : auto-scroll · sélection texte mémoire · bouton 👁 PromptDebug.
 ## ✅ Fix de fond (27/06)
 - **Mémoire conversationnelle** : butinage ouvrait un carnet vierge par message → amnésie (flagrant Telegram). `executer` réinjecte l'historique de session (`prelude_butinage`) avant le message courant ; recompose `skip(nb_prelude)` → pas de doublon. Images des anciens tours non ré-envoyées. ⚠️ **Limite connue** : si l'escale **compacte** l'historique pendant un run, le `skip(nb_prelude)` peut désaligner la persistance session (cosmétique : fidélité du log/relecture, pas la mémoire live). Rare en chat. À durcir si besoin (marquer les messages neufs autrement qu'en comptant le préfixe).
 
+## ✅ Channels & UX (27/06)
+- **Mémoire conversationnelle multi-canaux** : `run_agent_query(canal, user)` → **session persistante déterministe** (`session_id_channel` = UUIDv5). Discord (par user) & Slack (par canal) ont désormais la mémoire ; Telegram survit aux rebuilds (avant : perdu car `tg_sessions` en mémoire).
+- **Home channel + `/sethome`** (Telegram) : `EssaimConfig.home_channel` persisté → destination par défaut des messages proactifs.
+- **Cron capte le canal d'origine** : `ContextExecution.channel` ← `EssaimConfig.origin_channel` (posé par chaque handler) → `cron_create` met `channel` au lieu de None. Livraison cron = canal tâche → home → feed.
+- **Édition des watchers** (parité cron/kanban) : `WatchersRegistry::update`, `PATCH /api/watchers/:id`, modale UI.
+- **Menu fusionné « Missions »** : ex-Automatisations renommé, hub unique avec sous-onglets Brief/Timeline/Cron/Watchers/Kanban ; `#page-missions` vidé (compat route).
+
 ## 🔜 À FAIRE
 7. [ ] **Fédération mesh** : propager skills VÉRIFIÉS aux ruches via `miel-protocol` (GROS — besoin test multi-nœuds).
+10. [ ] Discord/Slack : commandes `/sethome` `/clear` (aujourd'hui Telegram seul) · per-tâche channel pour kanban/cron via UI · home channel par utilisateur (aujourd'hui global, OK en POC mono-user).
 8. [ ] Tokens réels openai/anthropic/codex (aujourd'hui Ollama seul) · Feed backlog des runs en fond non-attachés (buffer serveur) · `executionMode` par outil · tokenizer réel.
 9. [ ] **Reprise effective** d'un carnet inachevé (aujourd'hui : détectés+log seulement ; reste à recharger le carnet dans un run via une UI « missions reprises »).
 
