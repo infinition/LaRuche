@@ -25,6 +25,7 @@ pub mod cron;
 pub mod error_classifier;
 pub mod fatigue;
 pub mod feed_journal;
+pub mod hooks;
 pub mod secrets;
 pub mod job_queue;
 pub mod mcp_client;

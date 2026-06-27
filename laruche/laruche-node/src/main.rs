@@ -9003,6 +9003,18 @@ async fn main() -> Result<()> {
     // Les outils/providers substitueront `${NOM}` par la vraie valeur sans la montrer au LLM.
     laruche_essaim::secrets::init(secrets_vault::charger());
 
+    // Gap D — HOOKS UTILISATEUR : charge `hooks.json` (pre/post-tool) s'il existe.
+    {
+        let hooks = std::fs::read_to_string("hooks.json")
+            .ok()
+            .and_then(|s| serde_json::from_str::<Vec<laruche_essaim::hooks::Hook>>(&s).ok())
+            .unwrap_or_default();
+        if !hooks.is_empty() {
+            eprintln!("🪝 {} hook(s) utilisateur chargé(s) depuis hooks.json", hooks.len());
+        }
+        laruche_essaim::hooks::init(hooks);
+    }
+
     let mut broadcaster = MielBroadcaster::new()?;
     broadcaster.register(&manifest)?;
     let broadcaster = Arc::new(broadcaster);

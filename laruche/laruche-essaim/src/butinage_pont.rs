@@ -473,6 +473,13 @@ impl but::Outils for OutilsPont<'_> {
             }
         }
 
+        // Gap D — HOOKS UTILISATEUR : pre_tool peut BLOQUER l'outil (garde-fou custom).
+        if crate::hooks::non_vide() {
+            if let Some(raison) = crate::hooks::run_pre(&appel.nom, &appel.args).await {
+                return self.bloquer(&appel.nom, raison);
+            }
+        }
+
         // Événement riche (args complets) pour le dashboard.
         let _ = self.tx.send(ChatEvent::ToolCall {
             name: appel.nom.clone(),
@@ -511,6 +518,11 @@ impl but::Outils for OutilsPont<'_> {
             success: res.ok,
             elapsed_ms: Some(ms),
         });
+
+        // Gap D — HOOKS UTILISATEUR : post_tool (observation, best-effort, non bloquant).
+        if crate::hooks::non_vide() {
+            crate::hooks::run_post(&appel.nom, &appel.args).await;
+        }
         res
     }
 

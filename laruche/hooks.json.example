@@ -1,0 +1,20 @@
+[
+  {
+    "event": "pre_tool",
+    "matcher": "shell_exec",
+    "command": "echo \"[hook] shell: $LARUCHE_ARGS\" >> laruche-hooks.log",
+    "block": false
+  },
+  {
+    "event": "pre_tool",
+    "matcher": "file_write",
+    "command": "node -e \"const a=JSON.parse(process.env.LARUCHE_ARGS); if((a.path||'').includes('.env')) process.exit(1)\"",
+    "block": true
+  },
+  {
+    "event": "post_tool",
+    "matcher": "*",
+    "command": "echo \"[hook] done: $LARUCHE_TOOL\" >> laruche-hooks.log",
+    "block": false
+  }
+]
