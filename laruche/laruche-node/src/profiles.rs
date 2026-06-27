@@ -277,6 +277,14 @@ pub async fn refresh_ollama_profiles(config: &mut ProfilesConfig) {
         .collect();
     for (id, base_url) in openai_ids {
         let models = discover_llamacpp_models(&base_url).await;
+        // Sonde la fenêtre RÉELLE (n_ctx) d'un serveur llama.cpp local : son défaut openai
+        // (128000) est faux pour du local (souvent 32768/8192) → sinon le contexte déborde
+        // (HTTP 400 « context size exceeded »). On aligne max_context_length sur le serveur.
+        let nctx = if est_endpoint_local(&base_url) {
+            discover_llamacpp_nctx(&base_url).await
+        } else {
+            None
+        };
         if let Some(profile) = config.profiles.get_mut(&id) {
             if !models.is_empty() {
                 profile.models = models;
@@ -285,8 +293,31 @@ pub async fn refresh_ollama_profiles(config: &mut ProfilesConfig) {
                 // aux providers cloud (OpenAI distant) dont /v1/models peut échouer transitoirement.
                 profile.models.clear();
             }
+            if let Some(n) = nctx {
+                profile.max_context_length = n;
+            }
         }
     }
+}
+
+/// Sonde la fenêtre de contexte RÉELLE (`n_ctx`) d'un serveur llama.cpp via `/props`.
+/// `None` si injoignable ou si le champ est absent.
+pub async fn discover_llamacpp_nctx(base_url: &str) -> Option<u32> {
+    let url = format!("{}/props", base_url.trim_end_matches('/'));
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()
+        .ok()?;
+    let resp = client.get(&url).send().await.ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let body: serde_json::Value = resp.json().await.ok()?;
+    body.get("default_generation_settings")
+        .and_then(|g| g.get("n_ctx"))
+        .and_then(|v| v.as_u64())
+        .or_else(|| body.get("n_ctx").and_then(|v| v.as_u64()))
+        .map(|n| n as u32)
 }
 
 /// Un endpoint est-il LOCAL (serveur sur la machine) ? Sert à vider la liste de modèles
