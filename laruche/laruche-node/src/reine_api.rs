@@ -189,6 +189,14 @@ pub(crate) async fn revue_verdict(state: &AppState, prompt: &str, reponse: &str)
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| laruche_essaim::reine_live::prompt_reine_defaut().to_string());
 
+    tracing::info!(
+        target: "reine",
+        provider = %provider,
+        model = %model,
+        has_base = api_base.is_some(),
+        from_profile = rs.provider_profile.is_some(),
+        "review: judging response with resolved provider"
+    );
     laruche_essaim::reine_live::juger_et_formater(
         &provider,
         &model,

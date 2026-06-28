@@ -64,7 +64,12 @@ pub fn construire_prompt(d: &DemandeJugement) -> String {
          revision that does not measurably improve the draft is worse than shipping \
          the original. When you revise, the instruction must be specific and \
          executable, naming what is wrong and what to do.\n\n\
-         Reply with ONLY this JSON, no prose, no code fence:\n{format}",
+         Output a SINGLE JSON object and nothing else. No prose, no markdown, no code \
+         fence. Your reply MUST start with the character {{ and end with }}.\n\
+         Schema:\n{format}\n\n\
+         Example of a valid reply:\n\
+         {{\"pertinence\":85,\"methodologie\":80,\"objectif\":82,\"conformite_marque\":90,\
+\"confiance\":88,\"avis\":\"approuver\",\"instruction\":\"\",\"raison\":\"Clear, on-scope, grounded.\"}}",
         charte = d.charte.trim(),
         cible = tier_libelle(d.tier),
         objectif = objectif.trim(),

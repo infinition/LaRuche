@@ -52,7 +52,7 @@ pub async fn juger_avec(
     let invite = construire_prompt(&demande);
     let messages = vec![serde_json::json!({ "role": "user", "content": invite })];
 
-    let mut stream = provider_chat_stream(
+    let mut stream = match provider_chat_stream(
         provider,
         model,
         &messages,
@@ -64,13 +64,27 @@ pub async fn juger_avec(
         None,
     )
     .await
-    .ok()?;
+    {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!(target: "reine", provider = %provider, model = %model, error = %e, "judge: provider call failed");
+            return None;
+        }
+    };
 
     let mut brut = String::new();
     while let Some(chunk) = stream.next().await {
         brut.push_str(&chunk.text);
     }
-    parser_scorecard(&brut).ok()
+    let apercu: String = brut.chars().take(220).collect();
+    tracing::info!(target: "reine", model = %model, len = brut.len(), preview = %apercu, "judge: raw output");
+    match parser_scorecard(&brut) {
+        Ok(c) => Some(c),
+        Err(e) => {
+            tracing::warn!(target: "reine", error = %e, "judge: output not parseable as scorecard");
+            None
+        }
+    }
 }
 
 /// Format a one-line verdict from a scorecard (advisory: the judge's own avis).
@@ -105,9 +119,14 @@ pub async fn juger_et_formater(
     prompt: &str,
     charte: &str,
 ) -> Option<String> {
-    let card = juger_avec(
+    match juger_avec(
         provider, model, api_key, api_base, ollama_url, reponse, prompt, charte,
     )
-    .await?;
-    Some(ligne_verdict(&card))
+    .await
+    {
+        Some(card) => Some(ligne_verdict(&card)),
+        // Visible fallback (instead of vanishing) so it is clear the review ran but
+        // the judge did not return a usable verdict. See logs (target "reine").
+        None => Some("LaReine could not produce a verdict (judge output unusable)".to_string()),
+    }
 }
