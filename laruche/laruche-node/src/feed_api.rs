@@ -249,7 +249,7 @@ pub(crate) async fn api_feed(
 
     // 6) Direct messages (DM) from the mesh -> first building block of the global feed. Actor = the PEER (purple
     //    ruche) for received ones; Me for sent ones.
-    for m in read_inbox() {
+    for m in mesh_api::read_inbox() {
         let (actor, action, akind) = if m.dir == "out" {
             ("User".to_string(), format!("wrote to {}", m.peer_name), "user")
         } else {
