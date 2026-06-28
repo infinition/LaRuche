@@ -1798,7 +1798,7 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 @keyframes reine-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.55;transform:scale(1.18)}}
 @keyframes reine-bounce{0%,80%,100%{opacity:.35;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
 .reine-revised-header{font-size:11px;color:var(--amber);font-family:var(--mono);font-weight:600;margin:4px 0 2px}
-.reine-revised-row .message{border-left:2px solid rgba(245,158,11,.45);padding-left:10px}
+.reine-revised-row .message,.reine-rework-row .message{border-left:2px solid rgba(245,158,11,.45);padding-left:10px}
 
 /* LaReine avatar: the same animated bee, crowned and gilded (queen). */
 .bee-reine{filter:drop-shadow(0 0 3px rgba(234,179,8,.55))}

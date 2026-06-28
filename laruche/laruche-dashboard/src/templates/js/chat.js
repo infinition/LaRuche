@@ -875,9 +875,9 @@ LaRuche.Chat = (function(){
     // assistant message after she sent the worker back).
     if(role==='assistant' && _nextMsgIsReine){
       _nextMsgIsReine=false;
-      row.classList.add('reine-revised-row');
-      var rmav=row.querySelector('.avatar');
-      if(rmav){ rmav.innerHTML='<div class="bee bee-reine"><div class="bee--wings"></div><div class="bee--body"><span></span><span></span></div><div class="bee--head"><div class="bee--head-eyes"></div><div class="bee--head-antennas"></div></div><div class="bee--crown"></div></div>'; }
+      // LaRuche (the bee) redid the work, at LaReine's request: keep the bee avatar,
+      // just mark the context in a header. The crown stays on LaReine's review chips.
+      row.classList.add('reine-rework-row');
       var rmhdr=document.createElement('div');
       rmhdr.className='reine-revised-header';
       rmhdr.innerHTML='👑 '+LaRuche.i18n.t('reine.revised');
