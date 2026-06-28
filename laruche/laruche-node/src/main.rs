@@ -53,6 +53,7 @@ mod swarm_api;
 mod mcp_api;
 mod status_api;
 mod blueprints_api;
+mod reine_api;
 
 use anyhow::Result;
 use axum::{
@@ -1725,6 +1726,10 @@ async fn main() -> Result<()> {
         .route(
             "/api/config/curateur",
             get(settings_api::api_get_curateur_config).post(settings_api::api_set_curateur_config),
+        )
+        .route(
+            "/api/config/reine",
+            get(reine_api::api_get_reine_config).post(reine_api::api_set_reine_config),
         )
         .route(
             "/api/secrets",
