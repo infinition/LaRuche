@@ -39,11 +39,11 @@ Tokens are stored in the gws CLI config directory; pass any required API keys/se
 
 ## References
 
-- `references/gmail-search-syntax.md` — Gmail search operators (`is:unread`, `from:`, `newer_than:`, etc.)
+- `references/gmail-search-syntax.md` - Gmail search operators (`is:unread`, `from:`, `newer_than:`, etc.)
 
 ## First-Time Setup
 
-### Step 0 — Check existing auth
+### Step 0 - Check existing auth
 
 ```bash
 $GSETUP --check
@@ -51,13 +51,13 @@ $GSETUP --check
 
 Prints `AUTHENTICATED` → skip to Usage. Otherwise continue.
 
-### Step 1 — Triage
+### Step 1 - Triage
 
 - **Email only?** Use the `himalaya` skill instead (Gmail App Password, no Cloud project needed).
 - **Email + Calendar / full Workspace?** Continue below. Pass `--services email,calendar` or `--services all` to limit OAuth scopes.
 - **Advanced Protection account?** Workspace admin must allowlist the OAuth client ID before Step 4 works.
 
-### Step 2 — Create OAuth credentials (one-time, ~5 min)
+### Step 2 - Create OAuth credentials (one-time, ~5 min)
 
 1. Create/select a project: <https://console.cloud.google.com/projectselector2/home/dashboard>
 2. Enable APIs at <https://console.cloud.google.com/apis/library>: Gmail, Calendar, Drive, Sheets, Docs, People
@@ -71,7 +71,7 @@ $GSETUP --client-secret /path/to/client_secret.json
 
 If the user provides raw client ID / secret values instead of a file, construct a valid Desktop OAuth JSON, save it locally (e.g. `~/Downloads/client_secret.json`), then run `--client-secret` against that file.
 
-### Step 3 — Get authorization URL
+### Step 3 - Get authorization URL
 
 ```bash
 $GSETUP --auth-url --services email,calendar --format json
@@ -80,18 +80,18 @@ $GSETUP --auth-url --services email,calendar --format json
 ```
 
 - Extract the `auth_url` field and send it to the user.
-- Tell the user: the browser will fail on `http://localhost:1` after approval — that is expected. Copy the entire redirected URL from the address bar.
+- Tell the user: the browser will fail on `http://localhost:1` after approval - that is expected. Copy the entire redirected URL from the address bar.
 - If the user gets `Error 403: access_denied` → send them to <https://console.cloud.google.com/auth/audience> to add themselves as a test user.
 
-### Step 4 — Exchange the code
+### Step 4 - Exchange the code
 
 ```bash
 $GSETUP --auth-code "THE_URL_OR_CODE_THE_USER_PASTED" --format json
 ```
 
-Accepts the full redirect URL or just the code string. If `--auth-code` fails (expired/already used), the response includes a fresh `fresh_auth_url` — send it to the user and retry.
+Accepts the full redirect URL or just the code string. If `--auth-code` fails (expired/already used), the response includes a fresh `fresh_auth_url` - send it to the user and retry.
 
-### Step 5 — Verify
+### Step 5 - Verify
 
 ```bash
 $GSETUP --check
@@ -101,7 +101,7 @@ Should print `AUTHENTICATED`. Token auto-refreshes from this point on.
 
 **Notes:**
 - Pending OAuth state is stored in the token directory until exchange completes.
-- If `gws` is installed, `google_api.py` points it at the resolved token path — no separate `gws auth login` needed.
+- If `gws` is installed, `google_api.py` points it at the resolved token path - no separate `gws auth login` needed.
 - Revoke: `$GSETUP --revoke`
 - Missing deps: `$GSETUP --install-deps`
 
@@ -205,19 +205,19 @@ All commands return JSON.
 
 ## Rules
 
-1. **Confirm before acting** — never send email, create/delete calendar events, delete/share Drive files, or modify Docs/Sheets without showing the user what will be done and getting explicit approval. Prefer `drive delete` (trash) over `--permanent`.
-2. **Check auth before first use** — run `$GSETUP --check`. If it fails, guide through setup.
-3. **Calendar times must include timezone** — ISO 8601 with offset (`2026-03-01T10:00:00-06:00`) or UTC (`Z`).
-4. **Rate limits** — avoid rapid sequential API calls; batch reads when possible.
+1. **Confirm before acting** - never send email, create/delete calendar events, delete/share Drive files, or modify Docs/Sheets without showing the user what will be done and getting explicit approval. Prefer `drive delete` (trash) over `--permanent`.
+2. **Check auth before first use** - run `$GSETUP --check`. If it fails, guide through setup.
+3. **Calendar times must include timezone** - ISO 8601 with offset (`2026-03-01T10:00:00-06:00`) or UTC (`Z`).
+4. **Rate limits** - avoid rapid sequential API calls; batch reads when possible.
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---------|-----|
 | `NOT_AUTHENTICATED` | Run setup Steps 2–5 |
-| `REFRESH_FAILED` | Token revoked/expired — redo Steps 3–5 |
-| `HttpError 403: Insufficient Permission` | Missing scope — `$GSETUP --revoke` then redo Steps 3–5 |
-| `AUTHENTICATED (partial)` / "Token missing scopes" | New scopes needed — `$GSETUP --revoke` then redo Steps 3–5 |
+| `REFRESH_FAILED` | Token revoked/expired - redo Steps 3–5 |
+| `HttpError 403: Insufficient Permission` | Missing scope - `$GSETUP --revoke` then redo Steps 3–5 |
+| `AUTHENTICATED (partial)` / "Token missing scopes" | New scopes needed - `$GSETUP --revoke` then redo Steps 3–5 |
 | `HttpError 403: Access Not Configured` | API not enabled in Google Cloud Console |
 | `ModuleNotFoundError` | Run `$GSETUP --install-deps` |
 | Advanced Protection blocks auth | Workspace admin must allowlist the OAuth client ID |

@@ -105,7 +105,7 @@ python3 scripts/health_check.py
 Workflows must be API format (`class_type` per node). Sources:
 - ComfyUI web UI → **Workflow → Export (API)** (newer) or **Save (API Format)** (older)
 - `workflows/` directory in this skill
-- Community downloads — usually editor format (top-level `nodes`/`links` arrays); load into ComfyUI and re-export
+- Community downloads - usually editor format (top-level `nodes`/`links` arrays); load into ComfyUI and re-export
 
 ### Step 3: Inspect the workflow
 
@@ -180,9 +180,9 @@ python3 scripts/hardware_check.py --json
 |---------|--------|
 | `ok` | Local install, use `comfy_cli_flag` from report |
 | `marginal` | Local OK for SD1.5; else Cloud |
-| `cloud` | Switch to Cloud (or force local — will OOM on modern models) |
+| `cloud` | Switch to Cloud (or force local - will OOM on modern models) |
 
-The script also surfaces `wsl: true` and `rosetta: true` (x86_64 Python on Apple Silicon — reinstall as ARM64).
+The script also surfaces `wsl: true` and `rosetta: true` (x86_64 Python on Apple Silicon - reinstall as ARM64).
 
 ### Path A: Comfy Cloud
 
@@ -202,14 +202,14 @@ Concurrent jobs: Free/Standard 1, Creator 3, Pro 5.
 Docs: https://docs.comfy.org/installation/desktop
 - Windows (NVIDIA): https://download.comfy.org/windows/nsis/x64
 - macOS (Apple Silicon): https://comfy.org
-- Linux: not supported — use Path D.
+- Linux: not supported - use Path D.
 
 ### Path C: ComfyUI Portable (Windows only)
 
 Docs: https://docs.comfy.org/installation/comfyui_portable_windows
 Download from https://github.com/comfyanonymous/ComfyUI/releases, extract, run `run_nvidia_gpu.bat`.
 
-### Path D: comfy-cli (All Platforms — recommended for agents/headless)
+### Path D: comfy-cli (All Platforms - recommended for agents/headless)
 
 Docs: https://docs.comfy.org/comfy-cli/getting-started
 
@@ -294,7 +294,7 @@ comfy node install-deps --workflow=workflow.json   # install all deps a workflow
 - `/api/view` returns 302 to signed URL; scripts follow it and strip the API key before fetching (no key leak to S3/CloudFront)
 - `/history` → `/history_v2` on cloud (scripts route automatically)
 - `/models/<folder>` → `/experiment/models/<folder>` on cloud (scripts route automatically)
-- `clientId` in WebSocket is ignored on cloud — filter by `prompt_id` client-side
+- `clientId` in WebSocket is ignored on cloud - filter by `prompt_id` client-side
 - `subfolder` on uploads accepted but ignored (flat namespace)
 - `run_batch.py --parallel N` saturates your concurrent-job tier
 
@@ -315,17 +315,17 @@ python3 scripts/fetch_logs.py --tail-queue --host https://cloud.comfy.org
 
 ## Pitfalls
 
-1. **API format required** — scripts and `/api/prompt` reject editor format (top-level `nodes`/`links` arrays). Re-export via "Workflow → Export (API)" or "Save (API Format)".
-2. **Server must be running** — `comfy launch --background`, then verify with `curl http://127.0.0.1:8188/system_stats`.
-3. **Model names are exact** — case-sensitive, include file extension. Use `comfy model list` to discover canonical names; `check_deps.py` does fuzzy matching.
-4. **Missing custom nodes** — "class_type not found" = node not installed. `check_deps.py` identifies the package; `auto_fix_deps.py` installs it.
-5. **Workspace not found** — use `comfy --workspace /path/to/ComfyUI <command>` or `comfy set-default /path/to/ComfyUI`.
-6. **Cloud free-tier 403** — `/api/prompt`, `/api/view`, `/api/upload/*`, `/api/object_info` all return 403 on free accounts. `health_check.py` surfaces a clear message.
-7. **Video/audio timeout** — auto-detected (output nodes `VHS_VideoCombine`, `SaveVideo`, etc.) and extended to 900 s. Override with `--timeout 1800`.
-8. **Path traversal protection** — server-supplied filenames pass through `safe_path_join`; do not disable this — custom save nodes can emit arbitrary paths.
-9. **Workflow trust** — custom nodes run arbitrary Python. Inspect unknown workflows before executing.
-10. **Tracking prompt** — first `comfy` run may prompt for analytics. Use `comfy --skip-prompt tracking disable` (or `comfyui_setup.sh` does it for you).
-11. **Rosetta Python on Apple Silicon** — `rosetta: true` in hardware check means x86_64 Python. Reinstall Python as ARM64 before proceeding.
+1. **API format required** - scripts and `/api/prompt` reject editor format (top-level `nodes`/`links` arrays). Re-export via "Workflow → Export (API)" or "Save (API Format)".
+2. **Server must be running** - `comfy launch --background`, then verify with `curl http://127.0.0.1:8188/system_stats`.
+3. **Model names are exact** - case-sensitive, include file extension. Use `comfy model list` to discover canonical names; `check_deps.py` does fuzzy matching.
+4. **Missing custom nodes** - "class_type not found" = node not installed. `check_deps.py` identifies the package; `auto_fix_deps.py` installs it.
+5. **Workspace not found** - use `comfy --workspace /path/to/ComfyUI <command>` or `comfy set-default /path/to/ComfyUI`.
+6. **Cloud free-tier 403** - `/api/prompt`, `/api/view`, `/api/upload/*`, `/api/object_info` all return 403 on free accounts. `health_check.py` surfaces a clear message.
+7. **Video/audio timeout** - auto-detected (output nodes `VHS_VideoCombine`, `SaveVideo`, etc.) and extended to 900 s. Override with `--timeout 1800`.
+8. **Path traversal protection** - server-supplied filenames pass through `safe_path_join`; do not disable this - custom save nodes can emit arbitrary paths.
+9. **Workflow trust** - custom nodes run arbitrary Python. Inspect unknown workflows before executing.
+10. **Tracking prompt** - first `comfy` run may prompt for analytics. Use `comfy --skip-prompt tracking disable` (or `comfyui_setup.sh` does it for you).
+11. **Rosetta Python on Apple Silicon** - `rosetta: true` in hardware check means x86_64 Python. Reinstall Python as ARM64 before proceeding.
 
 ## Verification Checklist
 

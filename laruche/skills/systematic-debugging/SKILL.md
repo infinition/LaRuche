@@ -20,7 +20,7 @@ metadata:
 NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST
 ```
 
-If you haven't completed Phase 1, you cannot propose fixes. Apply this skill to ALL technical issues — especially "quick fixes" and emergencies.
+If you haven't completed Phase 1, you cannot propose fixes. Apply this skill to ALL technical issues - especially "quick fixes" and emergencies.
 
 ---
 
@@ -36,7 +36,7 @@ When a clean repro is hard, spend disproportionate effort building the loop. Gue
 
 ### 1. Read Error Messages Carefully
 
-Read stack traces completely — line numbers, file paths, error codes. Don't skip warnings.
+Read stack traces completely - line numbers, file paths, error codes. Don't skip warnings.
 
 ```bash
 # View recent logs
@@ -56,12 +56,12 @@ Can you trigger the exact symptom with one command? Pick the lowest-cost loop ty
 2. **HTTP/curl** against a running dev server
 3. **CLI invocation** with fixture input, diff stdout against expected
 4. **Headless browser** asserting on DOM, console, or network
-5. **Replay captured trace** — HAR, request payload, event log, webhook body
+5. **Replay captured trace** - HAR, request payload, event log, webhook body
 6. **Throwaway harness** booting the smallest useful slice of the system
 7. **Property/fuzz loop** for intermittent wrong output over broad input space
 8. **`git bisect run` harness** when the bug appeared between two known states
-9. **Differential loop** — old vs new version, two configs, two providers, two datasets
-10. **Human-in-the-loop script** (last resort) — structure the human steps, capture the result
+9. **Differential loop** - old vs new version, two configs, two providers, two datasets
+10. **Human-in-the-loop script** (last resort) - structure the human steps, capture the result
 
 **Tighten the loop:**
 - Faster: cache setup, narrow scope, skip unrelated initialization
@@ -118,7 +118,7 @@ shell_exec("grep -rn 'variable_name\s*=' src/")
 
 ### 1. Minimize the Reproduction
 
-Shrink the repro to the smallest scenario still going red. Remove inputs, callers, config, steps one at a time — re-running the loop after each cut. Done when removing anything more makes the loop go green.
+Shrink the repro to the smallest scenario still going red. Remove inputs, callers, config, steps one at a time - re-running the loop after each cut. Done when removing anything more makes the loop go green.
 
 ### 2. Find Working Examples
 
@@ -128,7 +128,7 @@ shell_exec("grep -rn 'similar_pattern' src/")
 
 ### 3. Compare Against References
 
-Read the reference implementation completely — every line. Understand the pattern fully before applying.
+Read the reference implementation completely - every line. Understand the pattern fully before applying.
 
 ### 4. Identify Differences
 
@@ -146,11 +146,11 @@ What config, environment, or assumptions does this component require?
 
 Generate 3–5 plausible hypotheses before testing any. Rank by likelihood and cheapness to falsify. State the prediction each makes: "If X is the cause, then observing/changing Y should produce Z." Discard hypotheses that don't make testable predictions.
 
-Show the ranked list to the user if present — they may have domain knowledge that re-ranks it instantly.
+Show the ranked list to the user if present - they may have domain knowledge that re-ranks it instantly.
 
 ### 2. Test Minimally
 
-Test the top hypothesis with the smallest possible probe. Change one variable at a time. Never fix multiple things at once. Prefer debugger/REPL inspection — one breakpoint beats ten logs.
+Test the top hypothesis with the smallest possible probe. Change one variable at a time. Never fix multiple things at once. Prefer debugger/REPL inspection - one breakpoint beats ten logs.
 
 If adding temporary logs, tag every line with a unique prefix (e.g., `[DEBUG-a4f2]`) so cleanup is a single search.
 
@@ -194,7 +194,7 @@ Discuss with the user before attempting another fix. The pattern itself may be w
 
 ---
 
-## Red Flags — Stop and Return to Phase 1
+## Red Flags - Stop and Return to Phase 1
 
 - "Quick fix for now, investigate later"
 - "Just try changing X and see if it works"

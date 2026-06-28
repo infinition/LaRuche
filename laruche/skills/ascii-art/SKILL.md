@@ -16,7 +16,7 @@ metadata:
 
 # ASCII Art Skill
 
-Multiple tools for ASCII art needs. All local CLI or free REST APIs — no API keys required.
+Multiple tools for ASCII art needs. All local CLI or free REST APIs - no API keys required.
 
 ## Decision Flow
 
@@ -129,7 +129,7 @@ Filters: `crop`, `gay`, `metal`, `flip`, `flop`, `180`, `left`, `right`, `border
 
 ## Tool 6: Image to ASCII
 
-**Option A: ascii-image-converter** (recommended — PNG/JPEG/GIF/WEBP/URLs)
+**Option A: ascii-image-converter** (recommended - PNG/JPEG/GIF/WEBP/URLs)
 
 ```bash
 sudo snap install ascii-image-converter
@@ -153,9 +153,9 @@ jp2a --colors image.jpg
 
 ---
 
-## Tool 7: Pre-Made Art — ascii.co.uk
+## Tool 7: Pre-Made Art - ascii.co.uk
 
-URL pattern: `https://ascii.co.uk/art/{subject}` — e.g. `cat`, `dragon`, `rocket`, `skull`, `robot`. Preserve artist signatures.
+URL pattern: `https://ascii.co.uk/art/{subject}` - e.g. `cat`, `dragon`, `rocket`, `skull`, `robot`. Preserve artist signatures.
 
 ```bash
 curl -s 'https://ascii.co.uk/art/cat' -o /tmp/ascii_art.html

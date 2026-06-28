@@ -91,7 +91,7 @@ feedback.par.resetpulse.pulse()
 
 1. Use float format for simulations: `glsl.par.format = 'rgba32float'`
 2. Reset after setup: `feedback.par.resetpulse.pulse()`
-3. Match resolutions — feedback, processing, and initial state must match
+3. Match resolutions - feedback, processing, and initial state must match
 4. Soft boundary prevents edge artifacts:
    ```glsl
    float edge = 3.0 * texel.x;
@@ -101,6 +101,6 @@ feedback.par.resetpulse.pulse()
    ```
 
 ### Use Cases
-- **Wave Simulation** — R=height, G=velocity, black initial state
-- **Cellular Automata** — white=alive, black=dead, random noise initial state
-- **Trail / Motion Blur** — blend current frame with feedback, black initial
+- **Wave Simulation** - R=height, G=velocity, black initial state
+- **Cellular Automata** - white=alive, black=dead, random noise initial state
+- **Trail / Motion Blur** - blend current frame with feedback, black initial

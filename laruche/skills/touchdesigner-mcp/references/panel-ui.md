@@ -1,6 +1,6 @@
 # Panel & UI Reference
 
-Interactive control surfaces inside TouchDesigner — buttons, sliders, fields, custom parameter pages, panel callbacks. For HUD overlays (rendered text on visuals) see `layout-compositor.md`.
+Interactive control surfaces inside TouchDesigner - buttons, sliders, fields, custom parameter pages, panel callbacks. For HUD overlays (rendered text on visuals) see `layout-compositor.md`.
 
 Use cases:
 - VJ control rack (master fader, scene buttons, FX toggles)
@@ -62,13 +62,13 @@ Use a `parameterExecuteDAT` watching the COMP's pulse params. See `dat-scripting
 
 ---
 
-## Panel COMPs — The Widgets
+## Panel COMPs - The Widgets
 
 Each is a COMP that renders as a clickable/draggable widget inside a `containerCOMP`.
 
 | Type | Type Name | Use |
 |---|---|---|
-| Button | `buttonCOMP` | Click action — momentary or toggle |
+| Button | `buttonCOMP` | Click action - momentary or toggle |
 | Slider | `sliderCOMP` | Drag to set 0-1 value (1D or 2D) |
 | Field | `fieldCOMP` | Text input |
 | Container | `containerCOMP` | Layout + visual styling, holds children |
@@ -121,7 +121,7 @@ For scrollable lists with selectable rows, use the docked `list1_callbacks` DAT 
 
 ---
 
-## Container COMP — Layout & Styling
+## Container COMP - Layout & Styling
 
 `containerCOMP` is the primary parent for grouping widgets and arranging layouts.
 
@@ -149,11 +149,11 @@ Children are positioned automatically based on `par.align`. For absolute positio
 | `fillresize` | Children sized to fill, manual positioning |
 | `top` / `bottom` / `left` / `right` | Fixed positioning |
 
-For complex grids: nest containers — vertical container holding horizontal containers.
+For complex grids: nest containers - vertical container holding horizontal containers.
 
 ---
 
-## Panel Callbacks — Reacting to Events
+## Panel Callbacks - Reacting to Events
 
 `panelExecuteDAT` watches a panel and fires Python callbacks on user interaction.
 
@@ -241,13 +241,13 @@ Then wire panel values to ops via expressions or panelExecuteDATs.
 
 ---
 
-## Showing the Panel — Window or Embedded
+## Showing the Panel - Window or Embedded
 
 | Approach | When |
 |---|---|
 | `windowCOMP` pointing at panel | Standalone control surface, separate display |
 | Render the containerCOMP via `renderTOP` | Composite UI over visuals (HUD-style) |
-| Use a `panelCOMP` directly inside a network editor pane | Designer/dev preview only — panel is fully interactive |
+| Use a `panelCOMP` directly inside a network editor pane | Designer/dev preview only - panel is fully interactive |
 
 For a touch-screen tablet, use a `windowCOMP` on a second display routed to the tablet's HDMI input.
 
@@ -255,16 +255,16 @@ For a touch-screen tablet, use a `windowCOMP` on a second display routed to the 
 
 ## Pitfalls
 
-1. **Panel won't respond to clicks** — likely `par.disabled = True` or the parent container has `par.disableinputs = True`. Check the panel hierarchy.
-2. **Slider value not updating** — `panel.u/v` reads the visual position. If you set `par.value0` directly, the visual lags. Use `par.value0` AS the source of truth and let the slider follow.
-3. **Custom param won't appear** — must call `appendCustomPage` first, then append params. Pages with no params don't show.
-4. **Custom param disappears on reload** — params added via Python at runtime persist only if the COMP is saved AFTER. Use a `tox` save (`comp.save('mycomp.tox')`) or commit via `td_execute_python` then save the project.
-5. **Event callback fires twice** — both `onOffToOn` and `onValueChange` may fire on a single button press. Pick one to handle the action; don't double-trigger.
-6. **Pulse params need `.pulse()`** — setting `par.X = True` on a pulse param does nothing. Always use `.pulse()`.
-7. **Field text doesn't commit until Tab/Enter** — fields don't fire callbacks while typing. Use `par.committemode = 'all'` to fire on every keystroke (heavy).
-8. **`par.text` vs panel content** — `buttonCOMP.par.text` is the LABEL on the button. The button's STATE is `panel.state` (0/1). Don't confuse them.
-9. **Touch input on macOS** — multi-touch via direct touch panels works but TD's gesture handling is rudimentary. For complex multi-touch (pinch/rotate), use TouchOSC on a tablet instead.
-10. **Layout doesn't update** — changing `par.align` requires the container to re-cook. Touch a child or pulse the container to trigger.
+1. **Panel won't respond to clicks** - likely `par.disabled = True` or the parent container has `par.disableinputs = True`. Check the panel hierarchy.
+2. **Slider value not updating** - `panel.u/v` reads the visual position. If you set `par.value0` directly, the visual lags. Use `par.value0` AS the source of truth and let the slider follow.
+3. **Custom param won't appear** - must call `appendCustomPage` first, then append params. Pages with no params don't show.
+4. **Custom param disappears on reload** - params added via Python at runtime persist only if the COMP is saved AFTER. Use a `tox` save (`comp.save('mycomp.tox')`) or commit via `td_execute_python` then save the project.
+5. **Event callback fires twice** - both `onOffToOn` and `onValueChange` may fire on a single button press. Pick one to handle the action; don't double-trigger.
+6. **Pulse params need `.pulse()`** - setting `par.X = True` on a pulse param does nothing. Always use `.pulse()`.
+7. **Field text doesn't commit until Tab/Enter** - fields don't fire callbacks while typing. Use `par.committemode = 'all'` to fire on every keystroke (heavy).
+8. **`par.text` vs panel content** - `buttonCOMP.par.text` is the LABEL on the button. The button's STATE is `panel.state` (0/1). Don't confuse them.
+9. **Touch input on macOS** - multi-touch via direct touch panels works but TD's gesture handling is rudimentary. For complex multi-touch (pinch/rotate), use TouchOSC on a tablet instead.
+10. **Layout doesn't update** - changing `par.align` requires the container to re-cook. Touch a child or pulse the container to trigger.
 
 ---
 

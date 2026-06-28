@@ -118,7 +118,7 @@ If a shortcut has **Prompt Notes**, append them verbatim to the generated prompt
 
 | User Keyword | Layout | Recommended Styles | Default Aspect | Prompt Notes |
 |--------------|--------|--------------------|----------------|--------------|
-| 高密度信息大图 / high-density-info | `dense-modules` | `morandi-journal`, `pop-laboratory`, `retro-pop-grid` | portrait | — |
+| 高密度信息大图 / high-density-info | `dense-modules` | `morandi-journal`, `pop-laboratory`, `retro-pop-grid` | portrait | - |
 | 信息图 / infographic | `bento-grid` | `craft-handmade` | landscape | Minimalist: clean canvas, ample whitespace, no complex background textures. Simple cartoon elements and icons only. |
 
 ## Output Structure
@@ -170,9 +170,9 @@ See `references/structured-content-template.md` for format.
 
 Ask the user directly (LaRuche has no `clarify` tool):
 
-- **Q1 — Combination**: Present 3+ layout×style combos with rationale. Ask user to pick.
-- **Q2 — Aspect**: Ask for aspect ratio (landscape/portrait/square or custom W:H).
-- **Q3 — Language** (only if source ≠ user language): Which language for text content?
+- **Q1 - Combination**: Present 3+ layout×style combos with rationale. Ask user to pick.
+- **Q2 - Aspect**: Ask for aspect ratio (landscape/portrait/square or custom W:H).
+- **Q3 - Language** (only if source ≠ user language): Which language for text content?
 
 ### Step 5: Generate Prompt → `prompts/infographic.md`
 
@@ -212,17 +212,17 @@ Report: topic, layout, style, aspect, language, output path, and list of files c
 
 ## References
 
-- `references/analysis-framework.md` — Analysis methodology
-- `references/structured-content-template.md` — Content format
-- `references/base-prompt.md` — Prompt template
-- `references/layouts/<layout>.md` — 21 layout definitions
-- `references/styles/<style>.md` — 21 style definitions
+- `references/analysis-framework.md` - Analysis methodology
+- `references/structured-content-template.md` - Content format
+- `references/base-prompt.md` - Prompt template
+- `references/layouts/<layout>.md` - 21 layout definitions
+- `references/styles/<style>.md` - 21 style definitions
 
 ## Pitfalls
 
-1. **Data integrity** — never summarize or paraphrase source statistics. "73% increase" stays "73% increase".
-2. **Strip secrets** — scan source content for API keys, tokens, or credentials before writing any output file.
-3. **One concept per section** — overloading sections reduces readability.
-4. **Style consistency** — apply the selected style uniformly; do not mix styles mid-infographic.
-5. **Aspect ratio mapping** — the image tool only supports `landscape`, `portrait`, `square`. Map custom ratios to the nearest named option.
-6. **Tool names** — use `file_write` / `file_read` (not `write_file` / `read_file`). Use `shell_exec` for renames.
+1. **Data integrity** - never summarize or paraphrase source statistics. "73% increase" stays "73% increase".
+2. **Strip secrets** - scan source content for API keys, tokens, or credentials before writing any output file.
+3. **One concept per section** - overloading sections reduces readability.
+4. **Style consistency** - apply the selected style uniformly; do not mix styles mid-infographic.
+5. **Aspect ratio mapping** - the image tool only supports `landscape`, `portrait`, `square`. Map custom ratios to the nearest named option.
+6. **Tool names** - use `file_write` / `file_read` (not `write_file` / `read_file`). Use `shell_exec` for renames.

@@ -28,7 +28,7 @@ quality gates, an independent reviewer subagent, and an auto-fix loop.
 
 **Skip for:** documentation-only changes, pure config tweaks, or when user says "skip verification".
 
-## Step 1 — Get the diff
+## Step 1 - Get the diff
 
 ```bash
 git diff --cached
@@ -44,7 +44,7 @@ git diff --name-only
 git diff HEAD -- specific_file.py
 ```
 
-## Step 2 — Static security scan
+## Step 2 - Static security scan
 
 Scan added lines only. Any match feeds into Step 5.
 
@@ -65,7 +65,7 @@ git diff --cached | grep "^+" | grep -E "pickle\.loads?\("
 git diff --cached | grep "^+" | grep -E "execute\(f\"|\.format\(.*SELECT|\.format\(.*INSERT"
 ```
 
-## Step 3 — Baseline tests and linting
+## Step 3 - Baseline tests and linting
 
 Detect the project language. Capture **baseline_failures** BEFORE your changes
 (stash → run → pop). Only NEW failures introduced by your changes block the commit.
@@ -91,7 +91,7 @@ which go && go vet ./... 2>&1 | tail -10
 If baseline was clean and your changes introduce failures → regression.
 If baseline already had failures → count only NEW ones.
 
-## Step 4 — Self-review checklist
+## Step 4 - Self-review checklist
 
 - [ ] No hardcoded secrets, API keys, or credentials
 - [ ] Input validation on user-provided data
@@ -102,10 +102,10 @@ If baseline already had failures → count only NEW ones.
 - [ ] No commented-out code blocks
 - [ ] New code has tests (if test suite exists)
 
-## Step 5 — Independent reviewer subagent
+## Step 5 - Independent reviewer subagent
 
 Spawn a fresh subagent (via LaRuche's subagent mechanism) with ONLY the diff and
-static scan results — no shared context with the implementer. Fail-closed:
+static scan results - no shared context with the implementer. Fail-closed:
 unparseable response = FAIL.
 
 Subagent prompt:
@@ -150,7 +150,7 @@ Return ONLY:
 }
 ```
 
-## Step 6 — Evaluate results
+## Step 6 - Evaluate results
 
 Combine Steps 2, 3, and 5.
 
@@ -168,10 +168,10 @@ New lint errors: [details]
 Suggestions (non-blocking): [list]
 ```
 
-## Step 7 — Auto-fix loop (max 2 cycles)
+## Step 7 - Auto-fix loop (max 2 cycles)
 
 Spawn a third subagent context (not the implementer, not the reviewer).
-It fixes ONLY the reported issues — no refactoring, no new features.
+It fixes ONLY the reported issues - no refactoring, no new features.
 
 Fix agent prompt:
 ```
@@ -197,7 +197,7 @@ After the fix agent completes: re-run Steps 1–6.
 - Failed after 2 attempts → escalate to user with remaining issues; suggest
   `git stash` or `git reset` to undo
 
-## Step 8 — Commit
+## Step 8 - Commit
 
 ```bash
 git add -A && git commit -m "[verified] <description>"

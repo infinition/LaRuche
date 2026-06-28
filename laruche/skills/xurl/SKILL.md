@@ -16,7 +16,7 @@ metadata:
     upstream_skill: https://github.com/third-party/third-party/blob/main/skills/xurl/SKILL.md
 ---
 
-# xurl — X (Twitter) API via the Official CLI
+# xurl - X (Twitter) API via the Official CLI
 
 `xurl` is the X developer platform's official CLI for the X API. It supports shortcut commands for common actions AND raw curl-style access to any v2 endpoint. All commands return JSON to stdout.
 
@@ -42,13 +42,13 @@ Critical rules when operating inside an agent/LLM session:
 - **Never** ask the user to paste credentials/tokens into chat.
 - The user must fill `~/.xurl` with secrets manually on their own machine.
 - **Never** recommend or execute auth commands with inline secrets in agent sessions.
-- **Never** use `--verbose` / `-v` in agent sessions — it can expose auth headers/tokens.
+- **Never** use `--verbose` / `-v` in agent sessions - it can expose auth headers/tokens.
 - To verify credentials exist, only use: `xurl auth status`.
 
 Forbidden flags in agent commands (they accept inline secrets):
 `--bearer-token`, `--consumer-key`, `--consumer-secret`, `--access-token`, `--token-secret`, `--client-id`, `--client-secret`
 
-App credential registration and credential rotation must be done by the user manually, outside the agent session. After credentials are registered, the user authenticates with `xurl auth oauth2` — also outside the agent session. Tokens persist to `~/.xurl` in YAML. Each app has isolated tokens. OAuth 2.0 tokens auto-refresh.
+App credential registration and credential rotation must be done by the user manually, outside the agent session. After credentials are registered, the user authenticates with `xurl auth oauth2` - also outside the agent session. Tokens persist to `~/.xurl` in YAML. Each app has isolated tokens. OAuth 2.0 tokens auto-refresh.
 
 ---
 
@@ -77,7 +77,7 @@ xurl --help
 xurl auth status
 ```
 
-If `xurl` is installed but `auth status` shows no apps or tokens, the user needs to complete auth manually — see the next section.
+If `xurl` is installed but `auth status` shows no apps or tokens, the user needs to complete auth manually - see the next section.
 
 ---
 
@@ -115,7 +115,7 @@ These steps must be performed by the user directly, NOT by the agent, because th
 
 After this, the agent can use any command below without further setup. OAuth 2.0 tokens auto-refresh.
 
-> **Common pitfall:** If you omit `--app my-app` from `xurl auth oauth2`, the OAuth token is saved to the built-in `default` app profile — which has no client-id or client-secret. Commands will fail with auth errors even though the OAuth flow appeared to succeed. If you hit this, re-run `xurl auth oauth2 --app my-app` and `xurl auth default my-app`.
+> **Common pitfall:** If you omit `--app my-app` from `xurl auth oauth2`, the OAuth token is saved to the built-in `default` app profile - which has no client-id or client-secret. Commands will fail with auth errors even though the OAuth flow appeared to succeed. If you hit this, re-run `xurl auth oauth2 --app my-app` and `xurl auth default my-app`.
 
 ---
 
@@ -152,7 +152,7 @@ After this, the agent can use any command below without further setup. OAuth 2.0
 | Auth status | `xurl auth status` |
 
 Notes:
-- `POST_ID` accepts full URLs too (e.g. `https://x.com/user/status/1234567890`) — xurl extracts the ID.
+- `POST_ID` accepts full URLs too (e.g. `https://x.com/user/status/1234567890`) - xurl extracts the ID.
 - Usernames work with or without a leading `@`.
 
 ---
@@ -257,7 +257,7 @@ xurl media upload video.mp4
 # Explicit type/category
 xurl media upload --media-type image/jpeg --category tweet_image photo.jpg
 
-# Videos need server-side processing — check status (or poll)
+# Videos need server-side processing - check status (or poll)
 xurl media status MEDIA_ID
 xurl media status --wait MEDIA_ID
 
@@ -301,7 +301,7 @@ xurl https://api.x.com/2/users/me
 | `--app` | | Use a specific registered app (overrides default) |
 | `--auth` | | Force auth type: `oauth1`, `oauth2`, or `app` |
 | `--username` | `-u` | Which OAuth2 account to use (if multiple exist) |
-| `--verbose` | `-v` | **Forbidden in agent sessions** — leaks auth headers |
+| `--verbose` | `-v` | **Forbidden in agent sessions** - leaks auth headers |
 | `--trace` | `-t` | Add `X-B3-Flags: 1` trace header |
 
 ---
@@ -337,11 +337,11 @@ Errors are also JSON:
 ## Agent Workflow
 
 1. Verify prerequisites: `xurl --help` and `xurl auth status`.
-2. **Check default app has credentials.** Parse the `auth status` output. The default app is marked with `▸`. If the default app shows `oauth2: (none)` but another app has a valid oauth2 user, tell the user to run `xurl auth default <that-app>` to fix it. This is the most common setup mistake — the user added an app with a custom name but never set it as default, so xurl keeps trying the empty `default` profile.
-3. If auth is missing entirely, stop and direct the user to the "One-Time User Setup" section — do NOT attempt to register apps or pass secrets yourself.
+2. **Check default app has credentials.** Parse the `auth status` output. The default app is marked with `▸`. If the default app shows `oauth2: (none)` but another app has a valid oauth2 user, tell the user to run `xurl auth default <that-app>` to fix it. This is the most common setup mistake - the user added an app with a custom name but never set it as default, so xurl keeps trying the empty `default` profile.
+3. If auth is missing entirely, stop and direct the user to the "One-Time User Setup" section - do NOT attempt to register apps or pass secrets yourself.
 4. Start with a cheap read (`xurl whoami`, `xurl user @handle`, `xurl search ... -n 3`) to confirm reachability.
 5. Confirm the target post/user and the user's intent before any write action (post, reply, like, repost, DM, follow, block, delete).
-6. Use JSON output directly — every response is already structured.
+6. Use JSON output directly - every response is already structured.
 7. Never paste `~/.xurl` contents back into the conversation.
 
 ---
@@ -353,7 +353,7 @@ Errors are also JSON:
 - Auth errors → have the user re-run `xurl auth oauth2` outside the agent session.
 - Commands that need the caller's user ID (like, repost, bookmark, follow, etc.) will auto-fetch it via `/2/users/me`. An auth failure there surfaces as an auth error.
 - **Rate limits (429):** wait and retry. Write endpoints (post, reply, like, repost) have tighter limits than reads.
-- **403 on a specific action:** token is missing a required scope — have the user re-run `xurl auth oauth2`.
+- **403 on a specific action:** token is missing a required scope - have the user re-run `xurl auth oauth2`.
 
 ---
 
@@ -364,11 +364,11 @@ Errors are also JSON:
 | Auth errors after successful OAuth flow | Token saved to `default` app (no client-id/secret) instead of your named app | `xurl auth oauth2 --app my-app` then `xurl auth default my-app` |
 | `unauthorized_client` during OAuth | App type set to "Native App" in X dashboard | Change to "Web app, automated app or bot" in User Authentication Settings |
 | `UsernameNotFound` or 403 on `/2/users/me` right after OAuth | X not returning username reliably from `/2/users/me` | Re-run `xurl auth oauth2 --app my-app YOUR_USERNAME` (xurl v1.1.0+) to pass the handle explicitly |
-| 401 on every request | Token expired or wrong default app | Check `xurl auth status` — verify `▸` points to an app with oauth2 tokens |
+| 401 on every request | Token expired or wrong default app | Check `xurl auth status` - verify `▸` points to an app with oauth2 tokens |
 | `client-forbidden` / `client-not-enrolled` | X platform enrollment issue | Dashboard → Apps → Manage → Move to "Pay-per-use" package → Production environment |
 | `CreditsDepleted` | $0 balance on X API | Buy credits (min $5) in Developer Console → Billing |
 | `media processing failed` on image upload | Default category is `amplify_video` | Add `--category tweet_image --media-type image/png` |
-| Two "Client Secret" values in X dashboard | UI bug — first is actually Client ID | Confirm on the "Keys and tokens" page; ID ends in `MTpjaQ` |
+| Two "Client Secret" values in X dashboard | UI bug - first is actually Client ID | Confirm on the "Keys and tokens" page; ID ends in `MTpjaQ` |
 
 ---
 

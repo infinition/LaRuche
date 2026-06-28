@@ -18,8 +18,8 @@ metadata:
 DESIGN.md is Google's open spec (Apache-2.0, `google-labs-code/design.md`) for
 describing a visual identity to coding agents. One file combines:
 
-- **YAML front matter** — machine-readable design tokens (normative values)
-- **Markdown body** — human-readable rationale, organized into canonical sections
+- **YAML front matter** - machine-readable design tokens (normative values)
+- **Markdown body** - human-readable rationale, organized into canonical sections
 
 Tokens give exact values. Prose tells agents *why* those values exist and how to
 apply them. The CLI (`npx @google/design.md`) lints structure + WCAG contrast,
@@ -80,7 +80,7 @@ Architectural Minimalism meets Journalistic Gravitas...
 ## Colors
 
 - **Primary (#1A1C1E):** Deep ink for headlines and core text.
-- **Tertiary (#B8422E):** "Boston Clay" — the sole driver for interaction.
+- **Tertiary (#B8422E):** "Boston Clay" - the sole driver for interaction.
 
 ## Typography
 
@@ -128,7 +128,7 @@ if the value type is valid. Unknown component properties produce a warning.
 2. **Write `DESIGN.md`** in the project root via `file_write`. Always include
    `name:` and `colors:`; other sections optional but encouraged.
 3. **Use token references** (`{colors.primary}`) in `components:` instead of
-   re-typing hex values — single-source palette.
+   re-typing hex values - single-source palette.
 4. **Lint it** (see below). Fix any broken references or WCAG failures before
    returning.
 5. **If the project already exists**, also write Tailwind or DTCG exports next
@@ -136,7 +136,7 @@ if the value type is valid. Unknown component properties produce a warning.
 
 ## Workflow: lint / diff / export
 
-Run via `shell_exec`. The CLI is `@google/design.md` (Node); use `npx -y` — no global install needed.
+Run via `shell_exec`. The CLI is `@google/design.md` (Node); use `npx -y` - no global install needed.
 
 ```bash
 # Validate structure + token references + WCAG contrast
@@ -160,13 +160,13 @@ and parse output to report findings structurally.
 
 ### Lint rules (what they catch)
 
-- `broken-ref` (error) — `{colors.missing}` points at a non-existent token
-- `duplicate-section` (error) — same `## Heading` appears twice
+- `broken-ref` (error) - `{colors.missing}` points at a non-existent token
+- `duplicate-section` (error) - same `## Heading` appears twice
 - `invalid-color`, `invalid-dimension`, `invalid-typography` (error)
-- `wcag-contrast` (warning/info) — `textColor` vs `backgroundColor` ratio vs WCAG AA (4.5:1) and AAA (7:1)
-- `unknown-component-property` (warning) — outside the whitelist
+- `wcag-contrast` (warning/info) - `textColor` vs `backgroundColor` ratio vs WCAG AA (4.5:1) and AAA (7:1)
+- `unknown-component-property` (warning) - outside the whitelist
 
-When accessibility matters, surface WCAG findings explicitly — they are the most
+When accessibility matters, surface WCAG findings explicitly - they are the most
 load-bearing reason to run the CLI.
 
 ## Pitfalls
@@ -174,9 +174,9 @@ load-bearing reason to run the CLI.
 - **Don't nest component variants.** `button-primary.hover` is wrong;
   `button-primary-hover` as a sibling key is right.
 - **Hex colors must be quoted strings.** Unquoted `#` breaks YAML or truncates values.
-- **Negative dimensions need quotes.** `letterSpacing: -0.02em` is a YAML flow scalar — write `"-0.02em"`.
+- **Negative dimensions need quotes.** `letterSpacing: -0.02em` is a YAML flow scalar - write `"-0.02em"`.
 - **Section order is enforced.** Reorder user-supplied prose to match the canonical list before saving.
-- **`version: alpha` is the current spec version** (as of 2026). The spec is marked alpha — watch for breaking changes.
+- **`version: alpha` is the current spec version** (as of 2026). The spec is marked alpha - watch for breaking changes.
 - **Token references resolve by dotted path.** `{colors.primary}` works; `{primary}` does not.
 
 ## Spec source

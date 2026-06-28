@@ -53,7 +53,7 @@ ls unpacked/ppt/slideLayouts/
 # 3. Add a slide
 python scripts/add_slide.py unpacked/ slide2.xml          # duplicate existing
 python scripts/add_slide.py unpacked/ slideLayout2.xml    # from layout
-# Script prints the <p:sldId> element — add it to unpacked/ppt/presentation.xml <p:sldIdLst>
+# Script prints the <p:sldId> element - add it to unpacked/ppt/presentation.xml <p:sldIdLst>
 
 # 4. Edit slide XML directly
 # Files: unpacked/ppt/slides/slideN.xml
@@ -92,9 +92,9 @@ python scripts/office/pack.py unpacked/ output.pptx --validate false
 
 ## Creating from Scratch
 
-**Option A — XML (recommended):** unzip any blank .pptx as a base, add slides with `add_slide.py` using `slideLayout` sources, then edit XML directly.
+**Option A - XML (recommended):** unzip any blank .pptx as a base, add slides with `add_slide.py` using `slideLayout` sources, then edit XML directly.
 
-**Option B — pptxgenjs (optional, Node.js):**
+**Option B - pptxgenjs (optional, Node.js):**
 
 ```bash
 npm install -g pptxgenjs
@@ -148,9 +148,9 @@ Margins: 0.5" min. Gaps between blocks: 0.3-0.5" consistent. Left-align body; ce
 
 - Repeating the same layout slide after slide
 - Centering body paragraphs
-- Defaulting to blue — match palette to the topic
+- Defaulting to blue - match palette to the topic
 - Text-only slides
-- **Accent lines under titles** — hallmark of AI-generated slides; use whitespace or background color instead
+- **Accent lines under titles** - hallmark of AI-generated slides; use whitespace or background color instead
 - Low-contrast icons or text
 
 ---
@@ -184,10 +184,10 @@ pdftoppm -jpeg -r 150 output.pdf slide
 pdftoppm -jpeg -r 150 -f N -l N output.pdf slide-fixed
 ```
 
-Inspect via subagent with fresh eyes — even on 2-3 slides. Prompt:
+Inspect via subagent with fresh eyes - even on 2-3 slides. Prompt:
 
 ```
-Visually inspect these slides. Assume there are issues — find them.
+Visually inspect these slides. Assume there are issues - find them.
 
 Look for:
 - Overlapping elements (text through shapes, stacked elements)
@@ -214,7 +214,7 @@ Images:
 1. Generate → convert to images → inspect
 2. List issues (if none found, look again more critically)
 3. Fix issues
-4. Re-verify affected slides — one fix often creates another problem
+4. Re-verify affected slides - one fix often creates another problem
 5. Repeat until a full pass finds no new issues
 
 Do not declare success until at least one fix-and-verify cycle is complete.

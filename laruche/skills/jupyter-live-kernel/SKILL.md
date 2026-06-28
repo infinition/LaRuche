@@ -32,8 +32,8 @@ Rule of thumb: if you'd reach for a Jupyter notebook, use this skill.
 
 ## Prerequisites
 
-1. **uv** installed — `which uv`
-2. **JupyterLab** installed — `uv tool install jupyterlab`
+1. **uv** installed - `which uv`
+2. **JupyterLab** installed - `uv tool install jupyterlab`
 3. **hamelnb** helper script (clone once):
    ```
    git clone https://github.com/hamelsmu/hamelnb.git ~/.agent-skills/hamelnb
@@ -90,7 +90,7 @@ uv run "$SCRIPT" notebooks --compact
 uv run "$SCRIPT" execute --path <notebook.ipynb> --code '<python code>' --compact
 ```
 
-State persists across calls. Multi-line code — use `$'...'` quoting:
+State persists across calls. Multi-line code - use `$'...'` quoting:
 ```
 uv run "$SCRIPT" execute --path scratch.ipynb \
   --code $'import os\nfiles = os.listdir(".")\nprint(f"Found {len(files)} files")' --compact
@@ -130,23 +130,23 @@ uv run "$SCRIPT" restart-run-all --path <notebook.ipynb> --save-outputs --compac
 
 ## Pitfalls
 
-1. **Argument order matters** — subcommand flags like `--path` go BEFORE the
+1. **Argument order matters** - subcommand flags like `--path` go BEFORE the
    sub-subcommand: `variables --path nb.ipynb list`, NOT `variables list --path nb.ipynb`.
 
-2. **First execution after server start may timeout** — kernel needs a moment to
+2. **First execution after server start may timeout** - kernel needs a moment to
    initialize. Retry once. Same for websocket timeouts after a kernel restart.
 
-3. **Packages must be in JupyterLab's environment** — install into the
+3. **Packages must be in JupyterLab's environment** - install into the
    `jupyterlab` tool env before importing in the kernel:
    ```
    uv tool run --from jupyterlab pip install <package>
    ```
 
-4. **Errors return JSON** — read `ename` and `evalue` fields for the traceback.
+4. **Errors return JSON** - read `ename` and `evalue` fields for the traceback.
    Reconstruct with `traceback` array for full context.
 
-5. **Long-running operations** — pass `--timeout 120` (default 30 s).
+5. **Long-running operations** - pass `--timeout 120` (default 30 s).
    Use 60+ for heavy computation or initial kernel setup.
 
-6. **Port conflict** — if 8888 is taken, pass `--port=8889` to `jupyter-lab`
+6. **Port conflict** - if 8888 is taken, pass `--port=8889` to `jupyter-lab`
    and update the `curl` base URL accordingly.

@@ -1,6 +1,6 @@
 # Audio-Reactive Reference
 
-Patterns for driving visuals from audio — spectrum analysis, beat detection, envelope following.
+Patterns for driving visuals from audio - spectrum analysis, beat detection, envelope following.
 
 ## Audio Input
 
@@ -73,7 +73,7 @@ for name, filt in [('low', flt_low), ('mid', flt_mid_lp), ('high', flt_high)]:
     math.par.gain = 8.0
     math.inputConnectors[0].connect(lag)
 
-    # mathCHOP has NO par.clamp — use limitCHOP
+    # mathCHOP has NO par.clamp - use limitCHOP
     lim = root.create(limitCHOP, f'clamp_{name}')
     lim.par.type = 'clamp'
     lim.par.min = 0.0
@@ -88,7 +88,7 @@ for name, filt in [('low', flt_low), ('mid', flt_mid_lp), ('high', flt_high)]:
 **Key TD 2025 corrections:**
 - `analyzeCHOP.par.function = 'rmspower'` NOT `'rms'`
 - `lagCHOP.par.lag1` / `par.lag2` NOT `par.lagin` / `par.lagout`
-- `mathCHOP` has NO `par.clamp` — use separate `limitCHOP`
+- `mathCHOP` has NO `par.clamp` - use separate `limitCHOP`
 
 ---
 

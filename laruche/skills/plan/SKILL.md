@@ -18,7 +18,7 @@ Use this skill when the user wants a plan, not execution.
 
 ## Core behavior
 
-**Planning only — no implementation this turn.**
+**Planning only - no implementation this turn.**
 
 - Do not edit project files except the plan file itself.
 - Do not run mutating commands, commit, push, or perform external actions.
@@ -78,8 +78,8 @@ def test_specific_behavior():
     assert function(input) == expected
 ```
 
-**Step 2: Verify failure** — `pytest tests/path/test.py::test_specific_behavior -v`
-Expected: FAIL — "function not defined"
+**Step 2: Verify failure** - `pytest tests/path/test.py::test_specific_behavior -v`
+Expected: FAIL - "function not defined"
 
 **Step 3: Write minimal implementation**
 ```python
@@ -87,7 +87,7 @@ def function(input):
     return expected
 ```
 
-**Step 4: Verify pass** — `pytest tests/path/test.py::test_specific_behavior -v`
+**Step 4: Verify pass** - `pytest tests/path/test.py::test_specific_behavior -v`
 Expected: PASS
 
 **Step 5: Commit**
@@ -111,18 +111,18 @@ Each task = 2–5 minutes of focused work. One action per step. If a task feels 
 
 ### Planning process
 
-1. **Understand** — read requirements, acceptance criteria, constraints.
-2. **Explore** — use `file_list`, `file_read`, `shell_exec` (read-only) to understand structure and find similar patterns.
-3. **Design** — choose architecture, file organization, dependencies, testing strategy.
-4. **Write tasks** — exact paths, complete copy-pasteable code, exact commands with expected output, verification steps.
-5. **Review** — tasks are sequential, bite-sized, DRY, YAGNI, TDD-compliant, leave nothing to guesswork.
+1. **Understand** - read requirements, acceptance criteria, constraints.
+2. **Explore** - use `file_list`, `file_read`, `shell_exec` (read-only) to understand structure and find similar patterns.
+3. **Design** - choose architecture, file organization, dependencies, testing strategy.
+4. **Write tasks** - exact paths, complete copy-pasteable code, exact commands with expected output, verification steps.
+5. **Review** - tasks are sequential, bite-sized, DRY, YAGNI, TDD-compliant, leave nothing to guesswork.
 
 ### Principles
 
-- **DRY** — extract repeated logic into shared functions.
-- **YAGNI** — implement only what is needed now.
-- **TDD** — every code-producing task includes the full red→green cycle.
-- **Frequent commits** — one commit per completed task.
+- **DRY** - extract repeated logic into shared functions.
+- **YAGNI** - implement only what is needed now.
+- **TDD** - every code-producing task includes the full red→green cycle.
+- **Frequent commits** - one commit per completed task.
 
 ### Common mistakes
 
@@ -130,11 +130,11 @@ Each task = 2–5 minutes of focused work. One action per step. If a task feels 
 |-----|------|
 | "Add authentication" | "Create User model with email and password_hash fields" |
 | "Add validation function" | Include the complete function code |
-| "Test it works" | "`pytest tests/test_auth.py -v` — expected: 3 passed" |
+| "Test it works" | "`pytest tests/test_auth.py -v` - expected: 3 passed" |
 | "Create the model file" | "Create: `src/models/user.py`" |
 
 ## Execution handoff
 
 After saving the plan, offer:
 
-> "Plan saved at `<path>`. Ready to execute task-by-task — shall I start?"
+> "Plan saved at `<path>`. Ready to execute task-by-task - shall I start?"

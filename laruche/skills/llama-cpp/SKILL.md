@@ -38,7 +38,7 @@ Prefer URL workflows before falling back to Python or custom scripts. Use `web_f
 2. **Open the repo local-app view**:
    - `https://huggingface.co/<repo>?local-app=llama.cpp`
    - If the snippet is text-visible, copy the exact `llama-server` / `llama-cli` command and recommended quant as shown.
-   - Extract the `Hardware compatibility` section — prefer its exact quant labels (e.g., `UD-Q4_K_M`, `IQ4_NL_XL`) over generic tables.
+   - Extract the `Hardware compatibility` section - prefer its exact quant labels (e.g., `UD-Q4_K_M`, `IQ4_NL_XL`) over generic tables.
 
 3. **Query the tree API** to confirm what actually exists:
    - `https://huggingface.co/api/models/<repo>/tree/main?recursive=true`
@@ -142,15 +142,15 @@ llm4 = Llama.from_pretrained(
 )
 ```
 
-**Common failure**: `llama_cpp` raises `ValueError: Model file not found` — verify the path or the `filename` glob pattern against the tree API output.
+**Common failure**: `llama_cpp` raises `ValueError: Model file not found` - verify the path or the `filename` glob pattern against the tree API output.
 
 ## Choosing a quant
 
 - Prefer the exact quant HF marks as compatible for the user's hardware.
 - General chat: `Q4_K_M`
 - Code / technical: `Q5_K_M` or `Q6_K` if memory allows
-- Tight RAM: `Q3_K_M` or `IQ` variants — only if the user prioritizes fit over quality
-- Multimodal repos: mention `mmproj-*.gguf` separately — it is the vision projector, not the main model
+- Tight RAM: `Q3_K_M` or `IQ` variants - only if the user prioritizes fit over quality
+- Multimodal repos: mention `mmproj-*.gguf` separately - it is the vision projector, not the main model
 - Do not normalize repo-native labels: if HF says `UD-Q4_K_M`, report `UD-Q4_K_M`
 
 ## Output format for discovery requests

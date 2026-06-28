@@ -63,7 +63,7 @@ Use `td_list_instances` to discover all running instances and their ports.
 ### td_execute_python returns error
 
 The error message from td_execute_python often contains the Python traceback.
-If it's unclear, use `td_read_textport` to see the full TD console output —
+If it's unclear, use `td_read_textport` to see the full TD console output -
 Python exceptions are always printed there.
 
 Common causes:
@@ -104,15 +104,15 @@ Do not trust them. Known wrong names include dat vs pixeldat, colora vs alpha,
 sizex vs size, and many more. See pitfalls.md for the full list.
 
 Workflow:
-1. td_get_par_info(op_type='glslTOP') — get all params for a type
-2. td_get_operator_info(path='/project1/mynode', detail='full') — get params for a specific instance
+1. td_get_par_info(op_type='glslTOP') - get all params for a type
+2. td_get_operator_info(path='/project1/mynode', detail='full') - get params for a specific instance
 3. Use ONLY the names returned by these tools
 
 ## 4. Performance
 
 ### Diagnosing slow performance
 
-Use `td_get_perf` to see which operators are slow. Look at cook times —
+Use `td_get_perf` to see which operators are slow. Look at cook times -
 anything over 1ms per frame is worth investigating.
 
 Common causes:
@@ -171,7 +171,7 @@ Wrong type string. Use camelCase with family suffix:
 
 ### Node created but not visible
 
-Check parentPath — use absolute paths like /project1. The default project
+Check parentPath - use absolute paths like /project1. The default project
 root is /project1. System nodes live at /, /ui, /sys, /local, /perform.
 Don't create user nodes outside /project1.
 
@@ -226,8 +226,8 @@ full compiler output.
 
 Use Apple ProRes on macOS (hardware accelerated, not license-restricted):
 ```python
-rec.par.videocodec = 'prores'  # Preferred on macOS — lossless, Non-Commercial OK
-# rec.par.videocodec = 'mjpa'  # Fallback — lossy, works everywhere
+rec.par.videocodec = 'prores'  # Preferred on macOS - lossless, Non-Commercial OK
+# rec.par.videocodec = 'mjpa'  # Fallback - lossy, works everywhere
 ```
 
 ### MovieFileOut has no .record() method

@@ -24,7 +24,7 @@ Filesystem-first Obsidian vault operations: read, list, search, create, and edit
 
 The vault root is resolved from `${OBSIDIAN_VAULT_PATH}` (set this as a LaRuche secret or env var). Fallback: `~/Documents/Obsidian Vault`.
 
-**Critical:** `file_read`, `file_write`, `file_list` do not expand shell variables — always resolve to a concrete absolute path first.
+**Critical:** `file_read`, `file_write`, `file_list` do not expand shell variables - always resolve to a concrete absolute path first.
 
 ```
 shell_exec: echo "${OBSIDIAN_VAULT_PATH}"
@@ -35,7 +35,7 @@ If empty, check fallback:
 shell_exec: [ -d "$HOME/Documents/Obsidian Vault" ] && echo "$HOME/Documents/Obsidian Vault"
 ```
 
-Paths may contain spaces — always quote them in shell commands.
+Paths may contain spaces - always quote them in shell commands.
 
 ## Read a note
 
@@ -100,7 +100,7 @@ For full rewrites:
 2. Compose the updated content.
 3. Write back: `file_write: <vault_path>/Notes/MyNote.md`
 
-**Pitfall:** `file_write` overwrites entirely — always read first to avoid data loss.
+**Pitfall:** `file_write` overwrites entirely - always read first to avoid data loss.
 
 For simple appends:
 ```

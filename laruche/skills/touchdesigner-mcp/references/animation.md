@@ -1,6 +1,6 @@
 # Animation Reference
 
-Patterns for time-based motion — keyframes, LFOs, timers, easing, expression-driven animation.
+Patterns for time-based motion - keyframes, LFOs, timers, easing, expression-driven animation.
 
 Always call `td_get_par_info` for the op type before setting params. Param names below reflect TD 2025.32 but verify if errors fire.
 
@@ -8,7 +8,7 @@ Always call `td_get_par_info` for the op type before setting params. Param names
 
 ## Time Sources
 
-TD has three time references — pick the right one.
+TD has three time references - pick the right one.
 
 | Expression | Behavior | Use for |
 |---|---|---|
@@ -21,7 +21,7 @@ TD has three time references — pick the right one.
 
 ---
 
-## LFO CHOP — Cyclic Motion
+## LFO CHOP - Cyclic Motion
 
 The simplest periodic driver. Fast, GPU-cheap, expression-friendly.
 
@@ -46,7 +46,7 @@ Create one LFO with three channels and phase-offset each, or use three LFOs and 
 
 ---
 
-## Timer CHOP — Triggered Sequences
+## Timer CHOP - Triggered Sequences
 
 For run-once animations, beat-locked sequences, or stage-based logic.
 
@@ -70,7 +70,7 @@ op('/project1/level1').par.opacity.mode = ParMode.EXPRESSION
 op('/project1/level1').par.opacity.expr = "op('fade_timer')['timer_fraction']"
 ```
 
-**Easing on the timer fraction** — apply in the expression itself:
+**Easing on the timer fraction** - apply in the expression itself:
 
 ```python
 # Smoothstep: ease in/out
@@ -81,7 +81,7 @@ expr = "1 - pow(1 - op('fade_timer')['timer_fraction'], 3)"
 
 ---
 
-## Pattern CHOP — Custom Curves
+## Pattern CHOP - Custom Curves
 
 For arbitrary waveforms (saw ramps, easing curves, custom envelopes).
 
@@ -96,7 +96,7 @@ Combine with `lookupCHOP` to remap a 0-1 driver through a custom curve.
 
 ---
 
-## Animation COMP — Keyframe-Based
+## Animation COMP - Keyframe-Based
 
 For multi-keyframe motion graphics. Each animationCOMP holds channels with keyframes editable in the Animation Editor.
 
@@ -115,12 +115,12 @@ op('/project1/text1').par.tx.expr = "op('intro_anim/out1')['chan1']"
 ```python
 # Get the channel CHOP inside an animationCOMP
 ch = op('/project1/intro_anim/chans')
-# Insert a key (advanced API — verify with td_get_par_info(op_type='animationCOMP'))
+# Insert a key (advanced API - verify with td_get_par_info(op_type='animationCOMP'))
 ch.appendKey('chan1', frame=0, value=0.0, expression=None)
 ch.appendKey('chan1', frame=120, value=1.0)
 ```
 
-For most use cases, drive params with LFO/Timer/Pattern CHOPs instead — simpler and scriptable.
+For most use cases, drive params with LFO/Timer/Pattern CHOPs instead - simpler and scriptable.
 
 ---
 
@@ -152,7 +152,7 @@ Where `t` is `op('fade_timer')['timer_fraction']` or any 0-1 driver.
 
 ---
 
-## Filter CHOP — Smoothing Existing Channels
+## Filter CHOP - Smoothing Existing Channels
 
 Smooth out jittery values (e.g., audio analysis, sensor data) before driving visuals.
 
@@ -163,11 +163,11 @@ filt.par.width = 0.5            # smoothing window in seconds
 filt.inputConnectors[0].connect(op('raw_signal'))
 ```
 
-**WARNING:** Do NOT use Filter CHOP on AudioSpectrum output in timeslice mode — it expands the sample count and averages bins to near-zero. See `audio-reactive.md`.
+**WARNING:** Do NOT use Filter CHOP on AudioSpectrum output in timeslice mode - it expands the sample count and averages bins to near-zero. See `audio-reactive.md`.
 
 ---
 
-## Lag CHOP — Asymmetric Attack/Release
+## Lag CHOP - Asymmetric Attack/Release
 
 Different speeds for rising vs. falling values. Standard for visualizing audio envelopes.
 
@@ -201,11 +201,11 @@ Heavy logic should still be in CHOPs (CPU-cheap, deterministic). Reserve scripts
 
 ## Pitfalls
 
-1. **Frame rate dependency** — `me.time.frame` is in TD project frames (default 60). If your project rate changes, motion speed changes. Use `seconds` for rate-independent timing.
-2. **Cooking budget** — every CHOP that drives a parameter cooks every frame. Consolidate drivers (one big mathCHOP > many small ones).
-3. **Expression mode** — params default to `CONSTANT`. `par.X.expr = ...` is ignored unless `par.X.mode = ParMode.EXPRESSION`.
-4. **Animation editor edits** — keyframes set via UI live in the animationCOMP's internal keyframe table. They survive save/reopen. Programmatic keys via `appendKey()` work but verify the API with `td_get_docs(topic='animation')` first.
-5. **Looping animations** — for seamless loops, `length` must equal `cyclelength` and the start/end values must match. Otherwise expect a visible jump.
+1. **Frame rate dependency** - `me.time.frame` is in TD project frames (default 60). If your project rate changes, motion speed changes. Use `seconds` for rate-independent timing.
+2. **Cooking budget** - every CHOP that drives a parameter cooks every frame. Consolidate drivers (one big mathCHOP > many small ones).
+3. **Expression mode** - params default to `CONSTANT`. `par.X.expr = ...` is ignored unless `par.X.mode = ParMode.EXPRESSION`.
+4. **Animation editor edits** - keyframes set via UI live in the animationCOMP's internal keyframe table. They survive save/reopen. Programmatic keys via `appendKey()` work but verify the API with `td_get_docs(topic='animation')` first.
+5. **Looping animations** - for seamless loops, `length` must equal `cyclelength` and the start/end values must match. Otherwise expect a visible jump.
 
 ---
 

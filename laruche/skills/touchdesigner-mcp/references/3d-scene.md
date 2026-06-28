@@ -34,7 +34,7 @@ geo = root.create(geometryCOMP, 'scene_geo')
 sphere = geo.create(sphereSOP, 'shape')
 sphere.par.rad = 1.0; sphere.par.rows = 64; sphere.par.cols = 64
 
-# Material — start with PBR
+# Material - start with PBR
 mat = root.create(pbrMAT, 'mat')
 mat.par.basecolorr = 0.7; mat.par.basecolorg = 0.7; mat.par.basecolorb = 0.7
 mat.par.metallic = 0.0
@@ -64,7 +64,7 @@ render.par.lights = key.path                 # single light path; for multi, see
 render.par.bgcolorr = 0; render.par.bgcolorg = 0; render.par.bgcolorb = 0
 ```
 
-For multiple lights, leave `par.lights` blank — Render TOP scans the network for all `lightCOMP` and `envlightCOMP` ops by default. To restrict to specific lights, set `par.lights = '/project1/key_light /project1/fill_light'` (space-separated paths).
+For multiple lights, leave `par.lights` blank - Render TOP scans the network for all `lightCOMP` and `envlightCOMP` ops by default. To restrict to specific lights, set `par.lights = '/project1/key_light /project1/fill_light'` (space-separated paths).
 
 ---
 
@@ -83,14 +83,14 @@ For all: `colorr`, `colorg`, `colorb`, `tx/ty/tz`, `rx/ry/rz`, `dimmer`.
 ### Three-Point Lighting (Studio Setup)
 
 ```python
-# Key — main light, ~45° front
+# Key - main light, ~45° front
 key = root.create(lightCOMP, 'key')
 key.par.lighttype = 'point'
 key.par.tx = 4; key.par.ty = 3; key.par.tz = 4
 key.par.dimmer = 1.5
 key.par.colorr = 1.0; key.par.colorg = 0.95; key.par.colorb = 0.85
 
-# Fill — softer, opposite side
+# Fill - softer, opposite side
 fill = root.create(lightCOMP, 'fill')
 fill.par.lighttype = 'area'
 fill.par.tx = -4; fill.par.ty = 2; fill.par.tz = 3
@@ -98,7 +98,7 @@ fill.par.dimmer = 0.5
 fill.par.colorr = 0.7; fill.par.colorg = 0.8; fill.par.colorb = 1.0
 fill.par.sizex = 4; fill.par.sizey = 4
 
-# Rim/back — outline from behind
+# Rim/back - outline from behind
 rim = root.create(lightCOMP, 'rim')
 rim.par.lighttype = 'spot'
 rim.par.tx = 0; rim.par.ty = 4; rim.par.tz = -4
@@ -140,7 +140,7 @@ env.par.envmap = '/project1/cube_in'         # path to a TOP that produces a cub
 env.par.envlightmap = ...                    # diffuse irradiance map (often same as envmap)
 env.par.dimmer = 1.0
 
-# Cubemap source — option A: built-in cubeTOP from 6 faces
+# Cubemap source - option A: built-in cubeTOP from 6 faces
 cube = root.create(cubeTOP, 'cube_in')
 # (assign 6 face TOPs)
 
@@ -154,7 +154,7 @@ proj.par.projecttype = 'cubemapfromequirect'
 proj.inputConnectors[0].connect(hdr)
 ```
 
-PBR materials sample the environment automatically when `envlightCOMP` is in the scene. Verify param names with `td_get_par_info(op_type='envlightCOMP')` — TD versions vary.
+PBR materials sample the environment automatically when `envlightCOMP` is in the scene. Verify param names with `td_get_par_info(op_type='envlightCOMP')` - TD versions vary.
 
 ---
 
@@ -196,11 +196,11 @@ For glass/transmission, recent TD versions support `transmission` in PBR; older 
 For comparison views, instant replay, multi-screen mapping, etc.
 
 ```python
-# Camera A — main scene
+# Camera A - main scene
 cam_a = root.create(cameraCOMP, 'cam_main')
 cam_a.par.tz = 5
 
-# Camera B — orbiting top-down
+# Camera B - orbiting top-down
 cam_b = root.create(cameraCOMP, 'cam_top')
 cam_b.par.ty = 6; cam_b.par.rx = -90
 
@@ -248,16 +248,16 @@ DOF is GPU-heavy. Render at lower res then upscale for performance.
 
 ## Common Pitfalls
 
-1. **Render TOP shows black** — most common cause: no light. Even with PBR you need at least one `lightCOMP` or `envlightCOMP`. Add an `ambientlightCOMP` at low dimmer as a safety net.
-2. **Material doesn't appear** — `geo.par.material` must be a string PATH, not the material op itself. Use `mat.path`, not `mat`.
-3. **Lights ignored** — by default Render TOP picks up ALL `lightCOMP`s in the network. If you have leftover lights from another scene, they leak in. Set `par.lights` explicitly.
-4. **PBR looks flat** — without an `envlightCOMP` providing reflections, PBR materials look like Phong. Add one even if you don't have an HDR (use a `constantTOP` cubemap as fallback).
-5. **Shadow acne / striping** — increase `par.shadowbias` slightly. Tune per-light.
-6. **Camera inside geometry** — if `cam.par.tz` is INSIDE a sphere, you see the inside (or nothing if backface culled). Move the camera further out.
-7. **Light range too small** — point lights have implicit attenuation. Far-away geometry receives little light. Increase `par.dimmer` or move lights closer.
-8. **Multiple cameras conflict** — one render TOP = one camera. Don't try to share. Use multiple render TOPs.
-9. **Wrong handedness** — TD is right-handed Y-up. Imported assets from Z-up apps (Blender, Maya in Z-up) need a 90° X rotation on the geo COMP.
-10. **Cooking budget** — PBR + IBL + shadows + DOF at 1080p60 is fine on modern GPUs but 4K + 4 lights + soft shadows + DOF will tank. Profile via `td_get_perf` and downgrade settings before adding more.
+1. **Render TOP shows black** - most common cause: no light. Even with PBR you need at least one `lightCOMP` or `envlightCOMP`. Add an `ambientlightCOMP` at low dimmer as a safety net.
+2. **Material doesn't appear** - `geo.par.material` must be a string PATH, not the material op itself. Use `mat.path`, not `mat`.
+3. **Lights ignored** - by default Render TOP picks up ALL `lightCOMP`s in the network. If you have leftover lights from another scene, they leak in. Set `par.lights` explicitly.
+4. **PBR looks flat** - without an `envlightCOMP` providing reflections, PBR materials look like Phong. Add one even if you don't have an HDR (use a `constantTOP` cubemap as fallback).
+5. **Shadow acne / striping** - increase `par.shadowbias` slightly. Tune per-light.
+6. **Camera inside geometry** - if `cam.par.tz` is INSIDE a sphere, you see the inside (or nothing if backface culled). Move the camera further out.
+7. **Light range too small** - point lights have implicit attenuation. Far-away geometry receives little light. Increase `par.dimmer` or move lights closer.
+8. **Multiple cameras conflict** - one render TOP = one camera. Don't try to share. Use multiple render TOPs.
+9. **Wrong handedness** - TD is right-handed Y-up. Imported assets from Z-up apps (Blender, Maya in Z-up) need a 90° X rotation on the geo COMP.
+10. **Cooking budget** - PBR + IBL + shadows + DOF at 1080p60 is fine on modern GPUs but 4K + 4 lights + soft shadows + DOF will tank. Profile via `td_get_perf` and downgrade settings before adding more.
 
 ---
 

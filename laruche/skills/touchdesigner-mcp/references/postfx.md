@@ -8,7 +8,7 @@ Bloom, CRT scanlines, chromatic aberration, and feedback glow patterns for live 
 
 ### Built-in Bloom TOP
 
-TD's `bloomTOP` is the fastest path — GPU-accelerated, no shader needed.
+TD's `bloomTOP` is the fastest path - GPU-accelerated, no shader needed.
 
 ```python
 bloom = root.create(bloomTOP, 'bloom1')
@@ -29,7 +29,7 @@ bloom.par.strength.expr = "op('audio_env')['envelope'][0] * 3.0 + 0.5"
 For multi-pass bloom with color tinting:
 
 ```glsl
-// bloom_pixel.glsl — pass1: threshold + tint
+// bloom_pixel.glsl - pass1: threshold + tint
 out vec4 fragColor;
 uniform float uThreshold;
 uniform vec3 uBloomColor;
@@ -48,7 +48,7 @@ Then blur with `blurTOP` (size ~0.02-0.05), composite back over source with `add
 
 ## CRT / Scanlines
 
-Pure GLSL — create a `glslTOP` and paste into its `_pixel` DAT.
+Pure GLSL - create a `glslTOP` and paste into its `_pixel` DAT.
 
 ```glsl
 // crt_pixel.glsl
@@ -120,7 +120,7 @@ void main() {
 }
 ```
 
-**Audio-reactive variant** — spike aberration on beats:
+**Audio-reactive variant** - spike aberration on beats:
 ```glsl
 uniform float uBeat;
 void main() {

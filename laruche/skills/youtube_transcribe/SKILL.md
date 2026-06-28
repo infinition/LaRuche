@@ -14,7 +14,7 @@ dependencies:
 
 ## When to use
 
-Use when the user wants the raw transcript of a YouTube video — no formatting, no summarization. For downstream content generation (summaries, threads, chapters), use the `youtube-content` skill instead.
+Use when the user wants the raw transcript of a YouTube video - no formatting, no summarization. For downstream content generation (summaries, threads, chapters), use the `youtube-content` skill instead.
 
 ## Setup
 
@@ -31,7 +31,7 @@ The shared helper lives at `../youtube-content/scripts/fetch_transcript.py`. It 
 ## Commands
 
 ```bash
-# Plain text — best for direct reading or further processing
+# Plain text - best for direct reading or further processing
 uv run python3 ../youtube-content/scripts/fetch_transcript.py "URL" --text-only
 
 # Timestamped plain text

@@ -4,7 +4,7 @@
 
 TouchDesigner has 6 operator families. Each family processes a specific data type and is color-coded in the UI. Operators can only connect to others of the SAME family (with cross-family converters as the bridge).
 
-## TOPs — Texture Operators (Purple)
+## TOPs - Texture Operators (Purple)
 
 2D image/texture processing on the GPU. The workhorse of visual output.
 
@@ -12,7 +12,7 @@ TouchDesigner has 6 operator families. Each family processes a specific data typ
 
 | Operator | Type Name | Key Parameters | Use |
 |----------|-----------|---------------|-----|
-| Noise TOP | `noiseTop` | `type` (0-6), `monochrome`, `seed`, `period`, `harmonics`, `exponent`, `amp`, `offset`, `resolutionw/h` | Procedural noise textures — Perlin, Simplex, Sparse, etc. Foundation of generative art. |
+| Noise TOP | `noiseTop` | `type` (0-6), `monochrome`, `seed`, `period`, `harmonics`, `exponent`, `amp`, `offset`, `resolutionw/h` | Procedural noise textures - Perlin, Simplex, Sparse, etc. Foundation of generative art. |
 | Constant TOP | `constantTop` | `colorr/g/b/a`, `resolutionw/h` | Solid color. Use as background or blend input. |
 | Text TOP | `textTop` | `text`, `fontsizex`, `fontfile`, `alignx/y`, `colorr/g/b` | Render text to texture. Supports multi-line, word wrap. |
 | Ramp TOP | `rampTop` | `type` (0=horizontal, 1=vertical, 2=radial, 3=circular), `phase`, `period` | Gradient textures for masking, color mapping. |
@@ -69,7 +69,7 @@ TouchDesigner has 6 operator families. Each family processes a specific data typ
 | CHOP to TOP | `choptopTop` | CHOP -> TOP | Visualize channel data as texture (waveform, spectrum display). |
 | TOP to CHOP | `topchopChop` | TOP -> CHOP | Sample texture pixels as channel data. |
 
-## CHOPs — Channel Operators (Green)
+## CHOPs - Channel Operators (Green)
 
 Time-varying numeric data: audio, animation curves, sensor data, control signals.
 
@@ -118,7 +118,7 @@ Time-varying numeric data: audio, animation curves, sensor data, control signals
 | MIDI In CHOP | `midiinChop` | MIDI note/CC input. |
 | OSC In CHOP | `oscinChop` | OSC message input (network). |
 
-## SOPs — Surface Operators (Blue)
+## SOPs - Surface Operators (Blue)
 
 3D geometry: points, polygons, NURBS, meshes.
 
@@ -145,7 +145,7 @@ Time-varying numeric data: audio, animation curves, sensor data, control signals
 | Merge SOP | `mergeSop` | (none significant) | Combine multiple geometry inputs. |
 | Null SOP | `nullSop` | (none significant) | Pass-through. |
 
-## DATs — Data Operators (White)
+## DATs - Data Operators (White)
 
 Text, tables, scripts, network data.
 
@@ -179,7 +179,7 @@ Text, tables, scripts, network data.
 | CHOP to DAT | `choptodatDat` | CHOP -> DAT | Convert channel data to table rows. |
 | SOP to DAT | `soptodatDat` | SOP -> DAT | Extract geometry data as table. |
 
-## MATs — Material Operators (Yellow)
+## MATs - Material Operators (Yellow)
 
 Materials for 3D rendering in Render TOP / Geometry COMP.
 
@@ -193,7 +193,7 @@ Materials for 3D rendering in Render TOP / Geometry COMP.
 | Wireframe MAT | `wireframeMat` | `colorr/g/b`, `width` | Wireframe rendering. |
 | Depth MAT | `depthMat` | `near`, `far` | Render depth buffer as grayscale. |
 
-## COMPs — Component Operators (Gray)
+## COMPs - Component Operators (Gray)
 
 Containers, 3D scene elements, UI components.
 
@@ -235,5 +235,5 @@ Containers, 3D scene elements, UI components.
 | CHOP | SOP | CHOP to SOP | `choptosopSop` |
 | SOP | DAT | SOP to DAT | `soptodatDat` |
 | DAT | SOP | DAT to SOP | `dattosopSop` |
-| SOP | TOP | (use Render TOP + Geometry COMP) | — |
+| SOP | TOP | (use Render TOP + Geometry COMP) | - |
 | TOP | SOP | TOP to SOP | `toptosopSop` |

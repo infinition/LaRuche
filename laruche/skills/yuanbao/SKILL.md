@@ -15,7 +15,7 @@ metadata:
 
 ## Critical: How Messaging Works
 
-**Your reply text IS the message delivered to the group/user.** The gateway sends it automatically. No special "send" tool needed — just reply with the text you want sent.
+**Your reply text IS the message delivered to the group/user.** The gateway sends it automatically. No special "send" tool needed - just reply with the text you want sent.
 
 When your reply includes `@nickname`, the gateway converts it into a real @mention that notifies the user. This is built-in.
 
@@ -33,9 +33,9 @@ When your reply includes `@nickname`, the gateway converts it into a real @menti
 
 1. Call `yb_query_group_members` with `action="find"`, `name="<target>"`, `mention=true`
 2. Get the exact nickname from the response
-3. Include `@nickname` in your reply text — the gateway handles the rest
+3. Include `@nickname` in your reply text - the gateway handles the rest
 
-Example — user says "帮我艾特元宝":
+Example - user says "帮我艾特元宝":
 
 ```json
 { "group_code": "328306697", "action": "find", "name": "元宝", "mention": true }
@@ -47,7 +47,7 @@ Reply (sent to group with working @mention):
 ```
 
 **Rules:**
-- Always call `yb_query_group_members` first — never guess the nickname
+- Always call `yb_query_group_members` first - never guess the nickname
 - Format: `@nickname` with a space before the `@`
 - If the user is not found, report "user not found" and ask for the correct name
 - Be concise; do NOT explain how @mention works to the user
@@ -58,12 +58,12 @@ Reply (sent to group with working @mention):
 2. The tool finds the user and sends the DM
 3. Report the result
 
-Example — "给 @用户aea3 私信发一个 hello":
+Example - "给 @用户aea3 私信发一个 hello":
 ```json
 { "group_code": "535168412", "name": "用户aea3", "message": "hello" }
 ```
 
-Example with media — "给 @用户aea3 私信发一张图片":
+Example with media - "给 @用户aea3 私信发一张图片":
 ```json
 {
   "group_code": "535168412",
@@ -76,7 +76,7 @@ Example with media — "给 @用户aea3 私信发一张图片":
 **Rules:**
 - Extract `group_code` from chat_id: `group:535168412` → `535168412`
 - If you already know `user_id`, pass it directly to skip the lookup step
-- If multiple users match, the tool returns candidates — ask the user to clarify
+- If multiple users match, the tool returns candidates - ask the user to clarify
 - Media: images (.jpg/.png/.gif/.webp/.bmp) sent as image messages; other files as documents
 
 ## Query Group Info

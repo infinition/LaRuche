@@ -12,7 +12,7 @@ scripts: [scripts/setup.sh]
 
 ## When to use
 
-Animated math/CS explainers, equation derivations, algorithm visualizations, data stories, architecture diagrams, 3D concept videos — anything requiring programmatic animation with geometric/mathematical content.
+Animated math/CS explainers, equation derivations, algorithm visualizations, data stories, architecture diagrams, 3D concept videos - anything requiring programmatic animation with geometric/mathematical content.
 
 ## Prerequisites
 
@@ -61,11 +61,11 @@ project-name/
 
 ## Workflow
 
-### Step 1: Plan — write `plan.md` with `file_write`
+### Step 1: Plan - write `plan.md` with `file_write`
 
 Before any code, articulate: narrative arc, scene list, visual elements, color palette, voiceover script. See `references/scene-planning.md` for the full template.
 
-### Step 2: Code — write `script.py` with `file_write`
+### Step 2: Code - write `script.py` with `file_write`
 
 One class per scene. Every scene independently renderable. Define shared constants at the top.
 
@@ -94,7 +94,7 @@ Key patterns:
 - **`self.camera.background_color`** set in every scene's `construct()`
 - **Clean exits**: `self.play(FadeOut(Group(*self.mobjects)))` at scene end
 
-### Step 3: Render — via `shell_exec`
+### Step 3: Render - via `shell_exec`
 
 ```bash
 manim -ql script.py Scene1_Introduction Scene2_CoreConcept  # draft (fast)
@@ -109,7 +109,7 @@ Always iterate at `-ql`. Only render `-qh` for final output.
 | `-qm` (medium) | 1280x720 | 30 | 15-60s/scene |
 | `-qh` (production) | 1920x1080 | 60 | 30-120s/scene |
 
-### Step 4: Stitch — via `shell_exec`
+### Step 4: Stitch - via `shell_exec`
 
 Write `concat.txt` with `file_write`, then run ffmpeg:
 
@@ -117,7 +117,7 @@ Write `concat.txt` with `file_write`, then run ffmpeg:
 ffmpeg -y -f concat -safe 0 -i concat.txt -c copy final.mp4
 ```
 
-### Step 5: Review — via `media_present`
+### Step 5: Review - via `media_present`
 
 ```bash
 manim -ql --format=png -s script.py Scene2_CoreConcept  # preview still
@@ -138,7 +138,7 @@ Use `media_present` to display the still or final video for user review.
 
 ### Typography
 
-**Use monospace fonts for all text** — Manim's Pango renderer produces broken kerning with proportional fonts.
+**Use monospace fonts for all text** - Manim's Pango renderer produces broken kerning with proportional fonts.
 
 ```python
 MONO = "Menlo"  # define once at top
@@ -181,7 +181,7 @@ Vary across scenes: dominant color from palette, layout (don't always center), a
 **Raw strings for LaTeX:**
 ```python
 MathTex(r"\frac{1}{2}")   # correct
-MathTex("\frac{1}{2}")    # WRONG — backslash escape
+MathTex("\frac{1}{2}")    # WRONG - backslash escape
 ```
 
 **Edge text needs buff >= 0.5:**

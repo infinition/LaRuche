@@ -58,12 +58,12 @@ Install: `pip install numpy scipy pillow opencv-python` (ffmpeg must be in PATH)
 INPUT → ANALYZE → SCENE_FN → TONEMAP → SHADE → ENCODE
 ```
 
-1. **INPUT** — Load/decode source (video frames, audio, images, or synthetic)
-2. **ANALYZE** — Extract per-frame features (audio bands, luminance/edges, motion)
-3. **SCENE_FN** — Render to pixel canvas (`uint8 H,W,3`); compose character grids via `_render_vf()` + blend modes
-4. **TONEMAP** — Percentile-based adaptive brightness normalization
-5. **SHADE** — Post-processing via `ShaderChain` + `FeedbackBuffer`
-6. **ENCODE** — Pipe raw RGB frames to ffmpeg for H.264/GIF encoding
+1. **INPUT** - Load/decode source (video frames, audio, images, or synthetic)
+2. **ANALYZE** - Extract per-frame features (audio bands, luminance/edges, motion)
+3. **SCENE_FN** - Render to pixel canvas (`uint8 H,W,3`); compose character grids via `_render_vf()` + blend modes
+4. **TONEMAP** - Percentile-based adaptive brightness normalization
+5. **SHADE** - Post-processing via `ShaderChain` + `FeedbackBuffer`
+6. **ENCODE** - Pipe raw RGB frames to ffmpeg for H.264/GIF encoding
 
 ## Workflow
 
@@ -74,32 +74,32 @@ Before writing code, define:
 - **Visual story**: what changes over time (tension build, transformation, dissolution)
 - **Color world**: warm/cool, neon, monochrome, earth tones
 - **Character texture**: dense data, sparse stars, organic, geometric
-- **Per-scene variation**: each scene must differ in background effect, character palette, color strategy, and shader intensity — never use the same config throughout
+- **Per-scene variation**: each scene must differ in background effect, character palette, color strategy, and shader intensity - never use the same config throughout
 
 ### Step 2: Technical Design
 
-- **Mode** — pick from the 6 modes above
-- **Resolution** — landscape 1920×1080 (default), portrait 1080×1920, square 1080×1080 @ 24fps
-- **Hardware detection** — auto-detect cores/RAM, set quality profile
-- **Section map** — map timestamps to scene functions with their own effect/palette/color/shader config
-- **Output format** — MP4 (default), GIF (640×360 @ 15fps), PNG sequence
+- **Mode** - pick from the 6 modes above
+- **Resolution** - landscape 1920×1080 (default), portrait 1080×1920, square 1080×1080 @ 24fps
+- **Hardware detection** - auto-detect cores/RAM, set quality profile
+- **Section map** - map timestamps to scene functions with their own effect/palette/color/shader config
+- **Output format** - MP4 (default), GIF (640×360 @ 15fps), PNG sequence
 
 ### Step 3: Build the Script
 
 Single Python file. Components in order:
 
 1. Hardware detection + quality profile
-2. Input loader — mode-dependent
-3. Feature analyzer — audio FFT, video luminance, or synthetic
-4. Grid + renderer — multi-density grids with bitmap cache
-5. Character palettes — multiple per project
-6. Color system — HSV + discrete RGB + harmony generation
-7. Scene functions — each returns `canvas (uint8 H,W,3)`
-8. Tonemap — adaptive brightness normalization
-9. Shader pipeline — `ShaderChain` + `FeedbackBuffer`
-10. Scene table + dispatcher — time → scene function + config
-11. Parallel encoder — N-worker clip rendering with ffmpeg pipes
-12. Main — orchestrate full pipeline
+2. Input loader - mode-dependent
+3. Feature analyzer - audio FFT, video luminance, or synthetic
+4. Grid + renderer - multi-density grids with bitmap cache
+5. Character palettes - multiple per project
+6. Color system - HSV + discrete RGB + harmony generation
+7. Scene functions - each returns `canvas (uint8 H,W,3)`
+8. Tonemap - adaptive brightness normalization
+9. Shader pipeline - `ShaderChain` + `FeedbackBuffer`
+10. Scene table + dispatcher - time → scene function + config
+11. Parallel encoder - N-worker clip rendering with ffmpeg pipes
+12. Main - orchestrate full pipeline
 
 Run via `shell_exec`: `python render.py`
 
@@ -113,9 +113,9 @@ Run via `shell_exec`: `python render.py`
 
 ## Critical Pitfalls
 
-### Brightness — Use `tonemap()`, Not Linear Multipliers
+### Brightness - Use `tonemap()`, Not Linear Multipliers
 
-ASCII on black is inherently dark. Never use `canvas * N` multipliers — they clip highlights. Use adaptive tonemap:
+ASCII on black is inherently dark. Never use `canvas * N` multipliers - they clip highlights. Use adaptive tonemap:
 
 ```python
 def tonemap(canvas, gamma=0.75):
@@ -136,7 +136,7 @@ macOS Pillow: `textbbox()` returns wrong height. Use `font.getmetrics()`: `cell_
 
 ### ffmpeg Pipe Deadlock
 
-Never `stderr=subprocess.PIPE` with long-running ffmpeg — buffer fills at 64KB and deadlocks. Redirect stderr to a file:
+Never `stderr=subprocess.PIPE` with long-running ffmpeg - buffer fills at 64KB and deadlocks. Redirect stderr to a file:
 
 ```python
 ffmpeg_proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=open("ffmpeg.log", "w"))
@@ -144,7 +144,7 @@ ffmpeg_proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=open("ffmpeg.l
 
 ### Font Compatibility
 
-Not all Unicode chars render in all fonts. Validate palettes at init — render each char, check for blank output.
+Not all Unicode chars render in all fonts. Validate palettes at init - render each char, check for blank output.
 
 ### Per-Clip Architecture
 
@@ -177,4 +177,4 @@ For segmented videos (quotes, scenes, chapters), render each as a separate clip 
 
 - **Forced Connections**: map a domain unrelated to the visual goal (weather, microbiology, textiles) onto ASCII characters and motion patterns.
 - **Conceptual Blending**: name two distinct spaces (e.g., ocean waves + sheet music), map correspondences, develop emergent properties.
-- **Oblique Strategies**: pick one directive — "Honor thy error", "Use an old idea", "Emphasize the flaws", "Turn it upside down" — and interpret it against the visual challenge before writing code.
+- **Oblique Strategies**: pick one directive - "Honor thy error", "Use an old idea", "Emphasize the flaws", "Turn it upside down" - and interpret it against the visual challenge before writing code.

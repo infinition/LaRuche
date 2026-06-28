@@ -36,11 +36,11 @@ Thinking "skip TDD just this once"? Stop. That's rationalization.
 NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST
 ```
 
-Wrote code before the test? Delete it. Start over. No exceptions — don't keep it as "reference," don't "adapt" it while writing tests. Delete means delete.
+Wrote code before the test? Delete it. Start over. No exceptions - don't keep it as "reference," don't "adapt" it while writing tests. Delete means delete.
 
 ## Red-Green-Refactor Cycle
 
-### RED — Write Failing Test
+### RED - Write Failing Test
 
 Write one minimal test showing what should happen.
 
@@ -77,7 +77,7 @@ Requirements:
 - Real code, not mocks (unless truly unavoidable)
 - Name describes behavior, not implementation
 
-### Verify RED — Watch It Fail (MANDATORY)
+### Verify RED - Watch It Fail (MANDATORY)
 
 ```bash
 pytest tests/test_feature.py::test_specific_behavior -v
@@ -91,26 +91,26 @@ Confirm:
 **Test passes immediately?** You're testing existing behavior. Fix the test.
 **Test errors?** Fix the error, re-run until it fails correctly.
 
-### GREEN — Minimal Code
+### GREEN - Minimal Code
 
 Write the simplest code to pass the test. Nothing more.
 
 Cheating is OK in GREEN: hardcode return values, copy-paste, duplicate code, skip edge cases. Fix it in REFACTOR. Don't add features or refactor other code.
 
-### Verify GREEN — Watch It Pass (MANDATORY)
+### Verify GREEN - Watch It Pass (MANDATORY)
 
 ```bash
 # Run the specific test
 pytest tests/test_feature.py::test_specific_behavior -v
 
-# Run ALL tests — check for regressions
+# Run ALL tests - check for regressions
 pytest tests/ -q
 ```
 
 **Test fails?** Fix the code, not the test.
 **Other tests fail?** Fix regressions now.
 
-### REFACTOR — Clean Up
+### REFACTOR - Clean Up
 
 After green only: remove duplication, improve names, extract helpers, simplify expressions. Keep tests green throughout. Don't add behavior.
 
@@ -136,13 +136,13 @@ Use vertical tracer bullets: one end-to-end behavior slice per cycle. Proves the
 Run tests at each step via `shell_exec`:
 
 ```python
-# RED — verify failure
+# RED - verify failure
 shell_exec("pytest tests/test_feature.py::test_name -v")
 
-# GREEN — verify pass
+# GREEN - verify pass
 shell_exec("pytest tests/test_feature.py::test_name -v")
 
-# Full suite — verify no regressions
+# Full suite - verify no regressions
 shell_exec("pytest tests/ -q")
 ```
 
@@ -151,10 +151,10 @@ When dispatching subagents for implementation, include in their goal:
 ```
 Follow TDD strictly:
 1. Write failing test FIRST
-2. Run test — confirm it fails for the right reason
+2. Run test - confirm it fails for the right reason
 3. Write minimal code to pass
-4. Run test — confirm it passes
-5. Run full suite — fix any regressions
+4. Run test - confirm it passes
+5. Run full suite - fix any regressions
 6. Refactor if needed, keep green
 
 Test command: pytest tests/ -q
@@ -167,7 +167,7 @@ Test command: pytest tests/ -q
 | Excuse | Reality |
 |--------|---------|
 | "Too simple to test" | Simple code breaks. Test takes 30 seconds. |
-| "I'll test after" | Tests-after pass immediately — prove nothing. |
+| "I'll test after" | Tests-after pass immediately - prove nothing. |
 | "Tests after same goals" | Tests-after = "what does this do?" Tests-first = "what should this do?" |
 | "Already manually tested" | Ad-hoc ≠ systematic. No record, can't re-run. |
 | "Deleting X hours is wasteful" | Sunk cost. Unverified code is technical debt. |
@@ -177,7 +177,7 @@ Test command: pytest tests/ -q
 | "TDD will slow me down" | TDD faster than debugging in production. |
 | "Existing code has no tests" | Add tests for every line you touch. |
 
-## Red Flags — STOP and Start Over
+## Red Flags - STOP and Start Over
 
 - Code written before test
 - Test passes immediately on first run

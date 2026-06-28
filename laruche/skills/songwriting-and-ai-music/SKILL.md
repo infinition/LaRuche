@@ -25,7 +25,7 @@ triggers:
 
 # Songwriting & AI Music Generation
 
-Guidelines, not rules — art breaks rules on purpose. Use what serves the song.
+Guidelines, not rules - art breaks rules on purpose. Use what serves the song.
 
 ---
 
@@ -39,19 +39,19 @@ AAA     Verse/Verse/Verse, no chorus              (folk, storytelling)
 ```
 
 Building blocks: **Intro · Verse · Pre-Chorus · Chorus · Bridge · Outro**
-Structure serves the emotion — you don't need all of them.
+Structure serves the emotion - you don't need all of them.
 
 ---
 
 ## 2. Rhyme, Meter, and Sound
 
 **Rhyme types** (tight → loose): Perfect · Family · Assonance (same vowels) · Consonance (similar endings) · Slant
-Mix them — all-perfect sounds like a nursery rhyme; all-slant sounds lazy. Internal rhyme (within a line) adds density.
+Mix them - all-perfect sounds like a nursery rhyme; all-slant sounds lazy. Internal rhyme (within a line) adds density.
 
 **Meter:**
 - Stressed syllables matter more than total count
 - Match syllable counts between parallel lines for singability
-- Say it aloud — stumbles signal meter problems
+- Say it aloud - stumbles signal meter problems
 - Breaking meter intentionally creates emphasis
 
 ---
@@ -74,7 +74,7 @@ Intro: 2-3 | Verse: 5-6 | Pre-Chorus: 7 | Chorus: 8-9 | Bridge: varies | Final C
 
 **Show, don't tell** (usually):
 - "I was sad" = flat → "Your hoodie's still on the hook by the door" = alive
-- But blunt declaration can BE the power — context decides
+- But blunt declaration can BE the power - context decides
 
 **The hook:** the line people remember. Melody + lyric + emotion must align. Place it where it lands hardest (often first/last line of chorus).
 
@@ -87,7 +87,7 @@ Intro: 2-3 | Verse: 5-6 | Pre-Chorus: 7 | Chorus: 8-9 | Bridge: varies | Final C
 - Clichés on autopilot ("heart of gold" without earning it)
 - Forcing word order to hit a rhyme ("Yoda-speak")
 - Flat energy across all sections
-- Treating first draft as sacred — revision is creation
+- Treating first draft as sacred - revision is creation
 
 ---
 
@@ -102,12 +102,12 @@ Intro: 2-3 | Verse: 5-6 | Pre-Chorus: 7 | Chorus: 8-9 | Bridge: varies | Final C
 - Total syllable count can flex ±1-2 unstressed syllables
 - On held notes, match the vowel sound: "LOOOVE" → "FOOOD" fits; "LIFE" doesn't
 - Monosyllabic swaps in key spots keep rhythm intact (Crime → Code, Snake → Noose)
-- Sing new words over the original — stumbles signal revisions needed
+- Sing new words over the original - stumbles signal revisions needed
 
 **Concept and structure:**
 - Start from the title/hook, build outward; generate raw material first (puns, images, phrases), then fit the best into structure
 - Reverse-engineer the rhyme scheme backward to set up a specific line
-- Leave a few original lines or structures intact — adds recognizability, lets the audience feel the ghost of the original
+- Leave a few original lines or structures intact - adds recognizability, lets the audience feel the ghost of the original
 
 ---
 
@@ -128,13 +128,13 @@ GOOD: "Cinematic orchestral spy thriller, 1960s Cold War era, smoky sultry
 ```
 
 **Tips:**
-- Suno v4.5+ supports up to 1,000 chars in the Style field — use them
+- Suno v4.5+ supports up to 1,000 chars in the Style field - use them
 - NO artist names or trademarks. Describe the sound: "90s grunge" not "Nirvana-style"
 - Specify BPM and key when you have a preference
 - Use the Exclude Styles field for what you DON'T want
 - Unexpected genre combos can be gold: "bossa nova trap", "Appalachian gothic", "chiptune jazz"
 - Build a vocal **persona**: "A weathered torch singer with a smoky alto, slight rasp, starts vulnerable, builds to devastating power"
-- **Describing the dynamic arc matters more than just listing genres** — "whisper to roar to whisper" gives Suno a performance map
+- **Describing the dynamic arc matters more than just listing genres** - "whisper to roar to whisper" gives Suno a performance map
 
 ### Metatags (place in [brackets] inside the Lyrics field)
 
@@ -161,13 +161,13 @@ GOOD: "Cinematic orchestral spy thriller, 1960s Cold War era, smoky sultry
 
 **Rules:**
 - Put key tags in BOTH the style field AND the lyrics field for reinforcement
-- 5-8 tags per section max — too many confuses the AI
+- 5-8 tags per section max - too many confuses the AI
 - Don't contradict yourself (`[Calm]` + `[Aggressive]` in the same section)
 
 ### Custom Mode
 - Always use Custom Mode for serious work (separate Style + Lyrics fields)
 - Lyrics field limit: ~3,000 chars (~40-60 lines)
-- Always add structural tags — without them Suno defaults to flat verse/chorus with no emotional arc
+- Always add structural tags - without them Suno defaults to flat verse/chorus with no emotional arc
 
 ---
 
@@ -177,7 +177,7 @@ AI vocalists pronounce, not read. Help them:
 
 **Phonetic respelling:**
 - Spell words as they sound: "through" → "thru"
-- Proper nouns have the highest failure rate — test early with a 30-second clip
+- Proper nouns have the highest failure rate - test early with a 30-second clip
 - "Nous" → "Noose" (forces correct pronunciation)
 - Hyphenate to guide syllables: "Re-search", "bio-engineering"
 
@@ -190,20 +190,20 @@ AI vocalists pronounce, not read. Help them:
 **Always:**
 - Spell out numbers: "24/7" → "twenty four seven"
 - Space acronyms: "AI" → "A I" or "A-I"
-- Pronunciation is baked in once generated — fix lyrics BEFORE generating
+- Pronunciation is baked in once generated - fix lyrics BEFORE generating
 
 ---
 
 ## 8. Workflow
 
-1. Nail the concept/hook first — what is the emotional core?
+1. Nail the concept/hook first - what is the emotional core?
 2. If adapting, map the original (syllables, rhyme scheme, stressed syllables, held notes)
 3. Brainstorm raw material freely (puns, images, phrases) before structuring
 4. Draft lyrics into the chosen structure; use `file_write` to save working drafts
-5. Read/sing aloud — catch stumbles, fix meter
-6. Build the Suno style description — paint the dynamic journey, not just the genre
+5. Read/sing aloud - catch stumbles, fix meter
+6. Build the Suno style description - paint the dynamic journey, not just the genre
 7. Add metatags to lyrics for performance direction
-8. Generate 3-5 variations minimum — treat them like recording takes
+8. Generate 3-5 variations minimum - treat them like recording takes
 9. Extend/Continue from the best variation; restate genre/mood in extensions (style can drift)
 10. If something great happens by accident, keep it
 11. Store successful prompt patterns with `memory_write` for reuse

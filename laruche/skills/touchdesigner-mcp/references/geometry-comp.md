@@ -78,13 +78,13 @@ render.par.geometry = geo.path  # accepts path string
 
 ## POPs vs SOPs for Rendering
 
-In TD 099, `geometryCOMP` renders **POPs** but NOT SOPs. A `boxSOP` inside a geometry COMP is invisible — no errors.
+In TD 099, `geometryCOMP` renders **POPs** but NOT SOPs. A `boxSOP` inside a geometry COMP is invisible - no errors.
 
 ```python
-# WRONG — SOPs don't render (invisible, no errors)
+# WRONG - SOPs don't render (invisible, no errors)
 box = geo.create(boxSOP, 'cube')       # ✗ invisible
 
-# CORRECT — POPs render
+# CORRECT - POPs render
 box = geo.create(boxPOP, 'cube')       # ✓ visible
 ```
 
@@ -117,5 +117,5 @@ out.inputConnectors[0].connect(sw.outputConnectors[0])
 
 ## Misc
 
-- `connect()` replaces existing connections — no need to disconnect first
+- `connect()` replaces existing connections - no need to disconnect first
 - `project.name` returns the TOE filename, `project.folder` returns the directory

@@ -23,7 +23,7 @@ This skill covers **PDFs and scanned documents**.
 
 ## Step 1: Remote URL Available?
 
-If the document has a URL, **always try `web_fetch` first** — no local dependencies:
+If the document has a URL, **always try `web_fetch` first** - no local dependencies:
 
 ```
 web_fetch(urls=["https://arxiv.org/pdf/2402.03300"])
@@ -123,7 +123,7 @@ web_search(query="arxiv GRPO reinforcement learning 2026")
 
 ## Split, Merge & Search
 
-Use `execute_code` with pymupdf — no extra dependencies:
+Use `execute_code` with pymupdf - no extra dependencies:
 
 ```python
 # Split: extract pages 1-5 to a new PDF

@@ -24,7 +24,7 @@ triggers:
 
 54 real-world design systems for generating HTML/CSS. Each template captures a site's full
 visual language: color palette, typography, component styles, spacing, shadows, and responsive
-behavior — with exact CSS values ready to use.
+behavior - with exact CSS values ready to use.
 
 ## How to Use
 
@@ -42,7 +42,7 @@ Each template's **Implementation Notes** block contains:
 
 **On failure:** if a template's font link fails to load (offline/blocked), fall back to
 the system font stack (`-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`) and
-apply the same weight/tracking values — those carry more visual identity than the font face.
+apply the same weight/tracking values - those carry more visual identity than the font face.
 
 ## Font Substitution Reference
 
@@ -67,7 +67,7 @@ Most sites use proprietary fonts. Each template maps them to a Google Fonts subs
 | Rubik (Sentry) | Rubik | Available on Google Fonts |
 
 When using a substitute (e.g. DM Sans for Circular), weight, size, and letter-spacing
-carry more visual identity than the font face — apply them precisely.
+carry more visual identity than the font face - apply them precisely.
 
 ## Design Catalog
 

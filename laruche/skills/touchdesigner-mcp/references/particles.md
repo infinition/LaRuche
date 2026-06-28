@@ -1,10 +1,10 @@
 # Particles Reference
 
-Particle systems in TouchDesigner — modern POPs (Particle Operators) and the legacy particleSOP path.
+Particle systems in TouchDesigner - modern POPs (Particle Operators) and the legacy particleSOP path.
 
 For instancing static geometry (without per-instance lifetime/velocity), see `geometry-comp.md`. For GLSL-driven feedback simulations (no particle abstraction), see `operator-tips.md` (Feedback TOP section).
 
-Always call `td_get_par_info` for the op type before setting params. Param names below reflect TD 2025.32 — verify before relying on them.
+Always call `td_get_par_info` for the op type before setting params. Param names below reflect TD 2025.32 - verify before relying on them.
 
 ---
 
@@ -49,7 +49,7 @@ POP buffers carry standard channels: `P` (position), `v` (velocity), `life`, `id
 # Create a geometry COMP to hold the POP network
 geo = root.create(geometryCOMP, 'particles_geo')
 
-# 1. Source — emit particles from a point
+# 1. Source - emit particles from a point
 src = geo.create(popSourceTOP, 'src')
 src.par.birthrate = 500          # per second
 src.par.life = 4.0                # seconds
@@ -90,7 +90,7 @@ The `popSolverTOP` output IS the live particle buffer. Render it via `glslMAT` i
 | `vortex` | Swirl around an axis | `axis`, `strength` |
 | `point` (custom) | GLSL-evaluated arbitrary force | via `popforceadvancedTOP` |
 
-Stack multiple `popForceTOP`s in series — each modifies velocity additively.
+Stack multiple `popForceTOP`s in series - each modifies velocity additively.
 
 ---
 
@@ -146,7 +146,7 @@ mat = root.create(glslMAT, 'particle_mat')
 # Configure mat.par.instancingTOP = solver output (verify param name)
 ```
 
-The exact instancing setup varies by TD version — call `td_get_hints(topic='popInstancing')` (or `popRender` / `instancing` — try a few).
+The exact instancing setup varies by TD version - call `td_get_hints(topic='popInstancing')` (or `popRender` / `instancing` - try a few).
 
 ### GPU Sprites via glslcopyPOP
 
@@ -180,7 +180,7 @@ attr.par.attribname = 'phase'
 attr.par.value0 = 'rand(@id)'   # expression in TD's POP attribute language
 ```
 
-Then in the render shader, `texture(sTDPOPInputs[0].phase, ...)` (or whichever sampler convention your TD version uses — verify with `td_get_docs(topic='pops')`).
+Then in the render shader, `texture(sTDPOPInputs[0].phase, ...)` (or whichever sampler convention your TD version uses - verify with `td_get_docs(topic='pops')`).
 
 ---
 
@@ -207,15 +207,15 @@ CPU-bound. Beyond ~5,000 active particles you'll see frame drops.
 
 ## Pitfalls
 
-1. **Particles don't appear** — usually a render-side issue. Check via `td_get_screenshot` on the solver output (renders the buffer as a TOP-like view in newer TD). Then check the `geometryCOMP`'s render path.
-2. **Burst won't fire** — verify the `burst` param is a pulse, not a toggle. Pulses must use `.pulse()`, not `= True`.
-3. **Particles teleport on first frame** — uninitialized velocity. Set `popSourceTOP.par.initialvelocityX/Y/Z` or zero them explicitly.
-4. **Gravity feels wrong** — TD's "1 unit" depends on your scene scale. Start with `fy = -1.0` and scale up rather than using real-world 9.8.
-5. **High birthrate = stuttering** — birthrate is per-second, not per-frame. At 60fps, `birthrate = 6000` is 100/frame which is fine; `birthrate = 600000` will tank.
-6. **POP solver order matters** — forces apply in the order they appear in the chain. Putting gravity AFTER drag dampens gravity itself; usually not what you want.
-7. **Instancing param name varies** — `mat.par.instancingTOP` vs. `mat.par.instanceop` vs. `mat.par.instances` differs across TD versions. Always check `td_get_par_info(op_type='glslMAT')`.
-8. **Cooking dependency loops** — POP solvers create implicit time-loops. The "cook dependency loop" warning is expected and harmless for POPs.
-9. **CHOP-driven force values** — when a force param is expression-bound to a CHOP (e.g., audio-reactive gravity), make sure the CHOP cooks before the solver. If not, force lags by one frame.
+1. **Particles don't appear** - usually a render-side issue. Check via `td_get_screenshot` on the solver output (renders the buffer as a TOP-like view in newer TD). Then check the `geometryCOMP`'s render path.
+2. **Burst won't fire** - verify the `burst` param is a pulse, not a toggle. Pulses must use `.pulse()`, not `= True`.
+3. **Particles teleport on first frame** - uninitialized velocity. Set `popSourceTOP.par.initialvelocityX/Y/Z` or zero them explicitly.
+4. **Gravity feels wrong** - TD's "1 unit" depends on your scene scale. Start with `fy = -1.0` and scale up rather than using real-world 9.8.
+5. **High birthrate = stuttering** - birthrate is per-second, not per-frame. At 60fps, `birthrate = 6000` is 100/frame which is fine; `birthrate = 600000` will tank.
+6. **POP solver order matters** - forces apply in the order they appear in the chain. Putting gravity AFTER drag dampens gravity itself; usually not what you want.
+7. **Instancing param name varies** - `mat.par.instancingTOP` vs. `mat.par.instanceop` vs. `mat.par.instances` differs across TD versions. Always check `td_get_par_info(op_type='glslMAT')`.
+8. **Cooking dependency loops** - POP solvers create implicit time-loops. The "cook dependency loop" warning is expected and harmless for POPs.
+9. **CHOP-driven force values** - when a force param is expression-bound to a CHOP (e.g., audio-reactive gravity), make sure the CHOP cooks before the solver. If not, force lags by one frame.
 
 ---
 

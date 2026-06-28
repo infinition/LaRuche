@@ -188,7 +188,7 @@ masks = ort.run(None, {
 | Grayscale input | Convert first: `cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)` |
 
 **Memory:** call `torch.cuda.empty_cache()` between large batches.
-**Efficiency:** `predictor.set_image()` runs the encoder once — loop prompts without re-encoding.
+**Efficiency:** `predictor.set_image()` runs the encoder once - loop prompts without re-encoding.
 
 ## Resources
 

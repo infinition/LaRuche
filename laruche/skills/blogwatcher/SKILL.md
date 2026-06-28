@@ -75,9 +75,9 @@ blogwatcher-cli read-all --blog "My Blog" --yes
 |---|---|---|
 | `BLOGWATCHER_DB` | `~/.blogwatcher-cli/blogwatcher-cli.db` | SQLite database path |
 | `BLOGWATCHER_WORKERS` | 8 | Concurrent scan workers |
-| `BLOGWATCHER_SILENT` | — | Only output "scan done" on scan |
-| `BLOGWATCHER_YES` | — | Skip confirmation prompts |
-| `BLOGWATCHER_CATEGORY` | — | Default article filter by category |
+| `BLOGWATCHER_SILENT` | - | Only output "scan done" on scan |
+| `BLOGWATCHER_YES` | - | Skip confirmation prompts |
+| `BLOGWATCHER_CATEGORY` | - | Default article filter by category |
 
 All flags can also be set via matching `BLOGWATCHER_*` env vars.
 

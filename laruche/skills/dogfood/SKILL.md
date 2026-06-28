@@ -15,9 +15,9 @@ metadata:
 
 ## Inputs
 
-1. **Target URL** — entry point for testing
-2. **Scope** — areas/features to focus on, or "full site"
-3. **Output directory** (optional) — default: `./dogfood-output`
+1. **Target URL** - entry point for testing
+2. **Scope** - areas/features to focus on, or "full site"
+3. **Output directory** (optional) - default: `./dogfood-output`
 
 ## Prerequisites
 
@@ -59,7 +59,7 @@ Repeat for each page/feature:
 
 5. **After each significant interaction**, take another screenshot and note state changes.
 
-6. **Scroll pages**: take screenshots at different scroll positions — lazy-load failures appear below the fold.
+6. **Scroll pages**: take screenshots at different scroll positions - lazy-load failures appear below the fold.
 
 ### Phase 3: Collect Evidence
 
@@ -83,7 +83,7 @@ For every issue found:
 
 ### Phase 4: Categorize
 
-1. De-duplicate — same bug on multiple pages = one issue.
+1. De-duplicate - same bug on multiple pages = one issue.
 2. Assign final severity and category.
 3. Sort: Critical → High → Medium → Low.
 4. Count by severity and category for the executive summary.
@@ -92,10 +92,10 @@ For every issue found:
 
 Generate the report from `templates/dogfood-report-template.md`. Must include:
 
-1. **Executive summary** — total count, breakdown by severity, testing scope
-2. **Per-issue sections** — number, title, severity/category, URL, description, steps to reproduce, expected vs actual, screenshot (`MEDIA:<screenshot_path>`), console errors
-3. **Summary table** — all issues in one view
-4. **Testing coverage** — what was tested, what was not, blockers
+1. **Executive summary** - total count, breakdown by severity, testing scope
+2. **Per-issue sections** - number, title, severity/category, URL, description, steps to reproduce, expected vs actual, screenshot (`MEDIA:<screenshot_path>`), console errors
+3. **Summary table** - all issues in one view
+4. **Testing coverage** - what was tested, what was not, blockers
 
 Save with `file_write`:
 ```
@@ -104,8 +104,8 @@ file_write(path="./dogfood-output/report.md", content=<rendered report>)
 
 ## Pitfalls
 
-- **Check console output after every navigation** — uncaught JS exceptions are invisible to the eye but critical findings. Use any visible error banners, network tab info, or page-embedded error messages.
+- **Check console output after every navigation** - uncaught JS exceptions are invisible to the eye but critical findings. Use any visible error banners, network tab info, or page-embedded error messages.
 - **Test form edge cases**: empty submit, very long strings, special chars (`<`, `"`, `'`), rapid double-clicks.
-- **Scroll all pages** — content below the fold may have rendering or lazy-load failures.
+- **Scroll all pages** - content below the fold may have rendering or lazy-load failures.
 - **Display screenshots inline** with `MEDIA:<screenshot_path>` for immediate user visibility.
 - **Scope creep**: stay within the agreed scope; log out-of-scope findings as "Notes" rather than issues.

@@ -14,15 +14,15 @@ metadata:
 
 # Spike
 
-Use when the user wants to **feel out an idea** before committing to a real build — validating feasibility, comparing approaches, or surfacing unknowns. Spikes are disposable by design. Throw them away once they've paid their debt.
+Use when the user wants to **feel out an idea** before committing to a real build - validating feasibility, comparing approaches, or surfacing unknowns. Spikes are disposable by design. Throw them away once they've paid their debt.
 
 Trigger: "let me try this", "I want to see if X works", "spike this out", "before I commit to Y", "quick prototype of Z", "is this even possible?", "compare A vs B".
 
 ## When NOT to use
 
-- The answer is knowable from docs or reading code — just research, don't build.
-- The work is on the production path — use the `plan` skill instead.
-- The idea is already validated — jump straight to implementation.
+- The answer is knowable from docs or reading code - just research, don't build.
+- The work is on the production path - use the `plan` skill instead.
+- The idea is already validated - jump straight to implementation.
 
 ## Core loop
 
@@ -43,12 +43,12 @@ Break the idea into **2-5 independent feasibility questions**. Present as a tabl
 | 002b | pdf-parse-camelot | Given a multi-page PDF, when parsed with camelot, then structured text is extractable | Medium |
 
 **Spike types:**
-- **standard** — one approach, one question
-- **comparison** — same question, different approaches (shared number, letter suffix `a`/`b`/`c`)
+- **standard** - one approach, one question
+- **comparison** - same question, different approaches (shared number, letter suffix `a`/`b`/`c`)
 
 **Order by risk.** The spike most likely to kill the idea runs first.
 
-**Skip decomposition** only if the user already knows exactly what to spike — take it as a single spike.
+**Skip decomposition** only if the user already knows exactly what to spike - take it as a single spike.
 
 ### 2. Align (multi-spike only)
 
@@ -103,7 +103,7 @@ spikes/
 
 **Depth over speed.** Never declare "it works" after one happy-path run. Test edge cases. Follow surprising findings.
 
-**Avoid** (unless the spike specifically requires it): complex package management, build tools/bundlers, Docker, env files, config systems. Hardcode everything — it's a spike.
+**Avoid** (unless the spike specifically requires it): complex package management, build tools/bundlers, Docker, env files, config systems. Hardcode everything - it's a spike.
 
 **Typical tool sequence for one spike:**
 
@@ -137,9 +137,9 @@ Each spike's `README.md` closes with:
 - ...
 ```
 
-- **VALIDATED** — core question answered yes, with evidence.
-- **PARTIAL** — works under constraints X, Y, Z — document them.
-- **INVALIDATED** — doesn't work, for this reason. This is a successful spike.
+- **VALIDATED** - core question answered yes, with evidence.
+- **PARTIAL** - works under constraints X, Y, Z - document them.
+- **INVALIDATED** - doesn't work, for this reason. This is a successful spike.
 
 ## Comparison spikes
 
@@ -162,10 +162,10 @@ When two approaches answer the same question (002a / 002b), build them back to b
 
 If spikes already exist and the user asks "what should I spike next?", walk the existing directories and look for:
 
-- **Integration risks** — two validated spikes that touch the same resource but were tested independently
-- **Data handoffs** — spike A's output was assumed compatible with spike B's input; never proven
-- **Gaps in the vision** — capabilities assumed but unproven
-- **Alternative angles** — different approaches for PARTIAL or INVALIDATED spikes
+- **Integration risks** - two validated spikes that touch the same resource but were tested independently
+- **Data handoffs** - spike A's output was assumed compatible with spike B's input; never proven
+- **Gaps in the vision** - capabilities assumed but unproven
+- **Alternative angles** - different approaches for PARTIAL or INVALIDATED spikes
 
 Propose 2-4 candidates as Given/When/Then. Let the user pick.
 
@@ -173,4 +173,4 @@ Propose 2-4 candidates as Given/When/Then. Let the user pick.
 
 - Create `spikes/` in the repo root (one dir per spike: `NNN-descriptive-name/`)
 - `README.md` per spike captures question, approach, results, verdict
-- Keep the code throwaway — a spike that takes 2 days to "clean up for production" was a bad spike
+- Keep the code throwaway - a spike that takes 2 days to "clean up for production" was a bad spike

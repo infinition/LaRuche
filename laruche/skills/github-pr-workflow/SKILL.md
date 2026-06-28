@@ -68,7 +68,7 @@ git commit -m "feat: add JWT-based user authentication
 - Add unit tests for auth flow"
 ```
 
-Conventional Commits format: `type(scope): short description` — types: `feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`, `perf`.
+Conventional Commits format: `type(scope): short description` - types: `feat`, `fix`, `refactor`, `docs`, `test`, `ci`, `chore`, `perf`.
 
 ## 3. Push and Create PR
 
@@ -232,7 +232,7 @@ git branch -d $BRANCH
 
 Merge methods: `"merge"`, `"squash"`, `"rebase"`.
 
-**Enable auto-merge via GraphQL (curl only — REST doesn't support it):**
+**Enable auto-merge via GraphQL (curl only - REST doesn't support it):**
 
 ```bash
 PR_NODE_ID=$(curl -s -H "Authorization: token ${GITHUB_TOKEN}" \

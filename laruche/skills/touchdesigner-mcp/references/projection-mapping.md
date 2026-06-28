@@ -6,7 +6,7 @@ For HUD layouts and on-screen panel grids, see `layout-compositor.md`. For wiref
 
 ---
 
-## Window COMP — Output to a Display
+## Window COMP - Output to a Display
 
 The `windowCOMP` is how TD pushes pixels to a real display.
 
@@ -32,7 +32,7 @@ win.par.location = 'secondary'          # 'primary' | 'secondary' | 'monitor1' |
 
 Or set absolute coordinates using `winoffsetx/y` matched to your OS display layout.
 
-**Always pulse `winopen` — setting params alone doesn't open the window.**
+**Always pulse `winopen` - setting params alone doesn't open the window.**
 
 ---
 
@@ -59,7 +59,7 @@ For ultra-wide single-output spans, use ONE windowCOMP at e.g. 5760×1080 spanni
 
 ## 4-Point Corner Pin (Quad Warp)
 
-The simplest projection mapping primitive — warping a rectangle onto a quadrilateral.
+The simplest projection mapping primitive - warping a rectangle onto a quadrilateral.
 
 ```python
 # Source content
@@ -130,7 +130,7 @@ Per-projector output pass that fades the inside edge to black:
 out vec4 fragColor;
 uniform float uBlendLeft;     // overlap width on left edge (0-0.5, 0=no blend)
 uniform float uBlendRight;
-uniform float uGamma;          // typically 2.2 — perceptual ramp
+uniform float uGamma;          // typically 2.2 - perceptual ramp
 
 void main() {
     vec2 uv = vUV.st;
@@ -155,16 +155,16 @@ For top/bottom blends or cylindrical setups, extend the shader with `uBlendTop` 
 Useful test patterns for aligning projectors. Build a `switchTOP` selecting one of these, route to all projector windows during setup.
 
 ```python
-# Solid white — for brightness/uniformity check
+# Solid white - for brightness/uniformity check
 white = root.create(constantTOP, 'cal_white')
 white.par.colorr = 1.0; white.par.colorg = 1.0; white.par.colorb = 1.0
 
-# Centered crosshair — for keystone alignment
+# Centered crosshair - for keystone alignment
 gridcross = root.create(textTOP, 'cal_cross')
 gridcross.par.text = '+'
 gridcross.par.fontsizex = 200
 
-# Fine grid — for warp/mesh alignment (use rampTOP + math + threshold, or build via GLSL)
+# Fine grid - for warp/mesh alignment (use rampTOP + math + threshold, or build via GLSL)
 # Color bars for projector color calibration
 bars = root.create(rampTOP, 'cal_bars')
 bars.par.type = 'horizontal'
@@ -181,21 +181,21 @@ When debugging a multi-screen setup:
 1. Render a unique color and label per output (`textTOP` saying "LEFT", "CENTER", "RIGHT").
 2. Check that each window is sourcing the correct path: `td_get_operator_info(path='/project1/win_0')`.
 3. Verify display assignment: walk to each projector and confirm visually.
-4. Check resolution: physical projector native res vs. TD output res — mismatches cause scaling artifacts.
-5. Cook flag: `td_get_perf` — if a window's source TOP isn't cooking, the projector shows last frame frozen.
+4. Check resolution: physical projector native res vs. TD output res - mismatches cause scaling artifacts.
+5. Cook flag: `td_get_perf` - if a window's source TOP isn't cooking, the projector shows last frame frozen.
 
 ---
 
 ## Pitfalls
 
-1. **Window won't open** — you forgot `winopen.pulse()`. Setting params alone doesn't open it.
-2. **Wrong display** — `par.location='secondary'` depends on OS display order. Set `winoffsetx/y` to absolute coords as a more reliable override.
-3. **Cursor visible** — set `par.cursor = False` BEFORE opening, or close+reopen.
-4. **Black projection** — usually a cooking issue. Verify `final_out` TOP is cooking via `td_get_perf`. Check `td_get_errors` recursively from `/`.
-5. **Tearing / vsync** — `windowCOMP` honors `par.vsync`. For projection always set `vsync='vsync'` (default). Tearing means GPU is over-budget — reduce render resolution.
-6. **Aspect mismatch** — projector native is often 1920×1200 (16:10) not 1080. Use `justify='fitaspect'` or render at native projector res.
-7. **Non-Commercial license** — caps total resolution at 1280×1280. For real installation work you need Commercial. Pro license adds 4K+.
-8. **Multiple monitors on macOS** — `windowCOMP` honors macOS Spaces. Disable Spaces or pin TD to a specific display in System Settings before showtime.
+1. **Window won't open** - you forgot `winopen.pulse()`. Setting params alone doesn't open it.
+2. **Wrong display** - `par.location='secondary'` depends on OS display order. Set `winoffsetx/y` to absolute coords as a more reliable override.
+3. **Cursor visible** - set `par.cursor = False` BEFORE opening, or close+reopen.
+4. **Black projection** - usually a cooking issue. Verify `final_out` TOP is cooking via `td_get_perf`. Check `td_get_errors` recursively from `/`.
+5. **Tearing / vsync** - `windowCOMP` honors `par.vsync`. For projection always set `vsync='vsync'` (default). Tearing means GPU is over-budget - reduce render resolution.
+6. **Aspect mismatch** - projector native is often 1920×1200 (16:10) not 1080. Use `justify='fitaspect'` or render at native projector res.
+7. **Non-Commercial license** - caps total resolution at 1280×1280. For real installation work you need Commercial. Pro license adds 4K+.
+8. **Multiple monitors on macOS** - `windowCOMP` honors macOS Spaces. Disable Spaces or pin TD to a specific display in System Settings before showtime.
 
 ---
 

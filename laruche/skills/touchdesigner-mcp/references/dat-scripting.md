@@ -1,6 +1,6 @@
 # DAT-Based Scripting Reference
 
-TD's event/callback model — Python that runs in response to network events. The full set of "Execute DATs" plus their idiomatic patterns.
+TD's event/callback model - Python that runs in response to network events. The full set of "Execute DATs" plus their idiomatic patterns.
 
 For arbitrary Python execution (not callback-based), see `python-api.md`. For the MCP's `td_execute_python` tool, see `mcp-tools.md`.
 
@@ -23,7 +23,7 @@ All have a docked DAT with predefined callback functions. You only fill in the b
 
 ---
 
-## chopExecuteDAT — Numeric Triggers
+## chopExecuteDAT - Numeric Triggers
 
 ```python
 ce = root.create(chopExecuteDAT, 'kick_handler')
@@ -56,13 +56,13 @@ def valueChange(channel, sampleIndex, val, prev):
     return
 ```
 
-`channel` is a `Channel` object — `.name`, `.owner`, `.vals[]`. Use `channel.name == 'chan1'` to filter.
+`channel` is a `Channel` object - `.name`, `.owner`, `.vals[]`. Use `channel.name == 'chan1'` to filter.
 
 **Threshold-based custom triggers:** wire the source CHOP through a `triggerCHOP` first to get clean 0/1 pulses, then watch with `offtoon`.
 
 ---
 
-## datExecuteDAT — Table/Text Changes
+## datExecuteDAT - Table/Text Changes
 
 ```python
 de = root.create(datExecuteDAT, 'api_response')
@@ -97,11 +97,11 @@ def onCellChange(dat, cells, prev):
     return
 ```
 
-`debug()` prints to the textport — readable via `td_read_textport`.
+`debug()` prints to the textport - readable via `td_read_textport`.
 
 ---
 
-## parameterExecuteDAT — Param Changes & Pulse
+## parameterExecuteDAT - Param Changes & Pulse
 
 ```python
 pe = root.create(parameterExecuteDAT, 'comp_params')
@@ -141,7 +141,7 @@ def onModeChange(par, val, prev):
 
 ---
 
-## panelExecuteDAT — UI Events
+## panelExecuteDAT - UI Events
 
 For interactive control surfaces. See `panel-ui.md` for the full panel COMP context.
 
@@ -178,7 +178,7 @@ def onClick(panelValue):
 
 ---
 
-## opExecuteDAT — Operator Lifecycle
+## opExecuteDAT - Operator Lifecycle
 
 Watches creation/deletion/renaming of operators in a parent COMP.
 
@@ -213,7 +213,7 @@ Useful for dev-time scaffolding (auto-create downstream nullTOPs, auto-name conv
 
 ---
 
-## executeDAT — Project Lifecycle & Per-Frame
+## executeDAT - Project Lifecycle & Per-Frame
 
 The catch-all. Gets you hooks into project start, save, load, frame-start, frame-end.
 
@@ -305,7 +305,7 @@ def onTableChange(dat):
     return
 ```
 
-Visuals just reference `op('external_state')['temperature']` — they update live.
+Visuals just reference `op('external_state')['temperature']` - they update live.
 
 ---
 
@@ -326,16 +326,16 @@ def onDestroy(opDestroyed):
 
 ## Pitfalls
 
-1. **Callbacks crash silently** — exceptions print to the textport but don't show up in the UI. Always `td_clear_textport` before debugging, then `td_read_textport` after.
-2. **`debug()` vs `print()`** — both write to textport, but `debug()` includes the file/line of the calling DAT. Prefer `debug()` for scripts.
-3. **`val` is the new value, `prev` is old** — easy to swap. Always: `def offToOn(channel, sampleIndex, val, prev)`. Check parameter order in TD docs if confused.
-4. **`whileOn` and `valueChange` are per-frame** — heavy. Avoid unless absolutely needed. Drive via expressions instead.
-5. **Callbacks don't run during cooking-paused state** — if the parent COMP has `allowCooking=False`, callbacks freeze. Useful for "disable me" toggles.
-6. **`par` vs `panelValue`** — parameterExecuteDAT gives `par` (a Par object), panelExecuteDAT gives `panelValue` (also a Par-like object). Both have `.name` and `.eval()` but their context differs.
-7. **`opExecuteDAT` fires for itself** — when you create an opExecuteDAT, it can fire `onCreate` for itself if `par.create=True` and parent matches. Filter by `if opCreated == me: return`.
-8. **Reload behavior** — when reloading an extension (`td_reinit_extension`), all callback DATs reset their internal state. Module-level vars are lost. Persist state in tableDATs or the docked DAT itself, not in module globals.
-9. **Cooking dependencies** — if a callback writes to an op that's upstream of the callback's source, you get a cooking loop. TD warns about it but doesn't always block. Keep dataflow one-directional.
-10. **Active flag** — every Execute DAT has `par.active`. False = silent. Easy to toggle for testing without deleting wiring.
+1. **Callbacks crash silently** - exceptions print to the textport but don't show up in the UI. Always `td_clear_textport` before debugging, then `td_read_textport` after.
+2. **`debug()` vs `print()`** - both write to textport, but `debug()` includes the file/line of the calling DAT. Prefer `debug()` for scripts.
+3. **`val` is the new value, `prev` is old** - easy to swap. Always: `def offToOn(channel, sampleIndex, val, prev)`. Check parameter order in TD docs if confused.
+4. **`whileOn` and `valueChange` are per-frame** - heavy. Avoid unless absolutely needed. Drive via expressions instead.
+5. **Callbacks don't run during cooking-paused state** - if the parent COMP has `allowCooking=False`, callbacks freeze. Useful for "disable me" toggles.
+6. **`par` vs `panelValue`** - parameterExecuteDAT gives `par` (a Par object), panelExecuteDAT gives `panelValue` (also a Par-like object). Both have `.name` and `.eval()` but their context differs.
+7. **`opExecuteDAT` fires for itself** - when you create an opExecuteDAT, it can fire `onCreate` for itself if `par.create=True` and parent matches. Filter by `if opCreated == me: return`.
+8. **Reload behavior** - when reloading an extension (`td_reinit_extension`), all callback DATs reset their internal state. Module-level vars are lost. Persist state in tableDATs or the docked DAT itself, not in module globals.
+9. **Cooking dependencies** - if a callback writes to an op that's upstream of the callback's source, you get a cooking loop. TD warns about it but doesn't always block. Keep dataflow one-directional.
+10. **Active flag** - every Execute DAT has `par.active`. False = silent. Easy to toggle for testing without deleting wiring.
 
 ---
 

@@ -16,11 +16,11 @@ metadata:
 
 # GIF Search (Tenor API)
 
-Search and download GIFs via the Tenor v2 API using `curl` + `jq`. Run all commands with `shell_exec`. The secret `TENOR_API_KEY` is injected automatically from the LaRuche vault — no manual export needed.
+Search and download GIFs via the Tenor v2 API using `curl` + `jq`. Run all commands with `shell_exec`. The secret `TENOR_API_KEY` is injected automatically from the LaRuche vault - no manual export needed.
 
 Get a free API key at https://developers.google.com/tenor/guides/quickstart.
 
-## Search — get URLs
+## Search - get URLs
 
 ```bash
 # Full-quality GIFs
@@ -73,5 +73,5 @@ curl -s "https://tenor.googleapis.com/v2/search?q=cat&limit=3&key=${TENOR_API_KE
 
 - URL-encode queries: spaces → `+`, special chars → `%XX`.
 - Embed GIFs directly in markdown: `![alt](url)`.
-- If `${TENOR_API_KEY}` is missing or invalid, the API returns 403 — verify the secret is set in the LaRuche vault.
+- If `${TENOR_API_KEY}` is missing or invalid, the API returns 403 - verify the secret is set in the LaRuche vault.
 - Prefer `tinygif` over `gif` for embedding in chat to save bandwidth.

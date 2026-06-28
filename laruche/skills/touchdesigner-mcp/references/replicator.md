@@ -39,7 +39,7 @@ data.appendRow(['Midnight', 0.0, 0.1, 0.4])
 data.appendRow(['Storm', 0.3, 0.3, 0.5])
 data.appendRow(['Forest', 0.0, 0.5, 0.2])
 
-# 3. Replicator — points at template + data
+# 3. Replicator - points at template + data
 rep = root.create(replicatorCOMP, 'scene_buttons')
 rep.par.template = template.path
 rep.par.opfromdat = data.path
@@ -75,7 +75,7 @@ Or use parameter expressions referencing `digits` (the per-clone index, availabl
 # par.value0.expr = "op('../scene_data')[me.digits + 1, 'value']"
 ```
 
-`me.digits` resolves to the row index of the current clone. This is the cleanest way for static reference patterns — no callback needed.
+`me.digits` resolves to the row index of the current clone. This is the cleanest way for static reference patterns - no callback needed.
 
 ---
 
@@ -174,15 +174,15 @@ If you'll only ever build the network once, prefer a Python loop with `td_execut
 
 ## Pitfalls
 
-1. **Header row** — `tableDAT` rows are 0-indexed. If you have a header, your first data row is index 1. Off-by-one bugs are common in callbacks.
-2. **`namefromdatname` column missing** — replicator silently uses `digits` (numeric suffix) names. Buttons end up named `1`, `2`, `3` instead of meaningful names. Set `par.namefromdatname` explicitly.
-3. **Template lives in network** — the template OP is itself a real network node. Don't connect things downstream of it directly; connect to the clones (or use a `nullCOMP` between).
-4. **Recreate-on-change wipes state** — toggles, slider positions, and uncached data inside clones are lost on each regeneration. Use `recreatemissing` to preserve.
-5. **`onReplicate` doesn't fire on edit** — only fires when the clone set changes. Editing a value WITHIN an existing row doesn't re-trigger. Use `parameterExecuteDAT` or expressions for per-cell live updates.
-6. **Custom params on clones** — pages added in the template propagate. Pages added in `onReplicate` don't survive the next regeneration. Always add custom pages on the template, not the clone.
-7. **Cooking storms** — adding many rows fast triggers many clone events. Bundle adds via Python and call `data.cook(force=True)` once at the end.
-8. **`me.digits` outside replicator children** — `me.digits` only resolves inside an op that's a descendant of the replicator. Don't reference it in unrelated networks.
-9. **Cross-clone references** — referencing a sibling clone via relative path works from inside a clone (`op('../OtherClone/x')`), but breaks if names change. Prefer absolute paths via the data table.
+1. **Header row** - `tableDAT` rows are 0-indexed. If you have a header, your first data row is index 1. Off-by-one bugs are common in callbacks.
+2. **`namefromdatname` column missing** - replicator silently uses `digits` (numeric suffix) names. Buttons end up named `1`, `2`, `3` instead of meaningful names. Set `par.namefromdatname` explicitly.
+3. **Template lives in network** - the template OP is itself a real network node. Don't connect things downstream of it directly; connect to the clones (or use a `nullCOMP` between).
+4. **Recreate-on-change wipes state** - toggles, slider positions, and uncached data inside clones are lost on each regeneration. Use `recreatemissing` to preserve.
+5. **`onReplicate` doesn't fire on edit** - only fires when the clone set changes. Editing a value WITHIN an existing row doesn't re-trigger. Use `parameterExecuteDAT` or expressions for per-cell live updates.
+6. **Custom params on clones** - pages added in the template propagate. Pages added in `onReplicate` don't survive the next regeneration. Always add custom pages on the template, not the clone.
+7. **Cooking storms** - adding many rows fast triggers many clone events. Bundle adds via Python and call `data.cook(force=True)` once at the end.
+8. **`me.digits` outside replicator children** - `me.digits` only resolves inside an op that's a descendant of the replicator. Don't reference it in unrelated networks.
+9. **Cross-clone references** - referencing a sibling clone via relative path works from inside a clone (`op('../OtherClone/x')`), but breaks if names change. Prefer absolute paths via the data table.
 
 ---
 

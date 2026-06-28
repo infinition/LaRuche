@@ -16,7 +16,7 @@ Before any search, lock the question:
 - 3–5 domain keywords (e.g. "World Models", "RLHF", "in-context learning").
 - Target: paper count (5–15), recency window (default: 18 months), output format (inline / file / memory).
 
-## 2. Search — Broad then Narrow
+## 2. Search - Broad then Narrow
 
 ```
 web_search("<keywords> site:arxiv.org OR filetype:pdf", n=10)
@@ -48,7 +48,7 @@ For each major claim:
 ## 5. Write Report
 
 ```markdown
-# <Topic> — Research Report (<YYYY-MM-DD>)
+# <Topic> - Research Report (<YYYY-MM-DD>)
 
 ## Overview
 <2–3 sentence summary>
@@ -57,7 +57,7 @@ For each major claim:
 - <finding> [Source: <title>, <url>]
 
 ## Conflicts & Uncertainties
-- <claim A> vs <claim B> — unresolved
+- <claim A> vs <claim B> - unresolved
 
 ## Sources & Limitations
 | # | Title | URL | Date |
@@ -75,7 +75,7 @@ memory_write(key="research/<topic>", value=summary_2_sentences)
 ## Pitfalls
 
 - **Abstracts only**: always `read_extract` or `web_fetch` the full paper for load-bearing claims.
-- **arXiv versioning**: check submission date AND latest version — v1 vs vN can differ significantly.
+- **arXiv versioning**: check submission date AND latest version - v1 vs vN can differ significantly.
 - **Query vagueness**: include domain terms + year; generic queries return noise.
-- **Snippet trap**: `web_search` returns snippets — always follow up with `web_fetch` before citing.
+- **Snippet trap**: `web_search` returns snippets - always follow up with `web_fetch` before citing.
 - **`web_deep_search` cost**: use only for sub-questions where shallow search fails; it is slower.

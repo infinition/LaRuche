@@ -19,8 +19,8 @@ metadata:
 
 Two execution paths. Pick one:
 
-- **`ntn` CLI** — preferred on macOS/Linux (shorter syntax, one-liner file uploads, required for Workers).
-- **HTTP + curl** — works everywhere including Windows; default when `ntn` is not installed.
+- **`ntn` CLI** - preferred on macOS/Linux (shorter syntax, one-liner file uploads, required for Workers).
+- **HTTP + curl** - works everywhere including Windows; default when `ntn` is not installed.
 
 Same integration token (`${NOTION_API_KEY}`) works for both.
 
@@ -33,7 +33,7 @@ Same integration token (`${NOTION_API_KEY}`) works for both.
 3. Store as `NOTION_API_KEY` in LaRuche's secrets vault.
 4. **Share target pages/databases with the integration**: page `...` menu → `Connect to` → your integration. Without this, the API returns 404 even though the page exists.
 
-**2. Install `ntn` (macOS / Linux only — skip on Windows until native support ships)**
+**2. Install `ntn` (macOS / Linux only - skip on Windows until native support ships)**
 
 ```bash
 curl -fsSL https://ntn.dev | bash
@@ -60,7 +60,7 @@ fi
 ## API Notes
 
 - `Notion-Version: 2025-09-03` is required on all HTTP requests (`ntn` sets it automatically).
-- In API version 2025-09-03, "databases" are **data sources** — use `/data_sources/` endpoints for queries.
+- In API version 2025-09-03, "databases" are **data sources** - use `/data_sources/` endpoints for queries.
 - Each database has two IDs: `database_id` (for creating pages) and `data_source_id` (for querying).
 - Page/database IDs are UUIDs; dashes are optional.
 - Rate limit: ~3 req/s. The CLI does not bypass this.
@@ -68,7 +68,7 @@ fi
 - Always pass `-s` to curl to suppress progress bars.
 - Check for API errors: `jq -e '.object == "error"'` on the response; `.code` and `.message` give details.
 
-## Path A — `ntn` CLI
+## Path A - `ntn` CLI
 
 ```bash
 # Search
@@ -103,7 +103,7 @@ ntn api v1/pages \
 ntn api v1/data_sources/{data_source_id}/query -X POST \
   filter[property]=Status filter[select][equals]=Active
 
-# Complex query (multiple filters, sorts) — pipe JSON
+# Complex query (multiple filters, sorts) - pipe JSON
 echo '{"filter":{"property":"Status","select":{"equals":"Active"}},"sorts":[{"property":"Date","direction":"descending"}]}' | \
   ntn api v1/data_sources/{data_source_id}/query -X POST --json -
 
@@ -115,7 +115,7 @@ ntn api v1/pages/{page_id} -X PATCH \
 ntn api v1/blocks/{page_id}/children -X PATCH \
   'children:=[{"object":"block","type":"paragraph","paragraph":{"rich_text":[{"text":{"content":"Hello"}}]}}]'
 
-# File upload (one-liner — biggest ntn advantage)
+# File upload (one-liner - biggest ntn advantage)
 ntn files create < photo.png
 ntn files create --external-url https://example.com/photo.png
 ntn files list
@@ -129,7 +129,7 @@ ntn api v1/data_sources \
 
 **ntn syntax:** `key=value` (string), `key[nested]=value` (nested object), `key:=value` (boolean/number/null/array).
 
-## Path B — HTTP + curl (cross-platform)
+## Path B - HTTP + curl (cross-platform)
 
 Base headers for every request (set as shell vars to reduce repetition):
 ```bash
@@ -251,7 +251,7 @@ Colors: `gray brown orange yellow green blue purple pink red` + `*_bg` variants 
 
 Headings 5/6 collapse to H4. Multiple `>` lines = separate quote blocks; use `<br>` inside a single `>` for multi-line quotes.
 
-## Notion Workers (advanced — requires `ntn`, Business/Enterprise plan)
+## Notion Workers (advanced - requires `ntn`, Business/Enterprise plan)
 
 Workers = TypeScript programs Notion hosts. Capabilities: **Syncs** (pull external data on schedule), **Tools** (callable from Notion Custom Agents), **Webhooks** (receive HTTP events).
 
@@ -264,7 +264,7 @@ cd my-worker
 ntn workers deploy --name my-worker
 ```
 
-`src/index.ts` — minimal tool:
+`src/index.ts` - minimal tool:
 ```typescript
 import { Worker } from "@notionhq/workers";
 const worker = new Worker();
@@ -307,11 +307,11 @@ Docs: https://developers.notion.com/workers
 
 ## Pitfalls
 
-- **404 on valid page**: integration not connected to that page — go to `...` → `Connect to`.
+- **404 on valid page**: integration not connected to that page - go to `...` → `Connect to`.
 - **`ntn` on Windows**: not yet supported natively; use curl or WSL2.
 - **`data_source_id` vs `database_id`**: use `database_id` when creating pages, `data_source_id` when querying.
 - **`is_inline: true`**: required when creating databases embedded inside a page.
-- **View filters**: cannot be set via API — UI-only.
+- **View filters**: cannot be set via API - UI-only.
 - **Workers plan gate**: deploy requires Business or Enterprise; scaffolding and local testing work on any plan.
-- **API errors**: response body `{"object":"error","code":"...","message":"..."}` — always check `jq '.object'` before processing results.
+- **API errors**: response body `{"object":"error","code":"...","message":"..."}` - always check `jq '.object'` before processing results.
 - **Notion MCP server**: LaRuche can wire it via `tool_call` / MCP tools for streaming Notion access; the curl/ntn paths above are sufficient for most one-shot tasks.

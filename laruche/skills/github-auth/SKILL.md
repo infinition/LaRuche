@@ -17,10 +17,10 @@ metadata:
 
 Sets up authentication for GitHub repositories, PRs, issues, and CI. Two paths:
 
-- **`git` (always available)** — HTTPS personal access tokens or SSH keys
-- **`gh` CLI (if installed)** — richer API access, simpler auth flow
+- **`git` (always available)** - HTTPS personal access tokens or SSH keys
+- **`gh` CLI (if installed)** - richer API access, simpler auth flow
 
-`GITHUB_TOKEN` is provided by the LaRuche secrets vault as `${GITHUB_TOKEN}` — never read from a `.env` file.
+`GITHUB_TOKEN` is provided by the LaRuche secrets vault as `${GITHUB_TOKEN}` - never read from a `.env` file.
 
 ## Detection Flow
 
@@ -55,11 +55,11 @@ source skills/github-auth/scripts/gh-env.sh
 Direct user to: **https://github.com/settings/tokens** → "Generate new token (classic)"
 
 Required scopes:
-- `repo` — read/write/push/PRs
-- `workflow` — trigger GitHub Actions
-- `read:org` — if working with org repos
+- `repo` - read/write/push/PRs
+- `workflow` - trigger GitHub Actions
+- `read:org` - if working with org repos
 
-Set expiration (90 days recommended). Copy the token — shown only once.
+Set expiration (90 days recommended). Copy the token - shown only once.
 
 **Step 2: Configure git credential storage**
 
@@ -67,7 +67,7 @@ Set expiration (90 days recommended). Copy the token — shown only once.
 # Save credentials to disk (persistent)
 git config --global credential.helper store
 
-# Trigger auth — enter GitHub username + token (NOT password)
+# Trigger auth - enter GitHub username + token (NOT password)
 git ls-remote https://github.com/<username>/<any-repo>.git
 ```
 
@@ -146,7 +146,7 @@ gh auth login
 # Select: GitHub.com → HTTPS → authenticate via browser
 ```
 
-**Token-based (headless/SSH servers) — use vault token:**
+**Token-based (headless/SSH servers) - use vault token:**
 
 ```bash
 echo "${GITHUB_TOKEN}" | gh auth login --with-token
@@ -182,10 +182,10 @@ grep "github.com" ~/.git-credentials 2>/dev/null | head -1 \
 
 | Problem | Solution |
 |---------|----------|
-| `git push` asks for password | GitHub disabled password auth — use a PAT as the password, or switch to SSH |
-| `remote: Permission to X denied` | Token lacks `repo` scope — regenerate with correct scopes |
-| `fatal: Authentication failed` | Stale cached credentials — run `git credential reject` then re-authenticate |
+| `git push` asks for password | GitHub disabled password auth - use a PAT as the password, or switch to SSH |
+| `remote: Permission to X denied` | Token lacks `repo` scope - regenerate with correct scopes |
+| `fatal: Authentication failed` | Stale cached credentials - run `git credential reject` then re-authenticate |
 | `ssh: connect to host github.com port 22: Connection refused` | SSH over HTTPS port: add `Host github.com` / `Hostname ssh.github.com` / `Port 443` to `~/.ssh/config` |
-| Credentials not persisting | Check `git config --global credential.helper` — must be `store` or `cache` |
+| Credentials not persisting | Check `git config --global credential.helper` - must be `store` or `cache` |
 | Multiple GitHub accounts | SSH with different keys per host alias in `~/.ssh/config`, or per-repo credential URLs |
-| `gh: command not found` + no sudo | Use Method 1 — no installation needed |
+| `gh: command not found` + no sudo | Use Method 1 - no installation needed |

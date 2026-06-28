@@ -27,7 +27,7 @@ uv pip install nano-pdf
 pip install nano-pdf
 ```
 
-The tool uses an LLM under the hood — run `nano-pdf --help` to see how to configure your API key.
+The tool uses an LLM under the hood - run `nano-pdf --help` to see how to configure your API key.
 
 ## Usage
 
@@ -50,6 +50,6 @@ nano-pdf edit contract.pdf 2 "Change the client name from 'Acme Corp' to 'Acme I
 
 ## Notes
 
-- Page numbers may be 0-based or 1-based depending on version — if the edit hits the wrong page, retry with ±1
+- Page numbers may be 0-based or 1-based depending on version - if the edit hits the wrong page, retry with ±1
 - Always verify the output PDF after editing (check file size with `shell_exec`, or open it)
 - Works well for text changes; complex layout modifications may require a different approach

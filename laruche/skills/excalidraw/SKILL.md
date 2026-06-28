@@ -17,7 +17,7 @@ metadata:
 
 # Excalidraw Diagram Skill
 
-Create diagrams by writing standard Excalidraw element JSON and saving as `.excalidraw` files. Drag-and-drop onto [excalidraw.com](https://excalidraw.com) for viewing and editing. No accounts, no API keys, no rendering libraries — just JSON.
+Create diagrams by writing standard Excalidraw element JSON and saving as `.excalidraw` files. Drag-and-drop onto [excalidraw.com](https://excalidraw.com) for viewing and editing. No accounts, no API keys, no rendering libraries - just JSON.
 
 ## When to Use
 
@@ -25,7 +25,7 @@ Generate `.excalidraw` files for architecture diagrams, flowcharts, sequence dia
 
 ## Workflow
 
-1. **Write the elements JSON** — an array of Excalidraw element objects
+1. **Write the elements JSON** - an array of Excalidraw element objects
 2. **Save the file** using `file_write` to create a `.excalidraw` file
 3. **Optionally upload** for a shareable link using `scripts/upload.py` via `shell_exec`
 
@@ -61,7 +61,7 @@ Uploads to excalidraw.com (no account needed), prints a shareable URL. Requires:
 ### Required Fields (all elements)
 `type`, `id` (unique string), `x`, `y`, `width`, `height`
 
-### Defaults (skip — applied automatically)
+### Defaults (skip - applied automatically)
 - `strokeColor`: `"#1e1e1e"`
 - `backgroundColor`: `"transparent"`
 - `fillStyle`: `"solid"`
@@ -90,7 +90,7 @@ Uploads to excalidraw.com (no account needed), prints a shareable URL. Requires:
 
 **Labeled shape (container binding)**
 
-> **WARNING:** Do NOT use `"label": { "text": "..." }` on shapes — it is silently ignored, producing blank shapes. Use container binding below.
+> **WARNING:** Do NOT use `"label": { "text": "..." }` on shapes - it is silently ignored, producing blank shapes. Use container binding below.
 
 Shape needs `boundElements` listing the text; text needs `containerId` pointing back:
 ```json
@@ -117,7 +117,7 @@ Shape needs `boundElements` listing the text; text needs `containerId` pointing 
   "containerId": "a1", "originalText": "connects", "autoResize": true }
 ```
 
-**Standalone text** (titles and annotations — no container):
+**Standalone text** (titles and annotations - no container):
 ```json
 { "type": "text", "id": "t1", "x": 150, "y": 138, "text": "Hello", "fontSize": 20,
   "fontFamily": 1, "strokeColor": "#1e1e1e", "originalText": "Hello", "autoResize": true }
@@ -179,7 +179,7 @@ Shape needs `boundElements` listing the text; text needs `containerId` pointing 
 
 ### Tips
 - Use the color palette consistently
-- **Text contrast is CRITICAL** — never light gray on white. Minimum text color on white: `#757575`
-- Do NOT use emoji in text — they don't render in Excalidraw's font
+- **Text contrast is CRITICAL** - never light gray on white. Minimum text color on white: `#757575`
+- Do NOT use emoji in text - they don't render in Excalidraw's font
 - For dark mode diagrams: see `references/dark-mode.md`
 - For larger examples: see `references/examples.md`

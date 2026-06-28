@@ -63,7 +63,7 @@ struct TDTexInfo {
   vec4 depth;
 };
 
-// Output (always use this — handles sRGB correctly)
+// Output (always use this - handles sRGB correctly)
 fragColor = TDOutputSwizzle(color);
 
 // Instancing (MAT only)
@@ -73,9 +73,9 @@ int TDInstanceID();
 ## glslTOP
 
 Docked DATs created automatically:
-- `glsl1_pixel` — Pixel shader
-- `glsl1_compute` — Compute shader
-- `glsl1_info` — Compile info
+- `glsl1_pixel` - Pixel shader
+- `glsl1_compute` - Compute shader
+- `glsl1_info` - Compile info
 
 ### Pixel Shader Template
 
@@ -109,9 +109,9 @@ print(op('/project1/glsl1_info').text)
 ## glslMAT
 
 Docked DATs:
-- `glslmat1_vertex` — Vertex shader (param: `vdat`)
-- `glslmat1_pixel` — Pixel shader (param: `pdat`)
-- `glslmat1_info` — Compile info
+- `glslmat1_vertex` - Vertex shader (param: `vdat`)
+- `glslmat1_pixel` - Pixel shader (param: `pdat`)
+- `glslmat1_info` - Compile info
 
 Note: MAT uses `vdat`/`pdat`, TOP uses `vertexdat`/`pixeldat`.
 

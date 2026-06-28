@@ -26,7 +26,7 @@ Example queries for "AI agents":
 Collect 6–10 candidate URLs. Drop product landing pages, press releases, and articles with no data or forecasts.
 
 ### 2. Content Extraction
-For the 4–6 most relevant URLs, extract full content — never rely on snippets:
+For the 4–6 most relevant URLs, extract full content - never rely on snippets:
 
 ```
 read_extract(url)          # preferred: clean article text, strips nav/ads
@@ -39,8 +39,8 @@ Use `read_extract` first; fall back to `web_fetch(render=true)` if the page is J
 Scan extracted content for:
 - **Recurring themes** across sources (convergence = higher confidence)
 - **Concrete timelines and forecasts** with named sources
-- **Conflicting claims** — note disagreements explicitly and flag which sources disagree
-- **Forecasts older than 18 months** — mark as potentially stale
+- **Conflicting claims** - note disagreements explicitly and flag which sources disagree
+- **Forecasts older than 18 months** - mark as potentially stale
 
 ### 4. Persist Key Findings (optional)
 If the research will be referenced later, store a summary:
@@ -53,17 +53,17 @@ memory_write(key="research/<domain>/<YYYY-MM>", value="<summary + source list>")
 Output structure:
 
 ```markdown
-## [Domain] — Future Trends Report
+## [Domain] - Future Trends Report
 
 ### Key Trends
-1. [Trend] — [Evidence] — Source: [Title](URL)
+1. [Trend] - [Evidence] - Source: [Title](URL)
 2. ...
 
 ### Emerging Risks / Open Questions
 - ...
 
 ### Conflicting Views
-- [Claim A] (Source X) vs [Claim B] (Source Y) — unresolved
+- [Claim A] (Source X) vs [Claim B] (Source Y) - unresolved
 
 ### Sources
 | Title | URL | Authority | Date |

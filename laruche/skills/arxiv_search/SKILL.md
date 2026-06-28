@@ -8,7 +8,7 @@ scripts: []
 
 # arXiv Research
 
-Search and retrieve academic papers from arXiv via their free REST API. No API key, no dependencies — just curl and Python stdlib.
+Search and retrieve academic papers from arXiv via their free REST API. No API key, no dependencies - just curl and Python stdlib.
 
 ## Quick Reference
 
@@ -122,7 +122,7 @@ print('}')
 ## Reading Paper Content
 
 ```
-# Abstract page (fast — metadata + abstract)
+# Abstract page (fast - metadata + abstract)
 read_extract(urls=["https://arxiv.org/abs/2402.03300"])
 
 # Full paper (PDF → text)
@@ -153,7 +153,7 @@ Full list: https://arxiv.org/category_taxonomy
 
 ## Semantic Scholar (Citations, Related Papers, Author Profiles)
 
-arXiv has no citation data. Use the **Semantic Scholar API** — free, no key needed (1 req/sec), returns JSON.
+arXiv has no citation data. Use the **Semantic Scholar API** - free, no key needed (1 req/sec), returns JSON.
 
 ### Paper details + citation counts
 
@@ -212,13 +212,13 @@ curl -s "https://api.semanticscholar.org/graph/v1/author/search?query=Yann+LeCun
 | API | Rate | Auth |
 |-----|------|------|
 | arXiv | ~1 req / 3 seconds | None needed |
-| Semantic Scholar | 1 req / second | None (100/sec with free API key — sign up at semanticscholar.org/product/api, then pass `-H "x-api-key: ${SEMANTIC_SCHOLAR_API_KEY}"`) |
+| Semantic Scholar | 1 req / second | None (100/sec with free API key - sign up at semanticscholar.org/product/api, then pass `-H "x-api-key: ${SEMANTIC_SCHOLAR_API_KEY}"`) |
 
 ## Pitfalls
 
-- arXiv returns **Atom XML** — pipe through the python3 snippet above; raw XML is unreadable
-- Semantic Scholar returns **JSON** — pipe through `python3 -m json.tool`
-- arXiv IDs: old format (`hep-th/0601001`) vs new (`2402.03300`) — both work in `id_list`
+- arXiv returns **Atom XML** - pipe through the python3 snippet above; raw XML is unreadable
+- Semantic Scholar returns **JSON** - pipe through `python3 -m json.tool`
+- arXiv IDs: old format (`hep-th/0601001`) vs new (`2402.03300`) - both work in `id_list`
 - `arxiv.org/abs/1706.03762` → latest version; `arxiv.org/abs/1706.03762v1` → immutable version. **Preserve the version suffix in citations** to prevent citation drift
 - The API `<id>` field returns the versioned URL (e.g., `http://arxiv.org/abs/1706.03762v7`)
-- **Withdrawn papers**: `<summary>` will contain "withdrawn" or "retracted" — check before treating as valid
+- **Withdrawn papers**: `<summary>` will contain "withdrawn" or "retracted" - check before treating as valid

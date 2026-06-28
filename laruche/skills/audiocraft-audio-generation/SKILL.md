@@ -26,7 +26,7 @@ pip install audiocraft torch torchaudio
 pip install git+https://github.com/facebookresearch/audiocraft.git
 ```
 
-Models are cached in `~/.cache/huggingface/hub/` on first load — subsequent runs skip the download.
+Models are cached in `~/.cache/huggingface/hub/` on first load - subsequent runs skip the download.
 
 ## Model variants
 
@@ -77,7 +77,7 @@ for i, audio in enumerate(wav):
     torchaudio.save(f"music_{i}.wav", audio.cpu(), sample_rate=32000)
 ```
 
-**Batch all prompts in a single `generate()` call — much faster than looping.**
+**Batch all prompts in a single `generate()` call - much faster than looping.**
 
 ## Melody-conditioned generation
 

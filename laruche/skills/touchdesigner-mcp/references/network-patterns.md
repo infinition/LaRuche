@@ -148,7 +148,7 @@ resamp.par.timeslice = True
 resamp.par.rate = 256
 
 chop2top = root.create(choptoTOP, 'spectrum_tex')
-chop2top.par.chop = resamp  # CHOP To TOP has NO input connectors — use par.chop reference
+chop2top.par.chop = resamp  # CHOP To TOP has NO input connectors - use par.chop reference
 
 # Audio output (hear the music)
 aout = root.create(audiodeviceoutCHOP, 'audio_out')
@@ -156,7 +156,7 @@ audio.outputConnectors[0].connect(aout.inputConnectors[0])
 result = 'audio chain ok'
 """)
 
-# Step 2: Time driver (MUST be rgba32float — see pitfalls #6)
+# Step 2: Time driver (MUST be rgba32float - see pitfalls #6)
 # td_execute_python script:
 td_execute_python(code="""
 root = op('/project1')
@@ -217,7 +217,7 @@ vec3 palette(float t) {
 
 void main() {
     // Input 0 = time (1x1 rgba32float constant)
-    // Input 1 = audio spectrum (256x2 CHOP To TOP, stereo — sample at y=0.25 for first channel)
+    // Input 1 = audio spectrum (256x2 CHOP To TOP, stereo - sample at y=0.25 for first channel)
     vec4 td = texture(sTD2DInputs[0], vec2(0.5));
     float t = td.r + td.g * 1000.0;
 
@@ -250,7 +250,7 @@ void main() {
 ```
 
 **Key insights from testing:**
-- `spectrum_tex` (CHOP To TOP) produces a 256x2 texture — x position = frequency, y=0.25 for first channel
+- `spectrum_tex` (CHOP To TOP) produces a 256x2 texture - x position = frequency, y=0.25 for first channel
 - Sampling at `vec2(0.05, 0.0)` gets bass, `vec2(0.65, 0.0)` gets treble
 - Sampling based on pixel distance (`d * 0.5`) makes inner fractal react to bass, outer to treble
 - `bass * 0.3` in the `fract()` zoom makes the fractal breathe with kicks
@@ -260,7 +260,7 @@ void main() {
 
 ### Pattern 4: Feedback Loop with Transform
 
-Classic generative technique — texture evolves through recursive transformation.
+Classic generative technique - texture evolves through recursive transformation.
 
 ```
 Noise TOP -> Composite TOP -> Level TOP -> Null TOP (out)
@@ -456,7 +456,7 @@ op('/project1/overlay').outputConnectors[0].connect(op('/project1/out'))
 
 ### Pattern 8: Video Recording
 
-Record the output to a file. **H.264/H.265 require a Commercial license** — use Motion JPEG (`mjpa`) on Non-Commercial.
+Record the output to a file. **H.264/H.265 require a Commercial license** - use Motion JPEG (`mjpa`) on Non-Commercial.
 
 ```
 [any TOP chain] -> Null TOP -> Movie File Out TOP
@@ -473,9 +473,9 @@ null_out.outputConnectors[0].connect(rec.inputConnectors[0])
 
 rec.par.type = 'movie'
 rec.par.file = '/tmp/output.mov'
-rec.par.videocodec = 'mjpa'  # Motion JPEG — works on Non-Commercial
+rec.par.videocodec = 'mjpa'  # Motion JPEG - works on Non-Commercial
 
-# Start recording (par.record is a toggle — .record() method may not exist)
+# Start recording (par.record is a toggle - .record() method may not exist)
 rec.par.record = True
 # ... let TD run for desired duration ...
 rec.par.record = False
@@ -487,8 +487,8 @@ rec.par.record = False
 ```
 
 **Pitfalls:**
-- Setting `par.file` + `par.record = True` in the same script may race — use `run("...", delayFrames=2)`
-- `TOP.save()` called rapidly always captures the same frame — use MovieFileOut for animation
+- Setting `par.file` + `par.record = True` in the same script may race - use `run("...", delayFrames=2)`
+- `TOP.save()` called rapidly always captures the same frame - use MovieFileOut for animation
 - See `pitfalls.md` #25-27 for full details
 
 ### Pattern 8b: TD → External Pipeline (FFmpeg / Python / Post-Processing)
@@ -596,7 +596,7 @@ for i in range(1, source.numRows):
 
 ### Pattern 9b: Audio-Reactive GLSL Fractal (Proven Recipe)
 
-Audio spectrum drives a GLSL fractal shader directly via a spectrum texture input. Bass thickens inner fractal lines, mids twist rotation, highs light outer edges. **Always run discovery (SKILL.md Step 0) before using any param names from these recipes — they may differ in your TD version.**
+Audio spectrum drives a GLSL fractal shader directly via a spectrum texture input. Bass thickens inner fractal lines, mids twist rotation, highs light outer edges. **Always run discovery (SKILL.md Step 0) before using any param names from these recipes - they may differ in your TD version.**
 
 ```
 Audio File In CHOP → Audio Spectrum CHOP (FFT=512, outlength=256)
@@ -628,13 +628,13 @@ spectrum.par.fftsize = '512'
 spectrum.par.outputmenu = 'setmanually'
 spectrum.par.outlength = 256
 
-# THEN boost gain on the raw spectrum (NO Lag CHOP — see pitfall #34)
+# THEN boost gain on the raw spectrum (NO Lag CHOP - see pitfall #34)
 math = root.create(mathCHOP, 'math_norm')
 spectrum.outputConnectors[0].connect(math.inputConnectors[0])
 math.par.gain = 10
 
-# Spectrum → texture (256x2 image — stereo, sample at y=0.25 for first channel)
-# NOTE: choptoTOP has NO input connectors — use par.chop reference!
+# Spectrum → texture (256x2 image - stereo, sample at y=0.25 for first channel)
+# NOTE: choptoTOP has NO input connectors - use par.chop reference!
 spec_tex = root.create(choptoTOP, 'spectrum_tex')
 spec_tex.par.chop = math
 spec_tex.par.dataformat = 'r'
@@ -725,7 +725,7 @@ void main() {
 ```
 
 **How spectrum sampling drives the visual:**
-- `texture(sTD2DInputs[1], vec2(x, 0.0)).r` — x position = frequency (0=bass, 1=treble)
+- `texture(sTD2DInputs[1], vec2(x, 0.0)).r` - x position = frequency (0=bass, 1=treble)
 - Inner fractal iterations sample lower x → react to bass
 - Outer iterations sample higher x → react to treble
 - `bass * 0.3` on `fract()` scale → fractal zoom pulses with bass

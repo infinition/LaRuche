@@ -20,12 +20,12 @@ prerequisites:
 CLI email client for IMAP/SMTP (and Notmuch/Sendmail) backends. Run all commands via `shell_exec`.
 
 References:
-- `references/configuration.md` — config file setup + IMAP/SMTP authentication
-- `references/message-composition.md` — MML syntax for rich emails / attachments
+- `references/configuration.md` - config file setup + IMAP/SMTP authentication
+- `references/message-composition.md` - MML syntax for rich emails / attachments
 
 ## Prerequisites
 
-1. `himalaya` installed — verify: `himalaya --version`
+1. `himalaya` installed - verify: `himalaya --version`
 2. `~/.config/himalaya/config.toml` configured (see below)
 
 ### Installation
@@ -73,14 +73,14 @@ message.send.backend.login = "you@example.com"
 message.send.backend.auth.type = "password"
 message.send.backend.auth.cmd = "pass show email/smtp"
 
-# Folder aliases — use plural dotted form (v1.2.0+ required)
+# Folder aliases - use plural dotted form (v1.2.0+ required)
 folder.aliases.inbox   = "INBOX"
 folder.aliases.sent    = "Sent"
 folder.aliases.drafts  = "Drafts"
 folder.aliases.trash   = "Trash"
 ```
 
-> **Alias pitfall (v1.2.0+):** Use `folder.aliases.X` (plural, dotted keys, directly under `[accounts.NAME]`). The old `[accounts.NAME.folder.alias]` sub-section form is silently ignored — TOML parses fine but aliases never apply. On Gmail this causes `himalaya message send` to exit non-zero after SMTP succeeds (save-to-Sent fails), so a naive retry re-sends to recipients. Gmail users need `folder.aliases.sent = "[Gmail]/Sent Mail"`.
+> **Alias pitfall (v1.2.0+):** Use `folder.aliases.X` (plural, dotted keys, directly under `[accounts.NAME]`). The old `[accounts.NAME.folder.alias]` sub-section form is silently ignored - TOML parses fine but aliases never apply. On Gmail this causes `himalaya message send` to exit non-zero after SMTP succeeds (save-to-Sent fails), so a naive retry re-sends to recipients. Gmail users need `folder.aliases.sent = "[Gmail]/Sent Mail"`.
 
 ## Common Operations
 
@@ -110,7 +110,7 @@ himalaya message read 42          # plain text
 himalaya message export 42 --full # raw MIME
 ```
 
-### Compose / Send (non-interactive — preferred)
+### Compose / Send (non-interactive - preferred)
 
 Pipe MML/RFC-822 headers + body via stdin:
 
@@ -167,7 +167,7 @@ himalaya attachment download 42                            # current dir
 himalaya attachment download 42 --downloads-dir ~/Downloads
 ```
 
-For sending attachments, use MML syntax — see `references/message-composition.md`.
+For sending attachments, use MML syntax - see `references/message-composition.md`.
 
 ## Debugging
 

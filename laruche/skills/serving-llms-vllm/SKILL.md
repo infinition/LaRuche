@@ -14,7 +14,7 @@ metadata:
 
 ---
 
-# vLLM — High-Performance LLM Serving
+# vLLM - High-Performance LLM Serving
 
 ## When to use
 
@@ -144,9 +144,9 @@ curl http://localhost:9090/metrics | grep vllm
 ```
 
 Key metrics:
-- `vllm:time_to_first_token_seconds` — latency
-- `vllm:num_requests_running` — active requests
-- `vllm:gpu_cache_usage_perc` — KV cache utilization
+- `vllm:time_to_first_token_seconds` - latency
+- `vllm:num_requests_running` - active requests
+- `vllm:gpu_cache_usage_perc` - KV cache utilization
 
 Target: TTFT < 500ms, GPU utilization > 80%.
 
@@ -167,7 +167,7 @@ vllm serve MODEL --enable-chunked-prefill  # for long prompts
 **Low throughput (< 50 req/sec)**
 ```bash
 vllm serve MODEL --max-num-seqs 512
-# Check: nvidia-smi — GPU util should be > 80%
+# Check: nvidia-smi - GPU util should be > 80%
 ```
 
 **Model not found / custom architecture**

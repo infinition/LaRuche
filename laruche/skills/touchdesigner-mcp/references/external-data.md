@@ -1,6 +1,6 @@
 # External Data Reference
 
-Network and device I/O — HTTP requests, WebSockets, MQTT, Serial, TCP, UDP. For MIDI/OSC specifically see `midi-osc.md`.
+Network and device I/O - HTTP requests, WebSockets, MQTT, Serial, TCP, UDP. For MIDI/OSC specifically see `midi-osc.md`.
 
 Common production needs:
 - API polling / webhook ingestion
@@ -11,7 +11,7 @@ Common production needs:
 
 ---
 
-## Web DAT — HTTP Requests
+## Web DAT - HTTP Requests
 
 ```python
 web = root.create(webDAT, 'api_call')
@@ -29,7 +29,7 @@ web.par.timeout = 5.0
 web.par.fetch.pulse()
 ```
 
-Or via expression on a CHOP value-change (chopExecuteDAT — see `dat-scripting.md`).
+Or via expression on a CHOP value-change (chopExecuteDAT - see `dat-scripting.md`).
 
 **Authentication headers:**
 
@@ -73,9 +73,9 @@ def offToOn(channel, sampleIndex, val, prev):
 
 ---
 
-## Web Client DAT — More Robust HTTP
+## Web Client DAT - More Robust HTTP
 
-`webclientDAT` is the modern replacement for `webDAT` — supports streaming responses, chunked transfer, custom auth.
+`webclientDAT` is the modern replacement for `webDAT` - supports streaming responses, chunked transfer, custom auth.
 
 ```python
 client = root.create(webclientDAT, 'api')
@@ -90,7 +90,7 @@ Output goes to its child `webclient1_response` DAT. Use a `datExecuteDAT` to rea
 
 ---
 
-## Web Server DAT — TD as HTTP Server
+## Web Server DAT - TD as HTTP Server
 
 Hosts a tiny HTTP server inside TD. Useful for:
 - Status/health endpoints
@@ -130,7 +130,7 @@ Test from terminal: `curl http://localhost:8080/status`.
 
 ---
 
-## WebSocket DAT — Bidirectional Real-Time
+## WebSocket DAT - Bidirectional Real-Time
 
 For low-latency bidirectional streams (chat, live data feeds, controllers).
 
@@ -174,7 +174,7 @@ Same callback structure with an additional `clientID` arg.
 
 ---
 
-## MQTT — Pub/Sub for IoT
+## MQTT - Pub/Sub for IoT
 
 ```python
 mqtt = root.create(mqttClientDAT, 'iot')
@@ -189,7 +189,7 @@ def onConnect(dat):
     return
 
 def onReceive(dat, topic, payload, qos, retained, dup):
-    # payload is bytes — decode if JSON
+    # payload is bytes - decode if JSON
     msg = payload.decode('utf-8')
     # Dispatch by topic
     return
@@ -202,11 +202,11 @@ For Mosquitto / HiveMQ self-hosted brokers use the same setup with `tcp://192.16
 
 ---
 
-## Serial DAT — Arduino, USB Devices
+## Serial DAT - Arduino, USB Devices
 
 ```python
 serial = root.create(serialDAT, 'arduino')
-serial.par.port = '/dev/cu.usbmodem14101'   # macOS — check Arduino IDE
+serial.par.port = '/dev/cu.usbmodem14101'   # macOS - check Arduino IDE
 # Windows: 'COM3', 'COM4', etc.
 serial.par.baudrate = 115200
 serial.par.active = True
@@ -230,7 +230,7 @@ op('arduino').send('LED_ON\n')
 
 ---
 
-## TCP/IP DAT — Custom Protocols
+## TCP/IP DAT - Custom Protocols
 
 For talking to non-HTTP servers (game servers, custom protocols, legacy systems).
 
@@ -244,7 +244,7 @@ tcp.par.active = True
 
 Send / receive via callbacks similar to websocketDAT.
 
-For UDP-only (fire-and-forget, no connection), use `udpoutDAT` + `udpinDAT` — simpler but unreliable across networks.
+For UDP-only (fire-and-forget, no connection), use `udpoutDAT` + `udpinDAT` - simpler but unreliable across networks.
 
 ---
 
@@ -297,16 +297,16 @@ WebSocket server in TD
 
 ## Pitfalls
 
-1. **`webDAT` doesn't auto-fetch** — must explicitly pulse `par.fetch`. Easy to forget.
-2. **Blocking on slow APIs** — `webDAT` runs on the cook thread. A 30s API call freezes TD for 30s. Use `webclientDAT` (async) for anything potentially slow.
-3. **WebSocket reconnection** — TD does NOT auto-reconnect on disconnect. Implement backoff in `onDisconnect`.
-4. **Serial port permissions on macOS** — TD needs Full Disk Access OR the port needs to be unlocked via `sudo chmod 666 /dev/cu.usbmodem...` per session.
-5. **MQTT broker connection state** — `mqttClientDAT` may show `connected=true` but messages don't flow if QoS is wrong or topic ACL blocks. Check broker logs.
-6. **JSON parse errors crash callbacks silently** — wrap parses in try/except and log to textport. Otherwise the callback just stops firing.
-7. **Firewall on Windows** — first time `webserverDAT` binds, Windows pops a firewall dialog. Approve it or the server is unreachable.
-8. **CORS** — `webserverDAT` doesn't add CORS headers by default. If serving a webapp from a different origin, add `Access-Control-Allow-Origin: *` in the response.
-9. **Polling vs push** — polling burns API quota. Always prefer WebSocket / webhook / MQTT for high-frequency data.
-10. **Floating-point parsing** — sensor data over Serial often comes as strings. `float()` will crash on `'\n'` or `'NaN'`. Validate before converting.
+1. **`webDAT` doesn't auto-fetch** - must explicitly pulse `par.fetch`. Easy to forget.
+2. **Blocking on slow APIs** - `webDAT` runs on the cook thread. A 30s API call freezes TD for 30s. Use `webclientDAT` (async) for anything potentially slow.
+3. **WebSocket reconnection** - TD does NOT auto-reconnect on disconnect. Implement backoff in `onDisconnect`.
+4. **Serial port permissions on macOS** - TD needs Full Disk Access OR the port needs to be unlocked via `sudo chmod 666 /dev/cu.usbmodem...` per session.
+5. **MQTT broker connection state** - `mqttClientDAT` may show `connected=true` but messages don't flow if QoS is wrong or topic ACL blocks. Check broker logs.
+6. **JSON parse errors crash callbacks silently** - wrap parses in try/except and log to textport. Otherwise the callback just stops firing.
+7. **Firewall on Windows** - first time `webserverDAT` binds, Windows pops a firewall dialog. Approve it or the server is unreachable.
+8. **CORS** - `webserverDAT` doesn't add CORS headers by default. If serving a webapp from a different origin, add `Access-Control-Allow-Origin: *` in the response.
+9. **Polling vs push** - polling burns API quota. Always prefer WebSocket / webhook / MQTT for high-frequency data.
+10. **Floating-point parsing** - sensor data over Serial often comes as strings. `float()` will crash on `'\n'` or `'NaN'`. Validate before converting.
 
 ---
 

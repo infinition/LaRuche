@@ -16,10 +16,10 @@ metadata:
 
 Drive Node's built-in V8 inspector from the terminal: real breakpoints, step in/over/out, call-stack walking, scope dumps, and expression evaluation in the paused frame.
 
-Two tools — pick one:
+Two tools - pick one:
 
-- **`node inspect`** — built-in, zero install, interactive REPL. Best for quick poking.
-- **CDP via `chrome-remote-interface`** — scriptable; use when automating many breakpoints or collecting state across runs.
+- **`node inspect`** - built-in, zero install, interactive REPL. Best for quick poking.
+- **CDP via `chrome-remote-interface`** - scriptable; use when automating many breakpoints or collecting state across runs.
 
 **Prefer `node inspect` first.** Always available, no install.
 
@@ -149,7 +149,7 @@ NODE_PATH=/tmp/cdp-tools/node_modules node /tmp/cdp-tools/debug.js
 ## Running Tests Under the Debugger
 
 ```bash
-# Vitest — single file, paused on entry
+# Vitest - single file, paused on entry
 node --inspect-brk ./node_modules/vitest/vitest.mjs run --no-file-parallelism src/foo.test.ts
 
 # Jest
@@ -158,7 +158,7 @@ node --inspect-brk ./node_modules/jest/bin/jest.js --runInBand src/foo.test.ts
 
 Attach in another terminal: `node inspect -p <pid>`, set breakpoints, `cont`.
 
-Use `--no-file-parallelism` (vitest) or `--runInBand` (jest) — debugging a worker pool is painful.
+Use `--no-file-parallelism` (vitest) or `--runInBand` (jest) - debugging a worker pool is painful.
 
 ## Heap Snapshots & CPU Profiles
 
@@ -227,7 +227,7 @@ debug> cont
 debug> bt
 ```
 
-**"This async chain hangs — where?"**
+**"This async chain hangs - where?"**
 ```bash
 node --inspect script.js   # no -brk, let it run to the hang
 # In another terminal:

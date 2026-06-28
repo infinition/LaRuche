@@ -60,7 +60,7 @@ pygount --folders-to-skip=".git,node_modules,venv" .
 pygount --folders-to-skip=".git,node_modules,venv" . | sort -t$'\t' -k1 -nr | head -20
 ```
 
-On Windows, skip the `sort` pipe — use JSON output and post-process instead (see §4).
+On Windows, skip the `sort` pipe - use JSON output and post-process instead (see §4).
 
 ## 4. JSON Output (Programmatic / Windows-safe)
 
@@ -97,8 +97,8 @@ Special pseudo-languages: `__empty__`, `__binary__`, `__generated__`, `__duplica
 
 ## Pitfalls
 
-1. **Missing `--folders-to-skip`** — crawls node_modules/venv and hangs. Always include it.
-2. **Markdown = 0 code lines** — pygount classifies all Markdown as comments. Expected behavior.
-3. **JSON files show low counts** — pygount is conservative; use `wc -l` for raw line counts.
-4. **Large monorepos** — target with `--suffix` to avoid scanning everything.
-5. **pygount not found** — run the install command above; confirm with `pygount --version`.
+1. **Missing `--folders-to-skip`** - crawls node_modules/venv and hangs. Always include it.
+2. **Markdown = 0 code lines** - pygount classifies all Markdown as comments. Expected behavior.
+3. **JSON files show low counts** - pygount is conservative; use `wc -l` for raw line counts.
+4. **Large monorepos** - target with `--suffix` to avoid scanning everything.
+5. **pygount not found** - run the install command above; confirm with `pygount --version`.

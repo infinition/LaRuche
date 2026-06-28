@@ -14,7 +14,7 @@ metadata:
 
 ---
 
-# lm-evaluation-harness — LLM Benchmarking
+# lm-evaluation-harness - LLM Benchmarking
 
 Evaluates LLMs across 60+ academic benchmarks (MMLU, HumanEval, GSM8K, TruthfulQA, HellaSwag) with standardized prompts and metrics. Industry standard used by EleutherAI, HuggingFace, and major labs.
 
@@ -84,7 +84,7 @@ lm_eval --model hf \
 | `arc_challenge` | Science reasoning | |
 | `humaneval` | Python code generation (164 problems) | Requires `--allow_code_execution` + `pip install human-eval` |
 | `mbpp` | Python coding basics | |
-| `mmlu_stem` | MMLU subset — STEM subjects only | Faster than full MMLU |
+| `mmlu_stem` | MMLU subset - STEM subjects only | Faster than full MMLU |
 
 Standard 5-shot is the paper default for MMLU; use `--num_fewshot 0` for speed during training runs.
 

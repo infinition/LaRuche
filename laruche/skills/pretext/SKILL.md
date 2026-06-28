@@ -15,7 +15,7 @@ metadata:
 
 ## What It Is
 
-[`@chenglou/pretext`](https://github.com/chenglou/pretext) is a 15KB zero-dependency TypeScript library for **DOM-free multiline text measurement and layout**. Given `(text, font, width)`, it returns line breaks, per-line widths, per-grapheme positions, and total height — all via canvas measurement, no reflow. Fast enough for per-frame animation at 60fps.
+[`@chenglou/pretext`](https://github.com/chenglou/pretext) is a 15KB zero-dependency TypeScript library for **DOM-free multiline text measurement and layout**. Given `(text, font, width)`, it returns line breaks, per-line widths, per-grapheme positions, and total height - all via canvas measurement, no reflow. Fast enough for per-frame animation at 60fps.
 
 ## When to Use
 
@@ -53,16 +53,16 @@ Pin the version. Check [npm](https://www.npmjs.com/package/@chenglou/pretext) fo
 
 ## The Two API Shapes
 
-### Shape 1 — Measure height, let CSS render
+### Shape 1 - Measure height, let CSS render
 
 ```js
 const prepared = prepare(text, "16px Inter");
 const { height, lineCount } = layout(prepared, 320, 20);
 ```
 
-Use for virtualized lists, masonry card heights, layout-shift prevention. Keep `ctx.font` in sync with CSS exactly — drift of 5–20% happens silently if the font 404s.
+Use for virtualized lists, masonry card heights, layout-shift prevention. Keep `ctx.font` in sync with CSS exactly - drift of 5–20% happens silently if the font 404s.
 
-### Shape 2 — Measure and render yourself (canvas)
+### Shape 2 - Measure and render yourself (canvas)
 
 ```js
 const prepared = prepareWithSegments(text, FONT);
@@ -90,9 +90,9 @@ while (true) {
 
 ### Useful helpers
 
-- `measureLineStats(prepared, maxWidth)` → `{ lineCount, maxLineWidth }` — for shrink-wrap width.
-- `walkLineRanges(prepared, maxWidth, callback)` — iterate lines without allocating strings (stats/per-grapheme physics).
-- `@chenglou/pretext/rich-inline` — paragraphs mixing fonts / chips / mentions.
+- `measureLineStats(prepared, maxWidth)` → `{ lineCount, maxLineWidth }` - for shrink-wrap width.
+- `walkLineRanges(prepared, maxWidth, callback)` - iterate lines without allocating strings (stats/per-grapheme physics).
+- `@chenglou/pretext/rich-inline` - paragraphs mixing fonts / chips / mentions.
 
 ## Demo Patterns
 
@@ -107,8 +107,8 @@ while (true) {
 | **Shrink-wrap card** | `measureLineStats` | Quote card that auto-sizes to tightest container |
 
 Templates in `templates/`:
-- `hello-orb-flow.html` — reflow around moving orb
-- `donut-orbit.html` — advanced: ASCII obstacles, draggable wire objects, morphing shapes
+- `hello-orb-flow.html` - reflow around moving orb
+- `donut-orbit.html` - advanced: ASCII obstacles, draggable wire objects, morphing shapes
 
 ## Aesthetic Requirements
 
@@ -116,7 +116,7 @@ Every demo must go beyond "hello world":
 
 - **Dark background, considered palette.** Amber-on-black (CRT), cold-white-on-charcoal (editorial), or desaturated pastels (risograph). Pick one.
 - **Proportional fonts.** Iowan Old Style, Inter, JetBrains Mono, Helvetica Neue, or a variable font. Never default sans.
-- **Real corpus.** Short manifesto, poem, source code, found text — never lorem ipsum.
+- **Real corpus.** Short manifesto, poem, source code, found text - never lorem ipsum.
 - **First-paint excellence.** No blank frames. Add vignette, idle auto-motion, or one interactive response (drag, hover, scroll, click).
 
 ## Workflow
@@ -131,30 +131,30 @@ Every demo must go beyond "hello world":
    python3 -m http.server 8765
    # open http://localhost:8765/<file>.html
    ```
-   Run via `shell_exec`. Check the console — pretext throws on bad font strings.
+   Run via `shell_exec`. Check the console - pretext throws on bad font strings.
 7. Return the file path to the user.
 
 ## Performance Notes
 
-- `prepare()` / `prepareWithSegments()` is expensive — call **once** per text+font pair. Cache in module scope.
-- On resize, only rerun `layout()` / `layoutWithLines()` — never re-prepare.
+- `prepare()` / `prepareWithSegments()` is expensive - call **once** per text+font pair. Cache in module scope.
+- On resize, only rerun `layout()` / `layoutWithLines()` - never re-prepare.
 - `layoutNextLineRange` in a tight loop is cheap enough for 60fps on normal paragraphs.
 - For ASCII masks per frame: keep a typed array cell buffer, derive per-row obstacle spans, merge spans, feed into `layoutNextLineRange`.
-- `ctx.font` is slow to set — do it once per frame, not per `fillText` call.
+- `ctx.font` is slow to set - do it once per frame, not per `fillText` call.
 
 ## Common Pitfalls
 
-1. **Drifting font strings.** `ctx.font = "16px Inter"` measured, but CSS falls back to sans-serif when Inter 404s — measurements drift 5–20%. Preload fonts or use a web-safe family.
+1. **Drifting font strings.** `ctx.font = "16px Inter"` measured, but CSS falls back to sans-serif when Inter 404s - measurements drift 5–20%. Preload fonts or use a web-safe family.
 2. **Re-preparing inside the animation loop.** Only `layout*` is cheap. Re-calling `prepare` every frame tanks perf.
-3. **Forgetting `Intl.Segmenter` for graphemes.** `"é".split("")` gives 2 chars — always use `new Intl.Segmenter(undefined, { granularity: "grapheme" })` for per-glyph work.
+3. **Forgetting `Intl.Segmenter` for graphemes.** `"é".split("")` gives 2 chars - always use `new Intl.Segmenter(undefined, { granularity: "grapheme" })` for per-glyph work.
 4. **`break: 'never'` chips without `extraWidth`.** In `rich-inline`, atomic chips without `extraWidth` overflow the container.
 5. **Using `unpkg` instead of `esm.sh`.** `unpkg` will 404 or serve raw TS. Always use `esm.sh`.
-6. **Tiny maxWidth instead of skipping rows.** When a corridor is too narrow, skip the row (`y += lineHeight; continue;`) — passing tiny maxWidth produces one-grapheme broken lines.
+6. **Tiny maxWidth instead of skipping rows.** When a corridor is too narrow, skip the row (`y += lineHeight; continue;`) - passing tiny maxWidth produces one-grapheme broken lines.
 7. **Cold first-paint.** Add vignette, scanline, idle auto-motion, or one interactive response. Without it the demo looks tutorial-grade.
 
 ## Verification Checklist
 
-- [ ] Single self-contained `.html` — opens via `python3 -m http.server` or double-click
+- [ ] Single self-contained `.html` - opens via `python3 -m http.server` or double-click
 - [ ] `@chenglou/pretext` imported from `esm.sh` with pinned version
 - [ ] Corpus is real prose matching the concept, not lorem ipsum
 - [ ] Font string passed to `prepare` matches CSS font exactly

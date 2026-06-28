@@ -7,7 +7,7 @@ tools: [file_list, file_read, file_write, shell_exec, execute_code]
 
 ## When to use
 
-Use when a Telegram bot script fails to send messages containing non-ASCII characters (accents, emoji, special symbols) — manifesting as `UnicodeEncodeError`, garbled text, or HTTP 400 errors from the Telegram API.
+Use when a Telegram bot script fails to send messages containing non-ASCII characters (accents, emoji, special symbols) - manifesting as `UnicodeEncodeError`, garbled text, or HTTP 400 errors from the Telegram API.
 
 ---
 
@@ -29,7 +29,7 @@ file_read("<path/to/send_telegram.py>")
 
 | Pattern | Problem |
 |---|---|
-| `json.dumps(payload)` | Missing `ensure_ascii=False` — escapes non-ASCII as `\uXXXX` |
+| `json.dumps(payload)` | Missing `ensure_ascii=False` - escapes non-ASCII as `\uXXXX` |
 | `requests.post(..., data=json_str)` | No `Content-Type: application/json; charset=utf-8` header |
 | `open(file, "w")` | Missing `encoding="utf-8"` |
 | `str.encode()` with no arg | Defaults to system locale, not UTF-8 |
@@ -88,6 +88,6 @@ Expected: HTTP 200, message appears correctly in Telegram.
 
 - **Windows locale trap**: `sys.stdout` may default to a non-UTF-8 locale. Add `sys.stdout.reconfigure(encoding="utf-8")` at script top, or set `PYTHONIOENCODING=utf-8` in the environment before running.
 - **Double-encoding**: Do not call `.encode("utf-8")` on a value that is already `bytes`.
-- **Message length limit**: Telegram rejects messages over 4096 characters — split before sending.
+- **Message length limit**: Telegram rejects messages over 4096 characters - split before sending.
 - **`requests` shortcut**: `requests.post(url, json=payload)` auto-serializes but uses `ensure_ascii=True` on some older versions. Prefer the explicit `data=body` pattern above for maximum safety.
 - **Token exposure**: Never hardcode the bot token. Use `${TELEGRAM_BOT_TOKEN}` (substituted from the secrets vault at execution time).

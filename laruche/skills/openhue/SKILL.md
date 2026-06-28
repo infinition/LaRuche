@@ -40,7 +40,7 @@ openhue get room     # list rooms
 openhue get scene    # list scenes
 ```
 
-Light and room names are case-sensitive — always verify with `openhue get`.
+Light and room names are case-sensitive - always verify with `openhue get`.
 
 ## Control Lights
 

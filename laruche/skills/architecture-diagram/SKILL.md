@@ -16,7 +16,7 @@ metadata:
 
 # Architecture Diagram Skill
 
-Generate professional, dark-themed technical architecture diagrams as standalone self-contained HTML files (inline SVG). No API keys, no rendering libraries, no JavaScript — works offline in any modern browser.
+Generate professional, dark-themed technical architecture diagrams as standalone self-contained HTML files (inline SVG). No API keys, no rendering libraries, no JavaScript - works offline in any modern browser.
 
 ## Scope
 
@@ -84,14 +84,14 @@ Rounded rectangles (`rx="6"`, 1.5px stroke). Use **double-rect masking** to prev
 ## Document Structure
 
 ```
-1. Header   — title + pulsing dot indicator + subtitle
-2. SVG area — diagram in a rounded-border card
-3. Cards    — 3-column summary grid (title · dot · bullet list)
-4. Footer   — minimal metadata
+1. Header   - title + pulsing dot indicator + subtitle
+2. SVG area - diagram in a rounded-border card
+3. Cards    - 3-column summary grid (title · dot · bullet list)
+4. Footer   - minimal metadata
 ```
 
 ## Output Requirements
 - Single self-contained `.html` file.
 - All CSS and SVG inline (Google Fonts `<link>` is the only external call).
-- No JavaScript — pure CSS for animations.
+- No JavaScript - pure CSS for animations.
 - Renders in any modern browser, fully offline.

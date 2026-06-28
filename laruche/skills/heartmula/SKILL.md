@@ -13,13 +13,13 @@ metadata:
     homepage: https://github.com/HeartMuLa/heartlib
 ---
 
-# HeartMuLa — Open-Source Music Generation
+# HeartMuLa - Open-Source Music Generation
 
 HeartMuLa (Apache-2.0) generates full songs conditioned on lyrics and tags, multilingual. Comparable to Suno for open-source. Components:
-- **HeartMuLa** — Music LM (3B/7B), generates from lyrics + tags
-- **HeartCodec** — 12.5Hz music codec for high-fidelity audio
-- **HeartTranscriptor** — Whisper-based lyrics transcription
-- **HeartCLAP** — Audio-text alignment model
+- **HeartMuLa** - Music LM (3B/7B), generates from lyrics + tags
+- **HeartCodec** - 12.5Hz music codec for high-fidelity audio
+- **HeartTranscriptor** - Whisper-based lyrics transcription
+- **HeartCLAP** - Audio-text alignment model
 
 ## Hardware
 
@@ -29,7 +29,7 @@ HeartMuLa (Apache-2.0) generates full songs conditioned on lyrics and tags, mult
 | Recommended (single GPU) | 16 GB+ |
 | Multi-GPU | `--mula_device cuda:0 --codec_device cuda:1` |
 
-No GPU: use `--mula_device cpu --codec_device cpu` — expect 30-60+ min/song, ~12 GB+ RAM. Prefer Colab T4 or the online demo: https://heartmula.github.io/
+No GPU: use `--mula_device cpu --codec_device cpu` - expect 30-60+ min/song, ~12 GB+ RAM. Prefer Colab T4 or the online demo: https://heartmula.github.io/
 
 ## Installation
 
@@ -50,7 +50,7 @@ uv pip install --upgrade datasets transformers
 - Old `datasets` conflicts with current `pyarrow`
 - Old `transformers` conflicts with `huggingface-hub` 1.x
 
-### Patch 1 — RoPE cache fix
+### Patch 1 - RoPE cache fix
 
 File: `src/heartlib/heartmula/modeling_heartmula.py`
 
@@ -67,17 +67,17 @@ for module in self.modules():
 
 **Why:** `from_pretrained` places model on meta device first; `rope_init()` skips building on meta tensors and never rebuilds after weights load to real device.
 
-### Patch 2 — HeartCodec loading fix
+### Patch 2 - HeartCodec loading fix
 
 File: `src/heartlib/pipelines/music_generation.py`
 
 Add `ignore_mismatched_sizes=True` to **both** `HeartCodec.from_pretrained()` calls (eager load in `__init__` and lazy load in `codec` property).
 
-**Why:** VQ codebook `initted` buffers have shape `[1]` in checkpoint vs `[]` in model — same data, scalar vs 0-d tensor, safe to ignore.
+**Why:** VQ codebook `initted` buffers have shape `[1]` in checkpoint vs `[]` in model - same data, scalar vs 0-d tensor, safe to ignore.
 
 ### Download model checkpoints
 
-Run in parallel — total size is several GB:
+Run in parallel - total size is several GB:
 
 ```bash
 hf download --local-dir './ckpt' 'HeartMuLa/HeartMuLaGen'
@@ -102,13 +102,13 @@ python ./examples/run_music_generation.py \
 
 ### Input format
 
-**Tags** — comma-separated, no spaces:
+**Tags** - comma-separated, no spaces:
 ```
 piano,happy,wedding,synthesizer,romantic
 rock,energetic,guitar,drums,male-vocal
 ```
 
-**Lyrics** — use bracketed structural tags:
+**Lyrics** - use bracketed structural tags:
 ```
 [Intro]
 
@@ -140,10 +140,10 @@ Bridge lyrics...
 
 ## Pitfalls
 
-1. **Never use bf16 for HeartCodec** — degrades audio quality; always use fp32 (default).
-2. **Tags may be ignored** — known upstream issue (#90). Lyrics dominate; experiment with tag ordering.
-3. **Triton not available on macOS** — GPU acceleration is Linux/CUDA only.
-4. **RTX 5080 incompatibility** — reported in upstream issues; avoid or test carefully.
+1. **Never use bf16 for HeartCodec** - degrades audio quality; always use fp32 (default).
+2. **Tags may be ignored** - known upstream issue (#90). Lyrics dominate; experiment with tag ordering.
+3. **Triton not available on macOS** - GPU acceleration is Linux/CUDA only.
+4. **RTX 5080 incompatibility** - reported in upstream issues; avoid or test carefully.
 
 ## Links
 

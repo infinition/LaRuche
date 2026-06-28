@@ -41,7 +41,7 @@ REPO=$(echo "$OWNER_REPO" | cut -d/ -f2)
 
 ## 1. Review Local Changes (Pre-Push)
 
-Pure `git` — no API needed.
+Pure `git` - no API needed.
 
 ```bash
 git diff main...HEAD --stat          # scope overview
@@ -71,13 +71,13 @@ Use `file_read` on affected files for full context around flagged lines.
 ## Code Review Summary
 
 ### Critical
-- **src/auth.py:45** — SQL injection: raw user input in query. Use parameterized queries.
+- **src/auth.py:45** - SQL injection: raw user input in query. Use parameterized queries.
 
 ### Warnings
-- **src/models/user.py:23** — Password stored plaintext. Use bcrypt/argon2.
+- **src/models/user.py:23** - Password stored plaintext. Use bcrypt/argon2.
 
 ### Suggestions
-- **src/utils/helpers.py:8** — Duplicates logic in src/core/utils.py:34.
+- **src/utils/helpers.py:8** - Duplicates logic in src/core/utils.py:34.
 
 ### Looks Good
 - Clean middleware separation; good happy-path test coverage.
@@ -96,7 +96,7 @@ gh pr diff $PR_NUMBER --name-only
 gh pr checks $PR_NUMBER
 ```
 
-**With curl (fallback — uses `${GITHUB_TOKEN}` from secrets vault):**
+**With curl (fallback - uses `${GITHUB_TOKEN}` from secrets vault):**
 ```bash
 curl -s -H "Authorization: token ${GITHUB_TOKEN}" \
   https://api.github.com/repos/$OWNER/$REPO/pulls/$PR_NUMBER \
@@ -163,7 +163,7 @@ curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" \
     \"event\": \"REQUEST_CHANGES\",
     \"body\": \"## Review\n2 issues, 1 suggestion.\",
     \"comments\": [
-      {\"path\": \"src/auth.py\",   \"line\": 45, \"body\": \"SQL injection — use parameterized queries.\"},
+      {\"path\": \"src/auth.py\",   \"line\": 45, \"body\": \"SQL injection - use parameterized queries.\"},
       {\"path\": \"src/models.py\", \"line\": 23, \"body\": \"Hash passwords before storing.\"},
       {\"path\": \"src/utils.py\",  \"line\": 8,  \"body\": \"Duplicates logic in core/utils.py:34.\"}
     ]
@@ -186,16 +186,16 @@ Event values: `"APPROVE"` | `"REQUEST_CHANGES"` | `"COMMENT"`
 | **Docs** | Public APIs documented; non-obvious logic explained; README updated if behavior changed |
 
 **Decision rule:**
-- **Approve** — no critical/warning issues (minor suggestions OK)
-- **Request Changes** — any critical or warning-level issue
-- **Comment** — observations only, nothing blocking (good for drafts)
+- **Approve** - no critical/warning issues (minor suggestions OK)
+- **Request Changes** - any critical or warning-level issue
+- **Comment** - observations only, nothing blocking (good for drafts)
 
 ---
 
 ## 4. End-to-End PR Review Workflow
 
 ```
-1. Auth detection (top of skill) — prefer gh, fall back to ${GITHUB_TOKEN}
+1. Auth detection (top of skill) - prefer gh, fall back to ${GITHUB_TOKEN}
 2. gh pr view $N  →  scope, description, CI status
 3. gh pr checkout $N  (or git fetch origin pull/$N/head:pr-$N && git checkout pr-$N)
 4. git diff main...HEAD --name-only  →  file list

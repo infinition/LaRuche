@@ -21,7 +21,7 @@ metadata:
 
 ```bash
 pip install wandb
-# Authenticate — WANDB_API_KEY is injected from LaRuche secrets vault
+# Authenticate - WANDB_API_KEY is injected from LaRuche secrets vault
 export WANDB_API_KEY=${WANDB_API_KEY}
 wandb login --relogin   # optional: verify auth
 ```
@@ -149,11 +149,11 @@ run.link_artifact(model_artifact, "model-registry/production-models")
 
 ## Framework Integrations (One-liners)
 
-**HuggingFace Trainer** — add `report_to="wandb"` to `TrainingArguments`.
+**HuggingFace Trainer** - add `report_to="wandb"` to `TrainingArguments`.
 
-**PyTorch Lightning** — pass `logger=WandbLogger(project="...", log_model=True)` to `Trainer`.
+**PyTorch Lightning** - pass `logger=WandbLogger(project="...", log_model=True)` to `Trainer`.
 
-**Keras/TensorFlow** — add `WandbCallback()` to `model.fit(..., callbacks=[...])`.
+**Keras/TensorFlow** - add `WandbCallback()` to `model.fit(..., callbacks=[...])`.
 
 ---
 

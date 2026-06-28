@@ -9,7 +9,7 @@ tools: [web_search, web_fetch, read_extract, file_write, memory_write]
 
 Turns a technical research query into a structured synthesis grounded in academic sources (arXiv, NeurIPS, ICML, ICLR, etc.).
 
-## Step 1 — Source Identification
+## Step 1 - Source Identification
 
 Run multiple targeted searches combining the topic with venue signals and paper type:
 
@@ -27,7 +27,7 @@ Prioritize:
 
 Collect 5–10 candidate URLs. If a topic is broad, narrow with subtopic searches before proceeding.
 
-## Step 2 — Content Retrieval and Extraction
+## Step 2 - Content Retrieval and Extraction
 
 For each selected paper, prefer the abstract+HTML page over the raw PDF:
 
@@ -40,23 +40,23 @@ web_fetch("https://arxiv.org/abs/<paper-id>")       # fallback: abstract page
 **Do not rely on search snippets.** Fetch the full page to get section-level detail.
 
 Tag extracted content by type:
-- **Definitions** — core concepts and formal definitions (use the paper's own wording)
-- **Taxonomy** — how the field classifies approaches (dimensions, families, types)
-- **Challenges / gaps** — open problems explicitly stated by the authors
-- **Applications** — major use cases, benchmarks, datasets
-- **Key references** — seminal works cited repeatedly across sources
+- **Definitions** - core concepts and formal definitions (use the paper's own wording)
+- **Taxonomy** - how the field classifies approaches (dimensions, families, types)
+- **Challenges / gaps** - open problems explicitly stated by the authors
+- **Applications** - major use cases, benchmarks, datasets
+- **Key references** - seminal works cited repeatedly across sources
 
 If memory persistence is needed across a long run, checkpoint with:
 ```
 memory_write("<topic>_lit_review_sources", "<list of collected references and tags>")
 ```
 
-## Step 3 — Synthesis and Report
+## Step 3 - Synthesis and Report
 
 Assemble a structured Markdown report incrementally (draft each section as sources are processed, then consolidate):
 
 ```markdown
-# [Topic] — Literature Review
+# [Topic] - Literature Review
 
 ## 1. Definition and Scope
 ## 2. Taxonomy

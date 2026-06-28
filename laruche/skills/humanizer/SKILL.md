@@ -18,7 +18,7 @@ metadata:
 
 Identify and remove signs of AI-generated text to make writing sound natural and human. Based on Wikipedia's "Signs of AI writing" guide (WikiProject AI Cleanup), derived from observations of thousands of AI-generated text instances.
 
-**Key insight:** LLMs use statistical algorithms to guess what should come next. The result tends toward the most statistically likely completion — that's how telltale patterns get baked in.
+**Key insight:** LLMs use statistical algorithms to guess what should come next. The result tends toward the most statistically likely completion - that's how telltale patterns get baked in.
 
 ## Triggers
 
@@ -29,23 +29,23 @@ Load this skill when the user asks to:
 - match their voice in something they're producing
 - review text for AI tells before publishing
 
-Also apply to **your own** output when writing user-facing prose — release notes, PR descriptions, documentation, long-form explanations.
+Also apply to **your own** output when writing user-facing prose - release notes, PR descriptions, documentation, long-form explanations.
 
 ## Input modes
 
-1. **Inline** — user pastes text directly. Work on it in-place, reply with the rewrite.
-2. **File** — use `file_read` to load it, then `file_write` (full rewrite) or a targeted patch per section. Always show the user what changed.
-3. **Voice sample** — user provides a writing sample for voice matching. Read the sample first (see Voice Calibration below), then rewrite.
+1. **Inline** - user pastes text directly. Work on it in-place, reply with the rewrite.
+2. **File** - use `file_read` to load it, then `file_write` (full rewrite) or a targeted patch per section. Always show the user what changed.
+3. **Voice sample** - user provides a writing sample for voice matching. Read the sample first (see Voice Calibration below), then rewrite.
 
 ## Procedure
 
-1. **Identify** — scan for the 29 patterns catalogued below.
-2. **Rewrite** — replace AI-isms with natural alternatives.
-3. **Preserve meaning** — keep the core message intact.
-4. **Match voice** — formal, casual, technical, etc. If a sample was provided, match it specifically.
-5. **Add soul** — don't just remove bad patterns; inject personality (see PERSONALITY AND SOUL).
-6. **Final audit** — ask yourself: "What makes this so obviously AI-generated?" Note remaining tells, then revise one more time.
-7. **File output** — if the text came from a file, write back with `file_write` and summarize changes.
+1. **Identify** - scan for the 29 patterns catalogued below.
+2. **Rewrite** - replace AI-isms with natural alternatives.
+3. **Preserve meaning** - keep the core message intact.
+4. **Match voice** - formal, casual, technical, etc. If a sample was provided, match it specifically.
+5. **Add soul** - don't just remove bad patterns; inject personality (see PERSONALITY AND SOUL).
+6. **Final audit** - ask yourself: "What makes this so obviously AI-generated?" Note remaining tells, then revise one more time.
+7. **File output** - if the text came from a file, write back with `file_write` and summarize changes.
 
 ## Voice Calibration (optional)
 
@@ -57,7 +57,7 @@ If the user provides a writing sample, analyze before rewriting:
 - Recurring phrases or verbal tics
 - Transition style (explicit connectors vs. just starting the next point)
 
-Match those patterns in the rewrite — don't just remove AI patterns, replace them with the user's patterns. Without a sample, fall back to the default voice from PERSONALITY AND SOUL.
+Match those patterns in the rewrite - don't just remove AI patterns, replace them with the user's patterns. Without a sample, fall back to the default voice from PERSONALITY AND SOUL.
 
 **Providing a sample:**
 - Inline: "Humanize this. Here's a sample of my writing: [sample]"
@@ -189,9 +189,9 @@ AI repetition-penalty causes excessive synonym substitution.
 
 ### 14. Em Dash Overuse
 
-LLMs use em dashes (—) more than humans. Most can be replaced with commas, periods, or parentheses.
+LLMs use em dashes (-) more than humans. Most can be replaced with commas, periods, or parentheses.
 
-> Before: "The term is promoted by Dutch institutions—not by the people themselves—even in official documents."
+> Before: "The term is promoted by Dutch institutions-not by the people themselves-even in official documents."
 > After: "The term is promoted by Dutch institutions, not by the people themselves, even in official documents."
 
 ### 15. Overuse of Boldface
@@ -300,7 +300,7 @@ A heading followed by a one-line paragraph that just restates the heading before
 ## Output Format
 
 1. **Draft rewrite**
-2. **"What makes this so obviously AI-generated?"** — brief bullets on remaining tells
+2. **"What makes this so obviously AI-generated?"** - brief bullets on remaining tells
 3. **Final rewrite** (revised after the audit)
 4. **Brief summary of changes** (optional, if helpful)
 

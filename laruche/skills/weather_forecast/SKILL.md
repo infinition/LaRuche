@@ -27,7 +27,7 @@ tools: [web_search, web_fetch, read_extract]
 ## Failure handling
 
 - If `read_extract` returns garbled/empty content, retry with `web_fetch` on the same URL and parse manually.
-- If the top result is paywalled or JS-heavy, try the second result or a different source (e.g. `wttr.in/<city>` — plain-text weather, no parsing needed: `web_fetch("https://wttr.in/<city>?format=3")` returns a one-liner).
+- If the top result is paywalled or JS-heavy, try the second result or a different source (e.g. `wttr.in/<city>` - plain-text weather, no parsing needed: `web_fetch("https://wttr.in/<city>?format=3")` returns a one-liner).
 - For non-Latin city names, URL-encode or use the English transliteration in the query.
 
 ## Quick path (plain-text fallback)
@@ -36,4 +36,4 @@ For a fast, no-parse answer use wttr.in directly:
 ```
 web_fetch("https://wttr.in/Paris?format=v2")
 ```
-Returns a preformatted ASCII forecast — no extraction needed.
+Returns a preformatted ASCII forecast - no extraction needed.

@@ -1,7 +1,7 @@
 ---
 type: skill
 name: airtable
-description: Airtable REST API via curl — CRUD, filters, upserts, pagination.
+description: Airtable REST API via curl - CRUD, filters, upserts, pagination.
 version: 1.2.1
 author: community
 license: MIT
@@ -16,7 +16,7 @@ metadata:
     homepage: https://airtable.com/developers/web/api/introduction
 ---
 
-# Airtable — Bases, Tables & Records
+# Airtable - Bases, Tables & Records
 
 Work with Airtable's REST API via `shell_exec` using `curl` and a Personal Access Token (PAT). No MCP server, no SDK, no OAuth flow.
 
@@ -25,7 +25,7 @@ Work with Airtable's REST API via `shell_exec` using `curl` and a Personal Acces
 1. Create a **PAT** at https://airtable.com/create/tokens (tokens start with `pat...`).
 2. Minimum scopes: `data.records:read`, `data.records:write`, `schema.bases:read`.
 3. In the token UI, add each base to the token's **Access** list. A valid token on an unlisted base returns `403`.
-4. Secret is available as `${AIRTABLE_API_KEY}` — injected at execution.
+4. Secret is available as `${AIRTABLE_API_KEY}` - injected at execution.
 
 > Legacy `key...` API keys were deprecated Feb 2024. Only PATs and OAuth tokens work now.
 
@@ -84,7 +84,7 @@ curl -s "https://api.airtable.com/v0/meta/bases" \
 curl -s "https://api.airtable.com/v0/meta/bases/$BASE_ID/tables" \
   -H "Authorization: Bearer ${AIRTABLE_API_KEY}" | python3 -m json.tool
 ```
-Run this BEFORE mutating — confirms exact field names/IDs and `options.choices` for select fields.
+Run this BEFORE mutating - confirms exact field names/IDs and `options.choices` for select fields.
 
 ### List records
 ```bash
@@ -99,7 +99,7 @@ curl -s "https://api.airtable.com/v0/$BASE_ID/$TABLE/$RECORD_ID" \
 ```
 
 ### Filter records (filterByFormula)
-Formulas must be URL-encoded. Use Python stdlib — never hand-encode:
+Formulas must be URL-encoded. Use Python stdlib - never hand-encode:
 ```bash
 FORMULA="{Status}='Todo'"
 ENC=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$FORMULA")
@@ -152,7 +152,7 @@ curl -s -X POST "https://api.airtable.com/v0/$BASE_ID/$TABLE" \
 ```
 For >10 records, loop in batches of 10. Use `execute_code` (Python) for large datasets to avoid shell quoting issues with dynamic JSON bodies.
 
-### Update a record (PATCH — merges, preserves unspecified fields)
+### Update a record (PATCH - merges, preserves unspecified fields)
 ```bash
 curl -s -X PATCH "https://api.airtable.com/v0/$BASE_ID/$TABLE/$RECORD_ID" \
   -H "Authorization: Bearer ${AIRTABLE_API_KEY}" \
@@ -189,7 +189,7 @@ curl -s -X DELETE "https://api.airtable.com/v0/$BASE_ID/$TABLE?records%5B%5D=rec
 
 ## Pagination
 
-List endpoints return at most **100 records per page**. If the response includes `"offset"`, pass it on the next call. For large dumps, prefer `execute_code` (Python) — cleaner than a shell loop:
+List endpoints return at most **100 records per page**. If the response includes `"offset"`, pass it on the next call. For large dumps, prefer `execute_code` (Python) - cleaner than a shell loop:
 
 ```python
 import os, urllib.request, urllib.parse, json
@@ -229,20 +229,20 @@ done
 
 ## Workflow
 
-1. **Check auth** — verify `200` (see Queries above).
-2. **Find the base** — list bases or ask the user for the `app...` ID.
-3. **Inspect schema** — `GET /v0/meta/bases/$BASE_ID/tables` before any mutation; cache exact field names.
-4. **Read before write** — for "update X where Y", `filterByFormula` to resolve `rec...` ID, then `PATCH`.
-5. **Batch writes** — combine creates into 10-record POSTs to stay under the rate limit.
-6. **Destructive ops** — deletions are permanent. For "delete all Xs", show the filter + record count and confirm before executing.
-7. **Large result sets** — pipe output through `file_write` if the data will be processed later.
+1. **Check auth** - verify `200` (see Queries above).
+2. **Find the base** - list bases or ask the user for the `app...` ID.
+3. **Inspect schema** - `GET /v0/meta/bases/$BASE_ID/tables` before any mutation; cache exact field names.
+4. **Read before write** - for "update X where Y", `filterByFormula` to resolve `rec...` ID, then `PATCH`.
+5. **Batch writes** - combine creates into 10-record POSTs to stay under the rate limit.
+6. **Destructive ops** - deletions are permanent. For "delete all Xs", show the filter + record count and confirm before executing.
+7. **Large result sets** - pipe output through `file_write` if the data will be processed later.
 
 ## Pitfalls
 
-- **`filterByFormula` must be URL-encoded.** Field names with spaces also need encoding. Always use `python3 urllib.parse.quote` — never hand-escape.
+- **`filterByFormula` must be URL-encoded.** Field names with spaces also need encoding. Always use `python3 urllib.parse.quote` - never hand-escape.
 - **Empty fields are omitted from responses.** A missing key means the value is empty, not that the field doesn't exist. Verify via schema.
 - **Single-select options must exist.** Writing an unknown option errors with `INVALID_MULTIPLE_CHOICE_OPTIONS` unless you pass `"typecast": true`.
-- **`403` on one base but not another** means the token's Access list doesn't include that base — not a scope issue. Fix at https://airtable.com/create/tokens.
+- **`403` on one base but not another** means the token's Access list doesn't include that base - not a scope issue. Fix at https://airtable.com/create/tokens.
 - **Rate limits are per base.** 5 req/sec on `baseA` is independent of `baseB`. On `429`, check `Retry-After` and sleep accordingly.
 - **Read the `errors` array** on non-2xx: `AUTHENTICATION_REQUIRED`, `INVALID_PERMISSIONS`, `MODEL_ID_NOT_FOUND`, `INVALID_MULTIPLE_CHOICE_OPTIONS` identify the exact problem.
 - **Dynamic JSON bodies with shell variables** are error-prone. Prefer `execute_code` (Python `requests`-free: use `urllib.request`) when field values contain quotes, newlines, or non-ASCII.

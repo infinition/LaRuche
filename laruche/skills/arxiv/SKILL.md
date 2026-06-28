@@ -17,7 +17,7 @@ metadata:
 
 # arXiv Research
 
-Search and retrieve academic papers from arXiv via their free REST API. No API key, no dependencies — just curl and Python stdlib. Augment with Semantic Scholar for citations.
+Search and retrieve academic papers from arXiv via their free REST API. No API key, no dependencies - just curl and Python stdlib. Augment with Semantic Scholar for citations.
 
 ## Quick Reference
 
@@ -160,8 +160,8 @@ Useful fields: `title`, `authors`, `year`, `abstract`, `citationCount`, `influen
 
 ## Notes
 
-- arXiv returns Atom XML — use the helper script or inline parsing for clean output.
-- Semantic Scholar returns JSON — pipe through `python3 -m json.tool`.
+- arXiv returns Atom XML - use the helper script or inline parsing for clean output.
+- Semantic Scholar returns JSON - pipe through `python3 -m json.tool`.
 - arXiv IDs: old format (`hep-th/0601001`) vs new (`2402.03300`).
 - URL patterns: abstract → `arxiv.org/abs/{id}` | PDF → `arxiv.org/pdf/{id}` | HTML (when available) → `arxiv.org/html/{id}`.
 - For local PDF processing, see the `ocr-and-documents` skill.
@@ -170,7 +170,7 @@ Useful fields: `title`, `authors`, `year`, `abstract`, `citationCount`, `influen
 
 - `arxiv.org/abs/1706.03762` resolves to the **latest** version.
 - `arxiv.org/abs/1706.03762v1` pins a **specific** immutable version.
-- When citing, preserve the version suffix you actually read — later versions may change content substantially.
+- When citing, preserve the version suffix you actually read - later versions may change content substantially.
 - The API `<id>` field returns the versioned URL (e.g., `http://arxiv.org/abs/1706.03762v7`).
 
 ## Withdrawn Papers

@@ -1,7 +1,7 @@
 # Design System: Uber
 
 
-> **third-party agent — Implementation Notes**
+> **third-party agent - Implementation Notes**
 >
 > The original site uses proprietary fonts. For self-contained HTML output, use these CDN substitutes:
 > - **Primary:** `DM Sans` | **Mono:** `system monospace stack`

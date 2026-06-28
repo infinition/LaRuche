@@ -108,7 +108,7 @@ web_fetch("https://arxiv.org/abs/<id>")
 Run 2–3 rounds:
 - **Round 1 (Breadth)**: 4–6 parallel queries on different angles. Collect key concepts.
 - **Round 2 (Depth)**: Follow-up on new terminology and references from Round 1.
-- **Round 3 (Targeted)**: Fill gaps — missing baselines, concurrent work, negative results.
+- **Round 3 (Targeted)**: Fill gaps - missing baselines, concurrent work, negative results.
 - Stop when a new round returns >80% papers already collected.
 
 ### 1.3 Verify Every Citation (MANDATORY)
@@ -172,7 +172,7 @@ Before running anything:
 
 ### 2.4 Write Experiment Scripts
 
-**Incremental saving** — crash recovery:
+**Incremental saving** - crash recovery:
 ```python
 result_path = f"results/{task}/{strategy}/result.json"
 if os.path.exists(result_path):
@@ -203,7 +203,7 @@ make_charts.py         # Visualization
 Required when automated metrics don't capture what you care about (fluency, helpfulness, safety) or venue expects it (ACL generation tasks).
 
 Key design decisions:
-- **Annotators**: Expert / crowdworker / end-user — match to claims
+- **Annotators**: Expert / crowdworker / end-user - match to claims
 - **Scale**: Pairwise comparison more reliable than Likert for LLM outputs
 - **Sample size**: Power analysis or minimum 100 items, 3+ annotators
 - **Agreement**: Krippendorff's alpha for >2 annotators; report raw agreement too
@@ -232,7 +232,7 @@ nohup python run_experiment.py --config config.yaml > logs/experiment_01.log 2>&
 echo $!  # Record PID
 ```
 
-4+ concurrent API experiments will hit rate limits — run sequentially or stagger.
+4+ concurrent API experiments will hit rate limits - run sequentially or stagger.
 
 ### 3.2 Set Up Monitoring
 
@@ -249,7 +249,7 @@ Monitor prompt template:
 7. If nothing changed since last check: respond [SILENT]
 ```
 
-`[SILENT]` suppresses user notification — use when nothing is new.
+`[SILENT]` suppresses user notification - use when nothing is new.
 
 ### 3.3 Handle Failures
 
@@ -307,7 +307,7 @@ for strategy, tasks in results.items():
 ### 4.2 Statistical Significance
 
 Always compute:
-- Error bars: std dev or std error — specify which
+- Error bars: std dev or std error - specify which
 - 95% confidence intervals for key results
 - Pairwise tests: McNemar's test for comparing two methods
 - Effect sizes: Cohen's d or h
@@ -328,14 +328,14 @@ After analysis, explicitly answer:
 |-----------|--------|
 | Wrong hypothesis but **why** is informative | Frame around the analysis |
 | Method doesn't beat baselines but **reveals something** | Reframe as understanding paper |
-| Clean negative on popular claim | Write it up — field needs to know |
+| Clean negative on popular claim | Write it up - field needs to know |
 | Inconclusive, no clear story | Pivot or run different experiments |
 
 Venues welcoming negative results: NeurIPS Datasets & Benchmarks, TMLR, workshops.
 
 ### 4.4 Create Figures and Tables
 
-**Figures** — always vector:
+**Figures** - always vector:
 ```python
 import matplotlib.pyplot as plt
 import scienceplots
@@ -349,7 +349,7 @@ with plt.style.context(['science', 'no-latex']):
 Standard sizes: single column `(3.5, 2.5)`, double column `(7.0, 3.0)`.
 Colorblind-safe palette: Okabe-Ito (`#0072B2`, `#E69F00`, `#009E73`, `#D55E00`, `#CC79A7`).
 
-**Tables** — use `booktabs`:
+**Tables** - use `booktabs`:
 ```latex
 \usepackage{booktabs}
 \begin{tabular}{lcc}
@@ -390,7 +390,7 @@ Create `experiment_log.md` before moving to writing:
 - [What the results raised]
 ```
 
-This file is the primary context bridge for drafting — load it instead of raw JSON/CSV.
+This file is the primary context bridge for drafting - load it instead of raw JSON/CSV.
 
 ---
 
@@ -466,7 +466,7 @@ Delete generic openings like "Large language models have achieved remarkable suc
 
 ### Figure 1
 
-Draft before writing Introduction — forces you to clarify the core idea.
+Draft before writing Introduction - forces you to clarify the core idea.
 
 | Type | When | Example |
 |------|------|---------|
@@ -483,7 +483,7 @@ Must include: problem statement, approach overview, 2–4 bullet contribution li
 
 ### Methods
 
-Enable reimplementation: conceptual outline or pseudocode, all hyperparameters, architectural details for reproduction. Present final design decisions — ablations go in Experiments.
+Enable reimplementation: conceptual outline or pseudocode, all hyperparameters, architectural details for reproduction. Present final design decisions - ablations go in Experiments.
 
 ### Experiments & Results
 
@@ -491,7 +491,7 @@ For each experiment: state the claim it tests, how it connects to the contributi
 
 ### Related Work
 
-Organize methodologically. Cite generously — reviewers likely authored relevant papers.
+Organize methodologically. Cite generously - reviewers likely authored relevant papers.
 
 ### Limitations (REQUIRED)
 
@@ -507,7 +507,7 @@ Required at all major venues. Be specific. Pre-empt criticisms. Explain why limi
 
 ### Appendix
 
-Unlimited at all major venues. Sections: Proofs & Derivations, Additional Experiments, Implementation Details, Dataset Documentation, Prompts & Templates, Human Evaluation, Additional Figures. Main paper must be self-contained — reviewers are not required to read appendices. Always cross-reference: "Full results in Table 5 (Appendix B)".
+Unlimited at all major venues. Sections: Proofs & Derivations, Additional Experiments, Implementation Details, Dataset Documentation, Prompts & Templates, Human Evaluation, Additional Figures. Main paper must be self-contained - reviewers are not required to read appendices. Always cross-reference: "Full results in Table 5 (Appendix B)".
 
 ### Writing Style
 
@@ -720,13 +720,13 @@ Common errors: "Undefined control sequence" → missing package; "Missing $ inse
 | ICML | Broader Impact Statement (after conclusion, doesn't count toward limit) |
 | ICLR | LLM disclosure mandatory, reciprocal reviewing |
 | ACL | Mandatory Limitations section, Responsible NLP checklist |
-| AAAI | Strict style file — no modifications |
+| AAAI | Strict style file - no modifications |
 | COLM | Frame contribution for language model community |
 
 ### 7.6 Format Conversion Between Venues
 
 ```bash
-# Start fresh with target template — never copy preambles
+# Start fresh with target template - never copy preambles
 cp -r templates/icml2026/ new_submission/
 # Copy ONLY content: abstract text, sections, figures, tables, bib entries
 ```
@@ -814,12 +814,12 @@ Pre-release checklist:
 5. Report status, ask for direction
 ```
 
-**Parallel section drafting** — spawn isolated sub-agents with scoped context:
+**Parallel section drafting** - spawn isolated sub-agents with scoped context:
 ```
 # Methods agent: receives configs, pseudocode, architecture details only
 # Related Work agent: receives citation notes and .bib file only
 # Results agent: receives experiment_log.md and result summary tables only
-# Each agent has no shared context — provide everything needed in the prompt
+# Each agent has no shared context - provide everything needed in the prompt
 ```
 
 **Experiment monitoring cron**:
@@ -843,7 +843,7 @@ cron_create({
 - Experiment priority when TODO exceeds time
 - Submission readiness
 
-Do NOT ask about word choice, section ordering, which results to highlight — draft with a choice, flag it.
+Do NOT ask about word choice, section ordering, which results to highlight - draft with a choice, flag it.
 
 ---
 

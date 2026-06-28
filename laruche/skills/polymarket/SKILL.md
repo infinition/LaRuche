@@ -14,7 +14,7 @@ metadata:
     homepage: https://polymarket.com
 ---
 
-# Polymarket — Prediction Market Data
+# Polymarket - Prediction Market Data
 
 Query prediction market data from Polymarket using their public REST APIs.
 All endpoints are read-only and require **zero authentication**.
@@ -24,10 +24,10 @@ Use the bundled `scripts/polymarket.py` via `execute_code` (Python) or `shell_ex
 ## Key Concepts
 
 - **Events** contain one or more **Markets** (1:many)
-- **Markets** are binary — prices 0.00–1.00 ARE probabilities (0.65 → 65% likely)
-- `outcomePrices` / `outcomes` / `clobTokenIds` are **double-encoded** JSON strings — parse with `json.loads(market['outcomePrices'])`
-- `clobTokenIds`: [Yes token ID, No token ID] — used for price/orderbook queries
-- `conditionId`: hex string — used for price history queries
+- **Markets** are binary - prices 0.00–1.00 ARE probabilities (0.65 → 65% likely)
+- `outcomePrices` / `outcomes` / `clobTokenIds` are **double-encoded** JSON strings - parse with `json.loads(market['outcomePrices'])`
+- `clobTokenIds`: [Yes token ID, No token ID] - used for price/orderbook queries
+- `conditionId`: hex string - used for price history queries
 - Volume is in USDC (US dollars)
 
 ## APIs
@@ -38,7 +38,7 @@ Use the bundled `scripts/polymarket.py` via `execute_code` (Python) or `shell_ex
 | CLOB | `clob.polymarket.com` | Real-time prices, orderbooks, history |
 | Data | `data-api.polymarket.com` | Trades, open interest |
 
-Rate limits: 1,000–9,000 req/10s — no throttling needed.
+Rate limits: 1,000–9,000 req/10s - no throttling needed.
 
 ## Script Commands
 
@@ -70,8 +70,8 @@ python3 scripts/polymarket.py trades --limit 10 --market <condition_id>
 
 ## Standard Workflow
 
-1. **Search** — `search "<query>"` → get events, slugs, current prices
-2. **Present** — format `outcomePrices` as percentages, show volume
+1. **Search** - `search "<query>"` → get events, slugs, current prices
+2. **Present** - format `outcomePrices` as percentages, show volume
 3. **Drill down** (if asked):
    - `market <slug>` → get `clobTokenIds` and `conditionId`
    - `price <token_id>` or `book <token_id>` for real-time depth
@@ -85,10 +85,10 @@ The script auto-formats output:
 - History as ASCII bar chart
 
 When relaying to user: preserve the question, probability, and volume.
-Example: `"Will X happen?" — 65.2% Yes ($1.2M volume)`
+Example: `"Will X happen?" - 65.2% Yes ($1.2M volume)`
 
 ## Limitations
 
-- Read-only — placing trades requires EIP-712 wallet signatures (not supported)
+- Read-only - placing trades requires EIP-712 wallet signatures (not supported)
 - Some new markets may have empty price history
 - Geographic restrictions apply to trading; read-only data is globally accessible

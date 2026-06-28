@@ -39,14 +39,14 @@ Single self-contained HTML file per project. No build step.
 
 | Layer | Tool | Notes |
 |-------|------|-------|
-| Core | p5.js 1.11.3 (CDN) | Default — stable, broadest library compat |
+| Core | p5.js 1.11.3 (CDN) | Default - stable, broadest library compat |
 | 3D | p5.js WebGL mode | 3D geometry, camera, lighting, GLSL |
 | Audio | p5.sound.js (CDN) | FFT analysis, amplitude, mic, oscillators |
 | Export | `saveCanvas()` / `saveGif()` / `saveFrames()` | PNG, GIF, frame sequence |
 | Capture | CCapture.js (optional) | Deterministic framerate video (WebM, GIF) |
 | Headless | Puppeteer + Node.js (optional) | Automated high-res render, MP4 via ffmpeg |
-| SVG | p5.js-svg 1.6.0 (optional) | Vector output — requires p5.js 1.x |
-| Natural media | p5.brush (optional) | Watercolor, charcoal, pen — requires p5.js 2.x + WEBGL |
+| SVG | p5.js-svg 1.6.0 (optional) | Vector output - requires p5.js 1.x |
+| Natural media | p5.brush (optional) | Watercolor, charcoal, pen - requires p5.js 2.x + WEBGL |
 | Texture | p5.grain (optional) | Film grain overlays |
 
 **p5.js 2.x** (2.2+): `async setup()` replaces `preload()`, OKLCH/OKLAB color modes, `splineVertex()`, shader `.modify()`, `textToContours()`. Required for p5.brush. See `references/core-api.md` § p5.js 2.0.
@@ -59,28 +59,28 @@ CONCEPT → DESIGN → CODE → PREVIEW → EXPORT → VERIFY
 
 ### Step 1: Creative Vision
 
-Before any code, decide: mood/atmosphere, color world, shape language, motion vocabulary, what makes this unique. A "relaxing generative background" demands different everything from "glitch data visualization." Interpret the user's prompt with creative ambition — deliver at least one visual detail they didn't request but will appreciate.
+Before any code, decide: mood/atmosphere, color world, shape language, motion vocabulary, what makes this unique. A "relaxing generative background" demands different everything from "glitch data visualization." Interpret the user's prompt with creative ambition - deliver at least one visual detail they didn't request but will appreciate.
 
 **Non-negotiables per project:**
 - Custom color palette (3-7 colors, never raw `fill(255, 0, 0)`)
-- Non-trivial background (textured, gradient, or layered — never plain `background(0)`)
+- Non-trivial background (textured, gradient, or layered - never plain `background(0)`)
 - Motion variety (primary 1x, secondary 0.3x, ambient 0.1x)
 - Seeded randomness for reproducibility
 
 ### Step 2: Technical Design
 
-- **Mode** — pick from the table above
-- **Canvas** — 1920×1080 (landscape), 1080×1920 (portrait), 1080×1080 (square), or `windowWidth/windowHeight` (responsive)
-- **Renderer** — `P2D` (default) or `WEBGL` (3D, shaders, advanced blend modes)
-- **Frame rate** — 60fps (interactive), 30fps (ambient), `noLoop()` (static generative)
-- **Export target** — browser, PNG, GIF, MP4, SVG
-- **Viewer UI** — for interactive generative art with seed navigation + sliders, start from `templates/viewer.html`. For animations/video/simple sketches, use bare HTML.
+- **Mode** - pick from the table above
+- **Canvas** - 1920×1080 (landscape), 1080×1920 (portrait), 1080×1080 (square), or `windowWidth/windowHeight` (responsive)
+- **Renderer** - `P2D` (default) or `WEBGL` (3D, shaders, advanced blend modes)
+- **Frame rate** - 60fps (interactive), 30fps (ambient), `noLoop()` (static generative)
+- **Export target** - browser, PNG, GIF, MP4, SVG
+- **Viewer UI** - for interactive generative art with seed navigation + sliders, start from `templates/viewer.html`. For animations/video/simple sketches, use bare HTML.
 
 ### Step 3: Code the Sketch
 
 For **interactive generative art**: read `templates/viewer.html` first, keep the seed nav/actions sections, replace the algorithm and parameter controls.
 
-For **animations, video, or simple sketches** — bare HTML template:
+For **animations, video, or simple sketches** - bare HTML template:
 
 ```html
 <!DOCTYPE html>
@@ -137,7 +137,7 @@ function windowResized() { resizeCanvas(windowWidth, windowHeight); }
 
 Key patterns:
 - **Seeded randomness**: `randomSeed()` + `noiseSeed()` in every generative sketch
-- **Color mode**: `colorMode(HSB, 360, 100, 100, 100)` — rotate hue, scale sat/bri procedurally
+- **Color mode**: `colorMode(HSB, 360, 100, 100, 100)` - rotate hue, scale sat/bri procedurally
 - **Layers**: `createGraphics()` offscreen buffers for trails, masks, compositing
 - **Classes**: Particles/agents with `update()` + `display()` methods
 
@@ -178,12 +178,12 @@ p5.disableFriendlyErrors = true;  // BEFORE setup()
 // pixelDensity(1) in setup() prevents 2x-4x overdraw on retina
 ```
 
-In hot loops, use `Math.*` — measurably faster than p5 wrappers:
+In hot loops, use `Math.*` - measurably faster than p5 wrappers:
 
 ```javascript
 Math.sin(t)            // not sin(t)
-Math.sqrt(dx*dx+dy*dy) // not dist() — or skip sqrt, compare magSq
-Math.random()          // not random() — when seed not needed
+Math.sqrt(dx*dx+dy*dy) // not dist() - or skip sqrt, compare magSq
+Math.random()          // not random() - when seed not needed
 Math.min(a, b)         // not min(a, b)
 ```
 
@@ -209,7 +209,7 @@ updatePixels();
 
 Targets: 5k-10k particles (P2D shapes), 50k-100k (pixel buffer) at 60fps.
 
-### Noise — Layer Octaves, Not Raw
+### Noise - Layer Octaves, Not Raw
 
 ```javascript
 function fbm(x, y, octaves = 4) {
@@ -224,7 +224,7 @@ function fbm(x, y, octaves = 4) {
 
 For organic flow: domain warping (feed noise output back as input coordinates). See `references/visual-effects.md`.
 
-### Layers — createGraphics()
+### Layers - createGraphics()
 
 ```javascript
 let bgLayer, fgLayer, trailLayer;
@@ -244,7 +244,7 @@ function draw() {
 ### WebGL Gotchas
 
 - Origin is center, not top-left. Y-axis inverted (positive Y = up). Use `translate(-width/2, -height/2)` for P2D-like coords.
-- `push()`/`pop()` around every transform — matrix stack overflows silently.
+- `push()`/`pop()` around every transform - matrix stack overflows silently.
 - `texture()` must come before `rect()`/`plane()`.
 - Test custom shaders (`createShader(vert, frag)`) across browsers.
 
@@ -310,4 +310,4 @@ let x = rng() * width;  // replace random() with rng() for platform determinism
 | `references/interaction.md` | Mouse/keyboard/touch, DOM elements, p5.sound FFT/amplitude, scroll-driven animation |
 | `references/export-pipeline.md` | `saveCanvas/Gif/Frames`, headless capture, ffmpeg, CCapture.js, SVG, per-clip architecture, fxhash |
 | `references/troubleshooting.md` | Performance profiling, WebGL debugging, font loading, pixel density traps, memory leaks, CORS |
-| `templates/viewer.html` | Seed navigation (prev/next/random/jump), parameter sliders, PNG download — start here for explorable gen art |
+| `templates/viewer.html` | Seed navigation (prev/next/random/jump), parameter sliders, PNG download - start here for explorable gen art |

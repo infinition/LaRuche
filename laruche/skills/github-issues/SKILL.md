@@ -55,7 +55,7 @@ for i in json.load(sys.stdin):
         labels = ', '.join(l['name'] for l in i['labels'])
         print(f\"#{i['number']:5}  {i['state']:6}  {labels:30}  {i['title']}\")"
 
-# curl — search
+# curl - search
 curl -s -H "$AUTH_HEADER" \
   "https://api.github.com/search/issues?q=authentication+error+repo:$OWNER/$REPO" \
   | python3 -c "
@@ -64,7 +64,7 @@ for i in json.load(sys.stdin)['items']:
     print(f\"#{i['number']}  {i['state']:6}  {i['title']}\")"
 ```
 
-> **Pitfall:** `/issues` returns PRs too — always filter with `'pull_request' not in i`.
+> **Pitfall:** `/issues` returns PRs too - always filter with `'pull_request' not in i`.
 
 ---
 
@@ -142,12 +142,12 @@ Actual:   <what actually happens>
 gh issue edit 42 --add-label "priority:high,bug"
 gh issue edit 42 --remove-label "needs-triage"
 
-# curl — add
+# curl - add
 curl -s -X POST -H "$AUTH_HEADER" \
   https://api.github.com/repos/$OWNER/$REPO/issues/42/labels \
   -d '{"labels": ["priority:high", "bug"]}'
 
-# curl — remove
+# curl - remove
 curl -s -X DELETE -H "$AUTH_HEADER" \
   https://api.github.com/repos/$OWNER/$REPO/issues/42/labels/needs-triage
 
@@ -166,12 +166,12 @@ for l in json.load(sys.stdin): print(f\"  {l['name']:30}  {l.get('description','
 gh issue edit 42 --add-assignee @me
 gh issue comment 42 --body "Root cause: auth middleware. Fix in progress."
 
-# curl — assign
+# curl - assign
 curl -s -X POST -H "$AUTH_HEADER" \
   https://api.github.com/repos/$OWNER/$REPO/issues/42/assignees \
   -d '{"assignees": ["username"]}'
 
-# curl — comment
+# curl - comment
 curl -s -X POST -H "$AUTH_HEADER" \
   https://api.github.com/repos/$OWNER/$REPO/issues/42/comments \
   -d '{"body": "Root cause: auth middleware. Fix in progress."}'
@@ -211,7 +211,7 @@ git checkout -b fix/issue-42-login-redirect   # manual fallback
    ```bash
    gh issue list --label "needs-triage" --state open
    ```
-2. **Read each issue** — view details, understand scope.
+2. **Read each issue** - view details, understand scope.
 3. **Apply labels and priority** (see §3).
 4. **Assign** if owner is clear.
 5. **Comment** with triage notes or requests for more info.
@@ -222,11 +222,11 @@ git checkout -b fix/issue-42-login-redirect   # manual fallback
 ## 5. Bulk Operations
 
 ```bash
-# Close all "wontfix" issues — gh
+# Close all "wontfix" issues - gh
 gh issue list --label "wontfix" --json number --jq '.[].number' | \
   xargs -I {} gh issue close {} --reason "not planned"
 
-# Close all "wontfix" issues — curl
+# Close all "wontfix" issues - curl
 curl -s -H "$AUTH_HEADER" \
   "https://api.github.com/repos/$OWNER/$REPO/issues?labels=wontfix&state=open" \
   | python3 -c "import sys,json; [print(i['number']) for i in json.load(sys.stdin)]" \

@@ -22,7 +22,7 @@ metadata:
 | **`breakpoint()` + pdb** | Local, interactive. Add `breakpoint()` in source, run normally, get a REPL at that line. |
 | **`python -m pdb`** | Launch a script under pdb with no source edits. |
 | **`debugpy`** | Remote / headless / attach to already-running process. Talks DAP. |
-| **`remote-pdb`** | Terminal-friendly remote debugging — simpler than debugpy when IDE integration is not needed. |
+| **`remote-pdb`** | Terminal-friendly remote debugging - simpler than debugpy when IDE integration is not needed. |
 
 **Default choice: `breakpoint()`.** Use `remote-pdb` for daemons; `debugpy` only when you need IDE (DAP) integration.
 
@@ -84,7 +84,7 @@ pytest tests/path/to/test_file.py::test_name --pdb
 # Drop to pdb at test start:
 pytest tests/path/to/test_file.py::test_name --trace
 
-# xdist disables pdb — always disable it:
+# xdist disables pdb - always disable it:
 pytest tests/foo_test.py::test_bar --pdb -p no:xdist
 ```
 
@@ -100,7 +100,7 @@ except Exception:
     pdb.post_mortem(sys.exc_info()[2])
 ```
 
-Or wrap a whole script — pdb catches any uncaught exception and lands in the frame:
+Or wrap a whole script - pdb catches any uncaught exception and lands in the frame:
 ```bash
 python -m pdb -c continue script.py
 ```
@@ -117,7 +117,7 @@ sys.excepthook = excepthook
 
 Install: `pip install debugpy`
 
-### Pattern A: Source-edit — process waits for client at launch
+### Pattern A: Source-edit - process waits for client at launch
 
 ```python
 import debugpy
@@ -127,7 +127,7 @@ debugpy.wait_for_client()
 debugpy.breakpoint()   # optional: pause immediately on attach
 ```
 
-### Pattern B: No source edit — launch with `-m debugpy`
+### Pattern B: No source edit - launch with `-m debugpy`
 
 ```bash
 python -m debugpy --listen 127.0.0.1:5678 --wait-for-client your_script.py arg1
@@ -147,7 +147,7 @@ echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
 
 ### Connecting a client
 
-**VS Code / Cursor / Zed** — add to `launch.json`:
+**VS Code / Cursor / Zed** - add to `launch.json`:
 ```json
 {
   "name": "Attach",
@@ -158,7 +158,7 @@ echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
 }
 ```
 
-**Terminal (no IDE)** — use `remote-pdb` instead (see Recipe 6).
+**Terminal (no IDE)** - use `remote-pdb` instead (see Recipe 6).
 
 ## Recipe 6: remote-pdb (terminal-friendly remote debug)
 
@@ -176,7 +176,7 @@ set_trace(host="127.0.0.1", port=4444)   # blocks until connection
 Connect:
 ```bash
 nc 127.0.0.1 4444
-# Full (Pdb) prompt — identical to local pdb
+# Full (Pdb) prompt - identical to local pdb
 ```
 
 Use this for: daemons, subprocesses, async handlers, any context where you can't attach an IDE.
@@ -211,11 +211,11 @@ import remote_pdb; remote_pdb.set_trace(host="127.0.0.1", port=4444)
 
 ## Verification Checklist
 
-- [ ] `python -c "import debugpy; print(debugpy.__version__)"` — confirms debugpy is installed
-- [ ] `ss -tlnp | grep 5678` — confirms port is listening before attaching
+- [ ] `python -c "import debugpy; print(debugpy.__version__)"` - confirms debugpy is installed
+- [ ] `ss -tlnp | grep 5678` - confirms port is listening before attaching
 - [ ] First breakpoint hits (if not: check `PYTHONBREAKPOINT`, xdist, and whether execution finished before attach)
 - [ ] `w` shows the expected call stack
-- [ ] Cleanup — no stray debug calls in committed code:
+- [ ] Cleanup - no stray debug calls in committed code:
   ```bash
   rg -n 'breakpoint\(\)|set_trace\(|debugpy\.listen' --type py
   ```

@@ -96,7 +96,7 @@ curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" \
 ## 3. Fork
 
 ```bash
-# gh (preferred — handles the wait automatically)
+# gh (preferred - handles the wait automatically)
 gh repo fork owner/repo-name --clone
 
 # curl + git
@@ -189,7 +189,7 @@ curl -s -X PUT -H "Authorization: token ${GITHUB_TOKEN}" \
 
 ## 7. Secrets (GitHub Actions)
 
-**Use `gh secret set` whenever possible — curl path requires NaCl encryption.**
+**Use `gh secret set` whenever possible - curl path requires NaCl encryption.**
 
 ```bash
 # gh
@@ -298,7 +298,7 @@ curl -s -X POST -H "Authorization: token ${GITHUB_TOKEN}" \
 | Symptom | Fix |
 |---|---|
 | `gh: command not found` | Fall back to curl path; install with `brew install gh` or `winget install gh` |
-| 401 Unauthorized | `${GITHUB_TOKEN}` not set or expired — re-inject secret |
-| 422 on fork | Repo already forked — clone existing fork |
+| 401 Unauthorized | `${GITHUB_TOKEN}` not set or expired - re-inject secret |
+| 422 on fork | Repo already forked - clone existing fork |
 | 403 on branch protection | Token needs `repo` scope (not fine-grained) |
 | Asset upload 404 | Release must exist before uploading assets |

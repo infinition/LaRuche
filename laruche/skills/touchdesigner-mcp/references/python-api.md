@@ -5,22 +5,22 @@
 TouchDesigner's Python environment auto-imports the `td` module. All TD-specific classes, functions, and constants live here. Scripts inside TD (Script DATs, CHOP/DAT Execute callbacks, Extensions) have full access.
 
 When using the MCP `execute_python_script` tool, these globals are pre-loaded:
-- `op` — shortcut for `td.op()`, finds operators by path
-- `ops` — shortcut for `td.ops()`, finds multiple operators by pattern
-- `me` — the operator running the script (via MCP this is the twozero internal executor)
-- `parent` — shortcut for `me.parent()`
-- `project` — the root project component
-- `td` — the full td module
+- `op` - shortcut for `td.op()`, finds operators by path
+- `ops` - shortcut for `td.ops()`, finds multiple operators by pattern
+- `me` - the operator running the script (via MCP this is the twozero internal executor)
+- `parent` - shortcut for `me.parent()`
+- `project` - the root project component
+- `td` - the full td module
 
 ## Finding Operators: op() and ops()
 
-### op(path) — Find a single operator
+### op(path) - Find a single operator
 
 ```python
 # Absolute path (always works from MCP)
 node = op('/project1/noise1')
 
-# Relative path (relative to current operator — only in Script DATs)
+# Relative path (relative to current operator - only in Script DATs)
 node = op('noise1')      # sibling
 node = op('../noise1')   # parent's sibling
 
@@ -28,7 +28,7 @@ node = op('../noise1')   # parent's sibling
 node = op('/project1/nonexistent')  # None
 ```
 
-### ops(pattern) — Find multiple operators
+### ops(pattern) - Find multiple operators
 
 ```python
 # Glob patterns
@@ -318,7 +318,7 @@ base.Reset()
 
 ## Useful Built-in Modules
 
-### tdu — TouchDesigner Utilities
+### tdu - TouchDesigner Utilities
 
 ```python
 import tdu
@@ -346,7 +346,7 @@ remap(value, inLow, inHigh, outLow, outHigh)
 interp(value1, value2, t)  # linear interpolation
 ```
 
-### TDStoreTools — Persistent Storage
+### TDStoreTools - Persistent Storage
 
 ```python
 from TDStoreTools import StorageManager
@@ -433,12 +433,12 @@ for path, params in settings.items():
 ## Python Version and Packages
 
 TouchDesigner bundles Python 3.11+ with these pre-installed:
-- **numpy** — array operations, fast math
-- **scipy** — signal processing, FFT
-- **OpenCV** (cv2) — computer vision
-- **PIL/Pillow** — image processing
-- **requests** — HTTP client
-- **json**, **re**, **os**, **sys** — standard library
+- **numpy** - array operations, fast math
+- **scipy** - signal processing, FFT
+- **OpenCV** (cv2) - computer vision
+- **PIL/Pillow** - image processing
+- **requests** - HTTP client
+- **json**, **re**, **os**, **sys** - standard library
 
 **IMPORTANT:** Parameter names in examples below are illustrative. Always run discovery (SKILL.md Step 0) to get actual names for your TD version. Do NOT copy param names from these examples verbatim.
 
@@ -449,10 +449,10 @@ Custom packages can be installed to TD's Python site-packages directory. See TD 
 In TD 2025.32, `td.Vertex` does NOT have `.x`, `.y`, `.z` attributes. Use index access:
 
 ```python
-# WRONG — crashes in TD 2025.32:
+# WRONG - crashes in TD 2025.32:
 vertex.x, vertex.y, vertex.z
 
-# CORRECT — index/attribute access:
+# CORRECT - index/attribute access:
 pt = sop.points()[i]
 pos = pt.P          # Position object
 x, y, z = pos[0], pos[1], pos[2]

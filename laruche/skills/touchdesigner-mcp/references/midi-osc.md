@@ -1,12 +1,12 @@
 # MIDI / OSC Reference
 
-External controller input and output — MIDI hardware, TouchOSC mobile UIs, OSC routing across the network.
+External controller input and output - MIDI hardware, TouchOSC mobile UIs, OSC routing across the network.
 
 For audio-driven MIDI patterns (track triggers from spectrum analysis), see also `audio-reactive.md`.
 
 ---
 
-## MIDI Input — Hardware Controllers
+## MIDI Input - Hardware Controllers
 
 ### Discovery
 
@@ -38,8 +38,8 @@ midi_in.par.activechan = True
 ```
 
 Output channels follow the convention `chCcN` and `chCnN`:
-- `ch1c74` — channel 1, CC 74
-- `ch1n60` — channel 1, note 60 (middle C) — value is velocity 0-127
+- `ch1c74` - channel 1, CC 74
+- `ch1n60` - channel 1, note 60 (middle C) - value is velocity 0-127
 
 **Map a CC to a parameter:**
 
@@ -66,7 +66,7 @@ Build a reusable learn pattern when you don't know the controller's CC layout in
 
 1. Drop a `midiinCHOP` and `selectCHOP` after it.
 2. User wiggles the controller knob.
-3. Use `td_read_chop` on the midiinCHOP to identify which channel is non-zero — that's the active CC.
+3. Use `td_read_chop` on the midiinCHOP to identify which channel is non-zero - that's the active CC.
 4. Set the `selectCHOP.par.channames` to that channel name.
 5. Save the mapping to a `tableDAT` so it persists across sessions.
 
@@ -90,7 +90,7 @@ For note events specifically, use `event` mode and pulse the value with a `pulse
 
 ---
 
-## OSC Input — Network Control
+## OSC Input - Network Control
 
 OSC is the more flexible cousin of MIDI. Used heavily for:
 - TouchOSC / Lemur mobile control surfaces
@@ -135,7 +135,7 @@ def onTableChange(dat):
 
 ---
 
-## OSC Output — Sending to External Apps
+## OSC Output - Sending to External Apps
 
 ```python
 osc_out = root.create(oscoutCHOP, 'osc_out')
@@ -163,8 +163,8 @@ op('osc_out_dat').sendOSC('/scene/trigger', [1, 'fade'])
 
 Common setup for live VJ control from a phone/tablet:
 
-1. **Configure TouchOSC layout** — assign each control an OSC address like `/vj/master`, `/vj/scene/1`, etc.
-2. **Find your machine's LAN IP** — TouchOSC needs to point at it.
+1. **Configure TouchOSC layout** - assign each control an OSC address like `/vj/master`, `/vj/scene/1`, etc.
+2. **Find your machine's LAN IP** - TouchOSC needs to point at it.
 3. **TD listens** on `oscinCHOP.par.port = 8000` (or whichever).
 4. **Map channels to params** via expressions:
 
@@ -173,7 +173,7 @@ op('/project1/master_level').par.opacity.mode = ParMode.EXPRESSION
 op('/project1/master_level').par.opacity.expr = "op('osc_in')['vj_master']"
 ```
 
-5. **Send feedback** to the controller via `oscoutCHOP` — useful for syncing state across multiple devices.
+5. **Send feedback** to the controller via `oscoutCHOP` - useful for syncing state across multiple devices.
 
 ---
 
@@ -185,18 +185,18 @@ OSC over LAN works out-of-the-box. For multi-TD-instance sync (e.g., projection 
 - Worker TDs run `oscinCHOP` listening on the same port
 - Use UDP **broadcast address** (e.g., `192.168.1.255`) on the master's `oscoutCHOP.par.netaddress` to hit all peers
 
-For reliability over WAN, use `webserverDAT` or `websocketDAT` with an external relay instead — UDP loss is invisible.
+For reliability over WAN, use `webserverDAT` or `websocketDAT` with an external relay instead - UDP loss is invisible.
 
 ---
 
 ## Pitfalls
 
-1. **MIDI device indexing** — device `0` is whichever device TD enumerated first. Reorder may shift it. Pin by name when possible.
-2. **OSC channel names** — TD doesn't create a channel until the first message lands. New channels invalidate cooked dependents on first arrival, causing a one-frame stutter.
-3. **OSC queued mode** — `par.queued = True` defers processing to a single per-frame batch. Lower latency but messages arriving same frame collapse to the last value. Off for triggers, on for continuous knobs.
-4. **MIDI clock vs. transport** — `midiinCHOP` reports clock if available. Use `midisyncCHOP` (if your TD version exposes it) or compute BPM from clock pulses (24 per quarter note).
-5. **Latency** — wired MIDI is ~1-3ms. WiFi OSC is 10-30ms with jitter. Use wired for tight beat-locked work.
-6. **Port conflicts** — only one process can bind a UDP port on most OS. If `oscinCHOP` shows no traffic, check that another app (Max, Ableton, etc.) isn't already listening on that port.
+1. **MIDI device indexing** - device `0` is whichever device TD enumerated first. Reorder may shift it. Pin by name when possible.
+2. **OSC channel names** - TD doesn't create a channel until the first message lands. New channels invalidate cooked dependents on first arrival, causing a one-frame stutter.
+3. **OSC queued mode** - `par.queued = True` defers processing to a single per-frame batch. Lower latency but messages arriving same frame collapse to the last value. Off for triggers, on for continuous knobs.
+4. **MIDI clock vs. transport** - `midiinCHOP` reports clock if available. Use `midisyncCHOP` (if your TD version exposes it) or compute BPM from clock pulses (24 per quarter note).
+5. **Latency** - wired MIDI is ~1-3ms. WiFi OSC is 10-30ms with jitter. Use wired for tight beat-locked work.
+6. **Port conflicts** - only one process can bind a UDP port on most OS. If `oscinCHOP` shows no traffic, check that another app (Max, Ableton, etc.) isn't already listening on that port.
 
 ---
 

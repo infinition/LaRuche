@@ -14,7 +14,7 @@ metadata:
 
 # Sketch
 
-Use when the user wants to **explore a design direction before committing** — disposable HTML mockups to compare side-by-side. Goal: 2-3 interactive variants, not shippable code.
+Use when the user wants to **explore a design direction before committing** - disposable HTML mockups to compare side-by-side. Goal: 2-3 interactive variants, not shippable code.
 
 Trigger phrases: "sketch this screen", "show me what X could look like", "compare layout A vs B", "give me 2-3 takes on this UI", "mockup this before I build".
 
@@ -34,7 +34,7 @@ intake → variants → visual check → head-to-head → pick winner (or iterat
 
 ## 1. Intake (skip if user already gave you enough)
 
-Ask one question at a time — three things needed:
+Ask one question at a time - three things needed:
 
 1. **Feel.** "What should this feel like? Adjectives, emotions, a vibe." (*"calm, editorial, like Linear"* beats *"minimal"*)
 2. **References.** "What apps, sites, or products capture that feel?"
@@ -46,7 +46,7 @@ Reflect each answer briefly before the next question. If user gave all three upf
 
 ## 2. Variants (2-3, never 1, rarely 4+)
 
-Produce 2-3 variants in one go — each a **complete standalone HTML file**. Don't describe variants; build them.
+Produce 2-3 variants in one go - each a **complete standalone HTML file**. Don't describe variants; build them.
 
 Each variant must take a **different design stance**, not just different colors. Pick one axis:
 
@@ -76,7 +76,7 @@ sketches/
 
 Each variant is a **single self-contained HTML file**:
 
-- Inline `<style>` — no build step, no external CSS
+- Inline `<style>` - no build step, no external CSS
 - System fonts or one Google Font via `<link>`
 - Tailwind via CDN is fine: `<script src="https://cdn.tailwindcss.com"></script>`
 - Realistic fake content (actual sentences and names, not Lorem ipsum)
@@ -145,7 +145,7 @@ One sentence on the principle driving this variant.
 
 ## 5. Head-to-head
 
-After all variants are built, present a comparison table — **opinionate**, don't just list:
+After all variants are built, present a comparison table - **opinionate**, don't just list:
 
 ```markdown
 ## Three takes on the home screen
@@ -158,7 +158,7 @@ After all variants are built, present a comparison table — **opinionate**, don
 | Feel | Calm, trusted | Sharp, tool-like | Inviting, energetic |
 
 **My take:** Utilitarian dense for power users, calm editorial for content-forward audiences.
-Playful split is weakest — tries to do both and commits to neither.
+Playful split is weakest - tries to do both and commits to neither.
 ```
 
 Let the user pick a winner, ask for a hybrid, or request another round.
@@ -201,11 +201,11 @@ Three colors and one font is enough for a throwaway sketch.
 
 If sketches already exist and the user asks "what should I sketch next?":
 
-- **Consistency gaps** — winning variants made independent choices not yet composed
-- **Unsketched screens** — referenced but never explored
-- **State coverage** — happy path done, but not empty / loading / error / overflow
-- **Responsive gaps** — validated at one viewport; does it hold at mobile / ultrawide?
-- **Interaction patterns** — static layouts exist; transitions, drag, scroll behavior don't
+- **Consistency gaps** - winning variants made independent choices not yet composed
+- **Unsketched screens** - referenced but never explored
+- **State coverage** - happy path done, but not empty / loading / error / overflow
+- **Responsive gaps** - validated at one viewport; does it hold at mobile / ultrawide?
+- **Interaction patterns** - static layouts exist; transitions, drag, scroll behavior don't
 
 Propose 2-4 named candidates. Let the user pick.
 
@@ -215,4 +215,4 @@ Propose 2-4 named candidates. Let the user pick.
 
 - Create `sketches/` in the repo root (or `.planning/sketches/` if project uses that convention)
 - One subdir per variant: `NNN-stance-name/index.html` + `README.md`
-- Keep variants disposable — a sketch worth preserving should be promoted to real project code
+- Keep variants disposable - a sketch worth preserving should be promoted to real project code
