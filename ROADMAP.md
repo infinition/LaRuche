@@ -32,21 +32,23 @@ But : **zéro français dans le code** hors termes de marque LaRuche et fichier 
 Suivis dans la liste de tâches du dépôt.
 - [x] **i18n UI - 2ᵉ passe exhaustive** : audit ligne-à-ligne des 9 modules (parser dédié comments/dico/identifiants/CSS exclus). **16 dernières chaînes affichées** migrées (settings ×12, chat ×4). Reste = skips documentés (termes de marque `Abeille`, sentinels backend, identifiants).
 - [x] **i18n sentinels runtime Rust↔JS** : `Synthèse/Erreur LaRuche`, verbes de feed `a demandé/a répondu`, `réponse finale` traduits des deux côtés ensemble (voir section Localisation).
+- [x] **Affinage injection skill body** : top-1 (lazy par défaut) + gate `requete_triviale`. 141 tests verts.
+- [x] **Provider/modèle par canal** (Settings > Channels) + log diagnostic tool-call. (cf. section Canaux)
 - [ ] Décider du sort de la page **Sessions** orpheline (`laruche/_archive/test_script.js`).
-- [ ] **Split `main.rs`** (11.7k) en modules node.
-- [ ] **Settings : section « Avancé »** + migrer les params de tuning.
-- [ ] Affinage injection skill body (top-1 + gate stricte).
-- [ ] `/lang fr|en` messages Telegram directs (optionnel).
-- [ ] Découper `app.js`-modules plus finement si besoin (settings/chat sont gros) - optionnel.
+- [ ] `/lang fr|en` messages Telegram directs - dépend de la Phase 2b (rien ne lit encore la langue côté Rust).
 
-## 🩹 Dette / récupéré des archives (à trancher)
-- [ ] **`laruche-suggestions`** : crate **orphelin** (0 référence ailleurs) → le **câbler** ou le **supprimer**.
-- [ ] **Compression préflight** : compresser le contexte AVANT qu'il déborde (pas seulement tronquer/fenêtre glissante).
-- [ ] **`cache_control`** (Anthropic prompt caching) : exploiter le cache de préfixe côté cloud.
-- [ ] **`reasoning_effort` par modèle** (effort de raisonnement configurable).
-- [ ] **Vérifier la boucle runtime des watchers** (création OK ; confirmer le déclenchement/livraison de bout en bout).
-- [ ] **Câblage retry `credential_pool`** (rotation de clé sur 429) - à finaliser/vérifier.
-- [ ] **`cargo test --workspace`** complet - jamais relancé en entier.
+## ⏸️ Reste - nécessite une condition que je n'ai pas en l'état (honnête)
+> Tout le reste est soit un refacto énorme à faire **app fermée**, soit du **comportemental** qui doit être validé **runtime** (API/canaux réels) - le faire à l'aveugle risquerait l'app qui tourne. Plan précis pour chacun :
+- [ ] **Split `main.rs`** (11.7k) en modules node : gros refacto mécanique. À faire **app fermée** (le binaire est verrouillé pendant l'exécution) + `cargo build` complet à chaque module extrait. Plan : extraire par domaine (`channels.rs`, `config_api.rs`, `mesh.rs`, `missions_api.rs`, `lang.rs`) en gardant `main.rs` comme assembleur.
+- [ ] **Settings « Avancé »** + migrer params tuning : reorg **frontend** (les params existent déjà dans General via `/api/config/runtime`). Nécessite **validation visuelle** dans le navigateur.
+- [ ] **Phase 2b - router les strings Rust visibles** via `i18n::t` + store langue/canal + `/lang` : nécessite **test canal live** (Telegram/Discord).
+- [ ] **`cache_control` (Anthropic)** + **`reasoning_effort`** : changent le **corps des requêtes provider** - à valider contre les **vraies API**.
+- [ ] **Compression préflight** : comportemental, à **régler runtime** (seuils).
+- [ ] **Vérifs runtime** watchers loop + `credential_pool` retry : nécessitent l'app en marche + un 429 réel.
+
+## ✅ Fait cette session (dette)
+- [x] **`laruche-suggestions`** orphelin → **supprimé** (stub 71 lignes jamais câblé).
+- [x] **`cargo test --workspace`** : **33 cibles vertes**.
 
 ## ⚫ Bloqué (matériel)
 - [ ] **Validation mesh A** (fédération des skills) - nécessite **2 nœuds réels**.
