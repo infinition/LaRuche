@@ -11,6 +11,13 @@
 - [x] **Optimisations contexte** : champ `tools:` natif respecte la sélection · catalogue outils dé-dupliqué · catalogue **skills dynamique** · pas de corps de skill sur smalltalk · **seuil contexte configurable** (Settings).
 - [x] **Sonde n_ctx** → `context_max_tokens` auto · commandes Telegram (`/help /status /crons /delcron`) · `@@secret` autocomplete · fixes crons (anti-spam/runaway/réplication).
 
+## 🌍 Localisation EN du code (commentaires + chaînes) — en cours
+But : **zéro français dans le code** hors termes de marque LaRuche et fichier i18n. Commentaires pro (pas de tournure « LLM »), **aucun em dash (—)** nulle part. `abeille → tool` (une abeille = un agent qui utilise des tools). Identifiants gardés tels quels (règle utilisateur).
+- [x] **Webapp** : 9 modules JS + `app.css` + `spa.html`. Commentaires + texte/chaînes → EN, 0 em dash, onglet « Abeilles » → **Tools**. Sentinels backend & valeurs de contrat API (`origin`, `visibility 'prive'`) gardés. Vérif : `node --check`, 0 em dash, 0 commentaire FR. Glossaire de marque (FR) défini.
+- [ ] **Rust** : ~118 fichiers, crate par crate (gate `cargo build` + `cargo test`). Chaînes traduites **prudemment** (humain seulement ; protocole/match/test/sentinel laissés). En cours : `laruche-butinage`.
+- [ ] **Sweep final** : 0 em dash sur tout le projet (542 au départ) + sentinels FR Rust↔JS traduits **conjointement** (`Synthèse LaRuche`, `Erreur LaRuche`, `a demandé/a répondu`, `réponse finale`, matcher `Mémoire`).
+- [ ] **README** réécrit pro/concis/anglais/non-LLM.
+
 ## 🔧 Reste / near-term (chantiers actifs)
 Suivis dans la liste de tâches du dépôt.
 - [x] **i18n UI — 2ᵉ passe exhaustive** : audit ligne-à-ligne des 9 modules (parser dédié comments/dico/identifiants/CSS exclus). **16 dernières chaînes affichées** migrées (settings ×12, chat ×4). Reste = skips documentés (termes de marque `Abeille`, sentinels backend, identifiants).
