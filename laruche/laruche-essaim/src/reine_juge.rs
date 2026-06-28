@@ -24,7 +24,8 @@ pub struct DemandeJugement<'a> {
 /// Line-based shape the judge must return (one `KEY: value` per line). Far more
 /// reliable for small local models than nested JSON. Kept here so the prompt and
 /// the parser never drift apart.
-const FORMAT_REPONSE: &str = "RELEVANCE: <0-100>\n\
+const FORMAT_REPONSE: &str = "ANALYSIS: <your reasoning in 1-2 sentences, before scoring>\n\
+RELEVANCE: <0-100>\n\
 METHODOLOGY: <0-100>\n\
 OBJECTIVE: <0-100>\n\
 BRAND: <0-100>\n\
@@ -52,20 +53,21 @@ pub fn construire_prompt(d: &DemandeJugement) -> String {
         d.objectif
     };
     format!(
-        "/no_think\n{charte}\n\n\
+        "{charte}\n\n\
          ---\n\
          You are judging {cible}.\n\n\
          User objective (north star):\n{objectif}\n\n\
          Original request:\n{requete}\n\n\
          Draft to judge:\n{brouillon}\n\n\
          ---\n\
-         Assess the draft against the charter. Approve readily when it is good; a \
-         revision that does not measurably improve the draft is worse than shipping \
-         the original. When you revise, the instruction must be specific and \
-         executable, naming what is wrong and what to do.\n\n\
-         Do not think out loud and do not explain. Reply with EXACTLY these lines, one \
-         \"KEY: value\" per line, and nothing else (no prose, no JSON, no markdown):\n{format}\n\n\
+         Assess the draft against the charter. Reason briefly in the ANALYSIS line, then \
+         score. Approve readily when it is good; a revision that does not measurably improve \
+         the draft is worse than shipping the original. When you revise, the instruction must \
+         be specific and executable, naming what is wrong and what to do.\n\n\
+         Reply with EXACTLY these lines, one \"KEY: value\" per line, and nothing else (no \
+         extra prose, no JSON, no markdown):\n{format}\n\n\
          Example:\n\
+         ANALYSIS: Clear and on-scope; tone is warm which is fine; claims are grounded.\n\
          RELEVANCE: 85\nMETHODOLOGY: 80\nOBJECTIVE: 82\nBRAND: 90\nCONFIDENCE: 88\n\
          VERDICT: approve\nINSTRUCTION: \nREASON: Clear, on-scope, grounded.",
         charte = d.charte.trim(),
@@ -245,7 +247,7 @@ mod tests {
         assert!(p.contains("what is 2 + 2?"));
         assert!(p.contains("Draft to judge"));
         assert!(p.contains("VERDICT"));
-        assert!(p.starts_with("/no_think"));
+        assert!(p.contains("ANALYSIS"));
     }
 
     #[test]
