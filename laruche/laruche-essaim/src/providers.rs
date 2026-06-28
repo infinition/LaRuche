@@ -211,7 +211,16 @@ async fn openai_chat_stream(
                             // Actual usage (top-level, present on the final chunk or a dedicated chunk).
                             if let Some(u) = parsed["usage"]["prompt_tokens"].as_u64() { in_tok = Some(u); }
                             if let Some(u) = parsed["usage"]["completion_tokens"].as_u64() { out_tok = Some(u); }
-                            let text = parsed["choices"][0]["delta"]["content"].as_str().unwrap_or("").to_string();
+                            let mut text = parsed["choices"][0]["delta"]["content"].as_str().unwrap_or("").to_string();
+                            // Reasoning models (DeepSeek R1/reasoner and some "flash" variants served
+                            // via OpenAI-compatible proxies) stream their output in `reasoning_content`
+                            // and may leave `content` empty. Fall back to it so the turn is not silently
+                            // empty (which otherwise surfaces as "Done. No additional text response").
+                            if text.is_empty() {
+                                if let Some(rc) = parsed["choices"][0]["delta"]["reasoning_content"].as_str() {
+                                    text = rc.to_string();
+                                }
+                            }
                             let finish_reason = parsed["choices"][0]["finish_reason"].as_str().map(str::to_string);
                             let done = finish_reason.is_some();
 
