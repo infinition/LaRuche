@@ -171,8 +171,9 @@ async fn regenerer(
     let invite = format!(
         "You wrote the answer below for the user. Your supervisor LaReine asks you to revise it.\n\n\
          User request:\n{prompt}\n\nYour answer:\n{answer}\n\nRevision instruction:\n{instruction}\n\n\
-         Rewrite your answer applying the instruction. Reply with ONLY the revised answer, in the \
-         user's language, with no preamble and no mention of this revision."
+         Apply the instruction in good faith. If part of it is clearly wrong or would make the answer \
+         worse, keep what was already correct rather than degrading it. Reply with ONLY the revised \
+         answer, in the user's language, with no preamble and no mention of this revision."
     );
     let messages = vec![serde_json::json!({ "role": "user", "content": invite })];
     let mut stream = provider_chat_stream(

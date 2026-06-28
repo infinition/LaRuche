@@ -431,7 +431,12 @@ LaRuche.Chat = (function(){
           if(revTxt.trim()){
             var rr=addMessage('assistant','');
             if(rr&&rr.msgEl){
-              if(rr.row) rr.row.classList.add('reine-revised-row');
+              if(rr.row){
+                rr.row.classList.add('reine-revised-row');
+                // Swap the bee avatar for the crowned LaReine bee (same animation).
+                var rav=rr.row.querySelector('.avatar');
+                if(rav){ rav.innerHTML='<div class="bee bee-reine"><div class="bee--wings"></div><div class="bee--body"><span></span><span></span></div><div class="bee--head"><div class="bee--head-eyes"></div><div class="bee--head-antennas"></div></div><div class="bee--crown"></div></div>'; }
+              }
               var rhdr=document.createElement('div');
               rhdr.className='reine-revised-header';
               rhdr.innerHTML='👑 '+LaRuche.i18n.t('reine.revised');
