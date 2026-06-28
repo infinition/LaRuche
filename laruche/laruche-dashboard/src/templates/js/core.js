@@ -3,15 +3,14 @@
 /* ================================================================ */
 window.LaRuche = {};
 
-/* ── i18n : choix de langue FR/EN ─────────────────────────────────────────────────
- * Dictionnaire central { "clé": { fr, en } }. `t('clé')` renvoie la chaîne dans la langue
- * courante (localStorage). Les TERMES DE MARQUE (LaRuche, L'Essaim, abeilles, butinage, miel,
- * ruche, Curateur…) ne sont JAMAIS traduits — c'est la french touch. Le toggle recharge la page
- * (le plus simple : tout se re-render via `t()` avec la nouvelle langue).
- * La migration des ~500 chaînes vers `t()` se fait module par module (en cours). */
+/* i18n: FR/EN language choice.
+ * Central dictionary { "key": { fr, en } }. t('key') returns the string in the current
+ * language (localStorage). LaRuche brand terms (LaRuche, l'essaim, butinage, Miel, ruche,
+ * Curateur) are never translated; that is the french touch. The toggle reloads the page so
+ * everything re-renders through t() in the new language. Each module registers its own keys. */
 LaRuche.i18n = (function(){
   var DICT = {
-    // Commun
+    // Common
     'common.save':    { fr:'Enregistrer', en:'Save' },
     'common.cancel':  { fr:'Annuler',     en:'Cancel' },
     'common.delete':  { fr:'Supprimer',   en:'Delete' },
@@ -22,7 +21,7 @@ LaRuche.i18n = (function(){
     'common.loading': { fr:'Chargement…', en:'Loading…' },
     'common.search':  { fr:'Rechercher',  en:'Search' },
     'common.none':    { fr:'Aucun',       en:'None' },
-    // Toasts fréquents
+    // Frequent toasts
     'toast.saved':    { fr:'Enregistré',  en:'Saved' },
     'toast.deleted':  { fr:'Supprimé',    en:'Deleted' },
     'toast.failed':   { fr:'Échec',       en:'Failed' },
@@ -43,7 +42,7 @@ LaRuche.i18n = (function(){
     return s;
   }
   function setLang(l){ if(l !== lang){ localStorage.setItem('laruche_lang', l); location.reload(); } }
-  // Chaque module enregistre SES clés au chargement (évite d'éditer un dico central = pas de conflit).
+  // Each module registers its own keys at load time, which avoids editing a central dict and conflicts.
   function add(obj){ if(obj){ for(var k in obj){ DICT[k] = obj[k]; } } }
   return { t:t, add:add, setLang:setLang, get:function(){ return lang; }, DICT:DICT };
 })();
@@ -54,7 +53,7 @@ LaRuche.i18n.add({
   'core.newFile':            { fr:'+ Nouveau fichier',    en:'+ New file' },
   'core.folderEmpty':        { fr:'Dossier vide.',        en:'Empty folder.' },
   'core.fileHint':           { fr:"Sélectionne un fichier à gauche, ou glisse-dépose un script ici pour l'ajouter.", en:'Select a file on the left, or drag and drop a script here to add it.' },
-  'core.binaryFile':         { fr:'Fichier binaire ({size} o) — non éditable ici.', en:'Binary file ({size} bytes) — not editable here.' },
+  'core.binaryFile':         { fr:'Fichier binaire ({size} o) - non éditable ici.', en:'Binary file ({size} bytes) - not editable here.' },
   'core.savedPlugins':       { fr:'Enregistré (plugins rechargés)', en:'Saved (plugins reloaded)' },
   'core.deleteFileConfirm':  { fr:'Supprimer plugins/{path} ?', en:'Delete plugins/{path}?' },
   'core.fileDeleted':        { fr:'Fichier supprimé.',    en:'File deleted.' },
@@ -91,9 +90,9 @@ LaRuche.i18n.add({
   'core.errorPrefix':           { fr:'Erreur: {msg}',      en:'Error: {msg}' },
 });
 
-/* ── Navigateur de fichiers Plugins (dossier plugins/ + scripts/) ─────────────────
- * Voir/éditer/supprimer/déposer ses propres scripts (.py/.ps1/.sh/.json…) en plus du JSON.
- * Confiné côté serveur à plugins/ (anti-traversal). Glisser-déposer = upload. */
+/* ── Plugins file browser (plugins/ + scripts/ folder) ─────────────────
+ * View/edit/delete/drop your own scripts (.py/.ps1/.sh/.json…) in addition to the JSON.
+ * Server-side confined to plugins/ (anti-traversal). Drag and drop = upload. */
 LaRuche.PluginFiles = (function(){
   var ov=null, current=null;
   function esc(s){ return LaRuche.Utils.esc(s); }
@@ -116,7 +115,7 @@ LaRuche.PluginFiles = (function(){
         '</div>'+
       '</div></div>';
     document.body.appendChild(ov);
-    // Glisser-déposer = upload dans plugins/ (ou plugins/scripts/ si .py/.sh/.ps1).
+    // Drag and drop = upload into plugins/ (or plugins/scripts/ for .py/.sh/.ps1).
     var card=ov.firstChild;
     card.addEventListener('dragover', function(e){ e.preventDefault(); card.style.outline='2px dashed var(--amber)'; });
     card.addEventListener('dragleave', function(){ card.style.outline=''; });
@@ -182,12 +181,12 @@ LaRuche.PluginFiles = (function(){
   return { open:open, close:close, save:save, del:del, newFile:newFile, refresh:refresh };
 })();
 
-/* ── @@secret : autocomplétion CENTRALE des secrets ──────────────────────────────
- * Tape `@@` dans N'IMPORTE quel champ texte (chat, prompts de cron/mission/skill/watcher,
- * éditeur mémoire, formulaires…) → liste cliquable des secrets enregistrés. La VALEUR n'est
- * jamais affichée : on insère la référence `@@NOM`, que le backend substitue à l'exécution
- * (shell, web_fetch, provider, webhook via curl). Marche sans câblage par champ : un seul
- * écouteur en capture sur tout le document. */
+/* ── @@secret: CENTRAL secret autocompletion ──────────────────────────────
+ * Type `@@` in ANY text field (chat, cron/mission/skill/watcher prompts,
+ * memory editor, forms…) to get a clickable list of saved secrets. The VALUE is
+ * never displayed: we insert the `@@NAME` reference, which the backend substitutes at
+ * execution time (shell, web_fetch, provider, webhook via curl). Works without per-field
+ * wiring: a single capture-phase listener on the whole document. */
 LaRuche.Secrets = (function(){
   var names=[], box=null, items=[], sel=-1, targetEl=null, tokenStart=-1;
   function refresh(){ fetch('/api/secrets').then(function(r){return r.json();}).then(function(d){ names=(d&&d.names)||[]; }).catch(function(){}); }
@@ -232,33 +231,33 @@ LaRuche.Secrets = (function(){
   return { init:init, refresh:refresh };
 })();
 
-/* ── Rafraichissement dynamique global (P7) ──────────────────────
- * Apres toute action mutante (choix de modele, visibilite, capacite,
- * cron...), on re-fetch + re-render les composants concernes SANS F5.
- * Les references aux modules sont resolues a l'appel (lazy) car cette
- * fonction est definie avant les modules. parts = sous-ensemble optionnel
- * a rafraichir : 'models','mesh','capabilities','profiles','voice','cron'.
+/* ── Global dynamic refresh (P7) ──────────────────────
+ * After any mutating action (model choice, visibility, capability,
+ * cron...), re-fetch + re-render the affected components WITHOUT F5.
+ * Module references are resolved at call time (lazy) because this
+ * function is defined before the modules. parts = optional subset
+ * to refresh: 'models','mesh','capabilities','profiles','voice','cron'.
  */
 LaRuche.refreshAll = function(parts) {
   var all = !parts || !parts.length;
   function want(p){ return all || parts.indexOf(p) !== -1; }
   try {
-    // Dropdown modele du haut + badge capacite global
+    // Top model dropdown + global capability badge
     if(want('models') && LaRuche.Header && LaRuche.Header.loadModels) LaRuche.Header.loadModels();
-    // Panneau "Services du mesh" + recap capacites + sélecteurs voix (Dashboard.fetchModels
-    // re-lit /swarm/models ET /api/capabilities/selection, et met à jour les voix).
+    // "Mesh services" panel + capabilities recap + voice selectors (Dashboard.fetchModels
+    // re-reads /swarm/models AND /api/capabilities/selection, and updates the voices).
     if((want('mesh') || want('capabilities') || want('voice')) && LaRuche.Dashboard && LaRuche.Dashboard.fetchModels) LaRuche.Dashboard.fetchModels();
-    // Statut voix (STT/TTS selectionne)
+    // Voice status (selected STT/TTS)
     if(want('voice') && LaRuche.Voice && LaRuche.Voice.refreshStatus) LaRuche.Voice.refreshStatus();
-    // Onglet Settings courant (profils, cron, watchers, kanban...) si visible
+    // Current Settings tab (profiles, cron, watchers, kanban...) if visible
     if(want('profiles') || want('cron')) {
       if(LaRuche.Settings && LaRuche.Settings.refreshTab && LaRuche.Router && LaRuche.Router.current && LaRuche.Router.current() === 'settings') {
         LaRuche.Settings.refreshTab();
       }
     }
-  } catch(e){ /* best-effort, ne jamais casser l'action */ }
+  } catch(e){ /* best-effort, never break the action */ }
 };
-// Alias historique (deja appele dans le code visibilite)
+// Historical alias (already called in the visibility code)
 LaRuche.forceReactivityUpdate = function(){ LaRuche.refreshAll(); };
 
 /* ── Utils ─────────────────────────────────────────────────────── */
@@ -422,14 +421,14 @@ LaRuche.Console = (function(){
   var lastEventId = 0;
   var pollTimer = null;
 
-  // P8 : ouvre la session liee a un event (onglet Chat + re-attach flux live).
+  // P8: open the session tied to an event (Chat tab + re-attach live stream).
   function openSession(sid) {
     if(!sid) return;
     LaRuche.Router.go('chat');
     setTimeout(function(){ if(LaRuche.Chat && LaRuche.Chat.switchSession) LaRuche.Chat.switchSession(sid); }, 120);
   }
 
-  // P8 : notification/toast cliquable pour les events porteurs d'un session_id/task_id.
+  // P8: clickable notification/toast for events carrying a session_id/task_id.
   function notifyEvent(ev) {
     if(!ev || !ev.payload) return;
     var pl = ev.payload;
@@ -443,7 +442,7 @@ LaRuche.Console = (function(){
         break;
       }
       case 'AgentFinished': { if (typeof LaRuche !== 'undefined' && LaRuche.Memory && typeof LaRuche.Memory.current === 'function') { var cnode = LaRuche.Memory.current(); if (cnode) { LaRuche.Memory.loadNode(cnode); } } break; } case 'AgentStarted': {
-        // payload: {session_id, prompt} (chat) ou {task_id, prompt} (cron)
+        // payload: {session_id, prompt} (chat) or {task_id, prompt} (cron)
         var label = pl.prompt || pl.preview || LaRuche.i18n.t('core.agentStartedLabel');
         LaRuche.Toast.show(LaRuche.i18n.t('core.agentStartedToast',{label:String(label).substring(0,60)}), 'info', 6000,
           sid ? function(){ openSession(sid); } : null);
@@ -784,11 +783,11 @@ LaRuche.Router = (function(){
     if(headerRight) headerRight.style.display = isLogin ? 'none' : '';
     // enter new page
     if(modules[page] && modules[page].enter) modules[page].enter();
-    // Repositionne les fenêtres mesh : les barres du bas changent selon l'onglet (input chat absent
-    // hors chat). go() utilise replaceState (pas de hashchange) → on doit l'appeler explicitement.
+    // Reposition mesh windows: the bottom bars change per tab (chat input absent
+    // outside chat). go() uses replaceState (no hashchange), so we must call it explicitly.
     if(window.LaRuche && LaRuche.Mesh && LaRuche.Mesh.repositionWindows){
       LaRuche.Mesh.repositionWindows();
-      requestAnimationFrame(function(){ LaRuche.Mesh.repositionWindows(); }); // après reflow de la nouvelle page
+      requestAnimationFrame(function(){ LaRuche.Mesh.repositionWindows(); }); // after the new page reflows
     }
     // update hash without triggering hashchange
     if(location.hash !== '#'+page) {
@@ -819,13 +818,13 @@ LaRuche.Header = (function(){
   function init() {
     loadModels();
     loadPermissionMode();
-    // Rafraîchit la liste de modèles en arrière-plan (sans F5) : un provider local fermé
-    // (llama.cpp/ollama) disparaît, et réapparaît dès qu'il revient. On évite de re-render
-    // pendant que l'utilisateur a le menu ouvert.
+    // Refresh the model list in the background (without F5): a closed local provider
+    // (llama.cpp/ollama) disappears, and reappears as soon as it comes back. Avoid re-rendering
+    // while the user has the menu open.
     setInterval(function(){
       var drop=document.getElementById('sbModelDrop');
       if(drop && drop.classList.contains('open')) return;
-      if(Date.now()-lastModelChangeAt < 8000) return; // pas juste après un choix manuel
+      if(Date.now()-lastModelChangeAt < 8000) return; // not right after a manual choice
       loadModels();
     }, 20000);
     setInterval(fetchContextStats, 1500);
@@ -905,7 +904,7 @@ LaRuche.Header = (function(){
         groups[m.profile_name].push(m);
       });
 
-      // Icône de SOURCE par groupe : 🐝 mesh/partagé · 🖥️ local · ☁️ cloud.
+      // SOURCE icon per group: 🐝 mesh/shared · 🖥️ local · ☁️ cloud.
       function srcIcon(name){
         var n=(name||'').toLowerCase();
         if(/mesh|partag|\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/.test(n)) return '🐝 ';
@@ -960,9 +959,9 @@ LaRuche.Header = (function(){
     select.disabled = true;
     LaRuche.Console.log('info','Header','Switching to '+profileId+'/'+modelName);
 
-    // Met à jour le modèle actif global (persisté + sync moteur) pour que
-    // l'onglet General et l'état reflètent le vrai modèle, et conserve aussi
-    // la préférence par-utilisateur.
+    // Update the global active model (persisted + engine sync) so the
+    // General tab and state reflect the real model, and also keep the
+    // per-user preference.
     fetch('/api/profiles/active',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({profile_id:profileId, model:modelName})
     }).catch(function(){});
@@ -977,7 +976,7 @@ LaRuche.Header = (function(){
         }).catch(function(){});
       }
       LaRuche.Toast.show('Model: '+modelName,'ok');
-      // P7 : refleter le nouveau modele actif dans le mesh/recap capacites sans F5
+      // P7: reflect the new active model in the mesh/capabilities recap without F5
       LaRuche.refreshAll(['mesh','capabilities']);
     }).catch(function(){ select.disabled = false; });
   }
@@ -1086,17 +1085,17 @@ LaRuche.WS = (function(){
   function isOpen() { return ws && ws.readyState===WebSocket.OPEN; }
   function close() { if(ws){ ws.onclose=null; ws.close(); ws=null; } reconnectAttempts=0; }
 
-  /* P8 — Re-attach au flux live d'une session en cours.
-   * On ouvre une connexion WS SECONDAIRE dediee (le serveur, sur reception de
-   * {type:"subscribe",session_id}, bloque la socket dans une boucle de relais des
-   * events ChatEvent de cette session : on ne peut donc PAS reutiliser la socket
-   * principale du chat). Si la session n'est plus en cours, le serveur ne renvoie
-   * rien d'actif et on referme apres un court delai. Sur 'done'/'error' on referme. */
+  /* P8: Re-attach to the live stream of an ongoing session.
+   * We open a dedicated SECONDARY WS connection (the server, on receiving
+   * {type:"subscribe",session_id}, blocks the socket in a relay loop for that
+   * session's ChatEvent events: so we CANNOT reuse the chat's main
+   * socket). If the session is no longer ongoing, the server returns
+   * nothing active and we close after a short delay. On 'done'/'error' we close. */
   var attachWs = null;
   var attachTimer = null;
   function reattach(sessionId) {
     if(!sessionId) return;
-    // Fermer une eventuelle re-attache precedente
+    // Close any previous re-attach
     detach();
     try {
       var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -1104,15 +1103,15 @@ LaRuche.WS = (function(){
     } catch(e){ return; }
     attachWs.onopen = function(){
       try { attachWs.send(JSON.stringify({type:'subscribe', session_id:sessionId})); } catch(e){}
-      // Filet de securite : si aucun event live n'arrive (session deja terminee),
-      // on referme la socket inutile au bout de 8 s. Reinitialise a chaque event.
+      // Safety net: if no live event arrives (session already finished),
+      // close the useless socket after 8 s. Reset on each event.
       armIdleClose();
     };
     attachWs.onmessage = function(e){
       armIdleClose();
       var data; try { data = JSON.parse(e.data); } catch(err){ return; }
-      // On ignore l'ack 'session' (deja gere par switchSession) ; on relaie le reste
-      // au pipeline de rendu du chat (tokens, tool_call, done, ...).
+      // Ignore the 'session' ack (already handled by switchSession); relay the rest
+      // to the chat rendering pipeline (tokens, tool_call, done, ...).
       if(data.type === 'session') return;
       if(LaRuche.Chat && LaRuche.Chat.handleEvent) LaRuche.Chat.handleEvent(data);
       if(data.type === 'done' || data.type === 'error') detach();

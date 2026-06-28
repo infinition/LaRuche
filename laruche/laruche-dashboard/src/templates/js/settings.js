@@ -1,6 +1,6 @@
 LaRuche.i18n.add({
   'settings.loading':            {fr:'Chargement...',    en:'Loading...'},
-  'settings.codexSubscription':  {fr:'— abonnement (OAuth, sans clé API)', en:'— subscription (OAuth, no API key)'},
+  'settings.codexSubscription':  {fr:'- abonnement (OAuth, sans clé API)', en:'- subscription (OAuth, no API key)'},
   'settings.modelsLabel':        {fr:'Modèles',          en:'Models'},
   'settings.viewSource':         {fr:'Voir source',      en:'View source'},
   'settings.editJson':           {fr:'Éditer JSON',      en:'Edit JSON'},
@@ -28,14 +28,14 @@ LaRuche.i18n.add({
   'settings.curateur':           {fr:'Curateur · Butinage', en:'Curateur · Butinage'},
   'settings.autoSkillCreate':    {fr:'Auto-création de skills/outils vérifiés', en:'Auto-creation of verified skills/tools'},
   'settings.dynToolsSelect':     {fr:'Sélection dynamique des outils ', en:'Dynamic tool selection '},
-  'settings.dynToolsHint':       {fr:'(prompt léger — recommandé pour petits modèles / llama.cpp)', en:'(light prompt — recommended for small models / llama.cpp)'},
+  'settings.dynToolsHint':       {fr:'(prompt léger, recommandé pour petits modèles / llama.cpp)', en:'(light prompt, recommended for small models / llama.cpp)'},
   'settings.curEnvForced':       {fr:'Forcé par RUCHE_CURATEUR=1 (variable d\'env).', en:'Forced by RUCHE_CURATEUR=1 (env variable).'},
   'settings.curDefault':         {fr:'En arrière-plan, conservateur (dédup auto). Off = ne crée rien.', en:'Background, conservative (auto-dedup). Off = creates nothing.'},
   'settings.system':             {fr:'System',           en:'System'},
   'settings.showTransparency':   {fr:'Afficher la transparence (outils/mémoire)', en:'Show transparency (tools/memory)'},
   'settings.codexLoading':       {fr:'Chargement…',     en:'Loading…'},
   'settings.codexConnected':     {fr:'✓ Connecté',      en:'✓ Connected'},
-  'settings.codexExpiring':      {fr:'Token expiré — refresh auto au prochain appel.', en:'Token expired — auto-refresh on next call.'},
+  'settings.codexExpiring':      {fr:'Token expiré: refresh auto au prochain appel.', en:'Token expired: auto-refresh on next call.'},
   'settings.codexDisconnect':    {fr:'Déconnecter',     en:'Disconnect'},
   'settings.codexConnectInstr':  {fr:'Pour vous connecter :', en:'To connect:'},
   'settings.codexStep1':         {fr:'Ouvrez', en:'Open'},
@@ -65,7 +65,7 @@ LaRuche.i18n.add({
   'settings.allToolsDisabled':   {fr:'Toutes les abeilles désactivées', en:'All tools disabled'},
   'settings.toolsErr':           {fr:'Erreur Abeilles: ', en:'Tools error: '},
   'settings.meshCodeConfigured': {fr:'(configuré)',      en:'(configured)'},
-  'settings.meshCodeUnconfigured':{fr:'(non configuré — auth par IP LAN)', en:'(not configured — auth by LAN IP)'},
+  'settings.meshCodeUnconfigured':{fr:'(non configuré, auth par IP LAN)', en:'(not configured, auth by LAN IP)'},
   'settings.meshCodeHint':       {fr:'Secret partagé entre tes ruches (comme un mot de passe WiFi). Mets le <b>même</b> code sur toutes tes ruches : il authentifie les échanges du mesh (fin des « rejected » / flapping) et servira de base au chiffrement.', en:'Shared secret between your nodes (like a WiFi password). Set the <b>same</b> code on all nodes: it authenticates mesh exchanges (no more "rejected" / flapping) and will be used for encryption.'},
   'settings.meshCodePlaceholderSet':   {fr:'•••• (vide = inchangé)', en:'•••• (empty = unchanged)'},
   'settings.meshCodePlaceholderNew':   {fr:'choisis un code',        en:'choose a code'},
@@ -102,7 +102,7 @@ LaRuche.i18n.add({
   'settings.skillDisabled':      {fr:'(désactivé : non injecté)', en:'(disabled: not injected)'},
   'settings.defaultModel':       {fr:'Default (modele actif)', en:'Default (active model)'},
   'settings.providerDefault':    {fr:'Défaut du provider', en:'Provider default'},
-  'settings.secretsDesc':        {fr:'Les secrets sont <b>chiffrés au repos</b>. Le LLM ne voit JAMAIS leur valeur — seulement leur nom. Dans une commande, un script ou un champ clé d\'API, référence-les par <code>${NOM}</code> : la vraie valeur est substituée à l\'exécution.', en:'Secrets are <b>encrypted at rest</b>. The LLM NEVER sees their value — only their name. In a command, script, or API key field, reference them as <code>${NAME}</code>: the real value is substituted at runtime.'},
+  'settings.secretsDesc':        {fr:'Les secrets sont <b>chiffrés au repos</b>. Le LLM ne voit JAMAIS leur valeur, seulement leur nom. Dans une commande, un script ou un champ clé d\'API, référence-les par <code>${NOM}</code> : la vraie valeur est substituée à l\'exécution.', en:'Secrets are <b>encrypted at rest</b>. The LLM NEVER sees their value, only their name. In a command, script, or API key field, reference them as <code>${NAME}</code>: the real value is substituted at runtime.'},
   'settings.secretsTitle':       {fr:'Secrets', en:'Secrets'},
   'settings.secretsHint':        {fr:'Ex: API_OPENAI, TOKEN_TELEGRAM, USERID_TELEGRAM…', en:'E.g.: API_OPENAI, TOKEN_TELEGRAM, USERID_TELEGRAM…'},
   'settings.webhooksTitle':      {fr:'Webhooks', en:'Webhooks'},
@@ -150,7 +150,7 @@ LaRuche.i18n.add({
   'settings.skillToolsClear':    {fr:'Vider',            en:'Clear'},
   'settings.skillToolsLoading':  {fr:'Chargement…',     en:'Loading…'},
   'settings.skillToolsNone':     {fr:'Aucun résultat.',  en:'No results.'},
-  'settings.skillEditorHint':    {fr:'— SKILL.md (frontmatter validé au save)', en:'— SKILL.md (frontmatter validated on save)'},
+  'settings.skillEditorHint':    {fr:'- SKILL.md (frontmatter validé au save)', en:'- SKILL.md (frontmatter validated on save)'},
   'settings.skillNewTitle':      {fr:'Nouveau skill',    en:'New skill'},
   'settings.skillEditPrefix':    {fr:'Éditer : ',        en:'Edit: '},
   'settings.skillSaveBtn':       {fr:'Enregistrer',      en:'Save'},
@@ -158,7 +158,7 @@ LaRuche.i18n.add({
   'settings.skillSaved':         {fr:' » enregistré',   en:' » saved'},
   'settings.skillFailed':        {fr:'Échec',            en:'Failed'},
   'settings.pluginEditTitle':    {fr:'Éditer Plugin : ', en:'Edit Plugin: '},
-  'settings.pluginEditorHint':   {fr:'— JSON (rechargé au save)', en:'— JSON (reloaded on save)'},
+  'settings.pluginEditorHint':   {fr:'- JSON (rechargé au save)', en:'- JSON (reloaded on save)'},
   'settings.pluginSaveBtn':      {fr:'Enregistrer',      en:'Save'},
   'settings.pluginCancelBtn':    {fr:'Annuler',          en:'Cancel'},
   'settings.pluginSaved':        {fr:' » enregistré',   en:' » saved'},
@@ -192,9 +192,9 @@ LaRuche.i18n.add({
   'settings.visibilityUpdated':  {fr:'Visibilité modifiée avec succès', en:'Visibility updated successfully'},
   'settings.accessTitle':        {fr:'🔐 Accès mesh du provider', en:'🔐 Provider mesh access'},
   'settings.accessHint':         {fr:'Qui peut utiliser ce provider/LLM via le mesh ? (la clé API reste toujours locale)', en:'Who can use this provider/LLM via the mesh? (the API key always stays local)'},
-  'settings.accessPrivate':      {fr:'🔒 <b>Privé</b> — moi seulement', en:'🔒 <b>Private</b> — me only'},
-  'settings.accessPublic':       {fr:'🌐 <b>Public</b> — toutes les ruches du mesh', en:'🌐 <b>Public</b> — all mesh nodes'},
-  'settings.accessRestricted':   {fr:'🐝 <b>Restreint</b> — seulement ces ruches :', en:'🐝 <b>Restricted</b> — only these nodes:'},
+  'settings.accessPrivate':      {fr:'🔒 <b>Privé</b> - moi seulement', en:'🔒 <b>Private</b> - me only'},
+  'settings.accessPublic':       {fr:'🌐 <b>Public</b> - toutes les ruches du mesh', en:'🌐 <b>Public</b> - all mesh nodes'},
+  'settings.accessRestricted':   {fr:'🐝 <b>Restreint</b> - seulement ces ruches :', en:'🐝 <b>Restricted</b> - only these nodes:'},
   'settings.accessNoPeers':      {fr:'Aucune ruche découverte sur le réseau.', en:'No nodes discovered on the network.'},
   'settings.accessSave':         {fr:'Enregistrer',      en:'Save'},
   'settings.accessUpdated':      {fr:'Accès mis à jour', en:'Access updated'},
@@ -269,7 +269,7 @@ LaRuche.i18n.add({
   'settings.bpTitleLabel':       {fr:'Titre',            en:'Title'},
   'settings.bpPromptLabel':      {fr:'Prompt (template)', en:'Prompt (template)'},
   'settings.bpScheduleLabel':    {fr:'Cadence (cron)',   en:'Schedule (cron)'},
-  'settings.bpSlotsLabel':       {fr:'Variables (slots) — referencees via <code>{name}</code> dans les templates', en:'Variables (slots) — referenced via <code>{name}</code> in templates'},
+  'settings.bpSlotsLabel':       {fr:'Variables (slots) - referencees via <code>{name}</code> dans les templates', en:'Variables (slots) - referenced via <code>{name}</code> in templates'},
   'settings.bpAddSlot':          {fr:'+ Variable',       en:'+ Variable'},
   'settings.bpCreateBtn':        {fr:'Créer le blueprint', en:'Create blueprint'},
   'settings.bpCancelBtn':        {fr:'Annuler',          en:'Cancel'},
@@ -310,9 +310,9 @@ LaRuche.Settings = (function(){
   function loadTab(tab) {
     var host = document.getElementById('settingsContent');
     if(!host) return;
-    // Anti-course : on donne à CHAQUE chargement un canvas neuf. Si un loader async lent se
-    // termine APRÈS qu'on a changé d'onglet, il écrit dans SON ancien `el` (désormais détaché
-    // du DOM) → invisible. Fini le « General s'affiche alors que j'ai cliqué Provider ».
+    // Anti-race: give EACH load a fresh canvas. If a slow async loader finishes
+    // AFTER the tab has changed, it writes into ITS old `el` (now detached
+    // from the DOM) -> invisible. No more "General shows up when I clicked Provider".
     var el = document.createElement('div');
     el.className = 'settings-tab-canvas';
     host.innerHTML = '';
@@ -338,8 +338,8 @@ LaRuche.Settings = (function(){
   }
 
   async function loadGeneral(el) {
-    // Les 6 appels sont INDÉPENDANTS → en PARALLÈLE (Promise.all) au lieu de 6 await en série
-    // (c'était ça la lenteur : chaque fetch attendait le précédent). gj = fetch tolérant aux erreurs.
+    // The 6 calls are INDEPENDENT -> run them in PARALLEL (Promise.all) instead of 6 serial awaits
+    // (that was the slowness: each fetch waited for the previous one). gj = error-tolerant fetch.
     function gj(u){ return fetch(u).then(function(r){return r.json();}).catch(function(){return {};}); }
     var _r = await Promise.all([
       gj('/api/doctor'), gj('/api/voice/status'), gj('/api/config/provider'),
@@ -397,7 +397,7 @@ LaRuche.Settings = (function(){
     try { credsData = await fetch('/api/credentials').then(function(r){return r.json();}); } catch(e) {}
     var allCreds = credsData.credentials || [];
 
-    // Carte dǸdiǸe : connexion ChatGPT Codex via abonnement (OAuth).
+    // Dedicated card: ChatGPT Codex connection via subscription (OAuth).
     var html = '<div class="settings-card" id="codexAuthCard" style="margin-bottom:16px;border:1px solid var(--amber)">'+
       '<div class="settings-card-title">ChatGPT Codex <span style="color:var(--text-dim);font-size:10px;font-weight:normal">'+LaRuche.i18n.t('settings.codexSubscription')+'</span></div>'+
       '<div id="codexAuthBox" style="font-size:12px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.codexLoading')+'</div>'+
@@ -406,7 +406,7 @@ LaRuche.Settings = (function(){
     html += '<div style="margin-bottom:12px"><button class="settings-save-btn" onclick="LaRuche.Settings.showProfileForm()">+ Add Provider</button></div>';
     html += '<div id="profileFormContainer" style="display:none"></div>';
 
-    // (Les serveurs MCP ont désormais leur propre onglet « MCP » — voir loadMcp.)
+    // (MCP servers now have their own "MCP" tab, see loadMcp.)
 
     html += '<div class="settings-grid">';
     var sharedHtml = '';
@@ -416,8 +416,8 @@ LaRuche.Settings = (function(){
       var isActive = (id === active.profile_id);
       var modelCount = (p.models || []).length;
       var provLabel = p.provider === 'ollama' ? 'Ollama' : p.provider === 'anthropic' ? 'Anthropic' : p.provider === 'codex' ? 'ChatGPT Codex' : 'OpenAI-compat';
-      // PARTAGÉ PAR UN PAIR : base_url = IP LAN privée (≠ loopback) → carte séparée, lecture seule
-      // (on ne re-partage pas / n'édite pas le provider d'un autre).
+      // SHARED BY A PEER: base_url = private LAN IP (not loopback) -> separate card, read-only
+      // (we don't re-share / edit someone else's provider).
       var _bu = (p.base_url||'').toLowerCase();
       var _shared = /(^|\/\/)(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(_bu) && !/127\.0\.0\.1|localhost/.test(_bu);
       if(_shared){
@@ -428,7 +428,7 @@ LaRuche.Settings = (function(){
           '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.modelsLabel')+'</span><span class="settings-value">'+modelCount+'</span></div>'+
           '<div style="margin-top:10px"><button onclick="LaRuche.Settings.deleteProfile(\''+id+'\')" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.removeFromList')+'</button></div>'+
           '</div>';
-        return; // pas de carte normale : ni « Rendre Public », ni « Edit »
+        return; // no normal card: neither "Make Public" nor "Edit"
       }
 
       var pCreds = allCreds.filter(function(c){ return c.provider.toLowerCase() === p.provider.toLowerCase(); });
@@ -454,7 +454,7 @@ LaRuche.Settings = (function(){
       var visBadge = _vis==='public_proxy'
         ? '<span style="color:var(--blue);font-size:10px;font-weight:bold;margin-left:8px;">🌐 Public 📡</span>'
         : _vis==='restricted'
-        ? '<span style="color:var(--cyan);font-size:10px;font-weight:bold;margin-left:8px;">🐝 Restreint ('+_nAllowed+')</span>'
+        ? '<span style="color:var(--cyan);font-size:10px;font-weight:bold;margin-left:8px;">🐝 Restricted ('+_nAllowed+')</span>'
         : '<span style="color:var(--text-dim);font-size:10px;font-weight:bold;margin-left:8px;">'+LaRuche.i18n.t('settings.visPrivate')+'</span>';
       var visToggleBtn = '<button onclick="LaRuche.Settings.openAccess(\''+id+'\', \''+_vis+'\', \''+encodeURIComponent(JSON.stringify(p.allowed_peers||[]))+'\')" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;">'+LaRuche.i18n.t('settings.accessBtn')+'</button>';
       html += '<div class="settings-card" style="'+(isActive?'border:1px solid var(--amber);':'')+'">'+
@@ -483,7 +483,7 @@ LaRuche.Settings = (function(){
     refreshCodexStatus();
   }
 
-  // ── ChatGPT Codex (OAuth abonnement) ──────────────────────────
+  // ── ChatGPT Codex (OAuth subscription) ──────────────────────────
   var _codexPoll = null;
 
   function renderCodexBox(s) {
@@ -503,7 +503,7 @@ LaRuche.Settings = (function(){
         '</ol>'+
         '<div style="color:var(--text-dim);font-size:11px">'+LaRuche.i18n.t('settings.codexWaiting')+'</div>';
     } else if(s.phase === 'error') {
-      box.innerHTML = '<div style="color:var(--red)">'+LaRuche.i18n.t('settings.codexError')+LaRuche.Utils.esc(s.message||'erreur')+'</div>'+
+      box.innerHTML = '<div style="color:var(--red)">'+LaRuche.i18n.t('settings.codexError')+LaRuche.Utils.esc(s.message||'error')+'</div>'+
         '<div style="margin-top:8px"><button onclick="LaRuche.Settings.startCodexLogin()" style="background:var(--amber);border:none;color:#000;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:11px">'+LaRuche.i18n.t('settings.codexRetry')+'</button></div>';
     } else {
       box.innerHTML = '<div>'+LaRuche.i18n.t('settings.codexUseSubscription')+'</div>'+
@@ -654,7 +654,7 @@ LaRuche.Settings = (function(){
 
     html += '<div class="settings-grid">'+tools.map(function(t, idx){
       var enabled = t.enabled !== false;
-      var originBadge = (t.origin === 'Custom') ? '<span style="margin-left:8px;font-size:9px;color:var(--purple);border:1px solid var(--purple-dim);background:var(--purple-dim);padding:2px 4px;border-radius:4px;">Custom</span>' : '<span style="margin-left:8px;font-size:9px;color:var(--text-dim);border:1px solid var(--border);padding:2px 4px;border-radius:4px;">Rust natif</span>';
+      var originBadge = (t.origin === 'Custom') ? '<span style="margin-left:8px;font-size:9px;color:var(--purple);border:1px solid var(--purple-dim);background:var(--purple-dim);padding:2px 4px;border-radius:4px;">Custom</span>' : '<span style="margin-left:8px;font-size:9px;color:var(--text-dim);border:1px solid var(--border);padding:2px 4px;border-radius:4px;">Native Rust</span>';
       var customActions = (t.origin === 'Custom') ? '<div style="margin-top:10px;display:flex;gap:8px;border-top:1px solid rgba(255,255,255,0.05);padding-top:8px;"><button style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();LaRuche.Toast.show(LaRuche.i18n.t(\'settings.pluginSrcUnavailable\'),\'err\')">'+LaRuche.i18n.t('settings.viewSource')+'</button><button style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();LaRuche.Toast.show(LaRuche.i18n.t(\'settings.pluginJsonNoEdit\'),\'err\')">'+LaRuche.i18n.t('settings.editJson')+'</button><button style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();fetch(\'/api/tools/\'+LaRuche.Utils.esc(t.name),{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})">'+LaRuche.i18n.t('settings.tlDelete')+'</button></div>' : '';
       return '<div class="settings-card" style="cursor:pointer; transition:transform 0.2s, box-shadow 0.2s; position:relative;" onmouseover="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.3)\';" onmouseout="this.style.transform=\'\';this.style.boxShadow=\'\';" onclick="LaRuche.Utils.openMediaModal(\'text\', JSON.stringify(window._allTools['+idx+'], null, 2))">'+
         '<div class="settings-card-title" style="display:flex;justify-content:space-between;gap:8px;align-items:center">'+
@@ -693,14 +693,14 @@ LaRuche.Settings = (function(){
       .then(function(r){return r.json();})
       .then(function(d){
         if(d.status !== 'ok') LaRuche.Toast.show(LaRuche.i18n.t('settings.toolsConfigErr'),'err');
-        else { LaRuche.Toast.show(name+(enabled?' activee':' desactivee'),'ok'); loadTab('tools'); }
+        else { LaRuche.Toast.show(name+(enabled?' enabled':' disabled'),'ok'); loadTab('tools'); }
       })
       .catch(function(e){LaRuche.Toast.show(LaRuche.i18n.t('settings.toolsErr')+e,'err');});
   }
 
   async function loadNetwork(el) {
     var codeSet=false; try{ codeSet=(await fetch('/api/mesh/code').then(function(r){return r.json();})).set; }catch(e){}
-    var codeCard='<div class="settings-card"><div class="settings-card-title">Code de mesh '+
+    var codeCard='<div class="settings-card"><div class="settings-card-title">Mesh code '+
       (codeSet?'<span style="color:var(--green);font-size:11px">'+LaRuche.i18n.t('settings.meshCodeConfigured')+'</span>':'<span style="color:var(--text-muted);font-size:11px">'+LaRuche.i18n.t('settings.meshCodeUnconfigured')+'</span>')+'</div>'+
       '<p style="color:var(--text-dim);font-size:12px;margin:4px 0 8px">'+LaRuche.i18n.t('settings.meshCodeHint')+'</p>'+
       '<div style="display:flex;gap:8px"><input id="meshCodeInput" type="password" placeholder="'+(codeSet?LaRuche.i18n.t('settings.meshCodePlaceholderSet'):LaRuche.i18n.t('settings.meshCodePlaceholderNew'))+'" style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px"><button class="send-btn" id="meshCodeSave"><span>'+LaRuche.i18n.t('settings.meshSave')+'</span></button></div></div>';
@@ -720,13 +720,13 @@ LaRuche.Settings = (function(){
     };
   }
 
-  // ── Timeline des crons (porté de la PR third-party #47944, en vanilla JS) ──────
-  var _tlSpanH = 24;            // fenêtre : 24 / 48 / 168 h
-  var _tlFromMs = 0;           // bord gauche
+  // ── Cron timeline (ported from third-party PR #47944, in vanilla JS) ──────
+  var _tlSpanH = 24;            // window: 24 / 48 / 168 h
+  var _tlFromMs = 0;           // left edge
   var _tlJobs = [];
   var _tlTimer = null;
-  var _tlHost = null;          // élément conteneur du rendu
-  var _tlPxPerH = 64;          // px par heure (selon le zoom)
+  var _tlHost = null;          // render container element
+  var _tlPxPerH = 64;          // px per hour (depends on zoom)
   function ensureTimelineStyle(){
     if(document.getElementById('lr-tl-style'))return;
     var s=document.createElement('style'); s.id='lr-tl-style';
@@ -822,11 +822,11 @@ LaRuche.Settings = (function(){
       '<div class="tl-head" style="width:'+width+'px">'+ticks+'</div>'+lanes+
       '<div class="tl-now" id="tlNow"></div></div></div></div><div id="tlDetail"></div>';
     el.innerHTML=html; positionNow();
-    // auto-scroll pour placer "now" ~28% du bord gauche
+    // auto-scroll to place "now" ~28% from the left edge
     var sc=el.querySelector('.tl-scroll'); if(sc){ var nowX=(Date.now()-_tlFromMs)/spanMs*width; sc.scrollLeft=Math.max(0,nowX-sc.offsetWidth*0.28); }
     wireTlDrag(el);
   }
-  // Drag horizontal d'une lane → décale l'heure d'un cron à heure fixe ("m h * * ...").
+  // Horizontal drag of a lane -> shifts the hour of a fixed-time cron ("m h * * ...").
   function wireTlDrag(el){
     el.querySelectorAll('.tl-row[data-i]').forEach(function(row){
       var startX=0, dragging=false, moved=0;
@@ -835,7 +835,7 @@ LaRuche.Settings = (function(){
       row.addEventListener('pointermove',function(e){ if(!dragging)return; moved=e.clientX-startX; row.style.transform='translateX('+(moved*0.15)+'px)'; });
       row.addEventListener('pointerup',function(e){
         if(!dragging)return; dragging=false; row.style.cursor='grab'; row.style.transform='';
-        if(Math.abs(moved)<8) return; // simple clic → géré par le marqueur
+        if(Math.abs(moved)<8) return; // simple click -> handled by the marker
         var job=_tlJobs[parseInt(row.getAttribute('data-i'))]; if(!job||!job.cron_expr){ LaRuche.Toast.show(LaRuche.i18n.t('settings.tlShiftUnsupported'),'warn'); return; }
         var p=job.cron_expr.trim().split(/\s+/); if(p.length<5||isNaN(parseInt(p[1]))){ LaRuche.Toast.show(LaRuche.i18n.t('settings.tlShiftFixed'),'warn'); return; }
         var dh=Math.round(moved/_tlPxPerH); if(dh===0)return;
@@ -880,7 +880,7 @@ LaRuche.Settings = (function(){
           var name=String(skill.name||''), enabled=skill.enabled!==false, checked=selected.indexOf(name)!==-1;
           return '<label style="display:flex;align-items:flex-start;gap:7px;margin:5px 0;cursor:'+(enabled?'pointer':'not-allowed')+';opacity:'+(enabled?'1':'0.55')+'">'+
             '<input class="tlf-skill" type="checkbox" value="'+LaRuche.Utils.esc(name)+'" '+(checked?'checked ':'')+(enabled?'':'disabled ')+'>'+
-            '<span><strong>'+LaRuche.Utils.esc(name)+'</strong>'+(skill.description?' <span style="color:var(--text-dim)">— '+LaRuche.Utils.esc(skill.description)+'</span>':'')+(enabled?'':' <span style="color:var(--red)">'+LaRuche.i18n.t('settings.skillDisabled')+'</span>')+'</span></label>';
+            '<span><strong>'+LaRuche.Utils.esc(name)+'</strong>'+(skill.description?' <span style="color:var(--text-dim)">- '+LaRuche.Utils.esc(skill.description)+'</span>':'')+(enabled?'':' <span style="color:var(--red)">'+LaRuche.i18n.t('settings.skillDisabled')+'</span>')+'</span></label>';
         }).join('')+'</fieldset>';
     }
         var profiles = window._lastProfiles || {};
@@ -899,12 +899,12 @@ LaRuche.Settings = (function(){
     }
 
     d.innerHTML='<div class="tl-detail"><div style="font-weight:600;color:var(--amber);margin-bottom:8px">'+LaRuche.i18n.t('settings.tlEdit')+' : '+LaRuche.Utils.esc(job.name||'')+'</div>'+
-      '<label class="form-label">Nom</label><input class="form-input" id="tlfName" value="'+LaRuche.Utils.esc(job.name||'')+'">'+
+      '<label class="form-label">Name</label><input class="form-input" id="tlfName" value="'+LaRuche.Utils.esc(job.name||'')+'">'+
       '<label class="form-label">Prompt</label><textarea class="form-input" id="tlfPrompt" rows="3">'+LaRuche.Utils.esc(job.prompt||'')+'</textarea>'+
-      '<label class="form-label">Cron (5 champs) ou vide</label><input class="form-input" id="tlfCron" value="'+LaRuche.Utils.esc(job.cron_expr||'')+'" placeholder="*/30 * * * *">'+
-      '<label class="form-label">'+LaRuche.i18n.t('settings.channelLabel')+'</label><input class="form-input" id="tlfChannel" value="'+LaRuche.Utils.esc(job.channel||'')+'" placeholder="telegram / vide">'+
+      '<label class="form-label">Cron (5 fields) or empty</label><input class="form-input" id="tlfCron" value="'+LaRuche.Utils.esc(job.cron_expr||'')+'" placeholder="*/30 * * * *">'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.channelLabel')+'</label><input class="form-input" id="tlfChannel" value="'+LaRuche.Utils.esc(job.channel||'')+'" placeholder="telegram / empty">'+
       '<label class="form-label">Provider</label><select class="form-input" id="tlfProfileId" onchange="LaRuche.Settings.updateCronEditModelSelect()">'+profOpts+'</select>'+
-      '<label class="form-label">Mod&egrave;le</label><select class="form-input" id="tlfModel">'+modOpts+'</select>'+
+      '<label class="form-label">Model</label><select class="form-input" id="tlfModel">'+modOpts+'</select>'+
       skillHtml+
       '<div style="margin-top:10px;display:flex;gap:6px">'+
       '<button class="tl-btn" style="background:var(--amber);color:#000" onclick="LaRuche.Settings.tlSaveEdit('+i+')">'+LaRuche.i18n.t('settings.tlSaveEdit')+'</button>'+
@@ -941,7 +941,7 @@ LaRuche.Settings = (function(){
   }
 
   // MCP logic
-  // Onglet Secrets : vault chiffré. L'UI ne reçoit JAMAIS les valeurs, seulement les noms.
+  // Secrets tab: encrypted vault. The UI NEVER receives the values, only the names.
   async function loadSecrets(el){
     var data={names:[]};
     try{ data=await fetch('/api/secrets').then(function(r){return r.json();}); }catch(e){}
@@ -975,15 +975,15 @@ LaRuche.Settings = (function(){
       .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.secretDeleted'),'ok'); if(LaRuche.Secrets)LaRuche.Secrets.refresh(); refreshTab(); } });
   }
 
-  // Onglet MCP dédié (sorti de Providers).
+  // Dedicated MCP tab (moved out of Providers).
   function loadMcp(el){
     var html = '<div class="settings-card" style="margin-bottom:16px">';
-    html += '  <div class="settings-card-title">Serveurs MCP (Model Context Protocol)</div>';
+    html += '  <div class="settings-card-title">MCP Servers (Model Context Protocol)</div>';
     html += '  <div style="color:var(--text-dim);font-size:12px;margin-bottom:12px">'+LaRuche.i18n.t('settings.mcpDesc')+'</div>';
     html += '  <div id="mcp-list" style="margin-bottom:12px"></div>';
     html += '  <div style="border:1px solid var(--border);border-radius:6px;padding:8px;background:var(--bg-panel)">';
-    html += '     <div style="margin-bottom:8px"><label class="form-label">Nom du serveur</label><input id="mcp-new-name" class="form-input" placeholder="ex: local-sqlite"></div>';
-    html += '     <div style="margin-bottom:8px"><label class="form-label">Commande</label><input id="mcp-new-cmd" class="form-input" placeholder="ex: node"></div>';
+    html += '     <div style="margin-bottom:8px"><label class="form-label">Server name</label><input id="mcp-new-name" class="form-input" placeholder="e.g.: local-sqlite"></div>';
+    html += '     <div style="margin-bottom:8px"><label class="form-label">Command</label><input id="mcp-new-cmd" class="form-input" placeholder="e.g.: node"></div>';
     html += '     <div style="margin-bottom:8px"><label class="form-label">'+LaRuche.i18n.t('settings.mcpArgsLabel')+'</label><input id="mcp-new-args" class="form-input" placeholder="ex: src/index.js --db sqlite.db"></div>';
     html += '     <button class="settings-save-btn" onclick="LaRuche.Settings.createMcpServer()">'+LaRuche.i18n.t('settings.mcpAddBtn')+'</button>';
     html += '  </div>';
@@ -1080,7 +1080,7 @@ LaRuche.Settings = (function(){
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpScheduleLabel')+'</label><div id="ncCronBuilder"></div></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherChannelLabel')+'</label><select id="ncChannel" class="form-input"><option value="">None (Activity Log)</option><option value="telegram">Telegram</option><option value="discord">Discord</option></select></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Provider</label><select id="ncProfileId" class="form-input" onchange="LaRuche.Settings.updateCronModelSelect()">'+profOpts+'</select></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Mod&egrave;le</label><select id="ncModel" class="form-input"><option value="">'+LaRuche.i18n.t('settings.providerDefault')+'</option></select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Model</label><select id="ncModel" class="form-input"><option value="">'+LaRuche.i18n.t('settings.providerDefault')+'</option></select></div>'+
       '<button class="settings-save-btn" onclick="LaRuche.Settings.createCron()">Create</button></div>'+
       tasks.map(function(t){
           var effProv = "Default";
@@ -1091,12 +1091,12 @@ LaRuche.Settings = (function(){
           if(t.profile_id && t.model) effProv += " (" + t.model + ")";
           return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.Utils.esc(t.name)+'</div><div class="settings-row"><span class="settings-label">Schedule</span><span class="settings-value">'+(t.cron_expr||t.fire_at||'-')+'</span></div><div class="settings-row"><span class="settings-label">Runs</span><span class="settings-value">'+(t.run_count||0)+'</span></div><div class="settings-row"><span class="settings-label">Channel</span><span class="settings-value">'+LaRuche.Utils.esc(t.channel||'None')+'</span></div><div class="settings-row"><span class="settings-label">Provider/Model</span><span class="settings-value">'+LaRuche.Utils.esc(effProv)+'</span></div><button onclick="LaRuche.Settings.deleteCronTask(\''+t.id+'\',this)" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;margin-top:6px">Delete</button></div>';
       }).join('');
-    // Builder cron human-friendly pour le formulaire de creation.
+    // Human-friendly cron builder for the creation form.
     if(LaRuche.CronBuilder){ _ncCronBuilderId = LaRuche.CronBuilder.mount('ncCronBuilder', { value:'' }); }
   }
-  // Suppression cron OPTIMISTE : retire la carte du DOM des que le DELETE reussit. Marche
-  // dans n'importe quel conteneur (page Cron OU hub Missions) — fini le F5 (refreshTab
-  // rechargeait le mauvais onglet selon le contexte).
+  // OPTIMISTIC cron deletion: removes the card from the DOM as soon as the DELETE succeeds. Works
+  // in any container (Cron page OR Missions hub), no more F5 (refreshTab
+  // reloaded the wrong tab depending on context).
   function deleteCronTask(id, btn){
     if(!confirm(LaRuche.i18n.t('settings.cronDeleteConfirm'))) return;
     fetch('/api/cron/'+id,{method:'DELETE'}).then(function(r){
@@ -1137,7 +1137,7 @@ LaRuche.Settings = (function(){
   async function loadWatchers(el) {
     var watchers=[];try{watchers=await fetch('/api/watchers').then(function(r){return r.json();});}catch(e){}
     _watchersLast = JSON.stringify(watchers);
-    // P1 : profils pour le selecteur Provider du watcher.
+    // P1: profiles for the watcher's Provider selector.
     var profilesResp={profiles:{}};try{profilesResp=await fetch('/api/profiles').then(function(r){return r.json();});}catch(e){}
     var profiles = profilesResp.profiles || {};
     _profiles = profiles;
@@ -1154,7 +1154,7 @@ LaRuche.Settings = (function(){
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Condition (optional)</label><input id="nwCondition" class="form-input"></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Prompt</label><input id="nwPrompt" class="form-input"></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Provider</label><select id="watcher-profile" class="form-input" onchange="LaRuche.Settings.updateWatcherModelSelect()">'+profOpts+'</select></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Mod&egrave;le</label><select id="watcher-model" class="form-input"><option value="">'+LaRuche.i18n.t('settings.parDefault')+'</option></select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Model</label><select id="watcher-model" class="form-input"><option value="">'+LaRuche.i18n.t('settings.parDefault')+'</option></select></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherChannelLabel')+'</label><select id="nwChannel" class="form-input"><option value="">'+LaRuche.i18n.t('settings.watcherHomeChannel')+'</option></select></div>'+
       '<button class="settings-save-btn" onclick="LaRuche.Settings.createWatcher()">Create</button></div>'+
       watchers.map(function(w){
@@ -1185,7 +1185,7 @@ LaRuche.Settings = (function(){
     fetch('/api/watchers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(){loadTab('watchers');LaRuche.Toast.show('Watcher created','ok');});
   }
 
-  // Édition inline d'un watcher (parité avec cron/kanban).
+  // Inline watcher editing (parity with cron/kanban).
   function editWatcher(id) {
     var w=null; try{ w=JSON.parse(_watchersLast).find(function(x){return x.id===id;}); }catch(e){}
     if(!w){ LaRuche.Toast.show(LaRuche.i18n.t('settings.fileNotFound'),'err'); return; }
@@ -1268,12 +1268,12 @@ LaRuche.Settings = (function(){
         LaRuche.Toast.show(LaRuche.i18n.t('settings.visibilityUpdated'),'ok'); window.LaRuche.forceReactivityUpdate();
         loadTab('providers');
       } else {
-        LaRuche.Toast.show('Erreur: '+(d.error||'?'),'err');
+        LaRuche.Toast.show('Error: '+(d.error||'?'),'err');
       }
-    }).catch(function(e){LaRuche.Toast.show('Erreur: '+e,'err');});
+    }).catch(function(e){LaRuche.Toast.show('Error: '+e,'err');});
   }
 
-  // Menu permissions : Privé / Public / Restreint (cases par ruche) → couche grants.
+  // Permissions menu: Private / Public / Restricted (checkbox per node) -> grants layer.
   async function openAccess(id, currentVis, allowedEnc){
     var esc = LaRuche.Utils.esc;
     var allowed=[]; try{ allowed=JSON.parse(decodeURIComponent(allowedEnc||'%5B%5D')); }catch(e){}
@@ -1305,8 +1305,8 @@ LaRuche.Settings = (function(){
       fetch('/api/profiles/'+id+'/visibility',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({visibility:vis,allowed_peers:aps})})
         .then(function(r){return r.json();}).then(function(d){
           if(d.status==='ok'){ LaRuche.Toast.show(LaRuche.i18n.t('settings.accessUpdated'),'ok'); ov.remove(); if(window.LaRuche.forceReactivityUpdate)window.LaRuche.forceReactivityUpdate(); loadTab('providers'); }
-          else LaRuche.Toast.show('Erreur: '+(d.error||'?'),'err');
-        }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e,'err'); });
+          else LaRuche.Toast.show('Error: '+(d.error||'?'),'err');
+        }).catch(function(e){ LaRuche.Toast.show('Error: '+e,'err'); });
     };
   }
 
@@ -1364,8 +1364,8 @@ LaRuche.Settings = (function(){
       }
     }).catch(function(){});
   }
-  // ── Page Skills (OKF en mémoire, capacities.skills.*) ──────────────────
-  var SKILL_TEMPLATE='---\ntype: skill\nname: mon-skill\ndescription: "Ce que ce skill apprend a faire."\nallowed-tools: []\n---\n\n# Mon Skill\n\n## Quand l\'utiliser\n- ...\n\n## Procedure\n1. ...\n';
+  // ── Skills page (OKF in memory, capacities.skills.*) ──────────────────
+  var SKILL_TEMPLATE='---\ntype: skill\nname: my-skill\ndescription: "What this skill teaches how to do."\nallowed-tools: []\n---\n\n# My Skill\n\n## When to use it\n- ...\n\n## Procedure\n1. ...\n';
   async function loadSkills(el){
     var skills=await fetch(LaRuche.API.base+'/api/skills').then(function(r){return r.json();}).catch(function(){return [];});
     var html='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'+
@@ -1398,8 +1398,8 @@ LaRuche.Settings = (function(){
   }
   function toggleSkill(name){ fetch(LaRuche.API.base+'/api/skills/'+encodeURIComponent(name)+'/toggle',{method:'POST'}).then(function(r){return r.json();}).then(function(d){ LaRuche.Toast.show(LaRuche.i18n.t('settings.skillToast')+(d.enabled?LaRuche.i18n.t('settings.skillActivated'):LaRuche.i18n.t('settings.skillDeactivated')),'ok'); }); }
   function deleteSkill(name){ fetch(LaRuche.API.base+'/api/skills/'+encodeURIComponent(name),{method:'DELETE'}).then(function(){ LaRuche.Settings.refreshTab&&LaRuche.Settings.refreshTab(); }); }
-  var PLUGIN_TEMPLATE = '{\n  "name": "mon_plugin",\n  "description": "Description de mon plugin",\n  "danger": "safe",\n  "parameters": {\n    "type": "object",\n    "properties": {},\n    "required": []\n  },\n  "command": "echo {{arg}}"\n}';
-  function newPlugin(){ pluginEditor('nouveau_plugin', PLUGIN_TEMPLATE); }
+  var PLUGIN_TEMPLATE = '{\n  "name": "my_plugin",\n  "description": "Description of my plugin",\n  "danger": "safe",\n  "parameters": {\n    "type": "object",\n    "properties": {},\n    "required": []\n  },\n  "command": "echo {{arg}}"\n}';
+  function newPlugin(){ pluginEditor('new_plugin', PLUGIN_TEMPLATE); }
   function newSkill(){ skillEditor('', SKILL_TEMPLATE); }
   function viewSkill(name){ fetch(LaRuche.API.base+'/api/skills/'+encodeURIComponent(name)).then(function(r){return r.json();}).then(function(d){ skillEditor(name, d.content||''); }); }
   function skillEditor(name, content){
@@ -1422,8 +1422,8 @@ LaRuche.Settings = (function(){
     document.body.appendChild(ov);
     mountSkillTools(content);
   }
-  // Construit la checklist d'outils du skill (groupée Abeilles/Plugins, recherchable,
-  // sélectionnés en tête) et synchronise la ligne `tools:` du frontmatter.
+  // Builds the skill's tool checklist (grouped Tools/Plugins, searchable,
+  // selected ones first) and syncs the frontmatter `tools:` line.
   async function mountSkillTools(content){
     var box=document.getElementById('skToolsBox'); if(!box) return;
     var tools = window._allTools;
@@ -1431,7 +1431,7 @@ LaRuche.Settings = (function(){
     var plugins = [];
     try{ plugins=await fetch('/api/plugins').then(function(r){return r.json();}); }catch(e){}
     var pluginNames = (plugins||[]).map(function(p){return p.name||p;});
-    // Modèle unifié : {name, group, desc}. group = Plugins | Abeilles | Autres.
+    // Unified model: {name, group, desc}. group = Plugins | Abeilles | Autres.
     var items = [];
     var seen = {};
     (tools||[]).forEach(function(t){
@@ -1446,7 +1446,7 @@ LaRuche.Settings = (function(){
     window._skChecked = {}; current.forEach(function(n){ window._skChecked[n]=1; });
     renderSkillTools();
   }
-  // (Ré)affiche la liste selon le filtre + l'état coché courant. Sélectionnés en tête de groupe.
+  // (Re)renders the list per filter + current checked state. Selected ones at the top of each group.
   function renderSkillTools(){
     var box=document.getElementById('skToolsBox'); if(!box) return;
     var items=window._skItems||[]; var checked=window._skChecked||{};
@@ -1463,21 +1463,21 @@ LaRuche.Settings = (function(){
     groups.forEach(function(g){
       var list=items.filter(function(it){return it.group===g && (!f || it.name.toLowerCase().indexOf(f)>=0);});
       if(!list.length) return;
-      // sélectionnés d'abord, puis alpha
+      // selected first, then alpha
       list.sort(function(a,b){ var ca=checked[a.name]?0:1, cb=checked[b.name]?0:1; return ca-cb || a.name.localeCompare(b.name); });
       html+='<div style="font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);padding:6px 7px 2px">'+g+' ('+list.filter(function(i){return checked[i.name];}).length+'/'+list.length+')</div>';
       html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px">'+list.map(row).join('')+'</div>';
     });
     box.innerHTML = html || '<span style="color:var(--text-dim);font-size:11px;padding:6px;display:block">'+LaRuche.i18n.t('settings.skillToolsNone')+'</span>';
     var cnt=document.getElementById('skToolsCount');
-    if(cnt){ var n=Object.keys(checked).filter(function(k){return checked[k];}).length; cnt.textContent=n?('— '+n+' '+LaRuche.i18n.t('settings.skillToolsChecked')):''; }
+    if(cnt){ var n=Object.keys(checked).filter(function(k){return checked[k];}).length; cnt.textContent=n?('- '+n+' '+LaRuche.i18n.t('settings.skillToolsChecked')):''; }
   }
   function toggleSkillTool(name, on){ window._skChecked=window._skChecked||{}; if(on) window._skChecked[name]=1; else delete window._skChecked[name]; applySkillTools(); renderSkillTools(); }
   function filterSkillTools(){ renderSkillTools(); }
   function clearSkillTools(){ window._skChecked={}; applySkillTools(); renderSkillTools(); }
   function applySkillTools(){
-    // Lit le MODÈLE (_skChecked), pas le DOM : sinon un filtre actif masquerait des cochés
-    // et on les perdrait à l'enregistrement.
+    // Reads the MODEL (_skChecked), not the DOM: otherwise an active filter would hide checked items
+    // and we'd lose them on save.
     var checked = Object.keys(window._skChecked||{}).filter(function(k){return window._skChecked[k];});
     var line = 'tools: ['+checked.join(', ')+']';
     var ta=document.getElementById('skEditor'); if(!ta) return;
@@ -1496,7 +1496,7 @@ LaRuche.Settings = (function(){
     fetch(LaRuche.API.base+'/api/skills',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:content})})
       .then(function(r){return r.json();}).then(function(d){
         if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
-        LaRuche.Toast.show(LaRuche.i18n.t('settings.skillToast')+'« '+d.name+' »'+LaRuche.i18n.t('settings.skillSaved'),'ok');
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.skillToast')+'"'+d.name+'"'+LaRuche.i18n.t('settings.skillSaved'),'ok');
         var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove();
         LaRuche.Settings.refreshTab&&LaRuche.Settings.refreshTab();
       }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.skillFailed'),'err'); });
@@ -1521,7 +1521,7 @@ LaRuche.Settings = (function(){
     fetch(LaRuche.API.base+'/api/plugins/'+encodeURIComponent(name),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:content})})
       .then(function(r){return r.json();}).then(function(d){
         if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
-        LaRuche.Toast.show('Plugin « '+d.name+' »'+LaRuche.i18n.t('settings.pluginSaved'),'ok');
+        LaRuche.Toast.show('Plugin "'+d.name+'"'+LaRuche.i18n.t('settings.pluginSaved'),'ok');
         var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove();
         LaRuche.Settings.refreshTab&&LaRuche.Settings.refreshTab();
       }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.pluginFailed'),'err'); });
@@ -1536,8 +1536,8 @@ LaRuche.Settings = (function(){
 
   var _kanbanTimer=null, _kanbanLast='';
   var _kanbanView=(function(){ try{ return localStorage.getItem('lr_kanban_view')||'cols'; }catch(e){ return 'cols'; } })();
-  var _profiles={}; // P1 : cache des profils pour les selecteurs Provider (kanban/watcher)
-  var _watchersLast='[]'; // cache des watchers pour l'edition inline
+  var _profiles={}; // P1: profiles cache for the Provider selectors (kanban/watcher)
+  var _watchersLast='[]'; // watchers cache for inline editing
 
   function setKanbanView(mode){
     _kanbanView = mode;
@@ -1549,7 +1549,7 @@ LaRuche.Settings = (function(){
     return '<button class="tl-btn" style="border-radius:0'+(_kanbanView==='cols'?';background:var(--amber);color:#000':'')+'" onclick="LaRuche.Settings.setKanbanView(\'cols\')">'+LaRuche.i18n.t('settings.kanbanCols')+'</button>'+
       '<button class="tl-btn" style="border-radius:0'+(_kanbanView==='rows'?';background:var(--amber);color:#000':'')+'" onclick="LaRuche.Settings.setKanbanView(\'rows\')">'+LaRuche.i18n.t('settings.kanbanHorizontal')+'</button>';
   }
-  // Carte kanban (HTML) — partagee entre mode colonnes et mode horizontal.
+  // Kanban card (HTML), shared between column mode and horizontal mode.
   function kanbanCardHtml(t){
     var h='<div draggable="true" ondragstart="LaRuche.Settings.kanbanDragStart(event,\''+t.id+'\')" style="background:#2a2a2e;border:1px solid var(--border);border-radius:4px;padding:8px;cursor:grab">';
     h+='<div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:4px">'+LaRuche.Utils.esc(t.title)+'</div>';
@@ -1563,8 +1563,8 @@ LaRuche.Settings = (function(){
       var _full = String(t.result||'');
       var _trunc = _full.length>60;
       var _short = _trunc ? (_full.substring(0,60)+'…') : _full;
-      // Accordeon : clic pour deplier/replier le commentaire LLM (lisible en entier, mobile-friendly).
-      // stopPropagation evite d'interferer avec le drag&drop de la carte.
+      // Accordion: click to expand/collapse the LLM comment (fully readable, mobile-friendly).
+      // stopPropagation avoids interfering with the card's drag & drop.
       h+='<div class="kb-result" onclick="event.stopPropagation();LaRuche.Settings.toggleKanbanResult(this)" '+
          'data-collapsed="1" style="font-size:10px;color:var(--green);margin-bottom:6px;cursor:pointer" '+
          'title="'+(_trunc?LaRuche.i18n.t('settings.collapseHint'):'')+'">'+
@@ -1579,7 +1579,7 @@ LaRuche.Settings = (function(){
     h+='</div></div>';
     return h;
   }
-  // Deplie/replie le commentaire LLM (champ result) d'une carte kanban.
+  // Expands/collapses the LLM comment (result field) of a kanban card.
   function toggleKanbanResult(elDiv){
     if(!elDiv) return;
     var collapsed = elDiv.dataset.collapsed === '1';
@@ -1598,7 +1598,7 @@ LaRuche.Settings = (function(){
     }
   }
   async function loadKanban(el) {
-    // P1 : profils pour le selecteur Provider de la tache kanban.
+    // P1: profiles for the kanban task's Provider selector.
     var profilesResp={profiles:{}};try{profilesResp=await fetch('/api/profiles').then(function(r){return r.json();});}catch(e){}
     _profiles = profilesResp.profiles || {};
     var profOpts = '<option value="">'+LaRuche.i18n.t('settings.kanbanDefProvider')+'</option>';
@@ -1609,7 +1609,7 @@ LaRuche.Settings = (function(){
       '<div style="flex:1;min-width:140px"><label class="form-label">'+LaRuche.i18n.t('settings.kanbanTitle')+'</label><input class="form-input" id="kanban-title" placeholder="'+LaRuche.i18n.t('settings.kanbanTitlePlaceholder')+'"></div>' +
       '<div style="flex:2;min-width:160px"><label class="form-label">'+LaRuche.i18n.t('settings.kanbanDesc')+'</label><input class="form-input" id="kanban-desc" placeholder="'+LaRuche.i18n.t('settings.kanbanDescPlaceholder')+'"></div>' +
       '<div style="flex:1;min-width:130px"><label class="form-label">Provider</label><select class="form-input" id="kanban-profile" onchange="LaRuche.Settings.updateKanbanModelSelect()">'+profOpts+'</select></div>' +
-      '<div style="flex:1;min-width:130px"><label class="form-label">Mod&egrave;le</label><select class="form-input" id="kanban-model"><option value="">'+LaRuche.i18n.t('settings.kanbanParDefault')+'</option></select></div>' +
+      '<div style="flex:1;min-width:130px"><label class="form-label">Model</label><select class="form-input" id="kanban-model"><option value="">'+LaRuche.i18n.t('settings.kanbanParDefault')+'</option></select></div>' +
       '<div style="flex:1;min-width:150px"><label class="form-label">'+LaRuche.i18n.t('settings.kanbanChannel')+'</label><select class="form-input" id="kanban-channel"><option value="">'+LaRuche.i18n.t('settings.kanbanBoardChannel')+'</option></select></div>' +
       '<button class="form-btn" onclick="LaRuche.Settings.createKanbanTask()">'+LaRuche.i18n.t('settings.kanbanCreate')+'</button></div>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">' +
@@ -1622,8 +1622,8 @@ LaRuche.Settings = (function(){
     try{ var dc=await fetch('/api/kanban/default_channel').then(function(r){return r.json();}); window.__fillChannels(document.getElementById('kanban-default-channel'), (dc&&dc.channel)||'', LaRuche.i18n.t('settings.kanbanBoardChannelNone')); }catch(e){}
     await refreshKanbanCols();
     if(_kanbanTimer) clearInterval(_kanbanTimer);
-    // Auto-refresh (l'agent/daemon peuvent modifier le board) : re-render seulement
-    // si le contenu a changé → ne casse pas la saisie en cours.
+    // Auto-refresh (the agent/daemon can modify the board): re-render
+    // only if the content changed -> doesn't break in-progress input.
     _kanbanTimer=setInterval(function(){
       if(!document.getElementById('kanbanCols')){ clearInterval(_kanbanTimer); _kanbanTimer=null; return; }
       refreshKanbanCols();
@@ -1637,20 +1637,20 @@ LaRuche.Settings = (function(){
     var cols=['Triage','Todo','Ready','Running','Blocked','Done','Archived'];
     var html;
     if(_kanbanView==='rows'){
-      // Mode horizontal condense : chaque statut = une bande, cartes en flex-wrap, hauteur = contenu.
+      // Condensed horizontal mode: each status = a band, cards in flex-wrap, height = content.
       html='<div style="display:flex;flex-direction:column;gap:10px">';
       cols.forEach(function(c){
         var colTasks=tasks.filter(function(t){return t.status===c;});
         html+='<div style="background:rgba(30,30,32,0.8);border:1px solid var(--amber-dim);border-radius:6px;overflow:hidden" ondragover="LaRuche.Settings.kanbanDragOver(event)" ondrop="LaRuche.Settings.kanbanDrop(event,\''+c+'\')">';
         html+='<div style="padding:6px 10px;font-weight:600;color:var(--amber);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><span>'+c+'</span><span style="font-size:10px;color:var(--text-dim)">'+colTasks.length+'</span></div>';
         html+='<div style="padding:8px;display:flex;flex-wrap:wrap;gap:8px;min-height:36px">';
-        if(!colTasks.length){ html+='<span style="font-size:10px;color:var(--text-muted);align-self:center">—</span>'; }
+        if(!colTasks.length){ html+='<span style="font-size:10px;color:var(--text-muted);align-self:center">-</span>'; }
         colTasks.forEach(function(t){ html+='<div style="flex:0 0 230px;max-width:230px">'+kanbanCardHtml(t)+'</div>'; });
         html+='</div></div>';
       });
       html+='</div>';
     } else {
-      // Mode colonnes (existant).
+      // Column mode (existing).
       html='<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:10px;min-height:400px">';
       cols.forEach(function(c){
         html+='<div style="flex:0 0 250px;background:rgba(30,30,32,0.8);border:1px solid var(--amber-dim);border-radius:6px;display:flex;flex-direction:column" ondragover="LaRuche.Settings.kanbanDragOver(event)" ondrop="LaRuche.Settings.kanbanDrop(event,\''+c+'\')">';
@@ -1687,7 +1687,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
 
   function editKanbanTask(id) {
     var t=null; try{ t=JSON.parse(_kanbanLast).find(function(x){return x.id===id;}); }catch(e){}
-    // P1 : selecteur Provider dans l'edition kanban.
+    // P1: Provider selector in the kanban editor.
     var profOpts = '<option value="">'+LaRuche.i18n.t('settings.kanbanDefProvider')+'</option>';
     Object.keys(_profiles).forEach(function(k){
         profOpts += '<option value="'+k+'" '+((t&&t.profile_id===k)?'selected':'')+'>'+LaRuche.Utils.esc(_profiles[k].name||k)+'</option>';
@@ -1706,7 +1706,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       '<label class="form-label">'+LaRuche.i18n.t('settings.kanbanEditTitleLabel')+'</label><input class="form-input" id="kbeTitle" value="'+LaRuche.Utils.esc(t?t.title:'')+'">'+
       '<label class="form-label">'+LaRuche.i18n.t('settings.kanbanEditDescLabel')+'</label><textarea class="form-input" id="kbeDesc" rows="4">'+LaRuche.Utils.esc(t?(t.description||''):'')+'</textarea>'+
       '<label class="form-label">'+LaRuche.i18n.t('settings.kanbanEditProviderLabel')+'</label><select class="form-input" id="kbeProfile" onchange="LaRuche.Settings.updateKanbanEditModelSelect()">'+profOpts+'</select>'+
-      '<label class="form-label">Mod&egrave;le</label><select class="form-input" id="kbeModel">'+modOpts+'</select>'+
+      '<label class="form-label">Model</label><select class="form-input" id="kbeModel">'+modOpts+'</select>'+
       '<label class="form-label">'+LaRuche.i18n.t('settings.kanbanEditChannelLabel')+'</label><select class="form-input" id="kbeChannel"><option value="">'+LaRuche.i18n.t('settings.kanbanBoardChannel')+'</option></select>'+
       '<div style="margin-top:12px;display:flex;gap:8px"><button class="form-btn" onclick="LaRuche.Settings.saveKanbanEdit(\''+id+'\',this)">'+LaRuche.i18n.t('settings.kanbanEditSave')+'</button>'+
       '<button class="form-btn" style="background:none;border:1px solid var(--border);color:var(--text-dim)" onclick="this.closest(\'div[style*=fixed]\')&&this.closest(\'div[style*=fixed]\').remove()">'+LaRuche.i18n.t('settings.kanbanEditCancel')+'</button></div></div>';
@@ -1714,7 +1714,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     window.__fillChannels(document.getElementById('kbeChannel'), (t&&t.channel)||'', LaRuche.i18n.t('settings.kanbanBoardChannel'));
   }
 
-  // P1 : repeuple le selecteur modele de l'edition kanban quand on change de provider.
+  // P1: repopulates the kanban editor's model selector when the provider changes.
   function updateKanbanEditModelSelect() {
     var pId = document.getElementById('kbeProfile').value;
     var modelSel = document.getElementById('kbeModel');
@@ -1847,11 +1847,11 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       '<button class="form-btn" onclick="LaRuche.Settings.exportOkf()">'+LaRuche.i18n.t('settings.kbExportBtn')+'</button>' +
       '<button class="form-btn" onclick="LaRuche.Settings.importOkf()">'+LaRuche.i18n.t('settings.kbImportBtn')+'</button>' +
       '</div>';
-    html += '<div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">'+data.count+' entree(s) dans la base de connaissances</div>';
+    html += '<div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">'+data.count+' entry(ies) in the knowledge base</div>';
     if(data.entries && data.entries.length > 0) {
       html += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
       html += '<tr><th style="text-align:left;padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">ID</th>';
-      html += '<th style="text-align:left;padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">Texte</th>';
+      html += '<th style="text-align:left;padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">Text</th>';
       html += '<th style="padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">Source</th>';
       html += '<th style="padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">Actions</th></tr>';
       data.entries.forEach(function(e) {
@@ -1876,14 +1876,14 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     fetch(LaRuche.API.base+'/api/knowledge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text,source:source||'manual'})})
       .then(function(r){return r.json();})
       .then(function(d){
-        if(d.error) LaRuche.Toast.show('Erreur: '+d.error,'err');
+        if(d.error) LaRuche.Toast.show('Error: '+d.error,'err');
         else { LaRuche.Toast.show(LaRuche.i18n.t('settings.kbAdded')+d.id+')','ok'); loadTab('knowledge'); }
       })
-      .catch(function(e){LaRuche.Toast.show('Erreur: '+e,'err');});
+      .catch(function(e){LaRuche.Toast.show('Error: '+e,'err');});
   }
 
   function exportOkf() {
-    // Telechargement .zip navigateur (toute la memoire) au lieu d'un dossier serveur.
+    // Browser .zip download (the whole memory) instead of a server folder.
     var a = document.createElement('a');
     a.href = LaRuche.API.base+'/api/memory/export.zip';
     a.download = ''; a.style.display = 'none';
@@ -1900,7 +1900,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
             LaRuche.Toast.show(LaRuche.i18n.t('settings.kbImported'), 'ok');
             loadKnowledge(document.getElementById('settings-content'));
         }
-        else LaRuche.Toast.show('Erreur import: ' + res.error, 'err');
+        else LaRuche.Toast.show('Import error: ' + res.error, 'err');
       });
   }
 
@@ -1928,16 +1928,16 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     fetch(LaRuche.API.base+'/api/knowledge/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:newText,source:newSource||'manual'})})
       .then(function(r){return r.json();})
       .then(function(d){
-        if(d.error) LaRuche.Toast.show('Erreur: '+d.error,'err');
+        if(d.error) LaRuche.Toast.show('Error: '+d.error,'err');
         else { LaRuche.Toast.show(LaRuche.i18n.t('settings.kbUpdated'),'ok'); loadTab('knowledge'); }
       })
-      .catch(function(e){LaRuche.Toast.show('Erreur: '+e,'err');});
+      .catch(function(e){LaRuche.Toast.show('Error: '+e,'err');});
   }
 
   function deleteKnowledge(id) {
     fetch(LaRuche.API.base+'/api/knowledge/'+id,{method:'DELETE'})
       .then(function(){LaRuche.Toast.show(LaRuche.i18n.t('settings.kbDeleted'),'ok'); loadTab('knowledge');})
-      .catch(function(e){LaRuche.Toast.show('Erreur: '+e,'err');});
+      .catch(function(e){LaRuche.Toast.show('Error: '+e,'err');});
   }
 
   function refreshTab() { loadTab(currentTab); }
@@ -1948,7 +1948,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       .then(function(d){
         if(d.status==='started') LaRuche.Toast.show(name+LaRuche.i18n.t('settings.channelStarted'),'ok');
         else if(d.status==='already_running') LaRuche.Toast.show(name+LaRuche.i18n.t('settings.channelAlreadyRunning'),'info');
-        else LaRuche.Toast.show(d.message||'Erreur','err');
+        else LaRuche.Toast.show(d.message||'Error','err');
         loadTab('channels');
       });
   }
@@ -1962,7 +1962,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       });
   }
 
-    var _bpCronBuilderId = null; // instance CronBuilder du formulaire de creation
+    var _bpCronBuilderId = null; // CronBuilder instance of the creation form
 
     async function loadBlueprints(el) {
     var bps=[];try{bps=await fetch('/api/blueprints').then(function(r){return r.json();});}catch(e){}
@@ -1994,7 +1994,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     el.innerHTML = head + creationSlot + cards;
   }
 
-  // --- Formulaire de creation d'un blueprint perso ---
+  // --- Custom blueprint creation form ---
   function bpSlotRowHtml(){
     return '<div class="bp-slot-row" style="display:flex;gap:6px;margin-bottom:6px;align-items:center">' +
       '<input class="form-input bp-slot-name" placeholder="name" style="flex:1">' +
@@ -2020,7 +2020,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       '<div class="settings-card" style="margin-bottom:12px;border:1px solid var(--amber)">' +
         '<div class="settings-card-title">'+LaRuche.i18n.t('settings.bpNewTitle')+'</div>' +
         '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpTitleLabel')+'</label>' +
-          '<input id="bpNewTitle" class="form-input" placeholder="Ex: Veille quotidienne"></div>' +
+          '<input id="bpNewTitle" class="form-input" placeholder="E.g.: Daily watch"></div>' +
         '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpPromptLabel')+'</label>' +
           '<textarea id="bpNewPrompt" class="form-input" style="min-height:90px;resize:vertical" placeholder="'+LaRuche.i18n.t('settings.varPlaceholder')+'"></textarea></div>' +
         '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpScheduleLabel')+'</label><div id="bpNewCron"></div></div>' +
@@ -2066,7 +2066,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
         } else {
           LaRuche.Toast.show(LaRuche.i18n.t('settings.bpCreateError')+((res.d&&res.d.error)||'?'),'err');
         }
-      }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e,'err'); });
+      }).catch(function(e){ LaRuche.Toast.show('Error: '+e,'err'); });
   }
 
   function deleteBlueprint(idx){
@@ -2081,7 +2081,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
         } else {
           LaRuche.Toast.show(LaRuche.i18n.t('settings.bpDeleteRefused')+((res.d&&res.d.error)||LaRuche.i18n.t('settings.bpDeleteRefusedFallback')),'err');
         }
-      }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e,'err'); });
+      }).catch(function(e){ LaRuche.Toast.show('Error: '+e,'err'); });
   }
 
   function openBlueprintForm(idx) {
@@ -2112,11 +2112,11 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       } else {
         LaRuche.Toast.show(LaRuche.i18n.t('settings.bpInstanciateError'), 'err');
       }
-    }).catch(function(e){ LaRuche.Toast.show('Erreur: '+e, 'err'); });
+    }).catch(function(e){ LaRuche.Toast.show('Error: '+e, 'err'); });
   }
 
   return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
     loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
-/* ── CronBuilder : composant "human-friendly" reutilisable (missions + cron) ── */
+/* ── CronBuilder: reusable "human-friendly" component (missions + cron) ── */

@@ -33,7 +33,7 @@ LaRuche.i18n.add({
   'chat.lire':                  {fr:'Lire',                     en:'Read aloud'},
   'chat.ouvrirMedia':           {fr:'Ouvrir ↗',                 en:'Open ↗'},
   'chat.retryBtn':              {fr:'↻ Reessayer',         en:'↻ Retry'},
-  'chat.profilEnregistre':      {fr:'Profil enregistré — LaRuche en tiendra compte.', en:'Profile saved — LaRuche will take it into account.'},
+  'chat.profilEnregistre':      {fr:'Profil enregistré : LaRuche en tiendra compte.', en:'Profile saved: LaRuche will take it into account.'},
   'chat.echecProfil':           {fr:"Échec de l'enregistrement du profil.", en:'Failed to save profile.'},
   'chat.chargement':            {fr:'Chargement…',         en:'Loading…'},
   'chat.promptReel':            {fr:'Prompt réel envoyé au LLM', en:'Actual prompt sent to the LLM'},
@@ -119,9 +119,9 @@ LaRuche.i18n.add({
 
 LaRuche.Chat = (function(){
   var sessionId = null;
-  var runningSession = null; // session dont le run tourne sur la socket PRINCIPALE (pas via attachWs)
-  var unreadSessions = {}; // conversations (autres que l'active) avec du NOUVEAU terminé → pastille
-  var feedCache = {}; // session_id → HTML du feed d'activité (live-only) pour le restaurer au switch
+  var runningSession = null; // session whose run is on the MAIN socket (not via attachWs)
+  var unreadSessions = {}; // conversations (other than the active one) with NEW finished output -> badge
+  var feedCache = {}; // session_id -> activity feed HTML (live-only) to restore on switch
   var currentAssistantMsg = null;
   var currentAssistantRow = null;
   var isStreaming = false;
@@ -190,23 +190,23 @@ LaRuche.Chat = (function(){
   function leave() {}
 
   function handleEvent(data) {
-    // Cloisonnement par conversation : un event tagué d'une AUTRE conversation
-    // (job parallèle qui tourne en fond) ne doit JAMAIS s'écrire dans la vue courante.
-    // On note seulement un "nouveau" sur les events terminaux (pas la réflexion).
+    // Partitioning per conversation: an event tagged from ANOTHER conversation
+    // (parallel job running in the background) must NEVER write into the current view.
+    // We only note a "new" flag on terminal events (not reasoning).
     if(data.session_id && data.type!=='session' && String(data.session_id)!==String(sessionId||'')){
-      // Event d'une AUTRE conversation (job en fond) — y compris quand l'active est neuve
-      // (sessionId null) : on ne rend RIEN dans la vue courante. Pastille sur terminal.
+      // Event from ANOTHER conversation (background job), including when the active one is new
+      // (sessionId null): we render NOTHING in the current view. Badge on terminal.
       if(data.type==='done' || data.type==='error' || data.type==='approval_request'){
         unreadSessions[data.session_id]=true;
-        if(data.type!=='approval_request') delete feedCache[data.session_id]; // terminée → /messages fera foi
+        if(data.type!=='approval_request') delete feedCache[data.session_id]; // finished -> /messages is authoritative
         loadSessions();
       }
       return;
     }
     switch(data.type) {
       case 'session':
-        // La socket principale confirme la session de SON run. On ne change la vue que si
-        // aucune n'est ouverte (nouvelle conv) ; sinon on garde celle que l'utilisateur regarde.
+        // The main socket confirms the session of ITS run. We only change the view if
+        // none is open (new conversation); otherwise we keep the one the user is looking at.
         if(!sessionId) sessionId = data.session_id;
         runningSession = data.session_id;
         loadSessions(); refreshSessionsPage(); break;
@@ -257,9 +257,9 @@ LaRuche.Chat = (function(){
             rejectedRow.classList.remove('pending','steer');
             rejectedRow.classList.add('user','acknowledged');
           }
-          // Deux messages peuvent croiser la fin d'un run. Le premier relance
-          // proprement la demande; les suivants deviennent des orientations du
-          // nouveau run au lieu d'etre perdus ou de bloquer l'interface.
+          // Two messages can cross the end of a run. The first cleanly restarts
+          // the request; the following ones become steerings of the new run
+          // instead of being lost or blocking the interface.
           if(staleRecoveryActive && isStreaming){
             LaRuche.WS.send({type:'steer',text:rejectedText});
             addActivity('status',LaRuche.i18n.t('chat.demandeReinjected'),LaRuche.i18n.t('chat.reinjectedDetail'),false);
@@ -324,7 +324,7 @@ LaRuche.Chat = (function(){
         closeAssistantSegmentForTool();
         setFeedLive('tool');
         var toolLabel=toolActivityLabel(data.name,data.args);
-        maybeRenderFileDiff(data.name,data.args); // carte diff inline pour les éditions de fichier
+        maybeRenderFileDiff(data.name,data.args); // inline diff card for file edits
         addActivity('tool-call',toolLabel+' · en cours',toolContext(data.args),true,{toolName:data.name,activityLabel:toolLabel,live:true,terminal:(data.name==='shell_exec'||data.name==='execute_code'||data.name==='run_script'),command:toolContext(data.args)});
         break;
       case 'tool_output':
@@ -336,7 +336,7 @@ LaRuche.Chat = (function(){
           var declaredMedia=takeMediaDeclarations(toolResult);
           if(declaredMedia.items.length){
             pendingMedia=pendingMedia.concat(declaredMedia.items);
-            toolResult=declaredMedia.text || (declaredMedia.items.length+' media ajoute(s) a la reponse.');
+            toolResult=declaredMedia.text || (declaredMedia.items.length+' media added to the response.');
           }
         }
         finishToolActivity(data.name,toolResult,!!data.success,data.elapsed_ms);
@@ -382,7 +382,7 @@ LaRuche.Chat = (function(){
         break;
       case 'usage':
         var usageBar=document.getElementById('feedUsage');
-        if(usageBar)usageBar.textContent='CTX '+data.input_tokens+' · SORTIE '+data.output_tokens+(data.cost_usd > 0 ? ' · $'+data.cost_usd.toFixed(4) : '');
+        if(usageBar)usageBar.textContent='CTX '+data.input_tokens+' · OUT '+data.output_tokens+(data.cost_usd > 0 ? ' · $'+data.cost_usd.toFixed(4) : '');
         // Enrich the most recent assistant message timestamp with cost info
         if(currentAssistantRow) {
           var tsEl = currentAssistantRow.querySelector('.msg-timestamp');
@@ -408,7 +408,7 @@ LaRuche.Chat = (function(){
         break;
       case 'done':
         clearResponseTimeout(); removeTypingIndicator();
-        if(sessionId) delete feedCache[sessionId]; // run fini : /messages fait foi, plus besoin du cache feed
+        if(sessionId) delete feedCache[sessionId]; // run finished: /messages is authoritative, feed cache no longer needed
         if(!currentAssistantMsg && (data.full_response||pendingMedia.length)){
           var finalRow=addMessage('assistant','');
           currentAssistantRow=finalRow.row; currentAssistantMsg=finalRow.msgEl; currentAssistantMsg._rawBuf='';
@@ -477,8 +477,8 @@ LaRuche.Chat = (function(){
       steerMessage.row.classList.add('pending');
       return;
     }
-    // P8 — si on etait re-attache en lecture seule a une session en cours, on coupe
-    // la socket secondaire : le nouveau tour passe par la socket principale du chat.
+    // P8 - if we were re-attached read-only to a running session, we cut
+    // the secondary socket: the new turn goes through the main chat socket.
     if(LaRuche.WS && LaRuche.WS.detach) LaRuche.WS.detach();
     var welcome = document.getElementById('welcomeScreen');
     if(welcome) welcome.remove();
@@ -486,10 +486,10 @@ LaRuche.Chat = (function(){
     var fullMsg = msg + fileData.text;
     startPlanMission(msg);
     addMessage('user', msg, fileData.attachments);
-    // nouveau tour → vide la section Skills du volet gauche
+    // new turn -> clear the Skills section of the left panel
     var spChips0=document.getElementById('skillsPanelChips'); if(spChips0) spChips0.innerHTML='';
     var sp0=document.getElementById('skillsPanel'); if(sp0) sp0.style.display='none';
-    _feedBody = null; // nouveau tour → nouvelle étape (les cartes précédentes restent, repliées)
+    _feedBody = null; // new turn -> new step (previous cards stay, collapsed)
     var usageOnNewTurn=document.getElementById('feedUsage');
     if(usageOnNewTurn)usageOnNewTurn.textContent='';
     setFeedLive('thinking');
@@ -497,8 +497,8 @@ LaRuche.Chat = (function(){
     pendingMedia=[];
     staleRecoveryActive=false;
     lastSteerText='';
-    // La socket principale va streamer CE run : on ferme tout réabonnement attachWs résiduel
-    // (sinon double rendu des tokens : « VoiciVoici les les »).
+    // The main socket will stream THIS run: we close any residual attachWs re-subscription
+    // (otherwise tokens are rendered twice: "HelloHello the the").
     if(LaRuche.WS && LaRuche.WS.detach) LaRuche.WS.detach();
     var payload = {type:'message', text:fullMsg};
     if(sessionId) payload.session_id = sessionId;
@@ -529,8 +529,8 @@ LaRuche.Chat = (function(){
     if(wrap) wrap.classList.toggle('active', noThinkEnabled);
     LaRuche.Toast.show(noThinkEnabled ? LaRuche.i18n.t('chat.noThinkActif') : LaRuche.i18n.t('chat.thinkingActif'), 'ok');
   }
-  // Artifact viewer : popup dédiée pour lire/rendre le code (HTML/SVG rendus
-  // dans une iframe sandboxée, façon LLM modernes ; tout langage en vue Code).
+  // Artifact viewer: dedicated popup to read/render code (HTML/SVG rendered
+  // in a sandboxed iframe, like modern LLMs; any language in Code view).
   if(!window.lrShowArtifact){
     window.lrShowArtifact = function(code, lang, preferPreview){
       if(!document.getElementById('lr-artifact-style')){
@@ -580,11 +580,11 @@ LaRuche.Chat = (function(){
       win.appendChild(head); win.appendChild(body); ov.appendChild(win); document.body.appendChild(ov);
       if(renderable && preferPreview!==false){ showPreview(); } else { showCode(); }
     };
-    // Ajoute la barre (Aperçu/Ouvrir/Copier) sous chaque bloc de code d'un message.
+    // Add the bar (Preview/Open/Copy) under each code block of a message.
     window.lrEnhanceCode = function(el){
       el.querySelectorAll('pre code').forEach(function(block){
         var pre=block.parentElement; if(!pre || pre.querySelector('.code-toolbar')) return;
-        if(!(block.textContent||'').trim()) return; // skip empty/vides
+        if(!(block.textContent||'').trim()) return; // skip empty
         pre.style.position='relative';
         var lang=''; (block.className||'').split(/\s+/).forEach(function(c){if(c.indexOf('language-')===0)lang=c.slice(9);});
         var code=block.textContent||'';
@@ -606,7 +606,7 @@ LaRuche.Chat = (function(){
     };
   }
 
-  // 👁 Aperçu du prompt réel envoyé au LLM (event prompt_debug).
+  // 👁 Preview of the actual prompt sent to the LLM (prompt_debug event).
   function onPromptDebug(data){
     var rows=document.querySelectorAll('.message-row.user');
     var row=rows[rows.length-1]; if(!row) return;
@@ -644,9 +644,9 @@ LaRuche.Chat = (function(){
     document.body.appendChild(ov);
   }
 
-  // Skills appliqués → volet gauche (compact, sous le label « Skills »), PAS dans le fil de chat
-  // (gain de place). Chips dédupliqués, remis à zéro à chaque tour.
-  // Skills activés → ligne de puces INLINE dans la conversation (une par tour).
+  // Applied skills -> left panel (compact, under the "Skills" label), NOT in the chat thread
+  // (saves space). Deduplicated chips, reset each turn.
+  // Activated skills -> INLINE chip line in the conversation (one per turn).
   function addSkillChip(name) {
     var cc = document.getElementById('chatContainer'); if(!cc) return;
     if(!_skillsInlineEl || !_skillsInlineEl.isConnected){
@@ -656,7 +656,7 @@ LaRuche.Chat = (function(){
       cc.appendChild(_skillsInlineEl);
       if(typeof scrollToBottom==='function') scrollToBottom();
     }
-    if (_skillsInlineEl.querySelector('[data-skill="' + CSS.escape(name) + '"]')) return; // déjà là
+    if (_skillsInlineEl.querySelector('[data-skill="' + CSS.escape(name) + '"]')) return; // already there
     var chip = document.createElement('span');
     chip.className = 'skill-chip';
     chip.dataset.skill = name;
@@ -664,11 +664,11 @@ LaRuche.Chat = (function(){
     _skillsInlineEl.appendChild(chip);
   }
 
-  // Avatar abeille affiché uniquement sur le DERNIER message assistant (visibility → garde
-  // l'alignement, pas de saut de mise en page). Recalculé à chaque ajout de message.
+  // Tool avatar shown only on the LAST assistant message (visibility -> keeps
+  // alignment, no layout shift). Recomputed on each message append.
   function updateAssistantAvatars() {
-    // Pendant l'animation des abeilles volantes (typingIndicator), on n'affiche AUCUNE abeille
-    // statique : elle réapparaît sur le nouveau message quand l'animation disparaît.
+    // During the flying tools animation (typingIndicator), we show NO static
+    // tool: it reappears on the new message when the animation disappears.
     if (document.getElementById('typingIndicator')) {
       document.querySelectorAll('#chatContainer .avatar.assistant-avatar')
         .forEach(function(a){ a.style.visibility = 'hidden'; });
@@ -681,8 +681,8 @@ LaRuche.Chat = (function(){
     }
   }
 
-  // Bascule Envoyer ↔ Stop selon l'état du run (UX type assistant : pendant la génération,
-  // le bouton d'envoi devient un bouton d'arrêt).
+  // Toggle Send <-> Stop based on run state (assistant-style UX: during generation,
+  // the send button becomes a stop button).
   function setRunning(running) {
     var snd = document.getElementById('sendBtn');
     var stp = document.getElementById('stopBtn');
@@ -690,18 +690,18 @@ LaRuche.Chat = (function(){
     if (stp) stp.style.display = running ? '' : 'none';
   }
 
-  // Demande l'arrêt de la génération en cours au backend (abort de la tâche agent côté serveur).
+  // Ask the backend to stop the current generation (abort the agent task server-side).
   function stopRun() {
     if (!isStreaming) return;
     LaRuche.WS.send({ type: 'stop' });
     setRunning(false);
   }
 
-  // ── Profil : fiche utilisateur verrouillée, injectée au contexte de LaRuche ──
+  // ── Profile: locked user sheet, injected into LaRuche's context ──
   async function openProfile() {
     var ov = document.getElementById('profileModal'); if(!ov) return;
     var u = (window.LaRuche && LaRuche.Auth && LaRuche.Auth.getUser && LaRuche.Auth.getUser()) || {};
-    var nm = document.getElementById('profileModalName'); if(nm) nm.textContent = u.display_name || 'Mon profil';
+    var nm = document.getElementById('profileModalName'); if(nm) nm.textContent = u.display_name || 'My profile';
     var av = document.getElementById('profileModalAvatar'); if(av) av.textContent = (u.display_name||'?').charAt(0).toUpperCase();
     var ta = document.getElementById('profileFiche');
     if(ta){ ta.value = LaRuche.i18n.t('chat.chargement'); ta.disabled = true; }
@@ -722,7 +722,7 @@ LaRuche.Chat = (function(){
   }
 
   function addMessage(role, text, attachments) {
-    closeStatusAccumulator(); // un message (raisonnement / réponse / user) casse l'accumulation
+    closeStatusAccumulator(); // a message (reasoning / response / user) breaks the accumulation
     var container = document.getElementById('chatContainer');
     var row = document.createElement('div');
     row.className = 'message-row '+(role==='error'?'error-row':role);
@@ -760,7 +760,7 @@ LaRuche.Chat = (function(){
     row.appendChild(wrapper);
     container.appendChild(row);
     if(role==='assistant') updateAssistantAvatars();
-    scrollToBottom(role==='user'); // l'utilisateur qui envoie force le retour en bas ; sinon on respecte sa position
+    scrollToBottom(role==='user'); // user sending forces scroll back to bottom; otherwise we respect their position
     return {row:row, msgEl:msg, tsEl:ts};
   }
 
@@ -768,13 +768,13 @@ LaRuche.Chat = (function(){
     if(!currentAssistantMsg || !currentAssistantRow) return;
     var hasVisibleText=currentAssistantMsg.textContent.trim().length>0;
     if(hasVisibleText) {
-      // Raisonnement du LLM en TEXTE CLAIR. Mémorise le texte
-      // pour dédupliquer le « thought » jumeau que le backend renvoie aussi.
+      // LLM reasoning in PLAIN TEXT. Memorizes the text
+      // to deduplicate the twin "thought" the backend also returns.
       var raison = currentAssistantMsg.textContent.trim();
       _lastReasoningText = raison;
       finalizeMessage(currentAssistantMsg,'');
       currentAssistantRow.classList.add('assistant-intermediate');
-      // Supprimer les activities thinking du status accumulator (éviter le doublon)
+      // Remove thinking activities from the status accumulator (avoid the duplicate)
       if(_statusAcc && _statusAcc.isConnected){
         var steps=_statusAcc.querySelector('.cc-status-steps');
         if(steps){
@@ -787,7 +787,7 @@ LaRuche.Chat = (function(){
         }
       }
       var label=document.createElement('div'); label.className='assistant-segment-label';
-      label.textContent='💭 raisonnement';
+      label.textContent='💭 reasoning';
       var wrapper=currentAssistantRow.querySelector('.message-wrapper');
       if(wrapper) wrapper.appendChild(label);
     } else {
@@ -821,12 +821,12 @@ LaRuche.Chat = (function(){
     msg.innerHTML='<div class="typing-bees"><div class="tb-bounce">'+beeHtml+'</div><div class="tb-bounce">'+beeHtml+'</div><div class="tb-bounce">'+beeHtml+'</div></div>';
     wrapper.appendChild(msg); row.appendChild(wrapper);
     container.appendChild(row); typingIndicatorEl=row; scrollToBottom();
-    updateAssistantAvatars(); // masque les abeilles statiques tant que l'animation tourne
+    updateAssistantAvatars(); // hide static tools while the animation runs
   }
   function removeTypingIndicator() {
     if(typingIndicatorEl){typingIndicatorEl.remove();typingIndicatorEl=null;}
     var e=document.getElementById('typingIndicator'); if(e)e.remove();
-    updateAssistantAvatars(); // l'animation est partie → réaffiche l'abeille sur le dernier message
+    updateAssistantAvatars(); // animation is gone -> show the tool again on the last message
   }
 
   function streamToken(el, _text) {
@@ -834,9 +834,9 @@ LaRuche.Chat = (function(){
     // This ensures protocol/reasoning tags are NEVER shown, even partially.
     var buf = el._rawBuf;
 
-    // Capture du RAISONNEMENT du LLM : chaque bloc <think>…</think> COMPLET est routé une seule
-    // fois vers le feed du volet gauche (visible en mode détaillé, classe act-noise). Le chat,
-    // lui, continue de masquer le raisonnement.
+    // Capture the LLM REASONING: each COMPLETE <think>…</think> block is routed once
+    // to the left panel feed (visible in detailed mode, act-noise class). The chat
+    // itself keeps hiding the reasoning.
     var thinkRe = /<think>([\s\S]*?)<\/think>/g, tm, ti = 0, sent = el._thinkEmitted || 0;
     while ((tm = thinkRe.exec(buf)) !== null) {
       if (ti >= sent) {
@@ -869,8 +869,8 @@ LaRuche.Chat = (function(){
       }
     }
 
-    // trim() (pas seulement trimEnd) : sinon les sauts de ligne EN TÊTE laissés par un bloc
-    // <think> retiré s'affichent en blanc au-dessus de la bulle pendant le streaming (pre-wrap).
+    // trim() (not just trimEnd): otherwise the LEADING line breaks left by a removed
+    // <think> block show up blank above the bubble during streaming (pre-wrap).
     clean = clean.trim();
 
     // Update DOM: clear all text nodes and re-set content
@@ -1035,9 +1035,9 @@ LaRuche.Chat = (function(){
     if(LaRuche.Voice.isAutoTts()) LaRuche.Voice.speakText(text,ttsBtn);
   }
 
-  // Auto-scroll « collé en bas » : on ne re-scrolle QUE si l'utilisateur était déjà en bas.
-  // Dès qu'il remonte lire, on arrête de le ramener (jusqu'à ce qu'il redescende lui-même).
-  // `force=true` pour les actions explicites (l'utilisateur envoie un message).
+  // Auto-scroll "stuck to bottom": we only re-scroll IF the user was already at the bottom.
+  // As soon as they scroll up to read, we stop bringing them back (until they scroll down themselves).
+  // `force=true` for explicit actions (the user sends a message).
   var _chatStick = true, _chatScrollBound = false;
   function _bindChatScroll(){
     if(_chatScrollBound) return;
@@ -1054,13 +1054,13 @@ LaRuche.Chat = (function(){
     requestAnimationFrame(function(){ var c=document.getElementById('chatContainer'); if(c) c.scrollTop=c.scrollHeight; });
   }
 
-  // \u2500\u2500 Feed agentique : timeline en \u00e9tapes repliables \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // \u2500\u2500 Agentic feed: collapsible step timeline \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   var _feedStepN=0, _feedBody=null, _feedPrevCard=null, _feedLiveStartedAt=0, _feedTurnTitle='';
   var _feedTimer=null, _feedUnread=0, _feedPendingTools=[];
   var _planMissions=[], _currentPlanMission=-1, _planInlineEl=null, _skillsInlineEl=null;
-  var _lastReasoningText=''; // dernier raisonnement affiché (bulle intermédiaire) → dédup du thought jumeau
-  var _statusAcc=null; // accumulateur de statut « bruit » : 1 ligne animée pour N phases (façon Claude Code)
-  // Crée/retourne la ligne d'accumulation de statut (en bas du fil). Les phases « bruit » s'y empilent.
+  var _lastReasoningText=''; // last displayed reasoning (intermediate bubble) -> dedup the twin thought
+  var _statusAcc=null; // "noise" status accumulator: 1 animated line for N phases (Claude Code style)
+  // Creates/returns the status accumulation line (at the bottom of the thread). "Noise" phases stack into it.
   function statusAccumulator(){
     if(_statusAcc && _statusAcc.isConnected) return _statusAcc;
     var cc=document.getElementById('chatContainer'); if(!cc) return null;
@@ -1071,7 +1071,7 @@ LaRuche.Chat = (function(){
     head.onclick=function(){ el.classList.toggle('cc-collapsed'); };
     cc.appendChild(el); _statusAcc=el; return el;
   }
-  // Stoppe l'accumulation : la prochaine phase « bruit » repartira sur une nouvelle ligne.
+  // Stops the accumulation: the next "noise" phase will start on a new line.
   function closeStatusAccumulator(){ _statusAcc=null; }
 
   window.lrToggleFeedDetails=function(on){
@@ -1177,9 +1177,9 @@ LaRuche.Chat = (function(){
     var count=list.querySelectorAll('.feed-step').length;
     history.querySelector('.feed-history-count').textContent=count;
   }
-  // MODE CLAUDE CODE : plus de carte « cycle » dans un volet séparé. Les activités (raisonnement,
-  // outils, plan) s'insèrent INLINE dans la conversation, dans l'ordre chronologique. On pointe
-  // simplement la cible d'ajout sur le conteneur du chat.
+  // CLAUDE CODE MODE: no more "cycle" card in a separate panel. Activities (reasoning,
+  // tools, plan) are inserted INLINE in the conversation, in chronological order. We simply
+  // point the append target at the chat container.
   function newFeedStep(label){
     ensureFeedStyle();
     _feedBody = document.getElementById('chatContainer');
@@ -1214,22 +1214,22 @@ LaRuche.Chat = (function(){
     ensureFeedStyle();
     var cc=document.getElementById('chatContainer'); if(!cc) return null;
     options=options||{};
-    // Dédup : ne pas re-rendre un raisonnement déjà affiché comme bulle intermédiaire (le backend
-    // renvoie parfois la même narration en « thought »). Seulement pour du vrai texte (>20 car.).
+    // Dedup: do not re-render reasoning already shown as an intermediate bubble (the backend
+    // sometimes returns the same narration as a "thought"). Only for real text (>20 chars).
     if(type==='thinking' && body){
       var bt=String(body).trim(), rt=String(_lastReasoningText).trim();
       if(rt.length>20 && bt && (bt===rt || bt.indexOf(rt)!==-1 || rt.indexOf(bt)!==-1)) return null;
     }
-    // Pollution post-réponse : on ne veut PAS de « Point d'étape : Réponse finale prête ».
+    // Post-response pollution: we do NOT want "Checkpoint: final response ready".
     if(/r[ée]ponse finale/i.test(String(body||'')) || /r[ée]ponse finale/i.test(String(label||''))) return null;
     var welcome=document.getElementById('welcomeScreen'); if(welcome) welcome.remove();
-    // ● filled dot coloré par statut (façon Claude Code) ; ◍ pour le raisonnement.
+    // ● filled dot colored by status (Claude Code style); ◍ for reasoning.
     var iconMap={'thinking':'◍','tool-call':'●','tool-ok':'●','tool-err':'●','status':'•'};
     var item=document.createElement('article');
     item.className='cc-act '+type+(type.indexOf('tool-')===0?' act-major':' act-noise')+(collapsible?' collapsible':'')+(options.live?' live':'')+(options.terminal?' terminal':'');
     if(options.toolName)item.dataset.toolName=options.toolName;
     if(options.activityLabel)item.dataset.activityLabel=options.activityLabel;
-    // Horodatage avec secondes pour éviter le mélange d'événements d'une même minute
+    // Timestamp with seconds to avoid mixing events from the same minute
     var now=new Date();
     var timeStr=now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
     item.dataset.feedSeq=String(now.getTime())+':'+String(Math.random()).slice(2,8);
@@ -1241,33 +1241,33 @@ LaRuche.Chat = (function(){
       if(options.terminal){item.dataset.command=options.command||body;setTerminalContent(bodyEl,item.dataset.command,'');}
       else bodyEl.textContent=body;
       item.appendChild(bodyEl);
-      // Façon Claude Code : TOUJOURS replié par défaut (on ne voit que le libellé), clic pour déplier.
+      // Claude Code style: ALWAYS collapsed by default (only the label is visible), click to expand.
       item.classList.add('cc-collapsed'); line.style.cursor='pointer';
       line.onclick=function(){ item.classList.toggle('cc-collapsed'); };
     }
     if(options.live)_feedPendingTools.push(item);
-    // ROUTAGE façon Claude Code : les phases « bruit » (thinking/status) s'empilent dans UNE ligne
-    // animée (l'accumulateur) ; un outil casse l'accumulation et s'affiche sur sa propre ligne.
+    // ROUTING Claude Code style: "noise" phases (thinking/status) stack into ONE animated
+    // line (the accumulator); a tool breaks the accumulation and shows on its own line.
     var isNoise = (type==='thinking' || type==='status');
     if(isNoise){
       var acc=statusAccumulator();
       if(acc){
         acc.querySelector('.cc-status-steps').appendChild(item);
         var cur=acc.querySelector('.cc-status-current'); cur.textContent=label;
-        cur.classList.remove('cc-anim'); void cur.offsetWidth; cur.classList.add('cc-anim'); // ré-anime
+        cur.classList.remove('cc-anim'); void cur.offsetWidth; cur.classList.add('cc-anim'); // re-animate
         var n=acc.querySelectorAll('.cc-status-steps > .cc-act').length;
         acc.querySelector('.cc-status-count').textContent = n>1 ? (n+LaRuche.i18n.t('chat.nEtapes')) : '';
         acc.querySelector('.cc-status-head .act-time').textContent = item.querySelector('.act-time').textContent;
       } else { cc.appendChild(item); }
     } else {
-      closeStatusAccumulator(); // outil → prochain cycle sur un nouveau groupe
+      closeStatusAccumulator(); // tool -> next cycle on a new group
       cc.appendChild(item);
     }
     if(typeof scrollToBottom==='function') scrollToBottom();
     LaRuche.Console.log('info','Chat','['+type+'] '+label);return item;
   }
   function updateFeedMeta(){if(!_feedPrevCard||!_feedBody)return;var meta=_feedPrevCard.querySelector('.feed-step-meta');if(meta){var tools=_feedBody.querySelectorAll('.act-major').length;meta.textContent=tools?(tools+' action'+(tools>1?'s':'')):'';}}
-  // ===== Diffs de fichiers inline (façon Claude Code : 📄 chemin  +N -M, repliable) =====
+  // ===== Inline file diffs (Claude Code style: 📄 path  +N -M, collapsible) =====
   function buildDiffHtml(oldStr, newStr){
     var html='';
     if(oldStr){ String(oldStr).split('\n').forEach(function(l){ html+='<span class="dl dl-del">- '+LaRuche.Utils.esc(l)+'</span>'; }); }
@@ -1284,7 +1284,7 @@ LaRuche.Chat = (function(){
     cc.appendChild(el);
     if(typeof scrollToBottom==='function') scrollToBottom();
   }
-  // Rend une carte diff si l'outil est une écriture/édition de fichier (args connus côté client).
+  // Render a diff card if the tool is a file write/edit (args known client-side).
   function maybeRenderFileDiff(name, args){
     args=args||{};
     if(name==='file_edit' && (args.old_string!=null || args.new_string!=null)){
@@ -1316,7 +1316,7 @@ LaRuche.Chat = (function(){
     _planMissions.push({title:title,items:[],activeTask:''});
     _currentPlanMission=_planMissions.length-1;
     _feedTurnTitle=title;
-    _skillsInlineEl=null; // nouveau tour → nouvelle ligne skills (le plan sticky, lui, est réutilisé)
+    _skillsInlineEl=null; // new turn -> new skills line (the sticky plan, however, is reused)
     renderPlanMissions();
   }
   function planItemDone(item){
@@ -1328,13 +1328,13 @@ LaRuche.Chat = (function(){
     var status=String((item&&item.status)||'').toLowerCase();
     return status.indexOf('progress')!==-1 || status.indexOf('cours')!==-1 ? 'in_progress' : 'pending';
   }
-  // Plan rendu INLINE dans la conversation (carte « 📋 Plan » mise à jour en place, repliable).
-  // Une carte par mission/tour ; un nouveau tour repart d'une carte fraîche (_planInlineEl reset).
+  // Plan rendered INLINE in the conversation ("📋 Plan" card updated in place, collapsible).
+  // One card per mission/turn; a new turn starts from a fresh card (_planInlineEl reset).
   function renderPlanMissions(){
     var cc=document.getElementById('chatContainer'); if(!cc) return;
     var mission=_planMissions[_currentPlanMission]; if(!mission || !mission.items.length) return;
-    // Barre PLAN épinglée EN HAUT du chat (sticky), réutilisée et mise à jour en place à chaque
-    // évolution. Toujours 1er enfant du conteneur pour rester collée au sommet pendant le scroll.
+    // PLAN bar pinned at the TOP of the chat (sticky), reused and updated in place on each
+    // change. Always the 1st child of the container to stay stuck to the top while scrolling.
     if(!_planInlineEl || !_planInlineEl.isConnected){
       var welcome=document.getElementById('welcomeScreen'); if(welcome) welcome.remove();
       _planInlineEl=document.createElement('div'); _planInlineEl.className='cc-plan cc-block cc-plan-sticky';
@@ -1357,15 +1357,15 @@ LaRuche.Chat = (function(){
     renderPlanMissions();
   }
 
-  // Suivi « lu / non-lu » des conversations (localStorage). La pastille n'apparaît QUE s'il y a du
-  // nouveau dans une conversation NON ouverte (plus de couleurs aléatoires « barriolées »).
+  // "Read / unread" tracking of conversations (localStorage). The badge only appears if there is
+  // something new in a NON-open conversation (no more random "garish" colors).
   function getSeenMap(){ try{ return JSON.parse(localStorage.getItem('lr_conv_seen')||'{}'); }catch(e){ return {}; } }
   function markConvSeen(id, updatedAt){ if(!id) return; var m=getSeenMap(); m[id]=updatedAt||new Date().toISOString(); try{ localStorage.setItem('lr_conv_seen', JSON.stringify(m)); }catch(e){} }
   function convIsUnread(s){
-    if(s.id===sessionId) return false; // ouverte = lue
-    // Pastille UNIQUEMENT sur du NOUVEAU terminé (message final / popup), jamais sur
-    // la réflexion en cours. Pilotée par les events terminaux reçus (unreadSessions),
-    // pas par updated_at (qui bougeait à chaque sauvegarde intermédiaire).
+    if(s.id===sessionId) return false; // open = read
+    // Badge ONLY on NEW finished output (final message / popup), never on
+    // ongoing reasoning. Driven by the received terminal events (unreadSessions),
+    // not by updated_at (which moved on every intermediate save).
     return !!unreadSessions[s.id];
   }
   function loadSessions() {
@@ -1388,7 +1388,7 @@ LaRuche.Chat = (function(){
     }).catch(function(){});
   }
 
-  // P8 — re-fetch la liste de l'historique si l'overlay du Chat est ouvert.
+  // P8 - re-fetch the history list if the Chat overlay is open.
   function refreshSessionsPage() {
     if(LaRuche.Chat && LaRuche.Chat.refreshHistoryOverlay) {
       LaRuche.Chat.refreshHistoryOverlay();
@@ -1399,7 +1399,7 @@ LaRuche.Chat = (function(){
     var _af0=document.getElementById('activityFeed'); if(sessionId && _af0) feedCache[sessionId]=_af0.innerHTML;
     sessionId=null;
     if(LaRuche.WS && LaRuche.WS.detach) LaRuche.WS.detach();
-    // Le run en cours continue EN FOND ; la nouvelle conv est prête à envoyer (pas « Stop »).
+    // The current run continues IN THE BACKGROUND; the new conversation is ready to send (not "Stop").
     isStreaming=false; staleRecoveryActive=false;
     if(typeof clearResponseTimeout==='function') clearResponseTimeout();
     if(typeof removeTypingIndicator==='function') removeTypingIndicator();
@@ -1420,12 +1420,12 @@ LaRuche.Chat = (function(){
   }
 
   function switchSession(id, scrollTerm) {
-    var _af0=document.getElementById('activityFeed'); if(sessionId && _af0) feedCache[sessionId]=_af0.innerHTML; // sauve le feed quitté
+    var _af0=document.getElementById('activityFeed'); if(sessionId && _af0) feedCache[sessionId]=_af0.innerHTML; // save the feed we leave
     sessionId=id;
-    delete unreadSessions[id]; // ouvrir = marquer lu (efface la pastille)
+    delete unreadSessions[id]; // opening = mark read (clears the badge)
     markConvSeen(id);
-    // Le run qu'on regardait continue EN FOND ; cette vue redevient prête à envoyer.
-    // Sans ça, le bouton reste « Stop » (rouge) et on ne peut pas écrire dans la nouvelle conv.
+    // The run we were watching continues IN THE BACKGROUND; this view becomes ready to send again.
+    // Without this, the button stays "Stop" (red) and we cannot type in the new conversation.
     isStreaming=false; staleRecoveryActive=false;
     if(typeof clearResponseTimeout==='function') clearResponseTimeout();
     if(typeof removeTypingIndicator==='function') removeTypingIndicator();
@@ -1437,8 +1437,8 @@ LaRuche.Chat = (function(){
     container.innerHTML='';
     document.getElementById('activityFeed').innerHTML='';
     resetFeed();
-    // Restaure le backlog du feed de la conversation ouverte (live-only sinon perdu). Les
-    // nouvelles étapes (reattach) s'ajoutent en dessous via une nouvelle étape.
+    // Restore the feed backlog of the opened conversation (live-only otherwise lost). The
+    // new steps (reattach) are added below via a new step.
     var _af1=document.getElementById('activityFeed'); if(_af1 && feedCache[id]) _af1.innerHTML = feedCache[id];
     document.getElementById('planSection').innerHTML='<div class="plan-title">Plan</div>';
     fetch('/api/sessions/'+id+'/messages').then(function(r){return r.ok?r.json():null;}).then(function(data){
@@ -1446,7 +1446,7 @@ LaRuche.Chat = (function(){
       var historyMedia=[];
       data.messages.forEach(function(msg){
         if(Array.isArray(msg.plan)) updatePlan(msg.plan);
-        if(msg.role==='user'){startPlanMission(msg.text);addMessage('user',msg.text, msg.attachments); _feedBody=null; /* nouveau tour → nouvelle étape */ }
+        if(msg.role==='user'){startPlanMission(msg.text);addMessage('user',msg.text, msg.attachments); _feedBody=null; /* new turn -> new step */ }
         else if(msg.role==='thought'){
           if(msg.kind!=='next_action') addActivity('thinking',thoughtLabel(msg.phase||'',msg.kind||''),msg.text||'',false,{stepTitle:_feedTurnTitle});
         }
@@ -1468,11 +1468,11 @@ LaRuche.Chat = (function(){
           copyBtn.onclick=function(){navigator.clipboard.writeText(restored.text).then(function(){copyBtn.classList.add('copied');copyBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="20 6 9 17 4 12"></polyline></svg> '+LaRuche.i18n.t('chat.copie');setTimeout(function(){copyBtn.classList.remove('copied');copyBtn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> '+LaRuche.i18n.t('chat.copier');},2000);});};actions.appendChild(copyBtn);
           el.appendChild(actions);
         }
-        // Reconstruit le feed agentique depuis l'historique persisté.
+        // Rebuild the agentic feed from the persisted history.
         else if(msg.role==='tool_call'){
           var restoredArgs=msg.args||{};
           var restoredTool=msg.tool||'?';
-          maybeRenderFileDiff(restoredTool,restoredArgs); // carte diff inline (replay)
+          maybeRenderFileDiff(restoredTool,restoredArgs); // inline diff card (replay)
           addActivity('tool-call',toolActivityLabel(restoredTool,restoredArgs)+' · '+LaRuche.i18n.t('chat.executes'),toolContext(restoredArgs),true,{toolName:restoredTool,activityLabel:toolActivityLabel(restoredTool,restoredArgs),terminal:(restoredTool==='shell_exec'||restoredTool==='execute_code'||restoredTool==='run_script'),command:toolContext(restoredArgs)});
         }
         else if(msg.role==='tool'){
@@ -1480,13 +1480,13 @@ LaRuche.Chat = (function(){
           if(txt.indexOf('<laruche-media>')!==-1){
             var declared=takeMediaDeclarations(txt);
             historyMedia=historyMedia.concat(declared.items);
-            txt=declared.text || (declared.items.length+' media ajoute(s) a la reponse.');
+            txt=declared.text || (declared.items.length+' media added to the response.');
           }
           var ok=!/^\s*error[:\s]/i.test(txt);
-          addActivity(ok?'tool-ok':'tool-err', (msg.tool||'outil')+(ok?' OK':' ERR'), txt.substring(0,1200), true);
+          addActivity(ok?'tool-ok':'tool-err', (msg.tool||'tool')+(ok?' OK':' ERR'), txt.substring(0,1200), true);
         }
       });
-      // Tout replier sauf la dernière étape, pour un historique lisible.
+      // Collapse everything except the last step, for a readable history.
       var steps=document.querySelectorAll('#activityFeed .feed-step');
       steps.forEach(function(c,i){ if(i<steps.length-1) c.classList.remove('expanded'); });
       if(_feedPrevCard){
@@ -1495,12 +1495,12 @@ LaRuche.Chat = (function(){
         if(restoredState) restoredState.textContent=LaRuche.i18n.t('chat.termine');
       }
       setFeedLive('idle');
-      // Saut vers le mot-clé recherché (clic depuis l'historique), sinon bas de page.
+      // Jump to the searched keyword (click from history), otherwise bottom of page.
       if(scrollTerm){ scrollToMessageTerm(scrollTerm); } else { scrollToBottom(); }
     }).catch(function(){});
     loadSessions(); closeSidebarMobile();
-    // Re-attach au flux live SEULEMENT si la session n'est pas déjà streamée par la socket
-    // principale (sinon double abonnement -> chaque token rendu 2x : « VoiciVoici les les »).
+    // Re-attach to the live stream ONLY if the session is not already streamed by the main
+    // socket (otherwise double subscription -> each token rendered 2x: "HelloHello the the").
     if(id !== runningSession && LaRuche.WS && LaRuche.WS.reattach) LaRuche.WS.reattach(id);
   }
 
@@ -1511,7 +1511,7 @@ LaRuche.Chat = (function(){
     });
   }
 
-  /* ── Historique overlay (absorbe l'ancien onglet Sessions) ── */
+  /* ── History overlay (absorbs the old Sessions tab) ── */
   var _historySessions = [];
   function openHistory(){
     var ov = document.getElementById('historyOverlay');
@@ -1538,7 +1538,7 @@ LaRuche.Chat = (function(){
     }).catch(function(){ renderHistory([]); });
   }
   var _searchTerm = '';
-  // Date RELATIVE : aujourd'hui HH:MM / hier / avant-hier / il y a N jours / sem. / mois / ans.
+  // RELATIVE date: today HH:MM / yesterday / two days ago / N days ago / wk. / mo. / years.
   function fmtRelDate(iso){
     if(!iso) return LaRuche.i18n.t('chat.dateMaj');
     var d=new Date(iso); if(isNaN(d.getTime())) return LaRuche.i18n.t('chat.dateMaj');
@@ -1553,7 +1553,7 @@ LaRuche.Chat = (function(){
     if(days<365) return LaRuche.i18n.t('chat.dateIlYaJours')+' '+Math.floor(days/30)+' '+LaRuche.i18n.t('chat.dateMois');
     var y=Math.floor(days/365); return LaRuche.i18n.t('chat.dateIlYaJours')+' '+y+' '+(y>1?LaRuche.i18n.t('chat.dateAns'):LaRuche.i18n.t('chat.dateAn'));
   }
-  // Surligne `term` (insensible casse) dans `text`, échappé.
+  // Highlight `term` (case-insensitive) in `text`, escaped.
   function hlt(text, term){
     text=String(text||'');
     if(!term) return LaRuche.Utils.esc(text);
@@ -1561,7 +1561,7 @@ LaRuche.Chat = (function(){
     if(i<0) return LaRuche.Utils.esc(text);
     return LaRuche.Utils.esc(text.slice(0,i))+'<mark class="hk">'+LaRuche.Utils.esc(text.slice(i,i+term.length))+'</mark>'+LaRuche.Utils.esc(text.slice(i+term.length));
   }
-  // Saute au 1er message contenant `term` et le surligne brièvement.
+  // Jump to the 1st message containing `term` and highlight it briefly.
   function scrollToMessageTerm(term){
     if(!term){ scrollToBottom(); return; }
     var t=String(term).toLowerCase();
@@ -1582,8 +1582,8 @@ LaRuche.Chat = (function(){
     if(!q){ renderHistory(_historySessions); return; }
     fetch('/api/sessions/search?q='+encodeURIComponent(q)).then(function(r){ return r.ok?r.json():[]; })
       .then(function(results){
-        // Résultats backend = {session_id, session_title, role, preview}. On regroupe par session
-        // et on ENRICHIT avec les métadonnées complètes (title/updated_at/messages) — sinon « Sans titre ».
+        // Backend results = {session_id, session_title, role, preview}. We group by session
+        // and ENRICH with the full metadata (title/updated_at/messages), otherwise "Untitled".
         var byId={};
         (results||[]).forEach(function(r){
           var sid=r.session_id; if(!sid) return;
@@ -1630,7 +1630,7 @@ LaRuche.Chat = (function(){
       list.appendChild(item);
     });
   }
-  // Export client-side d'une conversation en .md depuis ses messages charges.
+  // Client-side export of a conversation to .md from its loaded messages.
   function exportSessionMd(id, title){
     fetch('/api/sessions/'+id+'/messages').then(function(r){ return r.ok?r.json():null; }).then(function(data){
       var msgs = (data && data.messages) ? data.messages : [];
@@ -1664,19 +1664,19 @@ LaRuche.Chat = (function(){
     var row=document.createElement('div'); row.className='approval-dialog';
     row.innerHTML='<div class="approval-icon">&#x26A0;</div><div class="approval-content"><div class="approval-title">'+LaRuche.i18n.t('chat.autorisationRequise')+'</div><div class="approval-detail">'+LaRuche.i18n.t('chat.agentVeutExecuter')+' <strong>'+LaRuche.Utils.esc(toolName)+'</strong></div><pre class="approval-args">'+LaRuche.Utils.esc(JSON.stringify(args,null,2))+'</pre><div class="approval-buttons"><button class="approval-btn approve" onclick="LaRuche.Chat.respondApproval(\''+toolCallId+'\',true,this)">'+LaRuche.i18n.t('chat.autoriser')+'</button><button class="approval-btn deny" onclick="LaRuche.Chat.respondApproval(\''+toolCallId+'\',false,this)">'+LaRuche.i18n.t('chat.refuser')+'</button></div></div>';
     container.appendChild(row); scrollToBottom();
-    addActivity('status','Approval','En attente: '+toolName,false);
+    addActivity('status','Approval','Waiting: '+toolName,false);
   }
 
   function respondApproval(toolCallId, approved, btn) {
     LaRuche.WS.send({type:'approval',tool_call_id:toolCallId,approved:approved});
     var dialog=btn.closest('.approval-dialog');
     if(dialog){
-      // Une fois la décision prise, l'approbation disparaît de la conversation.
+      // Once the decision is made, the approval disappears from the conversation.
       dialog.style.transition='opacity .2s ease';
       dialog.style.opacity='0';
       setTimeout(function(){ if(dialog.parentNode) dialog.parentNode.removeChild(dialog); }, 200);
     }
-    addActivity('status','Approval',(approved?'Autorise: ':'Refuse: ')+toolCallId,false);
+    addActivity('status','Approval',(approved?'Allowed: ':'Denied: ')+toolCallId,false);
   }
 
   function toggleSidebar() {
@@ -1688,7 +1688,7 @@ LaRuche.Chat = (function(){
     else if(activePage.id === 'page-memory') side = activePage.querySelector('.mem2-side');
     if(!side) return;
     if(window.innerWidth > 900){
-      // PC : repli/dépli de la colonne (largeur 0). Le honeycomb du bandeau haut la fait revenir.
+      // Desktop: collapse/expand the column (width 0). The top-bar honeycomb brings it back.
       side.classList.toggle('collapsed');
       try{ localStorage.setItem('lr_sidebar_collapsed', side.classList.contains('collapsed')?'1':'0'); }catch(e){}
     } else {
@@ -1979,7 +1979,7 @@ LaRuche.Voice = (function(){
     autoTtsEnabled=!autoTtsEnabled;
     var btn=document.getElementById('autoTtsToggle');
     btn.classList.toggle('active',autoTtsEnabled);
-    btn.title=autoTtsEnabled?'Lecture automatique activee':'Lecture automatique desactivee';
+    btn.title=autoTtsEnabled?'Auto-play enabled':'Auto-play disabled';
   }
 
   function checkVoiceStatus() {
@@ -1987,10 +1987,10 @@ LaRuche.Voice = (function(){
       sttAvailable=data.stt&&data.stt.available;
       ttsAvailable=data.tts&&data.tts.available;
       var micBtn=document.getElementById('micBtn');
-      if(!sttAvailable){micBtn.style.opacity='0.3';micBtn.style.pointerEvents='none';micBtn.title='STT non disponible';}
+      if(!sttAvailable){micBtn.style.opacity='0.3';micBtn.style.pointerEvents='none';micBtn.title='STT unavailable';}
       else {micBtn.style.opacity='1';micBtn.style.pointerEvents='auto';micBtn.title=LaRuche.i18n.t('chat.micTitle');}
       var autoTtsBtn=document.getElementById('autoTtsToggle');
-      if(!ttsAvailable){autoTtsBtn.style.opacity='0.3';autoTtsBtn.title='TTS non disponible';}
+      if(!ttsAvailable){autoTtsBtn.style.opacity='0.3';autoTtsBtn.title='TTS unavailable';}
       else {autoTtsBtn.style.opacity='1';autoTtsBtn.title=LaRuche.i18n.t('chat.autoTtsTitle');}
     }).catch(function(){sttAvailable=false;ttsAvailable=false;});
   }
@@ -2012,8 +2012,8 @@ LaRuche.Voice = (function(){
       var stt = document.getElementById('sttSelect');
       if(!tts || !stt || !models) return;
       var currentTts = tts.value; var currentStt = stt.value;
-      tts.innerHTML = '<option value="">Auto (premier detecte)</option>';
-      stt.innerHTML = '<option value="">Auto (premier detecte)</option>';
+      tts.innerHTML = '<option value="">Auto (first detected)</option>';
+      stt.innerHTML = '<option value="">Auto (first detected)</option>';
       models.forEach(function(m){
         var cap=(m.capability||'llm').toLowerCase();
         if(cap==='tts') tts.innerHTML += '<option value="'+m.host+'|'+m.name+'">'+m.name+'</option>';

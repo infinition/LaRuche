@@ -25,10 +25,10 @@ LaRuche.i18n.add({
   'capabilities.disableAll':    { fr:'Tout desactiver',   en:'Disable all' },
   'capabilities.searchPlaceholder': { fr:'Rechercher (nom ou description)...', en:'Search (name or description)...' },
   'capabilities.capacities':    { fr:'capacite(s)',       en:'capability(-ies)' },
-  'capabilities.nativeImmutable': { fr:' — abeilles natives = immuables', en:' — native tools are immutable' },
+  'capabilities.nativeImmutable': { fr:' - abeilles natives = immuables', en:' - native tools are immutable' },
   'capabilities.emptyFilter':   { fr:'Aucune capacite (filtre ou famille vide).', en:'No capability found (filter or empty family).' },
   'capabilities.mcpFormUnavailable': { fr:'Formulaire MCP indisponible', en:'MCP form unavailable' },
-  'capabilities.editingMcp':    { fr:' — modifiez puis cliquez sur le bouton', en:' — edit then click the button' },
+  'capabilities.editingMcp':    { fr:' - modifiez puis cliquez sur le bouton', en:' - edit then click the button' },
   'capabilities.nameAndCmdRequired': { fr:'Nom et commande requis', en:'Name and command required' },
   'capabilities.mcpSaved':      { fr:'Serveur MCP enregistre', en:'MCP server saved' },
   'capabilities.mcpSaveFailed': { fr:'Echec enregistrement MCP', en:'Failed to save MCP' },
@@ -86,18 +86,18 @@ LaRuche.Capabilities = (function(){
   function leave(){}
   function refresh(){ render(); }
 
-  function familyLabel(f){ return ({abeille:'Abeille',skill:'Skill',mcp:'MCP',plugin:'Plugin'})[f]||f; }
+  function familyLabel(f){ return ({abeille:'Tool',skill:'Skill',mcp:'MCP',plugin:'Plugin'})[f]||f; }
 
   async function gather(){
     var rows = [];
-    // Abeilles (outils natifs/custom)
+    // Tools (native/custom)
     try {
       var tools = await fetch('/api/tools').then(function(r){return r.json();});
       (tools||[]).forEach(function(t){
         var isPlugin = (t.origin==='custom' || t.origin==='Custom');
         rows.push({
           family: isPlugin ? 'plugin' : 'abeille', name:t.name,
-          origin: isPlugin ? 'custom' : 'natif',
+          origin: isPlugin ? 'custom' : 'native',
           desc:(t.description||''), enabled:(t.enabled!==false),
           danger:(t.danger||'safe'), raw:t,
           editable:false, immutable:!isPlugin
@@ -128,7 +128,7 @@ LaRuche.Capabilities = (function(){
       });
     } catch(e){}
 
-    // Tri alphabetique par nom a l'interieur de chaque famille
+    // Alphabetical sort by name within each family
     var famOrder = {abeille:0, skill:1, mcp:2, plugin:3};
     rows.sort(function(a,b){
       var fa=(famOrder[a.family]==null?9:famOrder[a.family]);
@@ -173,7 +173,7 @@ LaRuche.Capabilities = (function(){
       var delP = '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(LaRuche.i18n.t(\'capabilities.confirmPlugin\')+\' '+LaRuche.Utils.esc(r.name)+' ?\')){LaRuche.Settings.deletePlugin(\''+LaRuche.Utils.esc(r.name)+'\');setTimeout(LaRuche.Capabilities.refresh,300)}">'+LaRuche.i18n.t('capabilities.delete')+'</button>';
       return togP+' '+editP+' '+delP;
     }
-    return '<span style="color:var(--text-dim);font-size:10px">—</span>';
+    return '<span style="color:var(--text-dim);font-size:10px">-</span>';
   }
 
   async function render(){
@@ -200,7 +200,7 @@ LaRuche.Capabilities = (function(){
       b.textContent = base + (typeof c==='number' ? ' ('+c+')' : '');
     });
 
-    // Barre d'ajout MCP (visible sur Tout + MCP)
+    // MCP add bar (visible on All + MCP)
     var mcpAdd = '';
     if(currentFamily==='all' || currentFamily==='mcp'){
       mcpAdd = '<div style="border:1px solid var(--border);border-radius:6px;padding:10px;background:var(--bg-panel);margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:end">'+
@@ -218,7 +218,7 @@ LaRuche.Capabilities = (function(){
 
     var body = filtered.map(function(r, i){
       var typeColor = ({abeille:'var(--amber)',skill:'var(--cyan)',mcp:'var(--purple)',plugin:'var(--green)'})[r.family]||'var(--text-dim)';
-      var originColor = (r.origin==='natif')?'var(--text-dim)':'var(--purple)';
+      var originColor = (r.origin==='native')?'var(--text-dim)':'var(--purple)';
       var statut = r.enabled
         ? '<span style="color:var(--green);font-size:10px;font-weight:bold">'+LaRuche.i18n.t('capabilities.active')+'</span>'
         : '<span style="color:var(--red);font-size:10px;font-weight:bold">'+LaRuche.i18n.t('capabilities.inactive')+'</span>';
@@ -246,7 +246,7 @@ LaRuche.Capabilities = (function(){
         extraActions;
     }
 
-    // Champ de recherche (loupe, ambre)
+    // Search field (magnifier, amber)
     var searchBar = '<div style="position:relative;margin-bottom:12px;max-width:360px">'+
       '<span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--amber);font-size:13px;pointer-events:none">&#128269;</span>'+
       '<input id="capSearch" class="form-input" placeholder="'+LaRuche.i18n.t('capabilities.searchPlaceholder')+'" '+
@@ -262,7 +262,7 @@ LaRuche.Capabilities = (function(){
       (filtered.length ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+head+'<tbody>'+body+'</tbody></table></div>'
                        : '<div style="text-align:center;color:var(--text-muted);padding:30px">'+LaRuche.i18n.t('capabilities.emptyFilter')+'</div>');
 
-    // Restaure le focus + curseur dans le champ de recherche apres re-render
+    // Restore focus + cursor in the search field after re-render
     if(searchTerm){
       var si = document.getElementById('capSearch');
       if(si){ si.focus(); try{ si.setSelectionRange(si.value.length, si.value.length); }catch(e){} }
@@ -424,7 +424,7 @@ LaRuche.Feed = (function(){
   var pollTimer = null;
   var nextTimer = null;
   var lastSig = '';
-  var lastEvents = [];               // derniers events chargés (pour re-render client-side)
+  var lastEvents = [];               // last loaded events (for client-side re-render)
   var DEFAULT_FILTERS = { memory:true, agent:true, cron:true, mission:true, watcher:true, user:true, laruche:true };
   var filters = { memory:true, agent:true, cron:true, mission:true, watcher:true, user:true, laruche:true };
 
@@ -438,7 +438,7 @@ LaRuche.Feed = (function(){
 
   function passFilter(ev){
     var kind = kindOf(ev);
-    if(filters[kind]===false) return false; // kinds inconnus (dm) passent par défaut
+    if(filters[kind]===false) return false; // unknown kinds (dm) pass by default
     var actor = (ev.actor==='User') ? 'user' : 'laruche';
     if(filters[actor]===false) return false;
     return true;
@@ -447,7 +447,7 @@ LaRuche.Feed = (function(){
   function esc(s){ return LaRuche.Utils.esc(s==null?'':String(s)); }
 
   function fmtTime(ts){
-    // ts en millisecondes (>1e12) ou secondes : on gère les deux.
+    // ts in milliseconds (>1e12) or seconds: handle both.
     var d = new Date(ts > 1000000000000 ? ts : ts*1000);
     var now = new Date();
     var hm = ('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);
@@ -466,7 +466,7 @@ LaRuche.Feed = (function(){
     return m+'min';
   }
 
-  // ── Prochaine action programmée ──────────────────────────────
+  // ── Next scheduled action ──────────────────────────────
   async function refreshNext(){
     var el = document.getElementById('feedNext');
     if(!el) return;
@@ -493,8 +493,8 @@ LaRuche.Feed = (function(){
       ' <span class="fn-sub">('+esc(best.human||'')+')</span>';
   }
 
-  // ── Liste des événements ─────────────────────────────────────
-  // mapping kind -> libellé du badge
+  // ── Event list ─────────────────────────────────────
+  // mapping kind -> badge label
   var KIND_LABEL = { memory:'kindMemory', agent:'kindAgent', cron:'kindCron', mission:'kindMission', watcher:'kindWatcher', dm:'kindDm' };
   function kindLabel(k){ var key = KIND_LABEL[k]; return key ? LaRuche.i18n.t('capabilities.'+key) : (k||''); }
   function kindOf(ev){
@@ -507,14 +507,14 @@ LaRuche.Feed = (function(){
   }
   function actorName(ev){
     if(ev.actor==='User'){ var u=feedUser(); return (u && u.display_name) ? u.display_name : LaRuche.i18n.t('capabilities.you'); }
-    if(ev.actor_kind==='peer') return ev.actor; // nom de la ruche pair
+    if(ev.actor_kind==='peer') return ev.actor; // peer ruche name
     return 'LaRuche';
   }
   function actorClass(ev){
     if(ev.actor_kind==='peer') return 'actor-peer';
     return (ev.actor==='User') ? 'actor-user' : 'actor-laruche';
   }
-  // Avatar : initiale (User / ruche pair) / nid d'abeille STATIQUE (LaRuche).
+  // Avatar: initial (User / peer ruche) / STATIC honeycomb (LaRuche).
   function actorAvatar(ev){
     if(ev.actor==='User'){
       var u=feedUser(); var init=((u && u.display_name)||'?').charAt(0).toUpperCase();
@@ -531,13 +531,13 @@ LaRuche.Feed = (function(){
   function rowHtml(ev){
     var actorCls = actorClass(ev);
     var kind = kindOf(ev);
-    // On retire les verbes de chat « a répondu / a demandé » (l'acteur + le badge suffisent).
+    // Strip the chat verbs « a répondu / a demandé » (actor + badge are enough).
     var action = ev.action || '';
     if(action==='a répondu' || action==='a demandé') action='';
     var prefix = action ? action+' ' : '';
     var badge = (ev.actor==='User' && kind==='agent') ? ''
       : '<span class="feed-kind-badge kb-'+kind+'">'+esc(kindLabel(kind))+'</span>';
-    // Corps : ref cliquable, OU texte dépliable au clic (message complet), OU texte simple.
+    // Body: clickable ref, OR click-to-expand text (full message), OR plain text.
     var bodyHtml, extraAttr='';
     if(ev.ref){
       bodyHtml = esc(prefix)+'<span class="feed-obj-ref" data-ref="'+esc(ev.ref)+'">'+esc(ev.object)+'</span>';
@@ -564,13 +564,13 @@ LaRuche.Feed = (function(){
     var list = document.getElementById('feedList');
     if(!list) return;
     lastEvents = events || [];
-    // filtrage client-side sur les events déjà chargés
+    // client-side filtering on already loaded events
     var shown = [];
     for(var k=0;k<lastEvents.length;k++){ if(passFilter(lastEvents[k])) shown.push(lastEvents[k]); }
-    // signature inclut l'état des filtres pour re-render quand ils changent
+    // signature includes the filter state to re-render when they change
     var sig = 'f:'+(filters.memory?1:0)+(filters.agent?1:0)+(filters.cron?1:0)+(filters.mission?1:0)+(filters.watcher?1:0)+(filters.user?1:0)+(filters.laruche?1:0)+';n:'+shown.length;
     for(var i=0;i<shown.length;i++){ var e=shown[i]; sig += '|'+e.ts+e.actor+e.action+e.object+(e.ref||''); }
-    if(sig === lastSig) return; // pas de changement : évite le flicker
+    if(sig === lastSig) return; // no change: avoids flicker
     lastSig = sig;
     var atTop = list.scrollTop <= 4;
     var prevScroll = list.scrollTop;
@@ -583,7 +583,7 @@ LaRuche.Feed = (function(){
     var html = '';
     for(var j=0;j<shown.length;j++){ html += rowHtml(shown[j]); }
     list.innerHTML = html;
-    // refs cliquables → onglet Mémoire + ouverture du nœud
+    // clickable refs → Memory tab + open the node
     list.querySelectorAll('.feed-obj-ref').forEach(function(s){
       s.onclick = function(){
         var ref = s.dataset.ref;
@@ -592,14 +592,14 @@ LaRuche.Feed = (function(){
         setTimeout(function(){ if(LaRuche.Memory && LaRuche.Memory.loadNode) LaRuche.Memory.loadNode(ref); }, 60);
       };
     });
-    // clic pour déplier le message complet
+    // click to expand the full message
     list.querySelectorAll('.feed-expandable').forEach(function(t){
       t.onclick = function(){
         if(t.dataset.exp==='1'){ t.textContent=t.dataset.short; t.insertAdjacentHTML('beforeend',' <span class="feed-more">⌄</span>'); t.dataset.exp='0'; }
         else { t.textContent=t.dataset.full; t.insertAdjacentHTML('beforeend',' <span class="feed-more">⌃</span>'); t.dataset.exp='1'; }
       };
     });
-    // préserve la position de scroll (sauf si on était tout en haut → reste en haut pour voir le récent)
+    // preserve scroll position (unless we were at the very top → stay at top to see recent items)
     list.scrollTop = atTop ? 0 : prevScroll;
   }
 
@@ -615,7 +615,7 @@ LaRuche.Feed = (function(){
     }
   }
 
-  // ── Cycle de vie polling ─────────────────────────────────────
+  // ── Polling lifecycle ─────────────────────────────────────
   function startPolling(){
     if(pollTimer) return;
     poll(); refreshNext();
@@ -627,7 +627,7 @@ LaRuche.Feed = (function(){
     if(nextTimer){ clearInterval(nextTimer); nextTimer=null; }
   }
 
-  // ── Filtres ──────────────────────────────────────────────────
+  // ── Filters ──────────────────────────────────────────────────
   function applyFilterUI(){
     var bar = document.getElementById('feedFilters');
     if(!bar) return;
@@ -637,17 +637,17 @@ LaRuche.Feed = (function(){
     });
   }
   function reRender(){
-    lastSig = '';                 // force le re-render malgré l'anti-flicker
+    lastSig = '';                 // force re-render despite the anti-flicker
     render(lastEvents);
   }
 
-  // ── Ouverture / fermeture ────────────────────────────────────
+  // ── Open / close ────────────────────────────────────
   function applyAnchorUI(){
     var btn = document.getElementById('feedAnchorBtn');
     var ov = document.getElementById('feedDrawerOverlay');
     if(btn) btn.classList.toggle('active', anchored);
     if(ov) ov.classList.toggle('anchored', anchored && open);
-    // mode docké : on pousse le contenu (uniquement ancré ET ouvert)
+    // docked mode: push the content (only when anchored AND open)
     document.body.classList.toggle('feed-docked', anchored && open);
     if(LaRuche.Mesh) LaRuche.Mesh.repositionWindows();
   }
@@ -701,7 +701,7 @@ LaRuche.Feed = (function(){
     }
     var ov = document.getElementById('feedDrawerOverlay');
     if(ov){
-      // clic extérieur (sur l'overlay, pas le drawer) → ferme si non ancré
+      // outside click (on the overlay, not the drawer) → close if not anchored
       ov.addEventListener('mousedown', function(e){
         if(e.target===ov && open && !anchored) closeDrawer();
       });
@@ -711,7 +711,7 @@ LaRuche.Feed = (function(){
     });
   }
 
-  // ── Parler à LaRuche depuis le Feed (Phase 2) ────────────────
+  // ── Talk to LaRuche from the Feed (Phase 2) ────────────────
   function showPending(text){
     var list = document.getElementById('feedList'); if(!list) return;
     var old = document.getElementById('feedPending'); if(old) old.remove();
@@ -734,13 +734,13 @@ LaRuche.Feed = (function(){
     inp.value=''; inp.style.height='auto';
     fetch('/api/feed/ask', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text:text}) }).catch(function(){});
     showPending(text);
-    setTimeout(poll, 1500); // récupère la réponse rapidement
+    setTimeout(poll, 1500); // fetch the response quickly
   }
 
   return { init:init, toggle:toggle, open:openDrawer, close:closeDrawer, toggleAnchor:toggleAnchor, ask:ask };
 })();
 
-// ========================= Messagerie mesh (Phase 4) =========================
+// ========================= Mesh messaging (Phase 4) =========================
 LaRuche.Mesh = (function(){
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
   var messages = [], peers = [], openWins = {}, pollTimer = null, lastUnread = 0, started = false;
@@ -776,22 +776,22 @@ LaRuche.Mesh = (function(){
     lastUnread=u;
   }
   function start(){ if(pollTimer) return; refresh(); pollTimer=setInterval(refresh,5000); }
-  // Position les fenêtres de chat mesh JUSTE AU-DESSUS des barres du bas réellement visibles :
-  // barre de statut (PC) + barre d'onglets mobile + barre d'input du chat (page chat uniquement).
-  // Mesure dynamique (offsetParent != null = réellement affiché) → correct sur chaque onglet.
+  // Position mesh chat windows JUST ABOVE the bottom bars that are actually visible:
+  // status bar (PC) + mobile tabs bar + chat input bar (chat page only).
+  // Dynamic measurement (offsetParent != null = actually displayed) → correct on each tab.
   function repositionWindows(){
     var w=document.getElementById('meshWindows'); if(!w) return;
     var visible=function(el){ return el && el.offsetParent!==null && getComputedStyle(el).display!=='none'; };
-    var b=6; // petit espace de base
-    var sb=document.querySelector('.status-bar');      if(visible(sb)) b+=sb.offsetHeight;   // barre statut bas (PC)
-    var mt=document.getElementById('mobileTabs');       if(visible(mt)) b+=mt.offsetHeight;   // barre onglets (mobile)
+    var b=6; // small base spacing
+    var sb=document.querySelector('.status-bar');      if(visible(sb)) b+=sb.offsetHeight;   // bottom status bar (PC)
+    var mt=document.getElementById('mobileTabs');       if(visible(mt)) b+=mt.offsetHeight;   // tabs bar (mobile)
     var pc=document.getElementById('page-chat');
     if(pc&&pc.classList.contains('active')){
-      var ia=pc.querySelector('.input-area');           if(visible(ia)) b+=ia.offsetHeight;  // input du chat
-      var cg=pc.querySelector('.chat-ctx-gauge');      if(visible(cg)) b+=cg.offsetHeight;  // jauge de contexte
+      var ia=pc.querySelector('.input-area');           if(visible(ia)) b+=ia.offsetHeight;  // chat input
+      var cg=pc.querySelector('.chat-ctx-gauge');      if(visible(cg)) b+=cg.offsetHeight;  // context jauge
     }
     w.style.bottom=b+'px';
-    // décaler à droite si le feed-drawer est ancré
+    // shift right if the feed-drawer is anchored
     var feed=document.getElementById('feedDrawerOverlay');
     if(feed&&feed.classList.contains('anchored')){ w.style.right='374px'; }
     else { w.style.right='14px'; }
@@ -804,7 +804,7 @@ LaRuche.Mesh = (function(){
     var br=btn.getBoundingClientRect();
     var w=pop.offsetWidth||300;
     var left=br.right-w; var top=br.bottom+6;
-    // recaler si le feed-drawer est ouvert (chevauchement)
+    // reposition if the feed-drawer is open (overlap)
     var feed=document.getElementById('feedDrawer');
     if(feed){
       var fr=feed.getBoundingClientRect();
@@ -847,7 +847,7 @@ LaRuche.Mesh = (function(){
     peers.forEach(function(p){
       html+='<div class="mesh-peer" data-peer="'+esc(p.id)+'" data-name="'+esc(p.name||p.id)+'">+ '+esc(p.name||p.id)+'</div>';
     });
-    // Gap A — fédération : tire les skills vérifiés des pairs.
+    // Gap A: federation: pull verified skills from peers.
     html+='<div class="mesh-inbox-head">Essaim</div>'+
       '<div class="mesh-peer" id="meshSyncSkills" style="color:var(--green,#46c46a)">'+LaRuche.i18n.t('capabilities.syncSkills')+'</div>';
     pop.innerHTML=html;
@@ -892,7 +892,7 @@ LaRuche.Mesh = (function(){
     var ms=messages.filter(function(m){return m.peer_id===peerId;}).sort(function(a,b){return a.ts-b.ts;});
     body.innerHTML=ms.map(function(m){ return '<div class="mesh-msg '+(m.dir==='out'?'out':'in')+'">'+esc(m.text)+'</div>'; }).join('');
     body.scrollTop=body.scrollHeight;
-    // maj du nom si connu
+    // update the name if known
     var nm=win.querySelector('.mesh-win-name'); var c=convs().filter(function(x){return x.peer_id===peerId;})[0];
     if(nm && c && c.peer_name) nm.textContent=c.peer_name;
   }

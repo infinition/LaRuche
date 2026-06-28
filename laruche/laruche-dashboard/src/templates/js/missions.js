@@ -42,7 +42,7 @@ LaRuche.i18n.add({
 
 LaRuche.Missions = (function(){
   var list = [];
-  var current = null; // slug du dossier affiche
+  var current = null; // slug of the displayed dossier
   var loaded = false;
 
   function esc(t){ return LaRuche.Utils.esc(t); }
@@ -111,7 +111,7 @@ LaRuche.Missions = (function(){
   }
 
   var _cadenceId = null;
-  // Monte le builder de cadence (réutilise celui des Crons) + peuple le sélecteur provider.
+  // Mount the cadence builder (reuses the Crons one) + populate the provider selector.
   function mountForm() {
     if(LaRuche.CronBuilder){ _cadenceId = LaRuche.CronBuilder.mount('misCadenceBuilder', { value:'' }); }
     var sel = document.getElementById('misProvider');
@@ -184,7 +184,7 @@ LaRuche.Missions = (function(){
     main.innerHTML = '<div class="mem2-empty">'+LaRuche.i18n.t('missions.selectHint')+'</div>';
   }
 
-  /* ---- B2 : vue Dossier (markdown) ---- */
+  /* ---- B2: Dossier view (markdown) ---- */
   function openDossier(slug) {
     current = slug;
     renderList();
@@ -244,7 +244,7 @@ LaRuche.Missions = (function(){
       .then(function(r){return r.json().catch(function(){return {};});}).then(function(d){
         if(d && d.error){ LaRuche.Toast.show(d.error,'err'); return; }
         LaRuche.Toast.show(LaRuche.i18n.t('missions.updated'),'ok');
-        // refresh liste + dossier
+        // refresh list + dossier
         fetch(LaRuche.API.base+'/api/missions').then(function(r){return r.json();}).then(function(data){
           list = Array.isArray(data) ? data : (data.missions || []);
           renderList();

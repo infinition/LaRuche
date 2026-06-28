@@ -1,19 +1,19 @@
 /* ── Boot ── */
 (function(){
   LaRuche.Header.init();
-  // Toggle de langue FR/EN dans le header (injecté à droite).
+  // FR/EN language toggle in the header (injected on the right).
   (function(){
     var hr = document.querySelector('.header-right');
     if(!hr || document.getElementById('langToggle')) return;
     var cur = LaRuche.i18n.get();
     var btn = document.createElement('button');
     btn.id = 'langToggle';
-    btn.title = 'Langue / Language';
+    btn.title = 'Language';
     btn.style.cssText = 'background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:11px;font-weight:600;margin-right:8px';
     btn.textContent = cur.toUpperCase();
     btn.onclick = function(){ LaRuche.i18n.setLang(cur === 'fr' ? 'en' : 'fr'); };
     hr.insertBefore(btn, hr.firstChild);
-    // Traduit les libellés de navigation (preuve visible du switch ; le reste de l'UI migre ensuite).
+    // Translate the navigation labels (visible proof of the switch; the rest of the UI migrates afterward).
     document.querySelectorAll('.header-nav a[data-page], .mobile-tabs a[data-page]').forEach(function(a){
       var key = 'nav.' + a.dataset.page;
       var span = a.querySelector('.tab-text');
@@ -33,7 +33,7 @@
     LaRuche.Router.init();
     LaRuche.Console.log('info','SPA','LaRuche SPA initialized');
 
-    // iOS virtual keyboard handler — adjust layout when keyboard opens/closes
+    // iOS virtual keyboard handler - adjust layout when keyboard opens/closes
     if(window.visualViewport) {
       var inputArea = document.querySelector('.input-area');
       var mobileTabs = document.getElementById('mobileTabs');

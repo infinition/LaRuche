@@ -1,5 +1,5 @@
 LaRuche.i18n.add({
-  'dashboard.swarmConnected':        {fr:'Swarm connecté — {n} nœud(s)', en:'Swarm connected — {n} node(s)'},
+  'dashboard.swarmConnected':        {fr:'Swarm connecté : {n} nœud(s)', en:'Swarm connected: {n} node(s)'},
   'dashboard.connectionEstablished': {fr:'Connexion au Swarm établie',   en:'Swarm connection established'},
   'dashboard.newNode':               {fr:'Nouveau nœud! Total: {n}',      en:'New node! Total: {n}'},
   'dashboard.nodeJoined':            {fr:'Nœud rejoint le Swarm',         en:'Node joined the Swarm'},
@@ -306,7 +306,7 @@ LaRuche.Dashboard = (function(){
     })}).then(function(r){return r.json();}).then(function(d){
       if(d.status==='ok') {
         LaRuche.Toast.show(LaRuche.i18n.t('dashboard.modelActiveFor',{name:name,cap:capability}), 'ok');
-        // P7 : re-fetch + re-render le dropdown du haut, le mesh, le recap capacites et la voix
+        // P7: re-fetch + re-render the top dropdown, the mesh, the capabilities recap and the voice
         LaRuche.refreshAll();
       } else {
         LaRuche.Toast.show(LaRuche.i18n.t('dashboard.error',{msg:(d.error||'?')}), 'err');
@@ -343,8 +343,8 @@ LaRuche.Dashboard = (function(){
       d.models.forEach(function(m){
         var cap=(m.capability||'llm').toLowerCase();
         if(!groups[cap]){groups[cap]=[];}
-        // DÉDUP : un même modèle (nom + source) ne doit apparaître qu'une fois (sinon « Utilisé
-        // partout » et cartes en double quand un modèle vient de plusieurs sources).
+        // DEDUP: the same model (name + source) must appear only once (otherwise "Used
+        // everywhere" and duplicate cards when a model comes from multiple sources).
         var dup = groups[cap].some(function(x){ return x.name===m.name && x.host===m.host && x.node_id===m.node_id; });
         if(!dup) groups[cap].push(m);
       });
@@ -373,8 +373,8 @@ LaRuche.Dashboard = (function(){
         grid.className = 'mesh-grid';
         
         groups[cap].forEach(function(m){
-          // Sélectionné = correspond EXACTEMENT au choix serveur pour cette capacité (nom + source).
-          // Pas de fallback sur is_default (qui pouvait marquer plusieurs cartes « Utilisé »).
+          // Selected = matches EXACTLY the server choice for this capability (name + source).
+          // No fallback on is_default (which could mark several cards as "Used").
           var _sp = serverPreferred[cap];
           var isPreferred = !!(_sp && m.name === _sp.model && (_sp.backend == null || m.host === _sp.backend));
           var card = document.createElement('div');
@@ -393,7 +393,7 @@ LaRuche.Dashboard = (function(){
           var sizeSpan = document.createElement('span');
           sizeSpan.textContent = m.size_gb > 0 ? m.size_gb.toFixed(1) + ' GB' : '';
 
-          // Provenance CLAIRE : 🖥️ mon local · 🐝 distant (quelle ruche).
+          // CLEAR provenance: 🖥️ my local · 🐝 remote (which ruche).
           var badgeSpan = document.createElement('span');
           badgeSpan.className = 'mesh-badge ' + (m.is_local ? 'mesh-local' : 'mesh-remote');
           badgeSpan.textContent = m.is_local ? LaRuche.i18n.t('dashboard.myLocal') : LaRuche.i18n.t('dashboard.remoteBadge',{name:(m.node_name||'pair')});
@@ -639,14 +639,14 @@ LaRuche.Dashboard = (function(){
 })();
 
 /* ── Settings Page Module ─────────────────────────────────────── */
-/* --- Rendu Markdown inline (repris de scriptorium, sans dependances) ----- */
+/* --- Inline Markdown rendering (taken from scriptorium, no dependencies) ----- */
 LaRuche.MD = (function(){
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 
   function inline(s){
     var stash = [];
     function stashPush(html){ var tok='\x00X'+stash.length+'\x00'; stash.push(html); return tok; }
-    // Wikilinks: [[node_id]] ou [[node_id|alias]]  -> navigation memoire
+    // Wikilinks: [[node_id]] or [[node_id|alias]]  -> memory navigation
     s = s.replace(/\[\[([^\[\]\n|]+)(?:\|([^\[\]\n]+))?\]\]/g, function(m, name, alias){
       var label = (alias || name).trim();
       var target = name.trim();
@@ -656,7 +656,7 @@ LaRuche.MD = (function(){
     s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(m, alt, url){
       return stashPush('<img alt="'+esc(alt)+'" src="'+esc(url)+'"/>');
     });
-    // Liens
+    // Links
     s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(m, text, url){
       return stashPush('<a href="'+esc(url)+'" target="_blank" rel="noopener">'+esc(text)+'</a>');
     });
@@ -675,8 +675,8 @@ LaRuche.MD = (function(){
 
   function render(src){
     if(!src) return '';
-    src = String(src).replace(/\r\n?/g, '\n'); // normalise CRLF -> LF (sinon les blocs de code
-    // ne sont pas extraits et leur contenu passe dans les regex inline -> freeze navigateur)
+    src = String(src).replace(/\r\n?/g, '\n'); // normalize CRLF -> LF (otherwise code blocks
+    // are not extracted and their content passes through the inline regexes -> browser freeze)
     var planBlocks = [];
     src = String(src).replace(/<plan>\s*([\s\S]*?)\s*<\/plan>/gi, function(m, jsonText){
       try {
@@ -740,7 +740,7 @@ LaRuche.MD = (function(){
     return html;
   }
 
-  // Cable les liens [[node]] d'un conteneur deja rendu vers un callback de navigation.
+  // Wires the [[node]] links of an already-rendered container to a navigation callback.
   function wireWikilinks(container, onNav){
     if(!container) return;
     container.querySelectorAll('.mem2-wikilink').forEach(function(el){
@@ -751,4 +751,4 @@ LaRuche.MD = (function(){
   return { render:render, wireWikilinks:wireWikilinks };
 })();
 
-/* --- Memory Page Module (drive mem2-* : arbre Obsidian + markdown + CRUD) - */
+/* --- Memory Page Module (drives mem2-*: Obsidian tree + markdown + CRUD) - */
