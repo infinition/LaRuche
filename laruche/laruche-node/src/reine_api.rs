@@ -135,6 +135,12 @@ impl ReineSettings {
     }
 }
 
+/// Cheap check (reads the settings file) used to show the "reviewing" animation
+/// before the blocking judge call.
+pub(crate) fn review_active() -> bool {
+    charger_reine_settings().active_for_responses()
+}
+
 /// Run LaReine's Tier 1 advisory review for a finished chat answer and return a
 /// verdict line to display, or None if the Reine is inactive or the judge failed.
 /// Resolves LaReine's own provider profile, falling back to the worker config.

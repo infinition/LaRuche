@@ -452,10 +452,23 @@ pub(crate) async fn ws_chat_connection(
                             // LaReine Tier 1 review: on Done, judge the answer and emit the verdict
                             // BEFORE forwarding Done (which closes the stream). No-op unless enabled.
                             if let laruche_essaim::ChatEvent::Done { full_response } = &event {
-                                if let Some(verdict) =
-                                    reine_api::revue_verdict(&state, &user_text, full_response).await
-                                {
-                                    let ev = laruche_essaim::ChatEvent::Status { message: verdict };
+                                if reine_api::review_active() {
+                                    // Animated "reviewing" marker shown while the judge call runs.
+                                    let thinking = laruche_essaim::ChatEvent::Status {
+                                        message: "__reine_thinking__".to_string(),
+                                    };
+                                    let _ = sender
+                                        .send(ws::Message::Text(
+                                            event_json_avec_session(&thinking, session_id).into(),
+                                        ))
+                                        .await;
+                                    // Empty result (judge unavailable) clears the animation silently.
+                                    let verdict = reine_api::revue_verdict(&state, &user_text, full_response)
+                                        .await
+                                        .unwrap_or_default();
+                                    let ev = laruche_essaim::ChatEvent::Status {
+                                        message: format!("__reine_verdict__|{verdict}"),
+                                    };
                                     let _ = sender
                                         .send(ws::Message::Text(
                                             event_json_avec_session(&ev, session_id).into(),

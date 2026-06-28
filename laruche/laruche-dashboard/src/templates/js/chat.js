@@ -150,6 +150,7 @@ LaRuche.Chat = (function(){
   var feedCache = {}; // session_id -> activity feed HTML (live-only) to restore on switch
   var currentAssistantMsg = null;
   var currentAssistantRow = null;
+  var _reineThinkingEl = null;
   var isStreaming = false;
   var autoTtsEnabled = false;
   var noThinkEnabled = false;
@@ -395,6 +396,33 @@ LaRuche.Chat = (function(){
             statusMessage.slice(markerFirst+1,markerSecond),
             statusMessage.slice(markerThird+1)
           );
+          break;
+        }
+        // LaReine review: animated "thinking" chip while she judges, then the verdict.
+        // Appended to the ROW (not the bubble) so finalizeMessage on 'done' does not wipe it.
+        if(statusMessage==='__reine_thinking__'){
+          if(_reineThinkingEl){_reineThinkingEl.remove();}
+          var rHost=(currentAssistantMsg&&currentAssistantMsg.parentNode)||currentAssistantRow;
+          if(rHost){
+            var tc=document.createElement('div');
+            tc.className='reine-thinking';
+            tc.innerHTML='<span class="reine-crown">👑</span><span>'+LaRuche.i18n.t('reine.reviewing')+'</span><span class="reine-dots"><i></i><i></i><i></i></span>';
+            rHost.appendChild(tc); _reineThinkingEl=tc;
+          }
+          break;
+        }
+        if(statusMessage.indexOf('__reine_verdict__|')===0){
+          var vtxt=statusMessage.slice('__reine_verdict__|'.length).trim();
+          if(_reineThinkingEl){_reineThinkingEl.remove(); _reineThinkingEl=null;}
+          if(vtxt){
+            var vHost=(currentAssistantMsg&&currentAssistantMsg.parentNode)||currentAssistantRow;
+            if(vHost){
+              var vc=document.createElement('div');
+              vc.className='reine-verdict';
+              vc.innerHTML='<span class="reine-crown">👑</span> '+LaRuche.Utils.esc(vtxt);
+              vHost.appendChild(vc);
+            }
+          }
           break;
         }
         var executing=/^executing:/i.test(statusMessage);

@@ -4830,5 +4830,9 @@
   "memory.titleReine": {
     "en": "LaReine Prompt",
     "fr": "Prompt LaReine"
+  },
+  "reine.reviewing": {
+    "en": "LaReine is reviewing the answer",
+    "fr": "LaReine relit la réponse"
   }
 }

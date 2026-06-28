@@ -1785,3 +1785,15 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
     min-height: 50vh;
   }
 }
+
+/* LaReine review: animated "thinking" chip while she judges, then the verdict. */
+.reine-thinking{display:inline-flex;align-items:center;gap:6px;margin-top:6px;padding:3px 10px;border-radius:12px;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.25);color:var(--amber);font-size:11px;font-family:var(--mono)}
+.reine-crown{display:inline-block}
+.reine-thinking .reine-crown{animation:reine-pulse 1.4s ease-in-out infinite}
+.reine-dots{display:inline-flex;gap:3px;margin-left:2px}
+.reine-dots i{width:4px;height:4px;border-radius:50%;background:var(--amber);display:inline-block;opacity:.4;animation:reine-bounce 1.2s infinite}
+.reine-dots i:nth-child(2){animation-delay:.2s}
+.reine-dots i:nth-child(3){animation-delay:.4s}
+.reine-verdict{display:inline-flex;align-items:flex-start;gap:5px;margin-top:6px;padding:4px 10px;border-radius:12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.22);color:var(--amber);font-size:11px;line-height:1.45;font-family:var(--mono);max-width:100%}
+@keyframes reine-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.55;transform:scale(1.18)}}
+@keyframes reine-bounce{0%,80%,100%{opacity:.35;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
