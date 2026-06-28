@@ -13,8 +13,9 @@ use axum::http::{header, HeaderMap};
 use axum::response::{Html, IntoResponse};
 
 const SPA_HTML: &str = include_str!("../../laruche-dashboard/src/templates/spa.html");
-const LANG_EN: &str = include_str!("../../lang/en.json");
-const LANG_FR: &str = include_str!("../../lang/fr.json");
+// Single language file: { "key": { "en": "...", "fr": "..." } }. Adding a language = add a
+// value per key (one column), no key duplication. Served flat per language to the front-end.
+const LANG_STRINGS: &str = include_str!("../../lang/strings.json");
 const APP_CSS: &str = include_str!("../../laruche-dashboard/src/templates/app.css");
 // app.js is split into modules under `templates/js/` (one i18n agent per module). The node
 // CONCATENATES them at compile time in dependency ORDER: one `/app.js` served, one binary.
@@ -56,11 +57,33 @@ fn ui_lang(headers: &HeaderMap) -> &'static str {
     }
 }
 
-/// Returns the flat translation map (JSON text) for a language code.
-fn lang_data(code: &str) -> &'static str {
+type StringTable = std::collections::BTreeMap<String, std::collections::BTreeMap<String, String>>;
+
+/// Parsed language strings (key -> { lang -> value }), loaded from strings.json once.
+fn all_strings() -> &'static StringTable {
+    static S: std::sync::OnceLock<StringTable> = std::sync::OnceLock::new();
+    S.get_or_init(|| serde_json::from_str(LANG_STRINGS).unwrap_or_default())
+}
+
+/// Flat { key: value } JSON for a language code (per-key fallback to English). Built and cached once.
+fn lang_flat_json(code: &str) -> &'static str {
+    static EN: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    static FR: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    fn build(code: &str) -> String {
+        let mut m = serde_json::Map::new();
+        for (k, langs) in all_strings() {
+            let v = langs
+                .get(code)
+                .or_else(|| langs.get("en"))
+                .cloned()
+                .unwrap_or_default();
+            m.insert(k.clone(), serde_json::Value::String(v));
+        }
+        serde_json::Value::Object(m).to_string()
+    }
     match code {
-        "en" => LANG_EN,
-        _ => LANG_FR,
+        "en" => EN.get_or_init(|| build("en")),
+        _ => FR.get_or_init(|| build("fr")),
     }
 }
 
@@ -69,18 +92,17 @@ pub async fn spa_page(headers: HeaderMap) -> Html<String> {
     let lang = ui_lang(&headers);
     // Escape '<' so a translation value can never break out of the inline <script> tag.
     // '<' is a valid escape in both JSON and JS string literals.
-    let data = lang_data(lang).replace('<', "\\u003c");
+    let data = lang_flat_json(lang).replace('<', "\\u003c");
     let inject = format!("<script>window.__LANG__=\"{lang}\";window.__I18N__={data};</script>");
     Html(SPA_HTML.replacen("<!--__LANG_INJECT__-->", &inject, 1))
 }
 
-/// GET /lang/<code>.json - serve a language file (for tooling and translators).
+/// GET /lang/<code>.json - serve the flat translation map for a language (tooling/translators).
 pub async fn lang_file(Path(file): Path<String>) -> impl IntoResponse {
     let code = file.trim_end_matches(".json");
     let body = match code {
-        "en" => LANG_EN,
-        "fr" => LANG_FR,
-        _ => "{}",
+        "en" => lang_flat_json("en"),
+        _ => lang_flat_json("fr"),
     };
     (
         [(header::CONTENT_TYPE, "application/json; charset=utf-8")],

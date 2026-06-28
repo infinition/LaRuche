@@ -1,0 +1,4354 @@
+{
+  "automations.aLaDemande": {
+    "en": "on demand",
+    "fr": "à la demande"
+  },
+  "automations.aLaMinute": {
+    "en": "at minute {m} of every hour",
+    "fr": "à la minute {m} de chaque heure"
+  },
+  "automations.aVenir": {
+    "en": " (upcoming)",
+    "fr": " (à venir)"
+  },
+  "automations.aVenirSection": {
+    "en": "Upcoming",
+    "fr": "À venir"
+  },
+  "automations.agenda": {
+    "en": "Agenda",
+    "fr": "Agenda"
+  },
+  "automations.aucunJobGantt": {
+    "en": "No cron-scheduled job to display.",
+    "fr": "Aucun job à cadence cron à afficher."
+  },
+  "automations.aucunTravailFond": {
+    "en": "None (background task)",
+    "fr": "Aucun (travail de fond)"
+  },
+  "automations.aucunTravailFond2": {
+    "en": "None (background task)",
+    "fr": "Aucun (travail de fond)"
+  },
+  "automations.aujourdhui": {
+    "en": "Today",
+    "fr": "Aujourd'hui"
+  },
+  "automations.badgeCron": {
+    "en": "Cron",
+    "fr": "Cron"
+  },
+  "automations.badgeMission": {
+    "en": "Mission",
+    "fr": "Mission"
+  },
+  "automations.cadenceLabel": {
+    "en": "Schedule: ",
+    "fr": "Cadence : "
+  },
+  "automations.cadenceOpt": {
+    "en": "Schedule (optional)",
+    "fr": "Cadence (optionnel)"
+  },
+  "automations.canalLabel": {
+    "en": "Channel (optional - empty = background task)",
+    "fr": "Canal (optionnel - vide = travail de fond)"
+  },
+  "automations.chaqueDayAt": {
+    "en": "every {days} at {t}",
+    "fr": "chaque {days} à {t}"
+  },
+  "automations.chaqueDaySans": {
+    "en": "every {days}",
+    "fr": "chaque {days}"
+  },
+  "automations.chaqueJour": {
+    "en": "Every day",
+    "fr": "Chaque jour"
+  },
+  "automations.chaqueJourA": {
+    "en": "every day at {t}",
+    "fr": "chaque jour à {t}"
+  },
+  "automations.chaqueJourSans": {
+    "en": "every day",
+    "fr": "chaque jour"
+  },
+  "automations.chaqueMois": {
+    "en": "Every month",
+    "fr": "Chaque mois"
+  },
+  "automations.chaqueSemaine": {
+    "en": "Every week",
+    "fr": "Chaque semaine"
+  },
+  "automations.chargement": {
+    "en": "Loading...",
+    "fr": "Chargement..."
+  },
+  "automations.chargementPlanning": {
+    "en": "Loading schedule...",
+    "fr": "Chargement du planning..."
+  },
+  "automations.cibleLabel": {
+    "en": "target: ",
+    "fr": "cible : "
+  },
+  "automations.creerMission": {
+    "en": "Create mission",
+    "fr": "Créer la mission"
+  },
+  "automations.cronExpr5": {
+    "en": "Cron expression (5 fields)",
+    "fr": "Expression cron (5 champs)"
+  },
+  "automations.cronSansNom": {
+    "en": "(unnamed cron)",
+    "fr": "(cron sans nom)"
+  },
+  "automations.decl": {
+    "en": " triggered",
+    "fr": " decl."
+  },
+  "automations.defautModele": {
+    "en": "Default (active model)",
+    "fr": "Défaut (modèle actif)"
+  },
+  "automations.demain": {
+    "en": "Tomorrow",
+    "fr": "Demain"
+  },
+  "automations.dernierLabel": {
+    "en": " · last: ",
+    "fr": " · dernier : "
+  },
+  "automations.dimanche": {
+    "en": "Sunday",
+    "fr": "Dimanche"
+  },
+  "automations.dowFriday": {
+    "en": "Friday",
+    "fr": "Vendredi"
+  },
+  "automations.dowMonday": {
+    "en": "Monday",
+    "fr": "Lundi"
+  },
+  "automations.dowSaturday": {
+    "en": "Saturday",
+    "fr": "Samedi"
+  },
+  "automations.dowSunday": {
+    "en": "Sunday",
+    "fr": "Dimanche"
+  },
+  "automations.dowThursday": {
+    "en": "Thursday",
+    "fr": "Jeudi"
+  },
+  "automations.dowTuesday": {
+    "en": "Tuesday",
+    "fr": "Mardi"
+  },
+  "automations.dowWednesday": {
+    "en": "Wednesday",
+    "fr": "Mercredi"
+  },
+  "automations.echecSuppression": {
+    "en": "Delete failed",
+    "fr": "Échec suppression"
+  },
+  "automations.editerOngletCron": {
+    "en": "Edit (Cron tab)",
+    "fr": "Éditer (onglet Cron)"
+  },
+  "automations.freqLabel": {
+    "en": "Frequency",
+    "fr": "Fréquence"
+  },
+  "automations.gantt": {
+    "en": "Gantt",
+    "fr": "Gantt"
+  },
+  "automations.heureLabel": {
+    "en": "Time",
+    "fr": "Heure"
+  },
+  "automations.homeTag": {
+    "en": " (home)",
+    "fr": " (accueil)"
+  },
+  "automations.hours": {
+    "en": "hours",
+    "fr": "heures"
+  },
+  "automations.jamais": {
+    "en": "never",
+    "fr": "jamais"
+  },
+  "automations.jobsHeader": {
+    "en": "Jobs",
+    "fr": "Jobs"
+  },
+  "automations.jourDuMois": {
+    "en": "Day of month",
+    "fr": "Jour du mois"
+  },
+  "automations.jourLabel": {
+    "en": "Day",
+    "fr": "Jour"
+  },
+  "automations.leDuMois": {
+    "en": "the {dom} of the month",
+    "fr": "le {dom} du mois"
+  },
+  "automations.leDuMoisAt": {
+    "en": "the {dom} of the month at {t}",
+    "fr": "le {dom} du mois à {t}"
+  },
+  "automations.manuel": {
+    "en": "manual",
+    "fr": "manuel"
+  },
+  "automations.minutes": {
+    "en": "minutes",
+    "fr": "minutes"
+  },
+  "automations.missionLabel": {
+    "en": "(mission)",
+    "fr": "(mission)"
+  },
+  "automations.missionsTitle": {
+    "en": "Missions",
+    "fr": "Missions"
+  },
+  "automations.modeExpert": {
+    "en": "Expert mode",
+    "fr": "Mode expert"
+  },
+  "automations.modeSimple": {
+    "en": "Simple mode",
+    "fr": "Mode simple"
+  },
+  "automations.monitorsActifs": {
+    "en": "Active monitors (continuous monitoring)",
+    "fr": "Monitors actifs (surveillance continue)"
+  },
+  "automations.monitorsSuffix": {
+    "en": " monitor(s)",
+    "fr": " monitor(s)"
+  },
+  "automations.noCadenceManual": {
+    "en": "no schedule (manual)",
+    "fr": "aucune cadence (manuel)"
+  },
+  "automations.nowBtn": {
+    "en": "Now",
+    "fr": "Maintenant"
+  },
+  "automations.objectifPlaceholder": {
+    "en": "Research mission objective...",
+    "fr": "Objectif de la mission de recherche..."
+  },
+  "automations.occurrence": {
+    "en": "Occurrence: ",
+    "fr": "Occurrence : "
+  },
+  "automations.passee": {
+    "en": " (past)",
+    "fr": " (passée)"
+  },
+  "automations.planifications": {
+    "en": "{n} schedule(s) · {w} monitor(s)",
+    "fr": "{n} planification(s) · {w} monitor(s)"
+  },
+  "automations.providerLabel": {
+    "en": "Provider",
+    "fr": "Fournisseur"
+  },
+  "automations.rafraichir": {
+    "en": "Refresh",
+    "fr": "Rafraîchir"
+  },
+  "automations.rafraichirTitle": {
+    "en": "Refresh",
+    "fr": "Rafraîchir"
+  },
+  "automations.rienDePrevu": {
+    "en": "Nothing scheduled.",
+    "fr": "Rien de prévu."
+  },
+  "automations.runsSuffix": {
+    "en": " run(s)",
+    "fr": " run(s)"
+  },
+  "automations.sansPlanning": {
+    "en": "No schedule (on demand)",
+    "fr": "Sans planning (à la demande)"
+  },
+  "automations.sectionAujourd": {
+    "en": "Today",
+    "fr": "Aujourd'hui"
+  },
+  "automations.selectMission": {
+    "en": "Select a mission to view its file, or create one.",
+    "fr": "Sélectionnez une mission pour voir son dossier, ou créez-en une."
+  },
+  "automations.setteSemaine": {
+    "en": "This week",
+    "fr": "Cette semaine"
+  },
+  "automations.slugOpt": {
+    "en": "Slug (optional)",
+    "fr": "Slug (optionnel)"
+  },
+  "automations.supprime": {
+    "en": "Deleted",
+    "fr": "Supprimé"
+  },
+  "automations.supprimer": {
+    "en": "Delete",
+    "fr": "Supprimer"
+  },
+  "automations.supprimerConfirm": {
+    "en": "Delete permanently?",
+    "fr": "Supprimer définitivement ?"
+  },
+  "automations.supprimerMission": {
+    "en": "Delete mission",
+    "fr": "Supprimer la mission"
+  },
+  "automations.surveillance": {
+    "en": "● monitoring",
+    "fr": "● surveillance"
+  },
+  "automations.surveillanceCont": {
+    "en": "Continuous monitoring",
+    "fr": "Surveillance continue"
+  },
+  "automations.toutesLesMin": {
+    "en": "every {st} min",
+    "fr": "toutes les {st} min"
+  },
+  "automations.toutesNHeures": {
+    "en": "Every N hours",
+    "fr": "Toutes les N heures"
+  },
+  "automations.toutesNMinutes": {
+    "en": "Every N minutes",
+    "fr": "Toutes les N minutes"
+  },
+  "automations.watcherFallback": {
+    "en": "(watcher)",
+    "fr": "(vigie)"
+  },
+  "automations.watcherTypeFallback": {
+    "en": "monitor",
+    "fr": "monitor"
+  },
+  "automations.zoomLabel": {
+    "en": "Zoom",
+    "fr": "Zoom"
+  },
+  "capabilities.active": {
+    "en": "● active",
+    "fr": "● actif"
+  },
+  "capabilities.addMcpServer": {
+    "en": "+ Add MCP server",
+    "fr": "+ Ajouter serveur MCP"
+  },
+  "capabilities.arguments": {
+    "en": "Arguments",
+    "fr": "Arguments"
+  },
+  "capabilities.capacities": {
+    "en": "capability(-ies)",
+    "fr": "capacité(s)"
+  },
+  "capabilities.close": {
+    "en": "Close",
+    "fr": "Fermer"
+  },
+  "capabilities.colActions": {
+    "en": "Actions",
+    "fr": "Actions"
+  },
+  "capabilities.colDesc": {
+    "en": "Description",
+    "fr": "Description"
+  },
+  "capabilities.colName": {
+    "en": "Name",
+    "fr": "Nom"
+  },
+  "capabilities.colOrigin": {
+    "en": "Origin",
+    "fr": "Origine"
+  },
+  "capabilities.colStatus": {
+    "en": "Status",
+    "fr": "Statut"
+  },
+  "capabilities.colType": {
+    "en": "Type",
+    "fr": "Type"
+  },
+  "capabilities.command": {
+    "en": "Command",
+    "fr": "Commande"
+  },
+  "capabilities.confirmDelete": {
+    "en": "Delete",
+    "fr": "Supprimer"
+  },
+  "capabilities.confirmPlugin": {
+    "en": "Delete plugin",
+    "fr": "Supprimer le plugin"
+  },
+  "capabilities.conversations": {
+    "en": "Conversations",
+    "fr": "Conversations"
+  },
+  "capabilities.cronNoName": {
+    "en": "(unnamed cron)",
+    "fr": "(cron sans nom)"
+  },
+  "capabilities.delete": {
+    "en": "Del",
+    "fr": "Suppr"
+  },
+  "capabilities.disableAll": {
+    "en": "Disable all",
+    "fr": "Tout désactiver"
+  },
+  "capabilities.edit": {
+    "en": "Edit",
+    "fr": "Éditer"
+  },
+  "capabilities.editingMcp": {
+    "en": " - edit then click the button",
+    "fr": " - modifiez puis cliquez sur le bouton"
+  },
+  "capabilities.editingOf": {
+    "en": "Editing ",
+    "fr": "Édition de "
+  },
+  "capabilities.emptyFilter": {
+    "en": "No capability found (filter or empty family).",
+    "fr": "Aucune capacité (filtre ou famille vide)."
+  },
+  "capabilities.enableAll": {
+    "en": "Enable all",
+    "fr": "Tout activer"
+  },
+  "capabilities.essaim": {
+    "en": "Essaim",
+    "fr": "Essaim"
+  },
+  "capabilities.filesScripts": {
+    "en": "📁 Files &amp; scripts",
+    "fr": "📁 Fichiers &amp; scripts"
+  },
+  "capabilities.hideChats": {
+    "en": "Hide Chats",
+    "fr": "Masquer Chats"
+  },
+  "capabilities.inDelta": {
+    "en": "in ",
+    "fr": "dans "
+  },
+  "capabilities.inactive": {
+    "en": "○ inactive",
+    "fr": "○ inactif"
+  },
+  "capabilities.kindAgent": {
+    "en": "Agent",
+    "fr": "Agent"
+  },
+  "capabilities.kindCron": {
+    "en": "Cron",
+    "fr": "Cron"
+  },
+  "capabilities.kindDm": {
+    "en": "DM",
+    "fr": "DM"
+  },
+  "capabilities.kindMemory": {
+    "en": "Memory",
+    "fr": "Mémoire"
+  },
+  "capabilities.kindMission": {
+    "en": "Mission",
+    "fr": "Mission"
+  },
+  "capabilities.kindWatcher": {
+    "en": "Watcher",
+    "fr": "Watcher"
+  },
+  "capabilities.laruchemusing": {
+    "en": "LaRuche is thinking",
+    "fr": "LaRuche réfléchit"
+  },
+  "capabilities.laruchemusingEllipsis": {
+    "en": "LaRuche is thinking…",
+    "fr": "LaRuche réfléchit…"
+  },
+  "capabilities.loading": {
+    "en": "Loading...",
+    "fr": "Chargement..."
+  },
+  "capabilities.mcpArgsPlaceholder": {
+    "en": "ex: src/index.js --db db.sqlite",
+    "fr": "ex: src/index.js --db db.sqlite"
+  },
+  "capabilities.mcpCmdPlaceholder": {
+    "en": "ex: node",
+    "fr": "ex: node"
+  },
+  "capabilities.mcpFormUnavailable": {
+    "en": "MCP form unavailable",
+    "fr": "Formulaire MCP indisponible"
+  },
+  "capabilities.mcpNamePlaceholder": {
+    "en": "ex: local-sqlite",
+    "fr": "ex: local-sqlite"
+  },
+  "capabilities.mcpSaveFailed": {
+    "en": "Failed to save MCP",
+    "fr": "Échec enregistrement MCP"
+  },
+  "capabilities.mcpSaved": {
+    "en": "MCP server saved",
+    "fr": "Serveur MCP enregistré"
+  },
+  "capabilities.mcpServerName": {
+    "en": "MCP server name",
+    "fr": "Nom serveur MCP"
+  },
+  "capabilities.messagePlaceholder": {
+    "en": "Message…",
+    "fr": "Message…"
+  },
+  "capabilities.minimize": {
+    "en": "Minimize",
+    "fr": "Réduire"
+  },
+  "capabilities.missionNoName": {
+    "en": "(mission)",
+    "fr": "(mission)"
+  },
+  "capabilities.nameAndCmdRequired": {
+    "en": "Name and command required",
+    "fr": "Nom et commande requis"
+  },
+  "capabilities.nativeImmutable": {
+    "en": " - native tools are immutable",
+    "fr": " - outils natifs = immuables"
+  },
+  "capabilities.newPlugin": {
+    "en": "+ New plugin",
+    "fr": "+ Nouveau plugin"
+  },
+  "capabilities.newSkill": {
+    "en": "+ New skill",
+    "fr": "+ Nouveau skill"
+  },
+  "capabilities.nextAction": {
+    "en": "&#x23F0; Next: ",
+    "fr": "&#x23F0; Prochaine : "
+  },
+  "capabilities.noActivity": {
+    "en": "No activity yet.",
+    "fr": "Aucune activité pour le moment."
+  },
+  "capabilities.noConversation": {
+    "en": "No conversations.",
+    "fr": "Aucune conversation."
+  },
+  "capabilities.noMatchFilter": {
+    "en": "No event matches the active filters.",
+    "fr": "Aucun événement ne correspond aux filtres actifs."
+  },
+  "capabilities.noPeers": {
+    "en": "No peers on the network.",
+    "fr": "Aucun pair sur le réseau."
+  },
+  "capabilities.noScheduled": {
+    "en": "No scheduled action",
+    "fr": "Aucune action programmée"
+  },
+  "capabilities.now": {
+    "en": "now",
+    "fr": "maintenant"
+  },
+  "capabilities.peersDiscovered": {
+    "en": "LaRuche peers discovered",
+    "fr": "Pairs LaRuche découverts"
+  },
+  "capabilities.remove": {
+    "en": "Remove",
+    "fr": "Retirer"
+  },
+  "capabilities.searchPlaceholder": {
+    "en": "Search (name or description)...",
+    "fr": "Rechercher (nom ou description)..."
+  },
+  "capabilities.send": {
+    "en": "Send",
+    "fr": "Envoyer"
+  },
+  "capabilities.showChats": {
+    "en": "Show Chats",
+    "fr": "Afficher Chats"
+  },
+  "capabilities.statusOff": {
+    "en": "OFF",
+    "fr": "OFF"
+  },
+  "capabilities.statusOn": {
+    "en": "ON",
+    "fr": "ON"
+  },
+  "capabilities.syncFailed": {
+    "en": "❌ Sync failed",
+    "fr": "❌ Échec sync"
+  },
+  "capabilities.syncFederated": {
+    "en": " skill(s) federated",
+    "fr": " skill(s) fédéré(s)"
+  },
+  "capabilities.syncSkills": {
+    "en": "🔄 Sync mesh skills",
+    "fr": "🔄 Synchroniser les skills du mesh"
+  },
+  "capabilities.syncUpToDate": {
+    "en": "✅ Already up to date",
+    "fr": "✅ Déjà à jour"
+  },
+  "capabilities.syncing": {
+    "en": "⏳ Syncing…",
+    "fr": "⏳ Synchronisation…"
+  },
+  "capabilities.typeMcp": {
+    "en": "MCP",
+    "fr": "MCP"
+  },
+  "capabilities.typePlugin": {
+    "en": "Plugin",
+    "fr": "Plugin"
+  },
+  "capabilities.typeSkill": {
+    "en": "Skill",
+    "fr": "Skill"
+  },
+  "capabilities.typeTool": {
+    "en": "Tool",
+    "fr": "Tool"
+  },
+  "capabilities.view": {
+    "en": "View",
+    "fr": "Voir"
+  },
+  "capabilities.you": {
+    "en": "You",
+    "fr": "Vous"
+  },
+  "capabilities.youPrefix": {
+    "en": "You: ",
+    "fr": "Vous: "
+  },
+  "chat.aVerifier": {
+    "en": "TO CHECK",
+    "fr": "À VÉRIFIER"
+  },
+  "chat.agentVeutExecuter": {
+    "en": "The agent wants to run",
+    "fr": "L'agent veut exécuter"
+  },
+  "chat.apercu": {
+    "en": "Preview",
+    "fr": "Aperçu"
+  },
+  "chat.apercuMedia": {
+    "en": "Preview ",
+    "fr": "Aperçu "
+  },
+  "chat.approval": {
+    "en": "Approval",
+    "fr": "Autorisation"
+  },
+  "chat.approvalAllowed": {
+    "en": "Allowed: ",
+    "fr": "Autorisé : "
+  },
+  "chat.approvalDenied": {
+    "en": "Denied: ",
+    "fr": "Refusé : "
+  },
+  "chat.approvalWaiting": {
+    "en": "Waiting: ",
+    "fr": "En attente : "
+  },
+  "chat.aucun": {
+    "en": "None",
+    "fr": "Aucun"
+  },
+  "chat.aucuneConversation": {
+    "en": "No conversations.",
+    "fr": "Aucune conversation."
+  },
+  "chat.aucuneSortie": {
+    "en": "(no output)",
+    "fr": "(aucune sortie)"
+  },
+  "chat.autoFirstDetected": {
+    "en": "Auto (first detected)",
+    "fr": "Auto (premier détecté)"
+  },
+  "chat.autoPlayDisabled": {
+    "en": "Auto-play disabled",
+    "fr": "Lecture automatique désactivée"
+  },
+  "chat.autoPlayEnabled": {
+    "en": "Auto-play enabled",
+    "fr": "Lecture automatique activée"
+  },
+  "chat.autoTtsTitle": {
+    "en": "Auto-play responses",
+    "fr": "Lecture automatique des réponses"
+  },
+  "chat.autorisationRequise": {
+    "en": "Authorization required",
+    "fr": "Autorisation requise"
+  },
+  "chat.autoriser": {
+    "en": "Allow",
+    "fr": "Autoriser"
+  },
+  "chat.chargement": {
+    "en": "Loading…",
+    "fr": "Chargement…"
+  },
+  "chat.code": {
+    "en": "Code",
+    "fr": "Code"
+  },
+  "chat.conversationExportee": {
+    "en": "Conversation exported",
+    "fr": "Conversation exportée"
+  },
+  "chat.copie": {
+    "en": "Copied!",
+    "fr": "Copié!"
+  },
+  "chat.copier": {
+    "en": "Copy",
+    "fr": "Copier"
+  },
+  "chat.cyclesPrecedents": {
+    "en": "previous cycles",
+    "fr": "cycles précédents"
+  },
+  "chat.dateAn": {
+    "en": "year",
+    "fr": "an"
+  },
+  "chat.dateAns": {
+    "en": "years",
+    "fr": "ans"
+  },
+  "chat.dateAujourdhui": {
+    "en": "today",
+    "fr": "aujourd'hui"
+  },
+  "chat.dateAvantHier": {
+    "en": "two days ago",
+    "fr": "avant-hier"
+  },
+  "chat.dateHier": {
+    "en": "yesterday",
+    "fr": "hier"
+  },
+  "chat.dateIlYaJours": {
+    "en": "",
+    "fr": "il y a"
+  },
+  "chat.dateJours": {
+    "en": "days · ",
+    "fr": "jours · "
+  },
+  "chat.dateMaj": {
+    "en": "UPD: -",
+    "fr": "MAJ : -"
+  },
+  "chat.dateMois": {
+    "en": "mo.",
+    "fr": "mois"
+  },
+  "chat.dateSem": {
+    "en": "wk.",
+    "fr": "sem."
+  },
+  "chat.demandeReinjected": {
+    "en": "Request re-injected",
+    "fr": "Demande réinjectée"
+  },
+  "chat.demandeRelancee": {
+    "en": "Request restarted",
+    "fr": "Demande relancée"
+  },
+  "chat.dossier": {
+    "en": "Folder: ",
+    "fr": "Dossier: "
+  },
+  "chat.echecExport": {
+    "en": "Export failed",
+    "fr": "Échec export"
+  },
+  "chat.echecProfil": {
+    "en": "Failed to save profile.",
+    "fr": "Échec de l'enregistrement du profil."
+  },
+  "chat.enAttente": {
+    "en": "Idle",
+    "fr": "En attente"
+  },
+  "chat.enCours": {
+    "en": " · running",
+    "fr": " · en cours"
+  },
+  "chat.entrezChemin": {
+    "en": "Enter a path",
+    "fr": "Entrez un chemin"
+  },
+  "chat.erreur": {
+    "en": "Error: ",
+    "fr": "Erreur: "
+  },
+  "chat.erreurState": {
+    "en": "error",
+    "fr": "erreur"
+  },
+  "chat.essaim": {
+    "en": "L'Essaim",
+    "fr": "L'Essaim"
+  },
+  "chat.executes": {
+    "en": "executed",
+    "fr": "exécuté"
+  },
+  "chat.executionEnCours": {
+    "en": "Running",
+    "fr": "Exécution en cours"
+  },
+  "chat.export.appelOutil": {
+    "en": "➡️ Tool call",
+    "fr": "➡️ Appel outil"
+  },
+  "chat.export.outil": {
+    "en": "🔧 Tool",
+    "fr": "🔧 Outil"
+  },
+  "chat.export.reflexion": {
+    "en": "💭 Reasoning",
+    "fr": "💭 Réflexion"
+  },
+  "chat.export.user": {
+    "en": "🧑 User",
+    "fr": "🧑 Utilisateur"
+  },
+  "chat.exporterBtn": {
+    "en": "Export",
+    "fr": "Exporter"
+  },
+  "chat.fileLabel": {
+    "en": "(file)",
+    "fr": "(fichier)"
+  },
+  "chat.fileTooLarge": {
+    "en": "File too large (max 5MB): ",
+    "fr": "Fichier trop volumineux (max 5 Mo) : "
+  },
+  "chat.generationInterrompue": {
+    "en": "⏹ Generation interrupted",
+    "fr": "⏹ Génération interrompue"
+  },
+  "chat.imageFallback": {
+    "en": "Image",
+    "fr": "Image"
+  },
+  "chat.inputPlaceholder": {
+    "en": "Send a message…",
+    "fr": "Envoyer un message…"
+  },
+  "chat.leRunEstTermine": {
+    "en": "The run is finished.",
+    "fr": "Le run est terminé."
+  },
+  "chat.lire": {
+    "en": "Read aloud",
+    "fr": "Lire"
+  },
+  "chat.mediaAjoutes": {
+    "en": " media added to the response.",
+    "fr": " média(s) ajouté(s) à la réponse."
+  },
+  "chat.mediaFallback": {
+    "en": "Media",
+    "fr": "Média"
+  },
+  "chat.micError": {
+    "en": "Mic error: ",
+    "fr": "Erreur micro : "
+  },
+  "chat.micTitle": {
+    "en": "Click to record / stop",
+    "fr": "Cliquer pour enregistrer / arrêter"
+  },
+  "chat.miseAJourAgent": {
+    "en": "Agent update",
+    "fr": "Mise à jour de l'agent"
+  },
+  "chat.monProfil": {
+    "en": "My profile",
+    "fr": "Mon profil"
+  },
+  "chat.nEtapes": {
+    "en": " steps",
+    "fr": " étapes"
+  },
+  "chat.noThinkActif": {
+    "en": "No-think active",
+    "fr": "No-think actif"
+  },
+  "chat.nouveMission": {
+    "en": "New mission",
+    "fr": "Nouvelle mission"
+  },
+  "chat.nouveau": {
+    "en": "New",
+    "fr": "Nouveau"
+  },
+  "chat.nouvelleActivite": {
+    "en": "new activity",
+    "fr": "nouvelle activité"
+  },
+  "chat.nouvellesActivites": {
+    "en": "new activities",
+    "fr": "nouvelles activités"
+  },
+  "chat.orientationAppliquee": {
+    "en": "Applied to the next step.",
+    "fr": "Appliquée à la prochaine étape."
+  },
+  "chat.orientationEnAttente": {
+    "en": "Steering pending",
+    "fr": "Orientation en attente"
+  },
+  "chat.orientationNonAppliquee": {
+    "en": "Steering not applied",
+    "fr": "Orientation non appliquée"
+  },
+  "chat.orientationRecue": {
+    "en": "Steering received",
+    "fr": "Orientation reçue"
+  },
+  "chat.outils": {
+    "en": "tools",
+    "fr": "outils"
+  },
+  "chat.ouvrir": {
+    "en": "⛶ Open",
+    "fr": "⛶ Ouvrir"
+  },
+  "chat.ouvrirBtn": {
+    "en": "Open",
+    "fr": "Ouvrir"
+  },
+  "chat.ouvrirMedia": {
+    "en": "Open ↗",
+    "fr": "Ouvrir ↗"
+  },
+  "chat.pdfFallback": {
+    "en": "PDF",
+    "fr": "PDF"
+  },
+  "chat.plan": {
+    "en": "Plan",
+    "fr": "Plan"
+  },
+  "chat.planTitle": {
+    "en": "📋 Plan",
+    "fr": "📋 Plan"
+  },
+  "chat.preparationExecution": {
+    "en": "Preparing execution",
+    "fr": "Préparation de l'exécution"
+  },
+  "chat.profilEnregistre": {
+    "en": "Profile saved: LaRuche will take it into account.",
+    "fr": "Profil enregistré : LaRuche en tiendra compte."
+  },
+  "chat.promptReel": {
+    "en": "Actual prompt sent to the LLM",
+    "fr": "Prompt réel envoyé au LLM"
+  },
+  "chat.raisonnement": {
+    "en": "Reasoning",
+    "fr": "Raisonnement"
+  },
+  "chat.reasoningLabel": {
+    "en": "💭 reasoning",
+    "fr": "💭 raisonnement"
+  },
+  "chat.reflexionEnCours": {
+    "en": "Thinking",
+    "fr": "Réflexion en cours"
+  },
+  "chat.refuser": {
+    "en": "Deny",
+    "fr": "Refuser"
+  },
+  "chat.reinjectedDetail": {
+    "en": "The run just resumed: steering forwarded.",
+    "fr": "Le run vient de reprendre : orientation transmise."
+  },
+  "chat.relanceeDetail": {
+    "en": "The previous run was already finished: your request was restarted automatically.",
+    "fr": "Le précédent run était déjà terminé : ta demande est repartie automatiquement."
+  },
+  "chat.responseTimeout": {
+    "en": "The response is taking longer than expected…",
+    "fr": "La réponse prend plus de temps que prévu…"
+  },
+  "chat.retryBtn": {
+    "en": "↻ Retry",
+    "fr": "↻ Réessayer"
+  },
+  "chat.sansTitre": {
+    "en": "Untitled",
+    "fr": "Sans titre"
+  },
+  "chat.skillNe": {
+    "en": "✨ Skill created: ",
+    "fr": "✨ Skill né : "
+  },
+  "chat.skillsLabel": {
+    "en": "🧩 Skills",
+    "fr": "🧩 Skills"
+  },
+  "chat.souvenirs": {
+    "en": "memories",
+    "fr": "souvenirs"
+  },
+  "chat.steeringPlaceholder": {
+    "en": "Interrupt or steer the running agent…",
+    "fr": "Interrompre ou orienter l'agent en cours…"
+  },
+  "chat.stopBtn": {
+    "en": "Stop",
+    "fr": "Stop"
+  },
+  "chat.sttUnavailable": {
+    "en": "STT unavailable",
+    "fr": "STT indisponible"
+  },
+  "chat.suggestion1": {
+    "en": "Explain the project architecture",
+    "fr": "Explique-moi l'architecture du projet"
+  },
+  "chat.suggestion2": {
+    "en": "Which files were recently modified?",
+    "fr": "Quels fichiers ont été modifiés récemment ?"
+  },
+  "chat.suggestion3": {
+    "en": "Analyze the errors in the logs",
+    "fr": "Analyse les erreurs dans les logs"
+  },
+  "chat.suggestion4": {
+    "en": "Create an action plan to optimize performance",
+    "fr": "Crée un plan d'action pour optimiser les performances"
+  },
+  "chat.supprimerBtn": {
+    "en": "Delete",
+    "fr": "Supprimer"
+  },
+  "chat.termine": {
+    "en": "DONE",
+    "fr": "TERMINÉ"
+  },
+  "chat.termineState": {
+    "en": "done",
+    "fr": "terminé"
+  },
+  "chat.thinkingActif": {
+    "en": "Thinking active",
+    "fr": "Thinking actif"
+  },
+  "chat.thoughtCheckpoint": {
+    "en": "Checkpoint",
+    "fr": "Point d'étape"
+  },
+  "chat.thoughtDefault": {
+    "en": "Preparing next step",
+    "fr": "Je prépare la suite"
+  },
+  "chat.thoughtExploration": {
+    "en": "Exploring useful paths",
+    "fr": "J'explore les pistes utiles"
+  },
+  "chat.thoughtImplementation": {
+    "en": "Preparing execution",
+    "fr": "Je prépare l'exécution"
+  },
+  "chat.thoughtNextAction": {
+    "en": "Next action",
+    "fr": "Prochaine action"
+  },
+  "chat.thoughtOrientation": {
+    "en": "Analysing the request",
+    "fr": "J'analyse la demande"
+  },
+  "chat.thoughtVerification": {
+    "en": "Verifying the result",
+    "fr": "Je vérifie le résultat"
+  },
+  "chat.titleAnalyseFichiers": {
+    "en": "File analysis",
+    "fr": "Analyse des fichiers"
+  },
+  "chat.titleKanban": {
+    "en": "Reading Kanban",
+    "fr": "Lecture du Kanban"
+  },
+  "chat.titleRecherche": {
+    "en": "Search and synthesis",
+    "fr": "Recherche et synthèse"
+  },
+  "chat.titleSuppression": {
+    "en": "Deleting a scheduled task",
+    "fr": "Suppression d'une tâche planifiée"
+  },
+  "chat.titleVerifCron": {
+    "en": "Checking scheduled tasks",
+    "fr": "Vérification des tâches planifiées"
+  },
+  "chat.titleVerifProjet": {
+    "en": "Project verification",
+    "fr": "Vérification du projet"
+  },
+  "chat.tooManyOrientations": {
+    "en": "Too many pending steerings.",
+    "fr": "Trop d'orientations en attente."
+  },
+  "chat.tool.delegate": {
+    "en": "Sub-agent",
+    "fr": "Sous-agent"
+  },
+  "chat.tool.execute_code": {
+    "en": "Code execution",
+    "fr": "Exécution de code"
+  },
+  "chat.tool.file_edit": {
+    "en": "File edit",
+    "fr": "Modification de fichier"
+  },
+  "chat.tool.file_read": {
+    "en": "File read",
+    "fr": "Lecture de fichier"
+  },
+  "chat.tool.file_search": {
+    "en": "File search",
+    "fr": "Recherche dans les fichiers"
+  },
+  "chat.tool.file_write": {
+    "en": "File write",
+    "fr": "Écriture de fichier"
+  },
+  "chat.tool.memory_search": {
+    "en": "Memory search",
+    "fr": "Recherche mémoire"
+  },
+  "chat.tool.memory_write": {
+    "en": "Memory update",
+    "fr": "Mémoire mise à jour"
+  },
+  "chat.tool.mixture_of_agents": {
+    "en": "Multi-agent consultation",
+    "fr": "Consultation multi-agents"
+  },
+  "chat.tool.read_extract": {
+    "en": "Targeted read",
+    "fr": "Lecture ciblée"
+  },
+  "chat.tool.run_script": {
+    "en": "Script",
+    "fr": "Script"
+  },
+  "chat.tool.shell_exec": {
+    "en": "Terminal command",
+    "fr": "Commande terminal"
+  },
+  "chat.tool.web_deep_search": {
+    "en": "Deep web search",
+    "fr": "Recherche web approfondie"
+  },
+  "chat.tool.web_fetch": {
+    "en": "Page fetch",
+    "fr": "Lecture de page"
+  },
+  "chat.tool.web_search": {
+    "en": "Web search",
+    "fr": "Recherche web"
+  },
+  "chat.toolErr": {
+    "en": " ERR",
+    "fr": " ERR"
+  },
+  "chat.toolFallback": {
+    "en": "tool",
+    "fr": "outil"
+  },
+  "chat.toolOk": {
+    "en": " OK",
+    "fr": " OK"
+  },
+  "chat.ttsUnavailable": {
+    "en": "TTS unavailable",
+    "fr": "TTS indisponible"
+  },
+  "chat.vide": {
+    "en": "(empty)",
+    "fr": "(vide)"
+  },
+  "chat.welcomeSubtitle": {
+    "en": "AI Agent powered by LaRuche.<br>Ask a question or give an instruction.",
+    "fr": "Agent IA propulsé par LaRuche.<br>Posez votre question ou donnez une instruction."
+  },
+  "common.apply": {
+    "en": "Apply",
+    "fr": "Appliquer"
+  },
+  "common.cancel": {
+    "en": "Cancel",
+    "fr": "Annuler"
+  },
+  "common.close": {
+    "en": "Close",
+    "fr": "Fermer"
+  },
+  "common.create": {
+    "en": "Create",
+    "fr": "Créer"
+  },
+  "common.delete": {
+    "en": "Delete",
+    "fr": "Supprimer"
+  },
+  "common.edit": {
+    "en": "Edit",
+    "fr": "Éditer"
+  },
+  "common.loading": {
+    "en": "Loading…",
+    "fr": "Chargement…"
+  },
+  "common.none": {
+    "en": "None",
+    "fr": "Aucun"
+  },
+  "common.range7d": {
+    "en": "7d",
+    "fr": "7j"
+  },
+  "common.save": {
+    "en": "Save",
+    "fr": "Enregistrer"
+  },
+  "common.search": {
+    "en": "Search",
+    "fr": "Rechercher"
+  },
+  "core.agentFinishedToast": {
+    "en": "Agent finished: {preview}",
+    "fr": "Agent terminé: {preview}"
+  },
+  "core.agentStartedLabel": {
+    "en": "Agent started",
+    "fr": "Agent démarré"
+  },
+  "core.agentStartedToast": {
+    "en": "Agent started: {label}",
+    "fr": "Agent démarré: {label}"
+  },
+  "core.badCredentials": {
+    "en": "Incorrect credentials",
+    "fr": "Identifiants incorrects"
+  },
+  "core.binaryFile": {
+    "en": "Binary file ({size} bytes) - not editable here.",
+    "fr": "Fichier binaire ({size} o) - non éditable ici."
+  },
+  "core.blueprintErr": {
+    "en": "Instantiation error",
+    "fr": "Erreur d'instanciation"
+  },
+  "core.blueprintHint": {
+    "en": "Select a blueprint to instantiate it as a cron task.",
+    "fr": "Sélectionnez un blueprint pour l'instancier en tant que tâche cron."
+  },
+  "core.blueprintOk": {
+    "en": "Blueprint instantiated successfully",
+    "fr": "Blueprint instancié avec succès"
+  },
+  "core.cannotPreviewBinary": {
+    "en": "Cannot preview binary file.",
+    "fr": "Impossible de prévisualiser un fichier binaire."
+  },
+  "core.cannotPreviewFile": {
+    "en": "Cannot preview this file.",
+    "fr": "Impossible de prévisualiser ce fichier."
+  },
+  "core.challengeError": {
+    "en": "Challenge error: {msg}",
+    "fr": "Erreur challenge: {msg}"
+  },
+  "core.challengeExpires": {
+    "en": "Expires in {s}s",
+    "fr": "Expire dans {s}s"
+  },
+  "core.consoleEntries": {
+    "en": "{n} entries",
+    "fr": "{n} entrées"
+  },
+  "core.deleteFileConfirm": {
+    "en": "Delete plugins/{path}?",
+    "fr": "Supprimer plugins/{path} ?"
+  },
+  "core.enrollError": {
+    "en": "Enrollment error: {msg}",
+    "fr": "Erreur enrollment: {msg}"
+  },
+  "core.errorPrefix": {
+    "en": "Error: {msg}",
+    "fr": "Erreur: {msg}"
+  },
+  "core.fileAdded": {
+    "en": "Added: {dest}",
+    "fr": "Ajouté : {dest}"
+  },
+  "core.fileContentUnavailable": {
+    "en": "File content not available.",
+    "fr": "Contenu du fichier indisponible."
+  },
+  "core.fileDeleted": {
+    "en": "File deleted.",
+    "fr": "Fichier supprimé."
+  },
+  "core.fileFallback": {
+    "en": "FILE",
+    "fr": "FICHIER"
+  },
+  "core.fileHint": {
+    "en": "Select a file on the left, or drag and drop a script here to add it.",
+    "fr": "Sélectionne un fichier à gauche, ou glisse-dépose un script ici pour l'ajouter."
+  },
+  "core.fileLabel": {
+    "en": "File",
+    "fr": "Fichier"
+  },
+  "core.fileRejected": {
+    "en": "Rejected: {name}",
+    "fr": "Refusé : {name}"
+  },
+  "core.folderEmpty": {
+    "en": "Empty folder.",
+    "fr": "Dossier vide."
+  },
+  "core.helloUser": {
+    "en": "Hello {name}!",
+    "fr": "Bonjour {name} !"
+  },
+  "core.imageLabel": {
+    "en": "Image",
+    "fr": "Image"
+  },
+  "core.instantiate": {
+    "en": "Instantiate",
+    "fr": "Instancier"
+  },
+  "core.invalidName": {
+    "en": "Invalid name",
+    "fr": "Nom invalide"
+  },
+  "core.kanbanTaskTitle": {
+    "en": "Task {id}",
+    "fr": "Tâche {id}"
+  },
+  "core.kanbanToast": {
+    "en": "Kanban: {title}",
+    "fr": "Kanban: {title}"
+  },
+  "core.modelAuto": {
+    "en": "Auto",
+    "fr": "Auto"
+  },
+  "core.modelReady": {
+    "en": "Model {model} ready ({ms}ms)",
+    "fr": "Modèle {model} prêt ({ms}ms)"
+  },
+  "core.modelSelected": {
+    "en": "Model: {model}",
+    "fr": "Modèle : {model}"
+  },
+  "core.namePasswordRequired": {
+    "en": "Name and password required",
+    "fr": "Nom et mot de passe requis"
+  },
+  "core.newFile": {
+    "en": "+ New file",
+    "fr": "+ Nouveau fichier"
+  },
+  "core.newFilePrompt": {
+    "en": "File name (e.g. scripts/my_script.py):",
+    "fr": "Nom du fichier (ex: scripts/mon_script.py) :"
+  },
+  "core.noBlueprintsAvailable": {
+    "en": "No blueprints available",
+    "fr": "Aucun blueprint disponible"
+  },
+  "core.permChangeFailed": {
+    "en": "Failed to change permissions",
+    "fr": "Échec changement permissions"
+  },
+  "core.permissionsToast": {
+    "en": "Permissions: {mode}",
+    "fr": "Permissions : {mode}"
+  },
+  "core.pluginFilesTitle": {
+    "en": "📁 Files in <code>plugins/</code> folder",
+    "fr": "📁 Fichiers du dossier <code>plugins/</code>"
+  },
+  "core.savedPlugins": {
+    "en": "Saved (plugins reloaded)",
+    "fr": "Enregistré (plugins rechargés)"
+  },
+  "core.secretsHeader": {
+    "en": "Secrets",
+    "fr": "Secrets"
+  },
+  "core.sessionFinishedPreview": {
+    "en": "Response finished",
+    "fr": "Réponse terminée"
+  },
+  "core.watcherFiredToast": {
+    "en": "Watcher fired: {name}",
+    "fr": "Watcher déclenché: {name}"
+  },
+  "core.watcherLabel": {
+    "en": "Watcher",
+    "fr": "Watcher"
+  },
+  "core.welcomeUser": {
+    "en": "Welcome {name}!",
+    "fr": "Bienvenue {name} !"
+  },
+  "dashboard.blueprintError": {
+    "en": "Instantiation error",
+    "fr": "Erreur d'instanciation"
+  },
+  "dashboard.blueprintSuccess": {
+    "en": "Blueprint instantiated successfully",
+    "fr": "Blueprint instancié avec succès"
+  },
+  "dashboard.capAgent": {
+    "en": "🤖 Agent",
+    "fr": "🤖 Agent"
+  },
+  "dashboard.capCode": {
+    "en": "💻 Code",
+    "fr": "💻 Code"
+  },
+  "dashboard.capLlm": {
+    "en": "💬 Conversation (LLM)",
+    "fr": "💬 Conversation (LLM)"
+  },
+  "dashboard.capStt": {
+    "en": "🎙️ Voice → Text",
+    "fr": "🎙️ Voix → Texte"
+  },
+  "dashboard.capTts": {
+    "en": "🔊 Text → Voice",
+    "fr": "🔊 Texte → Voix"
+  },
+  "dashboard.capVla": {
+    "en": "🦾 Vision-Action",
+    "fr": "🦾 Vision-Action"
+  },
+  "dashboard.capVlm": {
+    "en": "👁️ Vision",
+    "fr": "👁️ Vision"
+  },
+  "dashboard.connectionEstablished": {
+    "en": "Swarm connection established",
+    "fr": "Connexion au Swarm établie"
+  },
+  "dashboard.connectionLost": {
+    "en": "Connection lost",
+    "fr": "Connexion perdue"
+  },
+  "dashboard.defaultModelLog": {
+    "en": "Default {cap} set to {name}",
+    "fr": "{cap} par défaut défini sur {name}"
+  },
+  "dashboard.defaultModelSet": {
+    "en": "Default {cap} model: {name}",
+    "fr": "Modèle {cap} par défaut : {name}"
+  },
+  "dashboard.detailQueue": {
+    "en": "Queue",
+    "fr": "File"
+  },
+  "dashboard.detailRamTotal": {
+    "en": "RAM Total",
+    "fr": "RAM totale"
+  },
+  "dashboard.detailTemp": {
+    "en": "Temp",
+    "fr": "Temp"
+  },
+  "dashboard.detailTokensPerSec": {
+    "en": "Tokens/sec",
+    "fr": "Tokens/sec"
+  },
+  "dashboard.detailVramTotal": {
+    "en": "VRAM Total",
+    "fr": "VRAM totale"
+  },
+  "dashboard.error": {
+    "en": "Error: {msg}",
+    "fr": "Erreur: {msg}"
+  },
+  "dashboard.inferError": {
+    "en": "Error {status}",
+    "fr": "Erreur {status}"
+  },
+  "dashboard.inferErrorMsg": {
+    "en": "Error: {msg}",
+    "fr": "Erreur : {msg}"
+  },
+  "dashboard.inferFailedHttp": {
+    "en": "Failed: HTTP {status}",
+    "fr": "Échec : HTTP {status}"
+  },
+  "dashboard.inferNetworkError": {
+    "en": "Network error: {msg}",
+    "fr": "Erreur réseau : {msg}"
+  },
+  "dashboard.inferResponseIn": {
+    "en": "Response in {s}s{via}",
+    "fr": "Réponse en {s}s{via}"
+  },
+  "dashboard.inferVia": {
+    "en": " via {model}",
+    "fr": " via {model}"
+  },
+  "dashboard.initialized": {
+    "en": "Dashboard initialized",
+    "fr": "Dashboard initialisé"
+  },
+  "dashboard.instantiate": {
+    "en": "Instantiate",
+    "fr": "Instancier"
+  },
+  "dashboard.metricCpu": {
+    "en": "CPU %",
+    "fr": "CPU %"
+  },
+  "dashboard.metricGpu": {
+    "en": "GPU %",
+    "fr": "GPU %"
+  },
+  "dashboard.metricQueue": {
+    "en": "Queue",
+    "fr": "File"
+  },
+  "dashboard.metricRam": {
+    "en": "RAM %",
+    "fr": "RAM %"
+  },
+  "dashboard.metricTps": {
+    "en": "Tokens/s",
+    "fr": "Tokens/s"
+  },
+  "dashboard.metricVram": {
+    "en": "VRAM %",
+    "fr": "VRAM %"
+  },
+  "dashboard.modelActiveFor": {
+    "en": "{name} active for {cap}",
+    "fr": "{name} actif pour {cap}"
+  },
+  "dashboard.modelCount": {
+    "en": "{count} models from {src} sources",
+    "fr": "{count} modèles sur {src} sources"
+  },
+  "dashboard.myLocal": {
+    "en": "🖥️ mine (local)",
+    "fr": "🖥️ à moi (local)"
+  },
+  "dashboard.myLocalModel": {
+    "en": "My local model",
+    "fr": "Mon modèle local"
+  },
+  "dashboard.newNode": {
+    "en": "New node! Total: {n}",
+    "fr": "Nouveau nœud! Total: {n}"
+  },
+  "dashboard.noBlueprintAvailable": {
+    "en": "No blueprint available",
+    "fr": "Aucun blueprint disponible"
+  },
+  "dashboard.noDetailedMetrics": {
+    "en": "No detailed metrics",
+    "fr": "Aucune métrique détaillée"
+  },
+  "dashboard.noService": {
+    "en": "No service",
+    "fr": "Aucun service"
+  },
+  "dashboard.nodeDisconnected": {
+    "en": "Node disconnected. Total: {n}",
+    "fr": "Nœud déconnecté. Total: {n}"
+  },
+  "dashboard.nodeJoined": {
+    "en": "Node joined the Swarm",
+    "fr": "Nœud rejoint le Swarm"
+  },
+  "dashboard.nodeLabel": {
+    "en": "Node {n}",
+    "fr": "Nœud {n}"
+  },
+  "dashboard.nodeLeft": {
+    "en": "Node left the Swarm",
+    "fr": "Nœud quitte le Swarm"
+  },
+  "dashboard.nodeUnreachable": {
+    "en": "Node unreachable",
+    "fr": "Nœud inaccessible"
+  },
+  "dashboard.popoverEmpty": {
+    "en": "(empty)",
+    "fr": "(vide)"
+  },
+  "dashboard.popoverPrompt": {
+    "en": "PROMPT",
+    "fr": "PROMPT"
+  },
+  "dashboard.popoverResponse": {
+    "en": "RESPONSE",
+    "fr": "RÉPONSE"
+  },
+  "dashboard.popoverTokens": {
+    "en": "{n} tokens",
+    "fr": "{n} tokens"
+  },
+  "dashboard.remoteBadge": {
+    "en": "🐝 {name} · remote",
+    "fr": "🐝 {name} · distant"
+  },
+  "dashboard.remoteModel": {
+    "en": "Remote model (ruche {name})",
+    "fr": "Modèle distant (ruche {name})"
+  },
+  "dashboard.selectBlueprint": {
+    "en": "Select a blueprint to instantiate it as a cron task.",
+    "fr": "Sélectionnez un blueprint pour l'instancier en tant que tâche cron."
+  },
+  "dashboard.selected": {
+    "en": "● SELECTED",
+    "fr": "● SÉLECTIONNÉ"
+  },
+  "dashboard.send": {
+    "en": "Send",
+    "fr": "Envoyer"
+  },
+  "dashboard.shardAttention": {
+    "en": "Attention",
+    "fr": "Attention"
+  },
+  "dashboard.shardEmbedding": {
+    "en": "Embedding",
+    "fr": "Embedding"
+  },
+  "dashboard.shardFFN": {
+    "en": "FFN",
+    "fr": "FFN"
+  },
+  "dashboard.shardOutput": {
+    "en": "Output",
+    "fr": "Sortie"
+  },
+  "dashboard.speedupWithNodes": {
+    "en": "{x}x with {n} nodes",
+    "fr": "{x}x avec {n} nœuds"
+  },
+  "dashboard.swarmBadge": {
+    "en": "{n} node{s}",
+    "fr": "{n} nœud{s}"
+  },
+  "dashboard.swarmConnected": {
+    "en": "Swarm connected: {n} node(s)",
+    "fr": "Swarm connecté : {n} nœud(s)"
+  },
+  "dashboard.swarmPillText": {
+    "en": "Swarm: {n} nodes · {x}x",
+    "fr": "Essaim : {n} nœuds · {x}x"
+  },
+  "dashboard.unknownNode": {
+    "en": "Unknown",
+    "fr": "Inconnu"
+  },
+  "dashboard.use": {
+    "en": "Use",
+    "fr": "Utiliser"
+  },
+  "dashboard.used": {
+    "en": "✓ In use",
+    "fr": "✓ Utilisé"
+  },
+  "dashboard.waitingData": {
+    "en": "Waiting for data...",
+    "fr": "En attente de données..."
+  },
+  "dashboard.zeroSources": {
+    "en": "0 sources",
+    "fr": "0 source"
+  },
+  "kanban.col.archived": {
+    "en": "Archived",
+    "fr": "Archivé"
+  },
+  "kanban.col.blocked": {
+    "en": "Blocked",
+    "fr": "Bloqué"
+  },
+  "kanban.col.done": {
+    "en": "Done",
+    "fr": "Terminé"
+  },
+  "kanban.col.ready": {
+    "en": "Ready",
+    "fr": "Prêt"
+  },
+  "kanban.col.running": {
+    "en": "Running",
+    "fr": "En cours"
+  },
+  "kanban.col.todo": {
+    "en": "Todo",
+    "fr": "À faire"
+  },
+  "kanban.col.triage": {
+    "en": "Triage",
+    "fr": "Triage"
+  },
+  "memory.addSubfolderTitle": {
+    "en": "Add a subfolder",
+    "fr": "Ajouter un sous-dossier"
+  },
+  "memory.addToNode": {
+    "en": "Add to ",
+    "fr": "Ajouter à "
+  },
+  "memory.agentDoneTitle": {
+    "en": "Done",
+    "fr": "Terminé"
+  },
+  "memory.agentError": {
+    "en": "Error: ",
+    "fr": "Erreur : "
+  },
+  "memory.agentOnMission": {
+    "en": "Agent on mission!",
+    "fr": "Agent en mission !"
+  },
+  "memory.agentRunningTitle": {
+    "en": "Agent running...",
+    "fr": "Agent en cours..."
+  },
+  "memory.alreadyDefault": {
+    "en": "Already at default (no item)",
+    "fr": "Déjà au défaut (aucun item)"
+  },
+  "memory.bySourceLaRuche": {
+    "en": "by LaRuche",
+    "fr": "par LaRuche"
+  },
+  "memory.bySourceOther": {
+    "en": "by ",
+    "fr": "par "
+  },
+  "memory.bySourceUser": {
+    "en": "by User",
+    "fr": "par l'utilisateur"
+  },
+  "memory.bySourceWatcher": {
+    "en": "by LaRuche (Watcher)",
+    "fr": "par LaRuche (Watcher)"
+  },
+  "memory.cancelBtn": {
+    "en": "Cancel",
+    "fr": "Annuler"
+  },
+  "memory.cantMoveIntoSubtree": {
+    "en": "Impossible: target is inside the subtree",
+    "fr": "Impossible : cible dans le sous-arbre"
+  },
+  "memory.cognitiveCrumb": {
+    "en": "Cognitive memory",
+    "fr": "Mémoire cognitive"
+  },
+  "memory.consolidateAllScope": {
+    "en": "memory (overloaded nodes)",
+    "fr": "mémoire (nœuds surchargés)"
+  },
+  "memory.consolidateDone": {
+    "en": "done",
+    "fr": "fait"
+  },
+  "memory.consolidateError": {
+    "en": "Error: ",
+    "fr": "Erreur : "
+  },
+  "memory.consolidatingScope": {
+    "en": "Consolidating ",
+    "fr": "Consolidation de "
+  },
+  "memory.consolidatingWait": {
+    "en": "… (may take a few seconds)",
+    "fr": "… (peut prendre quelques secondes)"
+  },
+  "memory.consolidationResult": {
+    "en": "Consolidation: ",
+    "fr": "Consolidation: "
+  },
+  "memory.contentRequired": {
+    "en": "Content required",
+    "fr": "Contenu requis"
+  },
+  "memory.createError": {
+    "en": "Creation: ",
+    "fr": "Création : "
+  },
+  "memory.createImpossible": {
+    "en": "Creation impossible",
+    "fr": "Création impossible"
+  },
+  "memory.customizedNote": {
+    "en": "✎ Customized: this text REPLACES the code default.",
+    "fr": "✎ Personnalisé : ce texte REMPLACE le défaut du code."
+  },
+  "memory.dateCreated": {
+    "en": "created ",
+    "fr": "créé le "
+  },
+  "memory.dateUpdated": {
+    "en": "upd ",
+    "fr": "maj "
+  },
+  "memory.defaultNote": {
+    "en": "Code default (pre-filled): this is the text used as long as you do not save. Edit it to customize; it will be applied on the next message, without restart.",
+    "fr": "Défaut du code (pré-rempli) : c'est ce texte qui est utilisé tant que tu n'enregistres pas. Édite-le pour le personnaliser ; il sera appliqué au prochain message, sans redémarrage."
+  },
+  "memory.defaultRestored": {
+    "en": "Default restored",
+    "fr": "Défaut restauré"
+  },
+  "memory.deleteBtn": {
+    "en": "Del",
+    "fr": "Suppr"
+  },
+  "memory.deleteConfirm": {
+    "en": "Delete this memory?",
+    "fr": "Supprimer ce souvenir ?"
+  },
+  "memory.deleteError": {
+    "en": "Deletion: ",
+    "fr": "Suppression: "
+  },
+  "memory.deleteFolderConfirm": {
+    "en": "Do you really want to delete the folder \"",
+    "fr": "Voulez-vous vraiment supprimer le dossier \""
+  },
+  "memory.deleteFolderConfirm2": {
+    "en": "\" and all its content irreversibly?",
+    "fr": "\" et tout son contenu de manière irréversible ?"
+  },
+  "memory.deleteImpossible": {
+    "en": "Deletion impossible",
+    "fr": "Suppression impossible"
+  },
+  "memory.deleteTitle": {
+    "en": "Delete",
+    "fr": "Supprimer"
+  },
+  "memory.downloadAll": {
+    "en": " (all)",
+    "fr": " (tout)"
+  },
+  "memory.downloadStarted": {
+    "en": "OKF download started",
+    "fr": "Téléchargement OKF lancé"
+  },
+  "memory.editBtn": {
+    "en": "Edit",
+    "fr": "Éditer"
+  },
+  "memory.editModeActive": {
+    "en": "Edit mode active: drag folders",
+    "fr": "Mode édition activé : glissez les dossiers"
+  },
+  "memory.editModeDisabled": {
+    "en": "Edit mode disabled",
+    "fr": "Mode édition désactivé"
+  },
+  "memory.errorMsg": {
+    "en": "Error: ",
+    "fr": "Erreur : "
+  },
+  "memory.exportAllBtn": {
+    "en": "Export all",
+    "fr": "Exporter tout"
+  },
+  "memory.exportNodeBtn": {
+    "en": "Export this node (",
+    "fr": "Exporter ce nœud ("
+  },
+  "memory.exportNodeNone": {
+    "en": "Export this node (none selected)",
+    "fr": "Exporter ce nœud (aucun sélectionné)"
+  },
+  "memory.folderDeleted": {
+    "en": "Folder deleted",
+    "fr": "Dossier supprimé"
+  },
+  "memory.folderMovedUnder": {
+    "en": "Folder moved under ",
+    "fr": "Dossier déplacé sous "
+  },
+  "memory.folderPromotedRoot": {
+    "en": "Folder promoted to root",
+    "fr": "Dossier promu en racine"
+  },
+  "memory.importErrors": {
+    "en": " error(s)",
+    "fr": " erreur(s)"
+  },
+  "memory.importItems": {
+    "en": " item(s)",
+    "fr": " item(s)"
+  },
+  "memory.importResult": {
+    "en": "Import: ",
+    "fr": "Import: "
+  },
+  "memory.invalidName": {
+    "en": "Invalid name",
+    "fr": "Nom invalide"
+  },
+  "memory.itemsCount": {
+    "en": " items",
+    "fr": " éléments"
+  },
+  "memory.loading": {
+    "en": "Loading...",
+    "fr": "Chargement..."
+  },
+  "memory.managedBySystem": {
+    "en": "Managed by the system",
+    "fr": "Géré par le système"
+  },
+  "memory.memoryDeleted": {
+    "en": "Memory deleted",
+    "fr": "Souvenir supprimé"
+  },
+  "memory.memoryMovedTo": {
+    "en": "Memory moved to ",
+    "fr": "Souvenir déplacé vers "
+  },
+  "memory.memorySaved": {
+    "en": "Memory saved",
+    "fr": "Souvenir mémorisé"
+  },
+  "memory.memoryUnavailable": {
+    "en": "Memory unavailable",
+    "fr": "Mémoire indisponible"
+  },
+  "memory.memoryUnavailableError": {
+    "en": "Memory unavailable: ",
+    "fr": "Mémoire indisponible : "
+  },
+  "memory.memoryUpdated": {
+    "en": "Memory updated",
+    "fr": "Souvenir mis à jour"
+  },
+  "memory.missionCreateError": {
+    "en": "Creation error",
+    "fr": "Erreur création"
+  },
+  "memory.missionCreateErrorMsg": {
+    "en": "Creation error: ",
+    "fr": "Erreur création : "
+  },
+  "memory.missionCreating": {
+    "en": "Creating mission...",
+    "fr": "Création de la mission..."
+  },
+  "memory.missionTag": {
+    "en": "[ Mission @LaRuche ]",
+    "fr": "[ Mission @LaRuche ]"
+  },
+  "memory.moveBtn": {
+    "en": "Move",
+    "fr": "Déplacer"
+  },
+  "memory.moveError": {
+    "en": "Move: ",
+    "fr": "Déplacement : "
+  },
+  "memory.moveImpossible": {
+    "en": "Move impossible",
+    "fr": "Déplacement impossible"
+  },
+  "memory.movePrompt": {
+    "en": "Move to node_id",
+    "fr": "Déplacer vers node_id"
+  },
+  "memory.newMemoryPlaceholder": {
+    "en": "New memory (markdown, [[links]] supported)...",
+    "fr": "Nouveau souvenir (markdown, [[liens]] supportés)..."
+  },
+  "memory.newRootPrompt": {
+    "en": "Name of the new root folder:",
+    "fr": "Nom du nouveau dossier racine :"
+  },
+  "memory.newSubfolderPrompt": {
+    "en": "Name of the new subfolder:",
+    "fr": "Nom du nouveau sous-dossier:"
+  },
+  "memory.noId": {
+    "en": "(no id)",
+    "fr": "(sans id)"
+  },
+  "memory.noMemoriesInNode": {
+    "en": "No memories in this node.",
+    "fr": "Aucun souvenir dans ce nœud."
+  },
+  "memory.noNodes": {
+    "en": "No nodes",
+    "fr": "Aucun nœud"
+  },
+  "memory.nodeIdRequired": {
+    "en": "node_id required",
+    "fr": "node_id requis"
+  },
+  "memory.nodeUnavailable": {
+    "en": "Node unavailable",
+    "fr": "Nœud indisponible"
+  },
+  "memory.nodesConsolidated": {
+    "en": " node(s) consolidated",
+    "fr": " nœud(s) consolidé(s)"
+  },
+  "memory.notReadOnly": {
+    "en": ".",
+    "fr": "."
+  },
+  "memory.partialDelete": {
+    "en": "Partial deletion: ",
+    "fr": "Suppression partielle: "
+  },
+  "memory.previewBtn": {
+    "en": "Preview",
+    "fr": "Aperçu"
+  },
+  "memory.readNodeError": {
+    "en": "Read node: ",
+    "fr": "Lecture nœud : "
+  },
+  "memory.readOnly": {
+    "en": " (read only).",
+    "fr": " (lecture seule)."
+  },
+  "memory.renamePrompt": {
+    "en": "New name for the folder:",
+    "fr": "Nouveau nom pour le dossier:"
+  },
+  "memory.renameTitle": {
+    "en": "Rename",
+    "fr": "Renommer"
+  },
+  "memory.reparentError": {
+    "en": "Reparent: ",
+    "fr": "Reparentage : "
+  },
+  "memory.reparentImpossible": {
+    "en": "Reparenting impossible",
+    "fr": "Reparentage impossible"
+  },
+  "memory.restoreConfirmPrompt": {
+    "en": "Restore the default system prompt? The current content will be deleted.",
+    "fr": "Restaurer le system prompt par défaut ? Le contenu actuel sera supprimé."
+  },
+  "memory.restoreConfirmSoul": {
+    "en": "Restore the default SOUL? The current content will be deleted.",
+    "fr": "Restaurer le SOUL par défaut ? Le contenu actuel sera supprimé."
+  },
+  "memory.restoreDefaultBtn": {
+    "en": "Restore default",
+    "fr": "Restaurer le défaut"
+  },
+  "memory.restoreError": {
+    "en": "Restore: ",
+    "fr": "Restauration : "
+  },
+  "memory.rootCreated": {
+    "en": "Root created",
+    "fr": "Racine créée"
+  },
+  "memory.saveBtn": {
+    "en": "Save",
+    "fr": "Enregistrer"
+  },
+  "memory.searchError": {
+    "en": "Search: ",
+    "fr": "Recherche : "
+  },
+  "memory.searchExactError": {
+    "en": "Exact search: ",
+    "fr": "Recherche exacte : "
+  },
+  "memory.searchExactPlaceholder": {
+    "en": "Exact content search...",
+    "fr": "Recherche de contenu exacte..."
+  },
+  "memory.searchExactTitle": {
+    "en": "Exact content search (click to switch back to semantic)",
+    "fr": "Recherche de contenu exacte (cliquer pour revenir au sémantique)"
+  },
+  "memory.searchPlaceholder": {
+    "en": "Search...",
+    "fr": "Rechercher..."
+  },
+  "memory.searchResultPlural": {
+    "en": " results",
+    "fr": " résultats"
+  },
+  "memory.searchResultSingular": {
+    "en": " result",
+    "fr": " résultat"
+  },
+  "memory.searchSemanticTitle": {
+    "en": "Semantic search (click to switch to exact content search)",
+    "fr": "Recherche sémantique (cliquer pour passer en recherche de contenu exacte)"
+  },
+  "memory.sectionPlaceholder": {
+    "en": "Section text...",
+    "fr": "Texte de la section..."
+  },
+  "memory.sectionSaved": {
+    "en": "Section saved",
+    "fr": "Section enregistrée"
+  },
+  "memory.segBehavior": {
+    "en": "Behavior",
+    "fr": "Comportement"
+  },
+  "memory.segCapacities": {
+    "en": "Capacities",
+    "fr": "Capacités"
+  },
+  "memory.segIdentity": {
+    "en": "Identity",
+    "fr": "Identité"
+  },
+  "memory.segMcp": {
+    "en": "MCP",
+    "fr": "MCP"
+  },
+  "memory.segPlugins": {
+    "en": "Plugins",
+    "fr": "Plugins"
+  },
+  "memory.segSkills": {
+    "en": "Skills",
+    "fr": "Skills"
+  },
+  "memory.segSystem": {
+    "en": "System",
+    "fr": "Système"
+  },
+  "memory.segTools": {
+    "en": "Tools",
+    "fr": "Outils"
+  },
+  "memory.soulDisabled": {
+    "en": "Disabled",
+    "fr": "Désactivée"
+  },
+  "memory.soulEnabled": {
+    "en": "Enabled",
+    "fr": "Activée"
+  },
+  "memory.soulPlaceholder": {
+    "en": "Personality (OKF format with frontmatter)...",
+    "fr": "Personnalité (format OKF avec frontmatter)..."
+  },
+  "memory.soulSaved": {
+    "en": "SOUL saved",
+    "fr": "SOUL enregistrée"
+  },
+  "memory.statsLabel": {
+    "en": " items · ",
+    "fr": " items · "
+  },
+  "memory.statsNodes": {
+    "en": " nodes",
+    "fr": " nœuds"
+  },
+  "memory.systemDropForbidden": {
+    "en": "System node: drop forbidden",
+    "fr": "Nœud système : dépôt interdit"
+  },
+  "memory.systemFormatNote": {
+    "en": "The format of tool calls and plans remains managed by the system and is not editable here.",
+    "fr": "Le format des appels d'outils et des plans reste géré par le système et n'est pas éditable ici."
+  },
+  "memory.systemGroupLabel": {
+    "en": "System",
+    "fr": "Système"
+  },
+  "memory.systemNodeNotMovable": {
+    "en": "System node: cannot be moved",
+    "fr": "Nœud système : non déplaçable"
+  },
+  "memory.systemProtectedAdmin": {
+    "en": "Managed by the system: the agent cannot modify this content. Editing reserved for the administrator here.",
+    "fr": "Géré par le système : l'agent ne peut pas modifier ce contenu. Édition réservée à l'administrateur ici."
+  },
+  "memory.systemProtectedNote": {
+    "en": "Node managed by the system. The agent cannot modify it",
+    "fr": "Nœud géré par le système. L'agent ne peut pas le modifier"
+  },
+  "memory.systemTargetForbidden": {
+    "en": "System target: drop forbidden",
+    "fr": "Cible système : dépôt interdit"
+  },
+  "memory.titleBehavior": {
+    "en": "Behavior",
+    "fr": "Comportement"
+  },
+  "memory.titleCurateur": {
+    "en": "Curateur Prompt",
+    "fr": "Prompt Curateur"
+  },
+  "memory.titleExtraction": {
+    "en": "Consolidation Prompt",
+    "fr": "Prompt Consolidation"
+  },
+  "memory.titleIdentity": {
+    "en": "Identity",
+    "fr": "Identité"
+  },
+  "memory.titlePlanning": {
+    "en": "Planning Prompt",
+    "fr": "Prompt Planification"
+  },
+  "memory.titleSoul": {
+    "en": "SOUL: personality",
+    "fr": "SOUL : personnalité"
+  },
+  "memory.updateError": {
+    "en": "Update: ",
+    "fr": "Update: "
+  },
+  "memory.updateImpossible": {
+    "en": "Update impossible",
+    "fr": "Update impossible"
+  },
+  "memory.welcomeSubtitle": {
+    "en": "Select a node in the tree to display its memories.",
+    "fr": "Sélectionnez un nœud dans l'arborescence pour afficher ses souvenirs."
+  },
+  "memory.welcomeTitle": {
+    "en": "Cognitive Memory",
+    "fr": "Mémoire Cognitive"
+  },
+  "memory.writeError": {
+    "en": "Write: ",
+    "fr": "Écriture : "
+  },
+  "memory.writeImpossible": {
+    "en": "Write impossible",
+    "fr": "Écriture impossible"
+  },
+  "missions.btnCancel": {
+    "en": "Cancel",
+    "fr": "Annuler"
+  },
+  "missions.btnDelete": {
+    "en": "Del",
+    "fr": "Suppr"
+  },
+  "missions.btnDone": {
+    "en": "Finish",
+    "fr": "Terminer"
+  },
+  "missions.btnDossier": {
+    "en": "Dossier",
+    "fr": "Dossier"
+  },
+  "missions.btnEdit": {
+    "en": "Edit",
+    "fr": "Modifier"
+  },
+  "missions.btnExport": {
+    "en": "Export",
+    "fr": "Exporter"
+  },
+  "missions.btnPause": {
+    "en": "Pause",
+    "fr": "Pause"
+  },
+  "missions.btnResume": {
+    "en": "Resume",
+    "fr": "Reprendre"
+  },
+  "missions.btnRun": {
+    "en": "Run an iteration",
+    "fr": "Lancer une itération"
+  },
+  "missions.btnSave": {
+    "en": "Save",
+    "fr": "Enregistrer"
+  },
+  "missions.cadenceCron": {
+    "en": "cadence cron",
+    "fr": "cadence cron"
+  },
+  "missions.confirmDelete": {
+    "en": "Delete mission \"{slug}\"? (knowledge stays in memory)",
+    "fr": "Supprimer la mission \"{slug}\" ? (le savoir reste en mémoire)"
+  },
+  "missions.createErr": {
+    "en": "Creation: ",
+    "fr": "Création : "
+  },
+  "missions.created": {
+    "en": "Mission created: ",
+    "fr": "Mission créée : "
+  },
+  "missions.deleteErr": {
+    "en": "Deletion: ",
+    "fr": "Suppression : "
+  },
+  "missions.deleted": {
+    "en": "Mission deleted",
+    "fr": "Mission supprimée"
+  },
+  "missions.dossierPrefix": {
+    "en": "Dossier · ",
+    "fr": "Dossier · "
+  },
+  "missions.editTitle": {
+    "en": "Edit mission",
+    "fr": "Modifier la mission"
+  },
+  "missions.empty": {
+    "en": "No missions. Create one.",
+    "fr": "Aucune mission. Créez-en une."
+  },
+  "missions.errorPrefix": {
+    "en": "Error: ",
+    "fr": "Erreur : "
+  },
+  "missions.exportErr": {
+    "en": "Export: ",
+    "fr": "Export : "
+  },
+  "missions.exported": {
+    "en": "Dossier exported",
+    "fr": "Dossier exporté"
+  },
+  "missions.iterLaunched": {
+    "en": "launched (in background)",
+    "fr": "lancée (en arrière-plan)"
+  },
+  "missions.iterPrefix": {
+    "en": "Iteration ",
+    "fr": "Itération "
+  },
+  "missions.iterSuffix": {
+    "en": " iter.",
+    "fr": " itér."
+  },
+  "missions.labelCadence": {
+    "en": "Cadence",
+    "fr": "Cadence"
+  },
+  "missions.labelObjective": {
+    "en": "Objective",
+    "fr": "Objectif"
+  },
+  "missions.labelStatus": {
+    "en": "Status",
+    "fr": "Statut"
+  },
+  "missions.lastRun": {
+    "en": "last: ",
+    "fr": "dernière : "
+  },
+  "missions.loading": {
+    "en": "Loading dossier...",
+    "fr": "Chargement du dossier..."
+  },
+  "missions.manual": {
+    "en": "manual",
+    "fr": "manuel"
+  },
+  "missions.never": {
+    "en": "never",
+    "fr": "jamais"
+  },
+  "missions.objectiveRequired": {
+    "en": "Objective required",
+    "fr": "Objectif requis"
+  },
+  "missions.optActive": {
+    "en": "Active",
+    "fr": "Active"
+  },
+  "missions.optDone": {
+    "en": "Done",
+    "fr": "Terminée"
+  },
+  "missions.optPaused": {
+    "en": "Paused",
+    "fr": "En pause"
+  },
+  "missions.runErr": {
+    "en": "Run: ",
+    "fr": "Lancement : "
+  },
+  "missions.saveErr": {
+    "en": "Save: ",
+    "fr": "Enregistrement : "
+  },
+  "missions.selectHint": {
+    "en": "Select a mission to view its dossier, or create one.",
+    "fr": "Sélectionnez une mission pour voir son dossier, ou créez-en une."
+  },
+  "missions.statusLabel": {
+    "en": "Status: ",
+    "fr": "Statut : "
+  },
+  "missions.unavailable": {
+    "en": "Missions unavailable",
+    "fr": "Missions indisponibles"
+  },
+  "missions.unavailableErr": {
+    "en": "Missions unavailable: ",
+    "fr": "Missions indisponibles : "
+  },
+  "missions.updated": {
+    "en": "Mission updated",
+    "fr": "Mission mise à jour"
+  },
+  "nav.capabilities": {
+    "en": "Capabilities",
+    "fr": "Capacités"
+  },
+  "nav.chat": {
+    "en": "Chat",
+    "fr": "Chat"
+  },
+  "nav.dashboard": {
+    "en": "Dashboard",
+    "fr": "Dashboard"
+  },
+  "nav.memory": {
+    "en": "Memory",
+    "fr": "Mémoire"
+  },
+  "nav.missions": {
+    "en": "Missions",
+    "fr": "Missions"
+  },
+  "nav.settings": {
+    "en": "Settings",
+    "fr": "Settings"
+  },
+  "settings.accessBtn": {
+    "en": "🔐 Access",
+    "fr": "🔐 Accès"
+  },
+  "settings.accessHint": {
+    "en": "Who can use this provider/LLM via the mesh? (the API key always stays local)",
+    "fr": "Qui peut utiliser ce provider/LLM via le mesh ? (la clé API reste toujours locale)"
+  },
+  "settings.accessNoPeers": {
+    "en": "No nodes discovered on the network.",
+    "fr": "Aucune ruche découverte sur le réseau."
+  },
+  "settings.accessPrivate": {
+    "en": "🔒 <b>Private</b> - me only",
+    "fr": "🔒 <b>Privé</b> - moi seulement"
+  },
+  "settings.accessPublic": {
+    "en": "🌐 <b>Public</b> - all mesh nodes",
+    "fr": "🌐 <b>Public</b> - toutes les ruches du mesh"
+  },
+  "settings.accessRestricted": {
+    "en": "🐝 <b>Restricted</b> - only these nodes:",
+    "fr": "🐝 <b>Restreint</b> - seulement ces ruches :"
+  },
+  "settings.accessSave": {
+    "en": "Save",
+    "fr": "Enregistrer"
+  },
+  "settings.accessTitle": {
+    "en": "🔐 Provider mesh access",
+    "fr": "🔐 Accès mesh du provider"
+  },
+  "settings.accessUpdated": {
+    "en": "Access updated",
+    "fr": "Accès mis à jour"
+  },
+  "settings.activeBadge": {
+    "en": "(active)",
+    "fr": "(actif)"
+  },
+  "settings.activeLabel": {
+    "en": "Active: ",
+    "fr": "Actif : "
+  },
+  "settings.addCredKey": {
+    "en": "+ Add Credential Key",
+    "fr": "+ Ajouter une clé"
+  },
+  "settings.addOrUpdate": {
+    "en": "Add / update",
+    "fr": "Ajouter / mettre à jour"
+  },
+  "settings.addProvider": {
+    "en": "+ Add Provider",
+    "fr": "+ Ajouter un provider"
+  },
+  "settings.addProviderTitle": {
+    "en": "Add Provider",
+    "fr": "Ajouter un provider"
+  },
+  "settings.allToolsDisabled": {
+    "en": "All tools disabled",
+    "fr": "Tous les outils désactivés"
+  },
+  "settings.allToolsEnabled": {
+    "en": "All tools enabled",
+    "fr": "Tous les outils activés"
+  },
+  "settings.apiKeyLabel": {
+    "en": "API Key",
+    "fr": "Clé API"
+  },
+  "settings.apiKeyNone": {
+    "en": "(none)",
+    "fr": "(aucune)"
+  },
+  "settings.apiKeySet": {
+    "en": "***set***",
+    "fr": "***définie***"
+  },
+  "settings.apply": {
+    "en": "Apply",
+    "fr": "Appliquer"
+  },
+  "settings.autoSkillCreate": {
+    "en": "Auto-creation of verified skills/tools",
+    "fr": "Auto-création de skills/outils vérifiés"
+  },
+  "settings.blueprintsHint": {
+    "en": "Select a blueprint to instantiate it as a cron task.",
+    "fr": "Sélectionnez un blueprint pour l'instancier en tant que tâche cron."
+  },
+  "settings.botTokenLabel": {
+    "en": "Bot Token",
+    "fr": "Token du bot"
+  },
+  "settings.bpAddSlot": {
+    "en": "+ Variable",
+    "fr": "+ Variable"
+  },
+  "settings.bpCancelBtn": {
+    "en": "Cancel",
+    "fr": "Annuler"
+  },
+  "settings.bpCreateBtn": {
+    "en": "Create blueprint",
+    "fr": "Créer le blueprint"
+  },
+  "settings.bpCreateError": {
+    "en": "Creation error: ",
+    "fr": "Erreur création: "
+  },
+  "settings.bpCreated": {
+    "en": "Blueprint created",
+    "fr": "Blueprint créé"
+  },
+  "settings.bpDeleteBtn": {
+    "en": "Delete",
+    "fr": "Supprimer"
+  },
+  "settings.bpDeleteConfirm": {
+    "en": "Delete blueprint \"",
+    "fr": "Supprimer le blueprint \""
+  },
+  "settings.bpDeleteConfirmSuffix": {
+    "en": "\" ? (built-in blueprints cannot be deleted)",
+    "fr": "\" ? (les blueprints intégrés ne peuvent pas être supprimés)"
+  },
+  "settings.bpDeleteRefused": {
+    "en": "Deletion refused: ",
+    "fr": "Suppression refusée: "
+  },
+  "settings.bpDeleteRefusedFallback": {
+    "en": "built-in blueprint?",
+    "fr": "blueprint intégré ?"
+  },
+  "settings.bpDeleteSlotBtn": {
+    "en": "Delete this variable",
+    "fr": "Supprimer cette variable"
+  },
+  "settings.bpDeleted": {
+    "en": "Blueprint deleted",
+    "fr": "Blueprint supprimé"
+  },
+  "settings.bpInstanciateBtn": {
+    "en": "Instantiate",
+    "fr": "Instancier"
+  },
+  "settings.bpInstanciateError": {
+    "en": "Instantiation error",
+    "fr": "Erreur d'instanciation"
+  },
+  "settings.bpInstanciated": {
+    "en": "Blueprint instantiated successfully",
+    "fr": "Blueprint instancié avec succès"
+  },
+  "settings.bpNewTitle": {
+    "en": "New blueprint",
+    "fr": "Nouveau blueprint"
+  },
+  "settings.bpNone": {
+    "en": "No blueprints available",
+    "fr": "Aucun blueprint disponible"
+  },
+  "settings.bpPromptLabel": {
+    "en": "Prompt (template)",
+    "fr": "Prompt (template)"
+  },
+  "settings.bpPromptRequired": {
+    "en": "Prompt required",
+    "fr": "Prompt requis"
+  },
+  "settings.bpScheduleLabel": {
+    "en": "Schedule (cron)",
+    "fr": "Cadence (cron)"
+  },
+  "settings.bpSlotDefaultPlaceholder": {
+    "en": "default",
+    "fr": "défaut"
+  },
+  "settings.bpSlotLabelPlaceholder": {
+    "en": "label",
+    "fr": "libellé"
+  },
+  "settings.bpSlotNamePlaceholder": {
+    "en": "name",
+    "fr": "nom"
+  },
+  "settings.bpSlotsLabel": {
+    "en": "Variables (slots) - referenced via <code>{name}</code> in templates",
+    "fr": "Variables (slots) - referencees via <code>{name}</code> dans les templates"
+  },
+  "settings.bpTitleLabel": {
+    "en": "Title",
+    "fr": "Titre"
+  },
+  "settings.bpTitlePlaceholder": {
+    "en": "E.g.: Daily watch",
+    "fr": "Ex. : Veille quotidienne"
+  },
+  "settings.bpTitleRequired": {
+    "en": "Title required",
+    "fr": "Titre requis"
+  },
+  "settings.chAllowedChats": {
+    "en": "empty = all",
+    "fr": "vide = tous"
+  },
+  "settings.chDcLaunch": {
+    "en": "Launch: python -m src.discord_bot",
+    "fr": "Lancer: python -m src.discord_bot"
+  },
+  "settings.chSlLaunch": {
+    "en": "Launch: python -m src.slack_bot",
+    "fr": "Lancer: python -m src.slack_bot"
+  },
+  "settings.chTgLaunch": {
+    "en": "Launch: python -m src.telegram",
+    "fr": "Lancer: python -m src.telegram"
+  },
+  "settings.channelAlreadyRunning": {
+    "en": " already running",
+    "fr": " déjà en marche"
+  },
+  "settings.channelLabel": {
+    "en": "Channel",
+    "fr": "Canal"
+  },
+  "settings.channelLabelShort": {
+    "en": "Channel",
+    "fr": "Canal"
+  },
+  "settings.channelNone": {
+    "en": "None",
+    "fr": "Aucun"
+  },
+  "settings.channelStarted": {
+    "en": " started!",
+    "fr": " démarré !"
+  },
+  "settings.channelStopped": {
+    "en": " stopped",
+    "fr": " arrêté"
+  },
+  "settings.channelsSaved": {
+    "en": "Channels config saved",
+    "fr": "Config des canaux sauvegardée"
+  },
+  "settings.codexConnectInstr": {
+    "en": "To connect:",
+    "fr": "Pour vous connecter :"
+  },
+  "settings.codexConnected": {
+    "en": "✓ Connected",
+    "fr": "✓ Connecté"
+  },
+  "settings.codexDisconnect": {
+    "en": "Disconnect",
+    "fr": "Déconnecter"
+  },
+  "settings.codexError": {
+    "en": "Failed: ",
+    "fr": "Échec : "
+  },
+  "settings.codexExpiring": {
+    "en": "Token expired: auto-refresh on next call.",
+    "fr": "Token expiré: refresh auto au prochain appel."
+  },
+  "settings.codexInit": {
+    "en": "Initializing…",
+    "fr": "Initialisation…"
+  },
+  "settings.codexLoading": {
+    "en": "Loading…",
+    "fr": "Chargement…"
+  },
+  "settings.codexLogoutConfirm": {
+    "en": "Disconnect ChatGPT Codex?",
+    "fr": "Déconnecter ChatGPT Codex ?"
+  },
+  "settings.codexNetwork": {
+    "en": "network",
+    "fr": "réseau"
+  },
+  "settings.codexRetry": {
+    "en": "Retry",
+    "fr": "Réessayer"
+  },
+  "settings.codexSignIn": {
+    "en": "Sign in with ChatGPT",
+    "fr": "Se connecter avec ChatGPT"
+  },
+  "settings.codexStep1": {
+    "en": "Open",
+    "fr": "Ouvrez"
+  },
+  "settings.codexStep2": {
+    "en": "Enter this code:",
+    "fr": "Entrez ce code :"
+  },
+  "settings.codexSubscription": {
+    "en": "- subscription (OAuth, no API key)",
+    "fr": "- abonnement (OAuth, sans clé API)"
+  },
+  "settings.codexUseSubscription": {
+    "en": "Use your ChatGPT subscription (Plus/Pro) instead of an API key.",
+    "fr": "Utilisez votre abonnement ChatGPT (Plus/Pro) au lieu d'une clé API."
+  },
+  "settings.codexWaiting": {
+    "en": "⏳ Waiting for validation…",
+    "fr": "⏳ En attente de validation…"
+  },
+  "settings.collapseHint": {
+    "en": "Click to expand/collapse",
+    "fr": "Cliquer pour déplier/replier"
+  },
+  "settings.comingSoon": {
+    "en": "Coming soon",
+    "fr": "Bientôt disponible"
+  },
+  "settings.compactionThreshold": {
+    "en": "Compaction Threshold",
+    "fr": "Seuil Compaction"
+  },
+  "settings.confirmDeleteSkill": {
+    "en": "Delete {name}?",
+    "fr": "Supprimer {name} ?"
+  },
+  "settings.contextCompaction": {
+    "en": "Context & compaction",
+    "fr": "Contexte & compaction"
+  },
+  "settings.contextSaveFailed": {
+    "en": "Save error",
+    "fr": "Erreur de sauvegarde"
+  },
+  "settings.contextSaved": {
+    "en": "Context configuration saved",
+    "fr": "Configuration Contexte sauvegardée"
+  },
+  "settings.createBtn": {
+    "en": "Create",
+    "fr": "Créer"
+  },
+  "settings.credErr": {
+    "en": "Error: ",
+    "fr": "Erreur: "
+  },
+  "settings.credPool": {
+    "en": "Credential Pool",
+    "fr": "Pool de Credentials"
+  },
+  "settings.cronChannelNone": {
+    "en": "None (Activity Log)",
+    "fr": "Aucun (Journal d'activité)"
+  },
+  "settings.cronCount": {
+    "en": "cron(s)",
+    "fr": "cron(s)"
+  },
+  "settings.cronDeleteConfirm": {
+    "en": "Delete this cron?",
+    "fr": "Supprimer ce cron ?"
+  },
+  "settings.cronDeleteFailed": {
+    "en": "Deletion failed",
+    "fr": "Suppression impossible"
+  },
+  "settings.cronDeleted": {
+    "en": "Cron deleted",
+    "fr": "Cron supprimé"
+  },
+  "settings.cronSaved": {
+    "en": "Cron updated",
+    "fr": "Cron mis à jour"
+  },
+  "settings.cronTaskCreated": {
+    "en": "Cron task created",
+    "fr": "Tâche cron créée"
+  },
+  "settings.curDefault": {
+    "en": "Background, conservative (auto-dedup). Off = creates nothing.",
+    "fr": "En arrière-plan, conservateur (dédup auto). Off = ne crée rien."
+  },
+  "settings.curEnvForced": {
+    "en": "Forced by RUCHE_CURATEUR=1 (env variable).",
+    "fr": "Forcé par RUCHE_CURATEUR=1 (variable d'env)."
+  },
+  "settings.curateDisabled": {
+    "en": "disabled",
+    "fr": "désactivé"
+  },
+  "settings.curateEnabled": {
+    "en": "enabled",
+    "fr": "activé"
+  },
+  "settings.curateFailed": {
+    "en": "Curateur failed",
+    "fr": "Échec curateur"
+  },
+  "settings.curateur": {
+    "en": "Curateur · Butinage",
+    "fr": "Curateur · Butinage"
+  },
+  "settings.dcAllowedChannels": {
+    "en": "Allowed Channel IDs",
+    "fr": "IDs de canaux autorisés"
+  },
+  "settings.defaultModel": {
+    "en": "Default (active model)",
+    "fr": "Défaut (modèle actif)"
+  },
+  "settings.deleteBtn": {
+    "en": "Delete",
+    "fr": "Supprimer"
+  },
+  "settings.deleteCred": {
+    "en": "Delete",
+    "fr": "Supprimer"
+  },
+  "settings.deleteCredConfirm": {
+    "en": "Delete this key from the pool?",
+    "fr": "Supprimer cette clé du pool ?"
+  },
+  "settings.deleteProfile": {
+    "en": "Delete provider profile \"",
+    "fr": "Supprimer le profil provider \""
+  },
+  "settings.deleteWatcherBtn": {
+    "en": "Delete",
+    "fr": "Delete"
+  },
+  "settings.disableAll": {
+    "en": "Disable All",
+    "fr": "Tout Désactiver"
+  },
+  "settings.dynToolsDisabled": {
+    "en": "disabled",
+    "fr": "désactivée"
+  },
+  "settings.dynToolsEnabled": {
+    "en": "enabled",
+    "fr": "activée"
+  },
+  "settings.dynToolsFailed": {
+    "en": "Failed",
+    "fr": "Échec"
+  },
+  "settings.dynToolsHint": {
+    "en": "(light prompt, recommended for small models / llama.cpp)",
+    "fr": "(prompt léger, recommandé pour petits modèles / llama.cpp)"
+  },
+  "settings.dynToolsLimit": {
+    "en": "Number of tools injected in dynamic selection",
+    "fr": "Nb d'outils injectés en sélection dynamique"
+  },
+  "settings.dynToolsLimitLabel": {
+    "en": "Dyn. tools limit",
+    "fr": "Limite outils dyn."
+  },
+  "settings.dynToolsSaved": {
+    "en": "Dynamic tool selection ",
+    "fr": "Sélection dynamique des outils "
+  },
+  "settings.dynToolsSelect": {
+    "en": "Dynamic tool selection ",
+    "fr": "Sélection dynamique des outils "
+  },
+  "settings.editBtn": {
+    "en": "Edit",
+    "fr": "Éditer"
+  },
+  "settings.editJson": {
+    "en": "Edit JSON",
+    "fr": "Éditer JSON"
+  },
+  "settings.editProviderTitle": {
+    "en": "Edit Provider",
+    "fr": "Éditer le provider"
+  },
+  "settings.enableAll": {
+    "en": "Enable All",
+    "fr": "Tout Activer"
+  },
+  "settings.errorColon": {
+    "en": "Error: ",
+    "fr": "Erreur: "
+  },
+  "settings.errorGeneric": {
+    "en": "Error",
+    "fr": "Erreur"
+  },
+  "settings.fallbackModels": {
+    "en": "Fallback Models",
+    "fr": "Modèles de repli"
+  },
+  "settings.fileNotFound": {
+    "en": "Watcher not found",
+    "fr": "Watcher introuvable"
+  },
+  "settings.generationApplied": {
+    "en": "Generation applied (hot reload)",
+    "fr": "Génération appliquée (à chaud)"
+  },
+  "settings.generationTitle": {
+    "en": "Generation (hot reload, no restart)",
+    "fr": "Génération (à chaud, sans redémarrage)"
+  },
+  "settings.hostLabel": {
+    "en": "Host",
+    "fr": "Hôte"
+  },
+  "settings.inferenceCfgSaved": {
+    "en": "Inference config saved",
+    "fr": "Config d'inférence sauvegardée"
+  },
+  "settings.inferenceConfig": {
+    "en": "Inference Config",
+    "fr": "Config d'inférence"
+  },
+  "settings.kanbanBoardChannel": {
+    "en": "Board default",
+    "fr": "Défaut du board"
+  },
+  "settings.kanbanBoardChannelNone": {
+    "en": "None (→ home channel)",
+    "fr": "Aucun (→ home channel)"
+  },
+  "settings.kanbanChannel": {
+    "en": "Channel",
+    "fr": "Canal"
+  },
+  "settings.kanbanCols": {
+    "en": "Columns",
+    "fr": "Colonnes"
+  },
+  "settings.kanbanCreate": {
+    "en": "Create",
+    "fr": "Créer"
+  },
+  "settings.kanbanDefProvider": {
+    "en": "Default (active model)",
+    "fr": "Défaut (modèle actif)"
+  },
+  "settings.kanbanDefaultChannelLabel": {
+    "en": "Board default channel",
+    "fr": "Canal par défaut du board"
+  },
+  "settings.kanbanDefaultUpdated": {
+    "en": "Board default channel updated",
+    "fr": "Canal par défaut du board mis à jour"
+  },
+  "settings.kanbanDelBtn": {
+    "en": "Del",
+    "fr": "Suppr"
+  },
+  "settings.kanbanDesc": {
+    "en": "Description",
+    "fr": "Description"
+  },
+  "settings.kanbanDescPlaceholder": {
+    "en": "Details...",
+    "fr": "Détails..."
+  },
+  "settings.kanbanEditBtn": {
+    "en": "Edit",
+    "fr": "Éditer"
+  },
+  "settings.kanbanEditCancel": {
+    "en": "Cancel",
+    "fr": "Annuler"
+  },
+  "settings.kanbanEditChannelLabel": {
+    "en": "Channel",
+    "fr": "Canal"
+  },
+  "settings.kanbanEditDescLabel": {
+    "en": "Description",
+    "fr": "Description"
+  },
+  "settings.kanbanEditModelLabel": {
+    "en": "Model",
+    "fr": "Modèle"
+  },
+  "settings.kanbanEditProviderLabel": {
+    "en": "Provider",
+    "fr": "Provider"
+  },
+  "settings.kanbanEditSave": {
+    "en": "Save",
+    "fr": "Enregistrer"
+  },
+  "settings.kanbanEditTitle": {
+    "en": "Edit task",
+    "fr": "Éditer la tâche"
+  },
+  "settings.kanbanEditTitleLabel": {
+    "en": "Title",
+    "fr": "Titre"
+  },
+  "settings.kanbanHorizontal": {
+    "en": "Horizontal",
+    "fr": "Horizontal"
+  },
+  "settings.kanbanModel": {
+    "en": "Model",
+    "fr": "Modèle"
+  },
+  "settings.kanbanParDefault": {
+    "en": "(Default)",
+    "fr": "(Par défaut)"
+  },
+  "settings.kanbanResultLabel": {
+    "en": "Result",
+    "fr": "Résultat"
+  },
+  "settings.kanbanTaskCreated": {
+    "en": "Task created",
+    "fr": "Tâche créée"
+  },
+  "settings.kanbanTaskUpdated": {
+    "en": "Task updated",
+    "fr": "Tâche modifiée"
+  },
+  "settings.kanbanTitle": {
+    "en": "Task title",
+    "fr": "Titre de la tâche"
+  },
+  "settings.kanbanTitlePlaceholder": {
+    "en": "New task...",
+    "fr": "Nouvelle tâche..."
+  },
+  "settings.kbAddKnowledgeBtn": {
+    "en": "Add",
+    "fr": "Ajouter"
+  },
+  "settings.kbAddLabel": {
+    "en": "Add knowledge",
+    "fr": "Ajouter une connaissance"
+  },
+  "settings.kbAddPlaceholder": {
+    "en": "Information to memorize...",
+    "fr": "Information à mémoriser..."
+  },
+  "settings.kbAdded": {
+    "en": "Knowledge added (",
+    "fr": "Connaissance ajoutée ("
+  },
+  "settings.kbColActions": {
+    "en": "Actions",
+    "fr": "Actions"
+  },
+  "settings.kbColSource": {
+    "en": "Source",
+    "fr": "Source"
+  },
+  "settings.kbColText": {
+    "en": "Text",
+    "fr": "Texte"
+  },
+  "settings.kbDelBtn": {
+    "en": "Del",
+    "fr": "Suppr"
+  },
+  "settings.kbDeleted": {
+    "en": "Deleted",
+    "fr": "Supprimé"
+  },
+  "settings.kbEditBtn": {
+    "en": "Edit",
+    "fr": "Éditer"
+  },
+  "settings.kbEmpty": {
+    "en": "Empty base. The agent can add knowledge via the knowledge_add tool, or add it manually above.",
+    "fr": "Base vide. L'agent peut ajouter des connaissances via l'outil knowledge_add, ou ajoutez-en manuellement ci-dessus."
+  },
+  "settings.kbEntriesCount": {
+    "en": " entry(ies) in the knowledge base",
+    "fr": " entrée(s) dans la base de connaissances"
+  },
+  "settings.kbExportBtn": {
+    "en": "Export OKF",
+    "fr": "Export OKF"
+  },
+  "settings.kbExportLaunched": {
+    "en": "OKF download started (all)",
+    "fr": "Téléchargement OKF lancé (tout)"
+  },
+  "settings.kbImportBtn": {
+    "en": "Import OKF",
+    "fr": "Import OKF"
+  },
+  "settings.kbImportError": {
+    "en": "Import error: ",
+    "fr": "Erreur d'import : "
+  },
+  "settings.kbImported": {
+    "en": "OKF imported successfully",
+    "fr": "OKF importé avec succès"
+  },
+  "settings.kbSourceLabel": {
+    "en": "Source",
+    "fr": "Source"
+  },
+  "settings.kbUpdated": {
+    "en": "Updated",
+    "fr": "Mis à jour"
+  },
+  "settings.loading": {
+    "en": "Loading...",
+    "fr": "Chargement..."
+  },
+  "settings.maxMessages": {
+    "en": "Max Messages",
+    "fr": "Max Messages"
+  },
+  "settings.maxPassesLabel": {
+    "en": "Max passes",
+    "fr": "Passes max"
+  },
+  "settings.maxPassesTitle": {
+    "en": "Max ReAct passes per task (anti-runaway)",
+    "fr": "Passes ReAct max par tâche (anti-runaway)"
+  },
+  "settings.maxTokensLabel": {
+    "en": "Max Tokens",
+    "fr": "Max Tokens"
+  },
+  "settings.maxTokensOut": {
+    "en": "Max tokens (output)",
+    "fr": "Max tokens (sortie)"
+  },
+  "settings.mcpAddBtn": {
+    "en": "Add server",
+    "fr": "Ajouter le serveur"
+  },
+  "settings.mcpAdded": {
+    "en": "MCP server added",
+    "fr": "Serveur MCP ajouté"
+  },
+  "settings.mcpArgsLabel": {
+    "en": "Arguments (space-separated)",
+    "fr": "Arguments (séparés par un espace)"
+  },
+  "settings.mcpArgsPlaceholder": {
+    "en": "e.g.: src/index.js --db sqlite.db",
+    "fr": "ex: src/index.js --db sqlite.db"
+  },
+  "settings.mcpCmdLabel": {
+    "en": "Command",
+    "fr": "Commande"
+  },
+  "settings.mcpCmdPlaceholder": {
+    "en": "e.g.: node",
+    "fr": "ex: node"
+  },
+  "settings.mcpDeleteBtn": {
+    "en": "Del",
+    "fr": "Suppr"
+  },
+  "settings.mcpDeleteConfirm": {
+    "en": "Delete this MCP server?",
+    "fr": "Supprimer ce serveur MCP ?"
+  },
+  "settings.mcpDeleted": {
+    "en": "MCP server deleted",
+    "fr": "Serveur MCP supprimé"
+  },
+  "settings.mcpDesc": {
+    "en": "Configure local MCP servers. LaRuche will use them to extend its capabilities via agents.",
+    "fr": "Configurez des serveurs MCP locaux. LaRuche les utilisera pour étendre ses capacités via les agents."
+  },
+  "settings.mcpNameLabel": {
+    "en": "Server name",
+    "fr": "Nom du serveur"
+  },
+  "settings.mcpNamePlaceholder": {
+    "en": "e.g.: local-sqlite",
+    "fr": "ex: local-sqlite"
+  },
+  "settings.mcpNone": {
+    "en": "No servers configured.",
+    "fr": "Aucun serveur configuré."
+  },
+  "settings.mcpServersTitle": {
+    "en": "MCP Servers (Model Context Protocol)",
+    "fr": "Serveurs MCP (Model Context Protocol)"
+  },
+  "settings.meshCodeConfigured": {
+    "en": "(configured)",
+    "fr": "(configuré)"
+  },
+  "settings.meshCodeFailed": {
+    "en": "Failed.",
+    "fr": "Échec."
+  },
+  "settings.meshCodeHint": {
+    "en": "Shared secret between your nodes (like a WiFi password). Set the <b>same</b> code on all nodes: it authenticates mesh exchanges (no more \"rejected\" / flapping) and will be used for encryption.",
+    "fr": "Secret partagé entre tes ruches (comme un mot de passe WiFi). Mets le <b>même</b> code sur toutes tes ruches : il authentifie les échanges du mesh (fin des « rejected » / flapping) et servira de base au chiffrement."
+  },
+  "settings.meshCodePlaceholderNew": {
+    "en": "choose a code",
+    "fr": "choisis un code"
+  },
+  "settings.meshCodePlaceholderSet": {
+    "en": "•••• (empty = unchanged)",
+    "fr": "•••• (vide = inchangé)"
+  },
+  "settings.meshCodeSaved": {
+    "en": "Code saved. Set the SAME code on your other nodes, then restart them.",
+    "fr": "Code enregistré. Mets le MÊME sur tes autres ruches, puis relance-les."
+  },
+  "settings.meshCodeTitle": {
+    "en": "Mesh code",
+    "fr": "Code du mesh"
+  },
+  "settings.meshCodeUnchanged": {
+    "en": "Code unchanged.",
+    "fr": "Code inchangé."
+  },
+  "settings.meshCodeUnconfigured": {
+    "en": "(not configured, auth by LAN IP)",
+    "fr": "(non configuré, auth par IP LAN)"
+  },
+  "settings.meshSave": {
+    "en": "Save",
+    "fr": "Enregistrer"
+  },
+  "settings.modelExample": {
+    "en": "e.g.: gpt-4o",
+    "fr": "ex: gpt-4o"
+  },
+  "settings.modelLabel": {
+    "en": "Model",
+    "fr": "Modèle"
+  },
+  "settings.modelsLabel": {
+    "en": "Models",
+    "fr": "Modèles"
+  },
+  "settings.nameLabel": {
+    "en": "Name",
+    "fr": "Nom"
+  },
+  "settings.narrowCtxLabel": {
+    "en": "Narrow context threshold",
+    "fr": "Seuil contexte étroit"
+  },
+  "settings.narrowCtxThreshold": {
+    "en": "Below this n_ctx, tools AND skill catalog switch to dynamic selection (semantic DB)",
+    "fr": "Sous ce n_ctx, outils ET catalogue de skills passent en sélection dynamique (DB sémantique)"
+  },
+  "settings.newBlueprintBtn": {
+    "en": "+ New blueprint",
+    "fr": "+ Nouveau blueprint"
+  },
+  "settings.newCredKey": {
+    "en": "New API key for ",
+    "fr": "Nouvelle clé API pour "
+  },
+  "settings.newCredLabel": {
+    "en": "Optional label (e.g.: Dev Account):",
+    "fr": "Label optionnel (ex: Compte Dev) :"
+  },
+  "settings.newSkillBtn": {
+    "en": "+ New skill",
+    "fr": "+ Nouveau skill"
+  },
+  "settings.newTaskBtn": {
+    "en": "+ New Task",
+    "fr": "+ Nouvelle tâche"
+  },
+  "settings.newWatcherBtn": {
+    "en": "+ New Watcher",
+    "fr": "+ Nouvelle vigie"
+  },
+  "settings.newWatcherTitle": {
+    "en": "New Watcher",
+    "fr": "Nouvelle vigie"
+  },
+  "settings.noCron": {
+    "en": "No scheduled cron.",
+    "fr": "Aucun cron planifié."
+  },
+  "settings.noNodes": {
+    "en": "No nodes",
+    "fr": "Aucun nœud"
+  },
+  "settings.noSkills": {
+    "en": "No skills. The agent can create them (memory_write capacities.skills.*) or click \"+ New skill\".",
+    "fr": "Aucun skill. L'agent peut en créer (memory_write capacities.skills.*) ou clique « + Nouveau skill »."
+  },
+  "settings.noSkillsAvailable": {
+    "en": "No skills available. Create some in Settings → Skills.",
+    "fr": "Aucun skill disponible. Créez-en dans Settings → Skills."
+  },
+  "settings.notificationsTitle": {
+    "en": "Notifications",
+    "fr": "Notifications"
+  },
+  "settings.notifyHint": {
+    "en": "Proactive delivery of events (AgentCompleted, WatcherFired) via Telegram (the first configured Chat ID is used).",
+    "fr": "Envoi proactif des events (AgentCompleted, WatcherFired) via Telegram (le premier Chat ID configuré est utilisé)."
+  },
+  "settings.notifyLabel": {
+    "en": "Enable proactive notifications",
+    "fr": "Activer Notifier proactif"
+  },
+  "settings.optional": {
+    "en": "optional",
+    "fr": "optionnel"
+  },
+  "settings.parDefault": {
+    "en": "(Default)",
+    "fr": "(Par défaut)"
+  },
+  "settings.pfApiKeyLabel": {
+    "en": "API Key",
+    "fr": "Clé API"
+  },
+  "settings.pfApiKeyPlaceholder": {
+    "en": "sk-... (leave empty for Ollama)",
+    "fr": "sk-... (vide pour Ollama)"
+  },
+  "settings.pfBaseUrlLabel": {
+    "en": "Base URL",
+    "fr": "URL de base"
+  },
+  "settings.pfCancel": {
+    "en": "Cancel",
+    "fr": "Annuler"
+  },
+  "settings.pfIdLabel": {
+    "en": "Profile ID",
+    "fr": "Profile ID"
+  },
+  "settings.pfIdPlaceholder": {
+    "en": "e.g. groq-free",
+    "fr": "ex. groq-free"
+  },
+  "settings.pfIdReadonly": {
+    "en": " (read-only)",
+    "fr": " (lecture seule)"
+  },
+  "settings.pfModelsLabel": {
+    "en": "Models (comma-separated, auto-detected for Ollama)",
+    "fr": "Modèles (séparés par des virgules, auto-détectés pour Ollama)"
+  },
+  "settings.pfModelsPlaceholder": {
+    "en": "gpt-4o, gpt-4o-mini",
+    "fr": "gpt-4o, gpt-4o-mini"
+  },
+  "settings.pfNameLabel": {
+    "en": "Display Name",
+    "fr": "Nom affiché"
+  },
+  "settings.pfNamePlaceholder": {
+    "en": "e.g. Groq Free Tier",
+    "fr": "ex. Groq Free Tier"
+  },
+  "settings.pfProviderTypeLabel": {
+    "en": "Provider Type",
+    "fr": "Type de provider"
+  },
+  "settings.pfSave": {
+    "en": "Save",
+    "fr": "Enregistrer"
+  },
+  "settings.pluginCancelBtn": {
+    "en": "Cancel",
+    "fr": "Annuler"
+  },
+  "settings.pluginDeleted": {
+    "en": "Plugin deleted",
+    "fr": "Plugin supprimé"
+  },
+  "settings.pluginEditTitle": {
+    "en": "Edit Plugin: ",
+    "fr": "Éditer Plugin : "
+  },
+  "settings.pluginEditorHint": {
+    "en": "- JSON (reloaded on save)",
+    "fr": "- JSON (rechargé au save)"
+  },
+  "settings.pluginFailed": {
+    "en": "Failed",
+    "fr": "Échec"
+  },
+  "settings.pluginJsonNoEdit": {
+    "en": "JSON not editable here",
+    "fr": "JSON non modifiable ici"
+  },
+  "settings.pluginNotFound": {
+    "en": "File not found",
+    "fr": "Fichier non trouvé"
+  },
+  "settings.pluginSaveBtn": {
+    "en": "Save",
+    "fr": "Enregistrer"
+  },
+  "settings.pluginSaved": {
+    "en": " » saved",
+    "fr": " » enregistré"
+  },
+  "settings.pluginSrcUnavailable": {
+    "en": "Source unavailable",
+    "fr": "Source non disponible"
+  },
+  "settings.pluginToast": {
+    "en": "Plugin ",
+    "fr": "Plugin "
+  },
+  "settings.profileDeleted": {
+    "en": "Profile deleted",
+    "fr": "Profile deleted"
+  },
+  "settings.profileIdRequired": {
+    "en": "Profile ID is required",
+    "fr": "Profile ID requis"
+  },
+  "settings.profileSavedPrefix": {
+    "en": "Profile \"",
+    "fr": "Profil « "
+  },
+  "settings.profileSavedSuffix": {
+    "en": "\" saved",
+    "fr": " » enregistré"
+  },
+  "settings.promptLabel": {
+    "en": "Prompt",
+    "fr": "Prompt"
+  },
+  "settings.protocol": {
+    "en": "Protocol",
+    "fr": "Protocole"
+  },
+  "settings.providerDefault": {
+    "en": "Provider default",
+    "fr": "Défaut du provider"
+  },
+  "settings.providerLabel": {
+    "en": "Provider",
+    "fr": "Provider"
+  },
+  "settings.providerModelLabel": {
+    "en": "Provider/Model",
+    "fr": "Provider/Modèle"
+  },
+  "settings.publicProviderConfirm": {
+    "en": "Public = the mesh uses this provider VIA this node (your key stays local, this node relays and runs the calls). Never expose a key you don't want consumed by the network. Continue?",
+    "fr": "Public = le mesh utilise ce provider VIA ce node (ta clé reste locale, ce node relaie et exécute les appels). N'expose jamais une clé que tu ne veux pas voir consommée par le réseau. Continuer ?"
+  },
+  "settings.recenter": {
+    "en": "Recenter",
+    "fr": "Recentrer"
+  },
+  "settings.removeFromList": {
+    "en": "Remove from my list",
+    "fr": "Retirer de ma liste"
+  },
+  "settings.reviewModel": {
+    "en": "Review Model",
+    "fr": "Modèle de revue"
+  },
+  "settings.runsLabel": {
+    "en": "Runs",
+    "fr": "Exécutions"
+  },
+  "settings.save": {
+    "en": "Save",
+    "fr": "Sauvegarder"
+  },
+  "settings.saveChannels": {
+    "en": "Save",
+    "fr": "Sauvegarder"
+  },
+  "settings.saveFailed": {
+    "en": "Save failed",
+    "fr": "Échec de la sauvegarde"
+  },
+  "settings.scheduleLabel": {
+    "en": "Schedule",
+    "fr": "Planning"
+  },
+  "settings.secretDeleteBtn": {
+    "en": "Del",
+    "fr": "Suppr"
+  },
+  "settings.secretDeleted": {
+    "en": "Secret deleted",
+    "fr": "Secret supprimé"
+  },
+  "settings.secretNameLabel": {
+    "en": "Name (A-Z, 0-9, _)",
+    "fr": "Nom (A-Z, 0-9, _)"
+  },
+  "settings.secretNamePlaceholder": {
+    "en": "e.g.: WEBHOOK_DISCORD",
+    "fr": "ex: WEBHOOK_DISCORD"
+  },
+  "settings.secretNameRequired": {
+    "en": "Name and value required",
+    "fr": "Nom et valeur requis"
+  },
+  "settings.secretNone": {
+    "en": "None.",
+    "fr": "Aucun."
+  },
+  "settings.secretSave": {
+    "en": "Save",
+    "fr": "Enregistrer"
+  },
+  "settings.secretSaveFailed": {
+    "en": "Failed (invalid name? A-Z/0-9/_ only)",
+    "fr": "Échec (nom invalide ? A-Z/0-9/_ uniquement)"
+  },
+  "settings.secretSaved": {
+    "en": "Secret saved",
+    "fr": "Secret enregistré"
+  },
+  "settings.secretValLabel": {
+    "en": "Value (never shown again)",
+    "fr": "Valeur (jamais ré-affichée)"
+  },
+  "settings.secretValPlaceholder": {
+    "en": "paste value here",
+    "fr": "collez la valeur ici"
+  },
+  "settings.secretsCount": {
+    "en": "17 patterns",
+    "fr": "17 motifs"
+  },
+  "settings.secretsDesc": {
+    "en": "Secrets are <b>encrypted at rest</b>. The LLM NEVER sees their value, only their name. In a command, script, or API key field, reference them as <code>${NAME}</code>: the real value is substituted at runtime.",
+    "fr": "Les secrets sont <b>chiffrés au repos</b>. Le LLM ne voit JAMAIS leur valeur, seulement leur nom. Dans une commande, un script ou un champ clé d'API, référence-les par <code>${NOM}</code> : la vraie valeur est substituée à l'exécution."
+  },
+  "settings.secretsHint": {
+    "en": "E.g.: API_OPENAI, TOKEN_TELEGRAM, USERID_TELEGRAM…",
+    "fr": "Ex: API_OPENAI, TOKEN_TELEGRAM, USERID_TELEGRAM…"
+  },
+  "settings.secretsTitle": {
+    "en": "Secrets",
+    "fr": "Secrets"
+  },
+  "settings.security": {
+    "en": "Security",
+    "fr": "Sécurité"
+  },
+  "settings.setupChecklist": {
+    "en": "Setup Checklist",
+    "fr": "Checklist de configuration"
+  },
+  "settings.sharedHint": {
+    "en": "Models exposed by other nodes. You can use them but not edit or re-share.",
+    "fr": "Modèles exposés par d'autres ruches. Tu peux les utiliser, mais pas les éditer ni les re-partager."
+  },
+  "settings.sharedReadOnly": {
+    "en": "🐝 shared by a peer · read-only",
+    "fr": "🐝 partagé par un pair · lecture seule"
+  },
+  "settings.sharedWithMe": {
+    "en": "🐝 Shared with me (mesh)",
+    "fr": "🐝 Partagés avec moi (mesh)"
+  },
+  "settings.showTransparency": {
+    "en": "Show transparency (tools/memory)",
+    "fr": "Afficher la transparence (outils/mémoire)"
+  },
+  "settings.skillActivated": {
+    "en": "enabled",
+    "fr": "activé"
+  },
+  "settings.skillCancelBtn": {
+    "en": "Cancel",
+    "fr": "Annuler"
+  },
+  "settings.skillDeactivated": {
+    "en": "disabled",
+    "fr": "désactivé"
+  },
+  "settings.skillDelBtn": {
+    "en": "Del",
+    "fr": "Suppr"
+  },
+  "settings.skillDisabled": {
+    "en": "(disabled: not injected)",
+    "fr": "(désactivé : non injecté)"
+  },
+  "settings.skillEditPrefix": {
+    "en": "Edit: ",
+    "fr": "Éditer : "
+  },
+  "settings.skillEditorHint": {
+    "en": "- SKILL.md (frontmatter validated on save)",
+    "fr": "- SKILL.md (frontmatter validé au save)"
+  },
+  "settings.skillFailed": {
+    "en": "Failed",
+    "fr": "Échec"
+  },
+  "settings.skillNewTitle": {
+    "en": "New skill",
+    "fr": "Nouveau skill"
+  },
+  "settings.skillSaveBtn": {
+    "en": "Save",
+    "fr": "Enregistrer"
+  },
+  "settings.skillSaved": {
+    "en": " » saved",
+    "fr": " » enregistré"
+  },
+  "settings.skillToast": {
+    "en": "Skill ",
+    "fr": "Skill "
+  },
+  "settings.skillToolsChecked": {
+    "en": "checked",
+    "fr": "coché(s)"
+  },
+  "settings.skillToolsClear": {
+    "en": "Clear",
+    "fr": "Vider"
+  },
+  "settings.skillToolsFilter": {
+    "en": "filter…",
+    "fr": "filtrer…"
+  },
+  "settings.skillToolsHint": {
+    "en": "Tools / plugins for this skill (→ <code>tools:</code>) ",
+    "fr": "Outils / plugins de ce skill (→ <code>tools:</code>) "
+  },
+  "settings.skillToolsLoading": {
+    "en": "Loading…",
+    "fr": "Chargement…"
+  },
+  "settings.skillToolsNone": {
+    "en": "No results.",
+    "fr": "Aucun résultat."
+  },
+  "settings.skillToolsRef": {
+    "en": "(reference)",
+    "fr": "(référence)"
+  },
+  "settings.skillViewEdit": {
+    "en": "View / Edit",
+    "fr": "Voir / Éditer"
+  },
+  "settings.skillsDesc": {
+    "en": "Procedural knowledge (OKF). Enabled = injectable in context / attachable to crons.",
+    "fr": "Connaissances procédurales (OKF). Activées = injectables dans le contexte / attachables aux crons."
+  },
+  "settings.skillsInjected": {
+    "en": "Skills injected into this cron",
+    "fr": "Skills injectés à ce cron"
+  },
+  "settings.skillsUnavailable": {
+    "en": "Skills unavailable: existing associations will be preserved.",
+    "fr": "Skills indisponibles : les associations existantes seront conservées."
+  },
+  "settings.slAppToken": {
+    "en": "App Token (xapp-)",
+    "fr": "Token de l'app (xapp-)"
+  },
+  "settings.slBotToken": {
+    "en": "Bot Token (xoxb-)",
+    "fr": "Token du bot (xoxb-)"
+  },
+  "settings.startTelegram": {
+    "en": "Start Telegram",
+    "fr": "Démarrer Telegram"
+  },
+  "settings.statusLabel": {
+    "en": "Status",
+    "fr": "État"
+  },
+  "settings.statusOff": {
+    "en": "Off",
+    "fr": "Off"
+  },
+  "settings.statusOk": {
+    "en": "OK",
+    "fr": "OK"
+  },
+  "settings.statusOkValue": {
+    "en": "OK",
+    "fr": "OK"
+  },
+  "settings.stopTelegram": {
+    "en": "Stop Telegram",
+    "fr": "Arrêter Telegram"
+  },
+  "settings.system": {
+    "en": "System",
+    "fr": "System"
+  },
+  "settings.targetLabel": {
+    "en": "Target",
+    "fr": "Cible"
+  },
+  "settings.temperature": {
+    "en": "Temperature",
+    "fr": "Température"
+  },
+  "settings.tgAllowedChats": {
+    "en": "Allowed Chat IDs",
+    "fr": "IDs de chat autorisés"
+  },
+  "settings.tlCancel": {
+    "en": "Cancel",
+    "fr": "Annuler"
+  },
+  "settings.tlChannel": {
+    "en": " · Channel: ",
+    "fr": " · Canal : "
+  },
+  "settings.tlCronFields": {
+    "en": "Cron (5 fields) or empty",
+    "fr": "Cron (5 champs) ou vide"
+  },
+  "settings.tlDelete": {
+    "en": "Delete",
+    "fr": "Supprimer"
+  },
+  "settings.tlDeleteConfirm": {
+    "en": "Delete this cron?",
+    "fr": "Supprimer ce cron ?"
+  },
+  "settings.tlDragHint": {
+    "en": "Drag horizontally to shift the time (fixed-time crons)",
+    "fr": "Glisser horizontalement pour décaler l'heure (crons à heure fixe)"
+  },
+  "settings.tlEdit": {
+    "en": "Edit",
+    "fr": "Éditer"
+  },
+  "settings.tlFailed": {
+    "en": "Failed",
+    "fr": "Échec"
+  },
+  "settings.tlHourShifted": {
+    "en": "Hour shifted → ",
+    "fr": "Heure décalée → "
+  },
+  "settings.tlLastRun": {
+    "en": "Last run: ",
+    "fr": "Dernier : "
+  },
+  "settings.tlNever": {
+    "en": "never",
+    "fr": "jamais"
+  },
+  "settings.tlNoName": {
+    "en": "(unnamed)",
+    "fr": "(sans nom)"
+  },
+  "settings.tlPause": {
+    "en": "Pause",
+    "fr": "Mettre en pause"
+  },
+  "settings.tlPlanLabel": {
+    "en": "Schedule: ",
+    "fr": "Planning : "
+  },
+  "settings.tlResume": {
+    "en": "Resume",
+    "fr": "Réactiver"
+  },
+  "settings.tlRunNow": {
+    "en": "Run now",
+    "fr": "Lancer maintenant"
+  },
+  "settings.tlRunning": {
+    "en": "Cron started",
+    "fr": "Cron lancé"
+  },
+  "settings.tlRuns": {
+    "en": " · Runs: ",
+    "fr": " · Exécutions : "
+  },
+  "settings.tlSaveEdit": {
+    "en": "Save",
+    "fr": "Enregistrer"
+  },
+  "settings.tlSaved": {
+    "en": "Cron updated",
+    "fr": "Cron mis à jour"
+  },
+  "settings.tlShiftFixed": {
+    "en": "Shift: fixed-hour crons only",
+    "fr": "Décalage : crons à heure fixe uniquement"
+  },
+  "settings.tlShiftUnsupported": {
+    "en": "Shift not supported for this schedule",
+    "fr": "Décalage non supporté pour ce planning"
+  },
+  "settings.toolCustomBadge": {
+    "en": "Custom",
+    "fr": "Custom"
+  },
+  "settings.toolDanger": {
+    "en": "Danger",
+    "fr": "Danger"
+  },
+  "settings.toolDangerSafe": {
+    "en": "safe",
+    "fr": "safe"
+  },
+  "settings.toolDisabled": {
+    "en": " disabled",
+    "fr": " désactivée"
+  },
+  "settings.toolEnabled": {
+    "en": " enabled",
+    "fr": " activée"
+  },
+  "settings.toolNativeBadge": {
+    "en": "Native Rust",
+    "fr": "Rust natif"
+  },
+  "settings.toolOff": {
+    "en": "OFF",
+    "fr": "OFF"
+  },
+  "settings.toolOn": {
+    "en": "ON",
+    "fr": "ON"
+  },
+  "settings.toolViewSource": {
+    "en": "View source",
+    "fr": "Voir source"
+  },
+  "settings.toolsConfigErr": {
+    "en": "Tools configuration error",
+    "fr": "Erreur configuration Outils"
+  },
+  "settings.toolsEmpty": {
+    "en": "No tools configured",
+    "fr": "Aucun outil configuré"
+  },
+  "settings.toolsErr": {
+    "en": "Tools error: ",
+    "fr": "Erreur Outils: "
+  },
+  "settings.typeLabel": {
+    "en": "Type",
+    "fr": "Type"
+  },
+  "settings.varPlaceholder": {
+    "en": "Use {nom} to reference a variable...",
+    "fr": "Utilise {nom} pour référencer une variable..."
+  },
+  "settings.viewSource": {
+    "en": "View source",
+    "fr": "Voir source"
+  },
+  "settings.visPrivate": {
+    "en": "🔒 Private",
+    "fr": "🔒 Privé"
+  },
+  "settings.visPublic": {
+    "en": "🌐 Public 📡",
+    "fr": "🌐 Public 📡"
+  },
+  "settings.visRestricted": {
+    "en": "🐝 Restricted",
+    "fr": "🐝 Restreint"
+  },
+  "settings.visRestrictedN": {
+    "en": "🐝 Restricted",
+    "fr": "🐝 Restreint"
+  },
+  "settings.visibilityUpdated": {
+    "en": "Visibility updated successfully",
+    "fr": "Visibilité modifiée avec succès"
+  },
+  "settings.voice": {
+    "en": "Voice",
+    "fr": "Voix"
+  },
+  "settings.watcherActiveLabel": {
+    "en": "Active",
+    "fr": "Actif"
+  },
+  "settings.watcherCancel": {
+    "en": "Cancel",
+    "fr": "Annuler"
+  },
+  "settings.watcherChannelLabel": {
+    "en": "Channel",
+    "fr": "Canal"
+  },
+  "settings.watcherCondField": {
+    "en": "Condition (optional)",
+    "fr": "Condition (optionnel)"
+  },
+  "settings.watcherCondLabel": {
+    "en": "Condition",
+    "fr": "Condition"
+  },
+  "settings.watcherCreated": {
+    "en": "Watcher created",
+    "fr": "Vigie créée"
+  },
+  "settings.watcherDefChannel": {
+    "en": "Default (active model)",
+    "fr": "Défaut (modèle actif)"
+  },
+  "settings.watcherDefaut": {
+    "en": "Default",
+    "fr": "Défaut"
+  },
+  "settings.watcherEditBtn": {
+    "en": "Edit",
+    "fr": "Éditer"
+  },
+  "settings.watcherEditTitle": {
+    "en": "Edit watcher",
+    "fr": "Éditer le watcher"
+  },
+  "settings.watcherHomeChannel": {
+    "en": "Home channel (default)",
+    "fr": "Home channel (défaut)"
+  },
+  "settings.watcherModelLabel": {
+    "en": "Model",
+    "fr": "Modèle"
+  },
+  "settings.watcherNomLabel": {
+    "en": "Name",
+    "fr": "Nom"
+  },
+  "settings.watcherPromptLabel": {
+    "en": "Prompt",
+    "fr": "Prompt"
+  },
+  "settings.watcherProviderLabel": {
+    "en": "Provider",
+    "fr": "Provider"
+  },
+  "settings.watcherSave": {
+    "en": "Save",
+    "fr": "Enregistrer"
+  },
+  "settings.watcherSaveFailed": {
+    "en": "Update failed",
+    "fr": "Échec modification"
+  },
+  "settings.watcherSaved": {
+    "en": "Watcher updated",
+    "fr": "Watcher modifié"
+  },
+  "settings.watcherTargetField": {
+    "en": "Target (Path/URL)",
+    "fr": "Cible (Path/URL)"
+  },
+  "settings.watcherTargetLabel": {
+    "en": "Target (Path/URL)",
+    "fr": "Cible (Path/URL)"
+  },
+  "settings.watcherTypeFile": {
+    "en": "File",
+    "fr": "Fichier"
+  },
+  "settings.watcherTypeLabel": {
+    "en": "Type",
+    "fr": "Type"
+  },
+  "settings.watcherTypeLog": {
+    "en": "Log Pattern",
+    "fr": "Motif de log"
+  },
+  "settings.watcherTypeUrl": {
+    "en": "URL",
+    "fr": "URL"
+  },
+  "settings.webhooksHint": {
+    "en": "Name them WEBHOOK_… (e.g.: WEBHOOK_DISCORD). Reference in a script: ${WEBHOOK_DISCORD}",
+    "fr": "Nomme-les WEBHOOK_… (ex: WEBHOOK_DISCORD). Référence dans un script : ${WEBHOOK_DISCORD}"
+  },
+  "settings.webhooksTitle": {
+    "en": "Webhooks",
+    "fr": "Webhooks"
+  },
+  "shell.askPlaceholder": {
+    "en": "Ask LaRuche…",
+    "fr": "Demander à LaRuche…"
+  },
+  "shell.autoFirstDetected": {
+    "en": "Auto (first detected)",
+    "fr": "Auto (premier détecté)"
+  },
+  "shell.conversations": {
+    "en": "Conversations",
+    "fr": "Conversations"
+  },
+  "shell.cumulativeTps": {
+    "en": "Cumulative TPS",
+    "fr": "TPS cumulé"
+  },
+  "shell.cwdPlaceholder": {
+    "en": "Working directory...",
+    "fr": "Répertoire de travail..."
+  },
+  "shell.dashLocal": {
+    "en": "Local",
+    "fr": "Local"
+  },
+  "shell.dashSwarm": {
+    "en": "Swarm",
+    "fr": "Essaim"
+  },
+  "shell.dropFile": {
+    "en": "Drop the file here",
+    "fr": "Déposez le fichier ici"
+  },
+  "shell.feed": {
+    "en": "Feed",
+    "fr": "Feed"
+  },
+  "shell.feedAgent": {
+    "en": "Agent",
+    "fr": "Agent"
+  },
+  "shell.feedCron": {
+    "en": "Cron",
+    "fr": "Cron"
+  },
+  "shell.feedMemory": {
+    "en": "Memory",
+    "fr": "Mémoire"
+  },
+  "shell.feedMission": {
+    "en": "Mission",
+    "fr": "Mission"
+  },
+  "shell.feedUser": {
+    "en": "User",
+    "fr": "Utilisateur"
+  },
+  "shell.feedWatcher": {
+    "en": "Watcher",
+    "fr": "Watcher"
+  },
+  "shell.filter": {
+    "en": "Filter",
+    "fr": "Filtre"
+  },
+  "shell.globalQueue": {
+    "en": "Global Queue",
+    "fr": "File globale"
+  },
+  "shell.inputPlaceholder": {
+    "en": "Write your message...",
+    "fr": "Écris ton message..."
+  },
+  "shell.labelGpu": {
+    "en": "GPU",
+    "fr": "GPU"
+  },
+  "shell.labelQueue": {
+    "en": "Queue",
+    "fr": "File"
+  },
+  "shell.labelUptime": {
+    "en": "Uptime",
+    "fr": "Uptime"
+  },
+  "shell.labelVram": {
+    "en": "VRAM",
+    "fr": "VRAM"
+  },
+  "shell.logout": {
+    "en": "Log out",
+    "fr": "Déconnexion"
+  },
+  "shell.myProfile": {
+    "en": "My profile",
+    "fr": "Mon profil"
+  },
+  "shell.newConversation": {
+    "en": "+ New conversation",
+    "fr": "+ Nouvelle conversation"
+  },
+  "shell.nodes": {
+    "en": "Nodes",
+    "fr": "Nœuds"
+  },
+  "shell.permissions": {
+    "en": "Permissions…",
+    "fr": "Permissions…"
+  },
+  "shell.profileHint": {
+    "en": "What LaRuche knows about you (injected into its context). Only you can edit it: the agent cannot touch it.",
+    "fr": "Ce que LaRuche sait de toi (injecté dans son contexte). Toi seul peux l'éditer : l'agent ne peut pas y toucher."
+  },
+  "shell.profilePlaceholder": {
+    "en": "E.g. My name is Infinition. I'm a polymath developer (Rust, AI). I prefer concise, direct answers. Timezone: Europe/Paris…",
+    "fr": "Ex : Je m'appelle Infinition. Développeur polymathe (Rust, IA). Je préfère des réponses concises et directes. Fuseau : Europe/Paris…"
+  },
+  "shell.reconnecting": {
+    "en": "Reconnecting...",
+    "fr": "Reconnexion..."
+  },
+  "shell.showChats": {
+    "en": "Show Chats",
+    "fr": "Afficher chats"
+  },
+  "shell.tipActivity": {
+    "en": "Real-time activity (memory + agent)",
+    "fr": "Activité en temps réel (mémoire + agent)"
+  },
+  "shell.tipAgentEvents": {
+    "en": "Agent events",
+    "fr": "Événements agent"
+  },
+  "shell.tipAttach": {
+    "en": "Attach a file",
+    "fr": "Joindre un fichier"
+  },
+  "shell.tipAutoTts": {
+    "en": "Automatic playback (Auto-TTS)",
+    "fr": "Lecture automatique (Auto-TTS)"
+  },
+  "shell.tipBrowse": {
+    "en": "Browse",
+    "fr": "Parcourir"
+  },
+  "shell.tipClose": {
+    "en": "Close",
+    "fr": "Fermer"
+  },
+  "shell.tipCoding": {
+    "en": "Coding mode (sends to the code model)",
+    "fr": "Mode code (envoie au modèle de code)"
+  },
+  "shell.tipCpu": {
+    "en": "Local CPU usage",
+    "fr": "Utilisation CPU locale"
+  },
+  "shell.tipCronExec": {
+    "en": "Crons executed",
+    "fr": "Crons exécutés"
+  },
+  "shell.tipCwd": {
+    "en": "Show/Hide the working directory",
+    "fr": "Afficher/Masquer le répertoire de travail"
+  },
+  "shell.tipGpu": {
+    "en": "GPU utilization",
+    "fr": "Utilisation GPU"
+  },
+  "shell.tipMemEvents": {
+    "en": "Memory events",
+    "fr": "Événements mémoire"
+  },
+  "shell.tipMessages": {
+    "en": "Messages (other LaRuche / users)",
+    "fr": "Messages (autres LaRuche / utilisateurs)"
+  },
+  "shell.tipMissionProg": {
+    "en": "Mission progress",
+    "fr": "Progression des missions"
+  },
+  "shell.tipNoLoop": {
+    "en": "No loop detected",
+    "fr": "Aucune boucle détectée"
+  },
+  "shell.tipNoThink": {
+    "en": "No-think (Force the model not to reason)",
+    "fr": "No-think (Forcer le modèle à ne pas raisonner)"
+  },
+  "shell.tipNodes": {
+    "en": "Active nodes in swarm",
+    "fr": "Nœuds actifs dans l'essaim"
+  },
+  "shell.tipPermissions": {
+    "en": "Tool permissions (Click to choose)",
+    "fr": "Permissions des outils (Cliquer pour choisir)"
+  },
+  "shell.tipPin": {
+    "en": "Pin / unpin the panel",
+    "fr": "Épingler / désépingler le panneau"
+  },
+  "shell.tipQueue": {
+    "en": "Swarm queue depth",
+    "fr": "Profondeur de file de l'essaim"
+  },
+  "shell.tipRam": {
+    "en": "Local RAM usage",
+    "fr": "Utilisation RAM locale"
+  },
+  "shell.tipSend": {
+    "en": "Send to LaRuche",
+    "fr": "Envoyer à LaRuche"
+  },
+  "shell.tipShowChats": {
+    "en": "Show/Hide chat content",
+    "fr": "Afficher/Masquer le contenu du chat"
+  },
+  "shell.tipShowTools": {
+    "en": "Show tools",
+    "fr": "Afficher les outils"
+  },
+  "shell.tipTps": {
+    "en": "Collective tokens/sec",
+    "fr": "Tokens/sec collectifs"
+  },
+  "shell.tipTtsModel": {
+    "en": "TTS model (Click to choose)",
+    "fr": "Modèle TTS (Cliquer pour choisir)"
+  },
+  "shell.tipUptime": {
+    "en": "Node uptime",
+    "fr": "Temps de fonctionnement du nœud"
+  },
+  "shell.tipUserActions": {
+    "en": "User actions",
+    "fr": "Actions utilisateur"
+  },
+  "shell.tipVram": {
+    "en": "VRAM usage",
+    "fr": "Utilisation VRAM"
+  },
+  "shell.tipWatcherTrig": {
+    "en": "Watchers triggered",
+    "fr": "Watchers déclenchés"
+  },
+  "shell.totalRam": {
+    "en": "Total RAM",
+    "fr": "RAM totale"
+  },
+  "shell.totalVram": {
+    "en": "Total VRAM",
+    "fr": "VRAM totale"
+  },
+  "shell.waiting": {
+    "en": "Waiting",
+    "fr": "En attente"
+  },
+  "shell.waitingData": {
+    "en": "Waiting for data&hellip;",
+    "fr": "En attente de données&hellip;"
+  },
+  "toast.added": {
+    "en": "Added",
+    "fr": "Ajouté"
+  },
+  "toast.deleted": {
+    "en": "Deleted",
+    "fr": "Supprimé"
+  },
+  "toast.failed": {
+    "en": "Failed",
+    "fr": "Échec"
+  },
+  "toast.saved": {
+    "en": "Saved",
+    "fr": "Enregistré"
+  }
+}

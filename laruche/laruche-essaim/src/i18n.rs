@@ -8,15 +8,31 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-const LANG_EN: &str = include_str!("../../lang/en.json");
-const LANG_FR: &str = include_str!("../../lang/fr.json");
+// Single language file: { "key": { "en": "...", "fr": "..." } }.
+const LANG_STRINGS: &str = include_str!("../../lang/strings.json");
 
+/// Flat { key -> value } catalog for a language, built once (per-key fallback to English).
 fn catalog(lang: &str) -> &'static HashMap<String, String> {
     static EN: OnceLock<HashMap<String, String>> = OnceLock::new();
     static FR: OnceLock<HashMap<String, String>> = OnceLock::new();
+    fn build(code: &str) -> HashMap<String, String> {
+        let table: HashMap<String, HashMap<String, String>> =
+            serde_json::from_str(LANG_STRINGS).unwrap_or_default();
+        table
+            .into_iter()
+            .map(|(k, langs)| {
+                let v = langs
+                    .get(code)
+                    .or_else(|| langs.get("en"))
+                    .cloned()
+                    .unwrap_or_default();
+                (k, v)
+            })
+            .collect()
+    }
     match lang {
-        "en" => EN.get_or_init(|| serde_json::from_str(LANG_EN).unwrap_or_default()),
-        _ => FR.get_or_init(|| serde_json::from_str(LANG_FR).unwrap_or_default()),
+        "en" => EN.get_or_init(|| build("en")),
+        _ => FR.get_or_init(|| build("fr")),
     }
 }
 
