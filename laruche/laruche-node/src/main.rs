@@ -3734,10 +3734,10 @@ fn strip_display_tag_blocks(text: &str, tag: &str) -> String {
 
 /// Removes instructions injected for the ReAct loop from the user-facing transcript.
 fn display_user_text(text: &str) -> Option<String> {
-    const CAPABILITY_HINT: &str = "\n\n[SYSTEM] Tu peux planifier (cron_create), surveiller (watcher_create) et chercher dans tes conversations passées (session_search) toi-même.";
-    const AUTO_CONTINUE: &str = "Continue immédiatement l'étape suivante du plan";
-    const OUTPUT_RECOVERY: &str = "Continue exactement la reponse interrompue.";
-    const FAILOVER_RECOVERY: &str = "La reponse precedente a ete tronquee deux fois.";
+    const CAPABILITY_HINT: &str = "\n\n[SYSTEM] You can schedule (cron_create), watch (watcher_create) and search your past conversations (session_search) yourself.";
+    const AUTO_CONTINUE: &str = "Continue immediately with the next step of the plan";
+    const OUTPUT_RECOVERY: &str = "Continue exactly from the interrupted response.";
+    const FAILOVER_RECOVERY: &str = "The previous response was truncated twice.";
 
     if text.starts_with(AUTO_CONTINUE)
         || text.starts_with(OUTPUT_RECOVERY)
@@ -3749,7 +3749,7 @@ fn display_user_text(text: &str) -> Option<String> {
     let text = text.strip_suffix(CAPABILITY_HINT).unwrap_or(text);
     let text = text.strip_prefix("/no_think\n").unwrap_or(text);
     if let Some((_, steering)) = text.split_once("\n") {
-        if text.starts_with("[Steering utilisateur injecte pendant") {
+        if text.starts_with("[User steering injected during") {
             return Some(steering.to_string());
         }
     }
@@ -3829,10 +3829,10 @@ mod session_display_tests {
 
     #[test]
     fn user_display_hides_agent_only_instructions() {
-        let raw = "Télécharge ceci\n\n[SYSTEM] Tu peux planifier (cron_create), surveiller (watcher_create) et chercher dans tes conversations passées (session_search) toi-même.";
-        assert_eq!(display_user_text(raw).as_deref(), Some("Télécharge ceci"));
+        let raw = "Download this\n\n[SYSTEM] You can schedule (cron_create), watch (watcher_create) and search your past conversations (session_search) yourself.";
+        assert_eq!(display_user_text(raw).as_deref(), Some("Download this"));
         assert!(display_user_text(
-            "Continue immédiatement l'étape suivante du plan, sans t'arrêter."
+            "Continue immediately with the next step of the plan, without stopping."
         )
         .is_none());
     }
@@ -3840,12 +3840,12 @@ mod session_display_tests {
     #[test]
     fn assistant_display_keeps_plan_structured_and_hides_markup() {
         let message = laruche_essaim::Message::Assistant(
-            "<plan>[{\"task\":\"Télécharger\",\"status\":\"done\"}]</plan>\nFichier prêt.<tool_call>{}</tool_call>"
+            "<plan>[{\"task\":\"Download\",\"status\":\"done\"}]</plan>\nFile ready.<tool_call>{}</tool_call>"
                 .into(),
         );
         let display = session_message_for_client(&message).unwrap();
-        assert_eq!(display["text"], "Fichier prêt.");
-        assert_eq!(display["plan"][0]["task"], "Télécharger");
+        assert_eq!(display["text"], "File ready.");
+        assert_eq!(display["plan"][0]["task"], "Download");
     }
 
     #[test]
@@ -3858,7 +3858,7 @@ mod session_display_tests {
         };
 
         stats.apply_event(&ChatEvent::Token {
-            text: "Je vais chercher la page puis analyser le resultat.".into(),
+            text: "I will fetch the page then analyze the result.".into(),
         });
         stats.apply_event(&ChatEvent::ToolCall {
             name: "web_fetch".into(),
@@ -3867,7 +3867,7 @@ mod session_display_tests {
         });
         stats.apply_event(&ChatEvent::ToolResult {
             name: "web_fetch".into(),
-            result: "contenu ".repeat(200),
+            result: "content ".repeat(200),
             success: true,
             elapsed_ms: Some(42),
         });
@@ -5756,7 +5756,7 @@ async fn api_mcp_server(
     }
 }
 
-/// GET /api/config/provider — get current LLM provider settings.
+/// GET /api/config/provider: get current LLM provider settings.
 async fn api_get_provider_config(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let ec = state.essaim_config.read().await;
     Json(serde_json::json!({
@@ -5858,7 +5858,7 @@ async fn api_set_compaction_config(
     })))
 }
 
-/// GET /api/config/runtime — leviers de génération réglables À CHAUD (sans redémarrage).
+/// GET /api/config/runtime: HOT-adjustable generation levers (no restart).
 async fn api_get_runtime_config(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let ec = state.essaim_config.read().await;
     Json(serde_json::json!({
@@ -5871,7 +5871,7 @@ async fn api_get_runtime_config(State(state): State<Arc<AppState>>) -> Json<serd
     }))
 }
 
-/// POST /api/config/runtime — met à jour les leviers fournis (partiel). Hot-reload + persistance.
+/// POST /api/config/runtime: updates the provided levers (partial). Hot-reload + persistence.
 async fn api_set_runtime_config(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -5904,7 +5904,7 @@ async fn api_set_runtime_config(
     Ok(Json(serde_json::json!({ "status": "ok" })))
 }
 
-/// POST /api/config/provider — update LLM provider settings at runtime.
+/// POST /api/config/provider: update LLM provider settings at runtime.
 async fn api_save_provider_config(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
@@ -6039,7 +6039,7 @@ async fn api_delete_credential(
 
 // ======================== Provider Profiles API ========================
 
-/// GET /api/profiles — list all profiles.
+/// GET /api/profiles: list all profiles.
 async fn api_get_profiles(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -6066,7 +6066,7 @@ async fn api_get_profiles(
     })))
 }
 
-/// POST /api/profiles — create or update a profile (auth required).
+/// POST /api/profiles: create or update a profile (auth required).
 async fn api_upsert_profile(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -6139,7 +6139,7 @@ async fn api_upsert_profile(
     ))
 }
 
-/// DELETE /api/profiles/:id — delete a profile (auth required).
+/// DELETE /api/profiles/:id: delete a profile (auth required).
 async fn api_delete_profile(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -6172,12 +6172,12 @@ async fn api_delete_profile(
     }
 }
 
-// ─── Auth ChatGPT Codex (OAuth abonnement) pour l'UI web ────────────────────
+// ─── ChatGPT Codex auth (OAuth subscription) for the web UI ─────────────────
 //
-// Le flux device code est asynchrone : `start` lance la connexion en tâche de
-// fond et renvoie immédiatement l'URL + le code à afficher ; le frontend poll
-// ensuite `status` jusqu'à `connected`. À la réussite, un profil provider
-// "codex" est auto-créé pour un usage en un clic.
+// The device code flow is asynchronous: `start` launches the connection in a
+// background task and immediately returns the URL + the code to display; the
+// frontend then polls `status` until `connected`. On success, a "codex" provider
+// profile is auto-created for one-click use.
 
 #[derive(Clone, Serialize, Default)]
 struct CodexLoginStatus {
@@ -6200,20 +6200,20 @@ fn codex_set_status(f: impl FnOnce(&mut CodexLoginStatus)) {
     }
 }
 
-/// Modèles supportés par Codex avec un compte ChatGPT (abonnement).
-/// NB: les variantes `*-codex` (gpt-5.4-codex…) sont rejetées en 400 sur ce
-/// backend — seuls les modèles "chat" généraux sont acceptés.
+/// Models supported by Codex with a ChatGPT account (subscription).
+/// NB: the `*-codex` variants (gpt-5.4-codex...) are rejected with 400 on this
+/// backend: only general "chat" models are accepted.
 const CODEX_CHATGPT_MODELS: &[&str] = &["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"];
 
-/// Auto-crée (ou met à jour) le profil provider "codex" (ChatGPT abonnement).
+/// Auto-creates (or updates) the "codex" provider profile (ChatGPT subscription).
 async fn ensure_codex_profile(state: &Arc<AppState>) {
     let id = "codex-chatgpt";
     let models: Vec<String> = CODEX_CHATGPT_MODELS.iter().map(|s| s.to_string()).collect();
     let mut cfg = state.profiles.write().await;
     match cfg.profiles.get_mut(id) {
         Some(p) => {
-            // Profil existant : on rafraîchit la liste de modèles + base URL
-            // (corrige un profil créé avec d'anciens modèles non supportés).
+            // Existing profile: refresh the model list + base URL
+            // (fixes a profile created with old unsupported models).
             p.provider = "codex".to_string();
             p.base_url = laruche_essaim::codex_auth::DEFAULT_CODEX_BASE_URL.to_string();
             p.models = models;
@@ -6236,7 +6236,7 @@ async fn ensure_codex_profile(state: &Arc<AppState>) {
     let _ = profiles::save_profiles(&state.profiles_path, &cfg);
 }
 
-/// GET /api/auth/codex/status — état de connexion ChatGPT Codex.
+/// GET /api/auth/codex/status: ChatGPT Codex connection state.
 async fn api_codex_status(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -6247,11 +6247,11 @@ async fn api_codex_status(
         .lock()
         .map(|s| s.clone())
         .unwrap_or_default();
-    // Un login en cours (pending) ou en erreur prime sur l'état stocké.
+    // An in-progress (pending) or errored login takes priority over the stored state.
     if live.phase == "pending" || live.phase == "error" {
         return Ok(Json(serde_json::to_value(&live).unwrap_or_default()));
     }
-    // Sinon, refléter les tokens persistés.
+    // Otherwise, reflect the persisted tokens.
     match laruche_essaim::codex_auth::read_codex_tokens() {
         Some(t) => {
             let acct = laruche_essaim::codex_auth::account_id_from_token(&t.access_token);
@@ -6265,7 +6265,7 @@ async fn api_codex_status(
     }
 }
 
-/// POST /api/auth/codex/start — démarre le flux device code, renvoie URL + code.
+/// POST /api/auth/codex/start: starts the device code flow, returns URL + code.
 async fn api_codex_start(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -6276,7 +6276,7 @@ async fn api_codex_start(
     codex_set_status(|s| {
         *s = CodexLoginStatus {
             phase: "pending".into(),
-            message: "Initialisation...".into(),
+            message: "Initializing...".into(),
             ..Default::default()
         };
     });
@@ -6289,7 +6289,7 @@ async fn api_codex_start(
                 s.phase = "pending".into();
                 s.verification_url = url.to_string();
                 s.user_code = code.to_string();
-                s.message = "En attente de connexion dans le navigateur...".into();
+                s.message = "Waiting for sign-in in the browser...".into();
             });
             let _ = tx.send((url.to_string(), code.to_string()));
         })
@@ -6302,7 +6302,7 @@ async fn api_codex_start(
                 codex_set_status(|s| {
                     s.phase = "connected".into();
                     s.account_id = acct;
-                    s.message = "Connecté !".into();
+                    s.message = "Connected!".into();
                 });
             }
             Err(e) => {
@@ -6314,7 +6314,7 @@ async fn api_codex_start(
         }
     });
 
-    // Attendre brièvement que la 1re requête renvoie le code à afficher.
+    // Briefly wait for the 1st request to return the code to display.
     match tokio::time::timeout(std::time::Duration::from_secs(25), rx).await {
         Ok(Ok((url, code))) => Ok(Json(serde_json::json!({
             "phase": "pending",
@@ -6327,7 +6327,7 @@ async fn api_codex_start(
                 .map(|s| s.clone())
                 .unwrap_or_default();
             let msg = if live.message.is_empty() {
-                "Impossible d'obtenir le code, réessayez.".to_string()
+                "Could not obtain the code, please retry.".to_string()
             } else {
                 live.message
             };
@@ -6339,7 +6339,7 @@ async fn api_codex_start(
     }
 }
 
-/// POST /api/auth/codex/logout — supprime les tokens Codex stockés.
+/// POST /api/auth/codex/logout: deletes the stored Codex tokens.
 async fn api_codex_logout(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -6351,7 +6351,7 @@ async fn api_codex_logout(
     Ok(Json(serde_json::json!({"phase": "idle"})))
 }
 
-/// GET /api/profiles/models — unified model list across all profiles.
+/// GET /api/profiles/models: unified model list across all profiles.
 async fn api_get_unified_models(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     // Refresh Ollama models before returning
     let mut cfg = state.profiles.write().await;
@@ -6359,10 +6359,10 @@ async fn api_get_unified_models(State(state): State<Arc<AppState>>) -> Json<serd
     let _ = profiles::save_profiles(&state.profiles_path, &cfg);
     let models = profiles::build_unified_models(&cfg);
     let active = cfg.active_model.clone();
-    // Sonde n_ctx → moteur : aligne context_max_tokens sur le n_ctx RÉEL du modèle actif.
-    // Sans ça, le défaut (128000) reste pour un modèle local 32768 → le chemin compact
-    // (index ~4K + sélection dynamique, actif si ≤ 40000) ne s'enclenche pas → débordement
-    // « request exceeds context size ». Ici la valeur sondée se propage automatiquement.
+    // Probe n_ctx → engine: aligns context_max_tokens to the REAL n_ctx of the active model.
+    // Without this, the default (128000) stays for a local 32768 model → the compact path
+    // (index ~4K + dynamic selection, active if ≤ 40000) never triggers → "request exceeds
+    // context size" overflow. Here the probed value propagates automatically.
     let (.., mcl) = profiles::active_to_essaim_fields(&cfg);
     drop(cfg);
     {
@@ -6378,7 +6378,7 @@ async fn api_get_unified_models(State(state): State<Arc<AppState>>) -> Json<serd
     }))
 }
 
-/// POST /api/profiles/active — set the active model.
+/// POST /api/profiles/active: set the active model.
 async fn api_set_active_model(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
@@ -6409,7 +6409,7 @@ async fn api_set_active_model(
     Json(serde_json::json!({"status": "ok", "profile_id": profile_id, "model": model}))
 }
 
-/// POST /api/profiles/:id/visibility — bascule la visibilité mesh d'un provider.
+/// POST /api/profiles/:id/visibility: toggles the mesh visibility of a provider.
 async fn api_set_visibility(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -6443,7 +6443,7 @@ async fn api_set_visibility(
     Json(serde_json::json!({"status": "ok", "id": id, "visibility": body["visibility"]}))
 }
 
-/// POST /api/models/use — sélection 2-clics d'un modèle (local ou mesh) pour sa capacité.
+/// POST /api/models/use: 2-click selection of a model (local or mesh) for its capability.
 async fn api_models_use(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
@@ -6488,8 +6488,8 @@ async fn api_models_use(
         )
     };
 
-    // Dédup : si un profil existant sert déjà ce modèle, on le RÉUTILISE (évite les
-    // doublons "local-llama.cpp" vs "llamacpp-8001", ou un faux "local-codex").
+    // Dedup: if an existing profile already serves this model, REUSE it (avoids the
+    // "local-llama.cpp" vs "llamacpp-8001" duplicates, or a bogus "local-codex").
     let existing_id = {
         let cfg = state.profiles.read().await;
         cfg.profiles
@@ -6501,8 +6501,8 @@ async fn api_models_use(
 
     {
         let mut cfg = state.profiles.write().await;
-        // Crée le profil SEULEMENT s'il n'existe pas (sinon on n'écrase ni son
-        // provider, ni sa base_url, ni sa clé — on ajoute juste le modèle).
+        // Create the profile ONLY if it doesn't exist (otherwise we overwrite neither its
+        // provider, nor its base_url, nor its key: we just add the model).
         let prof =
             cfg.profiles
                 .entry(profile_id.clone())
@@ -6518,7 +6518,7 @@ async fn api_models_use(
         if !prof.models.contains(&name) {
             prof.models.push(name.clone());
         }
-        // On ne change le LLM de chat actif QUE pour "llm"/"agent".
+        // Only change the active chat LLM for "llm"/"agent".
         if capability == "llm" || capability == "agent" {
             cfg.active_model = profiles::ActiveModel {
                 profile_id: profile_id.clone(),
@@ -6551,21 +6551,21 @@ async fn api_models_use(
     )
 }
 
-/// GET /api/capabilities/selection — sélection courante de service par capacité.
+/// GET /api/capabilities/selection: current service selection per capability.
 async fn api_capabilities_selection(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let sel = state.capability_selection.read().await;
     Json(serde_json::json!({ "selection": serde_json::to_value(&*sel).unwrap_or_default() }))
 }
 
-/// `(profile_id, model)` choisi pour une capacité (ex. "code"), s'il existe.
+/// `(profile_id, model)` chosen for a capability (e.g. "code"), if any.
 async fn capability_profile(state: &Arc<AppState>, capability: &str) -> Option<(String, String)> {
     let sel = state.capability_selection.read().await;
     sel.get(capability)
         .map(|s| (s.profile_id.clone(), s.model.clone()))
 }
 
-/// Applique provider + clé + base_url + modèle d'un **profil** sur `config`.
-/// Résolution unique réutilisée (chat capacité, cron, watcher, kanban).
+/// Applies a **profile**'s provider + key + base_url + model onto `config`.
+/// Single resolution reused (capability chat, cron, watcher, kanban).
 async fn appliquer_profil(
     state: &Arc<AppState>,
     config: &mut EssaimConfig,
@@ -6590,7 +6590,7 @@ async fn appliquer_profil(
     }
 }
 
-/// Applique le profil servant `capability` (s'il y a une sélection).
+/// Applies the profile serving `capability` (if there is a selection).
 async fn appliquer_capacite(state: &Arc<AppState>, config: &mut EssaimConfig, capability: &str) {
     if let Some((pid, model)) = capability_profile(state, capability).await {
         appliquer_profil(state, config, &pid, Some(&model)).await;
@@ -6640,7 +6640,7 @@ async fn api_export_events(
 
 // ======================== Auth Endpoints ========================
 
-/// POST /api/auth/enroll — Create a new user identity.
+/// POST /api/auth/enroll: Create a new user identity.
 async fn api_auth_enroll(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
@@ -6723,7 +6723,7 @@ async fn api_auth_enroll(
     ))
 }
 
-/// GET /api/auth/me — Return current user info (from cookie).
+/// GET /api/auth/me: Return current user info (from cookie).
 async fn api_auth_me(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -6740,7 +6740,7 @@ async fn api_auth_me(
     })))
 }
 
-/// GET /api/auth/challenge — Generate ephemeral login QR.
+/// GET /api/auth/challenge: Generate ephemeral login QR.
 async fn api_auth_challenge(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     // Cleanup expired challenges
     {
@@ -6772,7 +6772,7 @@ async fn api_auth_challenge(State(state): State<Arc<AppState>>) -> Json<serde_js
     }))
 }
 
-/// GET /api/auth/status/:id — Poll challenge status.
+/// GET /api/auth/status/:id: Poll challenge status.
 async fn api_auth_status(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -6805,7 +6805,7 @@ async fn api_auth_status(
     }
 }
 
-/// GET /auth/scan/:challenge_id — Phone scans this to resolve challenge.
+/// GET /auth/scan/:challenge_id: Phone scans this to resolve challenge.
 async fn auth_scan_challenge(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(challenge_id_str): axum::extract::Path<String>,
@@ -6827,8 +6827,8 @@ async fn auth_scan_challenge(
 .card{{background:#16213e;padding:2rem;border-radius:16px;text-align:center;max-width:320px}}
 h2{{color:#ffbf00}}</style></head>
 <body><div class="card">
-<h2>Non authentifie</h2>
-<p>Ouvrez d'abord votre lien d'enrollment sur ce telephone.</p>
+<h2>Not authenticated</h2>
+<p>Open your enrollment link on this phone first.</p>
 </div></body></html>"#
             ));
         }
@@ -6845,8 +6845,8 @@ h2{{color:#ffbf00}}</style></head>
 .card{{background:#16213e;padding:2rem;border-radius:16px;text-align:center;max-width:320px}}
 h2{{color:#ef4444}}</style></head>
 <body><div class="card">
-<h2>QR expire</h2>
-<p>Retournez sur le navigateur et rafraichissez le QR code.</p>
+<h2>QR expired</h2>
+<p>Go back to the browser and refresh the QR code.</p>
 </div></body></html>"#
             ));
         }
@@ -6877,7 +6877,7 @@ h2{{color:#22c55e}}.check{{font-size:3rem;margin-bottom:1rem}}</style></head>
     ))
 }
 
-/// GET /auth/link/:user_id/:secret — Permanent auth link (from enrollment QR).
+/// GET /auth/link/:user_id/:secret: Permanent auth link (from enrollment QR).
 async fn auth_permanent_link(
     State(state): State<Arc<AppState>>,
     axum::extract::Path((user_id_str, secret)): axum::extract::Path<(String, String)>,
@@ -6946,7 +6946,7 @@ h2{{color:#ffbf00}}.bee{{font-size:3rem;margin-bottom:1rem}}</style></head>
     ))
 }
 
-/// POST /api/auth/logout — Clear auth cookie.
+/// POST /api/auth/logout: Clear auth cookie.
 async fn api_auth_logout() -> (axum::http::StatusCode, axum::http::HeaderMap) {
     let mut headers = axum::http::HeaderMap::new();
     headers.insert(
@@ -6958,7 +6958,7 @@ async fn api_auth_logout() -> (axum::http::StatusCode, axum::http::HeaderMap) {
     (axum::http::StatusCode::OK, headers)
 }
 
-/// POST /api/auth/login — Login with display_name + password.
+/// POST /api/auth/login: Login with display_name + password.
 async fn api_auth_login(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
@@ -7010,7 +7010,7 @@ async fn api_auth_login(
     }
 }
 
-/// POST /api/auth/password — Set or change password (requires auth).
+/// POST /api/auth/password: Set or change password (requires auth).
 async fn api_auth_set_password(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -7037,7 +7037,7 @@ async fn api_auth_set_password(
     }
 }
 
-/// POST /api/auth/model — Set per-user preferred model (doesn't touch global config).
+/// POST /api/auth/model: Set per-user preferred model (doesn't touch global config).
 async fn api_auth_set_model(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -7066,7 +7066,7 @@ async fn api_auth_set_model(
 
 // ======================== Knowledge Endpoints ========================
 
-/// GET /api/knowledge — list knowledge base entries.
+/// GET /api/knowledge: list knowledge base entries.
 async fn api_list_knowledge(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -7107,7 +7107,7 @@ async fn api_list_knowledge(
     }))
 }
 
-/// POST /api/knowledge — add a knowledge entry.
+/// POST /api/knowledge: add a knowledge entry.
 async fn api_add_knowledge(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -7137,7 +7137,7 @@ async fn api_add_knowledge(
     }
 }
 
-/// PUT /api/knowledge/:id — update a knowledge entry.
+/// PUT /api/knowledge/:id: update a knowledge entry.
 async fn api_update_knowledge(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -7156,7 +7156,7 @@ async fn api_update_knowledge(
     }
 }
 
-/// DELETE /api/knowledge/:id — remove a knowledge entry.
+/// DELETE /api/knowledge/:id: remove a knowledge entry.
 async fn api_delete_knowledge(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -7169,7 +7169,7 @@ async fn api_delete_knowledge(
     }
 }
 
-/// POST /api/channels/start — start a channel bot.
+/// POST /api/channels/start: start a channel bot.
 /// Body: {"channel": "telegram"}
 async fn api_start_channel(
     State(state): State<Arc<AppState>>,
@@ -7231,7 +7231,7 @@ async fn api_start_channel(
     }
 }
 
-/// POST /api/channels/stop — stop a channel bot.
+/// POST /api/channels/stop: stop a channel bot.
 async fn api_stop_channel(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
@@ -7247,14 +7247,14 @@ async fn api_stop_channel(
     }
 }
 
-/// GET /api/channels/status — check which channels are running.
+/// GET /api/channels/status: check which channels are running.
 async fn api_channels_status(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let handles = state.channel_handles.read().await;
     let running: Vec<&String> = handles.keys().collect();
     Json(serde_json::json!({"running": running}))
 }
 
-/// Telegram bot — runs as a background task within the server.
+/// Telegram bot: runs as a background task within the server.
 async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState>) {
     let api = format!("https://api.telegram.org/bot{}", token);
     let client = reqwest::Client::builder()
@@ -7297,7 +7297,7 @@ async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState
                                 continue;
                             }
                             processed_ids.insert(update_id);
-                            // Keep set small — only remember last 100
+                            // Keep set small: only remember last 100
                             if processed_ids.len() > 100 {
                                 let min = *processed_ids.iter().min().unwrap_or(&0);
                                 processed_ids.remove(&min);
@@ -7327,7 +7327,7 @@ async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState
                                     .post(format!("{}/sendMessage", api))
                                     .json(&serde_json::json!({
                                         "chat_id": chat_id,
-                                        "text": "Nouvelle conversation commencée. L'historique de la session a été réinitialisé.",
+                                        "text": "New conversation started. The session history has been reset.",
                                         "parse_mode": "Markdown",
                                     }))
                                     .send()
@@ -7335,8 +7335,8 @@ async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState
                                 continue;
                             }
 
-                            // /sethome — définit CE chat comme « home channel » : destination par
-                            // défaut des messages proactifs (cron, missions) sans canal explicite.
+                            // /sethome: sets THIS chat as the "home channel": default destination
+                            // for proactive messages (cron, missions) without an explicit channel.
                             if text == "/sethome" {
                                 let home = format!("telegram:{}", chat_id);
                                 {
@@ -7348,7 +7348,7 @@ async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState
                                     .post(format!("{}/sendMessage", api))
                                     .json(&serde_json::json!({
                                         "chat_id": chat_id,
-                                        "text": "🏠 Ce chat est désormais ton *home channel*. Les tâches planifiées et missions sans destination explicite te répondront ici.",
+                                        "text": "🏠 This chat is now your *home channel*. Scheduled tasks and missions without an explicit destination will reply here.",
                                         "parse_mode": "Markdown",
                                     }))
                                     .send()
@@ -7356,30 +7356,30 @@ async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState
                                 continue;
                             }
 
-                            // /help — liste des commandes (façon third-party).
+                            // /help: command list (third-party style).
                             if text == "/help" {
-                                let aide = "*Commandes LaRuche*\n\
-                                    /help — cette aide\n\
-                                    /status — modèle, home channel, tâches\n\
-                                    /clear (ou /reset, /start) — efface l'historique de CE chat\n\
-                                    /sethome — définir CE chat comme destination des tâches\n\
-                                    /crons — lister les tâches planifiées\n\
-                                    /delcron <nom|all> — supprimer un cron (ou tous)\n\n\
-                                    _Astuce : écris un message pendant une tâche en cours pour l'orienter (steering)._";
+                                let aide = "*LaRuche commands*\n\
+                                    /help: this help\n\
+                                    /status: model, home channel, tasks\n\
+                                    /clear (or /reset, /start): clears the history of THIS chat\n\
+                                    /sethome: set THIS chat as the task destination\n\
+                                    /crons: list the scheduled tasks\n\
+                                    /delcron <name|all>: delete a cron (or all)\n\n\
+                                    _Tip: write a message during a running task to steer it (steering)._";
                                 let _ = client.post(format!("{}/sendMessage", api))
                                     .json(&serde_json::json!({"chat_id": chat_id, "text": aide, "parse_mode": "Markdown"}))
                                     .send().await;
                                 continue;
                             }
 
-                            // /status — état courant.
+                            // /status: current state.
                             if text == "/status" {
                                 let modele = get_llm_default(state).await;
                                 let home = state.essaim_config.read().await.home_channel.clone()
-                                    .unwrap_or_else(|| "(non défini)".into());
+                                    .unwrap_or_else(|| "(not set)".into());
                                 let n_crons = state.essaim_cron.read().await.list().len();
                                 let msg = format!(
-                                    "*LaRuche — statut*\nModèle : `{modele}`\nHome : `{home}`\nCrons : {n_crons}"
+                                    "*LaRuche status*\nModel: `{modele}`\nHome: `{home}`\nCrons: {n_crons}"
                                 );
                                 let _ = client.post(format!("{}/sendMessage", api))
                                     .json(&serde_json::json!({"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}))
@@ -7387,16 +7387,16 @@ async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState
                                 continue;
                             }
 
-                            // /crons — liste les tâches planifiées.
+                            // /crons: list the scheduled tasks.
                             if text == "/crons" {
                                 let lignes: Vec<String> = state.essaim_cron.read().await.list()
                                     .iter()
-                                    .map(|t| format!("• *{}* — `{}` (runs: {})", t.name, t.cron_expr.clone().unwrap_or_else(|| "ponctuel".into()), t.run_count))
+                                    .map(|t| format!("• *{}* - `{}` (runs: {})", t.name, t.cron_expr.clone().unwrap_or_else(|| "one-off".into()), t.run_count))
                                     .collect();
                                 let msg = if lignes.is_empty() {
-                                    "Aucune tâche planifiée.".to_string()
+                                    "No scheduled task.".to_string()
                                 } else {
-                                    format!("*Tâches planifiées*\n{}\n\n_Supprimer : /delcron <nom> ou /delcron all_", lignes.join("\n"))
+                                    format!("*Scheduled tasks*\n{}\n\n_Delete: /delcron <name> or /delcron all_", lignes.join("\n"))
                                 };
                                 let _ = client.post(format!("{}/sendMessage", api))
                                     .json(&serde_json::json!({"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}))
@@ -7404,25 +7404,25 @@ async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState
                                 continue;
                             }
 
-                            // /delcron <nom|all> — supprime un cron (ou tous). Stoppe le spam depuis Telegram.
+                            // /delcron <name|all>: deletes a cron (or all). Stops the spam from Telegram.
                             if let Some(arg) = text.strip_prefix("/delcron").map(|s| s.trim()) {
                                 let arg = arg.to_string();
                                 let msg = {
                                     let mut sched = state.essaim_cron.write().await;
                                     if arg.is_empty() {
-                                        "Usage : /delcron <nom> ou /delcron all".to_string()
+                                        "Usage: /delcron <name> or /delcron all".to_string()
                                     } else if arg.eq_ignore_ascii_case("all") {
                                         let ids: Vec<Uuid> = sched.list().iter().map(|t| t.id).collect();
                                         let n = ids.len();
                                         for id in ids { sched.remove(&id); }
-                                        format!("🗑️ {n} cron(s) supprimé(s).")
+                                        format!("🗑️ {n} cron(s) deleted.")
                                     } else {
                                         let id = sched.list().iter()
                                             .find(|t| t.name.eq_ignore_ascii_case(&arg))
                                             .map(|t| t.id);
                                         match id {
-                                            Some(id) => { sched.remove(&id); format!("🗑️ Cron « {arg} » supprimé.") }
-                                            None => format!("Aucun cron nommé « {arg} ». Vois /crons."),
+                                            Some(id) => { sched.remove(&id); format!("🗑️ Cron \"{arg}\" deleted.") }
+                                            None => format!("No cron named \"{arg}\". See /crons."),
                                         }
                                     }
                                 };
@@ -7441,7 +7441,7 @@ async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState
                                             .post(format!("{}/sendMessage", api))
                                             .json(&serde_json::json!({
                                                 "chat_id": chat_id,
-                                                "text": "Orientation reçue — appliquée à la prochaine étape.",
+                                                "text": "Steering received: applied at the next step.",
                                             }))
                                             .send()
                                             .await;
@@ -7451,7 +7451,7 @@ async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState
                                             .post(format!("{}/sendMessage", api))
                                             .json(&serde_json::json!({
                                                 "chat_id": chat_id,
-                                                "text": "La tâche vient de se terminer : envoie ce message comme nouvelle demande.",
+                                                "text": "The task just finished: send this message as a new request.",
                                             }))
                                             .send()
                                             .await;
@@ -7496,9 +7496,9 @@ async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState
                                 }
                             };
 
-                            // Telegram efface l'indicateur "typing…" après quelques secondes.
-                            // Le maintenir pendant tout le tour évite l'impression que le bot a
-                            // abandonné la demande pendant un appel outil ou une réponse longue.
+                            // Telegram clears the "typing..." indicator after a few seconds.
+                            // Keeping it up for the whole turn avoids the impression that the bot
+                            // abandoned the request during a tool call or a long response.
                             let (typing_stop, mut typing_stopped) =
                                 tokio::sync::watch::channel(false);
                             let typing_client = client.clone();
@@ -7532,9 +7532,9 @@ async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState
                             let sessions_dir = std::path::Path::new("sessions");
 
                             let session_id =
-                                // Id déterministe (canal:chat_id) → l'historique survit aux
-                                // redémarrages/rebuilds du serveur. /clear pose un id aléatoire
-                                // temporaire (réinitialisation jusqu'au prochain redémarrage).
+                                // Deterministic id (channel:chat_id) → the history survives server
+                                // restarts/rebuilds. /clear sets a temporary random id
+                                // (reset until the next restart).
                                 *tg_sessions.entry(chat_id).or_insert_with(|| {
                                     session_id_channel("telegram", &chat_id.to_string())
                                 });
@@ -7551,8 +7551,8 @@ async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState
 
                             let mut config = state.essaim_config.read().await.clone();
                             config.model = current_model;
-                            // Canal d'origine → cron_create y renverra le récurrent, et la
-                            // mémoire conversationnelle est déjà liée à cette session Telegram.
+                            // Origin channel → cron_create will send the recurring task here, and the
+                            // conversational memory is already tied to this Telegram session.
                             config.origin_channel = Some(format!("telegram:{}", chat_id));
 
                             let state_clone = state.clone();
@@ -7611,7 +7611,7 @@ async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState
                                 };
                                 if response.trim().is_empty() {
                                     response =
-                                        "✅ Terminé. Aucune réponse textuelle supplémentaire."
+                                        "✅ Done. No additional text response."
                                             .to_string();
                                 }
 
@@ -7690,9 +7690,9 @@ async fn send_telegram_text(
 }
 
 /// Helper: run agent query and return cleaned response text.
-/// Identifiant de session DÉTERMINISTE pour un (canal, utilisateur) — survit aux
-/// redémarrages, contrairement à un UUID aléatoire. Même (canal, clé) → même session →
-/// mémoire conversationnelle. Clé d'exemple : `telegram:12345`, `discord:bob`, `slack:C07…`.
+/// DETERMINISTIC session id for a (channel, user): survives restarts, unlike
+/// a random UUID. Same (channel, key) → same session → conversational memory.
+/// Example key: `telegram:12345`, `discord:bob`, `slack:C07...`.
 fn session_id_channel(channel: &str, user_key: &str) -> Uuid {
     Uuid::new_v5(
         &Uuid::NAMESPACE_OID,
@@ -7700,9 +7700,9 @@ fn session_id_channel(channel: &str, user_key: &str) -> Uuid {
     )
 }
 
-/// Exécute une requête agent pour un CANAL (Discord, Slack, …) avec **session persistante**
-/// par (canal, utilisateur) → mémoire conversationnelle entre messages, comme Telegram.
-/// Tout nouveau canal qui appelle cette fonction obtient la mémoire gratuitement.
+/// Runs an agent query for a CHANNEL (Discord, Slack, ...) with a **persistent session**
+/// per (channel, user) → conversational memory between messages, like Telegram.
+/// Any new channel that calls this function gets the memory for free.
 async fn run_agent_query(
     state: &Arc<AppState>,
     channel: &str,
@@ -7723,7 +7723,7 @@ async fn run_agent_query(
 
     let mut config = state.essaim_config.read().await.clone();
     config.model = current_model;
-    // Canal d'origine → cron_create y renverra le récurrent ; sert aussi de clé maison.
+    // Origin channel → cron_create will send the recurring task here; also serves as the home key.
     config.origin_channel = Some(format!("{channel}:{user_key}"));
 
     let result = boucle_react_memoire(
@@ -7736,8 +7736,8 @@ async fn run_agent_query(
     )
     .await;
 
-    // Persiste la session (l'agent y a déjà ajouté le tour courant + ses réponses) → le
-    // prochain message du même (canal, utilisateur) la rechargera avec tout l'historique.
+    // Persist the session (the agent already added the current turn + its responses) → the
+    // next message from the same (channel, user) reloads it with the full history.
     let _ = session.sauvegarder();
     state
         .essaim_sessions
@@ -7772,7 +7772,7 @@ async fn run_agent_query(
 
 // ======================== Discord Webhook ========================
 
-/// POST /api/channels/discord/webhook — receive Discord Interactions (slash commands).
+/// POST /api/channels/discord/webhook: receive Discord Interactions (slash commands).
 /// Discord sends interactions as POST requests to the configured endpoint URL.
 /// Interaction types:
 ///   1 = PING (verification), 2 = APPLICATION_COMMAND (slash command),
@@ -7784,12 +7784,12 @@ async fn api_discord_webhook(
     let interaction_type = body["type"].as_u64().unwrap_or(0);
 
     match interaction_type {
-        // Type 1: PING — Discord verification handshake
+        // Type 1: PING: Discord verification handshake
         1 => {
             info!("Discord: PING received (verification)");
             Json(serde_json::json!({"type": 1}))
         }
-        // Type 2: APPLICATION_COMMAND — slash command
+        // Type 2: APPLICATION_COMMAND: slash command
         2 => {
             let command_name = body["data"]["name"].as_str().unwrap_or("");
             let user = body["member"]["user"]["username"]
@@ -7826,7 +7826,7 @@ async fn api_discord_webhook(
                 "Discord slash command"
             );
 
-            // Run agent query — session persistante par utilisateur Discord (mémoire conv.).
+            // Run agent query: persistent session per Discord user (conversational memory).
             let response = run_agent_query(&state, "discord", user, input).await;
 
             // Truncate if needed (Discord max: 2000 chars)
@@ -7857,7 +7857,7 @@ async fn api_discord_webhook(
 
 // ======================== Slack Events ========================
 
-/// POST /api/channels/slack/events — receive Slack Events API callbacks.
+/// POST /api/channels/slack/events: receive Slack Events API callbacks.
 /// Handles:
 ///   - `url_verification` challenge (required by Slack during setup)
 ///   - `event_callback` with `message` and `app_mention` events
@@ -7914,7 +7914,7 @@ async fn api_slack_events(
                         return Json(serde_json::json!({"ok": true}));
                     }
 
-                    // Run agent query — session persistante par canal Slack (mémoire conv.).
+                    // Run agent query: persistent session per Slack channel (conversational memory).
                     let response = run_agent_query(&state, "slack", channel, clean_text).await;
 
                     // Post reply via Slack API
@@ -7956,7 +7956,7 @@ async fn api_slack_events(
     }
 }
 
-/// GET /api/cwd — get current working directory.
+/// GET /api/cwd: get current working directory.
 async fn api_get_cwd() -> Json<serde_json::Value> {
     let cwd = std::env::current_dir()
         .unwrap_or_default()
@@ -7965,7 +7965,7 @@ async fn api_get_cwd() -> Json<serde_json::Value> {
     Json(serde_json::json!({"cwd": cwd}))
 }
 
-/// POST /api/cwd — set current working directory.
+/// POST /api/cwd: set current working directory.
 async fn api_set_cwd(Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
     let path = body["cwd"].as_str().unwrap_or("");
     if path.is_empty() {
@@ -7984,7 +7984,7 @@ async fn api_set_cwd(Json(body): Json<serde_json::Value>) -> Json<serde_json::Va
     }
 }
 
-/// GET /api/media/local?path=... — serves an explicitly selected local media file.
+/// GET /api/media/local?path=...: serves an explicitly selected local media file.
 ///
 /// The route is intentionally confined to the current workspace. `media_present`
 /// applies the same restriction before it ever produces a local-media card.
@@ -8070,23 +8070,23 @@ async fn api_onboarding(State(state): State<Arc<AppState>>) -> Json<serde_json::
     steps.push(serde_json::json!({
         "step": 1, "title": "Ollama",
         "done": ollama_ok,
-        "instruction": if ollama_ok { "Ollama est connecte." }
-            else { "Installer Ollama: https://ollama.com/download" },
+        "instruction": if ollama_ok { "Ollama is connected." }
+            else { "Install Ollama: https://ollama.com/download" },
     }));
 
     // 2. LLM model configured?
     steps.push(serde_json::json!({
-        "step": 2, "title": "Modele LLM",
+        "step": 2, "title": "LLM Model",
         "done": ollama_ok,
-        "instruction": format!("Modele actuel: {}. Pour Gemma 4: ollama pull gemma4:e4b", ec.model),
+        "instruction": format!("Current model: {}. For Gemma 4: ollama pull gemma4:e4b", ec.model),
     }));
     let _ = ec;
 
     // 3. Embedding model for RAG?
     steps.push(serde_json::json!({
-        "step": 3, "title": "Modele Embeddings (RAG)",
+        "step": 3, "title": "Embeddings Model (RAG)",
         "done": false,
-        "instruction": "Pour le RAG: ollama pull nomic-embed-text",
+        "instruction": "For RAG: ollama pull nomic-embed-text",
     }));
 
     // 4. Voice services?
@@ -8105,10 +8105,10 @@ async fn api_onboarding(State(state): State<Arc<AppState>>) -> Json<serde_json::
             .any(|c| c.to_string() == "tts")
     });
     steps.push(serde_json::json!({
-        "step": 4, "title": "Services vocaux (STT/TTS)",
+        "step": 4, "title": "Voice services (STT/TTS)",
         "done": has_stt && has_tts,
-        "instruction": if has_stt && has_tts { "STT et TTS disponibles." }
-            else { "Lancer: cd laruche-voix && python -m src.stt_service && python -m src.tts_service" },
+        "instruction": if has_stt && has_tts { "STT and TTS available." }
+            else { "Run: cd laruche-voix && python -m src.stt_service && python -m src.tts_service" },
     }));
 
     // 5. Chrome for browser tools?
@@ -8118,9 +8118,9 @@ async fn api_onboarding(State(state): State<Arc<AppState>>) -> Json<serde_json::
         which::which("google-chrome").is_ok()
     };
     steps.push(serde_json::json!({
-        "step": 5, "title": "Chrome/Edge (outils navigateur)",
+        "step": 5, "title": "Chrome/Edge (browser tools)",
         "done": has_chrome,
-        "instruction": if has_chrome { "Chrome detecte." } else { "Installer Chrome pour browser_navigate/screenshot." },
+        "instruction": if has_chrome { "Chrome detected." } else { "Install Chrome for browser_navigate/screenshot." },
     }));
 
     let done_count = steps
@@ -8135,7 +8135,7 @@ async fn api_onboarding(State(state): State<Arc<AppState>>) -> Json<serde_json::
     }))
 }
 
-/// GET /api/files/suggest?q=partial_path — autocomplete file paths.
+/// GET /api/files/suggest?q=partial_path: autocomplete file paths.
 async fn api_files_suggest(
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Json<serde_json::Value> {
@@ -8174,7 +8174,7 @@ async fn api_files_suggest(
     Json(serde_json::json!(suggestions))
 }
 
-/// POST /api/rpc — Remote Procedure Call between Miel nodes.
+/// POST /api/rpc: Remote Procedure Call between Miel nodes.
 /// Body: {"method": "infer|status|tools|ping", "params": {...}}
 /// Allows nodes to invoke capabilities on each other.
 async fn api_rpc(
@@ -8235,7 +8235,7 @@ async fn api_rpc(
     }
 }
 
-/// POST /api/preload — preload a model into Ollama VRAM.
+/// POST /api/preload: preload a model into Ollama VRAM.
 /// Sends a minimal generate request to warm up the model.
 async fn api_preload(
     State(state): State<Arc<AppState>>,
@@ -8295,7 +8295,7 @@ async fn api_preload(
     }
 }
 
-/// POST /api/webhook — trigger the agent via HTTP (for external integrations).
+/// POST /api/webhook: trigger the agent via HTTP (for external integrations).
 /// Body: {"prompt": "...", "model": "optional-model-override"}
 /// Returns: {"response": "...", "session_id": "..."}
 async fn api_webhook(
@@ -8388,9 +8388,9 @@ async fn api_webhook(
     }
 }
 
-/// Sérialise un ChatEvent en JSON en y injectant le `session_id` d'origine.
-/// Indispensable pour que le front route chaque event vers SA conversation (et ne
-/// mélange pas les jobs de conversations différentes qui tournent en parallèle).
+/// Serializes a ChatEvent to JSON, injecting the originating `session_id`.
+/// Essential so the frontend routes each event to ITS conversation (and does not
+/// mix up jobs from different conversations running in parallel).
 fn event_json_avec_session(event: &laruche_essaim::ChatEvent, session_id: Uuid) -> String {
     let mut v = serde_json::to_value(event).unwrap_or_else(|_| serde_json::json!({}));
     if let Some(obj) = v.as_object_mut() {
@@ -8424,9 +8424,9 @@ async fn ws_chat_connection(
 
     let (mut sender, mut receiver) = socket.split();
 
-    // Message en attente : déposé par la boucle de relais quand un NOUVEAU `message` arrive
-    // pendant qu'un run tourne (l'utilisateur a switché de conversation et réécrit). On laisse
-    // le run courant tourner détaché et on traite ce message comme un nouveau run.
+    // Pending message: deposited by the relay loop when a NEW `message` arrives
+    // while a run is running (the user switched conversations and wrote again). We let
+    // the current run continue detached and treat this message as a new run.
     let mut pending_text: Option<String> = None;
     loop {
         let text = if let Some(p) = pending_text.take() {
@@ -8457,7 +8457,7 @@ async fn ws_chat_connection(
 
         let msg_type = incoming["type"].as_str().unwrap_or("message");
 
-        // Handle "subscribe" — reattach to an existing running session
+        // Handle "subscribe": reattach to an existing running session
         if msg_type == "subscribe" {
             let sessions_dir = std::path::Path::new("sessions");
             let mut sessions = state.essaim_sessions.write().await;
@@ -8476,7 +8476,7 @@ async fn ws_chat_connection(
                             let mut rx = tx.subscribe();
                             drop(sessions);
                             let _ = sender.send(ws::Message::Text(serde_json::json!({"type":"session","session_id": id.to_string()}).to_string().into())).await;
-                            // Enter the broadcast loop — relay events to the reattached client
+                            // Enter the broadcast loop: relay events to the reattached client
                             let mut done = false;
                             while !done {
                                 tokio::select! {
@@ -8514,7 +8514,7 @@ async fn ws_chat_connection(
                         "type": "steer_rejected",
                         "reason": "no_active_run",
                         "text": incoming["text"].as_str().unwrap_or(""),
-                        "message": "Aucune tâche active : la demande va être relancée."
+                        "message": "No active task: the request will be relaunched."
                     })
                     .to_string()
                     .into(),
@@ -8529,7 +8529,7 @@ async fn ws_chat_connection(
         };
         let mut user_text_for_agent =
             inject_no_think(&user_text, incoming["no_think"].as_bool().unwrap_or(false));
-        user_text_for_agent = format!("{}\n\n[SYSTEM] Tu peux planifier (cron_create), surveiller (watcher_create) et chercher dans tes conversations passées (session_search) toi-même.", user_text_for_agent);
+        user_text_for_agent = format!("{}\n\n[SYSTEM] You can schedule (cron_create), watch (watcher_create) and search your past conversations (session_search) yourself.", user_text_for_agent);
 
         // Get or create session
         let session_id = incoming["session_id"]
@@ -8552,7 +8552,7 @@ async fn ws_chat_connection(
             sessions.insert(session_id, s);
         }
 
-        // Immediate persistence — save right after creating (before agent runs)
+        // Immediate persistence: save right after creating (before agent runs)
         if let Some(s) = sessions.get(&session_id) {
             let _ = s.sauvegarder();
         }
@@ -8586,11 +8586,11 @@ async fn ws_chat_connection(
 
         // Model override from client
         let model_override = incoming["model"].as_str().map(|s| s.to_string());
-        // Profile (provider) override from client — the model dropdown sends the
+        // Profile (provider) override from client: the model dropdown sends the
         // selected profile id so we can switch provider/base_url/api_key, not
-        // just the model name (sinon un modèle Codex partirait vers llama.cpp).
+        // just the model name (otherwise a Codex model would go to llama.cpp).
         let profile_override = incoming["provider"].as_str().map(|s| s.to_string());
-        // Capacité explicite du tour (ex. "code" pour coder) → résout un modèle dédié.
+        // Explicit capability for the turn (e.g. "code" to code) → resolves a dedicated model.
         let capability_override = incoming["capability"].as_str().map(|s| s.to_lowercase());
 
         // Parse attachments from client message
@@ -8650,9 +8650,9 @@ async fn ws_chat_connection(
                 })
             };
 
-            // Rend la session visible IMMÉDIATEMENT (avant même la réponse) + la persiste sur
-            // disque : elle apparaît dans Sessions et survit à un F5 (l'agent, lui, tourne déjà
-            // en tâche de fond dans ce tokio::spawn détaché du WebSocket).
+            // Makes the session visible IMMEDIATELY (even before the response) + persists it to
+            // disk: it appears in Sessions and survives an F5 (the agent itself already runs
+            // in the background in this tokio::spawn detached from the WebSocket).
             {
                 let mut snapshot = session.clone();
                 snapshot.ajouter_user(&user_text_log);
@@ -8669,7 +8669,7 @@ async fn ws_chat_connection(
             }
 
             let mut config = ec_snapshot;
-            // Liste des ruches du mesh joignables → injectée au contexte (l'agent peut `mesh_send`).
+            // List of reachable mesh hives → injected into the context (the agent can `mesh_send`).
             {
                 let listener = state_clone.listener.read().await;
                 let nodes = listener.get_nodes().await;
@@ -8680,7 +8680,7 @@ async fn ws_chat_connection(
                     .filter_map(|n| {
                         n.manifest.node_id.map(|id| {
                             format!(
-                                "- {} — {}",
+                                "- {} - {}",
                                 n.manifest.node_name.clone().unwrap_or_else(|| "ruche".into()),
                                 id
                             )
@@ -8691,7 +8691,7 @@ async fn ws_chat_connection(
                     config.mesh_peers_hint = Some(lignes.join("\n"));
                 }
             }
-            // Résoudre le profil sélectionné → provider/base_url/api_key.
+            // Resolve the selected profile → provider/base_url/api_key.
             if let Some(ref pid) = profile_override {
                 let profiles = state_clone.profiles.read().await;
                 if let Some(p) = profiles.profiles.get(pid) {
@@ -8705,7 +8705,7 @@ async fn ws_chat_connection(
                     }
                 }
             }
-            // Capacité explicite (ex. "code") sans override de profil → modèle dédié à cette capacité.
+            // Explicit capability (e.g. "code") without a profile override → model dedicated to this capability.
             if profile_override.is_none() {
                 if let Some(ref cap) = capability_override {
                     if cap != "llm" {
@@ -8778,10 +8778,10 @@ async fn ws_chat_connection(
                 ActiveContextStats::from_session(&session, false),
             );
 
-            // CURATEUR (moteur butinage) : auto-création/patch de skills & tools VÉRIFIÉS,
-            // en ARRIÈRE-PLAN. OPT-IN (désactivé par défaut) pour ne pas polluer la bibliothèque.
-            // Activation : toggle Settings (config.curateur_actif, persistant) OU env RUCHE_CURATEUR=1.
-            // Conservateur (la plupart des missions => rien).
+            // CURATEUR (butinage engine): auto-creation/patch of VERIFIED skills & tools,
+            // in the BACKGROUND. OPT-IN (disabled by default) so as not to pollute the library.
+            // Activation: Settings toggle (config.curateur_actif, persistent) OR env RUCHE_CURATEUR=1.
+            // Conservative (most missions => nothing).
             let curateur_on = config.curateur_actif
                 || std::env::var("RUCHE_CURATEUR").as_deref() == Ok("1");
             if std::env::var("RUCHE_MOTEUR").as_deref() == Ok("butinage")
@@ -8897,7 +8897,7 @@ async fn ws_chat_connection(
                                                 serde_json::json!({
                                                     "type": "steer_ack",
                                                     "text": steer_text,
-                                                    "message": "Orientation reçue — appliquée à la prochaine étape."
+                                                    "message": "Steering received: applied at the next step."
                                                 }).to_string().into()
                                             )).await;
                                         }
@@ -8907,7 +8907,7 @@ async fn ws_chat_connection(
                                                     "type": "steer_rejected",
                                                     "reason": "queue_full",
                                                     "text": steer_text,
-                                                    "message": "Trop d'orientations en attente : attends la prochaine étape."
+                                                    "message": "Too many pending steers: wait for the next step."
                                                 }).to_string().into()
                                             )).await;
                                         }
@@ -8917,15 +8917,15 @@ async fn ws_chat_connection(
                                                     "type": "steer_rejected",
                                                     "reason": "run_finished",
                                                     "text": steer_text,
-                                                    "message": "La tâche vient de se terminer : renvoie ce message comme nouvelle demande."
+                                                    "message": "The task just finished: resend this message as a new request."
                                                 }).to_string().into()
                                             )).await;
                                         }
                                     }
                                 } else if json["type"].as_str() == Some("stop") {
-                                    // Stop demandé : on abort la tâche agent. La session a déjà été
-                                    // sauvegardée en snapshot (avec le message user) AVANT le run,
-                                    // donc seule la réponse en cours est abandonnée — pas la session.
+                                    // Stop requested: abort the agent task. The session was already
+                                    // saved as a snapshot (with the user message) BEFORE the run,
+                                    // so only the in-progress response is dropped, not the session.
                                     react_handle.abort();
                                     if let Some(stats) =
                                         state.active_context_stats.write().await.get_mut(&session_id)
@@ -8942,7 +8942,7 @@ async fn ws_chat_connection(
                                             serde_json::json!({
                                                 "type": "stopped",
                                                 "session_id": session_id.to_string(),
-                                                "message": "Génération interrompue."
+                                                "message": "Generation interrupted."
                                             })
                                             .to_string()
                                             .into(),
@@ -8950,9 +8950,9 @@ async fn ws_chat_connection(
                                         .await;
                                     done = true;
                                 } else if json["type"].as_str() == Some("message") {
-                                    // Nouveau message pendant un run (souvent une AUTRE conversation) :
-                                    // on laisse CE run tourner détaché (react_handle continue, sa session
-                                    // est re-insérée à la fin) et on demande à la boucle externe de le traiter.
+                                    // New message during a run (often ANOTHER conversation):
+                                    // we let THIS run continue detached (react_handle keeps going, its session
+                                    // is re-inserted at the end) and ask the outer loop to handle it.
                                     pending_text = Some(text.to_string());
                                     done = true;
                                 }
@@ -8987,7 +8987,7 @@ async fn ws_audio_connection(socket: ws::WebSocket, state: Arc<AppState>) {
 
     let (mut sender, mut receiver) = socket.split();
 
-    // Default STT/TTS endpoints — can be overridden by client config message
+    // Default STT/TTS endpoints: can be overridden by client config message
     let mut stt_url = "http://127.0.0.1:8421".to_string();
     let mut tts_url = "http://127.0.0.1:8422".to_string();
 
@@ -9210,11 +9210,11 @@ async fn api_plugin_delete(
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
-// ─── Navigateur de fichiers du dossier plugins/ (+ scripts/) ────────────────────────
-// Voir/éditer/supprimer/déposer ses propres scripts (.py/.ps1/.sh/.json…) en plus du JSON.
-// Garde anti-traversal : tout chemin est confiné à plugins/.
+// ─── File browser for the plugins/ folder (+ scripts/) ──────────────────────────────
+// View/edit/delete/drop your own scripts (.py/.ps1/.sh/.json...) in addition to JSON.
+// Anti-traversal guard: every path is confined to plugins/.
 
-/// Résout un chemin relatif DANS plugins/ en refusant tout échappement (`..`, absolu).
+/// Resolves a relative path INSIDE plugins/, rejecting any escape (`..`, absolute).
 fn plugin_safe_path(rel: &str) -> Option<std::path::PathBuf> {
     let rel = rel.trim_start_matches(['/', '\\']);
     if rel.is_empty() {
@@ -9230,7 +9230,7 @@ fn plugin_safe_path(rel: &str) -> Option<std::path::PathBuf> {
     Some(std::path::Path::new("plugins").join(rel))
 }
 
-/// GET /api/plugins/files — arbre plat des fichiers de plugins/ (récursif, profondeur bornée).
+/// GET /api/plugins/files: flat tree of plugins/ files (recursive, bounded depth).
 async fn api_plugin_files() -> Json<serde_json::Value> {
     fn walk(
         dir: &std::path::Path,
@@ -9270,7 +9270,7 @@ async fn api_plugin_files() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "files": out }))
 }
 
-/// GET /api/plugins/file/*path — contenu d'un fichier (texte, ≤ 512 KiB).
+/// GET /api/plugins/file/*path: content of a file (text, ≤ 512 KiB).
 async fn api_plugin_file_get(
     axum::extract::Path(path): axum::extract::Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
@@ -9285,7 +9285,7 @@ async fn api_plugin_file_get(
     }
 }
 
-/// POST /api/plugins/file/*path {content} — crée/écrit un fichier. Recharge les plugins.
+/// POST /api/plugins/file/*path {content}: creates/writes a file. Reloads the plugins.
 async fn api_plugin_file_save(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(path): axum::extract::Path<String>,
@@ -9306,7 +9306,7 @@ async fn api_plugin_file_save(
     Ok(Json(serde_json::json!({ "status": "ok", "path": path })))
 }
 
-/// DELETE /api/plugins/file/*path — supprime un fichier. Recharge les plugins.
+/// DELETE /api/plugins/file/*path: deletes a file. Reloads the plugins.
 async fn api_plugin_file_delete(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(path): axum::extract::Path<String>,
@@ -9452,9 +9452,9 @@ async fn main() -> Result<()> {
     info!(ip = %local_ip, "Detected local IP");
 
     let mut manifest = CognitiveManifest::new(config.node_name.clone(), config.tier);
-    // IDENTITÉ PERSISTANTE (identity.json). Sans ça, node_id = Uuid::new_v4() à CHAQUE démarrage :
-    // la ruche apparaît comme un NOUVEAU nœud aux pairs à chaque reboot (l'ancien expire) → c'est
-    // une cause directe du flapping. On charge l'ID sauvegardé, ou on persiste celui généré.
+    // PERSISTENT IDENTITY (identity.json). Without it, node_id = Uuid::new_v4() at EVERY startup:
+    // the hive appears as a NEW node to peers at every reboot (the old one expires) → this is
+    // a direct cause of flapping. We load the saved ID, or persist the generated one.
     {
         let id_path = std::path::Path::new("identity.json");
         let saved = std::fs::read_to_string(id_path)
@@ -9465,14 +9465,14 @@ async fn main() -> Result<()> {
         match saved {
             Some(id) => {
                 manifest.node_id = id;
-                info!(node_id = %id, "Identite chargee (identity.json)");
+                info!(node_id = %id, "Identity loaded (identity.json)");
             }
             None => {
                 let _ = std::fs::write(
                     id_path,
                     serde_json::json!({ "node_id": manifest.node_id.to_string() }).to_string(),
                 );
-                info!(node_id = %manifest.node_id, "Nouvelle identite persistee (identity.json)");
+                info!(node_id = %manifest.node_id, "New identity persisted (identity.json)");
             }
         }
     }
@@ -9503,25 +9503,25 @@ async fn main() -> Result<()> {
     });
     info!(capability = "agent", "Registered Essaim agent capability");
 
-    // NOTE confidentialité : on N'annonce PLUS les backends locaux détectés au démarrage. Le mesh
-    // ne doit exposer que les providers explicitement publics (`public_proxy`) — c'est la boucle
-    // de re-annonce (plus bas) qui reconstruit les capacités à partir du public uniquement.
+    // PRIVACY NOTE: we NO LONGER announce locally detected backends at startup. The mesh
+    // should only expose explicitly public providers (`public_proxy`): it's the re-announce
+    // loop (below) that rebuilds the capabilities from the public set only.
 
-    // Journal du Feed (persistant) : charge l'historique des événements système au démarrage.
+    // Feed journal (persistent): loads the history of system events at startup.
     laruche_essaim::feed_journal::init(std::path::PathBuf::from("feed-journal.ndjson"), 500);
 
-    // Coffre à secrets : déchiffre le fichier au repos → vue mémoire (jamais re-sérialisée).
-    // Les outils/providers substitueront `${NOM}` par la vraie valeur sans la montrer au LLM.
+    // Secrets vault: decrypts the at-rest file → in-memory view (never re-serialized).
+    // Tools/providers substitute `${NAME}` with the real value without showing it to the LLM.
     laruche_essaim::secrets::init(secrets_vault::charger());
 
-    // Gap D — HOOKS UTILISATEUR : charge `hooks.json` (pre/post-tool) s'il existe.
+    // Gap D: USER HOOKS: loads `hooks.json` (pre/post-tool) if it exists.
     {
         let hooks = std::fs::read_to_string("hooks.json")
             .ok()
             .and_then(|s| serde_json::from_str::<Vec<laruche_essaim::hooks::Hook>>(&s).ok())
             .unwrap_or_default();
         if !hooks.is_empty() {
-            eprintln!("🪝 {} hook(s) utilisateur chargé(s) depuis hooks.json", hooks.len());
+            eprintln!("🪝 {} user hook(s) loaded from hooks.json", hooks.len());
         }
         laruche_essaim::hooks::init(hooks);
     }
@@ -9554,7 +9554,7 @@ async fn main() -> Result<()> {
     initial_defaults
         .entry("llm".into())
         .or_insert_with(|| config.default_model.clone());
-    // Overlay persisted state (takes priority — user's runtime choices)
+    // Overlay persisted state (takes priority: user's runtime choices)
     if let Some(persisted_map) = persistent.default_models {
         for (k, v) in persisted_map {
             if !v.is_empty() {
@@ -9621,15 +9621,15 @@ async fn main() -> Result<()> {
     profiles::refresh_ollama_profiles(&mut profiles_cfg).await;
     profiles::ensure_llamacpp_8001_profile(&mut profiles_cfg).await;
 
-    // Nettoyage des doublons de profils (bug historique de /api/models/use qui créait
-    // des "local-<host>" en double + des profils OpenAI à base_url vide).
+    // Cleanup of duplicate profiles (historical bug in /api/models/use that created
+    // duplicate "local-<host>" + OpenAI profiles with an empty base_url).
     {
-        // 1) Retirer les profils OpenAI à base_url vide (cassés, ex. faux "local-codex").
+        // 1) Remove OpenAI profiles with an empty base_url (broken, e.g. bogus "local-codex").
         profiles_cfg
             .profiles
             .retain(|_, p| !(p.provider == "openai" && p.base_url.trim().is_empty()));
-        // 2) Fusionner les profils (provider, base_url) identiques : garder le 1er (ordre
-        //    trié → "llamacpp-8001" avant "local-llama.cpp"), récupérer ses modèles, supprimer.
+        // 2) Merge profiles with identical (provider, base_url): keep the 1st (sorted order
+        //    → "llamacpp-8001" before "local-llama.cpp"), recover its models, remove.
         let mut ids: Vec<String> = profiles_cfg.profiles.keys().cloned().collect();
         ids.sort();
         let mut seen: std::collections::HashMap<(String, String), String> =
@@ -9660,7 +9660,7 @@ async fn main() -> Result<()> {
         for id in &to_remove {
             profiles_cfg.profiles.remove(id);
         }
-        // 3) Réparer active_model si son profil a été supprimé.
+        // 3) Repair active_model if its profile was removed.
         if !profiles_cfg
             .profiles
             .contains_key(&profiles_cfg.active_model.profile_id)
@@ -9690,7 +9690,7 @@ async fn main() -> Result<()> {
         if !to_remove.is_empty() {
             tracing::info!(
                 removed = to_remove.len(),
-                "Profils doublons nettoyés au démarrage"
+                "Duplicate profiles cleaned up at startup"
             );
         }
     }
@@ -9713,8 +9713,8 @@ async fn main() -> Result<()> {
     // Initialize Essaim (agent engine)
     let essaim_registry = Arc::new(AbeilleRegistry::new());
     enregistrer_abeilles_builtin(&essaim_registry);
-    // Branche le signer mesh : le chemin d'inférence (laruche-essaim) signe ses appels vers un pair
-    // LAN avec l'identité ed25519 de ce nœud → le pair pourra appliquer `restricted`.
+    // Wire the mesh signer: the inference path (laruche-essaim) signs its calls to a LAN peer
+    // with this node's ed25519 identity → the peer can apply `restricted`.
     laruche_essaim::providers::set_mesh_signer(std::sync::Arc::new(|path: &str| {
         sync::sign_headers(path)
     }));
@@ -9785,14 +9785,14 @@ async fn main() -> Result<()> {
     });
     enregistrer_delegation(&essaim_registry, sub_registry, essaim_config.clone());
 
-    // Mémoire cognitive (laruche-memoire) — backend sélectionnable par env.
-    //   LARUCHE_MEMOIRE_BACKEND=sidecar  → vrai paradigm sur http://127.0.0.1:8765
-    //   (défaut)                          → NativeBackend Rust en mémoire (zéro dépendance)
+    // Cognitive memory (laruche-memoire): env-selectable backend.
+    //   LARUCHE_MEMOIRE_BACKEND=sidecar  → real paradigm on http://127.0.0.1:8765
+    //   (default)                         → Rust in-memory NativeBackend (zero dependency)
     let memoire: Arc<dyn laruche_memoire::MemoireCognitive> =
         match std::env::var("LARUCHE_MEMOIRE_BACKEND").as_deref() {
             Ok("sidecar") => Arc::new(laruche_memoire::SidecarBackend::loopback()),
             Ok("sqlite") => match std::env::var("LARUCHE_EMBED_URL") {
-                // Avec embedder Ollama → recall sémantique hybride.
+                // With Ollama embedder → hybrid semantic recall.
                 Ok(url) if !url.is_empty() => {
                     let model = std::env::var("LARUCHE_EMBED_MODEL")
                         .unwrap_or_else(|_| "nomic-embed-text".to_string());
@@ -9801,19 +9801,19 @@ async fn main() -> Result<()> {
                             "memoire.db",
                             Arc::new(laruche_memoire::OllamaEmbedder::new(url, model)),
                         )
-                        .expect("ouverture memoire.db (SQLite+FTS5+embeddings)"),
+                        .expect("opening memoire.db (SQLite+FTS5+embeddings)"),
                     )
                 }
-                // Sans embedder → recall lexical FTS5.
+                // Without embedder → FTS5 lexical recall.
                 _ => Arc::new(
                     laruche_memoire::SqliteBackend::open("memoire.db")
-                        .expect("ouverture memoire.db (SQLite+FTS5)"),
+                        .expect("opening memoire.db (SQLite+FTS5)"),
                 ),
             },
             _ => Arc::new(laruche_memoire::NativeBackend::new()),
         };
     laruche_essaim::abeilles::enregistrer_memoire(&essaim_registry, memoire.clone());
-    // Consolidation LLM (fusion d'items) : nécessite mémoire + config (modèle aux).
+    // LLM consolidation (item merging): requires memory + config (aux model).
     essaim_registry.enregistrer(Box::new(
         laruche_essaim::abeilles::memoire::MemoireConsolidate {
             mem: memoire.clone(),
@@ -9828,78 +9828,78 @@ async fn main() -> Result<()> {
             registry: essaim_registry.clone(),
         },
     ));
-    // Outils d'AUTO-AMELIORATION (forge) : skill_file_*, plugin_*, mcp_*. Le registre principal
-    // est passe pour que plugin_create/delete rechargent au bon endroit.
+    // SELF-IMPROVEMENT tools (forge): skill_file_*, plugin_*, mcp_*. The main registry
+    // is passed so plugin_create/delete reload in the right place.
     laruche_essaim::abeilles::enregistrer_forge(&essaim_registry, essaim_registry.clone());
     essaim_registry.enregistrer(Box::new(abeilles_local::AbeilleMeshSend));
 
-    // Migration `tools.* → capacities.*` (idempotente, jouée à chaque boot mais no-op après).
-    // Les skills forgés (vraies données) sont PRÉSERVÉS ; tools.abeilles (simple projection)
-    // est purgé puis recréé par l'indexeur sous capacities.tools/plugins/mcp.
+    // Migration `tools.* → capacities.*` (idempotent, run at every boot but no-op afterwards).
+    // The forged skills (real data) are PRESERVED; tools.abeilles (a mere projection)
+    // is purged then recreated by the indexer under capacities.tools/plugins/mcp.
     match memoire
         .renommer_sous_arbre("tools.skills", "capacities.skills")
         .await
     {
         Ok(n) if n > 0 => tracing::info!(noeuds = n, "migration skills -> capacities.skills"),
         Ok(_) => {}
-        Err(e) => tracing::warn!(error = %e, "migration skills ignoree (backend sans support)"),
+        Err(e) => tracing::warn!(error = %e, "skills migration skipped (backend without support)"),
     }
-    let _ = memoire.supprimer_sous_arbre("tools").await; // purge la projection legacy restante
+    let _ = memoire.supprimer_sous_arbre("tools").await; // purge the remaining legacy projection
 
-    // Nœuds de la carte (fichiers .md virtuels). Créés vides si absents (idempotent).
-    // `capacities.*` = écosystème d'outils (protégé) ; `system.*` = socle prompt/SOUL éditable.
+    // Map nodes (virtual .md files). Created empty if absent (idempotent).
+    // `capacities.*` = tool ecosystem (protected); `system.*` = editable prompt/SOUL base.
     for (id, label, desc) in [
         (
             "capacities",
-            "Capacites",
-            "Ecosysteme : outils, plugins, MCP, skills",
+            "Capacities",
+            "Ecosystem: tools, plugins, MCP, skills",
         ),
-        ("capacities.tools", "Outils", "Abeilles natives (builtin)"),
+        ("capacities.tools", "Tools", "Native tools (builtin)"),
         (
             "capacities.plugins",
             "Plugins",
-            "Outils custom (plugins JSON)",
+            "Custom tools (JSON plugins)",
         ),
         (
             "capacities.mcp",
             "MCP",
-            "Outils servis par des serveurs MCP",
+            "Tools served by MCP servers",
         ),
-        ("capacities.skills", "Skills", "Procedures OKF apprises"),
+        ("capacities.skills", "Skills", "Learned OKF procedures"),
         (
             "system",
-            "Systeme",
-            "Sections editables du system prompt (hot-reload, sans redemarrage)",
+            "System",
+            "Editable sections of the system prompt (hot-reload, no restart)",
         ),
         (
             "system.prompt",
-            "Identite",
-            "Identite / persona editable (vide = defaut code)",
+            "Identity",
+            "Editable identity / persona (empty = code default)",
         ),
         (
             "system.behavior",
-            "Comportement",
-            "Regles de comportement editables (vide = defaut code)",
+            "Behavior",
+            "Editable behavior rules (empty = code default)",
         ),
         (
             "system.soul",
             "SOUL",
-            "Couche de personnalisation injectable (frontmatter enabled)",
+            "Injectable personalization layer (frontmatter enabled)",
         ),
         (
             "system.prompt_curateur",
-            "Prompt Curateur",
-            "Prompt du curateur d'auto-amelioration (vide = defaut code, hot-reload)",
+            "Curateur Prompt",
+            "Self-improvement curator prompt (empty = code default, hot-reload)",
         ),
         (
             "system.prompt_extraction",
-            "Prompt Consolidation",
-            "Prompt de consolidation memoire / escale (vide = defaut code, hot-reload)",
+            "Consolidation Prompt",
+            "Memory / escale consolidation prompt (empty = code default, hot-reload)",
         ),
         (
             "system.prompt_planning",
-            "Prompt Planification",
-            "Section planification du system prompt (vide = defaut code, hot-reload)",
+            "Planning Prompt",
+            "Planning section of the system prompt (empty = code default, hot-reload)",
         ),
     ] {
         let _ = memoire
@@ -9907,10 +9907,10 @@ async fn main() -> Result<()> {
             .await;
     }
 
-    // Skill par défaut « web_research » (procédure search→évalue→fetch→synthèse) — seedé une
-    // seule fois s'il est absent, pour que la recherche web aille au-delà des snippets.
+    // Default "web_research" skill (search→evaluate→fetch→synthesize procedure): seeded
+    // once if absent, so web research goes beyond the snippets.
     {
-        // Marqueur de version : re-seed une fois si l'ancienne version (v1) est en place.
+        // Version marker: re-seed once if the old version (v1) is in place.
         let present = memoire
             .read_node("capacities.skills.web_research")
             .await
@@ -9927,7 +9927,7 @@ async fn main() -> Result<()> {
             })
             .unwrap_or(false);
         if !present {
-            let skill = "---\ntype: skill\nname: web_research\nversion: web_research-v2\ndescription: Recherche web approfondie multi-etapes (cherche, evalue, FETCH les pages, synthetise avec sources)\n---\n\n# Recherche web approfondie\n\n## Quand l'utiliser\nToute demande d'infos a jour, factuelles ou detaillees sur le web (actu, papiers, docs, comparatifs, scores, prix...).\n\n## Procedure (NE PAS boucler sur la recherche)\n1. UNE recherche large : `web_deep_search` avec une requete precise.\n2. REPERE dans les resultats les URLs fiables et NON bloquees (arxiv.org, blogs, docs officielles). Ignore les domaines qui renvoient 400/403/Forbidden.\n3. APPROFONDIS : `web_fetch` sur 1 a 3 de ces URLs pour lire la PAGE COMPLETE — c'est la qu'est le detail, pas dans les snippets.\n4. Si une info cle manque : UNE recherche affinee DIFFERENTE (jamais la meme requete), puis re-fetch.\n5. SYNTHETISE en citant les URLs sources. Signale incertitudes/contradictions.\n\n## Regles strictes\n- Maximum ~2 web_deep_search ; au-dela, passe a `web_fetch` sur des URLs precises.\n- Ne relance JAMAIS une requete quasi-identique a la precedente.\n- Une page renvoie 400/403/Forbidden -> abandonne-la, n'insiste pas dessus.\n- Toujours `web_fetch` au moins une source primaire (arxiv, site officiel) avant de conclure.\n- Memorise (memory_write) un fait durable utile si pertinent.\n";
+            let skill = "---\ntype: skill\nname: web_research\nversion: web_research-v2\ndescription: Deep multi-step web research (search, evaluate, FETCH the pages, synthesize with sources)\n---\n\n# Deep web research\n\n## When to use it\nAny request for up-to-date, factual or detailed info from the web (news, papers, docs, comparisons, scores, prices...).\n\n## Procedure (DO NOT loop on searching)\n1. ONE broad search: `web_deep_search` with a precise query.\n2. SPOT in the results the reliable and NON-blocked URLs (arxiv.org, blogs, official docs). Ignore domains that return 400/403/Forbidden.\n3. GO DEEPER: `web_fetch` on 1 to 3 of these URLs to read the FULL PAGE: that is where the detail is, not in the snippets.\n4. If a key piece of info is missing: ONE DIFFERENT refined search (never the same query), then re-fetch.\n5. SYNTHESIZE while citing the source URLs. Flag uncertainties/contradictions.\n\n## Strict rules\n- At most ~2 web_deep_search; beyond that, move to `web_fetch` on precise URLs.\n- NEVER re-run a query nearly identical to the previous one.\n- A page returns 400/403/Forbidden -> drop it, do not insist on it.\n- Always `web_fetch` at least one primary source (arxiv, official site) before concluding.\n- Memorize (memory_write) a useful durable fact if relevant.\n";
             let _ = memoire
                 .write(
                     laruche_memoire::MemoryItem::new("capacities.skills.web_research", skill)
@@ -9937,16 +9937,16 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Indexe le registre d'outils dans la carte (capacities.*) DÈS le démarrage — incrémental —
-    // pour que tout nouvel outil soit visible en mémoire et récupérable sémantiquement.
-    // (Les outils MCP, chargés plus bas, seront indexés au 1er tour de chat via le même appel.)
+    // Index the tool registry into the map (capacities.*) RIGHT FROM startup, incrementally,
+    // so any new tool is visible in memory and semantically retrievable.
+    // (MCP tools, loaded below, are indexed on the 1st chat turn via the same call.)
     if let Err(e) =
         laruche_essaim::brain::indexer_abeilles_memoire(&essaim_registry, &memoire).await
     {
-        tracing::warn!(error = %e, "indexation outils au demarrage ignoree");
+        tracing::warn!(error = %e, "tool indexing at startup skipped");
     }
 
-    // Phase 1 — couche flat-file : sync disque → SQL des skills (skills/<slug>/SKILL.md).
+    // Phase 1: flat-file layer: disk → SQL sync of skills (skills/<slug>/SKILL.md).
     sync_skills_disk_to_sql(&memoire).await;
 
     // Load MCP servers
@@ -9969,13 +9969,13 @@ async fn main() -> Result<()> {
         laruche_essaim::rag::KnowledgeBase::new(
             std::path::Path::new("knowledge-base.json"),
             &config.ollama_url,
-            "nomic-embed-text", // Default embedding model — user should pull it
+            "nomic-embed-text", // Default embedding model: user should pull it
         ),
     ));
-    // Fix A — knowledge_add/knowledge_search RETIRÉS : c'était un 2e système de mémoire
-    // (KnowledgeBase plate/RAG) en DOUBLON de la carte cognitive. Tout passe désormais par
-    // memory_write / memory_search (la mémoire cognitive = le différenciateur de LaRuche).
-    let _ = &kb; // kb conservé pour rag.rs (RAG hérité), mais plus exposé comme outil agent.
+    // Fix A: knowledge_add/knowledge_search REMOVED: it was a 2nd memory system
+    // (flat KnowledgeBase/RAG) DUPLICATING the cognitive map. Everything now goes through
+    // memory_write / memory_search (the cognitive memory = LaRuche's differentiator).
+    let _ = &kb; // kb kept for rag.rs (legacy RAG), but no longer exposed as an agent tool.
 
     // Load existing sessions from disk
     let mut loaded_sessions: HashMap<Uuid, Session> = HashMap::new();
@@ -10537,14 +10537,14 @@ async fn main() -> Result<()> {
         }
     });
 
-    // Reprise au boot : purge les carnets de butinage périmés (missions crashées/abandonnées)
-    // et journalise ceux encore récents (repris possibles). Les missions réussies ont déjà
-    // supprimé leur carnet (voir butinage_pont::executer).
+    // Boot resume: purge stale butinage notebooks (crashed/abandoned missions)
+    // and log the still-recent ones (potentially resumable). Successful missions already
+    // deleted their notebook (see butinage_pont::executer).
     purger_carnets_au_boot();
 
-    // Background: rêve mémoire (consolidation + dédup) périodique — hygiène anti-bloat.
-    // Intervalle long (6 h par défaut), 1re passe différée de 10 min pour ne pas charger
-    // le démarrage. Désactivable via LARUCHE_DREAM_INTERVAL_SECS=0.
+    // Background: periodic memory dream (consolidation + dedup): anti-bloat hygiene.
+    // Long interval (6 h by default), 1st pass deferred by 10 min so as not to load
+    // startup. Disableable via LARUCHE_DREAM_INTERVAL_SECS=0.
     {
         let dream_state = state.clone();
         let secs: u64 = std::env::var("LARUCHE_DREAM_INTERVAL_SECS")
@@ -10558,8 +10558,8 @@ async fn main() -> Result<()> {
                 loop {
                     interval.tick().await;
                     match dream_state.memoire.dream().await {
-                        Ok(_) => info!("Rêve mémoire périodique terminé (consolidation + dédup)"),
-                        Err(e) => warn!(error = %e, "Rêve mémoire périodique échoué"),
+                        Ok(_) => info!("Periodic memory dream finished (consolidation + dedup)"),
+                        Err(e) => warn!(error = %e, "Periodic memory dream failed"),
                     }
                 }
             });
@@ -10678,10 +10678,10 @@ async fn main() -> Result<()> {
 
                 let mut cron_config = cron_state.essaim_config.read().await.clone();
                 if let Some(pid) = profile_id {
-                    // Résolution complète via le profil (provider + clé + base_url + modèle).
+                    // Full resolution via the profile (provider + key + base_url + model).
                     appliquer_profil(&cron_state, &mut cron_config, &pid, model.as_deref()).await;
                 } else if let Some(p) = provider {
-                    // Fallback hérité : provider/modèle bruts (clé/URL du config actif).
+                    // Legacy fallback: raw provider/model (key/URL from the active config).
                     cron_config.provider = p;
                     if let Some(m) = model {
                         cron_config.model = m;
@@ -10694,10 +10694,10 @@ async fn main() -> Result<()> {
                     cron_config.model = get_llm_default(&cron_state).await;
                 }
 
-                // ANTI-RÉPLICATION : un run DÉCLENCHÉ par un cron ne doit PAS pouvoir créer
-                // d'autres tâches planifiées (cron/watcher/mission/kanban). Sinon un prompt du
-                // genre « message de test pour le cron » fait recréer un cron → qui re-fire →
-                // boucle infinie de crons fantômes. On désactive ces outils pour ce run.
+                // ANTI-REPLICATION: a run TRIGGERED by a cron must NOT be able to create
+                // other scheduled tasks (cron/watcher/mission/kanban). Otherwise a prompt like
+                // "test message for the cron" recreates a cron → which re-fires →
+                // infinite loop of phantom crons. We disable these tools for this run.
                 for t in [
                     "cron_create", "cron_delete", "watcher_create", "mission_create",
                     "kanban_create",
@@ -10706,10 +10706,10 @@ async fn main() -> Result<()> {
                         cron_config.disabled_tools.push(t.to_string());
                     }
                 }
-                // ANTI-RUNAWAY : un cron est une tâche courte et ciblée. On plafonne ses passes
-                // bas (≤ 12) — sinon un prompt vague (« écris un message de test ») fait boucler
-                // l'agent jusqu'au plafond global (100) : écrit/relit/réécrit le log à l'infini,
-                // d'où le « Plafond de 100 passes atteint » et le spam.
+                // ANTI-RUNAWAY: a cron is a short, targeted task. We cap its passes
+                // low (≤ 12): otherwise a vague prompt ("write a test message") loops
+                // the agent up to the global cap (100): writes/re-reads/rewrites the log endlessly,
+                // hence the "100-pass cap reached" and the spam.
                 cron_config.max_iterations = cron_config.max_iterations.min(12);
 
                 let current_model = cron_config.model.clone();
@@ -10717,12 +10717,12 @@ async fn main() -> Result<()> {
                 let mut session = Session::new_with_path(&current_model, sessions_dir);
                 let (tx, mut rx) = broadcast::channel::<ChatEvent>(64);
 
-                // Ne pas jeter le receiver (drain)
+                // Don't drop the receiver (drain)
                 tokio::spawn(async move { while let Ok(_) = rx.recv().await {} });
 
-                // Lot 10.B — injection des skills attachés : charge chaque SKILL.md OKF
-                // depuis capacities.skills.<nom> et l'assemble en tête du prompt (skills
-                // désactivés via le slider de la page Skills = sautés).
+                // Batch 10.B: injection of attached skills: loads each OKF SKILL.md
+                // from capacities.skills.<name> and assembles it at the head of the prompt (skills
+                // disabled via the Skills page slider = skipped).
                 let disabled_sk = cron_config.disabled_skills.clone();
                 let mut skills_charges: Vec<(String, String)> = Vec::new();
                 for skill_name in skills.iter().filter(|s| !disabled_sk.contains(s)) {
@@ -10761,10 +10761,10 @@ async fn main() -> Result<()> {
                     }
                 }
 
-                // Canal de livraison : UNIQUEMENT celui de la tâche. PAS de fallback home_channel
-                // (sinon un cron de test sans canal spamme Telegram). Un cron créé DEPUIS Telegram
-                // capture déjà ctx.channel=telegram → « préviens-moi » fonctionne ; un cron créé
-                // dans l'UI sans canal reste silencieux (feed/UI seulement).
+                // Delivery channel: ONLY the task's own. NO home_channel fallback
+                // (otherwise a channel-less test cron spams Telegram). A cron created FROM Telegram
+                // already captures ctx.channel=telegram → "notify me" works; a cron created
+                // in the UI without a channel stays silent (feed/UI only).
                 let delivery_channel = channel.filter(|s| !s.is_empty());
                 if let Some(ch) = delivery_channel {
                     if ch.starts_with("telegram") {
@@ -10874,13 +10874,13 @@ async fn main() -> Result<()> {
                 )
                 .await;
 
-                // Livraison : canal du watcher → home channel.
+                // Delivery: watcher channel → home channel.
                 let livr_channel = match w_channel {
                     Some(c) => Some(c),
                     None => watcher_state.essaim_config.read().await.home_channel.clone(),
                 };
                 if let (Some(ch), Ok(res)) = (livr_channel, &result) {
-                    livrer_telegram(&ch, &format!("🔔 Watcher déclenché\n\n{}", res)).await;
+                    livrer_telegram(&ch, &format!("🔔 Watcher triggered\n\n{}", res)).await;
                 }
 
                 let now = chrono::Utc::now().to_rfc3339();
@@ -10904,22 +10904,22 @@ async fn main() -> Result<()> {
         }
     });
 
-    // Background: re-annonce mDNS périodique (P4) — reflète les modèles RÉELS (actif +
-    // backends locaux détectés + providers public_proxy), capte les backends lancés à chaud,
-    // et corrige l'annonce du modèle par défaut figé.
+    // Background: periodic mDNS re-announce (P4): reflects the REAL models (active +
+    // detected local backends + public_proxy providers), picks up backends started hot,
+    // and fixes the announcement of the frozen default model.
     let mdns_broadcaster = broadcaster.clone();
     let mdns_state = state.clone();
     tokio::spawn(async move {
-        // Ré-annonce toutes les 30s (< PEER_STALE_SECS=90) → présence stable, fini le flapping.
+        // Re-announce every 30s (< PEER_STALE_SECS=90) → stable presence, no more flapping.
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
-        interval.tick().await; // saute le tick immédiat
+        interval.tick().await; // skip the immediate tick
         loop {
             interval.tick().await;
             let mut manifest = mdns_state.manifest.read().await.clone();
             manifest.capabilities = Default::default();
-            // CONFIDENTIALITÉ MESH : on n'annonce QUE ce qui est EXPLICITEMENT public (providers
-            // `public_proxy`). On n'auto-annonce PLUS les backends locaux détectés (fuite : un pair
-            // voyait tous tes llama.cpp), et le modèle de l'Agent n'est divulgué que s'il est public.
+            // MESH PRIVACY: we announce ONLY what is EXPLICITLY public (`public_proxy`
+            // providers). We NO LONGER auto-announce detected local backends (leak: a peer
+            // saw all your llama.cpp), and the Agent's model is disclosed only if it is public.
             let public_models: std::collections::HashSet<String> = {
                 let pcfg = mdns_state.profiles.read().await;
                 pcfg.profiles
@@ -10928,12 +10928,12 @@ async fn main() -> Result<()> {
                     .flat_map(|(_, p)| p.models.iter().cloned())
                     .collect()
             };
-            // Agent = présence d'un agent dans l'essaim. Nom du modèle masqué si non public.
+            // Agent = presence of an agent in the swarm. Model name hidden if not public.
             let active_model = get_llm_default(&mdns_state).await;
             let agent_model = if public_models.contains(&active_model) {
                 active_model
             } else {
-                "(privé)".to_string()
+                "(private)".to_string()
             };
             manifest.capabilities.add(CapabilityInfo {
                 capability: Capability::Agent,
@@ -10942,9 +10942,9 @@ async fn main() -> Result<()> {
                 quantization: None,
                 max_context_length: Some(8192),
             });
-            // Providers public_proxy ET restricted → annoncés (passerelle ; clé jamais diffusée).
-            // Les restricted sont visibles (les pairs autorisés doivent les découvrir) mais l'accès
-            // est contrôlé à l'usage (P3 vérifie l'identité de l'appelant contre allowed_peers).
+            // public_proxy AND restricted providers → announced (gateway; key never broadcast).
+            // restricted ones are visible (authorized peers must discover them) but access
+            // is controlled at use time (P3 checks the caller's identity against allowed_peers).
             {
                 let pcfg = mdns_state.profiles.read().await;
                 for (_, p) in pcfg
@@ -10971,17 +10971,17 @@ async fn main() -> Result<()> {
                 *m = manifest.clone();
             }
             if let Err(e) = mdns_broadcaster.update(&manifest) {
-                tracing::warn!(error = %e, "re-annonce mDNS échouée");
+                tracing::warn!(error = %e, "mDNS re-announce failed");
             }
         }
     });
 
-    // Background: tick des MISSIONS au long cours (« La Reine ») — toutes les 60s, lance une
-    // itération des missions actives dont la cadence cron est due (ex. recherche hebdo).
+    // Background: tick of long-running MISSIONS ("La Reine"): every 60s, launches an
+    // iteration of active missions whose cron cadence is due (e.g. weekly research).
     let mission_state = state.clone();
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
-        interval.tick().await; // saute le tick immédiat
+        interval.tick().await; // skip the immediate tick
         loop {
             interval.tick().await;
             let now = chrono::Utc::now();
@@ -11004,7 +11004,7 @@ async fn main() -> Result<()> {
                     .collect()
             };
             for mission in dues {
-                tracing::info!(mission = %mission.slug, "Itération de mission (cadence)");
+                tracing::info!(mission = %mission.slug, "Mission iteration (cadence)");
                 lancer_iteration_mission(mission_state.clone(), mission).await;
             }
         }
@@ -11019,12 +11019,12 @@ async fn main() -> Result<()> {
 
             let task_opt = {
                 let mut board = kanban_state.kanban_board.write().await;
-                // Board de PLANIFICATION : on n'auto-exécute QUE les tâches
-                // explicitement promues en `Ready` (sélection chirurgicale →
-                // `Running`). Les `Todo` créées par l'agent/l'utilisateur restent
-                // visibles tant qu'elles ne sont pas promises (sinon le daemon les
-                // happait toutes en 5 s → board « vide »). Pour lancer une tâche :
-                // la glisser dans la colonne « Ready ».
+                // PLANNING board: we auto-execute ONLY the tasks
+                // explicitly promoted to `Ready` (surgical selection →
+                // `Running`). The `Todo` items created by the agent/user stay
+                // visible until they are promoted (otherwise the daemon would
+                // grab them all in 5 s → "empty" board). To launch a task:
+                // drag it into the "Ready" column.
                 let ready = board
                     .list()
                     .into_iter()
@@ -11086,7 +11086,7 @@ async fn main() -> Result<()> {
                         board.change_status(kanban_task.id, laruche_kanban::TaskStatus::Blocked);
                     }
                 }
-                // Livraison : canal de la tâche → défaut du board → home channel.
+                // Delivery: task channel → board default → home channel.
                 let task_channel = board.effective_channel(kanban_task.id);
                 drop(board);
                 let livr_channel = match task_channel {
@@ -11120,7 +11120,7 @@ async fn main() -> Result<()> {
         }
     });
 
-    // Background: Dream (auto à l'inactivité + background review)
+    // Background: Dream (auto on inactivity + background review)
     let dream_state = state.clone();
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
@@ -11131,7 +11131,7 @@ async fn main() -> Result<()> {
             let idle_duration = last_activity.elapsed();
 
             if idle_duration > std::time::Duration::from_secs(300) && last_dreamed < last_activity {
-                tracing::info!("Système inactif depuis > 5min, déclenchement du mode Dream...");
+                tracing::info!("System idle for > 5min, triggering Dream mode...");
                 let _ = dream_state.events.write().await.emit(
                     laruche_events::EventKind::SystemStatus,
                     "dream_task",
@@ -11140,7 +11140,7 @@ async fn main() -> Result<()> {
 
                 let memoire = dream_state.memoire.clone();
                 if let Err(e) = memoire.dream().await {
-                    tracing::warn!("Erreur lors du dream: {}", e);
+                    tracing::warn!("Error during dream: {}", e);
                 }
 
                 last_dreamed = std::time::Instant::now();
@@ -11158,7 +11158,7 @@ async fn main() -> Result<()> {
     let shutdown_state = state.clone();
     tokio::spawn(async move {
         if tokio::signal::ctrl_c().await.is_ok() {
-            info!("Shutting down — saving persistent state...");
+            info!("Shutting down: saving persistent state...");
             save_persistent_state(&shutdown_state).await;
             std::process::exit(0);
         }
@@ -11170,8 +11170,8 @@ async fn main() -> Result<()> {
     // Sync essaim config from active profile at startup
     sync_essaim_from_profiles(&state).await;
 
-    // L3 (tranche 2) — SYNC mémoire AUTO depuis les nodes pairs (Miel), toutes les 5 min : chaque
-    // node tire+dédupe les faits des autres → mémoire COLLECTIVE de la ruche, sans cloud.
+    // L3 (slice 2): AUTO memory SYNC from peer nodes (Miel), every 5 min: each
+    // node pulls+dedups the others' facts → COLLECTIVE memory of the hive, without cloud.
     {
         let sync_state = state.clone();
         tokio::spawn(async move {
@@ -11220,8 +11220,8 @@ async fn main() -> Result<()> {
         });
     }
 
-    // Phase 1.5 — WATCHER live des SKILL.md : un fichier modifié est re-synchronisé vers SQL
-    // sans reboot (poll 8s, incrémental par mtime).
+    // Phase 1.5: live WATCHER of SKILL.md: a modified file is re-synced to SQL
+    // without reboot (8s poll, incremental by mtime).
     {
         let w_state = state.clone();
         tokio::spawn(async move {
@@ -11249,7 +11249,7 @@ async fn main() -> Result<()> {
                     let changed = mtimes.get(&key).map(|prev| *prev != mt).unwrap_or(true);
                     mtimes.insert(key.clone(), mt);
                     if first || !changed {
-                        continue; // 1er tour = init ; le boot a déjà tout synchronisé
+                        continue; // 1st pass = init; the boot already synced everything
                     }
                     let Ok(content) = std::fs::read_to_string(&md) else {
                         continue;
@@ -11386,7 +11386,7 @@ async fn main() -> Result<()> {
         let tui_state = state.clone();
         tokio::spawn(async move {
             if let (Some(cert_path), Some(key_path)) = (tls_cert, tls_key) {
-                info!(cert = %cert_path, key = %key_path, "TLS enabled — starting HTTPS server");
+                info!(cert = %cert_path, key = %key_path, "TLS enabled: starting HTTPS server");
                 let tls_config =
                     axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert_path, &key_path)
                         .await
@@ -11414,7 +11414,7 @@ async fn main() -> Result<()> {
             tui::run_tui(tui_state.clone(), rx).await?;
         }
 
-        // TUI exited — save state and shutdown
+        // TUI exited: save state and shutdown
         save_persistent_state(&tui_state).await;
     } else {
         // --no-tui mode: spawn server + system tray (Windows)
@@ -11429,7 +11429,7 @@ async fn main() -> Result<()> {
         // Spawn HTTP server
         tokio::spawn(async move {
             if let (Some(cert_path), Some(key_path)) = (tls_cert, tls_key) {
-                info!(cert = %cert_path, key = %key_path, "TLS enabled — starting HTTPS server");
+                info!(cert = %cert_path, key = %key_path, "TLS enabled: starting HTTPS server");
                 let tls_config =
                     axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert_path, &key_path)
                         .await
@@ -11456,10 +11456,10 @@ async fn main() -> Result<()> {
         let save_state = state.clone();
         tokio::select! {
             _ = tokio::signal::ctrl_c() => {
-                info!("Ctrl+C received — shutting down...");
+                info!("Ctrl+C received: shutting down...");
             }
             _ = tray_shutdown_rx => {
-                info!("Quit from system tray — shutting down...");
+                info!("Quit from system tray: shutting down...");
             }
         }
         save_persistent_state(&save_state).await;
@@ -11522,16 +11522,16 @@ fn resolve_state_file_path() -> PathBuf {
     }
 }
 
-/// Au démarrage : purge les carnets de butinage périmés (checkpoints de missions
-/// crashées/abandonnées, > 3 jours) et journalise ceux encore récents (repris possibles).
-/// Les missions réussies suppriment déjà leur carnet à la fin.
+/// At startup: purges stale butinage notebooks (checkpoints of crashed/abandoned
+/// missions, > 3 days) and logs the still-recent ones (potentially resumable).
+/// Successful missions already delete their notebook at the end.
 fn purger_carnets_au_boot() {
     let dir = std::path::Path::new("sessions").join("butinage");
     let entries = match std::fs::read_dir(&dir) {
         Ok(e) => e,
-        Err(_) => return, // pas de dossier = rien à faire
+        Err(_) => return, // no folder = nothing to do
     };
-    let max_age = std::time::Duration::from_secs(3 * 24 * 3600); // 3 jours
+    let max_age = std::time::Duration::from_secs(3 * 24 * 3600); // 3 days
     let now = std::time::SystemTime::now();
     let (mut purges, mut repris) = (0u32, 0u32);
     for e in entries.flatten() {
@@ -11554,7 +11554,7 @@ fn purger_carnets_au_boot() {
         }
     }
     if purges > 0 || repris > 0 {
-        info!(purges, repris, "Carnets butinage : nettoyage au démarrage");
+        info!(purges, repris, "Butinage notebooks: cleanup at startup");
     }
 }
 
