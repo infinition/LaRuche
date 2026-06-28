@@ -1,12 +1,12 @@
-//! Coffre à secrets **chiffré au repos** (côté node).
+//! Secrets vault, **encrypted at rest** (node side).
 //!
-//! Stocke `NOM → valeur` chiffrés dans `secrets.enc`. La clé maîtresse (32 octets aléatoires)
-//! vit dans `secret.key` (générée au 1er lancement). Chiffrement : keystream dérivé de
-//! **blake3 en mode keyed** (PRF) XORé au clair, avec un nonce aléatoire par secret — pas
-//! d'AES (aucune dépendance ajoutée), mais un vrai chiffrement par flux au repos.
+//! Stores `NAME -> value` encrypted in `secrets.enc`. The master key (32 random bytes)
+//! lives in `secret.key` (generated on first launch). Encryption: keystream derived from
+//! **blake3 in keyed mode** (PRF) XORed with the plaintext, with a random nonce per secret - no
+//! AES (no added dependency), but a real stream cipher at rest.
 //!
-//! Les valeurs déchiffrées ne vivent qu'en mémoire (poussées dans `laruche_essaim::secrets`)
-//! et ne sont JAMAIS renvoyées par les endpoints (seuls les NOMS sortent).
+//! Decrypted values only live in memory (pushed into `laruche_essaim::secrets`)
+//! and are NEVER returned by the endpoints (only the NAMES are exposed).
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -23,13 +23,13 @@ fn charger_cle() -> [u8; 32] {
             return k;
         }
     }
-    // Génère et persiste une nouvelle clé maîtresse.
+    // Generate and persist a new master key.
     let k: [u8; 32] = rand::random();
     let _ = std::fs::write(p, k);
     k
 }
 
-/// Keystream blake3-keyed(clé, nonce) de la longueur voulue, XORé au clair → chiffré.
+/// blake3-keyed(key, nonce) keystream of the desired length, XORed with the plaintext -> ciphertext.
 fn xor_flux(cle: &[u8; 32], nonce: &[u8], donnee: &[u8]) -> Vec<u8> {
     let mut hasher = blake3::Hasher::new_keyed(cle);
     hasher.update(nonce);
@@ -42,7 +42,7 @@ fn xor_flux(cle: &[u8; 32], nonce: &[u8], donnee: &[u8]) -> Vec<u8> {
 fn chiffrer(cle: &[u8; 32], clair: &str) -> String {
     let nonce: [u8; 16] = rand::random();
     let chiffre = xor_flux(cle, &nonce, clair.as_bytes());
-    // format: base64(nonce) ":" base64(chiffré)
+    // format: base64(nonce) ":" base64(ciphertext)
     format!("{}:{}", b64(&nonce), b64(&chiffre))
 }
 
@@ -54,7 +54,7 @@ fn dechiffrer(cle: &[u8; 32], blob: &str) -> Option<String> {
     String::from_utf8(clair).ok()
 }
 
-// Base64 minimal (sans dépendance) — alphabet standard.
+// Minimal base64 (no dependency), standard alphabet.
 fn b64(data: &[u8]) -> String {
     const A: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::new();
@@ -106,7 +106,7 @@ fn chemin() -> PathBuf {
     PathBuf::from(FICHIER)
 }
 
-/// Charge et déchiffre tous les secrets depuis le disque. Map `NOM → valeur claire`.
+/// Loads and decrypts all secrets from disk. Map `NAME -> plaintext value`.
 pub fn charger() -> HashMap<String, String> {
     let cle = charger_cle();
     let mut out = HashMap::new();
@@ -122,7 +122,7 @@ pub fn charger() -> HashMap<String, String> {
     out
 }
 
-/// Persiste la map claire `NOM → valeur` en la chiffrant. Best-effort.
+/// Persists the plaintext map `NAME -> value` by encrypting it. Best-effort.
 pub fn sauver(map: &HashMap<String, String>) {
     let cle = charger_cle();
     let chiffre: HashMap<String, String> =
@@ -148,7 +148,7 @@ mod tests {
     fn chiffre_dechiffre_roundtrip() {
         let cle = [7u8; 32];
         let blob = chiffrer(&cle, "secret_token_123");
-        assert!(!blob.contains("secret_token_123"), "le clair ne doit pas apparaitre");
+        assert!(!blob.contains("secret_token_123"), "plaintext must not appear");
         assert_eq!(dechiffrer(&cle, &blob).unwrap(), "secret_token_123");
     }
 }

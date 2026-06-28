@@ -106,14 +106,14 @@ impl Abeille for WebDeepSearch {
                             && !ctype.contains("html")
                             && !ctype.contains("text/plain")
                         {
-                            output.push_str("(contenu non-HTML ignore)\n\n");
+                            output.push_str("(non-HTML content ignored)\n\n");
                             continue;
                         }
                         let html = resp.text().await.unwrap_or_default();
                         let text = readability_text(&html);
                         if looks_like_js_shell(&text) {
                             output.push_str(
-                                "(page coquille JavaScript detectee: contenu lisible insuffisant)\n",
+                                "(JavaScript shell page detected: insufficient readable content)\n",
                             );
                             continue;
                         }
@@ -123,7 +123,7 @@ impl Abeille for WebDeepSearch {
                             let head: String = chars[..1500].iter().collect();
                             let tail: String = chars[chars.len() - 400..].iter().collect();
                             output.push_str(&head);
-                            output.push_str("\n...(milieu tronque)...\n");
+                            output.push_str("\n...(middle truncated)...\n");
                             output.push_str(&tail);
                         } else {
                             output.push_str(&text);
@@ -148,8 +148,8 @@ impl Abeille for WebDeepSearch {
     }
 }
 
-/// Nettoie une URL de resultat DuckDuckGo : decode le redirect `uddg=`, normalise le
-/// protocole, rejette les assets (css/js/img...) et les liens internes DDG.
+/// Clean a DuckDuckGo result URL: decode the `uddg=` redirect, normalize the
+/// protocol, reject assets (css/js/img...) and internal DDG links.
 fn clean_result_url(raw: &str) -> Option<String> {
     let mut url = raw.trim().to_string();
     if let Some(idx) = url.find("uddg=") {

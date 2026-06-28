@@ -127,11 +127,11 @@ mod tests {
     fn thought_stream_sanitizes_and_respects_visibility() {
         let mut stream = ThoughtStreamer::new(ThoughtVisibility::StatusOnly);
         assert!(stream
-            .emit("hypothesis", "decision", "Verifier le secret")
+            .emit("hypothesis", "decision", "Check the secret")
             .is_none());
 
         let update = stream
-            .emit("orientation", "status", "Je lis le contexte avec secret")
+            .emit("orientation", "status", "Reading the context with secret")
             .unwrap();
         assert_eq!(update.phase, "orientation");
         assert_eq!(update.kind, "status");

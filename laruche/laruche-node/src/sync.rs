@@ -45,10 +45,10 @@ pub struct BulkSyncResponse {
     pub cookie_secret: Option<String>,
 }
 
-// ─── Authentification par CODE DE MESH (MAC blake3 keyed) ───────────────────
-// Modèle « passphrase WiFi » : un secret partagé entre les ruches d'un même mesh. Les requêtes
-// internes sont signées (ts + chemin) → on authentifie par le SECRET, plus par l'IP (qui clignote).
-// Tant qu'aucun code n'est configuré, on retombe sur l'allowlist IP (rétro-compatible).
+// ─── Mesh-code authentication (blake3 keyed MAC) ────────────────────────────
+// "WiFi passphrase" model: a secret shared between hives of the same mesh. Internal requests
+// are signed (ts + path), so we authenticate by the SECRET, not by the IP (which flickers).
+// As long as no code is configured, we fall back to the IP allowlist (backward-compatible).
 
 fn mesh_code_path() -> std::path::PathBuf {
     std::path::PathBuf::from("mesh-secret.json")
@@ -75,9 +75,9 @@ fn mesh_key() -> Option<[u8; 32]> {
     load_mesh_code().map(|c| *blake3::hash(c.as_bytes()).as_bytes())
 }
 
-// ─── Chiffrement authentifié des payloads mesh (5.3b) ───────────────────────
-// Clé dérivée du code de mesh (KDF blake3). Construction encrypt-then-MAC, 100 % blake3 (aucune
-// nouvelle dépendance) : keystream = XOF blake3 keyé(nonce), puis MAC blake3 keyé(nonce+ct).
+// ─── Authenticated encryption of mesh payloads (5.3b) ───────────────────────
+// Key derived from the mesh code (blake3 KDF). Encrypt-then-MAC construction, 100% blake3 (no
+// new dependency): keystream = keyed blake3 XOF(nonce), then keyed blake3 MAC(nonce+ct).
 fn aead_key() -> Option<[u8; 32]> {
     load_mesh_code().map(|c| blake3::derive_key("laruche-mesh-aead-v1", c.as_bytes()))
 }
@@ -89,7 +89,7 @@ fn hex_decode_var(s: &str) -> Option<Vec<u8>> {
         .map(|i| u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).ok())
         .collect()
 }
-/// Chiffre+authentifie un texte → "nonce.ct.mac" (hex). None si aucun code de mesh (envoi clair).
+/// Encrypts+authenticates text into "nonce.ct.mac" (hex). None if no mesh code (cleartext send).
 pub fn seal(plaintext: &str) -> Option<String> {
     let key = aead_key()?;
     let mut nonce = [0u8; 16];
@@ -113,7 +113,7 @@ pub fn seal(plaintext: &str) -> Option<String> {
         hex_encode(&mac.as_bytes()[..16])
     ))
 }
-/// Déchiffre "nonce.ct.mac". None si code absent / MAC invalide / format invalide.
+/// Decrypts "nonce.ct.mac". None if code missing / MAC invalid / format invalid.
 pub fn open(sealed: &str) -> Option<String> {
     let key = aead_key()?;
     let parts: Vec<&str> = sealed.split('.').collect();
@@ -144,7 +144,7 @@ pub fn open(sealed: &str) -> Option<String> {
     let pt: Vec<u8> = ct.iter().zip(ks.iter()).map(|(c, k)| c ^ k).collect();
     String::from_utf8(pt).ok()
 }
-/// En-têtes d'auth pour un appel SORTANT vers un pair. Vide si aucun code configuré.
+/// Auth headers for an OUTGOING call to a peer. Empty if no code configured.
 fn mesh_auth_headers(path: &str) -> Vec<(&'static str, String)> {
     match mesh_key() {
         Some(k) => {
@@ -157,9 +157,9 @@ fn mesh_auth_headers(path: &str) -> Vec<(&'static str, String)> {
         None => vec![],
     }
 }
-/// En-têtes de signature mesh pour un appel sortant : MAC d'appartenance (code de mesh) +
-/// signature d'IDENTITÉ ed25519 (X-Miel-From + X-Miel-Sig) prouvant quelle ruche appelle.
-/// Exposé pour le « signer global » consommé par le chemin d'inférence (providers).
+/// Mesh signature headers for an outgoing call: membership MAC (mesh code) +
+/// ed25519 IDENTITY signature (X-Miel-From + X-Miel-Sig) proving which hive is calling.
+/// Exposed for the "global signer" consumed by the inference path (providers).
 pub fn sign_headers(path: &str) -> Vec<(String, String)> {
     let mut h: Vec<(String, String)> = mesh_auth_headers(path)
         .into_iter()
@@ -175,7 +175,7 @@ pub fn sign_headers(path: &str) -> Vec<(String, String)> {
     }
     h
 }
-/// Applique `sign_headers` à une requête reqwest sortante.
+/// Applies `sign_headers` to an outgoing reqwest request.
 pub fn sign_request(mut rb: reqwest::RequestBuilder, path: &str) -> reqwest::RequestBuilder {
     for (k, v) in sign_headers(path) {
         rb = rb.header(k, v);
@@ -183,9 +183,9 @@ pub fn sign_request(mut rb: reqwest::RequestBuilder, path: &str) -> reqwest::Req
     rb
 }
 
-/// Vérifie l'IDENTITÉ d'une requête entrante (signature ed25519 du pair). Retourne le node_id
-/// VÉRIFIÉ de l'appelant, ou None (signature absente/invalide). `peer_pubkey` doit provenir de
-/// /api/mesh/identity du pair (mis en cache par l'appelant). Base de l'enforcement `restricted`.
+/// Verifies the IDENTITY of an incoming request (peer's ed25519 signature). Returns the
+/// VERIFIED node_id of the caller, or None (signature missing/invalid). `peer_pubkey` must come
+/// from the peer's /api/mesh/identity (cached by the caller). Basis of `restricted` enforcement.
 pub fn verified_caller(headers: &axum::http::HeaderMap, path: &str, peer_pubkey: &str) -> Option<String> {
     let from = headers.get("X-Miel-From").and_then(|v| v.to_str().ok())?;
     let ts = headers
@@ -202,9 +202,9 @@ pub fn verified_caller(headers: &axum::http::HeaderMap, path: &str, peer_pubkey:
         None
     }
 }
-/// Vérifie une requête ENTRANTE. `None` si aucun code configuré → l'appelant retombe sur l'IP.
+/// Verifies an INCOMING request. `None` if no code configured, so the caller falls back to IP.
 pub fn mesh_auth_ok(headers: &axum::http::HeaderMap, path: &str) -> Option<bool> {
-    let key = mesh_key()?; // pas de code → None (pas d'auth MAC, on laisse l'allowlist IP décider)
+    let key = mesh_key()?; // no code => None (no MAC auth, let the IP allowlist decide)
     let ts = headers
         .get("X-Miel-Ts")
         .and_then(|v| v.to_str().ok())
@@ -215,12 +215,12 @@ pub fn mesh_auth_ok(headers: &axum::http::HeaderMap, path: &str) -> Option<bool>
         _ => return Some(false),
     };
     if (Utc::now().timestamp() - ts).abs() > 300 {
-        return Some(false); // anti-rejeu : fenêtre 5 min
+        return Some(false); // anti-replay: 5 min window
     }
     let expected = blake3::keyed_hash(&key, format!("{ts}:{path}").as_bytes())
         .to_hex()
         .to_string();
-    // comparaison à temps constant
+    // constant-time comparison
     let ok = expected.len() == mac.len()
         && expected
             .bytes()
@@ -230,10 +230,10 @@ pub fn mesh_auth_ok(headers: &axum::http::HeaderMap, path: &str) -> Option<bool>
     Some(ok)
 }
 
-// ─── Identité forte par nœud : keypair ed25519 (5.3) ────────────────────────
-// Le code de mesh prouve l'APPARTENANCE (symétrique). La keypair prouve QUELLE ruche signe
-// (asymétrique, non-forgeable) → base du `restricted` sûr et du chiffrement / hors-LAN.
-// Persistée dans identity.json (champ `secret` = seed 32 octets hex), à côté du node_id.
+// ─── Strong per-node identity: ed25519 keypair (5.3) ────────────────────────
+// The mesh code proves MEMBERSHIP (symmetric). The keypair proves WHICH hive signs
+// (asymmetric, non-forgeable), basis of safe `restricted` and of encryption / off-LAN.
+// Persisted in identity.json (`secret` field = 32-byte hex seed), alongside the node_id.
 
 fn hex_encode(b: &[u8]) -> String {
     let mut s = String::with_capacity(b.len() * 2);
@@ -258,7 +258,7 @@ fn load_or_create_signing_key() -> ed25519_dalek::SigningKey {
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_else(|| serde_json::json!({}));
-    // Clé existante ?
+    // Existing key?
     if let Some(seed) = v
         .get("secret")
         .and_then(|x| x.as_str())
@@ -268,7 +268,7 @@ fn load_or_create_signing_key() -> ed25519_dalek::SigningKey {
             return SigningKey::from_bytes(&arr);
         }
     }
-    // Génère + persiste (en conservant node_id s'il est déjà là).
+    // Generate + persist (keeping node_id if already present).
     let sk = SigningKey::generate(&mut rand::rngs::OsRng);
     v["secret"] = serde_json::Value::String(hex_encode(&sk.to_bytes()));
     let _ = std::fs::write(path, v.to_string());
@@ -278,11 +278,11 @@ fn signing_key() -> &'static ed25519_dalek::SigningKey {
     static K: std::sync::OnceLock<ed25519_dalek::SigningKey> = std::sync::OnceLock::new();
     K.get_or_init(load_or_create_signing_key)
 }
-/// Clé PUBLIQUE de ce nœud (hex) — partagée via /api/mesh/identity.
+/// PUBLIC key of this node (hex), shared via /api/mesh/identity.
 pub fn my_pubkey_hex() -> String {
     hex_encode(signing_key().verifying_key().as_bytes())
 }
-/// node_id de ce nœud (depuis identity.json).
+/// node_id of this node (from identity.json).
 pub fn my_node_id() -> String {
     std::fs::read_to_string("identity.json")
         .ok()
@@ -294,7 +294,7 @@ fn sign_hex(msg: &str) -> String {
     use ed25519_dalek::Signer;
     hex_encode(&signing_key().sign(msg.as_bytes()).to_bytes())
 }
-/// Vérifie une signature ed25519 d'un pair (pubkey hex + signature hex sur `msg`).
+/// Verifies a peer's ed25519 signature (hex pubkey + hex signature over `msg`).
 pub fn verify_sig(pubkey_hex: &str, msg: &str, sig_hex: &str) -> bool {
     use ed25519_dalek::{Signature, Verifier, VerifyingKey};
     let pk = match hex_decode(pubkey_hex, 32)
@@ -433,9 +433,9 @@ fn is_known_peer(remote_ip: &str, known_peers: &HashSet<String>) -> bool {
 async fn get_known_peer_ips(state: &Arc<AppState>) -> HashSet<String> {
     use std::sync::{Mutex, OnceLock};
     use std::time::{Duration, Instant};
-    // Cache COLLANT : une IP vue par la découverte reste autorisée GRACE après sa dernière
-    // apparition. Évite que des nœuds qui clignotent (découverte mDNS intermittente, WiFi) se
-    // fassent rejeter leur sync (« Rejected ... from unknown peer ») le temps d'un trou.
+    // STICKY cache: an IP seen by discovery stays allowed for GRACE after its last
+    // appearance. Prevents flickering nodes (intermittent mDNS discovery, WiFi) from having
+    // their sync rejected ("Rejected ... from unknown peer") during a gap.
     static CACHE: OnceLock<Mutex<std::collections::HashMap<String, Instant>>> = OnceLock::new();
     const GRACE: Duration = Duration::from_secs(600); // 10 min
     let cache = CACHE.get_or_init(|| Mutex::new(std::collections::HashMap::new()));
@@ -459,14 +459,14 @@ async fn get_known_peer_ips(state: &Arc<AppState>) -> HashSet<String> {
     ips
 }
 
-/// POST /api/internal/sync/session — Receive a session from a peer.
+/// POST /api/internal/sync/session - Receive a session from a peer.
 pub async fn handle_session_sync(
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: axum::http::HeaderMap,
     Json(payload): Json<SyncSessionPayload>,
 ) -> StatusCode {
-    // Auth : code de mesh (MAC) si configuré, sinon allowlist IP (rétro-compatible).
+    // Auth: mesh code (MAC) if configured, otherwise IP allowlist (backward-compatible).
     let authed = match mesh_auth_ok(&headers, "/api/internal/sync/session") {
         Some(ok) => ok,
         None => is_known_peer(&addr.ip().to_string(), &get_known_peer_ips(&state).await),
@@ -497,7 +497,7 @@ pub async fn handle_session_sync(
     StatusCode::OK
 }
 
-/// POST /api/internal/sync/user — Receive a user from a peer.
+/// POST /api/internal/sync/user - Receive a user from a peer.
 pub async fn handle_user_sync(
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
@@ -529,7 +529,7 @@ pub async fn handle_user_sync(
     StatusCode::OK
 }
 
-/// GET /api/internal/sync/bulk — Return all sessions + users (for new peer joining).
+/// GET /api/internal/sync/bulk - Return all sessions + users (for new peer joining).
 pub async fn handle_bulk_sync(
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,

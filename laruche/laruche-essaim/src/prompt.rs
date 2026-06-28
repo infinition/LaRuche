@@ -4,14 +4,14 @@
 /// 1. stable identity and behavior,
 /// 2. tool capabilities and call format,
 /// 3. dynamic/custom context.
-/// Assemble le system prompt à partir de sections ÉDITABLES (chargées de la carte cognitive,
-/// hot-reload par tour) et de sections VERROUILLÉES (protocole machine-critique, codé en dur).
+/// Assembles the system prompt from EDITABLE sections (loaded from the cognitive map,
+/// hot-reloaded per turn) and LOCKED sections (machine-critical protocol, hardcoded).
 ///
-/// - `identity_override` (nœud `system.prompt`) → remplace l'identité par défaut.
-/// - `behavior_override` (nœud `system.behavior`) → remplace le comportement par défaut.
-/// - `custom_instructions` (nœud `system.soul`) → couche d'instructions additionnelle.
-/// - Verrouillé (jamais éditable) : liste d'outils + format `<tool_call>` + format `<plan>`.
-///   Éditer ces formats casserait le tool-calling → ils restent dans le code.
+/// - `identity_override` (`system.prompt` node): overrides the default identity.
+/// - `behavior_override` (`system.behavior` node): overrides the default behavior.
+/// - `custom_instructions` (`system.soul` node): additional instruction layer.
+/// - Locked (never editable): tool list + `<tool_call>` format + `<plan>` format.
+///   Editing these formats would break tool-calling, so they stay in code.
 pub fn build_system_prompt(
     tools_schema: &serde_json::Value,
     identity_override: Option<&str>,
@@ -21,7 +21,7 @@ pub fn build_system_prompt(
     custom_instructions: Option<&str>,
 ) -> String {
     let mut prompt = String::new();
-    // 1) Identité (éditable) ou défaut codé.
+    // 1) Identity (editable) or hardcoded default.
     match identity_override {
         Some(o) if !o.trim().is_empty() => {
             prompt.push_str(o.trim());
@@ -29,7 +29,7 @@ pub fn build_system_prompt(
         }
         _ => prompt.push_str(&section_identite_stable()),
     }
-    // 2) Protocole VERROUILLÉ + outils générés + index de capacités.
+    // 2) LOCKED protocol + generated tools + capability index.
     prompt.push_str(&section_outils(tools_schema));
     push_capability_index(&mut prompt, capability_index);
     match planning_override {
@@ -39,7 +39,7 @@ pub fn build_system_prompt(
         }
         _ => prompt.push_str(section_planification()),
     }
-    // 3) Comportement (éditable) ou défaut codé.
+    // 3) Behavior (editable) or hardcoded default.
     match behavior_override {
         Some(o) if !o.trim().is_empty() => {
             prompt.push_str(o.trim());
@@ -47,20 +47,20 @@ pub fn build_system_prompt(
         }
         _ => prompt.push_str(&section_comportement()),
     }
-    // 4) Instructions additionnelles (SOUL).
+    // 4) Additional instructions (SOUL).
     if let Some(instructions) = custom_instructions {
         prompt.push_str(&section_contexte_dynamique(instructions));
     }
-    // 5) Secrets : on expose les NOMS (jamais les valeurs). Le LLM les référence par `${NOM}`
-    //    dans les commandes shell/scripts ; le node substitue la vraie valeur à l'exécution.
+    // 5) Secrets: expose the NAMES (never the values). The LLM references them via `${NAME}`
+    //    in shell commands/scripts; the node substitutes the real value at execution time.
     let noms = crate::secrets::noms();
     if !noms.is_empty() {
         prompt.push_str(&format!(
             "\n## Available secrets\nThe user has stored secrets (API keys, tokens, webhook URLs). \
-             You NEVER know their value — only the name. To use one in a shell_exec command, a \
+             You NEVER know their value, only the name. To use one in a shell_exec command, a \
              script or a URL, write `${{NAME}}` OR `@@NAME` (short form; the user often writes it \
              this way, e.g. `@@webhook_test1`): the system substitutes the real value at execution \
-             time (never displayed). If the user writes `@@NAME`, it's a reference to that secret — \
+             time (never displayed). If the user writes `@@NAME`, it's a reference to that secret - \
              pass it through to the tool as-is (don't try to guess it).\n\
              Secrets: {}\n\n",
             noms.join(", ")
@@ -69,8 +69,8 @@ pub fn build_system_prompt(
     prompt
 }
 
-/// Catalogue compact des capacités (noms par famille) : le LLM sait ce qui EXISTE au-delà des
-/// schémas injectés ce tour, et peut tout atteindre via `tool_call`. Stable → cacheable.
+/// Compact capability catalog (names per family): the LLM knows what EXISTS beyond the
+/// schemas injected this turn, and can reach everything via `tool_call`. Stable, cacheable.
 fn push_capability_index(prompt: &mut String, index: Option<&str>) {
     if let Some(idx) = index {
         if !idx.trim().is_empty() {
@@ -100,7 +100,7 @@ pub fn section_identite_stable() -> String {
     )
 }
 
-/// Type court d'un paramètre : enum > tableau typé > primitif abrégé. Format familier au modèle.
+/// Short type of a parameter: enum > typed array > abbreviated primitive. Format familiar to the model.
 fn type_court(spec: &serde_json::Value) -> String {
     if let Some(en) = spec.get("enum").and_then(|v| v.as_array()) {
         let vals: Vec<&str> = en.iter().filter_map(|x| x.as_str()).collect();
@@ -128,8 +128,8 @@ fn type_court(spec: &serde_json::Value) -> String {
     }
 }
 
-/// Hint de paramètre conservé UNIQUEMENT s'il porte un FORMAT/EXEMPLE (cron, ISO8601, défaut,
-/// slot `{{}}`…). Les descriptions redondantes avec le nom+type (« The URL to fetch ») sont jetées.
+/// Parameter hint kept ONLY if it carries a FORMAT/EXAMPLE (cron, ISO8601, default,
+/// `{{}}` slot, etc.). Descriptions redundant with name+type ("The URL to fetch") are dropped.
 fn hint_param(spec: &serde_json::Value) -> Option<String> {
     let d = spec
         .get("description")
@@ -151,9 +151,9 @@ fn hint_param(spec: &serde_json::Value) -> Option<String> {
     Some(one.chars().take(60).collect())
 }
 
-/// Rend les outils en SIGNATURES compactes (style TypeScript) au lieu de JSON verbeux :
-/// `nom(param: type, opt?: type) — description`. ~80% de tokens en moins que le JSON pretty,
-/// dans un format que le modèle relie nativement à l'émission d'un `<tool_call>`.
+/// Renders tools as compact SIGNATURES (TypeScript style) instead of verbose JSON:
+/// `name(param: type, opt?: type) - description`. ~80% fewer tokens than pretty JSON,
+/// in a format the model natively associates with emitting a `<tool_call>`.
 fn signatures_outils(tools: &[serde_json::Value]) -> String {
     let mut out = String::new();
     for t in tools {
@@ -173,7 +173,7 @@ fn signatures_outils(tools: &[serde_json::Value]) -> String {
         let mut sig: Vec<String> = Vec::new();
         let mut hints: Vec<String> = Vec::new();
         if let Some(props) = params.get("properties").and_then(|v| v.as_object()) {
-            // Paramètres requis d'abord (ordre de `required`), puis les optionnels.
+            // Required parameters first (order of `required`), then the optional ones.
             let mut keys: Vec<&str> = req.iter().copied().filter(|k| props.contains_key(*k)).collect();
             for k in props.keys() {
                 if !keys.contains(&k.as_str()) {
@@ -201,7 +201,7 @@ fn signatures_outils(tools: &[serde_json::Value]) -> String {
         } else {
             format!(" {{{}}}", hints.join("; "))
         };
-        out.push_str(&format!("- {name}({}) — {desc}{suffixe}\n", sig.join(", ")));
+        out.push_str(&format!("- {name}({}) - {desc}{suffixe}\n", sig.join(", ")));
     }
     out
 }
@@ -318,16 +318,16 @@ mod tests {
         ]);
         let arr = tools.as_array().unwrap();
         let sigs = signatures_outils(arr);
-        // enum rendu inline, optionnel marqué `?`, hint de format conservé, requis sans `?`.
+        // enum rendered inline, optional marked `?`, format hint kept, required without `?`.
         assert!(sigs.contains("action: add|done|list"));
         assert!(sigs.contains("render?: bool"));
         assert!(sigs.contains("url: string"));
         assert!(sigs.contains("*/5 * * * *"));
-        assert!(!sigs.contains("The URL to fetch")); // hint redondant jeté
-        // Mesure du gain réel sur cet échantillon.
+        assert!(!sigs.contains("The URL to fetch")); // redundant hint dropped
+        // Measure the actual gain on this sample.
         let json = serde_json::to_string_pretty(&tools).unwrap();
         eprintln!(
-            "[MESURE] JSON pretty: {} car (~{} tok) | signatures: {} car (~{} tok) | gain {:.0}%",
+            "[MEASURE] JSON pretty: {} chars (~{} tok) | signatures: {} chars (~{} tok) | gain {:.0}%",
             json.len(),
             json.len() / 4,
             sigs.len(),

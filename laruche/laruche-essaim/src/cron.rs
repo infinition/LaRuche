@@ -25,10 +25,10 @@ pub struct ScheduledTask {
     /// Optional LLM model override for this task.
     #[serde(default)]
     pub model: Option<String>,
-    /// Profil provider à utiliser pour ce run (résout provider + modèle + clé + base_url).
+    /// Provider profile to use for this run (resolves provider + model + key + base_url).
     #[serde(default)]
     pub profile_id: Option<String>,
-    /// Skills (noms OKF sous `capacities.skills.*`) à injecter dans le prompt au run.
+    /// Skills (OKF names under `capacities.skills.*`) to inject into the prompt at run time.
     #[serde(default)]
     pub skills: Vec<String>,
     /// Cron expression (5-field) for recurring tasks, or None for one-shot.
@@ -58,7 +58,7 @@ impl ScheduledTask {
     }
 }
 
-/// The cron scheduler — manages tasks and dispatches them.
+/// The cron scheduler: manages tasks and dispatches them.
 pub struct CronScheduler {
     tasks: HashMap<Uuid, ScheduledTask>,
     file_path: PathBuf,
@@ -113,7 +113,7 @@ impl CronScheduler {
         self.tasks.get(id).cloned()
     }
 
-    /// Replace an existing task (by id). Renvoie false si l'id n'existe pas.
+    /// Replace an existing task (by id). Returns false if the id does not exist.
     pub fn replace(&mut self, task: ScheduledTask) -> bool {
         if self.tasks.contains_key(&task.id) {
             self.tasks.insert(task.id, task);

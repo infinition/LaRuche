@@ -91,7 +91,7 @@ pub fn enregistrer_abeilles_builtin(registry: &AbeilleRegistry) {
     registry.enregistrer(Box::new(git::GitCommit));
     // System
     registry.enregistrer(Box::new(essaim_status::SystemInfo));
-    // Clarification (pose une question à l'utilisateur)
+    // Clarification (ask the user a question)
     registry.enregistrer(Box::new(clarify::Clarify));
     // File watch
     registry.enregistrer(Box::new(file_watch::FileWatch));
@@ -195,7 +195,7 @@ pub(crate) fn skill_node_id(name: &str) -> String {
     if trimmed.starts_with("capacities.skills.") {
         return trimmed.to_string();
     }
-    // Tolère un node_id legacy (tools.skills.*) -> le remappe vers capacities.skills.*.
+    // Tolerate a legacy node_id (tools.skills.*) -> remap it to capacities.skills.*.
     if let Some(rest) = trimmed.strip_prefix("tools.skills.") {
         return format!("capacities.skills.{rest}");
     }

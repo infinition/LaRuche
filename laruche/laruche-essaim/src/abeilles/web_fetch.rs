@@ -48,8 +48,8 @@ impl Abeille for WebFetch {
         let url_raw = args["url"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Missing 'url' argument"))?;
-        // Substitution des secrets (`${NOM}` / `@@NOM`) : permet `web_fetch @@webhook_get` sans
-        // jamais exposer la valeur au LLM (outil sortant).
+        // Secret substitution (`${NAME}` / `@@NAME`): allows `web_fetch @@webhook_get` without
+        // ever exposing the value to the LLM (outbound tool).
         let url_sub = crate::secrets::substituer(url_raw);
         let url = url_sub.as_str();
 
@@ -76,7 +76,7 @@ impl Abeille for WebFetch {
             .timeout(std::time::Duration::from_secs(15))
             .build()?;
 
-        // Fetch direct, puis chaîne de repli anti-blocage si échec/vide.
+        // Direct fetch, then anti-blocking fallback chain on failure/empty.
         match fetch_direct(&client, url).await {
             Ok(text) if !text.trim().is_empty() => {
                 Ok(ResultatAbeille::ok(cap_head_tail(text, 6000)))
@@ -84,38 +84,38 @@ impl Abeille for WebFetch {
             issue => {
                 let motif = match issue {
                     Err(e) => e.to_string(),
-                    _ => "page vide".to_string(),
+                    _ => "empty page".to_string(),
                 };
-                // Repli 1 : reader proxy r.jina.ai (nettoie, rend le JS, contourne 403 simples).
+                // Fallback 1: r.jina.ai reader proxy (cleans, renders JS, bypasses simple 403s).
                 if let Some(text) = fetch_via_jina(&client, url).await {
                     return Ok(ResultatAbeille::ok(format!(
-                        "[via r.jina.ai — fetch direct a échoué : {motif}]\n\n{}",
+                        "[via r.jina.ai - direct fetch failed: {motif}]\n\n{}",
                         cap_head_tail(text, 6000)
                     )));
                 }
-                // Repli 2 : Wayback Machine (snapshot archivé).
+                // Fallback 2: Wayback Machine (archived snapshot).
                 if let Some(text) = fetch_via_wayback(&client, url).await {
                     return Ok(ResultatAbeille::ok(format!(
-                        "[via Wayback Machine — fetch direct a échoué : {motif}]\n\n{}",
+                        "[via Wayback Machine - direct fetch failed: {motif}]\n\n{}",
                         cap_head_tail(text, 6000)
                     )));
                 }
                 Ok(ResultatAbeille::err(format!(
-                    "Fetch échoué (direct : {motif}). Replis r.jina.ai et Wayback infructueux. \
-                     Tu peux réessayer avec render=true (rendu navigateur)."
+                    "Fetch failed (direct: {motif}). r.jina.ai and Wayback fallbacks unsuccessful. \
+                     You can retry with render=true (browser rendering)."
                 )))
             }
         }
     }
 }
 
-/// Fetch direct : renvoie le texte nettoyé, ou une erreur (réseau ou statut non-2xx).
+/// Direct fetch: returns cleaned text, or an error (network or non-2xx status).
 async fn fetch_direct(client: &reqwest::Client, url: &str) -> Result<String> {
     let response = client
         .get(url)
         .send()
         .await
-        .map_err(|e| anyhow::anyhow!("réseau : {e}"))?;
+        .map_err(|e| anyhow::anyhow!("network: {e}"))?;
     if !response.status().is_success() {
         return Err(anyhow::anyhow!("HTTP {}", response.status()));
     }
@@ -133,7 +133,7 @@ async fn fetch_direct(client: &reqwest::Client, url: &str) -> Result<String> {
     })
 }
 
-/// Repli via r.jina.ai — reader proxy qui renvoie déjà du texte/markdown propre.
+/// Fallback via r.jina.ai: reader proxy that already returns clean text/markdown.
 async fn fetch_via_jina(client: &reqwest::Client, url: &str) -> Option<String> {
     let proxied = format!("https://r.jina.ai/{url}");
     let resp = client
@@ -153,7 +153,7 @@ async fn fetch_via_jina(client: &reqwest::Client, url: &str) -> Option<String> {
     }
 }
 
-/// Repli via la Wayback Machine (archive.org) — snapshot le plus proche.
+/// Fallback via the Wayback Machine (archive.org): closest snapshot.
 async fn fetch_via_wayback(client: &reqwest::Client, url: &str) -> Option<String> {
     let api = format!(
         "https://archive.org/wayback/available?url={}",
@@ -245,9 +245,9 @@ fn cap_head_tail(text: String, max_len: usize) -> String {
 
 /// Simple HTML to text converter: strips tags, scripts, styles.
 fn html_to_text(html: &str) -> String {
-    // Régions « boilerplate » à ignorer (nav/menus/pied de page/pubs) — c'est ce
-    // qui polluait l'extraction et noyait le vrai contenu. On ne touche PAS à
-    // <header> (peut contenir le titre d'article) ni <main>/<article>.
+    // Boilerplate regions to skip (nav/menus/footer/ads): this is what polluted
+    // extraction and drowned out the real content. We do NOT touch <header>
+    // (may contain the article title) or <main>/<article>.
     const BOILERPLATE: &[&str] = &["nav", "footer", "aside", "noscript", "form"];
     let mut result = String::new();
     let mut in_tag = false;
@@ -277,7 +277,7 @@ fn html_to_text(html: &str) -> String {
                 } else if tag_lower.starts_with("/style") {
                     in_style = false;
                 }
-                // Suivi de la profondeur des régions boilerplate (gère l'imbrication).
+                // Track boilerplate region depth (handles nesting).
                 let bare = tag_lower
                     .trim_start_matches('/')
                     .split_whitespace()

@@ -1,4 +1,4 @@
-﻿//! ReAct Agent Loop — inspired by third-party's agent architecture.
+﻿//! ReAct Agent Loop - inspired by third-party's agent architecture.
 //!
 //! Key patterns from third-party:
 //! - Stop reason handling (end_turn, tool_use, max_tokens)
@@ -104,20 +104,20 @@ pub struct EssaimConfig {
     /// Tool names disabled for prompt injection and execution.
     #[serde(default)]
     pub disabled_tools: Vec<String>,
-    /// Skill names désactivés (non injectés / non attachables). État persisté.
+    /// Disabled skill names (not injected / not attachable). Persisted state.
     #[serde(default)]
     pub disabled_skills: Vec<String>,
-    /// Curateur (auto-création de skills/tools vérifiés en arrière-plan). Toggle persistant
-    /// piloté depuis Settings ; fallback env `RUCHE_CURATEUR=1`. Off par défaut (anti-bloat).
+    /// Curateur (background auto-creation of verified skills/tools). Persistent toggle
+    /// driven from Settings; env fallback `RUCHE_CURATEUR=1`. Off by default (anti-bloat).
     #[serde(default)]
     pub curateur_actif: bool,
-    /// Canal d'origine du run courant (ex. `telegram:12345`, `discord:bob`, `web`). Runtime
-    /// uniquement (jamais persisté) : sert à ce que les outils (`cron_create`) sachent d'où
-    /// vient la demande et y renvoient le récurrent.
+    /// Origin channel of the current run (e.g. `telegram:12345`, `discord:bob`, `web`). Runtime
+    /// only (never persisted): lets tools (`cron_create`) know where the request came from
+    /// and route the recurring output back there.
     #[serde(skip)]
     pub origin_channel: Option<String>,
-    /// Canal « maison » (défini par l'utilisateur via `/sethome`) : destination par défaut des
-    /// messages proactifs (cron/missions) quand aucun canal d'origine n'est connu. Persisté.
+    /// Home channel (set by the user via `/sethome`): default destination for proactive
+    /// messages (cron/missions) when no origin channel is known. Persisted.
     #[serde(default)]
     pub home_channel: Option<String>,
     /// Dynamically inject only the most relevant Abeilles into the prompt.
@@ -126,40 +126,40 @@ pub struct EssaimConfig {
     /// Maximum tool schemas injected when dynamic selection is enabled.
     #[serde(default = "default_tool_selection_limit")]
     pub tool_selection_limit: usize,
-    /// Toolset stable et query-INDÉPENDANT (profil) → préfixe identique d'un tour à l'autre,
-    /// donc cache de préfixe réutilisable (astuce third-party). À combiner avec `dynamic_tool_selection`.
+    /// Stable, query-INDEPENDENT toolset (profile) -> identical prefix from one turn to the next,
+    /// so the prefix cache is reusable (third-party trick). Combine with `dynamic_tool_selection`.
     #[serde(default)]
     pub stable_toolset: bool,
-    /// Levier 2 — outils jugés pertinents pour CE tour (récupérés sémantiquement depuis la
-    /// carte cognitive `tools.abeilles.*`). Si `Some`, on injecte le noyau minimal + ceux-ci,
-    /// au lieu des ~30 schémas. `None` = comportement historique. Rempli par tour, non persisté.
+    /// Lever 2 - tools deemed relevant for THIS turn (semantically retrieved from the
+    /// cognitive map `tools.abeilles.*`). If `Some`, inject the minimal core + these,
+    /// instead of the ~30 schemas. `None` = legacy behavior. Filled per turn, not persisted.
     #[serde(skip)]
     pub relevant_tools: Option<Vec<String>>,
-    /// Identité éditable (nœud `system.prompt`). Si `Some`+non vide, remplace l'identité codée.
-    /// Rempli par tour (hot-reload). Le protocole reste verrouillé.
+    /// Editable identity (node `system.prompt`). If `Some`+non-empty, replaces the hardcoded identity.
+    /// Filled per turn (hot-reload). The protocol stays locked.
     #[serde(skip)]
     pub system_prompt_override: Option<String>,
-    /// Comportement éditable (nœud `system.behavior`). Idem, remplace le comportement par défaut.
+    /// Editable behavior (node `system.behavior`). Same idea, replaces the default behavior.
     #[serde(skip)]
     pub behavior_override: Option<String>,
-    /// Section planification éditable (nœud `system.prompt_planning`). Hot-reload.
+    /// Editable planning section (node `system.prompt_planning`). Hot-reload.
     #[serde(skip)]
     pub planning_override: Option<String>,
-    /// Index compact des skills disponibles (`nom — description`), construit par tour depuis la
-    /// carte cognitive. Toujours injecté dans le préfixe stable pour que le modèle connaisse son
-    /// répertoire complet (corps via `skill_view` à la demande). `None` hors contexte mémoire.
+    /// Compact index of available skills (`name - description`), built per turn from the
+    /// cognitive map. Always injected in the stable prefix so the model knows its full
+    /// repertoire (body via `skill_view` on demand). `None` outside memory context.
     #[serde(skip)]
     pub skills_index: Option<String>,
-    /// Liste des ruches du mesh joignables (`nom — laruche_id`), injectée pour que l'agent puisse
-    /// les contacter (`mesh_send`) / coordonner. Rempli par le nœud (accès listener). `None` si solo.
+    /// List of reachable mesh hives (`name - laruche_id`), injected so the agent can
+    /// contact (`mesh_send`) / coordinate them. Filled by the node (listener access). `None` if solo.
     #[serde(skip)]
     pub mesh_peers_hint: Option<String>,
-    /// Modèle auxiliaire pour les tâches de fond (curation/extraction). `None` = même modèle.
-    /// Pointer un petit modèle rapide évite de concurrencer le KV-cache du chat principal.
+    /// Auxiliary model for background tasks (curation/extraction). `None` = same model.
+    /// Pointing at a small fast model avoids competing with the main chat's KV cache.
     #[serde(default)]
     pub aux_model: Option<String>,
-    /// Seuil (tokens) sous lequel le contexte est jugé « étroit » → sélection dynamique des outils
-    /// ET du catalogue de skills (la DB sémantique ne surface que le pertinent). Réglable.
+    /// Threshold (tokens) below which the context is deemed "narrow" -> dynamic selection of tools
+    /// AND of the skill catalog (the semantic DB surfaces only what's relevant). Tunable.
     #[serde(default = "default_dynamic_context_threshold")]
     pub dynamic_context_threshold: u32,
     #[serde(default = "default_permission_mode")]
@@ -195,7 +195,7 @@ impl Default for EssaimConfig {
             fallback_models: vec![],
             max_iterations: 100,
             temperature: 0.7,
-            max_tokens: 0, // 0 = pas de limite (stop naturel du modèle)
+            max_tokens: 0, // 0 = no limit (natural model stop)
             custom_instructions: None,
             context_max_messages: 30,
             context_max_tokens: 128000,
@@ -250,23 +250,23 @@ fn filtered_tool_schema(registry: &AbeilleRegistry, config: &EssaimConfig) -> se
     }
 }
 
-/// Events emitted during the ReAct loop — sent to the WebSocket client.
-/// Levier 2 — noyau d'ESSENTIELS toujours injecté (stable, cacheable). Couvre ~90% des
-/// tâches courantes pour que l'agent ne soit JAMAIS bloqué (mémoire, web, shell, fichiers,
-/// contrôle). La queue dynamique (`relevant_tools`) ajoute les outils de niche par intention
-/// (cron, watcher, git, lsp, calendrier, image, mixture…). 12 outils vs ~30 avant.
+/// Events emitted during the ReAct loop - sent to the WebSocket client.
+/// Lever 2 - core ESSENTIALS always injected (stable, cacheable). Covers ~90% of
+/// common tasks so the agent is NEVER blocked (memory, web, shell, files,
+/// control). The dynamic queue (`relevant_tools`) adds niche tools by intent
+/// (cron, watcher, git, lsp, calendar, image, mixture...). 12 tools vs ~30 before.
 const SEMANTIC_CORE: &[&str] = &[
-    // Mémoire & contrôle de boucle
+    // Memory & loop control
     "memory_search",
     "memory_write",
     "clarify",
     "todo",
     "run_script",
     "skill_view",
-    // Découverte universelle d'outils (filet anti-échec du retrieval) — toujours présents.
+    // Universal tool discovery (retrieval failsafe) - always present.
     "tool_search",
     "tool_call",
-    // Action courante — toujours utile (sinon l'agent ne peut rien faire)
+    // Common actions - always useful (otherwise the agent can do nothing)
     "web_deep_search",
     "web_fetch",
     "shell_exec",
@@ -274,9 +274,9 @@ const SEMANTIC_CORE: &[&str] = &[
     "file_write",
     "file_edit",
     "file_list",
-    // Création et rechargement d'outils
+    // Tool creation and reloading
     "reload_plugins",
-    // Jobs longs en arrière-plan
+    // Long background jobs
     "submit_job",
     "check_job_status",
 ];
@@ -352,9 +352,9 @@ fn tool_score(
 }
 
 /// Return the tool schema to inject for this user prompt.
-/// Index COMPACT de toutes les capacités (noms par famille) pour le tier stable du prompt :
-/// le LLM sait ce qui EXISTE même hors des outils injectés ce tour, et peut tout atteindre via
-/// `tool_call`. Inspiré de l'index de skills d'third-party. Stable dans la session → cacheable.
+/// COMPACT index of all capabilities (names by family) for the stable prompt tier:
+/// the LLM knows what EXISTS even beyond the tools injected this turn, and can reach anything via
+/// `tool_call`. Inspired by third-party's skill index. Stable within the session -> cacheable.
 pub fn build_capability_index(
     registry: &AbeilleRegistry,
     exclude: &HashSet<&str>,
@@ -363,9 +363,9 @@ pub fn build_capability_index(
     let Some(tools) = schema.as_array() else {
         return String::new();
     };
-    // Natifs : NOMS seuls (~70). Plugins + MCP : NOM — DESCRIPTION (peu nombreux, capacités custom).
-    // `exclude` = outils DÉJÀ détaillés ce tour (section `## Available tools`) → on ne les répète
-    // PAS ici, sinon double injection des mêmes abeilles (signatures + noms).
+    // Native: NAMES only (~70). Plugins + MCP: NAME - DESCRIPTION (few, custom capabilities).
+    // `exclude` = tools ALREADY detailed this turn (section `## Available tools`) -> we do NOT
+    // repeat them here, otherwise the same tools are injected twice (signatures + names).
     let mut builtin: Vec<&str> = Vec::new();
     let mut plugins: Vec<(&str, String)> = Vec::new();
     let mut mcp: Vec<(&str, String)> = Vec::new();
@@ -398,7 +398,7 @@ pub fn build_capability_index(
         if d.is_empty() {
             out.push_str(&format!("  - {n}\n"));
         } else {
-            out.push_str(&format!("  - {n} — {d}\n"));
+            out.push_str(&format!("  - {n} - {d}\n"));
         }
     };
     let mut out = String::from(
@@ -439,9 +439,9 @@ pub fn schema_outils_pour_prompt(
         return enabled;
     };
 
-    // Levier 2 — sélection SÉMANTIQUE : noyau minimal + outils récupérés par intention
-    // (depuis la carte cognitive). Pour un « Salut » → seulement le noyau. Pour « cherche sur
-    // le web » → noyau + web_*. Coût contexte constant, capacités illimitées.
+    // Lever 2 - SEMANTIC selection: minimal core + tools retrieved by intent
+    // (from the cognitive map). For a "Hi" -> only the core. For "search the
+    // web" -> core + web_*. Constant context cost, unlimited capabilities.
     if let Some(relevant) = &config.relevant_tools {
         let keep: HashSet<&str> = SEMANTIC_CORE
             .iter()
@@ -460,8 +460,8 @@ pub fn schema_outils_pour_prompt(
         return serde_json::Value::Array(tools);
     }
 
-    // Profil STABLE : sélection query-INDÉPENDANTE (core + remplissage déterministe alpha).
-    // Identique à chaque tour → préfixe caché. Petit ET stable.
+    // STABLE profile: query-INDEPENDENT selection (core + deterministic alpha fill).
+    // Identical every turn -> cached prefix. Small AND stable.
     if config.stable_toolset {
         let available: HashSet<String> = tools
             .iter()
@@ -627,25 +627,25 @@ pub enum ChatEvent {
         messages: usize,
     },
 
-    /// Un skill OKF appris a été auto-injecté dans CE tour (boucle d'apprentissage,
-    /// rappel automatique). L'UI affiche une puce « Skill appliqué : <name> ».
+    /// A learned OKF skill was auto-injected in THIS turn (learning loop,
+    /// automatic recall). The UI shows a chip "Skill applied: <name>".
     #[serde(rename = "skill_applied")]
     SkillApplied { name: String },
 
-    /// Le background-review a proposé un nouveau skill (ou une mise à jour) depuis une
-    /// trajectoire réussie. L'UI peut notifier « Skill né : <name> » et rafraîchir la
-    /// file de revue (`GET /api/memory/proposed`).
+    /// The background review proposed a new skill (or an update) from a
+    /// successful trajectory. The UI may notify "Skill born: <name>" and refresh the
+    /// review queue (`GET /api/memory/proposed`).
     #[serde(rename = "skill_proposed")]
     SkillProposed { name: String },
 
-    /// Levier 2 — outils réellement injectés pour CE tour (noyau + récupérés par intention).
-    /// L'UI affiche la transparence : « N outils choisis pour ton intention » (vs ~30 avant).
+    /// Lever 2 - tools actually injected for THIS turn (core + retrieved by intent).
+    /// The UI shows the transparency: "N tools chosen for your intent" (vs ~30 before).
     #[serde(rename = "tools_selected")]
     ToolsSelected { tools: Vec<String> },
-    /// Aperçu du payload réellement envoyé au LLM (debug — icône 👁 dans l'UI).
+    /// Preview of the payload actually sent to the LLM (debug - eye icon in the UI).
     #[serde(rename = "prompt_debug")]
     PromptDebug {
-        /// Tableau de messages exact (system + historique + mémoire éphémère).
+        /// Exact message array (system + history + ephemeral memory).
         payload: serde_json::Value,
         model: String,
         provider: String,
@@ -668,8 +668,8 @@ pub struct ToolCall {
 }
 
 /// Parse tool calls from the LLM response text.
-/// Vrai si l'appel est une commande shell **read-only** (lecture pure) → pas d'approbation.
-/// Conservateur : tout ce qui chaîne/redirige/mute exige l'approbation normale.
+/// True if the call is a **read-only** shell command (pure read) -> no approval.
+/// Conservative: anything that chains/redirects/mutates requires normal approval.
 fn est_commande_read_only(name: &str, args: &serde_json::Value) -> bool {
     if name != "shell_exec" {
         return false;
@@ -784,10 +784,10 @@ pub fn decision_permission(
     }
 }
 
-/// Un outil est « concurrency-safe » s'il est sans effet de bord (lecture pure) :
-/// on peut alors le lancer en parallèle avec d'autres outils sûrs. Les écritures,
-/// suppressions, exécutions de code et commandes shell mutantes ne le sont pas
-/// (technique d'orchestration de Claude Code : `partitionToolCalls`).
+/// A tool is "concurrency-safe" if it has no side effects (pure read):
+/// it can then run in parallel with other safe tools. Writes,
+/// deletions, code execution and mutating shell commands are not
+/// (Claude Code orchestration technique: `partitionToolCalls`).
 fn budget_status_session(session: &Session, config: &EssaimConfig) -> BudgetStatus {
     BudgetTracker::with_used(context_budget_tokens(config), session.estimated_tokens()).status()
 }
@@ -840,7 +840,7 @@ async fn resumer_resultat_si_gros(
     let messages = vec![
         serde_json::json!({
             "role": "system",
-            "content": "Tu resumes des sorties d'outils volumineuses pour un agent. Reponds uniquement par un resume utile et actionnable."
+            "content": "You summarize large tool outputs for an agent. Reply only with a useful, actionable summary."
         }),
         serde_json::json!({
             "role": "user",
@@ -866,7 +866,7 @@ async fn resumer_resultat_si_gros(
 
     let Ok(Ok(mut stream)) = stream_result else {
         return format!(
-            "[Resultat volumineux de `{tool_name}` resume localement]\n{}",
+            "[Large result from `{tool_name}` summarized locally]\n{}",
             resume_extractif(&output)
         );
     };
@@ -881,33 +881,33 @@ async fn resumer_resultat_si_gros(
 
     if collection.is_err() || text.trim().is_empty() {
         return format!(
-            "[Resultat volumineux de `{tool_name}` resume localement]\n{}",
+            "[Large result from `{tool_name}` summarized locally]\n{}",
             resume_extractif(&output)
         );
     }
 
     format!(
-        "[Resultat volumineux de `{tool_name}` resume par modele auxiliaire]\n{}",
+        "[Large result from `{tool_name}` summarized by auxiliary model]\n{}",
         text.trim()
     )
 }
 
 fn is_concurrency_safe(name: &str, args: &serde_json::Value, danger: NiveauDanger) -> bool {
-    // Les commandes shell read-only (git status, ls, cat…) sont sûres ;
-    // une commande shell mutante ne l'est pas.
+    // Read-only shell commands (git status, ls, cat...) are safe;
+    // a mutating shell command is not.
     if name == "shell_exec" {
         return est_commande_read_only(name, args);
     }
-    // Sinon : sûr si ce n'est pas un outil d'écriture/mutation.
+    // Otherwise: safe if it's not a write/mutation tool.
     !outil_ecriture(name, danger)
 }
 
-/// Garde anti-injection : scanne les arguments d'un outil d'action mutant pour
-/// des patterns d'injection/exfiltration (third-party `threat_patterns`). Renvoie
-/// `Some(raison)` si l'appel doit être bloqué, `None` sinon.
-/// On ne bloque pas les outils en lecture seule (faux positifs trop coûteux).
+/// Injection guard: scans the arguments of a mutating action tool for
+/// injection/exfiltration patterns (third-party `threat_patterns`). Returns
+/// `Some(reason)` if the call should be blocked, `None` otherwise.
+/// Read-only tools are not blocked (false positives too costly).
 pub fn garde_injection(name: &str, args: &serde_json::Value) -> Option<String> {
-    // Outils d'action concernés (mutation, shell, exécution de code/scripts).
+    // Relevant action tools (mutation, shell, code/script execution).
     let est_action = name == "shell_exec"
         || name == "execute_code"
         || name == "run_script"
@@ -923,13 +923,13 @@ pub fn garde_injection(name: &str, args: &serde_json::Value) -> Option<String> {
         None
     } else {
         Some(format!(
-            "commande suspecte (patterns: {}) — injection/exfiltration potentielle",
+            "suspicious command (patterns: {}) - potential injection/exfiltration",
             patterns.join(", ")
         ))
     }
 }
 
-/// Vrai si le statut d'une tâche du plan indique qu'elle est terminée.
+/// True if a plan item's status indicates it is done.
 fn plan_item_termine(status: &str) -> bool {
     let s = status.to_lowercase();
     s.contains("done")
@@ -941,10 +941,10 @@ fn plan_item_termine(status: &str) -> bool {
         || s.contains("✅")
 }
 
-/// Vrai si le statut d'une tâche du plan est terminal, même si l'étape n'a pas
-/// été accomplie au sens strict. Utile pour les branches conditionnelles :
-/// exemple, « télécharger si un lien est trouvé » devient terminal quand aucune
-/// source fiable n'existe après recherche suffisante.
+/// True if a plan item's status is terminal, even if the step was not
+/// strictly accomplished. Useful for conditional branches:
+/// e.g. "download if a link is found" becomes terminal when no
+/// reliable source exists after sufficient search.
 fn plan_item_terminal(status: &str) -> bool {
     let s = status.to_lowercase();
     plan_item_termine(status)
@@ -979,9 +979,9 @@ fn reponse_negative_recherche(text: &str) -> bool {
     .any(|m| t.contains(m))
 }
 
-/// Détecte les requêtes où l'utilisateur attend explicitement une recherche
-/// longue, exploratoire, avec plusieurs stratégies successives. Dans ce mode,
-/// une conclusion négative précoce ne doit pas arrêter la boucle.
+/// Detects requests where the user explicitly expects a long,
+/// exploratory search with several successive strategies. In this mode,
+/// an early negative conclusion must not stop the loop.
 pub fn demande_recherche_longue(prompt: &str) -> bool {
     let p = prompt.to_lowercase();
     [
@@ -1027,11 +1027,11 @@ fn finaliser_plan_pour_reponse(last_plan: &[PlanItem], response_text: &str) -> O
                         || task.contains("fichier")
                         || task.contains("lien"))
                 {
-                    "ok: non applicable, aucun lien exploitable trouvé".to_string()
+                    "ok: not applicable, no usable link found".to_string()
                 } else if negatif {
-                    "ok: terminé avec résultat négatif".to_string()
+                    "ok: done with negative result".to_string()
                 } else {
-                    "ok: terminé".to_string()
+                    "ok: done".to_string()
                 };
             }
             item
@@ -1041,8 +1041,8 @@ fn finaliser_plan_pour_reponse(last_plan: &[PlanItem], response_text: &str) -> O
     Some(final_plan)
 }
 
-/// Vrai si la réponse signale une vraie conclusion (pas une étape intermédiaire).
-/// Sert de soupape : on arrête l'auto-continuation même si le plan n'est pas coché.
+/// True if the response signals a real conclusion (not an intermediate step).
+/// Acts as a valve: stop auto-continuation even if the plan isn't checked off.
 fn reponse_signale_fin(text: &str) -> bool {
     let t = text.to_lowercase();
     [
@@ -1068,7 +1068,7 @@ fn reponse_signale_fin(text: &str) -> bool {
     .any(|m| t.contains(m))
 }
 
-/// Vrai si le modele annonce une action mais n'a pas emis de tool_call valide.
+/// True if the model announces an action but did not emit a valid tool_call.
 fn reponse_annonce_action_sans_outil(text: &str) -> bool {
     let t = strip_plan_tags(&strip_think_tags(text)).to_lowercase();
     let t = t.trim();
@@ -1105,9 +1105,9 @@ fn reponse_annonce_action_sans_outil(text: &str) -> bool {
     .any(|m| t.contains(m))
 }
 
-/// Vrai si le modèle a tenté d'écrire un appel d'outil sous une forme textuelle
-/// non exécutable (`tool_call{tool: ...}` par exemple). Ce cas est dangereux :
-/// l'UI peut afficher du texte qui ressemble à un appel, mais aucun outil n'a été lancé.
+/// True if the model tried to write a tool call in a non-executable textual
+/// form (`tool_call{tool: ...}` for example). This case is dangerous:
+/// the UI may display text that looks like a call, but no tool was launched.
 fn reponse_contient_tool_call_malforme(text: &str) -> bool {
     let t = strip_plan_tags(&strip_think_tags(text)).to_lowercase();
 
@@ -1125,8 +1125,8 @@ fn reponse_contient_tool_call_malforme(text: &str) -> bool {
     contient_marqueur_malforme && !contient_tool_call_valide
 }
 
-/// Détecte les demandes où une conclusion sans trace d'outil est suspecte.
-/// Ce n'est pas une preuve de réussite, seulement un garde-fou anti-"j'ai cherché" narratif.
+/// Detects requests where a conclusion with no tool trace is suspicious.
+/// Not proof of success, only a guard against narrative "I searched" claims.
 fn demande_implique_recherche_web(prompt: &str) -> bool {
     let p = prompt.to_lowercase();
     [
@@ -1171,9 +1171,9 @@ fn reponse_conclut_recherche_sans_trace(prompt: &str, response_text: &str, web_t
     conclusion_negative && !contient_url
 }
 
-/// Classe une erreur provider : si c'est une `ProviderError` structurée (status+body),
-/// on classe finement (429→RateLimited, 401/403→ReloginRequired…) ; sinon on traite
-/// comme une erreur réseau (généralement transitoire). Branche `error_classifier`.
+/// Classify a provider error: if it's a structured `ProviderError` (status+body),
+/// classify precisely (429->RateLimited, 401/403->ReloginRequired...); otherwise treat
+/// as a network error (usually transient). Delegates to `error_classifier`.
 fn classer_erreur_provider(e: &anyhow::Error) -> ErrorClass {
     if let Some(pe) = e.downcast_ref::<ProviderError>() {
         error_classifier::classifier_avec_retry_after(
@@ -1203,10 +1203,10 @@ fn delai_retry_rate_limit_secs(reset_at: Option<i64>, attempt: usize) -> u64 {
     }
 }
 
-/// Découpe les appels d'outils en lots ordonnés (technique Claude Code) :
-/// - une suite d'outils concurrency-safe consécutifs → un lot parallèle,
-/// - chaque outil non-safe → son propre lot séquentiel.
-/// L'ordre d'origine est préservé. Renvoie des index dans `tool_calls`.
+/// Split tool calls into ordered batches (Claude Code technique):
+/// - a run of consecutive concurrency-safe tools -> one parallel batch,
+/// - each non-safe tool -> its own sequential batch.
+/// The original order is preserved. Returns indices into `tool_calls`.
 fn partition_tool_calls(
     tool_calls: &[ToolCall],
     registry: &AbeilleRegistry,
@@ -1256,9 +1256,9 @@ pub fn parse_tool_calls(text: &str) -> Vec<ToolCall> {
     calls
 }
 
-/// Fallback défensif : tente de parser du JSON brut quand le modèle n'a pas utilisé
-/// les balises `<tool_call>`. deepseek-v4-flash et gemma4:e4b émettent parfois
-/// `{"name":"...","arguments":{...}}` directement sans balises.
+/// Defensive fallback: try to parse raw JSON when the model did not use
+/// the `<tool_call>` tags. deepseek-v4-flash and gemma4:e4b sometimes emit
+/// `{"name":"...","arguments":{...}}` directly without tags.
 fn try_parse_as_tool_call(json: &str) -> Option<ToolCall> {
     serde_json::from_str::<ToolCallRaw>(json)
         .ok()
@@ -1272,7 +1272,7 @@ fn try_parse_as_tool_call(json: &str) -> Option<ToolCall> {
 fn parse_tool_calls_json_brut(text: &str) -> Vec<ToolCall> {
     let trimmed = text.trim();
 
-    // Format 1 : bloc ```json\n{...}\n```
+    // Format 1: ```json\n{...}\n``` block
     if trimmed.starts_with("```") {
         let without_fence = trimmed
             .trim_start_matches("```json")
@@ -1284,7 +1284,7 @@ fn parse_tool_calls_json_brut(text: &str) -> Vec<ToolCall> {
         }
     }
 
-    // Format 2 : {"name":"...","arguments":{...}} brut
+    // Format 2: raw {"name":"...","arguments":{...}}
     if trimmed.starts_with('{') && trimmed.ends_with('}') {
         if let Some(call) = try_parse_as_tool_call(trimmed) {
             return vec![call];
@@ -1305,12 +1305,12 @@ fn parse_tool_calls_json_brut(text: &str) -> Vec<ToolCall> {
         }
     }
 
-    // Format 4 : JSON quelconque dans le texte (extraction best-effort)
+    // Format 4: any JSON within the text (best-effort extraction)
     let mut calls = Vec::new();
     let mut search_from = 0;
     while let Some(start) = text[search_from..].find('{') {
         let abs_start = search_from + start;
-        // Cherche la fermeture `}` correspondante (comptage basique)
+        // Find the matching closing `}` (basic counting)
         let mut depth = 0u32;
         let mut end = abs_start;
         for (i, ch) in text[abs_start..].char_indices() {
@@ -1327,11 +1327,11 @@ fn parse_tool_calls_json_brut(text: &str) -> Vec<ToolCall> {
             }
         }
         if depth != 0 {
-            break; // JSON mal formé
+            break; // malformed JSON
         }
         let candidate = &text[abs_start..end];
         if let Some(call) = try_parse_as_tool_call(candidate) {
-            // Évite les doublons
+            // Avoid duplicates
             if !calls.iter().any(|c: &ToolCall| c.name == call.name) {
                 calls.push(call);
             }
@@ -1349,7 +1349,7 @@ fn keep_single_tool_call(tool_calls: &mut Vec<ToolCall>) -> Option<String> {
     let ignored = tool_calls.len() - 1;
     tool_calls.truncate(1);
     Some(format!(
-        "Tu as emis plusieurs appels d'outil dans une seule reponse. Un seul outil est autorise par tour; {ignored} appel(s) ignore(s). Attends le resultat avant d'appeler le suivant."
+        "You emitted several tool calls in a single response. Only one tool is allowed per turn; {ignored} call(s) ignored. Wait for the result before calling the next one."
     ))
 }
 
@@ -1435,7 +1435,7 @@ fn emit_thought(
     }
 }
 
-/// Timeout par outil (secondes).
+/// Per-tool timeout (seconds).
 pub fn timeout_for_tool(name: &str) -> std::time::Duration {
     match name {
         "web_fetch" | "web_deep_search" | "web_search" => std::time::Duration::from_secs(30),
@@ -1453,12 +1453,12 @@ pub fn timeout_for_tool(name: &str) -> std::time::Duration {
     }
 }
 
-/// The main ReAct loop — inspired by third-party's agent architecture.
+/// The main ReAct loop - inspired by third-party's agent architecture.
 ///
 /// Flow:
 /// 1. Build system prompt with tools schema
 /// 2. Stream LLM response (with thinking separation)
-/// 3. Handle stop reason: end_turn → done, tool_use → execute + loop
+/// 3. Handle stop reason: end_turn -> done, tool_use -> execute + loop
 /// 4. Auto-compact context if too large
 /// 5. Failover to fallback model on error
 /// Run the ReAct loop (convenience wrapper without images or approval).
@@ -1481,16 +1481,16 @@ pub async fn boucle_react(
     .await
 }
 
-/// Boucle ReAct avec **mémoire cognitive automatique** (P2 de la fusion).
+/// ReAct loop with **automatic cognitive memory** (P2 of the fusion).
 ///
-/// - **Pré-récupération** : avant de raisonner, on cherche dans la mémoire les souvenirs
-///   pertinents pour l'intention de l'utilisateur et on les injecte dans les instructions
-///   système. L'agent « se souvient » sans qu'on lui demande d'appeler un outil.
-/// - **Post-curation** : après la réponse, un appel auxiliaire extrait les faits durables
-///   et les écrit en mémoire (best-effort, silencieux en cas d'échec — façon third-party
-///   `background_review`).
+/// - **Pre-retrieval**: before reasoning, search memory for the memories
+///   relevant to the user's intent and inject them into the system
+///   instructions. The agent "remembers" without being told to call a tool.
+/// - **Post-curation**: after the response, an auxiliary call extracts durable facts
+///   and writes them to memory (best-effort, silent on failure - third-party
+///   `background_review` style).
 ///
-/// Agnostique du backend : `SidecarBackend` (paradigm) ou `NativeBackend` (Rust), pareil.
+/// Backend-agnostic: `SidecarBackend` (paradigm) or `NativeBackend` (Rust), same.
 pub async fn boucle_react_memoire(
     prompt_utilisateur: &str,
     session: &mut Session,
@@ -1513,10 +1513,10 @@ pub async fn boucle_react_memoire(
     .await
 }
 
-/// **Levier 1 — assembleur de WORKING-SET (1re tranche).** Au lieu d'un top-N fixe, on récupère
-/// large puis on garde les souvenirs les plus pertinents **sous un budget de caractères** (≈ tokens).
-/// Le prompt reste stable et petit ; l'info est *récupérée* à la demande, pas accumulée.
-/// Fondation : à enrichir (activation/atlas, sources « récents » + « nœud actif », budget token réel).
+/// **Lever 1 - WORKING-SET assembler (first slice).** Instead of a fixed top-N, retrieve
+/// broadly then keep the most relevant memories **under a character budget** (~ tokens).
+/// The prompt stays stable and small; info is *retrieved* on demand, not accumulated.
+/// Foundation: to be enriched (activation/atlas, "recent" + "active node" sources, real token budget).
 async fn assembler_working_set(
     memoire: &Arc<dyn MemoireCognitive>,
     prompt: &str,
@@ -1525,11 +1525,11 @@ async fn assembler_working_set(
     let mut seen: HashSet<String> = HashSet::new();
     let mut lignes: Vec<String> = Vec::new();
 
-    // Source 1 — PERTINENCE (sémantique/lexicale).
-    // On filtre les nœuds d'INFRASTRUCTURE (`system.*` = sections du system prompt lui-même ;
-    // `capacities.*` = catalogue d'outils/skills) : les injecter ici DUPLIQUAIT la section
-    // Comportement dans les « souvenirs » et noyait le working-set de bullets `capacities.tools.*`.
-    // Les skills pertinents arrivent par un canal dédié (augmenter_ephemere_avec_skills).
+    // Source 1 - RELEVANCE (semantic/lexical).
+    // Filter out INFRASTRUCTURE nodes (`system.*` = sections of the system prompt itself;
+    // `capacities.*` = tool/skill catalog): injecting them here DUPLICATED the
+    // Behavior section in the "memories" and flooded the working set with `capacities.tools.*` bullets.
+    // Relevant skills arrive via a dedicated channel (augmenter_ephemere_avec_skills).
     if let Ok(pack) = memoire
         .search(
             prompt,
@@ -1540,12 +1540,12 @@ async fn assembler_working_set(
         )
         .await
     {
-        // `system.*`/`capacities.*` = infrastructure (sections du prompt, catalogue d'outils) ;
-        // `orphans.*` = nœuds supprimés en attente de purge (jamais pertinents comme « souvenir »).
+        // `system.*`/`capacities.*` = infrastructure (prompt sections, tool catalog);
+        // `orphans.*` = deleted nodes awaiting purge (never relevant as a "memory").
         let infra = |id: &str| {
             id.starts_with("system") || id.starts_with("capacities") || id.starts_with("orphans")
         };
-        // Nœuds activés (one-liners), hors infrastructure.
+        // Activated nodes (one-liners), excluding infrastructure.
         if let Some(nodes) = pack.raw.get("nodes").and_then(|v| v.as_array()) {
             for n in nodes {
                 let id = n
@@ -1561,18 +1561,18 @@ async fn assembler_working_set(
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .trim();
-                // Bullet à one-liner VIDE = bruit pur (le nom seul, ex. `decisions.2`, ne dit rien).
-                // Le contenu réel du nœud est injecté via ses items plus bas — on saute le bullet.
+                // A bullet with an EMPTY one-liner is pure noise (the name alone, e.g. `decisions.2`, says nothing).
+                // The node's real content is injected via its items below - skip the bullet.
                 if one.is_empty() {
                     continue;
                 }
-                let l = format!("• {id} — {one}");
+                let l = format!("• {id} - {one}");
                 if seen.insert(l.trim().to_string()) {
                     lignes.push(l);
                 }
             }
         }
-        // Items de preuve (contenu réel), hors infrastructure.
+        // Evidence items (real content), excluding infrastructure.
         if let Some(items) = pack
             .raw
             .get("items")
@@ -1602,7 +1602,7 @@ async fn assembler_working_set(
         }
     }
 
-    // Source 2 — RÉCENCE (derniers faits écrits, hors système/outils) : approxime l'activation.
+    // Source 2 - RECENCY (last facts written, excluding system/tools): approximates activation.
     if let Ok(muts) = memoire.mutations(Some(40)).await {
         if let Some(arr) = muts["mutations"].as_array() {
             for m in arr.iter() {
@@ -1616,7 +1616,7 @@ async fn assembler_working_set(
                 if let Some(c) = m["content"].as_str() {
                     let key = format!("recent:{}", c.trim());
                     if !c.trim().is_empty() && seen.insert(key) {
-                        lignes.push(format!("- {} (récent)", c.trim()));
+                        lignes.push(format!("- {} (recent)", c.trim()));
                     }
                 }
             }
@@ -1626,7 +1626,7 @@ async fn assembler_working_set(
     if lignes.is_empty() {
         return None;
     }
-    // Sélection par BUDGET de caractères (≈ tokens) : on garde dans l'ordre jusqu'à la limite.
+    // Selection by character BUDGET (~ tokens): keep in order up to the limit.
     let mut out = String::new();
     for l in lignes {
         if out.len() + l.len() + 1 > budget_chars {
@@ -1643,8 +1643,8 @@ async fn assembler_working_set(
     }
 }
 
-/// Variante multimodale de [`boucle_react_memoire`] pour l'UI WebSocket :
-/// conserve les images et les demandes d'approbation tout en activant la mémoire.
+/// Multimodal variant of [`boucle_react_memoire`] for the WebSocket UI:
+/// keeps images and approval requests while enabling memory.
 pub async fn boucle_react_memoire_multimodal(
     prompt_utilisateur: &str,
     session: &mut Session,
@@ -1656,26 +1656,26 @@ pub async fn boucle_react_memoire_multimodal(
     approval_rx: Option<ApprovalReceiver>,
     steer_rx: Option<SteerReceiver>,
 ) -> Result<String> {
-    // 1) Pré-récupération : injecte les souvenirs pertinents dans une config clonée.
+    // 1) Pre-retrieval: inject relevant memories into a cloned config.
     let mut cfg = config.clone();
     cfg.dynamic_tool_selection = true;
-    cfg.stable_toolset = true; // profil stable → préfixe caché (combine avec mémoire trailing #1)
+    cfg.stable_toolset = true; // stable profile -> cached prefix (combine with trailing memory #1)
     if let Err(e) = indexer_abeilles_memoire(registry, &memoire).await {
-        tracing::warn!(error = %e, "indexation mÃ©moire des Abeilles ignorÃ©e");
+        tracing::warn!(error = %e, "Abeille memory indexing skipped");
     }
-    // Levier 2 — outils sémantiques : ne garder que le noyau + les Abeilles pertinentes pour
-    // l'intention (au lieu d'injecter ~30 schémas à chaque tour). Vide pour un « Salut ».
+    // Lever 2 - semantic tools: keep only the core + the Abeilles relevant to
+    // the intent (instead of injecting ~30 schemas every turn). Empty for a "Hi".
     let mut abeilles_pertinentes =
         recuperer_abeilles_pertinentes(&memoire, prompt_utilisateur, 6).await;
-    // Filet anti-échec du retrieval lexical (FR↔EN, accents) : force l'injection des outils
-    // nommés explicitement + la boîte mémoire quand l'intention est « voir/ranger sa mémoire ».
+    // Lexical retrieval failsafe (FR<->EN, accents): force injection of explicitly
+    // named tools + the memory box when the intent is "view/organize one's memory".
     for t in outils_forces_par_intention(registry, prompt_utilisateur) {
         if !abeilles_pertinentes.contains(&t) {
             abeilles_pertinentes.push(t);
         }
     }
     {
-        // Transparence (UI) : la liste réellement injectée = noyau + récupérées.
+        // Transparency (UI): the list actually injected = core + retrieved.
         let mut injectes: Vec<String> = SEMANTIC_CORE.iter().map(|s| s.to_string()).collect();
         for t in &abeilles_pertinentes {
             if !injectes.contains(t) {
@@ -1686,18 +1686,18 @@ pub async fn boucle_react_memoire_multimodal(
     }
     cfg.relevant_tools = Some(abeilles_pertinentes);
 
-    // Socle système éditable + SOUL : ils vivent dans la carte cognitive sous `system.*`
-    // (fichiers .md virtuels, format OKF avec frontmatter `enabled`). Chargés par tour ;
-    // si absents/désactivés → on retombe sur le prompt par défaut codé.
+    // Editable system base + SOUL: they live in the cognitive map under `system.*`
+    // (virtual .md files, OKF format with `enabled` frontmatter). Loaded per turn;
+    // if absent/disabled -> fall back to the hardcoded default prompt.
     cfg.system_prompt_override = charger_doc_systeme(&memoire, "system.prompt").await;
     cfg.behavior_override = charger_doc_systeme(&memoire, "system.behavior").await;
     cfg.planning_override = charger_doc_systeme(&memoire, "system.prompt_planning").await;
     if let Some(soul) = charger_doc_systeme(&memoire, "system.soul").await {
         cfg.custom_instructions = Some(soul);
     }
-    // Fiche utilisateur (nœud verrouillé `system.user`) : éditable par le SEUL user (via son
-    // profil), jamais par l'agent (garde-fou memory_write). Injectée au contexte pour que LaRuche
-    // « connaisse » l'utilisateur. Item unique, lu directement (pas de dépendance frontmatter).
+    // User profile (locked node `system.user`): editable by the user ONLY (via their
+    // profile), never by the agent (memory_write guard). Injected into context so LaRuche
+    // "knows" the user. Single item, read directly (no frontmatter dependency).
     if let Ok(node) = memoire.read_node("system.user").await {
         if let Some(fiche) = node
             .get("items")
@@ -1717,51 +1717,51 @@ pub async fn boucle_react_memoire_multimodal(
             });
         }
     }
-    // Index des skills disponibles (toujours présent → le modèle connaît son répertoire complet).
-    // Catalogue skills DYNAMIQUE quand le contexte est étroit (même condition que la sélection
-    // dynamique des outils) : la DB sémantique ne liste que les skills pertinents + pointeur.
+    // Index of available skills (always present -> the model knows its full repertoire).
+    // DYNAMIC skill catalog when the context is narrow (same condition as dynamic tool
+    // selection): the semantic DB lists only the relevant skills + a pointer.
     let dyn_skills =
         cfg.dynamic_tool_selection || cfg.context_max_tokens <= cfg.dynamic_context_threshold;
     cfg.skills_index = construire_index_skills(&memoire, prompt_utilisateur, dyn_skills).await;
 
-    // Pré-récupération → contexte ÉPHÉMÈRE trailing (PAS dans le system prompt :
-    // garde le préfixe stable → cache de préfixe chaud, astuce third-party).
-    // Levier 1 (1re tranche) : working-set BUDGÉTÉ au lieu d'un top-N fixe.
+    // Pre-retrieval -> trailing EPHEMERAL context (NOT in the system prompt:
+    // keeps the prefix stable -> hot prefix cache, third-party trick).
+    // Lever 1 (first slice): BUDGETED working set instead of a fixed top-N.
     let ephemeral = match assembler_working_set(&memoire, prompt_utilisateur, 2400).await {
         Some(recall) => {
             let _ = tx.send(ChatEvent::Status {
-                message: format!("Mémoire : working-set {} car.", recall.len()),
+                message: format!("Memory: working set {} chars.", recall.len()),
             });
             Some(recall)
         }
         None => None,
     };
 
-    // Rappel automatique des skills appris (boucle d'apprentissage) : injectés dans le
-    // contexte trailing avec la mémoire, et signalés via SkillApplied.
+    // Automatic recall of learned skills (learning loop): injected into the
+    // trailing context with memory, and signaled via SkillApplied.
     let ephemeral =
         augmenter_ephemere_avec_skills(&memoire, prompt_utilisateur, ephemeral, tx).await;
 
-    // Date/heure courante injectée dans le contexte VOLATILE (trailing) — pas dans le préfixe
-    // stable, pour ne pas invalider le prefix-cache à chaque tour. Pratique standard : sans
-    // ça le LLM ne sait pas « quel jour on est » (crons, « demain », fraîcheur des souvenirs).
+    // Current date/time injected into the VOLATILE (trailing) context - not in the stable
+    // prefix, so the prefix cache isn't invalidated every turn. Standard practice: without
+    // it the LLM doesn't know "what day it is" (crons, "tomorrow", memory freshness).
     let ephemeral = {
-        let entete = format!("[Date et heure actuelles : {}]", horodatage_local());
+        let entete = format!("[Current date and time: {}]", horodatage_local());
         Some(match ephemeral {
             Some(e) => format!("{entete}\n{e}"),
             None => entete,
         })
     };
 
-    // Snapshot du nombre d'outils déjà appelés (pour mesurer la complexité de CE tour).
+    // Snapshot of the number of tools already called (to measure the complexity of THIS turn).
     let tools_avant = compter_tool_calls(session);
 
-    // Barrière « NOUVELLE MISSION » si la session a déjà de l'historique.
-    // Empêche le modèle de confondre la nouvelle demande avec l'ancien plan.
+    // "NEW MISSION" barrier if the session already has history.
+    // Prevents the model from confusing the new request with the old plan.
     let ephemeral = if tools_avant > 0 {
         let barrier = format!(
-            "[NOUVELLE MISSION — IGNORE le plan et les étapes précédentes. \
-             C'est une nouvelle tâche indépendante.]\n{}",
+            "[NEW MISSION - IGNORE the previous plan and steps. \
+             This is a new, independent task.]\n{}",
             ephemeral.clone().unwrap_or_default()
         );
         Some(barrier)
@@ -1769,7 +1769,7 @@ pub async fn boucle_react_memoire_multimodal(
         ephemeral
     };
 
-    // Boucle normale, mémoire injectée en contexte éphémère trailing (cœur inchangé).
+    // Normal loop, memory injected as trailing ephemeral context (core unchanged).
     let reponse = boucle_react_multimodal_ext(
         prompt_utilisateur,
         session,
@@ -1784,8 +1784,8 @@ pub async fn boucle_react_memoire_multimodal(
     )
     .await?;
 
-    // 3) Background review best-effort : la réponse est déjà rendue. Le reviewer ne reçoit
-    //    ni session ni registre d'Abeilles, seulement les accès mémoire/skill ci-dessous.
+    // 3) Best-effort background review: the response is already rendered. The reviewer receives
+    //    neither the session nor the Abeille registry, only the memory/skill accesses below.
     let n_outils_tour = compter_tool_calls(session).saturating_sub(tools_avant);
     let (user_owned, resp_owned, cfg_owned, mem_owned, tx_owned) = (
         prompt_utilisateur.to_string(),
@@ -1822,32 +1822,32 @@ struct MemFact {
     source: Option<String>,
 }
 
-/// Extrait le premier tableau JSON d'un texte (tolère le bavardage autour).
+/// Extract the first JSON array from a text (tolerates surrounding chatter).
 pub fn extraire_json_array(s: &str) -> Option<String> {
     let start = s.find('[')?;
     let end = s.rfind(']')?;
     (end > start).then(|| s[start..=end].to_string())
 }
 
-/// Post-curation : un appel LLM auxiliaire extrait les faits durables → mémoire.
-/// Famille de capacité d'un outil selon son origine (builtin/custom/mcp).
+/// Post-curation: an auxiliary LLM call extracts durable facts -> memory.
+/// Capability family of a tool based on its origin (builtin/custom/mcp).
 fn famille_capacite(origin: &str) -> &'static str {
     match origin {
         "custom" => "capacities.plugins",
         "mcp" => "capacities.mcp",
-        _ => "capacities.tools", // builtin + défaut
+        _ => "capacities.tools", // builtin + default
     }
 }
 
-/// Indexe (réconcilie) le registre d'outils dans la carte cognitive sous `capacities.*`,
-/// routé par origine : builtin→`capacities.tools`, custom→`capacities.plugins`, mcp→`capacities.mcp`.
-/// Incrémental : n'écrit que les outils absents. Appelé au démarrage ET au 1er tour de chat
-/// (filet), pour que tout nouvel outil du code remonte en mémoire.
+/// Index (reconcile) the tool registry into the cognitive map under `capacities.*`,
+/// routed by origin: builtin->`capacities.tools`, custom->`capacities.plugins`, mcp->`capacities.mcp`.
+/// Incremental: writes only the missing tools. Called at startup AND on the 1st chat turn
+/// (failsafe), so any new tool from the code surfaces in memory.
 pub async fn indexer_abeilles_memoire(
     registry: &AbeilleRegistry,
     memoire: &Arc<dyn MemoireCognitive>,
 ) -> Result<()> {
-    // Réconciliation INCRÉMENTALE : ids déjà indexés sous les 3 familles d'outils.
+    // INCREMENTAL reconciliation: ids already indexed under the 3 tool families.
     let mut deja: std::collections::HashSet<String> = std::collections::HashSet::new();
     for parent in ["capacities.tools", "capacities.plugins", "capacities.mcp"] {
         if let Ok(node) = memoire.read_node(parent).await {
@@ -1872,11 +1872,11 @@ pub async fn indexer_abeilles_memoire(
         let origin = tool["origin"].as_str().unwrap_or("builtin");
         let node_id = format!("{}.{name}", famille_capacite(origin));
         if deja.contains(&node_id) {
-            continue; // déjà indexé → pas de doublon
+            continue; // already indexed -> no duplicate
         }
         let description = tool["description"].as_str().unwrap_or("");
         let content = format!(
-            "Outil `{name}` ({origin}): {description}\nSchema: {}",
+            "Tool `{name}` ({origin}): {description}\nSchema: {}",
             serde_json::to_string(tool).unwrap_or_default()
         );
         let _ = memoire
@@ -1885,10 +1885,10 @@ pub async fn indexer_abeilles_memoire(
         ajoutes += 1;
     }
 
-    // Réconciliation des SUPPRESSIONS pour les familles VOLATILES (plugins/mcp) : pures projections
-    // du registry. Tout nœud `capacities.{plugins,mcp}.<name>` sans outil correspondant = capacité
-    // retirée (ex. plugin supprimé) → on l'enlève. Garde-fou : on ne réconcilie une famille QUE si
-    // le registry en contient au moins un (évite de tout purger au boot avant le chargement des MCP).
+    // Reconcile DELETIONS for VOLATILE families (plugins/mcp): pure projections
+    // of the registry. Any node `capacities.{plugins,mcp}.<name>` with no matching tool = a removed
+    // capability (e.g. deleted plugin) -> remove it. Guard: only reconcile a family IF
+    // the registry contains at least one (avoids purging everything at boot before MCPs load).
     let mut valides: std::collections::HashSet<String> = std::collections::HashSet::new();
     let (mut a_plugins, mut a_mcp) = (false, false);
     for tool in tools {
@@ -1917,7 +1917,7 @@ pub async fn indexer_abeilles_memoire(
                     }
                     if let Ok(r) = memoire.delete_node(id).await {
                         if let Some(orphan) = r.get("relocated_to").and_then(|v| v.as_str()) {
-                            let _ = memoire.delete_node(orphan).await; // hard-delete l'orphelin
+                            let _ = memoire.delete_node(orphan).await; // hard-delete the orphan
                         }
                     }
                 }
@@ -1931,7 +1931,7 @@ pub async fn indexer_abeilles_memoire(
                 MemoryItem::new(
                     "capacities.tools",
                     format!(
-                        "Index capacites LaRuche: {} outil(s) ({ajoutes} ajoute(s) ce demarrage).",
+                        "LaRuche capabilities index: {} tool(s) ({ajoutes} added this startup).",
                         tools.len()
                     ),
                 )
@@ -1942,8 +1942,8 @@ pub async fn indexer_abeilles_memoire(
     Ok(())
 }
 
-/// Fix C — valide un node_id avant écriture mémoire : non vide, sans '|' ni espace, dernier
-/// segment ≠ placeholder 'x', et hiérarchique (préfixe.nom — pas un nœud racine comme "system").
+/// Fix C - validates a node_id before a memory write: non-empty, no '|' or space, last
+/// segment != placeholder 'x', and hierarchical (prefix.name - not a root node like "system").
 pub fn node_id_valide(node_id: &str) -> bool {
     let id = node_id.trim();
     if id.is_empty() || id.contains('|') || id.contains(' ') || !id.contains('.') {
@@ -1959,19 +1959,19 @@ async fn curer_memoire(
     config: &EssaimConfig,
     memoire: &Arc<dyn MemoireCognitive>,
 ) -> Result<()> {
-    let sys = "Tu es un extracteur de mémoire. À partir de l'échange, renvoie UNIQUEMENT un \
-        tableau JSON des faits DURABLES à mémoriser (préférences stables, décisions, infos \
-        persistantes sur l'utilisateur ou les projets). Chaque élément : \
+    let sys = "You are a memory extractor. From the exchange, return ONLY a \
+        JSON array of the DURABLE facts to memorize (stable preferences, decisions, \
+        persistent info about the user or projects). Each element: \
         {\"node_id\":\"<prefixe>.<nom>\",\"content\":\"...\",\"confidence\":0.0-1.0,\"source\":\"...\"} \
-        où <prefixe> vaut people, projects ou decisions (ex. people.fabien, projects.laruche, \
-        decisions.archi). Le node_id ne doit contenir NI espace NI le caractere '|', \
-        et n'utilise JAMAIS 'x' comme nom (ce sont des exemples). \
-        'confidence': ton niveau de certitude (1.0 = certain, 0.5 = supposition). \
-        'source': d'où vient l'info (ex. 'user a dit', 'web_search', 'analyse'). \
-        Si rien de durable, renvoie []. Aucun texte hors du JSON.";
+        where <prefixe> is people, projects or decisions (e.g. people.fabien, projects.laruche, \
+        decisions.archi). The node_id must contain NEITHER a space NOR the character '|', \
+        and NEVER uses 'x' as a name (those are examples). \
+        'confidence': your certainty level (1.0 = certain, 0.5 = guess). \
+        'source': where the info comes from (e.g. 'user said', 'web_search', 'analysis'). \
+        If nothing durable, return []. No text outside the JSON.";
     let messages = vec![
         serde_json::json!({ "role": "system", "content": sys }),
-        serde_json::json!({ "role": "user", "content": format!("Utilisateur: {user}\nAssistant: {assistant}") }),
+        serde_json::json!({ "role": "user", "content": format!("User: {user}\nAssistant: {assistant}") }),
     ];
     let mut stream = provider_chat_stream(
         &config.provider,
@@ -1992,8 +1992,8 @@ async fn curer_memoire(
     if let Some(js) = extraire_json_array(&out) {
         if let Ok(items) = serde_json::from_str::<Vec<MemFact>>(&js) {
             for f in items {
-                // Fix C — garde-fou anti-pollution : rejette les node_id vides, les
-                // placeholders (people.x|projects.x|...), les '|'/espaces et les noms 'x'.
+                // Fix C - anti-pollution guard: reject empty node_ids, the
+                // placeholders (people.x|projects.x|...), '|'/spaces and the names 'x'.
                 if !node_id_valide(&f.node_id) || f.content.trim().is_empty() {
                     continue;
                 }
@@ -2011,8 +2011,8 @@ async fn curer_memoire(
     Ok(())
 }
 
-/// Vérifie si un nouveau fait contredit des faits existants en mémoire.
-/// Écrit une note sous `contradictions.*` si une contradiction est détectée.
+/// Checks whether a new fact contradicts existing facts in memory.
+/// Writes a note under `contradictions.*` if a contradiction is detected.
 pub async fn detecter_contradictions(
     nouveau_contenu: &str,
     memoire: &Arc<dyn MemoireCognitive>,
@@ -2057,8 +2057,8 @@ pub async fn detecter_contradictions(
                 .and_then(|v| v.as_str())
                 .unwrap_or("unknown");
             let contradiction = format!(
-                "CONTRADICTION DÉTECTÉE :\n- Ancien ({}): {existing_content}\n- Nouveau: {nouveau_contenu}\n\
-                 À résoudre : l'un des deux est incorrect ou contextuel.",
+                "CONTRADICTION DETECTED:\n- Old ({}): {existing_content}\n- New: {nouveau_contenu}\n\
+                 To resolve: one of the two is incorrect or contextual.",
                 node_id
             );
             let _ = memoire
@@ -2080,23 +2080,23 @@ pub async fn detecter_contradictions(
             tracing::warn!(
                 existing = existing_content,
                 nouveau = nouveau_contenu,
-                "Contradiction mémoire détectée"
+                "Memory contradiction detected"
             );
         }
     }
     Ok(())
 }
 
-/// Consolide UN nœud : fusionne/déduplique ses items en un ensemble minimal via le modèle aux,
-/// puis remplace (anciens **soft-deleted** → récupérables via l'audit). N'agit que s'il y a un
-/// vrai gain (moins d'items). Ignore `system.*`/`capacities.*` (gérés en item unique ailleurs).
+/// Consolidate ONE node: merge/dedupe its items into a minimal set via the aux model,
+/// then replace (old ones **soft-deleted** -> recoverable via the audit). Only acts if there's a
+/// real gain (fewer items). Skips `system.*`/`capacities.*` (handled as single items elsewhere).
 pub async fn consolider_node(
     memoire: &Arc<dyn MemoireCognitive>,
     config: &EssaimConfig,
     node_id: &str,
 ) -> Result<serde_json::Value> {
     if node_id.starts_with("system") || node_id.starts_with("capacities") {
-        return Ok(serde_json::json!({ "node_id": node_id, "skipped": "noeud systeme" }));
+        return Ok(serde_json::json!({ "node_id": node_id, "skipped": "system node" }));
     }
     let node = memoire.read_node(node_id).await?;
     let items: Vec<(String, String)> = node
@@ -2124,13 +2124,13 @@ pub async fn consolider_node(
         .map(|(i, (_, c))| format!("{}. {}", i + 1, c))
         .collect::<Vec<_>>()
         .join("\n");
-    let sys = "Tu consolides la memoire d'un noeud. On te donne une liste de faits/notes. \
-        Fusionne doublons et redondances, GARDE toute l'information distincte, reformule clairement. \
-        Renvoie UNIQUEMENT un tableau JSON d'items consolides: [{\"content\":\"...\"}]. \
-        Vise le minimum (souvent 1 a 3 pour une personne/projet/synthese). Aucun texte hors JSON.";
+    let sys = "You consolidate a node's memory. You are given a list of facts/notes. \
+        Merge duplicates and redundancies, KEEP all distinct information, rephrase clearly. \
+        Return ONLY a JSON array of consolidated items: [{\"content\":\"...\"}]. \
+        Aim for the minimum (often 1 to 3 for a person/project/synthesis). No text outside the JSON.";
     let messages = vec![
         serde_json::json!({ "role": "system", "content": sys }),
-        serde_json::json!({ "role": "user", "content": format!("Noeud: {node_id}\nItems:\n{liste}") }),
+        serde_json::json!({ "role": "user", "content": format!("Node: {node_id}\nItems:\n{liste}") }),
     ];
     let mut stream = provider_chat_stream(
         &config.provider,
@@ -2148,7 +2148,7 @@ pub async fn consolider_node(
         out.push_str(&chunk.text);
     }
     let Some(js) = extraire_json_array(&out) else {
-        return Ok(serde_json::json!({ "node_id": node_id, "error": "pas de JSON" }));
+        return Ok(serde_json::json!({ "node_id": node_id, "error": "no JSON" }));
     };
     let arr: Vec<serde_json::Value> = serde_json::from_str(&js).unwrap_or_default();
     let news: Vec<String> = arr
@@ -2160,7 +2160,7 @@ pub async fn consolider_node(
         })
         .filter(|s| !s.is_empty())
         .collect();
-    // Sécurité : on ne remplace QUE si vrai gain (sinon on ne touche à rien).
+    // Safety: only replace IF there's a real gain (otherwise touch nothing).
     if news.is_empty() || news.len() >= items.len() {
         return Ok(
             serde_json::json!({ "node_id": node_id, "items": items.len(), "unchanged": true }),
@@ -2177,8 +2177,8 @@ pub async fn consolider_node(
     Ok(serde_json::json!({ "node_id": node_id, "before": items.len(), "after": news.len() }))
 }
 
-/// Consolide la mémoire : repère les nœuds chargés (≥4 items, hors system/capacities) et les
-/// passe à `consolider_node`. Borné en nb de nœuds par run (coût LLM).
+/// Consolidate memory: spot loaded nodes (>=4 items, excluding system/capacities) and pass
+/// them to `consolider_node`. Bounded in node count per run (LLM cost).
 pub async fn consolider_memoire(
     memoire: &Arc<dyn MemoireCognitive>,
     config: &EssaimConfig,
@@ -2213,30 +2213,30 @@ async fn extraire_skill_memoire(
     tx: &tokio::sync::broadcast::Sender<ChatEvent>,
     n_outils: usize,
 ) -> Result<()> {
-    // Gating anti-bruit : skill seulement si trajectoire complexe (multi-outils) réussie.
+    // Anti-noise gating: skill only if a complex (multi-tool) trajectory succeeded.
     if !trajectoire_merite_skill(user, assistant, n_outils) {
         return Ok(());
     }
-    // Format UNIFIÉ avec skill_create (build_skill_okf) : type/name/description/tools + corps.
-    let sys = "Tu es un extracteur de skills. Si l'echange contient une procedure REUTILISABLE, \
-        renvoie UNIQUEMENT un document Markdown OKF avec ce frontmatter EXACT : \
-        ---\\ntype: skill\\nname: <slug-court>\\ndescription: <10-50 lettres, ultra-concise, \
-        explicite, commence par un verbe a l'infinitif>\\ntools: [outils utilisés]\\n--- \
-        puis un corps : '# Titre', '## Quand l'utiliser', '## Procedure' \
-        (etapes numerotees + commandes exactes), '## Pieges'. \
-        ATTENTION `description` : injectee dans le contexte du LLM a chaque tour \
-        — max 50 lettres, explicite (ex: « chercher des actus web »). \
-        ATTENTION `tools` : ne liste que des outils REELS de LaRuche \
+    // UNIFIED format with skill_create (build_skill_okf): type/name/description/tools + body.
+    let sys = "You are a skill extractor. If the exchange contains a REUSABLE procedure, \
+        return ONLY an OKF Markdown document with this EXACT frontmatter: \
+        ---\\ntype: skill\\nname: <short-slug>\\ndescription: <10-50 chars, ultra-concise, \
+        explicit, starts with a verb in the infinitive>\\ntools: [tools used]\\n--- \
+        then a body: '# Title', '## When to use it', '## Procedure' \
+        (numbered steps + exact commands), '## Pitfalls'. \
+        NOTE on `description`: injected into the LLM context every turn \
+        - max 50 chars, explicit (e.g. \\\"search web news\\\"). \
+        NOTE on `tools`: list only REAL LaRuche tools \
         (file_read, file_write, file_edit, shell_exec, execute_code, \
         run_script, web_search, web_deep_search, web_fetch, delegate, \
         memory_search, memory_write, cron_create, watcher_create, \
         submit_job, check_job_status, spawn_specialist). \
-        Si un outil necessaire n'existe pas, mets-le dans '## Pieges' comme \
-        « outil à créer : mon_script.py » mais PAS dans `tools`. \
-        Si rien de generalisable, renvoie NO_SKILL. Aucun texte hors du document.";
+        If a needed tool doesn't exist, put it in '## Pitfalls' as \
+        \\\"tool to create: my_script.py\\\" but NOT in `tools`. \
+        If nothing generalizable, return NO_SKILL. No text outside the document.";
     let messages = vec![
         serde_json::json!({ "role": "system", "content": sys }),
-        serde_json::json!({ "role": "user", "content": format!("Utilisateur: {user}\nAssistant: {assistant}") }),
+        serde_json::json!({ "role": "user", "content": format!("User: {user}\nAssistant: {assistant}") }),
     ];
     let mut stream = provider_chat_stream(
         &config.provider,
@@ -2266,7 +2266,7 @@ async fn extraire_skill_memoire(
         tracing::info!(
             item_id = %existing.item_id,
             node_id = %existing.node_id,
-            "skill OKF existant mis a jour"
+            "existing OKF skill updated"
         );
         return Ok(());
     }
@@ -2278,9 +2278,9 @@ async fn extraire_skill_memoire(
                 .with_tags(vec!["skill".to_string(), "okf".to_string()]),
         )
         .await;
-    // Boucle d'apprentissage : signale qu'un skill vient de naître (UI → toast + file de revue).
+    // Learning loop: signal that a skill was just born (UI -> toast + review queue).
     let _ = tx.send(ChatEvent::SkillProposed { name: name.clone() });
-    tracing::info!(skill = %name, "skill OKF proposé (auto-apprentissage)");
+    tracing::info!(skill = %name, "OKF skill proposed (auto-learning)");
     Ok(())
 }
 
@@ -2296,15 +2296,15 @@ async fn trouver_skill_existant(
     name: &str,
     okf: &str,
 ) -> Result<Option<SkillHit>> {
-    // Étape 1 : match EXACT sur le node_id.
+    // Step 1: EXACT match on the node_id.
     if let Ok(node) = memoire.read_node(node_id).await {
         if let Some(hit) = skill_hit_from_items(node["items"].as_array()) {
             return Ok(Some(hit));
         }
     }
 
-    // Étape 2 : fallback recherche sémantique mais vérifie que le node_id
-    // match EXACTEMENT. Sans ça, "web-recherche-profonde" irait sous "web-research".
+    // Step 2: semantic search fallback but verify the node_id
+    // matches EXACTLY. Without this, "web-recherche-profonde" would go under "web-research".
     let description = yaml_frontmatter_field(okf, "description").unwrap_or_default();
     let query = format!("capacities.skills {name} {description}");
     let pack = memoire
@@ -2318,7 +2318,7 @@ async fn trouver_skill_existant(
         .await?;
     match skill_hit_from_items(pack.raw["items"].as_array()) {
         Some(hit) if hit.node_id == node_id => Ok(Some(hit)),
-        _ => Ok(None), // Pas de match exact → nouveau skill, nouveau nœud
+        _ => Ok(None), // No exact match -> new skill, new node
     }
 }
 
@@ -2374,8 +2374,8 @@ fn yaml_frontmatter_field(markdown: &str, key: &str) -> Option<String> {
     let rest = markdown.trim_start().strip_prefix("---")?;
     let end = rest.find("\n---")?;
     for line in rest[..end].lines() {
-        // Ignore les lignes sans `:` (la 1re ligne après `---` est vide). NE PAS `?` ici : ça
-        // faisait échouer TOUT le parsing dès la ligne vide → name/description toujours None.
+        // Ignore lines without `:` (the 1st line after `---` is empty). Do NOT `?` here: it
+        // made ALL parsing fail at the empty line -> name/description always None.
         let Some((k, v)) = line.split_once(':') else {
             continue;
         };
@@ -2386,30 +2386,30 @@ fn yaml_frontmatter_field(markdown: &str, key: &str) -> Option<String> {
     None
 }
 
-/// Récupère les skills OKF pertinents pour la requête (rappel automatique de la
-/// boucle d'apprentissage) : items sous `capacities.skills.*` (frontmatter `type: skill`)
-/// proches du prompt utilisateur.
-/// Levier 2 — récupère les NOMS d'Abeilles pertinentes pour l'intention, depuis la carte
-/// cognitive (`tools.abeilles.*`, indexées par `indexer_abeilles_memoire`). Vide si rien de
-/// pertinent (ex. salutation) → seul le noyau sera injecté.
-/// Outils à injecter d'office, indépendamment du retrieval sémantique (qui rate sur FR↔EN
-/// et les accents). (1) Tout outil dont le **nom exact** apparaît dans le prompt
-/// (« utilise memory_tree »). (2) La **boîte à outils mémoire** dès que l'intention parle de
-/// voir/ranger/nettoyer/fusionner la mémoire ou les nœuds. Ne renvoie que des noms réellement
-/// enregistrés.
+/// Retrieve the OKF skills relevant to the query (automatic recall of the
+/// learning loop): items under `capacities.skills.*` (frontmatter `type: skill`)
+/// close to the user prompt.
+/// Lever 2 - retrieve the NAMES of Abeilles relevant to the intent, from the cognitive
+/// map (`tools.abeilles.*`, indexed by `indexer_abeilles_memoire`). Empty if nothing is
+/// relevant (e.g. a greeting) -> only the core is injected.
+/// Tools to inject unconditionally, regardless of semantic retrieval (which misses on FR<->EN
+/// and accents). (1) Any tool whose **exact name** appears in the prompt
+/// ("use memory_tree"). (2) The **memory toolbox** whenever the intent is about
+/// viewing/organizing/cleaning/merging memory or nodes. Returns only actually
+/// registered names.
 fn outils_forces_par_intention(registry: &AbeilleRegistry, prompt: &str) -> Vec<String> {
     let p = prompt.to_lowercase();
     let noms = registry.noms();
     let mut forces: Vec<String> = Vec::new();
 
-    // (1) Outils cités explicitement par leur nom.
+    // (1) Tools cited explicitly by name.
     for nom in &noms {
         if p.contains(nom.to_lowercase().as_str()) {
             forces.push(nom.clone());
         }
     }
 
-    // (2) Intention de gestion de la mémoire cognitive.
+    // (2) Cognitive memory management intent.
     const MOTS_MEMOIRE: &[&str] = &[
         "memoire",
         "mémoire",
@@ -2424,7 +2424,7 @@ fn outils_forces_par_intention(registry: &AbeilleRegistry, prompt: &str) -> Vec<
         "nettoy",
         "fusionn",
         "organise",
-        "rganise", // (ré)organise / reorganise
+        "rganise", // (re)organise / reorganise
         "souvenir",
     ];
     if MOTS_MEMOIRE.iter().any(|m| p.contains(m)) {
@@ -2447,7 +2447,7 @@ fn outils_forces_par_intention(registry: &AbeilleRegistry, prompt: &str) -> Vec<
         }
     }
 
-    // (3) Intention de CRÉATION de capacité (skill / outil / plugin) → boîte de forge.
+    // (3) Capability CREATION intent (skill / tool / plugin) -> forge box.
     const MOTS_FORGE: &[&str] = &[
         "skill",
         "outil",
@@ -2482,14 +2482,14 @@ fn outils_forces_par_intention(registry: &AbeilleRegistry, prompt: &str) -> Vec<
     forces
 }
 
-/// Horodatage local lisible pour injection dans le prompt (ex. « 21/06/2026 14:32 »).
-/// Format neutre (pas de noms de jour/mois → évite l'anglais dans un prompt FR).
+/// Readable local timestamp for prompt injection (e.g. "21/06/2026 14:32").
+/// Neutral format (no day/month names -> avoids English in a FR prompt).
 fn horodatage_local() -> String {
     chrono::Local::now().format("%d/%m/%Y %H:%M").to_string()
 }
 
-/// Sépare le frontmatter OKF (`--- ... ---`) du corps et lit le flag `enabled`
-/// (défaut activé). Renvoie `(actif, corps)`.
+/// Separate the OKF frontmatter (`--- ... ---`) from the body and read the `enabled` flag
+/// (default on). Returns `(active, body)`.
 fn parser_frontmatter_enabled(content: &str) -> (bool, String) {
     let c = content.trim_start();
     if let Some(rest) = c.strip_prefix("---") {
@@ -2506,8 +2506,8 @@ fn parser_frontmatter_enabled(content: &str) -> (bool, String) {
     (true, content.to_string())
 }
 
-/// Charge un document système (`system.prompt`, `system.soul`) depuis la carte cognitive :
-/// prend le dernier item du nœud, lit son frontmatter. Renvoie le corps si activé et non vide.
+/// Load a system document (`system.prompt`, `system.soul`) from the cognitive map:
+/// take the node's last item, read its frontmatter. Returns the body if enabled and non-empty.
 pub(crate) async fn charger_doc_systeme(
     memoire: &Arc<dyn MemoireCognitive>,
     node_id: &str,
@@ -2531,8 +2531,8 @@ async fn recuperer_abeilles_pertinentes(
     query: &str,
     limit: usize,
 ) -> Vec<String> {
-    // Scopé au sous-arbre des outils pour que les abeilles ne soient pas évincées par le
-    // contenu mémoire (notes, projets…) dans le classement.
+    // Scoped to the tools subtree so the abeilles aren't crowded out by
+    // memory content (notes, projects...) in the ranking.
     let pack = match memoire
         .search(
             &format!("capacities {query}"),
@@ -2554,7 +2554,7 @@ async fn recuperer_abeilles_pertinentes(
                 .or_else(|| item.get("node"))
                 .and_then(serde_json::Value::as_str)
                 .unwrap_or("");
-            // Outils = familles capacities.tools / capacities.plugins / capacities.mcp (pas skills).
+            // Tools = families capacities.tools / capacities.plugins / capacities.mcp (not skills).
             let name = [
                 "capacities.tools.",
                 "capacities.plugins.",
@@ -2575,11 +2575,11 @@ async fn recuperer_abeilles_pertinentes(
     out
 }
 
-/// Porte lexicale : un skill rappelé par fuzzy match n'est injecté que si la requête partage
-/// un token significatif (≥4 car.) avec son nom ou sa description. Empêche un skill hors-sujet
-/// d'être injecté sur une requête vague (ex. `google-workspace` sur « et sur le 6? »). Les
-/// recherches web passent par le chemin FORCÉ (`intention_recherche`) : cette porte ne les
-/// pénalise donc pas.
+/// Lexical gate: a skill recalled by fuzzy match is injected only if the query shares
+/// a significant token (>=4 chars) with its name or description. Prevents an off-topic skill
+/// from being injected on a vague query (e.g. `google-workspace` on "and about the 6?"). Web
+/// searches go through the FORCED path (`intention_recherche`): this gate doesn't
+/// penalize them.
 fn skill_pertinent_lexical(query: &str, name: &str, content: &str) -> bool {
     let q = query.to_lowercase();
     let tokens: Vec<&str> = q
@@ -2587,17 +2587,17 @@ fn skill_pertinent_lexical(query: &str, name: &str, content: &str) -> bool {
         .filter(|t| t.chars().count() >= 4)
         .collect();
     if tokens.is_empty() {
-        return false; // requête trop vague → aucun skill fuzzy
+        return false; // query too vague -> no fuzzy skill
     }
     let desc = yaml_frontmatter_field(content, "description").unwrap_or_default();
     let haystack = format!("{name} {desc}").to_lowercase();
     tokens.iter().any(|t| haystack.contains(t))
 }
 
-/// Réduit une description de skill à un résumé court et lisible pour l'index :
-/// 1) motif third-party `Résumé — détails` → garde le résumé (avant le tiret cadratin) ;
-/// 2) sinon, première phrase si elle tient ;
-/// 3) plafond mou ~80 car., coupé au mot (jamais en plein milieu), `…` si tronqué.
+/// Reduce a skill description to a short, readable summary for the index:
+/// 1) third-party pattern `Summary — details` -> keep the summary (before the em dash);
+/// 2) otherwise, the first sentence if it fits;
+/// 3) soft cap ~80 chars, cut at the word boundary (never mid-word), `…` if truncated.
 fn resumer_description(desc: &str) -> String {
     let d = desc.split_whitespace().collect::<Vec<_>>().join(" ");
     let base = if let Some(i) = d.find(" — ") {
@@ -2624,11 +2624,11 @@ fn resumer_description(desc: &str) -> String {
     format!("{cut}…")
 }
 
-/// Index COMPACT de TOUS les skills disponibles (`nom — description`), toujours injecté dans le
-/// préfixe stable. Sans lui, les skills importés sont invisibles au modèle (il n'en voit un que
-/// par fuzzy-recall). Le corps complet reste à la demande via `skill_view(nom)` — progressive
-/// disclosure façon third-party. Construit en UN seul `search` (query-indépendante : tous les skills
-/// contiennent `type: skill`).
+/// COMPACT index of ALL available skills (`name - description`), always injected in the
+/// stable prefix. Without it, imported skills are invisible to the model (it only sees one
+/// via fuzzy recall). The full body stays on demand via `skill_view(name)` - progressive
+/// disclosure third-party-style. Built in ONE `search` (query-independent: all skills
+/// contain `type: skill`).
 async fn construire_index_skills(
     memoire: &Arc<dyn MemoireCognitive>,
     query: &str,
@@ -2664,11 +2664,11 @@ async fn construire_index_skills(
         if !content.contains("type: skill") {
             continue;
         }
-        // Nom affiché = SLUG (suffixe node_id) : c'est l'identifiant que `skill_view(nom)` résout.
-        // (Le nom du frontmatter peut différer, ex. `arxiv-search` vs nœud `arxiv_search`.)
+        // Displayed name = SLUG (node_id suffix): the identifier that `skill_view(name)` resolves.
+        // (The frontmatter name may differ, e.g. `arxiv-search` vs node `arxiv_search`.)
         let name = node_id.trim_start_matches("capacities.skills.").to_string();
         if name.is_empty() || name.contains('.') {
-            continue; // skills directs seulement
+            continue; // direct skills only
         }
         if !vus.insert(name.clone()) {
             continue;
@@ -2684,10 +2684,10 @@ async fn construire_index_skills(
     let total = lignes.len();
     lignes.sort();
 
-    // GROS CONTEXTE (dynamic=false) : catalogue COMPLET (préfixe stable → cacheable).
-    // PETIT CONTEXTE (dynamic=true) : la DB sémantique surface les skills PERTINENTS seulement
-    // (cohérent avec la sélection dynamique des outils), + pointeur `skill_list` pour le reste.
-    // Pour du smalltalk → 0 skill listé, juste le pointeur. C'est ici qu'on « exploite la DB ».
+    // LARGE CONTEXT (dynamic=false): FULL catalog (stable prefix -> cacheable).
+    // SMALL CONTEXT (dynamic=true): the semantic DB surfaces only the RELEVANT skills
+    // (consistent with dynamic tool selection), + a `skill_list` pointer for the rest.
+    // For smalltalk -> 0 skills listed, just the pointer. This is where we "leverage the DB".
     if dynamic {
         let q = query.split("[SYSTEM]").next().unwrap_or(query).to_lowercase();
         let toks: Vec<&str> = q
@@ -2711,7 +2711,7 @@ async fn construire_index_skills(
         let mut out = String::from("## Available skills\n\n");
         if pertinents.is_empty() {
             out.push_str(&format!(
-                "{total} reusable skill procedures are available — call `skill_list` to browse them \
+                "{total} reusable skill procedures are available - call `skill_list` to browse them \
                  or `skill_view(name)` to read one.\n\n"
             ));
         } else {
@@ -2722,13 +2722,13 @@ async fn construire_index_skills(
                 if sk.1.is_empty() {
                     out.push_str(&format!("- {}\n", sk.0));
                 } else {
-                    out.push_str(&format!("- {} — {}\n", sk.0, sk.1));
+                    out.push_str(&format!("- {} - {}\n", sk.0, sk.1));
                 }
             }
             let reste = total.saturating_sub(pertinents.len());
             if reste > 0 {
                 out.push_str(&format!(
-                    "(+{reste} other skills — `skill_list` to browse, `skill_view(name)` to read.)\n"
+                    "(+{reste} other skills - `skill_list` to browse, `skill_view(name)` to read.)\n"
                 ));
             }
             out.push('\n');
@@ -2744,7 +2744,7 @@ async fn construire_index_skills(
         if d.is_empty() {
             out.push_str(&format!("- {n}\n"));
         } else {
-            out.push_str(&format!("- {n} — {d}\n"));
+            out.push_str(&format!("- {n} - {d}\n"));
         }
     }
     out.push('\n');
@@ -2793,7 +2793,7 @@ async fn recuperer_skills_pertinents(
             if out.iter().any(|(n, _)| n == &name) {
                 continue;
             }
-            // Porte de pertinence : ignore les matches fuzzy hors-sujet (bruit sur requête vague).
+            // Relevance gate: ignore off-topic fuzzy matches (noise on a vague query).
             if !skill_pertinent_lexical(query, &name, content) {
                 continue;
             }
@@ -2806,8 +2806,8 @@ async fn recuperer_skills_pertinents(
     out
 }
 
-/// Formate les skills rappelés en tête du contexte trailing et émet `SkillApplied`
-/// pour chacun. Pur (testable sans backend ni LLM).
+/// Format the recalled skills at the head of the trailing context and emit `SkillApplied`
+/// for each. Pure (testable without backend or LLM).
 fn formater_et_signaler_skills(
     skills: &[(String, String)],
     ephemeral: Option<String>,
@@ -2816,19 +2816,19 @@ fn formater_et_signaler_skills(
     if skills.is_empty() {
         return ephemeral;
     }
-    // Budget par skill : les skills third-party importés peuvent peser 10-20 Ko. Injecter le corps
-    // complet noierait le working-set (vu en prod : `third-party agent` ~15 Ko sur une requête
-    // "world models"). On cape à ~1600 caractères + pointeur skill_view pour le détail (progressive
-    // disclosure façon third-party : le LLM lit le résumé, et appelle skill_view s'il a besoin de tout).
+    // Per-skill budget: imported third-party skills can weigh 10-20 KB. Injecting the full
+    // body would drown the working set (seen in prod: `third-party agent` ~15 KB on a
+    // "world models" query). Cap at ~1600 chars + a skill_view pointer for detail (progressive
+    // disclosure third-party-style: the LLM reads the summary and calls skill_view if it needs everything).
     const BUDGET_SKILL: usize = 1600;
-    let mut bloc = String::from("# Compétences apprises applicables à cette tâche\n\n");
+    let mut bloc = String::from("# Learned skills applicable to this task\n\n");
     for (name, body) in skills {
         let _ = tx.send(ChatEvent::SkillApplied { name: name.clone() });
         let nom = name.trim();
         let corps_complet = body.trim();
         let corps = if corps_complet.chars().count() > BUDGET_SKILL {
             let tronque: String = corps_complet.chars().take(BUDGET_SKILL).collect();
-            format!("{tronque}\n\n… (tronqué — `skill_view(\"{nom}\")` pour la procédure complète)")
+            format!("{tronque}\n\n… (truncated - `skill_view(\"{nom}\")` for the full procedure)")
         } else {
             corps_complet.to_string()
         };
@@ -2840,7 +2840,7 @@ fn formater_et_signaler_skills(
     })
 }
 
-/// Intention de recherche web (déclenche le skill `web_research` d'office).
+/// Web search intent (triggers the `web_research` skill unconditionally).
 fn intention_recherche(query: &str) -> bool {
     let p = query.to_lowercase();
     const MOTS: &[&str] = &[
@@ -2863,7 +2863,7 @@ fn intention_recherche(query: &str) -> bool {
     MOTS.iter().any(|m| p.contains(m))
 }
 
-/// Charge le corps OKF d'un skill (dernier item `type: skill` du nœud).
+/// Load a skill's OKF body (last `type: skill` item of the node).
 async fn charger_skill_corps(memoire: &Arc<dyn MemoireCognitive>, node_id: &str) -> Option<String> {
     let node = memoire.read_node(node_id).await.ok()?;
     let items = node.get("items")?.as_array()?;
@@ -2875,11 +2875,11 @@ async fn charger_skill_corps(memoire: &Arc<dyn MemoireCognitive>, node_id: &str)
         .map(|c| c.to_string())
 }
 
-/// Rappel automatique : cherche les skills pertinents, les injecte dans le contexte
-/// éphémère trailing et les signale. Sur une intention de recherche, FORCE le skill
-/// `web_research` (sinon le réflexe « web_deep_search en boucle » l'emporte).
-/// Vrai si le message est du smalltalk (salutation/remerciement/« test »…) — aucun corps de skill
-/// ne doit être injecté (le catalogue `## Available skills` suffit, `skill_view` à la demande).
+/// Automatic recall: find the relevant skills, inject them into the trailing
+/// ephemeral context and signal them. On a search intent, FORCE the `web_research`
+/// skill (otherwise the "web_deep_search in a loop" reflex wins).
+/// True if the message is smalltalk (greeting/thanks/"test"...) - no skill body
+/// should be injected (the `## Available skills` catalog suffices, `skill_view` on demand).
 fn requete_triviale(q: &str) -> bool {
     let q = q.trim().to_lowercase();
     let toks: Vec<&str> = q
@@ -2900,10 +2900,10 @@ async fn augmenter_ephemere_avec_skills(
     ephemeral: Option<String>,
     tx: &tokio::sync::broadcast::Sender<ChatEvent>,
 ) -> Option<String> {
-    // La requête de pertinence = le VRAI message user, SANS le suffixe `[SYSTEM] …` ajouté par le
-    // canal (il contient « planifier/surveiller/chercher » qui faisaient matcher cron_manager et
-    // force-injecter web_research À CHAQUE TOUR = gâchis de contexte). Et aucun corps de skill pour
-    // du smalltalk : le catalogue de noms+descriptions suffit, le modèle fait `skill_view` au besoin.
+    // The relevance query = the REAL user message, WITHOUT the `[SYSTEM] ...` suffix added by the
+    // channel (it contains "plan/monitor/search" which matched cron_manager and
+    // force-injected web_research EVERY TURN = wasted context). And no skill body for
+    // smalltalk: the names+descriptions catalog suffices, the model uses `skill_view` as needed.
     let query = query.split("[SYSTEM]").next().unwrap_or(query).trim();
     if requete_triviale(query) {
         return ephemeral;
@@ -2917,7 +2917,7 @@ async fn augmenter_ephemere_avec_skills(
     formater_et_signaler_skills(&skills, ephemeral, tx)
 }
 
-/// Compte les appels d'outils enregistrés dans la session.
+/// Count the tool calls recorded in the session.
 fn compter_tool_calls(session: &Session) -> usize {
     session
         .messages
@@ -2926,9 +2926,9 @@ fn compter_tool_calls(session: &Session) -> usize {
         .count()
 }
 
-/// Trajectoire « complexe réussie » : au moins 2 outils enchaînés dans le tour et une
-/// réponse non triviale. C'est la condition pour qu'un skill mérite d'être extrait
-/// (un skill = une procédure réutilisable, donc typiquement multi-étapes).
+/// "Successful complex" trajectory: at least 2 tools chained in the turn and a
+/// non-trivial response. This is the condition for a skill to be worth extracting
+/// (a skill = a reusable procedure, so typically multi-step).
 fn trajectoire_merite_skill(user: &str, reponse: &str, n_outils: usize) -> bool {
     n_outils >= 2 && user.trim().len() >= 12 && reponse.trim().len() >= 120
 }
@@ -2945,15 +2945,15 @@ mod apprentissage_tests {
             "---\ntype: skill\nname: veille-ia\n---\n## Step: utilise web_deep_search".to_string(),
         )];
         let out = formater_et_signaler_skills(&skills, Some("souvenir X".into()), &tx)
-            .expect("contexte non vide quand un skill est rappelé");
-        assert!(out.contains("## Skill: veille-ia"), "skill injecté");
+            .expect("non-empty context when a skill is recalled");
+        assert!(out.contains("## Skill: veille-ia"), "skill injected");
         assert!(
             out.contains("souvenir X"),
-            "mémoire conservée après le bloc skills"
+            "memory preserved after the skills block"
         );
         match rx.try_recv() {
             Ok(ChatEvent::SkillApplied { name }) => assert_eq!(name, "veille-ia"),
-            other => panic!("attendu SkillApplied, eu {other:?}"),
+            other => panic!("expected SkillApplied, got {other:?}"),
         }
     }
 
@@ -2969,25 +2969,25 @@ mod apprentissage_tests {
 
     #[test]
     fn gating_trajectoire_anti_bruit() {
-        // Sans outil → jamais de skill, même avec une réponse longue.
+        // No tool -> never a skill, even with a long response.
         assert!(!trajectoire_merite_skill(
             "une demande assez longue",
             &"x".repeat(250),
             0
         ));
-        // Un seul outil → trajectoire trop simple pour un skill.
+        // A single tool -> trajectory too simple for a skill.
         assert!(!trajectoire_merite_skill(
             "une demande assez longue",
             &"x".repeat(250),
             1
         ));
-        // ≥2 outils enchaînés + réponse substantielle → skill mérité.
+        // >=2 tools chained + substantial response -> skill warranted.
         assert!(trajectoire_merite_skill(
             "une demande assez longue",
             &"x".repeat(250),
             2
         ));
-        // 2 outils mais réponse triviale → non.
+        // 2 tools but trivial response -> no.
         assert!(!trajectoire_merite_skill("ok", "court", 2));
     }
 }
@@ -3034,10 +3034,10 @@ pub async fn boucle_react_multimodal(
     .await
 }
 
-/// The main ReAct loop — inspired by third-party's agent architecture.
-/// Supporte le multimodal, l'approbation, et un **contexte éphémère trailing**
-/// (mémoire) injecté APRÈS l'historique : le system prompt (préfixe) reste stable
-/// → cache de préfixe amont chaud (astuce third-party `system_prompt.py`).
+/// The main ReAct loop - inspired by third-party's agent architecture.
+/// Supports multimodal, approval, and a **trailing ephemeral context**
+/// (memory) injected AFTER the history: the system prompt (prefix) stays stable
+/// -> hot upstream prefix cache (third-party `system_prompt.py` trick).
 pub async fn boucle_react_multimodal_ext(
     prompt_utilisateur: &str,
     session: &mut Session,
@@ -3050,9 +3050,9 @@ pub async fn boucle_react_multimodal_ext(
     ephemeral_context: Option<String>,
     memoire: Option<Arc<dyn laruche_memoire::MemoireCognitive>>,
 ) -> Result<String> {
-    // Cohabitation : moteur ReAct « butinage » (nouveau) activable par flag, sans toucher
-    // au node. Les attachments multimodaux (images multiples + audio) sont transmis au pont.
-    // À défaut de flag, on garde l'ancien moteur ci-dessous.
+    // Cohabitation: "butinage" ReAct engine (new) enabled by flag, without touching
+    // the node. Multimodal attachments (multiple images + audio) are forwarded to the bridge.
+    // Without the flag, keep the old engine below.
     if std::env::var("RUCHE_MOTEUR").as_deref() == Ok("butinage") {
         return crate::butinage_pont::executer(
             prompt_utilisateur,
@@ -3072,7 +3072,7 @@ pub async fn boucle_react_multimodal_ext(
     session.ajouter_user_multimodal(prompt_utilisateur, attachments);
 
     let tool_schema = schema_outils_pour_prompt(registry, config, prompt_utilisateur);
-    // Tableau d'outils natifs pour l'API (format OpenAI/Anthropic)
+    // Native tools array for the API (OpenAI/Anthropic format)
     let native_tools: Vec<serde_json::Value> = match &tool_schema {
         serde_json::Value::Array(arr) => arr.clone(),
         _ => vec![],
@@ -3087,25 +3087,25 @@ pub async fn boucle_react_multimodal_ext(
         .map(|a| a.iter().filter_map(|t| t["name"].as_str()).collect())
         .unwrap_or_default();
     let mut capability_index = build_capability_index(registry, &exclus_idx);
-    // Ajoute l'index des skills (s'il a été construit par le caller mémoire) au catalogue stable.
+    // Add the skills index (if built by the memory caller) to the stable catalog.
     if let Some(sk) = config.skills_index.as_deref() {
         capability_index.push_str(sk);
     }
-    // Ruches du mesh joignables → l'agent sait qui contacter via `mesh_send`.
+    // Reachable mesh hives -> the agent knows who to contact via `mesh_send`.
     if let Some(peers) = config
         .mesh_peers_hint
         .as_deref()
         .filter(|s| !s.trim().is_empty())
     {
         capability_index.push_str(&format!(
-            "\n## Ruches du mesh joignables\nTu peux leur envoyer un message avec `mesh_send(to_id, text)` :\n{peers}\n"
+            "\n## Reachable mesh hives\nYou can send them a message with `mesh_send(to_id, text)`:\n{peers}\n"
         ));
     }
     let system_prompt = build_system_prompt(
-        // Robustesse ReAct : même si les outils natifs sont envoyés via l'API (`tools:`),
-        // on garde le protocole texte dans le prompt. Certains providers compatibles OpenAI
-        // ou modèles locaux ignorent/ratent les tool calls natifs et émettent alors du texte
-        // du type `tool_call{...}`. Le schéma texte sert de rail de sécurité/fallback.
+        // ReAct robustness: even though native tools are sent via the API (`tools:`),
+        // keep the text protocol in the prompt. Some OpenAI-compatible providers
+        // or local models ignore/miss native tool calls and then emit text
+        // like `tool_call{...}`. The text schema serves as a safety/fallback rail.
         &tool_schema,
         config.system_prompt_override.as_deref(),
         config.behavior_override.as_deref(),
@@ -3118,28 +3118,28 @@ pub async fn boucle_react_multimodal_ext(
     let mut current_model = config.model.clone();
     let mut failover_attempted = false;
     let mut max_output_recovery_count = 0usize;
-    // Auto-continuation : quand un plan a des tâches non terminées et que le modèle
-    // s'arrête en narrant l'étape suivante (sans appeler d'outil), on relance tout
-    // seul au lieu d'exiger un "continue" de l'utilisateur. Borné pour la sûreté.
+    // Auto-continuation: when a plan has unfinished tasks and the model
+    // stops while narrating the next step (without calling a tool), restart on
+    // its own instead of requiring a "continue" from the user. Bounded for safety.
     let mut last_plan: Vec<PlanItem> = Vec::new();
     let mut auto_continue_count = 0usize;
-    // Fix B — borné à 6 (était 12) : évite que l'agent sur-planifie en ~12 étapes et
-    // boucle en deep-research bien après avoir la réponse. 6 auto-continuations suffisent
-    // pour une tâche multi-étapes légitime sans runaway.
+    // Fix B - bounded to 6 (was 12): prevents the agent from over-planning in ~12 steps and
+    // looping in deep-research long after having the answer. 6 auto-continuations suffice
+    // for a legitimate multi-step task without runaway.
     const AUTO_CONTINUE_MAX: usize = 20;
-    // En mode recherche longue explicite, on refuse les conclusions négatives trop tôt.
-    // Ce seuil force plusieurs stratégies de recherche indépendantes avant d'accepter
-    // un « rien trouvé ». Monte-le (30/60/120) pour des missions de plusieurs heures.
+    // In explicit long-search mode, reject negative conclusions too early.
+    // This threshold forces several independent search strategies before accepting
+    // a "nothing found". Raise it (30/60/120) for multi-hour missions.
     const MIN_DEEP_RESEARCH_WEB_CALLS: usize = 12;
-    // Garde-fou anti-boucle (astuce third-party `tool_guardrails`) : compte les appels d'outils
-    // identiques (nom+args) pour avertir puis stopper si le modèle tourne en rond.
+    // Anti-loop guard (third-party `tool_guardrails` trick): count identical tool calls
+    // (name+args) to warn then stop if the model goes in circles.
     let mut tool_call_counts: std::collections::HashMap<String, u32> =
         std::collections::HashMap::new();
-    // Compteur par NOM d'outil : catche un même outil rappelé en boucle (même avec args différents).
+    // Per-tool-NAME counter: catches the same tool recalled in a loop (even with different args).
     let mut tool_name_counts: std::collections::HashMap<String, u32> =
         std::collections::HashMap::new();
-    // Trace minimale de preuve : évite qu'une tâche web soit déclarée terminée alors
-    // qu'aucun outil réseau n'a réellement été appelé.
+    // Minimal proof trace: prevents a web task from being declared done when
+    // no network tool was actually called.
     let mut web_tool_count: usize = 0;
     let mut thoughts = ThoughtStreamer::default();
     emit_thought(
@@ -3148,13 +3148,13 @@ pub async fn boucle_react_multimodal_ext(
         &mut thoughts,
         "orientation",
         "status",
-        "J'oriente la requete et prepare le contexte utile.",
+        "Orienting the request and preparing the useful context.",
     );
 
-    // FatigueMonitor — détection de bouclage et consolidation cognitive
+    // FatigueMonitor - loop detection and cognitive consolidation
     let mut fatigue = crate::fatigue::FatigueMonitor::new();
     let task_id = uuid::Uuid::new_v4().to_string();
-    // Budget warnings déjà émis (pour ne pas spammer à chaque itération)
+    // Budget warnings already emitted (to avoid spamming every iteration)
     let mut budget_warn_sent = false;
     let mut budget_critical_sent = false;
 
@@ -3168,10 +3168,10 @@ pub async fn boucle_react_multimodal_ext(
                     continue;
                 }
                 session.ajouter_user(&format!(
-                    "[Steering utilisateur injecte pendant le run]\n{text}"
+                    "[User steering injected during the run]\n{text}"
                 ));
                 let _ = tx.send(ChatEvent::Status {
-                    message: "Steering utilisateur injecte dans la boucle.".to_string(),
+                    message: "User steering injected into the loop.".to_string(),
                 });
             }
         }
@@ -3198,7 +3198,7 @@ pub async fn boucle_react_multimodal_ext(
 
         if iteration > 0 {
             let _ = tx.send(ChatEvent::Status {
-                message: format!("Réflexion… (étape {})", iteration + 1),
+                message: format!("Thinking… (step {})", iteration + 1),
             });
             emit_thought(
                 tx,
@@ -3206,29 +3206,29 @@ pub async fn boucle_react_multimodal_ext(
                 &mut thoughts,
                 "orientation",
                 "status",
-                format!("Nouvelle passe de raisonnement, etape {}.", iteration + 1),
+                format!("New reasoning pass, step {}.", iteration + 1),
             );
         }
 
-        // Build messages for LLM. Le contexte mémoire éphémère est poussé en TRAILING
-        // (après l'historique) pour ne pas modifier le préfixe stable → cache chaud.
+        // Build messages for LLM. The ephemeral memory context is pushed TRAILING
+        // (after the history) so the stable prefix isn't modified -> hot cache.
         let mut messages = session.build_ollama_messages(&system_prompt);
         if let Some(ctx) = &ephemeral_context {
             messages.push(serde_json::json!({
                 "role": "system",
-                "content": format!("[Mémoire cognitive — souvenirs pertinents pour cette requête, utilise-les si utile]\n{ctx}")
+                "content": format!("[Cognitive memory - memories relevant to this request, use them if useful]\n{ctx}")
             }));
         }
 
-        // Budget warnings progressifs (évite de spammer à chaque tour)
+        // Progressive budget warnings (avoids spamming every turn)
         if budget_status.ratio >= 0.85 && !budget_critical_sent {
             budget_critical_sent = true;
             messages.push(serde_json::json!({
                 "role": "system",
                 "content": format!(
-                    "[BUDGET CRITIQUE : {:.0}%] Tu approches de la limite de contexte ({}/{} tokens). \
-                     Termine la tâche actuelle et appelle `task_complete` avec le résumé. \
-                     Stocke les faits importants via `memory_write` avant qu'ils ne soient perdus.",
+                    "[CRITICAL BUDGET: {:.0}%] You are approaching the context limit ({}/{} tokens). \
+                     Finish the current task and call `task_complete` with the summary. \
+                     Store important facts via `memory_write` before they are lost.",
                     budget_status.ratio * 100.0,
                     budget_status.used,
                     budget_status.max
@@ -3239,9 +3239,9 @@ pub async fn boucle_react_multimodal_ext(
             messages.push(serde_json::json!({
                 "role": "system",
                 "content": format!(
-                    "[BUDGET : {:.0}%] Le contexte commence à être saturé ({}/{} tokens). \
-                     Commence à synthétiser et stocke les infos importantes en mémoire. \
-                     Évite les appels d'outils superflus.",
+                    "[BUDGET: {:.0}%] The context is starting to fill up ({}/{} tokens). \
+                     Start synthesizing and store important info in memory. \
+                     Avoid superfluous tool calls.",
                     budget_status.ratio * 100.0,
                     budget_status.used,
                     budget_status.max
@@ -3249,7 +3249,7 @@ pub async fn boucle_react_multimodal_ext(
             }));
         }
 
-        // Debug 👁 : on émet le payload exact au 1er tour (ce que voit réellement le LLM).
+        // Debug: emit the exact payload on the 1st turn (what the LLM actually sees).
         if iteration == 0 {
             session.ajouter_prompt_debug(
                 serde_json::Value::Array(messages.clone()),
@@ -3301,7 +3301,7 @@ pub async fn boucle_react_multimodal_ext(
                             drop(pool); // release lock
 
                             let _ = tx.send(ChatEvent::Status {
-                                message: format!("Rotation de clé API pour le provider '{}' suite à un quota/rate-limit...", config.provider),
+                                message: format!("Rotating API key for provider '{}' due to a quota/rate-limit...", config.provider),
                             });
 
                             current_api_key = new_key;
@@ -3316,7 +3316,7 @@ pub async fn boucle_react_multimodal_ext(
                         let delay = delai_retry_rate_limit_secs(reset_at, rate_limit_retries);
                         let _ = tx.send(ChatEvent::Status {
                             message: format!(
-                                "Rate limit provider '{}' sur le modele '{}' : attente {}s puis reprise automatique (essai {}/{}).",
+                                "Rate limit on provider '{}' for model '{}': waiting {}s then automatic resume (attempt {}/{}).",
                                 config.provider,
                                 current_model,
                                 delay,
@@ -3330,7 +3330,7 @@ pub async fn boucle_react_multimodal_ext(
 
                     let _ = tx.send(ChatEvent::Status {
                         message: format!(
-                            "Rate limit persistant apres {} attente(s) : abandon du retry automatique.",
+                            "Persistent rate limit after {} wait(s): giving up on automatic retry.",
                             MAX_RATE_LIMIT_RETRIES
                         ),
                     });
@@ -3342,14 +3342,14 @@ pub async fn boucle_react_multimodal_ext(
         let mut stream = match stream_result {
             Ok(s) => s,
             Err(e) => {
-                // Classer l'erreur (error_classifier) : sur ReloginRequired, le
-                // failover modèle est inutile (les credentials sont invalides) —
-                // on le signale clairement à l'UI. Sinon on tente le failover.
+                // Classify the error (error_classifier): on ReloginRequired, model
+                // failover is pointless (credentials are invalid) -
+                // signal it clearly to the UI. Otherwise attempt failover.
                 let classe = classer_erreur_provider(&e);
                 if classe.exige_relogin() {
                     let _ = tx.send(ChatEvent::Status {
                         message: format!(
-                            "Authentification invalide pour le provider '{}' — reconnecte-toi (ex. `laruche auth codex` ou Settings > Providers).",
+                            "Invalid authentication for provider '{}' - reconnect (e.g. `laruche auth codex` or Settings > Providers).",
                             config.provider
                         ),
                     });
@@ -3421,7 +3421,7 @@ pub async fn boucle_react_multimodal_ext(
         let mut response_text = String::new();
         let mut finish_reason = None;
         let mut steering_interruption = None;
-        // Tool calls natifs provenant de l'API (format OpenAI tools:)
+        // Native tool calls coming from the API (OpenAI tools: format)
         let mut native_tool_calls: Option<Vec<ToolCall>> = None;
 
         loop {
@@ -3476,15 +3476,15 @@ pub async fn boucle_react_multimodal_ext(
             }
         }
 
-        // Extraction AVANT strip_think_tags : Deepseek met parfois ses tool calls
-        // dans les blocs <think>.
+        // Extraction BEFORE strip_think_tags: Deepseek sometimes puts its tool calls
+        // inside <think> blocks.
         let raw_tool_calls = parse_tool_calls(&response_text);
         let raw_tool_calls = if raw_tool_calls.is_empty() && !response_text.trim().is_empty() {
             let json_fallback = parse_tool_calls_json_brut(&response_text);
             if !json_fallback.is_empty() {
                 tracing::info!(
                     count = json_fallback.len(),
-                    "Tool calls extraits du texte brut (avant strip think)"
+                    "Tool calls extracted from raw text (before strip think)"
                 );
                 json_fallback
             } else {
@@ -3500,12 +3500,12 @@ pub async fn boucle_react_multimodal_ext(
                 session.ajouter_assistant(&response_text);
             }
             session.ajouter_user(&format!(
-                "[Steering utilisateur injecte pendant la reponse]\n{steer}"
+                "[User steering injected during the response]\n{steer}"
             ));
             let _ = tx.send(ChatEvent::Status {
-                message: "Steering utilisateur detecte, reponse interrompue.".to_string(),
+                message: "User steering detected, response interrupted.".to_string(),
             });
-            continue; // Recommence l'iteration immediatement avec le nouveau contexte
+            continue; // Restart the iteration immediately with the new context
         }
 
         if sortie_tronquee(&response_text, finish_reason.as_deref()) {
@@ -3513,11 +3513,11 @@ pub async fn boucle_react_multimodal_ext(
                 max_output_recovery_count += 1;
                 session.ajouter_assistant(&response_text);
                 session.ajouter_user(
-                    "Continue exactement la reponse interrompue. Ne repete pas ce qui est deja ecrit; termine la phrase ou le bloc d'outil en cours.",
+                    "Continue exactly from the interrupted response. Do not repeat what is already written; finish the current sentence or tool block.",
                 );
                 let _ = tx.send(ChatEvent::Status {
                     message: format!(
-                        "Reponse tronquee detectee ({:?}) - continuation {}.",
+                        "Truncated response detected ({:?}) - continuation {}.",
                         finish_reason, max_output_recovery_count
                     ),
                 });
@@ -3536,7 +3536,7 @@ pub async fn boucle_react_multimodal_ext(
                 max_output_recovery_count = 0;
                 session.ajouter_assistant(&response_text);
                 session.ajouter_user(
-                    "La reponse precedente a ete tronquee deux fois. Reprends de facon concise et termine proprement.",
+                    "The previous response was truncated twice. Resume concisely and finish cleanly.",
                 );
                 continue;
             }
@@ -3548,11 +3548,11 @@ pub async fn boucle_react_multimodal_ext(
             let _ = tx.send(ChatEvent::Plan { items: plan_items });
         }
 
-        // Parse tool calls (extraits AVANT strip_think_tags plus haut)
+        // Parse tool calls (extracted BEFORE strip_think_tags above)
         let mut tool_calls = native_tool_calls.unwrap_or(raw_tool_calls);
         let tool_call_overflow = keep_single_tool_call(&mut tool_calls);
         if !tool_calls.is_empty() {
-            // Progrès réel (un outil va s'exécuter) → on réarme le budget d'auto-continuation.
+            // Real progress (a tool will run) -> rearm the auto-continuation budget.
             auto_continue_count = 0;
             emit_thought(
                 tx,
@@ -3562,9 +3562,9 @@ pub async fn boucle_react_multimodal_ext(
                 "decision",
                 match &tool_call_overflow {
                     Some(_) => {
-                        "Plusieurs appels detectes; seul le premier sera execute.".to_string()
+                        "Several calls detected; only the first will be executed.".to_string()
                     }
-                    None => "1 appel d'outil detecte.".to_string(),
+                    None => "1 tool call detected.".to_string(),
                 },
             );
             if let Some(msg) = &tool_call_overflow {
@@ -3594,7 +3594,7 @@ pub async fn boucle_react_multimodal_ext(
             }
         }
 
-        // clarify : si le modèle demande une précision, on rend la main à l'utilisateur (fin de tour).
+        // clarify: if the model asks for a clarification, hand control back to the user (end of turn).
         if let Some(q) = tool_calls
             .iter()
             .find(|c| c.name == "clarify")
@@ -3608,12 +3608,12 @@ pub async fn boucle_react_multimodal_ext(
             return Ok(q);
         }
 
-        // task_complete : le modèle signale que la tâche est entièrement terminée.
-        // On sort immédiatement avec le résumé, sans exécuter l'outil.
+        // task_complete: the model signals that the task is entirely finished.
+        // Exit immediately with the summary, without executing the tool.
         if let Some(complete) = tool_calls.iter().find(|c| c.name == "task_complete") {
             let summary = complete.args["summary"]
                 .as_str()
-                .unwrap_or("Tâche terminée par le modèle");
+                .unwrap_or("Task completed by the model");
             let confidence = complete.args["confidence"].as_f64().unwrap_or(1.0);
             session.ajouter_assistant(&response_text);
             emit_thought(
@@ -3623,7 +3623,7 @@ pub async fn boucle_react_multimodal_ext(
                 "done",
                 "checkpoint",
                 format!(
-                    "Tâche terminée (confiance {:.0}%) : {}",
+                    "Task completed (confidence {:.0}%): {}",
                     confidence * 100.0,
                     summary
                 ),
@@ -3637,7 +3637,7 @@ pub async fn boucle_react_multimodal_ext(
                 output_tokens,
                 cost_usd,
             });
-            let msg = format!("✅ Tâche terminée — {summary}");
+            let msg = format!("✅ Task completed - {summary}");
             if let Some(final_plan) = finaliser_plan_pour_reponse(&last_plan, &msg) {
                 let _ = tx.send(ChatEvent::Plan { items: final_plan });
             }
@@ -3656,22 +3656,22 @@ pub async fn boucle_react_multimodal_ext(
                 auto_continue_count += 1;
                 session.ajouter_assistant(&response_text);
                 session.ajouter_user(
-                    r#"Tu as émis un appel d'outil mal formé : il ressemble à un tool_call, mais il n'est pas exécutable.
-Réémets maintenant UNIQUEMENT un appel d'outil valide, sans Markdown, sans explication.
-Format exact : <tool_call>{"name":"NOM_OUTIL","arguments":{...}}</tool_call>"#,
+                    r#"You emitted a malformed tool call: it looks like a tool_call, but it is not executable.
+Now re-emit ONLY a valid tool call, with no Markdown, no explanation.
+Exact format: <tool_call>{"name":"TOOL_NAME","arguments":{...}}</tool_call>"#,
                 );
                 let _ = tx.send(ChatEvent::Status {
                     message: format!(
-                        "Auto-continuation: appel d'outil mal formé détecté ({}/{})",
+                        "Auto-continuation: malformed tool call detected ({}/{})",
                         auto_continue_count, AUTO_CONTINUE_MAX
                     ),
                 });
                 continue;
             }
 
-            // Auto-continuation : si un plan est en cours (tâches non terminées) et
-            // que la réponse n'est pas une vraie conclusion, on relance tout seul
-            // au lieu de rendre la main — l'agent enchaîne les étapes.
+            // Auto-continuation: if a plan is in progress (unfinished tasks) and
+            // the response is not a real conclusion, restart on its own
+            // instead of handing control back - the agent chains the steps.
             let plan_inacheve = last_plan.iter().any(|p| !plan_item_terminal(&p.status));
             if plan_inacheve
                 && auto_continue_count < AUTO_CONTINUE_MAX
@@ -3680,13 +3680,13 @@ Format exact : <tool_call>{"name":"NOM_OUTIL","arguments":{...}}</tool_call>"#,
                 auto_continue_count += 1;
                 session.ajouter_assistant(&response_text);
                 session.ajouter_user(
-                    "Continue immédiatement l'étape suivante du plan, sans t'arrêter et sans \
-                     me redemander. Appelle directement l'outil nécessaire. Ne conclus QUE lorsque \
-                     TOUTES les tâches du plan sont terminées.",
+                    "Continue immediately with the next step of the plan, without stopping and without \
+                     asking me again. Call the needed tool directly. Conclude ONLY when \
+                     ALL the plan's tasks are done.",
                 );
                 let _ = tx.send(ChatEvent::Status {
                     message: format!(
-                        "Auto-continuation du plan ({}/{})",
+                        "Plan auto-continuation ({}/{})",
                         auto_continue_count, AUTO_CONTINUE_MAX
                     ),
                 });
@@ -3700,23 +3700,23 @@ Format exact : <tool_call>{"name":"NOM_OUTIL","arguments":{...}}</tool_call>"#,
                 auto_continue_count += 1;
                 session.ajouter_assistant(&response_text);
                 session.ajouter_user(
-                    "Tu viens d'annoncer une action, mais aucun <tool_call> JSON valide n'a ete detecte. \
-                     Ne conclus pas et ne mets pas l'appel en bloc Markdown. Emets maintenant uniquement \
-                     le <tool_call> valide pour l'action annoncee, puis arrete ta reponse.",
+                    "You just announced an action, but no valid <tool_call> JSON was detected. \
+                     Do not conclude and do not put the call in a Markdown block. Now emit only \
+                     the valid <tool_call> for the announced action, then stop your response.",
                 );
                 let _ = tx.send(ChatEvent::Status {
                     message: format!(
-                        "Auto-continuation: action annoncee sans outil ({}/{})",
+                        "Auto-continuation: action announced without tool ({}/{})",
                         auto_continue_count, AUTO_CONTINUE_MAX
                     ),
                 });
                 continue;
             }
 
-            // Mode recherche longue : si l'utilisateur a explicitement demandé de ne pas
-            // s'arrêter tant qu'une piste n'a pas été trouvée, une conclusion négative
-            // après seulement quelques recherches est considérée comme un checkpoint,
-            // pas comme une fin de mission.
+            // Long-search mode: if the user explicitly asked not to
+            // stop until a lead is found, a negative conclusion
+            // after only a few searches is treated as a checkpoint,
+            // not an end of mission.
             if demande_recherche_longue(prompt_utilisateur)
                 && reponse_negative_recherche(&response_text)
                 && web_tool_count < MIN_DEEP_RESEARCH_WEB_CALLS
@@ -3725,31 +3725,31 @@ Format exact : <tool_call>{"name":"NOM_OUTIL","arguments":{...}}</tool_call>"#,
                 auto_continue_count += 1;
                 session.ajouter_assistant(&response_text);
                 session.ajouter_user(
-                    r#"Recherche longue demandée : ta conclusion négative arrive trop tôt.
-Ne conclus pas encore. Change de stratégie et appelle maintenant un outil web.
-Explore explicitement plusieurs axes nouveaux :
-- requêtes FR/EN : "Dungeon Siege fichiers", "Dungeon Siege sauvegarde", "Dungeon Siege characters", "Dungeon Siege party", "Dungeon Siege save", "Dungeon Siege forum fichiers" ;
-- anciens fansites et forums : Lord TRY, SiegeTheDay, HeavenGames, GameFront/FilePlanet archives, Nexus, GitHub, Internet Archive ;
-- requêtes avancées : site:, intitle:index.of, filetype:zip, .dssave, .dsgame, .rar, .7z ;
-- pages "fichiers", "downloads", "forum", "personnages/pj", "multijoueur" plutôt que seulement "save game".
-À chaque passe, note les requêtes testées et les URLs candidates.
-N'accepte une conclusion négative qu'après avoir épuisé plusieurs familles de requêtes."#,
+                    r#"Long search requested: your negative conclusion comes too early.
+Do not conclude yet. Change strategy and call a web tool now.
+Explicitly explore several new angles:
+- FR/EN queries: "Dungeon Siege fichiers", "Dungeon Siege sauvegarde", "Dungeon Siege characters", "Dungeon Siege party", "Dungeon Siege save", "Dungeon Siege forum fichiers";
+- old fansites and forums: Lord TRY, SiegeTheDay, HeavenGames, GameFront/FilePlanet archives, Nexus, GitHub, Internet Archive;
+- advanced queries: site:, intitle:index.of, filetype:zip, .dssave, .dsgame, .rar, .7z;
+- "files", "downloads", "forum", "characters/pc", "multiplayer" pages rather than only "save game".
+On each pass, note the queries tried and the candidate URLs.
+Accept a negative conclusion only after exhausting several query families."#,
                 );
                 let _ = tx.send(ChatEvent::Status {
                     message: format!(
-                        "Recherche longue: conclusion négative trop précoce — relance forcée ({}/{} web calls, auto {}/{})",
+                        "Long search: negative conclusion too early - forced restart ({}/{} web calls, auto {}/{})",
                         web_tool_count, MIN_DEEP_RESEARCH_WEB_CALLS, auto_continue_count, AUTO_CONTINUE_MAX
                     ),
                 });
                 continue;
             }
 
-            // STOP REASON: end_turn — model finished naturally
+            // STOP REASON: end_turn - model finished naturally
             let plan_inacheve = last_plan.iter().any(|p| !plan_item_terminal(&p.status));
             if plan_inacheve {
                 let _ = tx.send(ChatEvent::Status {
                     message: format!(
-                        "Agent arrete alors que le plan contient encore des taches non terminees (auto-continuation epuisee: {}/{}).",
+                        "Agent stopped while the plan still contains unfinished tasks (auto-continuation exhausted: {}/{}).",
                         auto_continue_count, AUTO_CONTINUE_MAX
                     ),
                 });
@@ -3761,13 +3761,13 @@ N'accepte une conclusion négative qu'après avoir épuisé plusieurs familles d
                 auto_continue_count += 1;
                 session.ajouter_assistant(&response_text);
                 session.ajouter_user(
-                    r#"Tu conclus une recherche web sans trace d'outil réellement exécuté.
-Relance avec `web_deep_search` ou `web_fetch`.
-Dans la réponse finale, liste les requêtes testées et les URLs consultées ou candidates."#,
+                    r#"You are concluding a web search with no trace of an actually executed tool.
+Restart with `web_deep_search` or `web_fetch`.
+In the réponse finale, list the queries tried and the URLs consulted or candidate."#,
                 );
                 let _ = tx.send(ChatEvent::Status {
                     message: format!(
-                        "Conclusion web sans observation détectée — relance forcée ({}/{})",
+                        "Web conclusion without observation detected - forced restart ({}/{})",
                         auto_continue_count, AUTO_CONTINUE_MAX
                     ),
                 });
@@ -3781,7 +3781,7 @@ Dans la réponse finale, liste les requêtes testées et les URLs consultées ou
                 &mut thoughts,
                 "done",
                 "checkpoint",
-                "Reponse finale prete.",
+                "Final response ready.",
             );
 
             // Emit Usage event with estimated tokens and cost
@@ -3795,10 +3795,10 @@ Dans la réponse finale, liste les requêtes testées et les URLs consultées ou
                 cost_usd,
             });
 
-            // Dernière synchronisation UI : une réponse finale doit toujours
-            // pousser un plan terminal. Sinon l'UI peut rester en 0/3 alors que
-            // la boucle a rendu la main. Les étapes conditionnelles deviennent
-            // `ok: non applicable` quand la recherche n'a pas produit de lien.
+            // Final UI sync: a final response must always
+            // push a terminal plan. Otherwise the UI may stay at 0/3 while
+            // the loop has handed control back. Conditional steps become
+            // `ok: not applicable` when the search produced no link.
             if let Some(final_plan) = finaliser_plan_pour_reponse(&last_plan, &response_text) {
                 let _ = tx.send(ChatEvent::Plan { items: final_plan });
             }
@@ -3809,10 +3809,10 @@ Dans la réponse finale, liste les requêtes testées et les URLs consultées ou
             return Ok(response_text);
         }
 
-        // STOP REASON: tool_use — execute tools and continue
+        // STOP REASON: tool_use - execute tools and continue
         session.ajouter_assistant(&response_text);
 
-        // Garde-fou anti-boucle : avertir à 3 répétitions, stopper proprement à 6.
+        // Anti-loop guard: warn at 3 repetitions, stop cleanly at 6.
         if let Some(msg) = &tool_call_overflow {
             session.ajouter_observation("tool_call_guard", msg);
         }
@@ -3829,19 +3829,19 @@ Dans la réponse finale, liste les requêtes testées et les URLs consultées ou
             let m = tool_name_counts.entry(call.name.clone()).or_insert(0);
             *m += 1;
 
-            // Surveillance passive des boucles (plus de blocage).
-            // Envoie un status event à l'UI quand des répétitions sont détectées
-            // pour afficher un indicateur visuel.
+            // Passive loop monitoring (no more blocking).
+            // Send a status event to the UI when repetitions are detected
+            // to show a visual indicator.
             if *n >= 5 && *n <= 10 {
                 let _ = tx.send(ChatEvent::Status {
-                    message: format!("🔄 répétition {n}× — {}", call.name),
+                    message: format!("🔄 repetition {n}× - {}", call.name),
                 });
             }
-            // Nudge textuel pour les appels très répétés par nom.
+            // Textual nudge for tools called very repeatedly by name.
             if *m == 30 {
                 session.ajouter_observation(
                     &call.name,
-                    "Note : beaucoup d'appels à cet outil. Si tu as assez d'éléments, synthétise et conclus.",
+                    "Note: many calls to this tool. If you have enough material, synthesize and conclude.",
                 );
             }
 
@@ -3881,7 +3881,7 @@ Dans la réponse finale, liste les requêtes testées et les URLs consultées ou
                 &mut thoughts,
                 "implementation",
                 "next_action",
-                format!("Appel de l'outil `{}`.", call.name),
+                format!("Calling tool `{}`.", call.name),
             );
             let _ = tx.send(ChatEvent::ToolCall {
                 name: call.name.clone(),
@@ -3890,19 +3890,19 @@ Dans la réponse finale, liste les requêtes testées et les URLs consultées ou
             });
         }
 
-        // Pour le FatigueMonitor : on collecte les noms des outils exécutés
+        // For the FatigueMonitor: collect the names of the executed tools
         let exec_tool_names: Vec<String> =
             allowed_tool_calls.iter().map(|c| c.name.clone()).collect();
 
-        // Orchestration façon Claude Code (`partitionToolCalls`) : on découpe
-        // les appels en lots ordonnés — outils read-only consécutifs lancés en
-        // parallèle, chaque outil mutant / à approbation seul et séquentiel.
-        // L'ordre d'origine est conservé. Plus performant et plus sûr que le
-        // « tout-parallèle-ou-tout-séquentiel ».
+        // Claude Code-style orchestration (`partitionToolCalls`): split
+        // the calls into ordered batches - consecutive read-only tools run in
+        // parallel, each mutating / approval-gated tool alone and sequential.
+        // The original order is preserved. More performant and safer than
+        // "all-parallel-or-all-sequential".
         let batches = partition_tool_calls(&allowed_tool_calls, registry);
         for (batch_safe, batch_idxs) in batches {
             if batch_safe && batch_idxs.len() > 1 {
-                // PARALLEL execution — lot d'outils read-only
+                // PARALLEL execution - read-only tool batch
                 let _ = tx.send(ChatEvent::Status {
                     message: format!("Executing {} tools in parallel...", batch_idxs.len()),
                 });
@@ -4566,7 +4566,7 @@ mod tests {
         let msg = keep_single_tool_call(&mut calls).unwrap();
         assert_eq!(calls.len(), 1);
         assert_eq!(calls[0].args["command"], "dir");
-        assert!(msg.contains("1 appel(s) ignore"));
+        assert!(msg.contains("1 call(s) ignored"));
     }
 
     #[test]

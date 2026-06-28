@@ -1,21 +1,21 @@
-//! Détection des backends d'inférence locaux **OpenAI-compatibles** (llama.cpp, vLLM,
-//! LM Studio…) pour les exposer/annoncer sur le mesh comme on le fait déjà pour Ollama.
+//! Detection of **OpenAI-compatible** local inference backends (llama.cpp, vLLM,
+//! LM Studio, etc.) to expose/announce them on the mesh as we already do for Ollama.
 //!
-//! Ollama est sondé ailleurs (`fetch_local_models`, `:11434/api/tags`). Ici on couvre
-//! tout endpoint exposant `GET /v1/models` (protocole OpenAI), qui est le standard de
-//! facto de llama.cpp/vLLM/LM Studio/TGI.
+//! Ollama is probed elsewhere (`fetch_local_models`, `:11434/api/tags`). Here we cover
+//! any endpoint exposing `GET /v1/models` (OpenAI protocol), the de facto standard
+//! of llama.cpp/vLLM/LM Studio/TGI.
 
 use serde::Serialize;
 use std::time::Duration;
 
-/// Un backend OpenAI-compatible à sonder : label lisible + base_url racine (sans `/v1`).
+/// An OpenAI-compatible backend to probe: readable label + root base_url (without `/v1`).
 #[derive(Debug, Clone)]
 pub struct BackendLocal {
     pub label: String,
     pub base_url: String,
 }
 
-/// Un modèle détecté sur un backend local.
+/// A model detected on a local backend.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ModeleLocalDetecte {
     pub backend: String,
@@ -23,8 +23,8 @@ pub struct ModeleLocalDetecte {
     pub name: String,
 }
 
-/// Backends locaux sondés par défaut. Surchargeable via `LARUCHE_OPENAI_ENDPOINTS`
-/// (liste `label=url` séparée par des virgules, ex.
+/// Local backends probed by default. Overridable via `LARUCHE_OPENAI_ENDPOINTS`
+/// (comma-separated `label=url` list, e.g.
 /// `llama.cpp=http://127.0.0.1:8001,vllm=http://127.0.0.1:8000`).
 pub fn backends_openai_compat_par_defaut() -> Vec<BackendLocal> {
     if let Ok(spec) = std::env::var("LARUCHE_OPENAI_ENDPOINTS") {
@@ -61,7 +61,7 @@ pub fn backends_openai_compat_par_defaut() -> Vec<BackendLocal> {
     ]
 }
 
-/// Parse le corps de `GET /v1/models` (OpenAI) → ids de modèles. Pur, testable.
+/// Parses the `GET /v1/models` (OpenAI) body into model ids. Pure, testable.
 pub fn parser_modeles_openai(body: &serde_json::Value) -> Vec<String> {
     body["data"]
         .as_array()
@@ -73,8 +73,8 @@ pub fn parser_modeles_openai(body: &serde_json::Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Sonde chaque backend (`GET {base_url}/v1/models`, timeout court). Les backends
-/// injoignables sont silencieusement ignorés (port fermé = échec rapide).
+/// Probes each backend (`GET {base_url}/v1/models`, short timeout). Unreachable
+/// backends are silently ignored (closed port = fast failure).
 pub async fn detecter_modeles_openai_compat(backends: &[BackendLocal]) -> Vec<ModeleLocalDetecte> {
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_millis(500))

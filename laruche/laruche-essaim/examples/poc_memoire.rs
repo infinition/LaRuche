@@ -1,12 +1,12 @@
-//! POC fonctionnel de la fusion LaRuche × paradigm.
+//! Functional POC of the LaRuche x paradigm merge.
 //!
-//! 1) Round-trip mémoire DÉTERMINISTE via le trait `MemoireCognitive` (prouve la couche
-//!    mémoire, indépendamment du LLM).
-//! 2) L'agent essaim RÉEL tournant sur llama.cpp (:8001) : il mémorise un fait dans une
-//!    conversation, puis le rappelle dans une conversation NEUVE — donc via la mémoire,
-//!    pas via l'historique.
+//! 1) DETERMINISTIC memory round-trip via the `MemoireCognitive` trait (proves the memory
+//!    layer, independently of the LLM).
+//! 2) The REAL essaim agent running on llama.cpp (:8001): it stores a fact in one
+//!    conversation, then recalls it in a FRESH conversation, so via memory,
+//!    not via history.
 //!
-//! Lancer :  cargo run -p laruche-essaim --example poc_memoire
+//! Run:  cargo run -p laruche-essaim --example poc_memoire
 
 use laruche_essaim::abeilles::{enregistrer_abeilles_builtin, enregistrer_memoire};
 use laruche_essaim::{boucle_react_memoire, AbeilleRegistry, ChatEvent, EssaimConfig, Session};
@@ -20,16 +20,16 @@ fn spawn_printer(tx: &tokio::sync::broadcast::Sender<ChatEvent>) {
             match ev {
                 ChatEvent::Token { text } => print!("{text}"),
                 ChatEvent::ToolCall { name, args, .. } => {
-                    eprintln!("\n  ┌─ outil → {name} {args}");
+                    eprintln!("\n  ┌─ tool → {name} {args}");
                 }
                 ChatEvent::ToolResult { name, result, .. } => {
                     eprintln!(
-                        "  └─ outil ← {name}: {}",
+                        "  └─ tool ← {name}: {}",
                         result.lines().next().unwrap_or("")
                     );
                 }
-                ChatEvent::Done { .. } => eprintln!("\n  [fin du tour]"),
-                ChatEvent::Error { message } => eprintln!("\n  [erreur] {message}"),
+                ChatEvent::Done { .. } => eprintln!("\n  [end of turn]"),
+                ChatEvent::Error { message } => eprintln!("\n  [error] {message}"),
                 _ => {}
             }
         }
@@ -40,8 +40,8 @@ fn spawn_printer(tx: &tokio::sync::broadcast::Sender<ChatEvent>) {
 async fn main() -> anyhow::Result<()> {
     let mem: Arc<dyn MemoireCognitive> = Arc::new(NativeBackend::new());
 
-    // ─── 1) Preuve déterministe de la couche mémoire ───────────────────────────
-    println!("════════ 1. Round-trip mémoire (déterministe, sans LLM) ════════");
+    // ─── 1) Deterministic proof of the memory layer ───────────────────────────
+    println!("════════ 1. Memory round-trip (deterministic, no LLM) ════════");
     mem.write(
         MemoryItem::new("people.fabien", "Préfère le langage Rust pour ses projets.")
             .with_source("test direct"),
@@ -50,10 +50,10 @@ async fn main() -> anyhow::Result<()> {
     let pack = mem
         .search("quel langage préfère fabien", SearchOpts::default())
         .await?;
-    println!("recherche → {}", pack.to_prompt_text());
-    println!("santé backend → {}\n", mem.health().await?);
+    println!("search → {}", pack.to_prompt_text());
+    println!("backend health → {}\n", mem.health().await?);
 
-    // ─── 2) L'agent réel sur llama.cpp:8001 ────────────────────────────────────
+    // ─── 2) The real agent on llama.cpp:8001 ────────────────────────────────────
     let config = EssaimConfig {
         provider: "openai".into(),
         model: "qwen3.6-35b-a3b".into(),
@@ -72,9 +72,9 @@ async fn main() -> anyhow::Result<()> {
     let (tx, _) = tokio::sync::broadcast::channel::<ChatEvent>(512);
     spawn_printer(&tx);
 
-    // NB : aucun prompt ne mentionne d'outil mémoire — l'auto-récup + l'auto-curation
-    // sont gérées par `boucle_react_memoire` (P2). C'est ça la « mémoire dans la boucle ».
-    println!("════════ 2a. Conversation A — l'agent MÉMORISE (auto-curation) ════════");
+    // NB: no prompt mentions a memory tool; auto-retrieval + auto-curation
+    // are handled by `boucle_react_memoire` (P2). This is "memory in the loop".
+    println!("════════ 2a. Conversation A - the agent STORES (auto-curation) ════════");
     let mut conv_a = Session::new(&config.model);
     let r = boucle_react_memoire(
         "Petite info sur moi : je code toujours en tongs en écoutant du jazz.",
@@ -86,10 +86,10 @@ async fn main() -> anyhow::Result<()> {
     )
     .await;
     if let Err(e) = r {
-        eprintln!("[tour A interrompu] {e}");
+        eprintln!("[turn A interrupted] {e}");
     }
 
-    println!("\n════════ 2b. Conversation B (NEUVE) — l'agent RAPPELLE (auto-récup) ════════");
+    println!("\n════════ 2b. Conversation B (FRESH) - the agent RECALLS (auto-retrieval) ════════");
     let mut conv_b = Session::new(&config.model);
     let r = boucle_react_memoire(
         "Dans quelles conditions est-ce que je code, d'habitude ? Réponds directement.",
@@ -101,11 +101,11 @@ async fn main() -> anyhow::Result<()> {
     )
     .await;
     if let Err(e) = r {
-        eprintln!("[tour B interrompu] {e}");
+        eprintln!("[turn B interrupted] {e}");
     }
 
-    // Laisse le printer vider le flux.
+    // Let the printer drain the stream.
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-    println!("\n════════ POC terminé ════════");
+    println!("\n════════ POC finished ════════");
     Ok(())
 }

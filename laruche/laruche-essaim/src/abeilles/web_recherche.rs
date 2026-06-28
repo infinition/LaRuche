@@ -1,9 +1,9 @@
-//! web_search — recherche web robuste (spec LaRuche).
+//! web_search: robust web search (LaRuche spec).
 //!
-//! Sortie typée (title/url/snippet), filtres de domaines (allowed XOR blocked), durée.
-//! Moteurs interchangeables : Tavily (si `LARUCHE_TAVILY_KEY`), sinon scraper DuckDuckGo HTML
-//! (`html.duckduckgo.com/html/`, sans clé), avec repli DDG lite. Format de sortie + RAPPEL CRITIQUE
-//! pour forcer les citations en liens Markdown.
+//! Typed output (title/url/snippet), domain filters (allowed XOR blocked), timing.
+//! Interchangeable engines: Tavily (if `LARUCHE_TAVILY_KEY`), otherwise the DuckDuckGo HTML scraper
+//! (`html.duckduckgo.com/html/`, no key), with a DDG lite fallback. Output format plus a CRITICAL
+//! REMINDER to force Markdown-link citations.
 
 use crate::abeille::{Abeille, ContextExecution, NiveauDanger, ResultatAbeille};
 use anyhow::Result;
@@ -92,7 +92,7 @@ impl Abeille for WebSearch {
             .await
             .unwrap_or_default();
 
-        // Filtres de domaines.
+        // Domain filters.
         results.retain(|r| {
             let d = domain_of(&r.url);
             if let Some(a) = &allowed {
@@ -118,7 +118,7 @@ impl Abeille for WebSearch {
         let mut out = format!("Web search results for: \"{query}\"\n\n");
         for (i, r) in results.iter().enumerate() {
             out.push_str(&format!(
-                "[{}] Titre: {}\n    URL: {}\n    Extrait: {}\n\n",
+                "[{}] Title: {}\n    URL: {}\n    Snippet: {}\n\n",
                 i + 1,
                 r.title,
                 r.url,
@@ -148,14 +148,14 @@ fn decode_ddg(href: &str) -> String {
     }
 }
 
-/// Moteur partage par `web_search` et `web_deep_search` :
-/// Tavily si disponible, sinon DDG HTML riche, puis repli DDG lite.
+/// Engine shared by `web_search` and `web_deep_search`:
+/// Tavily if available, otherwise the rich DDG HTML, then a DDG lite fallback.
 pub(crate) async fn search_web_results(
     client: &reqwest::Client,
     query: &str,
 ) -> Result<Vec<SearchResult>> {
-    // 1) API dédiée si configurée (qualité > volume, et on économise les scrapers).
-    //    Tavily et Brave sont pensés pour les agents : résultats propres, opérateurs gérés.
+    // 1) Dedicated API if configured (quality > volume, and it spares the scrapers).
+    //    Tavily and Brave are built for agents: clean results, operators handled.
     if let Ok(key) = std::env::var("LARUCHE_TAVILY_KEY") {
         let r = search_tavily(client, query, &key).await.unwrap_or_default();
         if !r.is_empty() {
@@ -175,9 +175,9 @@ pub(crate) async fn search_web_results(
         }
     }
 
-    // 2) Sinon : on interroge les scrapers gratuits EN PARALLÈLE et on fusionne
-    //    (au lieu de « le premier non vide gagne »). Meilleure couverture, et
-    //    résilience quand un moteur est rate-limité/bloqué (cause des « No results »).
+    // 2) Otherwise: query the free scrapers IN PARALLEL and merge
+    //    (instead of "first non-empty wins"). Better coverage, and
+    //    resilience when an engine is rate-limited/blocked (the cause of "No results").
     let (yahoo, ddg, lite) = tokio::join!(
         search_yahoo_html(client, query),
         search_ddg_html(client, query),
@@ -190,7 +190,7 @@ pub(crate) async fn search_web_results(
     Ok(fusion)
 }
 
-/// Clé de déduplication d'une URL : domaine + chemin, sans `www.`, query, fragment ni slash final.
+/// URL deduplication key: domain + path, without `www.`, query, fragment, or trailing slash.
 fn cle_url(url: &str) -> String {
     let sans_proto = url.split("://").nth(1).unwrap_or(url);
     let sans_q = sans_proto.split(['?', '#']).next().unwrap_or(sans_proto);
@@ -200,7 +200,7 @@ fn cle_url(url: &str) -> String {
         .to_lowercase()
 }
 
-/// Ajoute à `acc` les résultats non déjà présents (dédup par [`cle_url`]).
+/// Adds to `acc` the results not already present (deduplicated by [`cle_url`]).
 fn fusionner(acc: &mut Vec<SearchResult>, nouveaux: Vec<SearchResult>) {
     for r in nouveaux {
         let cle = cle_url(&r.url);
@@ -213,7 +213,7 @@ fn fusionner(acc: &mut Vec<SearchResult>, nouveaux: Vec<SearchResult>) {
     }
 }
 
-/// Brave Search API (clé `LARUCHE_BRAVE_KEY`) — fiable, gérée pour les agents, free tier généreux.
+/// Brave Search API (key `LARUCHE_BRAVE_KEY`): reliable, agent-oriented, generous free tier.
 async fn search_brave(
     client: &reqwest::Client,
     query: &str,
@@ -337,7 +337,7 @@ async fn search_yahoo_html(client: &reqwest::Client, query: &str) -> Result<Vec<
     Ok(out)
 }
 
-/// Scraper DuckDuckGo HTML (sans clé) — endpoint riche `html.duckduckgo.com/html/`.
+/// DuckDuckGo HTML scraper (no key): rich endpoint `html.duckduckgo.com/html/`.
 async fn search_ddg_html(client: &reqwest::Client, query: &str) -> Result<Vec<SearchResult>> {
     let url = format!(
         "https://html.duckduckgo.com/html/?q={}",
@@ -379,7 +379,7 @@ async fn search_ddg_html(client: &reqwest::Client, query: &str) -> Result<Vec<Se
     Ok(out)
 }
 
-/// Tavily (optionnel) — snippets denses optimisés LLM.
+/// Tavily (optional): dense, LLM-optimized snippets.
 async fn search_tavily(
     client: &reqwest::Client,
     query: &str,
@@ -406,7 +406,7 @@ async fn search_tavily(
     Ok(out)
 }
 
-/// Repli : DuckDuckGo lite (parsing simple, sans scraper).
+/// Fallback: DuckDuckGo lite (simple parsing, no scraper).
 async fn search_ddg_lite(client: &reqwest::Client, query: &str) -> Result<Vec<SearchResult>> {
     let url = format!(
         "https://lite.duckduckgo.com/lite/?q={}",

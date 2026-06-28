@@ -68,7 +68,7 @@ pub fn catalogue() -> Vec<Blueprint> {
 }
 
 /// Instantiates a blueprint using supplied values and slot defaults.
-/// Unknown placeholders remain untouched, which keeps a malformed template visible.
+/// Unknown placeholders are left untouched, which keeps a malformed template visible.
 pub fn instancier(bp: &Blueprint, valeurs: &HashMap<String, String>) -> (String, String, String) {
     let substitute = |template: &str| {
         bp.slots.iter().fold(template.to_string(), |output, slot| {

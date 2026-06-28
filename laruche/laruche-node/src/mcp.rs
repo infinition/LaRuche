@@ -6,9 +6,9 @@
 //! Protocol: JSON-RPC 2.0 over stdio or HTTP POST.
 //!
 //! Supported methods:
-//!   - `initialize` — handshake, returns server capabilities
-//!   - `tools/list` — list all registered Abeilles as MCP tools
-//!   - `tools/call` — execute an Abeille by name
+//!   - `initialize`: handshake, returns server capabilities
+//!   - `tools/list`: list all registered Abeilles as MCP tools
+//!   - `tools/call`: execute an Abeille by name
 
 use axum::{extract::State, response::Json};
 use serde::{Deserialize, Serialize};
@@ -93,7 +93,7 @@ pub async fn handle_mcp_request(
         "tools/list" => handle_tools_list(registry, req.id),
         "tools/call" => handle_tools_call(registry, req.id, req.params).await,
         "notifications/initialized" => {
-            // Client acknowledgment — no response needed for notifications,
+            // Client acknowledgment, no response needed for notifications,
             // but since we may receive it via HTTP, return empty success
             JsonRpcResponse::success(req.id, serde_json::json!({}))
         }
@@ -183,7 +183,7 @@ async fn handle_tools_call(
 
 // ======================== Axum HTTP Handler ========================
 
-/// Axum handler for POST /api/mcp — accepts JSON-RPC requests.
+/// Axum handler for POST /api/mcp: accepts JSON-RPC requests.
 pub async fn api_mcp_handler(
     State(state): State<Arc<super::AppState>>,
     Json(req): Json<JsonRpcRequest>,

@@ -54,7 +54,7 @@ impl Abeille for McpAbeille {
                     if type_str == "image" {
                         if let Some(data) = item.get("data").and_then(|d| d.as_str()) {
                             images.push(data.to_string());
-                            text_output.push_str("[Image attachée]\n");
+                            text_output.push_str("[Image attached]\n");
                         }
                     } else if type_str == "text" {
                         if let Some(text) = item.get("text").and_then(|t| t.as_str()) {

@@ -1,29 +1,29 @@
-//! **Hooks utilisateur** (façon Claude Code / third-party) — Gap D.
+//! **User hooks** (Claude Code / third-party style): Gap D.
 //!
-//! L'utilisateur définit dans `hooks.json` des commandes shell à exécuter AUTOUR des appels
-//! d'outils : `pre_tool` (avant) et `post_tool` (après). Un hook `pre_tool` qui échoue (exit
-//! ≠ 0) avec `block: true` **bloque** l'outil — utile pour des garde-fous custom (linter,
-//! validation, audit, refus de certains chemins…). Sans toucher au cœur du moteur.
+//! The user defines shell commands in `hooks.json` to run AROUND tool calls:
+//! `pre_tool` (before) and `post_tool` (after). A `pre_tool` hook that fails (exit
+//! != 0) with `block: true` **blocks** the tool, useful for custom guardrails (linter,
+//! validation, audit, refusing certain paths). Without touching the engine core.
 //!
-//! Accès **global** (comme [`crate::feed_journal`]/[`crate::secrets`]) pour ne pas threader la
-//! config partout : le node charge `hooks.json` au boot ([`init`]), le moteur appelle
-//! [`run_pre`]/[`run_post`] dans la boucle de récolte. Le nom de l'outil et ses arguments JSON
-//! sont passés au hook via les variables d'environnement `LARUCHE_TOOL` et `LARUCHE_ARGS`.
+//! **Global** access (like [`crate::feed_journal`]/[`crate::secrets`]) to avoid threading the
+//! config everywhere: the node loads `hooks.json` at boot ([`init`]), the engine calls
+//! [`run_pre`]/[`run_post`] in the harvest loop. The tool name and its JSON arguments
+//! are passed to the hook via the `LARUCHE_TOOL` and `LARUCHE_ARGS` environment variables.
 
 use serde::{Deserialize, Serialize};
 use std::sync::OnceLock;
 
-/// Un hook utilisateur.
+/// A user hook.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Hook {
-    /// `"pre_tool"` ou `"post_tool"`.
+    /// `"pre_tool"` or `"post_tool"`.
     pub event: String,
-    /// Glob simple sur le nom d'outil : `"*"` (tous), `"shell_exec"`, ou préfixe `"file_*"`.
+    /// Simple glob on the tool name: `"*"` (all), `"shell_exec"`, or `"file_*"` prefix.
     #[serde(default = "etoile")]
     pub matcher: String,
-    /// Commande shell à exécuter (reçoit `LARUCHE_TOOL` + `LARUCHE_ARGS` en env).
+    /// Shell command to run (receives `LARUCHE_TOOL` + `LARUCHE_ARGS` in env).
     pub command: String,
-    /// Si `true` et que le hook `pre_tool` échoue → l'outil est BLOQUÉ.
+    /// If `true` and the `pre_tool` hook fails, the tool is BLOCKED.
     #[serde(default)]
     pub block: bool,
 }
@@ -34,7 +34,7 @@ fn etoile() -> String {
 
 static HOOKS: OnceLock<Vec<Hook>> = OnceLock::new();
 
-/// Initialise les hooks (appelé par le node au boot). Idempotent.
+/// Initializes the hooks (called by the node at boot). Idempotent.
 pub fn init(hooks: Vec<Hook>) {
     let _ = HOOKS.set(hooks);
 }
@@ -43,7 +43,7 @@ fn correspond(matcher: &str, outil: &str) -> bool {
     if matcher == "*" || matcher == outil {
         return true;
     }
-    // préfixe glob « file_* »
+    // glob prefix "file_*"
     matcher
         .strip_suffix('*')
         .map(|p| outil.starts_with(p))
@@ -74,23 +74,23 @@ async fn lancer(cmd: &str, outil: &str, args: &serde_json::Value) -> std::io::Re
         c
     };
     c.env("LARUCHE_TOOL", outil).env("LARUCHE_ARGS", args_str);
-    // Borne dure : un hook ne doit pas pendre la boucle.
+    // Hard bound: a hook must not hang the loop.
     let fut = c.status();
     match tokio::time::timeout(std::time::Duration::from_secs(20), fut).await {
         Ok(Ok(st)) => Ok(st.success()),
         Ok(Err(e)) => Err(e),
-        Err(_) => Ok(false), // timeout → considéré échec
+        Err(_) => Ok(false), // timeout: treated as failure
     }
 }
 
-/// Exécute les hooks `pre_tool` correspondants. Renvoie `Some(raison)` si un hook bloquant
-/// échoue → l'outil doit être refusé. `None` = on continue.
+/// Runs the matching `pre_tool` hooks. Returns `Some(reason)` if a blocking hook
+/// fails, in which case the tool must be refused. `None` means continue.
 pub async fn run_pre(outil: &str, args: &serde_json::Value) -> Option<String> {
     for h in actifs("pre_tool", outil) {
         let ok = lancer(&h.command, outil, args).await.unwrap_or(false);
         if !ok && h.block {
             return Some(format!(
-                "Bloqué par un hook pre_tool de l'utilisateur (commande : {})",
+                "Blocked by a user pre_tool hook (command: {})",
                 h.command
             ));
         }
@@ -98,14 +98,14 @@ pub async fn run_pre(outil: &str, args: &serde_json::Value) -> Option<String> {
     None
 }
 
-/// Exécute les hooks `post_tool` correspondants (best-effort, non bloquant).
+/// Runs the matching `post_tool` hooks (best-effort, non-blocking).
 pub async fn run_post(outil: &str, args: &serde_json::Value) {
     for h in actifs("post_tool", outil) {
         let _ = lancer(&h.command, outil, args).await;
     }
 }
 
-/// Y a-t-il au moins un hook chargé ?
+/// Is there at least one hook loaded?
 pub fn non_vide() -> bool {
     HOOKS.get().map(|h| !h.is_empty()).unwrap_or(false)
 }

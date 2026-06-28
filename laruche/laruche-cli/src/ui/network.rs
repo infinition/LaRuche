@@ -260,7 +260,7 @@ async fn stream_via_websocket(
                                     return;
                                 }
                                 _ => {
-                                    // Unknown event type — if it has text, treat as token
+                                    // Unknown event type: if it has text, treat as token
                                     if let Some(t) = data["text"].as_str() {
                                         full_response.push_str(t);
                                         let _ = tx.send(TuiEvent::Token(t.to_string())).await;
@@ -270,7 +270,7 @@ async fn stream_via_websocket(
                         }
                     }
                     Ok(WsMessage::Close(_)) => {
-                        // Server closed the connection — finalize
+                        // Server closed the connection: finalize
                         let _ = tx.send(TuiEvent::Done(full_response)).await;
                         return;
                     }
@@ -281,7 +281,7 @@ async fn stream_via_websocket(
                         let _ = tx.send(TuiEvent::Done(full_response)).await;
                         return;
                     }
-                    _ => {} // Ping/Pong/Binary — ignore
+                    _ => {} // Ping/Pong/Binary: ignore
                 }
             }
 
@@ -289,7 +289,7 @@ async fn stream_via_websocket(
             let _ = tx.send(TuiEvent::Done(full_response)).await;
         }
         Err(ws_err) => {
-            // WebSocket connection failed — fall back to HTTP POST /api/webhook
+            // WebSocket connection failed: fall back to HTTP POST /api/webhook
             let _ = tx
                 .send(TuiEvent::Thinking(format!(
                     "WS failed ({}), falling back to HTTP...",
@@ -321,7 +321,7 @@ async fn fallback_http_send(url: &str, text: &str, tx: &tokio::sync::mpsc::Sende
                 if let Some(err) = data["error"].as_str() {
                     if !err.is_empty() {
                         let _ = tx
-                            .send(TuiEvent::Error(format!("Erreur serveur: {}", err)))
+                            .send(TuiEvent::Error(format!("Server error: {}", err)))
                             .await;
                         let _ = tx.send(TuiEvent::Done(String::new())).await;
                         return;

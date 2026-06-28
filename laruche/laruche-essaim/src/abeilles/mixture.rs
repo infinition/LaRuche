@@ -90,7 +90,7 @@ impl Abeille for MixtureOfAgents {
                     blocs.push((candidate.model.clone(), text.trim().to_string()));
                 }
                 Ok(_) => blocs.push((candidate.model.clone(), "[empty response]".to_string())),
-                Err(e) => blocs.push((candidate.model.clone(), format!("[erreur: {e}]"))),
+                Err(e) => blocs.push((candidate.model.clone(), format!("[error: {e}]"))),
             }
         }
 

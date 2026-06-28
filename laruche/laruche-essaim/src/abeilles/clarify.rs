@@ -1,9 +1,9 @@
-//! clarify — l'agent pose une question à l'utilisateur au lieu de deviner.
+//! clarify: the agent asks the user a question instead of guessing.
 //!
-//! L'abeille déclare le schéma pour que le modèle sache qu'elle existe. Le vrai
-//! comportement (rendre la main à l'utilisateur = fin de tour) est court-circuité
-//! dans `brain.rs` : quand le modèle appelle `clarify`, la question devient la réponse
-//! du tour et la boucle s'arrête (l'utilisateur répond au tour suivant).
+//! The abeille declares the schema so the model knows it exists. The actual
+//! behavior (handing control back to the user = end of turn) is short-circuited
+//! in `brain.rs`: when the model calls `clarify`, the question becomes the turn's
+//! response and the loop stops (the user answers on the next turn).
 
 use crate::abeille::{Abeille, ContextExecution, NiveauDanger, ResultatAbeille};
 use anyhow::Result;
@@ -41,7 +41,7 @@ impl Abeille for Clarify {
         args: serde_json::Value,
         _ctx: &ContextExecution,
     ) -> Result<ResultatAbeille> {
-        // Normalement court-circuité par brain.rs ; ce repli sert si appelé hors boucle.
+        // Normally short-circuited by brain.rs; this fallback applies if called outside the loop.
         let q = args["question"].as_str().unwrap_or("(empty question)");
         Ok(ResultatAbeille::ok(format!(
             "Question sent to user: {q}"

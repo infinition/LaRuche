@@ -1,8 +1,8 @@
-//! Recherche d'images publiques, sans dorks ni URL devinee.
+//! Public image search, without dorks or guessed URLs.
 //!
-//! Wikimedia Commons expose une API stable, sans cle, qui renvoie a la fois
-//! l'URL originale et une miniature redimensionnee. Le resultat transporte le
-//! marqueur media compris par le chat afin d'etre affiche dans la galerie.
+//! Wikimedia Commons exposes a stable, key-free API that returns both the
+//! original URL and a resized thumbnail. The result carries the media marker
+//! understood by the chat so it can be displayed in the gallery.
 
 use crate::abeille::{Abeille, ContextExecution, NiveauDanger, ResultatAbeille};
 use anyhow::Result;
@@ -111,7 +111,7 @@ impl Abeille for ImageSearch {
                     "url": url,
                     "kind": "image",
                     "title": title,
-                    "caption": format!("Source: Wikimedia Commons — {source}")
+                    "caption": format!("Source: Wikimedia Commons - {source}")
                 }));
                 if items.len() >= limit as usize {
                     break;

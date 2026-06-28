@@ -14,10 +14,10 @@ pub struct OllamaChunk {
     pub finish_reason: Option<String>,
     pub eval_count: Option<u64>,
     pub eval_duration: Option<u64>,
-    /// Tokens d'entrée (prompt) réellement consommés — renvoyé par Ollama sur le chunk final.
+    /// Input (prompt) tokens actually consumed, returned by Ollama on the final chunk.
     pub prompt_eval_count: Option<u64>,
-    /// Appels d'outils natifs (format OpenAI), présents uniquement sur le dernier chunk
-    /// quand le modèle décide d'appeler des outils via l'API native `tools:`.
+    /// Native tool calls (OpenAI format), present only on the last chunk
+    /// when the model decides to call tools via the native `tools:` API.
     pub tool_calls: Option<Vec<ToolCall>>,
 }
 
@@ -35,7 +35,7 @@ struct OllamaStreamLine {
 #[derive(Debug, Deserialize)]
 struct OllamaStreamMessage {
     content: Option<String>,
-    /// Native tool_calls dans la réponse Ollama (format OpenAI-compatible)
+    /// Native tool_calls in the Ollama response (OpenAI-compatible format)
     tool_calls: Option<Vec<OllamaToolCall>>,
 }
 
@@ -74,7 +74,7 @@ pub async fn ollama_chat_stream(
         "stream": true,
         "options": options,
     });
-    // Ajouter les définitions d'outils si fournies (Ollama ≥ 0.5.0)
+    // Add tool definitions if provided (Ollama >= 0.5.0)
     if let Some(tools_list) = tools {
         chat_body["tools"] = serde_json::json!(tools_list);
     }
@@ -85,10 +85,10 @@ pub async fn ollama_chat_stream(
         .send()
         .await?;
 
-    // If chat endpoint fails, fallback to /api/generate (sans outils)
+    // If chat endpoint fails, fallback to /api/generate (without tools)
     if !response.status().is_success() {
         if tools.is_some() {
-            // Retry sans tools pour les vieux modèles
+            // Retry without tools for older models
             let mut fallback_body = chat_body.clone();
             fallback_body.as_object_mut().map(|obj| obj.remove("tools"));
             response = client
@@ -142,7 +142,7 @@ pub async fn ollama_chat_stream(
                                 None
                             };
 
-                            // Parser les tool_calls natifs du dernier chunk Ollama
+                            // Parse the native tool_calls from the last Ollama chunk
                             let tool_calls = if done {
                                 parsed.message.as_ref()
                                     .and_then(|m| m.tool_calls.as_ref())

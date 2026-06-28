@@ -1,8 +1,8 @@
-//! Presentation de medias dans le chat.
+//! Media presentation in the chat.
 //!
-//! L'outil ne telecharge rien : il decrit de maniere sure les medias que le
-//! navigateur doit rendre. Les chemins locaux restent limites au dossier de
-//! travail actif; le dashboard les sert ensuite via son endpoint local.
+//! The tool downloads nothing: it safely describes the media that the browser
+//! should render. Local paths stay limited to the active working directory; the
+//! dashboard then serves them via its local endpoint.
 
 use crate::abeille::{Abeille, ContextExecution, NiveauDanger, ResultatAbeille};
 use anyhow::Result;
@@ -97,8 +97,8 @@ impl Abeille for MediaPresent {
             }));
         }
 
-        // Marqueur compact : l'UI l'intercepte dans l'evenement outil et ne
-        // l'affiche jamais comme du texte au modele ou a l'utilisateur.
+        // Compact marker: the UI intercepts it in the tool event and never
+        // displays it as text to the model or the user.
         Ok(ResultatAbeille::ok(format!(
             "<laruche-media>{}</laruche-media>\n{} media item(s) ready to display.",
             serde_json::to_string(&normalized)?,

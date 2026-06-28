@@ -263,7 +263,7 @@ mod tests {
             ErrorClass::RateLimited { reset_at: Some(t) } => {
                 assert!(t > chrono::Utc::now().timestamp());
             }
-            other => panic!("attendu RateLimited, obtenu {other:?}"),
+            other => panic!("expected RateLimited, got {other:?}"),
         }
     }
 

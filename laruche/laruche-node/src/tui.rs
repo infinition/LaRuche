@@ -1,4 +1,4 @@
-//! Server TUI — fixed-layout terminal UI with scrolling logs.
+//! Server TUI: fixed-layout terminal UI with scrolling logs.
 //!
 //! Provides a Ratatui-based interface for laruche-node with:
 //! - Header bar: node name, IP, port, uptime
@@ -342,7 +342,7 @@ fn draw_header(f: &mut Frame, area: Rect, stats: &LiveStats) {
   ██║     ██╔══██║██╔══██╗██║   ██║██║     ██╔══██║██╔══╝
   ███████╗██║  ██║██║  ██║╚██████╔╝╚██████╗██║  ██║███████╗
   ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝╚═╝  ╚═╝╚══════╝
-  Branchez l'IA. C'est tout. • Miel Protocol v{}"#,
+  Plug in AI. That's it. • Miel Protocol v{}"#,
         env!("CARGO_PKG_VERSION")
     );
 

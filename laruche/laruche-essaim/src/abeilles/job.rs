@@ -1,7 +1,7 @@
-//! Outils pour la gestion de jobs longs en arrière-plan.
+//! Tools for managing long-running background jobs.
 //!
-//! - `submit_job` : lance un script shell en background, retourne un job_id.
-//! - `check_job_status` : vérifie le statut d'un job par son job_id.
+//! - `submit_job`: launches a shell script in the background, returns a job_id.
+//! - `check_job_status`: checks the status of a job by its job_id.
 
 use crate::abeille::{Abeille, ContextExecution, NiveauDanger, ResultatAbeille};
 use crate::job_queue::{JobQueue, JobStatus};
@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 // ─── SubmitJob ────────────────────────────────────────────────────────────────
 
-/// Lance un script en arrière-plan et retourne un `job_id` pour le suivre.
+/// Launches a script in the background and returns a `job_id` to track it.
 pub struct SubmitJob {
     pub queue: Arc<JobQueue>,
 }
@@ -23,10 +23,10 @@ impl Abeille for SubmitJob {
     }
 
     fn description(&self) -> &str {
-        "Soumet un script shell à exécuter en arrière-plan. \
-         Retourne un `job_id` que tu peux utiliser avec `check_job_status`. \
-         Utilise pour les scripts longs (> 30s) qui ne nécessitent pas de \
-         réponse immédiate."
+        "Submits a shell script to run in the background. \
+         Returns a `job_id` you can use with `check_job_status`. \
+         Use for long-running scripts (> 30s) that do not require an \
+         immediate response."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -57,22 +57,22 @@ impl Abeille for SubmitJob {
     ) -> Result<ResultatAbeille> {
         let script = args["script"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("Argument 'script' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("Missing 'script' argument"))?;
         let label = args["label"].as_str();
 
         let job_id = self.queue.submit(script, label).await;
 
-        tracing::info!(job_id = %job_id, script_len = script.len(), "Job soumis en arrière-plan");
+        tracing::info!(job_id = %job_id, script_len = script.len(), "Job submitted in background");
 
         Ok(ResultatAbeille::ok(format!(
-            "Job soumis ! job_id: {job_id}\nUtilise `check_job_status` avec ce job_id pour vérifier l'avancement.",
+            "Job submitted! job_id: {job_id}\nUse `check_job_status` with this job_id to check progress.",
         )))
     }
 }
 
 // ─── CheckJobStatus ───────────────────────────────────────────────────────────
 
-/// Vérifie le statut d'un job soumis via `submit_job`.
+/// Checks the status of a job submitted via `submit_job`.
 pub struct CheckJobStatus {
     pub queue: Arc<JobQueue>,
 }
@@ -84,8 +84,8 @@ impl Abeille for CheckJobStatus {
     }
 
     fn description(&self) -> &str {
-        "Vérifie le statut d'un job soumis avec `submit_job`. \
-         Retourne 'En cours', 'Terminé' ou 'Échoué' avec les détails."
+        "Checks the status of a job submitted with `submit_job`. \
+         Returns 'Running', 'Completed' or 'Failed' with details."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -112,34 +112,34 @@ impl Abeille for CheckJobStatus {
     ) -> Result<ResultatAbeille> {
         let job_id = args["job_id"]
             .as_str()
-            .ok_or_else(|| anyhow::anyhow!("Argument 'job_id' manquant"))?;
+            .ok_or_else(|| anyhow::anyhow!("Missing 'job_id' argument"))?;
 
         match self.queue.check(job_id).await {
             Some(JobStatus::Running { started, progress }) => {
                 let elapsed = started.elapsed().as_secs();
                 let pct = progress.map(|p| format!(" ({:.0}%)", p * 100.0)).unwrap_or_default();
                 Ok(ResultatAbeille::ok(format!(
-                    "Job {job_id} : EN COURS depuis {elapsed}s{pct}. Vérifie à nouveau dans 30s."
+                    "Job {job_id}: RUNNING for {elapsed}s{pct}. Check again in 30s."
                 )))
             }
             Some(JobStatus::Completed { output, elapsed }) => {
                 let truncated = if output.len() > 2000 {
-                    format!("{}... [tronqué, {} chars]", &output[..2000], output.len())
+                    format!("{}... [truncated, {} chars]", &output[..2000], output.len())
                 } else {
                     output.clone()
                 };
                 Ok(ResultatAbeille::ok(format!(
-                    "Job {job_id} : TERMINÉ en {elapsed:.0?}\n{}",
+                    "Job {job_id}: COMPLETED in {elapsed:.0?}\n{}",
                     truncated
                 )))
             }
             Some(JobStatus::Failed { error, elapsed }) => {
                 Ok(ResultatAbeille::ok(format!(
-                    "Job {job_id} : ÉCHOUÉ après {elapsed:.0?}\nErreur: {error}"
+                    "Job {job_id}: FAILED after {elapsed:.0?}\nError: {error}"
                 )))
             }
             None => Ok(ResultatAbeille::ok(format!(
-                "Job {job_id} : INCONNU (pas encore soumis ou déjà nettoyé)."
+                "Job {job_id}: UNKNOWN (not yet submitted or already cleaned up)."
             ))),
         }
     }

@@ -119,7 +119,7 @@ fn fuzzy_replace(
     if exact_count > 0 {
         if exact_count > 1 && !replace_all {
             return Err(format!(
-                "old_string found {exact_count}x — add more context to make it unique, or set replace_all=true"
+                "old_string found {exact_count}x - add more context to make it unique, or set replace_all=true"
             ));
         }
         let updated = if replace_all {
@@ -138,7 +138,7 @@ fn fuzzy_replace(
     }
     if occurrences.len() > 1 && !replace_all {
         return Err(format!(
-            "old_string found {}x (fuzzy) — add more context to make it unique, or set replace_all=true",
+            "old_string found {}x (fuzzy) - add more context to make it unique, or set replace_all=true",
             occurrences.len()
         ));
     }
@@ -294,7 +294,7 @@ impl Abeille for FileRead {
         let lines: Vec<&str> = content.lines().collect();
         let total = lines.len();
 
-        // Plage explicite, sinon auto-plage si gros fichier (>1500 lignes) pour ne pas exploser le contexte.
+        // Explicit range, otherwise auto-range for large files (>1500 lines) to avoid blowing up the context.
         let (start, count) = match (offset, limit) {
             (Some(o), Some(l)) => (o - 1, l),
             (Some(o), None) => (o - 1, 2000),
@@ -315,7 +315,7 @@ impl Abeille for FileRead {
         }
         if end < total {
             out.push_str(&format!(
-                "\n... ({} lines remaining — use offset={} to read more)",
+                "\n... ({} lines remaining - use offset={} to read more)",
                 total - end,
                 end + 1
             ));
@@ -324,7 +324,7 @@ impl Abeille for FileRead {
     }
 }
 
-/// Édition ciblée d'un fichier par remplacement de chaîne EXACTE (patch).
+/// Targeted file edit via EXACT string replacement (patch).
 pub struct FileEdit;
 
 #[async_trait]
@@ -390,12 +390,12 @@ impl Abeille for FileEdit {
         };
         if count == 0 {
             return Ok(ResultatAbeille::err(
-                "old_string not found — copy the exact text (indentation included)",
+                "old_string not found - copy the exact text (indentation included)",
             ));
         }
         if count > 1 && !replace_all {
             return Ok(ResultatAbeille::err(format!(
-                "old_string found {count}x — add more context to make it unique, or set replace_all=true"
+                "old_string found {count}x - add more context to make it unique, or set replace_all=true"
             )));
         }
         let _unused_updated = if replace_all {

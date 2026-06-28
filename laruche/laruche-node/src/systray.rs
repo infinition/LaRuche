@@ -2,7 +2,7 @@
 //!
 //! Shows a yellow hexagon icon in the notification area with:
 //! - Double-click: open dashboard in browser
-//! - Right-click menu: "Ouvrir le Dashboard", "Quitter"
+//! - Right-click menu: "Open Dashboard", "Quit"
 
 #[cfg(windows)]
 pub fn run_systray(port: u16, shutdown_tx: tokio::sync::oneshot::Sender<()>) {
@@ -17,8 +17,8 @@ pub fn run_systray(port: u16, shutdown_tx: tokio::sync::oneshot::Sender<()>) {
 
     // Build menu
     let menu = Menu::new();
-    let item_open = MenuItem::new("Ouvrir le Dashboard", true, None);
-    let item_quit = MenuItem::new("Quitter LaRuche", true, None);
+    let item_open = MenuItem::new("Open Dashboard", true, None);
+    let item_quit = MenuItem::new("Quit LaRuche", true, None);
     let _ = menu.append(&item_open);
     let _ = menu.append(&item_quit);
 

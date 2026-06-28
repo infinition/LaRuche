@@ -1,4 +1,4 @@
-//! Browser control abeille — navigates web pages, takes screenshots, extracts content.
+//! Browser control tool: navigates web pages, takes screenshots, extracts content.
 //!
 //! Uses headless Chrome via shell commands (no CDP dependency needed).
 //! For full CDP integration, a separate browser service would be needed.

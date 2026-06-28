@@ -1,8 +1,8 @@
-//! Outil `task_complete` — signal de fin explicite pour le LLM.
+//! `task_complete` tool: explicit completion signal for the LLM.
 //!
-//! Le modèle appelle ce tool quand la tâche est entièrement terminée et validée.
-//! Dans la boucle ReAct, on détecte cet appel AVANT d'exécuter les outils
-//! et on sort immédiatement avec le résumé structuré.
+//! The model calls this tool when the task is fully finished and validated.
+//! In the ReAct loop, this call is detected BEFORE executing tools
+//! and we exit immediately with the structured summary.
 
 use crate::abeille::{Abeille, ContextExecution, NiveauDanger, ResultatAbeille};
 use anyhow::Result;
@@ -17,9 +17,9 @@ impl Abeille for TaskComplete {
     }
 
     fn description(&self) -> &str {
-        "Appelle CE tool UNIQUEMENT quand la tâche est entièrement terminée \
-         et validée. Fournit un résumé structuré des accomplissements. \
-         NE PAS appeler pour des étapes intermédiaires."
+        "Call THIS tool ONLY when the task is fully finished \
+         and validated. Provide a structured summary of accomplishments. \
+         DO NOT call it for intermediate steps."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -32,7 +32,7 @@ impl Abeille for TaskComplete {
                 },
                 "confidence": {
                     "type": "number",
-                    "description": "0.0 to 1.0 — confidence in the result"
+                    "description": "0.0 to 1.0 - confidence in the result"
                 },
                 "artifacts": {
                     "type": "array",
@@ -53,7 +53,7 @@ impl Abeille for TaskComplete {
         args: serde_json::Value,
         _ctx: &ContextExecution,
     ) -> Result<ResultatAbeille> {
-        let summary = args["summary"].as_str().unwrap_or("Tâche terminée");
+        let summary = args["summary"].as_str().unwrap_or("Task complete");
         let confidence = args["confidence"].as_f64().unwrap_or(1.0);
         let artifacts: Vec<String> = args["artifacts"]
             .as_array()
@@ -65,18 +65,18 @@ impl Abeille for TaskComplete {
             .unwrap_or_default();
 
         let mut out = format!(
-            "[TASK_COMPLETE] Résumé : {summary}\nConfiance : {:.0}%",
+            "[TASK_COMPLETE] Summary: {summary}\nConfidence: {:.0}%",
             confidence * 100.0
         );
         if !artifacts.is_empty() {
-            out.push_str(&format!("\nArtéfacts : {}", artifacts.join(", ")));
+            out.push_str(&format!("\nArtifacts: {}", artifacts.join(", ")));
         }
 
         tracing::info!(
             summary_len = summary.len(),
             confidence,
             artifacts = artifacts.len(),
-            "TaskComplete appelé"
+            "TaskComplete called"
         );
 
         Ok(ResultatAbeille::ok(out))

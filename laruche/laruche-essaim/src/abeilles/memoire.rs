@@ -1,8 +1,8 @@
-//! Abeilles mémoire — l'agent lit/écrit la carte cognitive (paradigm) via le trait
-//! [`MemoireCognitive`]. Remplace à terme `knowledge.rs` (RAG plat).
+//! Memory tools: the agent reads/writes the cognitive map (paradigm) via the
+//! [`MemoireCognitive`] trait. Eventually replaces `knowledge.rs` (flat RAG).
 //!
-//! Ces outils sont agnostiques du backend : qu'il s'agisse du `SidecarBackend`
-//! (paradigm sur :8765) ou du futur `NativeBackend` Rust, le code ne change pas.
+//! These tools are backend-agnostic: whether the `SidecarBackend`
+//! (paradigm on :8765) or the future Rust `NativeBackend`, the code stays the same.
 
 use crate::abeille::{Abeille, ContextExecution, NiveauDanger, ResultatAbeille};
 use anyhow::Result;
@@ -10,20 +10,20 @@ use async_trait::async_trait;
 use laruche_memoire::{MemoireCognitive, MemoryItem, SearchOpts};
 use std::sync::Arc;
 
-/// Nœuds gérés UNIQUEMENT par le système : `tools.*` (projection du registre d'abeilles/skills,
-/// régénérée au démarrage) et `system.*` (nœuds internes). L'agent peut les LIRE (search/tree)
-/// mais pas les MUTER : sinon « ranger sa mémoire » casserait la sélection sémantique d'outils.
+/// Nodes managed ONLY by the system: `tools.*` (projection of the tool/skill registry,
+/// regenerated at startup) and `system.*` (internal nodes). The agent can READ them (search/tree)
+/// but not MUTATE them: otherwise "tidying its memory" would break semantic tool selection.
 fn noeud_reserve(node_id: &str) -> bool {
     let id = node_id.trim().trim_matches('.');
     id == "capacities"
         || id == "system"
-        || id == "tools" // legacy (avant migration capacities)
+        || id == "tools" // legacy (before capacities migration)
         || id.starts_with("capacities.")
         || id.starts_with("system.")
         || id.starts_with("tools.")
 }
 
-/// Recherche cognitive dans la mémoire.
+/// Cognitive search in memory.
 pub struct MemoireSearch {
     pub mem: Arc<dyn MemoireCognitive>,
 }
@@ -80,10 +80,10 @@ impl Abeille for MemoireSearch {
     }
 }
 
-/// Mémorise un fait durable dans la carte cognitive.
+/// Stores a lasting fact in the cognitive map.
 pub struct MemoireWrite {
     pub mem: Arc<dyn MemoireCognitive>,
-    /// Si vrai, passe par la file de revue (`propose_write`) au lieu d'écrire directement.
+    /// If true, goes through the review queue (`propose_write`) instead of writing directly.
     pub propose: bool,
 }
 
@@ -123,10 +123,10 @@ impl Abeille for MemoireWrite {
         let content = args["content"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("'content' required"))?;
-        // Garde-fou : memory_write NE DOIT PAS écrire dans les nœuds système (capacities.*/
-        // system.*). Sinon l'agent dumpe des « skills » en items dans capacities.skills.* et
-        // pollue (vu en prod : web_research avec 2 items, recherche_programme_tv créé à tort).
-        // Un SKILL se crée avec skill_create (item unique, fichier .md), pas memory_write.
+        // Guardrail: memory_write MUST NOT write into system nodes (capacities.*/
+        // system.*). Otherwise the agent dumps "skills" as items into capacities.skills.* and
+        // pollutes them (seen in prod: web_research with 2 items, recherche_programme_tv wrongly created).
+        // A SKILL is created with skill_create (single item, .md file), not memory_write.
         if noeud_reserve(node_id) {
             return Ok(ResultatAbeille::err(format!(
                 "Refused: `{node_id}` is a reserved SYSTEM node (capacities.*/system.*). \
@@ -420,7 +420,7 @@ impl Abeille for MemoireSuggestNodes {
     }
 }
 
-/// Statistiques de la mémoire cognitive.
+/// Cognitive memory statistics.
 pub struct MemoireStats {
     pub mem: Arc<dyn MemoireCognitive>,
 }
@@ -451,7 +451,7 @@ impl Abeille for MemoireStats {
     }
 }
 
-/// Journal d'audit : mutations récentes de la mémoire.
+/// Audit log: recent memory mutations.
 pub struct MemoireMutations {
     pub mem: Arc<dyn MemoireCognitive>,
 }
@@ -489,7 +489,7 @@ impl Abeille for MemoireMutations {
     }
 }
 
-/// Arbre complet de la carte cognitive (tous les nœuds). Pour auditer/ranger sa mémoire.
+/// Full tree of the cognitive map (all nodes). For auditing/tidying memory.
 pub struct MemoireTree {
     pub mem: Arc<dyn MemoireCognitive>,
 }
@@ -522,7 +522,7 @@ impl Abeille for MemoireTree {
     }
 }
 
-/// Supprime un nœud entier ; ses items et sous-nœuds remontent au parent (fusion).
+/// Deletes an entire node; its items and child nodes are re-attached to the parent (merge).
 pub struct MemoireDeleteNode {
     pub mem: Arc<dyn MemoireCognitive>,
 }
@@ -573,7 +573,7 @@ impl Abeille for MemoireDeleteNode {
     }
 }
 
-/// Horodatage unix (secondes) → date locale lisible « 22/06/2026 14:32 » (ou "?" si absent).
+/// Unix timestamp (seconds) -> readable local date "22/06/2026 14:32" (or "?" if missing).
 fn fmt_ts(v: &serde_json::Value) -> String {
     match v.as_i64() {
         Some(ts) if ts > 0 => chrono::DateTime::from_timestamp(ts, 0)
@@ -587,7 +587,7 @@ fn fmt_ts(v: &serde_json::Value) -> String {
     }
 }
 
-/// Lit un nœud : ses items AVEC horodatage (créé/modifié), ses sous-nœuds et ses métadonnées.
+/// Reads a node: its items WITH timestamps (created/modified), its child nodes and its metadata.
 pub struct MemoireReadNode {
     pub mem: Arc<dyn MemoireCognitive>,
 }
@@ -658,8 +658,8 @@ impl Abeille for MemoireReadNode {
     }
 }
 
-/// `memory_doctor` — audit LECTURE SEULE de la santé de la mémoire (stats, nœuds surchargés,
-/// doublons) pour décider quoi ranger/consolider. N'applique rien.
+/// `memory_doctor`: READ-ONLY audit of memory health (stats, overloaded nodes,
+/// duplicates) to decide what to tidy/consolidate. Applies nothing.
 pub struct MemoireDoctor {
     pub mem: Arc<dyn MemoireCognitive>,
 }
@@ -691,7 +691,7 @@ impl Abeille for MemoireDoctor {
             .suggest_nodes("", Some(200))
             .await
             .unwrap_or_else(|_| serde_json::json!({}));
-        // Top nœuds par nombre d'items.
+        // Top nodes by item count.
         let mut tops: Vec<(String, u64)> = sugg["nodes"]
             .as_array()
             .map(|a| {
@@ -734,9 +734,9 @@ impl Abeille for MemoireDoctor {
     }
 }
 
-/// `memory_grep` — recherche EXACTE par sous-chaîne dans le contenu des items (insensible à la
-/// casse). Complète `memory_search` (sémantique) : utile pour retrouver un terme précis, un nom,
-/// une URL, un id… parmi tous les items.
+/// `memory_grep`: EXACT substring search in item content (case-insensitive).
+/// Complements `memory_search` (semantic): useful to find a specific term, a name,
+/// a URL, an id... among all items.
 pub struct MemoireGrep {
     pub mem: Arc<dyn MemoireCognitive>,
 }
@@ -782,9 +782,9 @@ impl Abeille for MemoireGrep {
     }
 }
 
-/// `memory_consolidate` — fusionne/déduplique les items d'un nœud en un ensemble minimal et
-/// synthétique (ex. `people.fabien` plein de notes → 1-2 items qui résument tout). Sûr : les
-/// anciens items sont soft-deleted (récupérables). Pour ranger/nettoyer la mémoire.
+/// `memory_consolidate`: merges/deduplicates a node's items into a minimal,
+/// synthetic set (e.g. `people.fabien` full of notes -> 1-2 items summarizing everything). Safe: the
+/// old items are soft-deleted (recoverable). For tidying/cleaning up memory.
 pub struct MemoireConsolidate {
     pub mem: Arc<dyn MemoireCognitive>,
     pub config: crate::brain::EssaimConfig,
@@ -828,7 +828,7 @@ impl Abeille for MemoireConsolidate {
     }
 }
 
-// ───────────────────────── SKILLS (auto-amélioration, façon third-party) ─────────────────────────
+// ───────────────────────── SKILLS (self-improvement, third-party-style) ─────────────────────────
 
 fn str_array(v: &serde_json::Value) -> Vec<String> {
     v.as_array()
@@ -836,8 +836,8 @@ fn str_array(v: &serde_json::Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Sync SQL → disque : écrit le `SKILL.md` du skill sous `skills/<slug>/` (flat-file,
-/// compat agentskills.io / third-party — éditable, versionnable, ré-importable).
+/// Sync SQL -> disk: writes the skill's `SKILL.md` under `skills/<slug>/` (flat-file,
+/// compatible with agentskills.io / third-party: editable, versionable, re-importable).
 fn ecrire_skill_md(node_id: &str, content: &str) {
     let slug = node_id.strip_prefix("capacities.skills.").unwrap_or(node_id);
     if slug.is_empty() {
@@ -848,8 +848,8 @@ fn ecrire_skill_md(node_id: &str, content: &str) {
     let _ = std::fs::write(dir.join("SKILL.md"), content);
 }
 
-/// Construit le document OKF d'un skill : frontmatter (type/name/description + outils/scripts
-/// DÉCLARÉS = skill borné) + corps markdown.
+/// Builds a skill's OKF document: frontmatter (type/name/description + DECLARED
+/// tools/scripts = bounded skill) + markdown body.
 fn build_skill_okf(
     name: &str,
     description: &str,
@@ -874,7 +874,7 @@ fn build_skill_okf(
     s
 }
 
-/// Remplace TOUT le contenu d'un nœud skill par `content` (supprime les items actifs puis écrit).
+/// Replaces ALL content of a skill node with `content` (deletes active items, then writes).
 async fn set_skill_content(
     mem: &Arc<dyn MemoireCognitive>,
     node_id: &str,
@@ -905,8 +905,8 @@ async fn read_skill_content(mem: &Arc<dyn MemoireCognitive>, node_id: &str) -> O
         .map(String::from)
 }
 
-/// `skill_create` — crée OU remplace un skill (procédure réutilisable) au bon endroit et bien
-/// formaté. C'est LA façon de transformer une expérience réussie en savoir réutilisable.
+/// `skill_create`: creates OR replaces a skill (reusable procedure) in the right place, well
+/// formatted. This is THE way to turn a successful experience into reusable knowledge.
 pub struct MemoireSkillCreate {
     pub mem: Arc<dyn MemoireCognitive>,
 }
@@ -957,7 +957,7 @@ impl Abeille for MemoireSkillCreate {
         );
         match set_skill_content(&self.mem, &node_id, &content).await {
             Ok(_) => {
-                ecrire_skill_md(&node_id, &content); // sync SQL → disque (flat-file)
+                ecrire_skill_md(&node_id, &content); // sync SQL -> disk (flat-file)
                 Ok(ResultatAbeille::ok(format!(
                     "Skill `{name}` saved to `{node_id}` (+ skills/.../SKILL.md)."
                 )))
@@ -967,8 +967,8 @@ impl Abeille for MemoireSkillCreate {
     }
 }
 
-/// `skill_patch` — corrige un skill EN PLACE (find-replace). L'itération « jusqu'à ce que ça
-/// marche » : quand un skill échoue ou est périmé, patche-le immédiatement.
+/// `skill_patch`: fixes a skill IN PLACE (find-replace). The "until it works"
+/// iteration: when a skill fails or is outdated, patch it immediately.
 pub struct MemoireSkillPatch {
     pub mem: Arc<dyn MemoireCognitive>,
 }
@@ -1019,7 +1019,7 @@ impl Abeille for MemoireSkillPatch {
         let patched = content.replacen(old, new, 1);
         match set_skill_content(&self.mem, &node_id, &patched).await {
             Ok(_) => {
-                ecrire_skill_md(&node_id, &patched); // sync SQL → disque
+                ecrire_skill_md(&node_id, &patched); // sync SQL -> disk
                 Ok(ResultatAbeille::ok(format!("Skill `{name}` patched.")))
             }
             Err(e) => Ok(ResultatAbeille::err(format!("skill_patch failed: {e}"))),
@@ -1027,7 +1027,7 @@ impl Abeille for MemoireSkillPatch {
     }
 }
 
-/// `skill_delete` — supprime un skill (items + dossier de scripts).
+/// `skill_delete`: deletes a skill (items + scripts folder).
 pub struct MemoireSkillDelete {
     pub mem: Arc<dyn MemoireCognitive>,
 }
@@ -1077,7 +1077,7 @@ impl Abeille for MemoireSkillDelete {
     }
 }
 
-/// Crée un nouveau nœud dans la carte cognitive.
+/// Creates a new node in the cognitive map.
 pub struct MemoireCreateNode {
     pub mem: Arc<dyn MemoireCognitive>,
 }
@@ -1138,7 +1138,7 @@ impl Abeille for MemoireCreateNode {
     }
 }
 
-/// Renomme / met à jour les métadonnées d'un nœud existant.
+/// Renames / updates the metadata of an existing node.
 pub struct MemoireUpdateNode {
     pub mem: Arc<dyn MemoireCognitive>,
 }

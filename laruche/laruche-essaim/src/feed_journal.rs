@@ -1,31 +1,31 @@
-//! Le **journal du Feed** — un log d'événements système **persistant** (append-only ndjson).
+//! The **Feed journal**: a **persistent** system event log (append-only ndjson).
 //!
-//! Problème résolu : avant, le Feed ne montrait que les *exécutions* (via `last_run`) et les
-//! mutations mémoire ; les *créations* (cron, watcher, mission, kanban) et les runs du curateur
-//! n'étaient jamais journalisés, et tout disparaissait au redémarrage. Ce journal enregistre
-//! **toute action système** de façon durable.
+//! Problem solved: previously, the Feed only showed *executions* (via `last_run`) and
+//! memory mutations; *creations* (cron, watcher, mission, kanban) and curator runs
+//! were never journaled, and everything was lost on restart. This journal records
+//! **every system action** durably.
 //!
-//! Accès **global** (comme `MESH_SIGNER`) pour éviter de threader un `Arc` dans chaque outil :
-//! le node l'initialise au démarrage ([`init`]), tout le monde appelle [`record`], et `api_feed`
-//! lit [`recent`]. Sans init, [`record`] est un no-op (jamais de panique).
+//! **Global** access (like `MESH_SIGNER`) to avoid threading an `Arc` through each tool:
+//! the node initializes it at startup ([`init`]), everyone calls [`record`], and `api_feed`
+//! reads [`recent`]. Without init, [`record`] is a no-op (never panics).
 
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};
 
-/// Un événement de feed durable.
+/// A durable feed event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeedEvent {
-    /// Timestamp epoch en millisecondes.
+    /// Epoch timestamp in milliseconds.
     pub ts: i64,
-    /// Auteur affiché (« LaRuche », « User », « Curateur »…).
+    /// Displayed actor ("LaRuche", "User", "Curateur", etc.).
     pub actor: String,
-    /// Catégorie (« cron », « watcher », « mission », « kanban », « curator »…).
+    /// Category ("cron", "watcher", "mission", "kanban", "curator", etc.).
     pub kind: String,
-    /// Verbe d'action lisible (« a créé le cron », « a lancé le curateur »…).
+    /// Readable action verb ("created the cron", "started the curator", etc.).
     pub action: String,
-    /// Objet concerné (nom de la tâche, du watcher…).
+    /// Affected object (task name, watcher name, etc.).
     pub object: String,
 }
 
@@ -37,8 +37,8 @@ struct Journal {
 
 static JOURNAL: OnceLock<Mutex<Journal>> = OnceLock::new();
 
-/// Initialise le journal : charge l'historique existant depuis `path` (ndjson) et borne la
-/// taille à `cap`. À appeler une fois au démarrage du node. Idempotent (ignoré si déjà init).
+/// Initializes the journal: loads existing history from `path` (ndjson) and bounds the
+/// size to `cap`. Call once at node startup. Idempotent (ignored if already initialized).
 pub fn init(path: PathBuf, cap: usize) {
     let mut events = VecDeque::new();
     if let Ok(contenu) = std::fs::read_to_string(&path) {
@@ -57,7 +57,7 @@ pub fn init(path: PathBuf, cap: usize) {
     let _ = JOURNAL.set(Mutex::new(Journal { events, path, cap }));
 }
 
-/// Enregistre un événement (mémoire + append disque). No-op si non initialisé.
+/// Records an event (memory + disk append). No-op if not initialized.
 pub fn record(
     actor: impl Into<String>,
     kind: impl Into<String>,
@@ -74,7 +74,7 @@ pub fn record(
         object: object.into(),
     };
     let Ok(mut j) = lock.lock() else { return };
-    // Append disque (best-effort : on ne bloque jamais sur une erreur d'écriture).
+    // Disk append (best-effort: never blocks on a write error).
     if let Ok(ligne) = serde_json::to_string(&ev) {
         use std::io::Write;
         if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&j.path) {
@@ -87,7 +87,7 @@ pub fn record(
     }
 }
 
-/// Renvoie les `limit` événements les plus récents (du plus ancien au plus récent).
+/// Returns the `limit` most recent events (from oldest to newest).
 pub fn recent(limit: usize) -> Vec<FeedEvent> {
     let Some(lock) = JOURNAL.get() else { return Vec::new() };
     let Ok(j) = lock.lock() else { return Vec::new() };
@@ -102,9 +102,9 @@ mod tests {
 
     #[test]
     fn record_sans_init_est_un_noop() {
-        // Ne doit pas paniquer même si JOURNAL n'est pas initialisé dans ce test.
+        // Must not panic even if JOURNAL is not initialized in this test.
         record("LaRuche", "cron", "a créé le cron", "x", chrono::Utc::now());
-        // recent() renvoie vide tant que non init (ou les events d'un autre test — on teste juste l'absence de panique).
+        // recent() returns empty while not initialized (or events from another test: we only test the absence of panic).
         let _ = recent(10);
     }
 }

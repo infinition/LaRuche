@@ -119,28 +119,28 @@ fn render_compact_summary(
     tokens_after_estimate: usize,
 ) -> String {
     let mut out = String::new();
-    out.push_str("[Resume structure de la conversation compactee]\n");
+    out.push_str("[Structured summary of the compacted conversation]\n");
     out.push_str(&format!(
         "Tokens: {tokens_before} -> ~{tokens_after_estimate}\n\n"
     ));
-    out.push_str("## Demande principale\n");
+    out.push_str("## Primary request\n");
     out.push_str(&summary.primary_request);
-    out.push_str("\n\n## Contexte technique\n");
+    out.push_str("\n\n## Technical context\n");
     push_list(&mut out, &summary.technical_context);
-    out.push_str("\n## Fichiers et code\n");
+    out.push_str("\n## Files and code\n");
     push_list(&mut out, &summary.files_and_code);
-    out.push_str("\n## Erreurs et corrections\n");
+    out.push_str("\n## Errors and fixes\n");
     push_list(&mut out, &summary.errors_and_fixes);
-    out.push_str("\n## Taches en attente\n");
+    out.push_str("\n## Pending tasks\n");
     push_list(&mut out, &summary.pending_tasks);
-    out.push_str("\n## Travail courant\n");
+    out.push_str("\n## Current work\n");
     out.push_str(&summary.current_work);
     out
 }
 
 fn push_list(out: &mut String, items: &[String]) {
     if items.is_empty() {
-        out.push_str("- Aucun element preserve.\n");
+        out.push_str("- No element preserved.\n");
     } else {
         for item in items {
             out.push_str("- ");
@@ -272,7 +272,7 @@ impl Session {
         })];
 
         // Limit history to avoid context overflow.
-        // Keep the last N messages — enough for multi-turn but not too much for small models.
+        // Keep the last N messages: enough for multi-turn but not too much for small models.
         let max_history = 30;
         let skip = if self.messages.len() > max_history {
             self.messages.len() - max_history
@@ -286,7 +286,7 @@ impl Session {
                 "role": "system",
                 "content": format!(
                     "[Note: {} earlier messages were omitted to fit context. \
-                     Focus on the recent conversation. You still have access to all your tools — \
+                     Focus on the recent conversation. You still have access to all your tools - \
                      use them when needed.]",
                     skip
                 ),
@@ -395,9 +395,9 @@ impl Session {
         if self.title.is_some() {
             return;
         }
-        // Bug fix : le chat stocke les messages user en `UserMultimodal` (pas seulement `User`) →
-        // l'ancienne version ne trouvait jamais de titre = « Sans titre » partout. On gère les deux,
-        // on retire le suffixe `[SYSTEM]…` ajouté au prompt, et on coupe proprement à 60 caractères.
+        // Bug fix: the chat stores user messages as `UserMultimodal` (not only `User`), so the
+        // old version never found a title (everything became "Untitled"). Handle both cases,
+        // strip the `[SYSTEM]...` suffix added to the prompt, and cut cleanly at 60 characters.
         for msg in &self.messages {
             let raw = match msg {
                 Message::User(t) => t.as_str(),
@@ -458,7 +458,7 @@ impl Session {
                     store.persist_if_large(&format!("{}-{idx}-{tool}", self.id), result, 4_000)
                 {
                     *result = format!(
-                        "{}\n\n[Resultat complet externalise: {} ({} octets)]",
+                        "{}\n\n[Full result externalized: {} ({} bytes)]",
                         stored.preview,
                         stored.path.display(),
                         stored.original_bytes
@@ -510,8 +510,8 @@ impl Session {
         self.messages.len()
     }
 
-    /// Remplace tout l'historique par un nouveau jeu de messages formatés
-    /// (utilisé après consolidation cognitive pour repartir sur un contexte frais).
+    /// Replace the entire history with a new set of formatted messages
+    /// (used after cognitive consolidation to restart from a fresh context).
     pub fn remplacer_historique(&mut self, messages: Vec<serde_json::Value>) {
         self.messages.clear();
         for msg in messages {

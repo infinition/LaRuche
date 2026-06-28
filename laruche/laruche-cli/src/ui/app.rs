@@ -118,9 +118,9 @@ impl App {
             .to_string();
 
         let welcome = if connected {
-            format!("Connecte a {} — pret !", server_url)
+            format!("Connected to {} - ready!", server_url)
         } else {
-            "Aucun serveur LaRuche trouve. Lancez: cargo run -p laruche-node".to_string()
+            "No LaRuche server found. Run: cargo run -p laruche-node".to_string()
         };
 
         let mut auth_token = None;
@@ -182,7 +182,7 @@ impl App {
         };
 
         let welcome_msg = if connected {
-            format!("Connecte a {}{}", server_url, auth_info)
+            format!("Connected to {}{}", server_url, auth_info)
         } else {
             welcome
         };
@@ -204,9 +204,9 @@ impl App {
             cwd,
             tokens: 0,
             status_msg: if connected {
-                "Connecte".into()
+                "Connected".into()
             } else {
-                "Deconnecte".into()
+                "Disconnected".into()
             },
             is_streaming: false,
             should_quit: false,

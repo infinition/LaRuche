@@ -181,7 +181,7 @@ async fn test_file_write_and_read() {
     let args = serde_json::json!({"path": path_str});
     let result = read_tool.executer(args, &default_ctx()).await.unwrap();
     assert!(result.success, "FileRead failed: {:?}", result.error);
-    // file_read renvoie désormais le contenu avec numéros de ligne (boost third-party-style).
+    // file_read now returns the content with line numbers (third-party-style boost).
     assert!(
         result.output.contains("Hello, LaRuche!"),
         "FileRead output = {:?}",
@@ -227,7 +227,7 @@ async fn test_read_extract_txt_head_tail() {
     assert!(result.success, "read_extract failed: {:?}", result.error);
     assert!(result.output.contains("DEBUT"));
     assert!(result.output.contains("FIN"));
-    assert!(result.output.contains("milieu tronque"));
+    assert!(result.output.contains("middle truncated"));
 
     let _ = std::fs::remove_file(file_path);
     let _ = std::fs::remove_dir(&dir);
@@ -419,18 +419,18 @@ fn test_session_compacter_uses_structured_summary_and_tool_result_store() {
     std::fs::create_dir_all(&dir).unwrap();
 
     let mut session = Session::new_with_path("test-model", &dir);
-    session.ajouter_user("Construis un plan de refactor");
-    session.ajouter_assistant("Je vais inspecter le code et proposer une sequence.");
+    session.ajouter_user("Build a refactor plan");
+    session.ajouter_assistant("I will inspect the code and propose a sequence.");
     session.ajouter_observation("read_extract", &"x".repeat(5_000));
     session.ajouter_user("Continue");
-    session.ajouter_assistant("Suite recente");
+    session.ajouter_assistant("Recent follow-up");
     session.compacter(2);
 
     assert_eq!(session.messages.len(), 3);
     match &session.messages[0] {
         laruche_essaim::session::Message::System(text) => {
-            assert!(text.contains("Resume structure"));
-            assert!(text.contains("Demande principale"));
+            assert!(text.contains("Structured summary"));
+            assert!(text.contains("Primary request"));
         }
         other => panic!("expected summary system message, got {other:?}"),
     }

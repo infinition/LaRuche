@@ -1,7 +1,7 @@
-//! Forge — outils d'**AUTO-AMÉLIORATION** : l'agent crée/édite ses propres **scripts de skill**,
-//! ses **plugins** (outils forgés) et ses **serveurs MCP**. Inspiré de `skill_manage` d'third-party,
-//! mais granulaire (schémas simples → fiable même sur petit modèle). Les skills (docs OKF) eux
-//! vivent dans la carte cognitive et sont gérés par les abeilles `skill_*` de `memoire.rs`.
+//! Forge: **SELF-IMPROVEMENT** tools: the agent creates/edits its own **skill scripts**,
+//! its **plugins** (forged tools) and its **MCP servers**. Inspired by third-party' `skill_manage`,
+//! but granular (simple schemas, reliable even on a small model). The skills (OKF docs)
+//! live in the cognitive map and are managed by the `skill_*` abeilles in `memoire.rs`.
 
 use crate::abeille::{
     Abeille, AbeilleRegistry, ContextExecution, NiveauDanger, ResultatAbeille, ToolOrigin,
@@ -12,7 +12,7 @@ use serde_json::json;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-/// Slug ascii (a-z0-9_) depuis un nom libre.
+/// ASCII slug (a-z0-9_) from a free-form name.
 fn slugify(name: &str) -> String {
     let mut s: String = name
         .trim()
@@ -26,7 +26,7 @@ fn slugify(name: &str) -> String {
     s.trim_matches('_').to_string()
 }
 
-/// Chemin sûr sous `skills/<slug>/` (refuse `..` et chemins absolus).
+/// Safe path under `skills/<slug>/` (rejects `..` and absolute paths).
 fn skill_file_path(skill: &str, rel: &str) -> Option<PathBuf> {
     if rel.is_empty() || rel.contains("..") || rel.starts_with('/') || rel.starts_with('\\') {
         return None;
@@ -38,7 +38,7 @@ fn skill_file_path(skill: &str, rel: &str) -> Option<PathBuf> {
     Some(PathBuf::from("skills").join(slug).join(rel))
 }
 
-// ─────────────────────────── Fichiers de skill (scripts/références) ───────────────────────────
+// ─────────────────────────── Skill files (scripts/references) ───────────────────────────
 
 pub struct SkillFileWrite;
 #[async_trait]
@@ -49,7 +49,7 @@ impl Abeille for SkillFileWrite {
     fn description(&self) -> &str {
         "Create or overwrite a file in a skill bundle (script, reference, etc.). \
          The script is then run via shell_exec/execute_code. \
-         Does NOT create a tool — use plugin_create for that."
+         Does NOT create a tool - use plugin_create for that."
     }
     fn schema(&self) -> serde_json::Value {
         json!({"type":"object","properties":{
@@ -189,7 +189,7 @@ impl Abeille for SkillFileList {
     }
 }
 
-// ─────────────────────────────── Plugins (outils forgés) ───────────────────────────────
+// ─────────────────────────────── Plugins (forged tools) ───────────────────────────────
 
 pub struct PluginCreate {
     pub registry: Arc<AbeilleRegistry>,
@@ -228,7 +228,7 @@ impl Abeille for PluginCreate {
             return Ok(ResultatAbeille::err("name required"));
         }
         let slug = slugify(name);
-        // Script optionnel (refuse ../).
+        // Optional script (rejects ../).
         if let (Some(sp), Some(sc)) = (args["script_path"].as_str(), args["script_content"].as_str()) {
             if sp.contains("..") {
                 return Ok(ResultatAbeille::err("invalid script_path"));
@@ -252,7 +252,7 @@ impl Abeille for PluginCreate {
         if let Err(e) = std::fs::write(&path, serde_json::to_string_pretty(&def).unwrap_or_default()) {
             return Ok(ResultatAbeille::err(format!("Plugin write failed: {e}")));
         }
-        // Recharge à chaud dans le registre principal.
+        // Hot-reload into the main registry.
         crate::abeilles::charger_plugins(Path::new("plugins"), &self.registry);
         Ok(ResultatAbeille::ok(format!(
             "Plugin `{name}` created and loaded ({}).",
@@ -329,14 +329,14 @@ impl Abeille for PluginDelete {
         }
         let path = PathBuf::from("plugins").join(format!("{slug}.json"));
         let _ = std::fs::remove_file(&path);
-        // Vide les plugins custom du registre puis recharge ceux qui restent.
+        // Clear custom plugins from the registry then reload the remaining ones.
         self.registry.supprimer_par_origine(ToolOrigin::Custom);
         crate::abeilles::charger_plugins(Path::new("plugins"), &self.registry);
         Ok(ResultatAbeille::ok(format!("Plugin `{slug}` deleted.")))
     }
 }
 
-// ─────────────────────────────── MCP (serveurs externes) ───────────────────────────────
+// ─────────────────────────────── MCP (external servers) ───────────────────────────────
 
 fn lire_mcp() -> serde_json::Value {
     std::fs::read_to_string("mcp_servers.json")
@@ -458,8 +458,8 @@ impl Abeille for McpList {
     }
 }
 
-/// Enregistre les outils de forge (auto-amélioration). `registry_arc` = le registre PRINCIPAL
-/// (pour que plugin_create/delete rechargent au bon endroit).
+/// Registers the forge tools (self-improvement). `registry_arc` = the MAIN registry
+/// (so plugin_create/delete reload in the right place).
 pub fn enregistrer_forge(registry: &AbeilleRegistry, registry_arc: Arc<AbeilleRegistry>) {
     registry.enregistrer(Box::new(SkillFileWrite));
     registry.enregistrer(Box::new(SkillFileRead));

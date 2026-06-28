@@ -5,9 +5,9 @@
 //! - **openai**: OpenAI-compatible APIs (Deepseek, Together, Groq, etc.)
 //! - **anthropic**: Anthropic Claude API
 //!
-//! Tous les providers supportent le **tool calling natif** (format OpenAI `tools:`)
-//! quand un tableau d'outils est fourni. Le parser accumule les `tool_calls` des
-//! chunks streaming et les livre sur le dernier chunk.
+//! All providers support **native tool calling** (OpenAI `tools:` format)
+//! when a tools array is provided. The parser accumulates `tool_calls` from
+//! streaming chunks and delivers them on the final chunk.
 
 use crate::brain::ToolCall;
 use crate::streaming::{ollama_chat_stream, OllamaChunk};
@@ -16,7 +16,7 @@ use futures_util::Stream;
 use std::pin::Pin;
 use tokio_stream::wrappers::ReceiverStream;
 
-/// Erreur provider structurée (code HTTP + corps) renvoyée sur réponse non-2xx.
+/// Structured provider error (HTTP code + body) returned on non-2xx responses.
 #[derive(Debug, Clone)]
 pub struct ProviderError {
     pub status: u16,
@@ -32,8 +32,8 @@ impl std::fmt::Display for ProviderError {
 
 impl std::error::Error for ProviderError {}
 
-/// Convertit le format d'outil LaRuche (name, description, parameters)
-/// vers le format OpenAI `tools` (type: function, function: {name, description, parameters}).
+/// Converts the LaRuche tool format (name, description, parameters)
+/// to the OpenAI `tools` format (type: function, function: {name, description, parameters}).
 pub fn convertir_tools_openai(tools: &[serde_json::Value]) -> Vec<serde_json::Value> {
     tools.iter().filter_map(|t| {
         let name = t["name"].as_str()?;
@@ -50,7 +50,7 @@ pub fn convertir_tools_openai(tools: &[serde_json::Value]) -> Vec<serde_json::Va
     }).collect()
 }
 
-/// Unified streaming entry point — dispatches to the correct provider.
+/// Unified streaming entry point: dispatches to the correct provider.
 pub async fn provider_chat_stream(
     provider: &str,
     model: &str,
@@ -60,7 +60,7 @@ pub async fn provider_chat_stream(
     api_key: &str,
     api_base: Option<&str>,
     ollama_url: &str,
-    tools: Option<&[serde_json::Value]>,  // ← nouveau paramètre
+    tools: Option<&[serde_json::Value]>,  // new parameter
 ) -> Result<Pin<Box<dyn Stream<Item = OllamaChunk> + Send>>> {
     match provider {
         "openai" | "miel" => {
@@ -138,7 +138,7 @@ async fn openai_chat_stream(
     if max_tokens > 0 {
         body["max_tokens"] = serde_json::json!(max_tokens);
     }
-    // Envoyer les définitions d'outils natifs (OpenAI format)
+    // Send native tool definitions (OpenAI format)
     if let Some(tools_list) = tools {
         let openai_tools = convertir_tools_openai(tools_list);
         if !openai_tools.is_empty() {
@@ -165,10 +165,10 @@ async fn openai_chat_stream(
 
     tokio::spawn(async move {
         let mut buffer = String::new();
-        // Accumulateur de tool_calls indexé par index (delta streaming)
-        // Chaque entrée : (id, name, partial_args_string)
+        // tool_calls accumulator keyed by index (streaming delta)
+        // Each entry: (id, name, partial_args_string)
         let mut tool_call_acc: std::collections::HashMap<u32, (String, String, String)> = std::collections::HashMap::new();
-        // Usage réel (si le serveur l'inclut : OpenAI avec stream_options, llama.cpp par défaut…).
+        // Actual usage (if the server includes it: OpenAI with stream_options, llama.cpp by default).
         let mut in_tok: Option<u64> = None;
         let mut out_tok: Option<u64> = None;
 
@@ -181,7 +181,7 @@ async fn openai_chat_stream(
                         buffer = buffer[newline_pos + 1..].to_string();
                         if line.is_empty() || line == "data: [DONE]" {
                             if line == "data: [DONE]" {
-                                // Finaliser les tool_calls accumulés
+                                // Finalize the accumulated tool_calls
                                 let tool_calls = if tool_call_acc.is_empty() {
                                     None
                                 } else {
@@ -208,14 +208,14 @@ async fn openai_chat_stream(
                         }
                         let json_str = if let Some(stripped) = line.strip_prefix("data: ") { stripped } else { &line };
                         if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(json_str) {
-                            // Usage réel (top-level, présent sur le chunk final ou un chunk dédié).
+                            // Actual usage (top-level, present on the final chunk or a dedicated chunk).
                             if let Some(u) = parsed["usage"]["prompt_tokens"].as_u64() { in_tok = Some(u); }
                             if let Some(u) = parsed["usage"]["completion_tokens"].as_u64() { out_tok = Some(u); }
                             let text = parsed["choices"][0]["delta"]["content"].as_str().unwrap_or("").to_string();
                             let finish_reason = parsed["choices"][0]["finish_reason"].as_str().map(str::to_string);
                             let done = finish_reason.is_some();
 
-                            // Parser les tool_calls delta (format OpenAI streaming)
+                            // Parse the tool_calls delta (OpenAI streaming format)
                             if let Some(tc_deltas) = parsed["choices"][0]["delta"]["tool_calls"].as_array() {
                                 for tc_delta in tc_deltas {
                                     let idx = tc_delta["index"].as_u64().unwrap_or(0) as u32;
@@ -223,18 +223,18 @@ async fn openai_chat_stream(
                                     let entry = tool_call_acc.entry(idx).or_insert_with(|| {
                                         (String::new(), String::new(), String::new())
                                     });
-                                    // id: présent seulement sur le premier chunk du tool call
+                                    // id: present only on the first chunk of the tool call
                                     if let Some(id_val) = tc_delta["id"].as_str() {
                                         entry.0 = id_val.to_string();
                                     }
                                     if entry.0.is_empty() {
                                         entry.0 = format!("call_{}", uuid::Uuid::new_v4().to_string().split('-').next().unwrap_or("x"));
                                     }
-                                    // function.name: présent sur le premier chunk
+                                    // function.name: present on the first chunk
                                     if let Some(name_val) = tc_delta["function"]["name"].as_str() {
                                         entry.1 = name_val.to_string();
                                     }
-                                    // function.arguments: concaténé sur plusieurs chunks
+                                    // function.arguments: concatenated across multiple chunks
                                     if let Some(args_val) = tc_delta["function"]["arguments"].as_str() {
                                         entry.2.push_str(args_val);
                                     }
@@ -242,7 +242,7 @@ async fn openai_chat_stream(
                             }
 
                             if !text.is_empty() || done {
-                                // Envoyer les tool_calls accumulés uniquement sur le dernier chunk
+                                // Send the accumulated tool_calls only on the final chunk
                                 let tool_calls = if done && !tool_call_acc.is_empty() {
                                     let mut calls: Vec<ToolCall> = tool_call_acc.iter()
                                         .map(|(_, (id, name, args_str))| ToolCall {
@@ -301,7 +301,7 @@ async fn anthropic_chat_stream(
         "temperature": temperature,
     });
 
-    // Anthropic supporte aussi le tool calling natif, format légèrement différent
+    // Anthropic also supports native tool calling, with a slightly different format
     if let Some(tools_list) = tools {
         let anthropic_tools: Vec<serde_json::Value> = tools_list.iter().filter_map(|t| {
             Some(serde_json::json!({
@@ -315,7 +315,7 @@ async fn anthropic_chat_stream(
         }
     }
 
-    // ... le reste du code Anthropic reste identique
+    // ... the rest of the Anthropic code stays identical
     _anthropic_send_request(&url, api_key, body).await
 }
 
@@ -343,8 +343,8 @@ async fn _anthropic_send_request(
 
     tokio::spawn(async move {
         let mut buffer = String::new();
-        // Usage RÉEL fourni par Anthropic dans le flux : input au `message_start`,
-        // output au `message_delta`. On les émet sur le chunk final → jauge précise.
+        // Actual usage provided by Anthropic in the stream: input at `message_start`,
+        // output at `message_delta`. Emitted on the final chunk for an accurate gauge.
         let mut in_tok: Option<u64> = None;
         let mut out_tok: Option<u64> = None;
         loop {

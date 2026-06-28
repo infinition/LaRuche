@@ -48,7 +48,7 @@ fn redact_live_output(text: &str) -> String {
         .collect()
 }
 
-/// Danger level for a tool — determines approval gating behavior.
+/// Danger level for a tool: determines approval gating behavior.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum NiveauDanger {
@@ -56,7 +56,7 @@ pub enum NiveauDanger {
     Safe,
     /// Requires user approval before execution (e.g., file_write, shell)
     NeedsApproval,
-    /// Blocked by default — must be explicitly allowlisted (e.g., rm -rf)
+    /// Blocked by default: must be explicitly allowlisted (e.g., rm -rf)
     Dangerous,
 }
 
@@ -121,7 +121,7 @@ impl ResultatAbeille {
     }
 }
 
-/// Execution context passed to each Abeille — contains sandbox limits and config.
+/// Execution context passed to each Abeille: contains sandbox limits and config.
 #[derive(Debug, Clone)]
 pub struct ContextExecution {
     /// Allowed base directories for file operations
@@ -132,8 +132,8 @@ pub struct ContextExecution {
     pub working_dir: PathBuf,
     /// Optional live process-output channel consumed by the chat transport.
     pub live_output: Option<mpsc::UnboundedSender<ToolOutputChunk>>,
-    /// Canal d'origine de la demande (`telegram:12345`, `discord:bob`, `web`…). Permet aux
-    /// outils comme `cron_create` de renvoyer le récurrent là d'où il a été demandé.
+    /// Originating channel of the request (`telegram:12345`, `discord:bob`, `web`...). Lets
+    /// tools like `cron_create` route the recurring job back to where it was requested.
     pub channel: Option<String>,
 }
 
@@ -209,7 +209,7 @@ pub trait Abeille: Send + Sync {
     /// This is injected into the system prompt so the LLM knows how to call the tool.
     fn schema(&self) -> serde_json::Value;
 
-    /// Danger level — determines if user approval is needed
+    /// Danger level: determines if user approval is needed
     fn niveau_danger(&self) -> NiveauDanger;
 
     /// Tool provenance displayed by the registry and UI.
@@ -278,7 +278,7 @@ impl AbeilleRegistry {
         self.abeilles.read().unwrap().get(nom).map(|a| a.origin())
     }
 
-    /// Generate the complete JSON schema for all tools — injected into the system prompt.
+    /// Generate the complete JSON schema for all tools: injected into the system prompt.
     pub fn schema_complet(&self) -> serde_json::Value {
         let lock = self.abeilles.read().unwrap();
         let tools: Vec<serde_json::Value> = lock

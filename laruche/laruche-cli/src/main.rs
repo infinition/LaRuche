@@ -1,4 +1,4 @@
-//! LaRuche CLI — Interactive agent REPL with rich terminal UI
+//! LaRuche CLI - Interactive agent REPL with rich terminal UI
 //!
 //! Usage:
 //!   laruche                     - Start TUI interface
@@ -156,10 +156,10 @@ fn print_banner() {
     );
     eprintln!(
         "  {} /help {} /model {} /tools {} /cwd",
-        "aide".dark_grey(),
-        "modele".dark_grey(),
-        "outils".dark_grey(),
-        "dossier".dark_grey()
+        "help".dark_grey(),
+        "model".dark_grey(),
+        "tools".dark_grey(),
+        "folder".dark_grey()
     );
     eprintln!("  {}", "─".repeat(55).dark_grey());
     eprintln!();
@@ -169,19 +169,19 @@ fn print_help() {
     eprintln!(
         "\n  {} {}\n",
         "LaRuche CLI".with(AMBER).bold(),
-        "Agent IA local".dark_grey()
+        "Local AI agent".dark_grey()
     );
-    eprintln!("  {}", "Commandes:".bold());
+    eprintln!("  {}", "Commands:".bold());
     eprintln!(
         "    {}                       {}",
         "laruche".with(Color::Cyan),
-        "Chat interactif"
+        "Interactive chat"
     );
     eprintln!(
         "    {} {} {}",
         "laruche".with(Color::Cyan),
-        "--cwd /chemin".with(AMBER),
-        "Chat dans un dossier"
+        "--cwd /path".with(AMBER),
+        "Chat in a folder"
     );
     eprintln!(
         "    {} {} {}",
@@ -193,20 +193,20 @@ fn print_help() {
         "    {} {}            {}",
         "laruche".with(Color::Cyan),
         "discover".with(AMBER),
-        "Scanner Miel"
+        "Scan Miel"
     );
     eprintln!(
         "    {} {}              {}",
         "laruche".with(Color::Cyan),
         "doctor".with(AMBER),
-        "Diagnostic"
+        "Diagnostics"
     );
     eprintln!(
         "    {} {} {}  {}",
         "laruche".with(Color::Cyan),
         "server".with(AMBER),
         "[cmd]".dark_grey(),
-        "Gerer le serveur (start/stop/install/update/uninstall)"
+        "Manage the server (start/stop/install/update/uninstall)"
     );
     eprintln!(
         "    {} {}                 {}",
@@ -218,33 +218,33 @@ fn print_help() {
         "    {} {}          {}",
         "laruche".with(Color::Cyan),
         "auth codex".with(AMBER),
-        "Connexion ChatGPT Codex (abonnement OAuth)"
+        "ChatGPT Codex login (OAuth subscription)"
     );
-    eprintln!("\n  {}", "Dans le chat:".bold());
+    eprintln!("\n  {}", "In chat:".bold());
     eprintln!(
-        "    {}      Aide              {}     Lister outils",
+        "    {}      Help              {}     List tools",
         "/help".with(AMBER),
         "/tools".with(AMBER)
     );
     eprintln!(
-        "    {}     Nouvelle conv.     {}    Exporter .md",
+        "    {}     New conv.          {}    Export .md",
         "/clear".with(AMBER),
         "/export".with(AMBER)
     );
     eprintln!(
-        "    {} {}  Changer dossier   {} {} Changer modele",
+        "    {} {}  Change folder     {} {} Change model",
         "/cwd".with(AMBER),
         "[path]".dark_grey(),
         "/model".with(AMBER),
         "[name]".dark_grey()
     );
     eprintln!(
-        "    {}  Scanner reseau    {}    Diagnostic",
+        "    {}  Scan network      {}    Diagnostics",
         "/discover".with(AMBER),
         "/doctor".with(AMBER)
     );
     eprintln!(
-        "    {} {} Gerer serveur   {}      Quitter",
+        "    {} {} Manage server   {}      Quit",
         "/server".with(AMBER),
         "[cmd]".dark_grey(),
         "/quit".with(AMBER)
@@ -252,7 +252,7 @@ fn print_help() {
     eprintln!();
     eprintln!(
         "  {} /server start | stop | restart | status | install | uninstall | update",
-        "Serveur:".bold()
+        "Server:".bold()
     );
 }
 
@@ -312,13 +312,13 @@ async fn pick_model(current: &str) -> Option<String> {
         Err(_) => vec![],
     };
     if models.is_empty() {
-        eprintln!("  {} Aucun modele (Ollama?)", "!".red());
+        eprintln!("  {} No model (Ollama?)", "!".red());
         return None;
     }
 
     eprintln!(
         "\n  {} {}",
-        "Modeles Ollama".with(AMBER).bold(),
+        "Ollama models".with(AMBER).bold(),
         format!("({})", models.len()).dark_grey()
     );
     eprintln!("  {}", "─".repeat(40).dark_grey());
@@ -336,7 +336,7 @@ async fn pick_model(current: &str) -> Option<String> {
         );
     }
     eprintln!("  {}", "─".repeat(40).dark_grey());
-    eprint!("  {} ", "Choix:".dark_grey());
+    eprint!("  {} ", "Choice:".dark_grey());
     io::stderr().flush().ok();
 
     let mut line = String::new();
@@ -395,7 +395,7 @@ async fn cmd_chat() -> Result<()> {
                 }
                 "/clear" | "/new" => {
                     session = Session::new_with_path(&config.model, &sessions_dir);
-                    eprintln!("  {} Nouvelle conversation\n", "✓".green());
+                    eprintln!("  {} New conversation\n", "✓".green());
                     continue;
                 }
                 "/cwd" => {
@@ -411,7 +411,7 @@ async fn cmd_chat() -> Result<()> {
                             std::env::set_current_dir(&p).ok();
                             eprintln!("  {} {}", "✓".green(), p.display().to_string().with(AMBER));
                         } else {
-                            eprintln!("  {} Introuvable: {}", "✗".red(), arg);
+                            eprintln!("  {} Not found: {}", "✗".red(), arg);
                         }
                     }
                     continue;
@@ -420,7 +420,7 @@ async fn cmd_chat() -> Result<()> {
                     let cur = current_model.borrow().clone();
                     if let Some(m) = pick_model(&cur).await {
                         *current_model.borrow_mut() = m.clone();
-                        eprintln!("  {} Modele: {}\n", "✓".green(), m.with(Color::Cyan));
+                        eprintln!("  {} Model: {}\n", "✓".green(), m.with(Color::Cyan));
                     }
                     continue;
                 }
@@ -428,7 +428,7 @@ async fn cmd_chat() -> Result<()> {
                     eprintln!(
                         "\n  {} {}",
                         "Abeilles".with(AMBER).bold(),
-                        format!("({} outils)", registry.noms().len()).dark_grey()
+                        format!("({} tools)", registry.noms().len()).dark_grey()
                     );
                     eprintln!("  {}", "─".repeat(50).dark_grey());
                     for name in registry.noms() {
@@ -494,7 +494,7 @@ async fn cmd_chat() -> Result<()> {
                     continue;
                 }
                 _ => {
-                    eprintln!("  {} {} — /help", "?".yellow(), cmd);
+                    eprintln!("  {} {} - /help", "?".yellow(), cmd);
                     continue;
                 }
             }
@@ -577,7 +577,7 @@ async fn cmd_chat() -> Result<()> {
 
     session.auto_title();
     let _ = session.sauvegarder();
-    eprintln!("\n  {} Au revoir !\n", "🐝".with(AMBER));
+    eprintln!("\n  {} Goodbye!\n", "🐝".with(AMBER));
     Ok(())
 }
 
@@ -684,11 +684,11 @@ async fn cmd_doctor() -> Result<()> {
 
 // ======================== Server management ========================
 
-/// Gestion de l'authentification des providers (ChatGPT Codex via abonnement).
+/// Provider authentication management (ChatGPT Codex via subscription).
 async fn cmd_auth(args: &[String]) -> Result<()> {
     use laruche_essaim::codex_auth;
 
-    // Bare `laruche auth` → menu d'aide ; il faut nommer le provider (codex).
+    // Bare `laruche auth` -> help menu; the provider must be named (codex).
     let provider = args.first().map(|s| s.as_str()).unwrap_or("");
     let flag = args.get(1).map(|s| s.as_str()).unwrap_or("");
 
@@ -700,7 +700,7 @@ async fn cmd_auth(args: &[String]) -> Result<()> {
             if flag == "--logout" || flag == "logout" {
                 let path = codex_auth::auth_store_path();
                 eprintln!(
-                    "  {} Pour vous déconnecter, supprimez la section openai-codex de {}",
+                    "  {} To log out, remove the openai-codex section from {}",
                     "i".with(Color::Cyan),
                     path.display()
                 );
@@ -709,20 +709,20 @@ async fn cmd_auth(args: &[String]) -> Result<()> {
 
             eprintln!(
                 "\n  {} {}\n",
-                "Connexion ChatGPT Codex".with(AMBER).bold(),
-                "(abonnement, pas de clé API)".dark_grey()
+                "ChatGPT Codex login".with(AMBER).bold(),
+                "(subscription, no API key)".dark_grey()
             );
 
-            // Tokens déjà présents et valides ?
+            // Tokens already present and valid?
             if let Some(tokens) = codex_auth::read_codex_tokens() {
                 if !codex_auth::access_token_is_expiring(&tokens.access_token, 60) {
                     eprintln!(
-                        "  {} Déjà connecté (tokens valides dans {}).",
+                        "  {} Already logged in (valid tokens in {}).",
                         "✓".green(),
                         codex_auth::auth_store_path().display()
                     );
                     eprintln!(
-                        "  {} Pour forcer une nouvelle connexion: laruche auth codex --force",
+                        "  {} To force a new login: laruche auth codex --force",
                         "i".with(Color::Cyan)
                     );
                     if flag != "--force" && flag != "force" {
@@ -732,33 +732,33 @@ async fn cmd_auth(args: &[String]) -> Result<()> {
             }
 
             let tokens = codex_auth::device_code_login(|url, code| {
-                eprintln!("  Pour continuer :\n");
-                eprintln!("    1. Ouvrez cette URL dans votre navigateur :");
+                eprintln!("  To continue:\n");
+                eprintln!("    1. Open this URL in your browser:");
                 eprintln!(
                     "       {}\n",
                     url.to_string().with(Color::Cyan).underlined()
                 );
-                eprintln!("    2. Entrez ce code :");
+                eprintln!("    2. Enter this code:");
                 eprintln!("       {}\n", code.to_string().with(AMBER).bold());
                 eprintln!(
-                    "  {} En attente de connexion... (Ctrl+C pour annuler)",
+                    "  {} Waiting for login... (Ctrl+C to cancel)",
                     "⏳".dark_grey()
                 );
             })
             .await?;
 
             codex_auth::save_codex_tokens(&tokens)?;
-            eprintln!("\n  {} Connexion réussie !", "✓".green().bold());
+            eprintln!("\n  {} Login successful!", "✓".green().bold());
             eprintln!(
-                "  {} Tokens enregistrés: {}",
+                "  {} Tokens saved: {}",
                 "i".with(Color::Cyan),
                 codex_auth::auth_store_path().display()
             );
             if let Some(acct) = codex_auth::account_id_from_token(&tokens.access_token) {
-                eprintln!("  {} Compte ChatGPT: {}", "i".with(Color::Cyan), acct);
+                eprintln!("  {} ChatGPT account: {}", "i".with(Color::Cyan), acct);
             }
             eprintln!(
-                "\n  {} Configurez un profil provider \"codex\" (model ex. gpt-5.4-codex) pour l'utiliser.",
+                "\n  {} Configure a \"codex\" provider profile (model e.g. gpt-5.4-codex) to use it.",
                 "→".with(AMBER)
             );
             Ok(())
@@ -767,26 +767,26 @@ async fn cmd_auth(args: &[String]) -> Result<()> {
             eprintln!(
                 "\n  {} {}\n",
                 "LaRuche Auth".with(AMBER).bold(),
-                "Authentification providers".dark_grey()
+                "Provider authentication".dark_grey()
             );
-            eprintln!("  {}:", "Commandes".bold());
+            eprintln!("  {}:", "Commands".bold());
             eprintln!(
                 "    {} {}            {}",
                 "laruche auth".with(Color::Cyan),
                 "codex".with(AMBER),
-                "Connexion ChatGPT Codex (abonnement OAuth)"
+                "ChatGPT Codex login (OAuth subscription)"
             );
             eprintln!(
                 "    {} {}   {}",
                 "laruche auth".with(Color::Cyan),
                 "codex --status".with(AMBER),
-                "État de la connexion Codex"
+                "Codex login status"
             );
             eprintln!(
                 "    {} {}    {}",
                 "laruche auth".with(Color::Cyan),
                 "codex --force".with(AMBER),
-                "Forcer une nouvelle connexion"
+                "Force a new login"
             );
             Ok(())
         }
@@ -798,21 +798,21 @@ async fn auth_codex_status() -> Result<()> {
     eprintln!(
         "\n  {} {}\n",
         "ChatGPT Codex".with(AMBER).bold(),
-        "état".dark_grey()
+        "status".dark_grey()
     );
     match codex_auth::read_codex_tokens() {
         Some(tokens) => {
             let expiring = codex_auth::access_token_is_expiring(&tokens.access_token, 60);
             if expiring {
                 eprintln!(
-                    "  {} Connecté (access token expiré — refresh auto au prochain appel).",
+                    "  {} Logged in (access token expired - auto refresh on next call).",
                     "~".with(Color::Yellow)
                 );
             } else {
-                eprintln!("  {} Connecté, token valide.", "✓".green());
+                eprintln!("  {} Logged in, token valid.", "✓".green());
             }
             if let Some(acct) = codex_auth::account_id_from_token(&tokens.access_token) {
-                eprintln!("  {} Compte: {}", "i".with(Color::Cyan), acct);
+                eprintln!("  {} Account: {}", "i".with(Color::Cyan), acct);
             }
             eprintln!(
                 "  {} Store: {}",
@@ -821,7 +821,7 @@ async fn auth_codex_status() -> Result<()> {
             );
         }
         None => {
-            eprintln!("  {} Non connecté. Lancez: laruche auth codex", "✗".red());
+            eprintln!("  {} Not logged in. Run: laruche auth codex", "✗".red());
         }
     }
     Ok(())
@@ -964,7 +964,7 @@ async fn cmd_mcp() -> Result<()> {
                 }
             }),
             "notifications/initialized" => {
-                // Notification — no response needed but send ack
+                // Notification - no response needed but send ack
                 serde_json::json!({"jsonrpc": "2.0", "id": id, "result": {}})
             }
             "tools/list" => {

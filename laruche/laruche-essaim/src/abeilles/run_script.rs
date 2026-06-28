@@ -1,9 +1,9 @@
-//! run_script — pipeline d'outils en UN seul tour (inspiré des scripts-RPC de third-party).
+//! run_script: tool pipeline in ONE turn (inspired by third-party RPC scripts).
 //!
-//! Le modèle fournit une liste d'étapes `[{tool, args}]` ; on les exécute séquentiellement
-//! via le registre, **sans repasser par le LLM** entre chaque étape. La sortie de l'étape N
-//! est injectable dans les args des étapes suivantes via le jeton `{{N}}` (1-based).
-//! Gros gain de contexte/latence sur les pipelines (ex. web_search → web_fetch → file_write).
+//! The model provides a list of steps `[{tool, args}]`; they run sequentially
+//! through the registry, **without going back to the LLM** between steps. Step N output
+//! is injectable into later steps' args via the `{{N}}` token (1-based).
+//! Large context/latency win on pipelines (e.g. web_search -> web_fetch -> file_write).
 
 use crate::abeille::{Abeille, AbeilleRegistry, ContextExecution, NiveauDanger, ResultatAbeille};
 use anyhow::Result;
@@ -14,9 +14,9 @@ pub struct RunScript {
     pub registry: Arc<AbeilleRegistry>,
 }
 
-/// `tool_search` — divulgation progressive (inspiré du `tool_search` d'third-party) : cherche un
-/// outil par mots-clés parmi TOUS ceux enregistrés, pas seulement ceux injectés ce tour.
-/// Tolérant FR↔EN (recherche par sous-chaîne sur nom+description). Lecture seule.
+/// `tool_search`: progressive disclosure (inspired by third-party `tool_search`): searches a
+/// tool by keyword among ALL registered ones, not just those injected this turn.
+/// FR/EN tolerant (substring search on name+description). Read-only.
 pub struct ToolSearch {
     pub registry: Arc<AbeilleRegistry>,
 }
@@ -80,9 +80,9 @@ impl Abeille for ToolSearch {
     }
 }
 
-/// `tool_call` — exécute N'IMPORTE quel outil enregistré par son nom, même s'il n'est pas
-/// injecté ce tour (inspiré du pont `tool_call` d'third-party). Préserve la validation : refuse les
-/// outils non-`Safe` (à appeler directement) et la récursion.
+/// `tool_call`: executes ANY registered tool by name, even if not injected
+/// this turn (inspired by third-party `tool_call` bridge). Preserves validation: refuses
+/// non-`Safe` tools (to be called directly) and recursion.
 pub struct ToolCall {
     pub registry: Arc<AbeilleRegistry>,
 }
@@ -145,7 +145,7 @@ impl Abeille for ToolCall {
     }
 }
 
-/// Remplace `{{N}}` (1-based) par la sortie de l'étape N, récursivement dans les chaînes.
+/// Replaces `{{N}}` (1-based) with step N output, recursively within strings.
 fn substitute_refs(value: &mut serde_json::Value, outputs: &[String]) {
     match value {
         serde_json::Value::String(s) => {
@@ -224,7 +224,7 @@ impl Abeille for RunScript {
                 .as_str()
                 .ok_or_else(|| anyhow::anyhow!("step {}: 'tool' missing", i + 1))?;
 
-            // Garde-fou : pas de récursion ni de délégation imbriquée.
+            // Guard: no recursion or nested delegation.
             if tool == "run_script" || tool == "delegate" {
                 report.push_str(&format!(
                     "── step {} ({tool}) ──\n(not allowed inside a pipeline)\n\n",

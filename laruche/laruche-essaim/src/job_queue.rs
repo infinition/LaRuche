@@ -1,40 +1,40 @@
-//! File d'attente de jobs longs pour l'agent.
+//! Queue of long-running jobs for the agent.
 //!
-//! Permet à l'agent de lancer des scripts longs en background
-//! et de revenir vérifier leur statut plus tard (pattern polling).
+//! Lets the agent launch long scripts in the background
+//! and come back later to check their status (polling pattern).
 //!
 //! # Usage
-//! 1. Agent appelle `submit_job` avec un script → reçoit un `job_id`
-//! 2. Agent continue son raisonnement (autres outils, réflexion...)
-//! 3. Agent appelle `check_job_status(job_id)` pour voir l'avancement
-//! 4. Quand le job est terminé, agent récupère le résultat
+//! 1. Agent calls `submit_job` with a script, receives a `job_id`
+//! 2. Agent continues its reasoning (other tools, thinking...)
+//! 3. Agent calls `check_job_status(job_id)` to see progress
+//! 4. When the job is done, the agent retrieves the result
 
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
 
-/// Statut d'un job en arrière-plan.
+/// Status of a background job.
 #[derive(Debug, Clone)]
 pub enum JobStatus {
-    /// En cours d'exécution
+    /// Running
     Running {
         started: Instant,
         progress: Option<f32>,
     },
-    /// Terminé avec succès
+    /// Completed successfully
     Completed {
         output: String,
         elapsed: std::time::Duration,
     },
-    /// Échec
+    /// Failed
     Failed {
         error: String,
         elapsed: std::time::Duration,
     },
 }
 
-/// Gestionnaire de jobs longs (thread-safe, partagé entre outils).
+/// Long-running job manager (thread-safe, shared across tools).
 #[derive(Debug, Clone)]
 pub struct JobQueue {
     jobs: Arc<RwLock<HashMap<String, JobStatus>>>,
@@ -47,8 +47,8 @@ impl JobQueue {
         }
     }
 
-    /// Soumet un script shell en arrière-plan.
-    /// Retourne un `job_id` que l'agent pourra utiliser pour checker le statut.
+    /// Submits a shell script in the background.
+    /// Returns a `job_id` the agent can use to check the status.
     pub async fn submit(&self, script: &str, label: Option<&str>) -> String {
         let job_id = format!(
             "job_{}_{}",
@@ -63,7 +63,7 @@ impl JobQueue {
         let id = job_id.clone();
         let script = script.to_string();
 
-        // Écrire "Running" dans la HashMap
+        // Write "Running" into the HashMap
         {
             let mut w = jobs.write().await;
             w.insert(
@@ -75,11 +75,11 @@ impl JobQueue {
             );
         }
 
-        // Lancer en background
+        // Launch in the background
         tokio::spawn(async move {
             let start = Instant::now();
 
-            // Exécution via tokio::process::Command
+            // Execution via tokio::process::Command
             let mut command = if cfg!(windows) {
                 let mut cmd = tokio::process::Command::new("cmd");
                 cmd.arg("/C").arg(&script);
@@ -138,13 +138,13 @@ impl JobQueue {
         job_id
     }
 
-    /// Vérifie le statut d'un job.
+    /// Checks a job's status.
     pub async fn check(&self, job_id: &str) -> Option<JobStatus> {
         let r = self.jobs.read().await;
         r.get(job_id).cloned()
     }
 
-    /// Nombre de jobs en cours.
+    /// Number of running jobs.
     #[allow(dead_code)]
     pub async fn running_count(&self) -> usize {
         let r = self.jobs.read().await;
@@ -153,7 +153,7 @@ impl JobQueue {
             .count()
     }
 
-    /// Nettoie les jobs terminés de plus de 1h.
+    /// Cleans up finished jobs older than 1h.
     #[allow(dead_code)]
     pub async fn nettoyer(&self) -> usize {
         let mut w = self.jobs.write().await;
@@ -209,7 +209,7 @@ mod tests {
             }
         })
         .await
-        .expect("job shell timeout");
+        .expect("shell job timeout");
 
         assert!(status.contains("laruche_job_ok"));
     }

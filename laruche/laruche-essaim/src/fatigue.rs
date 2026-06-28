@@ -1,13 +1,13 @@
-﻿//! Fatigue cognitive et consolidation mémoire pour la boucle ReAct.
+﻿//! Cognitive fatigue and memory consolidation for the ReAct loop.
 //!
 //! ## FatigueMonitor
-//! Détecte quand l'agent tourne en rond (répétitions, erreurs, contexte saturé)
-//! et déclenche une consolidation vers la mémoire persistante.
+//! Detects when the agent is spinning (repetitions, errors, saturated context)
+//! and triggers a consolidation into persistent memory.
 //!
 //! ## Consolidation
-//! Extrait les faits durables de l'historique via LLM auxiliaire, les écrit
-//! en mémoire cognitive, et produit un contexte frais (~500 tokens) pour
-//! que l'agent reparte proprement sans perdre ses découvertes.
+//! Extracts durable facts from the history via an auxiliary LLM, writes them
+//! to cognitive memory, and produces a fresh context (~500 tokens) so the
+//! agent can restart cleanly without losing its discoveries.
 
 use crate::brain::{EssaimConfig, ToolCall};
 use crate::providers::provider_chat_stream;
@@ -17,7 +17,7 @@ use laruche_memoire::{MemoireCognitive, MemoryItem};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-/// Surveille la fatigue cognitive de l'agent.
+/// Monitors the agent's cognitive fatigue.
 #[derive(Debug, Clone)]
 pub struct FatigueMonitor {
     pub iterations: u32,
@@ -42,7 +42,7 @@ impl FatigueMonitor {
         }
     }
 
-    /// Met à jour le moniteur après chaque exécution d'outils.
+    /// Updates the monitor after each tool execution.
     pub fn update(
         &mut self,
         tool_calls: &[ToolCall],
@@ -74,7 +74,7 @@ impl FatigueMonitor {
         self.update_repetition_score();
     }
 
-    /// Version simplifiée (sans tracker de succès) pour boucle interne.
+    /// Simplified version (without success tracker) for the internal loop.
     pub fn update_names(
         &mut self,
         tool_names: &[String],
@@ -106,7 +106,7 @@ impl FatigueMonitor {
         }
     }
 
-    /// Calcule le niveau de fatigue global (0.0 = frais, 1.0 = épuisé).
+    /// Computes the overall fatigue level (0.0 = fresh, 1.0 = exhausted).
     pub fn fatigue_level(&self, config: &EssaimConfig) -> f32 {
         let mut score = 0.0f32;
         score += (self.iterations as f32 / config.max_iterations.max(1) as f32).min(1.0) * 0.25;
@@ -143,7 +143,7 @@ impl Default for FatigueMonitor {
     }
 }
 
-/// Résultat d'une consolidation cognitive.
+/// Result of a cognitive consolidation.
 #[derive(Debug, Clone, Serialize)]
 pub struct ConsolidationResult {
     pub facts_stored: usize,
@@ -163,7 +163,7 @@ struct FaitConsolide {
     fact_type: Option<String>,
 }
 
-/// Consolide les découvertes en mémoire et sauvegarde le checkpoint de tâche.
+/// Consolidates discoveries into memory and saves the task checkpoint.
 pub async fn consolider_fatigue(
     task_id: &str,
     messages: &[serde_json::Value],
@@ -180,15 +180,15 @@ pub async fn consolider_fatigue(
         .collect::<Vec<_>>()
         .join("\n\n");
 
-    let sys_extract = "Tu es un extracteur de faits. \
-        Analyse cet historique d'agent et extrais TOUS les faits découverts. \
-        Format JSON strict : \
-        [{\"node_id\":\"<domaine>.<sujet>\", \
-          \"content\":\"<fait>\", \
+    let sys_extract = "You are a fact extractor. \
+        Analyze this agent history and extract ALL discovered facts. \
+        Strict JSON format: \
+        [{\"node_id\":\"<domain>.<subject>\", \
+          \"content\":\"<fact>\", \
           \"confidence\":0.0-1.0, \
           \"type\":\"decouverte|hypothese|echec|insight\"}] \
-        Domaines : research, experiments, decisions, insights. \
-        Si rien de durable -> []. Aucun texte hors JSON.";
+        Domains: research, experiments, decisions, insights. \
+        If nothing durable -> []. No text outside the JSON.";
 
     let facts_json = appel_llm_auxiliaire(sys_extract, &historique, config).await
         .unwrap_or_else(|_| "[]".to_string());
@@ -216,9 +216,9 @@ pub async fn consolider_fatigue(
     }
 
     let checkpoint_prompt = format!(
-        "À partir de cet historique, résume en JSON strict : \
+        "From this history, summarize in strict JSON: \
          {{\"resume\":\"...\",\"next_steps\":[\"...\",\"...\"]}} \
-         Que reste-t-il à accomplir ?\n\n{historique}"
+         What remains to be accomplished?\n\n{historique}"
     );
     let checkpoint_json = appel_llm_auxiliaire(&checkpoint_prompt, "", config)
         .await
@@ -234,7 +234,7 @@ pub async fn consolider_fatigue(
     Ok(ConsolidationResult { facts_stored, checkpoint: checkpoint_json, task_id: task_id.to_string() })
 }
 
-/// Construit le contexte frais après consolidation.
+/// Builds the fresh context after consolidation.
 pub async fn contexte_apres_consolidation(
     task_id: &str,
     original_task: &str,
@@ -256,9 +256,9 @@ pub async fn contexte_apres_consolidation(
         serde_json::json!({
             "role": "system",
             "content": format!(
-                "=== REPRISE APRÈS CONSOLIDATION COGNITIVE ===\n{} faits consolidés en mémoire.\n\
-                 Checkpoint : {}\n\nUtilise memory_search pour retrouver ce que tu as découvert. \
-                 Continue la tâche depuis le checkpoint.",
+                "=== RESUMING AFTER COGNITIVE CONSOLIDATION ===\n{} facts consolidated into memory.\n\
+                 Checkpoint: {}\n\nUse memory_search to recover what you discovered. \
+                 Continue the task from the checkpoint.",
                 result.facts_stored, resume
             )
         }),

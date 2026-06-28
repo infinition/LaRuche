@@ -1,4 +1,4 @@
-//! # Essaim — Agent Engine for LaRuche
+//! # Essaim - Agent Engine for LaRuche
 //!
 //! Essaim is the agentic framework powering LaRuche. It implements a ReAct-style
 //! reasoning loop where an LLM can call tools ("Abeilles") to interact with the
@@ -6,7 +6,7 @@
 //!
 //! ## Architecture
 //!
-//! - **Brain** (`brain.rs`): The ReAct loop — Thought → Action → Observation
+//! - **Brain** (`brain.rs`): The ReAct loop - Thought -> Action -> Observation
 //! - **Abeille** (`abeille.rs`): Tool trait and registry
 //! - **Session** (`session.rs`): Conversation history and persistence
 //! - **Streaming** (`streaming.rs`): Ollama streaming response parser

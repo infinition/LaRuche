@@ -3,10 +3,10 @@
 //! Plugins are JSON files in a `plugins/` directory. Each file defines a tool
 //! that executes a shell command template with arguments from the LLM.
 //!
-//! **Arguments passing** : les arguments sont injectés dans la commande via
-//! `{{param}}` placeholder, MAIS les arguments longs et multi-lignes (`message`,
-//! `text`, `content`, `code`) sont automatiquement passés via **stdin** pour
-//! éviter les problèmes de quoting shell (surtout sur Windows cmd.exe).
+//! **Arguments passing**: arguments are injected into the command via the
+//! `{{param}}` placeholder, BUT long, multi-line arguments (`message`,
+//! `text`, `content`, `code`) are automatically passed via **stdin** to
+//! avoid shell quoting issues (especially on Windows cmd.exe).
 
 use crate::abeille::{
     Abeille, AbeilleRegistry, ContextExecution, NiveauDanger, ResultatAbeille, ToolOrigin,
@@ -35,7 +35,7 @@ fn default_danger() -> String {
     "safe".to_string()
 }
 
-/// Champs d'argument longs → passés via stdin au lieu du shell.
+/// Long argument fields, passed via stdin instead of the shell.
 const STDIN_ARGS: &[&str] = &["message", "text", "content", "code", "body"];
 
 pub struct PluginAbeille {

@@ -1,13 +1,13 @@
-//! POC de la BOUCLE D'APPRENTISSAGE (skills auto-créés puis ré-appliqués).
+//! POC of the LEARNING LOOP (auto-created skills then re-applied).
 //!
-//! Prouve le bout-en-bout :
-//! 1) un skill OKF présent en mémoire est RAPPELÉ automatiquement et injecté dans un tour
-//!    lié (event `SkillApplied`) — fonctionne même sans LLM (le rappel précède l'appel modèle) ;
-//! 2) avec un LLM réel (llama.cpp:8001), une trajectoire substantielle déclenche la
-//!    PROPOSITION d'un nouveau skill (event `SkillProposed`).
+//! Proves end-to-end:
+//! 1) an OKF skill present in memory is RECALLED automatically and injected into a related
+//!    turn (event `SkillApplied`): works even without an LLM (recall precedes the model call);
+//! 2) with a real LLM (llama.cpp:8001), a substantial trajectory triggers the
+//!    PROPOSAL of a new skill (event `SkillProposed`).
 //!
-//! Lancer :  cargo run -p laruche-essaim --example poc_apprentissage
-//! (les tours agent nécessitent un endpoint OpenAI-compatible sur http://localhost:8001)
+//! Run:  cargo run -p laruche-essaim --example poc_apprentissage
+//! (agent turns require an OpenAI-compatible endpoint at http://localhost:8001)
 
 use laruche_essaim::abeilles::{enregistrer_abeilles_builtin, enregistrer_memoire};
 use laruche_essaim::{boucle_react_memoire, AbeilleRegistry, ChatEvent, EssaimConfig, Session};
@@ -19,8 +19,8 @@ use std::sync::Arc;
 async fn main() -> anyhow::Result<()> {
     let mem: Arc<dyn MemoireCognitive> = Arc::new(NativeBackend::new());
 
-    // ─── Seed : un skill appris « existe déjà » en mémoire ─────────────────────
-    println!("════════ 0. Seed d'un skill OKF en mémoire ════════");
+    // ─── Seed: a learned skill "already exists" in memory ──────────────────────
+    println!("════════ 0. Seed an OKF skill into memory ════════");
     let skill_okf = "---\ntype: skill\nname: veille-techno\ndescription: faire une veille \
         et la résumer\nallowed-tools: [web_deep_search]\nwhen_to_use: demande de veille\n---\n\
         ## Paradigm: veille rigoureuse\n## Step: web_deep_search puis résumé en 5 points sourcés.";
@@ -30,9 +30,9 @@ async fn main() -> anyhow::Result<()> {
             .with_tags(vec!["skill".into(), "okf".into()]),
     )
     .await?;
-    println!("skill 'veille-techno' écrit sous tools.skills.veille_techno\n");
+    println!("skill 'veille-techno' written under tools.skills.veille_techno\n");
 
-    // ─── Compteurs d'events de la boucle d'apprentissage ───────────────────────
+    // ─── Learning-loop event counters ──────────────────────────────────────────
     let applied = Arc::new(AtomicUsize::new(0));
     let proposed = Arc::new(AtomicUsize::new(0));
     let (tx, _) = tokio::sync::broadcast::channel::<ChatEvent>(512);
@@ -45,14 +45,14 @@ async fn main() -> anyhow::Result<()> {
                     ChatEvent::Token { text } => print!("{text}"),
                     ChatEvent::SkillApplied { name } => {
                         applied.fetch_add(1, Ordering::Relaxed);
-                        eprintln!("\n  🧠 SKILL APPLIQUÉ → {name}");
+                        eprintln!("\n  🧠 SKILL APPLIED -> {name}");
                     }
                     ChatEvent::SkillProposed { name } => {
                         proposed.fetch_add(1, Ordering::Relaxed);
-                        eprintln!("\n  ✨ SKILL NÉ → {name}");
+                        eprintln!("\n  ✨ SKILL BORN -> {name}");
                     }
-                    ChatEvent::ToolCall { name, .. } => eprintln!("\n  ┌─ outil → {name}"),
-                    ChatEvent::Error { message } => eprintln!("\n  [erreur] {message}"),
+                    ChatEvent::ToolCall { name, .. } => eprintln!("\n  ┌─ tool -> {name}"),
+                    ChatEvent::Error { message } => eprintln!("\n  [error] {message}"),
                     _ => {}
                 }
             }
@@ -73,11 +73,11 @@ async fn main() -> anyhow::Result<()> {
     enregistrer_abeilles_builtin(&mut registry);
     enregistrer_memoire(&mut registry, mem.clone());
 
-    // ─── Conv : une demande LIÉE au skill → rappel automatique ─────────────────
-    println!("════════ 1. Tâche liée → le skill doit être RAPPELÉ (SkillApplied) ════════");
+    // ─── Conv: a request RELATED to the skill -> automatic recall ──────────────
+    println!("════════ 1. Related task -> the skill must be RECALLED (SkillApplied) ════════");
     let mut conv = Session::new(&config.model);
     if let Err(e) = boucle_react_memoire(
-        "Fais-moi une veille techno sur les bases de données vectorielles et résume.",
+        "Do a tech watch on vector databases and summarize it.",
         &mut conv,
         &registry,
         &config,
@@ -86,23 +86,23 @@ async fn main() -> anyhow::Result<()> {
     )
     .await
     {
-        eprintln!("[tour interrompu — LLM absent ? le rappel a tout de même été émis] {e}");
+        eprintln!("[turn interrupted - LLM down? the recall was emitted anyway] {e}");
     }
 
     tokio::time::sleep(std::time::Duration::from_millis(400)).await;
-    println!("\n════════ Bilan ════════");
+    println!("\n════════ Summary ════════");
     println!(
-        "SkillApplied (rappels)  : {}",
+        "SkillApplied (recalls)  : {}",
         applied.load(Ordering::Relaxed)
     );
     println!(
-        "SkillProposed (naissances) : {}",
+        "SkillProposed (births) : {}",
         proposed.load(Ordering::Relaxed)
     );
     assert!(
         applied.load(Ordering::Relaxed) >= 1,
-        "le skill seedé aurait dû être rappelé (SkillApplied) au moins une fois"
+        "the seeded skill should have been recalled (SkillApplied) at least once"
     );
-    println!("✅ Rappel automatique prouvé.");
+    println!("✅ Automatic recall proven.");
     Ok(())
 }

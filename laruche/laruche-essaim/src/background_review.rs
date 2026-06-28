@@ -1,20 +1,20 @@
-//! Orchestrateur non bloquant de la revue après un tour d'agent.
+//! Non-blocking orchestrator for the review after an agent turn.
 //!
-//! Le point d'intégration ne fournit que deux futures spécialisées : une passe mémoire et
-//! une passe skill. La session, le cache de prompt et le registre d'Abeilles restent hors de
-//! portée, ce qui exclut les outils généraux (shell, fichiers, réseau…).
+//! The integration point provides only two specialized futures: a memory pass and
+//! a skill pass. The session, prompt cache, and Abeille registry stay out of
+//! scope, which excludes general tools (shell, files, network, etc.).
 
 use anyhow::Result;
 use std::future::Future;
 
-/// Les seules catégories d'action accessibles au reviewer de fond.
+/// The only action categories accessible to the background reviewer.
 pub const BACKGROUND_REVIEW_ACTIONS: &[&str] = &["memory_write", "skill_propose"];
 
-/// Exécute les deux décisions du mini-reviewer sans bloquer le tour utilisateur.
+/// Runs both decisions of the mini-reviewer without blocking the user turn.
 ///
-/// Les erreurs sont isolées : un échec de curation mémoire ne doit jamais empêcher la
-/// proposition d'un skill, et inversement. Les futures appelantes n'ont accès qu'aux stores
-/// mémoire/skill ; elles ne reçoivent ni session ni registre d'outils.
+/// Errors are isolated: a memory curation failure must never prevent the
+/// proposal of a skill, and vice versa. The calling futures only have access to the
+/// memory/skill stores; they receive neither session nor tool registry.
 pub(crate) async fn run_background_review<MemoryReview, SkillReview>(
     memory_review: MemoryReview,
     skill_review: SkillReview,
@@ -23,10 +23,10 @@ pub(crate) async fn run_background_review<MemoryReview, SkillReview>(
     SkillReview: Future<Output = Result<()>>,
 {
     if let Err(error) = memory_review.await {
-        tracing::warn!(error = %error, "background review mémoire ignorée");
+        tracing::warn!(error = %error, "background memory review skipped");
     }
     if let Err(error) = skill_review.await {
-        tracing::warn!(error = %error, "background review skill ignorée");
+        tracing::warn!(error = %error, "background skill review skipped");
     }
 }
 
@@ -46,7 +46,7 @@ mod tests {
         let skill_runs = Arc::new(AtomicUsize::new(0));
         let skill_runs_for_future = skill_runs.clone();
         run_background_review(
-            async { Err(anyhow::anyhow!("mémoire indisponible")) },
+            async { Err(anyhow::anyhow!("memory unavailable")) },
             async move {
                 skill_runs_for_future.fetch_add(1, Ordering::Relaxed);
                 Ok(())

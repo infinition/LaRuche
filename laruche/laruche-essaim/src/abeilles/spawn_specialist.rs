@@ -1,9 +1,9 @@
-//! Outil `spawn_specialist` — agent spécialisé par rôle.
+//! `spawn_specialist` tool: role-specific agent.
 //!
-//! Permet à l'orchestrateur de déléguer une tâche à un agent spécialisé
-//! avec son propre system prompt, ses itérations et ses outils restreints.
-//! Contrairement à `delegate` (générique), `spawn_specialist` adapte
-//! la configuration selon le rôle. Supporte l'override de provider.
+//! Lets the orchestrator delegate a task to a specialized agent with its own
+//! system prompt, iteration budget, and restricted tools. Unlike `delegate`
+//! (generic), `spawn_specialist` adapts the configuration to the role.
+//! Supports provider override.
 
 use crate::abeille::{Abeille, AbeilleRegistry, ContextExecution, NiveauDanger, ResultatAbeille};
 use crate::brain::EssaimConfig;

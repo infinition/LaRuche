@@ -1,9 +1,9 @@
-//! Missions — travail/recherche AU LONG COURS piloté par objectif (« La Reine »).
+//! Missions: long-running, objective-driven work/research ("La Reine").
 //!
-//! La métadonnée opérationnelle vit ici (`missions.json`) ; le SAVOIR capitalisé vit dans la
-//! carte cognitive sous `missions.<slug>` (`.findings`, `.questions`…). Chaque itération avance
-//! la mission : l'agent lit l'état en mémoire, fait l'étape suivante, écrit ses trouvailles.
-//! (MVP : run manuel ou cron ; dream/synthèse/skills = itérations suivantes.)
+//! Operational metadata lives here (`missions.json`); capitalized KNOWLEDGE lives in the
+//! cognitive map under `missions.<slug>` (`.findings`, `.questions`...). Each iteration advances
+//! the mission: the agent reads the state from memory, performs the next step, writes its findings.
+//! (MVP: manual run or cron; dream/synthesis/skills = later iterations.)
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -13,17 +13,17 @@ use std::path::{Path, PathBuf};
 pub struct Mission {
     pub slug: String,
     pub objective: String,
-    /// Cadence cron (ex. "0 9 * * 1" = lundi 9h) ; None = manuel uniquement.
+    /// Cron cadence (e.g. "0 9 * * 1" = Monday 9am); None = manual only.
     #[serde(default)]
     pub cadence: Option<String>,
-    /// Profil provider à utiliser pour les itérations (résout provider/modèle/clé). None = défaut.
+    /// Provider profile to use for iterations (resolves provider/model/key). None = default.
     #[serde(default)]
     pub profile_id: Option<String>,
-    /// Modèle explicite (override du profil). None = modèle du profil/défaut.
+    /// Explicit model (overrides the profile). None = profile/default model.
     #[serde(default)]
     pub model: Option<String>,
-    /// Canal de livraison du bilan d'itération (ex. `telegram:123`). None = travail de fond
-    /// (résultat écrit en mémoire `missions.<slug>` uniquement, pas de notification).
+    /// Delivery channel for the iteration report (e.g. `telegram:123`). None = background work
+    /// (result written to memory `missions.<slug>` only, no notification).
     #[serde(default)]
     pub channel: Option<String>,
     /// "active" | "paused" | "done".
@@ -102,7 +102,7 @@ impl MissionStore {
     }
 }
 
-/// Slugifie un texte en identifiant de nœud (`missions.<slug>`).
+/// Slugifies a text into a node identifier (`missions.<slug>`).
 pub fn slugify(s: &str) -> String {
     let mut slug: String = s
         .trim()
@@ -116,31 +116,31 @@ pub fn slugify(s: &str) -> String {
     slug.trim_matches('_').chars().take(40).collect()
 }
 
-/// Construit le prompt d'une itération de mission : l'agent lit l'état déjà capitalisé puis
-/// avance d'une étape et écrit ses trouvailles sous `missions.<slug>`.
+/// Builds the prompt for a mission iteration: the agent reads the already-capitalized state then
+/// advances one step and writes its findings under `missions.<slug>`.
 pub fn prompt_iteration(mission: &Mission, etat_actuel: &str) -> String {
     let node_id = format!("missions.{}", mission.slug);
     let etat = if etat_actuel.trim().is_empty() {
-        "(rien encore — c'est la première itération)".to_string()
+        "(nothing yet - this is the first iteration)".to_string()
     } else {
         etat_actuel.to_string()
     };
     format!(
-        "Tu avances une MISSION de recherche AU LONG COURS (tu la reprendras à chaque itération).\n\
-         OBJECTIF : {objective}\n\
-         Itération n°{iter}.\n\n\
-         Déjà capitalisé en mémoire sous `{node}` :\n{etat}\n\n\
-         Si l'état ci-dessus contient des « questions ouvertes » non résolues, traite-les EN PRIORITÉ. \
-         Sinon, identifie l'angle le plus important encore non couvert. \
-         Fais LA prochaine étape la plus utile pour faire AVANCER le dossier (recherche web approfondie, \
-         analyse, recoupement de sources). Puis OBLIGATOIREMENT :\n\
-         1) écris les NOUVEAUX faits/sources durables via memory_write sous le node_id `{node}.findings` \
-         (un fait = un item clair, sourcé) ;\n\
-         2) note les questions encore ouvertes via memory_write sous `{node}.questions` ;\n\
-         3) mets à jour la SYNTHÈSE du dossier via memory_write sous `{node}.synthese` (un état des \
-         lieux global, lisible, intégrant cette itération).\n\
-         Ne répète PAS ce qui est déjà connu ci-dessus. Sois rigoureux, sourcé, et conclus par un court \
-         bilan de ce que cette itération a ajouté.",
+        "You are advancing a LONG-RUNNING research MISSION (you will resume it at each iteration).\n\
+         OBJECTIVE: {objective}\n\
+         Iteration #{iter}.\n\n\
+         Already capitalized in memory under `{node}`:\n{etat}\n\n\
+         If the state above contains unresolved \"open questions\", handle them AS A PRIORITY. \
+         Otherwise, identify the most important angle not yet covered. \
+         Do THE next most useful step to ADVANCE the case (deep web research, \
+         analysis, cross-checking sources). Then YOU MUST:\n\
+         1) write the NEW lasting facts/sources via memory_write under the node_id `{node}.findings` \
+         (one fact = one clear, sourced item);\n\
+         2) note the still-open questions via memory_write under `{node}.questions`;\n\
+         3) update the case SYNTHESIS via memory_write under `{node}.synthese` (a global, \
+         readable overview integrating this iteration).\n\
+         Do NOT repeat what is already known above. Be rigorous, sourced, and conclude with a short \
+         summary of what this iteration added.",
         objective = mission.objective,
         iter = mission.iterations + 1,
         node = node_id,

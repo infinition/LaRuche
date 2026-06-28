@@ -1,4 +1,4 @@
-//! LaRuche TUI — Rich terminal interface connected to a LaRuche server.
+//! LaRuche TUI: Rich terminal interface connected to a LaRuche server.
 //!
 //! Connects to a LaRuche server via WebSocket (/ws/chat) for agent capabilities.
 //! Falls back to direct Ollama if no server found.
@@ -39,7 +39,7 @@ pub enum TuiEvent {
     Plan(Vec<(String, String)>),
     /// Agent thinking / reasoning trace.
     Thinking(String),
-    /// Stream finished — the full response is included.
+    /// Stream finished: the full response is included.
     Done(String),
     /// An error occurred.
     Error(String),
@@ -198,9 +198,9 @@ impl App {
             .to_string();
 
         let welcome = if connected {
-            format!("Connecte a {} — pret !", server_url)
+            format!("Connected to {} - ready!", server_url)
         } else {
-            "Aucun serveur LaRuche trouve. Lancez: cargo run -p laruche-node".to_string()
+            "No LaRuche server found. Run: cargo run -p laruche-node".to_string()
         };
 
         let mut auth_token = None;
@@ -262,7 +262,7 @@ impl App {
         };
 
         let welcome_msg = if connected {
-            format!("Connecte a {}{}", server_url, auth_info)
+            format!("Connected to {}{}", server_url, auth_info)
         } else {
             welcome
         };
@@ -284,9 +284,9 @@ impl App {
             cwd,
             tokens: 0,
             status_msg: if connected {
-                "Connecte".into()
+                "Connected".into()
             } else {
-                "Deconnecte".into()
+                "Offline".into()
             },
             is_streaming: false,
             should_quit: false,
@@ -537,9 +537,9 @@ async fn run_mission_bg(url: String, slug: String, token: Option<String>, tx: to
     match req.send().await {
         Ok(resp) => {
             if resp.status().is_success() {
-                let _ = tx.send(TuiEvent::ActionFinished("Mission demarree avec succes.".into())).await;
+                let _ = tx.send(TuiEvent::ActionFinished("Mission started successfully.".into())).await;
             } else {
-                let _ = tx.send(TuiEvent::Error("Echec du lancement de la mission".into())).await;
+                let _ = tx.send(TuiEvent::Error("Failed to start the mission".into())).await;
             }
         }
         Err(e) => {
@@ -558,9 +558,9 @@ async fn create_mission_bg(url: String, objective: String, token: Option<String>
     match req.send().await {
         Ok(resp) => {
             if resp.status().is_success() {
-                let _ = tx.send(TuiEvent::ActionFinished("Mission creee avec succes.".into())).await;
+                let _ = tx.send(TuiEvent::ActionFinished("Mission created successfully.".into())).await;
             } else {
-                let _ = tx.send(TuiEvent::Error("Echec de la creation de la mission".into())).await;
+                let _ = tx.send(TuiEvent::Error("Failed to create the mission".into())).await;
             }
         }
         Err(e) => {
@@ -579,9 +579,9 @@ async fn update_mission_status_bg(url: String, slug: String, status: String, tok
     match req.send().await {
         Ok(resp) => {
             if resp.status().is_success() {
-                let _ = tx.send(TuiEvent::ActionFinished(format!("Statut mission mis a jour a {}", status))).await;
+                let _ = tx.send(TuiEvent::ActionFinished(format!("Mission status updated to {}", status))).await;
             } else {
-                let _ = tx.send(TuiEvent::Error("Echec de la mise a jour".into())).await;
+                let _ = tx.send(TuiEvent::Error("Update failed".into())).await;
             }
         }
         Err(e) => {
@@ -599,9 +599,9 @@ async fn delete_mission_bg(url: String, slug: String, token: Option<String>, tx:
     match req.send().await {
         Ok(resp) => {
             if resp.status().is_success() {
-                let _ = tx.send(TuiEvent::ActionFinished("Mission supprimee.".into())).await;
+                let _ = tx.send(TuiEvent::ActionFinished("Mission deleted.".into())).await;
             } else {
-                let _ = tx.send(TuiEvent::Error("Echec de la suppression".into())).await;
+                let _ = tx.send(TuiEvent::Error("Deletion failed".into())).await;
             }
         }
         Err(e) => {
@@ -619,9 +619,9 @@ async fn decompose_mission_bg(url: String, slug: String, token: Option<String>, 
     match req.send().await {
         Ok(resp) => {
             if resp.status().is_success() {
-                let _ = tx.send(TuiEvent::ActionFinished("Mission decomposee en taches kanban.".into())).await;
+                let _ = tx.send(TuiEvent::ActionFinished("Mission decomposed into kanban tasks.".into())).await;
             } else {
-                let _ = tx.send(TuiEvent::Error("Echec de la decomposition".into())).await;
+                let _ = tx.send(TuiEvent::Error("Decomposition failed".into())).await;
             }
         }
         Err(e) => {
@@ -650,9 +650,9 @@ async fn create_memory_node_bg(url: String, parent_id: String, label: String, on
     match req.send().await {
         Ok(resp) => {
             if resp.status().is_success() {
-                let _ = tx.send(TuiEvent::ActionFinished(format!("Noeud cree : {}", node_id))).await;
+                let _ = tx.send(TuiEvent::ActionFinished(format!("Node created: {}", node_id))).await;
             } else {
-                let _ = tx.send(TuiEvent::Error("Echec de la creation du noeud".into())).await;
+                let _ = tx.send(TuiEvent::Error("Failed to create the node".into())).await;
             }
         }
         Err(e) => {
@@ -674,9 +674,9 @@ async fn add_memory_item_bg(url: String, node_id: String, content: String, token
     match req.send().await {
         Ok(resp) => {
             if resp.status().is_success() {
-                let _ = tx.send(TuiEvent::ActionFinished("Item ajoute avec succes.".into())).await;
+                let _ = tx.send(TuiEvent::ActionFinished("Item added successfully.".into())).await;
             } else {
-                let _ = tx.send(TuiEvent::Error("Echec de l'ajout de l'item".into())).await;
+                let _ = tx.send(TuiEvent::Error("Failed to add the item".into())).await;
             }
         }
         Err(e) => {
@@ -697,9 +697,9 @@ async fn delete_memory_item_bg(url: String, item_id: String, token: Option<Strin
     match req.send().await {
         Ok(resp) => {
             if resp.status().is_success() {
-                let _ = tx.send(TuiEvent::ActionFinished("Item supprime.".into())).await;
+                let _ = tx.send(TuiEvent::ActionFinished("Item deleted.".into())).await;
             } else {
-                let _ = tx.send(TuiEvent::Error("Echec de la suppression".into())).await;
+                let _ = tx.send(TuiEvent::Error("Deletion failed".into())).await;
             }
         }
         Err(e) => {
@@ -720,9 +720,9 @@ async fn delete_memory_node_bg(url: String, node_id: String, token: Option<Strin
     match req.send().await {
         Ok(resp) => {
             if resp.status().is_success() {
-                let _ = tx.send(TuiEvent::ActionFinished(format!("Noeud supprime : {}", node_id))).await;
+                let _ = tx.send(TuiEvent::ActionFinished(format!("Node deleted: {}", node_id))).await;
             } else {
-                let _ = tx.send(TuiEvent::Error("Echec de la suppression du noeud".into())).await;
+                let _ = tx.send(TuiEvent::Error("Failed to delete the node".into())).await;
             }
         }
         Err(e) => {
@@ -1022,7 +1022,7 @@ async fn stream_via_websocket(
                                             }
                                         }
                                         _ => {
-                                            // Truly unknown event — if it has text, treat as token
+                                            // Truly unknown event: if it has text, treat as token
                                             if let Some(t) = data["text"].as_str() {
                                                 full_response.push_str(t);
                                                 let _ = tx.send(TuiEvent::Token(t.to_string())).await;
@@ -1034,7 +1034,7 @@ async fn stream_via_websocket(
                         }
                     }
                     Ok(WsMessage::Close(_)) => {
-                        // Server closed the connection — finalize
+                        // Server closed the connection: finalize
                         let _ = tx.send(TuiEvent::Done(full_response)).await;
                         return;
                     }
@@ -1045,7 +1045,7 @@ async fn stream_via_websocket(
                         let _ = tx.send(TuiEvent::Done(full_response)).await;
                         return;
                     }
-                    _ => {} // Ping/Pong/Binary — ignore
+                    _ => {} // Ping/Pong/Binary: ignore
                 }
             }
 
@@ -1053,7 +1053,7 @@ async fn stream_via_websocket(
             let _ = tx.send(TuiEvent::Done(full_response)).await;
         }
         Err(ws_err) => {
-            // WebSocket connection failed — fall back to HTTP POST /api/webhook
+            // WebSocket connection failed: fall back to HTTP POST /api/webhook
             let _ = tx
                 .send(TuiEvent::Thinking(format!(
                     "WS failed ({}), falling back to HTTP...",
@@ -1085,7 +1085,7 @@ async fn fallback_http_send(url: &str, text: &str, tx: &tokio::sync::mpsc::Sende
                 if let Some(err) = data["error"].as_str() {
                     if !err.is_empty() {
                         let _ = tx
-                            .send(TuiEvent::Error(format!("Erreur serveur: {}", err)))
+                            .send(TuiEvent::Error(format!("Server error: {}", err)))
                             .await;
                         let _ = tx.send(TuiEvent::Done(String::new())).await;
                         return;
@@ -1217,7 +1217,7 @@ pub async fn run_tui() -> anyhow::Result<()> {
                     }
                 }
                 TuiEvent::Error(err) => {
-                    app.status_msg = format!("Erreur: {}", err);
+                    app.status_msg = format!("Error: {}", err);
                     app.activity_log.push(format!("[ERR] [{}] {}", chrono::Local::now().format("%H:%M:%S"), err));
                 }
                 _ => {}
@@ -1246,14 +1246,14 @@ pub async fn run_tui() -> anyhow::Result<()> {
                                     args.clone()
                                 };
                                 app.activity_log.push(format!(
-                                    "[TOOL] [{}] Appel: {} ({})",
+                                    "[TOOL] [{}] Call: {} ({})",
                                     ts, name, short_args
                                 ));
                                 app.messages.push(ChatMessage {
                                     role: "tool".into(),
                                     text: format!("{} {}", name, short_args),
                                 });
-                                app.status_msg = format!("Outil: {}...", name);
+                                app.status_msg = format!("Tool: {}...", name);
                             }
                             TuiEvent::ToolResult { name, success, ms } => {
                                 let icon = if success { "✓" } else { "✗" };
@@ -1264,7 +1264,7 @@ pub async fn run_tui() -> anyhow::Result<()> {
                             TuiEvent::Plan(steps) => {
                                 app.plan = steps;
                                 app.activity_log.push(format!(
-                                    "[{}] Plan mis a jour ({} etapes)",
+                                    "[{}] Plan updated ({} steps)",
                                     ts,
                                     app.plan.len()
                                 ));
@@ -1303,7 +1303,7 @@ pub async fn run_tui() -> anyhow::Result<()> {
                                         .push(format!("[ERR] [{}] Empty response", ts));
                                 }
                                 app.is_streaming = false;
-                                app.status_msg = "Pret".into();
+                                app.status_msg = "Ready".into();
                                 app.streaming_response.clear();
                                 // Auto scroll
                                 let total = app
@@ -1316,7 +1316,7 @@ pub async fn run_tui() -> anyhow::Result<()> {
                             }
                             TuiEvent::Error(err) => {
                                 app.activity_log.push(format!("[ERR] [{}] {}", ts, err));
-                                app.status_msg = format!("Erreur: {}", err);
+                                app.status_msg = format!("Error: {}", err);
                             }
                             _ => {}
                         }
@@ -1340,7 +1340,7 @@ pub async fn run_tui() -> anyhow::Result<()> {
                         });
                     }
                     app.is_streaming = false;
-                    app.status_msg = "Erreur connexion".into();
+                    app.status_msg = "Connection error".into();
                 }
             }
         }
@@ -1366,8 +1366,8 @@ pub async fn run_tui() -> anyhow::Result<()> {
                                 task.abort();
                             }
                             app.is_streaming = false;
-                            app.status_msg = "Génération interrompue.".into();
-                            app.activity_log.push(format!("[INFO] [{}] Génération interrompue par l'utilisateur", chrono::Local::now().format("%H:%M:%S")));
+                            app.status_msg = "Generation interrupted.".into();
+                            app.activity_log.push(format!("[INFO] [{}] Generation interrupted by the user", chrono::Local::now().format("%H:%M:%S")));
                         } else {
                             app.should_quit = true;
                         }
@@ -1818,7 +1818,7 @@ pub async fn run_tui() -> anyhow::Result<()> {
                                 if app.current_screen == Screen::Chat {
                                     // Agent sidebar (left 36 cols) or Chat (right)
                                     if col < 36 {
-                                        // Clicked in agent sidebar — no panel change needed
+                                        // Clicked in agent sidebar: no panel change needed
                                     } else {
                                         app.active_panel = Panel::Chat;
                                     }
@@ -1925,10 +1925,10 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                                         }
                                         match req.send().await {
                                             Ok(resp) if resp.status().is_success() => {
-                                                let _ = tx.send(TuiEvent::ActionFinished("Nœud mis à jour.".into())).await;
+                                                let _ = tx.send(TuiEvent::ActionFinished("Node updated.".into())).await;
                                             }
                                             _ => {
-                                                let _ = tx.send(TuiEvent::Error("Échec de la mise à jour".into())).await;
+                                                let _ = tx.send(TuiEvent::Error("Update failed".into())).await;
                                             }
                                         }
                                     });
@@ -1949,10 +1949,10 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                                                     }
                                                     match req.send().await {
                                                         Ok(resp) if resp.status().is_success() => {
-                                                            let _ = tx.send(TuiEvent::ActionFinished("Fact mis à jour.".into())).await;
+                                                            let _ = tx.send(TuiEvent::ActionFinished("Fact updated.".into())).await;
                                                         }
                                                         _ => {
-                                                            let _ = tx.send(TuiEvent::Error("Échec de la mise à jour".into())).await;
+                                                            let _ = tx.send(TuiEvent::Error("Update failed".into())).await;
                                                         }
                                                     }
                                                 });
@@ -2054,7 +2054,7 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                         if !app.messages.is_empty() {
                             let ts = chrono::Local::now().format("%H:%M:%S").to_string();
                             app.activity_log.push(format!(
-                                "[{}] Session fermee ({} msgs)",
+                                "[{}] Session closed ({} msgs)",
                                 ts,
                                 app.messages.len()
                             ));
@@ -2062,7 +2062,7 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                         app.messages.clear();
                         app.session_id = None;
                         app.plan.clear();
-                        app.status_msg = "Nouvelle conversation".into();
+                        app.status_msg = "New conversation".into();
                         return;
                     }
 
@@ -2078,7 +2078,7 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                             app.cwd = arg.into();
                             app.status_msg = format!("cwd: {}", arg);
                         } else {
-                            app.status_msg = format!("Introuvable: {}", arg);
+                            app.status_msg = format!("Not found: {}", arg);
                         }
                         return;
                     }
@@ -2098,15 +2098,15 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                     "/discover" | "/scan" => {
                         app.messages.push(ChatMessage {
                             role: "system".into(),
-                            text: "Scanning reseau Miel...".into(),
+                            text: "Scanning Miel network...".into(),
                         });
-                        app.status_msg = "Scan Miel...".into();
+                        app.status_msg = "Scanning Miel...".into();
                         // Re-discover server
                         let url = discover_server().await;
                         if url.is_empty() {
                             app.messages.push(ChatMessage {
                                 role: "error".into(),
-                                text: "Aucun serveur LaRuche trouve".into(),
+                                text: "No LaRuche server found".into(),
                             });
                         } else {
                             app.server_url = url.clone();
@@ -2115,13 +2115,13 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                             app.model = fetch_model(&url).await;
                             app.messages.push(ChatMessage {
                                 role: "system".into(),
-                                text: format!("Connecte: {}", url),
+                                text: format!("Connected: {}", url),
                             });
                         }
                         app.status_msg = if app.connected {
-                            "Connecte"
+                            "Connected"
                         } else {
-                            "Deconnecte"
+                            "Offline"
                         }
                         .into();
                         return;
@@ -2167,7 +2167,7 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                         } else {
                             app.messages.push(ChatMessage {
                                 role: "error".into(),
-                                text: "Pas de serveur connecte".into(),
+                                text: "No server connected".into(),
                             });
                         }
                         return;
@@ -2180,9 +2180,9 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                             "start" => {
                                 app.messages.push(ChatMessage {
                                     role: "system".into(),
-                                    text: "Demarrage du serveur...".into(),
+                                    text: "Starting the server...".into(),
                                 });
-                                app.status_msg = "Demarrage...".into();
+                                app.status_msg = "Starting...".into();
                                 // Try to start
                                 if let Some(exe) = super::find_server_exe() {
                                     let mut cmd = std::process::Command::new(&exe);
@@ -2198,7 +2198,7 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                                         Ok(c) => {
                                             app.messages.push(ChatMessage {
                                                 role: "system".into(),
-                                                text: format!("Serveur demarre (PID: {})", c.id()),
+                                                text: format!("Server started (PID: {})", c.id()),
                                             });
                                             tokio::time::sleep(std::time::Duration::from_secs(2))
                                                 .await;
@@ -2209,16 +2209,16 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                                         }
                                         Err(e) => app.messages.push(ChatMessage {
                                             role: "error".into(),
-                                            text: format!("Echec: {}", e),
+                                            text: format!("Failed: {}", e),
                                         }),
                                     }
                                 } else {
-                                    app.messages.push(ChatMessage{role:"error".into(), text:"Binaire laruche-node introuvable. Faites: /server install".into()});
+                                    app.messages.push(ChatMessage{role:"error".into(), text:"laruche-node binary not found. Run: /server install".into()});
                                 }
                                 app.status_msg = if app.connected {
-                                    "Connecte"
+                                    "Connected"
                                 } else {
-                                    "Deconnecte"
+                                    "Offline"
                                 }
                                 .into();
                             }
@@ -2235,14 +2235,14 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                                 app.connected = false;
                                 app.messages.push(ChatMessage {
                                     role: "system".into(),
-                                    text: "Serveur arrete".into(),
+                                    text: "Server stopped".into(),
                                 });
-                                app.status_msg = "Deconnecte".into();
+                                app.status_msg = "Offline".into();
                             }
                             "restart" => {
                                 app.messages.push(ChatMessage {
                                     role: "system".into(),
-                                    text: "Redemarrage...".into(),
+                                    text: "Restarting...".into(),
                                 });
                                 if cfg!(windows) {
                                     let _ = std::process::Command::new("taskkill")
@@ -2271,16 +2271,16 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                                 app.messages.push(ChatMessage {
                                     role: "system".into(),
                                     text: if app.connected {
-                                        "Serveur redemarre"
+                                        "Server restarted"
                                     } else {
-                                        "Echec redemarrage"
+                                        "Restart failed"
                                     }
                                     .into(),
                                 });
                                 app.status_msg = if app.connected {
-                                    "Connecte"
+                                    "Connected"
                                 } else {
-                                    "Deconnecte"
+                                    "Offline"
                                 }
                                 .into();
                             }
@@ -2289,15 +2289,15 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                                 app.messages.push(ChatMessage {
                                     role: "system".into(),
                                     text: if running {
-                                        "Serveur: en marche"
+                                        "Server: running"
                                     } else {
-                                        "Serveur: arrete"
+                                        "Server: stopped"
                                     }
                                     .into(),
                                 });
                             }
                             "install" => {
-                                app.messages.push(ChatMessage{role:"system".into(), text:"Installation du serveur (cargo build --release + install)...".into()});
+                                app.messages.push(ChatMessage{role:"system".into(), text:"Installing the server (cargo build --release + install)...".into()});
                                 if let Some(src) = super::find_source_dir() {
                                     let build = std::process::Command::new("cargo")
                                         .args(["build", "--release", "-p", "laruche-node"])
@@ -2307,7 +2307,7 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                                         Ok(s) if s.success() => {
                                             app.messages.push(ChatMessage {
                                                 role: "system".into(),
-                                                text: "Build release OK. Installation...".into(),
+                                                text: "Release build OK. Installing...".into(),
                                             });
                                             let inst = std::process::Command::new("cargo")
                                                 .args([
@@ -2322,30 +2322,30 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                                                 Ok(s) if s.success() => {
                                                     app.messages.push(ChatMessage {
                                                         role: "system".into(),
-                                                        text: "laruche-node installe avec succes"
+                                                        text: "laruche-node installed successfully"
                                                             .into(),
                                                     })
                                                 }
                                                 _ => app.messages.push(ChatMessage {
                                                     role: "error".into(),
-                                                    text: "cargo install a echoue".into(),
+                                                    text: "cargo install failed".into(),
                                                 }),
                                             }
                                         }
                                         _ => app.messages.push(ChatMessage {
                                             role: "error".into(),
-                                            text: "Build echoue. Verifiez le toolchain Rust."
+                                            text: "Build failed. Check the Rust toolchain."
                                                 .into(),
                                         }),
                                     }
                                 } else {
-                                    app.messages.push(ChatMessage{role:"error".into(), text:"Repertoire source introuvable. Lancez depuis le dossier LaRuche.".into()});
+                                    app.messages.push(ChatMessage{role:"error".into(), text:"Source directory not found. Run from the LaRuche folder.".into()});
                                 }
                             }
                             "update" => {
                                 app.messages.push(ChatMessage {
                                     role: "system".into(),
-                                    text: "Mise a jour (git pull + rebuild)...".into(),
+                                    text: "Updating (git pull + rebuild)...".into(),
                                 });
                                 if let Some(src) = super::find_source_dir() {
                                     let _ = std::process::Command::new("git")
@@ -2367,17 +2367,17 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                                                 ])
                                                 .current_dir(&src)
                                                 .status();
-                                            app.messages.push(ChatMessage{role:"system".into(), text:"Mise a jour terminee. /server restart pour appliquer.".into()});
+                                            app.messages.push(ChatMessage{role:"system".into(), text:"Update complete. Run /server restart to apply.".into()});
                                         }
                                         _ => app.messages.push(ChatMessage {
                                             role: "error".into(),
-                                            text: "Build echoue.".into(),
+                                            text: "Build failed.".into(),
                                         }),
                                     }
                                 } else {
                                     app.messages.push(ChatMessage {
                                         role: "error".into(),
-                                        text: "Repertoire source introuvable.".into(),
+                                        text: "Source directory not found.".into(),
                                     });
                                 }
                             }
@@ -2397,7 +2397,7 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                                 app.connected = false;
                                 app.messages.push(ChatMessage {
                                     role: "system".into(),
-                                    text: "laruche-node desinstalle".into(),
+                                    text: "laruche-node uninstalled".into(),
                                 });
                             }
                             _ => {
@@ -2424,11 +2424,11 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                         match std::fs::write(f, &md) {
                             Ok(_) => app.messages.push(ChatMessage {
                                 role: "system".into(),
-                                text: format!("Exporte: {}", f),
+                                text: format!("Exported: {}", f),
                             }),
                             Err(e) => app.messages.push(ChatMessage {
                                 role: "error".into(),
-                                text: format!("Erreur: {}", e),
+                                text: format!("Error: {}", e),
                             }),
                         }
                         return;
@@ -2439,7 +2439,7 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                         if parts.len() < 2 || parts[0].is_empty() {
                             app.messages.push(ChatMessage {
                                 role: "system".into(),
-                                text: "/login <nom> <mot_de_passe>".into(),
+                                text: "/login <name> <password>".into(),
                             });
                             return;
                         }
@@ -2473,14 +2473,14 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                                 app.messages.push(ChatMessage {
                                     role: "system".into(),
                                     text: format!(
-                                        "Connecte en tant que {}",
+                                        "Logged in as {}",
                                         app.user_name.as_deref().unwrap_or("?")
                                     ),
                                 });
                             }
                             _ => app.messages.push(ChatMessage {
                                 role: "error".into(),
-                                text: "Identifiants incorrects".into(),
+                                text: "Invalid credentials".into(),
                             }),
                         }
                         return;
@@ -2524,7 +2524,7 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                                 app.messages.push(ChatMessage {
                                     role: "system".into(),
                                     text: format!(
-                                        "Compte cree: {} ({})",
+                                        "Account created: {} ({})",
                                         app.user_name.as_deref().unwrap_or("?"),
                                         app.user_role.as_deref().unwrap_or("user")
                                     ),
@@ -2532,7 +2532,7 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                             }
                             _ => app.messages.push(ChatMessage {
                                 role: "error".into(),
-                                text: "Erreur enrollment".into(),
+                                text: "Enrollment error".into(),
                             }),
                         }
                         return;
@@ -2544,7 +2544,7 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                         app.save_config();
                         app.messages.push(ChatMessage {
                             role: "system".into(),
-                            text: "Deconnecte".into(),
+                            text: "Logged out".into(),
                         });
                         return;
                     }
@@ -2552,7 +2552,7 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                         let info = match (&app.user_name, &app.user_role) {
                             (Some(n), Some(r)) => format!("{} ({})", n, r),
                             _ => {
-                                "Non authentifie. /login <nom> <mdp> ou /enroll <nom> [mdp]".into()
+                                "Not authenticated. /login <name> <pwd> or /enroll <name> [pwd]".into()
                             }
                         };
                         app.messages.push(ChatMessage {
@@ -2562,7 +2562,7 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                         return;
                     }
                     _ => {
-                        app.status_msg = format!("? {} — /help", text);
+                        app.status_msg = format!("? {} - /help", text);
                         return;
                     }
                 }
@@ -2571,7 +2571,7 @@ async fn handle_input(app: &mut App, key: KeyCode) {
             if !app.connected {
                 app.messages.push(ChatMessage {
                     role: "error".into(),
-                    text: "Aucun serveur LaRuche connecte !".into(),
+                    text: "No LaRuche server connected!".into(),
                 });
                 return;
             }
@@ -2582,7 +2582,7 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                 text: text.clone(),
             });
             app.is_streaming = true;
-            app.status_msg = "Reflexion...".into();
+            app.status_msg = "Thinking...".into();
             let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
             app.activity_log.push(format!(
                 "[{}] Prompt: {}",
@@ -2877,13 +2877,13 @@ fn draw_memory(f: &mut Frame, area: Rect, app: &mut App) {
 
     if list_items.is_empty() {
         list_items.push(ListItem::new(Line::from(Span::styled(
-            " Aucun nœud charge",
+            " No node loaded",
             Style::default().fg(TEXT_DIM).add_modifier(Modifier::ITALIC),
         ))));
     }
 
     let b_tree = Block::default()
-        .title(" Carte Cognitive ")
+        .title(" Cognitive Map ")
         .borders(Borders::ALL)
         .border_style(Style::default().fg(if is_tree_focused { AMBER } else { BORDER }))
         .style(Style::default().bg(BG));
@@ -2891,7 +2891,7 @@ fn draw_memory(f: &mut Frame, area: Rect, app: &mut App) {
 
     // 2. Draw Details
     let b_details = Block::default()
-        .title(" Detail du Noeud ")
+        .title(" Node Details ")
         .borders(Borders::ALL)
         .border_style(Style::default().fg(if is_details_focused { AMBER } else { BORDER }))
         .style(Style::default().bg(BG));
@@ -2914,9 +2914,9 @@ fn draw_memory(f: &mut Frame, area: Rect, app: &mut App) {
         let is_prot = details["protected"].as_bool().unwrap_or(false);
 
         let prot_status = if is_prot {
-            Span::styled(" [SYSTEME PROTEGE 🔒]", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+            Span::styled(" [PROTECTED SYSTEM 🔒]", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
         } else {
-            Span::styled(" [MODIFIABLE ✏️]", Style::default().fg(Color::Green))
+            Span::styled(" [EDITABLE ✏️]", Style::default().fg(Color::Green))
         };
 
         let meta_lines = vec![
@@ -2966,9 +2966,9 @@ fn draw_memory(f: &mut Frame, area: Rect, app: &mut App) {
                 };
 
                 let src_span = if is_sel {
-                    Span::styled(format!(" (depuis {})", source), Style::default().fg(Color::Black).add_modifier(Modifier::ITALIC))
+                    Span::styled(format!(" (from {})", source), Style::default().fg(Color::Black).add_modifier(Modifier::ITALIC))
                 } else {
-                    Span::styled(format!(" (depuis {})", source), Style::default().fg(TEXT_DIM).add_modifier(Modifier::ITALIC))
+                    Span::styled(format!(" (from {})", source), Style::default().fg(TEXT_DIM).add_modifier(Modifier::ITALIC))
                 };
 
                 fact_items.push(ListItem::new(Line::from(vec![
@@ -2981,18 +2981,18 @@ fn draw_memory(f: &mut Frame, area: Rect, app: &mut App) {
 
         if fact_items.is_empty() {
             fact_items.push(ListItem::new(Line::from(Span::styled(
-                " Aucun fait enregistre dans ce noeud. Appuyez sur 'a' pour en ajouter un.",
+                " No fact stored in this node. Press 'a' to add one.",
                 Style::default().fg(TEXT_DIM).add_modifier(Modifier::ITALIC),
             ))));
         }
 
         // Help bar at the bottom
         let help_text = if is_tree_focused {
-            " [Tab] Details  [n] Nouveau sous-noeud  [e] Renommer  [d] Supprimer  [a] Ajouter Fait "
+            " [Tab] Details  [n] New sub-node  [e] Rename  [d] Delete  [a] Add Fact "
         } else if is_details_focused {
-            " [Tab] Arbre  [a] Ajouter Fait  [e] Modifier Fait  [d] Supprimer Fait "
+            " [Tab] Tree  [a] Add Fact  [e] Edit Fact  [d] Delete Fact "
         } else {
-            " Appuyez sur Tab pour activer ce panneau "
+            " Press Tab to activate this panel "
         };
         let help_line = Line::from(Span::styled(help_text, Style::default().fg(TEXT_DIM).add_modifier(Modifier::ITALIC)));
 
@@ -3012,7 +3012,7 @@ fn draw_memory(f: &mut Frame, area: Rect, app: &mut App) {
     } else {
         let empty_text = vec![
             Line::from(""),
-            Line::from(Span::styled("  Veuillez selectionner un noeud dans la carte cognitive a gauche.", Style::default().fg(TEXT_DIM))),
+            Line::from(Span::styled("  Please select a node in the cognitive map on the left.", Style::default().fg(TEXT_DIM))),
         ];
         f.render_widget(Paragraph::new(empty_text).block(b_details), chunks[1]);
     }
@@ -3032,7 +3032,7 @@ fn draw_missions(f: &mut Frame, area: Rect, app: &mut App) {
 
     // 1. Draw List
     let b_list = Block::default()
-        .title(" Missions Actives ")
+        .title(" Active Missions ")
         .borders(Borders::ALL)
         .border_style(Style::default().fg(if is_list_focused { AMBER } else { BORDER }))
         .style(Style::default().bg(BG));
@@ -3042,7 +3042,7 @@ fn draw_missions(f: &mut Frame, area: Rect, app: &mut App) {
         let objective = m["objective"].as_str().unwrap_or("?");
         let status = m["status"].as_str().unwrap_or("active");
         let runs = m["iterations"].as_u64().unwrap_or(0);
-        let cadence = m["cadence"].as_str().unwrap_or("manuel");
+        let cadence = m["cadence"].as_str().unwrap_or("manual");
 
         let is_sel = idx == app.selected_mission_idx;
         let style = if is_sel {
@@ -3052,9 +3052,9 @@ fn draw_missions(f: &mut Frame, area: Rect, app: &mut App) {
         };
 
         let status_badge = match status {
-            "active" => Span::styled(" [ACTIF] ", Style::default().fg(Color::Green)),
-            "paused" => Span::styled(" [PAUSE] ", Style::default().fg(Color::Yellow)),
-            _ => Span::styled(" [FINI]  ", Style::default().fg(TEXT_DIM)),
+            "active" => Span::styled(" [ACTIVE]", Style::default().fg(Color::Green)),
+            "paused" => Span::styled(" [PAUSED]", Style::default().fg(Color::Yellow)),
+            _ => Span::styled(" [DONE]  ", Style::default().fg(TEXT_DIM)),
         };
 
         let runs_text = format!(" ({} iterations, {})", runs, cadence);
@@ -3073,7 +3073,7 @@ fn draw_missions(f: &mut Frame, area: Rect, app: &mut App) {
 
     if list_items.is_empty() {
         list_items.push(ListItem::new(Line::from(Span::styled(
-            " Aucune mission creee. Appuyez sur 'c' pour en lancer une.",
+            " No mission created. Press 'c' to start one.",
             Style::default().fg(TEXT_DIM).add_modifier(Modifier::ITALIC),
         ))));
     }
@@ -3082,7 +3082,7 @@ fn draw_missions(f: &mut Frame, area: Rect, app: &mut App) {
 
     // 2. Draw Dossier
     let b_dossier = Block::default()
-        .title(" Dossier de Mission ")
+        .title(" Mission Dossier ")
         .borders(Borders::ALL)
         .border_style(Style::default().fg(if is_dossier_focused { AMBER } else { BORDER }))
         .style(Style::default().bg(BG));
@@ -3101,9 +3101,9 @@ fn draw_missions(f: &mut Frame, area: Rect, app: &mut App) {
 
         // Help bar
         let help_text = if is_list_focused {
-            " [Tab] Dossier  [c] Creer Mission  [r] Executer Tour  [p] Pause/Reprendre  [d] Supprimer  [k] Decomposer "
+            " [Tab] Dossier  [c] Create Mission  [r] Run Turn  [p] Pause/Resume  [d] Delete  [k] Decompose "
         } else {
-            " [Tab] Liste  [Fleches Haut/Bas] Defiler le dossier "
+            " [Tab] List  [Up/Down arrows] Scroll the dossier "
         };
         let help_line = Line::from(Span::styled(help_text, Style::default().fg(TEXT_DIM).add_modifier(Modifier::ITALIC)));
 
@@ -3119,7 +3119,7 @@ fn draw_missions(f: &mut Frame, area: Rect, app: &mut App) {
     } else {
         let empty_text = vec![
             Line::from(""),
-            Line::from(Span::styled("  Aucun dossier de mission charge ou selectionnez une mission.", Style::default().fg(TEXT_DIM))),
+            Line::from(Span::styled("  No mission dossier loaded, or select a mission.", Style::default().fg(TEXT_DIM))),
         ];
         f.render_widget(Paragraph::new(empty_text).block(b_dossier), chunks[1]);
     }
@@ -3370,13 +3370,13 @@ fn draw_agent_sidebar(f: &mut Frame, area: Rect, app: &App) {
 
     // ── Activity log section ──
     lines.push(Line::from(Span::styled(
-        " ─── Activite ───",
+        " ─── Activity ───",
         Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
     )));
 
     if app.activity_log.is_empty() && !app.is_streaming {
         lines.push(Line::from(Span::styled(
-            " En attente...",
+            " Waiting...",
             Style::default().fg(TEXT_DIM).add_modifier(Modifier::ITALIC),
         )));
     } else {
@@ -3424,7 +3424,7 @@ fn draw_agent_sidebar(f: &mut Frame, area: Rect, app: &App) {
         if stream_chars > 0 {
             lines.push(Line::from(vec![
                 Span::styled(
-                    format!(" {} Ecriture... ", spinner_frames[idx]),
+                    format!(" {} Writing... ", spinner_frames[idx]),
                     Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
                 ),
             ]));
@@ -3435,7 +3435,7 @@ fn draw_agent_sidebar(f: &mut Frame, area: Rect, app: &App) {
         } else {
             lines.push(Line::from(vec![
                 Span::styled(
-                    format!(" {} Reflexion...", spinner_frames[idx]),
+                    format!(" {} Thinking...", spinner_frames[idx]),
                     Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
                 ),
             ]));
@@ -3473,7 +3473,7 @@ fn draw_chat(f: &mut Frame, area: Rect, app: &App) {
 
     let mut lines: Vec<Line> = Vec::new();
 
-    // Only show user, assistant, system, error messages — tools go to sidebar
+    // Only show user, assistant, system, error messages: tools go to sidebar
     for msg in &app.messages {
         match msg.role.as_str() {
             "user" => {
@@ -3535,7 +3535,7 @@ fn draw_chat(f: &mut Frame, area: Rect, app: &App) {
             let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
             let idx = ((chrono::Utc::now().timestamp_millis() / 80) % spinner_frames.len() as i64) as usize;
             lines.push(Line::from(vec![
-                Span::styled(format!("  {} Reflexion...", spinner_frames[idx]), Style::default().fg(AMBER).add_modifier(Modifier::BOLD)),
+                Span::styled(format!("  {} Thinking...", spinner_frames[idx]), Style::default().fg(AMBER).add_modifier(Modifier::BOLD)),
             ]));
             lines.push(Line::from(""));
         }
@@ -3561,7 +3561,7 @@ fn draw_input(f: &mut Frame, area: Rect, app: &App) {
 
     let content = if app.input.is_empty() && !is_active {
         Line::from(Span::styled(
-            "Tab pour taper...",
+            "Tab to type...",
             Style::default().fg(TEXT_DIM),
         ))
     } else {
@@ -3582,15 +3582,15 @@ fn draw_input(f: &mut Frame, area: Rect, app: &App) {
 
     let title_text = if app.current_screen == Screen::Memory && app.memory_input_mode != MemoryInputMode::Normal {
         match app.memory_input_mode {
-            MemoryInputMode::CreateNode => " Nouveau noeud (Entree pour valider, Echap pour annuler) ",
-            MemoryInputMode::AddItem => " Nouveau fait (Entree pour valider, Echap pour annuler) ",
-            MemoryInputMode::EditNode => " Renommer noeud (Entree pour valider, Echap pour annuler) ",
-            MemoryInputMode::EditItem => " Modifier fait (Entree pour valider, Echap pour annuler) ",
+            MemoryInputMode::CreateNode => " New node (Enter to confirm, Esc to cancel) ",
+            MemoryInputMode::AddItem => " New fact (Enter to confirm, Esc to cancel) ",
+            MemoryInputMode::EditNode => " Rename node (Enter to confirm, Esc to cancel) ",
+            MemoryInputMode::EditItem => " Edit fact (Enter to confirm, Esc to cancel) ",
             _ => " Prompt ",
         }
     } else if app.current_screen == Screen::Missions && app.missions_input_mode != MissionsInputMode::Normal {
         match app.missions_input_mode {
-            MissionsInputMode::CreateMission => " Nouvelle mission (Entree pour valider, Echap pour annuler) ",
+            MissionsInputMode::CreateMission => " New mission (Enter to confirm, Esc to cancel) ",
             _ => " Prompt ",
         }
     } else {

@@ -1,4 +1,4 @@
-//! Knowledge base abeilles — add/search/list knowledge entries (RAG).
+//! Knowledge base abeilles: add/search/list knowledge entries (RAG).
 
 use crate::abeille::{Abeille, ContextExecution, NiveauDanger, ResultatAbeille};
 use crate::rag::KnowledgeBase;

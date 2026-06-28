@@ -15,7 +15,7 @@ fn powershell_command(command: &str) -> String {
     )
 }
 
-/// Commands that are always blocked — too dangerous.
+/// Commands that are always blocked: too dangerous.
 const BLOCKED_PATTERNS: &[&str] = &[
     "rm -rf /",
     "rm -rf ~",
@@ -30,7 +30,7 @@ const BLOCKED_PATTERNS: &[&str] = &[
     "rd /s /q C:\\",
 ];
 
-/// Patterns that look like secrets/credentials — warn before executing.
+/// Patterns that look like secrets/credentials: warn before executing.
 const SECRET_PATTERNS: &[&str] = &[
     "api_key=",
     "api-key=",
@@ -114,8 +114,8 @@ impl Abeille for ShellExec {
             }
         }
 
-        // Substitue les secrets `${NOM}` APRÈS les contrôles anti-secret (le LLM n'a fourni
-        // que des placeholders ; la vraie valeur entre ici, sans jamais transiter par le LLM).
+        // Substitute `${NOM}` secrets AFTER the anti-secret checks (the LLM only provided
+        // placeholders; the real value enters here, never passing through the LLM).
         let command_sub = crate::secrets::substituer(command);
         let command = command_sub.as_str();
 

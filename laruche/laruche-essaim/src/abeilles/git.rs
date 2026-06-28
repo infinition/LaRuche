@@ -1,4 +1,4 @@
-//! Git integration abeilles — status, diff, log, commit.
+//! Git integration abeilles: status, diff, log, commit.
 
 use crate::abeille::{Abeille, ContextExecution, NiveauDanger, ResultatAbeille};
 use anyhow::Result;

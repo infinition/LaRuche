@@ -8,9 +8,9 @@ use laruche_essaim::abeille::{Abeille, NiveauDanger, ResultatAbeille};
 use laruche_essaim::cron::ScheduledTask;
 use laruche_essaim::ContextExecution;
 
-/// Outil agent : envoyer un message direct à une AUTRE instance LaRuche (ou son utilisateur) via
-/// le mesh, par son ID `laruche`. Réutilise l'endpoint local /api/mesh/send (résolution du pair +
-/// POST inter-instance). Sortant → validation requise.
+/// Agent tool: send a direct message to ANOTHER LaRuche instance (or its user) over
+/// the mesh, by its `laruche` ID. Reuses the local /api/mesh/send endpoint (peer resolution +
+/// inter-instance POST). Outbound: approval required.
 pub struct AbeilleMeshSend;
 
 #[async_trait]
@@ -127,8 +127,8 @@ impl Abeille for AbeilleCronCreate {
             })
             .unwrap_or_default();
 
-        // Canal d'origine (ex. `telegram:12345`) → le récurrent répond là où il a été demandé.
-        // L'agent peut forcer un autre canal via l'argument `channel`.
+        // Origin channel (e.g. `telegram:12345`): the recurring task replies where it was requested.
+        // The agent can force another channel via the `channel` argument.
         let channel = args["channel"]
             .as_str()
             .map(|s| s.to_string())
@@ -159,7 +159,7 @@ impl Abeille for AbeilleCronCreate {
         laruche_essaim::feed_journal::record(
             "LaRuche",
             "cron",
-            "a créé la tâche planifiée",
+            "created the scheduled task",
             log_name,
             chrono::Utc::now(),
         );
@@ -351,7 +351,7 @@ impl Abeille for AbeilleWatcherCreate {
             target,
             condition,
             prompt,
-            channel: _ctx.channel.clone(), // hérite du canal d'origine de l'agent
+            channel: _ctx.channel.clone(), // inherits the agent's origin channel
             active: true,
             created_at: chrono::Utc::now(),
             last_run: None,
@@ -367,7 +367,7 @@ impl Abeille for AbeilleWatcherCreate {
         laruche_essaim::feed_journal::record(
             "LaRuche",
             "watcher",
-            "a créé le watcher",
+            "created the watcher",
             log_name,
             chrono::Utc::now(),
         );
@@ -627,13 +627,13 @@ impl Abeille for AbeilleKanbanCreate {
                 None,
                 profile_id,
                 model,
-                _ctx.channel.clone(), // hérite du canal d'origine de l'agent
+                _ctx.channel.clone(), // inherits the agent's origin channel
             )
         };
         laruche_essaim::feed_journal::record(
             "LaRuche",
             "kanban",
-            "a créé la tâche kanban",
+            "created the kanban task",
             title.to_string(),
             chrono::Utc::now(),
         );

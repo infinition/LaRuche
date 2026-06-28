@@ -13,20 +13,20 @@ pub struct SubagentResult {
     pub iterations_limit: usize,
 }
 
-/// Rôle d'un agent spécialisé — chaque rôle a son propre system prompt
-/// et son propre jeu d'outils autorisés.
+/// Role of a specialized agent: each role has its own system prompt
+/// and its own set of allowed tools.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AgentRole {
-    /// Recherche web approfondie, mémoire, hypothèses falsifiables
+    /// In-depth web research, memory, falsifiable hypotheses
     Recherche,
-    /// Code Python, calculs, data analysis
+    /// Python code, computations, data analysis
     Experimentation,
     /// Validation, fact-check, peer review
     Critique,
-    /// Rédaction de rapports structurés
+    /// Writing structured reports
     Synthese,
-    /// Classifieur binaire ultra-rapide (filtre watchers/crons)
+    /// Ultra-fast binary classifier (filters watchers/crons)
     Dispatcher,
 }
 
@@ -45,42 +45,42 @@ impl AgentRole {
     pub fn system_prompt(&self) -> &'static str {
         match self {
             AgentRole::Recherche => {
-                "Tu es un chercheur rigoureux. \
-                 Tu formules une hypothèse falsifiable avant chaque recherche. \
-                 Tu ne conclus jamais sans 3 sources minimum. \
-                 Tu stockes chaque fait découvert en mémoire immédiatement \
-                 via memory_write(node_id='research.<sujet>')."
+                "You are a rigorous researcher. \
+                 You formulate a falsifiable hypothesis before each search. \
+                 You never conclude without at least 3 sources. \
+                 You store every discovered fact in memory immediately \
+                 via memory_write(node_id='research.<topic>')."
             }
             AgentRole::Experimentation => {
-                "Tu es un data scientist. Tu écris du code Python propre. \
-                 Tu analyses chaque erreur et retry intelligemment. \
-                 Tu valides tes résultats avant de conclure."
+                "You are a data scientist. You write clean Python code. \
+                 You analyze every error and retry intelligently. \
+                 You validate your results before concluding."
             }
             AgentRole::Critique => {
-                "Tu es un pair-reviewer sceptique. \
-                 Tu challenges chaque affirmation. \
-                 Tu identifies les biais, lacunes et erreurs. \
-                 Tu demandes des preuves supplémentaires si insuffisant. \
-                 Utilise web_deep_search pour vérifier les faits."
+                "You are a skeptical peer reviewer. \
+                 You challenge every claim. \
+                 You identify biases, gaps, and errors. \
+                 You request additional evidence if insufficient. \
+                 Use web_deep_search to verify facts."
             }
             AgentRole::Synthese => {
-                "Tu structures et rédiges des rapports clairs. \
-                 Tu cites tes sources. \
-                 Tu es concis et précis. \
-                 Génère d'abord la structure via <plan>[...]</plan>, \
-                 puis remplis chaque section."
+                "You structure and write clear reports. \
+                 You cite your sources. \
+                 You are concise and precise. \
+                 First generate the structure via <plan>[...]</plan>, \
+                 then fill in each section."
             }
             AgentRole::Dispatcher => {
-                "Tu es un classifieur. Réponds UNIQUEMENT par un score JSON \
-                 {\"score\": 0.0-1.0} indiquant si l'événement mérite \
-                 une analyse approfondie. Aucun autre texte."
+                "You are a classifier. Respond ONLY with a JSON score \
+                 {\"score\": 0.0-1.0} indicating whether the event deserves \
+                 in-depth analysis. No other text."
             }
         }
     }
 }
 
-/// Configuration de provider LLM prête à l'emploi pour brancher
-/// différents providers sur différents rôles d'agents.
+/// Ready-to-use LLM provider configuration for wiring
+/// different providers to different agent roles.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderConfig {
     pub provider: String,
@@ -127,9 +127,9 @@ pub fn config_sous_agent(parent: &EssaimConfig) -> EssaimConfig {
     config
 }
 
-/// Génère une config spécialisée par rôle d'agent.
-/// Chaque rôle a son propre system prompt, ses limites d'itérations,
-/// et ses outils autorisés/restreints.
+/// Generates a specialized config per agent role.
+/// Each role has its own system prompt, iteration limits,
+/// and allowed/restricted tools.
 pub fn config_agent_specialise(
     parent: &EssaimConfig,
     role: AgentRole,
@@ -137,7 +137,7 @@ pub fn config_agent_specialise(
 ) -> EssaimConfig {
     let mut cfg = config_sous_agent(parent);
 
-    // Override provider si spécifié
+    // Override provider if specified
     if let Some(p) = provider_override {
         cfg.provider = p.provider;
         cfg.model = p.model;
@@ -145,7 +145,7 @@ pub fn config_agent_specialise(
         cfg.api_base = p.api_base;
     }
 
-    // Tools désactivés par rôle (en plus des anti-récursion de base)
+    // Tools disabled per role (in addition to the base anti-recursion ones)
     let (max_iter, max_tokens, disabled): (usize, u32, &[&str]) = match role {
         AgentRole::Recherche => (
             25,
@@ -234,7 +234,7 @@ pub async fn lancer_sous_agent(
     config: &EssaimConfig,
 ) -> Result<SubagentResult> {
     let full_prompt = match context.map(str::trim).filter(|ctx| !ctx.is_empty()) {
-        Some(ctx) => format!("{task}\n\nContexte parent:\n{ctx}"),
+        Some(ctx) => format!("{task}\n\nParent context:\n{ctx}"),
         None => task.to_string(),
     };
     let sub_config = config_sous_agent(config);
@@ -249,9 +249,9 @@ pub async fn lancer_sous_agent(
     })
 }
 
-/// Dispatcher léger — appel LLM minimal pour une décision binaire.
-/// Utilise toujours le modèle le plus petit disponible pour filtrer
-/// les événements avant de lancer un agent coûteux.
+/// Lightweight dispatcher: minimal LLM call for a binary decision.
+/// Always uses the smallest available model to filter
+/// events before launching an expensive agent.
 pub async fn dispatcher_pertinent(
     event_description: &str,
     config: &EssaimConfig,
@@ -264,7 +264,7 @@ pub async fn dispatcher_pertinent(
     };
 
     let prompt = format!(
-        "{}\n\nScore de pertinence 0.0-1.0 (JSON seul) : {{\"score\": ?}}",
+        "{}\n\nRelevance score 0.0-1.0 (JSON only): {{\"score\": ?}}",
         event_description
     );
 
@@ -301,7 +301,7 @@ pub async fn dispatcher_pertinent(
         .unwrap_or(0.0) as f32
 }
 
-/// Cascade de providers : essaie d'abord le plus cheap, escalade si insuffisant.
+/// Provider cascade: tries the cheapest first, escalates if insufficient.
 pub async fn cascade_providers(
     task: &str,
     registry: Arc<AbeilleRegistry>,
@@ -321,7 +321,7 @@ pub async fn cascade_providers(
             level,
             provider = %cfg.provider,
             model = %cfg.model,
-            "Cascade provider — tentative"
+            "Cascade provider: attempt"
         );
 
         let mut session = Session::new(&cfg.model);
@@ -336,21 +336,21 @@ pub async fn cascade_providers(
                 if quality > 0.75 {
                     return Ok(result);
                 }
-                tracing::info!(level, quality, "Qualité insuffisante, escalade");
-                last_error = format!("Qualité ({quality:.2}) sous le seuil");
+                tracing::info!(level, quality, "Insufficient quality, escalating");
+                last_error = format!("Quality ({quality:.2}) below threshold");
             }
             Err(e) => {
-                tracing::warn!(level, error = %e, "Provider échoué dans cascade");
+                tracing::warn!(level, error = %e, "Provider failed in cascade");
                 last_error = e.to_string();
             }
         }
     }
     Err(anyhow::anyhow!(
-        "Tous les providers de la cascade ont échoué : {last_error}"
+        "All providers in the cascade failed: {last_error}"
     ))
 }
 
-/// Évaluation rapide de la qualité d'une réponse (0.0 - 1.0).
+/// Quick assessment of a response's quality (0.0 - 1.0).
 async fn evaluer_qualite_reponse(response: &str) -> f32 {
     if response.is_empty() {
         return 0.0;
@@ -395,7 +395,7 @@ mod tests {
         assert!(!cfg.disabled_tools.contains(&"web_deep_search".to_string()));
         assert!(cfg.disabled_tools.contains(&"execute_code".to_string()));
         assert!(cfg.system_prompt_override.is_some());
-        assert!(cfg.system_prompt_override.unwrap().contains("chercheur"));
+        assert!(cfg.system_prompt_override.unwrap().contains("researcher"));
     }
 
     #[test]

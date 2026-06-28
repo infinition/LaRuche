@@ -1,4 +1,4 @@
-//! Provider Profiles — multi-provider LLM configuration.
+//! Provider Profiles: multi-provider LLM configuration.
 //!
 //! Stores multiple LLM provider profiles (Ollama, OpenAI-compatible, Anthropic)
 //! in `provider-profiles.json`. Each profile has its own base_url, api_key, and
@@ -10,12 +10,12 @@ use std::collections::HashMap;
 use std::path::Path;
 use tracing::{info, warn};
 
-/// Visibilité d'un provider sur le mesh Miel.
-/// - `Prive` : utilisable seulement par ce node ; sa clé API n'est jamais annoncée.
-/// - `PublicProxy` : ce node devient **passerelle** — le mesh peut utiliser ce provider
-///   *via* lui. La clé reste locale, le node relaie et exécute les appels (on n'expose
-///   JAMAIS la clé brute sur le réseau).
-/// - `Restricted` : passerelle, mais réservée aux ruches listées dans `allowed_peers` (node_ids).
+/// Provider visibility on the Miel mesh.
+/// - `Prive`: usable only by this node; its API key is never advertised.
+/// - `PublicProxy`: this node becomes a gateway, the mesh can use this provider
+///   via it. The key stays local, the node relays and runs the calls (the raw
+///   key is NEVER exposed on the network).
+/// - `Restricted`: gateway, but limited to the hives listed in `allowed_peers` (node_ids).
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Visibilite {
@@ -28,7 +28,7 @@ pub enum Visibilite {
 /// A single provider profile.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderProfile {
-    /// Provider type: "ollama", "openai", "anthropic", "codex", "miel" (node distant)
+    /// Provider type: "ollama", "openai", "anthropic", "codex", "miel" (remote node)
     pub provider: String,
     /// Human-readable display name
     pub name: String,
@@ -40,10 +40,10 @@ pub struct ProviderProfile {
     /// Known models for this profile
     #[serde(default)]
     pub models: Vec<String>,
-    /// Visibilité mesh (privé par défaut). JSON : `"visibility"`.
+    /// Mesh visibility (private by default). JSON: `"visibility"`.
     #[serde(default, rename = "visibility")]
     pub visibilite: Visibilite,
-    /// node_ids des ruches autorisées quand `visibilite == Restricted`.
+    /// node_ids of the hives allowed when `visibilite == Restricted`.
     #[serde(default)]
     pub allowed_peers: Vec<String>,
     /// Maximum context window in tokens for this provider's models.
@@ -216,7 +216,7 @@ pub async fn discover_llamacpp_models(base_url: &str) -> Vec<String> {
     match client.get(&url).send().await {
         Ok(resp) if resp.status().is_success() => match resp.json::<serde_json::Value>().await {
             Ok(body) => {
-                // OpenAI/llama.cpp : {"data":[{"id":...}]} ; llama.cpp expose aussi {"models":[{"name":...}]}
+                // OpenAI/llama.cpp: {"data":[{"id":...}]}; llama.cpp also exposes {"models":[{"name":...}]}
                 let from_data: Vec<String> = body["data"]
                     .as_array()
                     .map(|a| {
@@ -261,14 +261,14 @@ pub async fn refresh_ollama_profiles(config: &mut ProfilesConfig) {
             if !models.is_empty() {
                 profile.models = models;
             } else {
-                // Ollama est local : injoignable (serveur fermé) → liste VIDE (reflète l'état
-                // réel) ; elle se repeuplera dès qu'il répond à nouveau.
+                // Ollama is local: unreachable (server down) means EMPTY list (reflects the
+                // real state); it refills as soon as it responds again.
                 profile.models.clear();
             }
         }
     }
 
-    // Profils OpenAI-compatibles locaux (llama.cpp, LM Studio…) : /v1/models.
+    // Local OpenAI-compatible profiles (llama.cpp, LM Studio, ...): /v1/models.
     let openai_ids: Vec<(String, String)> = config
         .profiles
         .iter()
@@ -277,9 +277,9 @@ pub async fn refresh_ollama_profiles(config: &mut ProfilesConfig) {
         .collect();
     for (id, base_url) in openai_ids {
         let models = discover_llamacpp_models(&base_url).await;
-        // Sonde la fenêtre RÉELLE (n_ctx) d'un serveur llama.cpp local : son défaut openai
-        // (128000) est faux pour du local (souvent 32768/8192) → sinon le contexte déborde
-        // (HTTP 400 « context size exceeded »). On aligne max_context_length sur le serveur.
+        // Probe the REAL context window (n_ctx) of a local llama.cpp server: its openai
+        // default (128000) is wrong for local (often 32768/8192), otherwise the context
+        // overflows (HTTP 400 "context size exceeded"). We align max_context_length to the server.
         let nctx = if est_endpoint_local(&base_url) {
             discover_llamacpp_nctx(&base_url).await
         } else {
@@ -289,8 +289,8 @@ pub async fn refresh_ollama_profiles(config: &mut ProfilesConfig) {
             if !models.is_empty() {
                 profile.models = models;
             } else if est_endpoint_local(&base_url) {
-                // Provider local (llama.cpp/LM Studio) fermé → liste VIDE. On NE touche PAS
-                // aux providers cloud (OpenAI distant) dont /v1/models peut échouer transitoirement.
+                // Local provider (llama.cpp/LM Studio) down means EMPTY list. We do NOT touch
+                // cloud providers (remote OpenAI) whose /v1/models may fail transiently.
                 profile.models.clear();
             }
             if let Some(n) = nctx {
@@ -300,8 +300,8 @@ pub async fn refresh_ollama_profiles(config: &mut ProfilesConfig) {
     }
 }
 
-/// Sonde la fenêtre de contexte RÉELLE (`n_ctx`) d'un serveur llama.cpp via `/props`.
-/// `None` si injoignable ou si le champ est absent.
+/// Probe the REAL context window (`n_ctx`) of a llama.cpp server via `/props`.
+/// `None` if unreachable or if the field is absent.
 pub async fn discover_llamacpp_nctx(base_url: &str) -> Option<u32> {
     let url = format!("{}/props", base_url.trim_end_matches('/'));
     let client = reqwest::Client::builder()
@@ -320,8 +320,8 @@ pub async fn discover_llamacpp_nctx(base_url: &str) -> Option<u32> {
         .map(|n| n as u32)
 }
 
-/// Un endpoint est-il LOCAL (serveur sur la machine) ? Sert à vider la liste de modèles
-/// quand un provider local est injoignable, sans affecter les providers cloud.
+/// Is an endpoint LOCAL (server on the machine)? Used to clear the model list
+/// when a local provider is unreachable, without affecting cloud providers.
 fn est_endpoint_local(url: &str) -> bool {
     let u = url.to_lowercase();
     u.contains("127.0.0.1") || u.contains("localhost") || u.contains("0.0.0.0") || u.contains("[::1]")

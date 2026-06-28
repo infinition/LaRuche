@@ -1,19 +1,19 @@
-//! Authentification ChatGPT Codex via abonnement (OAuth), répliquée depuis third-party.
+//! ChatGPT Codex subscription authentication (OAuth), replicated from third-party.
 //!
-//! Permet d'utiliser le quota d'abonnement ChatGPT (Plus/Pro) au lieu d'une clé
-//! API facturée. Le flux est le *device code* OpenAI :
-//!   1. on demande un `user_code` + `device_auth_id`
-//!   2. l'utilisateur ouvre https://auth.openai.com/codex/device et entre le code
-//!   3. on poll jusqu'à obtenir un `authorization_code` + `code_verifier` (PKCE)
-//!   4. on échange contre un `access_token` + `refresh_token`
+//! Lets you use the ChatGPT subscription quota (Plus/Pro) instead of a billed
+//! API key. The flow is the OpenAI *device code*:
+//!   1. request a `user_code` + `device_auth_id`
+//!   2. the user opens https://auth.openai.com/codex/device and enters the code
+//!   3. poll until obtaining an `authorization_code` + `code_verifier` (PKCE)
+//!   4. exchange for an `access_token` + `refresh_token`
 //!
-//! Les tokens sont stockés dans `~/.laruche/auth.json` (session LaRuche propre,
-//! séparée du CLI Codex / VS Code pour éviter les conflits de rotation de token).
-//! On sait aussi importer/auto-réparer depuis `~/.codex/auth.json` si présent.
+//! Tokens are stored in `~/.laruche/auth.json` (a dedicated LaRuche session,
+//! separate from the Codex CLI / VS Code to avoid token rotation conflicts).
+//! We can also import/auto-repair from `~/.codex/auth.json` if present.
 //!
-//! À l'inférence, on tape `https://chatgpt.com/backend-api/codex/responses`
-//! (Responses API) avec les en-têtes anti-Cloudflare (`originator: codex_cli_rs`,
-//! `ChatGPT-Account-ID` extrait du claim JWT).
+//! At inference time we hit `https://chatgpt.com/backend-api/codex/responses`
+//! (Responses API) with the anti-Cloudflare headers (`originator: codex_cli_rs`,
+//! `ChatGPT-Account-ID` extracted from the JWT claim).
 
 use anyhow::{anyhow, bail, Context, Result};
 use base64::Engine;
@@ -22,16 +22,16 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
-// ─── Constantes (identiques à third-party / codex-rs) ────────────────────────────
+// --- Constants (identical to third-party / codex-rs) -----------------------------
 
 pub const CODEX_OAUTH_CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
 pub const CODEX_OAUTH_ISSUER: &str = "https://auth.openai.com";
 pub const CODEX_OAUTH_TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
 pub const DEFAULT_CODEX_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
-/// On rafraîchit l'access token quand il lui reste moins de 120 s de validité.
+/// Refresh the access token when it has less than 120 s of validity left.
 pub const ACCESS_TOKEN_REFRESH_SKEW_SECONDS: i64 = 120;
 
-// ─── Modèle de stockage ─────────────────────────────────────────────────────
+// --- Storage model ----------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CodexTokens {
@@ -61,13 +61,13 @@ struct AuthStore {
     providers: HashMap<String, ProviderState>,
 }
 
-/// Chemin du store d'auth LaRuche : `~/.laruche/auth.json`.
+/// Path of the LaRuche auth store: `~/.laruche/auth.json`.
 pub fn auth_store_path() -> PathBuf {
     home_dir().join(".laruche").join("auth.json")
 }
 
 fn home_dir() -> PathBuf {
-    // Windows: USERPROFILE ; Unix: HOME.
+    // Windows: USERPROFILE; Unix: HOME.
     if let Ok(p) = std::env::var("USERPROFILE") {
         if !p.trim().is_empty() {
             return PathBuf::from(p);
@@ -93,11 +93,11 @@ fn save_store(store: &AuthStore) -> Result<()> {
     let path = auth_store_path();
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
-            .with_context(|| format!("création du dossier {}", parent.display()))?;
+            .with_context(|| format!("creating directory {}", parent.display()))?;
     }
     let json = serde_json::to_string_pretty(store)?;
-    std::fs::write(&path, json).with_context(|| format!("écriture de {}", path.display()))?;
-    // Permissions 0600 sur Unix (best-effort) — le store contient des secrets.
+    std::fs::write(&path, json).with_context(|| format!("writing {}", path.display()))?;
+    // 0600 permissions on Unix (best-effort): the store holds secrets.
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -106,14 +106,14 @@ fn save_store(store: &AuthStore) -> Result<()> {
     Ok(())
 }
 
-/// Supprime les tokens Codex stockés (déconnexion).
+/// Removes the stored Codex tokens (sign out).
 pub fn clear_codex_tokens() -> Result<()> {
     let mut store = load_store();
     store.providers.remove("openai-codex");
     save_store(&store)
 }
 
-/// Lit les tokens Codex stockés (None si absents / incomplets).
+/// Reads the stored Codex tokens (None if absent / incomplete).
 pub fn read_codex_tokens() -> Option<CodexTokens> {
     let store = load_store();
     let state = store.providers.get("openai-codex")?;
@@ -125,7 +125,7 @@ pub fn read_codex_tokens() -> Option<CodexTokens> {
     }
 }
 
-/// Persiste les tokens Codex dans le store LaRuche.
+/// Persists the Codex tokens in the LaRuche store.
 pub fn save_codex_tokens(tokens: &CodexTokens) -> Result<()> {
     let mut store = load_store();
     let last_refresh = tokens.last_refresh.clone().unwrap_or_else(|| now_iso8601());
@@ -142,7 +142,7 @@ pub fn save_codex_tokens(tokens: &CodexTokens) -> Result<()> {
     save_store(&store)
 }
 
-// ─── Décodage JWT (sans vérif de signature : on lit juste les claims) ────────
+// --- JWT decoding (no signature verification: we just read the claims) -------
 
 fn decode_jwt_claims(token: &str) -> Option<serde_json::Value> {
     let parts: Vec<&str> = token.split('.').collect();
@@ -155,21 +155,21 @@ fn decode_jwt_claims(token: &str) -> Option<serde_json::Value> {
     serde_json::from_slice(&payload).ok()
 }
 
-/// `true` si l'access token expire dans moins de `skew_seconds` (ou est illisible).
+/// `true` if the access token expires within `skew_seconds` (or is unreadable).
 pub fn access_token_is_expiring(access_token: &str, skew_seconds: i64) -> bool {
     let claims = match decode_jwt_claims(access_token) {
         Some(c) => c,
-        None => return true, // Token opaque/illisible → on force le refresh.
+        None => return true, // Opaque/unreadable token: force a refresh.
     };
     let exp = match claims.get("exp").and_then(|v| v.as_i64()) {
         Some(e) => e,
-        None => return false, // Pas d'exp → on suppose valide.
+        None => return false, // No exp: assume valid.
     };
     let now = chrono::Utc::now().timestamp();
     now + skew_seconds >= exp
 }
 
-/// Extrait le `chatgpt_account_id` du claim `https://api.openai.com/auth`.
+/// Extracts the `chatgpt_account_id` from the `https://api.openai.com/auth` claim.
 pub fn account_id_from_token(access_token: &str) -> Option<String> {
     let claims = decode_jwt_claims(access_token)?;
     claims
@@ -183,9 +183,9 @@ fn now_iso8601() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
 
-// ─── En-têtes d'inférence (anti-Cloudflare, comme codex-rs) ──────────────────
+// --- Inference headers (anti-Cloudflare, like codex-rs) ---------------------
 
-/// En-têtes requis pour éviter les 403 Cloudflare sur chatgpt.com/backend-api/codex.
+/// Headers required to avoid Cloudflare 403s on chatgpt.com/backend-api/codex.
 pub fn codex_headers(access_token: &str) -> HashMap<String, String> {
     let mut headers = HashMap::new();
     headers.insert(
@@ -199,7 +199,7 @@ pub fn codex_headers(access_token: &str) -> HashMap<String, String> {
     headers
 }
 
-// ─── Import / auto-réparation depuis le CLI Codex (~/.codex/auth.json) ───────
+// --- Import / auto-repair from the Codex CLI (~/.codex/auth.json) ------------
 
 #[derive(Debug, Deserialize)]
 struct CodexCliAuth {
@@ -212,8 +212,8 @@ struct CodexCliTokens {
     refresh_token: Option<String>,
 }
 
-/// Tente de lire des tokens valides depuis `~/.codex/auth.json` (CLI Codex).
-/// Ne modifie jamais ce fichier partagé.
+/// Tries to read valid tokens from `~/.codex/auth.json` (Codex CLI).
+/// Never modifies that shared file.
 pub fn import_codex_cli_tokens() -> Option<CodexTokens> {
     let codex_home = std::env::var("CODEX_HOME")
         .ok()
@@ -229,8 +229,8 @@ pub fn import_codex_cli_tokens() -> Option<CodexTokens> {
     if access.trim().is_empty() || refresh.trim().is_empty() {
         return None;
     }
-    // On rejette les tokens déjà expirés : les importer laisserait l'utilisateur
-    // bloqué sur un "connecté" sans credential utilisable.
+    // Reject already-expired tokens: importing them would leave the user
+    // stuck on a "connected" state with no usable credential.
     if access_token_is_expiring(&access, 0) {
         return None;
     }
@@ -241,7 +241,7 @@ pub fn import_codex_cli_tokens() -> Option<CodexTokens> {
     })
 }
 
-// ─── Refresh OAuth ───────────────────────────────────────────────────────────
+// --- OAuth refresh ----------------------------------------------------------
 
 #[derive(Debug, Deserialize)]
 struct TokenResponse {
@@ -251,11 +251,11 @@ struct TokenResponse {
     id_token: Option<String>,
 }
 
-/// Rafraîchit l'access token via le refresh token. Renvoie les nouveaux tokens
-/// (le refresh token peut être tourné par le serveur).
+/// Refreshes the access token using the refresh token. Returns the new tokens
+/// (the refresh token may be rotated by the server).
 pub async fn refresh_codex_oauth(refresh_token: &str) -> Result<CodexTokens> {
     if refresh_token.trim().is_empty() {
-        bail!("refresh_token manquant — relancez `laruche auth codex`.");
+        bail!("missing refresh_token: re-run `laruche auth codex`.");
     }
     let client = reqwest::Client::new();
     let resp = client
@@ -269,24 +269,24 @@ pub async fn refresh_codex_oauth(refresh_token: &str) -> Result<CodexTokens> {
         .timeout(Duration::from_secs(20))
         .send()
         .await
-        .context("appel du endpoint de refresh OAuth Codex")?;
+        .context("calling the Codex OAuth refresh endpoint")?;
 
     let status = resp.status();
     if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
-        bail!("Quota Codex épuisé (429) — credentials toujours valides, réessayez plus tard.");
+        bail!("Codex quota exhausted (429): credentials still valid, retry later.");
     }
     if !status.is_success() {
         let body = resp.text().await.unwrap_or_default();
-        bail!("Échec du refresh Codex (HTTP {status}): {body}");
+        bail!("Codex refresh failed (HTTP {status}): {body}");
     }
     let payload: TokenResponse = resp
         .json()
         .await
-        .context("JSON de refresh Codex invalide")?;
+        .context("invalid Codex refresh JSON")?;
     let access = payload
         .access_token
         .filter(|s| !s.trim().is_empty())
-        .ok_or_else(|| anyhow!("refresh Codex sans access_token"))?;
+        .ok_or_else(|| anyhow!("Codex refresh without access_token"))?;
     let next_refresh = payload
         .refresh_token
         .filter(|s| !s.trim().is_empty())
@@ -298,16 +298,16 @@ pub async fn refresh_codex_oauth(refresh_token: &str) -> Result<CodexTokens> {
     })
 }
 
-/// Résout un access token Codex utilisable :
-///   - lit le store, importe depuis le CLI Codex si vide,
-///   - rafraîchit si l'access token expire,
-///   - auto-répare via le CLI Codex si le refresh échoue (rotation cross-store),
-///   - persiste tout token rafraîchi.
+/// Resolves a usable Codex access token:
+///   - reads the store, imports from the Codex CLI if empty,
+///   - refreshes if the access token is expiring,
+///   - auto-repairs via the Codex CLI if the refresh fails (cross-store rotation),
+///   - persists any refreshed token.
 pub async fn resolve_codex_access_token() -> Result<String> {
     let mut tokens = match read_codex_tokens() {
         Some(t) => t,
         None => import_codex_cli_tokens().ok_or_else(|| {
-            anyhow!("Aucun credential Codex. Lancez `laruche auth codex` pour vous connecter.")
+            anyhow!("No Codex credential. Run `laruche auth codex` to sign in.")
         })?,
     };
 
@@ -315,26 +315,26 @@ pub async fn resolve_codex_access_token() -> Result<String> {
         return Ok(tokens.access_token);
     }
 
-    // Refresh nécessaire.
+    // Refresh required.
     match refresh_codex_oauth(&tokens.refresh_token).await {
         Ok(fresh) => {
             save_codex_tokens(&fresh)?;
             Ok(fresh.access_token)
         }
         Err(e) => {
-            // Auto-réparation : adopter le token canonique du CLI Codex
-            // (le refresh_token figé a pu être consommé par un autre client).
+            // Auto-repair: adopt the canonical token from the Codex CLI
+            // (the cached refresh_token may have been consumed by another client).
             if let Some(imported) = import_codex_cli_tokens() {
                 save_codex_tokens(&imported)?;
                 tokens = imported;
                 return Ok(tokens.access_token);
             }
-            Err(e.context("refresh Codex échoué et aucun fallback CLI disponible"))
+            Err(e.context("Codex refresh failed and no CLI fallback available"))
         }
     }
 }
 
-// ─── Flux de login device code ───────────────────────────────────────────────
+// --- Device code login flow -------------------------------------------------
 
 #[derive(Debug, Deserialize)]
 struct DeviceCodeResponse {
@@ -350,15 +350,15 @@ struct DevicePollResponse {
     code_verifier: Option<String>,
 }
 
-/// Lance le flux device code interactif et renvoie les tokens (non persistés).
-/// `on_prompt` est appelé avec l'URL et le code à montrer à l'utilisateur.
+/// Runs the interactive device code flow and returns the tokens (not persisted).
+/// `on_prompt` is called with the URL and code to show to the user.
 pub async fn device_code_login<F>(on_prompt: F) -> Result<CodexTokens>
 where
     F: FnOnce(&str, &str),
 {
     let client = reqwest::Client::new();
 
-    // Étape 1 : demander le device code (avec backoff sur 429).
+    // Step 1: request the device code (with backoff on 429).
     let mut device: Option<DeviceCodeResponse> = None;
     let max_attempts = 4;
     for attempt in 1..=max_attempts {
@@ -371,33 +371,33 @@ where
             .timeout(Duration::from_secs(15))
             .send()
             .await
-            .context("demande de device code Codex")?;
+            .context("requesting Codex device code")?;
 
         if resp.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
             if attempt < max_attempts {
                 let delay = (2u64.pow(attempt)).min(60);
-                eprintln!("OpenAI limite les connexions (429) ; nouvel essai dans {delay}s...");
+                eprintln!("OpenAI is rate-limiting sign-ins (429); retrying in {delay}s...");
                 tokio::time::sleep(Duration::from_secs(delay)).await;
                 continue;
             }
-            bail!("OpenAI limite les connexions Codex (HTTP 429). Réessayez dans une minute.");
+            bail!("OpenAI is rate-limiting Codex sign-ins (HTTP 429). Retry in a minute.");
         }
         if !resp.status().is_success() {
-            bail!("Demande de device code: statut {}", resp.status());
+            bail!("Device code request: status {}", resp.status());
         }
-        device = Some(resp.json().await.context("JSON device code invalide")?);
+        device = Some(resp.json().await.context("invalid device code JSON")?);
         break;
     }
 
-    let device = device.ok_or_else(|| anyhow!("aucune réponse de device code"))?;
+    let device = device.ok_or_else(|| anyhow!("no device code response"))?;
     let user_code = device
         .user_code
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| anyhow!("réponse device code sans user_code"))?;
+        .ok_or_else(|| anyhow!("device code response without user_code"))?;
     let device_auth_id = device
         .device_auth_id
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| anyhow!("réponse device code sans device_auth_id"))?;
+        .ok_or_else(|| anyhow!("device code response without device_auth_id"))?;
     let poll_interval = device
         .interval
         .as_ref()
@@ -405,10 +405,10 @@ where
         .unwrap_or(5)
         .max(3);
 
-    // Étape 2 : montrer l'URL + code à l'utilisateur.
+    // Step 2: show the URL + code to the user.
     on_prompt(&format!("{CODEX_OAUTH_ISSUER}/codex/device"), &user_code);
 
-    // Étape 3 : poll jusqu'à autorisation (max 15 min).
+    // Step 3: poll until authorized (max 15 min).
     let deadline = std::time::Instant::now() + Duration::from_secs(15 * 60);
     let mut code_resp: Option<DevicePollResponse> = None;
     while std::time::Instant::now() < deadline {
@@ -425,28 +425,28 @@ where
             .timeout(Duration::from_secs(15))
             .send()
             .await
-            .context("polling device auth Codex")?;
+            .context("polling Codex device auth")?;
         match poll.status().as_u16() {
             200 => {
-                code_resp = Some(poll.json().await.context("JSON de polling invalide")?);
+                code_resp = Some(poll.json().await.context("invalid polling JSON")?);
                 break;
             }
-            403 | 404 => continue, // pas encore connecté
-            other => bail!("Polling device auth: statut {other}"),
+            403 | 404 => continue, // not signed in yet
+            other => bail!("Device auth polling: status {other}"),
         }
     }
 
-    let code_resp = code_resp.ok_or_else(|| anyhow!("Connexion expirée après 15 minutes."))?;
+    let code_resp = code_resp.ok_or_else(|| anyhow!("Sign-in expired after 15 minutes."))?;
     let authorization_code = code_resp
         .authorization_code
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| anyhow!("réponse de polling sans authorization_code"))?;
+        .ok_or_else(|| anyhow!("polling response without authorization_code"))?;
     let code_verifier = code_resp
         .code_verifier
         .filter(|s| !s.is_empty())
-        .ok_or_else(|| anyhow!("réponse de polling sans code_verifier"))?;
+        .ok_or_else(|| anyhow!("polling response without code_verifier"))?;
 
-    // Étape 4 : échanger le code contre les tokens (PKCE).
+    // Step 4: exchange the code for tokens (PKCE).
     let redirect_uri = format!("{CODEX_OAUTH_ISSUER}/deviceauth/callback");
     let token_resp = client
         .post(CODEX_OAUTH_TOKEN_URL)
@@ -461,21 +461,21 @@ where
         .timeout(Duration::from_secs(15))
         .send()
         .await
-        .context("échange du code d'autorisation Codex")?;
+        .context("exchanging the Codex authorization code")?;
 
     if token_resp.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
-        bail!("OpenAI limite l'échange de token (429). Réessayez dans une minute.");
+        bail!("OpenAI is rate-limiting the token exchange (429). Retry in a minute.");
     }
     if !token_resp.status().is_success() {
         let status = token_resp.status();
         let body = token_resp.text().await.unwrap_or_default();
-        bail!("Échange de token Codex: statut {status}: {body}");
+        bail!("Codex token exchange: status {status}: {body}");
     }
-    let payload: TokenResponse = token_resp.json().await.context("JSON d'échange invalide")?;
+    let payload: TokenResponse = token_resp.json().await.context("invalid exchange JSON")?;
     let access = payload
         .access_token
         .filter(|s| !s.trim().is_empty())
-        .ok_or_else(|| anyhow!("échange de token sans access_token"))?;
+        .ok_or_else(|| anyhow!("token exchange without access_token"))?;
     let refresh = payload.refresh_token.unwrap_or_default();
 
     Ok(CodexTokens {

@@ -1,15 +1,15 @@
-//! Filtre intelligent pour les sorties longues de scripts.
+//! Smart filter for long script outputs.
 //!
-//! Évite de noyer le LLM avec des milliers de lignes de log.
-//! Garde les lignes importantes (erreurs, warnings, progrès)
-//! et produit un résumé glissant.
+//! Avoids drowning the LLM in thousands of log lines.
+//! Keeps important lines (errors, warnings, progress)
+//! and produces a sliding summary.
 
-/// Filtre intelligent pour stdout long.
-/// Conserve les lignes signal importantes et résume périodiquement.
+/// Smart filter for long stdout.
+/// Keeps important signal lines and summarizes periodically.
 pub struct StdoutFilter {
     buffer: Vec<String>,
     line_count: usize,
-    /// Nombre de lignes envoyées au LLM (pour garder une trace)
+    /// Number of lines sent to the LLM (kept for tracking)
     emitted_lines: usize,
 }
 
@@ -22,12 +22,12 @@ impl StdoutFilter {
         }
     }
 
-    /// Traite une ligne de stdout. Retourne `Some(line)` si la ligne doit
-    /// être transmise au LLM, `None` si elle peut être ignorée.
+    /// Processes a stdout line. Returns `Some(line)` if the line should
+    /// be forwarded to the LLM, `None` if it can be ignored.
     pub fn process_line(&mut self, line: &str) -> Option<String> {
         self.line_count += 1;
 
-        // Lignes signal importantes — toujours transmises
+        // Important signal lines, always forwarded
         let is_signal = line.contains("Error")
             || line.contains("error")
             || line.contains("Warning")
@@ -48,10 +48,10 @@ impl StdoutFilter {
             return Some(format!("#{} {}", self.line_count, line));
         }
 
-        // Résumé glissant tous les 100 tours
+        // Sliding summary every 100 rounds
         if self.line_count % 100 == 0 {
             let summary = format!(
-                "[Ligne {}] ... (100 lignes silencieuses) Dernier log: {}",
+                "[Line {}] ... (100 silent lines) Last log: {}",
                 self.line_count,
                 line.chars().take(120).collect::<String>()
             );
@@ -60,7 +60,7 @@ impl StdoutFilter {
             return Some(summary);
         }
 
-        // Garder dans le buffer pour le résumé final
+        // Keep in the buffer for the final summary
         self.buffer.push(line.to_string());
         if self.buffer.len() > 10 {
             self.buffer.remove(0);
@@ -69,7 +69,7 @@ impl StdoutFilter {
         None
     }
 
-    /// Résumé final quand le script se termine.
+    /// Final summary when the script ends.
     pub fn final_summary(&self, exit_code: i32) -> String {
         let total = self.line_count;
         let emitted = self.emitted_lines;
@@ -84,7 +84,7 @@ impl StdoutFilter {
             exit_code, total, emitted
         );
         if !tail.is_empty() {
-            out.push_str(&format!(" Dernière ligne: {}", tail));
+            out.push_str(&format!(" Last line: {}", tail));
         }
         out
     }
@@ -121,7 +121,7 @@ mod tests {
             }
         }
 
-        // Vérifie qu'on a un résumé autour de la ligne 200
+        // Check that we have a summary around line 200
         let summary = last_output.unwrap_or_default();
         assert!(summary.contains("Ligne 200") || summary.contains("200"));
     }

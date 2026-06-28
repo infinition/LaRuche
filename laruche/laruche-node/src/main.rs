@@ -58,10 +58,10 @@ use laruche_essaim::{
 use std::collections::VecDeque;
 
 const SPA_HTML: &str = include_str!("../../laruche-dashboard/src/templates/spa.html");
-// CSS + JS extraits de spa.html (servis séparément, compilés dans le binaire).
+// CSS + JS extracted from spa.html (served separately, compiled into the binary).
 const APP_CSS: &str = include_str!("../../laruche-dashboard/src/templates/app.css");
-// app.js est découpé en modules dans `templates/js/` (un agent i18n par module). Le node les
-// CONCATÈNE au compile-time dans l'ORDRE de dépendance → un seul `/app.js` servi, un seul binaire.
+// app.js is split into modules under `templates/js/` (one i18n agent per module). The node
+// CONCATENATES them at compile time in dependency ORDER: one `/app.js` served, one binary.
 const APP_JS: &str = concat!(
     include_str!("../../laruche-dashboard/src/templates/js/core.js"),
     "\n",
@@ -82,8 +82,8 @@ const APP_JS: &str = concat!(
     include_str!("../../laruche-dashboard/src/templates/js/boot.js"),
 );
 const PEER_FETCH_TIMEOUT_MS: u64 = 4000;
-// Fenêtre de péremption d'un pair. DOIT être > l'intervalle de ré-annonce mDNS (30s ci-dessous),
-// sinon un pair « clignote » : il devient périmé entre deux annonces. 90s = tolère 2 annonces ratées.
+// Peer staleness window. MUST be > the mDNS re-announce interval (30s below),
+// otherwise a peer "flickers": it goes stale between two announcements. 90s tolerates 2 missed announcements.
 const PEER_STALE_SECS: i64 = 90;
 const MDNS_REANNOUNCE_INTERVAL_SECS: u64 = 2;
 const ACTIVITY_LOG_LIMIT: usize = 400;
@@ -118,7 +118,7 @@ struct PersistentState {
     /// Per-capability default models (new format)
     #[serde(default)]
     default_models: Option<HashMap<String, String>>,
-    /// Sélection de service par capacité (avec source) — survit au redémarrage.
+    /// Per-capability service selection (with source): survives restart.
     #[serde(default)]
     capability_selection: Option<HashMap<String, CapabilitySelection>>,
     #[serde(default)]
@@ -141,14 +141,14 @@ struct PersistentState {
     context_max_tokens: Option<u32>,
     #[serde(default)]
     compaction_threshold: Option<f32>,
-    /// Curateur (auto-skills/tools) activé depuis Settings — survit au redémarrage.
+    /// Curateur (auto-skills/tools) enabled from Settings: survives restart.
     #[serde(default)]
     curateur_actif: Option<bool>,
-    /// Canal « maison » (/sethome) : destination par défaut des messages proactifs.
+    /// "Home" channel (/sethome): default destination for proactive messages.
     #[serde(default)]
     home_channel: Option<String>,
-    /// Sélection dynamique des outils (n'injecte que les schémas pertinents → prompt plus léger
-    /// pour les modèles à petit contexte). Survit au redémarrage.
+    /// Dynamic tool selection (inject only relevant schemas: lighter prompt
+    /// for small-context models). Survives restart.
     #[serde(default)]
     dynamic_tool_selection: Option<bool>,
 }
@@ -183,20 +183,20 @@ struct MetricsHistoryResponse {
     events: Vec<NodeEvent>,
 }
 
-/// Sélection courante d'un service pour une capacité donnée (stt/tts/code/vlm/vla/llm…).
-/// Permet d'aller au-delà du simple nom de modèle : on garde la SOURCE (backend / node mesh)
-/// pour router (ex. la dictée vocale vers le STT choisi, l'auto-TTS vers le TTS choisi).
+/// Current service selection for a given capability (stt/tts/code/vlm/vla/llm...).
+/// Goes beyond a plain model name: keeps the SOURCE (backend / node mesh)
+/// for routing (e.g. voice dictation to the chosen STT, auto-TTS to the chosen TTS).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct CapabilitySelection {
     capability: String,
     model: String,
-    /// Backend/host (label local "llama.cpp"… ou IP du nœud mesh).
+    /// Backend/host (local label "llama.cpp"... or mesh node IP).
     backend: String,
-    /// Id du nœud Miel distant (None si service local).
+    /// Remote Miel node id (None if local service).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     node_id: Option<String>,
     is_local: bool,
-    /// Profil provider qui sert cette capacité (pour résoudre provider/base_url/clé au runtime).
+    /// Provider profile serving this capability (to resolve provider/base_url/key at runtime).
     profile_id: String,
 }
 
@@ -320,14 +320,14 @@ struct AppState {
     queue: RwLock<RequestQueue>,
     listener: RwLock<MielListener>,
     config: NodeConfig,
-    /// Services mesh déclarés manuellement (P6)
+    /// Manually declared mesh services (P6)
     custom_services: RwLock<HashMap<String, CustomService>>,
     /// Per-capability default models (e.g. "llm" → "mistral", "code" → "qwen3-coder:30b")
     /// The "llm" key is the universal fallback for unspecified capabilities.
     default_models: RwLock<HashMap<String, String>>,
-    /// Sélection de service par capacité (avec source), pour le routing voix/code/vision.
+    /// Per-capability service selection (with source), for voice/code/vision routing.
     capability_selection: RwLock<HashMap<String, CapabilitySelection>>,
-    /// Missions au long cours (« La Reine ») — métadonnée ; le savoir vit dans la carte cognitive.
+    /// Long-running missions ("La Reine"): metadata; the knowledge lives in the cognitive map.
     missions: RwLock<missions::MissionStore>,
     sys: RwLock<System>,
     activity_log: RwLock<VecDeque<ActivityLogEntry>>,
@@ -801,9 +801,9 @@ async fn fetch_local_models(
     }
 }
 
-// ── Blueprints : modèles d'automatisations cron paramétrés ──────────────────────
-// Catalogue intégré (laruche_essaim::blueprints::catalogue) + blueprints CRÉÉS par
-// l'utilisateur, persistés dans `blueprints.json`.
+// -- Blueprints: parameterized cron automation templates ------------------------
+// Built-in catalogue (laruche_essaim::blueprints::catalogue) + blueprints CREATED by
+// the user, persisted in `blueprints.json`.
 
 fn load_user_blueprints() -> Vec<laruche_essaim::blueprints::Blueprint> {
     std::fs::read_to_string("blueprints.json")
@@ -819,20 +819,20 @@ fn save_user_blueprints(bps: &[laruche_essaim::blueprints::Blueprint]) -> std::i
     )
 }
 
-/// GET /api/blueprints — catalogue intégré + blueprints utilisateur.
+/// GET /api/blueprints - built-in catalogue + user blueprints.
 async fn get_blueprints() -> Json<Vec<laruche_essaim::blueprints::Blueprint>> {
     let mut all = laruche_essaim::blueprints::catalogue();
     all.extend(load_user_blueprints());
     Json(all)
 }
 
-/// POST /api/blueprints — crée (ou met à jour) un blueprint utilisateur. Body = Blueprint
+/// POST /api/blueprints - creates (or updates) a user blueprint. Body = Blueprint
 /// {id, title, schedule_template, prompt_template, slots:[{name,label,default}]}.
 async fn api_create_blueprint(
     Json(mut bp): Json<laruche_essaim::blueprints::Blueprint>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     if bp.id.trim().is_empty() {
-        // dérive un id depuis le titre
+        // derive an id from the title
         let slug: String = bp
             .title
             .to_lowercase()
@@ -846,7 +846,7 @@ async fn api_create_blueprint(
             slug
         };
     }
-    // Interdit d'écraser un blueprint intégré.
+    // Forbid overwriting a built-in blueprint.
     if laruche_essaim::blueprints::catalogue()
         .iter()
         .any(|b| b.id == bp.id)
@@ -860,7 +860,7 @@ async fn api_create_blueprint(
     Ok(Json(serde_json::json!({ "status": "ok", "id": bp.id })))
 }
 
-/// DELETE /api/blueprints/:id — supprime un blueprint utilisateur (les intégrés sont immuables).
+/// DELETE /api/blueprints/:id - deletes a user blueprint (built-ins are immutable).
 async fn api_delete_blueprint(Path(id): Path<String>) -> Json<serde_json::Value> {
     let mut users = load_user_blueprints();
     let before = users.len();
@@ -870,8 +870,8 @@ async fn api_delete_blueprint(Path(id): Path<String>) -> Json<serde_json::Value>
     Json(serde_json::json!({ "status": "ok", "removed": removed }))
 }
 
-/// POST /api/blueprints/:id/instancier — instancie un blueprint en un VRAI cron.
-/// Body = valeurs des slots : `{ "<slot>": "<valeur>", ... }` (ou `{slots:{...}}`).
+/// POST /api/blueprints/:id/instancier - instantiates a blueprint into a REAL cron.
+/// Body = slot values: `{ "<slot>": "<value>", ... }` (or `{slots:{...}}`).
 async fn instancier_blueprint(
     State(state): State<Arc<AppState>>,
     Path(id): Path<String>,
@@ -882,7 +882,7 @@ async fn instancier_blueprint(
     let Some(bp) = all.into_iter().find(|b| b.id == id) else {
         return Err(StatusCode::NOT_FOUND);
     };
-    // Accepte {slots:{...}} ou un objet plat de valeurs.
+    // Accepts {slots:{...}} or a flat object of values.
     let src = body.get("slots").filter(|v| v.is_object()).unwrap_or(&body);
     let mut valeurs: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     if let Some(obj) = src.as_object() {
@@ -1187,7 +1187,7 @@ async fn post_infer(
             let peer_queue = node.manifest.queue_depth.unwrap_or(u32::MAX);
             if (peer_queue as usize) < my_queue.saturating_sub(2) {
                 if let Some(port) = node.manifest.port {
-                    // Route to peer — they have lower queue
+                    // Route to peer: they have a lower queue
                     let peer_url = format!("http://{}:{}", node.manifest.host, port);
                     tracing::info!(
                         from = %config.node_name,
@@ -1337,8 +1337,8 @@ async fn get_swarm_models(
     let mut hosts = HashSet::new();
 
     let dm = get_llm_default(&state).await;
-    // Résilient : si Ollama est down, on n'échoue PAS tout l'endpoint (sinon le panneau
-    // « Services du mesh » reste bloqué). On liste juste 0 modèle Ollama + les services mesh.
+    // Resilient: if Ollama is down, do NOT fail the whole endpoint (otherwise the
+    // "Mesh services" panel stays stuck). Just list 0 Ollama models + the mesh services.
     let local_models = fetch_local_models(&state.config.ollama_url, &dm)
         .await
         .unwrap_or_else(|_| ModelsResponse {
@@ -1403,15 +1403,15 @@ async fn get_swarm_models(
         }
     }
 
-    // Backends d'inférence locaux OpenAI-compatibles (llama.cpp, vLLM, LM Studio…).
-    // Même logique que pour Ollama : on les liste et on les annonce sur le mesh.
+    // Local OpenAI-compatible inference backends (llama.cpp, vLLM, LM Studio...).
+    // Same logic as Ollama: list them and announce them on the mesh.
     {
         let detectes = local_inference::detecter_modeles_openai_compat(
             &local_inference::backends_openai_compat_par_defaut(),
         )
         .await;
         for m in detectes {
-            // Évite le doublon si le même modèle est déjà exposé localement (ex. Ollama).
+            // Avoid duplicates if the same model is already exposed locally (e.g. Ollama).
             if models.iter().any(|x| x.is_local && x.name == m.name) {
                 continue;
             }
@@ -1440,9 +1440,9 @@ async fn get_swarm_models(
             }
             let is_profile_local =
                 profile.base_url.contains("127.0.0.1") || profile.base_url.contains("localhost");
-            // Backend LOCAL (llama.cpp/vLLM/LM Studio) : on ne liste QUE ce qui est réellement
-            // détecté EN VIE (détection live plus haut). Un profil local dont le backend est éteint
-            // n'apparaît donc PAS (fini les modèles fantômes d'un Ollama/llama.cpp fermé).
+            // LOCAL backend (llama.cpp/vLLM/LM Studio): list ONLY what is actually
+            // detected ALIVE (live detection above). A local profile whose backend is off
+            // therefore does NOT appear (no more phantom models from a closed Ollama/llama.cpp).
             if is_profile_local {
                 continue;
             }
@@ -1469,8 +1469,8 @@ async fn get_swarm_models(
         if is_stale(node.last_seen) {
             continue;
         }
-        // Ne pas se lister SOI-MÊME comme un pair du mesh : un nœud entend sa propre
-        // annonce mDNS. Son rôle local est déjà affiché dans SWARM INTELLIGENCE.
+        // Do not list SELF as a mesh peer: a node hears its own
+        // mDNS announcement. Its local role is already shown in SWARM INTELLIGENCE.
         if node.manifest.node_id == Some(manifest.node_id)
             || node.manifest.host == manifest.api_endpoint.host
         {
@@ -1478,8 +1478,8 @@ async fn get_swarm_models(
         }
         for cap_str in &node.manifest.capabilities {
             let cap = cap_str.to_string();
-            // On ne saute plus les capacités principales, car un noeud Miel
-            // peut très bien héberger des modèles LLM/VLM "custom" (hors Ollama).
+            // No longer skip the primary capabilities, since a Miel node
+            // may well host "custom" LLM/VLM models (outside Ollama).
             let _port = node.manifest.port.unwrap_or(0);
             let model_name = node
                 .manifest
@@ -1568,7 +1568,7 @@ async fn post_auth_request(
 
     Json(AuthPendingResponse {
         request_id: pending.request_id.to_string(),
-        message: "En attente d'approbation physique. Appuyez sur le bouton du boîtier LaRuche."
+        message: "Awaiting physical approval. Press the button on the LaRuche box."
             .into(),
         expires_in_secs: expires_in,
     })
@@ -1708,8 +1708,8 @@ async fn get_activity(
             if is_admin {
                 return true;
             }
-            // System logs (no user_id) — visible to admin only, hide from regular users
-            // User's own logs — visible to that user
+            // System logs (no user_id): visible to admin only, hidden from regular users
+            // User's own logs: visible to that user
             match (&entry.user_id, &caller) {
                 (None, _) => entry.tag != "agent", // show system logs (heartbeat, model) but not other users' agent chats
                 (Some(log_uid), Some(caller_uid)) => log_uid == caller_uid,
@@ -1725,7 +1725,7 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "status": "ok" }))
 }
 
-/// GET /api/voice/status — check STT/TTS service availability.
+/// GET /api/voice/status - check STT/TTS service availability.
 // --- P6: Custom Services Register ---
 #[derive(Deserialize)]
 pub struct RegisterServiceReq {
@@ -1782,8 +1782,8 @@ pub struct OpenAiChatReq {
     pub max_tokens: Option<u32>,
 }
 
-/// Récupère (avec cache) la clé publique d'un pair via son /api/mesh/identity. Vérifie que le
-/// node_id annoncé par l'IP correspond bien à celui déclaré (X-Miel-From).
+/// Fetches (with caching) a peer's public key via its /api/mesh/identity. Verifies that the
+/// node_id announced by the IP matches the one declared (X-Miel-From).
 async fn peer_pubkey(node_id: &str, ip: &str) -> Option<String> {
     use std::sync::{Mutex, OnceLock};
     static CACHE: OnceLock<Mutex<std::collections::HashMap<String, String>>> = OnceLock::new();
@@ -1804,13 +1804,13 @@ async fn peer_pubkey(node_id: &str, ip: &str) -> Option<String> {
     let nid = resp.get("node_id").and_then(|v| v.as_str())?;
     let pk = resp.get("pubkey").and_then(|v| v.as_str())?.to_string();
     if nid != node_id {
-        return None; // l'IP ne correspond pas au node_id déclaré → suspect
+        return None; // the IP does not match the declared node_id -> suspicious
     }
     cache.lock().unwrap().insert(node_id.to_string(), pk.clone());
     Some(pk)
 }
 
-/// node_id VÉRIFIÉ (signature ed25519) de l'appelant d'une requête d'inférence, ou None.
+/// VERIFIED node_id (ed25519 signature) of the caller of an inference request, or None.
 async fn verified_inference_caller(
     headers: &axum::http::HeaderMap,
     addr: &std::net::SocketAddr,
@@ -1864,8 +1864,8 @@ async fn api_v1_chat_completions(
         }
     }
 
-    // ENFORCEMENT mesh : un appelant DISTANT (non-loopback) ne peut utiliser ce modèle que selon
-    // sa visibilité. Le node local (loopback) n'est jamais bloqué.
+    // Mesh ENFORCEMENT: a REMOTE caller (non-loopback) may only use this model according to
+    // its visibility. The local node (loopback) is never blocked.
     if !addr.ip().is_loopback() {
         let refus = |msg: &str| {
             (
@@ -1876,16 +1876,16 @@ async fn api_v1_chat_completions(
         };
         match vis {
             profiles::Visibilite::Prive => {
-                return refus("Modèle privé : non partagé sur le mesh.");
+                return refus("Private model: not shared on the mesh.");
             }
             profiles::Visibilite::Restricted => {
                 match verified_inference_caller(&headers, &addr).await {
-                    Some(nid) if allowed.iter().any(|a| a == &nid) => {} // autorisé
-                    Some(_) => return refus("Ruche non autorisée pour ce modèle (restricted)."),
-                    None => return refus("Identité mesh requise/invalide pour un modèle restricted."),
+                    Some(nid) if allowed.iter().any(|a| a == &nid) => {} // allowed
+                    Some(_) => return refus("Hive not authorized for this model (restricted)."),
+                    None => return refus("Mesh identity required/invalid for a restricted model."),
                 }
             }
-            profiles::Visibilite::PublicProxy => {} // public : tout membre du mesh
+            profiles::Visibilite::PublicProxy => {} // public: any mesh member
         }
     }
 
@@ -1973,7 +1973,7 @@ async fn api_voice_status(State(state): State<Arc<AppState>>) -> Json<serde_json
     let listener = state.listener.read().await;
     let nodes = listener.get_nodes().await;
 
-    // Service explicitement choisi par capacité (sinon : premier trouvé, comportement d'avant).
+    // Service explicitly chosen per capability (otherwise: first found, previous behavior).
     let (want_stt, want_tts, stt_model, tts_model) = {
         let sel = state.capability_selection.read().await;
         (
@@ -1988,7 +1988,7 @@ async fn api_voice_status(State(state): State<Arc<AppState>>) -> Json<serde_json
     let mut tts_available = false;
     let mut stt_url = String::new();
     let mut tts_url = String::new();
-    let mut stt_locked = false; // url verrouillée par la sélection utilisateur
+    let mut stt_locked = false; // url locked by user selection
     let mut tts_locked = false;
 
     for (_id, node) in &nodes {
@@ -2042,12 +2042,12 @@ async fn spa_page() -> Html<&'static str> {
     Html(SPA_HTML)
 }
 
-/// CSS de l'app (extrait de spa.html). Content-Type explicite pour que le navigateur l'applique.
+/// App CSS (extracted from spa.html). Explicit Content-Type so the browser applies it.
 async fn app_css() -> impl axum::response::IntoResponse {
     ([(axum::http::header::CONTENT_TYPE, "text/css; charset=utf-8")], APP_CSS)
 }
 
-/// JS de l'app (extrait de spa.html). Servi avant le petit script d'init inline de spa.html.
+/// App JS (extracted from spa.html). Served before spa.html's small inline init script.
 async fn app_js() -> impl axum::response::IntoResponse {
     (
         [(
@@ -2094,7 +2094,7 @@ async fn api_list_tools(State(state): State<Arc<AppState>>) -> Json<serde_json::
     Json(serde_json::Value::Array(tools))
 }
 
-/// GET/POST /api/tools/config — enable/disable Abeilles for prompt injection/execution.
+/// GET/POST /api/tools/config - enable/disable Abeilles for prompt injection/execution.
 async fn api_get_tools_config(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let disabled = state.essaim_config.read().await.disabled_tools.clone();
     Json(serde_json::json!({ "disabled_tools": disabled }))
@@ -2123,7 +2123,7 @@ async fn api_save_tools_config(
     ))
 }
 
-/// GET /api/memory/search?q=...&limit=8 — search cognitive memory.
+/// GET /api/memory/search?q=...&limit=8 - search cognitive memory.
 async fn api_memory_search(
     State(state): State<Arc<AppState>>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
@@ -2164,7 +2164,7 @@ async fn api_memory_search(
     }
 }
 
-/// POST /api/memory/write — write a durable memory item.
+/// POST /api/memory/write - write a durable memory item.
 async fn api_memory_write(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
@@ -2251,7 +2251,7 @@ async fn api_memory_enrich(
     let state_clone = state.clone();
 
     let task = format!(
-        "Tu dois enrichir le noeud cognitif '{}'.\nVoici la requête de l'utilisateur : '{}'.\nLis le noeud avec 'memory_read_node', effectue les recherches nécessaires, puis utilise 'memory_write' pour ajouter tes trouvailles dans ce noeud.",
+        "You must enrich the cognitive node '{}'.\nHere is the user's request: '{}'.\nRead the node with 'memory_read_node', perform the necessary research, then use 'memory_write' to add your findings to this node.",
         node_id, prompt
     );
     let context = Some(node_id.to_string());
@@ -2305,7 +2305,7 @@ async fn api_memory_enrich(
     ))
 }
 
-/// GET /api/memory/node/:id — read a cognitive-map node with children and active items.
+/// GET /api/memory/node/:id - read a cognitive-map node with children and active items.
 async fn api_memory_node(
     State(state): State<Arc<AppState>>,
     Path(node_id): Path<String>,
@@ -2421,9 +2421,9 @@ async fn api_memory_node_update(
     }
 }
 
-/// POST /api/memory/node/move — reparente un nœud (drag&drop dans l'arbre). body
-/// `{node_id, new_parent}` ; `new_parent` vide ⇒ nœud racine. Déplace tout le sous-arbre
-/// (renommage d'id). Refuse les nœuds système et les cycles (déplacer dans son propre sous-arbre).
+/// POST /api/memory/node/move - reparents a node (drag&drop in the tree). body
+/// `{node_id, new_parent}`; empty `new_parent` => root node. Moves the whole subtree
+/// (id rename). Rejects system nodes and cycles (moving into its own subtree).
 async fn api_memory_node_move(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
@@ -2452,12 +2452,12 @@ async fn api_memory_node_move(
     };
     if prot(old) || prot(&new_id) {
         return Ok(Json(
-            serde_json::json!({ "status": "error", "error": "noeud systeme non deplacable" }),
+            serde_json::json!({ "status": "error", "error": "system node cannot be moved" }),
         ));
     }
     if new_id == old || new_id.starts_with(&format!("{old}.")) {
         return Ok(Json(
-            serde_json::json!({ "status": "error", "error": "deplacement invalide (cycle ou identique)" }),
+            serde_json::json!({ "status": "error", "error": "invalid move (cycle or identical)" }),
         ));
     }
     match state.memoire.renommer_sous_arbre(old, &new_id).await {
@@ -2551,7 +2551,7 @@ async fn api_memory_suggest(
     }
 }
 
-/// POST /api/memory/dream — trigger active memory consolidation.
+/// POST /api/memory/dream - trigger active memory consolidation.
 async fn api_memory_dream(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let dream = state
         .memoire
@@ -2561,9 +2561,9 @@ async fn api_memory_dream(State(state): State<Arc<AppState>>) -> Json<serde_json
     Json(dream)
 }
 
-/// POST /api/memory/consolidate?node=<id> — fusionne RÉELLEMENT les items (via le modèle aux).
-/// Avec `node` : consolide ce nœud. Sans : passe sur les nœuds surchargés (≥4 items). Les anciens
-/// items sont soft-deleted (récupérables). C'est ce que le bouton « Consolider » déclenche.
+/// POST /api/memory/consolidate?node=<id> - ACTUALLY merges items (via the aux model).
+/// With `node`: consolidates that node. Without: processes overloaded nodes (>=4 items). Old
+/// items are soft-deleted (recoverable). This is what the "Consolidate" button triggers.
 async fn api_memory_consolidate(
     State(state): State<Arc<AppState>>,
     axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
@@ -2577,7 +2577,7 @@ async fn api_memory_consolidate(
     Json(res.unwrap_or_else(|e| serde_json::json!({ "error": e.to_string() })))
 }
 
-/// GET /api/memory/grep?q=<texte>&limit=30 — recherche par sous-chaîne dans le contenu des items.
+/// GET /api/memory/grep?q=<texte>&limit=30 - substring search in item content.
 async fn api_memory_grep(
     State(state): State<Arc<AppState>>,
     axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
@@ -2593,8 +2593,8 @@ async fn api_memory_grep(
     )
 }
 
-/// Phase 1 — sync DISQUE → SQL : scanne `skills/*/SKILL.md` et upsert chaque skill dans
-/// `capacities.skills.<slug>` (item unique). Additif (ne supprime pas les skills SQL-only).
+/// Phase 1 - DISK -> SQL sync: scans `skills/*/SKILL.md` and upserts each skill into
+/// `capacities.skills.<slug>` (single item). Additive (does not delete SQL-only skills).
 async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::MemoireCognitive>) {
     let dir = std::path::Path::new("skills");
     let Ok(rd) = std::fs::read_dir(dir) else {
@@ -2609,15 +2609,15 @@ async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::MemoireCogni
         let Ok(content) = std::fs::read_to_string(p.join("SKILL.md")) else {
             continue;
         };
-        let content = content.replace("\r\n", "\n"); // normalise (SQL en LF)
+        let content = content.replace("\r\n", "\n"); // normalize (SQL in LF)
         if !content.contains("type: skill") {
-            continue; // seulement les vrais skills OKF
+            continue; // only real OKF skills
         }
         let Some(slug) = p.file_name().and_then(|x| x.to_str()).filter(|s| !s.is_empty()) else {
             continue;
         };
         let node_id = format!("capacities.skills.{slug}");
-        // Remplace l'item existant (skill = item unique).
+        // Replace the existing item (skill = single item).
         if let Ok(node) = memoire.read_node(&node_id).await {
             if let Some(items) = node.get("items").and_then(|i| i.as_array()) {
                 for it in items {
@@ -2635,13 +2635,13 @@ async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::MemoireCogni
         n += 1;
     }
     if n > 0 {
-        tracing::info!(count = n, "skills synchronises depuis disque (SKILL.md -> SQL)");
+        tracing::info!(count = n, "skills synchronized from disk (SKILL.md -> SQL)");
     }
-    // Purge ciblée des MÉTA-SKILLS d'autres frameworks d'agents (third-party/Claude Code/Codex…),
-    // importés à tort : ils décrivent un AUTRE agent, pas LaRuche. DENYLIST explicite — surtout
-    // PAS un diff disque « supprime tout ce qui n'est pas sur disque » (ça détruirait les skills
-    // créés par l'agent ou seedés en code, comme arxiv_search / web_research). Hard-delete :
-    // delete_node reparente vers `orphans.*`, donc on supprime aussi l'orphelin résultant.
+    // Targeted purge of META-SKILLS from other agent frameworks (third-party/Claude Code/Codex...),
+    // wrongly imported: they describe ANOTHER agent, not LaRuche. Explicit DENYLIST: definitely
+    // NOT a disk diff "delete everything not on disk" (that would destroy skills
+    // created by the agent or seeded in code, like arxiv_search / web_research). Hard-delete:
+    // delete_node reparents to `orphans.*`, so we also delete the resulting orphan.
     const META_SKILLS_A_PURGER: &[&str] = &[
         "third-party agent",
         "third-party agent-skill-authoring",
@@ -2653,22 +2653,22 @@ async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::MemoireCogni
     for slug in META_SKILLS_A_PURGER {
         let node_id = format!("capacities.skills.{slug}");
         if memoire.read_node(&node_id).await.is_err() {
-            continue; // absent → rien à faire
+            continue; // absent -> nothing to do
         }
         if let Ok(r) = memoire.delete_node(&node_id).await {
             purges += 1;
-            // delete_node a déplacé vers orphans.<base>_<ts> → hard-delete cet orphelin.
+            // delete_node moved it to orphans.<base>_<ts> -> hard-delete this orphan.
             if let Some(orphan) = r.get("relocated_to").and_then(|v| v.as_str()) {
                 let _ = memoire.delete_node(orphan).await;
             }
         }
     }
     if purges > 0 {
-        tracing::info!(count = purges, "meta-skills d'autres frameworks purges (denylist)");
+        tracing::info!(count = purges, "meta-skills from other frameworks purged (denylist)");
     }
 }
 
-/// Importe une liste de faits `{node_id, content}` dans la mémoire (dédup exact). (imported, skipped).
+/// Imports a list of facts `{node_id, content}` into memory (exact dedup). (imported, skipped).
 async fn importer_changes(
     state: &Arc<AppState>,
     items: &[serde_json::Value],
@@ -2681,7 +2681,7 @@ async fn importer_changes(
         if node.is_empty() || content.trim().is_empty() {
             continue;
         }
-        // Dédup exact : si un item identique existe déjà dans ce nœud, on saute.
+        // Exact dedup: if an identical item already exists in this node, skip.
         let exists = state
             .memoire
             .grep(content, Some(8))
@@ -2711,8 +2711,8 @@ async fn importer_changes(
     (imported, skipped)
 }
 
-/// GET /api/memory/export_changes?since=<ts> — faits (op=write) écrits depuis `since`, pour la
-/// fédération mesh (Levier 3, 1re tranche). Exclut projections système/capacities.
+/// GET /api/memory/export_changes?since=<ts> - facts (op=write) written since `since`, for
+/// mesh federation (Lever 3, first slice). Excludes system/capacities projections.
 async fn api_memory_export_changes(
     State(state): State<Arc<AppState>>,
     axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
@@ -2743,7 +2743,7 @@ async fn api_memory_export_changes(
     Json(serde_json::json!({ "items": items, "count": count }))
 }
 
-/// POST /api/memory/import_changes {items:[{node_id,content}], source?} — applique des faits (dédup).
+/// POST /api/memory/import_changes {items:[{node_id,content}], source?} - applies facts (dedup).
 async fn api_memory_import_changes(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
@@ -2755,8 +2755,8 @@ async fn api_memory_import_changes(
     Json(serde_json::json!({ "imported": imported, "skipped": skipped }))
 }
 
-/// POST /api/memory/mesh_pull {peer, since?} — tire les faits d'un node PAIR (Miel) et les importe
-/// localement. Première brique de la mémoire COLLECTIVE du mesh (Levier 3).
+/// POST /api/memory/mesh_pull {peer, since?} - pulls facts from a PEER node (Miel) and imports them
+/// locally. First building block of the mesh's COLLECTIVE memory (Lever 3).
 async fn api_memory_mesh_pull(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
@@ -2768,16 +2768,16 @@ async fn api_memory_mesh_pull(
         .trim_end_matches('/')
         .to_string();
     if peer.is_empty() {
-        return Json(serde_json::json!({ "error": "peer manquant (ex. http://192.168.1.20:8419)" }));
+        return Json(serde_json::json!({ "error": "missing peer (e.g. http://192.168.1.20:8419)" }));
     }
     let since = body["since"].as_i64().unwrap_or(0);
     let url = format!("{peer}/api/memory/export_changes?since={since}");
     let data: serde_json::Value = match reqwest::get(&url).await {
         Ok(r) => match r.json().await {
             Ok(v) => v,
-            Err(e) => return Json(serde_json::json!({ "error": format!("json pair: {e}") })),
+            Err(e) => return Json(serde_json::json!({ "error": format!("peer json: {e}") })),
         },
-        Err(e) => return Json(serde_json::json!({ "error": format!("contact pair: {e}") })),
+        Err(e) => return Json(serde_json::json!({ "error": format!("peer contact: {e}") })),
     };
     let empty: Vec<serde_json::Value> = vec![];
     let items = data["items"].as_array().unwrap_or(&empty);
@@ -2786,8 +2786,8 @@ async fn api_memory_mesh_pull(
     Json(serde_json::json!({ "pulled_from": peer, "imported": imported, "skipped": skipped }))
 }
 
-/// GET /api/state/version — ts de la dernière mutation mémoire (P7 lite : l'UI poll pour savoir
-/// si rafraîchir, sans canal push).
+/// GET /api/state/version - ts of the last memory mutation (P7 lite: the UI polls to know
+/// whether to refresh, without a push channel).
 async fn api_state_version(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let v = state
         .memoire
@@ -2804,7 +2804,7 @@ async fn api_state_version(State(state): State<Arc<AppState>>) -> Json<serde_jso
     Json(serde_json::json!({ "version": v }))
 }
 
-/// Acteur d'une mutation mémoire d'après son `src` (source/raison). UI → User, sinon LaRuche.
+/// Actor of a memory mutation based on its `src` (source/reason). UI -> User, otherwise LaRuche.
 fn feed_actor(src: &str) -> &'static str {
     let s = src.trim().to_lowercase();
     if s.starts_with("ui") || s == "user" || s == "fabien" || s == "admin" {
@@ -2814,9 +2814,9 @@ fn feed_actor(src: &str) -> &'static str {
     }
 }
 
-/// Nettoie une réponse d'agent pour le Feed : retire les blocs protocole (`<plan>`, `<tool_call>`,
-/// `<think>`) — complets ou tronqués — et normalise les espaces. Sinon le Feed affiche du JSON/XML
-/// illisible pour un humain.
+/// Cleans an agent response for the Feed: removes protocol blocks (`<plan>`, `<tool_call>`,
+/// `<think>`) - complete or truncated - and normalizes whitespace. Otherwise the Feed shows JSON/XML
+/// unreadable to a human.
 fn nettoyer_reponse_feed(s: &str) -> String {
     let mut out = s.to_string();
     for (open, close) in [
@@ -2831,20 +2831,20 @@ fn nettoyer_reponse_feed(s: &str) -> String {
                     let j = i + j_rel + close.len();
                     out.replace_range(i..j, " ");
                 }
-                None => out.truncate(i), // tag ouvrant sans fermant → coupe la queue
+                None => out.truncate(i), // opening tag without closing -> cut the tail
             }
         }
     }
     out.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-// ===================== Phase 4 — Messagerie mesh (DM inter-instances/users) =====================
+// ===================== Phase 4 - Mesh messaging (DM between instances/users) =====================
 #[derive(serde::Serialize, serde::Deserialize, Clone)]
 struct InboxMessage {
     id: String,
     peer_id: String,
     peer_name: String,
-    dir: String, // "in" (reçu) | "out" (envoyé)
+    dir: String, // "in" (received) | "out" (sent)
     text: String,
     ts: i64,
     read: bool,
@@ -2873,30 +2873,30 @@ fn append_inbox(m: InboxMessage) {
     write_inbox(&v);
 }
 
-/// GET /api/mesh/code — indique si un code de mesh est configuré (jamais le secret lui-même).
+/// GET /api/mesh/code - indicates whether a mesh code is configured (never the secret itself).
 async fn api_mesh_code_get() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "set": sync::load_mesh_code().is_some() }))
 }
-/// POST /api/mesh/code {code} — définit/efface le code de mesh partagé (auth + base de chiffrement).
+/// POST /api/mesh/code {code} - sets/clears the shared mesh code (auth + encryption base).
 async fn api_mesh_code_set(Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
     let code = body["code"].as_str().unwrap_or("");
     sync::save_mesh_code(code);
     Json(serde_json::json!({ "status": "ok", "set": !code.trim().is_empty() }))
 }
 
-/// GET /api/mesh/identity — node_id + clé PUBLIQUE ed25519 (hex) de ce nœud. Les pairs la
-/// récupèrent et la mettent en cache pour vérifier les signatures (identité forte, `restricted`).
+/// GET /api/mesh/identity - node_id + this node's ed25519 PUBLIC key (hex). Peers fetch it
+/// and cache it to verify signatures (strong identity, `restricted`).
 async fn api_mesh_identity() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "node_id": sync::my_node_id(), "pubkey": sync::my_pubkey_hex() }))
 }
 
-/// GET /api/mesh/whoami — identité de CETTE instance (ID laruche + nom).
+/// GET /api/mesh/whoami - identity of THIS instance (laruche ID + name).
 async fn api_mesh_whoami(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let m = state.manifest.read().await;
     Json(serde_json::json!({ "id": m.node_id.to_string(), "name": m.node_name }))
 }
 
-/// GET /api/mesh/peers — autres instances LaRuche découvertes sur le réseau (annuaire).
+/// GET /api/mesh/peers - other LaRuche instances discovered on the network (directory).
 async fn api_mesh_peers(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let listener = state.listener.read().await;
     let nodes = listener.get_nodes().await;
@@ -2919,14 +2919,14 @@ async fn api_mesh_peers(State(state): State<Arc<AppState>>) -> Json<serde_json::
     Json(serde_json::json!({ "peers": peers }))
 }
 
-// ─── Gap A — FÉDÉRATION DES SKILLS VÉRIFIÉS ENTRE NŒUDS ──────────────────────────────
-// Un essaim qui apprend collectivement : quand un nœud a (créé/vérifié) un skill, les autres
-// peuvent le récupérer. Mécanique : chaque nœud ANNONCE ses skills (slug + hash de contenu),
-// et SYNCHRONISE en tirant chez les pairs les skills qu'il n'a pas (ou dont le hash diffère).
+// --- Gap A - FEDERATION OF VERIFIED SKILLS BETWEEN NODES ----------------------------
+// A swarm that learns collectively: when a node has (created/verified) a skill, the others
+// can fetch it. Mechanics: each node ANNOUNCES its skills (slug + content hash),
+// and SYNCHRONIZES by pulling from peers the skills it lacks (or whose hash differs).
 
-/// Liste les skills locaux sur disque (`skills/<slug>/SKILL.md`) avec un hash de contenu.
+/// Lists local skills on disk (`skills/<slug>/SKILL.md`) with a content hash.
 fn lister_skills_locaux() -> Vec<(String, String, String)> {
-    // (slug, hash, contenu)
+    // (slug, hash, content)
     let mut out = Vec::new();
     let Ok(rd) = std::fs::read_dir("skills") else {
         return out;
@@ -2945,7 +2945,7 @@ fn lister_skills_locaux() -> Vec<(String, String, String)> {
     out
 }
 
-/// GET /api/mesh/skills — annonce les skills vérifiés de CE nœud (slug + hash, sans le contenu).
+/// GET /api/mesh/skills - announces THIS node's verified skills (slug + hash, without content).
 async fn api_mesh_skills_list() -> Json<serde_json::Value> {
     let skills: Vec<serde_json::Value> = lister_skills_locaux()
         .into_iter()
@@ -2954,21 +2954,21 @@ async fn api_mesh_skills_list() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "skills": skills }))
 }
 
-/// GET /api/mesh/skills/:slug — renvoie le contenu SKILL.md d'un skill (pour qu'un pair le tire).
+/// GET /api/mesh/skills/:slug - returns a skill's SKILL.md content (for a peer to pull).
 async fn api_mesh_skill_get(Path(slug): Path<String>) -> Json<serde_json::Value> {
-    // Garde-fou anti-traversal : slug = un seul segment alphanumérique/_/-.
+    // Anti-traversal guard: slug = a single alphanumeric/_/- segment.
     if slug.is_empty() || !slug.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
-        return Json(serde_json::json!({ "status": "error", "error": "slug invalide" }));
+        return Json(serde_json::json!({ "status": "error", "error": "invalid slug" }));
     }
     match std::fs::read_to_string(format!("skills/{slug}/SKILL.md")) {
         Ok(content) => Json(serde_json::json!({ "slug": slug, "content": content })),
-        Err(_) => Json(serde_json::json!({ "status": "error", "error": "introuvable" })),
+        Err(_) => Json(serde_json::json!({ "status": "error", "error": "not found" })),
     }
 }
 
-/// POST /api/mesh/sync — tire chez tous les pairs actifs les skills vérifiés manquants/différents,
-/// les écrit sur disque puis les ré-indexe en mémoire. Renvoie le rapport. **Additif** : n'écrase
-/// un skill local que si le hash distant diffère ; ne supprime jamais.
+/// POST /api/mesh/sync - pulls from all active peers the missing/different verified skills,
+/// writes them to disk then re-indexes them in memory. Returns the report. **Additive**: overwrites
+/// a local skill only if the remote hash differs; never deletes.
 async fn api_mesh_skills_sync(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let locaux: std::collections::HashMap<String, String> = lister_skills_locaux()
         .into_iter()
@@ -3001,7 +3001,7 @@ async fn api_mesh_skills_sync(State(state): State<Arc<AppState>>) -> Json<serde_
         let base = format!("http://{host}:{port}");
         vus_pairs += 1;
 
-        // 1) annonce du pair
+        // 1) peer announcement
         let Ok(resp) = http.get(format!("{base}/api/mesh/skills")).send().await else {
             continue;
         };
@@ -3020,11 +3020,11 @@ async fn api_mesh_skills_sync(State(state): State<Arc<AppState>>) -> Json<serde_
             {
                 continue;
             }
-            // déjà à jour ?
+            // already up to date?
             if locaux.get(slug).map(|h| h == hash).unwrap_or(false) {
                 continue;
             }
-            // 2) tire le contenu
+            // 2) pull the content
             let Ok(r) = http
                 .get(format!("{base}/api/mesh/skills/{slug}"))
                 .send()
@@ -3038,7 +3038,7 @@ async fn api_mesh_skills_sync(State(state): State<Arc<AppState>>) -> Json<serde_
             let Some(content) = body.get("content").and_then(|c| c.as_str()) else {
                 continue;
             };
-            // 3) écrit sur disque
+            // 3) write to disk
             let dir = format!("skills/{slug}");
             let peer_name = node
                 .manifest
@@ -3052,15 +3052,15 @@ async fn api_mesh_skills_sync(State(state): State<Arc<AppState>>) -> Json<serde_
                 laruche_essaim::feed_journal::record(
                     "LaRuche",
                     "mesh",
-                    "a fédéré le skill",
-                    format!("{slug} (depuis {peer_name})"),
+                    "federated the skill",
+                    format!("{slug} (from {peer_name})"),
                     chrono::Utc::now(),
                 );
             }
         }
     }
 
-    // 4) ré-indexe disque → SQL pour rendre les skills tirés immédiatement utilisables.
+    // 4) re-index disk -> SQL to make the pulled skills immediately usable.
     if !importes.is_empty() {
         sync_skills_disk_to_sql(&state.memoire).await;
     }
@@ -3073,8 +3073,8 @@ async fn api_mesh_skills_sync(State(state): State<Arc<AppState>>) -> Json<serde_
     }))
 }
 
-/// POST /api/mesh/send {to_id, text} — envoie un DM à un pair (résout l'hôte par ID, POST sur son
-/// /api/mesh/receive). Garde une copie locale (dir=out) pour le fil de conversation.
+/// POST /api/mesh/send {to_id, text} - sends a DM to a peer (resolves the host by ID, POSTs to its
+/// /api/mesh/receive). Keeps a local copy (dir=out) for the conversation thread.
 async fn api_mesh_send(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
@@ -3082,7 +3082,7 @@ async fn api_mesh_send(
     let to_id = body["to_id"].as_str().unwrap_or("").to_string();
     let text = body["text"].as_str().unwrap_or("").trim().to_string();
     if to_id.is_empty() || text.is_empty() {
-        return Json(serde_json::json!({ "status": "error", "error": "to_id/text requis" }));
+        return Json(serde_json::json!({ "status": "error", "error": "to_id/text required" }));
     }
     let (host, peer_name) = {
         let listener = state.listener.read().await;
@@ -3094,7 +3094,7 @@ async fn api_mesh_send(
             .unwrap_or((String::new(), to_id.clone()))
     };
     if host.is_empty() {
-        return Json(serde_json::json!({ "status": "error", "error": "pair introuvable" }));
+        return Json(serde_json::json!({ "status": "error", "error": "peer not found" }));
     }
     let (my_id, my_name) = {
         let m = state.manifest.read().await;
@@ -3102,7 +3102,7 @@ async fn api_mesh_send(
     };
     let client = reqwest::Client::new();
     let url = format!("http://{host}:8419/api/mesh/receive");
-    // Chiffre le contenu si un code de mesh est configuré (sinon clair, rétro-compatible).
+    // Encrypt the content if a mesh code is configured (otherwise plaintext, backward-compatible).
     let payload = match sync::seal(&text) {
         Some(enc) => serde_json::json!({ "from_id": my_id, "from_name": my_name, "enc": enc }),
         None => serde_json::json!({ "from_id": my_id, "from_name": my_name, "text": text }),
@@ -3125,22 +3125,22 @@ async fn api_mesh_send(
     Json(serde_json::json!({ "status": if ok { "ok" } else { "local_only" } }))
 }
 
-/// POST /api/mesh/receive {from_id, from_name, text} — réception d'un DM d'un autre LaRuche.
-/// Auth code-de-mesh si configuré (sinon ouvert, comportement historique sur LAN).
+/// POST /api/mesh/receive {from_id, from_name, text} - receives a DM from another LaRuche.
+/// Mesh-code auth if configured (otherwise open, historical LAN behavior).
 async fn api_mesh_receive(
     headers: axum::http::HeaderMap,
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
     if let Some(false) = sync::mesh_auth_ok(&headers, "/api/mesh/receive") {
-        return Json(serde_json::json!({ "status": "error", "error": "auth mesh invalide" }));
+        return Json(serde_json::json!({ "status": "error", "error": "invalid mesh auth" }));
     }
-    let from_id = body["from_id"].as_str().unwrap_or("inconnu").to_string();
+    let from_id = body["from_id"].as_str().unwrap_or("unknown").to_string();
     let from_name = body["from_name"].as_str().unwrap_or("LaRuche").to_string();
-    // Contenu chiffré (`enc`) → déchiffre ; sinon clair (`text`).
+    // Encrypted content (`enc`) -> decrypt; otherwise plaintext (`text`).
     let text = if let Some(enc) = body["enc"].as_str() {
         match sync::open(enc) {
             Some(t) => t.trim().to_string(),
-            None => return Json(serde_json::json!({ "status": "error", "error": "déchiffrement échoué" })),
+            None => return Json(serde_json::json!({ "status": "error", "error": "decryption failed" })),
         }
     } else {
         body["text"].as_str().unwrap_or("").trim().to_string()
@@ -3160,12 +3160,12 @@ async fn api_mesh_receive(
     Json(serde_json::json!({ "status": "ok" }))
 }
 
-/// GET /api/inbox — tous les messages (le client regroupe par pair).
+/// GET /api/inbox - all messages (the client groups by peer).
 async fn api_inbox_get() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "messages": read_inbox() }))
 }
 
-/// POST /api/inbox/read {peer_id} — marque comme lus les messages d'un pair.
+/// POST /api/inbox/read {peer_id} - marks a peer's messages as read.
 async fn api_inbox_read(Json(body): Json<serde_json::Value>) -> Json<serde_json::Value> {
     let peer = body["peer_id"].as_str().unwrap_or("");
     let mut v = read_inbox();
@@ -3178,20 +3178,20 @@ async fn api_inbox_read(Json(body): Json<serde_json::Value>) -> Json<serde_json:
     Json(serde_json::json!({ "status": "ok" }))
 }
 
-/// POST /api/feed/ask {text} — parle à LaRuche DEPUIS le Feed. Tourne sur une session « feed »
-/// dédiée (contexte roulant ~10 échanges, isolé du chat principal), en arrière-plan ; la réponse
-/// apparaît dans le Feed via activity_log au prochain poll. Capacités agent complètes (crons…).
+/// POST /api/feed/ask {text} - talks to LaRuche FROM the Feed. Runs on a dedicated "feed"
+/// session (rolling context ~10 exchanges, isolated from the main chat), in the background; the response
+/// appears in the Feed via activity_log on the next poll. Full agent capabilities (crons...).
 async fn api_feed_ask(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
     let text = match body["text"].as_str().map(str::trim).filter(|s| !s.is_empty()) {
         Some(t) => t.to_string(),
-        None => return Json(serde_json::json!({ "status": "error", "error": "texte vide" })),
+        None => return Json(serde_json::json!({ "status": "error", "error": "empty text" })),
     };
     let st = state.clone();
     tokio::spawn(async move {
-        // Session feed dédiée (id déterministe) → contexte roulant, séparé du chat principal.
+        // Dedicated feed session (deterministic id) -> rolling context, separate from the main chat.
         let feed_id = Uuid::from_u128(0xFEED_0000_0000_0000_0000_0000_0000_0001);
         let sessions_dir = std::path::Path::new("sessions");
         let model = st.essaim_config.read().await.model.clone();
@@ -3212,7 +3212,7 @@ async fn api_feed_ask(
             st.memoire.clone(),
         )
         .await;
-        // Contexte roulant court (~10 échanges = 20 messages) : on tronque le plus ancien.
+        // Short rolling context (~10 exchanges = 20 messages): truncate the oldest.
         if session.messages.len() > 20 {
             let drop_n = session.messages.len() - 20;
             session.messages.drain(0..drop_n);
@@ -3242,7 +3242,7 @@ async fn api_feed_ask(
     Json(serde_json::json!({ "status": "ok" }))
 }
 
-/// GET /api/profile — fiche utilisateur (nœud `system.user`, injectée au contexte de LaRuche).
+/// GET /api/profile - user profile (node `system.user`, injected into LaRuche's context).
 async fn api_profile_get(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let fiche = state
         .memoire
@@ -3260,8 +3260,8 @@ async fn api_profile_get(State(state): State<Arc<AppState>>) -> Json<serde_json:
     Json(serde_json::json!({ "fiche": fiche }))
 }
 
-/// POST /api/profile {fiche} — remplace la fiche utilisateur (item unique). Source `ui-profile`
-/// (acteur User dans le Feed). Seul l'utilisateur édite ; l'agent en est interdit (memory_write).
+/// POST /api/profile {fiche} - replaces the user profile (single item). Source `ui-profile`
+/// (User actor in the Feed). Only the user edits; the agent is forbidden (memory_write).
 async fn api_profile_save(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
@@ -3287,8 +3287,8 @@ async fn api_profile_save(
     Json(serde_json::json!({ "status": "ok" }))
 }
 
-/// GET /api/feed?limit=N — flux d'activité UNIFIÉ pour le volet Feed global : mutations mémoire
-/// (avec acteur User/LaRuche + ref cliquable) + inférences agent (activity_log), trié récent→ancien.
+/// GET /api/feed?limit=N - UNIFIED activity stream for the global Feed pane: memory mutations
+/// (with User/LaRuche actor + clickable ref) + agent inferences (activity_log), sorted recent->old.
 async fn api_feed(
     State(state): State<Arc<AppState>>,
     axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
@@ -3299,7 +3299,7 @@ async fn api_feed(
         .unwrap_or(200);
     let mut events: Vec<serde_json::Value> = Vec::new();
 
-    // 1) Mutations mémoire (qui a ajouté/supprimé/modifié quoi).
+    // 1) Memory mutations (who added/deleted/modified what).
     if let Ok(muts) = state.memoire.mutations(Some(150)).await {
         if let Some(arr) = muts.get("mutations").and_then(|m| m.as_array()) {
             for m in arr {
@@ -3307,9 +3307,9 @@ async fn api_feed(
                 let node = m.get("node_id").and_then(|v| v.as_str()).unwrap_or("");
                 let ts = m.get("ts").and_then(|v| v.as_i64()).unwrap_or(0);
                 let src = m.get("src").and_then(|v| v.as_str()).unwrap_or("");
-                // Bruit système (non-activité) : indexation d'outils + (re)seed des nœuds au boot
-                // + sync disque↔SQL des skills (delete+write par skill à chaque démarrage/watch →
-                // floodait le Feed de dizaines de lignes capacities.skills.*).
+                // System noise (non-activity): tool indexing + node (re)seed at boot
+                // + disk<->SQL skill sync (delete+write per skill on each startup/watch ->
+                // flooded the Feed with dozens of capacities.skills.* lines).
                 if matches!(
                     src,
                     "tool-registry" | "seed" | "skill-file" | "skill-file-sync" | "skill-file-watch"
@@ -3322,16 +3322,16 @@ async fn api_feed(
                     continue;
                 }
                 let action = match op {
-                    "write" if src == "consolidation" => "a consolidé",
-                    "write" => "a ajouté un item dans",
-                    "propose" => "a proposé un item dans",
-                    "update" => "a modifié un item de",
-                    "delete" => "a supprimé un item de",
-                    "move" => "a déplacé un item vers",
-                    "create_node" => "a créé le nœud",
-                    "update_node" => "a mis à jour le nœud",
-                    "rename_subtree" => "a déplacé le sous-arbre",
-                    _ => "a modifié",
+                    "write" if src == "consolidation" => "consolidated",
+                    "write" => "added an item to",
+                    "propose" => "proposed an item in",
+                    "update" => "modified an item of",
+                    "delete" => "deleted an item from",
+                    "move" => "moved an item to",
+                    "create_node" => "created the node",
+                    "update_node" => "updated the node",
+                    "rename_subtree" => "moved the subtree",
+                    _ => "modified",
                 };
                 events.push(serde_json::json!({
                     "ts": ts, "actor": feed_actor(src), "kind": "memory",
@@ -3341,19 +3341,19 @@ async fn api_feed(
         }
     }
 
-    // 2) Échanges agent : le message de l'utilisateur (full_prompt) PUIS la réponse de LaRuche
-    //    (full_response nettoyée des tags protocole). Permet de voir ses propres messages dans le
-    //    Feed, attribués à User, et une réponse lisible (pas de <plan>/<tool_call> bruts).
+    // 2) Agent exchanges: the user's message (full_prompt) THEN LaRuche's response
+    //    (full_response cleaned of protocol tags). Lets you see your own messages in the
+    //    Feed, attributed to User, and a readable response (no raw <plan>/<tool_call>).
     {
         let logs = state.activity_log.read().await;
         for e in logs.iter() {
-            // MILLISECONDES (le rfc3339 a la sous-seconde). Feed antéchronologique (récent en
-            // HAUT) → dans un tour, la RÉPONSE (plus récente) est placée 1 ms AU-DESSUS de la
-            // question. On lit : réponse, puis sa question en dessous ; tour suivant plus bas.
+            // MILLISECONDS (rfc3339 has sub-second). Reverse-chronological Feed (recent on
+            // TOP) -> within a turn, the RESPONSE (more recent) is placed 1 ms ABOVE the
+            // question. You read: response, then its question below; next turn lower down.
             let ms = chrono::DateTime::parse_from_rfc3339(&e.timestamp)
                 .map(|d| d.timestamp_millis())
                 .unwrap_or(0);
-            // a) Message utilisateur (uniquement pour les échanges de chat).
+            // a) User message (only for chat exchanges).
             if e.tag == "agent" {
                 if let Some(prompt) = e.full_prompt.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
                     let clean = prompt.split("\n\n[SYSTEM]").next().unwrap_or(prompt).trim();
@@ -3366,8 +3366,8 @@ async fn api_feed(
                     }
                 }
             }
-            // b) Réponse de LaRuche, nettoyée (sinon JSON/XML illisible). Vide après nettoyage
-            //    (tour purement outil) → on n'ajoute pas d'événement « a répondu » creux.
+            // b) LaRuche's response, cleaned (otherwise unreadable JSON/XML). Empty after cleaning
+            //    (pure tool turn) -> we don't add a hollow "a répondu" event.
             let brut = e.full_response.as_deref().filter(|s| !s.is_empty()).unwrap_or(&e.message);
             let resp = nettoyer_reponse_feed(brut);
             if !resp.is_empty() {
@@ -3380,19 +3380,19 @@ async fn api_feed(
         }
     }
 
-    // 3) Crons exécutés (dernière exécution).
+    // 3) Executed crons (last run).
     {
         let cron = state.essaim_cron.read().await;
         for t in cron.list() {
             if let Some(lr) = t.last_run {
                 events.push(serde_json::json!({
                     "ts": lr.timestamp(), "actor": "LaRuche", "kind": "cron",
-                    "action": "a exécuté le cron", "object": t.name, "ref": serde_json::Value::Null
+                    "action": "ran the cron", "object": t.name, "ref": serde_json::Value::Null
                 }));
             }
         }
     }
-    // 4) Missions (dernière itération).
+    // 4) Missions (last iteration).
     {
         let missions = state.missions.read().await;
         for m in missions.list() {
@@ -3402,31 +3402,31 @@ async fn api_feed(
                     .unwrap_or(0);
                 events.push(serde_json::json!({
                     "ts": ts, "actor": "LaRuche", "kind": "mission",
-                    "action": "a avancé la mission", "object": m.slug, "ref": serde_json::Value::Null
+                    "action": "advanced the mission", "object": m.slug, "ref": serde_json::Value::Null
                 }));
             }
         }
     }
-    // 5) Watchers déclenchés (dernière détection).
+    // 5) Triggered watchers (last detection).
     {
         let watchers = state.watchers.read().await;
         for w in watchers.list() {
             if let Some(lr) = w.last_run {
                 events.push(serde_json::json!({
                     "ts": lr.timestamp(), "actor": "LaRuche", "kind": "watcher",
-                    "action": "a déclenché le watcher", "object": w.name, "ref": serde_json::Value::Null
+                    "action": "triggered the watcher", "object": w.name, "ref": serde_json::Value::Null
                 }));
             }
         }
     }
 
-    // 6) Messages directs (DM) du mesh → 1re brique du feed global. Acteur = le PAIR (ruche
-    //    violette) pour les reçus ; Moi pour les envoyés.
+    // 6) Direct messages (DM) from the mesh -> first building block of the global feed. Actor = the PEER (purple
+    //    hive) for received ones; Me for sent ones.
     for m in read_inbox() {
         let (actor, action, akind) = if m.dir == "out" {
-            ("User".to_string(), format!("a écrit à {}", m.peer_name), "user")
+            ("User".to_string(), format!("wrote to {}", m.peer_name), "user")
         } else {
-            (m.peer_name.clone(), "vous a écrit".to_string(), "peer")
+            (m.peer_name.clone(), "wrote to you".to_string(), "peer")
         };
         events.push(serde_json::json!({
             "ts": m.ts, "actor": actor, "kind": "dm", "action": action,
@@ -3435,20 +3435,20 @@ async fn api_feed(
         }));
     }
 
-    // Unifie l'unité : les sections mutations/cron/mission/watcher sont en SECONDES, la section
-    // agent en MILLISECONDES. On passe tout en ms (un ts < 1e12 = secondes → ×1000) pour un tri
-    // cohérent (sinon les events agent, 1000× plus grands, écraseraient tout).
+    // Unify the unit: the mutations/cron/mission/watcher sections are in SECONDS, the agent
+    // section in MILLISECONDS. Convert everything to ms (a ts < 1e12 = seconds -> x1000) for a
+    // consistent sort (otherwise the agent events, 1000x larger, would crush everything).
     for e in events.iter_mut() {
         let t = e["ts"].as_i64().unwrap_or(0);
         if t > 0 && t < 1_000_000_000_000 {
             e["ts"] = serde_json::Value::from(t * 1000);
         }
     }
-    // Normalise tous les `ts` en MILLISECONDES (certaines sources sont en secondes : mémoire,
-    // missions, watchers, crons). Sans ça, les events agent (déjà en ms) flottaient TOUJOURS
-    // au-dessus des autres, quel que soit le temps réel. Heuristique : ts < 1e12 → secondes.
-    // Journal système PERSISTANT : créations (cron/watcher/mission/kanban) + runs curateur.
-    // Survit au redémarrage (avant : seules les exécutions via last_run apparaissaient).
+    // Normalize all `ts` to MILLISECONDS (some sources are in seconds: memory,
+    // missions, watchers, crons). Without this, agent events (already in ms) ALWAYS floated
+    // above the others, regardless of real time. Heuristic: ts < 1e12 -> seconds.
+    // PERSISTENT system journal: creations (cron/watcher/mission/kanban) + curateur runs.
+    // Survives restart (before: only executions via last_run appeared).
     for ev in laruche_essaim::feed_journal::recent(limit) {
         events.push(serde_json::json!({
             "ts": ev.ts, "actor": ev.actor, "kind": ev.kind,
@@ -3470,9 +3470,9 @@ async fn api_feed(
     Json(serde_json::json!({ "events": events }))
 }
 
-/// GET /api/system/prompt-defaults — textes par défaut (codés en dur) des sections éditables,
-/// pour pré-remplir l'éditeur : l'utilisateur voit et modifie le prompt complet (vide en DB =
-/// ce défaut est utilisé). Le `node_*` override REMPLACE la section correspondante.
+/// GET /api/system/prompt-defaults - default (hardcoded) texts of the editable sections,
+/// to pre-fill the editor: the user sees and edits the full prompt (empty in DB =
+/// this default is used). The `node_*` override REPLACES the corresponding section.
 async fn api_system_prompt_defaults() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "identity": laruche_essaim::prompt::section_identite_stable(),
@@ -3483,7 +3483,7 @@ async fn api_system_prompt_defaults() -> Json<serde_json::Value> {
     }))
 }
 
-/// GET /api/memory/tree — lightweight cognitive-map snapshot for the SPA.
+/// GET /api/memory/tree - lightweight cognitive-map snapshot for the SPA.
 async fn api_memory_tree(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let health = state.memoire.health().await.unwrap_or(false);
     let dream = state
@@ -3491,8 +3491,8 @@ async fn api_memory_tree(State(state): State<Arc<AppState>>) -> Json<serde_json:
         .dream()
         .await
         .unwrap_or_else(|e| serde_json::json!({ "error": e.to_string() }));
-    // Vraie arborescence depuis le backend (l'UI Obsidian reconstruit la hiérarchie sur les
-    // ids pointés). Fallback sur les racines de base si le backend ne liste pas (sidecar).
+    // Real tree from the backend (the Obsidian UI rebuilds the hierarchy on the
+    // dotted ids). Fallback to the base roots if the backend does not list (sidecar).
     let mut nodes = state
         .memoire
         .list_nodes()
@@ -3500,17 +3500,17 @@ async fn api_memory_tree(State(state): State<Arc<AppState>>) -> Json<serde_json:
         .unwrap_or_else(|_| serde_json::json!([]));
     if nodes.as_array().map(|a| a.is_empty()).unwrap_or(true) {
         nodes = serde_json::json!([
-            { "id": "people", "label": "People", "one_liner": "Personnes et preferences" },
-            { "id": "projects", "label": "Projects", "one_liner": "Projets actifs" },
-            { "id": "decisions", "label": "Decisions", "one_liner": "Choix durables" },
-            { "id": "capacities", "label": "Capacites", "one_liner": "Outils, plugins, MCP, skills" },
-            { "id": "missions", "label": "Missions", "one_liner": "Recherches au long cours" },
-            { "id": "sessions", "label": "Sessions", "one_liner": "Contexte conversationnel" },
-            { "id": "knowledge", "label": "Knowledge", "one_liner": "Savoirs importes" }
+            { "id": "people", "label": "People", "one_liner": "People and preferences" },
+            { "id": "projects", "label": "Projects", "one_liner": "Active projects" },
+            { "id": "decisions", "label": "Decisions", "one_liner": "Durable choices" },
+            { "id": "capacities", "label": "Capacites", "one_liner": "Tools, plugins, MCP, skills" },
+            { "id": "missions", "label": "Missions", "one_liner": "Long-running research" },
+            { "id": "sessions", "label": "Sessions", "one_liner": "Conversational context" },
+            { "id": "knowledge", "label": "Knowledge", "one_liner": "Imported knowledge" }
         ]);
     }
-    // Marque les nœuds gérés par le système (tools.*/system.*) : l'UI affiche un 🔒 et
-    // l'agent ne peut pas les muter (garde-fou `noeud_reserve`). L'admin peut les éditer.
+    // Mark system-managed nodes (tools.*/system.*): the UI shows a 🔒 and
+    // the agent cannot mutate them (`noeud_reserve` guard). The admin can edit them.
     if let Some(arr) = nodes.as_array_mut() {
         for n in arr.iter_mut() {
             if let Some(id) = n.get("id").and_then(|v| v.as_str()) {
@@ -3532,7 +3532,7 @@ async fn api_memory_tree(State(state): State<Arc<AppState>>) -> Json<serde_json:
     }))
 }
 
-/// GET /api/memory/stats — counts (items/nodes/mutations) for the SPA.
+/// GET /api/memory/stats - counts (items/nodes/mutations) for the SPA.
 async fn api_memory_stats(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     Json(
         state
@@ -3543,7 +3543,7 @@ async fn api_memory_stats(State(state): State<Arc<AppState>>) -> Json<serde_json
     )
 }
 
-/// GET /api/memory/mutations?limit=50 — audit log of recent memory mutations.
+/// GET /api/memory/mutations?limit=50 - audit log of recent memory mutations.
 async fn api_memory_mutations(
     State(state): State<Arc<AppState>>,
     axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
@@ -3558,8 +3558,8 @@ async fn api_memory_mutations(
     )
 }
 
-/// GET /api/memory/export_okf?dir=okf-export&node=<id> — exporte en bundle OKF dans un dossier
-/// serveur. `node` optionnel = n'exporte que ce nœud + son sous-arbre (sinon toute la carte).
+/// GET /api/memory/export_okf?dir=okf-export&node=<id> - exports an OKF bundle into a server
+/// folder. Optional `node` = exports only that node + its subtree (otherwise the whole map).
 async fn api_memory_export_okf(
     State(state): State<Arc<AppState>>,
     axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
@@ -3579,7 +3579,7 @@ async fn api_memory_export_okf(
     }
 }
 
-/// Zippe récursivement le contenu d'un dossier dans un buffer mémoire (entrées relatives à `base`).
+/// Recursively zips a folder's content into an in-memory buffer (entries relative to `base`).
 fn zip_dir_to_bytes(base: &std::path::Path) -> std::io::Result<Vec<u8>> {
     use std::io::{Cursor, Write};
     let mut buf = Vec::new();
@@ -3607,16 +3607,16 @@ fn zip_dir_to_bytes(base: &std::path::Path) -> std::io::Result<Vec<u8>> {
     Ok(buf)
 }
 
-/// GET /api/memory/export.zip?node=<id> — exporte le bundle OKF et le renvoie en .zip
-/// TÉLÉCHARGEABLE (Content-Disposition), sans rien écrire durablement côté projet.
-/// `node` optionnel = nœud courant + sous-arbre ; sinon toute la mémoire.
+/// GET /api/memory/export.zip?node=<id> - exports the OKF bundle and returns it as a
+/// DOWNLOADABLE .zip (Content-Disposition), without writing anything durable on the project side.
+/// Optional `node` = current node + subtree; otherwise the whole memory.
 async fn api_memory_export_zip(
     State(state): State<Arc<AppState>>,
     axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Result<axum::response::Response, StatusCode> {
     use axum::response::IntoResponse;
     let node = q.get("node").map(|s| s.as_str()).filter(|s| !s.is_empty());
-    // Dossier temporaire isolé (nettoyé après lecture).
+    // Isolated temporary folder (cleaned up after reading).
     let tmp = std::env::temp_dir().join(format!("laruche-okf-{}", Uuid::new_v4()));
     let result = state
         .memoire
@@ -3647,7 +3647,7 @@ async fn api_memory_export_zip(
         .into_response())
 }
 
-/// POST /api/memory/import_okf?dir=okf-export — importe un bundle OKF.
+/// POST /api/memory/import_okf?dir=okf-export - imports an OKF bundle.
 async fn api_memory_import_okf(
     State(state): State<Arc<AppState>>,
     axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
@@ -3878,7 +3878,7 @@ mod session_display_tests {
     }
 }
 
-/// GET /api/sessions/:id/messages — get session messages (with ownership check).
+/// GET /api/sessions/:id/messages - get session messages (with ownership check).
 async fn api_get_session_messages(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -3924,7 +3924,7 @@ async fn api_get_session_messages(
     }
 }
 
-/// GET /api/sessions/search?q=query — search across all sessions.
+/// GET /api/sessions/search?q=query - search across all sessions.
 async fn api_search_sessions(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -3979,7 +3979,7 @@ async fn api_search_sessions(
     Json(serde_json::json!(results))
 }
 
-/// GET /api/sessions/:id/export — export a session as Markdown.
+/// GET /api/sessions/:id/export - export a session as Markdown.
 // TODO: Add PDF export support (e.g. via printpdf or headless Chrome).
 //       For now, only Markdown export is implemented.
 async fn api_export_session(
@@ -4054,7 +4054,7 @@ async fn api_export_session(
     Ok(md)
 }
 
-/// POST /api/sessions/:id/fork — fork (branch) a session (with ownership check).
+/// POST /api/sessions/:id/fork - fork (branch) a session (with ownership check).
 async fn api_fork_session(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -4087,7 +4087,7 @@ async fn api_fork_session(
     })))
 }
 
-/// GET /api/cron — list scheduled tasks.
+/// GET /api/cron - list scheduled tasks.
 async fn api_list_cron(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let cron = state.essaim_cron.read().await;
     let tasks: Vec<serde_json::Value> = cron
@@ -4128,7 +4128,7 @@ struct SpawnAgentResponse {
     status: String,
 }
 
-/// POST /api/agents/spawn — launch a subagent dynamically.
+/// POST /api/agents/spawn - launch a subagent dynamically.
 async fn api_spawn_subagent(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -4240,14 +4240,14 @@ async fn api_spawn_subagent(
     }))
 }
 
-/// POST /api/cron — create a scheduled task.
+/// POST /api/cron - create a scheduled task.
 /// Body: {"name": "...", "prompt": "...", "cron_expr": "*/5 * * * *"} or {"fire_at": "ISO8601"}
 async fn api_create_cron(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    // Admin only — cron tasks execute agent prompts
+    // Admin only: cron tasks execute agent prompts
     let users = state.users.read().await;
     let (_, is_admin) = auth_user::check_admin(&headers, &state.cookie_secret, &users);
     drop(users);
@@ -4312,7 +4312,7 @@ async fn api_create_cron(
     laruche_essaim::feed_journal::record(
         "User",
         "cron",
-        "a créé la tâche planifiée",
+        "created the scheduled task",
         cron_name,
         chrono::Utc::now(),
     );
@@ -4322,7 +4322,7 @@ async fn api_create_cron(
     ))
 }
 
-/// DELETE /api/cron/:id — remove a scheduled task.
+/// DELETE /api/cron/:id - remove a scheduled task.
 async fn api_delete_cron(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -4336,14 +4336,14 @@ async fn api_delete_cron(
     StatusCode::NOT_FOUND
 }
 
-/// POST /api/cron/:id/run — exécute immédiatement le prompt d'un cron (spawn).
-// ─── Missions (« La Reine ») ────────────────────────────────────────────────
-/// GET /api/missions — liste les missions au long cours.
+/// POST /api/cron/:id/run - immediately runs a cron's prompt (spawn).
+// --- Missions ("La Reine") --------------------------------------------------
+/// GET /api/missions - lists long-running missions.
 async fn api_list_missions(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     Json(serde_json::json!(state.missions.read().await.list()))
 }
 
-/// POST /api/missions — crée une mission. Body: {objective, slug?, cadence?}.
+/// POST /api/missions - creates a mission. Body: {objective, slug?, cadence?}.
 async fn api_create_mission(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
@@ -4354,7 +4354,7 @@ async fn api_create_mission(
         .trim()
         .to_string();
     if objective.is_empty() {
-        return Json(serde_json::json!({"error": "objective requis"}));
+        return Json(serde_json::json!({"error": "objective required"}));
     }
     let slug = body["slug"]
         .as_str()
@@ -4387,15 +4387,15 @@ async fn api_create_mission(
     laruche_essaim::feed_journal::record(
         "User",
         "mission",
-        "a créé la mission",
+        "created the mission",
         slug.clone(),
         chrono::Utc::now(),
     );
     Json(serde_json::json!({"status": "ok", "slug": slug}))
 }
 
-/// Lance UNE itération de mission (réutilisé par l'API ET le daemon de cadence) : l'agent lit
-/// l'état capitalisé sous `missions.<slug>`, avance d'une étape et y écrit ses trouvailles.
+/// Runs ONE mission iteration (reused by the API AND the cadence daemon): the agent reads
+/// the accumulated state under `missions.<slug>`, advances one step and writes its findings there.
 async fn lancer_iteration_mission(state: Arc<AppState>, mission: missions::Mission) -> u32 {
     let slug = mission.slug.clone();
     let node_id = format!("missions.{}", slug);
@@ -4419,16 +4419,16 @@ async fn lancer_iteration_mission(state: Arc<AppState>, mission: missions::Missi
     let channel = mission.channel.clone();
     let run_state = state.clone();
     tokio::spawn(async move {
-        // Provider/modèle de la mission (sinon défaut global).
+        // Mission provider/model (otherwise global default).
         let mut cfg = run_state.essaim_config.read().await.clone();
         if let Some(pid) = &profile_id {
             appliquer_profil(&run_state, &mut cfg, pid, model_override.as_deref()).await;
         } else if let Some(m) = &model_override {
             cfg.model = m.clone();
         }
-        // Canal d'origine → un cron créé par la mission y répondra ; sert aussi de cible de livraison.
+        // Origin channel -> a cron created by the mission will reply there; also used as delivery target.
         cfg.origin_channel = channel.clone();
-        // Anti-réplication : une itération de mission ne crée pas de tâches planifiées.
+        // Anti-replication: a mission iteration does not create scheduled tasks.
         for t in ["cron_create", "watcher_create", "mission_create", "kanban_create"] {
             if !cfg.disabled_tools.iter().any(|d| d == t) {
                 cfg.disabled_tools.push(t.to_string());
@@ -4452,11 +4452,11 @@ async fn lancer_iteration_mission(state: Arc<AppState>, mission: missions::Missi
             .write()
             .await
             .mark_run(&slug, chrono::Utc::now().to_rfc3339());
-        // Livraison du bilan au canal de la mission (si défini ; sinon travail de fond muet).
+        // Deliver the report to the mission's channel (if set; otherwise silent background work).
         if let (Some(ch), Ok(bilan)) = (channel.as_ref(), &result) {
             let txt = bilan.trim();
             if !txt.is_empty() {
-                livrer_telegram(ch, &format!("📋 Mission « {slug} » — itération {iteration} :\n\n{txt}"))
+                livrer_telegram(ch, &format!("📋 Mission \"{slug}\" - iteration {iteration}:\n\n{txt}"))
                     .await;
             }
         }
@@ -4464,11 +4464,11 @@ async fn lancer_iteration_mission(state: Arc<AppState>, mission: missions::Missi
     iteration
 }
 
-/// Livraison minimale d'un message texte sur un canal Telegram (`telegram:<chat_id>`).
-/// No-op si le canal n'est pas Telegram ou si le bot n'est pas configuré.
+/// Minimal text-message delivery to a Telegram channel (`telegram:<chat_id>`).
+/// No-op if the channel is not Telegram or the bot is not configured.
 async fn livrer_telegram(channel: &str, text: &str) {
     if !channel.starts_with("telegram") {
-        return; // autres canaux : à étendre (discord/slack) ultérieurement
+        return; // other channels: to extend (discord/slack) later
     }
     let chat_id = channel.strip_prefix("telegram:").unwrap_or("").trim();
     if chat_id.is_empty() {
@@ -4492,7 +4492,7 @@ async fn livrer_telegram(channel: &str, text: &str) {
         .await;
 }
 
-/// GET /api/butinage/carnets — liste les carnets de butinage INACHEVÉS (repris possibles).
+/// GET /api/butinage/carnets - lists UNFINISHED butinage notebooks (resumable).
 async fn api_carnets_list() -> Json<serde_json::Value> {
     let dir = std::path::Path::new("sessions").join("butinage");
     let mut out = Vec::new();
@@ -4523,7 +4523,7 @@ async fn api_carnets_list() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "carnets": out }))
 }
 
-/// POST /api/butinage/carnets/:id/resume — REPREND un carnet inachevé (arrière-plan).
+/// POST /api/butinage/carnets/:id/resume - RESUMES an unfinished notebook (background).
 async fn api_carnet_resume(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -4532,7 +4532,7 @@ async fn api_carnet_resume(
         .join("butinage")
         .join(format!("{id}.carnet.json"));
     if !path.exists() {
-        return Json(serde_json::json!({ "error": "carnet introuvable" }));
+        return Json(serde_json::json!({ "error": "notebook not found" }));
     }
     let st = state.clone();
     let id_spawn = id.clone();
@@ -4554,34 +4554,34 @@ async fn api_carnet_resume(
                 laruche_essaim::feed_journal::record(
                     "LaRuche",
                     "mission",
-                    "a repris et terminé un carnet",
+                    "resumed and finished a notebook",
                     id_spawn,
                     chrono::Utc::now(),
                 );
                 if let Some(ch) = cfg.home_channel.as_ref() {
-                    livrer_telegram(ch, &format!("✅ Carnet repris — terminé :\n\n{}", txt.trim()))
+                    livrer_telegram(ch, &format!("✅ Notebook resumed - finished:\n\n{}", txt.trim()))
                         .await;
                 }
             }
-            Err(e) => warn!(error = %e, "Reprise de carnet échouée"),
+            Err(e) => warn!(error = %e, "Notebook resume failed"),
         }
     });
     Json(serde_json::json!({ "status": "resuming", "id": id }))
 }
 
-/// POST /api/missions/:slug/run — déclenche UNE itération.
+/// POST /api/missions/:slug/run - triggers ONE iteration.
 async fn api_run_mission(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(slug): axum::extract::Path<String>,
 ) -> Json<serde_json::Value> {
     let Some(mission) = state.missions.read().await.get(&slug) else {
-        return Json(serde_json::json!({"error": "mission introuvable"}));
+        return Json(serde_json::json!({"error": "mission not found"}));
     };
     let iteration = lancer_iteration_mission(state.clone(), mission).await;
     Json(serde_json::json!({"status": "started", "slug": slug, "iteration": iteration}))
 }
 
-/// Contenus (items) d'un nœud mémoire.
+/// Contents (items) of a memory node.
 fn items_of(node: &serde_json::Value) -> Vec<String> {
     node["items"]
         .as_array()
@@ -4593,14 +4593,14 @@ fn items_of(node: &serde_json::Value) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// GET /api/missions/:slug/dossier — assemble le DOSSIER de la mission (synthèse + trouvailles
-/// + questions ouvertes, depuis la carte cognitive) en markdown prêt à lire/exporter.
+/// GET /api/missions/:slug/dossier - assembles the mission DOSSIER (synthesis + findings
+/// + open questions, from the cognitive map) as markdown ready to read/export.
 async fn api_mission_dossier(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(slug): axum::extract::Path<String>,
 ) -> Json<serde_json::Value> {
     let Some(mission) = state.missions.read().await.get(&slug) else {
-        return Json(serde_json::json!({"error": "mission introuvable"}));
+        return Json(serde_json::json!({"error": "mission not found"}));
     };
     let base = format!("missions.{}", slug);
     let read = |suffix: &str| {
@@ -4619,23 +4619,23 @@ async fn api_mission_dossier(
     let findings = read("findings").await;
     let questions = read("questions").await;
 
-    let mut md = format!("# Mission : {}\n\n", mission.objective);
+    let mut md = format!("# Mission: {}\n\n", mission.objective);
     md.push_str(&format!(
-        "_Itérations : {} · statut : {}_\n\n",
+        "_Iterations: {} - status: {}_\n\n",
         mission.iterations, mission.status
     ));
     if let Some(s) = synthese.last() {
-        md.push_str(&format!("## Synthèse\n\n{}\n\n", s));
+        md.push_str(&format!("## Synthesis\n\n{}\n\n", s));
     }
     if !findings.is_empty() {
-        md.push_str("## Trouvailles\n\n");
+        md.push_str("## Findings\n\n");
         for f in &findings {
             md.push_str(&format!("- {}\n", f));
         }
         md.push('\n');
     }
     if !questions.is_empty() {
-        md.push_str("## Questions ouvertes\n\n");
+        md.push_str("## Open questions\n\n");
         for q in &questions {
             md.push_str(&format!("- {}\n", q));
         }
@@ -4650,7 +4650,7 @@ async fn api_mission_dossier(
     }))
 }
 
-/// POST /api/missions/:slug — met à jour une mission (status pause/active/done, objectif, cadence).
+/// POST /api/missions/:slug - updates a mission (status pause/active/done, objective, cadence).
 async fn api_update_mission(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(slug): axum::extract::Path<String>,
@@ -4658,7 +4658,7 @@ async fn api_update_mission(
 ) -> Json<serde_json::Value> {
     let mut store = state.missions.write().await;
     let Some(mut m) = store.get(&slug) else {
-        return Json(serde_json::json!({"error": "mission introuvable"}));
+        return Json(serde_json::json!({"error": "mission not found"}));
     };
     if let Some(s) = body["status"].as_str() {
         m.status = s.to_string();
@@ -4676,7 +4676,7 @@ async fn api_update_mission(
     Json(serde_json::json!({"status": "ok", "slug": slug}))
 }
 
-/// DELETE /api/missions/:slug — supprime une mission (la métadonnée ; le savoir reste en mémoire).
+/// DELETE /api/missions/:slug - deletes a mission (the metadata; the knowledge stays in memory).
 async fn api_delete_mission(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(slug): axum::extract::Path<String>,
@@ -4685,10 +4685,10 @@ async fn api_delete_mission(
     Json(serde_json::json!({"status": if ok {"ok"} else {"not_found"}, "slug": slug}))
 }
 
-/// Orbite niveau 2 — DÉCOMPOSE une mission en tâches kanban parallèles (une par question
-/// ouverte, sinon un angle à couvrir). Le dispatcher kanban les exécute (recherche), chaque
-/// tâche écrivant ses trouvailles dans le sous-arbre de la mission. Les skills sont forgés
-/// automatiquement (background_review) à chaque tour. Réutilise tout l'existant.
+/// Level-2 orbit - DECOMPOSES a mission into parallel kanban tasks (one per open
+/// question, otherwise an angle to cover). The kanban dispatcher executes them (research), each
+/// task writing its findings into the mission's subtree. Skills are forged
+/// automatically (background_review) each turn. Reuses everything that exists.
 async fn decomposer_mission(
     state: &Arc<AppState>,
     mission: &missions::Mission,
@@ -4705,7 +4705,7 @@ async fn decomposer_mission(
         .unwrap_or_default();
     let cibles: Vec<String> = if questions.is_empty() {
         vec![format!(
-            "Couvrir l'angle clé le plus important encore non traité de l'objectif : {}",
+            "Cover the most important key angle of the objective still not addressed: {}",
             mission.objective
         )]
     } else {
@@ -4715,20 +4715,20 @@ async fn decomposer_mission(
     let mut n = 0;
     for q in cibles {
         let desc = format!(
-            "Mission « {obj} ». Traite cette question de recherche : « {q} ».\n\
-             Fais une recherche web approfondie, puis écris tes trouvailles SOURCÉES via memory_write \
-             sous le node_id `{base}.findings` (un fait = un item clair). Sois rigoureux et factuel.",
+            "Mission \"{obj}\". Address this research question: \"{q}\".\n\
+             Do thorough web research, then write your SOURCED findings via memory_write \
+             under the node_id `{base}.findings` (one fact = one clear item). Be rigorous and factual.",
             obj = mission.objective,
             q = q,
             base = base
         );
         let task = board.create(
-            format!("Mission {} — recherche", mission.slug),
+            format!("Mission {} - research", mission.slug),
             desc,
             None,
             None,
             None,
-            None, // canal : la mission livre son propre résultat
+            None, // channel: the mission delivers its own result
         );
         board.change_status(task.id, laruche_kanban::TaskStatus::Ready);
         n += 1;
@@ -4739,13 +4739,13 @@ async fn decomposer_mission(
     n
 }
 
-/// POST /api/missions/:slug/decompose — éclate la mission en tâches kanban parallèles.
+/// POST /api/missions/:slug/decompose - splits the mission into parallel kanban tasks.
 async fn api_decompose_mission(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(slug): axum::extract::Path<String>,
 ) -> Json<serde_json::Value> {
     let Some(mission) = state.missions.read().await.get(&slug) else {
-        return Json(serde_json::json!({"error": "mission introuvable"}));
+        return Json(serde_json::json!({"error": "mission not found"}));
     };
     let n = decomposer_mission(&state, &mission, 4).await;
     Json(serde_json::json!({"status": "ok", "slug": slug, "tasks_created": n}))
@@ -4773,8 +4773,8 @@ async fn api_run_cron(
             cfg.provider = p;
         }
         cfg.model = task.model.clone().unwrap_or_else(|| cfg.model.clone());
-        // Injection des skills attachés (même logique que le daemon), en sautant
-        // les skills désactivés via le slider de la page Skills.
+        // Inject attached skills (same logic as the daemon), skipping
+        // skills disabled via the Skills page slider.
         let disabled_sk = cfg.disabled_skills.clone();
         let mut skills_charges: Vec<(String, String)> = Vec::new();
         for skill_name in task.skills.iter().filter(|s| !disabled_sk.contains(s)) {
@@ -4810,7 +4810,7 @@ async fn api_run_cron(
     Json(serde_json::json!({"status": "started"}))
 }
 
-/// PUT /api/cron/:id — met à jour un cron (édition / décalage d'horaire).
+/// PUT /api/cron/:id - updates a cron (editing / schedule shift).
 async fn api_update_cron(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -4873,9 +4873,9 @@ async fn api_update_cron(
     Json(serde_json::json!({"status": "ok"}))
 }
 
-// ─── Skills (OKF en mémoire, capacities.skills.*) — page Settings ────────────────
+// --- Skills (OKF in memory, capacities.skills.*) - Settings page ----------------
 
-/// GET /api/skills — liste les skills (nom, description, enabled).
+/// GET /api/skills - lists skills (name, description, enabled).
 async fn api_list_skills(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let disabled = state.essaim_config.read().await.disabled_skills.clone();
     let mut out: Vec<serde_json::Value> = Vec::new();
@@ -4888,7 +4888,7 @@ async fn api_list_skills(State(state): State<Arc<AppState>>) -> Json<serde_json:
                     .strip_prefix("capacities.skills.")
                     .unwrap_or(id)
                     .to_string();
-                // Charge le contenu pour extraire la description.
+                // Load the content to extract the description.
                 let mut description = child["label"].as_str().unwrap_or("").to_string();
                 if let Ok(node) = state.memoire.read_node(id).await {
                     if let Some(items) = node["items"].as_array() {
@@ -4918,7 +4918,7 @@ async fn api_list_skills(State(state): State<Arc<AppState>>) -> Json<serde_json:
     Json(serde_json::json!(out))
 }
 
-/// GET /api/skills/:name — retourne le SKILL.md (OKF) complet.
+/// GET /api/skills/:name - returns the full SKILL.md (OKF).
 async fn api_get_skill(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(name): axum::extract::Path<String>,
@@ -4938,7 +4938,7 @@ async fn api_get_skill(
     Json(serde_json::json!({"error": "not found"}))
 }
 
-/// POST /api/skills — crée/met à jour un skill (body: {content} OKF, ou {name, content}).
+/// POST /api/skills - creates/updates a skill (body: {content} OKF, or {name, content}).
 async fn api_upsert_skill(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -4952,7 +4952,7 @@ async fn api_upsert_skill(
         Ok(s) if !s.meta.name.trim().is_empty() => s,
         _ => {
             return Json(
-                serde_json::json!({"error": "frontmatter invalide (name/description requis, type: skill)"}),
+                serde_json::json!({"error": "invalid frontmatter (name/description required, type: skill)"}),
             )
         }
     };
@@ -4967,7 +4967,7 @@ async fn api_upsert_skill(
     }
 }
 
-/// POST /api/skills/:name/toggle — active/désactive un skill (persisté).
+/// POST /api/skills/:name/toggle - enables/disables a skill (persisted).
 async fn api_toggle_skill(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -4990,7 +4990,7 @@ async fn api_toggle_skill(
     Json(serde_json::json!({"status": "ok", "name": name, "enabled": enabled}))
 }
 
-/// DELETE /api/skills/:name — supprime le skill (items du nœud) + nettoie l'état.
+/// DELETE /api/skills/:name - deletes the skill (node items) + cleans up the state.
 async fn api_delete_skill(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -5009,7 +5009,7 @@ async fn api_delete_skill(
     Json(serde_json::json!({"status": "ok"}))
 }
 
-/// GET /api/watchers — list watchers.
+/// GET /api/watchers - list watchers.
 async fn api_list_watchers(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let registry = state.watchers.read().await;
     let watchers: Vec<serde_json::Value> = registry
@@ -5033,7 +5033,7 @@ async fn api_list_watchers(State(state): State<Arc<AppState>>) -> Json<serde_jso
     Json(serde_json::json!(watchers))
 }
 
-/// POST /api/watchers — create a watcher.
+/// POST /api/watchers - create a watcher.
 async fn api_create_watcher(
     State(state): State<Arc<AppState>>,
     axum::extract::Json(body): axum::extract::Json<serde_json::Value>,
@@ -5089,15 +5089,15 @@ async fn api_create_watcher(
     laruche_essaim::feed_journal::record(
         "User",
         "watcher",
-        "a créé le watcher",
+        "created the watcher",
         log_name,
         chrono::Utc::now(),
     );
     StatusCode::CREATED
 }
 
-/// PATCH /api/watchers/:id — met à jour les champs éditables d'un watcher. Clé absente =
-/// champ inchangé ; model/profile_id à "" = effacé.
+/// PATCH /api/watchers/:id - updates a watcher's editable fields. Absent key =
+/// field unchanged; model/profile_id set to "" = cleared.
 async fn api_update_watcher(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -5113,7 +5113,7 @@ async fn api_update_watcher(
         _ => laruche_watchers::WatcherType::File,
     });
     let s = |k: &str| body.get(k).and_then(|v| v.as_str()).map(|v| v.to_string());
-    // Présence de la clé → mise à jour (valeur vide = effacement pour model/profile_id).
+    // Key present -> update (empty value = clear for model/profile_id).
     let opt = |k: &str| {
         body.get(k)
             .map(|v| v.as_str().filter(|x| !x.is_empty()).map(|x| x.to_string()))
@@ -5138,7 +5138,7 @@ async fn api_update_watcher(
     }
 }
 
-/// DELETE /api/watchers/:id — remove a watcher.
+/// DELETE /api/watchers/:id - remove a watcher.
 async fn api_delete_watcher(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -5152,13 +5152,13 @@ async fn api_delete_watcher(
     StatusCode::NOT_FOUND
 }
 
-/// GET /api/kanban — list all tasks
+/// GET /api/kanban - list all tasks
 async fn api_kanban_list(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let board = state.kanban_board.read().await;
     Json(serde_json::json!(board.list()))
 }
 
-/// POST /api/kanban — create task
+/// POST /api/kanban - create task
 async fn api_kanban_create(
     State(state): State<Arc<AppState>>,
     axum::extract::Json(body): axum::extract::Json<serde_json::Value>,
@@ -5180,15 +5180,15 @@ async fn api_kanban_create(
     laruche_essaim::feed_journal::record(
         "User",
         "kanban",
-        "a créé la tâche kanban",
+        "created the kanban task",
         log_title,
         chrono::Utc::now(),
     );
     StatusCode::CREATED
 }
 
-/// GET /api/channels/known — canaux RÉELS connus (pour peupler les dropdowns).
-/// Agrège : home channel + canaux des crons + défaut/tâches kanban + watchers. Dédupliqué.
+/// GET /api/channels/known - known REAL channels (to populate the dropdowns).
+/// Aggregates: home channel + cron channels + kanban default/tasks + watchers. Deduplicated.
 async fn api_channels_known(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     use std::collections::BTreeSet;
     let mut set: BTreeSet<String> = BTreeSet::new();
@@ -5221,7 +5221,7 @@ async fn api_channels_known(State(state): State<Arc<AppState>>) -> Json<serde_js
     }))
 }
 
-/// GET /api/kanban/default_channel — canal par défaut du board.
+/// GET /api/kanban/default_channel - board's default channel.
 async fn api_kanban_default_channel_get(
     State(state): State<Arc<AppState>>,
 ) -> Json<serde_json::Value> {
@@ -5229,7 +5229,7 @@ async fn api_kanban_default_channel_get(
     Json(serde_json::json!({ "channel": ch }))
 }
 
-/// POST /api/kanban/default_channel {channel} — définit le canal par défaut du board.
+/// POST /api/kanban/default_channel {channel} - sets the board's default channel.
 async fn api_kanban_default_channel_set(
     State(state): State<Arc<AppState>>,
     axum::extract::Json(body): axum::extract::Json<serde_json::Value>,
@@ -5239,7 +5239,7 @@ async fn api_kanban_default_channel_set(
     StatusCode::OK
 }
 
-/// PUT /api/kanban/:id/status — update status
+/// PUT /api/kanban/:id/status - update status
 async fn api_kanban_update_status(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -5265,7 +5265,7 @@ async fn api_kanban_update_status(
     StatusCode::NOT_FOUND
 }
 
-/// PUT /api/kanban/:id — update title/description.
+/// PUT /api/kanban/:id - update title/description.
 async fn api_kanban_update(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -5275,7 +5275,7 @@ async fn api_kanban_update(
         let title = body["title"].as_str().map(|s| s.to_string());
         let description = body["description"].as_str().map(|s| s.to_string());
         let mut board = state.kanban_board.write().await;
-        // Canal par tâche : présent dans le body (même vide) → on l'applique (vide = hérite défaut).
+        // Per-task channel: present in the body (even empty) -> apply it (empty = inherit default).
         if body.get("channel").is_some() {
             board.set_channel(uuid, body["channel"].as_str().map(|s| s.to_string()));
         }
@@ -5286,7 +5286,7 @@ async fn api_kanban_update(
     StatusCode::NOT_FOUND
 }
 
-/// POST /api/kanban/:id/dependency — block child by parent
+/// POST /api/kanban/:id/dependency - block child by parent
 async fn api_kanban_add_dependency(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(id): axum::extract::Path<String>,
@@ -5319,7 +5319,7 @@ async fn api_kanban_delete(
     StatusCode::NOT_FOUND
 }
 
-/// GET /api/doctor — system health check and configuration validation.
+/// GET /api/doctor - system health check and configuration validation.
 async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let mut checks = Vec::new();
 
@@ -5376,12 +5376,12 @@ async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde_json::Valu
     checks.push(serde_json::json!({
         "name": "STT Service",
         "status": if stt_found { "ok" } else { "warning" },
-        "detail": if stt_found { "Available" } else { "Not found — voice input disabled" },
+        "detail": if stt_found { "Available" } else { "Not found - voice input disabled" },
     }));
     checks.push(serde_json::json!({
         "name": "TTS Service",
         "status": if tts_found { "ok" } else { "warning" },
-        "detail": if tts_found { "Available" } else { "Not found — voice output disabled" },
+        "detail": if tts_found { "Available" } else { "Not found - voice output disabled" },
     }));
 
     // Check sessions directory
@@ -5426,7 +5426,7 @@ async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde_json::Valu
     checks.push(serde_json::json!({
         "name": "Browser (Chrome/Edge)",
         "status": if chrome_found { "ok" } else { "warning" },
-        "detail": if chrome_found { "Available for browser_navigate/screenshot" } else { "Not found — browser tools disabled" },
+        "detail": if chrome_found { "Available for browser_navigate/screenshot" } else { "Not found - browser tools disabled" },
     }));
 
     // Check TLS configuration
@@ -5435,7 +5435,7 @@ async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde_json::Valu
     checks.push(serde_json::json!({
         "name": "TLS/HTTPS",
         "status": if tls_configured { "ok" } else { "warning" },
-        "detail": if tls_configured { "TLS enabled" } else { "Not configured — using plain HTTP" },
+        "detail": if tls_configured { "TLS enabled" } else { "Not configured - using plain HTTP" },
     }));
 
     // Abeilles count
@@ -5455,8 +5455,8 @@ async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde_json::Valu
     }))
 }
 
-/// GET /api/onboarding — guided setup checklist.
-/// GET /api/config/channels — read channel configuration.
+/// GET /api/onboarding - guided setup checklist.
+/// GET /api/config/channels - read channel configuration.
 async fn api_get_channels_config() -> Json<serde_json::Value> {
     let path = std::path::Path::new("channels-config.json");
     if path.exists() {
@@ -5473,7 +5473,7 @@ async fn api_get_channels_config() -> Json<serde_json::Value> {
     }))
 }
 
-/// POST /api/config/channels — save channel configuration.
+/// POST /api/config/channels - save channel configuration.
 async fn api_save_channels_config(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -5547,7 +5547,7 @@ async fn api_set_notify_config(
     }
 }
 
-// ─── Mode de permission (Always ask / Auto / Plan…) ─────────────────────────
+// --- Permission mode (Always ask / Auto / Plan...) --------------------------
 
 fn permission_mode_to_str(m: laruche_essaim::PermissionMode) -> &'static str {
     use laruche_essaim::PermissionMode::*;
@@ -5572,22 +5572,22 @@ fn permission_mode_from_str(s: &str) -> Option<laruche_essaim::PermissionMode> {
     }
 }
 
-/// GET /api/config/permission — current permission mode + available options.
+/// GET /api/config/permission - current permission mode + available options.
 async fn api_get_permission_config(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let mode = state.essaim_config.read().await.permission_mode;
     Json(serde_json::json!({
         "mode": permission_mode_to_str(mode),
         "modes": [
-            {"id": "default",     "label": "Demander si nécessaire (défaut)"},
-            {"id": "acceptEdits", "label": "Accepter les éditions de fichiers"},
-            {"id": "plan",        "label": "Plan — lecture seule"},
-            {"id": "bubble",      "label": "Toujours demander"},
-            {"id": "auto",        "label": "Tout autoriser (ignorer permissions)"},
+            {"id": "default",     "label": "Ask when necessary (default)"},
+            {"id": "acceptEdits", "label": "Accept file edits"},
+            {"id": "plan",        "label": "Plan - read-only"},
+            {"id": "bubble",      "label": "Always ask"},
+            {"id": "auto",        "label": "Allow everything (ignore permissions)"},
         ],
     }))
 }
 
-/// POST /api/config/permission — set the permission mode (auth required, persisted).
+/// POST /api/config/permission - set the permission mode (auth required, persisted).
 async fn api_set_permission_config(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -5608,20 +5608,20 @@ async fn api_set_permission_config(
     })))
 }
 
-/// GET /api/config/curateur — état du curateur (auto-skills/tools).
+/// GET /api/config/curateur - curateur state (auto-skills/tools).
 async fn api_get_curateur_config(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let ec = state.essaim_config.read().await;
     let env_force = std::env::var("RUCHE_CURATEUR").as_deref() == Ok("1");
     Json(serde_json::json!({
         "enabled": ec.curateur_actif,
-        // si l'env force l'activation, on le signale pour que l'UI l'explique
+        // if the env forces activation, flag it so the UI can explain it
         "env_forced": env_force,
-        // toggle co-localisé : sélection dynamique des outils (prompt léger / petits modèles)
+        // co-located toggle: dynamic tool selection (lightweight prompt / small models)
         "dynamic_tools": ec.dynamic_tool_selection,
     }))
 }
 
-/// POST /api/config/curateur — active/désactive le curateur (auth, persisté).
+/// POST /api/config/curateur - enables/disables the curateur (auth, persisted).
 async fn api_set_curateur_config(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -5642,12 +5642,12 @@ async fn api_set_curateur_config(
     Ok(Json(serde_json::json!({ "status": "ok" })))
 }
 
-/// GET /api/secrets — liste les NOMS de secrets (JAMAIS les valeurs).
+/// GET /api/secrets - lists secret NAMES (NEVER the values).
 async fn api_secrets_list() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "names": laruche_essaim::secrets::noms() }))
 }
 
-/// POST /api/secrets — définit/maj un secret {name, value} (auth, chiffré au repos).
+/// POST /api/secrets - sets/updates a secret {name, value} (auth, encrypted at rest).
 async fn api_secrets_set(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -5658,7 +5658,7 @@ async fn api_secrets_set(
     }
     let name = body["name"].as_str().unwrap_or("").trim().to_string();
     let value = body["value"].as_str().unwrap_or("").to_string();
-    // Nom propre pour `${NOM}` : lettres/chiffres/underscore uniquement.
+    // Clean name for `${NAME}`: letters/digits/underscore only.
     if name.is_empty()
         || value.is_empty()
         || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
@@ -5672,7 +5672,7 @@ async fn api_secrets_set(
     StatusCode::OK
 }
 
-/// DELETE /api/secrets/:name — supprime un secret (auth).
+/// DELETE /api/secrets/:name - deletes a secret (auth).
 async fn api_secrets_delete(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -5688,10 +5688,10 @@ async fn api_secrets_delete(
     StatusCode::OK
 }
 
-/// POST /mcp — **serveur MCP** (JSON-RPC, transport « Streamable HTTP »). Expose les abeilles
-/// de LaRuche comme outils MCP → n'importe quel client MCP (Claude Code, Cursor, third-party…)
-/// peut piloter LaRuche. Sécurité opt-in : si `LARUCHE_MCP_TOKEN` est défini, exige l'en-tête
-/// `X-LaRuche-MCP-Token` correspondant (sinon ouvert — usage local POC).
+/// POST /mcp - **MCP server** (JSON-RPC, "Streamable HTTP" transport). Exposes LaRuche's abeilles
+/// as MCP tools -> any MCP client (Claude Code, Cursor, third-party...)
+/// can drive LaRuche. Opt-in security: if `LARUCHE_MCP_TOKEN` is set, requires the matching
+/// `X-LaRuche-MCP-Token` header (otherwise open - local POC usage).
 async fn api_mcp_server(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -5702,7 +5702,7 @@ async fn api_mcp_server(
     let err = |code: i64, msg: String| {
         Json(serde_json::json!({"jsonrpc":"2.0","id":id,"error":{"code":code,"message":msg}}))
     };
-    // Garde-fou opt-in par token (recommandé si exposé hors localhost).
+    // Opt-in token guard (recommended if exposed outside localhost).
     if let Ok(tok) = std::env::var("LARUCHE_MCP_TOKEN") {
         let got = headers.get("x-laruche-mcp-token").and_then(|v| v.to_str().ok());
         if got != Some(tok.as_str()) {
@@ -5718,7 +5718,7 @@ async fn api_mcp_server(
             "capabilities": { "tools": {} },
             "serverInfo": { "name": "laruche", "version": env!("CARGO_PKG_VERSION") }
         })),
-        // Notifications (pas de réponse attendue) → on renvoie une enveloppe vide valide.
+        // Notifications (no response expected) -> return a valid empty envelope.
         m if m.starts_with("notifications/") => Json(serde_json::json!({"jsonrpc":"2.0"})),
         "tools/list" => {
             let schema = state.essaim_registry.schema_complet();
