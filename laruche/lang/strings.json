@@ -4638,5 +4638,9 @@
   "toast.saved": {
     "en": "Saved",
     "fr": "Enregistré"
+  },
+  "console.zeroEntries": {
+    "en": "0 entries",
+    "fr": "0 entrées"
   }
 }
