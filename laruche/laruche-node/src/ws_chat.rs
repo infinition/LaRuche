@@ -485,7 +485,7 @@ pub(crate) async fn ws_chat_connection(
                                             event_json_avec_session(&thinking, session_id).into(),
                                         )).await;
                                         let (verdict, revised, analyse) =
-                                            reine_api::revue_complete(&state, &user_text, full_response)
+                                            reine_api::revue_complete(&state, session_id, &user_text, full_response)
                                                 .await
                                                 .unwrap_or_default();
                                         let ev = laruche_essaim::ChatEvent::Status {

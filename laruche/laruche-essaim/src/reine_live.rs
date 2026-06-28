@@ -6,12 +6,17 @@
 //! Best-effort: any provider or parse failure returns None so a review can never
 //! block or break a turn.
 
+use crate::brain::{boucle_react_memoire_multimodal, ChatEvent, EssaimConfig};
 use crate::providers::provider_chat_stream;
 use crate::reine_juge::{construire_prompt, parser_scorecard, DemandeJugement};
+use crate::session::Session;
+use crate::AbeilleRegistry;
 use futures_util::StreamExt;
 use laruche_butinage::cap::reine::{
     Action, Avis, ConfigReine, ModeReine, Reine, Scorecard, Tier,
 };
+use laruche_memoire::MemoireCognitive;
+use std::sync::Arc;
 
 /// Resolved provider credentials for one LLM call (judge or worker).
 #[derive(Debug, Clone)]
@@ -137,86 +142,28 @@ fn ligne_verdict(card: &Scorecard) -> String {
     }
 }
 
-/// Judge the answer and return a ready-to-display verdict line, or None if the
-/// review could not run. Convenience over [`juger_avec`] for the node.
+/// The full Tier 1 loop with REAL rework: judge the answer, and while LaReine asks
+/// for a revision and the round budget allows, send the worker back to **redo the
+/// work** (a fresh agentic run with its tools, not a text reformulation), then judge
+/// again. Stops when she approves, escalates, or the budget is reached. Bounded by
+/// the round budget so it cannot run away.
+///
+/// The rework streams to a throwaway channel, so its internal steps stay silent;
+/// only the final answer surfaces. `session` is a working copy (the node persists
+/// the final answer to the real session afterwards).
 #[allow(clippy::too_many_arguments)]
-pub async fn juger_et_formater(
-    provider: &str,
-    model: &str,
-    api_key: &str,
-    api_base: Option<&str>,
-    ollama_url: &str,
-    reponse: &str,
-    prompt: &str,
-    charte: &str,
-) -> Option<String> {
-    match juger_avec(
-        provider, model, api_key, api_base, ollama_url, reponse, prompt, charte,
-    )
-    .await
-    {
-        Some(card) => Some(ligne_verdict(&card)),
-        // Visible fallback (instead of vanishing) so it is clear the review ran but
-        // the judge did not return a usable verdict. See logs (target "reine").
-        None => Some("LaReine could not produce a verdict (judge output unusable)".to_string()),
-    }
-}
-
-/// Ask the worker model to rewrite its answer per LaReine's instruction. One call,
-/// no tools: a reformulation, not a fresh agentic run. Returns the revised text.
-async fn regenerer(
-    worker: &ProviderCreds,
-    prompt: &str,
-    answer: &str,
-    instruction: &str,
-) -> Option<String> {
-    let invite = format!(
-        "/no_think\nYou wrote the answer below for the user. Your supervisor LaReine asks you to revise it.\n\n\
-         User request:\n{prompt}\n\nYour answer:\n{answer}\n\nRevision instruction:\n{instruction}\n\n\
-         Apply the instruction in good faith. If part of it is clearly wrong or would make the answer \
-         worse, keep what was already correct rather than degrading it. Reply with ONLY the revised \
-         answer, in the user's language, with no preamble and no mention of this revision."
-    );
-    let messages = vec![serde_json::json!({ "role": "user", "content": invite })];
-    let mut stream = provider_chat_stream(
-        &worker.provider,
-        &worker.model,
-        &messages,
-        0.7,
-        2048,
-        &worker.api_key,
-        worker.api_base.as_deref(),
-        &worker.ollama_url,
-        None,
-    )
-    .await
-    .ok()?;
-    let mut out = String::new();
-    while let Some(chunk) = stream.next().await {
-        out.push_str(&chunk.text);
-    }
-    // Drop any chain-of-thought the model still emitted.
-    let out = match out.rfind("</think>") {
-        Some(pos) => out[pos + "</think>".len()..].trim().to_string(),
-        None => out.trim().to_string(),
-    };
-    (!out.is_empty()).then_some(out)
-}
-
-/// The full Tier 1 review-revise loop: judge the answer, and while LaReine asks
-/// for a revision and the round budget allows, have the worker rewrite it, then
-/// judge again. Stops when she approves, escalates, or the budget is reached. The
-/// loop is bounded by [`ConfigReine::revues_effectives`], so it cannot run away.
-#[allow(clippy::too_many_arguments)]
-pub async fn revue_et_revise(
+pub async fn revue_et_refaire(
     juge: &ProviderCreds,
-    worker: &ProviderCreds,
     charte: &str,
-    prompt: &str,
+    user_prompt: &str,
     answer_initial: &str,
     mode: &str,
     max_revues: u8,
     seuil: u8,
+    session: &mut Session,
+    registry: &AbeilleRegistry,
+    config: &EssaimConfig,
+    memoire: Arc<dyn MemoireCognitive>,
 ) -> Revision {
     let cfg = ConfigReine {
         mode: ModeReine::depuis_str(mode),
@@ -232,6 +179,8 @@ pub async fn revue_et_revise(
     let mut revised = false;
     let mut rounds = 0u8;
     let mut analyse = String::new();
+    // The rework runs silently: its streaming goes to a throwaway channel.
+    let (muet, _muet_rx) = tokio::sync::broadcast::channel::<ChatEvent>(256);
 
     loop {
         let card = match juger_avec(
@@ -241,7 +190,7 @@ pub async fn revue_et_revise(
             juge.api_base.as_deref(),
             &juge.ollama_url,
             &answer,
-            prompt,
+            user_prompt,
             charte,
         )
         .await
@@ -257,14 +206,32 @@ pub async fn revue_et_revise(
         match reine.juger(&card) {
             Action::Reviser { tour, instruction } => {
                 journal.push(format!("LaReine round {tour}: {}", instruction.trim()));
-                match regenerer(worker, prompt, &answer, &instruction).await {
-                    Some(new_answer) => {
+                let consigne = format!(
+                    "[Your supervisor LaReine reviewed your previous answer and sends you back to redo \
+                     the work properly. Apply this in good faith; if part is clearly wrong, keep what \
+                     was already right. Use your tools if needed, and reply in the user's language.]\n\n{}",
+                    instruction.trim()
+                );
+                match boucle_react_memoire_multimodal(
+                    &consigne,
+                    session,
+                    registry,
+                    config,
+                    &muet,
+                    memoire.clone(),
+                    Vec::new(),
+                    None,
+                    None,
+                )
+                .await
+                {
+                    Ok(new_answer) if !new_answer.trim().is_empty() => {
                         answer = new_answer;
                         revised = true;
                         rounds = tour;
                     }
-                    None => {
-                        journal.push("LaReine: the revision could not be generated".into());
+                    _ => {
+                        journal.push("LaReine: the rework could not be completed".into());
                         break;
                     }
                 }

@@ -185,11 +185,12 @@ async fn resoudre_creds(
 }
 
 /// Full Tier 1 review for a finished answer: judge it, and if LaReine asks for a
-/// revision (within the round budget) have the worker rewrite it, then re-judge.
-/// Returns a verdict summary line and, when the answer was rewritten, the final
-/// revised text. None when the Reine is inactive.
+/// revision (within the round budget) send the worker back to **redo the work** (a
+/// fresh agentic run with its tools), then re-judge. Returns a verdict summary line
+/// and, when the answer was redone, the final text. None when the Reine is inactive.
 pub(crate) async fn revue_complete(
     state: &AppState,
+    session_id: uuid::Uuid,
     prompt: &str,
     reponse: &str,
 ) -> Option<(String, Option<String>, String)> {
@@ -215,17 +216,7 @@ pub(crate) async fn revue_complete(
             )
         }
     };
-    // Worker (for the rewrite): the active model.
-    let (w_pid, w_model) = {
-        let pr = state.profiles.read().await;
-        (
-            pr.active_model.profile_id.clone(),
-            pr.active_model.model.clone(),
-        )
-    };
-
     let juge = resoudre_creds(state, &j_pid, &j_model).await;
-    let worker = resoudre_creds(state, &w_pid, &w_model).await;
 
     // Editable rubric (`system.prompt_reine`), else the charter default.
     let charte = laruche_essaim::brain::charger_doc_systeme(&state.memoire, "system.prompt_reine")
@@ -233,28 +224,51 @@ pub(crate) async fn revue_complete(
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| laruche_essaim::reine_live::prompt_reine_defaut().to_string());
 
+    // Working copy of the session + the worker config (active profile) for the rework.
+    let mut session = state.essaim_sessions.read().await.get(&session_id).cloned()?;
+    let config = state.essaim_config.read().await.clone();
+
     tracing::info!(
         target: "reine",
         judge = %juge.model,
-        worker = %worker.model,
         max_revues = rs.max_revues,
-        "review-revise running"
+        "review + rework running"
     );
 
-    let rev = laruche_essaim::reine_live::revue_et_revise(
+    let rev = laruche_essaim::reine_live::revue_et_refaire(
         &juge,
-        &worker,
         &charte,
         prompt,
         reponse,
         &rs.mode,
         rs.max_revues,
         rs.seuil_confiance,
+        &mut session,
+        &state.essaim_registry,
+        &config,
+        state.memoire.clone(),
     )
     .await;
 
+    // Persist the redone answer into the real session (replace the last assistant
+    // message), so the conversation continues from LaReine's approved version.
+    if rev.revised {
+        let mut sessions = state.essaim_sessions.write().await;
+        if let Some(s) = sessions.get_mut(&session_id) {
+            if let Some(m) = s
+                .messages
+                .iter_mut()
+                .rev()
+                .find(|m| matches!(m, laruche_essaim::session::Message::Assistant(_)))
+            {
+                *m = laruche_essaim::session::Message::Assistant(rev.final_answer.clone());
+            }
+            let _ = s.sauvegarder();
+        }
+    }
+
     let summary = if rev.revised {
-        format!("LaReine revised the answer ({} round(s))", rev.rounds)
+        format!("LaReine sent it back to be redone ({} round(s))", rev.rounds)
     } else {
         rev.journal
             .last()
