@@ -333,21 +333,6 @@ pub(crate) async fn ws_chat_connection(
                 config.model = model.clone();
             }
 
-            // LaReine supervisor settings for this turn (from laruche-reine.json). Off by default.
-            {
-                let rs = reine_api::charger_reine_settings();
-                config.reine = laruche_essaim::brain::ReineConfig {
-                    mode: rs.mode,
-                    max_revues: rs.max_revues,
-                    seuil_confiance: rs.seuil_confiance,
-                    tier_reponse: rs.tier_reponse,
-                    tier_artefacts: rs.tier_artefacts,
-                    tier_supervision: rs.tier_supervision,
-                    queue_gate: rs.queue_gate,
-                    provider_profile: rs.provider_profile,
-                };
-            }
-
             let result = boucle_react_memoire_multimodal(
                 &user_text_clone,
                 &mut session,
@@ -464,6 +449,20 @@ pub(crate) async fn ws_chat_connection(
                     match event_result {
                         Ok(event) => {
                             update_active_context_stats(&state, session_id, &event).await;
+                            // LaReine Tier 1 review: on Done, judge the answer and emit the verdict
+                            // BEFORE forwarding Done (which closes the stream). No-op unless enabled.
+                            if let laruche_essaim::ChatEvent::Done { full_response } = &event {
+                                if let Some(verdict) =
+                                    reine_api::revue_verdict(&state, &user_text, full_response).await
+                                {
+                                    let ev = laruche_essaim::ChatEvent::Status { message: verdict };
+                                    let _ = sender
+                                        .send(ws::Message::Text(
+                                            event_json_avec_session(&ev, session_id).into(),
+                                        ))
+                                        .await;
+                                }
+                            }
                             let json = event_json_avec_session(&event, session_id);
                             if sender.send(ws::Message::Text(json.into())).await.is_err() {
                                 done = true;

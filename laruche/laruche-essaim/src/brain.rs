@@ -1861,22 +1861,8 @@ pub async fn boucle_react_memoire_multimodal(
         .await;
     });
 
-    // LaReine advisory review (Tier 1): non-blocking, best-effort. Judges the answer
-    // and emits a verdict status. Strict no-op unless enabled for responses.
-    if cfg.reine.actif_reponse() {
-        // Editable rubric from the cognitive map (`system.prompt_reine`), hot-reloaded.
-        let charte_reine = charger_doc_systeme(&memoire, "system.prompt_reine").await;
-        let (rep, pr, cfg_reine, tx_reine) = (
-            reponse.clone(),
-            prompt_utilisateur.to_string(),
-            cfg.clone(),
-            tx.clone(),
-        );
-        tokio::spawn(async move {
-            crate::reine_live::revue_reponse_advisory(&rep, &pr, &cfg_reine, charte_reine, &tx_reine)
-                .await;
-        });
-    }
+    // LaReine Tier 1 review runs node-side on `Done` (it resolves LaReine's own
+    // provider and emits the verdict before the turn closes). See `reine_api`.
 
     Ok(reponse)
 }
@@ -2577,7 +2563,7 @@ fn parser_frontmatter_enabled(content: &str) -> (bool, String) {
 
 /// Load a system document (`system.prompt`, `system.soul`) from the cognitive map:
 /// take the node's last item, read its frontmatter. Returns the body if enabled and non-empty.
-pub(crate) async fn charger_doc_systeme(
+pub async fn charger_doc_systeme(
     memoire: &Arc<dyn MemoireCognitive>,
     node_id: &str,
 ) -> Option<String> {

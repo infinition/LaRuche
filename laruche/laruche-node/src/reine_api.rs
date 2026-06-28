@@ -127,3 +127,71 @@ pub(crate) async fn api_set_reine_config(
     sauver_reine_settings(&cfg).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(serde_json::json!({ "status": "ok" })))
 }
+
+impl ReineSettings {
+    /// Is Tier 1 review active for chat responses?
+    fn active_for_responses(&self) -> bool {
+        self.mode != "off" && self.max_revues > 0 && self.tier_reponse
+    }
+}
+
+/// Run LaReine's Tier 1 advisory review for a finished chat answer and return a
+/// verdict line to display, or None if the Reine is inactive or the judge failed.
+/// Resolves LaReine's own provider profile, falling back to the worker config.
+pub(crate) async fn revue_verdict(state: &AppState, prompt: &str, reponse: &str) -> Option<String> {
+    let rs = charger_reine_settings();
+    if !rs.active_for_responses() || reponse.trim().is_empty() {
+        return None;
+    }
+
+    // Base = worker config; override with LaReine's provider profile when set.
+    let (mut provider, mut model, mut api_key, mut api_base, mut ollama_url) = {
+        let ec = state.essaim_config.read().await;
+        (
+            ec.provider.clone(),
+            ec.model.clone(),
+            ec.api_key.clone(),
+            ec.api_base.clone(),
+            ec.ollama_url.clone(),
+        )
+    };
+    if let Some(pp) = rs.provider_profile.as_deref().filter(|s| !s.is_empty()) {
+        let mut parts = pp.split("|||");
+        let pid = parts.next().unwrap_or("");
+        let pmodel = parts.next().unwrap_or("");
+        {
+            let profiles = state.profiles.read().await;
+            if let Some(p) = profiles.profiles.get(pid) {
+                provider = p.provider.clone();
+                api_key = p.api_key.clone();
+                if p.provider == "ollama" {
+                    ollama_url = p.base_url.clone();
+                    api_base = None;
+                } else {
+                    api_base = Some(p.base_url.clone());
+                }
+            }
+        }
+        if !pmodel.is_empty() {
+            model = pmodel.to_string();
+        }
+    }
+
+    // Editable rubric (`system.prompt_reine`), else the code default.
+    let charte = laruche_essaim::brain::charger_doc_systeme(&state.memoire, "system.prompt_reine")
+        .await
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| laruche_essaim::reine_live::prompt_reine_defaut().to_string());
+
+    laruche_essaim::reine_live::juger_et_formater(
+        &provider,
+        &model,
+        &api_key,
+        api_base.as_deref(),
+        &ollama_url,
+        reponse,
+        prompt,
+        &charte,
+    )
+    .await
+}
