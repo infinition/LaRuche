@@ -19,7 +19,7 @@ LaRuche.i18n.add({
   'dashboard.capVlm':                {fr:'👁️ Vision',                     en:'👁️ Vision'},
   'dashboard.capVla':                {fr:'🦾 Vision-Action',               en:'🦾 Vision-Action'},
   'dashboard.myLocalModel':          {fr:'Mon modèle local',               en:'My local model'},
-  'dashboard.remoteModel':           {fr:'Modèle distant (ruche {name})',  en:'Remote model (hive {name})'},
+  'dashboard.remoteModel':           {fr:'Modèle distant (ruche {name})',  en:'Remote model (ruche {name})'},
   'dashboard.selected':              {fr:'● SÉLECTIONNÉ',                 en:'● SELECTED'},
   'dashboard.myLocal':               {fr:'🖥️ à moi (local)',               en:'🖥️ mine (local)'},
   'dashboard.used':                  {fr:'✓ Utilisé',                     en:'✓ In use'},

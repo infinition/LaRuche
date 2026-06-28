@@ -158,7 +158,7 @@ fn mesh_auth_headers(path: &str) -> Vec<(&'static str, String)> {
     }
 }
 /// Mesh signature headers for an outgoing call: membership MAC (mesh code) +
-/// ed25519 IDENTITY signature (X-Miel-From + X-Miel-Sig) proving which hive is calling.
+/// ed25519 IDENTITY signature (X-Miel-From + X-Miel-Sig) proving which ruche is calling.
 /// Exposed for the "global signer" consumed by the inference path (providers).
 pub fn sign_headers(path: &str) -> Vec<(String, String)> {
     let mut h: Vec<(String, String)> = mesh_auth_headers(path)
@@ -231,7 +231,7 @@ pub fn mesh_auth_ok(headers: &axum::http::HeaderMap, path: &str) -> Option<bool>
 }
 
 // ─── Strong per-node identity: ed25519 keypair (5.3) ────────────────────────
-// The mesh code proves MEMBERSHIP (symmetric). The keypair proves WHICH hive signs
+// The mesh code proves MEMBERSHIP (symmetric). The keypair proves WHICH ruche signs
 // (asymmetric, non-forgeable), basis of safe `restricted` and of encryption / off-LAN.
 // Persisted in identity.json (`secret` field = 32-byte hex seed), alongside the node_id.
 

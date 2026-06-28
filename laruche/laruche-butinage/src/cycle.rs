@@ -4,7 +4,7 @@
 //!
 //! Flow of one pass: assemble the context, call the model (with weather),
 //! `analyser` the response into an [`Issue`], `cap` decides, act (post / relaunch /
-//! harvest), checkpoint.
+//! récolte), checkpoint.
 
 use crate::cap::boussole::{cap, Decision};
 use crate::cap::vigie::Vigie;

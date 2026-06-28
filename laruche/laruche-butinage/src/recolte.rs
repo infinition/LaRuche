@@ -58,7 +58,7 @@ pub async fn recolter(
             }
             if a_lancer.len() > 1 {
                 emet.emettre(Evenement::Statut(format!(
-                    "Parallel harvest of {} tools...",
+                    "Parallel récolte of {} tools...",
                     a_lancer.len()
                 )));
             }

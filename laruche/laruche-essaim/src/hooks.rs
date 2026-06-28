@@ -7,7 +7,7 @@
 //!
 //! **Global** access (like [`crate::feed_journal`]/[`crate::secrets`]) to avoid threading the
 //! config everywhere: the node loads `hooks.json` at boot ([`init`]), the engine calls
-//! [`run_pre`]/[`run_post`] in the harvest loop. The tool name and its JSON arguments
+//! [`run_pre`]/[`run_post`] in the récolte loop. The tool name and its JSON arguments
 //! are passed to the hook via the `LARUCHE_TOOL` and `LARUCHE_ARGS` environment variables.
 
 use serde::{Deserialize, Serialize};

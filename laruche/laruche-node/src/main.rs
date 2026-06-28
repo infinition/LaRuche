@@ -1881,7 +1881,7 @@ async fn api_v1_chat_completions(
             profiles::Visibilite::Restricted => {
                 match verified_inference_caller(&headers, &addr).await {
                     Some(nid) if allowed.iter().any(|a| a == &nid) => {} // allowed
-                    Some(_) => return refus("Hive not authorized for this model (restricted)."),
+                    Some(_) => return refus("Ruche not authorized for this model (restricted)."),
                     None => return refus("Mesh identity required/invalid for a restricted model."),
                 }
             }
@@ -3421,7 +3421,7 @@ async fn api_feed(
     }
 
     // 6) Direct messages (DM) from the mesh -> first building block of the global feed. Actor = the PEER (purple
-    //    hive) for received ones; Me for sent ones.
+    //    ruche) for received ones; Me for sent ones.
     for m in read_inbox() {
         let (actor, action, akind) = if m.dir == "out" {
             ("User".to_string(), format!("wrote to {}", m.peer_name), "user")
@@ -9453,7 +9453,7 @@ async fn main() -> Result<()> {
 
     let mut manifest = CognitiveManifest::new(config.node_name.clone(), config.tier);
     // PERSISTENT IDENTITY (identity.json). Without it, node_id = Uuid::new_v4() at EVERY startup:
-    // the hive appears as a NEW node to peers at every reboot (the old one expires) → this is
+    // the ruche appears as a NEW node to peers at every reboot (the old one expires) → this is
     // a direct cause of flapping. We load the saved ID, or persist the generated one.
     {
         let id_path = std::path::Path::new("identity.json");
@@ -9889,7 +9889,7 @@ async fn main() -> Result<()> {
         (
             "system.prompt_curateur",
             "Curateur Prompt",
-            "Self-improvement curator prompt (empty = code default, hot-reload)",
+            "Self-improvement curateur prompt (empty = code default, hot-reload)",
         ),
         (
             "system.prompt_extraction",
@@ -11171,7 +11171,7 @@ async fn main() -> Result<()> {
     sync_essaim_from_profiles(&state).await;
 
     // L3 (slice 2): AUTO memory SYNC from peer nodes (Miel), every 5 min: each
-    // node pulls+dedups the others' facts → COLLECTIVE memory of the hive, without cloud.
+    // node pulls+dedups the others' facts → COLLECTIVE memory of the ruche, without cloud.
     {
         let sync_state = state.clone();
         tokio::spawn(async move {

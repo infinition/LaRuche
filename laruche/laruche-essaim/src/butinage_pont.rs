@@ -278,7 +278,7 @@ fn retirer_bloc(t: &str, tag: &str) -> String {
 
 // ───────────────────────── Tools (registry) ─────────────────────────
 
-/// Tools interpreted as delegation to a scout (sub-agent).
+/// Tools interpreted as delegation to an éclaireuse (sub-agent).
 const OUTILS_DELEGATION: &[&str] = &["delegate", "delegate_task", "deleguer", "spawn_specialist"];
 
 struct OutilsPont<'a> {
@@ -289,9 +289,9 @@ struct OutilsPont<'a> {
     disabled: Vec<String>,
     tx: broadcast::Sender<ChatEvent>,
     /// Approval channel (UI popup) for mutating tools in `Ask` permission mode.
-    /// `None` for scouts (autonomous) or when the UI does not provide one: auto-approved.
+    /// `None` for éclaireuses (autonomous) or when the UI does not provide one: auto-approved.
     /// `Mutex` because the `Outils::executer` trait takes `&self`; mutating tools are
-    /// executed sequentially (harvest): no contention.
+    /// executed sequentially (récolte): no contention.
     approval: Option<&'a tokio::sync::Mutex<crate::brain::ApprovalReceiver>>,
 }
 
@@ -306,7 +306,7 @@ impl OutilsPont<'_> {
         but::ResultatOutil::echec(motif)
     }
 
-    /// Dispatches a scout (butinage sub-agent) with an isolated context.
+    /// Dispatches an éclaireuse (butinage sub-agent) with an isolated context.
     async fn deleguer(&self, appel: &but::Appel) -> but::ResultatOutil {
         let role = appel
             .args
@@ -333,7 +333,7 @@ impl OutilsPont<'_> {
             iteration: None,
         });
         let _ = self.tx.send(ChatEvent::Status {
-            message: format!("🐝 Scout ({role:?}) dispatched: {tache}"),
+            message: format!("🐝 Éclaireuse ({role:?}) dispatched: {tache}"),
         });
 
         // CHILD adapters: delegation disabled (anti-recursion).
@@ -360,7 +360,7 @@ impl OutilsPont<'_> {
             working_dir: self.working_dir.clone(),
             disabled,
             tx: self.tx.clone(),
-            approval: None, // scouts are autonomous: no popup
+            approval: None, // éclaireuses are autonomous: no popup
         };
         let emet = EmetteurPont { tx: self.tx.clone() };
 
@@ -376,7 +376,7 @@ impl OutilsPont<'_> {
         .await
         {
             Ok(rapport) => but::ResultatOutil::ok(rapport.en_observation()),
-            Err(e) => but::ResultatOutil::echec(format!("scout failed: {e}")),
+            Err(e) => but::ResultatOutil::echec(format!("éclaireuse failed: {e}")),
         };
 
         let _ = self.tx.send(ChatEvent::ToolResult {
@@ -407,7 +407,7 @@ impl but::Outils for OutilsPont<'_> {
             return self.bloquer(&appel.nom, "Blocked: tool disabled in Settings".into());
         }
 
-        // Delegation: dispatch a scout (butinage sub-agent) instead of running
+        // Delegation: dispatch an éclaireuse (butinage sub-agent) instead of running
         // a tool. `delegate` is disabled in the child: a single recursion level.
         if OUTILS_DELEGATION.contains(&appel.nom.as_str()) {
             return self.deleguer(appel).await;
@@ -426,7 +426,7 @@ impl but::Outils for OutilsPont<'_> {
         }
 
         // Permission engine: Deny blocks; Dangerous always refused; Ask triggers the
-        // approval popup (UI) and waits for the response. Without a channel (scout/auto): passes.
+        // approval popup (UI) and waits for the response. Without a channel (éclaireuse/auto): passes.
         let danger = self
             .registry
             .get(&appel.nom)
@@ -640,7 +640,7 @@ impl but::Source for SourcePont {
 
 // ───────────────────────── Curateur (auto-skills & tools) ─────────────────────────
 
-/// Tools allowed to the curator (whitelist). Everything else is disabled for this sub-run.
+/// Tools allowed to the curateur (whitelist). Everything else is disabled for this sub-run.
 const CURATEUR_OUTILS: &[&str] = &[
     "skill_list",
     "skill_view",
@@ -658,9 +658,9 @@ const CURATEUR_OUTILS: &[&str] = &[
     "task_complete",
 ];
 
-/// The curator's **rock-solid framing prompt** ("mega skill" to follow to the letter).
+/// The curateur's **rock-solid framing prompt** ("mega skill" to follow to the letter).
 /// Inspired by third-party' background-review, extended to TOOLS/plugins + verification.
-const PROMPT_CURATEUR: &str = r#"You are the CURATOR of the hive's capability library - a background reviewer that runs AFTER a mission. The main conversation is untouched by you.
+const PROMPT_CURATEUR: &str = r#"You are the CURATEUR of the ruche's capability library - a background reviewer that runs AFTER a mission. The main conversation is untouched by you.
 
 ## Be CONSERVATIVE - the DEFAULT outcome is "Nothing to save."
 The library must stay SMALL and HIGH-VALUE. Creating a skill is the EXCEPTION, not the rule. Most ordinary missions warrant NOTHING. A skill is justified ONLY when ALL of these hold:
@@ -694,7 +694,7 @@ A user CORRECTION or stated PREFERENCE ("stop doing X", "always format like Y") 
 ## Output
 Almost always: call `task_complete` with "Nothing to save." Only when the strict bar above is clearly met, make ONE update and call `task_complete` with a one-line summary."#;
 
-/// Curator tools: OWNED version (Arc) for a 'static background spawn.
+/// Curateur tools: OWNED version (Arc) for a 'static background spawn.
 /// Restricted to the whitelist; applies the injection guard + permissions like `OutilsPont`.
 struct OutilsCurateur {
     registry: Arc<AbeilleRegistry>,
@@ -708,7 +708,7 @@ impl but::Outils for OutilsCurateur {
     async fn executer(&self, appel: &but::Appel) -> but::ResultatOutil {
         if !self.permis.contains(&appel.nom) {
             return but::ResultatOutil::echec(format!(
-                "Tool '{}' is not available to the curator.",
+                "Tool '{}' is not available to the curateur.",
                 appel.nom
             ));
         }
@@ -795,7 +795,7 @@ fn tronque(s: &str) -> String {
     s.chars().take(2000).collect()
 }
 
-/// Renders session messages (laruche) as a text transcript for the curator.
+/// Renders session messages (laruche) as a text transcript for the curateur.
 fn rendre_session_messages(messages: &[crate::Message]) -> String {
     use crate::Message as M;
     let mut out = Vec::new();
@@ -878,9 +878,9 @@ fn slug_simple(s: &str) -> String {
         .to_string()
 }
 
-/// Launches the curator in the BACKGROUND (everything owned: `tokio::spawn` from the node).
+/// Launches the curateur in the BACKGROUND (everything owned: `tokio::spawn` from the node).
 /// Best-effort: creates/patches VERIFIED skills & plugins, dedup before creation.
-/// Curator default prompt (to expose it in the "restore default" UI).
+/// Curateur default prompt (to expose it in the "restore default" UI).
 pub fn prompt_curateur_defaut() -> &'static str {
     PROMPT_CURATEUR
 }
@@ -953,15 +953,15 @@ pub async fn lancer_curateur_arriere_plan(
     };
 
     let _ = tx.send(ChatEvent::Status {
-        message: "🐝 Curator: reviewing capabilities in the background...".into(),
+        message: "🐝 Curateur: reviewing capabilities in the background...".into(),
     });
     match but::butiner(&mut carnet, &reglages, &four, &outils, &emet, None, None).await {
         Ok(b) => {
             let _ = tx.send(ChatEvent::Status {
-                message: format!("🐝 Curator: {}", b.texte.chars().take(160).collect::<String>()),
+                message: format!("🐝 Curateur: {}", b.texte.chars().take(160).collect::<String>()),
             });
         }
-        Err(e) => tracing::warn!(error = %e, "curator failed"),
+        Err(e) => tracing::warn!(error = %e, "curateur failed"),
     }
 }
 

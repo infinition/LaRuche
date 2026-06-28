@@ -1,4 +1,4 @@
-//! The **éclaireuses**: sub-agents (scout tools) dispatched on a sub-mission.
+//! The **éclaireuses**: sub-agents dispatched on a sub-mission.
 //!
 //! Orchestrator-worker pattern: to avoid polluting the parent's context, a broad
 //! search (or a verification, a synthesis) is handed to an éclaireuse with an
@@ -19,7 +19,7 @@ use anyhow::Result;
 /// Role of the éclaireuse: sets its directive and its budget.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
-    /// Scout: broad search, gathering facts and sources.
+    /// Éclaireuse: broad search, gathering facts and sources.
     Eclaireuse,
     /// Worker: execution/computation of a sub-task.
     Ouvriere,
