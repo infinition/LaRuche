@@ -51,6 +51,7 @@ mod tools_api;
 mod openai_api;
 mod swarm_api;
 mod mcp_api;
+mod status_api;
 
 use anyhow::Result;
 use axum::{
@@ -186,7 +187,7 @@ struct NodeEvent {
 }
 
 #[derive(Debug, Serialize)]
-struct MetricsHistoryResponse {
+pub(crate) struct MetricsHistoryResponse {
     snapshots: Vec<MetricsSnapshot>,
     events: Vec<NodeEvent>,
 }
@@ -949,74 +950,7 @@ async fn instancier_blueprint(
 // Node and swarm API (status, discovered nodes, swarm view, inference, model lists, auth request/approve, default model, activity feed, health, service register) -> moved to swarm_api.rs
 // OpenAI-compatible chat completions endpoint with signed peer verification -> moved to openai_api.rs
 
-async fn api_voice_status(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    let listener = state.listener.read().await;
-    let nodes = listener.get_nodes().await;
-
-    // Service explicitly chosen per capability (otherwise: first found, previous behavior).
-    let (want_stt, want_tts, stt_model, tts_model) = {
-        let sel = state.capability_selection.read().await;
-        (
-            sel.get("stt").and_then(|s| s.node_id.clone()),
-            sel.get("tts").and_then(|s| s.node_id.clone()),
-            sel.get("stt").map(|s| s.model.clone()).unwrap_or_default(),
-            sel.get("tts").map(|s| s.model.clone()).unwrap_or_default(),
-        )
-    };
-
-    let mut stt_available = false;
-    let mut tts_available = false;
-    let mut stt_url = String::new();
-    let mut tts_url = String::new();
-    let mut stt_locked = false; // url locked by user selection
-    let mut tts_locked = false;
-
-    for (_id, node) in &nodes {
-        let nid = node.manifest.node_id.map(|x| x.to_string());
-        let caps: Vec<String> = node
-            .manifest
-            .capabilities
-            .iter()
-            .map(|c| c.to_string())
-            .collect();
-        let url = node
-            .manifest
-            .port
-            .map(|p| format!("http://{}:{}", node.manifest.host, p));
-
-        if caps.iter().any(|c| c == "stt") {
-            stt_available = true;
-            if want_stt.is_some() && nid == want_stt {
-                if let Some(u) = &url {
-                    stt_url = u.clone();
-                }
-                stt_locked = true;
-            } else if !stt_locked && stt_url.is_empty() {
-                if let Some(u) = &url {
-                    stt_url = u.clone();
-                }
-            }
-        }
-        if caps.iter().any(|c| c == "tts") {
-            tts_available = true;
-            if want_tts.is_some() && nid == want_tts {
-                if let Some(u) = &url {
-                    tts_url = u.clone();
-                }
-                tts_locked = true;
-            } else if !tts_locked && tts_url.is_empty() {
-                if let Some(u) = &url {
-                    tts_url = u.clone();
-                }
-            }
-        }
-    }
-
-    Json(serde_json::json!({
-        "stt": { "available": stt_available, "url": stt_url, "selected_model": stt_model, "is_selected": stt_locked },
-        "tts": { "available": tts_available, "url": tts_url, "selected_model": tts_model, "is_selected": tts_locked },
-    }))
-}
+// System status endpoints (voice STT/TTS availability, metrics history) -> moved to status_api.rs
 
 
 // Tool registry endpoints (list tools, get/save tool enablement config) -> moved to tools_api.rs
@@ -1806,7 +1740,7 @@ async fn main() -> Result<()> {
             "/config/default_model",
             get(swarm_api::get_default_model).post(swarm_api::post_set_default_model),
         )
-        .route("/metrics/history", get(get_metrics_history))
+        .route("/metrics/history", get(status_api::get_metrics_history))
         .route("/dashboard", get(web::spa_page))
         .route("/chat", get(web::spa_page))
         .route("/control", get(web::spa_page))
@@ -1865,7 +1799,7 @@ async fn main() -> Result<()> {
         .route("/api/sessions", get(sessions_api::api_list_sessions))
         .route("/api/sessions/search", get(sessions_api::api_search_sessions))
         .route("/api/sessions/:id/messages", get(sessions_api::api_get_session_messages))
-        .route("/api/voice/status", get(api_voice_status))
+        .route("/api/voice/status", get(status_api::api_voice_status))
         .route("/api/webhook", post(local_api::api_webhook))
         .route("/api/preload", post(local_api::api_preload))
         .route("/api/rpc", post(local_api::api_rpc))
@@ -3201,14 +3135,7 @@ fn parse_env_capabilities(default_model: &str) -> Option<Vec<CapabilityConfig>> 
 }
 
 /// GET /metrics/history - Time-series metrics for dashboard charts
-async fn get_metrics_history(State(state): State<Arc<AppState>>) -> Json<MetricsHistoryResponse> {
-    let snapshots = state.metrics_history.read().await;
-    let events = state.node_events.read().await;
-    Json(MetricsHistoryResponse {
-        snapshots: snapshots.iter().cloned().collect(),
-        events: events.iter().cloned().collect(),
-    })
-}
+// get_metrics_history -> moved to status_api.rs
 
 // ── Persistence ──────────────────────────────────────────────────────
 
