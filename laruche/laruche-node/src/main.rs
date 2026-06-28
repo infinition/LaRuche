@@ -22,6 +22,8 @@ mod sync;
 mod systray;
 mod tui;
 mod config_api;
+mod plugins_api;
+mod voice_api;
 mod profiles_api;
 mod knowledge_api;
 mod web;
@@ -8083,361 +8085,8 @@ async fn ws_chat_connection(
     }
 }
 
-// ======================== Voice Pipeline ========================
-
-/// WebSocket handler for voice: receives audio, returns audio.
-/// Protocol:
-///   Client → binary (PCM 16kHz 16-bit mono) or JSON {"type":"config","stt_url":"...","tts_url":"..."}
-///   Server → binary (WAV audio) or JSON {"type":"transcript","text":"..."} / {"type":"error",...}
-async fn ws_audio_handler(
-    ws: WebSocketUpgrade,
-    State(state): State<Arc<AppState>>,
-) -> axum::response::Response {
-    ws.on_upgrade(move |socket| ws_audio_connection(socket, state))
-}
-
-async fn ws_audio_connection(socket: ws::WebSocket, state: Arc<AppState>) {
-    use futures_util::{SinkExt, StreamExt};
-
-    let (mut sender, mut receiver) = socket.split();
-
-    // Default STT/TTS endpoints: can be overridden by client config message
-    let mut stt_url = "http://127.0.0.1:8421".to_string();
-    let mut tts_url = "http://127.0.0.1:8422".to_string();
-
-    // Try to discover STT/TTS nodes from Miel listener
-    {
-        let listener = state.listener.read().await;
-        let nodes = listener.get_nodes().await;
-        for (_id, node) in &nodes {
-            let caps: Vec<String> = node
-                .manifest
-                .capabilities
-                .iter()
-                .map(|c| c.to_string())
-                .collect();
-            let host = &node.manifest.host;
-            if caps.iter().any(|c| c == "stt") {
-                if let Some(port) = node.manifest.port {
-                    stt_url = format!("http://{}:{}", host, port);
-                    info!(stt_url = %stt_url, "Discovered STT node via Miel");
-                }
-            }
-            if caps.iter().any(|c| c == "tts") {
-                if let Some(port) = node.manifest.port {
-                    tts_url = format!("http://{}:{}", host, port);
-                    info!(tts_url = %tts_url, "Discovered TTS node via Miel");
-                }
-            }
-        }
-    }
-
-    let _ = sender
-        .send(ws::Message::Text(
-            serde_json::json!({"type": "ready", "stt_url": &stt_url, "tts_url": &tts_url})
-                .to_string()
-                .into(),
-        ))
-        .await;
-
-    let client = reqwest::Client::new();
-
-    while let Some(Ok(msg)) = receiver.next().await {
-        match msg {
-            ws::Message::Binary(audio_data) => {
-                // Step 1: Send audio to STT service
-                let stt_result = client
-                    .post(format!("{}/transcribe", stt_url))
-                    .multipart(
-                        reqwest::multipart::Form::new().part(
-                            "file",
-                            reqwest::multipart::Part::bytes(audio_data.to_vec())
-                                .file_name("audio.wav")
-                                .mime_str("audio/wav")
-                                .unwrap(),
-                        ),
-                    )
-                    .send()
-                    .await;
-
-                let transcript = match stt_result {
-                    Ok(resp) => match resp.json::<serde_json::Value>().await {
-                        Ok(json) => json["text"].as_str().unwrap_or("").to_string(),
-                        Err(e) => {
-                            let _ = sender.send(ws::Message::Text(
-                                    serde_json::json!({"type":"error","message":format!("STT parse error: {}", e)}).to_string().into()
-                                )).await;
-                            continue;
-                        }
-                    },
-                    Err(e) => {
-                        let _ = sender.send(ws::Message::Text(
-                            serde_json::json!({"type":"error","message":format!("STT unavailable: {}", e)}).to_string().into()
-                        )).await;
-                        continue;
-                    }
-                };
-
-                if transcript.is_empty() {
-                    continue;
-                }
-
-                // Send transcript to client
-                let _ = sender
-                    .send(ws::Message::Text(
-                        serde_json::json!({"type":"transcript","text":&transcript})
-                            .to_string()
-                            .into(),
-                    ))
-                    .await;
-
-                // Step 2: Run through ReAct agent
-                let sessions_dir = std::path::Path::new("sessions");
-                let audio_config = state.essaim_config.read().await.clone();
-                let mut session = Session::new_with_path(&audio_config.model, sessions_dir);
-                let (tx, _rx) = broadcast::channel::<ChatEvent>(64);
-
-                let agent_result = boucle_react_memoire(
-                    &transcript,
-                    &mut session,
-                    &state.essaim_registry,
-                    &audio_config,
-                    &tx,
-                    state.memoire.clone(),
-                )
-                .await;
-
-                let response_text = match agent_result {
-                    Ok(text) => text,
-                    Err(e) => {
-                        let _ = sender.send(ws::Message::Text(
-                            serde_json::json!({"type":"error","message":format!("Agent error: {}", e)}).to_string().into()
-                        )).await;
-                        continue;
-                    }
-                };
-
-                // Send text response
-                let _ = sender
-                    .send(ws::Message::Text(
-                        serde_json::json!({"type":"response","text":&response_text})
-                            .to_string()
-                            .into(),
-                    ))
-                    .await;
-
-                // Step 3: Send response to TTS service
-                let tts_result = client
-                    .post(format!("{}/synthesize", tts_url))
-                    .json(&serde_json::json!({"text": &response_text}))
-                    .send()
-                    .await;
-
-                match tts_result {
-                    Ok(resp) if resp.status().is_success() => {
-                        if let Ok(audio_bytes) = resp.bytes().await {
-                            let _ = sender
-                                .send(ws::Message::Binary(audio_bytes.to_vec().into()))
-                                .await;
-                        }
-                    }
-                    Ok(resp) => {
-                        let _ = sender.send(ws::Message::Text(
-                            serde_json::json!({"type":"error","message":format!("TTS error: {}", resp.status())}).to_string().into()
-                        )).await;
-                    }
-                    Err(e) => {
-                        let _ = sender.send(ws::Message::Text(
-                            serde_json::json!({"type":"error","message":format!("TTS unavailable: {}", e)}).to_string().into()
-                        )).await;
-                    }
-                }
-            }
-            ws::Message::Text(text) => {
-                // Config messages
-                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
-                    if json["type"].as_str() == Some("config") {
-                        if let Some(url) = json["stt_url"].as_str() {
-                            stt_url = url.to_string();
-                        }
-                        if let Some(url) = json["tts_url"].as_str() {
-                            tts_url = url.to_string();
-                        }
-                    }
-                }
-            }
-            ws::Message::Close(_) => break,
-            _ => {}
-        }
-    }
-}
-
-// ======================== Plugins API ========================
-
-async fn api_plugin_get(
-    axum::extract::Path(name): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    let path = std::path::Path::new("plugins").join(format!("{}.json", name));
-    if !path.exists() {
-        return Err(StatusCode::NOT_FOUND);
-    }
-    let content = tokio::fs::read_to_string(&path)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(Json(serde_json::json!({ "content": content })))
-}
-
-async fn api_plugin_save(
-    State(state): State<Arc<AppState>>,
-    axum::extract::Path(name): axum::extract::Path<String>,
-    Json(body): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    let content = body["content"].as_str().ok_or(StatusCode::BAD_REQUEST)?;
-    let path = std::path::Path::new("plugins").join(format!("{}.json", name));
-    tokio::fs::create_dir_all("plugins").await.ok();
-    tokio::fs::write(&path, content)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    // Reload plugins
-    let plugins_dir = std::path::Path::new("plugins");
-    laruche_essaim::abeilles::plugins::charger_plugins(plugins_dir, &state.essaim_registry);
-
-    Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
-}
-
-async fn api_plugin_delete(
-    State(state): State<Arc<AppState>>,
-    axum::extract::Path(name): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    let path = std::path::Path::new("plugins").join(format!("{}.json", name));
-    if path.exists() {
-        tokio::fs::remove_file(&path)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    }
-
-    // Reload plugins
-    let plugins_dir = std::path::Path::new("plugins");
-    laruche_essaim::abeilles::plugins::charger_plugins(plugins_dir, &state.essaim_registry);
-
-    Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
-}
-
-// ─── File browser for the plugins/ folder (+ scripts/) ──────────────────────────────
-// View/edit/delete/drop your own scripts (.py/.ps1/.sh/.json...) in addition to JSON.
-// Anti-traversal guard: every path is confined to plugins/.
-
-/// Resolves a relative path INSIDE plugins/, rejecting any escape (`..`, absolute).
-fn plugin_safe_path(rel: &str) -> Option<std::path::PathBuf> {
-    let rel = rel.trim_start_matches(['/', '\\']);
-    if rel.is_empty() {
-        return None;
-    }
-    for comp in std::path::Path::new(rel).components() {
-        use std::path::Component::*;
-        match comp {
-            Normal(_) | CurDir => {}
-            _ => return None, // ParentDir, RootDir, Prefix → refus
-        }
-    }
-    Some(std::path::Path::new("plugins").join(rel))
-}
-
-/// GET /api/plugins/files: flat tree of plugins/ files (recursive, bounded depth).
-async fn api_plugin_files() -> Json<serde_json::Value> {
-    fn walk(
-        dir: &std::path::Path,
-        base: &std::path::Path,
-        depth: usize,
-        out: &mut Vec<serde_json::Value>,
-    ) {
-        if depth > 3 {
-            return;
-        }
-        let Ok(rd) = std::fs::read_dir(dir) else { return };
-        for e in rd.flatten() {
-            let p = e.path();
-            let rel = p
-                .strip_prefix(base)
-                .unwrap_or(&p)
-                .to_string_lossy()
-                .replace('\\', "/");
-            if p.is_dir() {
-                if e.file_name().to_string_lossy() == "__pycache__" {
-                    continue;
-                }
-                out.push(serde_json::json!({ "path": rel, "dir": true }));
-                walk(&p, base, depth + 1, out);
-            } else {
-                let size = e.metadata().map(|m| m.len()).unwrap_or(0);
-                out.push(serde_json::json!({ "path": rel, "dir": false, "size": size }));
-            }
-        }
-    }
-    let base = std::path::Path::new("plugins");
-    let mut out = Vec::new();
-    if base.exists() {
-        walk(base, base, 0, &mut out);
-    }
-    out.sort_by(|a, b| a["path"].as_str().cmp(&b["path"].as_str()));
-    Json(serde_json::json!({ "files": out }))
-}
-
-/// GET /api/plugins/file/*path: content of a file (text, ≤ 512 KiB).
-async fn api_plugin_file_get(
-    axum::extract::Path(path): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    let p = plugin_safe_path(&path).ok_or(StatusCode::BAD_REQUEST)?;
-    let meta = tokio::fs::metadata(&p).await.map_err(|_| StatusCode::NOT_FOUND)?;
-    if meta.len() > 512 * 1024 {
-        return Ok(Json(serde_json::json!({ "binary": true, "size": meta.len() })));
-    }
-    match tokio::fs::read_to_string(&p).await {
-        Ok(content) => Ok(Json(serde_json::json!({ "path": path, "content": content }))),
-        Err(_) => Ok(Json(serde_json::json!({ "binary": true }))),
-    }
-}
-
-/// POST /api/plugins/file/*path {content}: creates/writes a file. Reloads the plugins.
-async fn api_plugin_file_save(
-    State(state): State<Arc<AppState>>,
-    axum::extract::Path(path): axum::extract::Path<String>,
-    Json(body): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    let p = plugin_safe_path(&path).ok_or(StatusCode::BAD_REQUEST)?;
-    let content = body["content"].as_str().unwrap_or("");
-    if let Some(parent) = p.parent() {
-        tokio::fs::create_dir_all(parent).await.ok();
-    }
-    tokio::fs::write(&p, content)
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    laruche_essaim::abeilles::plugins::charger_plugins(
-        std::path::Path::new("plugins"),
-        &state.essaim_registry,
-    );
-    Ok(Json(serde_json::json!({ "status": "ok", "path": path })))
-}
-
-/// DELETE /api/plugins/file/*path: deletes a file. Reloads the plugins.
-async fn api_plugin_file_delete(
-    State(state): State<Arc<AppState>>,
-    axum::extract::Path(path): axum::extract::Path<String>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    let p = plugin_safe_path(&path).ok_or(StatusCode::BAD_REQUEST)?;
-    if p.is_file() {
-        tokio::fs::remove_file(&p)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    }
-    laruche_essaim::abeilles::plugins::charger_plugins(
-        std::path::Path::new("plugins"),
-        &state.essaim_registry,
-    );
-    Ok(Json(serde_json::json!({ "status": "ok", "path": path })))
-}
-
+// Voice pipeline (STT/TTS websocket) -> moved to voice_api.rs
+// Plugins API (plugin CRUD + plugin file browser) -> moved to plugins_api.rs
 // ======================== Main ========================
 
 /// GET /api/mcp/servers
@@ -9233,7 +8882,7 @@ async fn main() -> Result<()> {
         .route("/control", get(web::spa_page))
         .route("/app", get(web::spa_page))
         .route("/ws/chat", get(ws_chat_handler))
-        .route("/ws/audio", get(ws_audio_handler))
+        .route("/ws/audio", get(voice_api::ws_audio_handler))
         .route("/api/tools", get(api_list_tools))
         .route(
             "/api/tools/config",
@@ -9442,16 +9091,16 @@ async fn main() -> Result<()> {
         )
         .route(
             "/api/plugins/:name",
-            get(api_plugin_get)
-                .post(api_plugin_save)
-                .delete(api_plugin_delete),
+            get(plugins_api::api_plugin_get)
+                .post(plugins_api::api_plugin_save)
+                .delete(plugins_api::api_plugin_delete),
         )
-        .route("/api/plugin-files", get(api_plugin_files))
+        .route("/api/plugin-files", get(plugins_api::api_plugin_files))
         .route(
             "/api/plugin-file/*path",
-            get(api_plugin_file_get)
-                .post(api_plugin_file_save)
-                .delete(api_plugin_file_delete),
+            get(plugins_api::api_plugin_file_get)
+                .post(plugins_api::api_plugin_file_save)
+                .delete(plugins_api::api_plugin_file_delete),
         )
         .route("/api/channels/discord/webhook", post(api_discord_webhook))
         .route("/api/channels/slack/events", post(api_slack_events))
