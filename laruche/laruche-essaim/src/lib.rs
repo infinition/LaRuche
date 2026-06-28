@@ -34,6 +34,7 @@ pub mod orchestration;
 pub mod prompt;
 pub mod providers;
 pub mod rag;
+pub mod reine_juge;
 pub mod session;
 pub mod stdout_filter;
 pub mod streaming;
