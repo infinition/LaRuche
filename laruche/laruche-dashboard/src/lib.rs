@@ -4,4 +4,4 @@
 //! The SPA (Single Page Application) is embedded into laruche-node at compile time
 //! via `include_str!("../../laruche-dashboard/src/templates/spa.html")`.
 //!
-//! No runtime binary — templates only.
+//! No runtime binary - templates only.

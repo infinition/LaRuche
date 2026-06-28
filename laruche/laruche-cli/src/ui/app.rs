@@ -25,7 +25,7 @@ enum TuiEvent {
     Plan(Vec<(String, String)>),
     /// Agent thinking / reasoning trace.
     Thinking(String),
-    /// Stream finished — the full response is included.
+    /// Stream finished - the full response is included.
     Done(String),
     /// An error occurred.
     Error(String),

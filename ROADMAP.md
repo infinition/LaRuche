@@ -1,4 +1,4 @@
-# LaRuche — Roadmap
+# LaRuche - Roadmap
 
 > Reste-à-faire **récupéré des anciens docs de conception** (avant archivage dans `docs/_archive/`) + chantiers en cours. Source de vérité du travail restant. Coché = fait.
 
@@ -11,8 +11,8 @@
 - [x] **Optimisations contexte** : champ `tools:` natif respecte la sélection · catalogue outils dé-dupliqué · catalogue **skills dynamique** · pas de corps de skill sur smalltalk · **seuil contexte configurable** (Settings).
 - [x] **Sonde n_ctx** → `context_max_tokens` auto · commandes Telegram (`/help /status /crons /delcron`) · `@@secret` autocomplete · fixes crons (anti-spam/runaway/réplication).
 
-## 🌍 Localisation EN du code (commentaires + chaînes) — en cours
-But : **zéro français dans le code** hors termes de marque LaRuche et fichier i18n. Commentaires pro (pas de tournure « LLM »), **aucun em dash (—)** nulle part. `abeille → tool` (une abeille = un agent qui utilise des tools). Identifiants gardés tels quels (règle utilisateur).
+## 🌍 Localisation EN du code (commentaires + chaînes) - en cours
+But : **zéro français dans le code** hors termes de marque LaRuche et fichier i18n. Commentaires pro (pas de tournure « LLM »), **aucun em dash (-)** nulle part. `abeille → tool` (une abeille = un agent qui utilise des tools). Identifiants gardés tels quels (règle utilisateur).
 - [x] **Webapp** : 9 modules JS + `app.css` + `spa.html`. Commentaires + texte/chaînes → EN, 0 em dash, onglet « Abeilles » → **Tools**. Sentinels backend & valeurs de contrat API (`origin`, `visibility 'prive'`) gardés. Vérif : `node --check`, 0 em dash, 0 commentaire FR. Glossaire de marque (FR) défini.
 - [ ] **Rust** : ~118 fichiers, crate par crate (gate `cargo build` + `cargo test`). Chaînes traduites **prudemment** (humain seulement ; protocole/match/test/sentinel laissés). En cours : `laruche-butinage`.
 - [ ] **Sweep final** : 0 em dash sur tout le projet (542 au départ) + sentinels FR Rust↔JS traduits **conjointement** (`Synthèse LaRuche`, `Erreur LaRuche`, `a demandé/a répondu`, `réponse finale`, matcher `Mémoire`).
@@ -20,14 +20,14 @@ But : **zéro français dans le code** hors termes de marque LaRuche et fichier 
 
 ## 🔧 Reste / near-term (chantiers actifs)
 Suivis dans la liste de tâches du dépôt.
-- [x] **i18n UI — 2ᵉ passe exhaustive** : audit ligne-à-ligne des 9 modules (parser dédié comments/dico/identifiants/CSS exclus). **16 dernières chaînes affichées** migrées (settings ×12, chat ×4). Reste = skips documentés (termes de marque `Abeille`, sentinels backend, identifiants).
-- [ ] **i18n strings runtime côté Rust** : libellés émis par le serveur et streamés dans l'UI — `**Synthèse LaRuche :**` / `**Erreur LaRuche :**` (main.rs ~2279), actions éclaireuse `a demandé` / `a répondu` (main.rs ~3363). **Encore FR**, et les *matchers JS* (memory.js:680, capabilities.js:536) s'y accordent → traduire **les deux ensemble** (sinon on casse la détection). Pas de runtime i18n Rust pour l'instant → effort dédié.
+- [x] **i18n UI - 2ᵉ passe exhaustive** : audit ligne-à-ligne des 9 modules (parser dédié comments/dico/identifiants/CSS exclus). **16 dernières chaînes affichées** migrées (settings ×12, chat ×4). Reste = skips documentés (termes de marque `Abeille`, sentinels backend, identifiants).
+- [ ] **i18n strings runtime côté Rust** : libellés émis par le serveur et streamés dans l'UI - `**Synthèse LaRuche :**` / `**Erreur LaRuche :**` (main.rs ~2279), actions éclaireuse `a demandé` / `a répondu` (main.rs ~3363). **Encore FR**, et les *matchers JS* (memory.js:680, capabilities.js:536) s'y accordent → traduire **les deux ensemble** (sinon on casse la détection). Pas de runtime i18n Rust pour l'instant → effort dédié.
 - [ ] Décider du sort de la page **Sessions** orpheline (`laruche/_archive/test_script.js`).
 - [ ] **Split `main.rs`** (11.7k) en modules node.
 - [ ] **Settings : section « Avancé »** + migrer les params de tuning.
 - [ ] Affinage injection skill body (top-1 + gate stricte).
 - [ ] `/lang fr|en` messages Telegram directs (optionnel).
-- [ ] Découper `app.js`-modules plus finement si besoin (settings/chat sont gros) — optionnel.
+- [ ] Découper `app.js`-modules plus finement si besoin (settings/chat sont gros) - optionnel.
 
 ## 🩹 Dette / récupéré des archives (à trancher)
 - [ ] **`laruche-suggestions`** : crate **orphelin** (0 référence ailleurs) → le **câbler** ou le **supprimer**.
@@ -35,21 +35,21 @@ Suivis dans la liste de tâches du dépôt.
 - [ ] **`cache_control`** (Anthropic prompt caching) : exploiter le cache de préfixe côté cloud.
 - [ ] **`reasoning_effort` par modèle** (effort de raisonnement configurable).
 - [ ] **Vérifier la boucle runtime des watchers** (création OK ; confirmer le déclenchement/livraison de bout en bout).
-- [ ] **Câblage retry `credential_pool`** (rotation de clé sur 429) — à finaliser/vérifier.
-- [ ] **`cargo test --workspace`** complet — jamais relancé en entier.
+- [ ] **Câblage retry `credential_pool`** (rotation de clé sur 429) - à finaliser/vérifier.
+- [ ] **`cargo test --workspace`** complet - jamais relancé en entier.
 
 ## ⚫ Bloqué (matériel)
-- [ ] **Validation mesh A** (fédération des skills) — nécessite **2 nœuds réels**.
+- [ ] **Validation mesh A** (fédération des skills) - nécessite **2 nœuds réels**.
 
 ## 🔭 Vision / long-terme (Miel & essaim)
 *POCs de nœuds spécialisés par capacité (le mesh annonce déjà les `capability:*`) :*
-- [ ] `capability:llm` — nœud texte standard (Mistral/Llama)
-- [ ] `capability:vlm` — Vision-Language (LLaVA, Qwen-VL) : analyse d'image via le réseau
-- [ ] `capability:vla` — Vision-Language-Action : piloter bras robotique / drone
-- [ ] `capability:rag` — nœud indexant des documents locaux, Q&A
-- [ ] `capability:audio` — Whisper/Bark (STT/TTS), commandes vocales réseau
-- [ ] `capability:image` & `capability:embed` — Stable Diffusion / vecteurs à la volée
-- [ ] `capability:code` — CodeLlama/DeepSeek-Coder
+- [ ] `capability:llm` - nœud texte standard (Mistral/Llama)
+- [ ] `capability:vlm` - Vision-Language (LLaVA, Qwen-VL) : analyse d'image via le réseau
+- [ ] `capability:vla` - Vision-Language-Action : piloter bras robotique / drone
+- [ ] `capability:rag` - nœud indexant des documents locaux, Q&A
+- [ ] `capability:audio` - Whisper/Bark (STT/TTS), commandes vocales réseau
+- [ ] `capability:image` & `capability:embed` - Stable Diffusion / vecteurs à la volée
+- [ ] `capability:code` - CodeLlama/DeepSeek-Coder
 
 *Grandes briques :*
 - [ ] **Tensor sharding over Ethernet** (intelligence d'essaim)

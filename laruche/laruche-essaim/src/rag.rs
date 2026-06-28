@@ -1,4 +1,4 @@
-//! RAG (Retrieval-Augmented Generation) — Knowledge base with vector search.
+//! RAG (Retrieval-Augmented Generation) - Knowledge base with vector search.
 //!
 //! Stores text chunks with their embeddings (via Ollama /api/embed).
 //! Searches by cosine similarity to find relevant context.
@@ -20,7 +20,7 @@ pub struct KnowledgeEntry {
     pub user_id: Option<uuid::Uuid>,
 }
 
-/// The knowledge base — stores entries with embeddings for vector search.
+/// The knowledge base - stores entries with embeddings for vector search.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct KnowledgeBase {
     pub entries: Vec<KnowledgeEntry>,

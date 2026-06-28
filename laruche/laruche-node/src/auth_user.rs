@@ -3,7 +3,7 @@
 //! Flow:
 //! 1. Enrollment: user picks a display name → gets a permanent QR (URL with auth secret)
 //! 2. Login: browser shows ephemeral QR → phone scans it → challenge resolved → cookie set
-//! 3. Cookie: `laruche_auth={user_id}:{timestamp}:{blake3_hmac}` — validated per-request
+//! 3. Cookie: `laruche_auth={user_id}:{timestamp}:{blake3_hmac}` - validated per-request
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
@@ -31,7 +31,7 @@ impl Default for UserRole {
 pub struct User {
     pub id: Uuid,
     pub display_name: String,
-    /// Base64-encoded 32 random bytes — the user's permanent auth secret (for QR login)
+    /// Base64-encoded 32 random bytes - the user's permanent auth secret (for QR login)
     pub auth_secret: String,
     pub created_at: DateTime<Utc>,
     /// User role: admin (full access) or user (own data only)
