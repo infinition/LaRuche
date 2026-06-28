@@ -229,7 +229,7 @@ pub(crate) async fn api_mesh_skills_sync(State(state): State<Arc<AppState>>) -> 
 
     // 4) re-index disk -> SQL to make the pulled skills immediately usable.
     if !importes.is_empty() {
-        sync_skills_disk_to_sql(&state.memoire).await;
+        changes_api::sync_skills_disk_to_sql(&state.memoire).await;
     }
 
     Json(serde_json::json!({
