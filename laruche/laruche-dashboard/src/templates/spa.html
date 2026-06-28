@@ -33,11 +33,11 @@
     <a href="#settings" data-page="settings"><span class="tab-icon"><svg width="1.2em" height="1.2em" style="vertical-align: middle; margin-right: 4px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></span><span class="tab-text">Settings</span></a>
   </div>
   <div class="header-right">
-    <button class="feed-toggle-btn" id="meshBtn" onclick="LaRuche.Mesh.toggle()" title="Messages (other LaRuche / users)" style="position:relative;">
+    <button class="feed-toggle-btn" id="meshBtn" onclick="LaRuche.Mesh.toggle()" data-i18n-title="shell.tipMessages" title="Messages (other LaRuche / users)" style="position:relative;">
       <svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
       <span class="mesh-badge" id="meshBadge" style="display:none">0</span>
     </button>
-    <button class="feed-toggle-btn" id="feedToggleBtn" onclick="LaRuche.Feed.toggle()" title="Real-time activity (memory + agent)">
+    <button class="feed-toggle-btn" id="feedToggleBtn" onclick="LaRuche.Feed.toggle()" data-i18n-title="shell.tipActivity" title="Real-time activity (memory + agent)">
       <svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
     </button>
     <span class="version-pill">Miel v0.2.0</span>
@@ -58,25 +58,25 @@
 <div class="feed-drawer-overlay" id="feedDrawerOverlay">
   <aside class="feed-drawer" id="feedDrawer" role="complementary" aria-label="Activity feed">
     <div class="feed-drawer-head" id="feedDrawerHead">
-      <span class="fd-title"><span class="fd-live-dot"></span>Feed</span>
-      <button class="fd-btn" id="feedAnchorBtn" onclick="LaRuche.Feed.toggleAnchor()" title="Pin / unpin the panel"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><line x1="12" y1="17" x2="12" y2="22"></line><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.68V6a3 3 0 1 0-6 0v4.68a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"></path></svg></button>
-      <button class="fd-btn" onclick="LaRuche.Feed.close()" title="Close">&#x2716;</button>
+      <span class="fd-title"><span class="fd-live-dot"></span><span data-i18n="shell.feed">Feed</span></span>
+      <button class="fd-btn" id="feedAnchorBtn" onclick="LaRuche.Feed.toggleAnchor()" data-i18n-title="shell.tipPin" title="Pin / unpin the panel"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><line x1="12" y1="17" x2="12" y2="22"></line><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.68V6a3 3 0 1 0-6 0v4.68a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"></path></svg></button>
+      <button class="fd-btn" onclick="LaRuche.Feed.close()" data-i18n-title="shell.tipClose" title="Close">&#x2716;</button>
     </div>
     <div class="feed-next" id="feedNext" data-i18n="common.loading">Loading…</div>
     <div class="feed-filters" id="feedFilters">
       <span class="ff-label" data-i18n="shell.filter">Filter</span>
-      <span class="ff-chip" data-filter="memory" title="Memory events"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M9.5 2A2.5 2.5 0 0 0 7 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-.08A2.5 2.5 0 0 0 17 19.5v-15A2.5 2.5 0 0 0 14.5 2 2.5 2.5 0 0 0 12 3a2.5 2.5 0 0 0-2.5-1z"></path></svg> Memory</span>
-      <span class="ff-chip" data-filter="agent" title="Agent events"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><rect x="3" y="11" width="18" height="10" rx="2"></rect><circle cx="12" cy="5" r="2"></circle><path d="M12 7v4"></path><line x1="8" y1="16" x2="8" y2="16"></line><line x1="16" y1="16" x2="16" y2="16"></line></svg> Agent</span>
-      <span class="ff-chip" data-filter="cron" title="Crons executed"><span style="vertical-align:middle;">&#x23F0;</span> Cron</span>
-      <span class="ff-chip" data-filter="mission" title="Mission progress"><span style="vertical-align:middle;">&#x1F451;</span> Mission</span>
-      <span class="ff-chip" data-filter="watcher" title="Watchers triggered"><span style="vertical-align:middle;">&#x1F441;</span> Watcher</span>
-      <span class="ff-chip" data-filter="user" title="User actions"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> User</span>
+      <span class="ff-chip" data-filter="memory" data-i18n-title="shell.tipMemEvents" title="Memory events"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M9.5 2A2.5 2.5 0 0 0 7 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-.08A2.5 2.5 0 0 0 17 19.5v-15A2.5 2.5 0 0 0 14.5 2 2.5 2.5 0 0 0 12 3a2.5 2.5 0 0 0-2.5-1z"></path></svg> <span data-i18n="shell.feedMemory">Memory</span></span>
+      <span class="ff-chip" data-filter="agent" data-i18n-title="shell.tipAgentEvents" title="Agent events"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><rect x="3" y="11" width="18" height="10" rx="2"></rect><circle cx="12" cy="5" r="2"></circle><path d="M12 7v4"></path><line x1="8" y1="16" x2="8" y2="16"></line><line x1="16" y1="16" x2="16" y2="16"></line></svg> <span data-i18n="shell.feedAgent">Agent</span></span>
+      <span class="ff-chip" data-filter="cron" data-i18n-title="shell.tipCronExec" title="Crons executed"><span style="vertical-align:middle;">&#x23F0;</span> <span data-i18n="shell.feedCron">Cron</span></span>
+      <span class="ff-chip" data-filter="mission" data-i18n-title="shell.tipMissionProg" title="Mission progress"><span style="vertical-align:middle;">&#x1F451;</span> <span data-i18n="shell.feedMission">Mission</span></span>
+      <span class="ff-chip" data-filter="watcher" data-i18n-title="shell.tipWatcherTrig" title="Watchers triggered"><span style="vertical-align:middle;">&#x1F441;</span> <span data-i18n="shell.feedWatcher">Watcher</span></span>
+      <span class="ff-chip" data-filter="user" data-i18n-title="shell.tipUserActions" title="User actions"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg> <span data-i18n="shell.feedUser">User</span></span>
       <span class="ff-chip" data-filter="laruche" title="LaRuche actions"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M12 2L2 7l10 5 10-5-10-5z"></path><path d="M2 17l10 5 10-5"></path><path d="M2 12l10 5 10-5"></path></svg> LaRuche</span>
     </div>
     <div class="feed-list" id="feedList" aria-live="polite"></div>
     <div class="feed-ask">
       <textarea id="feedAskInput" rows="1" data-i18n-ph="shell.askPlaceholder" placeholder="Ask LaRuche…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();LaRuche.Feed.ask();}"></textarea>
-      <button class="feed-ask-send" id="feedAskSend" onclick="LaRuche.Feed.ask()" title="Send to LaRuche">
+      <button class="feed-ask-send" id="feedAskSend" onclick="LaRuche.Feed.ask()" data-i18n-title="shell.tipSend" title="Send to LaRuche">
         <svg width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
       </button>
     </div>
@@ -97,12 +97,12 @@
     <div class="profile-modal-head">
       <span class="profile-modal-avatar" id="profileModalAvatar"></span>
       <span class="profile-modal-name" id="profileModalName"></span>
-      <button class="fd-btn" onclick="LaRuche.Chat.closeProfile()" title="Close">&#x2716;</button>
+      <button class="fd-btn" onclick="LaRuche.Chat.closeProfile()" data-i18n-title="shell.tipClose" title="Close">&#x2716;</button>
     </div>
     <p class="profile-modal-hint" data-i18n="shell.profileHint">What LaRuche knows about you (injected into its context). Only you can edit it: the agent cannot touch it.</p>
     <textarea id="profileFiche" rows="9" data-i18n-ph="shell.profilePlaceholder" placeholder="E.g. My name is Infinition. I'm a polymath developer (Rust, AI). I prefer concise, direct answers. Timezone: Europe/Paris…"></textarea>
     <div class="profile-modal-actions">
-      <button class="send-btn" onclick="LaRuche.Chat.saveProfile()"><span>Save</span></button>
+      <button class="send-btn" onclick="LaRuche.Chat.saveProfile()"><span data-i18n="common.save">Save</span></button>
     </div>
   </div>
 </div>
@@ -132,28 +132,28 @@
         <!-- New compact global controls for chat -->
         <div class="sidebar-controls">
           <div style="display:flex; gap:6px; align-items:center;">
-             <button class="ctrl-icon-btn toggleable" id="autoTtsToggle" onclick="LaRuche.Voice.toggleAutoTts()" title="Automatic playback (Auto-TTS)">
+             <button class="ctrl-icon-btn toggleable" id="autoTtsToggle" onclick="LaRuche.Voice.toggleAutoTts()" data-i18n-title="shell.tipAutoTts" title="Automatic playback (Auto-TTS)">
                <span class="icon"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg></span>
              </button>
-             <div class="ctrl-icon-btn" title="TTS model (Click to choose)">
+             <div class="ctrl-icon-btn" data-i18n-title="shell.tipTtsModel" title="TTS model (Click to choose)">
                <span class="icon"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg></span>
                <select id="ttsSelect" onchange="LaRuche.Voice.selectTTS(this.value)">
-                 <option value="">Auto (first detected)</option>
+                 <option value="" data-i18n="shell.autoFirstDetected">Auto (first detected)</option>
                </select>
              </div>
-             <label class="ctrl-icon-btn toggleable reverse-toggle" id="noThinkWrap" title="No-think (Force the model not to reason)">
+             <label class="ctrl-icon-btn toggleable reverse-toggle" id="noThinkWrap" data-i18n-title="shell.tipNoThink" title="No-think (Force the model not to reason)">
                <input type="checkbox" class="ctrl-toggle" id="noThinkToggle" onchange="LaRuche.Chat.toggleNoThink(this.checked)">
                <span class="icon"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M9.5 2A2.5 2.5 0 0 0 7 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-.08A2.5 2.5 0 0 0 17 19.5v-15A2.5 2.5 0 0 0 14.5 2 2.5 2.5 0 0 0 12 3a2.5 2.5 0 0 0-2.5-1z"></path></svg></span>
              </label>
 
-             <div class="ctrl-icon-btn" id="loopMonitor" title="No loop detected" style="font-size:11px;font-weight:600;">
+             <div class="ctrl-icon-btn" id="loopMonitor" data-i18n-title="shell.tipNoLoop" title="No loop detected" style="font-size:11px;font-weight:600;">
                <span class="icon" style="position:relative;"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg></span>
              </div>
 
-             <div class="ctrl-icon-btn" title="Tool permissions (Click to choose)">
+             <div class="ctrl-icon-btn" data-i18n-title="shell.tipPermissions" title="Tool permissions (Click to choose)">
                <span class="icon"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></span>
                <select id="permModeSelect" onchange="LaRuche.Header.changePermissionMode(this.value)">
-                 <option value="">Permissions…</option>
+                 <option value="" data-i18n="shell.permissions">Permissions…</option>
                </select>
              </div>
           </div>
@@ -208,20 +208,20 @@
           <span class="chat-ctx-detail" id="chatCtxDetail">-</span>
         </div>
         <div class="input-area" id="mainInputArea">
-          <button class="tray-toggle-btn" id="trayToggleBtn" onclick="document.getElementById('mainInputArea').classList.toggle('show-tray'); this.classList.toggle('active')" title="Show tools">
+          <button class="tray-toggle-btn" id="trayToggleBtn" onclick="document.getElementById('mainInputArea').classList.toggle('show-tray'); this.classList.toggle('active')" data-i18n-title="shell.tipShowTools" title="Show tools">
             <svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="9 18 15 12 9 6"></polyline></svg>
           </button>
           <div class="actions-tray">
             <button class="input-action-btn mic-btn" id="micBtn" title="Click to record / stop"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg></button>
           
-          <label class="input-action-btn upload-btn" title="Attach a file">
+          <label class="input-action-btn upload-btn" data-i18n-title="shell.tipAttach" title="Attach a file">
             <input type="file" id="fileInput" style="display:none" accept="image/*,audio/*,.pdf,.txt,.md,.json,.csv,.py,.rs,.js,.ts" multiple>
             <svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
           </label>
-          <button class="input-action-btn cwd-toggle-btn" id="cwdToggleBtn" onclick="const b=document.getElementById('cwdBar'); b.style.display = (b.style.display==='flex') ? 'none' : 'flex'; this.classList.toggle('active')" title="Show/Hide the working directory">
+          <button class="input-action-btn cwd-toggle-btn" id="cwdToggleBtn" onclick="const b=document.getElementById('cwdBar'); b.style.display = (b.style.display==='flex') ? 'none' : 'flex'; this.classList.toggle('active')" data-i18n-title="shell.tipCwd" title="Show/Hide the working directory">
             <svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
           </button>
-          <label class="input-action-btn code-toggle-label" title="Coding mode (sends to the code model)">
+          <label class="input-action-btn code-toggle-label" data-i18n-title="shell.tipCoding" title="Coding mode (sends to the code model)">
             <input type="checkbox" id="codingModeToggle" onchange="this.parentElement.classList.toggle('active', this.checked)">
             <span class="icon"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg></span>
           </label>
@@ -234,7 +234,7 @@
         <div class="cwd-bar" id="cwdBar">
           <span class="cwd-icon" title="Working directory"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg></span>
           <input class="cwd-input" id="cwdInput" type="text" data-i18n-ph="shell.cwdPlaceholder" placeholder="Working directory..." spellcheck="false">
-          <button class="cwd-btn" onclick="LaRuche.Chat.browseCwd()" title="Browse">...</button>
+          <button class="cwd-btn" onclick="LaRuche.Chat.browseCwd()" data-i18n-title="shell.tipBrowse" title="Browse">...</button>
         </div>
       </div>
     </div>
@@ -244,37 +244,37 @@
   <div class="page" id="page-dashboard">
     <div class="dash-layout">
       <div class="honeycomb" id="honeycomb">
-        <div class="hex-gauge" id="hg-nodes" title="Active nodes in swarm">
+        <div class="hex-gauge" id="hg-nodes" data-i18n-title="shell.tipNodes" title="Active nodes in swarm">
           <div class="hex-outer" style="--gauge:0;--gauge-color:var(--green)"></div>
-          <div class="hex-inner"><span class="hex-val" id="kpi-nodes">&mdash;</span><span class="hex-label">Nodes</span></div>
+          <div class="hex-inner"><span class="hex-val" id="kpi-nodes">-</span><span class="hex-label" data-i18n="shell.nodes">Nodes</span></div>
         </div>
-        <div class="hex-gauge" id="hg-tps" title="Collective tokens/sec">
+        <div class="hex-gauge" id="hg-tps" data-i18n-title="shell.tipTps" title="Collective tokens/sec">
           <div class="hex-outer" style="--gauge:0;--gauge-color:var(--amber)"></div>
-          <div class="hex-inner"><span class="hex-val" id="kpi-tps">&mdash;</span><span class="hex-label">t/s</span></div>
+          <div class="hex-inner"><span class="hex-val" id="kpi-tps">-</span><span class="hex-label">t/s</span></div>
         </div>
-        <div class="hex-gauge" id="hg-cpu" title="Local CPU usage">
+        <div class="hex-gauge" id="hg-cpu" data-i18n-title="shell.tipCpu" title="Local CPU usage">
           <div class="hex-outer" style="--gauge:0;--gauge-color:var(--green)"></div>
-          <div class="hex-inner"><span class="hex-val" id="kpi-cpu">&mdash;</span><span class="hex-label">CPU</span></div>
+          <div class="hex-inner"><span class="hex-val" id="kpi-cpu">-</span><span class="hex-label">CPU</span></div>
         </div>
-        <div class="hex-gauge" id="hg-ram" title="Local RAM usage">
+        <div class="hex-gauge" id="hg-ram" data-i18n-title="shell.tipRam" title="Local RAM usage">
           <div class="hex-outer" style="--gauge:0;--gauge-color:var(--green)"></div>
-          <div class="hex-inner"><span class="hex-val" id="kpi-ram">&mdash;</span><span class="hex-label">RAM</span></div>
+          <div class="hex-inner"><span class="hex-val" id="kpi-ram">-</span><span class="hex-label">RAM</span></div>
         </div>
-        <div class="hex-gauge" id="hg-queue" title="Swarm queue depth">
+        <div class="hex-gauge" id="hg-queue" data-i18n-title="shell.tipQueue" title="Swarm queue depth">
           <div class="hex-outer" style="--gauge:0;--gauge-color:var(--blue)"></div>
-          <div class="hex-inner"><span class="hex-val" id="kpi-queue">&mdash;</span><span class="hex-label">Queue</span></div>
+          <div class="hex-inner"><span class="hex-val" id="kpi-queue">-</span><span class="hex-label" data-i18n="shell.labelQueue">Queue</span></div>
         </div>
-        <div class="hex-gauge" id="hg-uptime" title="Node uptime">
+        <div class="hex-gauge" id="hg-uptime" data-i18n-title="shell.tipUptime" title="Node uptime">
           <div class="hex-outer" style="--gauge:0;--gauge-color:var(--cyan)"></div>
-          <div class="hex-inner"><span class="hex-val" id="kpi-uptime">&mdash;</span><span class="hex-label">Uptime</span></div>
+          <div class="hex-inner"><span class="hex-val" id="kpi-uptime">-</span><span class="hex-label" data-i18n="shell.labelUptime">Uptime</span></div>
         </div>
-        <div class="hex-gauge" id="hg-gpu" title="GPU utilization" style="display:none">
+        <div class="hex-gauge" id="hg-gpu" data-i18n-title="shell.tipGpu" title="GPU utilization" style="display:none">
           <div class="hex-outer" style="--gauge:0;--gauge-color:var(--purple)"></div>
-          <div class="hex-inner"><span class="hex-val" id="kpi-gpu">&mdash;</span><span class="hex-label">GPU</span></div>
+          <div class="hex-inner"><span class="hex-val" id="kpi-gpu">-</span><span class="hex-label" data-i18n="shell.labelGpu">GPU</span></div>
         </div>
-        <div class="hex-gauge" id="hg-vram" title="VRAM usage" style="display:none">
+        <div class="hex-gauge" id="hg-vram" data-i18n-title="shell.tipVram" title="VRAM usage" style="display:none">
           <div class="hex-outer" style="--gauge:0;--gauge-color:var(--purple)"></div>
-          <div class="hex-inner"><span class="hex-val" id="kpi-vram">&mdash;</span><span class="hex-label">VRAM</span></div>
+          <div class="hex-inner"><span class="hex-val" id="kpi-vram">-</span><span class="hex-label" data-i18n="shell.labelVram">VRAM</span></div>
         </div>
       </div>
       <div class="stats-card" id="stats-card">
@@ -310,7 +310,7 @@
             <span class="panel-badge" id="swarm-badge" style="background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.3)">0 nodes</span>
           </div>
           <div class="panel-body">
-            <div id="node-list"><div style="font-size:10px;color:var(--text-dim);text-align:center;padding:12px">Waiting for data&hellip;</div></div>
+            <div id="node-list"><div style="font-size:10px;color:var(--text-dim);text-align:center;padding:12px" data-i18n="shell.waitingData">Waiting for data&hellip;</div></div>
             <div class="shard-section" id="shard-section">
               <div class="shard-hdr"><span class="shard-title">&#x2B21; Tensor Sharding</span><span class="shard-speedup" id="shard-speedup"></span></div>
               <div class="shard-bar-container" id="shard-layers"></div>
@@ -331,20 +331,20 @@
         <div class="panel dash-mob-panel" id="panel-resources">
           <div class="panel-hdr"><span class="panel-title">&zigrarr; Resources</span></div>
           <div class="panel-body">
-            <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;font-weight:600">Local</div>
-            <div class="res-row"><span class="res-label">CPU</span><div class="res-track"><div class="res-fill fill-green" id="b-cpu" style="width:0"></div></div><span class="res-val" id="r-cpu">&mdash;</span></div>
-            <div class="res-row"><span class="res-label">RAM</span><div class="res-track"><div class="res-fill fill-green" id="b-mem" style="width:0"></div></div><span class="res-val" id="r-mem">&mdash;</span></div>
-            <div class="res-row" id="gpu-row" style="display:none"><span class="res-label">GPU</span><div class="res-track"><div class="res-fill fill-purple" id="b-gpu" style="width:0"></div></div><span class="res-val" id="r-gpu">&mdash;</span></div>
-            <div class="res-row" id="vram-row" style="display:none"><span class="res-label">VRAM</span><div class="res-track"><div class="res-fill fill-purple" id="b-vram" style="width:0"></div></div><span class="res-val" id="r-vram">&mdash;</span></div>
-            <div class="res-row" id="temp-row" style="display:none"><span class="res-label">Temp</span><div class="res-track"><div class="res-fill fill-cyan" id="b-temp" style="width:0"></div></div><span class="res-val" id="r-temp">&mdash;</span></div>
-            <div class="res-row"><span class="res-label">t/s</span><div class="res-track"><div class="res-fill fill-amber" id="b-tps" style="width:0"></div></div><span class="res-val" id="r-tps">&mdash;</span></div>
-            <div class="res-row"><span class="res-label">Queue</span><div class="res-track"><div class="res-fill fill-blue" id="b-queue" style="width:0"></div></div><span class="res-val" id="r-queue">0</span></div>
+            <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;font-weight:600" data-i18n="shell.dashLocal">Local</div>
+            <div class="res-row"><span class="res-label">CPU</span><div class="res-track"><div class="res-fill fill-green" id="b-cpu" style="width:0"></div></div><span class="res-val" id="r-cpu">-</span></div>
+            <div class="res-row"><span class="res-label">RAM</span><div class="res-track"><div class="res-fill fill-green" id="b-mem" style="width:0"></div></div><span class="res-val" id="r-mem">-</span></div>
+            <div class="res-row" id="gpu-row" style="display:none"><span class="res-label">GPU</span><div class="res-track"><div class="res-fill fill-purple" id="b-gpu" style="width:0"></div></div><span class="res-val" id="r-gpu">-</span></div>
+            <div class="res-row" id="vram-row" style="display:none"><span class="res-label">VRAM</span><div class="res-track"><div class="res-fill fill-purple" id="b-vram" style="width:0"></div></div><span class="res-val" id="r-vram">-</span></div>
+            <div class="res-row" id="temp-row" style="display:none"><span class="res-label">Temp</span><div class="res-track"><div class="res-fill fill-cyan" id="b-temp" style="width:0"></div></div><span class="res-val" id="r-temp">-</span></div>
+            <div class="res-row"><span class="res-label">t/s</span><div class="res-track"><div class="res-fill fill-amber" id="b-tps" style="width:0"></div></div><span class="res-val" id="r-tps">-</span></div>
+            <div class="res-row"><span class="res-label" data-i18n="shell.labelQueue">Queue</span><div class="res-track"><div class="res-fill fill-blue" id="b-queue" style="width:0"></div></div><span class="res-val" id="r-queue">0</span></div>
             <hr class="res-divider">
-            <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;font-weight:600">Swarm</div>
-            <div class="res-stat"><span class="res-stat-label">Total RAM</span><span class="res-stat-val" id="s-ram">&mdash;</span></div>
-            <div class="res-stat"><span class="res-stat-label">Total VRAM</span><span class="res-stat-val" id="s-vram">&mdash;</span></div>
-            <div class="res-stat"><span class="res-stat-label">Cumulative TPS</span><span class="res-stat-val" id="s-tps">&mdash;</span></div>
-            <div class="res-stat"><span class="res-stat-label">Global Queue</span><span class="res-stat-val" id="s-queue">&mdash;</span></div>
+            <div style="font-size:9px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;font-weight:600" data-i18n="shell.dashSwarm">Swarm</div>
+            <div class="res-stat"><span class="res-stat-label" data-i18n="shell.totalRam">Total RAM</span><span class="res-stat-val" id="s-ram">-</span></div>
+            <div class="res-stat"><span class="res-stat-label" data-i18n="shell.totalVram">Total VRAM</span><span class="res-stat-val" id="s-vram">-</span></div>
+            <div class="res-stat"><span class="res-stat-label" data-i18n="shell.cumulativeTps">Cumulative TPS</span><span class="res-stat-val" id="s-tps">-</span></div>
+            <div class="res-stat"><span class="res-stat-label" data-i18n="shell.globalQueue">Global Queue</span><span class="res-stat-val" id="s-queue">-</span></div>
           </div>
         </div>
       </div>
@@ -353,7 +353,7 @@
           <div class="panel-hdr" style="justify-content:flex-start; align-items:center; display:flex; gap:8px;">
             <span class="panel-title"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg> Audit</span>
             <span class="panel-badge" id="log-badge" style="background:var(--blue-dim);color:var(--blue);border:1px solid rgba(59,130,246,.3)">0</span>
-            <button id="toggleAgentChatBtn" onclick="window.lrToggleAgentChat()" style="margin-left:auto; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:2px 8px; font-size:10px; cursor:pointer;" title="Show/Hide chat content">Show Chats</button>
+            <button id="toggleAgentChatBtn" onclick="window.lrToggleAgentChat()" style="margin-left:auto; background:none; border:1px solid var(--border); color:var(--text-dim); border-radius:4px; padding:2px 8px; font-size:10px; cursor:pointer;" data-i18n-title="shell.tipShowChats" title="Show/Hide chat content" data-i18n="shell.showChats">Show Chats</button>
           </div>
           <div class="log-body hide-agent-chat" id="log-body"><div id="log"></div></div>
         </div>
@@ -559,7 +559,7 @@
   <div class="history-panel">
     <div class="history-head">
       <span class="history-title"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg> Conversation history</span>
-      <button class="history-close" onclick="LaRuche.Chat.closeHistory()" title="Close">&times;</button>
+      <button class="history-close" onclick="LaRuche.Chat.closeHistory()" data-i18n-title="shell.tipClose" title="Close">&times;</button>
     </div>
     <div class="history-search">
       <input type="text" id="historySearch" placeholder="Search a conversation..." spellcheck="false" oninput="LaRuche.Chat.searchHistory(this.value)">
