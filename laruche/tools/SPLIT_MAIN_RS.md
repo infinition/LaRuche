@@ -1,6 +1,23 @@
-# Handoff: split main.rs into modules (ROADMAP #42)
+# Handoff: split main.rs into modules (ROADMAP #42) — DONE
 
-Goal: shrink `laruche-node/src/main.rs` (currently ~10540 lines) into per-domain
+Status: COMPLETE. `laruche-node/src/main.rs` went from ~10540 to ~3283 lines. All
+route handlers now live in per-domain modules; main.rs holds imports, mod
+declarations, shared API types, shared helpers, AppState, the axum Router wiring,
+and main(). Full module list: web, config_api, profiles_api, knowledge_api,
+plugins_api, voice_api, slack_api, local_api, ws_chat, discord_api, channels_api,
+auth_api, events_api, credentials_api, settings_api, doctor_api, kanban_api,
+watchers_api, skills_api, missions_api, sessions_api, memory_api, feed_api,
+mesh_api, changes_api, memory_crud_api, tools_api, openai_api, swarm_api, mcp_api,
+status_api, blueprints_api. `cargo test -p laruche-node -p laruche-essaim` green.
+
+Note for future readers: the original "remaining domains" line ranges below were
+approximate and several section headers masked larger mixed-domain regions, so the
+final split is by real domain rather than by those headers. The method and gotchas
+remain accurate if main.rs ever needs further splitting.
+
+---
+
+Goal: shrink `laruche-node/src/main.rs` (originally ~10540 lines) into per-domain
 modules, until main.rs is essentially the router/bootstrap + shared types. This is
 a **pure code move** — no behavior change. Each step must keep the build and tests green.
 
