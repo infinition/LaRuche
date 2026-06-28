@@ -12,7 +12,6 @@ members = [
     "laruche-events",
     "laruche-permissions",
     "laruche-compaction",
-    "laruche-suggestions",
     "laruche-butinage",
 ]
 
