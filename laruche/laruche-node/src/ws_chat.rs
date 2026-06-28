@@ -449,46 +449,6 @@ pub(crate) async fn ws_chat_connection(
                     match event_result {
                         Ok(event) => {
                             update_active_context_stats(&state, session_id, &event).await;
-                            // LaReine Tier 1 review: on Done, judge the answer and emit the verdict
-                            // BEFORE forwarding Done (which closes the stream). No-op unless enabled.
-                            if let laruche_essaim::ChatEvent::Done { full_response } = &event {
-                                if reine_api::review_active() {
-                                    // Animated "reviewing" marker shown while the judge call runs.
-                                    let thinking = laruche_essaim::ChatEvent::Status {
-                                        message: "__reine_thinking__".to_string(),
-                                    };
-                                    let _ = sender
-                                        .send(ws::Message::Text(
-                                            event_json_avec_session(&thinking, session_id).into(),
-                                        ))
-                                        .await;
-                                    // Review (and revise if she asks). Emit the verdict summary,
-                                    // then the rewritten answer when she revised it.
-                                    let (verdict, revised, analyse) =
-                                        reine_api::revue_complete(&state, &user_text, full_response)
-                                            .await
-                                            .unwrap_or_default();
-                                    // Verdict summary, plus her reasoning after a unit separator.
-                                    let ev = laruche_essaim::ChatEvent::Status {
-                                        message: format!("__reine_verdict__|{verdict}\u{1f}{analyse}"),
-                                    };
-                                    let _ = sender
-                                        .send(ws::Message::Text(
-                                            event_json_avec_session(&ev, session_id).into(),
-                                        ))
-                                        .await;
-                                    if let Some(text) = revised {
-                                        let rev = laruche_essaim::ChatEvent::Status {
-                                            message: format!("__reine_revised__|{text}"),
-                                        };
-                                        let _ = sender
-                                            .send(ws::Message::Text(
-                                                event_json_avec_session(&rev, session_id).into(),
-                                            ))
-                                            .await;
-                                    }
-                                }
-                            }
                             let json = event_json_avec_session(&event, session_id);
                             if sender.send(ws::Message::Text(json.into())).await.is_err() {
                                 done = true;
@@ -508,12 +468,41 @@ pub(crate) async fn ws_chat_connection(
                                         serde_json::json!({ "session_id": session_id, "tool": name, "result": preview_text(result, 200), "success": success })
                                     );
                                 }
-                                laruche_essaim::ChatEvent::Done { .. } => {
+                                laruche_essaim::ChatEvent::Done { full_response } => {
                                     let _ = state.events.write().await.emit(
                                         laruche_events::EventKind::AgentFinished,
                                         &actor,
                                         serde_json::json!({ "session_id": session_id, "status": "done" })
                                     );
+                                    // LaReine Tier 1 review runs AFTER Done is forwarded, so the answer
+                                    // is shown first and the turn completes; the verdict and any rewrite
+                                    // trickle in afterwards. No-op unless enabled.
+                                    if reine_api::review_active() {
+                                        let thinking = laruche_essaim::ChatEvent::Status {
+                                            message: "__reine_thinking__".to_string(),
+                                        };
+                                        let _ = sender.send(ws::Message::Text(
+                                            event_json_avec_session(&thinking, session_id).into(),
+                                        )).await;
+                                        let (verdict, revised, analyse) =
+                                            reine_api::revue_complete(&state, &user_text, full_response)
+                                                .await
+                                                .unwrap_or_default();
+                                        let ev = laruche_essaim::ChatEvent::Status {
+                                            message: format!("__reine_verdict__|{verdict}\u{1f}{analyse}"),
+                                        };
+                                        let _ = sender.send(ws::Message::Text(
+                                            event_json_avec_session(&ev, session_id).into(),
+                                        )).await;
+                                        if let Some(text) = revised {
+                                            let rev = laruche_essaim::ChatEvent::Status {
+                                                message: format!("__reine_revised__|{text}"),
+                                            };
+                                            let _ = sender.send(ws::Message::Text(
+                                                event_json_avec_session(&rev, session_id).into(),
+                                            )).await;
+                                        }
+                                    }
                                     done = true;
                                 }
                                 laruche_essaim::ChatEvent::Error { message } => {

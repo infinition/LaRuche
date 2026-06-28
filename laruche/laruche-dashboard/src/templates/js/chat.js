@@ -151,6 +151,8 @@ LaRuche.Chat = (function(){
   var currentAssistantMsg = null;
   var currentAssistantRow = null;
   var _reineThinkingEl = null;
+  var _lastAssistantMsg = null;
+  var _lastAssistantRow = null;
   var isStreaming = false;
   var autoTtsEnabled = false;
   var noThinkEnabled = false;
@@ -402,7 +404,7 @@ LaRuche.Chat = (function(){
         // Appended to the ROW (not the bubble) so finalizeMessage on 'done' does not wipe it.
         if(statusMessage==='__reine_thinking__'){
           if(_reineThinkingEl){_reineThinkingEl.remove();}
-          var rHost=(currentAssistantMsg&&currentAssistantMsg.parentNode)||currentAssistantRow;
+          var rHost=(currentAssistantMsg&&currentAssistantMsg.parentNode)||(_lastAssistantMsg&&_lastAssistantMsg.parentNode)||currentAssistantRow||_lastAssistantRow;
           if(rHost){
             var tc=document.createElement('div');
             tc.className='reine-thinking';
@@ -418,7 +420,7 @@ LaRuche.Chat = (function(){
           var vAnalyse=(vsep>=0?vpayload.slice(vsep+1):'').trim();
           if(_reineThinkingEl){_reineThinkingEl.remove(); _reineThinkingEl=null;}
           if(vtxt){
-            var vHost=(currentAssistantMsg&&currentAssistantMsg.parentNode)||currentAssistantRow;
+            var vHost=(currentAssistantMsg&&currentAssistantMsg.parentNode)||(_lastAssistantMsg&&_lastAssistantMsg.parentNode)||currentAssistantRow||_lastAssistantRow;
             if(vHost){
               var vc=document.createElement('div');
               vc.className='reine-verdict';
@@ -510,6 +512,8 @@ LaRuche.Chat = (function(){
           currentAssistantRow=finalRow.row; currentAssistantMsg=finalRow.msgEl; currentAssistantMsg._rawBuf='';
         }
         if(currentAssistantMsg) finalizeMessage(currentAssistantMsg, data.full_response);
+        // Keep a handle so LaReine's verdict (which arrives after 'done') still attaches.
+        _lastAssistantMsg=currentAssistantMsg; _lastAssistantRow=currentAssistantRow;
         currentAssistantMsg=null; currentAssistantRow=null;
         isStreaming=false;
         staleRecoveryActive=false;
