@@ -29,7 +29,7 @@ pub struct Watcher {
     pub target: String,
     pub condition: String,
     pub prompt: String,
-    /// Canal de livraison du résultat (ex: `telegram:123`). `None` → home channel.
+    /// Result delivery channel (e.g. `telegram:123`). `None` -> home channel.
     #[serde(default)]
     pub channel: Option<String>,
     pub active: bool,
@@ -93,9 +93,9 @@ impl WatchersRegistry {
         }
     }
 
-    /// Met à jour les champs ÉDITABLES d'un watcher (id/run_count/created_at/last_state
-    /// préservés). Un argument `None` = champ inchangé ; pour model/profile_id, `Some(None)`
-    /// efface la valeur.
+    /// Updates the EDITABLE fields of a watcher (id/run_count/created_at/last_state
+    /// preserved). A `None` argument means the field is unchanged; for model/profile_id,
+    /// `Some(None)` clears the value.
     #[allow(clippy::too_many_arguments)]
     pub fn update(
         &mut self,

@@ -1,8 +1,8 @@
-//! Skills OKF pour LaRuche.
+//! OKF skills for LaRuche.
 //!
-//! Un skill est un document Markdown avec frontmatter YAML (`type: skill`) et un corps
-//! structure en paradigmes + etapes. Le stockage reste dans la memoire cognitive via
-//! `capacities.skills.<nom>`; cette crate ne cree aucun store.
+//! A skill is a Markdown document with YAML frontmatter (`type: skill`) and a body
+//! structured into paradigms and steps. Storage lives in the cognitive memory via
+//! `capacities.skills.<name>`; this crate creates no store.
 
 use anyhow::{anyhow, Result};
 use laruche_memoire::{MemoireCognitive, MemoryItem, SearchOpts};
@@ -93,7 +93,7 @@ impl Skill {
             .cloned()
             .unwrap_or_else(|| "skill".to_string());
         if kind != "skill" {
-            return Err(anyhow!("type OKF invalide pour un skill: {kind}"));
+            return Err(anyhow!("invalid OKF type for a skill: {kind}"));
         }
 
         let meta = SkillMeta {
@@ -282,13 +282,13 @@ fn split_frontmatter(markdown: &str) -> Result<(&str, &str)> {
     let s = markdown.trim_start_matches('\u{feff}');
     let rest = s
         .strip_prefix("---")
-        .ok_or_else(|| anyhow!("frontmatter OKF manquant"))?;
+        .ok_or_else(|| anyhow!("missing OKF frontmatter"))?;
     let rest = rest
         .strip_prefix("\r\n")
         .or_else(|| rest.strip_prefix('\n'))
         .unwrap_or(rest);
     let Some(marker) = rest.find("\n---") else {
-        return Err(anyhow!("fin de frontmatter OKF manquante"));
+        return Err(anyhow!("missing end of OKF frontmatter"));
     };
     let fm = &rest[..marker];
     let body = &rest[marker + "\n---".len()..];
@@ -307,7 +307,7 @@ fn parse_frontmatter(frontmatter: &str) -> Result<BTreeMap<String, String>> {
             continue;
         }
         let Some((key, value)) = line.split_once(':') else {
-            return Err(anyhow!("ligne YAML invalide: {line}"));
+            return Err(anyhow!("invalid YAML line: {line}"));
         };
         out.insert(key.trim().to_string(), unquote(value.trim()));
     }
@@ -319,7 +319,7 @@ fn required(fields: &BTreeMap<String, String>, key: &str) -> Result<String> {
         .get(key)
         .filter(|v| !v.trim().is_empty())
         .cloned()
-        .ok_or_else(|| anyhow!("champ OKF requis manquant: {key}"))
+        .ok_or_else(|| anyhow!("missing required OKF field: {key}"))
 }
 
 fn parse_array(value: Option<&String>) -> Vec<String> {

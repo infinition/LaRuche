@@ -93,7 +93,7 @@ impl Compactor {
 
         let summary = CompactSummary {
             primary_request: first_user_request(messages)
-                .unwrap_or_else(|| "Demande non identifiee".to_string()),
+                .unwrap_or_else(|| "Unidentified request".to_string()),
             technical_context: collect_role_snippets(summarized, Role::Assistant, 8),
             files_and_code: metadata.files_touched.iter().cloned().collect(),
             errors_and_fixes: metadata.errors_and_fixes.clone(),
@@ -243,7 +243,7 @@ where
             compressees.push(serde_json::json!({
                 "role": "system",
                 "type": "trajectory_summary",
-                "content": format!("[Etape outil compressee]\n{}", summary.trim())
+                "content": format!("[Compressed tool step]\n{}", summary.trim())
             }));
             i += 2;
         } else {
@@ -339,7 +339,7 @@ fn estimate_tokens(text: &str) -> usize {
     (text.len() / 4).max(1)
 }
 
-const TOOL_RESULT_PLACEHOLDER: &str = "[Ancien resultat d'outil compacte]";
+const TOOL_RESULT_PLACEHOLDER: &str = "[Old tool result compacted]";
 
 fn compacter_anciens_resultats_outil(mut message: Value) -> Value {
     if est_message_resultat_outil(&message) {

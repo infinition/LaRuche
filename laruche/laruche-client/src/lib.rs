@@ -11,7 +11,7 @@
 //! #[tokio::main]
 //! async fn main() {
 //!     let laruche = LaRuche::discover().await.unwrap();
-//!     let response = laruche.ask("Bonjour !").await.unwrap();
+//!     let response = laruche.ask("Hello!").await.unwrap();
 //!     println!("{}", response.text);
 //! }
 //! ```

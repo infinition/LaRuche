@@ -1,15 +1,15 @@
-//! Prouve le recall SÉMANTIQUE du SqliteBackend, hors-ligne, via un embedder injecté.
+//! Proves SEMANTIC recall of the SqliteBackend, offline, via an injected embedder.
 //!
-//! Le fait stocké (« tongs … jazz ») et la requête (« programmer … conditions ») n'ont
-//! AUCUN mot en commun. Seul le chemin sémantique (cosinus sur embeddings) peut les relier
-//! → si le test passe, l'architecture hybride est correctement câblée.
+//! The stored fact ("tongs ... jazz") and the query ("programmer ... conditions") share
+//! NO common word. Only the semantic path (cosine over embeddings) can relate them,
+//! so if the test passes the hybrid architecture is correctly wired.
 
 use laruche_memoire::{Embedder, MemoireCognitive, MemoryItem, SearchOpts, SqliteBackend};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-/// Embedder factice déterministe : projette sur un axe « activité de code » vs « autre ».
-/// Tout texte évoquant le code/la programmation → [1,0] ; sinon → [0,1].
+/// Deterministic fake embedder: projects onto a "code activity" vs "other" axis.
+/// Any text evoking code/programming -> [1,0]; otherwise -> [0,1].
 struct FakeEmbedder;
 
 #[async_trait::async_trait]
@@ -56,7 +56,7 @@ async fn recall_semantique_sans_mot_commun() {
         ))
         .await
         .unwrap();
-    // Un item « distracteur » sur un autre sujet (doit NE PAS sortir en tête).
+    // A "distractor" item on another topic (must NOT come out on top).
     backend
         .write(MemoryItem::new(
             "projects.jardin",
@@ -74,10 +74,10 @@ async fn recall_semantique_sans_mot_commun() {
         .unwrap();
     let text = pack.to_prompt_text();
 
-    assert!(text.contains("tongs"), "recall sémantique raté : {text}");
+    assert!(text.contains("tongs"), "semantic recall failed: {text}");
     assert!(
         !text.contains("tomates"),
-        "le distracteur ne devrait pas remonter : {text}"
+        "the distractor should not surface: {text}"
     );
 
     let _ = std::fs::remove_file(&dir);
@@ -144,16 +144,16 @@ async fn sqlite_export_okf_writes_bundle() {
     let out = std::env::temp_dir().join(format!("okf_bundle_{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&out);
     let n = backend.export_okf(&out, None).await.unwrap();
-    assert!(n >= 2, "doit écrire au moins l'index + un node");
+    assert!(n >= 2, "must write at least the index + one node");
 
     let root = std::fs::read_to_string(out.join("index.md")).unwrap();
     assert!(root.contains("type: index"));
 
-    // node projects.laruche → dossier projects/laruche/index.md, frontmatter OKF.
+    // node projects.laruche -> projects/laruche/index.md directory, OKF frontmatter.
     let node = std::fs::read_to_string(out.join("projects/laruche/index.md")).unwrap();
     assert!(
         node.contains("type: memory-node"),
-        "frontmatter OKF manquant: {node}"
+        "OKF frontmatter missing: {node}"
     );
     assert!(node.contains("mono-binaire Rust"));
 
@@ -167,7 +167,7 @@ async fn activation_cognitive_priorise_le_noeud_pertinent() {
     cleanup_db(&dir);
     let backend = SqliteBackend::open_with_embedder(&dir, Arc::new(FakeEmbedder)).unwrap();
 
-    // Deux items à embedding ET lexique équivalents, sous des nœuds différents.
+    // Two items with equivalent embedding AND lexicon, under different nodes.
     backend
         .write(MemoryItem::new("projects.laruche", "il code"))
         .await
@@ -177,7 +177,7 @@ async fn activation_cognitive_priorise_le_noeud_pertinent() {
         .await
         .unwrap();
 
-    // La requête mentionne "laruche" → seul le nœud projects.laruche s'active → son item remonte premier.
+    // The query mentions "laruche", so only the projects.laruche node activates and its item comes up first.
     let pack = backend
         .search("laruche code", SearchOpts::default())
         .await
@@ -185,7 +185,7 @@ async fn activation_cognitive_priorise_le_noeud_pertinent() {
     let first_node = pack.raw["items"][0]["node_id"].as_str().unwrap_or("");
     assert_eq!(
         first_node, "projects.laruche",
-        "activation cognitive ratée: {}",
+        "cognitive activation failed: {}",
         pack.raw
     );
 
@@ -208,12 +208,12 @@ async fn sqlite_okf_round_trip() {
     let _ = std::fs::remove_dir_all(&out);
     a.export_okf(&out, None).await.unwrap();
 
-    // Réimport dans un backend NEUF → la knowledge doit revenir.
+    // Reimport into a FRESH backend, the knowledge must come back.
     let dir_b = temp_db("okf_b");
     cleanup_db(&dir_b);
     let b = SqliteBackend::open(&dir_b).unwrap();
     let n = b.import_okf(&out).await.unwrap();
-    assert!(n >= 1, "doit importer au moins 1 item");
+    assert!(n >= 1, "must import at least 1 item");
 
     let node = b.read_node("projects.laruche").await.unwrap();
     assert!(
@@ -225,7 +225,7 @@ async fn sqlite_okf_round_trip() {
                 .as_str()
                 .unwrap_or("")
                 .contains("mono-binaire")),
-        "round-trip OKF raté : {node}"
+        "OKF round-trip failed: {node}"
     );
 
     let _ = std::fs::remove_dir_all(&out);

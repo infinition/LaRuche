@@ -32,9 +32,9 @@ impl TrustCircle {
 
     pub fn display_name(&self) -> &'static str {
         match self {
-            Self::Family => "Famille / Équipe",
-            Self::Office => "Bureau",
-            Self::Guest => "Invité",
+            Self::Family => "Family / Team",
+            Self::Office => "Office",
+            Self::Guest => "Guest",
         }
     }
 }
@@ -239,7 +239,7 @@ mod tests {
         // Device requests access
         let pending = auth.request_auth(
             Uuid::new_v4(),
-            "MacBook Pro de Jean".into(),
+            "Jean's MacBook Pro".into(),
             TrustCircle::Family,
         );
 
@@ -264,7 +264,7 @@ mod tests {
     fn test_guest_token_expires() {
         let mut auth = ProximityAuth::new();
         let _pending =
-            auth.request_auth(Uuid::new_v4(), "iPhone Visiteur".into(), TrustCircle::Guest);
+            auth.request_auth(Uuid::new_v4(), "Visitor iPhone".into(), TrustCircle::Guest);
         let token = auth.approve_pending().unwrap();
 
         assert!(token.expires_at.is_some()); // Guest = 24h expiry

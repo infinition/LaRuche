@@ -1,20 +1,20 @@
-//! Couche d'embeddings pour la recherche sémantique (T1 de la fusion).
+//! Embedding layer for semantic search (T1 of the fusion).
 //!
-//! Un trait [`Embedder`] minimal : n'importe quel fournisseur (Ollama aujourd'hui,
-//! `fastembed`/ONNX demain pour le mono-binaire) l'implémente. Le [`SqliteBackend`]
-//! l'utilise pour passer d'un recall purement lexical à un recall **sémantique**
-//! (vocabulaire-indépendant).
+//! A minimal [`Embedder`] trait: any provider (Ollama today,
+//! `fastembed`/ONNX tomorrow for the single binary) implements it. The [`SqliteBackend`]
+//! uses it to move from purely lexical recall to **semantic** recall
+//! (vocabulary-independent).
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 
-/// Produit un vecteur d'embedding pour un texte.
+/// Produces an embedding vector for a text.
 #[async_trait]
 pub trait Embedder: Send + Sync {
     async fn embed(&self, text: &str) -> Result<Vec<f32>>;
 }
 
-/// Similarité cosinus (0 si dimensions incompatibles ou vecteurs nuls).
+/// Cosine similarity (0 if dimensions mismatch or vectors are empty/zero).
 pub fn cosine(a: &[f32], b: &[f32]) -> f32 {
     if a.len() != b.len() || a.is_empty() {
         return 0.0;
@@ -29,8 +29,8 @@ pub fn cosine(a: &[f32], b: &[f32]) -> f32 {
     }
 }
 
-/// Embedder via Ollama (`/api/embed`). Réutilise le pattern de `laruche-essaim::rag`.
-/// Mono-binaire compatible : Ollama est un service externe optionnel, comme déjà supposé par LaRuche.
+/// Embedder via Ollama (`/api/embed`). Reuses the pattern from `laruche-essaim::rag`.
+/// Single-binary compatible: Ollama is an optional external service, as already assumed by LaRuche.
 pub struct OllamaEmbedder {
     client: reqwest::Client,
     url: String,
@@ -57,13 +57,13 @@ impl Embedder for OllamaEmbedder {
             .send()
             .await?;
         let body: serde_json::Value = resp.json().await?;
-        // Format Ollama récent : {"embeddings":[[...]]} ; ancien : {"embedding":[...]}
+        // Recent Ollama format: {"embeddings":[[...]]} ; older: {"embedding":[...]}
         let arr = body["embeddings"]
             .as_array()
             .and_then(|a| a.first())
             .and_then(|v| v.as_array())
             .or_else(|| body["embedding"].as_array())
-            .ok_or_else(|| anyhow!("réponse embed inattendue"))?;
+            .ok_or_else(|| anyhow!("unexpected embed response"))?;
         Ok(arr
             .iter()
             .filter_map(|v| v.as_f64().map(|f| f as f32))

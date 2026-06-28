@@ -1,9 +1,9 @@
-//! [`SqliteBackend`] — moteur mémoire **persistant 100 % Rust** : SQLite + FTS5 + audit
-//! + recherche **hybride sémantique/lexicale** quand un [`Embedder`] est branché.
+//! [`SqliteBackend`]: 100% Rust persistent memory engine: SQLite + FTS5 + audit
+//! + hybrid semantic/lexical search when an [`Embedder`] is wired in.
 //!
-//! Port fidèle de la partie `sqlite-store` de paradigm (stockage durable, FTS5 BM25,
-//! items proposés exclus, journal d'audit) + la couche sémantique (T1). Mono-binaire
-//! (rusqlite `bundled`). Sans embedder → recall lexical FTS5 ; avec embedder → hybride.
+//! Faithful port of paradigm's `sqlite-store` part (durable storage, FTS5 BM25,
+//! proposed items excluded, audit log) + the semantic layer (T1). Single binary
+//! (rusqlite `bundled`). Without embedder: FTS5 lexical recall; with embedder: hybrid.
 
 use crate::embed::{cosine, Embedder};
 use crate::{ContextPack, MemoireCognitive, MemoryItem, SearchOpts};
@@ -27,9 +27,9 @@ fn now() -> i64 {
         .unwrap_or(0)
 }
 
-/// Convertit un node_id pointé en chemin de dossiers sûr (un segment par niveau),
-/// en remplaçant les caractères interdits dans un nom de fichier Windows (`< > : " | ? * / \`
-/// et caractères de contrôle) par `_`. Évite que des nœuds pollués (ex. `a|b`) cassent l'export.
+/// Converts a dotted node_id into a safe folder path (one segment per level),
+/// replacing characters forbidden in a Windows file name (`< > : " | ? * / \`
+/// and control characters) with `_`. Prevents polluted nodes (e.g. `a|b`) from breaking the export.
 fn safe_path_segments(id: &str) -> String {
     id.split('.')
         .map(|seg| {
@@ -49,12 +49,12 @@ fn safe_path_segments(id: &str) -> String {
         .join("/")
 }
 
-/// Échappe une valeur pour un scalaire YAML entre guillemets (frontmatter OKF).
+/// Escapes a value for a quoted YAML scalar (OKF frontmatter).
 fn yaml_q(s: &str) -> String {
     format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
 }
 
-/// Collecte récursivement tous les `index.md` d'un bundle OKF.
+/// Recursively collects all `index.md` files of an OKF bundle.
 fn collect_index_md(dir: &Path, out: &mut Vec<PathBuf>) {
     if let Ok(rd) = std::fs::read_dir(dir) {
         for e in rd.flatten() {
@@ -68,11 +68,11 @@ fn collect_index_md(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-/// Parse un `index.md` OKF → (node_id, items du corps). `fallback_id` si pas d'`id:` en frontmatter.
+/// Parses an OKF `index.md`: (node_id, body items). `fallback_id` if no `id:` in frontmatter.
 fn parse_okf(content: &str, fallback_id: &str) -> (String, Vec<String>) {
     let mut node_id = fallback_id.to_string();
     let mut items = Vec::new();
-    let mut seen_front = 0u8; // 1 = dans le frontmatter, >=2 = corps
+    let mut seen_front = 0u8; // 1 = inside frontmatter, >=2 = body
     for line in content.lines() {
         if line.trim() == "---" {
             seen_front += 1;
@@ -144,8 +144,8 @@ fn ensure_node(conn: &Connection, node_id: &str) -> Result<()> {
     let label = node_label(node_id);
     let one_liner = parent_id
         .as_ref()
-        .map(|p| format!("Sous-noeud de {p}"))
-        .unwrap_or_else(|| "Noeud racine".to_string());
+        .map(|p| format!("Subnode of {p}"))
+        .unwrap_or_else(|| "Root node".to_string());
     conn.execute(
         "INSERT OR IGNORE INTO nodes(id,parent_id,label,one_liner,importance,created_at,updated_at)
          VALUES(?1,?2,?3,?4,?5,?6,?6)",
@@ -203,7 +203,7 @@ fn parse_item_rowid(item_id: &str) -> Result<i64> {
         .strip_prefix("itm_")
         .unwrap_or(item_id)
         .parse::<i64>()
-        .map_err(|_| anyhow!("item_id invalide: {item_id}"))
+        .map_err(|_| anyhow!("invalid item_id: {item_id}"))
 }
 
 fn refresh_fts_row(
@@ -224,12 +224,12 @@ fn refresh_fts_row(
 }
 
 impl SqliteBackend {
-    /// Ouvre la base (recall lexical FTS5 uniquement).
+    /// Opens the database (FTS5 lexical recall only).
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         Self::open_inner(path, None)
     }
 
-    /// Ouvre la base avec recall **hybride sémantique** via l'embedder fourni.
+    /// Opens the database with hybrid semantic recall via the provided embedder.
     pub fn open_with_embedder(path: impl AsRef<Path>, embedder: Arc<dyn Embedder>) -> Result<Self> {
         Self::open_inner(path, Some(embedder))
     }
@@ -259,11 +259,11 @@ impl SqliteBackend {
                id INTEGER PRIMARY KEY,
                op TEXT NOT NULL, node_id TEXT, content TEXT, ts INTEGER NOT NULL);",
         )?;
-        // Migration : horodatage de dernière modification (ignore l'erreur si déjà présent).
+        // Migration: last-modified timestamp (ignore error if already present).
         let _ = conn.execute("ALTER TABLE items ADD COLUMN updated_at INTEGER", []);
         let _ = conn.execute("ALTER TABLE nodes ADD COLUMN updated_at INTEGER", []);
         let _ = conn.execute("ALTER TABLE nodes ADD COLUMN source TEXT", []);
-        // Acteur de la mutation (source/raison) pour le Feed (User vs LaRuche).
+        // Mutation actor (source/reason) for the Feed (User vs LaRuche).
         let _ = conn.execute("ALTER TABLE mutations ADD COLUMN src TEXT", []);
         Ok(Self {
             conn: Mutex::new(conn),
@@ -320,7 +320,7 @@ impl SqliteBackend {
 impl MemoireCognitive for SqliteBackend {
     async fn search(&self, query: &str, opts: SearchOpts) -> Result<ContextPack> {
         let limit = opts.limit.unwrap_or(8) as usize;
-        let qvec = self.embed_opt(query).await; // calculé AVANT le lock (pas d'await sous mutex)
+        let qvec = self.embed_opt(query).await; // computed BEFORE the lock (no await under mutex)
         let qtoks = tokens(query);
 
         let conn = self.conn.lock().unwrap();
@@ -328,8 +328,8 @@ impl MemoireCognitive for SqliteBackend {
         // (score, item id, node, content)
         let mut hits: Vec<(f32, i64, String, String)> = Vec::new();
 
-        // Activation cognitive : chaque nœud s'illumine selon le recouvrement requête ↔ chemin/label
-        // + son importance. Les items d'un sous-arbre pertinent sont ensuite boostés (façon paradigm).
+        // Cognitive activation: each node lights up based on query/path-label overlap
+        // + its importance. Items of a relevant subtree are then boosted (paradigm-style).
         let mut node_act: std::collections::HashMap<String, f32> = std::collections::HashMap::new();
         {
             let mut nstmt = conn.prepare("SELECT id, label, importance FROM nodes")?;
@@ -350,7 +350,7 @@ impl MemoireCognitive for SqliteBackend {
                 }
             }
         }
-        // Activation effective d'un item = activation de son nœud + part décroissante du parent.
+        // Effective activation of an item = its node's activation + decaying share of the parent.
         let activation_of = |node: &str| -> f32 {
             let na = node_act.get(node).copied().unwrap_or(0.0);
             let pa = node
@@ -362,7 +362,7 @@ impl MemoireCognitive for SqliteBackend {
         };
 
         if let Some(qv) = qvec {
-            // Recall HYBRIDE : cosinus sémantique + petit boost lexical.
+            // HYBRID recall: semantic cosine + small lexical boost.
             let mut stmt = conn.prepare(
                 "SELECT id, node_id, content, embedding FROM items WHERE status='active' AND embedding IS NOT NULL",
             )?;
@@ -389,7 +389,7 @@ impl MemoireCognitive for SqliteBackend {
                 }
             }
         } else if !qtoks.is_empty() {
-            // Repli LEXICAL : FTS5 BM25.
+            // LEXICAL fallback: FTS5 BM25.
             let match_expr = qtoks
                 .iter()
                 .map(|t| format!("\"{t}\"*"))
@@ -490,7 +490,7 @@ impl MemoireCognitive for SqliteBackend {
                 Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
             })
             .optional()?
-            .ok_or_else(|| anyhow!("item inconnu: {item_id}"))?;
+            .ok_or_else(|| anyhow!("unknown item: {item_id}"))?;
         conn.execute(
             "UPDATE items SET content=?1, embedding=?2, updated_at=?3 WHERE id=?4",
             rusqlite::params![content, emb, now(), id],
@@ -522,7 +522,7 @@ impl MemoireCognitive for SqliteBackend {
                 },
             )
             .optional()?
-            .ok_or_else(|| anyhow!("item inconnu: {item_id}"))?;
+            .ok_or_else(|| anyhow!("unknown item: {item_id}"))?;
         conn.execute(
             "UPDATE items SET node_id=?1, updated_at=?2 WHERE id=?3",
             rusqlite::params![node_id, now(), id],
@@ -552,7 +552,7 @@ impl MemoireCognitive for SqliteBackend {
                 |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
             )
             .optional()?
-            .ok_or_else(|| anyhow!("item inconnu ou deja supprime: {item_id}"))?;
+            .ok_or_else(|| anyhow!("unknown or already deleted item: {item_id}"))?;
         conn.execute("UPDATE items SET status='deleted' WHERE id=?1", [id])?;
         conn.execute("DELETE FROM items_fts WHERE rowid=?1", [id])?;
         conn.execute(
@@ -561,7 +561,7 @@ impl MemoireCognitive for SqliteBackend {
                 "delete",
                 existing.0,
                 format!(
-                    "{} — {}",
+                    "{}: {}",
                     reason.unwrap_or("delete_via_laruche"),
                     existing.1
                 ),
@@ -595,14 +595,14 @@ impl MemoireCognitive for SqliteBackend {
                 },
             )
             .optional()?
-            .ok_or_else(|| anyhow!("item inconnu: {item_id}"))?;
+            .ok_or_else(|| anyhow!("unknown item: {item_id}"))?;
         if existing.2 != "proposed" {
-            return Err(anyhow!("item non propose: {item_id}"));
+            return Err(anyhow!("item not proposed: {item_id}"));
         }
         let new_status = match action {
             "accept" => "active",
             "reject" => "deleted",
-            _ => return Err(anyhow!("action de revue invalide: {action}")),
+            _ => return Err(anyhow!("invalid review action: {action}")),
         };
         conn.execute(
             "UPDATE items SET status=?1 WHERE id=?2",
@@ -615,7 +615,7 @@ impl MemoireCognitive for SqliteBackend {
                 action,
                 existing.0,
                 format!(
-                    "{} — {}",
+                    "{}: {}",
                     reason.unwrap_or("review_via_laruche"),
                     existing.1
                 ),
@@ -765,7 +765,7 @@ impl MemoireCognitive for SqliteBackend {
                 "severity": "medium",
                 "node_id": node_id,
                 "count": count,
-                "message": format!("Doublon exact dans {node_id}: {}", content.chars().take(80).collect::<String>())
+                "message": format!("Exact duplicate in {node_id}: {}", content.chars().take(80).collect::<String>())
             }))
         })?;
         suggestions.extend(dup_rows.filter_map(|r| r.ok()));
@@ -783,7 +783,7 @@ impl MemoireCognitive for SqliteBackend {
                 "severity": "low",
                 "node_id": node_id,
                 "count": count,
-                "message": format!("{node_id} contient {count} items actifs; envisager des sous-noeuds.")
+                "message": format!("{node_id} contains {count} active items; consider subnodes.")
             }))
         })?;
         suggestions.extend(overload_rows.filter_map(|r| r.ok()));
@@ -802,7 +802,7 @@ impl MemoireCognitive for SqliteBackend {
                 "kind": "orphan",
                 "severity": "medium",
                 "count": orphan_items,
-                "message": format!("{orphan_items} item(s) actifs pointent vers un noeud absent.")
+                "message": format!("{orphan_items} active item(s) point to a missing node.")
             }));
         }
 
@@ -814,7 +814,7 @@ impl MemoireCognitive for SqliteBackend {
         std::fs::create_dir_all(dir)?;
         let ts = chrono::Utc::now().to_rfc3339();
 
-        // Scope optionnel : un nœud + son sous-arbre (`id = prefix OR id LIKE prefix.%`).
+        // Optional scope: one node + its subtree (`id = prefix OR id LIKE prefix.%`).
         let nodes: Vec<(String, String, String)> = match prefix.map(|p| p.trim_matches('.')) {
             Some(p) if !p.is_empty() => {
                 let like = format!("{p}.%");
@@ -840,7 +840,7 @@ impl MemoireCognitive for SqliteBackend {
 
         let mut files = 0usize;
         for (id, label, one_liner) in &nodes {
-            // node_id pointé → arborescence de dossiers (OKF), un index.md par node.
+            // dotted node_id: folder tree (OKF), one index.md per node.
             let node_dir = dir.join(safe_path_segments(id));
             std::fs::create_dir_all(&node_dir)?;
 
@@ -855,7 +855,7 @@ impl MemoireCognitive for SqliteBackend {
 
             let mut md = String::new();
             md.push_str("---\n");
-            md.push_str("type: memory-node\n"); // `type` = seul champ OKF obligatoire
+            md.push_str("type: memory-node\n"); // `type` = the only mandatory OKF field
             md.push_str(&format!("title: {}\n", yaml_q(label)));
             if !one_liner.is_empty() {
                 md.push_str(&format!("description: {}\n", yaml_q(one_liner)));
@@ -875,10 +875,10 @@ impl MemoireCognitive for SqliteBackend {
             files += 1;
         }
 
-        // Index racine du bundle (liens markdown = graphe OKF).
+        // Bundle root index (markdown links = OKF graph).
         let mut root = String::from("---\ntype: index\ntitle: \"LaRuche memory bundle\"\n");
         root.push_str(&format!(
-            "timestamp: {ts}\n---\n\n# LaRuche — bundle OKF\n\n"
+            "timestamp: {ts}\n---\n\n# LaRuche - OKF bundle\n\n"
         ));
         for (id, label, _) in &nodes {
             root.push_str(&format!(
@@ -899,9 +899,9 @@ impl MemoireCognitive for SqliteBackend {
         for f in files {
             let content = std::fs::read_to_string(&f).unwrap_or_default();
             if content.contains("type: index") {
-                continue; // index racine du bundle, pas un node
+                continue; // bundle root index, not a node
             }
-            // node_id depuis le frontmatter `id:`, sinon dérivé du chemin relatif.
+            // node_id from the `id:` frontmatter, else derived from the relative path.
             let rel = f
                 .parent()
                 .and_then(|p| p.strip_prefix(dir).ok())
@@ -950,7 +950,7 @@ impl MemoireCognitive for SqliteBackend {
     async fn delete_node(&self, node_id: &str) -> Result<Value> {
         let id = node_id.trim_matches('.').to_string();
         if id.is_empty() {
-            return Err(anyhow::anyhow!("node_id vide"));
+            return Err(anyhow::anyhow!("empty node_id"));
         }
         let idlen = id.len() as i64;
         let like = format!("{id}.%");
@@ -964,8 +964,8 @@ impl MemoireCognitive for SqliteBackend {
             return Ok(json!({"deleted": id, "hard_delete": true}));
         }
 
-        // On relocalise toujours tout le sous-arbre sous `orphans.<base_name>_<timestamp>`
-        // Cela evite la perte de donnees et les conflits d'unicite (UNIQUE constraint failed: nodes.id).
+        // Always relocate the whole subtree under `orphans.<base_name>_<timestamp>`
+        // This avoids data loss and uniqueness conflicts (UNIQUE constraint failed: nodes.id).
         let base_name = id.split('.').last().unwrap_or(&id);
         let ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -1009,10 +1009,10 @@ impl MemoireCognitive for SqliteBackend {
     ) -> Result<Value> {
         let id = node_id.trim_matches('.').to_string();
         if id.is_empty() {
-            return Err(anyhow::anyhow!("node_id vide"));
+            return Err(anyhow::anyhow!("empty node_id"));
         }
         let conn = self.conn.lock().unwrap();
-        // Crée la chaîne de parents au besoin.
+        // Creates the parent chain as needed.
         if let Some(parent) = node_parent_id(&id) {
             ensure_node(&conn, &parent)?;
         }
@@ -1087,17 +1087,17 @@ impl MemoireCognitive for SqliteBackend {
         let like = format!("{old}.%");
         let oldlen = old.len() as i64;
         let conn = self.conn.lock().unwrap();
-        // Items : node_id `old(.suite)` → `new(.suite)`.
+        // Items: node_id `old(.rest)` to `new(.rest)`.
         conn.execute(
             "UPDATE items SET node_id = ?1 || substr(node_id, ?2+1) WHERE node_id = ?3 OR node_id LIKE ?4",
             rusqlite::params![new, oldlen, old, like],
         )?;
-        // Index FTS (mêmes lignes, colonne node_id).
+        // FTS index (same rows, node_id column).
         let _ = conn.execute(
             "UPDATE items_fts SET node_id = ?1 || substr(node_id, ?2+1) WHERE node_id = ?3 OR node_id LIKE ?4",
             rusqlite::params![new, oldlen, old, like],
         );
-        // Nœuds : parent_id d'abord (sinon on perd la cible après renommage des id).
+        // Nodes: parent_id first (otherwise the target is lost after renaming the ids).
         conn.execute(
             "UPDATE nodes SET parent_id = ?1 || substr(parent_id, ?2+1) WHERE parent_id = ?3 OR parent_id LIKE ?4",
             rusqlite::params![new, oldlen, old, like],

@@ -1,28 +1,28 @@
-//! [`SidecarBackend`] — parle à `paradigm serve` via son pont HTTP loopback.
+//! [`SidecarBackend`]: talks to `paradigm serve` via its loopback HTTP bridge.
 //!
-//! Protocole (vérifié dans `paradigm/packages/memory-mcp/src/http-server.mjs`) :
-//! - `POST {base}/mcp` avec un corps JSON-RPC 2.0 `{ method: "tools/call",
+//! Protocol (verified in `paradigm/packages/memory-mcp/src/http-server.mjs`):
+//! - `POST {base}/mcp` with a JSON-RPC 2.0 body `{ method: "tools/call",
 //!   params: { name, arguments } }`.
-//! - La réponse est `{ result: { content: [{ type: "text", text: "<json>" }] } }` ;
-//!   le champ `text` est le JSON sérialisé du vrai résultat.
-//! - `GET {base}/health` → `{ ok: true, ... }`.
+//! - The response is `{ result: { content: [{ type: "text", text: "<json>" }] } }`;
+//!   the `text` field is the JSON-serialized real result.
+//! - `GET {base}/health` -> `{ ok: true, ... }`.
 //!
-//! On garde SQLite (côté paradigm) comme source de vérité ; ce backend n'est qu'un
-//! client réseau loopback (latence négligeable).
+//! SQLite (on the paradigm side) stays the source of truth; this backend is only a
+//! loopback network client (negligible latency).
 
 use crate::{ContextPack, MemoireCognitive, MemoryItem, SearchOpts};
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use serde_json::{json, Value};
 
-/// Configuration du backend sidecar.
+/// Sidecar backend configuration.
 #[derive(Debug, Clone)]
 pub struct SidecarConfig {
-    /// URL de base du pont paradigm (défaut `http://127.0.0.1:8765`).
+    /// Base URL of the paradigm bridge (default `http://127.0.0.1:8765`).
     pub base_url: String,
-    /// Workspace paradigm à cibler (multi-projets). `None` = workspace par défaut.
+    /// Paradigm workspace to target (multi-project). `None` = default workspace.
     pub workspace: Option<String>,
-    /// Jeton bearer si le pont n'est pas en loopback (sinon inutile).
+    /// Bearer token if the bridge is not loopback (otherwise unused).
     pub token: Option<String>,
 }
 
@@ -36,7 +36,7 @@ impl Default for SidecarConfig {
     }
 }
 
-/// Backend mémoire qui délègue à `paradigm serve` sur le pont loopback.
+/// Memory backend that delegates to `paradigm serve` over the loopback bridge.
 pub struct SidecarBackend {
     client: reqwest::Client,
     cfg: SidecarConfig,
@@ -50,14 +50,14 @@ impl SidecarBackend {
         }
     }
 
-    /// Raccourci : backend loopback par défaut.
+    /// Shortcut: default loopback backend.
     pub fn loopback() -> Self {
         Self::new(SidecarConfig::default())
     }
 
-    /// Appelle un outil MCP paradigm et renvoie le résultat décodé.
+    /// Calls a paradigm MCP tool and returns the decoded result.
     async fn call_tool(&self, name: &str, mut arguments: Value) -> Result<Value> {
-        // Injecte le workspace si configuré et absent des arguments.
+        // Inject the workspace if configured and absent from the arguments.
         if let (Some(ws), Value::Object(map)) = (&self.cfg.workspace, &mut arguments) {
             map.entry("workspace").or_insert_with(|| json!(ws));
         }
@@ -80,20 +80,20 @@ impl SidecarBackend {
         let resp = req
             .send()
             .await
-            .map_err(|e| anyhow!("sidecar paradigm injoignable ({}): {e}", self.cfg.base_url))?;
+            .map_err(|e| anyhow!("paradigm sidecar unreachable ({}): {e}", self.cfg.base_url))?;
         let v: Value = resp.json().await?;
 
         if let Some(err) = v.get("error") {
-            return Err(anyhow!("erreur paradigm: {err}"));
+            return Err(anyhow!("paradigm error: {err}"));
         }
 
-        // result.content[0].text contient le vrai résultat sérialisé en JSON.
+        // result.content[0].text holds the real result serialized as JSON.
         let text = v
             .pointer("/result/content/0/text")
             .and_then(Value::as_str)
-            .ok_or_else(|| anyhow!("réponse MCP inattendue: {v}"))?;
+            .ok_or_else(|| anyhow!("unexpected MCP response: {v}"))?;
 
-        // Le text est lui-même du JSON ; si jamais ce n'est pas le cas, on le rend tel quel.
+        // The text is itself JSON; if it ever is not, return it as-is.
         Ok(serde_json::from_str(text).unwrap_or(Value::String(text.to_string())))
     }
 }

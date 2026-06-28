@@ -128,38 +128,38 @@ impl PermissionEngine {
         if let Some(rule) = self.matching_rule(check, PermissionBehavior::Deny) {
             return PermissionDecision {
                 behavior: PermissionBehavior::Deny,
-                reason: format!("regle deny {:?} pour {}", rule.source, rule.tool_name),
+                reason: format!("deny rule {:?} for {}", rule.source, rule.tool_name),
                 suggestions: vec![],
             };
         }
         if let Some(rule) = self.matching_rule(check, PermissionBehavior::Allow) {
             return PermissionDecision {
                 behavior: PermissionBehavior::Allow,
-                reason: format!("regle allow {:?} pour {}", rule.source, rule.tool_name),
+                reason: format!("allow rule {:?} for {}", rule.source, rule.tool_name),
                 suggestions: vec![],
             };
         }
 
         match self.context.mode {
             PermissionMode::Plan if check.is_write => {
-                PermissionDecision::deny("mode plan: ecriture interdite")
+                PermissionDecision::deny("plan mode: writing forbidden")
             }
             PermissionMode::AcceptEdits if looks_like_edit_tool(&check.tool_name) => {
                 PermissionDecision::allow("mode acceptEdits")
             }
             PermissionMode::Auto => PermissionDecision::allow("mode auto"),
             PermissionMode::Bubble => PermissionDecision::ask(
-                "permission a faire remonter au leader",
+                "permission to escalate to the leader",
                 self.suggest_allow(check, RuleSource::SwarmLeader),
             ),
             _ => {
                 if self.context.should_avoid_prompts {
-                    PermissionDecision::deny("prompts indisponibles dans ce contexte")
+                    PermissionDecision::deny("prompts unavailable in this context")
                 } else if self.path_allowed(check) && !check.is_network {
-                    PermissionDecision::allow("working directory autorise")
+                    PermissionDecision::allow("working directory allowed")
                 } else {
                     PermissionDecision::ask(
-                        "aucune regle explicite",
+                        "no explicit rule",
                         self.suggest_allow(check, RuleSource::Session),
                     )
                 }

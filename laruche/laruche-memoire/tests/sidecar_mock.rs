@@ -1,8 +1,8 @@
-//! Test d'intégration : `SidecarBackend` contre un faux pont paradigm.
+//! Integration test: `SidecarBackend` against a fake paradigm bridge.
 //!
-//! On démarre un mini serveur HTTP qui imite `paradigm serve` (endpoints `/health`
-//! et `/mcp` JSON-RPC), puis on vérifie que le backend parle correctement le protocole
-//! bout-en-bout — sans avoir besoin de Node ni de paradigm réellement installé.
+//! We start a minimal HTTP server that mimics `paradigm serve` (endpoints `/health`
+//! and `/mcp` JSON-RPC), then verify that the backend speaks the protocol correctly
+//! end-to-end, without needing Node or a real paradigm installation.
 
 use laruche_memoire::{MemoireCognitive, MemoryItem, SearchOpts, SidecarBackend, SidecarConfig};
 use serde_json::{json, Value};
@@ -13,7 +13,7 @@ fn find(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack.windows(needle.len()).position(|w| w == needle)
 }
 
-/// Lit une requête HTTP (en-têtes + corps) et renvoie (ligne+headers, corps).
+/// Reads an HTTP request (headers + body) and returns (request line + headers, body).
 async fn read_request(stream: &mut TcpStream) -> (String, String) {
     let mut buf = Vec::new();
     let mut tmp = [0u8; 1024];
@@ -58,7 +58,7 @@ async fn respond(stream: &mut TcpStream, body: &str) {
     stream.flush().await.unwrap();
 }
 
-/// Enveloppe un résultat dans la forme MCP `tools/call` que renvoie paradigm.
+/// Wraps a result in the MCP `tools/call` shape that paradigm returns.
 fn mcp_text_result(inner: Value) -> String {
     json!({
         "jsonrpc": "2.0",
@@ -68,7 +68,7 @@ fn mcp_text_result(inner: Value) -> String {
     .to_string()
 }
 
-/// Démarre le faux pont paradigm, renvoie l'URL de base.
+/// Starts the fake paradigm bridge, returns the base URL.
 async fn start_fake_paradigm() -> String {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -117,10 +117,10 @@ async fn sidecar_parle_le_protocole_paradigm() {
     // health
     assert!(
         backend.health().await.unwrap(),
-        "le sidecar devrait être en bonne santé"
+        "the sidecar should be healthy"
     );
 
-    // search → le context pack rendu doit contenir le contenu de l'item de preuve
+    // search: the rendered context pack must contain the evidence item content
     let pack = backend
         .search("architecture", SearchOpts::default())
         .await
@@ -128,14 +128,14 @@ async fn sidecar_parle_le_protocole_paradigm() {
     let text = pack.to_prompt_text();
     assert!(
         text.contains("mono-binaire Rust"),
-        "context pack rendu = {text}"
+        "rendered context pack = {text}"
     );
     assert!(
         text.contains("decisions.archi"),
-        "le nœud activé doit apparaître"
+        "the activated node must appear"
     );
 
-    // write → on récupère l'id d'item renvoyé par le moteur
+    // write: we retrieve the item id returned by the engine
     let res = backend
         .write(
             MemoryItem::new("decisions.archi", "On garde SQLite comme source de vérité.")

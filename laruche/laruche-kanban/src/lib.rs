@@ -27,7 +27,7 @@ pub struct KanbanTask {
     #[serde(default)]
     pub model: Option<String>,
     pub description: String,
-    /// Canal de livraison du résultat (ex: `telegram:123`). `None` → défaut du board → home channel.
+    /// Result delivery channel (e.g. `telegram:123`). `None` -> board default -> home channel.
     #[serde(default)]
     pub channel: Option<String>,
     pub status: TaskStatus,
@@ -45,7 +45,7 @@ pub struct KanbanTask {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KanbanBoard {
     tasks: HashMap<Uuid, KanbanTask>,
-    /// Canal par défaut du board : utilisé pour livrer le résultat d'une tâche sans canal propre.
+    /// Board default channel: used to deliver the result of a task without its own channel.
     #[serde(default)]
     default_channel: Option<String>,
     #[serde(skip)]
@@ -153,18 +153,18 @@ impl KanbanBoard {
         task
     }
 
-    /// Canal par défaut du board (livraison des tâches sans canal propre).
+    /// Board default channel (delivery for tasks without their own channel).
     pub fn default_channel(&self) -> Option<String> {
         self.default_channel.clone()
     }
 
-    /// Définit le canal par défaut du board (`None`/vide = aucun).
+    /// Sets the board default channel (`None`/empty = none).
     pub fn set_default_channel(&mut self, channel: Option<String>) {
         self.default_channel = channel.filter(|c| !c.trim().is_empty());
         self.save();
     }
 
-    /// Met à jour le canal d'une tâche (`None`/vide = hérite du défaut).
+    /// Updates a task's channel (`None`/empty = inherit the default).
     pub fn set_channel(&mut self, id: Uuid, channel: Option<String>) -> bool {
         if let Some(t) = self.tasks.get_mut(&id) {
             t.channel = channel.filter(|c| !c.trim().is_empty());
@@ -175,7 +175,7 @@ impl KanbanBoard {
         }
     }
 
-    /// Canal effectif d'une tâche : son canal propre, sinon le défaut du board.
+    /// Effective channel of a task: its own channel, otherwise the board default.
     pub fn effective_channel(&self, id: Uuid) -> Option<String> {
         self.tasks
             .get(&id)

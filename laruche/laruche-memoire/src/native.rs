@@ -1,10 +1,10 @@
-//! [`NativeBackend`] — implémentation 100 % Rust, en mémoire vive, du trait
-//! [`MemoireCognitive`]. C'est l'**amorce de P3** : pas de Node, pas de sidecar.
+//! [`NativeBackend`]: pure-Rust, in-memory implementation of the
+//! [`MemoireCognitive`] trait. This is the **P3 seed**: no Node, no sidecar.
 //!
-//! Stockage simple (HashMap node → items) avec un retrieval lexical par mots-clés.
-//! Suffisant pour un POC fonctionnel et pour démontrer que `brain.rs` est totalement
-//! agnostique du backend. Le moteur cognitif complet (FTS5 + embeddings + activation)
-//! viendra remplacer ce store, derrière la même interface.
+//! Simple storage (HashMap node -> items) with lexical keyword-based retrieval.
+//! Sufficient for a working POC and to demonstrate that `brain.rs` is entirely
+//! backend-agnostic. The full cognitive engine (FTS5 + embeddings + activation)
+//! will later replace this store, behind the same interface.
 
 use crate::{ContextPack, MemoireCognitive, MemoryItem, SearchOpts};
 use anyhow::{anyhow, Result};
@@ -14,7 +14,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
-/// Découpe en mots-clés normalisés (minuscule, alphanumérique, longueur > 2).
+/// Splits into normalized keywords (lowercase, alphanumeric, length > 2).
 fn tokenize(s: &str) -> Vec<String> {
     s.to_lowercase()
         .split(|c: char| !c.is_alphanumeric())
@@ -47,8 +47,8 @@ fn node_json(node_id: &str) -> Value {
         "node_id": node_id,
         "label": node_label(node_id),
         "one_liner": node_parent_id(node_id)
-            .map(|p| format!("Sous-noeud de {p}"))
-            .unwrap_or_else(|| "Noeud racine".to_string()),
+            .map(|p| format!("Subnode of {p}"))
+            .unwrap_or_else(|| "Root node".to_string()),
         "parent_id": node_parent_id(node_id),
         "importance": 0.5
     })
@@ -81,8 +81,8 @@ struct StoredItem {
     deleted: bool,
 }
 
-/// Métadonnées explicites d'un nœud (label/one_liner/importance) posées par
-/// `create_node`/`update_node`. Sinon le label est dérivé du node_id.
+/// Explicit node metadata (label/one_liner/importance) set by
+/// `create_node`/`update_node`. Otherwise the label is derived from the node_id.
 #[derive(Clone, Default)]
 struct NodeMeta {
     label: Option<String>,
@@ -91,7 +91,7 @@ struct NodeMeta {
     source: Option<String>,
 }
 
-/// Backend mémoire natif (en RAM). Cloner via `Arc`.
+/// Native (in-RAM) memory backend. Clone via `Arc`.
 #[derive(Default)]
 pub struct NativeBackend {
     store: Mutex<HashMap<String, Vec<StoredItem>>>,
@@ -99,7 +99,7 @@ pub struct NativeBackend {
     counter: AtomicU64,
 }
 
-/// Applique les métadonnées explicites (si présentes) sur un `node_json` dérivé.
+/// Applies explicit metadata (if present) onto a derived `node_json`.
 fn overlay_meta(mut node: Value, meta: &HashMap<String, NodeMeta>) -> Value {
     if let Some(id) = node.get("id").and_then(Value::as_str) {
         if let Some(m) = meta.get(id) {
@@ -151,16 +151,16 @@ impl MemoireCognitive for NativeBackend {
         let qtok = tokenize(query);
 
         let store = self.store.lock().unwrap();
-        // (score, node, content)
+        // (score, item id, node, content)
         let mut hits: Vec<(usize, String, String, String)> = Vec::new();
         for (node, list) in store.iter() {
             for it in list {
                 if it.proposed || it.deleted {
-                    continue; // les items proposés sont exclus de la recherche (comme paradigm)
+                    continue; // proposed items are excluded from search (like paradigm)
                 }
                 let ctok = tokenize(&format!("{} {}", node, it.content));
-                // Recouvrement lexical tolérant aux préfixes (code/coder, aime/aiment…).
-                // NB : un vrai matching sémantique (embeddings) viendra avec le moteur cognitif.
+                // Prefix-tolerant lexical overlap (code/coder, aime/aiment, etc.).
+                // NB: real semantic matching (embeddings) will come with the cognitive engine.
                 let score = qtok
                     .iter()
                     .filter(|q| {
@@ -243,7 +243,7 @@ impl MemoireCognitive for NativeBackend {
                 );
             }
         }
-        Err(anyhow!("item inconnu: {item_id}"))
+        Err(anyhow!("unknown item: {item_id}"))
     }
 
     async fn move_item(&self, item_id: &str, node_id: &str) -> Result<Value> {
@@ -256,7 +256,7 @@ impl MemoireCognitive for NativeBackend {
             }
         }
         let Some((from, item)) = found else {
-            return Err(anyhow!("item inconnu: {item_id}"));
+            return Err(anyhow!("unknown item: {item_id}"));
         };
         store.entry(node_id.to_string()).or_default().push(item);
         Ok(json!({ "ok": true, "item_id": item_id, "node_id": node_id, "from": from }))
@@ -276,7 +276,7 @@ impl MemoireCognitive for NativeBackend {
                 }));
             }
         }
-        Err(anyhow!("item inconnu: {item_id}"))
+        Err(anyhow!("unknown item: {item_id}"))
     }
 
     async fn review_item(
@@ -289,7 +289,7 @@ impl MemoireCognitive for NativeBackend {
         for (node_id, list) in store.iter_mut() {
             if let Some(it) = list.iter_mut().find(|it| it.id == item_id && !it.deleted) {
                 if !it.proposed {
-                    return Err(anyhow!("item non propose: {item_id}"));
+                    return Err(anyhow!("item not proposed: {item_id}"));
                 }
                 match action {
                     "accept" => {
@@ -308,11 +308,11 @@ impl MemoireCognitive for NativeBackend {
                             "reason": reason.unwrap_or("reject_via_laruche")
                         }));
                     }
-                    _ => return Err(anyhow!("action de revue invalide: {action}")),
+                    _ => return Err(anyhow!("invalid review action: {action}")),
                 }
             }
         }
-        Err(anyhow!("item inconnu: {item_id}"))
+        Err(anyhow!("unknown item: {item_id}"))
     }
 
     async fn list_proposed(&self, limit: Option<u8>) -> Result<Value> {
@@ -367,7 +367,7 @@ impl MemoireCognitive for NativeBackend {
     }
 
     async fn dream(&self) -> Result<Value> {
-        // Heuristique POC : repère les doublons exacts par nœud.
+        // POC heuristic: detects exact duplicates per node.
         let store = self.store.lock().unwrap();
         let mut duplicates = 0u64;
         let mut suggestions = Vec::new();
@@ -386,7 +386,7 @@ impl MemoireCognitive for NativeBackend {
                         "severity": "medium",
                         "node_id": node_id,
                         "count": 2,
-                        "message": format!("Doublon exact dans {node_id}: {}", it.content.chars().take(80).collect::<String>())
+                        "message": format!("Exact duplicate in {node_id}: {}", it.content.chars().take(80).collect::<String>())
                     }));
                 }
             }
@@ -396,7 +396,7 @@ impl MemoireCognitive for NativeBackend {
                     "severity": "low",
                     "node_id": node_id,
                     "count": active_count,
-                    "message": format!("{node_id} contient {active_count} items actifs; envisager des sous-noeuds.")
+                    "message": format!("{node_id} contains {active_count} active items; consider subnodes.")
                 }));
             }
         }
@@ -422,10 +422,10 @@ impl MemoireCognitive for NativeBackend {
     async fn delete_node(&self, node_id: &str) -> Result<Value> {
         let id = node_id.trim_matches('.').to_string();
         if id.is_empty() {
-            return Err(anyhow!("node_id vide"));
+            return Err(anyhow!("empty node_id"));
         }
-        // Racine (pas de parent) → relocalise tout le sous-arbre sous `orphans.<id>` (rien perdu).
-        // Sinon → items + sous-nœuds remontent au parent (on retire le segment du nœud).
+        // Root (no parent): relocate the whole subtree under `orphans.<id>` (nothing lost).
+        // Otherwise: items + subnodes move up to the parent (the node segment is dropped).
         let (cible_self, prefix_dest, racine) = match node_parent_id(&id) {
             Some(parent) => (parent.clone(), parent, false),
             None => {
@@ -446,12 +446,12 @@ impl MemoireCognitive for NativeBackend {
         for child in descendants {
             if let Some(items) = store.remove(&child) {
                 let suffix = child.strip_prefix(&prefix).unwrap_or(&child);
-                // racine: orphans.<id>.suffix ; non-racine: parent.suffix
+                // root: orphans.<id>.suffix ; non-root: parent.suffix
                 let new_id = format!("{prefix_dest}.{suffix}");
                 store.entry(new_id).or_default().extend(items);
             }
         }
-        // Métadonnées : suit le même remap.
+        // Metadata: follows the same remap.
         {
             let mut meta = self.meta.lock().unwrap();
             if let Some(m) = meta.remove(&id) {
@@ -482,9 +482,9 @@ impl MemoireCognitive for NativeBackend {
     ) -> Result<Value> {
         let id = node_id.trim_matches('.').to_string();
         if id.is_empty() {
-            return Err(anyhow!("node_id vide"));
+            return Err(anyhow!("empty node_id"));
         }
-        // Crée une entrée vide → le nœud devient énumérable même sans items.
+        // Create an empty entry: the node becomes enumerable even without items.
         self.store.lock().unwrap().entry(id.clone()).or_default();
         self.meta.lock().unwrap().insert(
             id.clone(),

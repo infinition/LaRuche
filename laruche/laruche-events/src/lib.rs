@@ -1,8 +1,8 @@
-//! Bus d'événements structuré pour LaRuche (porté de laruche-architecture-rust).
+//! Structured event bus for LaRuche (ported from laruche-architecture-rust).
 //!
-//! - IDs incrémentaux, timestamp Unix, acteur, payload JSON libre.
-//! - Borné en mémoire (capacité), export/import NDJSON, lecture incrémentale `since(id)`,
-//!   filtrage par type. Sert d'observabilité/audit (et de socle au Kanban).
+//! - Incremental IDs, Unix timestamp, actor, free-form JSON payload.
+//! - Memory-bounded (capacity), NDJSON export/import, incremental read `since(id)`,
+//!   filtering by type. Used for observability/audit (and as the Kanban foundation).
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -66,7 +66,7 @@ pub struct ControlResponse {
     pub payload: serde_json::Value,
 }
 
-/// Bus borné en mémoire. Cloner librement (l'état est interne).
+/// Memory-bounded bus. Clone freely (state is internal).
 #[derive(Debug, Clone)]
 pub struct EventBus {
     next_id: u64,
@@ -115,7 +115,7 @@ impl EventBus {
         Ok(event)
     }
 
-    /// Événements postérieurs à `last_seen_id` (lecture incrémentale).
+    /// Events after `last_seen_id` (incremental read).
     pub fn since(&self, last_seen_id: u64) -> Vec<Event> {
         self.events
             .iter()
@@ -161,7 +161,7 @@ impl EventBus {
     }
 }
 
-/// Helper : construit un objet JSON à partir de paires clé/valeur (ordre stable).
+/// Helper: builds a JSON object from key/value pairs (stable order).
 pub fn object(
     entries: impl IntoIterator<Item = (&'static str, serde_json::Value)>,
 ) -> serde_json::Value {

@@ -1,4 +1,4 @@
-//! # Miel Protocol (ex-LAND — Local AI Network Discovery)
+//! # Miel Protocol (ex-LAND, Local AI Network Discovery)
 //!
 //! Core library implementing the Miel protocol for automatic discovery
 //! and communication between LaRuche nodes on a local network.

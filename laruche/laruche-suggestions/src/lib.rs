@@ -1,8 +1,8 @@
-//! Suggestions unifiees pour LaRuche.
+//! Unified suggestions for LaRuche.
 //!
-//! Cette crate est volontairement minimale pour la reconciliation workspace. Les
-//! moteurs concrets (fichiers, memoire, outils, agents, commandes) viendront se
-//! brancher ici sans imposer de dependance runtime externe.
+//! This crate is intentionally minimal for workspace reconciliation. The concrete
+//! engines (files, memoire, tools, agents, commands) will plug in here without
+//! imposing an external runtime dependency.
 
 use serde::{Deserialize, Serialize};
 

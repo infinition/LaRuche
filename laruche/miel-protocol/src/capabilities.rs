@@ -29,7 +29,7 @@ pub enum Capability {
     Embed,
     /// Code generation and analysis (DeepSeek-Coder, CodeLlama)
     Code,
-    /// Agent node — capable of running Abeilles (Essaim tools)
+    /// Agent node: capable of running Essaim tools
     Agent,
     /// Speech-to-Text (Voxtral, Whisper)
     Stt,

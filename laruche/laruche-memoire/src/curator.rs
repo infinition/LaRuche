@@ -1,8 +1,8 @@
-//! Déclencheur persistant de maintenance de la mémoire pendant les périodes d'inactivité.
+//! Persistent trigger for memory maintenance during idle periods.
 //!
-//! Le déclencheur est séparé du runtime node : l'appelant fournit explicitement `now`, ce qui
-//! garde la décision déterministe et facile à tester. La passe appelle uniquement `dream()` ;
-//! elle ne peut donc jamais emprunter une opération de suppression.
+//! The trigger is separate from the node runtime: the caller explicitly provides `now`, which
+//! keeps the decision deterministic and easy to test. The pass only calls `dream()`, so it can
+//! never perform a deletion operation.
 
 use crate::MemoireCognitive;
 use anyhow::Result;
@@ -11,17 +11,17 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 
-/// État durable du curator. L'absence de date signifie qu'aucune passe n'a encore réussi.
+/// Durable curator state. A missing date means no pass has succeeded yet.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CuratorState {
     #[serde(default)]
     pub last_run_at: Option<DateTime<Utc>>,
 }
 
-/// Décide si une passe curator doit partir à `now`.
+/// Decides whether a curator pass should run at `now`.
 ///
-/// Un premier passage est autorisé. Ensuite, le délai est strict (`>`), conformément au
-/// comportement idle : à exactement `interval_h` heures, la passe attend encore.
+/// A first run is always allowed. After that, the delay is strict (`>`), matching the idle
+/// behavior: at exactly `interval_h` hours, the pass still waits.
 pub fn maybe_run_curator(state: &CuratorState, now: DateTime<Utc>, interval_h: i64) -> bool {
     if interval_h < 0 {
         return false;
@@ -33,14 +33,14 @@ pub fn maybe_run_curator(state: &CuratorState, now: DateTime<Utc>, interval_h: i
     }
 }
 
-/// Curator avec un état `last_run_at` sauvegardé à côté du store mémoire.
+/// Curator whose `last_run_at` state is saved alongside the memory store.
 pub struct Curator {
     state_path: PathBuf,
     state: CuratorState,
 }
 
 impl Curator {
-    /// Ouvre l'état existant, ou démarre sans historique si le fichier n'existe pas.
+    /// Opens existing state, or starts without history if the file does not exist.
     pub fn open(state_path: impl AsRef<Path>) -> Result<Self> {
         let state_path = state_path.as_ref().to_path_buf();
         let state = if state_path.exists() {
@@ -52,15 +52,15 @@ impl Curator {
         Ok(Self { state_path, state })
     }
 
-    /// État courant, notamment utile aux intégrations et aux tests.
+    /// Current state, useful for integrations and tests.
     pub fn state(&self) -> &CuratorState {
         &self.state
     }
 
-    /// Lance `dream()` lorsque l'intervalle est dépassé, puis persiste la date de succès.
+    /// Runs `dream()` once the interval has elapsed, then persists the success date.
     ///
-    /// Si la maintenance échoue, `last_run_at` reste inchangé afin qu'un prochain cycle puisse
-    /// retenter. Aucune suppression n'est effectuée par ce déclencheur.
+    /// If maintenance fails, `last_run_at` stays unchanged so a later cycle can retry. No
+    /// deletion is performed by this trigger.
     pub async fn maybe_run_curator(
         &mut self,
         memory: &dyn MemoireCognitive,
@@ -123,11 +123,11 @@ mod tests {
         let state_path = state_path("persists");
         let backend = NativeBackend::new();
         backend
-            .write(MemoryItem::new("decisions.archi", "Conserver la trace."))
+            .write(MemoryItem::new("decisions.archi", "Keep the trace."))
             .await
             .unwrap();
         backend
-            .write(MemoryItem::new("decisions.archi", "Conserver la trace."))
+            .write(MemoryItem::new("decisions.archi", "Keep the trace."))
             .await
             .unwrap();
 
@@ -136,7 +136,7 @@ mod tests {
             .maybe_run_curator(&backend, at(0), 6)
             .await
             .unwrap()
-            .expect("première passe attendue");
+            .expect("first pass expected");
         assert_eq!(report["duplicates"], 1);
         assert_eq!(curator.state().last_run_at, Some(at(0)));
         assert!(curator
@@ -148,7 +148,7 @@ mod tests {
         let reopened = Curator::open(&state_path).unwrap();
         assert_eq!(reopened.state().last_run_at, Some(at(0)));
 
-        // dream() ne supprime rien : les deux entrées restent consultables après la passe.
+        // dream() deletes nothing: both entries remain readable after the pass.
         let node = backend.read_node("decisions.archi").await.unwrap();
         assert_eq!(node["items"].as_array().unwrap().len(), 2);
         let _ = std::fs::remove_file(state_path);
