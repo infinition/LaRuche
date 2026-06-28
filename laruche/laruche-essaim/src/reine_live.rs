@@ -34,6 +34,8 @@ pub struct Revision {
     pub revised: bool,
     /// Number of revision rounds applied.
     pub rounds: u8,
+    /// The judge's reasoning from the final assessment (shown on demand).
+    pub analyse: String,
 }
 
 /// The full LaReine charter, embedded at compile time so the engine is
@@ -229,6 +231,7 @@ pub async fn revue_et_revise(
     let mut journal: Vec<String> = Vec::new();
     let mut revised = false;
     let mut rounds = 0u8;
+    let mut analyse = String::new();
 
     loop {
         let card = match juger_avec(
@@ -249,6 +252,7 @@ pub async fn revue_et_revise(
                 break;
             }
         };
+        analyse = card.analyse.clone();
 
         match reine.juger(&card) {
             Action::Reviser { tour, instruction } => {
@@ -278,5 +282,6 @@ pub async fn revue_et_revise(
         journal,
         revised,
         rounds,
+        analyse,
     }
 }

@@ -412,15 +412,33 @@ LaRuche.Chat = (function(){
           break;
         }
         if(statusMessage.indexOf('__reine_verdict__|')===0){
-          var vtxt=statusMessage.slice('__reine_verdict__|'.length).trim();
+          var vpayload=statusMessage.slice('__reine_verdict__|'.length);
+          var vsep=vpayload.indexOf('');
+          var vtxt=(vsep>=0?vpayload.slice(0,vsep):vpayload).trim();
+          var vAnalyse=(vsep>=0?vpayload.slice(vsep+1):'').trim();
           if(_reineThinkingEl){_reineThinkingEl.remove(); _reineThinkingEl=null;}
           if(vtxt){
             var vHost=(currentAssistantMsg&&currentAssistantMsg.parentNode)||currentAssistantRow;
             if(vHost){
               var vc=document.createElement('div');
               vc.className='reine-verdict';
-              vc.innerHTML='<span class="reine-crown">👑</span> '+LaRuche.Utils.esc(vtxt);
+              var vhint=vAnalyse?' <span class="reine-analyse-toggle">▸</span>':'';
+              vc.innerHTML='<span class="reine-crown">👑</span> '+LaRuche.Utils.esc(vtxt)+vhint;
               vHost.appendChild(vc);
+              if(vAnalyse){
+                vc.style.cursor='pointer';
+                vc.title=LaRuche.i18n.t('reine.seeReasoning');
+                var vpan=document.createElement('div');
+                vpan.className='reine-analyse';
+                vpan.style.display='none';
+                vpan.textContent=vAnalyse;
+                vHost.appendChild(vpan);
+                vc.onclick=function(){
+                  var op=vpan.style.display==='none';
+                  vpan.style.display=op?'block':'none';
+                  var tg=vc.querySelector('.reine-analyse-toggle'); if(tg) tg.textContent=op?'▾':'▸';
+                };
+              }
             }
           }
           break;

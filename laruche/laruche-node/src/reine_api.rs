@@ -192,7 +192,7 @@ pub(crate) async fn revue_complete(
     state: &AppState,
     prompt: &str,
     reponse: &str,
-) -> Option<(String, Option<String>)> {
+) -> Option<(String, Option<String>, String)> {
     let rs = charger_reine_settings();
     if !rs.active_for_responses() || reponse.trim().is_empty() {
         return None;
@@ -262,5 +262,5 @@ pub(crate) async fn revue_complete(
             .unwrap_or_else(|| "LaReine reviewed the answer".to_string())
     };
     let revised = rev.revised.then_some(rev.final_answer);
-    Some((summary, revised))
+    Some((summary, revised, rev.analyse))
 }

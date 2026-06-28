@@ -464,12 +464,13 @@ pub(crate) async fn ws_chat_connection(
                                         .await;
                                     // Review (and revise if she asks). Emit the verdict summary,
                                     // then the rewritten answer when she revised it.
-                                    let (verdict, revised) =
+                                    let (verdict, revised, analyse) =
                                         reine_api::revue_complete(&state, &user_text, full_response)
                                             .await
                                             .unwrap_or_default();
+                                    // Verdict summary, plus her reasoning after a unit separator.
                                     let ev = laruche_essaim::ChatEvent::Status {
-                                        message: format!("__reine_verdict__|{verdict}"),
+                                        message: format!("__reine_verdict__|{verdict}\u{1f}{analyse}"),
                                     };
                                     let _ = sender
                                         .send(ws::Message::Text(

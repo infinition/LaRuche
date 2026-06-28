@@ -141,6 +141,8 @@ pub struct Scorecard {
     pub instruction: String,
     /// Short human-readable rationale, surfaced in the chat trace.
     pub raison: String,
+    /// The judge's reasoning (a sentence or two), shown on demand in the UI.
+    pub analyse: String,
 }
 
 impl Scorecard {
@@ -278,6 +280,7 @@ mod tests {
             avis,
             instruction: "tighten the methodology".into(),
             raison: "needs work".into(),
+            analyse: "the methodology is thin".into(),
         }
     }
 

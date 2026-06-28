@@ -4838,5 +4838,9 @@
   "reine.revised": {
     "en": "Revised by LaReine",
     "fr": "Révisé par LaReine"
+  },
+  "reine.seeReasoning": {
+    "en": "Click to see LaReine's reasoning",
+    "fr": "Cliquer pour voir le raisonnement de LaReine"
   }
 }

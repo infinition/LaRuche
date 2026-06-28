@@ -187,6 +187,7 @@ fn parser_lignes(s: &str) -> Option<Scorecard> {
         avis: avis_depuis(&verdict),
         instruction: get(&["instruction"]).unwrap_or_default(),
         raison: get(&["reason", "raison"]).unwrap_or_default(),
+        analyse: get(&["analysis", "analyse"]).unwrap_or_default(),
     })
 }
 
@@ -220,6 +221,12 @@ pub fn parser_scorecard(reponse: &str) -> Result<Scorecard, String> {
             .to_string(),
         raison: v
             .get("raison")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string(),
+        analyse: v
+            .get("analyse")
+            .or_else(|| v.get("analysis"))
             .and_then(|x| x.as_str())
             .unwrap_or("")
             .to_string(),
