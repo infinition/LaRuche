@@ -442,6 +442,9 @@ LaRuche.Chat = (function(){
               rhdr.innerHTML='👑 '+LaRuche.i18n.t('reine.revised');
               rr.msgEl.parentNode.insertBefore(rhdr, rr.msgEl);
               finalizeMessage(rr.msgEl, revTxt);
+              // Re-evaluate now the row is tagged reine: keep the LaRuche bee on the
+              // draft AND the crown on this revision (two avatars, like a conversation).
+              updateAssistantAvatars();
             }
           }
           break;
@@ -749,10 +752,16 @@ LaRuche.Chat = (function(){
         .forEach(function(a){ a.style.visibility = 'hidden'; });
       return;
     }
+    // Show the avatar only on the LAST LaRuche message AND the LAST LaReine
+    // (revised) message, so the two can sit side by side like a conversation.
     var rows = document.querySelectorAll('#chatContainer .message-row.assistant:not(#typingIndicator)');
+    var lastLaruche = -1, lastReine = -1;
     for (var i = 0; i < rows.length; i++) {
-      var av = rows[i].querySelector('.avatar.assistant-avatar');
-      if (av) av.style.visibility = (i === rows.length - 1) ? 'visible' : 'hidden';
+      if (rows[i].classList.contains('reine-revised-row')) lastReine = i; else lastLaruche = i;
+    }
+    for (var j = 0; j < rows.length; j++) {
+      var av = rows[j].querySelector('.avatar.assistant-avatar');
+      if (av) av.style.visibility = (j === lastLaruche || j === lastReine) ? 'visible' : 'hidden';
     }
   }
 
