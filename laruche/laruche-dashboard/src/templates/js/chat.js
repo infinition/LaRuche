@@ -425,6 +425,22 @@ LaRuche.Chat = (function(){
           }
           break;
         }
+        // LaReine's rewritten answer (after auto-revision): a distinct assistant block.
+        if(statusMessage.indexOf('__reine_revised__|')===0){
+          var revTxt=statusMessage.slice('__reine_revised__|'.length);
+          if(revTxt.trim()){
+            var rr=addMessage('assistant','');
+            if(rr&&rr.msgEl){
+              if(rr.row) rr.row.classList.add('reine-revised-row');
+              var rhdr=document.createElement('div');
+              rhdr.className='reine-revised-header';
+              rhdr.innerHTML='👑 '+LaRuche.i18n.t('reine.revised');
+              rr.msgEl.parentNode.insertBefore(rhdr, rr.msgEl);
+              finalizeMessage(rr.msgEl, revTxt);
+            }
+          }
+          break;
+        }
         var executing=/^executing:/i.test(statusMessage);
         if(executing)setFeedLive('tool');
         addActivity('status',executing?LaRuche.i18n.t('chat.preparationExecution'):LaRuche.i18n.t('chat.miseAJourAgent'),statusMessage,false);

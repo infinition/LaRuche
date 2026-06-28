@@ -462,10 +462,12 @@ pub(crate) async fn ws_chat_connection(
                                             event_json_avec_session(&thinking, session_id).into(),
                                         ))
                                         .await;
-                                    // Empty result (judge unavailable) clears the animation silently.
-                                    let verdict = reine_api::revue_verdict(&state, &user_text, full_response)
-                                        .await
-                                        .unwrap_or_default();
+                                    // Review (and revise if she asks). Emit the verdict summary,
+                                    // then the rewritten answer when she revised it.
+                                    let (verdict, revised) =
+                                        reine_api::revue_complete(&state, &user_text, full_response)
+                                            .await
+                                            .unwrap_or_default();
                                     let ev = laruche_essaim::ChatEvent::Status {
                                         message: format!("__reine_verdict__|{verdict}"),
                                     };
@@ -474,6 +476,16 @@ pub(crate) async fn ws_chat_connection(
                                             event_json_avec_session(&ev, session_id).into(),
                                         ))
                                         .await;
+                                    if let Some(text) = revised {
+                                        let rev = laruche_essaim::ChatEvent::Status {
+                                            message: format!("__reine_revised__|{text}"),
+                                        };
+                                        let _ = sender
+                                            .send(ws::Message::Text(
+                                                event_json_avec_session(&rev, session_id).into(),
+                                            ))
+                                            .await;
+                                    }
                                 }
                             }
                             let json = event_json_avec_session(&event, session_id);

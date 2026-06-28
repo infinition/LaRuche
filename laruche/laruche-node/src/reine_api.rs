@@ -141,48 +141,26 @@ pub(crate) fn review_active() -> bool {
     charger_reine_settings().active_for_responses()
 }
 
-/// Run LaReine's Tier 1 advisory review for a finished chat answer and return a
-/// verdict line to display, or None if the Reine is inactive or the judge failed.
-/// Resolves LaReine's own provider profile, falling back to the worker config.
-pub(crate) async fn revue_verdict(state: &AppState, prompt: &str, reponse: &str) -> Option<String> {
-    let rs = charger_reine_settings();
-    if !rs.active_for_responses() || reponse.trim().is_empty() {
-        return None;
-    }
-
-    // Determine the judge profile + model: LaReine's own pick (`profile_id|||model`)
-    // when set, else the ACTIVE model (the same provider the worker uses by default).
-    // Resolving through a profile is what makes the judge hit a real endpoint.
-    let (pid, model_pick) = match rs.provider_profile.as_deref().filter(|s| !s.is_empty()) {
-        Some(pp) => {
-            let mut parts = pp.split("|||");
-            (
-                parts.next().unwrap_or("").to_string(),
-                parts.next().unwrap_or("").to_string(),
-            )
-        }
-        None => {
-            let pr = state.profiles.read().await;
-            (
-                pr.active_model.profile_id.clone(),
-                pr.active_model.model.clone(),
-            )
-        }
-    };
-
-    // Start from the worker config, then overlay the resolved profile's credentials.
-    let (mut provider, mut api_key, mut api_base, mut ollama_url) = {
+/// Resolve provider credentials for a profile id + model, overlaying the resolved
+/// profile onto the worker config (used as a fallback when the profile is unknown).
+async fn resoudre_creds(
+    state: &AppState,
+    pid: &str,
+    model: &str,
+) -> laruche_essaim::reine_live::ProviderCreds {
+    let (mut provider, mut api_key, mut api_base, mut ollama_url, fallback_model) = {
         let ec = state.essaim_config.read().await;
         (
             ec.provider.clone(),
             ec.api_key.clone(),
             ec.api_base.clone(),
             ec.ollama_url.clone(),
+            ec.model.clone(),
         )
     };
     {
         let profiles = state.profiles.read().await;
-        if let Some(p) = profiles.profiles.get(&pid) {
+        if let Some(p) = profiles.profiles.get(pid) {
             provider = p.provider.clone();
             api_key = p.api_key.clone();
             if p.provider == "ollama" {
@@ -193,13 +171,63 @@ pub(crate) async fn revue_verdict(state: &AppState, prompt: &str, reponse: &str)
             }
         }
     }
-    let model = if model_pick.trim().is_empty() {
-        state.essaim_config.read().await.model.clone()
-    } else {
-        model_pick
+    laruche_essaim::reine_live::ProviderCreds {
+        provider,
+        model: if model.trim().is_empty() {
+            fallback_model
+        } else {
+            model.to_string()
+        },
+        api_key,
+        api_base,
+        ollama_url,
+    }
+}
+
+/// Full Tier 1 review for a finished answer: judge it, and if LaReine asks for a
+/// revision (within the round budget) have the worker rewrite it, then re-judge.
+/// Returns a verdict summary line and, when the answer was rewritten, the final
+/// revised text. None when the Reine is inactive.
+pub(crate) async fn revue_complete(
+    state: &AppState,
+    prompt: &str,
+    reponse: &str,
+) -> Option<(String, Option<String>)> {
+    let rs = charger_reine_settings();
+    if !rs.active_for_responses() || reponse.trim().is_empty() {
+        return None;
+    }
+
+    // Judge profile: LaReine's own pick (`profile_id|||model`), else the active model.
+    let (j_pid, j_model) = match rs.provider_profile.as_deref().filter(|s| !s.is_empty()) {
+        Some(pp) => {
+            let mut p = pp.split("|||");
+            (
+                p.next().unwrap_or("").to_string(),
+                p.next().unwrap_or("").to_string(),
+            )
+        }
+        None => {
+            let pr = state.profiles.read().await;
+            (
+                pr.active_model.profile_id.clone(),
+                pr.active_model.model.clone(),
+            )
+        }
+    };
+    // Worker (for the rewrite): the active model.
+    let (w_pid, w_model) = {
+        let pr = state.profiles.read().await;
+        (
+            pr.active_model.profile_id.clone(),
+            pr.active_model.model.clone(),
+        )
     };
 
-    // Editable rubric (`system.prompt_reine`), else the code default.
+    let juge = resoudre_creds(state, &j_pid, &j_model).await;
+    let worker = resoudre_creds(state, &w_pid, &w_model).await;
+
+    // Editable rubric (`system.prompt_reine`), else the charter default.
     let charte = laruche_essaim::brain::charger_doc_systeme(&state.memoire, "system.prompt_reine")
         .await
         .filter(|s| !s.trim().is_empty())
@@ -207,21 +235,32 @@ pub(crate) async fn revue_verdict(state: &AppState, prompt: &str, reponse: &str)
 
     tracing::info!(
         target: "reine",
-        provider = %provider,
-        model = %model,
-        has_base = api_base.is_some(),
-        from_profile = rs.provider_profile.is_some(),
-        "review: judging response with resolved provider"
+        judge = %juge.model,
+        worker = %worker.model,
+        max_revues = rs.max_revues,
+        "review-revise running"
     );
-    laruche_essaim::reine_live::juger_et_formater(
-        &provider,
-        &model,
-        &api_key,
-        api_base.as_deref(),
-        &ollama_url,
-        reponse,
-        prompt,
+
+    let rev = laruche_essaim::reine_live::revue_et_revise(
+        &juge,
+        &worker,
         &charte,
+        prompt,
+        reponse,
+        &rs.mode,
+        rs.max_revues,
+        rs.seuil_confiance,
     )
-    .await
+    .await;
+
+    let summary = if rev.revised {
+        format!("LaReine revised the answer ({} round(s))", rev.rounds)
+    } else {
+        rev.journal
+            .last()
+            .cloned()
+            .unwrap_or_else(|| "LaReine reviewed the answer".to_string())
+    };
+    let revised = rev.revised.then_some(rev.final_answer);
+    Some((summary, revised))
 }
