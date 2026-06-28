@@ -83,14 +83,47 @@ pub(crate) async fn api_get_reine_config() -> Json<ReineSettings> {
 }
 
 /// POST /api/config/reine - update LaReine settings (auth, clamped, persisted).
+///
+/// Merges the provided fields into the current settings, so callers can send a
+/// full object (the Settings panel) or a single field (the chat crown toggle
+/// sending just `{ "mode": "auto" }`).
 pub(crate) async fn api_set_reine_config(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(mut body): Json<ReineSettings>,
+    Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
         .ok_or(StatusCode::UNAUTHORIZED)?;
-    body.assainir();
-    sauver_reine_settings(&body).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let mut cfg = charger_reine_settings();
+    if let Some(v) = body.get("mode").and_then(|x| x.as_str()) {
+        cfg.mode = v.to_string();
+    }
+    if let Some(v) = body.get("max_revues").and_then(|x| x.as_u64()) {
+        cfg.max_revues = v.min(255) as u8;
+    }
+    if let Some(v) = body.get("seuil_confiance").and_then(|x| x.as_u64()) {
+        cfg.seuil_confiance = v.min(255) as u8;
+    }
+    if let Some(v) = body.get("tier_reponse").and_then(|x| x.as_bool()) {
+        cfg.tier_reponse = v;
+    }
+    if let Some(v) = body.get("tier_artefacts").and_then(|x| x.as_bool()) {
+        cfg.tier_artefacts = v;
+    }
+    if let Some(v) = body.get("tier_supervision").and_then(|x| x.as_bool()) {
+        cfg.tier_supervision = v;
+    }
+    if let Some(v) = body.get("queue_gate").and_then(|x| x.as_bool()) {
+        cfg.queue_gate = v;
+    }
+    if body.get("provider_profile").is_some() {
+        cfg.provider_profile = body
+            .get("provider_profile")
+            .and_then(|x| x.as_str())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+    }
+    cfg.assainir();
+    sauver_reine_settings(&cfg).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(Json(serde_json::json!({ "status": "ok" })))
 }

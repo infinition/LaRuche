@@ -455,9 +455,16 @@ LaRuche.Settings = (function(){
     var _r = await Promise.all([
       gj('/api/doctor'), gj('/api/voice/status'), gj('/api/config/provider'),
       gj('/api/context/stats'), gj('/api/config/compaction'), gj('/api/config/curateur'),
-      gj('/api/config/runtime'), gj('/api/config/reine')
+      gj('/api/config/runtime'), gj('/api/config/reine'), gj('/api/config/channel-models')
     ]);
-    var doc=_r[0], voice=_r[1], provCfg=_r[2], ctxStats=_r[3], ctxCfg=_r[4], curCfg=_r[5], rt=_r[6]||{}, reineCfg=_r[7]||{};
+    var doc=_r[0], voice=_r[1], provCfg=_r[2], ctxStats=_r[3], ctxCfg=_r[4], curCfg=_r[5], rt=_r[6]||{}, reineCfg=_r[7]||{}, chmReine=_r[8]||{options:[]};
+    // Provider dropdown options for LaReine's judge (reuse the channel-models catalog).
+    var reineProvOpts = '<option value="">'+LaRuche.i18n.t('reine.providerSame')+'</option>';
+    (chmReine.options||[]).forEach(function(o){
+      var rpVal = o.profile_id+'|||'+o.model;
+      var rpSel = (reineCfg.provider_profile===rpVal) ? ' selected' : '';
+      reineProvOpts += '<option value="'+LaRuche.Utils.esc(rpVal)+'"'+rpSel+'>'+LaRuche.Utils.esc((o.name||o.provider)+' / '+o.model)+'</option>';
+    });
     el.innerHTML = '<div class="settings-grid">'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.generationTitle')+'</div>'+
       '<div class="settings-row" style="flex-direction:column;align-items:stretch;gap:4px;">'+
@@ -499,7 +506,7 @@ LaRuche.Settings = (function(){
       '</select></div>'+
       '<div class="settings-row" title="'+LaRuche.i18n.t('reine.maxReviewsHint')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.maxReviews')+'</span><input type="range" id="cfgReineMax" min="0" max="10" value="'+(reineCfg.max_revues||0)+'" oninput="document.getElementById(\'cfgReineMaxVal\').textContent=this.value" style="width:100px"> <span id="cfgReineMaxVal" style="min-width:18px;text-align:right;color:var(--text-muted)">'+(reineCfg.max_revues||0)+'</span></div>'+
       '<div class="settings-row" title="'+LaRuche.i18n.t('reine.confidenceHint')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.confidenceThreshold')+'</span><input type="number" id="cfgReineSeuil" class="form-input" style="width:70px;padding:2px 6px;" min="0" max="100" value="'+(reineCfg.seuil_confiance!=null?reineCfg.seuil_confiance:60)+'"></div>'+
-      '<div class="settings-row" title="'+LaRuche.i18n.t('reine.providerHint')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.providerLabel')+'</span><input type="text" id="cfgReineProvider" class="form-input" style="width:120px;padding:2px 6px;" value="'+(reineCfg.provider_profile||'')+'" placeholder="'+LaRuche.i18n.t('settings.modelExample')+'"></div>'+
+      '<div class="settings-row" title="'+LaRuche.i18n.t('reine.providerHint')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.providerLabel')+'</span><select id="cfgReineProvider" class="form-input" style="width:160px;padding:2px 6px;">'+reineProvOpts+'</select></div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('reine.tier1')+'</span><label class="lr-switch"><input type="checkbox" id="cfgReineTier1" '+(reineCfg.tier_reponse?'checked':'')+'><span class="lr-slider"></span></label></div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('reine.tier2')+'</span><label class="lr-switch"><input type="checkbox" id="cfgReineTier2" '+(reineCfg.tier_artefacts?'checked':'')+'><span class="lr-slider"></span></label></div>'+
       '<div class="settings-row" title="'+LaRuche.i18n.t('reine.tier3Warn')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.tier3')+'</span><label class="lr-switch"><input type="checkbox" id="cfgReineTier3" '+(reineCfg.tier_supervision?'checked':'')+'><span class="lr-slider"></span></label></div>'+

@@ -4818,5 +4818,13 @@
   "reine.riskCritical": {
     "en": "Critical",
     "fr": "Critique"
+  },
+  "reine.providerSame": {
+    "en": "Same as worker model",
+    "fr": "Identique au modèle de travail"
+  },
+  "reine.crownTitle": {
+    "en": "LaReine: {mode}",
+    "fr": "LaReine : {mode}"
   }
 }

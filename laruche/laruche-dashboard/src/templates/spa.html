@@ -581,6 +581,10 @@
   <select id="modelSelect" onchange="LaRuche.Header.changeModel(this.value)" data-i18n-title="shell.tipChangeModel" title="Change model" style="display:none;">
     <option value="" data-i18n="automations.chargement">Loading...</option>
   </select>
+  <div class="sb-model-wrap" id="sbReineWrap" style="margin-left:8px">
+    <span id="sbReineLabel" title="LaReine" style="cursor:pointer;font-size:13px;line-height:1;opacity:.4">&#128081;</span>
+    <div class="sb-model-drop" id="sbReineDrop"></div>
+  </div>
 </div>
 
 <script>
@@ -610,6 +614,38 @@
   // sync label when select changes
   sel.addEventListener('change',sel._updateLabel);
   sel._updateLabel();
+})();
+// LaReine crown: quick activation + mode dropdown next to the model selector.
+(function(){
+  var lbl=document.getElementById('sbReineLabel'), drop=document.getElementById('sbReineDrop');
+  if(!lbl||!drop) return;
+  var MODES=['off','auto','hybride','humaine'], cur='off';
+  function t(k){ return (window.LaRuche&&LaRuche.i18n)?LaRuche.i18n.t(k):k; }
+  function modeLabel(m){ return t('reine.mode'+m.charAt(0).toUpperCase()+m.slice(1)); }
+  function paint(){
+    var on=cur!=='off';
+    lbl.style.opacity=on?'1':'.4';
+    lbl.style.color=on?'var(--amber)':'';
+    lbl.title=t('reine.crownTitle').replace('{mode}',modeLabel(cur));
+  }
+  function build(){
+    drop.innerHTML='';
+    MODES.forEach(function(m){
+      var d=document.createElement('div');
+      d.textContent=modeLabel(m);
+      if(m===cur) d.className='active';
+      d.onclick=function(){
+        cur=m; paint(); build(); drop.classList.remove('open');
+        fetch(LaRuche.API.base+'/api/config/reine',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:m})})
+          .then(function(r){ if(r.ok&&window.LaRuche&&LaRuche.Toast) LaRuche.Toast.show('LaReine: '+modeLabel(m),'ok'); });
+      };
+      drop.appendChild(d);
+    });
+  }
+  lbl.onclick=function(e){ e.stopPropagation(); build(); drop.classList.toggle('open'); };
+  document.addEventListener('click',function(e){ if(!drop.contains(e.target)&&e.target!==lbl) drop.classList.remove('open'); });
+  fetch(LaRuche.API.base+'/api/config/reine',{credentials:'include'}).then(function(r){return r.json();})
+    .then(function(c){ cur=(c&&c.mode)||'off'; paint(); }).catch(function(){ paint(); });
 })();
 </script>
 
