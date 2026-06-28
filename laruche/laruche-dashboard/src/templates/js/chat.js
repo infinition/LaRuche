@@ -348,7 +348,7 @@ LaRuche.Chat = (function(){
       case 'approval_request': showApprovalDialog(data.tool_call_id,data.name,data.args); break;
       case 'status':
         var statusMessage=data.message||'';
-        var memMatch = statusMessage.match(/Mémoire\s*:\s*(\d+)\s*souvenir/i);
+        var memMatch = statusMessage.match(/(\d+)\s*memor(?:y|ies)/i);
         if (memMatch && window.localStorage.getItem('laruche_hide_transparency') !== 'true') {
            var mChip = document.createElement('div');
            mChip.className = 'transparency-chip mem-chip';
@@ -1221,7 +1221,7 @@ LaRuche.Chat = (function(){
       if(rt.length>20 && bt && (bt===rt || bt.indexOf(rt)!==-1 || rt.indexOf(bt)!==-1)) return null;
     }
     // Post-response pollution: we do NOT want "Checkpoint: final response ready".
-    if(/r[ée]ponse finale/i.test(String(body||'')) || /r[ée]ponse finale/i.test(String(label||''))) return null;
+    if(/final response/i.test(String(body||'')) || /final response/i.test(String(label||''))) return null;
     var welcome=document.getElementById('welcomeScreen'); if(welcome) welcome.remove();
     // ● filled dot colored by status (Claude Code style); ◍ for reasoning.
     var iconMap={'thinking':'◍','tool-call':'●','tool-ok':'●','tool-err':'●','status':'•'};

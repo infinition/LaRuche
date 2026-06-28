@@ -531,9 +531,9 @@ LaRuche.Feed = (function(){
   function rowHtml(ev){
     var actorCls = actorClass(ev);
     var kind = kindOf(ev);
-    // Strip the chat verbs « a répondu / a demandé » (actor + badge are enough).
+    // Strip the chat verbs "replied" / "asked" (actor + badge are enough).
     var action = ev.action || '';
-    if(action==='a répondu' || action==='a demandé') action='';
+    if(action==='replied' || action==='asked') action='';
     var prefix = action ? action+' ' : '';
     var badge = (ev.actor==='User' && kind==='agent') ? ''
       : '<span class="feed-kind-badge kb-'+kind+'">'+esc(kindLabel(kind))+'</span>';

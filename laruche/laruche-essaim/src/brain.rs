@@ -2595,12 +2595,12 @@ fn skill_pertinent_lexical(query: &str, name: &str, content: &str) -> bool {
 }
 
 /// Reduce a skill description to a short, readable summary for the index:
-/// 1) third-party pattern `Summary — details` -> keep the summary (before the em dash);
+/// 1) third-party pattern `Summary - details` -> keep the summary (before the separator);
 /// 2) otherwise, the first sentence if it fits;
 /// 3) soft cap ~80 chars, cut at the word boundary (never mid-word), `…` if truncated.
 fn resumer_description(desc: &str) -> String {
     let d = desc.split_whitespace().collect::<Vec<_>>().join(" ");
-    let base = if let Some(i) = d.find(" — ") {
+    let base = if let Some(i) = d.find(" - ") {
         &d[..i]
     } else if let Some(i) = d.find(". ") {
         &d[..i]
@@ -3763,7 +3763,7 @@ Accept a negative conclusion only after exhausting several query families."#,
                 session.ajouter_user(
                     r#"You are concluding a web search with no trace of an actually executed tool.
 Restart with `web_deep_search` or `web_fetch`.
-In the réponse finale, list the queries tried and the URLs consulted or candidate."#,
+In the final response, list the queries tried and the URLs consulted or candidate."#,
                 );
                 let _ = tx.send(ChatEvent::Status {
                     message: format!(
@@ -4273,8 +4273,8 @@ mod tests {
 
     #[test]
     fn resumer_description_garde_le_resume_avant_tiret() {
-        // third-party pattern "Summary — details": keep the summary.
-        let comfyui = "Generate images, video, and audio with ComfyUI — install, launch, manage nodes/models, run workflows with parameter injection. Uses the official API.";
+        // third-party pattern "Summary - details": keep the summary.
+        let comfyui = "Generate images, video, and audio with ComfyUI - install, launch, manage nodes/models, run workflows with parameter injection. Uses the official API.";
         assert_eq!(
             resumer_description(comfyui),
             "Generate images, video, and audio with ComfyUI"

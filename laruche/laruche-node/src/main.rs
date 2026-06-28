@@ -2276,7 +2276,7 @@ async fn api_memory_enrich(
                 tracing::info!(agent_id = %agent_id, "Memory enrichment agent finished");
                 if let Some(id) = item_id {
                     let new_content =
-                        format!("{}\n\n**Synthèse LaRuche :**\n{}", prompt, result.summary);
+                        format!("{}\n\n**LaRuche summary:**\n{}", prompt, result.summary);
                     let _ = state_clone.memoire.update_item(&id, &new_content).await;
                     let _ = state_clone.events.write().await.emit(
                         laruche_events::EventKind::AgentFinished,
@@ -2288,7 +2288,7 @@ async fn api_memory_enrich(
             Err(e) => {
                 tracing::error!(agent_id = %agent_id, error = %e, "Memory enrichment agent failed");
                 if let Some(id) = item_id {
-                    let new_content = format!("{}\n\n**Erreur LaRuche :**\n{}", prompt, e);
+                    let new_content = format!("{}\n\n**LaRuche error:**\n{}", prompt, e);
                     let _ = state_clone.memoire.update_item(&id, &new_content).await;
                     let _ = state_clone.events.write().await.emit(
                         laruche_events::EventKind::AgentFinished,
@@ -3360,20 +3360,20 @@ async fn api_feed(
                     if !clean.is_empty() {
                         events.push(serde_json::json!({
                             "ts": ms, "actor": "User", "kind": "agent",
-                            "action": "a demandé", "object": preview_text(clean, 160),
+                            "action": "asked", "object": preview_text(clean, 160),
                             "full": clean, "ref": serde_json::Value::Null, "tag": e.tag
                         }));
                     }
                 }
             }
             // b) LaRuche's response, cleaned (otherwise unreadable JSON/XML). Empty after cleaning
-            //    (pure tool turn) -> we don't add a hollow "a répondu" event.
+            //    (pure tool turn) -> we don't add a hollow "replied" event.
             let brut = e.full_response.as_deref().filter(|s| !s.is_empty()).unwrap_or(&e.message);
             let resp = nettoyer_reponse_feed(brut);
             if !resp.is_empty() {
                 events.push(serde_json::json!({
                     "ts": ms + 1, "actor": "LaRuche", "kind": "agent",
-                    "action": "a répondu", "object": preview_text(&resp, 160),
+                    "action": "replied", "object": preview_text(&resp, 160),
                     "full": resp, "ref": serde_json::Value::Null, "tag": e.tag
                 }));
             }

@@ -677,7 +677,7 @@ LaRuche.Memory = (function(){
           '</span>';
         }
         var isAgentCall = it.source === 'agent-call';
-        var isAgentRunning = isAgentCall && content.indexOf('**Synthèse LaRuche :**') === -1 && content.indexOf('**Erreur LaRuche :**') === -1;
+        var isAgentRunning = isAgentCall && content.indexOf('**LaRuche summary:**') === -1 && content.indexOf('**LaRuche error:**') === -1;
         var agentStatusIcon = '';
         if (isAgentRunning) {
           agentStatusIcon = '<span class="agent-spinner" title="'+LaRuche.i18n.t('memory.agentRunningTitle')+'" style="margin-left:6px; display:inline-block; width:10px; height:10px; border:2px solid var(--amber); border-right-color:transparent; border-radius:50%; animation:spin 1s linear infinite;"></span>';

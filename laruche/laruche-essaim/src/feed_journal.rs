@@ -103,7 +103,7 @@ mod tests {
     #[test]
     fn record_sans_init_est_un_noop() {
         // Must not panic even if JOURNAL is not initialized in this test.
-        record("LaRuche", "cron", "a créé le cron", "x", chrono::Utc::now());
+        record("LaRuche", "cron", "created the cron", "x", chrono::Utc::now());
         // recent() returns empty while not initialized (or events from another test: we only test the absence of panic).
         let _ = recent(10);
     }

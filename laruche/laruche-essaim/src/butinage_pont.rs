@@ -912,7 +912,7 @@ pub async fn lancer_curateur_arriere_plan(
     crate::feed_journal::record(
         "Curateur",
         "curator",
-        "a lancé une revue de capacités",
+        "started a capability review",
         "(arrière-plan)",
         chrono::Utc::now(),
     );
