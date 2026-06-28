@@ -2908,7 +2908,10 @@ async fn augmenter_ephemere_avec_skills(
     if requete_triviale(query) {
         return ephemeral;
     }
-    let mut skills = recuperer_skills_pertinents(memoire, query, 3).await;
+    // Lazy default: inject only the single MOST relevant skill body. The full names+descriptions
+    // catalog is always present, and the model pulls any other skill on demand via skill_view.
+    // Eagerly injecting several bodies wasted context for little gain.
+    let mut skills = recuperer_skills_pertinents(memoire, query, 1).await;
     if intention_recherche(query) && !skills.iter().any(|(n, _)| n == "web_research") {
         if let Some(body) = charger_skill_corps(memoire, "capacities.skills.web_research").await {
             skills.insert(0, ("web_research".to_string(), body));
