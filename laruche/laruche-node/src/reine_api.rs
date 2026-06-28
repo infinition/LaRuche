@@ -150,38 +150,54 @@ pub(crate) async fn revue_verdict(state: &AppState, prompt: &str, reponse: &str)
         return None;
     }
 
-    // Base = worker config; override with LaReine's provider profile when set.
-    let (mut provider, mut model, mut api_key, mut api_base, mut ollama_url) = {
+    // Determine the judge profile + model: LaReine's own pick (`profile_id|||model`)
+    // when set, else the ACTIVE model (the same provider the worker uses by default).
+    // Resolving through a profile is what makes the judge hit a real endpoint.
+    let (pid, model_pick) = match rs.provider_profile.as_deref().filter(|s| !s.is_empty()) {
+        Some(pp) => {
+            let mut parts = pp.split("|||");
+            (
+                parts.next().unwrap_or("").to_string(),
+                parts.next().unwrap_or("").to_string(),
+            )
+        }
+        None => {
+            let pr = state.profiles.read().await;
+            (
+                pr.active_model.profile_id.clone(),
+                pr.active_model.model.clone(),
+            )
+        }
+    };
+
+    // Start from the worker config, then overlay the resolved profile's credentials.
+    let (mut provider, mut api_key, mut api_base, mut ollama_url) = {
         let ec = state.essaim_config.read().await;
         (
             ec.provider.clone(),
-            ec.model.clone(),
             ec.api_key.clone(),
             ec.api_base.clone(),
             ec.ollama_url.clone(),
         )
     };
-    if let Some(pp) = rs.provider_profile.as_deref().filter(|s| !s.is_empty()) {
-        let mut parts = pp.split("|||");
-        let pid = parts.next().unwrap_or("");
-        let pmodel = parts.next().unwrap_or("");
-        {
-            let profiles = state.profiles.read().await;
-            if let Some(p) = profiles.profiles.get(pid) {
-                provider = p.provider.clone();
-                api_key = p.api_key.clone();
-                if p.provider == "ollama" {
-                    ollama_url = p.base_url.clone();
-                    api_base = None;
-                } else {
-                    api_base = Some(p.base_url.clone());
-                }
+    {
+        let profiles = state.profiles.read().await;
+        if let Some(p) = profiles.profiles.get(&pid) {
+            provider = p.provider.clone();
+            api_key = p.api_key.clone();
+            if p.provider == "ollama" {
+                ollama_url = p.base_url.clone();
+                api_base = None;
+            } else {
+                api_base = Some(p.base_url.clone());
             }
         }
-        if !pmodel.is_empty() {
-            model = pmodel.to_string();
-        }
     }
+    let model = if model_pick.trim().is_empty() {
+        state.essaim_config.read().await.model.clone()
+    } else {
+        model_pick
+    };
 
     // Editable rubric (`system.prompt_reine`), else the code default.
     let charte = laruche_essaim::brain::charger_doc_systeme(&state.memoire, "system.prompt_reine")
