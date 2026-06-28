@@ -4750,5 +4750,73 @@
   "reine.methodologyTrace": {
     "en": "Methodology",
     "fr": "Méthodologie"
+  },
+  "reine.queueTitle": {
+    "en": "Pending proposals",
+    "fr": "Propositions en attente"
+  },
+  "reine.queueGate": {
+    "en": "Queue memory changes for review",
+    "fr": "Mettre les changements mémoire en file pour revue"
+  },
+  "reine.queueGateHint": {
+    "en": "When on, agent memory writes wait for approval. Disabling keeps the backlog; new writes apply directly.",
+    "fr": "Activé, les écritures mémoire des agents attendent une validation. Désactiver garde le backlog ; les nouvelles écritures s'appliquent directement."
+  },
+  "reine.disableNotice": {
+    "en": "LaReine disabled. {n} proposals remain pending (Memory > Pending). New writes apply directly.",
+    "fr": "Reine désactivée. {n} propositions restent en attente (Mémoire > En attente). Les nouvelles écritures s'appliquent directement."
+  },
+  "reine.queueEmpty": {
+    "en": "No pending proposals",
+    "fr": "Aucune proposition en attente"
+  },
+  "reine.queueProvenance": {
+    "en": "Proposed by {who}",
+    "fr": "Proposé par {who}"
+  },
+  "reine.queueApprove": {
+    "en": "Approve",
+    "fr": "Approuver"
+  },
+  "reine.queueReject": {
+    "en": "Reject",
+    "fr": "Rejeter"
+  },
+  "reine.queueApplySafe": {
+    "en": "Apply all safe",
+    "fr": "Tout appliquer (sûr)"
+  },
+  "reine.statusPending": {
+    "en": "Pending",
+    "fr": "En attente"
+  },
+  "reine.statusStale": {
+    "en": "Needs re-review",
+    "fr": "À re-revoir"
+  },
+  "reine.statusApproved": {
+    "en": "Approved",
+    "fr": "Approuvé"
+  },
+  "reine.statusRejected": {
+    "en": "Rejected",
+    "fr": "Rejeté"
+  },
+  "reine.statusExpired": {
+    "en": "Expired",
+    "fr": "Périmé"
+  },
+  "reine.riskSafe": {
+    "en": "Safe",
+    "fr": "Sûr"
+  },
+  "reine.riskSensitive": {
+    "en": "Sensitive",
+    "fr": "Sensible"
+  },
+  "reine.riskCritical": {
+    "en": "Critical",
+    "fr": "Critique"
   }
 }

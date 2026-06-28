@@ -28,7 +28,12 @@
 
 ### Tiers d'autorité (activables séparément)
 - [ ] **Tier 1 - Revue de réponse** (cas chat). Risque bas, à livrer en premier. Modes Auto/Hybride/Humaine.
-- [ ] **Tier 2 - Revue d'artefacts** : à la création d'un skill / tool / édition mémoire / mission auto-générée, la Reine valide / corrige / adapte / rejette. Séparation créateur (curateur) / relecteur (Reine).
+- [ ] **Tier 2 - Revue d'artefacts via file de propositions (façon pull requests)** : à la création d'un skill / tool / édition mémoire / mission auto-générée, la proposition entre dans une **file durable** que la Reine draine (valide / corrige / rejette). Séparation créateur (curateur) / relecteur (Reine). Décisions actées :
+  - **File découplée de la Reine** : c'est un store de premier rang, pas la propriété du toggle. **Désactiver la Reine ne perd jamais le backlog** : les propositions en attente restent gelées et visibles (Mémoire > En attente), actionnables à la main ; seules les **nouvelles** écritures repassent en direct. Notice non bloquante à la désactivation. (invariant testé : `transition_desactivation`).
+  - **Risk-tier** pour ne pas noyer l'utilisateur : auto-approuve le **sûr** (fait nouveau non contradictoire) ; **toujours** mettre en file / escalader le **critique** (suppression, écrasement, contradiction) - jamais d'auto-apply destructif.
+  - **Détection d'obsolescence** : une proposition versionnée contre sa cible passe en **Obsolète** (« needs rebase ») si la cible a bougé depuis, au lieu d'écraser à l'aveugle.
+  - **Péremption** : TTL propre à la file, indépendant de la Reine, pour éviter un backlog qui pourrit.
+  - Hook existant : `background_review.rs` (`memory_write`, `skill_propose`) à rediriger de l'auto-apply vers la file. Cœur pur fait : `laruche-essaim/src/reine_file.rs` (10 tests).
 - [ ] **Tier 3 - Orchestration proactive** (boucle superviseur OFF par défaut) : elle initie, missionne des abeilles (ranger une section mémoire, fusionner des tools en doublon), vérifie le résultat.
 
 ### Garde-fous (non négociables)
