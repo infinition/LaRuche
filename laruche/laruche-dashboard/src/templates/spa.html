@@ -45,8 +45,8 @@
       <div class="user-avatar" id="userAvatar"></div>
       <span class="user-name" id="userName"></span>
       <div id="userDropdown" class="user-dropdown">
-        <div class="ud-item" onclick="LaRuche.Chat.openProfile()">My profile</div>
-        <div class="ud-item" onclick="LaRuche.Auth.logout()">Log out</div>
+        <div class="ud-item" onclick="LaRuche.Chat.openProfile()" data-i18n="shell.myProfile">My profile</div>
+        <div class="ud-item" onclick="LaRuche.Auth.logout()" data-i18n="shell.logout">Log out</div>
       </div>
     </div>
   </div>
@@ -62,9 +62,9 @@
       <button class="fd-btn" id="feedAnchorBtn" onclick="LaRuche.Feed.toggleAnchor()" title="Pin / unpin the panel"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><line x1="12" y1="17" x2="12" y2="22"></line><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.68V6a3 3 0 1 0-6 0v4.68a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"></path></svg></button>
       <button class="fd-btn" onclick="LaRuche.Feed.close()" title="Close">&#x2716;</button>
     </div>
-    <div class="feed-next" id="feedNext">Loading…</div>
+    <div class="feed-next" id="feedNext" data-i18n="common.loading">Loading…</div>
     <div class="feed-filters" id="feedFilters">
-      <span class="ff-label">Filter</span>
+      <span class="ff-label" data-i18n="shell.filter">Filter</span>
       <span class="ff-chip" data-filter="memory" title="Memory events"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M9.5 2A2.5 2.5 0 0 0 7 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-.08A2.5 2.5 0 0 0 17 19.5v-15A2.5 2.5 0 0 0 14.5 2 2.5 2.5 0 0 0 12 3a2.5 2.5 0 0 0-2.5-1z"></path></svg> Memory</span>
       <span class="ff-chip" data-filter="agent" title="Agent events"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><rect x="3" y="11" width="18" height="10" rx="2"></rect><circle cx="12" cy="5" r="2"></circle><path d="M12 7v4"></path><line x1="8" y1="16" x2="8" y2="16"></line><line x1="16" y1="16" x2="16" y2="16"></line></svg> Agent</span>
       <span class="ff-chip" data-filter="cron" title="Crons executed"><span style="vertical-align:middle;">&#x23F0;</span> Cron</span>
@@ -75,7 +75,7 @@
     </div>
     <div class="feed-list" id="feedList" aria-live="polite"></div>
     <div class="feed-ask">
-      <textarea id="feedAskInput" rows="1" placeholder="Ask LaRuche…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();LaRuche.Feed.ask();}"></textarea>
+      <textarea id="feedAskInput" rows="1" data-i18n-ph="shell.askPlaceholder" placeholder="Ask LaRuche…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();LaRuche.Feed.ask();}"></textarea>
       <button class="feed-ask-send" id="feedAskSend" onclick="LaRuche.Feed.ask()" title="Send to LaRuche">
         <svg width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
       </button>
@@ -88,7 +88,7 @@
 <!-- ============================== -->
 <div class="reconnect-banner" id="reconnectBanner">
   <div class="reconnect-spinner"></div>
-  <span>Reconnecting...</span>
+  <span data-i18n="shell.reconnecting">Reconnecting...</span>
 </div>
 
 <!-- PROFILE: user record (locked, injected into LaRuche's context) -->
@@ -99,8 +99,8 @@
       <span class="profile-modal-name" id="profileModalName"></span>
       <button class="fd-btn" onclick="LaRuche.Chat.closeProfile()" title="Close">&#x2716;</button>
     </div>
-    <p class="profile-modal-hint">What LaRuche knows about you (injected into its context). Only you can edit it: the agent cannot touch it.</p>
-    <textarea id="profileFiche" rows="9" placeholder="E.g. My name is Infinition. I'm a polymath developer (Rust, AI). I prefer concise, direct answers. Timezone: Europe/Paris…"></textarea>
+    <p class="profile-modal-hint" data-i18n="shell.profileHint">What LaRuche knows about you (injected into its context). Only you can edit it: the agent cannot touch it.</p>
+    <textarea id="profileFiche" rows="9" data-i18n-ph="shell.profilePlaceholder" placeholder="E.g. My name is Infinition. I'm a polymath developer (Rust, AI). I prefer concise, direct answers. Timezone: Europe/Paris…"></textarea>
     <div class="profile-modal-actions">
       <button class="send-btn" onclick="LaRuche.Chat.saveProfile()"><span>Save</span></button>
     </div>
@@ -163,7 +163,7 @@
              to satisfy the JS status references (feed-live, usage, iteration…) without showing
              anything. The sidebar only keeps: controls + model + conversations. -->
         <div id="agentLegacyStubs" style="display:none" aria-hidden="true">
-          <span id="feedLiveStatus" class="feed-live-status"><span class="feed-live-dot"></span><span id="feedLiveText">Waiting</span></span>
+          <span id="feedLiveStatus" class="feed-live-status"><span class="feed-live-dot"></span><span id="feedLiveText" data-i18n="shell.waiting">Waiting</span></span>
           <input type="checkbox" id="feedDetailsToggle">
           <span id="iterationBadge" class="iteration-badge"></span>
           <div class="feed-usage-bar" id="feedUsage"></div>
@@ -174,13 +174,13 @@
         </div>
         <div class="sessions-list-sidebar" id="sessionsSidebarSection">
           <div class="sidebar-header" style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
-            <span>Conversations</span>
+            <span data-i18n="shell.conversations">Conversations</span>
             <span style="display:flex; gap:6px; align-items:center;">
               <button onclick="LaRuche.Chat.openHistory()" title="History &amp; search" style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:15px; line-height:1; transition:color 0.2s;" onmouseover="this.style.color='var(--amber)'" onmouseout="this.style.color='var(--text-dim)'"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></button>
             </span>
           </div>
           <div style="padding:2px 8px 4px;">
-            <button onclick="LaRuche.Chat.newSession()" title="New conversation" style="display:flex; align-items:center; justify-content:center; gap:6px; width:100%; padding:6px 10px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2); border-radius:6px; color:var(--amber); cursor:pointer; font-size:12px; font-weight:500; transition:background 0.2s;" onmouseover="this.style.background='rgba(245,158,11,0.16)'" onmouseout="this.style.background='rgba(245,158,11,0.08)'">+ New conversation</button>
+            <button onclick="LaRuche.Chat.newSession()" title="New conversation" style="display:flex; align-items:center; justify-content:center; gap:6px; width:100%; padding:6px 10px; background:rgba(245,158,11,0.08); border:1px solid rgba(245,158,11,0.2); border-radius:6px; color:var(--amber); cursor:pointer; font-size:12px; font-weight:500; transition:background 0.2s;" onmouseover="this.style.background='rgba(245,158,11,0.16)'" onmouseout="this.style.background='rgba(245,158,11,0.08)'" data-i18n="shell.newConversation">+ New conversation</button>
           </div>
           <div id="sessionsSidebarList"></div>
         </div>
@@ -190,16 +190,16 @@
           <div class="welcome" id="welcomeScreen">
             <div class="swarm-wrap" style="transform: scale(0.65); margin: -40px auto -30px;"><canvas class="swarm-canvas"></canvas></div>
             <h2>L&#x27;Essaim</h2>
-            <p>AI agent powered by LaRuche.<br>Ask your question or give an instruction.</p>
+            <p data-i18n-html="chat.welcomeSubtitle">AI agent powered by LaRuche.<br>Ask your question or give an instruction.</p>
             <div class="suggested-prompts">
-              <div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">Explain the project architecture to me</div>
-              <div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">Which files were modified recently?</div>
-              <div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">Analyze the errors in the logs</div>
-              <div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">Create an action plan to optimize performance</div>
+              <div class="suggested-prompt" data-i18n="chat.suggestion1" onclick="LaRuche.Chat.useSuggestion(this)">Explain the project architecture to me</div>
+              <div class="suggested-prompt" data-i18n="chat.suggestion2" onclick="LaRuche.Chat.useSuggestion(this)">Which files were modified recently?</div>
+              <div class="suggested-prompt" data-i18n="chat.suggestion3" onclick="LaRuche.Chat.useSuggestion(this)">Analyze the errors in the logs</div>
+              <div class="suggested-prompt" data-i18n="chat.suggestion4" onclick="LaRuche.Chat.useSuggestion(this)">Create an action plan to optimize performance</div>
             </div>
           </div>
         </div>
-        <div id="dropZone" class="drop-zone" style="display:none"><div class="drop-zone-text">Drop the file here</div></div>
+        <div id="dropZone" class="drop-zone" style="display:none"><div class="drop-zone-text" data-i18n="shell.dropFile">Drop the file here</div></div>
         <div id="attachmentPreview" class="attachment-preview" style="display:none"></div>
         <!-- Context gauge (chat only: context is session-bound) -->
         <div class="chat-ctx-gauge" id="chatCtxGauge">
@@ -227,13 +227,13 @@
           </label>
           </div>
           <div class="honey-wave" id="honeyWave" style="display:none"><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div></div>
-          <textarea id="userInput" placeholder="Write your message..." rows="1"></textarea>
+          <textarea id="userInput" data-i18n-ph="shell.inputPlaceholder" placeholder="Write your message..." rows="1"></textarea>
           <button class="send-btn" id="sendBtn" onclick="LaRuche.Chat.sendMessage()"><span>Send</span> <svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg></button>
           <button class="send-btn stop-btn" id="stopBtn" style="display:none" onclick="LaRuche.Chat.stopRun()" title="Stop generation"><span>Stop</span> <svg width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: middle;"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg></button>
         </div>
         <div class="cwd-bar" id="cwdBar">
           <span class="cwd-icon" title="Working directory"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg></span>
-          <input class="cwd-input" id="cwdInput" type="text" placeholder="Working directory..." spellcheck="false">
+          <input class="cwd-input" id="cwdInput" type="text" data-i18n-ph="shell.cwdPlaceholder" placeholder="Working directory..." spellcheck="false">
           <button class="cwd-btn" onclick="LaRuche.Chat.browseCwd()" title="Browse">...</button>
         </div>
       </div>

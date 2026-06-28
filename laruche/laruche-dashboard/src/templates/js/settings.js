@@ -1765,6 +1765,8 @@ LaRuche.Settings = (function(){
     var tasks=await fetch(LaRuche.API.base+'/api/kanban').then(function(r){return r.json();}).catch(function(){return [];});
     var sig=_kanbanView+'|'+JSON.stringify(tasks); if(sig===_kanbanLast) return; _kanbanLast=sig;
     var cols=['Triage','Todo','Ready','Running','Blocked','Done','Archived'];
+    // Display label for a status. The value `c` itself stays the contract code (drag/drop, t.status===c).
+    function kanbanColLabel(c){ return LaRuche.i18n.t('kanban.col.'+c.toLowerCase()); }
     var html;
     if(_kanbanView==='rows'){
       // Condensed horizontal mode: each status = a band, cards in flex-wrap, height = content.
@@ -1772,7 +1774,7 @@ LaRuche.Settings = (function(){
       cols.forEach(function(c){
         var colTasks=tasks.filter(function(t){return t.status===c;});
         html+='<div style="background:rgba(30,30,32,0.8);border:1px solid var(--amber-dim);border-radius:6px;overflow:hidden" ondragover="LaRuche.Settings.kanbanDragOver(event)" ondrop="LaRuche.Settings.kanbanDrop(event,\''+c+'\')">';
-        html+='<div style="padding:6px 10px;font-weight:600;color:var(--amber);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><span>'+c+'</span><span style="font-size:10px;color:var(--text-dim)">'+colTasks.length+'</span></div>';
+        html+='<div style="padding:6px 10px;font-weight:600;color:var(--amber);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><span>'+kanbanColLabel(c)+'</span><span style="font-size:10px;color:var(--text-dim)">'+colTasks.length+'</span></div>';
         html+='<div style="padding:8px;display:flex;flex-wrap:wrap;gap:8px;min-height:36px">';
         if(!colTasks.length){ html+='<span style="font-size:10px;color:var(--text-muted);align-self:center">-</span>'; }
         colTasks.forEach(function(t){ html+='<div style="flex:0 0 230px;max-width:230px">'+kanbanCardHtml(t)+'</div>'; });
@@ -1785,7 +1787,7 @@ LaRuche.Settings = (function(){
       cols.forEach(function(c){
         html+='<div style="flex:0 0 250px;background:rgba(30,30,32,0.8);border:1px solid var(--amber-dim);border-radius:6px;display:flex;flex-direction:column" ondragover="LaRuche.Settings.kanbanDragOver(event)" ondrop="LaRuche.Settings.kanbanDrop(event,\''+c+'\')">';
         var colTasks=tasks.filter(function(t){return t.status===c;});
-        html+='<div style="padding:10px;font-weight:600;color:var(--amber);border-bottom:1px solid var(--border);text-align:center">'+c+(colTasks.length?(' ('+colTasks.length+')'):'')+'</div>';
+        html+='<div style="padding:10px;font-weight:600;color:var(--amber);border-bottom:1px solid var(--border);text-align:center">'+kanbanColLabel(c)+(colTasks.length?(' ('+colTasks.length+')'):'')+'</div>';
         html+='<div style="flex:1;padding:8px;display:flex;flex-direction:column;gap:8px">';
         colTasks.forEach(function(t){ html+=kanbanCardHtml(t); });
         html+='</div></div>';

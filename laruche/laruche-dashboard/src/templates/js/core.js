@@ -57,7 +57,17 @@ LaRuche.i18n = (function(){
   }
   // Each module registers its own keys at load time, which avoids editing a central dict and conflicts.
   function add(obj){ if(obj){ for(var k in obj){ DICT[k] = obj[k]; } } }
-  return { t:t, add:add, setLang:setLang, get:function(){ return lang; }, DICT:DICT };
+  // Translate the static HTML shell (spa.html). Elements carry data-i18n (textContent),
+  // data-i18n-html (innerHTML), data-i18n-ph (placeholder) or data-i18n-title (title).
+  // Called once at boot so the shell follows the active language like the JS-rendered views.
+  function applyStatic(root){
+    root = root || document;
+    root.querySelectorAll('[data-i18n]').forEach(function(el){ el.textContent = t(el.getAttribute('data-i18n')); });
+    root.querySelectorAll('[data-i18n-html]').forEach(function(el){ el.innerHTML = t(el.getAttribute('data-i18n-html')); });
+    root.querySelectorAll('[data-i18n-ph]').forEach(function(el){ el.setAttribute('placeholder', t(el.getAttribute('data-i18n-ph'))); });
+    root.querySelectorAll('[data-i18n-title]').forEach(function(el){ el.setAttribute('title', t(el.getAttribute('data-i18n-title'))); });
+  }
+  return { t:t, add:add, setLang:setLang, applyStatic:applyStatic, get:function(){ return lang; }, DICT:DICT };
 })();
 
 LaRuche.i18n.add({

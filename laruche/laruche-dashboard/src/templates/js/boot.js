@@ -13,13 +13,15 @@
     btn.textContent = cur.toUpperCase();
     btn.onclick = function(){ LaRuche.i18n.setLang(cur === 'fr' ? 'en' : 'fr'); };
     hr.insertBefore(btn, hr.firstChild);
-    // Translate the navigation labels (visible proof of the switch; the rest of the UI migrates afterward).
+    // Translate the navigation labels.
     document.querySelectorAll('.header-nav a[data-page], .mobile-tabs a[data-page]').forEach(function(a){
       var key = 'nav.' + a.dataset.page;
       var span = a.querySelector('.tab-text');
       if(span && LaRuche.i18n.DICT[key]) span.textContent = LaRuche.i18n.t(key);
     });
   })();
+  // Translate the whole static shell (spa.html) via data-i18n attributes.
+  LaRuche.i18n.applyStatic();
   LaRuche.Voice.init();
   LaRuche.Feed.init();
   if(LaRuche.Secrets && LaRuche.Secrets.init) LaRuche.Secrets.init();
