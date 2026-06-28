@@ -164,6 +164,7 @@ pub async fn revue_et_refaire(
     registry: &AbeilleRegistry,
     config: &EssaimConfig,
     memoire: Arc<dyn MemoireCognitive>,
+    tx: &tokio::sync::broadcast::Sender<ChatEvent>,
 ) -> Revision {
     let cfg = ConfigReine {
         mode: ModeReine::depuis_str(mode),
@@ -179,8 +180,6 @@ pub async fn revue_et_refaire(
     let mut revised = false;
     let mut rounds = 0u8;
     let mut analyse = String::new();
-    // The rework runs silently: its streaming goes to a throwaway channel.
-    let (muet, _muet_rx) = tokio::sync::broadcast::channel::<ChatEvent>(256);
 
     loop {
         let card = match juger_avec(
@@ -206,6 +205,10 @@ pub async fn revue_et_refaire(
         match reine.juger(&card) {
             Action::Reviser { tour, instruction } => {
                 journal.push(format!("LaReine round {tour}: {}", instruction.trim()));
+                // Tell the UI she is sending it back, then stream the rework live.
+                let _ = tx.send(ChatEvent::Status {
+                    message: format!("__reine_rework_start__|{}", instruction.trim()),
+                });
                 let consigne = format!(
                     "[Your supervisor LaReine reviewed your previous answer and sends you back to redo \
                      the work properly. Apply this in good faith; if part is clearly wrong, keep what \
@@ -217,7 +220,7 @@ pub async fn revue_et_refaire(
                     session,
                     registry,
                     config,
-                    &muet,
+                    tx,
                     memoire.clone(),
                     Vec::new(),
                     None,
@@ -243,6 +246,19 @@ pub async fn revue_et_refaire(
             }
         }
     }
+
+    // Emit the verdict (summary + her reasoning) once the rework is done.
+    let summary = if revised {
+        format!("LaReine sent it back to be redone ({rounds} round(s))")
+    } else {
+        journal
+            .last()
+            .cloned()
+            .unwrap_or_else(|| "LaReine reviewed the answer".to_string())
+    };
+    let _ = tx.send(ChatEvent::Status {
+        message: format!("__reine_verdict__|{summary}\u{1f}{analyse}"),
+    });
 
     Revision {
         final_answer: answer,

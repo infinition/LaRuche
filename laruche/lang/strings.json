@@ -4842,5 +4842,9 @@
   "reine.seeReasoning": {
     "en": "Click to see LaReine's reasoning",
     "fr": "Cliquer pour voir le raisonnement de LaReine"
+  },
+  "reine.sentBack": {
+    "en": "LaReine sent it back to redo",
+    "fr": "LaReine la renvoie bosser"
   }
 }

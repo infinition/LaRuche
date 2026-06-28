@@ -478,30 +478,33 @@ pub(crate) async fn ws_chat_connection(
                                     // is shown first and the turn completes; the verdict and any rewrite
                                     // trickle in afterwards. No-op unless enabled.
                                     if reine_api::review_active() {
-                                        let thinking = laruche_essaim::ChatEvent::Status {
-                                            message: "__reine_thinking__".to_string(),
+                                        // The review (and visible rework) streams to a local channel,
+                                        // relayed live to this WebSocket until the `__reine_end__`
+                                        // sentinel. The rework thus appears in the chat as it happens.
+                                        let (rtx, mut rrx) =
+                                            tokio::sync::broadcast::channel::<laruche_essaim::ChatEvent>(256);
+                                        let revue = reine_api::revue_complete(
+                                            &state,
+                                            session_id,
+                                            &user_text,
+                                            full_response,
+                                            rtx,
+                                        );
+                                        let relay = async {
+                                            while let Ok(ev) = rrx.recv().await {
+                                                if let laruche_essaim::ChatEvent::Status { message } = &ev {
+                                                    if message == "__reine_end__" {
+                                                        break;
+                                                    }
+                                                }
+                                                let _ = sender
+                                                    .send(ws::Message::Text(
+                                                        event_json_avec_session(&ev, session_id).into(),
+                                                    ))
+                                                    .await;
+                                            }
                                         };
-                                        let _ = sender.send(ws::Message::Text(
-                                            event_json_avec_session(&thinking, session_id).into(),
-                                        )).await;
-                                        let (verdict, revised, analyse) =
-                                            reine_api::revue_complete(&state, session_id, &user_text, full_response)
-                                                .await
-                                                .unwrap_or_default();
-                                        let ev = laruche_essaim::ChatEvent::Status {
-                                            message: format!("__reine_verdict__|{verdict}\u{1f}{analyse}"),
-                                        };
-                                        let _ = sender.send(ws::Message::Text(
-                                            event_json_avec_session(&ev, session_id).into(),
-                                        )).await;
-                                        if let Some(text) = revised {
-                                            let rev = laruche_essaim::ChatEvent::Status {
-                                                message: format!("__reine_revised__|{text}"),
-                                            };
-                                            let _ = sender.send(ws::Message::Text(
-                                                event_json_avec_session(&rev, session_id).into(),
-                                            )).await;
-                                        }
+                                        tokio::join!(revue, relay);
                                     }
                                     done = true;
                                 }

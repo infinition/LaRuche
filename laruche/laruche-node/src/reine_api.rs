@@ -184,20 +184,34 @@ async fn resoudre_creds(
     }
 }
 
-/// Full Tier 1 review for a finished answer: judge it, and if LaReine asks for a
-/// revision (within the round budget) send the worker back to **redo the work** (a
-/// fresh agentic run with its tools), then re-judge. Returns a verdict summary line
-/// and, when the answer was redone, the final text. None when the Reine is inactive.
+/// Full Tier 1 review for a finished answer, streamed live to `tx`: judge it, and
+/// if LaReine asks for a revision (within the round budget) send the worker back to
+/// **redo the work** (a fresh agentic run, visible in the chat), then re-judge.
+/// Emits a `__reine_end__` sentinel when finished. No-op (just the sentinel) when
+/// the Reine is inactive.
 pub(crate) async fn revue_complete(
     state: &AppState,
     session_id: uuid::Uuid,
     prompt: &str,
     reponse: &str,
-) -> Option<(String, Option<String>, String)> {
+    tx: tokio::sync::broadcast::Sender<laruche_essaim::ChatEvent>,
+) {
+    let fin = |tx: &tokio::sync::broadcast::Sender<laruche_essaim::ChatEvent>| {
+        let _ = tx.send(laruche_essaim::ChatEvent::Status {
+            message: "__reine_end__".to_string(),
+        });
+    };
+
     let rs = charger_reine_settings();
     if !rs.active_for_responses() || reponse.trim().is_empty() {
-        return None;
+        fin(&tx);
+        return;
     }
+
+    // Animated "reviewing" marker while she judges (the judge call is silent).
+    let _ = tx.send(laruche_essaim::ChatEvent::Status {
+        message: "__reine_thinking__".to_string(),
+    });
 
     // Judge profile: LaReine's own pick (`profile_id|||model`), else the active model.
     let (j_pid, j_model) = match rs.provider_profile.as_deref().filter(|s| !s.is_empty()) {
@@ -225,15 +239,16 @@ pub(crate) async fn revue_complete(
         .unwrap_or_else(|| laruche_essaim::reine_live::prompt_reine_defaut().to_string());
 
     // Working copy of the session + the worker config (active profile) for the rework.
-    let mut session = state.essaim_sessions.read().await.get(&session_id).cloned()?;
+    let mut session = match state.essaim_sessions.read().await.get(&session_id).cloned() {
+        Some(s) => s,
+        None => {
+            fin(&tx);
+            return;
+        }
+    };
     let config = state.essaim_config.read().await.clone();
 
-    tracing::info!(
-        target: "reine",
-        judge = %juge.model,
-        max_revues = rs.max_revues,
-        "review + rework running"
-    );
+    tracing::info!(target: "reine", judge = %juge.model, max_revues = rs.max_revues, "review + rework");
 
     let rev = laruche_essaim::reine_live::revue_et_refaire(
         &juge,
@@ -247,6 +262,7 @@ pub(crate) async fn revue_complete(
         &state.essaim_registry,
         &config,
         state.memoire.clone(),
+        &tx,
     )
     .await;
 
@@ -267,14 +283,5 @@ pub(crate) async fn revue_complete(
         }
     }
 
-    let summary = if rev.revised {
-        format!("LaReine sent it back to be redone ({} round(s))", rev.rounds)
-    } else {
-        rev.journal
-            .last()
-            .cloned()
-            .unwrap_or_else(|| "LaReine reviewed the answer".to_string())
-    };
-    let revised = rev.revised.then_some(rev.final_answer);
-    Some((summary, revised, rev.analyse))
+    fin(&tx);
 }

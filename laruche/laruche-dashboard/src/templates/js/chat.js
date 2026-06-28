@@ -153,6 +153,7 @@ LaRuche.Chat = (function(){
   var _reineThinkingEl = null;
   var _lastAssistantMsg = null;
   var _lastAssistantRow = null;
+  var _nextMsgIsReine = false;
   var isStreaming = false;
   var autoTtsEnabled = false;
   var noThinkEnabled = false;
@@ -434,6 +435,21 @@ LaRuche.Chat = (function(){
               }
             }
           }
+          break;
+        }
+        // LaReine sends the worker back to redo the work: show a chip and tag the
+        // next streamed assistant message as her rework (crowned avatar).
+        if(statusMessage.indexOf('__reine_rework_start__|')===0){
+          var rwInstr=statusMessage.slice('__reine_rework_start__|'.length).trim();
+          if(_reineThinkingEl){_reineThinkingEl.remove(); _reineThinkingEl=null;}
+          var rwHost=(currentAssistantMsg&&currentAssistantMsg.parentNode)||(_lastAssistantMsg&&_lastAssistantMsg.parentNode)||currentAssistantRow||_lastAssistantRow;
+          if(rwHost){
+            var rwc=document.createElement('div');
+            rwc.className='reine-verdict';
+            rwc.innerHTML='<span class="reine-crown">👑</span> '+LaRuche.i18n.t('reine.sentBack')+(rwInstr?': '+LaRuche.Utils.esc(rwInstr):'');
+            rwHost.appendChild(rwc);
+          }
+          _nextMsgIsReine=true;
           break;
         }
         // LaReine's rewritten answer (after auto-revision): a distinct assistant block.
@@ -855,6 +871,18 @@ LaRuche.Chat = (function(){
     ts.dataset.time = timeStr;
     wrapper.appendChild(ts);
     row.appendChild(wrapper);
+    // Tag a LaReine rework message: crowned avatar + header (the next streamed
+    // assistant message after she sent the worker back).
+    if(role==='assistant' && _nextMsgIsReine){
+      _nextMsgIsReine=false;
+      row.classList.add('reine-revised-row');
+      var rmav=row.querySelector('.avatar');
+      if(rmav){ rmav.innerHTML='<div class="bee bee-reine"><div class="bee--wings"></div><div class="bee--body"><span></span><span></span></div><div class="bee--head"><div class="bee--head-eyes"></div><div class="bee--head-antennas"></div></div><div class="bee--crown"></div></div>'; }
+      var rmhdr=document.createElement('div');
+      rmhdr.className='reine-revised-header';
+      rmhdr.innerHTML='👑 '+LaRuche.i18n.t('reine.revised');
+      wrapper.insertBefore(rmhdr, msg);
+    }
     container.appendChild(row);
     if(role==='assistant') updateAssistantAvatars();
     scrollToBottom(role==='user'); // user sending forces scroll back to bottom; otherwise we respect their position
