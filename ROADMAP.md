@@ -19,7 +19,13 @@ But : **zéro français dans le code** hors termes de marque LaRuche et fichier 
 - [x] **Sentinels Rust↔JS** traduits **conjointement** : verbes de feed (`a demandé/a répondu`→`asked/replied` + matcher capabilities.js), `Synthèse/Erreur LaRuche`→`LaRuche summary/error` + matcher memory.js, `réponse finale`→`final response`, séparateur third-party `" - "` (au lieu de l'em dash).
 - [x] **Sweep em dash = 0** sur tout le projet (3267 retirés : code+docs, puis 3232 dans `skills/**/*.md`).
 - [x] **README** réécrit pro/concis/anglais/non-LLM.
-- [ ] *Note* : i18n FR/EN ne couvre que l'UI webapp. Les **strings runtime Rust** (logs, messages serveur) sont en anglais simple (pas de runtime i18n Rust) ; chip mémoire `chat.js` dépend d'un status à compteur que le Rust n'émet plus (cosmétique).
+
+## 🌐 i18n complet via fichiers de langue (web fait, Rust à venir)
+- [x] **Couverture web 100 %** : ~220 libellés UI hardcodés en anglais routés par `t()` avec `{fr,en}`.
+- [x] **Fichiers de langue externes** : `laruche/lang/en.json` + `fr.json` (1016 clés), source de vérité. Le node injecte la langue active (cookie `laruche_lang`) en `window.__I18N__` avant `app.js` ; `t()` fait un lookup plat. Servis sur `/lang/<code>.json`. **Ajouter une langue = déposer `lang/<code>.json` + 1 match arm** (voir `lang/README.md`). Dicos inline gardés en fallback runtime.
+- [ ] **Phase 2 - moteur i18n Rust** : `t(key,lang,vars)` lisant les mêmes `lang/*.json` ; langue **par canal/utilisateur** (`/lang` + auto-détection ; le chat web envoie sa langue) ; router les chaînes **visibles utilisateur** (messages canaux, status UI, erreurs, verbes feed). Logs/prompts restent EN.
+- [ ] **Polish FR** : certaines valeurs `fr.json` ont perdu leurs accents (« a la demande » -> « à la demande ») - passe de qualité.
+- [ ] *Note* : chip mémoire `chat.js` dépend d'un status à compteur que le Rust n'émet plus (cosmétique).
 
 ## 🔧 Reste / near-term (chantiers actifs)
 Suivis dans la liste de tâches du dépôt.
