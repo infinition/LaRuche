@@ -38,6 +38,8 @@ mod credentials_api;
 mod settings_api;
 mod doctor_api;
 mod kanban_api;
+mod watchers_api;
+mod skills_api;
 
 use anyhow::Result;
 use axum::{
@@ -4870,281 +4872,9 @@ async fn api_update_cron(
 // --- Skills (OKF in memory, capacities.skills.*) - Settings page ----------------
 
 /// GET /api/skills - lists skills (name, description, enabled).
-async fn api_list_skills(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    let disabled = state.essaim_config.read().await.disabled_skills.clone();
-    let mut out: Vec<serde_json::Value> = Vec::new();
-    if let Ok(root) = state.memoire.read_node("capacities.skills").await {
-        if let Some(children) = root["children"].as_array() {
-            for child in children {
-                let id = child["id"].as_str().or_else(|| child["node_id"].as_str());
-                let Some(id) = id else { continue };
-                let name = id
-                    .strip_prefix("capacities.skills.")
-                    .unwrap_or(id)
-                    .to_string();
-                // Load the content to extract the description.
-                let mut description = child["label"].as_str().unwrap_or("").to_string();
-                if let Ok(node) = state.memoire.read_node(id).await {
-                    if let Some(items) = node["items"].as_array() {
-                        if let Some(body) = items.iter().rev().find_map(|it| {
-                            it["content"].as_str().filter(|c| c.contains("type: skill"))
-                        }) {
-                            if let Ok(sk) = laruche_skills::Skill::parse(body) {
-                                description = sk.meta.description.clone();
-                            }
-                        }
-                    }
-                }
-                out.push(serde_json::json!({
-                    "name": name,
-                    "description": description,
-                    "enabled": !disabled.iter().any(|d| d == &name),
-                }));
-            }
-        }
-    }
-    out.sort_by(|a, b| {
-        a["name"]
-            .as_str()
-            .unwrap_or("")
-            .cmp(b["name"].as_str().unwrap_or(""))
-    });
-    Json(serde_json::json!(out))
-}
+// Skill endpoints (list, get, upsert, toggle, delete agent skills) -> moved to skills_api.rs
 
-/// GET /api/skills/:name - returns the full SKILL.md (OKF).
-async fn api_get_skill(
-    State(state): State<Arc<AppState>>,
-    axum::extract::Path(name): axum::extract::Path<String>,
-) -> Json<serde_json::Value> {
-    let node_id = laruche_skills::skill_node_id(&name);
-    if let Ok(node) = state.memoire.read_node(&node_id).await {
-        if let Some(items) = node["items"].as_array() {
-            if let Some(body) = items
-                .iter()
-                .rev()
-                .find_map(|it| it["content"].as_str().filter(|c| c.contains("type: skill")))
-            {
-                return Json(serde_json::json!({"name": name, "content": body}));
-            }
-        }
-    }
-    Json(serde_json::json!({"error": "not found"}))
-}
-
-/// POST /api/skills - creates/updates a skill (body: {content} OKF, or {name, content}).
-async fn api_upsert_skill(
-    State(state): State<Arc<AppState>>,
-    headers: axum::http::HeaderMap,
-    Json(body): Json<serde_json::Value>,
-) -> Json<serde_json::Value> {
-    if auth_user::extract_user_from_headers(&headers, &state.cookie_secret).is_none() {
-        return Json(serde_json::json!({"error": "unauthorized"}));
-    }
-    let content = body["content"].as_str().unwrap_or("");
-    let sk = match laruche_skills::Skill::parse(content) {
-        Ok(s) if !s.meta.name.trim().is_empty() => s,
-        _ => {
-            return Json(
-                serde_json::json!({"error": "invalid frontmatter (name/description required, type: skill)"}),
-            )
-        }
-    };
-    let node_id = laruche_skills::skill_node_id(&sk.meta.name);
-    match state
-        .memoire
-        .write(laruche_memoire::MemoryItem::new(node_id, content).with_source("skills-ui"))
-        .await
-    {
-        Ok(_) => Json(serde_json::json!({"status": "ok", "name": sk.meta.name})),
-        Err(e) => Json(serde_json::json!({"error": format!("{e}")})),
-    }
-}
-
-/// POST /api/skills/:name/toggle - enables/disables a skill (persisted).
-async fn api_toggle_skill(
-    State(state): State<Arc<AppState>>,
-    headers: axum::http::HeaderMap,
-    axum::extract::Path(name): axum::extract::Path<String>,
-) -> Json<serde_json::Value> {
-    if auth_user::extract_user_from_headers(&headers, &state.cookie_secret).is_none() {
-        return Json(serde_json::json!({"error": "unauthorized"}));
-    }
-    let enabled = {
-        let mut cfg = state.essaim_config.write().await;
-        if let Some(pos) = cfg.disabled_skills.iter().position(|d| d == &name) {
-            cfg.disabled_skills.remove(pos);
-            true
-        } else {
-            cfg.disabled_skills.push(name.clone());
-            false
-        }
-    };
-    save_persistent_state(&state).await;
-    Json(serde_json::json!({"status": "ok", "name": name, "enabled": enabled}))
-}
-
-/// DELETE /api/skills/:name - deletes the skill (node items) + cleans up the state.
-async fn api_delete_skill(
-    State(state): State<Arc<AppState>>,
-    headers: axum::http::HeaderMap,
-    axum::extract::Path(name): axum::extract::Path<String>,
-) -> Json<serde_json::Value> {
-    if auth_user::extract_user_from_headers(&headers, &state.cookie_secret).is_none() {
-        return Json(serde_json::json!({"error": "unauthorized"}));
-    }
-    let node_id = laruche_skills::skill_node_id(&name);
-    let _ = state.memoire.delete_node(&node_id).await;
-    {
-        let mut cfg = state.essaim_config.write().await;
-        cfg.disabled_skills.retain(|d| d != &name);
-    }
-    save_persistent_state(&state).await;
-    Json(serde_json::json!({"status": "ok"}))
-}
-
-/// GET /api/watchers - list watchers.
-async fn api_list_watchers(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    let registry = state.watchers.read().await;
-    let watchers: Vec<serde_json::Value> = registry
-        .list()
-        .iter()
-        .map(|w| {
-            serde_json::json!({
-                "id": w.id,
-                "name": w.name,
-                "watcher_type": w.watcher_type,
-                "target": w.target,
-                "condition": w.condition,
-                "prompt": w.prompt,
-                "active": w.active,
-                "run_count": w.run_count,
-                "profile_id": w.profile_id,
-                "model": w.model,
-            })
-        })
-        .collect();
-    Json(serde_json::json!(watchers))
-}
-
-/// POST /api/watchers - create a watcher.
-async fn api_create_watcher(
-    State(state): State<Arc<AppState>>,
-    axum::extract::Json(body): axum::extract::Json<serde_json::Value>,
-) -> StatusCode {
-    let name = body["name"]
-        .as_str()
-        .unwrap_or("Unnamed Watcher")
-        .to_string();
-    let prompt = body["prompt"]
-        .as_str()
-        .unwrap_or("Analyze this change")
-        .to_string();
-    let target = body["target"].as_str().unwrap_or("").to_string();
-    let condition = body["condition"].as_str().unwrap_or("").to_string();
-    let w_type_str = body["watcher_type"].as_str().unwrap_or("file");
-
-    let watcher_type = match w_type_str {
-        "url" => laruche_watchers::WatcherType::Url,
-        "log" => laruche_watchers::WatcherType::Log,
-        _ => laruche_watchers::WatcherType::File,
-    };
-
-    let watcher = laruche_watchers::Watcher {
-        id: Uuid::new_v4(),
-        name,
-        watcher_type,
-        target,
-        condition,
-        prompt,
-        channel: body["channel"]
-            .as_str()
-            .filter(|s| !s.trim().is_empty())
-            .map(|s| s.to_string()),
-        active: true,
-        created_at: chrono::Utc::now(),
-        last_run: None,
-        run_count: 0,
-        last_state: None,
-        model: body["model"]
-            .as_str()
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string()),
-        profile_id: body["profile_id"]
-            .as_str()
-            .filter(|s| !s.is_empty())
-            .map(|s| s.to_string()),
-    };
-
-    let log_name = watcher.name.clone();
-    let mut registry = state.watchers.write().await;
-    registry.add(watcher);
-    drop(registry);
-    laruche_essaim::feed_journal::record(
-        "User",
-        "watcher",
-        "created the watcher",
-        log_name,
-        chrono::Utc::now(),
-    );
-    StatusCode::CREATED
-}
-
-/// PATCH /api/watchers/:id - updates a watcher's editable fields. Absent key =
-/// field unchanged; model/profile_id set to "" = cleared.
-async fn api_update_watcher(
-    State(state): State<Arc<AppState>>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-    axum::extract::Json(body): axum::extract::Json<serde_json::Value>,
-) -> StatusCode {
-    let uuid = match Uuid::parse_str(&id) {
-        Ok(u) => u,
-        Err(_) => return StatusCode::BAD_REQUEST,
-    };
-    let watcher_type = body.get("watcher_type").and_then(|v| v.as_str()).map(|s| match s {
-        "url" => laruche_watchers::WatcherType::Url,
-        "log" => laruche_watchers::WatcherType::Log,
-        _ => laruche_watchers::WatcherType::File,
-    });
-    let s = |k: &str| body.get(k).and_then(|v| v.as_str()).map(|v| v.to_string());
-    // Key present -> update (empty value = clear for model/profile_id).
-    let opt = |k: &str| {
-        body.get(k)
-            .map(|v| v.as_str().filter(|x| !x.is_empty()).map(|x| x.to_string()))
-    };
-    let mut registry = state.watchers.write().await;
-    let ok = registry.update(
-        &uuid,
-        s("name"),
-        watcher_type,
-        s("target"),
-        s("condition"),
-        s("prompt"),
-        body.get("active").and_then(|v| v.as_bool()),
-        opt("model"),
-        opt("profile_id"),
-        opt("channel"),
-    );
-    if ok {
-        StatusCode::OK
-    } else {
-        StatusCode::NOT_FOUND
-    }
-}
-
-/// DELETE /api/watchers/:id - remove a watcher.
-async fn api_delete_watcher(
-    State(state): State<Arc<AppState>>,
-    axum::extract::Path(id): axum::extract::Path<String>,
-) -> StatusCode {
-    if let Ok(uuid) = Uuid::parse_str(&id) {
-        let mut registry = state.watchers.write().await;
-        if registry.remove(&uuid) {
-            return StatusCode::OK;
-        }
-    }
-    StatusCode::NOT_FOUND
-}
+// Watcher endpoints (list, create, update, delete file/event watchers) -> moved to watchers_api.rs
 
 // Kanban board endpoints (task list/create/update/status/dependency/delete, default channel, known channels) -> moved to kanban_api.rs
 
@@ -6139,19 +5869,19 @@ async fn main() -> Result<()> {
             axum::routing::delete(api_delete_cron).put(api_update_cron),
         )
         .route("/api/cron/:id/run", post(api_run_cron))
-        .route("/api/skills", get(api_list_skills).post(api_upsert_skill))
+        .route("/api/skills", get(skills_api::api_list_skills).post(skills_api::api_upsert_skill))
         .route(
             "/api/skills/:name",
-            get(api_get_skill).delete(api_delete_skill),
+            get(skills_api::api_get_skill).delete(skills_api::api_delete_skill),
         )
-        .route("/api/skills/:name/toggle", post(api_toggle_skill))
+        .route("/api/skills/:name/toggle", post(skills_api::api_toggle_skill))
         .route(
             "/api/watchers",
-            get(api_list_watchers).post(api_create_watcher),
+            get(watchers_api::api_list_watchers).post(watchers_api::api_create_watcher),
         )
         .route(
             "/api/watchers/:id",
-            axum::routing::patch(api_update_watcher).delete(api_delete_watcher),
+            axum::routing::patch(watchers_api::api_update_watcher).delete(watchers_api::api_delete_watcher),
         )
         .route("/api/channels/known", get(kanban_api::api_channels_known))
         .route(
