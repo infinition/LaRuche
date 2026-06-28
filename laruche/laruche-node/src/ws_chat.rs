@@ -333,6 +333,21 @@ pub(crate) async fn ws_chat_connection(
                 config.model = model.clone();
             }
 
+            // LaReine supervisor settings for this turn (from laruche-reine.json). Off by default.
+            {
+                let rs = reine_api::charger_reine_settings();
+                config.reine = laruche_essaim::brain::ReineConfig {
+                    mode: rs.mode,
+                    max_revues: rs.max_revues,
+                    seuil_confiance: rs.seuil_confiance,
+                    tier_reponse: rs.tier_reponse,
+                    tier_artefacts: rs.tier_artefacts,
+                    tier_supervision: rs.tier_supervision,
+                    queue_gate: rs.queue_gate,
+                    provider_profile: rs.provider_profile,
+                };
+            }
+
             let result = boucle_react_memoire_multimodal(
                 &user_text_clone,
                 &mut session,

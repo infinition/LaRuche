@@ -166,9 +166,60 @@ pub struct EssaimConfig {
     pub permission_mode: PermissionMode,
     #[serde(default)]
     pub permission_rules: Vec<PermissionRule>,
+    /// LaReine supervisor settings, mirrored from `laruche-reine.json` and set per
+    /// turn by the node. Off by default (no effect on normal operation).
+    #[serde(default)]
+    pub reine: ReineConfig,
     #[serde(skip)]
     pub credential_pool:
         Option<std::sync::Arc<tokio::sync::RwLock<crate::credential_pool::CredentialPool>>>,
+}
+
+/// LaReine settings as carried by the engine (a serde-friendly mirror of the
+/// node's `ReineSettings`). Maps to the pure [`laruche_butinage::cap::reine::ConfigReine`].
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ReineConfig {
+    #[serde(default)]
+    pub mode: String,
+    #[serde(default)]
+    pub max_revues: u8,
+    #[serde(default)]
+    pub seuil_confiance: u8,
+    #[serde(default)]
+    pub tier_reponse: bool,
+    #[serde(default)]
+    pub tier_artefacts: bool,
+    #[serde(default)]
+    pub tier_supervision: bool,
+    #[serde(default)]
+    pub queue_gate: bool,
+    #[serde(default)]
+    pub provider_profile: Option<String>,
+}
+
+impl ReineConfig {
+    /// Convert to the pure decision config.
+    pub fn to_core(&self) -> laruche_butinage::cap::reine::ConfigReine {
+        use laruche_butinage::cap::reine::{ConfigReine, ModeReine};
+        ConfigReine {
+            mode: ModeReine::depuis_str(&self.mode),
+            max_revues: self.max_revues,
+            seuil_confiance: if self.seuil_confiance == 0 {
+                60
+            } else {
+                self.seuil_confiance
+            },
+            tier_reponse: self.tier_reponse,
+            tier_artefacts: self.tier_artefacts,
+            tier_supervision: self.tier_supervision,
+        }
+    }
+
+    /// Is response review (Tier 1) active?
+    pub fn actif_reponse(&self) -> bool {
+        let c = self.to_core();
+        c.active() && c.tier_reponse
+    }
 }
 
 fn default_provider() -> String {
@@ -224,6 +275,7 @@ impl Default for EssaimConfig {
             dynamic_context_threshold: default_dynamic_context_threshold(),
             permission_mode: default_permission_mode(),
             permission_rules: Vec::new(),
+            reine: ReineConfig::default(),
             credential_pool: None,
         }
     }
@@ -1808,6 +1860,20 @@ pub async fn boucle_react_memoire_multimodal(
         )
         .await;
     });
+
+    // LaReine advisory review (Tier 1): non-blocking, best-effort. Judges the answer
+    // and emits a verdict status. Strict no-op unless enabled for responses.
+    if cfg.reine.actif_reponse() {
+        let (rep, pr, cfg_reine, tx_reine) = (
+            reponse.clone(),
+            prompt_utilisateur.to_string(),
+            cfg.clone(),
+            tx.clone(),
+        );
+        tokio::spawn(async move {
+            crate::reine_live::revue_reponse_advisory(&rep, &pr, &cfg_reine, &tx_reine).await;
+        });
+    }
 
     Ok(reponse)
 }
