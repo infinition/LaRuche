@@ -33,6 +33,8 @@ mod ws_chat;
 mod discord_api;
 mod channels_api;
 mod auth_api;
+mod events_api;
+mod credentials_api;
 
 use anyhow::Result;
 use axum::{
@@ -5749,106 +5751,10 @@ async fn api_mcp_server(
 // Config/settings API handlers moved to config_api.rs (provider, channel models,
 // runtime generation levers, compaction, context stats).
 
-// ======================== Credential Pool API ========================
-
-/// GET /api/credentials
-async fn api_get_credentials(
-    State(state): State<Arc<AppState>>,
-    headers: axum::http::HeaderMap,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-    let pool = state.credential_pool.read().await;
-    Ok(Json(serde_json::json!({
-        "credentials": pool.entries
-    })))
-}
-
-/// POST /api/credentials
-async fn api_add_credential(
-    State(state): State<Arc<AppState>>,
-    headers: axum::http::HeaderMap,
-    Json(body): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-    let provider = body["provider"].as_str().unwrap_or("").trim().to_string();
-    let api_key = body["api_key"].as_str().unwrap_or("").trim().to_string();
-    let label = body["label"].as_str().map(|s| s.trim().to_string());
-
-    if provider.is_empty() || api_key.is_empty() {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-
-    let mut entry =
-        laruche_essaim::credential_pool::CredentialEntry::new(&provider, &api_key, None);
-    entry.label = label;
-
-    {
-        let mut pool = state.credential_pool.write().await;
-        pool.entries.push(entry);
-        let _ = std::fs::write(
-            &state.credentials_path,
-            serde_json::to_string_pretty(&*pool).unwrap(),
-        );
-    }
-
-    Ok(Json(serde_json::json!({"status": "ok"})))
-}
-
-/// DELETE /api/credentials
-async fn api_delete_credential(
-    State(state): State<Arc<AppState>>,
-    headers: axum::http::HeaderMap,
-    Json(body): Json<serde_json::Value>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-    let provider = body["provider"].as_str().unwrap_or("").trim();
-    let api_key = body["api_key"].as_str().unwrap_or("").trim();
-
-    {
-        let mut pool = state.credential_pool.write().await;
-        let initial_len = pool.entries.len();
-        pool.entries
-            .retain(|e| !(e.provider == provider && e.api_key == api_key));
-        if pool.entries.len() < initial_len {
-            let _ = std::fs::write(
-                &state.credentials_path,
-                serde_json::to_string_pretty(&*pool).unwrap(),
-            );
-        }
-    }
-
-    Ok(Json(serde_json::json!({"status": "ok"})))
-}
+// Credential pool API (list, add, delete shared provider credentials) -> moved to credentials_api.rs
 // Provider profiles + codex + active model + capabilities API -> moved to profiles_api.rs
 
-// ======================== Events Endpoints ========================
-
-async fn api_get_events(
-    State(state): State<Arc<AppState>>,
-    axum::extract::Query(params): axum::extract::Query<HashMap<String, String>>,
-) -> Json<Vec<laruche_events::Event>> {
-    let since_id = params
-        .get("since")
-        .and_then(|s| s.parse::<u64>().ok())
-        .unwrap_or(0);
-    let events = state.events.read().await.since(since_id);
-    Json(events)
-}
-
-async fn api_export_events(
-    State(state): State<Arc<AppState>>,
-) -> Result<String, axum::http::StatusCode> {
-    let ndjson = state
-        .events
-        .read()
-        .await
-        .to_ndjson()
-        .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(ndjson)
-}
+// Event log endpoints (list recent events, export as NDJSON) -> moved to events_api.rs
 
 // Authentication endpoints (passkey enroll/challenge, login/logout, password, model selection, QR scan, permanent link) -> moved to auth_api.rs
 
@@ -6637,8 +6543,8 @@ async fn main() -> Result<()> {
             axum::routing::delete(api_delete_blueprint),
         )
         .route("/api/blueprints/:id/instancier", post(instancier_blueprint))
-        .route("/api/events", get(api_get_events))
-        .route("/api/events/export", get(api_export_events))
+        .route("/api/events", get(events_api::api_get_events))
+        .route("/api/events/export", get(events_api::api_export_events))
         .route("/health", get(health))
         .route("/nodes", get(get_nodes))
         .route("/swarm", get(get_swarm))
@@ -6765,9 +6671,9 @@ async fn main() -> Result<()> {
         )
         .route(
             "/api/credentials",
-            get(api_get_credentials)
-                .post(api_add_credential)
-                .delete(api_delete_credential),
+            get(credentials_api::api_get_credentials)
+                .post(credentials_api::api_add_credential)
+                .delete(credentials_api::api_delete_credential),
         )
         .route("/api/profiles/models", get(profiles_api::api_get_unified_models))
         .route("/api/profiles/active", post(profiles_api::api_set_active_model))
