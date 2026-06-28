@@ -1,32 +1,32 @@
-//! La messagerie : l'historique de conversation d'un butinage.
+//! The messagerie: the conversation history of a butinage.
 //!
-//! Type minimal et neutre vis-à-vis du provider. Les adaptateurs ([`crate::fournisseur`])
-//! le traduisent au format OpenAI/Anthropic/Ollama. Sérialisable → vit dans le [`Carnet`].
+//! Minimal, provider-neutral type. The adapters ([`crate::fournisseur`])
+//! translate it to the OpenAI/Anthropic/Ollama format. Serializable, lives in the [`Carnet`].
 
 use serde::{Deserialize, Serialize};
 
-/// Rôle d'un message.
+/// Role of a message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Role {
     Systeme,
     Utilisateur,
     Assistant,
-    /// Résultat d'outil réinjecté (observation).
+    /// Reinjected tool result (observation).
     Observation,
 }
 
-/// Une **pièce jointe** multimodale portée par un message utilisateur : image (vision),
-/// audio (modèles audio) ou fichier. Neutre vis-à-vis du provider — l'adaptateur la traduit
-/// (ex. Ollama : `images: [base64]` pour les images, `attachments: [...]` pour le reste).
+/// A multimodal **attachment** carried by a user message: image (vision),
+/// audio (audio models) or file. Provider-neutral, the adapter translates it
+/// (e.g. Ollama: `images: [base64]` for images, `attachments: [...]` for the rest).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Piece {
     /// `"image"` | `"audio"` | `"file"`.
     pub kind: String,
-    /// Type MIME (ex. `image/png`, `audio/wav`).
+    /// MIME type (e.g. `image/png`, `audio/wav`).
     #[serde(default)]
     pub mime: String,
-    /// Données encodées en base64.
+    /// Base64-encoded data.
     pub data: String,
 }
 
@@ -36,20 +36,20 @@ impl Piece {
     }
 }
 
-/// Un message de la conversation.
+/// A message in the conversation.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Message {
     pub role: Role,
     pub contenu: String,
-    /// Nom de l'outil pour une observation (sinon `None`).
+    /// Tool name for an observation (otherwise `None`).
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub outil: Option<String>,
-    /// Message **interne** (nudge de steering, reprise…) : le modèle le voit dans le contexte,
-    /// mais il ne doit PAS être persisté/affiché à l'utilisateur (sinon il réapparaît au reload).
+    /// **Internal** message (steering nudge, resume...): the model sees it in the context,
+    /// but it must NOT be persisted/shown to the user (otherwise it reappears on reload).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub interne: bool,
-    /// Pièces jointes multimodales (images multiples, audio…) — uniquement sur un message
-    /// utilisateur. Vide pour tout le reste.
+    /// Multimodal attachments (multiple images, audio...): only on a user
+    /// message. Empty for everything else.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub pieces: Vec<Piece>,
 }
@@ -61,7 +61,7 @@ impl Message {
     pub fn utilisateur(c: impl Into<String>) -> Self {
         Self { role: Role::Utilisateur, contenu: c.into(), outil: None, interne: false, pieces: Vec::new() }
     }
-    /// Message utilisateur avec pièces jointes multimodales (images/audio).
+    /// User message with multimodal attachments (images/audio).
     pub fn utilisateur_multimodal(c: impl Into<String>, pieces: Vec<Piece>) -> Self {
         Self { role: Role::Utilisateur, contenu: c.into(), outil: None, interne: false, pieces }
     }
@@ -71,8 +71,8 @@ impl Message {
     pub fn observation(outil: impl Into<String>, c: impl Into<String>) -> Self {
         Self { role: Role::Observation, contenu: c.into(), outil: Some(outil.into()), interne: false, pieces: Vec::new() }
     }
-    /// Nudge de steering : rôle utilisateur (le modèle le suit), mais marqué interne
-    /// → non persisté, non affiché.
+    /// Steering nudge: user role (the model follows it), but marked internal
+    /// so it is not persisted, not displayed.
     pub fn nudge(c: impl Into<String>) -> Self {
         Self { role: Role::Utilisateur, contenu: c.into(), outil: None, interne: true, pieces: Vec::new() }
     }

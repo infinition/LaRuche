@@ -1,23 +1,23 @@
-//! # laruche-butinage — le cerveau de l'abeille
+//! # laruche-butinage: the bee's brain
 //!
-//! Moteur ReAct de LaRuche. Une mission est un **butinage** : une quête itérative
-//! où l'abeille raisonne, récolte (outils), observe, et recommence jusqu'à ce que
-//! l'itinéraire soit accompli.
+//! LaRuche's ReAct engine. A mission is a **butinage**: an iterative quest
+//! where the tool reasons, harvests (tools), observes, and repeats until
+//! the itinerary is accomplished.
 //!
-//! Principe directeur : **la boucle est bête, la politique est isolée et testée.**
-//! - [`cycle::butiner`] : la boucle minimale, pilotée par [`issue::Issue`].
-//! - [`cap`] : la politique — [`cap::boussole::cap`] décide continuer/poser,
-//!   [`cap::vigie`] surveille les boucles stériles, jauge (à venir) le budget.
-//! - [`carnet::Carnet`] : l'état persistable (reprise après crash).
-//! - [`itineraire::Itineraire`] : le plan = **source de vérité** de la terminaison.
-//! - [`meteo`] : classification d'erreurs + politique de retry.
+//! Guiding principle: **the loop is dumb, the policy is isolated and tested.**
+//! - [`cycle::butiner`]: the minimal loop, driven by [`issue::Issue`].
+//! - [`cap`]: the policy: [`cap::boussole::cap`] decides continue/land,
+//!   [`cap::vigie`] watches for sterile loops, jauge (upcoming) the budget.
+//! - [`carnet::Carnet`]: the persistable state (recovery after crash).
+//! - [`itineraire::Itineraire`]: the plan = **source of truth** for termination.
+//! - [`meteo`]: error classification + retry policy.
 //!
-//! Intégration par **inversion de dépendances** : le moteur ne connaît pas les
-//! providers/outils concrets, seulement des traits ([`fournisseur::Fournisseur`],
-//! [`outils::Outils`], [`evenement::Emetteur`]) que `laruche-essaim` implémente.
+//! Integration via **dependency inversion**: the engine does not know the
+//! concrete providers/tools, only traits ([`fournisseur::Fournisseur`],
+//! [`outils::Outils`], [`evenement::Emetteur`]) that `laruche-essaim` implements.
 //!
-//! Aucune heuristique métier (matching de chaînes) dans la boucle : les décisions
-//! reposent sur des *faits* (stop_reason natif, itinéraire, compteurs).
+//! No business heuristics (string matching) in the loop: decisions
+//! rest on *facts* (native stop_reason, itinerary, counters).
 
 pub mod carnet;
 pub mod cycle;

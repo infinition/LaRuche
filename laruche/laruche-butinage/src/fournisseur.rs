@@ -1,33 +1,33 @@
-//! Le **fournisseur** de réponses du modèle (LLM), abstrait par un trait.
+//! The model (LLM) response **fournisseur**, abstracted behind a trait.
 //!
-//! Inversion de dépendances : `laruche-butinage` ne connaît pas les providers
-//! concrets. L'adaptateur (dans `laruche-essaim`) implémente ce trait et gère en
-//! interne le streaming, la rotation de clés (`credential_pool`) et le déroutement
-//! modèle ; il ne surface qu'une réponse agrégée ou une erreur terminale. La boucle
-//! applique par-dessus la politique [`crate::meteo`] (backoff, abandon).
+//! Dependency inversion: `laruche-butinage` does not know about concrete
+//! providers. The adapter (in `laruche-essaim`) implements this trait and handles
+//! streaming, key rotation (`credential_pool`) and model rerouting internally; it
+//! only surfaces an aggregated response or a terminal error. On top of it the loop
+//! applies the [`crate::meteo`] policy (backoff, give-up).
 
 use crate::issue::{Appel, StopReason};
 use crate::messagerie::Message;
 use async_trait::async_trait;
 
-/// Consommation de tokens (réelle si le provider la fournit).
+/// Token consumption (actual if the provider reports it).
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Usage {
     pub entree: u32,
     pub sortie: u32,
 }
 
-/// Réponse agrégée d'un appel au modèle.
+/// Aggregated response of a model call.
 #[derive(Debug, Clone)]
 pub struct ReponseModele {
     pub texte: String,
     pub stop: StopReason,
-    /// Appels d'outils émis par le modèle (natifs API ou parsés par l'adaptateur).
+    /// Tool calls emitted by the model (API-native or parsed by the adapter).
     pub appels: Vec<Appel>,
     pub usage: Option<Usage>,
 }
 
-/// Erreur d'un appel modèle, portant de quoi la classer ([`crate::meteo::ClasseErreur`]).
+/// Error of a model call, carrying what is needed to classify it ([`crate::meteo::ClasseErreur`]).
 #[derive(Debug, Clone)]
 pub struct ErreurFournisseur {
     pub status: u16,
@@ -42,10 +42,10 @@ impl std::fmt::Display for ErreurFournisseur {
 }
 impl std::error::Error for ErreurFournisseur {}
 
-/// La source de réponses du modèle.
+/// The source of model responses.
 #[async_trait]
 pub trait Fournisseur: Send + Sync {
-    /// Un appel complet : messages + schémas d'outils → réponse agrégée.
+    /// One full call: messages + tool schemas -> aggregated response.
     async fn repondre(
         &self,
         messages: &[Message],

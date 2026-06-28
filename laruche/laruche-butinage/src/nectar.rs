@@ -1,18 +1,18 @@
-//! Le **nectar** — la source de contexte de l'abeille (mémoire), abstraite par un trait.
+//! The **nectar**: the tool's context source (memory), abstracted by a trait.
 //!
-//! Inversion de dépendances : le moteur ne connaît pas la mémoire concrète (graphe
-//! cognitif, vecteurs…), seulement ce trait. L'adaptateur (`laruche-essaim`) l'implémente
-//! au-dessus de `MemoireCognitive`. Optionnel : un butinage peut tourner sans `Source`.
+//! Dependency inversion: the engine does not know the concrete memory (cognitive
+//! graph, vectors...), only this trait. The adapter (`laruche-essaim`) implements it
+//! on top of `MemoireCognitive`. Optional: a butinage can run without a `Source`.
 
 use async_trait::async_trait;
 
-/// Fournisseur de contexte durable (mémoire).
+/// Provider of durable context (memory).
 #[async_trait]
 pub trait Source: Send + Sync {
-    /// Rappelle un contexte pertinent pour la requête (récupération just-in-time).
-    /// `None` si rien de pertinent.
+    /// Recalls context relevant to the query (just-in-time retrieval).
+    /// `None` if nothing relevant.
     async fn rappeler(&self, requete: &str) -> Option<String>;
 
-    /// Consigne un fait durable sous un identifiant de nœud pointé (`domaine.sujet`).
+    /// Records a durable fact under a dotted node identifier (`domaine.sujet`).
     async fn consigner(&self, node_id: &str, fait: &str);
 }

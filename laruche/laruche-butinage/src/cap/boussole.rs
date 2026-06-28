@@ -1,38 +1,38 @@
-//! La **boussole** — `cap()` : l'unique décision « continuer / poser / relancer ».
+//! The **boussole**: `cap()`, the single "continue / land / relaunch" decision.
 //!
-//! Remplace l'enchevêtrement d'heuristiques string de l'ancien `brain.rs`. Toute
-//! décision repose sur des **faits** ([`Issue`]) : stop_reason natif, état de
-//! l'itinéraire, compteurs d'auto-continuation et d'appels web. Aucun matching de
-//! contenu, aucun exemple métier en dur. Fonction **pure** → entièrement testable.
+//! Replaces the tangle of string heuristics from the old `brain.rs`. Every
+//! decision rests on **facts** ([`Issue`]): native stop_reason, itineraire
+//! state, auto-continuation and web-call counters. No content matching, no
+//! hardcoded business examples. A **pure** function, fully testable.
 
 use crate::issue::{FinDeVol, Issue};
 
-/// Ce que la boucle doit faire après une passe.
+/// What the loop should do after a pass.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Decision {
-    /// Terminer le butinage avec cette raison.
+    /// End the butinage with this reason.
     Poser(FinDeVol),
-    /// Relancer une passe en injectant ce conseil (en anglais) ; ne pas rendre la main.
+    /// Relaunch a pass injecting this advice (in English); do not yield control.
     Relancer(String),
-    /// Exécuter ces outils puis observer.
+    /// Execute these tools then observe.
     Recolter(Vec<crate::issue::Appel>),
-    /// Rendre la main à l'utilisateur pour une clarification.
+    /// Yield control back to the user for a clarification.
     Clarifier(String),
 }
 
-/// Contexte de décision : l'état pertinent du butinage au moment du choix.
+/// Decision context: the relevant butinage state at the moment of choice.
 #[derive(Debug, Clone)]
 pub struct ContexteCap {
-    /// Relances STÉRILES consécutives déjà consommées (remis à 0 dès qu'un outil s'exécute).
+    /// Consecutive STERILE relaunches already consumed (reset to 0 as soon as a tool runs).
     pub auto_continue: usize,
-    /// Borne DURE des relances stériles. Petit (~3). Au-delà, on rend la main au lieu de
-    /// boucler. Couvre les seuls rails « modèle faible » (troncature, tool malformé, exploration).
+    /// HARD bound on sterile relaunches. Small (~3). Beyond it, yield control instead of
+    /// looping. Covers only the "weak model" rails (truncation, malformed tool, exploration).
     pub relance_max: usize,
-    /// Mission de recherche longue : on pousse un peu plus avant d'accepter une fin.
+    /// Long research mission: push a bit further before accepting an end.
     pub mode_exploration: bool,
-    /// Nombre d'appels d'outils web/réseau réellement effectués.
+    /// Number of web/network tool calls actually performed.
     pub recolte_web: usize,
-    /// En mode exploration, minimum d'appels web en-deçà duquel on relance (borné par `relance_max`).
+    /// In exploration mode, minimum web calls below which we relaunch (bounded by `relance_max`).
     pub min_web_exploration: usize,
 }
 
@@ -42,31 +42,31 @@ impl ContexteCap {
     }
 }
 
-/// Conseils injectés (anglais — meilleur suivi d'instructions, préfixe cacheable).
+/// Injected advice (English: better instruction following, cacheable prefix).
 mod nudge {
     pub const REPRISE_TRONQUEE: &str = "Your previous message was cut off mid-output. Continue exactly \
-        where it stopped — do not repeat what you already wrote; finish the sentence or the tool-call block.";
+        where it stopped - do not repeat what you already wrote; finish the sentence or the tool-call block.";
     pub const REFORMER_OUTIL: &str = "You emitted something that looks like a tool call but is not valid \
-        and executable. Re-emit ONLY one valid tool call now — no markdown, no prose.";
+        and executable. Re-emit ONLY one valid tool call now - no markdown, no prose.";
     pub const DEMARRER_PLAN: &str = "Plan recorded. Now EXECUTE the first step by calling the needed \
-        tool — do not just restate the plan or ask for confirmation.";
+        tool - do not just restate the plan or ask for confirmation.";
     pub const EXPLORER_PLUS: &str = "This is a long-running research mission and you have not searched \
         enough yet. Do not conclude. Open a NEW angle and call a web tool now: vary queries (synonyms, EN/FR), \
         try archives/forums/source sites, and advanced operators. Record the queries and URLs you try.";
 }
 
-/// **La** décision de continuation. Pure : `(contexte, issue) -> Decision`.
+/// **The** continuation decision. Pure: `(contexte, issue) -> Decision`.
 pub fn cap(ctx: &ContexteCap, issue: Issue) -> Decision {
     match issue {
-        // Terminaisons explicites : on fait confiance aux outils dédiés. Le résumé de
-        // `mission_accomplie` est porté par l'appelant (qui a déjà l'Issue) → ici on se
-        // contente de décider la fin.
+        // Explicit terminations: trust the dedicated tools. The `mission_accomplie`
+        // summary is carried by the caller (which already has the Issue), so here we
+        // just decide the end.
         Issue::MissionAccomplie { .. } => Decision::Poser(FinDeVol::Accomplie),
         Issue::Clarification(q) => Decision::Clarifier(q),
         Issue::Outils(appels) => Decision::Recolter(appels),
 
-        // Plan posé seul : on relance (borné) pour qu'il passe à l'action, comme un tool
-        // call enchaîne. S'il radote au lieu d'agir, relance_max coupe.
+        // Plan posted alone: relaunch (bounded) so it moves to action, like a tool
+        // call chaining on. If it rambles instead of acting, relance_max cuts it off.
         Issue::PlanEnregistre => {
             if ctx.relance_dispo() {
                 Decision::Relancer(nudge::DEMARRER_PLAN.to_string())
@@ -75,30 +75,30 @@ pub fn cap(ctx: &ContexteCap, issue: Issue) -> Decision {
             }
         }
 
-        // Texte seul. ÉTAT DE L'ART (third-party/third-party/Claude Code) : une réponse sans
-        // tool call = FIN DE TOUR, on rend la main. Une tâche multi-étapes continue
-        // *parce qu'il y a des tool calls*, jamais à cause d'un « plan inachevé ».
-        // Seuls quelques rails BORNÉS (modèles faibles) peuvent relancer.
+        // Text only. STATE OF THE ART (third-party/third-party/Claude Code): a response with no
+        // tool call = END OF TURN, yield control. A multi-step task continues *because
+        // there are tool calls*, never because of an "unfinished plan".
+        // Only a few BOUNDED rails (weak models) may relaunch.
         Issue::TexteSeul(t) => {
-            // Rail 1 : sortie tronquée (finish_reason=length) → reprise exacte (standard).
+            // Rail 1: truncated output (finish_reason=length), exact resume (standard).
             if t.tronquee && ctx.relance_dispo() {
                 return Decision::Relancer(nudge::REPRISE_TRONQUEE.to_string());
             }
-            // Rail 2 : tool call malformé → re-émettre. Modèle faible qui a raté la syntaxe.
+            // Rail 2: malformed tool call, re-emit. Weak model that botched the syntax.
             if t.malforme && ctx.relance_dispo() {
                 return Decision::Relancer(nudge::REFORMER_OUTIL.to_string());
             }
-            // Rail 3 : recherche longue pas assez fouillée → pousser un peu. BORNÉ par
-            //   relance_max sur les tours STÉRILES (auto_continue se remet à 0 dès qu'un
-            //   outil s'exécute) → tant que le modèle cherche vraiment ça continue, dès
-            //   qu'il radote (texte seul répété) on coupe.
+            // Rail 3: long search not thorough enough, push a bit. BOUNDED by
+            //   relance_max over STERILE turns (auto_continue resets to 0 as soon as a
+            //   tool runs), so as long as the model really searches it continues; once
+            //   it rambles (repeated text-only) we cut it off.
             if ctx.mode_exploration
                 && ctx.recolte_web < ctx.min_web_exploration
                 && ctx.relance_dispo()
             {
                 return Decision::Relancer(nudge::EXPLORER_PLUS.to_string());
             }
-            // Sinon : fin de tour (on rend la main à l'utilisateur).
+            // Otherwise: end of turn (yield control back to the user).
             Decision::Poser(FinDeVol::Accomplie)
         }
     }
@@ -165,7 +165,7 @@ mod tests {
         t.tronquee = true;
         match cap(&ctx(), texte(t)) {
             Decision::Relancer(n) => assert!(n.contains("cut off")),
-            autre => panic!("attendu Relancer, eu {autre:?}"),
+            autre => panic!("expected Relancer, got {autre:?}"),
         }
     }
 
@@ -178,7 +178,7 @@ mod tests {
 
     #[test]
     fn plan_inacheve_ne_force_plus_la_continuation() {
-        // État de l'art : un plan inachevé NE relance PAS (anti-rambling). Texte seul = fin.
+        // State of the art: an unfinished plan does NOT relaunch (anti-rambling). Text only = end.
         let mut t = base_texte();
         t.plan_inacheve = true;
         assert_eq!(cap(&ctx(), texte(t)), Decision::Poser(FinDeVol::Accomplie));
@@ -191,7 +191,7 @@ mod tests {
         c.recolte_web = 3; // < min_web_exploration (12)
         match cap(&c, texte(base_texte())) {
             Decision::Relancer(n) => assert!(n.contains("research mission")),
-            autre => panic!("attendu Relancer, eu {autre:?}"),
+            autre => panic!("expected Relancer, got {autre:?}"),
         }
     }
 
@@ -205,19 +205,19 @@ mod tests {
 
     #[test]
     fn relances_bornees_par_relance_max() {
-        // Les rails (troncature/exploration) cessent après relance_max relances stériles.
+        // The rails (truncation/exploration) stop after relance_max sterile relaunches.
         let mut c = ctx(); // relance_max = 3
         let mut t = base_texte();
         t.tronquee = true;
-        c.auto_continue = 2; // < 3 → encore une reprise
+        c.auto_continue = 2; // < 3, one more resume
         assert!(matches!(cap(&c, texte(t.clone())), Decision::Relancer(_)));
-        c.auto_continue = 3; // == relance_max → on rend la main
+        c.auto_continue = 3; // == relance_max, yield control
         assert_eq!(cap(&c, texte(t)), Decision::Poser(FinDeVol::Accomplie));
     }
 
     #[test]
     fn exploration_sterile_finit_par_rendre_la_main() {
-        // Modèle qui radote en texte seul sans chercher → coupe après relance_max.
+        // Model rambling in text only without searching, cut off after relance_max.
         let mut c = ctx();
         c.mode_exploration = true;
         c.recolte_web = 0;

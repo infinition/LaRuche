@@ -1,9 +1,9 @@
-//! La **récolte** — exécution des outils d'une passe.
+//! The **recolte**: execution of a pass's tools.
 //!
-//! Partition façon Claude Code : les appels en **lecture seule** consécutifs sont
-//! récoltés **en parallèle** (borné), les appels mutants/à approbation restent
-//! **séquentiels** et isolés. L'ordre d'origine des observations est préservé.
-//! La [`Vigie`] est consultée avant chaque appel (blocage) et après (signal).
+//! Claude Code-style partitioning: consecutive **read-only** calls are harvested
+//! **in parallel** (bounded), while mutating/approval calls stay **sequential**
+//! and isolated. The original ordering of observations is preserved.
+//! The [`Vigie`] is consulted before each call (block) and after (signal).
 
 use crate::carnet::Carnet;
 use crate::cap::vigie::{Signal, Vigie};
@@ -15,11 +15,11 @@ use crate::reglages::Reglages;
 use futures_util::future::join_all;
 use std::time::Instant;
 
-/// Plafond d'appels lancés simultanément dans un lot parallèle.
+/// Ceiling on calls launched simultaneously within a parallel batch.
 const MAX_PARALLELE: usize = 6;
 
-/// Découpe les appels en lots : `(lecture_seule, indices)`. Les appels sûrs
-/// consécutifs sont regroupés ; un appel mutant casse le lot. Ordre préservé.
+/// Splits calls into batches: `(read_only, indices)`. Consecutive safe calls are
+/// grouped together; a mutating call breaks the batch. Order preserved.
 pub fn partitionner(appels: &[Appel], outils: &dyn Outils) -> Vec<(bool, Vec<usize>)> {
     let mut lots: Vec<(bool, Vec<usize>)> = Vec::new();
     for (i, a) in appels.iter().enumerate() {
@@ -32,8 +32,8 @@ pub fn partitionner(appels: &[Appel], outils: &dyn Outils) -> Vec<(bool, Vec<usi
     lots
 }
 
-/// Exécute tous les appels d'une passe. Renvoie `Some(bilan)` si la vigie impose
-/// un arrêt (boucle stérile), sinon `None`.
+/// Executes all calls of a pass. Returns `Some(bilan)` if the vigie forces a
+/// stop (sterile loop), otherwise `None`.
 pub async fn recolter(
     appels: &[Appel],
     carnet: &mut Carnet,
@@ -46,8 +46,8 @@ pub async fn recolter(
 
     for (sur, idxs) in partitionner(appels, outils) {
         if sur && parallele && idxs.len() > 1 {
-            // ── Lot parallèle (lecture seule) ──
-            // Pré-filtre par la vigie (avant_appel est non mutant).
+            // ── Parallel batch (read-only) ──
+            // Pre-filter via the vigie (avant_appel is non-mutating).
             let mut a_lancer: Vec<usize> = Vec::new();
             for &i in &idxs {
                 if let Signal::Bloquer(msg) = vigie.avant_appel(appels[i].signature()) {
@@ -58,7 +58,7 @@ pub async fn recolter(
             }
             if a_lancer.len() > 1 {
                 emet.emettre(Evenement::Statut(format!(
-                    "Récolte parallèle de {} outils…",
+                    "Parallel harvest of {} tools...",
                     a_lancer.len()
                 )));
             }
@@ -75,7 +75,7 @@ pub async fn recolter(
                     }
                 });
                 let mut resultats = join_all(futs).await;
-                resultats.sort_by_key(|(i, _, _)| *i); // observations dans l'ordre d'origine
+                resultats.sort_by_key(|(i, _, _)| *i); // observations in original order
                 for (i, res, ms) in resultats {
                     if let Some(bilan) = appliquer(&appels[i], res, ms, carnet, outils, vigie, emet) {
                         return Some(bilan);
@@ -83,7 +83,7 @@ pub async fn recolter(
                 }
             }
         } else {
-            // ── Séquentiel (mutant, approbation, ou profil non parallèle) ──
+            // ── Sequential (mutating, approval, or non-parallel profile) ──
             for &i in &idxs {
                 let appel = &appels[i];
                 if let Signal::Bloquer(msg) = vigie.avant_appel(appel.signature()) {
@@ -103,8 +103,8 @@ pub async fn recolter(
     None
 }
 
-/// Applique le résultat d'un appel : compteur web, vigie, événement, observation.
-/// Renvoie `Some(bilan)` si la vigie impose un arrêt.
+/// Applies the result of a call: web counter, vigie, event, observation.
+/// Returns `Some(bilan)` if the vigie forces a stop.
 fn appliquer(
     appel: &Appel,
     res: ResultatOutil,
@@ -135,7 +135,7 @@ fn appliquer(
     if let Signal::Poser(motif) = signal {
         carnet.itineraire.finaliser();
         return Some(Bilan::nouveau(
-            "Arrêt : boucle stérile détectée par la vigie.",
+            "Stopped: sterile loop detected by the vigie.",
             FinDeVol::BoucleSterile(motif),
             carnet.passe + 1,
         ));
@@ -179,14 +179,14 @@ mod tests {
         let appels = vec![
             Appel::nouveau("web_a", json!({})),
             Appel::nouveau("web_b", json!({})),
-            Appel::nouveau("file_write", json!({})), // mutant → casse le lot
+            Appel::nouveau("file_write", json!({})), // mutating -> breaks the batch
             Appel::nouveau("lire_x", json!({})),
         ];
         let lots = partitionner(&appels, &OutilsMock);
         assert_eq!(lots.len(), 3);
-        assert_eq!(lots[0], (true, vec![0, 1])); // web_a + web_b en parallèle
-        assert_eq!(lots[1], (false, vec![2])); // write seul
-        assert_eq!(lots[2], (true, vec![3])); // lire_x seul (lot d'un)
+        assert_eq!(lots[0], (true, vec![0, 1])); // web_a + web_b in parallel
+        assert_eq!(lots[1], (false, vec![2])); // write alone
+        assert_eq!(lots[2], (true, vec![3])); // lire_x alone (batch of one)
     }
 
     #[tokio::test]
@@ -202,7 +202,7 @@ mod tests {
         let arret = recolter(&appels, &mut carnet, &reglages, &OutilsMock, &mut vigie, &Silencieux).await;
         assert!(arret.is_none());
         assert_eq!(carnet.recolte_web, 3);
-        // observations dans l'ordre d'origine malgré le parallélisme
+        // observations in original order despite the parallelism
         let obs: Vec<&str> = carnet
             .historique
             .iter()
@@ -213,7 +213,7 @@ mod tests {
 
     #[tokio::test]
     async fn profil_fragile_reste_sequentiel() {
-        // Même entrée, profil Fragile → pas de parallélisme, mais résultat identique.
+        // Same input, Fragile profile -> no parallelism, but identical result.
         let appels = vec![
             Appel::nouveau("web_a", json!({})),
             Appel::nouveau("web_b", json!({})),

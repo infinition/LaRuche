@@ -1,10 +1,10 @@
-//! Le **cycle** — la boucle de butinage. Volontairement *bête* : elle orchestre,
-//! la politique vit ailleurs ([`crate::cap`]), la classification d'erreurs aussi
-//! ([`crate::meteo`]). Aucune heuristique de chaînes ici.
+//! The **cycle**: the foraging loop. Deliberately *dumb*: it orchestrates,
+//! while policy lives elsewhere ([`crate::cap`]), as does error classification
+//! ([`crate::meteo`]). No string heuristics here.
 //!
-//! Flux d'une passe : assembler le contexte → appeler le modèle (avec météo) →
-//! `analyser` la réponse en [`Issue`] → `cap` décide → agir (poser / relancer /
-//! récolter) → checkpoint.
+//! Flow of one pass: assemble the context, call the model (with weather),
+//! `analyser` the response into an [`Issue`], `cap` decides, act (post / relaunch /
+//! harvest), checkpoint.
 
 use crate::cap::boussole::{cap, Decision};
 use crate::cap::vigie::Vigie;
@@ -19,9 +19,9 @@ use crate::outils::Outils;
 use crate::reglages::Reglages;
 use std::time::Duration;
 
-/// Lance un butinage jusqu'à son terme (mission accomplie, clarification, plafond,
-/// erreur fatale ou boucle stérile). Le [`Carnet`] est muté à chaque passe et
-/// peut être persisté (reprise après crash).
+/// Runs a foraging session to completion (mission accomplished, clarification, cap,
+/// fatal error or sterile loop). The [`Carnet`] is mutated on each pass and
+/// can be persisted (resume after crash).
 pub async fn butiner(
     carnet: &mut Carnet,
     reglages: &Reglages,
@@ -42,27 +42,27 @@ pub async fn butiner(
 
     loop {
         if carnet.passe >= reglages.plafond_passes {
-            let msg = format!("Plafond de {} passes atteint — peut être incomplet.", reglages.plafond_passes);
+            let msg = format!("Cap of {} passes reached, may be incomplete.", reglages.plafond_passes);
             emet.emettre(Evenement::Statut(msg.clone()));
             return Ok(Bilan::nouveau(msg, FinDeVol::Plafond, carnet.passe));
         }
 
-        // Steering : messages que l'utilisateur injecte PENDANT le run (non bloquant).
-        // Vrais messages user (visibles/persistés), pas des nudges internes.
+        // Steering: messages the user injects DURING the run (non-blocking).
+        // Real user messages (visible/persisted), not internal nudges.
         if let Some(rx) = steering.as_deref_mut() {
             while let Ok(msg) = rx.try_recv() {
                 let msg = msg.trim();
                 if !msg.is_empty() {
                     carnet
                         .historique
-                        .push(Message::utilisateur(format!("[Steering pendant le run] {msg}")));
-                    emet.emettre(Evenement::Statut("Orientation utilisateur injectée.".into()));
+                        .push(Message::utilisateur(format!("[Steering during run] {msg}")));
+                    emet.emettre(Evenement::Statut("User steering injected.".into()));
                 }
             }
         }
 
-        // Escale : compaction (extractive) ou, si la jauge est critique et qu'une mémoire
-        // est branchée, consolidation cognitive (LLM → faits durables → contexte frais).
+        // Escale: compaction (extractive) or, if the gauge is critical and a memory
+        // is plugged in, cognitive consolidation (LLM, durable facts, fresh context).
         jauge.estimer(&reglages.systeme, &carnet.historique);
         let consolide =
             matches!(jauge.besoin(), crate::cap::jauge::Besoin::Consolider) && source.is_some();
@@ -85,10 +85,10 @@ pub async fn butiner(
             jauge.estimer(&reglages.systeme, &carnet.historique);
         }
 
-        // Garde-fou DUR (fenêtre glissante) : la compaction d'escale ne garantit pas qu'on
-        // tienne dans la fenêtre RÉELLE du modèle (ex. llama.cpp n_ctx=32768). On retire les
-        // messages les PLUS ANCIENS jusqu'à tenir dans le budget, en gardant les récents →
-        // le modèle conserve le fil de conversation sans dépasser sa fenêtre.
+        // HARD guardrail (sliding window): escale compaction does not guarantee we
+        // fit within the model's REAL window (e.g. llama.cpp n_ctx=32768). We drop the
+        // OLDEST messages until we fit in the budget, keeping the recent ones, so
+        // the model keeps the conversation thread without exceeding its window.
         tronquer_historique(carnet, &reglages.systeme, reglages.context_max_tokens);
 
         let messages = assembler(carnet, reglages);
@@ -96,15 +96,15 @@ pub async fn butiner(
             Ok(r) => r,
             Err(motif) => {
                 return Ok(Bilan::nouveau(
-                    format!("Erreur fatale du provider : {motif}"),
+                    format!("Fatal provider error: {motif}"),
                     FinDeVol::Erreur(motif),
                     carnet.passe,
                 ));
             }
         };
 
-        // Tokens d'entrée réels du provider (si fournis) → recalibre la jauge pour des
-        // décisions de compaction/consolidation précises au tour suivant.
+        // Real provider input tokens (if supplied): recalibrate the gauge for precise
+        // compaction/consolidation decisions on the next turn.
         if let Some(u) = reponse.usage {
             jauge.maj_usage(u.entree as usize);
         }
@@ -115,7 +115,7 @@ pub async fn butiner(
         carnet.historique.push(Message::assistant(reponse.texte.clone()));
 
         let issue = analyser(&reponse, carnet);
-        // Texte final candidat (avant que `cap` ne consomme l'issue).
+        // Candidate final text (before `cap` consumes the issue).
         let texte_final = match &issue {
             Issue::MissionAccomplie { resume, .. } => resume.clone(),
             Issue::TexteSeul(t) => t.texte.clone(),
@@ -136,17 +136,17 @@ pub async fn butiner(
             Decision::Relancer(nudge) => {
                 carnet.consommer_auto();
                 emet.emettre(Evenement::Statut(format!(
-                    "Relance ({}/{})",
+                    "Relaunch ({}/{})",
                     carnet.auto_continue, reglages.relance_max
                 )));
-                carnet.historique.push(Message::nudge(nudge)); // interne : pas persisté/affiché
+                carnet.historique.push(Message::nudge(nudge)); // internal: not persisted/displayed
             }
             Decision::Recolter(appels) => {
                 carnet.rearmer_auto();
                 if let Some(bilan) =
                     crate::recolte::recolter(&appels, carnet, reglages, outils, &mut vigie, emet).await
                 {
-                    return Ok(bilan); // arrêt propre : boucle stérile
+                    return Ok(bilan); // clean stop: sterile loop
                 }
             }
         }
@@ -154,22 +154,22 @@ pub async fn butiner(
         carnet.passe += 1;
         if let Some(chemin) = &reglages.chemin_carnet {
             if let Err(e) = carnet.sauver(chemin, chrono::Utc::now()) {
-                tracing::warn!(error = %e, "échec du checkpoint carnet");
+                tracing::warn!(error = %e, "carnet checkpoint failed");
             }
         }
     }
 }
 
-/// Fenêtre glissante : retire les messages les PLUS ANCIENS de l'historique jusqu'à ce que
-/// (système + historique) tienne dans `budget_tokens`. Estimation **conservatrice** (`chars/3` :
-/// les schémas d'outils / JSON tokenisent plus dense que `chars/4`, ce qui sous-estimait et
-/// laissait passer des requêtes au-delà de `n_ctx`). Garde toujours le dernier message (tour
-/// courant) → le modèle conserve le fil récent de la conversation.
+/// Sliding window: drops the OLDEST messages from history until
+/// (system + history) fits within `budget_tokens`. **Conservative** estimate (`chars/3`:
+/// tool schemas / JSON tokenize denser than `chars/4`, which underestimated and
+/// let requests slip past `n_ctx`). Always keeps the last message (current
+/// turn), so the model retains the recent conversation thread.
 fn tronquer_historique(carnet: &mut Carnet, systeme: &str, budget_tokens: usize) {
     if budget_tokens == 0 {
         return;
     }
-    let cible_chars = (budget_tokens as f32 * 0.72 * 3.0) as usize; // ~72% du budget, chars/3
+    let cible_chars = (budget_tokens as f32 * 0.72 * 3.0) as usize; // ~72% of budget, chars/3
     let total_chars = |h: &[Message]| -> usize {
         systeme.len() + h.iter().map(|m| m.contenu.len()).sum::<usize>()
     };
@@ -178,7 +178,7 @@ fn tronquer_historique(carnet: &mut Carnet, systeme: &str, budget_tokens: usize)
     }
 }
 
-/// Assemble les messages envoyés au modèle : système (tier stable) + historique.
+/// Assembles the messages sent to the model: system (stable tier) + history.
 fn assembler(carnet: &Carnet, reglages: &Reglages) -> Vec<Message> {
     let mut v = Vec::with_capacity(carnet.historique.len() + 1);
     if !reglages.systeme.is_empty() {
@@ -188,9 +188,9 @@ fn assembler(carnet: &Carnet, reglages: &Reglages) -> Vec<Message> {
     v
 }
 
-/// Appel modèle avec politique météo (backoff/abandon). La rotation de clé et le
-/// déroutement modèle sont gérés en interne par l'adaptateur `Fournisseur` ; le cœur
-/// applique l'attente et l'abandon. Renvoie `Err(motif)` sur arrêt définitif.
+/// Model call with weather policy (backoff/abandon). Key rotation and model
+/// rerouting are handled internally by the `Fournisseur` adapter; the core
+/// applies the wait and the abandon. Returns `Err(motif)` on permanent stop.
 async fn appeler_modele(
     fournisseur: &dyn Fournisseur,
     messages: &[Message],
@@ -211,24 +211,24 @@ async fn appeler_modele(
                     tentative,
                     reglages.max_rate_limit,
                     reglages.max_transitoire,
-                    false, // rotation de clé : déjà tentée par l'adaptateur
-                    false, // déroutement : déjà tenté par l'adaptateur
+                    false, // key rotation: already attempted by the adapter
+                    false, // rerouting: already attempted by the adapter
                     now,
                 ) {
                     Reaction::Patienter(s) => {
                         emet.emettre(Evenement::Statut(format!(
-                            "Erreur provider ({}) — reprise dans {s}s (essai {tentative}).",
+                            "Provider error ({}), retrying in {s}s (attempt {tentative}).",
                             e.status
                         )));
                         tokio::time::sleep(Duration::from_secs(s)).await;
                     }
                     Reaction::RotationCle | Reaction::Deroutement => {
-                        emet.emettre(Evenement::Statut("Reprise après erreur provider.".into()));
+                        emet.emettre(Evenement::Statut("Resuming after provider error.".into()));
                     }
                     Reaction::Stopper(motif) => {
-                        // Erreur diagnostique : on remonte le VRAI code HTTP + un extrait du
-                        // corps du provider, sinon « erreur fatale » est opaque (impossible de
-                        // savoir si c'est un modèle introuvable, une clé absente, un payload…).
+                        // Diagnostic error: surface the REAL HTTP code + an excerpt of the
+                        // provider body, otherwise "fatal error" is opaque (impossible to
+                        // tell if it's a missing model, an absent key, a payload...).
                         let corps: String = e.corps.chars().take(300).collect();
                         let detail = if corps.trim().is_empty() {
                             format!("{motif} [HTTP {}]", e.status)
@@ -243,14 +243,14 @@ async fn appeler_modele(
     }
 }
 
-/// Convertit une réponse modèle en [`Issue`] exploitable par la boussole. Applique
-/// au passage les effets de bord « plan » (mise à jour de l'itinéraire).
+/// Converts a model response into an [`Issue`] usable by the compass. Applies
+/// the "plan" side effects in passing (updating the itinerary).
 fn analyser(reponse: &ReponseModele, carnet: &mut Carnet) -> Issue {
     let mut appels = reponse.appels.clone();
 
-    // `plan` : effet de bord (pose/maj l'itinéraire), retiré de la liste d'appels.
-    // Deux formats acceptés : `items:[{task,status}]` (statuts préservés, le modèle
-    // ré-émet son plan à jour chaque tour) ou `steps:[titres]` (tout à faire).
+    // `plan`: side effect (sets/updates the itinerary), removed from the call list.
+    // Two accepted formats: `items:[{task,status}]` (statuses preserved, the model
+    // re-emits its updated plan each turn) or `steps:[titres]` (all to do).
     let plan_trouve = appels.iter().any(|a| a.nom == "plan");
     if let Some(pos) = appels.iter().position(|a| a.nom == "plan") {
         let a = appels.remove(pos);
@@ -287,8 +287,8 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet) -> Issue {
         }
     }
 
-    // Outils de fin explicite : `mission_accomplie` (butinage natif) ou `task_complete`
-    // (déjà enregistré dans LaRuche). On reconnaît les deux.
+    // Explicit completion tools: `mission_accomplie` (native foraging) or `task_complete`
+    // (already registered in LaRuche). We recognize both.
     if let Some(a) = appels
         .iter()
         .find(|a| a.nom == "mission_accomplie" || a.nom == "task_complete")
@@ -298,7 +298,7 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet) -> Issue {
             .get("resume")
             .or_else(|| a.args.get("summary"))
             .and_then(|v| v.as_str())
-            .unwrap_or("Mission accomplie.")
+            .unwrap_or("Mission accomplished.")
             .to_string();
         let confiance = a
             .args
@@ -323,7 +323,7 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet) -> Issue {
         return Issue::Outils(appels);
     }
 
-    // Plan posé seul (sans autre outil) : acte productif → on continue (borné), pas une fin.
+    // Plan posted alone (no other tool): productive act, we continue (bounded), not an end.
     if plan_trouve {
         return Issue::PlanEnregistre;
     }
@@ -338,12 +338,12 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet) -> Issue {
     })
 }
 
-/// Le texte ressemble-t-il à un tool_call (mais n'a pas été parsé) ? Rail pour modèles faibles.
+/// Does the text look like a tool_call (but wasn't parsed)? Rail for weak models.
 fn ressemble_a_un_outil(t: &str) -> bool {
     t.contains("<tool_call>") || (t.contains("\"name\"") && t.contains("\"arguments\""))
 }
 
-/// Bloc d'outil ouvert mais jamais fermé → sortie probablement tronquée.
+/// Tool block opened but never closed: output likely truncated.
 fn bloc_outil_non_ferme(t: &str) -> bool {
     let ouverts = t.matches("<tool_call>").count();
     let fermes = t.matches("</tool_call>").count();
@@ -374,15 +374,15 @@ mod tests {
             carnet.historique.push(Message::utilisateur("x".repeat(300) + &i.to_string()));
         }
         let avant = carnet.historique.len();
-        // budget serré → on doit retirer des anciens, garder au moins le dernier
+        // tight budget: must drop old ones, keep at least the last
         tronquer_historique(&mut carnet, "systeme", 1000);
-        assert!(carnet.historique.len() < avant, "des anciens retires");
-        assert!(!carnet.historique.is_empty(), "garde au moins le tour courant");
-        // le DERNIER message (le plus recent) est preserve
+        assert!(carnet.historique.len() < avant, "old ones dropped");
+        assert!(!carnet.historique.is_empty(), "keeps at least the current turn");
+        // the LAST message (the most recent) is preserved
         assert!(carnet.historique.last().unwrap().contenu.ends_with("49"));
     }
 
-    /// Fournisseur mock : débite des réponses pré-enregistrées, ou une erreur fixe.
+    /// Mock provider: serves pre-recorded responses, or a fixed error.
     struct FournisseurScript {
         reponses: Mutex<std::collections::VecDeque<ReponseModele>>,
         erreur: Option<ErreurFournisseur>,
@@ -409,7 +409,7 @@ mod tests {
                 return Err(e.clone());
             }
             Ok(self.reponses.lock().unwrap().pop_front().unwrap_or(ReponseModele {
-                texte: "(plus de script)".into(),
+                texte: "(end of script)".into(),
                 stop: StopReason::FinTour,
                 appels: vec![],
                 usage: None,
@@ -421,7 +421,7 @@ mod tests {
     #[async_trait]
     impl Outils for OutilsMock {
         async fn executer(&self, appel: &Appel) -> ResultatOutil {
-            ResultatOutil::ok(format!("résultat de {}", appel.nom))
+            ResultatOutil::ok(format!("result of {}", appel.nom))
         }
         fn idempotent(&self, nom: &str) -> bool {
             nom.starts_with("web_")
@@ -461,8 +461,8 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(bilan.fin, FinDeVol::Accomplie);
-        assert_eq!(carnet.recolte_web, 1, "l'appel web doit être compté");
-        // une observation d'outil a été réinjectée dans l'historique
+        assert_eq!(carnet.recolte_web, 1, "the web call must be counted");
+        // a tool observation was re-injected into the history
         assert!(carnet
             .historique
             .iter()
@@ -483,8 +483,8 @@ mod tests {
 
     #[tokio::test]
     async fn plan_force_l_auto_continuation() {
-        // 1) pose un plan (1 étape) ; 2) texte seul (étape encore ouverte) → doit relancer ;
-        // 3) mission_accomplie → fin. La passe 2 ne doit PAS conclure.
+        // 1) post a plan (1 step); 2) text only (step still open), must relaunch;
+        // 3) mission_accomplie, end. Pass 2 must NOT conclude.
         let four = FournisseurScript::scenario(vec![
             rep_appel("plan", json!({"steps": ["chercher la source"]})),
             rep_texte("je réfléchis à voix haute mais je n'agis pas"),
@@ -495,12 +495,12 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(bilan.fin, FinDeVol::Accomplie);
-        assert!(carnet.auto_continue >= 1 || carnet.passe >= 2, "l'auto-continuation a dû se déclencher");
+        assert!(carnet.auto_continue >= 1 || carnet.passe >= 2, "auto-continuation must have triggered");
     }
 
     #[tokio::test]
     async fn erreur_fatale_arrete_proprement() {
-        let four = FournisseurScript::en_erreur(400); // requête invalide → fatal, pas de repli
+        let four = FournisseurScript::en_erreur(400); // invalid request: fatal, no fallback
         let mut carnet = Carnet::ouvrir("x", ModeMission::Standard, t0());
         let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None, None)
             .await

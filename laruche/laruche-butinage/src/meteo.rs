@@ -1,31 +1,31 @@
-//! La **météo du vol** — conditions d'erreur des providers et réaction à adopter.
+//! The **flight meteo**: provider error conditions and the reaction to adopt.
 //!
-//! Sépare la *classification* (quel genre d'erreur ?) de la *réaction* (que faire ?),
-//! toutes deux pures et testées. La boucle applique la réaction (sleep, rotation de
-//! clé via `credential_pool`, déroutement modèle, arrêt).
+//! Separates *classification* (what kind of error?) from *reaction* (what to do?),
+//! both pure and tested. The loop applies the reaction (sleep, key rotation
+//! via `credential_pool`, model failover, stop).
 
-/// Genre d'erreur provider, normalisé à travers les backends.
+/// Provider error kind, normalized across backends.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ClasseErreur {
-    /// Quota/débit dépassé. `reset_at` = epoch secondes si connu (header `Retry-After`/`reset`).
+    /// Quota/rate exceeded. `reset_at` = epoch seconds if known (`Retry-After`/`reset` header).
     RateLimited { reset_at: Option<i64> },
-    /// Authentification invalide/expirée — le déroutement modèle est inutile.
+    /// Invalid/expired authentication: model failover is pointless.
     ReloginRequis,
-    /// Panne passagère (5xx, reset réseau, timeout) — retry sur le MÊME modèle.
+    /// Transient failure (5xx, network reset, timeout): retry on the SAME model.
     Transitoire,
-    /// Erreur définitive (4xx hors 401/403/429, requête invalide) — déroutement modèle.
+    /// Definitive error (4xx except 401/403/429, invalid request): model failover.
     Fatal,
 }
 
 impl ClasseErreur {
-    /// Classe une erreur à partir du code HTTP et d'indices (corps, header retry-after).
+    /// Classifies an error from the HTTP status and hints (body, retry-after header).
     pub fn classer(status: u16, retry_after: Option<&str>, corps: &str) -> ClasseErreur {
         match status {
             429 => ClasseErreur::RateLimited {
                 reset_at: parser_retry_after(retry_after),
             },
             401 | 403 => {
-                // Certains providers renvoient 403 pour un simple quota épuisé.
+                // Some providers return 403 for a plain exhausted quota.
                 if corps.to_lowercase().contains("rate")
                     || corps.to_lowercase().contains("quota")
                     || corps.to_lowercase().contains("limit")
@@ -38,7 +38,7 @@ impl ClasseErreur {
                 }
             }
             500 | 502 | 503 | 504 | 408 | 522 | 524 => ClasseErreur::Transitoire,
-            // 0 = erreur de transport (pas de réponse HTTP) → passager.
+            // 0 = transport error (no HTTP response) -> transient.
             0 => ClasseErreur::Transitoire,
             _ => ClasseErreur::Fatal,
         }
@@ -49,26 +49,26 @@ impl ClasseErreur {
     }
 }
 
-/// Ce que la boucle doit faire face à l'erreur.
+/// What the loop must do in response to the error.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Reaction {
-    /// Dormir N secondes puis réessayer le même modèle/la même clé.
+    /// Sleep N seconds then retry the same model/key.
     Patienter(u64),
-    /// Tenter la prochaine clé API disponible (rotation `credential_pool`).
+    /// Try the next available API key (`credential_pool` rotation).
     RotationCle,
-    /// Basculer sur un modèle de repli (failover).
+    /// Switch to a fallback model (failover).
     Deroutement,
-    /// Abandonner avec ce motif (relogin requis, ou recours épuisés).
+    /// Give up with this reason (relogin required, or recourses exhausted).
     Stopper(String),
 }
 
-/// Politique de réaction. Pure : `(classe, tentative, plafonds) -> Reaction`.
+/// Reaction policy. Pure: `(classe, tentative, caps) -> Reaction`.
 ///
-/// - `tentative` : numéro de la tentative courante (1-based).
-/// - `max_rate_limit` : nb max d'attentes sur rate-limit avant de tenter autre chose.
-/// - `max_transitoire` : nb max de retries sur panne passagère.
-/// - `cle_dispo` : une autre clé API est-elle disponible (rotation possible) ?
-/// - `repli_dispo` : un modèle de repli existe-t-il (déroutement possible) ?
+/// - `tentative`: current attempt number (1-based).
+/// - `max_rate_limit`: max waits on rate-limit before trying something else.
+/// - `max_transitoire`: max retries on a transient failure.
+/// - `cle_dispo`: is another API key available (rotation possible)?
+/// - `repli_dispo`: does a fallback model exist (failover possible)?
 pub fn reagir(
     classe: &ClasseErreur,
     tentative: usize,
@@ -80,11 +80,11 @@ pub fn reagir(
 ) -> Reaction {
     match classe {
         ClasseErreur::ReloginRequis => {
-            Reaction::Stopper("authentification invalide — reconnecte le provider".into())
+            Reaction::Stopper("invalid authentication, reconnect the provider".into())
         }
         ClasseErreur::RateLimited { reset_at } => {
             if cle_dispo {
-                // Une autre clé est libre : on tourne plutôt que d'attendre.
+                // Another key is free: rotate rather than wait.
                 Reaction::RotationCle
             } else if tentative <= max_rate_limit {
                 Reaction::Patienter(delai_rate_limit(*reset_at, tentative, now))
@@ -92,7 +92,7 @@ pub fn reagir(
                 Reaction::Deroutement
             } else {
                 Reaction::Stopper(format!(
-                    "rate limit persistant après {max_rate_limit} attente(s)"
+                    "persistent rate limit after {max_rate_limit} wait(s)"
                 ))
             }
         }
@@ -102,36 +102,36 @@ pub fn reagir(
             } else if repli_dispo {
                 Reaction::Deroutement
             } else {
-                Reaction::Stopper(format!("panne passagère persistante après {max_transitoire} essais"))
+                Reaction::Stopper(format!("persistent transient failure after {max_transitoire} attempts"))
             }
         }
         ClasseErreur::Fatal => {
             if repli_dispo {
                 Reaction::Deroutement
             } else {
-                Reaction::Stopper("erreur fatale du provider, aucun repli disponible".into())
+                Reaction::Stopper("fatal provider error, no fallback available".into())
             }
         }
     }
 }
 
-/// Backoff exponentiel borné (1s, 2s, 4s, 8s… plafonné à 30s).
+/// Bounded exponential backoff (1s, 2s, 4s, 8s... capped at 30s).
 pub fn delai_backoff(tentative: usize) -> u64 {
     let base = 1u64 << (tentative.saturating_sub(1)).min(5); // 1..=32
     base.min(30)
 }
 
-/// Délai d'attente sur rate-limit : privilégie `Retry-After`/`reset`, sinon une
-/// fenêtre RPM raisonnable qui croît avec les tentatives.
+/// Wait delay on rate-limit: prefers `Retry-After`/`reset`, otherwise a
+/// reasonable RPM window that grows with attempts.
 pub fn delai_rate_limit(reset_at: Option<i64>, tentative: usize, now: i64) -> u64 {
     if let Some(reset) = reset_at {
         let delta = reset - now;
         if delta > 0 {
-            // +2s de marge, plafonné à 5 min.
+            // +2s margin, capped at 5 min.
             return ((delta as u64) + 2).min(300);
         }
     }
-    // Sans header : 65s, 90s, 120s…
+    // Without header: 65s, 90s, 120s...
     match tentative {
         1 => 65,
         2 => 90,
@@ -139,11 +139,11 @@ pub fn delai_rate_limit(reset_at: Option<i64>, tentative: usize, now: i64) -> u6
     }
 }
 
-/// Parse un header `Retry-After` (« 42 » secondes, ou epoch absolu).
+/// Parses a `Retry-After` header ("42" seconds, or absolute epoch).
 fn parser_retry_after(h: Option<&str>) -> Option<i64> {
     let s = h?.trim();
     if let Ok(secs) = s.parse::<i64>() {
-        // Heuristique : petit nombre = délai relatif ; grand = epoch absolu.
+        // Heuristic: small number = relative delay; large = absolute epoch.
         if secs < 10_000_000 {
             return Some(chrono::Utc::now().timestamp() + secs);
         }
@@ -198,9 +198,9 @@ mod tests {
     fn rate_limit_patiente_puis_deroute() {
         let cl = ClasseErreur::RateLimited { reset_at: None };
         assert!(matches!(reagir(&cl, 1, 2, 3, false, true, 0), Reaction::Patienter(_)));
-        // tentative au-delà du max + repli dispo → déroutement
+        // attempt beyond max + fallback available -> failover
         assert_eq!(reagir(&cl, 3, 2, 3, false, true, 0), Reaction::Deroutement);
-        // pas de repli → stop
+        // no fallback -> stop
         assert!(matches!(reagir(&cl, 3, 2, 3, false, false, 0), Reaction::Stopper(_)));
     }
 
@@ -216,15 +216,15 @@ mod tests {
         assert_eq!(delai_backoff(1), 1);
         assert_eq!(delai_backoff(2), 2);
         assert_eq!(delai_backoff(3), 4);
-        assert_eq!(delai_backoff(100), 30); // plafonné
+        assert_eq!(delai_backoff(100), 30); // capped
     }
 
     #[test]
     fn rate_limit_utilise_reset_at() {
-        // reset dans 40s → ~42s d'attente
+        // reset in 40s -> ~42s wait
         let d = delai_rate_limit(Some(1000), 1, 960);
         assert_eq!(d, 42);
-        // sans header → fenêtre RPM
+        // without header -> RPM window
         assert_eq!(delai_rate_limit(None, 1, 0), 65);
         assert_eq!(delai_rate_limit(None, 2, 0), 90);
     }

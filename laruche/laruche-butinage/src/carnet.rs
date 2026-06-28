@@ -1,9 +1,9 @@
-//! Le **carnet de bord** — l'état persistable d'un butinage.
+//! The **carnet de bord**: the persistable state of a butinage.
 //!
-//! Sérialisé à chaque fin de passe (`sauver`). Un crash en pleine mission (passe 60
-//! d'une recherche de 3 h) se reprend exactement où il en était, au lieu de tout
-//! recommencer. Ne contient que l'essentiel à la reprise ; les compteurs de la
-//! [`crate::cap::vigie::Vigie`] sont éphémères (ils se reconstituent au fil des passes).
+//! Serialized at the end of each pass (`sauver`). A crash mid-mission (pass 60
+//! of a 3 h search) resumes exactly where it left off, instead of restarting
+//! from scratch. Holds only what is needed to resume; the counters of the
+//! [`crate::cap::vigie::Vigie`] are ephemeral (rebuilt over the passes).
 
 use crate::cap::boussole::ContexteCap;
 use crate::itineraire::Itineraire;
@@ -12,44 +12,44 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-/// Mode de mission — influe sur la politique de la boussole et les rails.
+/// Mission mode: affects the boussole policy and the rails.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum ModeMission {
-    /// Tâche normale : on s'arrête dès que l'itinéraire est bouclé.
+    /// Normal task: stop as soon as the itineraire is complete.
     #[default]
     Standard,
-    /// Recherche longue : on refuse les conclusions prématurées (cf. `cap`).
+    /// Long search: refuse premature conclusions (cf. `cap`).
     Exploration,
 }
 
-/// L'état repris-après-crash d'un butinage.
+/// The crash-resumable state of a butinage.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Carnet {
     pub id: String,
     pub mission: String,
     pub mode: ModeMission,
     pub itineraire: Itineraire,
-    /// Historique de conversation (système exclu — reconstruit depuis les réglages).
+    /// Conversation history (system excluded: rebuilt from the reglages).
     #[serde(default)]
     pub historique: Vec<Message>,
-    /// Pièces jointes multimodales du message d'amorce (images multiples, audio…).
-    /// Attachées au 1er message utilisateur quand la boucle l'injecte.
+    /// Multimodal attachments of the seed message (multiple images, audio...).
+    /// Attached to the first user message when the loop injects it.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub pieces: Vec<crate::messagerie::Piece>,
-    /// Numéro de la passe courante (0-based).
+    /// Index of the current pass (0-based).
     pub passe: usize,
-    /// Auto-continuations consommées depuis la dernière récolte d'outil.
+    /// Auto-continuations consumed since the last tool recolte.
     pub auto_continue: usize,
-    /// Appels d'outils web/réseau réellement effectués (preuve de recherche).
+    /// Web/network tool calls actually performed (proof of search).
     pub recolte_web: usize,
     pub cree_le: chrono::DateTime<chrono::Utc>,
     pub maj_le: chrono::DateTime<chrono::Utc>,
 }
 
 impl Carnet {
-    /// Nouveau carnet pour une mission. `now` injecté (les horloges ne sont pas
-    /// déterministes ; l'appelant fournit l'instant — utile pour les tests).
+    /// New carnet for a mission. `now` is injected (clocks are not
+    /// deterministic; the caller supplies the instant, useful for tests).
     pub fn ouvrir(mission: impl Into<String>, mode: ModeMission, now: chrono::DateTime<chrono::Utc>) -> Self {
         Self {
             id: uuid::Uuid::new_v4().to_string(),
@@ -66,17 +66,17 @@ impl Carnet {
         }
     }
 
-    /// Réarme le budget d'auto-continuation (appelé quand un outil s'exécute = vrai progrès).
+    /// Rearms the auto-continuation budget (called when a tool runs = real progress).
     pub fn rearmer_auto(&mut self) {
         self.auto_continue = 0;
     }
 
-    /// Consomme une auto-continuation.
+    /// Consumes one auto-continuation.
     pub fn consommer_auto(&mut self) {
         self.auto_continue += 1;
     }
 
-    /// Construit le contexte de décision pour [`crate::cap::boussole::cap`].
+    /// Builds the decision context for [`crate::cap::boussole::cap`].
     pub fn contexte_cap(&self, relance_max: usize, min_web_exploration: usize) -> ContexteCap {
         ContexteCap {
             auto_continue: self.auto_continue,
@@ -87,23 +87,23 @@ impl Carnet {
         }
     }
 
-    /// Persiste le carnet en JSON (checkpoint). `now` injecté pour `maj_le`.
+    /// Persists the carnet as JSON (checkpoint). `now` is injected for `maj_le`.
     pub fn sauver(&mut self, chemin: &Path, now: chrono::DateTime<chrono::Utc>) -> Result<()> {
         self.maj_le = now;
         if let Some(parent) = chemin.parent() {
             std::fs::create_dir_all(parent)
-                .with_context(|| format!("création du dossier {}", parent.display()))?;
+                .with_context(|| format!("creating directory {}", parent.display()))?;
         }
-        let json = serde_json::to_string_pretty(self).context("sérialisation du carnet")?;
-        std::fs::write(chemin, json).with_context(|| format!("écriture {}", chemin.display()))?;
+        let json = serde_json::to_string_pretty(self).context("serializing the carnet")?;
+        std::fs::write(chemin, json).with_context(|| format!("writing {}", chemin.display()))?;
         Ok(())
     }
 
-    /// Recharge un carnet depuis le disque (reprise après crash).
+    /// Reloads a carnet from disk (crash recovery).
     pub fn charger(chemin: &Path) -> Result<Self> {
         let json = std::fs::read_to_string(chemin)
-            .with_context(|| format!("lecture {}", chemin.display()))?;
-        serde_json::from_str(&json).context("désérialisation du carnet")
+            .with_context(|| format!("reading {}", chemin.display()))?;
+        serde_json::from_str(&json).context("deserializing the carnet")
     }
 }
 
@@ -156,7 +156,7 @@ mod tests {
         assert_eq!(repris.recolte_web, 7);
         assert_eq!(repris.mode, ModeMission::Exploration);
         assert_eq!(repris.itineraire.etapes[0].statut, StatutEtape::Terminee);
-        assert!(!repris.itineraire.tout_termine()); // étape 2 encore ouverte
+        assert!(!repris.itineraire.tout_termine()); // step 2 still open
 
         let _ = std::fs::remove_dir_all(&dir);
     }

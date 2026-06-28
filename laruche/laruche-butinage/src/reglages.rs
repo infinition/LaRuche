@@ -1,32 +1,32 @@
-//! Les **réglages** d'un butinage : bornes, prompt système, profil modèle.
+//! The **settings** of a butinage: bounds, system prompt, model profile.
 //!
-//! Un seul moteur, comportement piloté par données : le [`ProfilModele`] ajuste les
-//! rails (vigie, parallélisme, confiance au stop_reason) selon la cible, sans dupliquer
-//! de code.
+//! A single engine, data-driven behavior: the [`ProfilModele`] adjusts the
+//! rails (vigie, parallelism, trust in stop_reason) based on the target, without
+//! duplicating code.
 
 use crate::cap::vigie::SeuilsVigie;
 use std::path::PathBuf;
 
-/// Profil de la cible d'inférence.
+/// Inference target profile.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ProfilModele {
-    /// Modèles locaux faibles (gemma e4b/12b, qwen petit) : rails stricts, 1 outil/tour,
-    /// fallback texte des tool_calls actif, déroutement rapide.
+    /// Weak local models (gemma e4b/12b, small qwen): strict rails, 1 tool/turn,
+    /// text fallback for tool_calls active, fast diversion.
     Fragile,
-    /// Modèles capables (gemma 27/35b, qwen 32b, DeepSeek) : parallélisme, vigie souple.
+    /// Capable models (gemma 27/35b, qwen 32b, DeepSeek): parallelism, lenient vigie.
     #[default]
     Robuste,
-    /// Outils natifs robustes (Claude API, Codex) : on fait confiance au stop_reason natif,
-    /// heuristiques quasi désactivées, parallélisme plein.
+    /// Robust native tools (Claude API, Codex): we trust the native stop_reason,
+    /// heuristics nearly disabled, full parallelism.
     NatifOutils,
 }
 
 impl ProfilModele {
-    /// Le profil tolère-t-il plusieurs appels d'outils par tour ?
+    /// Does the profile tolerate multiple tool calls per turn?
     pub fn parallelisme(self) -> bool {
         !matches!(self, ProfilModele::Fragile)
     }
-    /// Seuils de vigie adaptés au profil.
+    /// Vigie thresholds suited to the profile.
     pub fn seuils_vigie(self) -> SeuilsVigie {
         match self {
             ProfilModele::Fragile => SeuilsVigie::strict(),
@@ -36,32 +36,32 @@ impl ProfilModele {
     }
 }
 
-/// Réglages d'un butinage.
+/// Settings of a butinage.
 #[derive(Debug, Clone)]
 pub struct Reglages {
-    /// Plafond dur de passes (anti-runaway absolu).
+    /// Hard ceiling on passes (absolute anti-runaway).
     pub plafond_passes: usize,
-    /// Borne dure des relances stériles (rails modèle-faible : troncature, tool malformé,
-    /// exploration). Petit (~3) — texte seul = fin de tour, on ne force JAMAIS la continuation.
+    /// Hard bound on sterile relances (weak-model rails: truncation, malformed tool,
+    /// exploration). Small (~3): text alone = end of turn, we NEVER force continuation.
     pub relance_max: usize,
-    /// En mode exploration : appels web minimaux avant d'accepter une fin.
+    /// In exploration mode: minimal web calls before accepting an end.
     pub min_web_exploration: usize,
-    /// Attentes max sur rate-limit avant d'abandonner/dérouter.
+    /// Max waits on rate-limit before giving up/diverting.
     pub max_rate_limit: usize,
-    /// Retries max sur panne passagère.
+    /// Max retries on transient failure.
     pub max_transitoire: usize,
-    /// Fenêtre de contexte du modèle (tokens) — pilote la jauge/escale.
+    /// Model context window (tokens): drives the jauge/escale.
     pub context_max_tokens: usize,
-    /// Nombre de tours récents conservés intacts lors d'une compaction.
+    /// Number of recent turns kept intact during a compaction.
     pub garder_recents: usize,
-    /// Prompt système (tier stable). En anglais (best practice).
+    /// System prompt (stable tier). In English (best practice).
     pub systeme: String,
-    /// Override du prompt de consolidation mémoire (escale). `None` = défaut code.
-    /// Permet à l'utilisateur de l'éditer via `system.prompt_extraction` (miroir mémoire).
+    /// Override of the memory consolidation prompt (escale). `None` = code default.
+    /// Lets the user edit it via `system.prompt_extraction` (memory mirror).
     pub prompt_extraction: Option<String>,
-    /// Profil de la cible.
+    /// Target profile.
     pub profil: ProfilModele,
-    /// Chemin de persistance du carnet (checkpoint). `None` = pas de reprise disque.
+    /// Carnet persistence path (checkpoint). `None` = no disk resume.
     pub chemin_carnet: Option<PathBuf>,
 }
 

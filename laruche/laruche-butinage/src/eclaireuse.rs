@@ -1,13 +1,13 @@
-//! Les **éclaireuses** — sous-agents (abeilles scouts) dépêchés sur une sous-mission.
+//! The **éclaireuses**: sub-agents (scout tools) dispatched on a sub-mission.
 //!
-//! Pattern orchestrateur-ouvrière : pour ne pas polluer le contexte du parent, une
-//! recherche large (ou une vérification, une synthèse) est confiée à une éclaireuse
-//! au **contexte isolé** et au **budget séparé** ; elle ne remonte qu'un **rapport
-//! compact**. C'est un simple `butiner()` enfant — la délégation est « juste un outil »
-//! du point de vue de la boucle parente.
+//! Orchestrator-worker pattern: to avoid polluting the parent's context, a broad
+//! search (or a verification, a synthesis) is handed to an éclaireuse with an
+//! **isolated context** and a **separate budget**; it only reports back a **compact
+//! report**. It is a plain child `butiner()`: delegation is "just a tool" from the
+//! parent loop's point of view.
 //!
-//! Le pont (`laruche-essaim`) câble l'outil `delegate` sur [`depecher`], en désactivant
-//! `delegate` chez l'enfant (garde anti-récursion : un seul niveau).
+//! The bridge (`laruche-essaim`) wires the `delegate` tool onto [`depecher`], disabling
+//! `delegate` in the child (anti-recursion guard: a single level).
 
 use crate::carnet::{Carnet, ModeMission};
 use crate::evenement::Emetteur;
@@ -16,16 +16,16 @@ use crate::outils::Outils;
 use crate::reglages::Reglages;
 use anyhow::Result;
 
-/// Rôle de l'éclaireuse — fixe sa directive et son budget.
+/// Role of the éclaireuse: sets its directive and its budget.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Role {
-    /// Scout : recherche large, collecte de faits et sources.
+    /// Scout: broad search, gathering facts and sources.
     Eclaireuse,
-    /// Ouvrière : exécution/calcul d'une sous-tâche.
+    /// Worker: execution/computation of a sub-task.
     Ouvriere,
-    /// Gardienne : vérification critique d'un résultat/affirmation.
+    /// Guardian: critical verification of a result/claim.
     Gardienne,
-    /// Architecte : synthèse structurée d'un matériau fourni.
+    /// Architect: structured synthesis of provided material.
     Architecte,
 }
 
@@ -39,12 +39,12 @@ impl Role {
         }
     }
 
-    /// Directive (anglais) ajoutée au prompt système de l'enfant.
+    /// Directive (English) appended to the child's system prompt.
     pub fn directive(self) -> &'static str {
         match self {
             Role::Eclaireuse => "You are a SCOUT bee on a focused research sub-mission. Search broadly across \
                 several angles, gather concrete facts with sources, and report concisely. Never ask the user \
-                questions — you are autonomous. Call task_complete with a tight factual summary when done.",
+                questions: you are autonomous. Call task_complete with a tight factual summary when done.",
             Role::Ouvriere => "You are a WORKER bee executing one focused sub-task (computation, file work, \
                 code). Do the work with tools, verify it, and report the concrete result via task_complete.",
             Role::Gardienne => "You are a GUARDIAN bee. Critically verify the given claim or result. Try to \
@@ -54,7 +54,7 @@ impl Role {
         }
     }
 
-    /// Budget de passes par défaut du rôle.
+    /// Default pass budget for the role.
     pub fn plafond(self) -> usize {
         match self {
             Role::Eclaireuse => 30,
@@ -72,7 +72,7 @@ impl Role {
     }
 }
 
-/// Ordre de mission d'une éclaireuse.
+/// Mission order for an éclaireuse.
 #[derive(Debug, Clone)]
 pub struct OrdreEclaireuse {
     pub role: Role,
@@ -80,7 +80,7 @@ pub struct OrdreEclaireuse {
     pub contexte: Option<String>,
 }
 
-/// Rapport compact remonté au parent.
+/// Compact report sent back to the parent.
 #[derive(Debug, Clone)]
 pub struct Rapport {
     pub tache: String,
@@ -89,15 +89,15 @@ pub struct Rapport {
 }
 
 impl Rapport {
-    /// Rendu prêt à réinjecter comme observation chez le parent.
+    /// Rendering ready to reinject as an observation in the parent.
     pub fn en_observation(&self) -> String {
-        format!("[Rapport d'éclaireuse — {:?}]\nTâche : {}\n\n{}", self.role, self.tache, self.synthese)
+        format!("[Éclaireuse report: {:?}]\nTask: {}\n\n{}", self.role, self.tache, self.synthese)
     }
 }
 
-/// Dépêche une éclaireuse : exécute un `butiner()` enfant à contexte isolé et budget
-/// propre, puis renvoie son rapport. `fournisseur`/`outils` sont les adaptateurs ENFANT
-/// (le pont y désactive `delegate` pour empêcher la récursion).
+/// Dispatches an éclaireuse: runs a child `butiner()` with an isolated context and its
+/// own budget, then returns its report. `fournisseur`/`outils` are the CHILD adapters
+/// (the bridge disables `delegate` there to prevent recursion).
 pub async fn depecher(
     ordre: OrdreEclaireuse,
     reglages_parent: &Reglages,
@@ -109,7 +109,7 @@ pub async fn depecher(
     let reglages_enfant = Reglages {
         plafond_passes: ordre.role.plafond(),
         systeme: format!("{}\n\n## Sub-mission role\n{}", reglages_parent.systeme, ordre.role.directive()),
-        chemin_carnet: None, // l'enfant n'a pas besoin de checkpoint disque
+        chemin_carnet: None, // the child does not need a disk checkpoint
         ..reglages_parent.clone()
     };
 
@@ -119,7 +119,7 @@ pub async fn depecher(
     };
 
     let mut carnet = Carnet::ouvrir(&mission, ordre.role.mode(), now);
-    // Les éclaireuses sont bornées et courtes → pas de consolidation mémoire (source None).
+    // Éclaireuses are bounded and short, so no memory consolidation (source None).
     let bilan =
         crate::cycle::butiner(&mut carnet, &reglages_enfant, fournisseur, outils, emet, None, None)
             .await?;

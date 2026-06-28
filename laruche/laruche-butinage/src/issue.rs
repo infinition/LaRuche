@@ -1,27 +1,27 @@
-//! Ce que produit une **passe** (une itération) et ce qui termine un **butinage**.
+//! What a **passe** (an iteration) produces and what ends a **butinage**.
 //!
-//! `Issue` normalise la sortie du modèle en *faits* exploitables par la politique
-//! ([`crate::cap::boussole`]), pour ne jamais décider sur du matching de chaînes.
+//! `Issue` normalizes the model output into *facts* usable by the policy
+//! ([`crate::cap::boussole`]), so decisions never rely on string matching.
 
 use serde::{Deserialize, Serialize};
 
-/// Raison d'arrêt **native** du modèle, normalisée à travers les providers.
-/// (Corrige le `Some("stop")` codé en dur de certains backends qui cassait la
-/// détection de troncature.)
+/// **Native** stop reason from the model, normalized across providers.
+/// (Fixes the hard-coded `Some("stop")` of some backends that broke
+/// truncation detection.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StopReason {
-    /// Le modèle a fini naturellement son tour.
+    /// The model finished its turn naturally.
     FinTour,
-    /// Coupé par la limite de tokens de sortie (→ reprise possible).
+    /// Cut off by the output token limit (resume possible).
     Longueur,
-    /// Le modèle veut appeler des outils.
+    /// The model wants to call tools.
     Outils,
-    /// Autre/inconnu (réseau, filtre…).
+    /// Other/unknown (network, filter...).
     Autre,
 }
 
-/// Un appel d'outil demandé par le modèle.
+/// A tool call requested by the model.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Appel {
     pub id: String,
@@ -38,19 +38,19 @@ impl Appel {
         }
     }
 
-    /// Signature canonique stable (nom + args triés) pour la [`crate::cap::vigie::Vigie`].
+    /// Stable canonical signature (name + sorted args) for the [`crate::cap::vigie::Vigie`].
     pub fn signature(&self) -> u64 {
         use std::hash::{Hash, Hasher};
         let mut h = std::collections::hash_map::DefaultHasher::new();
         self.nom.hash(&mut h);
-        // serde_json sérialise les objets dans l'ordre d'insertion ; on retrie les clés
-        // pour une signature indépendante de l'ordre.
+        // serde_json serializes objects in insertion order; we re-sort the keys
+        // for an order-independent signature.
         canonicaliser(&self.args).hash(&mut h);
         h.finish()
     }
 }
 
-/// JSON compact à clés triées (récursif) — base d'une signature stable.
+/// Compact JSON with sorted keys (recursive): basis for a stable signature.
 pub fn canonicaliser(v: &serde_json::Value) -> String {
     match v {
         serde_json::Value::Object(m) => {
@@ -70,55 +70,55 @@ pub fn canonicaliser(v: &serde_json::Value) -> String {
     }
 }
 
-/// L'issue d'une passe : ce que la boucle observe APRÈS l'appel au modèle.
+/// The issue of a passe: what the loop observes AFTER the model call.
 #[derive(Debug, Clone)]
 pub enum Issue {
-    /// Le modèle a appelé l'outil explicite `mission_accomplie`.
+    /// The model called the explicit `mission_accomplie` tool.
     MissionAccomplie { resume: String, confiance: f32 },
-    /// Le modèle a appelé `clarify` → on rend la main à l'utilisateur.
+    /// The model called `clarify`: hand control back to the user.
     Clarification(String),
-    /// Le modèle veut exécuter des outils.
+    /// The model wants to execute tools.
     Outils(Vec<Appel>),
-    /// Le modèle a (seulement) posé/mis à jour son plan, sans autre outil. Poser un plan
-    /// est un acte productif (comme un tool call) → la boucle doit continuer pour qu'il
-    /// passe à l'action, pas conclure. Borné par `relance_max` (anti plan-en-boucle).
+    /// The model (only) set/updated its plan, with no other tool. Setting a plan
+    /// is a productive act (like a tool call): the loop must continue so it
+    /// moves to action rather than concluding. Bounded by `relance_max` (anti plan-loop).
     PlanEnregistre,
-    /// Réponse en texte seul (pas d'outil). On joint les faits qui guideront la décision.
+    /// Text-only response (no tool). We attach the facts that guide the decision.
     TexteSeul(TexteSeul),
 }
 
-/// Faits extraits d'une réponse texte-seul, consommés par la boussole.
+/// Facts extracted from a text-only response, consumed by the boussole.
 #[derive(Debug, Clone)]
 pub struct TexteSeul {
     pub texte: String,
-    /// Raison d'arrêt native du modèle (si le provider la fournit).
+    /// Native stop reason from the model (if the provider supplies it).
     pub fin_native: Option<StopReason>,
-    /// Vrai si l'itinéraire a encore des étapes ouvertes.
+    /// True if the itineraire still has open steps.
     pub plan_inacheve: bool,
-    /// Vrai si le texte ressemble à un tool_call cassé (rail de récupération).
+    /// True if the text looks like a broken tool_call (recovery rail).
     pub malforme: bool,
-    /// Vrai si la sortie a été tronquée (stop_reason=longueur ou bloc d'outil non fermé).
+    /// True if the output was truncated (stop_reason=length or unclosed tool block).
     pub tronquee: bool,
 }
 
-/// Raison terminale d'un butinage.
+/// Terminal reason of a butinage.
 #[derive(Debug, Clone, PartialEq)]
 pub enum FinDeVol {
-    /// Mission accomplie (réponse finale prête).
+    /// Mission accomplished (final answer ready).
     Accomplie,
-    /// Plafond de passes atteint — possiblement incomplet.
+    /// Passe ceiling reached: possibly incomplete.
     Plafond,
-    /// Erreur fatale (provider/auth) après épuisement des recours.
+    /// Fatal error (provider/auth) after exhausting recovery options.
     Erreur(String),
-    /// Interrompue par l'utilisateur.
+    /// Interrupted by the user.
     Interrompue,
-    /// L'abeille demande une clarification (rend la main).
+    /// The tool requests a clarification (hands control back).
     Clarification(String),
-    /// Arrêt propre par la vigie (boucle stérile détectée).
+    /// Clean stop by the vigie (sterile loop detected).
     BoucleSterile(String),
 }
 
-/// Résultat final d'un butinage, remonté à l'appelant (node/dashboard).
+/// Final result of a butinage, reported to the caller (node/dashboard).
 #[derive(Debug, Clone)]
 pub struct Bilan {
     pub texte: String,
@@ -135,7 +135,7 @@ impl Bilan {
         }
     }
 
-    /// Le butinage a-t-il abouti à une vraie réponse (vs erreur/plafond) ?
+    /// Did the butinage yield a real answer (vs error/ceiling)?
     pub fn est_succes(&self) -> bool {
         matches!(
             self.fin,

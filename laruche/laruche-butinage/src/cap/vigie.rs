@@ -1,41 +1,41 @@
-//! La **Vigie** — surveillance pure des boucles stériles (inspirée du meilleur
-//! d'third-party : un contrôleur sans effet de bord).
+//! The **Vigie**: pure monitoring of sterile loops (inspired by the best of
+//! third-party: a side-effect-free controller).
 //!
-//! La Vigie *observe* les appels d'outils et renvoie un [`Signal`]. Elle ne touche
-//! à rien : c'est la boucle qui décide quoi faire du signal (injecter un conseil,
-//! poser proprement). Elle détecte trois pathologies :
-//! 1. **échec exact répété** : même (nom+args) échoue N fois → avertir puis bloquer ;
-//! 2. **même outil échoue** : un outil échoue N fois (args variables) → avertir puis poser ;
-//! 3. **idempotent sans progrès** : un outil lecture renvoie N fois le même résultat.
+//! The Vigie *observes* tool calls and returns a [`Signal`]. It touches nothing:
+//! the loop decides what to do with the signal (inject advice, stop cleanly).
+//! It detects three pathologies:
+//! 1. **repeated exact failure**: same (name+args) fails N times -> warn then block;
+//! 2. **same tool fails**: a tool fails N times (varying args) -> warn then stop;
+//! 3. **idempotent without progress**: a read tool returns the same result N times.
 
 use std::collections::HashMap;
 
-/// Décision de la Vigie. Sans effet de bord : la boucle l'applique.
+/// The Vigie's decision. Side-effect-free: the loop applies it.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Signal {
-    /// Rien à signaler, on continue.
+    /// Nothing to report, carry on.
     Laisser,
-    /// Boucle suspecte : injecter ce conseil dans l'observation (l'outil s'exécute quand même).
+    /// Suspicious loop: inject this advice into the observation (the tool still runs).
     Avertir(String),
-    /// Trop de répétitions : refuser cet appel précis (résultat synthétique d'erreur).
+    /// Too many repetitions: refuse this precise call (synthetic error result).
     Bloquer(String),
-    /// Boucle stérile avérée : poser le butinage proprement avec ce motif.
+    /// Confirmed sterile loop: stop the butinage cleanly with this reason.
     Poser(String),
 }
 
 impl Signal {
-    /// L'appel peut-il s'exécuter malgré le signal ?
+    /// Can the call still execute despite the signal?
     pub fn autorise_execution(&self) -> bool {
         matches!(self, Signal::Laisser | Signal::Avertir(_))
     }
-    /// Le signal demande-t-il un arrêt du butinage ?
+    /// Does the signal request stopping the butinage?
     pub fn demande_arret(&self) -> bool {
         matches!(self, Signal::Poser(_))
     }
 }
 
-/// Seuils de détection. Avertissements toujours actifs ; arrêts durs opt-in
-/// (`arret_dur`) pour ne pas brider un agent interactif.
+/// Detection thresholds. Warnings always active; hard stops opt-in
+/// (`arret_dur`) so as not to constrain an interactive agent.
 #[derive(Debug, Clone)]
 pub struct SeuilsVigie {
     pub avertir_echec_exact: u32,
@@ -44,7 +44,7 @@ pub struct SeuilsVigie {
     pub poser_meme_outil: u32,
     pub avertir_sans_progres: u32,
     pub bloquer_sans_progres: u32,
-    /// Active les blocages/arrêts durs (sinon : avertissements seuls).
+    /// Enables hard blocks/stops (otherwise: warnings only).
     pub arret_dur: bool,
 }
 
@@ -63,8 +63,8 @@ impl Default for SeuilsVigie {
 }
 
 impl SeuilsVigie {
-    /// Profil souple pour modèles forts (Claude/Codex/DeepSeek) : on fait confiance,
-    /// avertissements seulement.
+    /// Lenient profile for strong models (Claude/Codex/DeepSeek): trust them,
+    /// warnings only.
     pub fn souple() -> Self {
         Self {
             arret_dur: false,
@@ -72,8 +72,8 @@ impl SeuilsVigie {
         }
     }
 
-    /// Profil strict pour modèles locaux faibles (gemma/qwen petits) : arrêts durs
-    /// plus précoces pour éviter le runaway.
+    /// Strict profile for weak local models (small gemma/qwen): earlier hard
+    /// stops to avoid runaway.
     pub fn strict() -> Self {
         Self {
             avertir_echec_exact: 2,
@@ -87,13 +87,13 @@ impl SeuilsVigie {
     }
 }
 
-/// Le surveillant. Garde des compteurs par signature/outil pour la durée d'un butinage.
+/// The monitor. Keeps per-signature/tool counters for the duration of a butinage.
 #[derive(Debug, Clone, Default)]
 pub struct Vigie {
     seuils: SeuilsVigie,
     echecs_exacts: HashMap<u64, u32>,
     echecs_par_outil: HashMap<String, u32>,
-    /// signature → (hash du dernier résultat, nb de répétitions identiques).
+    /// signature -> (hash of the last result, number of identical repetitions).
     sans_progres: HashMap<u64, (u64, u32)>,
 }
 
@@ -105,7 +105,7 @@ impl Vigie {
         }
     }
 
-    /// Avant d'exécuter : bloque-t-on cet appel parce qu'il a déjà trop échoué/stagné ?
+    /// Before executing: do we block this call because it has already failed/stagnated too much?
     pub fn avant_appel(&self, signature: u64) -> Signal {
         if !self.seuils.arret_dur {
             return Signal::Laisser;
@@ -114,7 +114,7 @@ impl Vigie {
             if n >= self.seuils.bloquer_echec_exact {
                 return Signal::Bloquer(format!(
                     "This exact tool call has failed {n} times with identical arguments. \
-                     Stop retrying it unchanged — change strategy or report the blocker."
+                     Stop retrying it unchanged - change strategy or report the blocker."
                 ));
             }
         }
@@ -129,11 +129,11 @@ impl Vigie {
         Signal::Laisser
     }
 
-    /// Après exécution : met à jour les compteurs et renvoie un éventuel signal.
+    /// After executing: updates the counters and returns an optional signal.
     ///
-    /// - `ok` : l'outil a-t-il réussi ?
-    /// - `idempotent` : est-ce un outil lecture (mêmes args ⇒ même effet attendu) ?
-    /// - `resultat_hash` : empreinte du résultat (pour détecter l'absence de progrès).
+    /// - `ok`: did the tool succeed?
+    /// - `idempotent`: is this a read tool (same args => same expected effect)?
+    /// - `resultat_hash`: fingerprint of the result (to detect lack of progress).
     pub fn apres_appel(
         &mut self,
         nom: &str,
@@ -172,7 +172,7 @@ impl Vigie {
             return Signal::Laisser;
         }
 
-        // Succès : on oublie les échecs de cette signature/outil.
+        // Success: forget the failures of this signature/tool.
         self.echecs_exacts.remove(&signature);
         self.echecs_par_outil.remove(nom);
 
@@ -181,7 +181,7 @@ impl Vigie {
             return Signal::Laisser;
         }
 
-        // Idempotent : détecte la stagnation (même résultat répété).
+        // Idempotent: detect stagnation (same result repeated).
         let repet = match self.sans_progres.get(&signature) {
             Some(&(h, r)) if h == resultat_hash => r + 1,
             _ => 1,
@@ -212,11 +212,11 @@ mod tests {
     #[test]
     fn echec_exact_repete_avertit_puis_bloque() {
         let mut v = Vigie::nouvelle(SeuilsVigie::default());
-        // 1er échec : rien
+        // 1st failure: nothing
         assert_eq!(v.apres_appel("web", 7, false, false, 0), Signal::Laisser);
-        // 2e échec exact : avertissement (seuil avertir_echec_exact=2)
+        // 2nd exact failure: warning (threshold avertir_echec_exact=2)
         assert!(matches!(v.apres_appel("web", 7, false, false, 0), Signal::Avertir(_)));
-        // après 5 échecs, avant_appel bloque
+        // after 5 failures, avant_appel blocks
         v.apres_appel("web", 7, false, false, 0);
         v.apres_appel("web", 7, false, false, 0);
         v.apres_appel("web", 7, false, false, 0); // total 5
@@ -226,7 +226,7 @@ mod tests {
     #[test]
     fn meme_outil_echoue_finit_par_poser() {
         let mut v = Vigie::nouvelle(SeuilsVigie::default());
-        // 8 échecs avec des signatures différentes (args variables) → Poser
+        // 8 failures with different signatures (varying args) -> Poser
         let mut dernier = Signal::Laisser;
         for i in 0..8 {
             dernier = v.apres_appel("shell", 1000 + i, false, false, 0);
@@ -238,7 +238,7 @@ mod tests {
     fn idempotent_sans_progres_avertit() {
         let mut v = Vigie::nouvelle(SeuilsVigie::default());
         assert_eq!(v.apres_appel("web", 3, true, true, 999), Signal::Laisser);
-        // même résultat (999) une 2e fois → avertissement (seuil 2)
+        // same result (999) a 2nd time -> warning (threshold 2)
         assert!(matches!(v.apres_appel("web", 3, true, true, 999), Signal::Avertir(_)));
     }
 
@@ -246,8 +246,8 @@ mod tests {
     fn succes_efface_les_echecs() {
         let mut v = Vigie::nouvelle(SeuilsVigie::default());
         v.apres_appel("web", 5, false, false, 0);
-        v.apres_appel("web", 5, false, false, 0); // 2 échecs
-        v.apres_appel("web", 5, true, false, 0); // succès → reset
+        v.apres_appel("web", 5, false, false, 0); // 2 failures
+        v.apres_appel("web", 5, true, false, 0); // success -> reset
         assert_eq!(v.avant_appel(5), Signal::Laisser);
     }
 
@@ -256,8 +256,8 @@ mod tests {
         let mut v = Vigie::nouvelle(SeuilsVigie::souple());
         for _ in 0..20 {
             let s = v.apres_appel("shell", 1, false, false, 0);
-            assert!(!s.demande_arret(), "souple ne doit jamais Poser");
+            assert!(!s.demande_arret(), "lenient must never Poser");
         }
-        assert_eq!(v.avant_appel(1), Signal::Laisser); // jamais Bloquer
+        assert_eq!(v.avant_appel(1), Signal::Laisser); // never Bloquer
     }
 }

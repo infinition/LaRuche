@@ -1,13 +1,13 @@
-//! Les **outils** (le registre d'abeilles), abstraits par un trait.
+//! The **tools** (the bee registry), abstracted behind a trait.
 //!
-//! L'adaptateur `laruche-essaim` enveloppe son `AbeilleRegistry`. La boucle ne sait
-//! qu'exécuter un appel, savoir si un outil est idempotent (pour la [`crate::cap::vigie`])
-//! et s'il est sûr à exécuter en parallèle (pour la récolte concurrente).
+//! The `laruche-essaim` adapter wraps its `AbeilleRegistry`. The loop only knows how
+//! to execute a call, whether a tool is idempotent (for [`crate::cap::vigie`])
+//! and whether it is safe to run in parallel (for concurrent harvesting).
 
 use crate::issue::Appel;
 use async_trait::async_trait;
 
-/// Résultat d'un appel d'outil.
+/// Result of a tool call.
 #[derive(Debug, Clone)]
 pub struct ResultatOutil {
     pub ok: bool,
@@ -21,7 +21,7 @@ impl ResultatOutil {
     pub fn echec(s: impl Into<String>) -> Self {
         Self { ok: false, sortie: s.into() }
     }
-    /// Empreinte du résultat (détection de stagnation par la vigie).
+    /// Fingerprint of the result (stagnation detection by the vigie).
     pub fn empreinte(&self) -> u64 {
         use std::hash::{Hash, Hasher};
         let mut h = std::collections::hash_map::DefaultHasher::new();
@@ -30,30 +30,30 @@ impl ResultatOutil {
     }
 }
 
-/// Le registre d'outils exécutable.
+/// The executable tool registry.
 #[async_trait]
 pub trait Outils: Send + Sync {
-    /// Exécute un appel et renvoie son résultat (jamais d'erreur remontée : un échec
-    /// devient un `ResultatOutil { ok: false }` observable par le modèle).
+    /// Executes a call and returns its result (errors are never propagated: a failure
+    /// becomes a `ResultatOutil { ok: false }` observable by the model).
     async fn executer(&self, appel: &Appel) -> ResultatOutil;
 
-    /// Outil en lecture seule (mêmes args ⇒ même effet) → la vigie surveille la stagnation,
-    /// et la récolte peut le lancer en parallèle.
+    /// Read-only tool (same args ⇒ same effect) → the vigie watches for stagnation,
+    /// and the recolte can run it in parallel.
     fn idempotent(&self, _nom: &str) -> bool {
         false
     }
 
-    /// Sûr à exécuter en parallèle avec d'autres appels sûrs (pas de mutation/approbation).
+    /// Safe to run in parallel with other safe calls (no mutation/approval).
     fn concurrence_sure(&self, appel: &Appel) -> bool {
         self.idempotent(&appel.nom)
     }
 
-    /// Compte un appel comme « recherche web » (preuve d'effort en mode exploration).
+    /// Counts a call as a "web search" (proof of effort in exploration mode).
     fn est_web(&self, appel: &Appel) -> bool {
         appel.nom.starts_with("web_") || appel.nom.starts_with("browser_")
     }
 
-    /// Schémas d'outils à injecter au prompt.
+    /// Tool schemas to inject into the prompt.
     fn schemas(&self) -> Vec<serde_json::Value> {
         Vec::new()
     }

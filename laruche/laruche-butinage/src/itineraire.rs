@@ -1,30 +1,30 @@
-//! L'itinéraire de butinage = le plan/todo structuré.
+//! The butinage itineraire = the structured plan/todo list.
 //!
-//! C'est la **source de vérité de la terminaison** : on ne décide jamais qu'une
-//! mission est finie en lisant le texte du modèle (« j'ai terminé »), mais en
-//! constatant que toutes les étapes de l'itinéraire sont terminées ou non applicables.
+//! This is the **source of truth for termination**: we never decide a mission is
+//! finished by reading the model's text ("I'm done"), but by observing that every
+//! step of the itineraire is terminated or not applicable.
 
 use serde::{Deserialize, Serialize};
 
-/// Statut d'une étape de l'itinéraire.
+/// Status of an itineraire step.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StatutEtape {
-    /// Pas encore commencée.
+    /// Not yet started.
     AFaire,
-    /// En cours de traitement.
+    /// Currently being processed.
     EnCours,
-    /// Terminée avec succès.
+    /// Completed successfully.
     Terminee,
-    /// Bloquée (dépendance, erreur externe) — n'empêche pas la terminaison globale.
+    /// Blocked (dependency, external error): does not prevent global termination.
     Bloquee,
-    /// Devenue sans objet (ex. recherche conditionnelle qui n'a rien donné).
+    /// No longer relevant (e.g. a conditional search that yielded nothing).
     NonApplicable,
 }
 
 impl StatutEtape {
-    /// Une étape « close » ne demande plus de travail (terminée, abandonnée, ou bloquée
-    /// durablement). Sert à savoir si l'itinéraire est globalement accompli.
+    /// A "closed" step no longer requires work (terminated, abandoned, or durably
+    /// blocked). Used to know whether the itineraire is globally accomplished.
     pub fn est_close(self) -> bool {
         matches!(
             self,
@@ -32,12 +32,12 @@ impl StatutEtape {
         )
     }
 
-    /// Une étape « ouverte » réclame encore une action de l'abeille.
+    /// An "open" step still requires an action from the tool.
     pub fn est_ouverte(self) -> bool {
         matches!(self, StatutEtape::AFaire | StatutEtape::EnCours)
     }
 
-    /// Mappe un statut texte (formats FR/EN du modèle) vers le statut typé.
+    /// Maps a textual status (model FR/EN formats) to the typed status.
     pub fn depuis(s: &str) -> StatutEtape {
         match s.trim().to_lowercase().as_str() {
             "done" | "terminee" | "terminée" | "completed" | "ok" => StatutEtape::Terminee,
@@ -49,7 +49,7 @@ impl StatutEtape {
     }
 }
 
-/// Une étape de l'itinéraire.
+/// An itineraire step.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Etape {
     pub titre: String,
@@ -65,7 +65,7 @@ impl Etape {
     }
 }
 
-/// Le plan de butinage. Vide au départ : l'abeille le pose elle-même via l'outil `plan`.
+/// The butinage plan. Empty at first: the tool sets it itself via the `plan` tool.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Itineraire {
     pub etapes: Vec<Etape>,
@@ -76,42 +76,42 @@ impl Itineraire {
         Self::default()
     }
 
-    /// Remplace l'itinéraire par une nouvelle liste de titres (toutes `AFaire`).
+    /// Replaces the itineraire with a new list of titles (all `AFaire`).
     pub fn definir(&mut self, titres: Vec<String>) {
         self.etapes = titres.into_iter().map(Etape::nouvelle).collect();
     }
 
-    /// Fusionne une mise à jour : si l'index existe on change son statut, sinon on
-    /// ajoute l'étape. Tolérant aux index hors borne (no-op silencieux côté lecture).
+    /// Merges an update: if the index exists we change its status, otherwise we
+    /// add the step. Tolerant of out-of-bounds indices (silent no-op on read).
     pub fn marquer(&mut self, index: usize, statut: StatutEtape) {
         if let Some(e) = self.etapes.get_mut(index) {
             e.statut = statut;
         }
     }
 
-    /// Aucune étape posée.
+    /// No step set.
     pub fn est_vide(&self) -> bool {
         self.etapes.is_empty()
     }
 
-    /// Toutes les étapes sont closes (ou l'itinéraire est vide → rien n'empêche la fin).
+    /// All steps are closed (or the itineraire is empty, so nothing prevents the end).
     pub fn tout_termine(&self) -> bool {
         self.etapes.iter().all(|e| e.statut.est_close())
     }
 
-    /// Au moins une étape réclame encore du travail.
+    /// At least one step still requires work.
     pub fn a_des_ouvertes(&self) -> bool {
         self.etapes.iter().any(|e| e.statut.est_ouverte())
     }
 
-    /// Index de la prochaine étape ouverte, le cas échéant.
+    /// Index of the next open step, if any.
     pub fn prochaine_ouverte(&self) -> Option<usize> {
         self.etapes.iter().position(|e| e.statut.est_ouverte())
     }
 
-    /// Rend l'itinéraire « terminal » pour l'affichage final : toute étape encore
-    /// ouverte devient `NonApplicable` (la mission rend la main, ces étapes ne seront
-    /// pas faites). Utilisé au moment de poser une réponse finale.
+    /// Renders the itineraire "terminal" for the final display: every still-open
+    /// step becomes `NonApplicable` (the mission hands back control, these steps
+    /// will not be done). Used when posting a final answer.
     pub fn finaliser(&mut self) {
         for e in &mut self.etapes {
             if e.statut.est_ouverte() {
@@ -173,7 +173,7 @@ mod tests {
     fn marquer_hors_borne_est_silencieux() {
         let mut it = Itineraire::vide();
         it.definir(vec!["a".into()]);
-        it.marquer(9, StatutEtape::Terminee); // ne panique pas
+        it.marquer(9, StatutEtape::Terminee); // does not panic
         assert!(!it.tout_termine());
     }
 }

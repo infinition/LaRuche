@@ -1,9 +1,9 @@
-//! `cap` — la **politique** de l'abeille : où elle va, quand elle s'arrête.
+//! `cap`: the tool's **policy**: where it goes, when it stops.
 //!
-//! Tout ce qui décide est ici, isolé de la boucle et **unit-testé** :
-//! - [`vigie`] : surveille les boucles stériles (contrôleur pur, sans effet de bord).
-//! - [`boussole`] : la seule fonction de continuation (`cap()`).
-//! - [`jauge`] : le budget de contexte en tokens réels (à venir avec le moteur).
+//! Everything that decides lives here, isolated from the loop and **unit-tested**:
+//! - [`vigie`]: watches for sterile loops (pure controller, no side effects).
+//! - [`boussole`]: the only continuation function (`cap()`).
+//! - [`jauge`]: the context budget in real tokens (coming with the engine).
 
 pub mod boussole;
 pub mod jauge;

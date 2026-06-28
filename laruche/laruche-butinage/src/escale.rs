@@ -1,10 +1,10 @@
-//! L'**escale** — la halte où l'abeille « fait le miel » : compaction du contexte
-//! entre deux passes pour tenir sur la durée.
+//! The **escale**: the halt where the tool "makes honey": context compaction
+//! between passes to last over time.
 //!
-//! Pilotée par la [`Jauge`]. Version POC : compaction **extractive** (sans appel LLM,
-//! déterministe) — on garde l'ancre (la mission), un résumé des tours intermédiaires
-//! (outils utilisés + dernières observations), et les N tours récents intacts. La
-//! consolidation LLM vers la mémoire cognitive viendra via le pont (`Source`).
+//! Driven by the [`Jauge`]. POC version: **extractive** compaction (no LLM call,
+//! deterministic): keep the anchor (the mission), a summary of intermediate turns
+//! (tools used + latest observations), and the N recent turns intact. LLM
+//! consolidation into cognitive memory will come via the bridge (`Source`).
 
 use crate::cap::jauge::{Besoin, Jauge};
 use crate::carnet::Carnet;
@@ -13,23 +13,23 @@ use crate::fournisseur::Fournisseur;
 use crate::messagerie::{Message, Role};
 use crate::nectar::Source;
 
-/// Examine la jauge et compacte si nécessaire. Renvoie un événement d'escale si une
-/// compaction a eu lieu (pour l'UI), sinon `None`.
+/// Examines the gauge and compacts if needed. Returns an escale event if a
+/// compaction occurred (for the UI), otherwise `None`.
 pub fn peut_etre(carnet: &mut Carnet, jauge: &Jauge, garder_recents: usize) -> Option<Evenement> {
     let cible = match jauge.besoin() {
         Besoin::Rien => return None,
         Besoin::Compacter => garder_recents,
-        // Consolidation : compaction plus agressive (on garde moins de tours).
+        // Consolidation: more aggressive compaction (keep fewer turns).
         Besoin::Consolider => (garder_recents / 2).max(4),
     };
     compacter(&mut carnet.historique, cible).map(|(avant, apres)| Evenement::Escale { avant, apres })
 }
 
-/// Compaction extractive de l'historique. Renvoie `(avant, après)` si elle a eu lieu.
+/// Extractive compaction of the history. Returns `(avant, apres)` if it occurred.
 pub fn compacter(historique: &mut Vec<Message>, garder_recents: usize) -> Option<(usize, usize)> {
     let avant = historique.len();
     if avant <= garder_recents + 2 {
-        return None; // trop court pour valoir le coup
+        return None; // too short to be worthwhile
     }
     let split = avant - garder_recents;
     let milieu = &historique[..split];
@@ -48,7 +48,7 @@ pub fn compacter(historique: &mut Vec<Message>, garder_recents: usize) -> Option
     Some((avant, historique.len()))
 }
 
-/// Résumé extractif d'un bloc de messages : outils utilisés + dernières observations.
+/// Extractive summary of a block of messages: tools used + latest observations.
 fn resumer(msgs: &[Message]) -> String {
     let mut outils: Vec<&str> = Vec::new();
     for m in msgs {
@@ -70,7 +70,7 @@ fn resumer(msgs: &[Message]) -> String {
         .collect();
 
     format!(
-        "[Compacted context — {} earlier messages summarized]\nTools already used: {}\nMost recent observations:\n{}",
+        "[Compacted context: {} earlier messages summarized]\nTools already used: {}\nMost recent observations:\n{}",
         msgs.len(),
         if outils.is_empty() { "(none)".into() } else { outils.join(", ") },
         if derniers.is_empty() { "(none)".into() } else { derniers.join("\n") }
@@ -82,18 +82,18 @@ the DURABLE facts about the WORLD, the MISSION and the USER worth remembering ac
 decisions, stable user preferences, key results, useful URLs. Output STRICT JSON only, an array of objects: \
 [{\"node_id\":\"<domain>.<subject>\",\"content\":\"<concise fact>\"}]. Use snake_case dotted node_ids \
 (e.g. research.dungeon_siege, decisions.archi, people.fabien). \
-DO NOT memorize the agent's OWN capabilities, tool names, or anything already in its system prompt — that is \
+DO NOT memorize the agent's OWN capabilities, tool names, or anything already in its system prompt - that is \
 NOT a durable fact. NEVER use the reserved domains `system.*` or `capacities.*` (system-managed). \
 If nothing durable, output []. No prose, JSON only.";
 
-/// Prompt d'extraction par défaut (pour l'exposer dans l'UI « restaurer défaut »).
+/// Default extraction prompt (to expose it in the UI "restore default").
 pub fn prompt_extraction_defaut() -> &'static str {
     PROMPT_EXTRACTION
 }
 
-/// **Consolidation cognitive** (escale lourde) : extrait les faits durables de l'historique
-/// via un appel LLM auxiliaire, les écrit en mémoire (`source`), puis repart sur un contexte
-/// frais (ancre + reprise). Rend la mission *cumulative* sans saturer le contexte.
+/// **Cognitive consolidation** (heavy escale): extracts durable facts from the history
+/// via an auxiliary LLM call, writes them to memory (`source`), then restarts on a fresh
+/// context (anchor + resume). Makes the mission *cumulative* without saturating the context.
 pub async fn consolider(
     carnet: &mut Carnet,
     fournisseur: &dyn Fournisseur,
@@ -101,7 +101,7 @@ pub async fn consolider(
     emet: &dyn Emetteur,
     prompt_extraction: Option<&str>,
 ) -> Option<Evenement> {
-    emet.emettre(Evenement::Statut("🧠 Consolidation cognitive…".into()));
+    emet.emettre(Evenement::Statut("🧠 Cognitive consolidation…".into()));
     let messages = vec![
         Message::systeme(prompt_extraction.unwrap_or(PROMPT_EXTRACTION)),
         Message::utilisateur(rendu_historique(&carnet.historique)),
@@ -113,7 +113,7 @@ pub async fn consolider(
     }
 
     let avant = carnet.historique.len();
-    // Contexte frais : ancre (mission) + consigne de reprise via la mémoire.
+    // Fresh context: anchor (mission) + resume instruction via memory.
     carnet.historique = vec![
         Message::systeme(format!(
             "=== Resumed after cognitive consolidation: {} fact(s) stored to long-term memory. \
@@ -125,7 +125,7 @@ pub async fn consolider(
     Some(Evenement::Escale { avant, apres: carnet.historique.len() })
 }
 
-/// Rend l'historique en texte plat pour l'extraction.
+/// Renders the history as flat text for extraction.
 fn rendu_historique(h: &[Message]) -> String {
     h.iter()
         .filter(|m| !m.contenu.trim().is_empty())
@@ -142,7 +142,7 @@ fn rendu_historique(h: &[Message]) -> String {
         .join("\n\n")
 }
 
-/// Extrait la liste `[{node_id, content}]` du texte (tolérant au bavardage autour du JSON).
+/// Extracts the `[{node_id, content}]` list from text (tolerant of chatter around the JSON).
 fn parse_faits(texte: &str) -> Vec<(String, String)> {
     let (Some(deb), Some(fin)) = (texte.find('['), texte.rfind(']')) else {
         return Vec::new();
@@ -195,12 +195,12 @@ mod tests {
         let mut h = hist(10); // 1 + 20 = 21 messages
         let (avant, apres) = compacter(&mut h, 6).unwrap();
         assert_eq!(avant, 21);
-        // ancre + résumé + 6 récents = 8
+        // anchor + summary + 6 recent = 8
         assert_eq!(apres, 8);
         assert_eq!(h.len(), 8);
-        assert_eq!(h[0].contenu, "MISSION"); // ancre préservée
-        assert_eq!(h[1].role, Role::Systeme); // résumé
-        assert!(h[1].contenu.contains("web_search")); // outils mentionnés
+        assert_eq!(h[0].contenu, "MISSION"); // anchor preserved
+        assert_eq!(h[1].role, Role::Systeme); // summary
+        assert!(h[1].contenu.contains("web_search")); // tools mentioned
     }
 
     #[test]
@@ -215,7 +215,7 @@ mod tests {
         let mut carnet = Carnet::ouvrir("m", ModeMission::Standard, t0());
         carnet.historique = hist(20);
         let mut jauge = Jauge::nouvelle(1000, 0.70, 0.85);
-        jauge.utilise = 750; // ratio 0.75 → Compacter
+        jauge.utilise = 750; // ratio 0.75 -> Compacter
         let ev = peut_etre(&mut carnet, &jauge, 8);
         assert!(matches!(ev, Some(Evenement::Escale { .. })));
         assert!(carnet.historique.len() < 41);

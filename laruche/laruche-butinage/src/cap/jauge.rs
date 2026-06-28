@@ -1,36 +1,36 @@
-//! La **jauge** — budget de contexte de l'abeille.
+//! The **jauge**: tool context budget.
 //!
-//! Pilote la longévité : quand le contexte se remplit, l'[`crate::escale`] décide de
-//! compacter ou consolider. La jauge se base sur les **tokens réels** du provider
-//! quand ils sont disponibles ([`maj_usage`](Jauge::maj_usage)), sinon sur une
-//! estimation `caractères / 4` ([`estimer`](Jauge::estimer)).
+//! Drives longevity: when the context fills up, [`crate::escale`] decides whether to
+//! compact or consolidate. The jauge relies on the provider's **real tokens** when
+//! available ([`maj_usage`](Jauge::maj_usage)), otherwise on a
+//! `characters / 4` estimate ([`estimer`](Jauge::estimer)).
 
 use crate::messagerie::Message;
 
-/// Action recommandée par la jauge selon le remplissage.
+/// Action recommended by the jauge based on fill level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Besoin {
-    /// Le contexte respire, rien à faire.
+    /// The context has room, nothing to do.
     Rien,
-    /// Compacter (résumer les vieux tours, garder les récents).
+    /// Compact (summarize old turns, keep recent ones).
     Compacter,
-    /// Consolider (compaction agressive — le contexte est presque plein).
+    /// Consolidate (aggressive compaction, the context is nearly full).
     Consolider,
 }
 
-/// Le budget de contexte.
+/// The context budget.
 #[derive(Debug, Clone)]
 pub struct Jauge {
-    /// Fenêtre de contexte du modèle (tokens).
+    /// Model context window (tokens).
     pub max_tokens: usize,
-    /// Tokens actuellement utilisés (réels ou estimés).
+    /// Tokens currently used (real or estimated).
     pub utilise: usize,
     seuil_compaction: f32,
     seuil_consolidation: f32,
-    /// Dernière estimation brute (`caractères / 4`) — base de calibration du facteur.
+    /// Last raw estimate (`characters / 4`): calibration base for the factor.
     dernier_brut: usize,
-    /// Facteur de calibration tokenizer appris sur l'usage réel (`réel / estimé`). Capture
-    /// aussi le surcoût des pièces multimodales (images), absentes du compte caractères.
+    /// Tokenizer calibration factor learned from real usage (`real / estimated`). Also
+    /// captures the overhead of multimodal parts (images), absent from the character count.
     facteur: f32,
 }
 
@@ -46,7 +46,7 @@ impl Jauge {
         }
     }
 
-    /// Estimation `caractères / 4`, recalibrée par le facteur appris sur l'usage réel.
+    /// `characters / 4` estimate, recalibrated by the factor learned from real usage.
     pub fn estimer(&mut self, systeme: &str, historique: &[Message]) {
         let chars: usize = systeme.len() + historique.iter().map(|m| m.contenu.len()).sum::<usize>();
         let brut = chars / 4;
@@ -54,14 +54,14 @@ impl Jauge {
         self.utilise = (brut as f32 * self.facteur).round() as usize;
     }
 
-    /// Recale sur les tokens d'entrée réels renvoyés par le provider (plus précis) et apprend
-    /// le facteur de calibration pour affiner les estimations suivantes.
+    /// Resyncs on the real input tokens returned by the provider (more precise) and learns
+    /// the calibration factor to refine subsequent estimates.
     pub fn maj_usage(&mut self, tokens_entree: usize) {
         if tokens_entree > 0 {
             self.utilise = tokens_entree;
             if self.dernier_brut > 0 {
                 let f = tokens_entree as f32 / self.dernier_brut as f32;
-                // Borne : évite qu'un compte aberrant ne fasse diverger les estimations.
+                // Bound: prevents an aberrant count from making estimates diverge.
                 self.facteur = f.clamp(0.2, 5.0);
             }
         }
@@ -118,14 +118,14 @@ mod tests {
     #[test]
     fn maj_usage_apprend_un_facteur_pour_calibrer_les_estimations() {
         let mut j = Jauge::nouvelle(100_000, 0.7, 0.85);
-        // 4000 caractères → brut = 1000 tokens estimés.
+        // 4000 characters -> raw = 1000 estimated tokens.
         let h = vec![Message::utilisateur("a".repeat(4000))];
         j.estimer("", &h);
         assert_eq!(j.utilise, 1000);
-        // Le provider révèle 1500 tokens réels → facteur 1.5 appris.
+        // The provider reveals 1500 real tokens -> factor 1.5 learned.
         j.maj_usage(1500);
         assert_eq!(j.utilise, 1500);
-        // La prochaine estimation (même contenu) est désormais recalibrée à 1500.
+        // The next estimate (same content) is now recalibrated to 1500.
         j.estimer("", &h);
         assert_eq!(j.utilise, 1500);
     }

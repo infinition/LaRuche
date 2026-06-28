@@ -1,32 +1,32 @@
-//! Les **événements** émis pendant un butinage, et l'`Emetteur` qui les reçoit.
+//! The **events** emitted during a butinage, and the `Emetteur` that receives them.
 //!
-//! L'adaptateur node mappe ces événements vers son `ChatEvent` (WebSocket dashboard).
-//! La boucle ne connaît que ce canal neutre. Un [`Silencieux`] no-op sert aux tests
-//! et aux exécutions de fond (cron, sous-agents non observés).
+//! The node adapter maps these events to its `ChatEvent` (WebSocket dashboard).
+//! The loop only knows this neutral channel. A no-op [`Silencieux`] serves tests
+//! and background runs (cron, unobserved subagents).
 
-/// Événement observable d'un butinage.
+/// Observable event of a butinage.
 #[derive(Debug, Clone)]
 pub enum Evenement {
-    /// Message de statut (orientation, attente, rotation…).
+    /// Status message (orientation, waiting, rotation...).
     Statut(String),
-    /// Fragment de texte du modèle (streaming).
+    /// Text fragment from the model (streaming).
     Texte(String),
-    /// Un outil va s'exécuter.
+    /// A tool is about to run.
     AppelOutil { nom: String },
-    /// Résultat d'un outil.
+    /// Result of a tool.
     ResultatOutil { nom: String, ok: bool, ms: u64 },
-    /// Compaction/consolidation du contexte.
+    /// Context compaction/consolidation.
     Escale { avant: usize, apres: usize },
-    /// Réponse finale prête.
+    /// Final response ready.
     Fin(String),
 }
 
-/// Récepteur d'événements.
+/// Event receiver.
 pub trait Emetteur: Send + Sync {
     fn emettre(&self, ev: Evenement);
 }
 
-/// Émetteur no-op (tests, exécutions de fond).
+/// No-op emitter (tests, background runs).
 pub struct Silencieux;
 
 impl Emetteur for Silencieux {
