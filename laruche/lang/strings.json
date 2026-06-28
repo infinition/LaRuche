@@ -189,7 +189,7 @@
   },
   "automations.jobsHeader": {
     "en": "Jobs",
-    "fr": "Jobs"
+    "fr": "Tâches"
   },
   "automations.jourDuMois": {
     "en": "Day of month",
@@ -605,7 +605,7 @@
   },
   "capabilities.statusOff": {
     "en": "OFF",
-    "fr": "OFF"
+    "fr": "Inactif"
   },
   "capabilities.statusOn": {
     "en": "ON",
@@ -645,7 +645,7 @@
   },
   "capabilities.typeTool": {
     "en": "Tool",
-    "fr": "Tool"
+    "fr": "Outil"
   },
   "capabilities.view": {
     "en": "View",
@@ -1049,7 +1049,7 @@
   },
   "chat.stopBtn": {
     "en": "Stop",
-    "fr": "Stop"
+    "fr": "Arrêter"
   },
   "chat.sttUnavailable": {
     "en": "STT unavailable",
@@ -1271,6 +1271,30 @@
     "en": "Search",
     "fr": "Rechercher"
   },
+  "console.all": {
+    "en": "All",
+    "fr": "Tout"
+  },
+  "console.clear": {
+    "en": "Clear",
+    "fr": "Effacer"
+  },
+  "console.errors": {
+    "en": "Errors",
+    "fr": "Erreurs"
+  },
+  "console.events": {
+    "en": "Events",
+    "fr": "Événements"
+  },
+  "console.info": {
+    "en": "Info",
+    "fr": "Info"
+  },
+  "console.warnings": {
+    "en": "Warnings",
+    "fr": "Avertissements"
+  },
   "core.agentFinishedToast": {
     "en": "Agent finished: {preview}",
     "fr": "Agent terminé: {preview}"
@@ -1454,6 +1478,50 @@
   "core.welcomeUser": {
     "en": "Welcome {name}!",
     "fr": "Bienvenue {name} !"
+  },
+  "dash.all": {
+    "en": "All",
+    "fr": "Tout"
+  },
+  "dash.audit": {
+    "en": "Audit",
+    "fr": "Audit"
+  },
+  "dash.console": {
+    "en": "Console",
+    "fr": "Console"
+  },
+  "dash.meshServices": {
+    "en": "Mesh Services",
+    "fr": "Services du mesh"
+  },
+  "dash.metricsHistory": {
+    "en": "Metrics History",
+    "fr": "Historique des métriques"
+  },
+  "dash.rescan": {
+    "en": "Rescan",
+    "fr": "Rescanner"
+  },
+  "dash.reset": {
+    "en": "Reset",
+    "fr": "Réinitialiser"
+  },
+  "dash.resources": {
+    "en": "Resources",
+    "fr": "Ressources"
+  },
+  "dash.swarmIntelligence": {
+    "en": "Swarm Intelligence",
+    "fr": "Intelligence de l'essaim"
+  },
+  "dash.tensorSharding": {
+    "en": "Tensor Sharding",
+    "fr": "Partitionnement des tenseurs"
+  },
+  "dash.tipResetZoom": {
+    "en": "Reset zoom",
+    "fr": "Réinitialiser le zoom"
   },
   "dashboard.blueprintError": {
     "en": "Instantiation error",
@@ -1754,6 +1822,146 @@
   "kanban.col.triage": {
     "en": "Triage",
     "fr": "Triage"
+  },
+  "login.continueToChat": {
+    "en": "Continue to chat",
+    "fr": "Continuer vers le chat"
+  },
+  "login.createIdentity": {
+    "en": "Create my identity",
+    "fr": "Créer mon identité"
+  },
+  "login.createNewAccount": {
+    "en": "Create a new account",
+    "fr": "Créer un nouveau compte"
+  },
+  "login.enrollHint": {
+    "en": "First visit? Create your identity.",
+    "fr": "Première visite ? Créez votre identité."
+  },
+  "login.haveAccount": {
+    "en": "I already have an account",
+    "fr": "J'ai déjà un compte"
+  },
+  "login.logIn": {
+    "en": "Log in",
+    "fr": "Connexion"
+  },
+  "login.logInQr": {
+    "en": "Log in with QR code",
+    "fr": "Se connecter avec un code QR"
+  },
+  "login.loginSuccess": {
+    "en": "Login successful!",
+    "fr": "Connexion réussie !"
+  },
+  "login.or": {
+    "en": "or",
+    "fr": "ou"
+  },
+  "login.passwordHint": {
+    "en": "Log in with your password",
+    "fr": "Connectez-vous avec votre mot de passe"
+  },
+  "login.phNameHandle": {
+    "en": "Your name / handle",
+    "fr": "Votre nom / pseudo"
+  },
+  "login.phNameHandle2": {
+    "en": "Name / handle",
+    "fr": "Nom / pseudo"
+  },
+  "login.phPassword": {
+    "en": "Password",
+    "fr": "Mot de passe"
+  },
+  "login.phPasswordOptional": {
+    "en": "Password (optional)",
+    "fr": "Mot de passe (optionnel)"
+  },
+  "login.scanHint": {
+    "en": "Scan this QR code with your smartphone",
+    "fr": "Scannez ce code QR avec votre smartphone"
+  },
+  "login.subtitle": {
+    "en": "AI agent powered by LaRuche",
+    "fr": "Agent IA propulsé par LaRuche"
+  },
+  "login.successHint": {
+    "en": "Save this QR code on your smartphone.<br>It's your permanent access key.",
+    "fr": "Enregistrez ce code QR sur votre smartphone.<br>C'est votre clé d'accès permanente."
+  },
+  "login.waitingScan": {
+    "en": "Waiting for scan...",
+    "fr": "En attente du scan..."
+  },
+  "mem.consolidate": {
+    "en": "Consolidate",
+    "fr": "Consolider"
+  },
+  "mem.document": {
+    "en": "Document",
+    "fr": "Document"
+  },
+  "mem.editMode": {
+    "en": "Edit mode",
+    "fr": "Mode édition"
+  },
+  "mem.graph": {
+    "en": "Graph",
+    "fr": "Graphe"
+  },
+  "mem.importOkf": {
+    "en": "Import OKF",
+    "fr": "Importer OKF"
+  },
+  "mem.newRoot": {
+    "en": "+ Root",
+    "fr": "+ Racine"
+  },
+  "mem.searchPlaceholder": {
+    "en": "Search...",
+    "fr": "Rechercher..."
+  },
+  "mem.tipCollapseAll": {
+    "en": "Collapse all",
+    "fr": "Tout replier"
+  },
+  "mem.tipConsolidate": {
+    "en": "Consolidate memory",
+    "fr": "Consolider la mémoire"
+  },
+  "mem.tipDocView": {
+    "en": "Document view",
+    "fr": "Vue document"
+  },
+  "mem.tipEditMode": {
+    "en": "Enable drag-and-drop folder moving",
+    "fr": "Activer le déplacement des dossiers par glisser-déposer"
+  },
+  "mem.tipExpandAll": {
+    "en": "Expand all",
+    "fr": "Tout déplier"
+  },
+  "mem.tipExportOkf": {
+    "en": "Export as OKF bundle",
+    "fr": "Exporter en bundle OKF"
+  },
+  "mem.tipGraphView": {
+    "en": "Graph view",
+    "fr": "Vue graphe"
+  },
+  "mem.tipImportOkf": {
+    "en": "Import an OKF bundle",
+    "fr": "Importer un bundle OKF"
+  },
+  "mem.tipNewRoot": {
+    "en": "Create a root folder",
+    "fr": "Créer un dossier racine"
+  },
+  "mem.tipSemanticSearch": {
+    "en": "Semantic search (click to switch to exact content search)",
+    "fr": "Recherche sémantique (cliquez pour passer à la recherche de contenu exacte)"
   },
   "memory.addSubfolderTitle": {
     "en": "Add a subfolder",
@@ -2429,7 +2637,7 @@
   },
   "missions.optActive": {
     "en": "Active",
-    "fr": "Active"
+    "fr": "Actif"
   },
   "missions.optDone": {
     "en": "Done",
@@ -2477,7 +2685,7 @@
   },
   "nav.dashboard": {
     "en": "Dashboard",
-    "fr": "Dashboard"
+    "fr": "Tableau de bord"
   },
   "nav.memory": {
     "en": "Memory",
@@ -2489,7 +2697,7 @@
   },
   "nav.settings": {
     "en": "Settings",
-    "fr": "Settings"
+    "fr": "Paramètres"
   },
   "settings.accessBtn": {
     "en": "🔐 Access",
@@ -2921,7 +3129,7 @@
   },
   "settings.deleteWatcherBtn": {
     "en": "Delete",
-    "fr": "Delete"
+    "fr": "Supprimer"
   },
   "settings.disableAll": {
     "en": "Disable All",
@@ -3077,7 +3285,7 @@
   },
   "settings.kanbanEditProviderLabel": {
     "en": "Provider",
-    "fr": "Provider"
+    "fr": "Fournisseur"
   },
   "settings.kanbanEditSave": {
     "en": "Save",
@@ -3205,7 +3413,7 @@
   },
   "settings.maxMessages": {
     "en": "Max Messages",
-    "fr": "Max Messages"
+    "fr": "Max messages"
   },
   "settings.maxPassesLabel": {
     "en": "Max passes",
@@ -3217,7 +3425,7 @@
   },
   "settings.maxTokensLabel": {
     "en": "Max Tokens",
-    "fr": "Max Tokens"
+    "fr": "Max tokens"
   },
   "settings.maxTokensOut": {
     "en": "Max tokens (output)",
@@ -3425,7 +3633,7 @@
   },
   "settings.pfIdLabel": {
     "en": "Profile ID",
-    "fr": "Profile ID"
+    "fr": "ID profil"
   },
   "settings.pfIdPlaceholder": {
     "en": "e.g. groq-free",
@@ -3505,7 +3713,7 @@
   },
   "settings.profileDeleted": {
     "en": "Profile deleted",
-    "fr": "Profile deleted"
+    "fr": "Profil supprimé"
   },
   "settings.profileIdRequired": {
     "en": "Profile ID is required",
@@ -3533,7 +3741,7 @@
   },
   "settings.providerLabel": {
     "en": "Provider",
-    "fr": "Provider"
+    "fr": "Fournisseur"
   },
   "settings.providerModelLabel": {
     "en": "Provider/Model",
@@ -3769,7 +3977,7 @@
   },
   "settings.statusOff": {
     "en": "Off",
-    "fr": "Off"
+    "fr": "Inactif"
   },
   "settings.statusOk": {
     "en": "OK",
@@ -3785,7 +3993,7 @@
   },
   "settings.system": {
     "en": "System",
-    "fr": "System"
+    "fr": "Système"
   },
   "settings.targetLabel": {
     "en": "Target",
@@ -3889,7 +4097,7 @@
   },
   "settings.toolCustomBadge": {
     "en": "Custom",
-    "fr": "Custom"
+    "fr": "Personnalisé"
   },
   "settings.toolDanger": {
     "en": "Danger",
@@ -3897,7 +4105,7 @@
   },
   "settings.toolDangerSafe": {
     "en": "safe",
-    "fr": "safe"
+    "fr": "sûr"
   },
   "settings.toolDisabled": {
     "en": " disabled",
@@ -3913,7 +4121,7 @@
   },
   "settings.toolOff": {
     "en": "OFF",
-    "fr": "OFF"
+    "fr": "Inactif"
   },
   "settings.toolOn": {
     "en": "ON",
@@ -4029,7 +4237,7 @@
   },
   "settings.watcherProviderLabel": {
     "en": "Provider",
-    "fr": "Provider"
+    "fr": "Fournisseur"
   },
   "settings.watcherSave": {
     "en": "Save",
@@ -4082,6 +4290,10 @@
   "shell.autoFirstDetected": {
     "en": "Auto (first detected)",
     "fr": "Auto (premier détecté)"
+  },
+  "shell.conversationHistory": {
+    "en": "Conversation history",
+    "fr": "Historique des conversations"
   },
   "shell.conversations": {
     "en": "Conversations",
@@ -4183,6 +4395,10 @@
     "en": "Permissions…",
     "fr": "Permissions…"
   },
+  "shell.phSearchConversation": {
+    "en": "Search a conversation...",
+    "fr": "Rechercher une conversation..."
+  },
   "shell.profileHint": {
     "en": "What LaRuche knows about you (injected into its context). Only you can edit it: the agent cannot touch it.",
     "fr": "Ce que LaRuche sait de toi (injecté dans son contexte). Toi seul peux l'éditer : l'agent ne peut pas y toucher."
@@ -4198,6 +4414,50 @@
   "shell.showChats": {
     "en": "Show Chats",
     "fr": "Afficher chats"
+  },
+  "shell.tabAll": {
+    "en": "All",
+    "fr": "Tout"
+  },
+  "shell.tabBlueprints": {
+    "en": "Blueprints",
+    "fr": "Blueprints"
+  },
+  "shell.tabBrief": {
+    "en": "Brief",
+    "fr": "Brief"
+  },
+  "shell.tabChannels": {
+    "en": "Channels",
+    "fr": "Canaux"
+  },
+  "shell.tabGeneral": {
+    "en": "General",
+    "fr": "Général"
+  },
+  "shell.tabKanban": {
+    "en": "Kanban",
+    "fr": "Kanban"
+  },
+  "shell.tabNetwork": {
+    "en": "Network",
+    "fr": "Réseau"
+  },
+  "shell.tabOnboarding": {
+    "en": "Onboarding",
+    "fr": "Onboarding"
+  },
+  "shell.tabProviders": {
+    "en": "Providers",
+    "fr": "Fournisseurs"
+  },
+  "shell.tabTimeline": {
+    "en": "Timeline",
+    "fr": "Chronologie"
+  },
+  "shell.tabWatchers": {
+    "en": "Watchers",
+    "fr": "Watchers"
   },
   "shell.tipActivity": {
     "en": "Real-time activity (memory + agent)",
@@ -4218,6 +4478,10 @@
   "shell.tipBrowse": {
     "en": "Browse",
     "fr": "Parcourir"
+  },
+  "shell.tipChangeModel": {
+    "en": "Change model",
+    "fr": "Changer de modèle"
   },
   "shell.tipClose": {
     "en": "Close",
@@ -4243,6 +4507,14 @@
     "en": "GPU utilization",
     "fr": "Utilisation GPU"
   },
+  "shell.tipHistorySearch": {
+    "en": "History & search",
+    "fr": "Historique & recherche"
+  },
+  "shell.tipLarucheActions": {
+    "en": "LaRuche actions",
+    "fr": "Actions LaRuche"
+  },
   "shell.tipMemEvents": {
     "en": "Memory events",
     "fr": "Événements mémoire"
@@ -4254,6 +4526,10 @@
   "shell.tipMissionProg": {
     "en": "Mission progress",
     "fr": "Progression des missions"
+  },
+  "shell.tipNewConversation": {
+    "en": "New conversation",
+    "fr": "Nouvelle conversation"
   },
   "shell.tipNoLoop": {
     "en": "No loop detected",
@@ -4287,6 +4563,10 @@
     "en": "Send to LaRuche",
     "fr": "Envoyer à LaRuche"
   },
+  "shell.tipSettings": {
+    "en": "Settings",
+    "fr": "Paramètres"
+  },
   "shell.tipShowChats": {
     "en": "Show/Hide chat content",
     "fr": "Afficher/Masquer le contenu du chat"
@@ -4294,6 +4574,10 @@
   "shell.tipShowTools": {
     "en": "Show tools",
     "fr": "Afficher les outils"
+  },
+  "shell.tipStopGen": {
+    "en": "Stop generation",
+    "fr": "Arrêter la génération"
   },
   "shell.tipTps": {
     "en": "Collective tokens/sec",
@@ -4318,6 +4602,10 @@
   "shell.tipWatcherTrig": {
     "en": "Watchers triggered",
     "fr": "Watchers déclenchés"
+  },
+  "shell.tipWorkingDir": {
+    "en": "Working directory",
+    "fr": "Répertoire de travail"
   },
   "shell.totalRam": {
     "en": "Total RAM",
