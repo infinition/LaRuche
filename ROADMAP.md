@@ -2,6 +2,54 @@
 
 > Reste-à-faire **récupéré des anciens docs de conception** (avant archivage dans `docs/_archive/`) + chantiers en cours. Source de vérité du travail restant. Coché = fait.
 
+## 👑 LaReine - superviseur de la ruche (nouveau chantier)
+
+> Mode activable qui place une **Reine** au-dessus des butineuses : elle juge la pertinence et la méthodologie d'une réponse (ou d'un artefact), renvoie au LLM des instructions correctives jusqu'à atteindre l'objectif, et peut gouverner l'auto-modification de LaRuche. Principe directeur : **le curateur propose, la Reine dispose.**
+>
+> Règles de build : tout en **anglais par défaut** (code, chaînes, commentaires propres non « LLM-like »), **chaînes UI variabilisées + i18n** (`lang/strings.json`, `t()`), **aucun em dash**, termes de marque FR conservés. La Reine n'est PAS la vigie : la **vigie garde la boucle de l'intérieur** (anti-loop/budget), la **Reine supervise le résultat de l'extérieur** (pertinence, méthodo, objectif).
+
+### Architecture - décisions actées
+- **Pas de nouveau moteur ReAct pour juger.** La revue est un **hook synchrone borné** dans le pipeline chat/butinage (`brain.rs`), 2-3 appels outils max (lire registre skills/tools, lire mémoire). Juger est court.
+- **Boucle superviseur dédiée et optionnelle** (Tier 3 seulement), **OFF par défaut** : se réveille, audite, agit via les abeilles existantes, vérifie, dort. Réutilise l'infra cron/missions, pas un moteur neuf.
+- **Cœur pur et testé** dans `laruche-butinage/src/cap/reine.rs` (à côté de vigie/boussole) : `ModeReine`, `ConfigReine`, `Verdict`, `Scorecard`, contrôleur de tours borné. La décision est pure ; l'appel LLM du juge vit dans la couche d'intégration.
+
+### Skill « charte » de la Reine (expertise béton)
+- [ ] **Charte LaReine** (skill hand-écrit, EN) : valeurs, lexique de marque, à quoi ressemble une bonne réponse / un bon skill / un bon tool / une bonne entrée mémoire, anti-patterns. C'est sa **rubrique de jugement**, stable.
+- [ ] **Introspection live** : droit de LIRE l'état réel au moment de juger (registre skills, registre tools, schéma mémoire, roadmap) plutôt qu'une carte figée qui pourrit.
+- [ ] **Maintenue par le curateur** : la charte se met à jour quand LaRuche évolue.
+
+### UI (à câbler après le split de main.rs)
+- [ ] **Bouton couronne activable** à côté du dropdown de choix LLM (header chat).
+- [ ] **Slider nb max de revues** : **0 = OFF**, **1 à 10 = tours max** (elle s'arrête dès que la réponse passe ; pas d'infini = pas de runaway tokens/latence).
+- [ ] **Sélecteur de mode** : Off / Auto / Hybride / Humaine.
+- [ ] **Provider/modèle de la Reine** dans Settings (comme le provider par canal ; juge fort ou petit/local au choix).
+- [ ] **LaReine visible dans le chat** : locuteur distinct (avatar couronne), affiche verdict + instruction renvoyée, trace méthodo repliable. Mode Humaine = l'utilisateur prend son siège.
+- [ ] **Voix de la Reine** (Kokoro TTS, cf. backlog voix) : elle peut parler ses verdicts.
+
+### Tiers d'autorité (activables séparément)
+- [ ] **Tier 1 - Revue de réponse** (cas chat). Risque bas, à livrer en premier. Modes Auto/Hybride/Humaine.
+- [ ] **Tier 2 - Revue d'artefacts** : à la création d'un skill / tool / édition mémoire / mission auto-générée, la Reine valide / corrige / adapte / rejette. Séparation créateur (curateur) / relecteur (Reine).
+- [ ] **Tier 3 - Orchestration proactive** (boucle superviseur OFF par défaut) : elle initie, missionne des abeilles (ranger une section mémoire, fusionner des tools en doublon), vérifie le résultat.
+
+### Garde-fous (non négociables)
+- [ ] **Destructif = soft-delete réversible + log d'audit**, jamais de hard delete. memoire.db jamais touché à la légère.
+- [ ] **Confirmation humaine** au-dessus d'un seuil de risque (au moins tant que la confiance n'est pas établie).
+- [ ] **La Reine ne se relit pas elle-même** (anti-récursion) ; l'utilisateur peut **toujours la surcharger**.
+- [ ] **Anti-régression** : une révision qui n'améliore pas un signal mesurable peut revenir au brouillon d'origine.
+- [ ] **Borné en coût** : slider de tours + cadence de la boucle superviseur.
+
+### Bonus (forte valeur)
+- [ ] **Gardienne de marque et de style** : applique automatiquement le lexique FR de marque, l'anglais dans le code, zéro em dash, ton pro, sur chaque artefact généré. Automatise ce qui a été fait à la main.
+- [ ] **Scorecard** : chaque intervention émet un score structuré (pertinence / méthodo / objectif / conformité marque) -> tableau de bord d'éval + carburant pour le curateur.
+- [ ] **Étoile polaire** : la Reine tient l'objectif d'une conversation/mission et détecte la dérive (la boussole oriente DANS une boucle ; la Reine tient le cap SUR toute l'interaction).
+
+### Ordre de construction
+1. Cœur pur `cap/reine.rs` (types + contrôleur de tours borné + tests) + charte skill + clés i18n. **(en cours, isolé de main.rs)**
+2. Hook de revue synchrone (Tier 1) dans `brain.rs` + appel LLM du juge.
+3. Câblage UI (bouton/slider/mode/provider) + endpoint `reine_api.rs` + route Router **(après le split de main.rs)**.
+4. Tier 2 : brancher le même juge sur la création d'artefacts.
+5. Tier 3 : boucle superviseur optionnelle + garde-fous destructifs.
+
 ## ✅ Fait récemment
 - [x] **Rangement racine** : `README.md` à jour + archivage des docs/scripts/lanceurs (`docs/_archive/`, `_archive/`, `laruche/_archive/`) + `.gitignore` durci.
 - [x] **Split `spa.html`** → `app.css` + `app.js` + routes node (`/app.css`, `/app.js`).
