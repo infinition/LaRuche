@@ -180,6 +180,7 @@ pub async fn revue_et_refaire(
     let mut revised = false;
     let mut rounds = 0u8;
     let mut analyse = String::new();
+    let mut carte_finale: Option<Scorecard> = None;
 
     loop {
         let card = match juger_avec(
@@ -242,19 +243,31 @@ pub async fn revue_et_refaire(
             // Approved or budget reached or escalated: keep the current answer.
             _ => {
                 journal.push(ligne_verdict(&card));
+                carte_finale = Some(card.clone());
                 break;
             }
         }
     }
 
-    // Emit the verdict (summary + her reasoning) once the rework is done.
-    let summary = if revised {
-        format!("LaReine sent it back to be redone ({rounds} round(s))")
-    } else {
-        journal
+    // Emit the verdict (final judgment + her reasoning) once the rework is done. When
+    // she sent it back, the summary states the rework count AND the final outcome.
+    let summary = match (&carte_finale, revised) {
+        (Some(c), true) => {
+            let etat = match c.avis {
+                Avis::Approuver => "approved",
+                Avis::Escalader => "flagged for you",
+                Avis::Reviser => "shipped best (budget reached)",
+            };
+            format!(
+                "LaReine: redone {rounds}x, {etat} (relevance {} / method {} / objective {} / brand {})",
+                c.pertinence, c.methodologie, c.objectif, c.conformite_marque
+            )
+        }
+        (Some(c), false) => ligne_verdict(c),
+        (None, _) => journal
             .last()
             .cloned()
-            .unwrap_or_else(|| "LaReine reviewed the answer".to_string())
+            .unwrap_or_else(|| "LaReine reviewed the answer".to_string()),
     };
     let _ = tx.send(ChatEvent::Status {
         message: format!("__reine_verdict__|{summary}\u{1f}{analyse}"),

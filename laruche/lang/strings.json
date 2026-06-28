@@ -4680,12 +4680,12 @@
     "fr": "Humaine"
   },
   "reine.maxReviews": {
-    "en": "Max review rounds",
-    "fr": "Tours de revue max"
+    "en": "Max reworks",
+    "fr": "Re-runs max"
   },
   "reine.maxReviewsHint": {
-    "en": "0 = off, up to 10. She stops as soon as the answer passes.",
-    "fr": "0 = off, jusqu'à 10. Elle s'arrête dès que la réponse passe."
+    "en": "0 = off, up to 10. Each rework sends the worker back to redo the work. She stops as soon as the answer passes.",
+    "fr": "0 = off, jusqu'à 10. Chaque re-run renvoie l'abeille refaire le travail. Elle s'arrête dès que la réponse passe."
   },
   "reine.providerLabel": {
     "en": "LaReine provider",

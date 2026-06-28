@@ -190,12 +190,14 @@ impl Reine {
         &self.config
     }
 
-    /// Rounds already consumed.
+    /// Reworks already issued.
     pub fn tour_courant(&self) -> u8 {
         self.tour
     }
 
-    /// Judge a draft and decide what happens next. Each call counts as one round.
+    /// Judge a draft and decide what happens next. The budget counts **reworks**:
+    /// `max_revues` is how many times the worker can be sent back. The judge call
+    /// itself is free, so a draft can always be judged before any rework.
     ///
     /// Order of precedence:
     /// 1. inactive config -> ship untouched;
@@ -203,14 +205,13 @@ impl Reine {
     /// 3. judge approves -> ship;
     /// 4. Hybride and confidence below threshold -> escalate;
     /// 5. judge escalates -> escalate;
-    /// 6. round budget exhausted -> ship the best draft so far;
-    /// 7. otherwise -> revise with the judge's instruction.
+    /// 6. rework budget exhausted -> ship the best draft so far;
+    /// 7. otherwise -> issue a rework with the judge's instruction.
     pub fn juger(&mut self, carte: &Scorecard) -> Action {
         if !self.config.active() {
             return Action::Expedier("reine inactive".into());
         }
 
-        self.tour += 1;
         let score = carte.score_global();
         self.meilleur_score = Some(self.meilleur_score.map_or(score, |m| m.max(score)));
 
@@ -245,13 +246,15 @@ impl Reine {
             });
         }
 
+        // She wants a rework: allow it only while within the rework budget.
         if self.tour >= self.config.revues_effectives() {
             return Action::Expedier(format!(
-                "revision budget reached ({} rounds), shipping best draft",
+                "rework budget reached ({} rework(s)), shipping best draft",
                 self.config.revues_effectives()
             ));
         }
 
+        self.tour += 1;
         Action::Reviser {
             tour: self.tour,
             instruction: carte.instruction.clone(),
@@ -309,14 +312,30 @@ mod tests {
     }
 
     #[test]
-    fn revise_then_stop_at_budget() {
+    fn reworks_up_to_the_budget() {
+        // Budget of 2 = up to 2 reworks; the 3rd revise-wanting verdict ships.
         let mut r = Reine::nouvelle(config(ModeReine::Auto, 2));
-        // Round 1: revise.
         assert!(matches!(
             r.juger(&carte(Avis::Reviser, [40, 40, 40, 40], 90)),
             Action::Reviser { tour: 1, .. }
         ));
-        // Round 2: budget reached -> ship the best draft.
+        assert!(matches!(
+            r.juger(&carte(Avis::Reviser, [50, 50, 50, 50], 90)),
+            Action::Reviser { tour: 2, .. }
+        ));
+        assert!(matches!(
+            r.juger(&carte(Avis::Reviser, [55, 55, 55, 55], 90)),
+            Action::Expedier(_)
+        ));
+    }
+
+    #[test]
+    fn budget_one_allows_one_rework() {
+        let mut r = Reine::nouvelle(config(ModeReine::Auto, 1));
+        assert!(matches!(
+            r.juger(&carte(Avis::Reviser, [40, 40, 40, 40], 90)),
+            Action::Reviser { tour: 1, .. }
+        ));
         assert!(matches!(
             r.juger(&carte(Avis::Reviser, [50, 50, 50, 50], 90)),
             Action::Expedier(_)
