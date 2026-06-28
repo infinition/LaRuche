@@ -71,6 +71,12 @@ pub struct ProfilesConfig {
     pub version: u32,
     pub profiles: HashMap<String, ProviderProfile>,
     pub active_model: ActiveModel,
+    /// Per-channel model override: channel name ("telegram", "discord", "slack",
+    /// "web") -> which profile+model to use. Channels without an entry use
+    /// `active_model`. Lets you run a tool-reliable model on Telegram while the
+    /// web chat keeps a faster one.
+    #[serde(default)]
+    pub channel_overrides: HashMap<String, ActiveModel>,
 }
 
 fn default_version() -> u32 {
@@ -99,8 +105,25 @@ impl Default for ProfilesConfig {
                 profile_id: "ollama-local".to_string(),
                 model: "gemma4:e4b".to_string(),
             },
+            channel_overrides: HashMap::new(),
         }
     }
+}
+
+/// Resolve the (profile, model) a channel should use: its override if set and the
+/// referenced profile still exists, otherwise the global active model.
+pub fn model_for_channel<'a>(
+    config: &'a ProfilesConfig,
+    channel: &str,
+) -> Option<(&'a ProviderProfile, &'a str)> {
+    if let Some(ov) = config.channel_overrides.get(channel) {
+        if let Some(profile) = config.profiles.get(&ov.profile_id) {
+            if !ov.model.is_empty() {
+                return Some((profile, ov.model.as_str()));
+            }
+        }
+    }
+    get_active_model(config)
 }
 
 /// A unified model entry for the dropdown.

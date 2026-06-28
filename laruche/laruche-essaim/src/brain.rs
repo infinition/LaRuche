@@ -3650,6 +3650,16 @@ pub async fn boucle_react_multimodal_ext(
         // === Stop reason handling (third-party pattern) ===
 
         if tool_calls.is_empty() {
+            // Diagnostic: surface what the model actually emitted when no tool call was
+            // parsed. Helps diagnose providers/models that narrate instead of emitting
+            // tool_calls (e.g. some OpenAI-compatible "flash" variants that ignore tools).
+            tracing::info!(
+                model = %config.model,
+                provider = %config.provider,
+                iteration = iteration,
+                preview = %response_text.chars().take(200).collect::<String>(),
+                "tools: no tool call parsed this turn (model emitted text only)"
+            );
             if auto_continue_count < AUTO_CONTINUE_MAX
                 && reponse_contient_tool_call_malforme(&response_text)
             {

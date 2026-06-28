@@ -668,6 +668,24 @@ async fn get_llm_default(state: &AppState) -> String {
         .unwrap_or_else(|| state.config.default_model.clone())
 }
 
+/// Override a config's provider/model with the per-channel choice (Settings >
+/// Channels). Channels without an override keep the global active model, so this
+/// is always safe to call. Lets e.g. Telegram run a tool-reliable model while the
+/// web chat uses a faster one.
+async fn apply_channel_model(state: &AppState, channel: &str, config: &mut EssaimConfig) {
+    let profiles = state.profiles.read().await;
+    if let Some((profile, model)) = profiles::model_for_channel(&profiles, channel) {
+        config.provider = profile.provider.clone();
+        config.api_key = profile.api_key.clone();
+        config.api_base = if profile.base_url.is_empty() {
+            None
+        } else {
+            Some(profile.base_url.clone())
+        };
+        config.model = model.to_string();
+    }
+}
+
 /// Resolve a model for a given capability from the per-capability map.
 async fn resolve_model_for_capability(state: &AppState, capability: Option<&str>) -> String {
     let cap = normalize_capability_label(capability.unwrap_or("llm"));
@@ -5812,6 +5830,52 @@ async fn api_mcp_server(
     }
 }
 
+/// GET /api/config/channel-models: per-channel model overrides + the available
+/// {profile, model} options to pick from.
+async fn api_get_channel_models(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let profiles = state.profiles.read().await;
+    let mut options = Vec::new();
+    for (pid, p) in &profiles.profiles {
+        for m in &p.models {
+            options.push(serde_json::json!({
+                "profile_id": pid, "provider": p.provider, "name": p.name, "model": m,
+            }));
+        }
+    }
+    Json(serde_json::json!({
+        "overrides": serde_json::to_value(&profiles.channel_overrides).unwrap_or_default(),
+        "active": { "profile_id": profiles.active_model.profile_id, "model": profiles.active_model.model },
+        "options": options,
+        "channels": ["telegram", "discord", "slack", "web"],
+    }))
+}
+
+/// POST /api/config/channel-models: set or clear a per-channel model override.
+/// Body: {"channel":"telegram","profile_id":"...","model":"..."}. Empty model/profile clears.
+async fn api_save_channel_model(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let channel = body["channel"].as_str().unwrap_or("").to_string();
+    if channel.is_empty() {
+        return Json(serde_json::json!({"ok": false, "error": "channel required"}));
+    }
+    let model = body["model"].as_str().unwrap_or("").to_string();
+    let profile_id = body["profile_id"].as_str().unwrap_or("").to_string();
+    {
+        let mut profiles = state.profiles.write().await;
+        if model.is_empty() || profile_id.is_empty() {
+            profiles.channel_overrides.remove(&channel);
+        } else {
+            profiles
+                .channel_overrides
+                .insert(channel, profiles::ActiveModel { profile_id, model });
+        }
+        let _ = profiles::save_profiles(&state.profiles_path, &profiles);
+    }
+    Json(serde_json::json!({"ok": true}))
+}
+
 /// GET /api/config/provider: get current LLM provider settings.
 async fn api_get_provider_config(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let ec = state.essaim_config.read().await;
@@ -7610,6 +7674,9 @@ async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState
                             // Origin channel → cron_create will send the recurring task here, and the
                             // conversational memory is already tied to this Telegram session.
                             config.origin_channel = Some(format!("telegram:{}", chat_id));
+                            // Per-channel model override (Settings > Channels): lets Telegram run a
+                            // tool-reliable model. No override -> keeps the global active model.
+                            apply_channel_model(state, "telegram", &mut config).await;
 
                             let state_clone = state.clone();
                             let client_clone = client.clone();
@@ -7781,6 +7848,8 @@ async fn run_agent_query(
     config.model = current_model;
     // Origin channel → cron_create will send the recurring task here; also serves as the home key.
     config.origin_channel = Some(format!("{channel}:{user_key}"));
+    // Per-channel model override (Settings > Channels).
+    apply_channel_model(state, channel, &mut config).await;
 
     let result = boucle_react_memoire(
         text,
@@ -8369,7 +8438,15 @@ async fn api_webhook(
     let mut session = Session::new_with_id(session_id, &current_model, sessions_dir);
 
     let mut config = state.essaim_config.read().await.clone();
-    config.model = model_override.unwrap_or(current_model);
+    // Explicit per-request model wins; otherwise the "web" channel override (Settings > Channels),
+    // which falls back to the global active model when unset.
+    match model_override {
+        Some(m) => config.model = m,
+        None => {
+            config.model = current_model;
+            apply_channel_model(&state, "web", &mut config).await;
+        }
+    }
 
     let (tx, mut rx) = broadcast::channel::<ChatEvent>(256);
 
@@ -10247,6 +10324,10 @@ async fn main() -> Result<()> {
         .route(
             "/api/config/provider",
             get(api_get_provider_config).post(api_save_provider_config),
+        )
+        .route(
+            "/api/config/channel-models",
+            get(api_get_channel_models).post(api_save_channel_model),
         )
         .route("/api/context/stats", get(api_get_context_stats))
         .route(
