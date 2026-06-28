@@ -307,5 +307,6 @@ pub(crate) async fn api_system_prompt_defaults() -> Json<serde_json::Value> {
         "prompt_curateur": laruche_essaim::butinage_pont::prompt_curateur_defaut(),
         "prompt_extraction": laruche_essaim::butinage_pont::prompt_extraction_defaut(),
         "prompt_planning": laruche_essaim::prompt::section_planification(),
+        "prompt_reine": laruche_essaim::reine_live::prompt_reine_defaut(),
     }))
 }

@@ -4826,5 +4826,9 @@
   "reine.crownTitle": {
     "en": "LaReine: {mode}",
     "fr": "LaReine : {mode}"
+  },
+  "memory.titleReine": {
+    "en": "LaReine Prompt",
+    "fr": "Prompt LaReine"
   }
 }

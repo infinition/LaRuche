@@ -1415,6 +1415,11 @@ async fn main() -> Result<()> {
             "Planning Prompt",
             "Planning section of the system prompt (empty = code default, hot-reload)",
         ),
+        (
+            "system.prompt_reine",
+            "LaReine Prompt",
+            "LaReine supervisor rubric (empty = code default, hot-reload)",
+        ),
     ] {
         let _ = memoire
             .create_node(id, label, Some(desc), Some(1.0), None)

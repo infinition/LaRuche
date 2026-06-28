@@ -1864,6 +1864,8 @@ pub async fn boucle_react_memoire_multimodal(
     // LaReine advisory review (Tier 1): non-blocking, best-effort. Judges the answer
     // and emits a verdict status. Strict no-op unless enabled for responses.
     if cfg.reine.actif_reponse() {
+        // Editable rubric from the cognitive map (`system.prompt_reine`), hot-reloaded.
+        let charte_reine = charger_doc_systeme(&memoire, "system.prompt_reine").await;
         let (rep, pr, cfg_reine, tx_reine) = (
             reponse.clone(),
             prompt_utilisateur.to_string(),
@@ -1871,7 +1873,8 @@ pub async fn boucle_react_memoire_multimodal(
             tx.clone(),
         );
         tokio::spawn(async move {
-            crate::reine_live::revue_reponse_advisory(&rep, &pr, &cfg_reine, &tx_reine).await;
+            crate::reine_live::revue_reponse_advisory(&rep, &pr, &cfg_reine, charte_reine, &tx_reine)
+                .await;
         });
     }
 

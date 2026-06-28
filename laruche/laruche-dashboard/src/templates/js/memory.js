@@ -54,6 +54,7 @@ LaRuche.i18n.add({
   'memory.titleCurateur':         {fr:'Prompt Curateur', en:'Curateur Prompt'},
   'memory.titleExtraction':       {fr:'Prompt Consolidation', en:'Consolidation Prompt'},
   'memory.titlePlanning':         {fr:'Prompt Planification', en:'Planning Prompt'},
+  'memory.titleReine':            {fr:'Prompt LaReine', en:'LaReine Prompt'},
   'memory.titleIdentity':         {fr:'Identite', en:'Identity'},
   'memory.soulEnabled':           {fr:'Activee', en:'Enabled'},
   'memory.soulDisabled':          {fr:'Desactivee', en:'Disabled'},
@@ -332,7 +333,7 @@ LaRuche.Memory = (function(){
   }
   // system.prompt / system.soul: editable by the admin via the dedicated editor
   function isSystemEditor(id){
-    return id === 'system.prompt' || id === 'system.behavior' || id === 'system.soul' || id === 'system.prompt_curateur' || id === 'system.prompt_extraction' || id === 'system.prompt_planning';
+    return id === 'system.prompt' || id === 'system.behavior' || id === 'system.soul' || id === 'system.prompt_curateur' || id === 'system.prompt_extraction' || id === 'system.prompt_planning' || id === 'system.prompt_reine';
   }
 
   // inline SVG (inherit currentColor)
@@ -797,13 +798,15 @@ LaRuche.Memory = (function(){
               : (nodeId === 'system.prompt_curateur') ? (_sysDefaults.prompt_curateur || '')
               : (nodeId === 'system.prompt_extraction') ? (_sysDefaults.prompt_extraction || '')
               : (nodeId === 'system.prompt_planning') ? (_sysDefaults.prompt_planning || '')
+              : (nodeId === 'system.prompt_reine') ? (_sysDefaults.prompt_reine || '')
               : (_sysDefaults.identity || '');
     }
     var title = isSoul ? LaRuche.i18n.t('memory.titleSoul')
               : (nodeId === 'system.behavior' ? LaRuche.i18n.t('memory.titleBehavior')
               : (nodeId === 'system.prompt_curateur' ? LaRuche.i18n.t('memory.titleCurateur')
               : (nodeId === 'system.prompt_extraction' ? LaRuche.i18n.t('memory.titleExtraction')
-              : (nodeId === 'system.prompt_planning' ? LaRuche.i18n.t('memory.titlePlanning') : LaRuche.i18n.t('memory.titleIdentity')))));
+              : (nodeId === 'system.prompt_planning' ? LaRuche.i18n.t('memory.titlePlanning')
+              : (nodeId === 'system.prompt_reine' ? LaRuche.i18n.t('memory.titleReine') : LaRuche.i18n.t('memory.titleIdentity'))))));
     var icon = isSoul ? SVG.soul : (nodeId === 'system.behavior' ? SVG.system : SVG.prompt);
     var html = '<div class="mem2-syseditor">'+
       '<div class="mem2-syseditor-head">'+

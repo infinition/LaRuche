@@ -24,6 +24,12 @@ user-facing strings translated). Approve readily when the draft is good; a revis
 measurably improve it is worse than shipping the original. When you revise, the instruction must be \
 specific and executable, naming what is wrong and what to do.";
 
+/// Default LaReine rubric, re-exported for the memory UI (editable node
+/// `system.prompt_reine`, hot-reloaded). Empty override falls back to this.
+pub fn prompt_reine_defaut() -> &'static str {
+    CHARTE_CONDENSEE
+}
+
 /// Pick the judge model: the Reine's chosen model when set (profile id encoded as
 /// `profile_id|||model`), else the review model, else the worker model. The
 /// provider and credentials stay the worker's in this first cut.
@@ -41,13 +47,18 @@ fn modele_juge(config: &EssaimConfig) -> String {
 
 /// Run one judge call over `reponse`. Returns the parsed scorecard, or None on any
 /// provider or parse error (best-effort, never blocks the turn).
-pub async fn juger_reponse(reponse: &str, prompt: &str, config: &EssaimConfig) -> Option<Scorecard> {
+pub async fn juger_reponse(
+    reponse: &str,
+    prompt: &str,
+    config: &EssaimConfig,
+    charte: &str,
+) -> Option<Scorecard> {
     let demande = DemandeJugement {
         tier: Tier::Reponse,
         objectif: "",
         requete: prompt,
         brouillon: reponse,
-        charte: CHARTE_CONDENSEE,
+        charte,
     };
     let invite = construire_prompt(&demande);
     let messages = vec![serde_json::json!({ "role": "user", "content": invite })];
@@ -94,15 +105,21 @@ pub async fn revue_reponse_advisory(
     reponse: &str,
     prompt: &str,
     config: &EssaimConfig,
+    charte: Option<String>,
     tx: &tokio::sync::broadcast::Sender<ChatEvent>,
 ) {
     if !config.reine.actif_reponse() || reponse.trim().is_empty() {
         return;
     }
+    // Editable rubric from memory (`system.prompt_reine`); fall back to the default.
+    let charte = charte
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or(CHARTE_CONDENSEE);
     let _ = tx.send(ChatEvent::Status {
         message: "LaReine is reviewing the answer...".to_string(),
     });
-    let Some(card) = juger_reponse(reponse, prompt, config).await else {
+    let Some(card) = juger_reponse(reponse, prompt, config, charte).await else {
         return;
     };
     let mut reine = Reine::nouvelle(config.reine.to_core());
