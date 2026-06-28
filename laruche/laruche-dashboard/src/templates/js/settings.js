@@ -455,9 +455,9 @@ LaRuche.Settings = (function(){
     var _r = await Promise.all([
       gj('/api/doctor'), gj('/api/voice/status'), gj('/api/config/provider'),
       gj('/api/context/stats'), gj('/api/config/compaction'), gj('/api/config/curateur'),
-      gj('/api/config/runtime')
+      gj('/api/config/runtime'), gj('/api/config/reine')
     ]);
-    var doc=_r[0], voice=_r[1], provCfg=_r[2], ctxStats=_r[3], ctxCfg=_r[4], curCfg=_r[5], rt=_r[6]||{};
+    var doc=_r[0], voice=_r[1], provCfg=_r[2], ctxStats=_r[3], ctxCfg=_r[4], curCfg=_r[5], rt=_r[6]||{}, reineCfg=_r[7]||{};
     el.innerHTML = '<div class="settings-grid">'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.generationTitle')+'</div>'+
       '<div class="settings-row" style="flex-direction:column;align-items:stretch;gap:4px;">'+
@@ -489,6 +489,22 @@ LaRuche.Settings = (function(){
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.autoSkillCreate')+'</span><label class="lr-switch"><input type="checkbox" id="cfgCurateur" '+(curCfg.enabled?'checked':'')+' '+(curCfg.env_forced?'disabled':'')+' onchange="LaRuche.Settings.toggleCurateur(this.checked)"><span class="lr-slider"></span></label></div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.dynToolsSelect')+'<span style="color:var(--text-dim);font-size:10px">'+LaRuche.i18n.t('settings.dynToolsHint')+'</span></span><label class="lr-switch"><input type="checkbox" id="cfgDynTools" '+(curCfg.dynamic_tools?'checked':'')+' onchange="LaRuche.Settings.toggleDynamicTools(this.checked)"><span class="lr-slider"></span></label></div>'+
       '<div style="font-size:10px;color:var(--text-dim);margin-top:6px">'+(curCfg.env_forced?LaRuche.i18n.t('settings.curEnvForced'):LaRuche.i18n.t('settings.curDefault'))+'</div></div>'+
+      '<div class="settings-card"><div class="settings-card-title">👑 '+LaRuche.i18n.t('reine.settingsTitle')+'</div>'+
+      '<div style="font-size:10px;color:var(--text-dim);margin-bottom:6px">'+LaRuche.i18n.t('reine.settingsDesc')+'</div>'+
+      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('reine.modeLabel')+'</span><select id="cfgReineMode" class="form-input" style="width:150px;padding:2px 6px;">'+
+        '<option value="off"'+(reineCfg.mode==='off'?' selected':'')+'>'+LaRuche.i18n.t('reine.modeOff')+'</option>'+
+        '<option value="auto"'+(reineCfg.mode==='auto'?' selected':'')+'>'+LaRuche.i18n.t('reine.modeAuto')+'</option>'+
+        '<option value="hybride"'+(reineCfg.mode==='hybride'?' selected':'')+'>'+LaRuche.i18n.t('reine.modeHybride')+'</option>'+
+        '<option value="humaine"'+(reineCfg.mode==='humaine'?' selected':'')+'>'+LaRuche.i18n.t('reine.modeHumaine')+'</option>'+
+      '</select></div>'+
+      '<div class="settings-row" title="'+LaRuche.i18n.t('reine.maxReviewsHint')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.maxReviews')+'</span><input type="range" id="cfgReineMax" min="0" max="10" value="'+(reineCfg.max_revues||0)+'" oninput="document.getElementById(\'cfgReineMaxVal\').textContent=this.value" style="width:100px"> <span id="cfgReineMaxVal" style="min-width:18px;text-align:right;color:var(--text-muted)">'+(reineCfg.max_revues||0)+'</span></div>'+
+      '<div class="settings-row" title="'+LaRuche.i18n.t('reine.confidenceHint')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.confidenceThreshold')+'</span><input type="number" id="cfgReineSeuil" class="form-input" style="width:70px;padding:2px 6px;" min="0" max="100" value="'+(reineCfg.seuil_confiance!=null?reineCfg.seuil_confiance:60)+'"></div>'+
+      '<div class="settings-row" title="'+LaRuche.i18n.t('reine.providerHint')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.providerLabel')+'</span><input type="text" id="cfgReineProvider" class="form-input" style="width:120px;padding:2px 6px;" value="'+(reineCfg.provider_profile||'')+'" placeholder="'+LaRuche.i18n.t('settings.modelExample')+'"></div>'+
+      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('reine.tier1')+'</span><label class="lr-switch"><input type="checkbox" id="cfgReineTier1" '+(reineCfg.tier_reponse?'checked':'')+'><span class="lr-slider"></span></label></div>'+
+      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('reine.tier2')+'</span><label class="lr-switch"><input type="checkbox" id="cfgReineTier2" '+(reineCfg.tier_artefacts?'checked':'')+'><span class="lr-slider"></span></label></div>'+
+      '<div class="settings-row" title="'+LaRuche.i18n.t('reine.tier3Warn')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.tier3')+'</span><label class="lr-switch"><input type="checkbox" id="cfgReineTier3" '+(reineCfg.tier_supervision?'checked':'')+'><span class="lr-slider"></span></label></div>'+
+      '<div class="settings-row" title="'+LaRuche.i18n.t('reine.queueGateHint')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.queueGate')+'</span><label class="lr-switch"><input type="checkbox" id="cfgReineQueue" '+(reineCfg.queue_gate?'checked':'')+'><span class="lr-slider"></span></label></div>'+
+      '<button class="form-btn" onclick="LaRuche.Settings.saveReineCfg()" style="margin-top:8px;">'+LaRuche.i18n.t('settings.save')+'</button></div>'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.system')+'</div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.showTransparency')+'</span><label class="lr-switch"><input type="checkbox" id="cfgTransparence" onchange="window.localStorage.setItem(\'laruche_hide_transparency\', this.checked ? \'false\' : \'true\')" \'+(window.localStorage.getItem(\'laruche_hide_transparency\') !== \'true\' ? \'checked\' : \'\')+\'><span class="lr-slider"></span></label></div>'+
       ((doc.checks||[]).map(function(c){return '<div class="settings-row"><span class="settings-label">'+c.name+'</span><span style="color:'+(c.status==='ok'?'var(--green)':'var(--red)')+'">'+c.status+'</span></div>';}).join('')||'<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.statusLabel')+'</span><span class="settings-value">'+LaRuche.i18n.t('settings.statusOkValue')+'</span></div>')+
@@ -1954,6 +1970,22 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.dynToolsFailed'),'err'); });
   }
 
+  function saveReineCfg() {
+    var body = {
+      mode: document.getElementById('cfgReineMode').value,
+      max_revues: parseInt(document.getElementById('cfgReineMax').value,10),
+      seuil_confiance: parseInt(document.getElementById('cfgReineSeuil').value,10),
+      provider_profile: document.getElementById('cfgReineProvider').value.trim() || null,
+      tier_reponse: !!document.getElementById('cfgReineTier1').checked,
+      tier_artefacts: !!document.getElementById('cfgReineTier2').checked,
+      tier_supervision: !!document.getElementById('cfgReineTier3').checked,
+      queue_gate: !!document.getElementById('cfgReineQueue').checked
+    };
+    fetch(LaRuche.API.base+'/api/config/reine',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+      .then(function(r){ if(r.ok) LaRuche.Toast.show(LaRuche.i18n.t('settings.save'),'ok'); else LaRuche.Toast.show(LaRuche.i18n.t('settings.errorGeneric'),'err'); })
+      .catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err'); });
+  }
+
   function saveChannels() {
     var config = {
       telegram: { bot_token: document.getElementById('ch-tg-token').value, allowed_chats: document.getElementById('ch-tg-chats').value, enabled: !!document.getElementById('ch-tg-token').value },
@@ -2257,7 +2289,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
   }
 
   return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder: reusable "human-friendly" component (missions + cron) ── */
