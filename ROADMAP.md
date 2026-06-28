@@ -13,7 +13,9 @@
 
 ## 🔧 Reste / near-term (chantiers actifs)
 Suivis dans la liste de tâches du dépôt.
-- [ ] **i18n** : passe de vérif visuelle (chaînes ratées / interpolées) après rebuild. Décider du sort de la page **Sessions** orpheline (`laruche/_archive/test_script.js`).
+- [x] **i18n UI — 2ᵉ passe exhaustive** : audit ligne-à-ligne des 9 modules (parser dédié comments/dico/identifiants/CSS exclus). **16 dernières chaînes affichées** migrées (settings ×12, chat ×4). Reste = skips documentés (termes de marque `Abeille`, sentinels backend, identifiants).
+- [ ] **i18n strings runtime côté Rust** : libellés émis par le serveur et streamés dans l'UI — `**Synthèse LaRuche :**` / `**Erreur LaRuche :**` (main.rs ~2279), actions éclaireuse `a demandé` / `a répondu` (main.rs ~3363). **Encore FR**, et les *matchers JS* (memory.js:680, capabilities.js:536) s'y accordent → traduire **les deux ensemble** (sinon on casse la détection). Pas de runtime i18n Rust pour l'instant → effort dédié.
+- [ ] Décider du sort de la page **Sessions** orpheline (`laruche/_archive/test_script.js`).
 - [ ] **Split `main.rs`** (11.7k) en modules node.
 - [ ] **Settings : section « Avancé »** + migrer les params de tuning.
 - [ ] Affinage injection skill body (top-1 + gate stricte).

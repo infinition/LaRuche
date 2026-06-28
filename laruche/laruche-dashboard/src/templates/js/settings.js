@@ -1,5 +1,17 @@
 LaRuche.i18n.add({
   'settings.loading':            {fr:'Chargement...',    en:'Loading...'},
+  'settings.codexSubscription':  {fr:'— abonnement (OAuth, sans clé API)', en:'— subscription (OAuth, no API key)'},
+  'settings.modelsLabel':        {fr:'Modèles',          en:'Models'},
+  'settings.viewSource':         {fr:'Voir source',      en:'View source'},
+  'settings.editJson':           {fr:'Éditer JSON',      en:'Edit JSON'},
+  'settings.tlDragHint':         {fr:'Glisser horizontalement pour décaler l\'heure (crons à heure fixe)', en:'Drag horizontally to shift the time (fixed-time crons)'},
+  'settings.channelLabel':       {fr:'Canal',            en:'Channel'},
+  'settings.watcherChannelLabel':{fr:'Canal (déclenchement → notification)', en:'Channel (trigger → notification)'},
+  'settings.publicProviderConfirm': {fr:'Public = le mesh utilise ce provider VIA ce node (ta clé reste locale, ce node relaie et exécute les appels). N\'expose jamais une clé que tu ne veux pas voir consommée par le réseau. Continuer ?', en:'Public = the mesh uses this provider VIA this node (your key stays local, this node relays and runs the calls). Never expose a key you don\'t want consumed by the network. Continue?'},
+  'settings.confirmDeleteSkill': {fr:'Supprimer {name} ?', en:'Delete {name}?'},
+  'settings.collapseHint':       {fr:'Cliquer pour déplier/replier', en:'Click to expand/collapse'},
+  'settings.varPlaceholder':     {fr:'Utilise {nom} pour référencer une variable...', en:'Use {nom} to reference a variable...'},
+  'settings.optional':           {fr:'optionnel',        en:'optional'},
   'settings.generationTitle':    {fr:'Génération (à chaud, sans redémarrage)', en:'Generation (hot reload, no restart)'},
   'settings.maxPassesTitle':     {fr:'Passes ReAct max par tâche (anti-runaway)', en:'Max ReAct passes per task (anti-runaway)'},
   'settings.temperature':        {fr:'Température',      en:'Temperature'},
@@ -387,7 +399,7 @@ LaRuche.Settings = (function(){
 
     // Carte dǸdiǸe : connexion ChatGPT Codex via abonnement (OAuth).
     var html = '<div class="settings-card" id="codexAuthCard" style="margin-bottom:16px;border:1px solid var(--amber)">'+
-      '<div class="settings-card-title">ChatGPT Codex <span style="color:var(--text-dim);font-size:10px;font-weight:normal">— abonnement (OAuth, sans clé API)</span></div>'+
+      '<div class="settings-card-title">ChatGPT Codex <span style="color:var(--text-dim);font-size:10px;font-weight:normal">'+LaRuche.i18n.t('settings.codexSubscription')+'</span></div>'+
       '<div id="codexAuthBox" style="font-size:12px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.codexLoading')+'</div>'+
       '</div>';
 
@@ -413,7 +425,7 @@ LaRuche.Settings = (function(){
           '<div class="settings-card-title" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span>'+LaRuche.Utils.esc(p.name)+'</span>'+
           '<span style="color:var(--cyan);font-size:10px;font-weight:normal">'+LaRuche.i18n.t('settings.sharedReadOnly')+'</span></div>'+
           '<div class="settings-row"><span class="settings-label">URL</span><span class="settings-value" style="font-size:10px;word-break:break-all">'+LaRuche.Utils.esc(p.base_url)+'</span></div>'+
-          '<div class="settings-row"><span class="settings-label">Modèles</span><span class="settings-value">'+modelCount+'</span></div>'+
+          '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.modelsLabel')+'</span><span class="settings-value">'+modelCount+'</span></div>'+
           '<div style="margin-top:10px"><button onclick="LaRuche.Settings.deleteProfile(\''+id+'\')" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.removeFromList')+'</button></div>'+
           '</div>';
         return; // pas de carte normale : ni « Rendre Public », ni « Edit »
@@ -643,7 +655,7 @@ LaRuche.Settings = (function(){
     html += '<div class="settings-grid">'+tools.map(function(t, idx){
       var enabled = t.enabled !== false;
       var originBadge = (t.origin === 'Custom') ? '<span style="margin-left:8px;font-size:9px;color:var(--purple);border:1px solid var(--purple-dim);background:var(--purple-dim);padding:2px 4px;border-radius:4px;">Custom</span>' : '<span style="margin-left:8px;font-size:9px;color:var(--text-dim);border:1px solid var(--border);padding:2px 4px;border-radius:4px;">Rust natif</span>';
-      var customActions = (t.origin === 'Custom') ? '<div style="margin-top:10px;display:flex;gap:8px;border-top:1px solid rgba(255,255,255,0.05);padding-top:8px;"><button style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();LaRuche.Toast.show(LaRuche.i18n.t(\'settings.pluginSrcUnavailable\'),\'err\')">Voir source</button><button style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();LaRuche.Toast.show(LaRuche.i18n.t(\'settings.pluginJsonNoEdit\'),\'err\')">Éditer JSON</button><button style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();fetch(\'/api/tools/\'+LaRuche.Utils.esc(t.name),{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})">'+LaRuche.i18n.t('settings.tlDelete')+'</button></div>' : '';
+      var customActions = (t.origin === 'Custom') ? '<div style="margin-top:10px;display:flex;gap:8px;border-top:1px solid rgba(255,255,255,0.05);padding-top:8px;"><button style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();LaRuche.Toast.show(LaRuche.i18n.t(\'settings.pluginSrcUnavailable\'),\'err\')">'+LaRuche.i18n.t('settings.viewSource')+'</button><button style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();LaRuche.Toast.show(LaRuche.i18n.t(\'settings.pluginJsonNoEdit\'),\'err\')">'+LaRuche.i18n.t('settings.editJson')+'</button><button style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();fetch(\'/api/tools/\'+LaRuche.Utils.esc(t.name),{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})">'+LaRuche.i18n.t('settings.tlDelete')+'</button></div>' : '';
       return '<div class="settings-card" style="cursor:pointer; transition:transform 0.2s, box-shadow 0.2s; position:relative;" onmouseover="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.3)\';" onmouseout="this.style.transform=\'\';this.style.boxShadow=\'\';" onclick="LaRuche.Utils.openMediaModal(\'text\', JSON.stringify(window._allTools['+idx+'], null, 2))">'+
         '<div class="settings-card-title" style="display:flex;justify-content:space-between;gap:8px;align-items:center">'+
           '<span style="color:var(--cyan);font-weight:600;">'+LaRuche.Utils.esc(t.name)+originBadge+'</span>'+
@@ -804,7 +816,7 @@ LaRuche.Settings = (function(){
         var err=(job.last_status==='error');
         mk+='<span class="tl-mk '+cls+(err&&cls==='next'?' err':'')+'" style="left:'+((t-_tlFromMs)/spanMs*width)+'px" title="'+new Date(t).toLocaleString('fr-FR')+'" onclick="LaRuche.Settings.tlDetail('+i+')"></span>';
       });
-      lanes+='<div class="tl-row'+(paused?' paused':'')+'" data-i="'+i+'" title="Glisser horizontalement pour décaler l\'heure (crons à heure fixe)">'+mk+'</div>';
+      lanes+='<div class="tl-row'+(paused?' paused':'')+'" data-i="'+i+'" title="'+LaRuche.i18n.t('settings.tlDragHint')+'">'+mk+'</div>';
     });
     html+='<div class="tl-wrap"><div class="tl-gutter">'+gutter+'</div><div class="tl-scroll"><div class="tl-strip" id="tlStrip" style="width:'+width+'px">'+
       '<div class="tl-head" style="width:'+width+'px">'+ticks+'</div>'+lanes+
@@ -890,7 +902,7 @@ LaRuche.Settings = (function(){
       '<label class="form-label">Nom</label><input class="form-input" id="tlfName" value="'+LaRuche.Utils.esc(job.name||'')+'">'+
       '<label class="form-label">Prompt</label><textarea class="form-input" id="tlfPrompt" rows="3">'+LaRuche.Utils.esc(job.prompt||'')+'</textarea>'+
       '<label class="form-label">Cron (5 champs) ou vide</label><input class="form-input" id="tlfCron" value="'+LaRuche.Utils.esc(job.cron_expr||'')+'" placeholder="*/30 * * * *">'+
-      '<label class="form-label">Canal</label><input class="form-input" id="tlfChannel" value="'+LaRuche.Utils.esc(job.channel||'')+'" placeholder="telegram / vide">'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.channelLabel')+'</label><input class="form-input" id="tlfChannel" value="'+LaRuche.Utils.esc(job.channel||'')+'" placeholder="telegram / vide">'+
       '<label class="form-label">Provider</label><select class="form-input" id="tlfProfileId" onchange="LaRuche.Settings.updateCronEditModelSelect()">'+profOpts+'</select>'+
       '<label class="form-label">Mod&egrave;le</label><select class="form-input" id="tlfModel">'+modOpts+'</select>'+
       skillHtml+
@@ -1143,7 +1155,7 @@ LaRuche.Settings = (function(){
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Prompt</label><input id="nwPrompt" class="form-input"></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Provider</label><select id="watcher-profile" class="form-input" onchange="LaRuche.Settings.updateWatcherModelSelect()">'+profOpts+'</select></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Mod&egrave;le</label><select id="watcher-model" class="form-input"><option value="">'+LaRuche.i18n.t('settings.parDefault')+'</option></select></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Canal (déclenchement → notification)</label><select id="nwChannel" class="form-input"><option value="">'+LaRuche.i18n.t('settings.watcherHomeChannel')+'</option></select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherChannelLabel')+'</label><select id="nwChannel" class="form-input"><option value="">'+LaRuche.i18n.t('settings.watcherHomeChannel')+'</option></select></div>'+
       '<button class="settings-save-btn" onclick="LaRuche.Settings.createWatcher()">Create</button></div>'+
       watchers.map(function(w){
         var effProv = LaRuche.i18n.t('settings.watcherDefaut');
@@ -1245,7 +1257,7 @@ LaRuche.Settings = (function(){
   function toggleVisibility(id, providerType, currentVis) {
     var newVis = currentVis === 'public_proxy' ? 'prive' : 'public_proxy';
     if(newVis === 'public_proxy' && (providerType === 'openai' || providerType === 'anthropic' || providerType === 'codex')) {
-      if(!confirm("Public = le mesh utilise ce provider VIA ce node (ta clé reste locale, ce node relaie et exécute les appels). N'expose jamais une clé que tu ne veux pas voir consommée par le réseau. Continuer ?")) {
+      if(!confirm(LaRuche.i18n.t('settings.publicProviderConfirm'))) {
         return;
       }
     }
@@ -1370,7 +1382,7 @@ LaRuche.Settings = (function(){
         '<div style="font-size:11px;color:var(--text-dim);margin:6px 0;min-height:28px">'+LaRuche.Utils.esc(s.description||'')+'</div>'+
         '<div style="display:flex;gap:6px">'+
         '<button class="tl-btn" onclick="LaRuche.Settings.viewSkill(\''+LaRuche.Utils.esc(s.name)+'\')">'+LaRuche.i18n.t('settings.skillViewEdit')+'</button>'+
-        '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(\'Supprimer '+LaRuche.Utils.esc(s.name)+' ?\'))LaRuche.Settings.deleteSkill(\''+LaRuche.Utils.esc(s.name)+'\')">'+LaRuche.i18n.t('settings.skillDelBtn')+'</button>'+
+        '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(LaRuche.i18n.t(\'settings.confirmDeleteSkill\',{name:LaRuche.Utils.esc(s.name)})))LaRuche.Settings.deleteSkill(\''+LaRuche.Utils.esc(s.name)+'\')">'+LaRuche.i18n.t('settings.skillDelBtn')+'</button>'+
         '</div></div>';
     });
     html+='</div>';
@@ -1555,7 +1567,7 @@ LaRuche.Settings = (function(){
       // stopPropagation evite d'interferer avec le drag&drop de la carte.
       h+='<div class="kb-result" onclick="event.stopPropagation();LaRuche.Settings.toggleKanbanResult(this)" '+
          'data-collapsed="1" style="font-size:10px;color:var(--green);margin-bottom:6px;cursor:pointer" '+
-         'title="'+(_trunc?'Cliquer pour deplier/replier':'')+'">'+
+         'title="'+(_trunc?LaRuche.i18n.t('settings.collapseHint'):'')+'">'+
          '<span class="kb-result-label">'+LaRuche.i18n.t('settings.kanbanResultLabel')+(_trunc?' ▸':'')+': </span>'+
          '<span class="kb-result-short" style="white-space:pre-wrap;word-break:break-word">'+LaRuche.Utils.esc(_short)+'</span>'+
          '<span class="kb-result-full" style="display:none;white-space:pre-wrap;word-break:break-word">'+LaRuche.Utils.esc(_full)+'</span>'+
@@ -1829,7 +1841,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     var data = await fetch(LaRuche.API.base+'/api/knowledge').then(function(r){return r.json();}).catch(function(){return {entries:[],count:0};});
     var html = '<div style="margin-bottom:16px;display:flex;gap:8px;align-items:end">' +
       '<div style="flex:1"><label class="form-label">'+LaRuche.i18n.t('settings.kbAddLabel')+'</label><input class="form-input" id="kb-text" placeholder="'+LaRuche.i18n.t('settings.kbAddPlaceholder')+'"></div>' +
-      '<div><label class="form-label">'+LaRuche.i18n.t('settings.kbSourceLabel')+'</label><input class="form-input" id="kb-source" placeholder="optionnel" style="width:150px"></div>' +
+      '<div><label class="form-label">'+LaRuche.i18n.t('settings.kbSourceLabel')+'</label><input class="form-input" id="kb-source" placeholder="'+LaRuche.i18n.t('settings.optional')+'" style="width:150px"></div>' +
       '<button class="form-btn" onclick="LaRuche.Settings.addKnowledge()">'+LaRuche.i18n.t('settings.kbAddLabel')+'</button></div>';
     html += '<div style="margin-bottom:16px;display:flex;gap:8px;">' +
       '<button class="form-btn" onclick="LaRuche.Settings.exportOkf()">'+LaRuche.i18n.t('settings.kbExportBtn')+'</button>' +
@@ -2010,7 +2022,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
         '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpTitleLabel')+'</label>' +
           '<input id="bpNewTitle" class="form-input" placeholder="Ex: Veille quotidienne"></div>' +
         '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpPromptLabel')+'</label>' +
-          '<textarea id="bpNewPrompt" class="form-input" style="min-height:90px;resize:vertical" placeholder="Utilise {nom} pour referencer une variable..."></textarea></div>' +
+          '<textarea id="bpNewPrompt" class="form-input" style="min-height:90px;resize:vertical" placeholder="'+LaRuche.i18n.t('settings.varPlaceholder')+'"></textarea></div>' +
         '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpScheduleLabel')+'</label><div id="bpNewCron"></div></div>' +
         '<div style="margin-top:10px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpSlotsLabel')+'</label>' +
           '<div id="bpSlotsList" style="margin-top:6px"></div>' +

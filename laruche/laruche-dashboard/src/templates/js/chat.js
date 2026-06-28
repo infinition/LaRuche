@@ -1,5 +1,8 @@
 LaRuche.i18n.add({
   'chat.skillNe':               {fr:'✨ Skill né : ',           en:'✨ Skill created: '},
+  'chat.fileLabel':             {fr:'(fichier)',               en:'(file)'},
+  'chat.micTitle':              {fr:'Cliquer pour enregistrer / arrêter', en:'Click to record / stop'},
+  'chat.autoTtsTitle':          {fr:'Lecture automatique des réponses', en:'Auto-play responses'},
   'chat.reflexionEnCours':      {fr:'Réflexion en cours',       en:'Thinking'},
   'chat.executionEnCours':      {fr:'Exécution en cours',       en:'Running'},
   'chat.enAttente':             {fr:'En attente',               en:'Idle'},
@@ -1286,12 +1289,12 @@ LaRuche.Chat = (function(){
     args=args||{};
     if(name==='file_edit' && (args.old_string!=null || args.new_string!=null)){
       var o=args.old_string||'', n=args.new_string||'';
-      renderFileDiff(args.path||'(fichier)', String(n).split('\n').length, String(o).split('\n').length, buildDiffHtml(o,n));
+      renderFileDiff(args.path||LaRuche.i18n.t('chat.fileLabel'), String(n).split('\n').length, String(o).split('\n').length, buildDiffHtml(o,n));
       return true;
     }
     if((name==='file_write'||name==='skill_file_write') && args.content!=null){
       var c=String(args.content);
-      renderFileDiff(args.path||args.skill||'(fichier)', c.split('\n').length, 0, buildDiffHtml('', c));
+      renderFileDiff(args.path||args.skill||LaRuche.i18n.t('chat.fileLabel'), c.split('\n').length, 0, buildDiffHtml('', c));
       return true;
     }
     return false;
@@ -1985,10 +1988,10 @@ LaRuche.Voice = (function(){
       ttsAvailable=data.tts&&data.tts.available;
       var micBtn=document.getElementById('micBtn');
       if(!sttAvailable){micBtn.style.opacity='0.3';micBtn.style.pointerEvents='none';micBtn.title='STT non disponible';}
-      else {micBtn.style.opacity='1';micBtn.style.pointerEvents='auto';micBtn.title='Cliquer pour enregistrer / arreter';}
+      else {micBtn.style.opacity='1';micBtn.style.pointerEvents='auto';micBtn.title=LaRuche.i18n.t('chat.micTitle');}
       var autoTtsBtn=document.getElementById('autoTtsToggle');
       if(!ttsAvailable){autoTtsBtn.style.opacity='0.3';autoTtsBtn.title='TTS non disponible';}
-      else {autoTtsBtn.style.opacity='1';autoTtsBtn.title='Lecture automatique des reponses';}
+      else {autoTtsBtn.style.opacity='1';autoTtsBtn.title=LaRuche.i18n.t('chat.autoTtsTitle');}
     }).catch(function(){sttAvailable=false;ttsAvailable=false;});
   }
 
