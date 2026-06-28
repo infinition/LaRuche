@@ -38,6 +38,12 @@ laruche/watchers.json
 laruche/cron-tasks.json
 laruche/provider-profiles.json
 laruche/channels-config.json
+laruche/laruche-reine.json
+
+# Copies périmées si le binaire est lancé depuis le dossier du crate
+laruche/laruche-node/laruche-state.json
+laruche/laruche-node/provider-profiles.json
+laruche/laruche-node/mcp_servers.json
 
 # Exports & artefacts runtime de l'agent
 laruche/okf-export/
