@@ -23,6 +23,7 @@ pub mod codex_auth;
 pub mod credential_pool;
 pub mod cron;
 pub mod error_classifier;
+pub mod i18n;
 pub mod fatigue;
 pub mod feed_journal;
 pub mod hooks;
