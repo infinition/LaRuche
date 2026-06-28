@@ -107,6 +107,16 @@ Suivis dans la liste de tâches du dépôt.
 - [ ] **Validation mesh A** (fédération des skills) - nécessite **2 nœuds réels**.
 
 ## 🔭 Vision / long-terme (Miel & essaim)
+
+### 👑🎙️ Mode Reine ambiant (Jarvis local, voix plein écran)
+> Aboutissement de LaReine + la voix : on parle à la Reine en continu, plein écran, et elle supervise et pilote l'essaim. **Local-first** (Kokoro + Whisper offline), donc différenciant face aux assistants cloud. La Reine est l'hôte naturel : elle voit déjà tout ce que LaRuche indexe (mémoire, registres, carnet, feed, mesh), elle agit en ton nom **mais gatée** par la file de propositions, et elle se relit avant de parler (anti-hallucination).
+- [ ] **UI ambiante plein écran** : mode voix d'abord de la SPA, montre la trace méthodo, la file de propositions et le feed live.
+- [ ] **Boucle voix temps réel** : STT bas-latence -> Reine -> butinage si action -> TTS streamé **phrase par phrase** (Kokoro déjà benché, brancher sur butinage).
+- [ ] **Provider STT/TTS pluggable** (comme provider par canal) : Kokoro, Whisper, ou autre.
+- [ ] **Barge-in** (la couper pendant qu'elle parle) + wake-word / push-to-talk (vie privée).
+- [ ] **Session ambiante persistante** (contexte continu, pas tour-par-tour).
+- [ ] **Omniscience = sources branchées** : agenda, mails, fichiers, Home Assistant via client MCP + capability nodes (`capability:rag`, `capability:audio`). Se construit source par source.
+
 *POCs de nœuds spécialisés par capacité (le mesh annonce déjà les `capability:*`) :*
 - [ ] `capability:llm` - nœud texte standard (Mistral/Llama)
 - [ ] `capability:vlm` - Vision-Language (LLaVA, Qwen-VL) : analyse d'image via le réseau
