@@ -902,7 +902,7 @@ LaRuche.Settings = (function(){
     var spanMs=_tlSpanH*3600000, toMs=_tlFromMs+spanMs;
     var pxPerH=_tlSpanH<=24?64:(_tlSpanH<=48?34:12); _tlPxPerH=pxPerH; var width=_tlSpanH*pxPerH;
     function seg(h,lbl){return '<button class="'+(_tlSpanH===h?'on':'')+'" onclick="LaRuche.Settings.tlZoom('+h+')">'+lbl+'</button>';}
-    var html='<div class="tl-ctrls"><div class="tl-seg">'+seg(24,'24h')+seg(48,'48h')+seg(168,'7j')+'</div>'+
+    var html='<div class="tl-ctrls"><div class="tl-seg">'+seg(24,'24h')+seg(48,'48h')+seg(168,LaRuche.i18n.t('common.range7d'))+'</div>'+
       '<button class="tl-btn" onclick="LaRuche.Settings.tlRecenter()">'+LaRuche.i18n.t('settings.recenter')+'</button>'+
       '<span style="color:var(--text-dim);font-size:10px">'+_tlJobs.length+' '+LaRuche.i18n.t('settings.cronCount')+'</span></div>';
     if(!_tlJobs.length){ el.innerHTML=html+'<div style="color:var(--text-dim);padding:20px">'+LaRuche.i18n.t('settings.noCron')+'</div>'; return; }

@@ -498,7 +498,7 @@ LaRuche.Timeline = (function(){
     var toolbar = '<div class="gantt-toolbar">'+
       viewToggleHtml()+
       '<span style="margin-left:8px;color:var(--text-dim);font-size:11px">'+LaRuche.i18n.t('automations.zoomLabel')+'</span>'+
-      zoomBtn(24,'24h')+zoomBtn(48,'48h')+zoomBtn(168,'7j')+
+      zoomBtn(24,'24h')+zoomBtn(48,'48h')+zoomBtn(168,LaRuche.i18n.t('common.range7d'))+
       '<button class="tl-btn" onclick="LaRuche.Timeline.ganttRecenter()">⊙ '+LaRuche.i18n.t('automations.nowBtn')+'</button>'+
       '<button class="tl-btn" onclick="LaRuche.Timeline.reload()">↻ '+LaRuche.i18n.t('automations.rafraichir')+'</button>'+
       '</div>';

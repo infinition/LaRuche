@@ -21,6 +21,7 @@ LaRuche.i18n = (function(){
     'common.loading': { fr:'Chargement…', en:'Loading…' },
     'common.search':  { fr:'Rechercher',  en:'Search' },
     'common.none':    { fr:'Aucun',       en:'None' },
+    'common.range7d': { fr:'7j',          en:'7d' },
     // Frequent toasts
     'toast.saved':    { fr:'Enregistré',  en:'Saved' },
     'toast.deleted':  { fr:'Supprimé',    en:'Deleted' },
