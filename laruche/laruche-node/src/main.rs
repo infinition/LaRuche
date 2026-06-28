@@ -21,6 +21,7 @@ mod secrets_vault;
 mod sync;
 mod systray;
 mod tui;
+mod web;
 
 use anyhow::Result;
 use axum::{
@@ -57,34 +58,8 @@ use laruche_essaim::{
 
 use std::collections::VecDeque;
 
-const SPA_HTML: &str = include_str!("../../laruche-dashboard/src/templates/spa.html");
-// i18n language files (single source of truth). Injected into the SPA as window.__I18N__.
-// Adding a language: drop a laruche/lang/<code>.json file and wire it here.
-const LANG_EN: &str = include_str!("../../lang/en.json");
-const LANG_FR: &str = include_str!("../../lang/fr.json");
-// CSS + JS extracted from spa.html (served separately, compiled into the binary).
-const APP_CSS: &str = include_str!("../../laruche-dashboard/src/templates/app.css");
-// app.js is split into modules under `templates/js/` (one i18n agent per module). The node
-// CONCATENATES them at compile time in dependency ORDER: one `/app.js` served, one binary.
-const APP_JS: &str = concat!(
-    include_str!("../../laruche-dashboard/src/templates/js/core.js"),
-    "\n",
-    include_str!("../../laruche-dashboard/src/templates/js/chat.js"),
-    "\n",
-    include_str!("../../laruche-dashboard/src/templates/js/dashboard.js"),
-    "\n",
-    include_str!("../../laruche-dashboard/src/templates/js/memory.js"),
-    "\n",
-    include_str!("../../laruche-dashboard/src/templates/js/missions.js"),
-    "\n",
-    include_str!("../../laruche-dashboard/src/templates/js/settings.js"),
-    "\n",
-    include_str!("../../laruche-dashboard/src/templates/js/automations.js"),
-    "\n",
-    include_str!("../../laruche-dashboard/src/templates/js/capabilities.js"),
-    "\n",
-    include_str!("../../laruche-dashboard/src/templates/js/boot.js"),
-);
+// Web asset serving (SPA shell, CSS, concatenated JS) and i18n language-file
+// injection live in `web.rs` (handlers: web::spa_page / app_css / app_js / lang_file).
 const PEER_FETCH_TIMEOUT_MS: u64 = 4000;
 // Peer staleness window. MUST be > the mDNS re-announce interval (30s below),
 // otherwise a peer "flickers": it goes stale between two announcements. 90s tolerates 2 missed announcements.
@@ -2060,77 +2035,6 @@ async fn api_voice_status(State(state): State<Arc<AppState>>) -> Json<serde_json
     }))
 }
 
-/// Picks the UI language from the `laruche_lang` cookie (default "fr").
-fn ui_lang(headers: &axum::http::HeaderMap) -> &'static str {
-    let code = headers
-        .get(axum::http::header::COOKIE)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|c| {
-            c.split(';')
-                .map(|s| s.trim())
-                .find_map(|kv| kv.strip_prefix("laruche_lang="))
-        })
-        .unwrap_or("fr");
-    if code == "en" {
-        "en"
-    } else {
-        "fr"
-    }
-}
-
-/// Returns the flat translation map (JSON text) for a language code.
-fn lang_data(code: &str) -> &'static str {
-    match code {
-        "en" => LANG_EN,
-        _ => LANG_FR,
-    }
-}
-
-async fn spa_page(headers: axum::http::HeaderMap) -> Html<String> {
-    let lang = ui_lang(&headers);
-    // Escape '<' so a translation value can never break out of the inline <script> tag.
-    // '<' is a valid escape in both JSON and JS string literals.
-    let data = lang_data(lang).replace('<', "\\u003c");
-    let inject = format!(
-        "<script>window.__LANG__=\"{lang}\";window.__I18N__={data};</script>"
-    );
-    Html(SPA_HTML.replacen("<!--__LANG_INJECT__-->", &inject, 1))
-}
-
-/// GET /lang/<code>.json - serve a language file (for tooling and translators).
-async fn lang_file(
-    axum::extract::Path(file): axum::extract::Path<String>,
-) -> impl axum::response::IntoResponse {
-    let code = file.trim_end_matches(".json");
-    let body = match code {
-        "en" => LANG_EN,
-        "fr" => LANG_FR,
-        _ => "{}",
-    };
-    (
-        [(
-            axum::http::header::CONTENT_TYPE,
-            "application/json; charset=utf-8",
-        )],
-        body,
-    )
-}
-
-/// App CSS (extracted from spa.html). Explicit Content-Type so the browser applies it.
-async fn app_css() -> impl axum::response::IntoResponse {
-    ([(axum::http::header::CONTENT_TYPE, "text/css; charset=utf-8")], APP_CSS)
-}
-
-/// App JS (extracted from spa.html). Served before spa.html's small inline init script.
-async fn app_js() -> impl axum::response::IntoResponse {
-    (
-        [(
-            axum::http::header::CONTENT_TYPE,
-            "application/javascript; charset=utf-8",
-        )],
-        APP_JS,
-    )
-}
 
 async fn api_list_tools(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let disabled = state.essaim_config.read().await.disabled_tools.clone();
@@ -10216,10 +10120,10 @@ async fn main() -> Result<()> {
     });
 
     let app = Router::new()
-        .route("/", get(spa_page))
-        .route("/app.css", get(app_css))
-        .route("/app.js", get(app_js))
-        .route("/lang/:file", get(lang_file))
+        .route("/", get(web::spa_page))
+        .route("/app.css", get(web::app_css))
+        .route("/app.js", get(web::app_js))
+        .route("/lang/:file", get(web::lang_file))
         .route("/api/status", get(get_status))
         .route(
             "/api/blueprints",
@@ -10247,10 +10151,10 @@ async fn main() -> Result<()> {
             get(get_default_model).post(post_set_default_model),
         )
         .route("/metrics/history", get(get_metrics_history))
-        .route("/dashboard", get(spa_page))
-        .route("/chat", get(spa_page))
-        .route("/control", get(spa_page))
-        .route("/app", get(spa_page))
+        .route("/dashboard", get(web::spa_page))
+        .route("/chat", get(web::spa_page))
+        .route("/control", get(web::spa_page))
+        .route("/app", get(web::spa_page))
         .route("/ws/chat", get(ws_chat_handler))
         .route("/ws/audio", get(ws_audio_handler))
         .route("/api/tools", get(api_list_tools))
@@ -10485,7 +10389,7 @@ async fn main() -> Result<()> {
         .route("/api/auth/model", post(api_auth_set_model))
         .route("/auth/scan/:id", get(auth_scan_challenge))
         .route("/auth/link/:user_id/:secret", get(auth_permanent_link))
-        .route("/login", get(spa_page))
+        .route("/login", get(web::spa_page))
         // Internal sync routes (peer-to-peer)
         .route(
             "/api/internal/sync/session",
