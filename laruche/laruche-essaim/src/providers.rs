@@ -171,6 +171,13 @@ async fn openai_chat_stream(
         // Actual usage (if the server includes it: OpenAI with stream_options, llama.cpp by default).
         let mut in_tok: Option<u64> = None;
         let mut out_tok: Option<u64> = None;
+        // Reasoning models stream chain-of-thought in `reasoning_content`. We accumulate it but
+        // never stream it as the answer. Only if the model produced NO `content` at all (e.g. a
+        // broken "flash" proxy) do we surface the reasoning as a last resort, so the turn is not
+        // silently empty. `reasoning_emitted` guards against emitting it twice.
+        let mut content_streamed = false;
+        let mut reasoning_acc = String::new();
+        let mut reasoning_emitted = false;
 
         loop {
             match response.chunk().await {
@@ -181,6 +188,20 @@ async fn openai_chat_stream(
                         buffer = buffer[newline_pos + 1..].to_string();
                         if line.is_empty() || line == "data: [DONE]" {
                             if line == "data: [DONE]" {
+                                // Last resort: model produced only reasoning and no content, and the
+                                // stream ends via [DONE] without an in-chunk finish_reason.
+                                if !content_streamed && !reasoning_emitted {
+                                    let r = reasoning_acc.trim();
+                                    if !r.is_empty() {
+                                        reasoning_emitted = true;
+                                        let _ = tx.send(OllamaChunk {
+                                            text: r.to_string(), done: false,
+                                            finish_reason: None, eval_count: None,
+                                            eval_duration: None, prompt_eval_count: None,
+                                            tool_calls: None,
+                                        }).await;
+                                    }
+                                }
                                 // Finalize the accumulated tool_calls
                                 let tool_calls = if tool_call_acc.is_empty() {
                                     None
@@ -212,17 +233,25 @@ async fn openai_chat_stream(
                             if let Some(u) = parsed["usage"]["prompt_tokens"].as_u64() { in_tok = Some(u); }
                             if let Some(u) = parsed["usage"]["completion_tokens"].as_u64() { out_tok = Some(u); }
                             let mut text = parsed["choices"][0]["delta"]["content"].as_str().unwrap_or("").to_string();
-                            // Reasoning models (DeepSeek R1/reasoner and some "flash" variants served
-                            // via OpenAI-compatible proxies) stream their output in `reasoning_content`
-                            // and may leave `content` empty. Fall back to it so the turn is not silently
-                            // empty (which otherwise surfaces as "Done. No additional text response").
-                            if text.is_empty() {
-                                if let Some(rc) = parsed["choices"][0]["delta"]["reasoning_content"].as_str() {
-                                    text = rc.to_string();
-                                }
+                            if !text.is_empty() {
+                                content_streamed = true;
+                            }
+                            // Accumulate reasoning (chain-of-thought) without streaming it as the answer.
+                            if let Some(rc) = parsed["choices"][0]["delta"]["reasoning_content"].as_str() {
+                                reasoning_acc.push_str(rc);
                             }
                             let finish_reason = parsed["choices"][0]["finish_reason"].as_str().map(str::to_string);
                             let done = finish_reason.is_some();
+
+                            // Last resort: if the model produced NO content at all, surface the
+                            // accumulated reasoning on the final chunk so the turn is not silently empty.
+                            if done && !content_streamed && !reasoning_emitted && text.is_empty() {
+                                let r = reasoning_acc.trim();
+                                if !r.is_empty() {
+                                    text = r.to_string();
+                                    reasoning_emitted = true;
+                                }
+                            }
 
                             // Parse the tool_calls delta (OpenAI streaming format)
                             if let Some(tc_deltas) = parsed["choices"][0]["delta"]["tool_calls"].as_array() {
