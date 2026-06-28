@@ -1813,4 +1813,5 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 }
 @keyframes bee-crown{0%,100%{top:-8px}50%{top:-10px}}
 .reine-analyse-toggle{opacity:.7;font-size:9px}
-.reine-analyse{margin-top:3px;padding:6px 10px;border-radius:10px;background:rgba(245,158,11,.06);border:1px dashed rgba(245,158,11,.3);color:var(--text-muted);font-size:11px;line-height:1.5;max-width:100%;font-style:italic}
+.reine-analyse{margin-top:3px;padding:6px 10px;border-radius:10px;background:rgba(245,158,11,.10);border:1px dashed rgba(245,158,11,.4);color:#f0d9a8;font-size:11px;line-height:1.5;max-width:100%;font-style:italic}
+.reine-analyse::before{content:'💭 ';font-style:normal}

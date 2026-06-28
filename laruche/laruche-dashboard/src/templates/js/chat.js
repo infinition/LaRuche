@@ -424,22 +424,13 @@ LaRuche.Chat = (function(){
             if(vHost){
               var vc=document.createElement('div');
               vc.className='reine-verdict';
-              var vhint=vAnalyse?' <span class="reine-analyse-toggle">▸</span>':'';
-              vc.innerHTML='<span class="reine-crown">👑</span> '+LaRuche.Utils.esc(vtxt)+vhint;
+              vc.innerHTML='<span class="reine-crown">👑</span> '+LaRuche.Utils.esc(vtxt);
               vHost.appendChild(vc);
               if(vAnalyse){
-                vc.style.cursor='pointer';
-                vc.title=LaRuche.i18n.t('reine.seeReasoning');
                 var vpan=document.createElement('div');
                 vpan.className='reine-analyse';
-                vpan.style.display='none';
                 vpan.textContent=vAnalyse;
                 vHost.appendChild(vpan);
-                vc.onclick=function(){
-                  var op=vpan.style.display==='none';
-                  vpan.style.display=op?'block':'none';
-                  var tg=vc.querySelector('.reine-analyse-toggle'); if(tg) tg.textContent=op?'▾':'▸';
-                };
               }
             }
           }
