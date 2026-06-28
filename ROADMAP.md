@@ -11,17 +11,20 @@
 - [x] **Optimisations contexte** : champ `tools:` natif respecte la sélection · catalogue outils dé-dupliqué · catalogue **skills dynamique** · pas de corps de skill sur smalltalk · **seuil contexte configurable** (Settings).
 - [x] **Sonde n_ctx** → `context_max_tokens` auto · commandes Telegram (`/help /status /crons /delcron`) · `@@secret` autocomplete · fixes crons (anti-spam/runaway/réplication).
 
-## 🌍 Localisation EN du code (commentaires + chaînes) - en cours
-But : **zéro français dans le code** hors termes de marque LaRuche et fichier i18n. Commentaires pro (pas de tournure « LLM »), **aucun em dash (-)** nulle part. `abeille → tool` (une abeille = un agent qui utilise des tools). Identifiants gardés tels quels (règle utilisateur).
-- [x] **Webapp** : 9 modules JS + `app.css` + `spa.html`. Commentaires + texte/chaînes → EN, 0 em dash, onglet « Abeilles » → **Tools**. Sentinels backend & valeurs de contrat API (`origin`, `visibility 'prive'`) gardés. Vérif : `node --check`, 0 em dash, 0 commentaire FR. Glossaire de marque (FR) défini.
-- [ ] **Rust** : ~118 fichiers, crate par crate (gate `cargo build` + `cargo test`). Chaînes traduites **prudemment** (humain seulement ; protocole/match/test/sentinel laissés). En cours : `laruche-butinage`.
-- [ ] **Sweep final** : 0 em dash sur tout le projet (542 au départ) + sentinels FR Rust↔JS traduits **conjointement** (`Synthèse LaRuche`, `Erreur LaRuche`, `a demandé/a répondu`, `réponse finale`, matcher `Mémoire`).
-- [ ] **README** réécrit pro/concis/anglais/non-LLM.
+## 🌍 Localisation EN du code (commentaires + chaînes) - FAIT
+But : **zéro français dans le code** hors termes de marque LaRuche et fichier i18n. Commentaires pro (pas de tournure « LLM »), **aucun em dash** nulle part. `abeille → tool` (une abeille = un agent qui utilise des tools). Identifiants gardés tels quels (règle utilisateur). Glossaire de marque FR : `LaRuche, ruche, essaim, Miel, butinage, nectar, Source, escale, éclaireuse, curateur, vigie, boussole, jauge, carnet, récolte`.
+- [x] **Webapp** : 9 modules JS + `app.css` + `spa.html`. Commentaires + texte → EN, onglet « Abeilles » → **Tools**. Contrats API gardés (`origin`, `visibility 'prive'`).
+- [x] **Rust** : ~118 fichiers, crate par crate (gate `cargo build` + `cargo test --workspace`, 33 cibles vertes). Chaînes traduites prudemment (humain seulement ; protocole/match/test/intent-detection laissés). 5 assertions de test recalées sur les chaînes traduites.
+- [x] **Revue par fichier** : vérificateur de squelette de code (94/111 fichiers prouvés sans changement de code ; 17 inspectés à la main). A attrapé une **sur-traduction systémique des termes de marque** (Éclaireuse→Scout, Curateur→Curator, Ruche→Hive, Récolte→Harvest) → **restaurés** en FR dans les chaînes/commentaires (identifiants gardés).
+- [x] **Sentinels Rust↔JS** traduits **conjointement** : verbes de feed (`a demandé/a répondu`→`asked/replied` + matcher capabilities.js), `Synthèse/Erreur LaRuche`→`LaRuche summary/error` + matcher memory.js, `réponse finale`→`final response`, séparateur third-party `" - "` (au lieu de l'em dash).
+- [x] **Sweep em dash = 0** sur tout le projet (3267 retirés : code+docs, puis 3232 dans `skills/**/*.md`).
+- [x] **README** réécrit pro/concis/anglais/non-LLM.
+- [ ] *Note* : i18n FR/EN ne couvre que l'UI webapp. Les **strings runtime Rust** (logs, messages serveur) sont en anglais simple (pas de runtime i18n Rust) ; chip mémoire `chat.js` dépend d'un status à compteur que le Rust n'émet plus (cosmétique).
 
 ## 🔧 Reste / near-term (chantiers actifs)
 Suivis dans la liste de tâches du dépôt.
 - [x] **i18n UI - 2ᵉ passe exhaustive** : audit ligne-à-ligne des 9 modules (parser dédié comments/dico/identifiants/CSS exclus). **16 dernières chaînes affichées** migrées (settings ×12, chat ×4). Reste = skips documentés (termes de marque `Abeille`, sentinels backend, identifiants).
-- [ ] **i18n strings runtime côté Rust** : libellés émis par le serveur et streamés dans l'UI - `**Synthèse LaRuche :**` / `**Erreur LaRuche :**` (main.rs ~2279), actions éclaireuse `a demandé` / `a répondu` (main.rs ~3363). **Encore FR**, et les *matchers JS* (memory.js:680, capabilities.js:536) s'y accordent → traduire **les deux ensemble** (sinon on casse la détection). Pas de runtime i18n Rust pour l'instant → effort dédié.
+- [x] **i18n sentinels runtime Rust↔JS** : `Synthèse/Erreur LaRuche`, verbes de feed `a demandé/a répondu`, `réponse finale` traduits des deux côtés ensemble (voir section Localisation).
 - [ ] Décider du sort de la page **Sessions** orpheline (`laruche/_archive/test_script.js`).
 - [ ] **Split `main.rs`** (11.7k) en modules node.
 - [ ] **Settings : section « Avancé »** + migrer les params de tuning.
