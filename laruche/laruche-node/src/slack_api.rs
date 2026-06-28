@@ -65,7 +65,7 @@ pub(crate) async fn api_slack_events(
                     }
 
                     // Run agent query: persistent session per Slack channel (conversational memory).
-                    let response = run_agent_query(&state, "slack", channel, clean_text).await;
+                    let response = channels_api::run_agent_query(&state, "slack", channel, clean_text).await;
 
                     // Post reply via Slack API
                     let config_path = std::path::Path::new("channels-config.json");

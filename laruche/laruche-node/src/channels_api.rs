@@ -1,0 +1,612 @@
+//! Channel bot management (start/stop/status) and Telegram bot runtime, plus shared channel query helpers - split out of main.rs.
+
+use crate::*;
+use axum::extract::State;
+use axum::response::Json;
+use std::sync::Arc;
+
+/// POST /api/channels/start: start a channel bot.
+/// Body: {"channel": "telegram"}
+pub(crate) async fn api_start_channel(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let channel = body["channel"].as_str().unwrap_or("");
+
+    // Check if already running
+    {
+        let handles = state.channel_handles.read().await;
+        if handles.contains_key(channel) {
+            return Json(serde_json::json!({"status": "already_running", "channel": channel}));
+        }
+    }
+
+    // Load config
+    let config_path = std::path::Path::new("channels-config.json");
+    let config: serde_json::Value = if config_path.exists() {
+        std::fs::read_to_string(config_path)
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default()
+    } else {
+        return Json(
+            serde_json::json!({"status": "error", "message": "No channels-config.json found. Configure in Settings > Channels."}),
+        );
+    };
+
+    match channel {
+        "telegram" => {
+            let token = config["telegram"]["bot_token"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
+            let allowed = config["telegram"]["allowed_chats"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
+            if token.is_empty() {
+                return Json(
+                    serde_json::json!({"status": "error", "message": "No Telegram bot token configured"}),
+                );
+            }
+            let state_clone = state.clone();
+            let handle = tokio::spawn(async move {
+                run_telegram_bot(&token, &allowed, &state_clone).await;
+            });
+            state
+                .channel_handles
+                .write()
+                .await
+                .insert("telegram".into(), handle);
+            info!("Telegram bot started");
+            Json(serde_json::json!({"status": "started", "channel": "telegram"}))
+        }
+        _ => Json(
+            serde_json::json!({"status": "error", "message": format!("Unknown channel: {}", channel)}),
+        ),
+    }
+}
+
+/// POST /api/channels/stop: stop a channel bot.
+pub(crate) async fn api_stop_channel(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    let channel = body["channel"].as_str().unwrap_or("");
+    let mut handles = state.channel_handles.write().await;
+    if let Some(handle) = handles.remove(channel) {
+        handle.abort();
+        info!(channel = channel, "Channel bot stopped");
+        Json(serde_json::json!({"status": "stopped", "channel": channel}))
+    } else {
+        Json(serde_json::json!({"status": "not_running", "channel": channel}))
+    }
+}
+
+/// GET /api/channels/status: check which channels are running.
+pub(crate) async fn api_channels_status(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let handles = state.channel_handles.read().await;
+    let running: Vec<&String> = handles.keys().collect();
+    Json(serde_json::json!({"running": running}))
+}
+
+/// Telegram bot: runs as a background task within the server.
+pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState>) {
+    let api = format!("https://api.telegram.org/bot{}", token);
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .unwrap();
+    let allowed: Vec<String> = allowed_chats
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect();
+
+    let mut offset: i64 = 0;
+    let mut processed_ids: std::collections::HashSet<i64> = std::collections::HashSet::new();
+    let mut tg_sessions: std::collections::HashMap<i64, Uuid> = std::collections::HashMap::new();
+    let active_steers: Arc<
+        tokio::sync::RwLock<std::collections::HashMap<i64, tokio::sync::mpsc::Sender<String>>>,
+    > = Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));
+    info!("Telegram bot polling started");
+
+    loop {
+        let url = format!("{}/getUpdates?offset={}&timeout=30", api, offset);
+        match client.get(&url).send().await {
+            Ok(resp) => {
+                if let Ok(data) = resp.json::<serde_json::Value>().await {
+                    if let Some(updates) = data["result"].as_array() {
+                        // Advance offset immediately to prevent duplicate processing
+                        if let Some(last) = updates.last() {
+                            offset = last["update_id"].as_i64().unwrap_or(0) + 1;
+                            // Confirm offset with Telegram (quick call, no wait)
+                            let _ = client
+                                .get(format!("{}/getUpdates?offset={}&timeout=0", api, offset))
+                                .send()
+                                .await;
+                        }
+
+                        for update in updates {
+                            let update_id = update["update_id"].as_i64().unwrap_or(0);
+                            if processed_ids.contains(&update_id) {
+                                continue;
+                            }
+                            processed_ids.insert(update_id);
+                            // Keep set small: only remember last 100
+                            if processed_ids.len() > 100 {
+                                let min = *processed_ids.iter().min().unwrap_or(&0);
+                                processed_ids.remove(&min);
+                            }
+
+                            let chat_id = update["message"]["chat"]["id"].as_i64().unwrap_or(0);
+                            let text = update["message"]["text"].as_str().unwrap_or("");
+                            let user = update["message"]["from"]["first_name"]
+                                .as_str()
+                                .unwrap_or("?");
+
+                            if text.is_empty() || chat_id == 0 {
+                                continue;
+                            }
+
+                            // Check allowlist
+                            if !allowed.is_empty() && !allowed.contains(&chat_id.to_string()) {
+                                let _ = client.post(format!("{}/sendMessage", api))
+                                    .json(&serde_json::json!({"chat_id": chat_id, "text": "Access denied."}))
+                                    .send().await;
+                                continue;
+                            }
+
+                            if text == "/start" || text == "/clear" || text == "/reset" {
+                                tg_sessions.insert(chat_id, Uuid::new_v4());
+                                let _ = client
+                                    .post(format!("{}/sendMessage", api))
+                                    .json(&serde_json::json!({
+                                        "chat_id": chat_id,
+                                        "text": "New conversation started. The session history has been reset.",
+                                        "parse_mode": "Markdown",
+                                    }))
+                                    .send()
+                                    .await;
+                                continue;
+                            }
+
+                            // /sethome: sets THIS chat as the "home channel": default destination
+                            // for proactive messages (cron, missions) without an explicit channel.
+                            if text == "/sethome" {
+                                let home = format!("telegram:{}", chat_id);
+                                {
+                                    let mut ec = state.essaim_config.write().await;
+                                    ec.home_channel = Some(home.clone());
+                                }
+                                save_persistent_state(state).await;
+                                let _ = client
+                                    .post(format!("{}/sendMessage", api))
+                                    .json(&serde_json::json!({
+                                        "chat_id": chat_id,
+                                        "text": "🏠 This chat is now your *home channel*. Scheduled tasks and missions without an explicit destination will reply here.",
+                                        "parse_mode": "Markdown",
+                                    }))
+                                    .send()
+                                    .await;
+                                continue;
+                            }
+
+                            // /help: command list (third-party style).
+                            if text == "/help" {
+                                let aide = "*LaRuche commands*\n\
+                                    /help: this help\n\
+                                    /status: model, home channel, tasks\n\
+                                    /clear (or /reset, /start): clears the history of THIS chat\n\
+                                    /sethome: set THIS chat as the task destination\n\
+                                    /crons: list the scheduled tasks\n\
+                                    /delcron <name|all>: delete a cron (or all)\n\n\
+                                    _Tip: write a message during a running task to steer it (steering)._";
+                                let _ = client.post(format!("{}/sendMessage", api))
+                                    .json(&serde_json::json!({"chat_id": chat_id, "text": aide, "parse_mode": "Markdown"}))
+                                    .send().await;
+                                continue;
+                            }
+
+                            // /status: current state.
+                            if text == "/status" {
+                                let modele = get_llm_default(state).await;
+                                let home = state.essaim_config.read().await.home_channel.clone()
+                                    .unwrap_or_else(|| "(not set)".into());
+                                let n_crons = state.essaim_cron.read().await.list().len();
+                                let msg = format!(
+                                    "*LaRuche status*\nModel: `{modele}`\nHome: `{home}`\nCrons: {n_crons}"
+                                );
+                                let _ = client.post(format!("{}/sendMessage", api))
+                                    .json(&serde_json::json!({"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}))
+                                    .send().await;
+                                continue;
+                            }
+
+                            // /crons: list the scheduled tasks.
+                            if text == "/crons" {
+                                let lignes: Vec<String> = state.essaim_cron.read().await.list()
+                                    .iter()
+                                    .map(|t| format!("• *{}* - `{}` (runs: {})", t.name, t.cron_expr.clone().unwrap_or_else(|| "one-off".into()), t.run_count))
+                                    .collect();
+                                let msg = if lignes.is_empty() {
+                                    "No scheduled task.".to_string()
+                                } else {
+                                    format!("*Scheduled tasks*\n{}\n\n_Delete: /delcron <name> or /delcron all_", lignes.join("\n"))
+                                };
+                                let _ = client.post(format!("{}/sendMessage", api))
+                                    .json(&serde_json::json!({"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}))
+                                    .send().await;
+                                continue;
+                            }
+
+                            // /delcron <name|all>: deletes a cron (or all). Stops the spam from Telegram.
+                            if let Some(arg) = text.strip_prefix("/delcron").map(|s| s.trim()) {
+                                let arg = arg.to_string();
+                                let msg = {
+                                    let mut sched = state.essaim_cron.write().await;
+                                    if arg.is_empty() {
+                                        "Usage: /delcron <name> or /delcron all".to_string()
+                                    } else if arg.eq_ignore_ascii_case("all") {
+                                        let ids: Vec<Uuid> = sched.list().iter().map(|t| t.id).collect();
+                                        let n = ids.len();
+                                        for id in ids { sched.remove(&id); }
+                                        format!("🗑️ {n} cron(s) deleted.")
+                                    } else {
+                                        let id = sched.list().iter()
+                                            .find(|t| t.name.eq_ignore_ascii_case(&arg))
+                                            .map(|t| t.id);
+                                        match id {
+                                            Some(id) => { sched.remove(&id); format!("🗑️ Cron \"{arg}\" deleted.") }
+                                            None => format!("No cron named \"{arg}\". See /crons."),
+                                        }
+                                    }
+                                };
+                                let _ = client.post(format!("{}/sendMessage", api))
+                                    .json(&serde_json::json!({"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}))
+                                    .send().await;
+                                continue;
+                            }
+
+                            // Check for active steering
+                            let mut steers_lock = active_steers.write().await;
+                            if let Some(steer_tx) = steers_lock.get(&chat_id) {
+                                match steer_tx.try_send(text.to_string()) {
+                                    Ok(()) => {
+                                        let _ = client
+                                            .post(format!("{}/sendMessage", api))
+                                            .json(&serde_json::json!({
+                                                "chat_id": chat_id,
+                                                "text": "Steering received: applied at the next step.",
+                                            }))
+                                            .send()
+                                            .await;
+                                    }
+                                    Err(_) => {
+                                        let _ = client
+                                            .post(format!("{}/sendMessage", api))
+                                            .json(&serde_json::json!({
+                                                "chat_id": chat_id,
+                                                "text": "The task just finished: send this message as a new request.",
+                                            }))
+                                            .send()
+                                            .await;
+                                    }
+                                }
+                                continue;
+                            }
+
+                            // Setup steering for new task
+                            let (steer_tx, steer_rx) = tokio::sync::mpsc::channel::<String>(100);
+                            steers_lock.insert(chat_id, steer_tx);
+                            drop(steers_lock);
+
+                            info!(
+                                user = user,
+                                chat_id = chat_id,
+                                text = &text[..text.len().min(50)],
+                                "Telegram message"
+                            );
+
+                            // Get or create LaRuche user for this Telegram chat_id
+                            let tg_user_id = {
+                                let tg_name = format!("telegram:{}", chat_id);
+                                let users = state.users.read().await;
+                                if let Some(u) = auth_user::find_user_by_name(&users, &tg_name) {
+                                    u.id
+                                } else {
+                                    drop(users);
+                                    let new_user = auth_user::create_user(
+                                        &tg_name,
+                                        auth_user::UserRole::User,
+                                        None,
+                                    );
+                                    let uid = new_user.id;
+                                    let _ = auth_user::save_user(
+                                        &new_user,
+                                        std::path::Path::new("users"),
+                                    );
+                                    state.users.write().await.insert(uid, new_user);
+                                    info!(chat_id = chat_id, user_id = %uid, "Auto-created Telegram user");
+                                    uid
+                                }
+                            };
+
+                            // Telegram clears the "typing..." indicator after a few seconds.
+                            // Keeping it up for the whole turn avoids the impression that the bot
+                            // abandoned the request during a tool call or a long response.
+                            let (typing_stop, mut typing_stopped) =
+                                tokio::sync::watch::channel(false);
+                            let typing_client = client.clone();
+                            let typing_api = api.clone();
+                            let typing_task = tokio::spawn(async move {
+                                let mut ticker =
+                                    tokio::time::interval(std::time::Duration::from_secs(4));
+                                loop {
+                                    tokio::select! {
+                                        _ = ticker.tick() => {
+                                            if let Err(error) = typing_client
+                                                .post(format!("{}/sendChatAction", typing_api))
+                                                .json(&serde_json::json!({"chat_id": chat_id, "action": "typing"}))
+                                                .send()
+                                                .await
+                                            {
+                                                tracing::debug!(error = %error, chat_id, "Telegram typing update failed");
+                                            }
+                                        }
+                                        changed = typing_stopped.changed() => {
+                                            if changed.is_err() || *typing_stopped.borrow() {
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+
+                            // Query agent with current default model
+                            let current_model = get_llm_default(state).await;
+                            let sessions_dir = std::path::Path::new("sessions");
+
+                            let session_id =
+                                // Deterministic id (channel:chat_id) → the history survives server
+                                // restarts/rebuilds. /clear sets a temporary random id
+                                // (reset until the next restart).
+                                *tg_sessions.entry(chat_id).or_insert_with(|| {
+                                    session_id_channel("telegram", &chat_id.to_string())
+                                });
+                            let mut session = if let Ok(mut loaded) =
+                                Session::charger(&sessions_dir.join(format!("{}.json", session_id)))
+                            {
+                                loaded.model = current_model.clone();
+                                loaded
+                            } else {
+                                Session::new_with_id(session_id, &current_model, sessions_dir)
+                            };
+                            session.user_id = Some(tg_user_id);
+                            let (tx, _rx) = broadcast::channel::<ChatEvent>(64);
+
+                            let mut config = state.essaim_config.read().await.clone();
+                            config.model = current_model;
+                            // Origin channel → cron_create will send the recurring task here, and the
+                            // conversational memory is already tied to this Telegram session.
+                            config.origin_channel = Some(format!("telegram:{}", chat_id));
+                            // Per-channel model override (Settings > Channels): lets Telegram run a
+                            // tool-reliable model. No override -> keeps the global active model.
+                            apply_channel_model(state, "telegram", &mut config).await;
+
+                            let state_clone = state.clone();
+                            let client_clone = client.clone();
+                            let api_clone = api.clone();
+                            let text_clone = text.to_string();
+                            let user_clone = user.to_string();
+                            let active_steers_clone = active_steers.clone();
+
+                            tokio::spawn(async move {
+                                let result = boucle_react_memoire_multimodal(
+                                    &text_clone,
+                                    &mut session,
+                                    &state_clone.essaim_registry,
+                                    &config,
+                                    &tx,
+                                    state_clone.memoire.clone(),
+                                    vec![],
+                                    None,
+                                    Some(steer_rx),
+                                )
+                                .await;
+                                let _ = typing_stop.send(true);
+                                let _ = typing_task.await;
+
+                                let mut response = match result {
+                                    Ok(r) => {
+                                        let mut clean = r;
+                                        while let Some(s) = clean.find("<tool_call>") {
+                                            if let Some(e) = clean.find("</tool_call>") {
+                                                clean = format!(
+                                                    "{}{}",
+                                                    &clean[..s],
+                                                    &clean[e + "</tool_call>".len()..]
+                                                );
+                                            } else {
+                                                clean.truncate(s);
+                                                break;
+                                            }
+                                        }
+                                        while let Some(s) = clean.find("<plan>") {
+                                            if let Some(e) = clean.find("</plan>") {
+                                                clean = format!(
+                                                    "{}{}",
+                                                    &clean[..s],
+                                                    &clean[e + "</plan>".len()..]
+                                                );
+                                            } else {
+                                                clean.truncate(s);
+                                                break;
+                                            }
+                                        }
+                                        clean.trim().to_string()
+                                    }
+                                    Err(e) => format!("Error: {}", e),
+                                };
+                                if response.trim().is_empty() {
+                                    response =
+                                        "✅ Done. No additional text response."
+                                            .to_string();
+                                }
+
+                                let chunks: Vec<String> = response
+                                    .chars()
+                                    .collect::<Vec<_>>()
+                                    .chunks(4000)
+                                    .map(|c| c.iter().collect())
+                                    .collect();
+                                for chunk in chunks {
+                                    if let Err(error) = send_telegram_text(
+                                        &client_clone,
+                                        &api_clone,
+                                        chat_id,
+                                        &chunk,
+                                    )
+                                    .await
+                                    {
+                                        tracing::error!(error = %error, chat_id, "Telegram final response failed to send");
+                                    }
+                                }
+
+                                let _ = session.sauvegarder();
+                                state_clone
+                                    .essaim_sessions
+                                    .write()
+                                    .await
+                                    .insert(session.id, session.clone());
+
+                                tracing::info!(
+                                    user = user_clone,
+                                    response_len = response.len(),
+                                    "Telegram replied"
+                                );
+
+                                active_steers_clone.write().await.remove(&chat_id);
+                            });
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                warn!(error = %e, "Telegram polling error");
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            }
+        }
+    }
+}
+
+/// Sends a plain Telegram message and treats API rejections as real errors.
+///
+/// Agent output is intentionally not parsed as Telegram Markdown: ordinary code snippets,
+/// paths and tool output frequently contain unbalanced Markdown markers.
+pub(crate) async fn send_telegram_text(
+    client: &reqwest::Client,
+    api: &str,
+    chat_id: i64,
+    text: &str,
+) -> Result<()> {
+    let response = client
+        .post(format!("{api}/sendMessage"))
+        .json(&serde_json::json!({
+            "chat_id": chat_id,
+            "text": text,
+        }))
+        .send()
+        .await?;
+    if response.status().is_success() {
+        return Ok(());
+    }
+    let status = response.status();
+    let body = response.text().await.unwrap_or_default();
+    Err(anyhow::anyhow!(
+        "Telegram sendMessage rejected ({status}): {body}"
+    ))
+}
+
+/// Helper: run agent query and return cleaned response text.
+/// DETERMINISTIC session id for a (channel, user): survives restarts, unlike
+/// a random UUID. Same (channel, key) → same session → conversational memory.
+/// Example key: `telegram:12345`, `discord:bob`, `slack:C07...`.
+fn session_id_channel(channel: &str, user_key: &str) -> Uuid {
+    Uuid::new_v5(
+        &Uuid::NAMESPACE_OID,
+        format!("{channel}:{user_key}").as_bytes(),
+    )
+}
+
+/// Runs an agent query for a CHANNEL (Discord, Slack, ...) with a **persistent session**
+/// per (channel, user) → conversational memory between messages, like Telegram.
+/// Any new channel that calls this function gets the memory for free.
+pub(crate) async fn run_agent_query(
+    state: &Arc<AppState>,
+    channel: &str,
+    user_key: &str,
+    text: &str,
+) -> String {
+    let current_model = get_llm_default(state).await;
+    let sessions_dir = std::path::Path::new("sessions");
+    let session_id = session_id_channel(channel, user_key);
+    let mut session = match Session::charger(&sessions_dir.join(format!("{}.json", session_id))) {
+        Ok(mut loaded) => {
+            loaded.model = current_model.clone();
+            loaded
+        }
+        Err(_) => Session::new_with_id(session_id, &current_model, sessions_dir),
+    };
+    let (tx, _rx) = broadcast::channel::<ChatEvent>(64);
+
+    let mut config = state.essaim_config.read().await.clone();
+    config.model = current_model;
+    // Origin channel → cron_create will send the recurring task here; also serves as the home key.
+    config.origin_channel = Some(format!("{channel}:{user_key}"));
+    // Per-channel model override (Settings > Channels).
+    apply_channel_model(state, channel, &mut config).await;
+
+    let result = boucle_react_memoire(
+        text,
+        &mut session,
+        &state.essaim_registry,
+        &config,
+        &tx,
+        state.memoire.clone(),
+    )
+    .await;
+
+    // Persist the session (the agent already added the current turn + its responses) → the
+    // next message from the same (channel, user) reloads it with the full history.
+    let _ = session.sauvegarder();
+    state
+        .essaim_sessions
+        .write()
+        .await
+        .insert(session.id, session);
+
+    match result {
+        Ok(r) => {
+            let mut clean = r;
+            while let Some(s) = clean.find("<tool_call>") {
+                if let Some(e) = clean.find("</tool_call>") {
+                    clean = format!("{}{}", &clean[..s], &clean[e + "</tool_call>".len()..]);
+                } else {
+                    clean.truncate(s);
+                    break;
+                }
+            }
+            while let Some(s) = clean.find("<plan>") {
+                if let Some(e) = clean.find("</plan>") {
+                    clean = format!("{}{}", &clean[..s], &clean[e + "</plan>".len()..]);
+                } else {
+                    clean.truncate(s);
+                    break;
+                }
+            }
+            clean.trim().to_string()
+        }
+        Err(e) => format!("Error: {}", e),
+    }
+}

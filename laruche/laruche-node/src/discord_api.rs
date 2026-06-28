@@ -62,7 +62,7 @@ pub(crate) async fn api_discord_webhook(
             );
 
             // Run agent query: persistent session per Discord user (conversational memory).
-            let response = run_agent_query(&state, "discord", user, input).await;
+            let response = channels_api::run_agent_query(&state, "discord", user, input).await;
 
             // Truncate if needed (Discord max: 2000 chars)
             let truncated = if response.len() > 1990 {
