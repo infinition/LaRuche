@@ -88,6 +88,23 @@ LaRuche.i18n.add({
   'core.blueprintOk':           { fr:'Blueprint instancié avec succès', en:'Blueprint instantiated successfully' },
   'core.blueprintErr':          { fr:"Erreur d'instanciation", en:'Instantiation error' },
   'core.errorPrefix':           { fr:'Erreur: {msg}',      en:'Error: {msg}' },
+  // Secrets autocomplete
+  'core.secretsHeader':         { fr:'Secrets',            en:'Secrets' },
+  // Media / attachments
+  'core.imageLabel':            { fr:'Image',              en:'Image' },
+  'core.fileFallback':          { fr:'FICHIER',            en:'FILE' },
+  'core.cannotPreviewFile':     { fr:'Impossible de prévisualiser ce fichier.', en:'Cannot preview this file.' },
+  'core.cannotPreviewBinary':   { fr:'Impossible de prévisualiser un fichier binaire.', en:'Cannot preview binary file.' },
+  'core.fileContentUnavailable':{ fr:'Contenu du fichier indisponible.', en:'File content not available.' },
+  // Console
+  'core.consoleEntries':        { fr:'{n} entrées',        en:'{n} entries' },
+  // Watcher fallback
+  'core.watcherLabel':          { fr:'Watcher',            en:'Watcher' },
+  // Header / model
+  'core.permissionsToast':      { fr:'Permissions : {mode}', en:'Permissions: {mode}' },
+  'core.modelAuto':             { fr:'Auto',               en:'Auto' },
+  'core.modelReady':            { fr:'Modèle {model} prêt ({ms}ms)', en:'Model {model} ready ({ms}ms)' },
+  'core.modelSelected':         { fr:'Modèle : {model}',   en:'Model: {model}' },
 });
 
 /* ── Plugins file browser (plugins/ + scripts/ folder) ─────────────────
@@ -201,7 +218,7 @@ LaRuche.Secrets = (function(){
     if(!items.length){ hide(); return; }
     sel=0; targetEl=el; tokenStart=tok.start;
     var b=ensureBox();
-    b.innerHTML = '<div style="padding:3px 10px;color:var(--text-dim);font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">Secrets</div>'+
+    b.innerHTML = '<div style="padding:3px 10px;color:var(--text-dim);font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">'+LaRuche.i18n.t('core.secretsHeader')+'</div>'+
       items.map(function(n,i){ return '<div class="sac-item" data-i="'+i+'" style="padding:6px 10px;cursor:pointer;color:var(--amber);'+(i===0?'background:rgba(245,158,11,.2)':'')+'">@@'+LaRuche.Utils.esc(n)+'</div>'; }).join('');
     var r=el.getBoundingClientRect();
     b.style.left=Math.min(r.left, window.innerWidth-200)+'px'; b.style.top=(r.bottom+2)+'px'; b.style.display='block';
@@ -311,7 +328,7 @@ LaRuche.Utils = {
   createAttachmentBox: function(att, isPending, index) {
     var box = document.createElement('div');
     box.className = 'chat-attachment-box';
-    var titleStr = att.filename || (att.kind === 'image' ? 'Image' : LaRuche.i18n.t('core.fileLabel'));
+    var titleStr = att.filename || (att.kind === 'image' ? LaRuche.i18n.t('core.imageLabel') : LaRuche.i18n.t('core.fileLabel'));
     box.title = titleStr;
     box.style.cssText = 'position:relative; display:inline-flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; background:rgba(0,0,0,0.3); padding:4px; border-radius:8px; border:1px solid var(--border); overflow:hidden; cursor:pointer; width: 80px; height: 80px; transition:border-color 0.2s;';
     box.onmouseover = function() { box.style.borderColor='var(--primary)'; };
@@ -339,7 +356,7 @@ LaRuche.Utils = {
         
         var ext = document.createElement('div');
         var extMatch = titleStr.match(/\.([^.]+)$/);
-        ext.textContent = extMatch ? extMatch[1].toUpperCase() : 'FILE';
+        ext.textContent = extMatch ? extMatch[1].toUpperCase() : LaRuche.i18n.t('core.fileFallback');
         ext.style.cssText = 'font-size:10px; font-weight:bold; color:var(--text-dim); margin-top: -2px;';
         box.appendChild(ext);
         
@@ -348,17 +365,17 @@ LaRuche.Utils = {
                 fetch(att.fileUrl).then(function(r){return r.text();}).then(function(txt){
                     LaRuche.Utils.openMediaModal('text', txt);
                 }).catch(function(){
-                    LaRuche.Utils.openMediaModal('text', 'Cannot preview this file.');
+                    LaRuche.Utils.openMediaModal('text', LaRuche.i18n.t('core.cannotPreviewFile'));
                 });
             } else if(att.data) {
                 try {
                     var text = LaRuche.Utils.b64ToUtf8(att.data);
                     LaRuche.Utils.openMediaModal('text', text); 
                 } catch(e) {
-                    LaRuche.Utils.openMediaModal('text', 'Cannot preview binary file.'); 
+                    LaRuche.Utils.openMediaModal('text', LaRuche.i18n.t('core.cannotPreviewBinary'));
                 }
             } else {
-                LaRuche.Utils.openMediaModal('text', 'File content not available.');
+                LaRuche.Utils.openMediaModal('text', LaRuche.i18n.t('core.fileContentUnavailable'));
             }
         };
     }
@@ -450,7 +467,7 @@ LaRuche.Console = (function(){
       }
       case 'WatcherFired': {
         // payload: {watcher_id, prompt, context}
-        var wname = pl.prompt || pl.watcher_id || 'Watcher';
+        var wname = pl.prompt || pl.watcher_id || LaRuche.i18n.t('core.watcherLabel');
         LaRuche.Toast.show(LaRuche.i18n.t('core.watcherFiredToast',{name:String(wname).substring(0,50)}), 'info', 7000,
           sid ? function(){ openSession(sid); } : null);
         break;
@@ -507,7 +524,7 @@ LaRuche.Console = (function(){
     });
     el.scrollTop = el.scrollHeight;
     var countEl = document.getElementById('consoleCount');
-    if(countEl) countEl.textContent = filtered.length+' entries';
+    if(countEl) countEl.textContent = LaRuche.i18n.t('core.consoleEntries',{n:filtered.length});
   }
 
   function clear() { entries=[]; render(); }
@@ -881,7 +898,7 @@ LaRuche.Header = (function(){
     fetch('/api/config/permission',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({mode:mode})
     }).then(function(r){return r.json();}).then(function(d){
-      if(d && d.status==='ok') LaRuche.Toast.show('Permissions: '+mode,'ok');
+      if(d && d.status==='ok') LaRuche.Toast.show(LaRuche.i18n.t('core.permissionsToast',{mode:mode}),'ok');
       else LaRuche.Toast.show(LaRuche.i18n.t('core.permChangeFailed'),'err');
     }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('core.permChangeFailed'),'err'); });
   }
@@ -937,7 +954,7 @@ LaRuche.Header = (function(){
         currentModelName = active.model || '';
         currentProfileId = active.profile_id || '';
         var recapEl = document.getElementById('sessionCapsRecap');
-        if (recapEl) recapEl.textContent = currentModelName || 'Auto';
+        if (recapEl) recapEl.textContent = currentModelName || LaRuche.i18n.t('core.modelAuto');
       }
     }).catch(function(){});
   }
@@ -972,10 +989,10 @@ LaRuche.Header = (function(){
       // Preload for Ollama profiles
       if(profileId.indexOf('ollama') !== -1) {
         fetch('/api/preload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:modelName})}).then(function(r){return r.json();}).then(function(data){
-          if(data.status==='loaded') LaRuche.Toast.show('Model '+modelName+' ready ('+data.elapsed_ms+'ms)','ok');
+          if(data.status==='loaded') LaRuche.Toast.show(LaRuche.i18n.t('core.modelReady',{model:modelName,ms:data.elapsed_ms}),'ok');
         }).catch(function(){});
       }
-      LaRuche.Toast.show('Model: '+modelName,'ok');
+      LaRuche.Toast.show(LaRuche.i18n.t('core.modelSelected',{model:modelName}),'ok');
       // P7: reflect the new active model in the mesh/capabilities recap without F5
       LaRuche.refreshAll(['mesh','capabilities']);
     }).catch(function(){ select.disabled = false; });

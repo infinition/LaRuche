@@ -124,6 +124,16 @@ LaRuche.i18n.add({
   'memory.consolidateError':      {fr:'Erreur: ', en:'Error: '},
   'memory.welcomeTitle':          {fr:'Mémoire Cognitive', en:'Cognitive Memory'},
   'memory.welcomeSubtitle':       {fr:'Sélectionnez un noeud dans l\'arborescence pour afficher ses souvenirs.', en:'Select a node in the tree to display its memories.'},
+  'memory.bySourceUser':          {fr:'par l\'utilisateur', en:'by User'},
+  'memory.bySourceLaRuche':       {fr:'par LaRuche', en:'by LaRuche'},
+  'memory.bySourceWatcher':       {fr:'par LaRuche (Watcher)', en:'by LaRuche (Watcher)'},
+  'memory.bySourceOther':         {fr:'par ', en:'by '},
+  'memory.dateCreated':           {fr:'créé le ', en:'created '},
+  'memory.dateUpdated':           {fr:'maj ', en:'upd '},
+  'memory.missionTag':            {fr:'[ Mission @LaRuche ]', en:'[ Mission @LaRuche ]'},
+  'memory.searchResultSingular':  {fr:' résultat', en:' result'},
+  'memory.searchResultPlural':    {fr:' résultats', en:' results'},
+  'memory.itemsCount':            {fr:' éléments', en:' items'},
 });
 LaRuche.Memory = (function(){
   var nodes = {};        // id -> {id,label,one_liner,count}
@@ -182,7 +192,7 @@ LaRuche.Memory = (function(){
         if(nid && !seen[nid]){ seen[nid] = 1; children.push({ node_id:nid, label:nid }); }
       });
       currentNode = {
-        node_id: 'recherche: «'+q+'» ('+(data.count!=null?data.count:items.length)+' result'+((data.count||items.length)>1?'s':'')+')',
+        node_id: 'recherche: «'+q+'» ('+(data.count!=null?data.count:items.length)+((data.count||items.length)>1?LaRuche.i18n.t('memory.searchResultPlural'):LaRuche.i18n.t('memory.searchResultSingular'))+')',
         items: items,
         children: children
       };
@@ -614,17 +624,17 @@ LaRuche.Memory = (function(){
   // "created X · upd Y" (upd only if different). "" if no date.
   function formatSource(s){
     if(!s) return '';
-    if(s === 'ui-admin' || s === 'ui-memory') return '👤 by User';
-    if(s === 'agent-call' || s === 'memory_write' || s === 'agent') return '🐝 by LaRuche';
-    if(s === 'watcher') return '🐝 by LaRuche (Watcher)';
-    return '🔌 by ' + LaRuche.Utils.esc(s);
+    if(s === 'ui-admin' || s === 'ui-memory') return '👤 '+LaRuche.i18n.t('memory.bySourceUser');
+    if(s === 'agent-call' || s === 'memory_write' || s === 'agent') return '🐝 '+LaRuche.i18n.t('memory.bySourceLaRuche');
+    if(s === 'watcher') return '🐝 '+LaRuche.i18n.t('memory.bySourceWatcher');
+    return '🔌 ' + LaRuche.i18n.t('memory.bySourceOther') + LaRuche.Utils.esc(s);
   }
 
   function mem2Dates(created, updated){
     var c = mem2FmtTs(created), u = mem2FmtTs(updated);
     if(!c && !u) return '';
-    var out = c ? ('created '+c) : '';
-    if(u && u!==c) out += (out?' · ':'')+'upd '+u;
+    var out = c ? (LaRuche.i18n.t('memory.dateCreated')+c) : '';
+    if(u && u!==c) out += (out?' · ':'')+LaRuche.i18n.t('memory.dateUpdated')+u;
     return out;
   }
 
@@ -689,7 +699,7 @@ LaRuche.Memory = (function(){
         return '<div class="mem2-item' + extraClass + '" draggable="true" ondragstart="event.dataTransfer.setData(\'text/plain\',\''+esc(id)+'\')" data-itemwrap="'+esc(id)+'">'+
           '<div class="mem2-item-bar">'+
             '<span class="mem2-item-id">'+esc(id || LaRuche.i18n.t('memory.noId'))+'</span>'+
-            (isAgentCall ? '<span style="margin-left:6px; font-weight:bold; font-size:10px;">[ Mission @LaRuche ]</span>' + agentStatusIcon : '') +
+            (isAgentCall ? '<span style="margin-left:6px; font-weight:bold; font-size:10px;">'+LaRuche.i18n.t('memory.missionTag')+'</span>' + agentStatusIcon : '') +
             (locked ? '<span class="mem2-lock" title="'+LaRuche.i18n.t('memory.managedBySystem')+'">'+SVG.lock+'</span>' : '')+
             '<span class="mem2-item-meta">'+esc(node)+(function(){var d=mem2Dates(it.created_at,it.updated_at);var s=formatSource(it.source);return (d?' · '+esc(d):'')+(s?' · '+s:'');})()+'</span>'+
             acts+
@@ -1095,7 +1105,7 @@ LaRuche.Memory = (function(){
     fetch(url, {method:'POST'}).then(function(r){return r.json();}).then(function(res){
       if(res.error){ LaRuche.Toast.show(LaRuche.i18n.t('memory.consolidateError')+res.error,'err'); return; }
       var n = (res.consolidated!=null) ? res.consolidated+LaRuche.i18n.t('memory.nodesConsolidated')
-            : (res.before!=null ? (res.before+'→'+res.after+' items') : LaRuche.i18n.t('memory.consolidateDone'));
+            : (res.before!=null ? (res.before+'→'+res.after+LaRuche.i18n.t('memory.itemsCount')) : LaRuche.i18n.t('memory.consolidateDone'));
       LaRuche.Toast.show(LaRuche.i18n.t('memory.consolidationResult')+n,'ok');
       loaded=false; nodes={}; loadTree(); if(node) loadNode(node);
     }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.consolidationResult')+e,'err'); });

@@ -115,6 +115,32 @@ LaRuche.i18n.add({
   'chat.suggestion2':           {fr:'Quels fichiers ont ete modifies recemment ?', en:'Which files were recently modified?'},
   'chat.suggestion3':           {fr:'Analyse les erreurs dans les logs', en:'Analyze the errors in the logs'},
   'chat.suggestion4':           {fr:"Cree un plan d'action pour optimiser les performances", en:'Create an action plan to optimize performance'},
+  'chat.mediaAjoutes':          {fr:' média(s) ajouté(s) à la réponse.', en:' media added to the response.'},
+  'chat.skillsLabel':           {fr:'🧩 Skills',                en:'🧩 Skills'},
+  'chat.monProfil':             {fr:'Mon profil',              en:'My profile'},
+  'chat.reasoningLabel':        {fr:'💭 raisonnement',         en:'💭 reasoning'},
+  'chat.mediaFallback':         {fr:'Média',                   en:'Media'},
+  'chat.pdfFallback':           {fr:'PDF',                     en:'PDF'},
+  'chat.imageFallback':         {fr:'Image',                   en:'Image'},
+  'chat.essaim':                {fr:"L'Essaim",                en:"L'Essaim"},
+  'chat.plan':                  {fr:'Plan',                    en:'Plan'},
+  'chat.planTitle':             {fr:'📋 Plan',                 en:'📋 Plan'},
+  'chat.approval':              {fr:'Autorisation',            en:'Approval'},
+  'chat.approvalWaiting':       {fr:'En attente : ',           en:'Waiting: '},
+  'chat.approvalAllowed':       {fr:'Autorisé : ',             en:'Allowed: '},
+  'chat.approvalDenied':        {fr:'Refusé : ',               en:'Denied: '},
+  'chat.fileTooLarge':          {fr:'Fichier trop volumineux (max 5 Mo) : ', en:'File too large (max 5MB): '},
+  'chat.stopBtn':               {fr:'Stop',                    en:'Stop'},
+  'chat.micError':              {fr:'Erreur micro : ',         en:'Mic error: '},
+  'chat.autoPlayEnabled':       {fr:'Lecture automatique activée', en:'Auto-play enabled'},
+  'chat.autoPlayDisabled':      {fr:'Lecture automatique désactivée', en:'Auto-play disabled'},
+  'chat.sttUnavailable':        {fr:'STT indisponible',        en:'STT unavailable'},
+  'chat.ttsUnavailable':        {fr:'TTS indisponible',        en:'TTS unavailable'},
+  'chat.autoFirstDetected':     {fr:'Auto (premier détecté)',  en:'Auto (first detected)'},
+  'chat.enCours':               {fr:' · en cours',             en:' · running'},
+  'chat.toolOk':                {fr:' OK',                     en:' OK'},
+  'chat.toolErr':               {fr:' ERR',                    en:' ERR'},
+  'chat.toolFallback':          {fr:'outil',                   en:'tool'},
 });
 
 LaRuche.Chat = (function(){
@@ -325,7 +351,7 @@ LaRuche.Chat = (function(){
         setFeedLive('tool');
         var toolLabel=toolActivityLabel(data.name,data.args);
         maybeRenderFileDiff(data.name,data.args); // inline diff card for file edits
-        addActivity('tool-call',toolLabel+' · en cours',toolContext(data.args),true,{toolName:data.name,activityLabel:toolLabel,live:true,terminal:(data.name==='shell_exec'||data.name==='execute_code'||data.name==='run_script'),command:toolContext(data.args)});
+        addActivity('tool-call',toolLabel+LaRuche.i18n.t('chat.enCours'),toolContext(data.args),true,{toolName:data.name,activityLabel:toolLabel,live:true,terminal:(data.name==='shell_exec'||data.name==='execute_code'||data.name==='run_script'),command:toolContext(data.args)});
         break;
       case 'tool_output':
         appendToolOutput(data.name,data.text||data.chunk||'');
@@ -336,7 +362,7 @@ LaRuche.Chat = (function(){
           var declaredMedia=takeMediaDeclarations(toolResult);
           if(declaredMedia.items.length){
             pendingMedia=pendingMedia.concat(declaredMedia.items);
-            toolResult=declaredMedia.text || (declaredMedia.items.length+' media added to the response.');
+            toolResult=declaredMedia.text || (declaredMedia.items.length+LaRuche.i18n.t('chat.mediaAjoutes'));
           }
         }
         finishToolActivity(data.name,toolResult,!!data.success,data.elapsed_ms);
@@ -652,7 +678,7 @@ LaRuche.Chat = (function(){
     if(!_skillsInlineEl || !_skillsInlineEl.isConnected){
       var welcome=document.getElementById('welcomeScreen'); if(welcome) welcome.remove();
       _skillsInlineEl=document.createElement('div'); _skillsInlineEl.className='cc-skills cc-block';
-      _skillsInlineEl.innerHTML='<span class="cc-skills-label">🧩 Skills</span>';
+      _skillsInlineEl.innerHTML='<span class="cc-skills-label">'+LaRuche.i18n.t('chat.skillsLabel')+'</span>';
       cc.appendChild(_skillsInlineEl);
       if(typeof scrollToBottom==='function') scrollToBottom();
     }
@@ -701,7 +727,7 @@ LaRuche.Chat = (function(){
   async function openProfile() {
     var ov = document.getElementById('profileModal'); if(!ov) return;
     var u = (window.LaRuche && LaRuche.Auth && LaRuche.Auth.getUser && LaRuche.Auth.getUser()) || {};
-    var nm = document.getElementById('profileModalName'); if(nm) nm.textContent = u.display_name || 'My profile';
+    var nm = document.getElementById('profileModalName'); if(nm) nm.textContent = u.display_name || LaRuche.i18n.t('chat.monProfil');
     var av = document.getElementById('profileModalAvatar'); if(av) av.textContent = (u.display_name||'?').charAt(0).toUpperCase();
     var ta = document.getElementById('profileFiche');
     if(ta){ ta.value = LaRuche.i18n.t('chat.chargement'); ta.disabled = true; }
@@ -787,7 +813,7 @@ LaRuche.Chat = (function(){
         }
       }
       var label=document.createElement('div'); label.className='assistant-segment-label';
-      label.textContent='💭 reasoning';
+      label.textContent=LaRuche.i18n.t('chat.reasoningLabel');
       var wrapper=currentAssistantRow.querySelector('.message-wrapper');
       if(wrapper) wrapper.appendChild(label);
     } else {
@@ -950,14 +976,14 @@ LaRuche.Chat = (function(){
       var card=document.createElement('figure'); card.className='media-card';
       var head=document.createElement('figcaption'); head.className='media-card-head';
       var badge=document.createElement('span'); badge.className='media-kind'; badge.textContent=kind;
-      var title=document.createElement('span'); title.textContent=item.title||'Media'; title.style.cssText='overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      var title=document.createElement('span'); title.textContent=item.title||LaRuche.i18n.t('chat.mediaFallback'); title.style.cssText='overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
       var open=document.createElement('a'); open.className='media-open'; open.href=src; open.target='_blank'; open.rel='noopener noreferrer'; open.textContent=LaRuche.i18n.t('chat.ouvrirMedia');
       head.appendChild(badge); head.appendChild(title); head.appendChild(open); card.appendChild(head);
       var visual;
-      if(kind==='pdf') { visual=document.createElement('iframe'); visual.className='media-visual media-pdf'; visual.src=src+'#view=FitH'; visual.title=item.title||'PDF'; visual.loading='lazy'; }
+      if(kind==='pdf') { visual=document.createElement('iframe'); visual.className='media-visual media-pdf'; visual.src=src+'#view=FitH'; visual.title=item.title||LaRuche.i18n.t('chat.pdfFallback'); visual.loading='lazy'; }
       else if(kind==='video') { visual=document.createElement('video'); visual.className='media-visual media-video'; visual.src=src; visual.controls=true; visual.preload='metadata'; }
       else if(kind==='audio') { visual=document.createElement('audio'); visual.className='media-visual media-audio'; visual.src=src; visual.controls=true; visual.preload='metadata'; }
-      else { visual=document.createElement('img'); visual.className='media-visual'; visual.src=src; visual.alt=item.title||'Image'; visual.loading='lazy'; visual.onclick=function(){LaRuche.Utils.openMediaModal('image',src);}; visual.style.cursor='zoom-in'; }
+      else { visual=document.createElement('img'); visual.className='media-visual'; visual.src=src; visual.alt=item.title||LaRuche.i18n.t('chat.imageFallback'); visual.loading='lazy'; visual.onclick=function(){LaRuche.Utils.openMediaModal('image',src);}; visual.style.cursor='zoom-in'; }
       card.appendChild(visual);
       if(item.caption){var caption=document.createElement('div');caption.className='media-caption';caption.textContent=item.caption;card.appendChild(caption);}
       gallery.appendChild(card);
@@ -1344,7 +1370,7 @@ LaRuche.Chat = (function(){
     var rows=mission.items.map(function(item){
       return '<div class="plan-item"><span class="plan-dot '+planDotClass(item)+'"></span><span class="plan-text'+(planItemDone(item)?' done':'')+'">'+LaRuche.Utils.esc(item.task||'')+'</span></div>';
     }).join('');
-    _planInlineEl.innerHTML='<div class="cc-plan-head"><span class="cc-plan-title">📋 Plan</span><span class="cc-plan-meta">'+doneCount+'/'+mission.items.length+'</span></div><div class="cc-plan-body">'+rows+'</div>';
+    _planInlineEl.innerHTML='<div class="cc-plan-head"><span class="cc-plan-title">'+LaRuche.i18n.t('chat.planTitle')+'</span><span class="cc-plan-meta">'+doneCount+'/'+mission.items.length+'</span></div><div class="cc-plan-body">'+rows+'</div>';
     var head=_planInlineEl.querySelector('.cc-plan-head');
     head.onclick=function(){ _planInlineEl.classList.toggle('cc-collapsed'); };
   }
@@ -1410,11 +1436,11 @@ LaRuche.Chat = (function(){
     var container=document.getElementById('chatContainer');
     container.innerHTML='';
     var welcome=document.createElement('div'); welcome.className='welcome'; welcome.id='welcomeScreen';
-    welcome.innerHTML='<div class="swarm-wrap" style="transform: scale(0.65); margin: -40px auto -30px;"><canvas class="swarm-canvas"></canvas></div><h2>L\x27Essaim</h2><p>'+LaRuche.i18n.t('chat.welcomeSubtitle')+'</p><div class="suggested-prompts"><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">'+LaRuche.i18n.t('chat.suggestion1')+'</div><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">'+LaRuche.i18n.t('chat.suggestion2')+'</div><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">'+LaRuche.i18n.t('chat.suggestion3')+'</div><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">'+LaRuche.i18n.t('chat.suggestion4')+'</div></div>';
+    welcome.innerHTML='<div class="swarm-wrap" style="transform: scale(0.65); margin: -40px auto -30px;"><canvas class="swarm-canvas"></canvas></div><h2>'+LaRuche.i18n.t('chat.essaim')+'</h2><p>'+LaRuche.i18n.t('chat.welcomeSubtitle')+'</p><div class="suggested-prompts"><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">'+LaRuche.i18n.t('chat.suggestion1')+'</div><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">'+LaRuche.i18n.t('chat.suggestion2')+'</div><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">'+LaRuche.i18n.t('chat.suggestion3')+'</div><div class="suggested-prompt" onclick="LaRuche.Chat.useSuggestion(this)">'+LaRuche.i18n.t('chat.suggestion4')+'</div></div>';
     container.appendChild(welcome);
     document.getElementById('activityFeed').innerHTML='';
     resetFeed();
-    document.getElementById('planSection').innerHTML='<div class="plan-title">Plan</div>';
+    document.getElementById('planSection').innerHTML='<div class="plan-title">'+LaRuche.i18n.t('chat.plan')+'</div>';
     loadSessions();
     closeSidebarMobile();
   }
@@ -1440,7 +1466,7 @@ LaRuche.Chat = (function(){
     // Restore the feed backlog of the opened conversation (live-only otherwise lost). The
     // new steps (reattach) are added below via a new step.
     var _af1=document.getElementById('activityFeed'); if(_af1 && feedCache[id]) _af1.innerHTML = feedCache[id];
-    document.getElementById('planSection').innerHTML='<div class="plan-title">Plan</div>';
+    document.getElementById('planSection').innerHTML='<div class="plan-title">'+LaRuche.i18n.t('chat.plan')+'</div>';
     fetch('/api/sessions/'+id+'/messages').then(function(r){return r.ok?r.json():null;}).then(function(data){
       if(!data||!data.messages)return;
       var historyMedia=[];
@@ -1480,10 +1506,10 @@ LaRuche.Chat = (function(){
           if(txt.indexOf('<laruche-media>')!==-1){
             var declared=takeMediaDeclarations(txt);
             historyMedia=historyMedia.concat(declared.items);
-            txt=declared.text || (declared.items.length+' media added to the response.');
+            txt=declared.text || (declared.items.length+LaRuche.i18n.t('chat.mediaAjoutes'));
           }
           var ok=!/^\s*error[:\s]/i.test(txt);
-          addActivity(ok?'tool-ok':'tool-err', (msg.tool||'tool')+(ok?' OK':' ERR'), txt.substring(0,1200), true);
+          addActivity(ok?'tool-ok':'tool-err', (msg.tool||LaRuche.i18n.t('chat.toolFallback'))+(ok?LaRuche.i18n.t('chat.toolOk'):LaRuche.i18n.t('chat.toolErr')), txt.substring(0,1200), true);
         }
       });
       // Collapse everything except the last step, for a readable history.
@@ -1664,7 +1690,7 @@ LaRuche.Chat = (function(){
     var row=document.createElement('div'); row.className='approval-dialog';
     row.innerHTML='<div class="approval-icon">&#x26A0;</div><div class="approval-content"><div class="approval-title">'+LaRuche.i18n.t('chat.autorisationRequise')+'</div><div class="approval-detail">'+LaRuche.i18n.t('chat.agentVeutExecuter')+' <strong>'+LaRuche.Utils.esc(toolName)+'</strong></div><pre class="approval-args">'+LaRuche.Utils.esc(JSON.stringify(args,null,2))+'</pre><div class="approval-buttons"><button class="approval-btn approve" onclick="LaRuche.Chat.respondApproval(\''+toolCallId+'\',true,this)">'+LaRuche.i18n.t('chat.autoriser')+'</button><button class="approval-btn deny" onclick="LaRuche.Chat.respondApproval(\''+toolCallId+'\',false,this)">'+LaRuche.i18n.t('chat.refuser')+'</button></div></div>';
     container.appendChild(row); scrollToBottom();
-    addActivity('status','Approval','Waiting: '+toolName,false);
+    addActivity('status',LaRuche.i18n.t('chat.approval'),LaRuche.i18n.t('chat.approvalWaiting')+toolName,false);
   }
 
   function respondApproval(toolCallId, approved, btn) {
@@ -1676,7 +1702,7 @@ LaRuche.Chat = (function(){
       dialog.style.opacity='0';
       setTimeout(function(){ if(dialog.parentNode) dialog.parentNode.removeChild(dialog); }, 200);
     }
-    addActivity('status','Approval',(approved?'Allowed: ':'Denied: ')+toolCallId,false);
+    addActivity('status',LaRuche.i18n.t('chat.approval'),(approved?LaRuche.i18n.t('chat.approvalAllowed'):LaRuche.i18n.t('chat.approvalDenied'))+toolCallId,false);
   }
 
   function toggleSidebar() {
@@ -1712,7 +1738,7 @@ LaRuche.Chat = (function(){
   }
 
   function addPendingFile(file) {
-    if(file.size>5*1024*1024){LaRuche.Toast.show('File too large (max 5MB): '+file.name,'err');return;}
+    if(file.size>5*1024*1024){LaRuche.Toast.show(LaRuche.i18n.t('chat.fileTooLarge')+file.name,'err');return;}
     pendingFiles.push(file); renderAttachments();
   }
   function removePendingFile(idx) { pendingFiles.splice(idx,1); renderAttachments(); }
@@ -1858,7 +1884,7 @@ LaRuche.Voice = (function(){
     if(btn && btn.classList.contains('playing')){stopAllTts();btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> '+LaRuche.i18n.t('chat.lire')+'';return;}
     var cleanText=cleanTextForTTS(text);
     if(!cleanText)return;
-    if(btn){btn.classList.add('playing');btn.innerHTML='&#x23F9; Stop';}
+    if(btn){btn.classList.add('playing');btn.innerHTML='&#x23F9; '+LaRuche.i18n.t('chat.stopBtn');}
     try {
       var resp=await fetch(TTS_URL+'/synthesize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:cleanText})});
       if(!resp.ok){speakBrowser(cleanText,btn);return;}
@@ -1922,7 +1948,7 @@ LaRuche.Voice = (function(){
       document.getElementById('micBtn').classList.add('recording');
       var hw=document.getElementById('honeyWave'); if(hw) hw.style.display='flex';
       LaRuche.Console.log('info','Voice','Recording started');
-    } catch(e){LaRuche.Toast.show('Mic error: '+e.message,'err');}
+    } catch(e){LaRuche.Toast.show(LaRuche.i18n.t('chat.micError')+e.message,'err');}
   }
 
   function stopRecording() {
@@ -1979,7 +2005,7 @@ LaRuche.Voice = (function(){
     autoTtsEnabled=!autoTtsEnabled;
     var btn=document.getElementById('autoTtsToggle');
     btn.classList.toggle('active',autoTtsEnabled);
-    btn.title=autoTtsEnabled?'Auto-play enabled':'Auto-play disabled';
+    btn.title=autoTtsEnabled?LaRuche.i18n.t('chat.autoPlayEnabled'):LaRuche.i18n.t('chat.autoPlayDisabled');
   }
 
   function checkVoiceStatus() {
@@ -1987,10 +2013,10 @@ LaRuche.Voice = (function(){
       sttAvailable=data.stt&&data.stt.available;
       ttsAvailable=data.tts&&data.tts.available;
       var micBtn=document.getElementById('micBtn');
-      if(!sttAvailable){micBtn.style.opacity='0.3';micBtn.style.pointerEvents='none';micBtn.title='STT unavailable';}
+      if(!sttAvailable){micBtn.style.opacity='0.3';micBtn.style.pointerEvents='none';micBtn.title=LaRuche.i18n.t('chat.sttUnavailable');}
       else {micBtn.style.opacity='1';micBtn.style.pointerEvents='auto';micBtn.title=LaRuche.i18n.t('chat.micTitle');}
       var autoTtsBtn=document.getElementById('autoTtsToggle');
-      if(!ttsAvailable){autoTtsBtn.style.opacity='0.3';autoTtsBtn.title='TTS unavailable';}
+      if(!ttsAvailable){autoTtsBtn.style.opacity='0.3';autoTtsBtn.title=LaRuche.i18n.t('chat.ttsUnavailable');}
       else {autoTtsBtn.style.opacity='1';autoTtsBtn.title=LaRuche.i18n.t('chat.autoTtsTitle');}
     }).catch(function(){sttAvailable=false;ttsAvailable=false;});
   }
@@ -2012,8 +2038,8 @@ LaRuche.Voice = (function(){
       var stt = document.getElementById('sttSelect');
       if(!tts || !stt || !models) return;
       var currentTts = tts.value; var currentStt = stt.value;
-      tts.innerHTML = '<option value="">Auto (first detected)</option>';
-      stt.innerHTML = '<option value="">Auto (first detected)</option>';
+      tts.innerHTML = '<option value="">'+LaRuche.i18n.t('chat.autoFirstDetected')+'</option>';
+      stt.innerHTML = '<option value="">'+LaRuche.i18n.t('chat.autoFirstDetected')+'</option>';
       models.forEach(function(m){
         var cap=(m.capability||'llm').toLowerCase();
         if(cap==='tts') tts.innerHTML += '<option value="'+m.host+'|'+m.name+'">'+m.name+'</option>';

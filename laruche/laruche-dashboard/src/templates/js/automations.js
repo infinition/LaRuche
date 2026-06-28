@@ -70,7 +70,30 @@ LaRuche.i18n.add({
   'automations.jobsHeader':         {fr:'Jobs', en:'Jobs'},
   'automations.cadenceOpt':         {fr:'Cadence (optionnel)', en:'Schedule (optional)'},
   'automations.slugOpt':            {fr:'Slug (optionnel)', en:'Slug (optional)'},
+  'automations.badgeCron':          {fr:'Cron', en:'Cron'},
+  'automations.badgeMission':       {fr:'Mission', en:'Mission'},
+  'automations.runsSuffix':         {fr:' run(s)', en:' run(s)'},
+  'automations.watcherFallback':    {fr:'(vigie)', en:'(watcher)'},
+  'automations.monitorsSuffix':     {fr:' monitor(s)', en:' monitor(s)'},
+  'automations.nowBtn':             {fr:'Maintenant', en:'Now'},
+  'automations.providerLabel':      {fr:'Fournisseur', en:'Provider'},
+  'automations.missionsTitle':      {fr:'Missions', en:'Missions'},
+  'automations.dowMonday':          {fr:'Lundi', en:'Monday'},
+  'automations.dowTuesday':         {fr:'Mardi', en:'Tuesday'},
+  'automations.dowWednesday':       {fr:'Mercredi', en:'Wednesday'},
+  'automations.dowThursday':        {fr:'Jeudi', en:'Thursday'},
+  'automations.dowFriday':          {fr:'Vendredi', en:'Friday'},
+  'automations.dowSaturday':        {fr:'Samedi', en:'Saturday'},
+  'automations.dowSunday':          {fr:'Dimanche', en:'Sunday'},
+  'automations.watcherTypeFallback':{fr:'monitor', en:'monitor'},
+  'automations.homeTag':            {fr:' (accueil)', en:' (home)'},
 });
+
+// Translated weekday name from a cron day-of-week index (0=Sunday).
+LaRuche._dowName = function(i){
+  var keys=['automations.dowSunday','automations.dowMonday','automations.dowTuesday','automations.dowWednesday','automations.dowThursday','automations.dowFriday','automations.dowSaturday'];
+  return LaRuche.i18n.t(keys[((i%7)+7)%7]);
+};
 
 LaRuche.CronBuilder = (function(){
   var DOW = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -185,7 +208,7 @@ LaRuche.CronBuilder = (function(){
     instances[id] = { onChange: opts.onChange, expert: init.expert };
     function hopt(sel,n){ var o=''; for(var i=0;i<24;i++){ o+='<option value="'+i+'"'+(i===n?' selected':'')+'>'+('0'+i).slice(-2)+'</option>'; } return o; }
     function mopt(n){ var o=''; for(var i=0;i<60;i+=5){ o+='<option value="'+i+'"'+(i===n?' selected':'')+'>'+('0'+i).slice(-2)+'</option>'; } if(n%5){ o+='<option value="'+n+'" selected>'+('0'+n).slice(-2)+'</option>'; } return o; }
-    function dowopt(n){ var o=''; for(var i=1;i<=6;i++){ o+='<option value="'+i+'"'+(i===n?' selected':'')+'>'+DOW[i].charAt(0).toUpperCase()+DOW[i].slice(1)+'</option>'; } o+='<option value="0"'+(n===0?' selected':'')+'>'+LaRuche.i18n.t('automations.dimanche')+'</option>'; return o; }
+    function dowopt(n){ var o=''; for(var i=1;i<=6;i++){ o+='<option value="'+i+'"'+(i===n?' selected':'')+'>'+LaRuche._dowName(i)+'</option>'; } o+='<option value="0"'+(n===0?' selected':'')+'>'+LaRuche.i18n.t('automations.dimanche')+'</option>'; return o; }
     var pre=init.preset;
     function presetOpt(v,lbl){ return '<option value="'+v+'"'+(v===pre?' selected':'')+'>'+lbl+'</option>'; }
     var oc="LaRuche.CronBuilder.changed('"+id+"')";
@@ -284,7 +307,7 @@ LaRuche.Timeline = (function(){
     if(m.indexOf('/')===0 || m.indexOf('*/')===0){ var st=m.split('/')[1]; return LaRuche.i18n.t('automations.toutesLesMin').replace('{st}',st); }
     if(h==='*' && m!=='*'){ return LaRuche.i18n.t('automations.aLaMinute').replace('{m}',m); }
     if(dom==='*' && dow==='*' && mon==='*'){ var t=hhmm(); return t?LaRuche.i18n.t('automations.chaqueJourA').replace('{t}',t):LaRuche.i18n.t('automations.chaqueJourSans'); }
-    if(dow!=='*' && dom==='*'){ var t2=hhmm(); var days=dow.split(',').map(function(x){var n=parseInt(x,10);return isNaN(n)?x:DOW[n%7];}).join(', '); return t2?LaRuche.i18n.t('automations.chaqueDayAt').replace('{days}',days).replace('{t}',t2):LaRuche.i18n.t('automations.chaqueDaySans').replace('{days}',days); }
+    if(dow!=='*' && dom==='*'){ var t2=hhmm(); var days=dow.split(',').map(function(x){var n=parseInt(x,10);return isNaN(n)?x:LaRuche._dowName(n);}).join(', '); return t2?LaRuche.i18n.t('automations.chaqueDayAt').replace('{days}',days).replace('{t}',t2):LaRuche.i18n.t('automations.chaqueDaySans').replace('{days}',days); }
     if(dom!=='*'){ var t3=hhmm(); return t3?LaRuche.i18n.t('automations.leDuMoisAt').replace('{dom}',dom).replace('{t}',t3):LaRuche.i18n.t('automations.leDuMois').replace('{dom}',dom); }
     return expr;
   }
@@ -337,12 +360,12 @@ LaRuche.Timeline = (function(){
       '<div style="font-size:18px;width:24px;text-align:center">'+e.icon+'</div>'+
       '<div style="flex:1;min-width:0">'+
         '<div style="font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+LaRuche.Utils.esc(e.name)+
-          ' <span style="font-size:9px;border:1px solid '+e.color+';color:'+e.color+';padding:1px 5px;border-radius:8px;margin-left:6px">'+(e.kind==='cron'?'Cron':'Mission')+'</span></div>'+
+          ' <span style="font-size:9px;border:1px solid '+e.color+';color:'+e.color+';padding:1px 5px;border-radius:8px;margin-left:6px">'+(e.kind==='cron'?LaRuche.i18n.t('automations.badgeCron'):LaRuche.i18n.t('automations.badgeMission'))+'</span></div>'+
         '<div style="font-size:11px;color:var(--text-dim)">'+LaRuche.Utils.esc(e.human)+(e.expr?(' · <code style="color:var(--text-dim)">'+LaRuche.Utils.esc(e.expr)+'</code>'):'')+
           LaRuche.i18n.t('automations.dernierLabel')+(e.last?LaRuche.Utils.esc(String(e.last).substring(0,16).replace('T',' ')):LaRuche.i18n.t('automations.jamais'))+'</div>'+
       '</div>'+
       '<div style="text-align:right;white-space:nowrap"><div style="font-weight:600;color:'+e.color+';font-size:12px">'+fmtWhen(e.next)+'</div>'+
-        '<div style="font-size:10px;color:var(--text-dim)">'+(e.runs||0)+' run(s)'+(e.status?(' · '+LaRuche.Utils.esc(e.status)):'')+'</div></div>'+
+        '<div style="font-size:10px;color:var(--text-dim)">'+(e.runs||0)+LaRuche.i18n.t('automations.runsSuffix')+(e.status?(' · '+LaRuche.Utils.esc(e.status)):'')+'</div></div>'+
       '</div>';
   }
 
@@ -463,8 +486,8 @@ LaRuche.Timeline = (function(){
 
     // Continuous monitoring lane (watchers)
     if((data.watchers||[]).length){
-      var wnames = (data.watchers||[]).map(function(w){ return w.name||'(watcher)'; }).join(', ');
-      rows += '<div class="gantt-row sect"><div class="gantt-gutter"><div class="gn">👁 '+LaRuche.i18n.t('automations.surveillanceCont')+'</div><div class="gs">'+(data.watchers||[]).length+' monitor(s)</div></div>'+
+      var wnames = (data.watchers||[]).map(function(w){ return w.name||LaRuche.i18n.t('automations.watcherFallback'); }).join(', ');
+      rows += '<div class="gantt-row sect"><div class="gantt-gutter"><div class="gn">👁 '+LaRuche.i18n.t('automations.surveillanceCont')+'</div><div class="gs">'+(data.watchers||[]).length+LaRuche.i18n.t('automations.monitorsSuffix')+'</div></div>'+
         '<div class="gantt-lane" style="width:'+graphW+'px;display:flex;align-items:center"><div style="position:relative;width:100%">'+ticks+nowLine+
           '<div style="position:absolute;top:50%;left:0;right:8px;height:4px;transform:translateY(-50%);background:linear-gradient(90deg,rgba(6,182,212,.15),rgba(6,182,212,.5));border-radius:3px"></div>'+
           '<div style="position:absolute;top:50%;left:8px;transform:translateY(-50%);font-size:10px;color:var(--cyan);white-space:nowrap;text-shadow:0 0 4px #000">'+LaRuche.Utils.esc(wnames.substring(0,80))+'</div>'+
@@ -476,7 +499,7 @@ LaRuche.Timeline = (function(){
       viewToggleHtml()+
       '<span style="margin-left:8px;color:var(--text-dim);font-size:11px">'+LaRuche.i18n.t('automations.zoomLabel')+'</span>'+
       zoomBtn(24,'24h')+zoomBtn(48,'48h')+zoomBtn(168,'7j')+
-      '<button class="tl-btn" onclick="LaRuche.Timeline.ganttRecenter()">⊙ Now</button>'+
+      '<button class="tl-btn" onclick="LaRuche.Timeline.ganttRecenter()">⊙ '+LaRuche.i18n.t('automations.nowBtn')+'</button>'+
       '<button class="tl-btn" onclick="LaRuche.Timeline.reload()">↻ '+LaRuche.i18n.t('automations.rafraichir')+'</button>'+
       '</div>';
 
@@ -553,8 +576,8 @@ LaRuche.Timeline = (function(){
     var watcherRows = (data.watchers||[]).map(function(w){
       return '<div style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-panel);margin-bottom:8px">'+
         '<div style="font-size:18px;width:24px;text-align:center">👁</div>'+
-        '<div style="flex:1;min-width:0"><div style="font-weight:600;color:#fff">'+LaRuche.Utils.esc(w.name||'(watcher)')+
-          ' <span style="font-size:9px;border:1px solid var(--cyan);color:var(--cyan);padding:1px 5px;border-radius:8px;margin-left:6px">'+LaRuche.Utils.esc(w.watcher_type||'monitor')+'</span></div>'+
+        '<div style="flex:1;min-width:0"><div style="font-weight:600;color:#fff">'+LaRuche.Utils.esc(w.name||LaRuche.i18n.t('automations.watcherFallback'))+
+          ' <span style="font-size:9px;border:1px solid var(--cyan);color:var(--cyan);padding:1px 5px;border-radius:8px;margin-left:6px">'+LaRuche.Utils.esc(w.watcher_type||LaRuche.i18n.t('automations.watcherTypeFallback'))+'</span></div>'+
           '<div style="font-size:11px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+LaRuche.i18n.t('automations.cibleLabel')+LaRuche.Utils.esc(w.target||'')+'</div></div>'+
         '<div style="text-align:right"><div style="font-size:11px;color:var(--green)">'+LaRuche.i18n.t('automations.surveillance')+'</div><div style="font-size:10px;color:var(--text-dim)">'+(w.run_count||0)+LaRuche.i18n.t('automations.decl')+'</div></div>'+
         '</div>';
@@ -609,7 +632,7 @@ LaRuche.Automations = (function(){
     fetch('/api/channels/known').then(function(r){return r.json();}).then(function(d){
       var list=(d&&d.channels)||[]; var home=(d&&d.home)||'';
       list.forEach(function(c){
-        var tag = (c===home) ? ' (home)' : '';
+        var tag = (c===home) ? LaRuche.i18n.t('automations.homeTag') : '';
         sel.innerHTML += '<option value="'+LaRuche.Utils.esc(c)+'">'+LaRuche.Utils.esc(c)+tag+'</option>';
       });
       if(current!=null) sel.value = current;
@@ -626,14 +649,14 @@ LaRuche.Automations = (function(){
     el.innerHTML = '<div class="mis-layout">'+
       '<div class="mis-side">'+
         '<div class="mis-side-hdr">'+
-          '<span class="mis-title"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> Missions</span>'+
+          '<span class="mis-title"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg> '+LaRuche.i18n.t('automations.missionsTitle')+'</span>'+
           '<button class="mem2-tbtn" onclick="LaRuche.Missions.refresh()" title="'+LaRuche.i18n.t('automations.rafraichirTitle')+'">&#x21BB;</button>'+
         '</div>'+
         '<div class="mis-create">'+
           '<textarea id="misObjective" placeholder="'+LaRuche.i18n.t('automations.objectifPlaceholder')+'"></textarea>'+
           '<label style="font-size:10px;color:var(--text-dim);margin-top:4px">'+LaRuche.i18n.t('automations.cadenceOpt')+'</label>'+
           '<div id="misCadenceBuilder"></div>'+
-          '<label style="font-size:10px;color:var(--text-dim);margin-top:4px">Provider</label>'+
+          '<label style="font-size:10px;color:var(--text-dim);margin-top:4px">'+LaRuche.i18n.t('automations.providerLabel')+'</label>'+
           '<select id="misProvider" class="form-input"><option value="">'+LaRuche.i18n.t('automations.defautModele')+'</option></select>'+
           '<label style="font-size:10px;color:var(--text-dim);margin-top:4px">'+LaRuche.i18n.t('automations.canalLabel')+'</label>'+
           '<select id="misChannel" class="form-input"><option value="">'+LaRuche.i18n.t('automations.aucunTravailFond2')+'</option></select>'+

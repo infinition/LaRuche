@@ -37,7 +37,11 @@ LaRuche.i18n.add({
   'missions.updated':          { fr: 'Mission mise a jour',                                                en: 'Mission updated' },
   'missions.saveErr':          { fr: 'Enregistrement: ',                                                   en: 'Save: ' },
   'missions.exported':         { fr: 'Dossier exporte',                                                    en: 'Dossier exported' },
-  'missions.exportErr':        { fr: 'Export: ',                                                           en: 'Export: ' }
+  'missions.exportErr':        { fr: 'Export: ',                                                           en: 'Export: ' },
+  'missions.cadenceCron':      { fr: 'cadence cron',                                                       en: 'cadence cron' },
+  'missions.iterSuffix':       { fr: ' iter.',                                                             en: ' iter.' },
+  'missions.iterPrefix':       { fr: 'Iteration ',                                                         en: 'Iteration ' },
+  'missions.runErr':           { fr: 'Lancement: ',                                                        en: 'Run: ' }
 });
 
 LaRuche.Missions = (function(){
@@ -73,12 +77,12 @@ LaRuche.Missions = (function(){
     if(!list.length){ el.innerHTML = '<div class="mem2-empty">'+LaRuche.i18n.t('missions.empty')+'</div>'; return; }
     el.innerHTML = list.map(function(m){
       var status = m.status || 'active';
-      var cad = m.cadence ? ('<span title="cadence cron">&#x23F1; '+esc(m.cadence)+'</span>') : '<span>'+LaRuche.i18n.t('missions.manual')+'</span>';
+      var cad = m.cadence ? ('<span title="'+LaRuche.i18n.t('missions.cadenceCron')+'">&#x23F1; '+esc(m.cadence)+'</span>') : '<span>'+LaRuche.i18n.t('missions.manual')+'</span>';
       return '<div class="mis-card'+(current===m.slug?' active':'')+'" data-slug="'+esc(m.slug)+'">'+
         '<div class="mis-card-obj">'+esc(m.objective || m.slug)+'</div>'+
         '<div class="mis-card-meta">'+
           '<span class="mis-badge '+esc(status)+'">'+esc(status)+'</span>'+
-          '<span>&#x21BB; '+(m.iterations!=null?m.iterations:0)+' iter.</span>'+
+          '<span>&#x21BB; '+(m.iterations!=null?m.iterations:0)+LaRuche.i18n.t('missions.iterSuffix')+'</span>'+
           cad+
           '<span>'+LaRuche.i18n.t('missions.lastRun')+esc(fmtDate(m.last_run))+'</span>'+
         '</div>'+
@@ -154,9 +158,9 @@ LaRuche.Missions = (function(){
     fetch(LaRuche.API.base+'/api/missions/'+encodeURIComponent(slug)+'/run', {method:'POST'})
       .then(function(r){return r.json();}).then(function(d){
         if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
-        LaRuche.Toast.show('Iteration '+(d.iteration!=null?'#'+d.iteration+' ':'')+LaRuche.i18n.t('missions.iterLaunched'),'ok');
+        LaRuche.Toast.show(LaRuche.i18n.t('missions.iterPrefix')+(d.iteration!=null?'#'+d.iteration+' ':'')+LaRuche.i18n.t('missions.iterLaunched'),'ok');
         setTimeout(refresh, 1200);
-      }).catch(function(e){ LaRuche.Toast.show('Run: '+e,'err'); });
+      }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('missions.runErr')+e,'err'); });
   }
 
   function setStatus(slug, status) {

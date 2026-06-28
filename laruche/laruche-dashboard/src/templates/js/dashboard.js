@@ -32,6 +32,41 @@ LaRuche.i18n.add({
   'dashboard.blueprintSuccess':      {fr:'Blueprint instancié avec succès', en:'Blueprint instantiated successfully'},
   'dashboard.blueprintError':        {fr:"Erreur d'instanciation",         en:'Instantiation error'},
   'dashboard.remoteBadge':           {fr:'🐝 {name} · distant',            en:'🐝 {name} · remote'},
+  'dashboard.noDetailedMetrics':     {fr:'Aucune métrique détaillée',     en:'No detailed metrics'},
+  'dashboard.speedupWithNodes':      {fr:'{x}x avec {n} nœuds',           en:'{x}x with {n} nodes'},
+  'dashboard.shardAttention':        {fr:'Attention',                     en:'Attention'},
+  'dashboard.shardFFN':              {fr:'FFN',                           en:'FFN'},
+  'dashboard.shardEmbedding':        {fr:'Embedding',                     en:'Embedding'},
+  'dashboard.shardOutput':           {fr:'Sortie',                        en:'Output'},
+  'dashboard.unknownNode':           {fr:'Inconnu',                       en:'Unknown'},
+  'dashboard.nodeLabel':             {fr:'Nœud {n}',                      en:'Node {n}'},
+  'dashboard.popoverTokens':         {fr:'{n} tokens',                    en:'{n} tokens'},
+  'dashboard.popoverEmpty':          {fr:'(vide)',                        en:'(empty)'},
+  'dashboard.popoverPrompt':         {fr:'PROMPT',                        en:'PROMPT'},
+  'dashboard.popoverResponse':       {fr:'RÉPONSE',                       en:'RESPONSE'},
+  'dashboard.swarmPillText':         {fr:'Essaim : {n} nœuds · {x}x',     en:'Swarm: {n} nodes · {x}x'},
+  'dashboard.swarmBadge':            {fr:'{n} nœud{s}',                   en:'{n} node{s}'},
+  'dashboard.defaultModelSet':       {fr:'Modèle {cap} par défaut : {name}', en:'Default {cap} model: {name}'},
+  'dashboard.defaultModelLog':       {fr:'{cap} par défaut défini sur {name}', en:'Default {cap} set to {name}'},
+  'dashboard.inferError':            {fr:'Erreur {status}',               en:'Error {status}'},
+  'dashboard.inferFailedHttp':       {fr:'Échec : HTTP {status}',         en:'Failed: HTTP {status}'},
+  'dashboard.inferResponseIn':       {fr:'Réponse en {s}s{via}',          en:'Response in {s}s{via}'},
+  'dashboard.inferVia':              {fr:' via {model}',                  en:' via {model}'},
+  'dashboard.inferNetworkError':     {fr:'Erreur réseau : {msg}',         en:'Network error: {msg}'},
+  'dashboard.inferErrorMsg':         {fr:'Erreur : {msg}',                en:'Error: {msg}'},
+  'dashboard.send':                  {fr:'Envoyer',                       en:'Send'},
+  'dashboard.metricCpu':             {fr:'CPU %',                         en:'CPU %'},
+  'dashboard.metricRam':             {fr:'RAM %',                         en:'RAM %'},
+  'dashboard.metricGpu':             {fr:'GPU %',                         en:'GPU %'},
+  'dashboard.metricVram':            {fr:'VRAM %',                        en:'VRAM %'},
+  'dashboard.metricTps':             {fr:'Tokens/s',                      en:'Tokens/s'},
+  'dashboard.metricQueue':           {fr:'File',                          en:'Queue'},
+  'dashboard.detailRamTotal':        {fr:'RAM totale',                    en:'RAM Total'},
+  'dashboard.detailVramTotal':       {fr:'VRAM totale',                   en:'VRAM Total'},
+  'dashboard.detailTokensPerSec':    {fr:'Tokens/sec',                    en:'Tokens/sec'},
+  'dashboard.detailQueue':           {fr:'File',                          en:'Queue'},
+  'dashboard.detailTemp':            {fr:'Temp',                          en:'Temp'},
+  'dashboard.zeroSources':           {fr:'0 source',                      en:'0 sources'},
 });
 
 LaRuche.Dashboard = (function(){
@@ -77,7 +112,7 @@ LaRuche.Dashboard = (function(){
 
   var CHART_COLORS = {cpu:{line:'#22c55e',fill:'rgba(34,197,94,.10)'},ram:{line:'#f59e0b',fill:'rgba(245,158,11,.10)'},tps:{line:'#fbbf24',fill:'rgba(251,191,36,.10)'},queue:{line:'#a855f7',fill:'rgba(168,85,247,.10)'},gpu:{line:'#c084fc',fill:'rgba(192,132,252,.10)'},vram:{line:'#e879f9',fill:'rgba(232,121,249,.10)'}};
   var METRIC_KEYS = ['cpu','ram','gpu','vram','tps','queue'];
-  var METRIC_LABELS = {cpu:'CPU %',ram:'RAM %',gpu:'GPU %',vram:'VRAM %',tps:'Tokens/s',queue:'Queue'};
+  var METRIC_LABELS = {cpu:LaRuche.i18n.t('dashboard.metricCpu'),ram:LaRuche.i18n.t('dashboard.metricRam'),gpu:LaRuche.i18n.t('dashboard.metricGpu'),vram:LaRuche.i18n.t('dashboard.metricVram'),tps:LaRuche.i18n.t('dashboard.metricTps'),queue:LaRuche.i18n.t('dashboard.metricQueue')};
   var METRIC_FIELDS = {cpu:'cpu_pct',ram:'ram_pct',gpu:'gpu_pct',vram:'vram_pct',tps:'tokens_per_sec',queue:'queue_depth'};
 
   function esc(s){return LaRuche.Utils.esc(s);}
@@ -106,15 +141,15 @@ LaRuche.Dashboard = (function(){
     var html='';
     if(n.cpu_usage_pct!=null){var cpuPct=clamp(n.cpu_usage_pct,0,100);var cpuFill=cpuPct>80?'fill-red':cpuPct>50?'fill-amber':'fill-green';html+='<div class="n-detail-row"><span class="n-detail-label">CPU</span><div class="n-detail-track"><div class="n-detail-fill '+cpuFill+'" style="width:'+cpuPct+'%"></div></div><span class="n-detail-val">'+cpuPct.toFixed(0)+'%</span></div>';}
     if(n.memory_usage_pct!=null){var memPct=clamp(n.memory_usage_pct,0,100);var memFill=memPct>80?'fill-red':memPct>50?'fill-amber':'fill-green';var memLabel=n.memory_used_mb?fmtMB(n.memory_used_mb)+'/'+fmtMB(n.memory_total_mb):memPct.toFixed(0)+'%';html+='<div class="n-detail-row"><span class="n-detail-label">RAM</span><div class="n-detail-track"><div class="n-detail-fill '+memFill+'" style="width:'+memPct+'%"></div></div><span class="n-detail-val">'+esc(memLabel)+'</span></div>';}
-    else if(n.memory_total_mb!=null){html+='<div class="n-detail-stat"><span class="n-detail-stat-label">RAM Total</span><span class="n-detail-stat-val">'+fmtMB(n.memory_total_mb)+'</span></div>';}
+    else if(n.memory_total_mb!=null){html+='<div class="n-detail-stat"><span class="n-detail-stat-label">'+LaRuche.i18n.t('dashboard.detailRamTotal')+'</span><span class="n-detail-stat-val">'+fmtMB(n.memory_total_mb)+'</span></div>';}
     if(n.vram_usage_pct!=null){var vramPct=clamp(n.vram_usage_pct,0,100);var vramFill=vramPct>80?'fill-red':vramPct>50?'fill-amber':'fill-purple';var vramLabel=n.vram_used_mb?fmtMB(n.vram_used_mb)+'/'+fmtMB(n.vram_total_mb):vramPct.toFixed(0)+'%';html+='<div class="n-detail-row"><span class="n-detail-label">VRAM</span><div class="n-detail-track"><div class="n-detail-fill '+vramFill+'" style="width:'+vramPct+'%"></div></div><span class="n-detail-val">'+esc(vramLabel)+'</span></div>';}
-    else if(n.vram_total_mb!=null&&n.vram_total_mb>0){html+='<div class="n-detail-stat"><span class="n-detail-stat-label">VRAM Total</span><span class="n-detail-stat-val">'+fmtMB(n.vram_total_mb)+'</span></div>';}
-    if(n.temperature_c!=null){var temp=n.temperature_c;var tFill=tempColor(temp);var tPct=clamp((temp/100)*100,0,100);html+='<div class="n-detail-row"><span class="n-detail-label">Temp</span><div class="n-detail-track"><div class="n-detail-fill '+tFill+'" style="width:'+tPct+'%"></div></div><span class="n-detail-val">'+temp.toFixed(0)+'&deg;C</span></div>';}
+    else if(n.vram_total_mb!=null&&n.vram_total_mb>0){html+='<div class="n-detail-stat"><span class="n-detail-stat-label">'+LaRuche.i18n.t('dashboard.detailVramTotal')+'</span><span class="n-detail-stat-val">'+fmtMB(n.vram_total_mb)+'</span></div>';}
+    if(n.temperature_c!=null){var temp=n.temperature_c;var tFill=tempColor(temp);var tPct=clamp((temp/100)*100,0,100);html+='<div class="n-detail-row"><span class="n-detail-label">'+LaRuche.i18n.t('dashboard.detailTemp')+'</span><div class="n-detail-track"><div class="n-detail-fill '+tFill+'" style="width:'+tPct+'%"></div></div><span class="n-detail-val">'+temp.toFixed(0)+'&deg;C</span></div>';}
     else if(n.gpu_temperature_c!=null){var gTemp=n.gpu_temperature_c;var gtFill=tempColor(gTemp);var gtPct=clamp((gTemp/100)*100,0,100);html+='<div class="n-detail-row"><span class="n-detail-label">GPU</span><div class="n-detail-track"><div class="n-detail-fill '+gtFill+'" style="width:'+gtPct+'%"></div></div><span class="n-detail-val">'+gTemp.toFixed(0)+'&deg;C</span></div>';}
     var tps=n.tokens_per_sec?n.tokens_per_sec.toFixed(1):'0.0';
-    html+='<div class="n-detail-stat"><span class="n-detail-stat-label">Tokens/sec</span><span class="n-detail-stat-val">'+tps+' t/s</span></div>';
-    html+='<div class="n-detail-stat"><span class="n-detail-stat-label">Queue</span><span class="n-detail-stat-val">'+(n.queue_depth||0)+'</span></div>';
-    if(!html)html='<div style="font-size:9px;color:var(--text-dim);padding:2px 0">No detailed metrics</div>';
+    html+='<div class="n-detail-stat"><span class="n-detail-stat-label">'+LaRuche.i18n.t('dashboard.detailTokensPerSec')+'</span><span class="n-detail-stat-val">'+tps+' t/s</span></div>';
+    html+='<div class="n-detail-stat"><span class="n-detail-stat-label">'+LaRuche.i18n.t('dashboard.detailQueue')+'</span><span class="n-detail-stat-val">'+(n.queue_depth||0)+'</span></div>';
+    if(!html)html='<div style="font-size:9px;color:var(--text-dim);padding:2px 0">'+LaRuche.i18n.t('dashboard.noDetailedMetrics')+'</div>';
     return html;
   }
 
@@ -123,11 +158,11 @@ LaRuche.Dashboard = (function(){
     if(nodes.length<2){section.classList.remove('active');return;}
     section.classList.add('active');
     var speedup=estimateSpeedup(nodes);
-    document.getElementById('shard-speedup').textContent=speedup.toFixed(1)+'x with '+nodes.length+' nodes';
+    document.getElementById('shard-speedup').textContent=LaRuche.i18n.t('dashboard.speedupWithNodes',{x:speedup.toFixed(1),n:nodes.length});
     var nodeWeights=[],totalWeight=0;
     for(var i=0;i<nodes.length;i++){var w=nodes[i].vram_total_mb||nodes[i].memory_total_mb||1024;nodeWeights.push(w);totalWeight+=w;}
     var nodePcts=nodeWeights.map(function(w){return(w/totalWeight)*100;});
-    var layerGroups=['Attention','FFN','Embedding','Output'];
+    var layerGroups=[LaRuche.i18n.t('dashboard.shardAttention'),LaRuche.i18n.t('dashboard.shardFFN'),LaRuche.i18n.t('dashboard.shardEmbedding'),LaRuche.i18n.t('dashboard.shardOutput')];
     var layersEl=document.getElementById('shard-layers');layersEl.innerHTML='';
     for(var g=0;g<layerGroups.length;g++){
       var row=document.createElement('div');row.className='shard-layer-row';
@@ -137,7 +172,7 @@ LaRuche.Dashboard = (function(){
       layersEl.appendChild(row);
     }
     var legendEl=document.getElementById('shard-legend');legendEl.innerHTML='';
-    for(var k=0;k<nodes.length;k++){var color=NODE_COLORS[k%NODE_COLORS.length];var name=nodes[k].name||('Node '+(k+1));legendEl.innerHTML+='<div class="shard-legend-item"><div class="shard-legend-dot" style="background:'+color+'"></div>'+esc(name)+' ('+nodePcts[k].toFixed(0)+'%)</div>';}
+    for(var k=0;k<nodes.length;k++){var color=NODE_COLORS[k%NODE_COLORS.length];var name=nodes[k].name||LaRuche.i18n.t('dashboard.nodeLabel',{n:(k+1)});legendEl.innerHTML+='<div class="shard-legend-item"><div class="shard-legend-dot" style="background:'+color+'"></div>'+esc(name)+' ('+nodePcts[k].toFixed(0)+'%)</div>';}
   }
 
   /* Log */
@@ -173,7 +208,7 @@ LaRuche.Dashboard = (function(){
   function showInferPopover(anchorEl,detail){
     hideInferPopover();
     var pop=document.createElement('div');pop.className='log-popover';
-    pop.innerHTML='<div class="log-popover-hdr"><div class="pop-meta">'+(detail.model_used?'<span class="pop-model">'+esc(detail.model_used)+'</span>':'')+(detail.tokens_generated?'<span class="pop-tok">'+detail.tokens_generated+' tokens</span>':'')+(detail.latency_ms?'<span>'+detail.latency_ms+'ms</span>':'')+'</div><button class="log-popover-close">&times;</button></div><div class="log-popover-body"><div class="log-popover-section"><div class="pop-label">PROMPT</div><div class="pop-content">'+esc(detail.full_prompt||'')+'</div></div><div class="log-popover-section"><div class="pop-label">RESPONSE</div><div class="pop-content">'+esc(detail.full_response||'(empty)')+'</div></div></div>';
+    pop.innerHTML='<div class="log-popover-hdr"><div class="pop-meta">'+(detail.model_used?'<span class="pop-model">'+esc(detail.model_used)+'</span>':'')+(detail.tokens_generated?'<span class="pop-tok">'+LaRuche.i18n.t('dashboard.popoverTokens',{n:detail.tokens_generated})+'</span>':'')+(detail.latency_ms?'<span>'+detail.latency_ms+'ms</span>':'')+'</div><button class="log-popover-close">&times;</button></div><div class="log-popover-body"><div class="log-popover-section"><div class="pop-label">'+LaRuche.i18n.t('dashboard.popoverPrompt')+'</div><div class="pop-content">'+esc(detail.full_prompt||'')+'</div></div><div class="log-popover-section"><div class="pop-label">'+LaRuche.i18n.t('dashboard.popoverResponse')+'</div><div class="pop-content">'+esc(detail.full_response||LaRuche.i18n.t('dashboard.popoverEmpty'))+'</div></div></div>';
     document.body.appendChild(pop);activePopover=pop;
     var rect=anchorEl.getBoundingClientRect();var popH=300,popW=Math.min(520,window.innerWidth*0.9);
     var top=rect.bottom+4;if(top+popH>window.innerHeight)top=rect.top-popH-4;if(top<4)top=4;
@@ -202,9 +237,9 @@ LaRuche.Dashboard = (function(){
       document.getElementById('s-vram').textContent=d.total_vram_mb>0?fmtMB(d.total_vram_mb):'\u2014';
       document.getElementById('s-tps').textContent=d.collective_tps.toFixed(1)+' t/s';
       document.getElementById('s-queue').textContent=d.collective_queue;
-      document.getElementById('swarm-badge').textContent=stableCount+' node'+(stableCount>1?'s':'');
+      document.getElementById('swarm-badge').textContent=LaRuche.i18n.t('dashboard.swarmBadge',{n:stableCount,s:(stableCount>1?'s':'')});
       var pillSwarm=document.getElementById('pill-swarm');
-      if(stableCount>1){var speedup=estimateSpeedup(stableNodeList);document.getElementById('pill-swarm-text').textContent='Swarm: '+stableCount+' nodes \u00B7 '+speedup.toFixed(1)+'x';pillSwarm.classList.add('active');}
+      if(stableCount>1){var speedup=estimateSpeedup(stableNodeList);document.getElementById('pill-swarm-text').textContent=LaRuche.i18n.t('dashboard.swarmPillText',{n:stableCount,x:speedup.toFixed(1)});pillSwarm.classList.add('active');}
       else pillSwarm.classList.remove('active');
       if(!connected){connected=true;LaRuche.Toast.show(LaRuche.i18n.t('dashboard.swarmConnected',{n:stableCount}),'ok');addLog('NET','log-ok',LaRuche.i18n.t('dashboard.connectionEstablished'));lastNodeCount=stableCount;}
       if(lastNodeCount>=0&&stableCount!==lastNodeCount){
@@ -222,12 +257,12 @@ LaRuche.Dashboard = (function(){
         var tps=n.tokens_per_sec?n.tokens_per_sec.toFixed(1):'0.0';var q=n.queue_depth||0;
         var normalizedCaps=[];(n.capabilities||[]).forEach(function(c){var cc=LaRuche.Utils.normalizeCap(c);if(cc&&normalizedCaps.indexOf(cc)===-1)normalizedCaps.push(cc);});
         var caps=normalizedCaps.map(function(c){return'<span class="badge '+capBadge(c)+'">'+esc(c)+'</span>';}).join('');
-        if(!caps)caps='<span class="badge b-rag">none</span>';
+        if(!caps)caps='<span class="badge b-rag">'+LaRuche.i18n.t('common.none')+'</span>';
         var modelHtml=n.model?'<div class="n-model">\u25C8 '+esc(n.model)+'</div>':'';
         var hostLabel=n.host+((n.port&&n.port!==8419)?(':'+n.port):'');
         var isExpanded=expandedNodes.has(nodeId);
         var item=document.createElement('div');item.className='n-item'+(isExpanded?' expanded':'');item.setAttribute('data-node-id',nodeId);
-        item.innerHTML='<div class="n-item-row" onclick="LaRuche.Dashboard.toggleNodeExpand(\''+esc(nodeId.replace(/'/g,"\\'"))+'\')">'+'<span class="expand-icon">\u25B6</span><div class="n-hex '+(q>3?'busy':'ok')+'"></div><div class="n-info"><div class="n-name">'+esc(n.name||'Unknown')+'</div>'+modelHtml+'<div class="n-meta">'+esc(hostLabel)+' \u00B7 '+tps+' t/s \u00B7 Q:'+q+'</div></div><div class="n-right"><div class="badges">'+caps+'</div></div></div><div class="n-detail">'+buildNodeDetail(n)+'</div>';
+        item.innerHTML='<div class="n-item-row" onclick="LaRuche.Dashboard.toggleNodeExpand(\''+esc(nodeId.replace(/'/g,"\\'"))+'\')">'+'<span class="expand-icon">\u25B6</span><div class="n-hex '+(q>3?'busy':'ok')+'"></div><div class="n-info"><div class="n-name">'+esc(n.name||LaRuche.i18n.t('dashboard.unknownNode'))+'</div>'+modelHtml+'<div class="n-meta">'+esc(hostLabel)+' \u00B7 '+tps+' t/s \u00B7 Q:'+q+'</div></div><div class="n-right"><div class="badges">'+caps+'</div></div></div><div class="n-detail">'+buildNodeDetail(n)+'</div>';
         list.appendChild(item);
       }
       renderSharding(stableNodeList);
@@ -332,7 +367,7 @@ LaRuche.Dashboard = (function(){
       
       if(!d.models||d.models.length===0){
         list.innerHTML='<div style="font-size:10px;color:var(--text-dim);text-align:center;padding:8px">'+LaRuche.i18n.t('dashboard.noService')+'</div>';
-        document.getElementById('model-badge').textContent='0 sources';
+        document.getElementById('model-badge').textContent=LaRuche.i18n.t('dashboard.zeroSources');
         return;
       }
       
@@ -437,7 +472,7 @@ LaRuche.Dashboard = (function(){
 
   function setPreferredModel(name,capability){
     capability=capability||'llm';preferredModels[capability]=name;localStorage.setItem('laruche_preferred_models',JSON.stringify(preferredModels));
-    LaRuche.Toast.show('Default '+capability+' model: '+name,'ok');addLog('MODEL','log-ok','Default '+capability+' set to '+name);fetchModels();
+    LaRuche.Toast.show(LaRuche.i18n.t('dashboard.defaultModelSet',{cap:capability,name:name}),'ok');addLog('MODEL','log-ok',LaRuche.i18n.t('dashboard.defaultModelLog',{cap:capability,name:name}));fetchModels();
     fetch('/config/default_model',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:name,capability:capability})}).catch(function(){});
   }
   function moveModelPriority(name,dir){
@@ -466,16 +501,16 @@ LaRuche.Dashboard = (function(){
       var payload={prompt:prompt,capability:'llm'};if(preferredModels['llm'])payload.model=preferredModels['llm'];
       var r=await fetch(LaRuche.API.base+'/infer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       var elapsed=performance.now()-t0;
-      if(!r.ok){result.textContent='Error '+r.status;result.style.color='var(--red)';addLog('INFER','log-err','Failed: HTTP '+r.status);return;}
+      if(!r.ok){result.textContent=LaRuche.i18n.t('dashboard.inferError',{status:r.status});result.style.color='var(--red)';addLog('INFER','log-err',LaRuche.i18n.t('dashboard.inferFailedHttp',{status:r.status}));return;}
       var d=await r.json();var response=d.response||d.text||d.content||d.message||JSON.stringify(d);
       result.textContent=response;result.style.color='var(--text-mid)';
       document.getElementById('infer-latency').textContent='\u23F1 '+(elapsed/1000).toFixed(2)+'s';
       if(d.tokens_generated||d.eval_count){var tokCount=d.tokens_generated||d.eval_count;var tokRate=d.tokens_per_sec||d.eval_rate||(tokCount/(elapsed/1000));document.getElementById('infer-tokens').textContent=tokCount+' tok @ '+tokRate.toFixed(1)+' t/s';}else document.getElementById('infer-tokens').textContent='';
       if(d.model)document.getElementById('infer-model').textContent='\u25C8 '+d.model;else document.getElementById('infer-model').textContent='';
       document.getElementById('infer-meta').classList.add('active');
-      addLog('INFER','log-ok','Response in '+(elapsed/1000).toFixed(2)+'s'+(d.model?' via '+d.model:''));
-    } catch(e){result.textContent='Network error: '+e.message;result.style.color='var(--red)';addLog('INFER','log-err','Error: '+e.message);}
-    finally{inferRunning=false;btn.disabled=false;btn.classList.remove('running');btn.textContent='Send';}
+      addLog('INFER','log-ok',LaRuche.i18n.t('dashboard.inferResponseIn',{s:(elapsed/1000).toFixed(2),via:(d.model?LaRuche.i18n.t('dashboard.inferVia',{model:d.model}):'')}));
+    } catch(e){result.textContent=LaRuche.i18n.t('dashboard.inferNetworkError',{msg:e.message});result.style.color='var(--red)';addLog('INFER','log-err',LaRuche.i18n.t('dashboard.inferErrorMsg',{msg:e.message}));}
+    finally{inferRunning=false;btn.disabled=false;btn.classList.remove('running');btn.textContent=LaRuche.i18n.t('dashboard.send');}
   }
 
   /* Chart rendering */

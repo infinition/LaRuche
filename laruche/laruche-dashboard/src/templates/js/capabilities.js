@@ -65,7 +65,17 @@ LaRuche.i18n.add({
   'capabilities.messagePlaceholder': { fr:'Message…',    en:'Message…' },
   'capabilities.send':          { fr:'Envoyer',           en:'Send' },
   'capabilities.youPrefix':     { fr:'Vous: ',            en:'You: ' },
-  'capabilities.editingOf':     { fr:'Edition de ',       en:'Editing ' }
+  'capabilities.editingOf':     { fr:'Edition de ',       en:'Editing ' },
+  'capabilities.statusOn':      { fr:'ON',                en:'ON' },
+  'capabilities.statusOff':     { fr:'OFF',               en:'OFF' },
+  'capabilities.essaim':        { fr:'Essaim',            en:'Essaim' },
+  'capabilities.typeTool':      { fr:'Tool',              en:'Tool' },
+  'capabilities.typeSkill':     { fr:'Skill',             en:'Skill' },
+  'capabilities.typeMcp':       { fr:'MCP',               en:'MCP' },
+  'capabilities.typePlugin':    { fr:'Plugin',            en:'Plugin' },
+  'capabilities.mcpNamePlaceholder': { fr:'ex: local-sqlite', en:'ex: local-sqlite' },
+  'capabilities.mcpCmdPlaceholder':  { fr:'ex: node',        en:'ex: node' },
+  'capabilities.mcpArgsPlaceholder': { fr:'ex: src/index.js --db db.sqlite', en:'ex: src/index.js --db db.sqlite' }
 });
 
 LaRuche.Capabilities = (function(){
@@ -86,7 +96,7 @@ LaRuche.Capabilities = (function(){
   function leave(){}
   function refresh(){ render(); }
 
-  function familyLabel(f){ return ({abeille:'Tool',skill:'Skill',mcp:'MCP',plugin:'Plugin'})[f]||f; }
+  function familyLabel(f){ return ({abeille:LaRuche.i18n.t('capabilities.typeTool'),skill:LaRuche.i18n.t('capabilities.typeSkill'),mcp:LaRuche.i18n.t('capabilities.typeMcp'),plugin:LaRuche.i18n.t('capabilities.typePlugin')})[f]||f; }
 
   async function gather(){
     var rows = [];
@@ -151,7 +161,7 @@ LaRuche.Capabilities = (function(){
 
   function rowActions(r, i){
     if(r.family==='abeille'){
-      var tog = '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:'+(r.enabled?'var(--green)':'var(--red)')+'"><input type="checkbox" '+(r.enabled?'checked':'')+' onchange="LaRuche.Settings.toggleTool(\''+LaRuche.Utils.esc(r.name)+'\',this.checked);setTimeout(LaRuche.Capabilities.refresh,300)">'+(r.enabled?'ON':'OFF')+'</label>';
+      var tog = '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:'+(r.enabled?'var(--green)':'var(--red)')+'"><input type="checkbox" '+(r.enabled?'checked':'')+' onchange="LaRuche.Settings.toggleTool(\''+LaRuche.Utils.esc(r.name)+'\',this.checked);setTimeout(LaRuche.Capabilities.refresh,300)">'+(r.enabled?LaRuche.i18n.t('capabilities.statusOn'):LaRuche.i18n.t('capabilities.statusOff'))+'</label>';
       var view = '<button class="tl-btn" onclick="LaRuche.Capabilities.viewRaw('+i+')">'+LaRuche.i18n.t('capabilities.view')+'</button>';
       var del = r.immutable ? '' : '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(LaRuche.i18n.t(\'capabilities.confirmDelete\')+\' '+LaRuche.Utils.esc(r.name)+' ?\')){fetch(\'/api/tools/\'+encodeURIComponent(\''+LaRuche.Utils.esc(r.name)+'\'),{method:\'DELETE\'}).then(LaRuche.Capabilities.refresh)}">'+LaRuche.i18n.t('capabilities.delete')+'</button>';
       return tog+' '+view+' '+del;
@@ -168,7 +178,7 @@ LaRuche.Capabilities = (function(){
       return editMcp+' '+delMcp;
     }
     if(r.family==='plugin'){
-      var togP = '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:'+(r.enabled?'var(--green)':'var(--red)')+'"><input type="checkbox" '+(r.enabled?'checked':'')+' onchange="LaRuche.Settings.toggleTool(\''+LaRuche.Utils.esc(r.name)+'\',this.checked);setTimeout(LaRuche.Capabilities.refresh,300)">'+(r.enabled?'ON':'OFF')+'</label>';
+      var togP = '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:'+(r.enabled?'var(--green)':'var(--red)')+'"><input type="checkbox" '+(r.enabled?'checked':'')+' onchange="LaRuche.Settings.toggleTool(\''+LaRuche.Utils.esc(r.name)+'\',this.checked);setTimeout(LaRuche.Capabilities.refresh,300)">'+(r.enabled?LaRuche.i18n.t('capabilities.statusOn'):LaRuche.i18n.t('capabilities.statusOff'))+'</label>';
       var editP = '<button class="tl-btn" onclick="LaRuche.Settings.viewPlugin(\''+LaRuche.Utils.esc(r.name)+'\')">'+LaRuche.i18n.t('capabilities.edit')+'</button>';
       var delP = '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(LaRuche.i18n.t(\'capabilities.confirmPlugin\')+\' '+LaRuche.Utils.esc(r.name)+' ?\')){LaRuche.Settings.deletePlugin(\''+LaRuche.Utils.esc(r.name)+'\');setTimeout(LaRuche.Capabilities.refresh,300)}">'+LaRuche.i18n.t('capabilities.delete')+'</button>';
       return togP+' '+editP+' '+delP;
@@ -204,9 +214,9 @@ LaRuche.Capabilities = (function(){
     var mcpAdd = '';
     if(currentFamily==='all' || currentFamily==='mcp'){
       mcpAdd = '<div style="border:1px solid var(--border);border-radius:6px;padding:10px;background:var(--bg-panel);margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:end">'+
-        '<div style="flex:1;min-width:120px"><label class="form-label">'+LaRuche.i18n.t('capabilities.mcpServerName')+'</label><input id="capMcpName" class="form-input" placeholder="ex: local-sqlite"></div>'+
-        '<div style="flex:1;min-width:120px"><label class="form-label">'+LaRuche.i18n.t('capabilities.command')+'</label><input id="capMcpCmd" class="form-input" placeholder="ex: node"></div>'+
-        '<div style="flex:2;min-width:160px"><label class="form-label">'+LaRuche.i18n.t('capabilities.arguments')+'</label><input id="capMcpArgs" class="form-input" placeholder="ex: src/index.js --db db.sqlite"></div>'+
+        '<div style="flex:1;min-width:120px"><label class="form-label">'+LaRuche.i18n.t('capabilities.mcpServerName')+'</label><input id="capMcpName" class="form-input" placeholder="'+LaRuche.i18n.t('capabilities.mcpNamePlaceholder')+'"></div>'+
+        '<div style="flex:1;min-width:120px"><label class="form-label">'+LaRuche.i18n.t('capabilities.command')+'</label><input id="capMcpCmd" class="form-input" placeholder="'+LaRuche.i18n.t('capabilities.mcpCmdPlaceholder')+'"></div>'+
+        '<div style="flex:2;min-width:160px"><label class="form-label">'+LaRuche.i18n.t('capabilities.arguments')+'</label><input id="capMcpArgs" class="form-input" placeholder="'+LaRuche.i18n.t('capabilities.mcpArgsPlaceholder')+'"></div>'+
         '<button class="settings-save-btn" onclick="LaRuche.Capabilities.addMcp()">'+LaRuche.i18n.t('capabilities.addMcpServer')+'</button>'+
         '</div>';
     }
@@ -848,7 +858,7 @@ LaRuche.Mesh = (function(){
       html+='<div class="mesh-peer" data-peer="'+esc(p.id)+'" data-name="'+esc(p.name||p.id)+'">+ '+esc(p.name||p.id)+'</div>';
     });
     // Gap A: federation: pull verified skills from peers.
-    html+='<div class="mesh-inbox-head">Essaim</div>'+
+    html+='<div class="mesh-inbox-head">'+LaRuche.i18n.t('capabilities.essaim')+'</div>'+
       '<div class="mesh-peer" id="meshSyncSkills" style="color:var(--green,#46c46a)">'+LaRuche.i18n.t('capabilities.syncSkills')+'</div>';
     pop.innerHTML=html;
     pop.querySelectorAll('[data-peer]').forEach(function(el){

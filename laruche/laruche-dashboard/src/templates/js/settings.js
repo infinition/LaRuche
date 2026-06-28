@@ -227,7 +227,7 @@ LaRuche.i18n.add({
   'settings.kanbanHorizontal':   {fr:'Horizontal',       en:'Horizontal'},
   'settings.kanbanDefProvider':  {fr:'Défaut (modèle actif)', en:'Default (active model)'},
   'settings.kanbanParDefault':   {fr:'(Par défaut)',     en:'(Default)'},
-  'settings.deleteProfile':      {fr:'Delete provider profile "', en:'Delete provider profile "'},
+  'settings.deleteProfile':      {fr:'Supprimer le profil provider "', en:'Delete provider profile "'},
   'settings.profileDeleted':     {fr:'Profile deleted',  en:'Profile deleted'},
   'settings.cronSaved':          {fr:'Cron mis  jour',   en:'Cron updated'},
   'settings.cronDeleteConfirm':  {fr:'Supprimer ce cron ?', en:'Delete this cron?'},
@@ -288,7 +288,114 @@ LaRuche.i18n.add({
   'settings.deleteWatcherBtn':   {fr:'Delete',           en:'Delete'},
   'settings.errorColon':         {fr:'Erreur: ',         en:'Error: '},
   'settings.skillToolsRef':      {fr:'(référence)',      en:'(reference)'},
-  'settings.skillToolsChecked':  {fr:'coché(s)',         en:'checked'}
+  'settings.skillToolsChecked':  {fr:'coché(s)',         en:'checked'},
+  'settings.maxPassesLabel':     {fr:'Passes max',       en:'Max passes'},
+  'settings.inferenceConfig':    {fr:'Config d\'inférence', en:'Inference Config'},
+  'settings.fallbackModels':     {fr:'Modèles de repli', en:'Fallback Models'},
+  'settings.maxTokensLabel':     {fr:'Max Tokens',       en:'Max Tokens'},
+  'settings.reviewModel':        {fr:'Modèle de revue',  en:'Review Model'},
+  'settings.modelExample':       {fr:'ex: gpt-4o',       en:'e.g.: gpt-4o'},
+  'settings.activeLabel':        {fr:'Actif : ',         en:'Active: '},
+  'settings.voice':              {fr:'Voix',             en:'Voice'},
+  'settings.statusOk':           {fr:'OK',               en:'OK'},
+  'settings.statusOff':          {fr:'Off',              en:'Off'},
+  'settings.security':           {fr:'Sécurité',         en:'Security'},
+  'settings.secretsCount':       {fr:'17 motifs',        en:'17 patterns'},
+  'settings.protocol':           {fr:'Protocole',        en:'Protocol'},
+  'settings.statusLabel':        {fr:'État',             en:'Status'},
+  'settings.statusOkValue':      {fr:'OK',               en:'OK'},
+  'settings.inferenceCfgSaved':  {fr:'Config d\'inférence sauvegardée', en:'Inference config saved'},
+  'settings.saveFailed':         {fr:'Échec de la sauvegarde', en:'Save failed'},
+  'settings.addProvider':        {fr:'+ Ajouter un provider', en:'+ Add Provider'},
+  'settings.activeBadge':        {fr:'(actif)',          en:'(active)'},
+  'settings.visPublic':          {fr:'🌐 Public 📡',     en:'🌐 Public 📡'},
+  'settings.visRestrictedN':     {fr:'🐝 Restreint',     en:'🐝 Restricted'},
+  'settings.typeLabel':          {fr:'Type',             en:'Type'},
+  'settings.apiKeyLabel':        {fr:'Clé API',          en:'API Key'},
+  'settings.apiKeySet':          {fr:'***définie***',    en:'***set***'},
+  'settings.apiKeyNone':         {fr:'(aucune)',         en:'(none)'},
+  'settings.editBtn':            {fr:'Éditer',           en:'Edit'},
+  'settings.deleteBtn':          {fr:'Supprimer',        en:'Delete'},
+  'settings.addCredKey':         {fr:'+ Ajouter une clé', en:'+ Add Credential Key'},
+  'settings.editProviderTitle':  {fr:'Éditer le provider', en:'Edit Provider'},
+  'settings.addProviderTitle':   {fr:'Ajouter un provider', en:'Add Provider'},
+  'settings.pfIdLabel':          {fr:'Profile ID',       en:'Profile ID'},
+  'settings.pfIdReadonly':       {fr:' (lecture seule)', en:' (read-only)'},
+  'settings.pfIdPlaceholder':    {fr:'ex. groq-free',    en:'e.g. groq-free'},
+  'settings.pfNameLabel':        {fr:'Nom affiché',      en:'Display Name'},
+  'settings.pfNamePlaceholder':  {fr:'ex. Groq Free Tier', en:'e.g. Groq Free Tier'},
+  'settings.pfProviderTypeLabel':{fr:'Type de provider', en:'Provider Type'},
+  'settings.pfBaseUrlLabel':     {fr:'URL de base',      en:'Base URL'},
+  'settings.pfApiKeyLabel':      {fr:'Clé API',          en:'API Key'},
+  'settings.pfApiKeyPlaceholder':{fr:'sk-... (vide pour Ollama)', en:'sk-... (leave empty for Ollama)'},
+  'settings.pfModelsLabel':      {fr:'Modèles (séparés par des virgules, auto-détectés pour Ollama)', en:'Models (comma-separated, auto-detected for Ollama)'},
+  'settings.pfModelsPlaceholder':{fr:'gpt-4o, gpt-4o-mini', en:'gpt-4o, gpt-4o-mini'},
+  'settings.pfSave':             {fr:'Enregistrer',      en:'Save'},
+  'settings.pfCancel':           {fr:'Annuler',          en:'Cancel'},
+  'settings.profileIdRequired':  {fr:'Profile ID requis', en:'Profile ID is required'},
+  'settings.profileSavedPrefix': {fr:'Profil « ',        en:'Profile "'},
+  'settings.profileSavedSuffix': {fr:' » enregistré',    en:'" saved'},
+  'settings.toolViewSource':     {fr:'Voir source',      en:'View source'},
+  'settings.toolCustomBadge':    {fr:'Custom',           en:'Custom'},
+  'settings.toolNativeBadge':    {fr:'Rust natif',       en:'Native Rust'},
+  'settings.toolOn':             {fr:'ON',               en:'ON'},
+  'settings.toolOff':            {fr:'OFF',              en:'OFF'},
+  'settings.toolDanger':         {fr:'Danger',           en:'Danger'},
+  'settings.toolDangerSafe':     {fr:'safe',             en:'safe'},
+  'settings.toolEnabled':        {fr:' activée',         en:' enabled'},
+  'settings.toolDisabled':       {fr:' désactivée',      en:' disabled'},
+  'settings.meshCodeTitle':      {fr:'Code du mesh',     en:'Mesh code'},
+  'settings.hostLabel':          {fr:'Hôte',             en:'Host'},
+  'settings.cronCount':          {fr:'cron(s)',          en:'cron(s)'},
+  'settings.mcpServersTitle':    {fr:'Serveurs MCP (Model Context Protocol)', en:'MCP Servers (Model Context Protocol)'},
+  'settings.mcpNameLabel':       {fr:'Nom du serveur',   en:'Server name'},
+  'settings.mcpNamePlaceholder': {fr:'ex: local-sqlite', en:'e.g.: local-sqlite'},
+  'settings.mcpCmdLabel':        {fr:'Commande',         en:'Command'},
+  'settings.mcpCmdPlaceholder':  {fr:'ex: node',         en:'e.g.: node'},
+  'settings.mcpArgsPlaceholder': {fr:'ex: src/index.js --db sqlite.db', en:'e.g.: src/index.js --db sqlite.db'},
+  'settings.newTaskBtn':         {fr:'+ Nouvelle tâche', en:'+ New Task'},
+  'settings.nameLabel':          {fr:'Nom',              en:'Name'},
+  'settings.promptLabel':        {fr:'Prompt',           en:'Prompt'},
+  'settings.cronChannelNone':    {fr:'Aucun (Journal d\'activité)', en:'None (Activity Log)'},
+  'settings.providerLabel':      {fr:'Provider',         en:'Provider'},
+  'settings.modelLabel':         {fr:'Modèle',           en:'Model'},
+  'settings.createBtn':          {fr:'Créer',            en:'Create'},
+  'settings.scheduleLabel':      {fr:'Planning',         en:'Schedule'},
+  'settings.runsLabel':          {fr:'Exécutions',       en:'Runs'},
+  'settings.channelLabelShort':  {fr:'Canal',            en:'Channel'},
+  'settings.channelNone':        {fr:'Aucun',            en:'None'},
+  'settings.providerModelLabel': {fr:'Provider/Modèle',  en:'Provider/Model'},
+  'settings.cronTaskCreated':    {fr:'Tâche cron créée', en:'Cron task created'},
+  'settings.newWatcherBtn':      {fr:'+ Nouvelle vigie', en:'+ New Watcher'},
+  'settings.newWatcherTitle':    {fr:'Nouvelle vigie',   en:'New Watcher'},
+  'settings.watcherTypeFile':    {fr:'Fichier',          en:'File'},
+  'settings.watcherTypeUrl':     {fr:'URL',              en:'URL'},
+  'settings.watcherTypeLog':     {fr:'Motif de log',     en:'Log Pattern'},
+  'settings.watcherTargetField': {fr:'Cible (Path/URL)', en:'Target (Path/URL)'},
+  'settings.watcherCondField':   {fr:'Condition (optionnel)', en:'Condition (optional)'},
+  'settings.targetLabel':        {fr:'Cible',            en:'Target'},
+  'settings.watcherCreated':     {fr:'Vigie créée',      en:'Watcher created'},
+  'settings.comingSoon':         {fr:'Bientôt disponible', en:'Coming soon'},
+  'settings.channelsSaved':      {fr:'Config des canaux sauvegardée', en:'Channels config saved'},
+  'settings.notificationsTitle': {fr:'Notifications',    en:'Notifications'},
+  'settings.botTokenLabel':      {fr:'Token du bot',     en:'Bot Token'},
+  'settings.tgAllowedChats':     {fr:'IDs de chat autorisés', en:'Allowed Chat IDs'},
+  'settings.dcAllowedChannels':  {fr:'IDs de canaux autorisés', en:'Allowed Channel IDs'},
+  'settings.slBotToken':         {fr:'Token du bot (xoxb-)', en:'Bot Token (xoxb-)'},
+  'settings.slAppToken':         {fr:'Token de l\'app (xapp-)', en:'App Token (xapp-)'},
+  'settings.setupChecklist':     {fr:'Checklist de configuration', en:'Setup Checklist'},
+  'settings.kbAddKnowledgeBtn':  {fr:'Ajouter',          en:'Add'},
+  'settings.kbEntriesCount':     {fr:' entrée(s) dans la base de connaissances', en:' entry(ies) in the knowledge base'},
+  'settings.kbColText':          {fr:'Texte',            en:'Text'},
+  'settings.kbColSource':        {fr:'Source',           en:'Source'},
+  'settings.kbColActions':       {fr:'Actions',          en:'Actions'},
+  'settings.kbImportError':      {fr:'Erreur d\'import : ', en:'Import error: '},
+  'settings.tlCronFields':       {fr:'Cron (5 champs) ou vide', en:'Cron (5 fields) or empty'},
+  'settings.bpSlotNamePlaceholder':    {fr:'nom',     en:'name'},
+  'settings.bpSlotLabelPlaceholder':   {fr:'libellé', en:'label'},
+  'settings.bpSlotDefaultPlaceholder': {fr:'défaut',  en:'default'},
+  'settings.bpTitlePlaceholder':       {fr:'Ex. : Veille quotidienne', en:'E.g.: Daily watch'},
+  'settings.pluginToast':              {fr:'Plugin ', en:'Plugin '}
 });
 
 LaRuche.Settings = (function(){
@@ -350,7 +457,7 @@ LaRuche.Settings = (function(){
     el.innerHTML = '<div class="settings-grid">'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.generationTitle')+'</div>'+
       '<div class="settings-row" style="flex-direction:column;align-items:stretch;gap:4px;">'+
-      '<div class="settings-row" style="padding:0;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.maxPassesTitle')+'">Max passes</span><input type="number" id="cfgMaxIter" class="form-input" style="width:80px;padding:2px 6px;" value="'+(rt.max_iterations||40)+'"></div>'+
+      '<div class="settings-row" style="padding:0;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.maxPassesTitle')+'">'+LaRuche.i18n.t('settings.maxPassesLabel')+'</span><input type="number" id="cfgMaxIter" class="form-input" style="width:80px;padding:2px 6px;" value="'+(rt.max_iterations||40)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.temperature')+'</span><input type="number" id="cfgTemp" class="form-input" style="width:80px;padding:2px 6px;" step="0.05" min="0" max="2" value="'+(rt.temperature!=null?rt.temperature:0.7)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.maxTokensOut')+'</span><input type="number" id="cfgMaxTok" class="form-input" style="width:90px;padding:2px 6px;" value="'+(rt.max_tokens||4096)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.dynToolsLimit')+'">'+LaRuche.i18n.t('settings.dynToolsLimitLabel')+'</span><input type="number" id="cfgToolLim" class="form-input" style="width:80px;padding:2px 6px;" value="'+(rt.tool_selection_limit||24)+'"></div>'+
@@ -361,26 +468,26 @@ LaRuche.Settings = (function(){
       '<div class="settings-row" style="padding:0;"><span class="settings-label">'+LaRuche.i18n.t('settings.maxMessages')+'</span><input type="number" id="cfgCtxMax" class="form-input" style="width:80px;padding:2px 6px;" value="'+(ctxCfg.context_max_messages||50)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.compactionThreshold')+'</span><input type="number" id="cfgCtxThresh" class="form-input" style="width:80px;padding:2px 6px;" step="0.05" value="'+(ctxCfg.compaction_threshold||0.75)+'"></div>'+
       '<button class="form-btn" onclick="LaRuche.Settings.saveContextCfg()" style="margin-top:8px;">'+LaRuche.i18n.t('settings.save')+'</button></div>'+
-      '<div class="settings-card"><div class="settings-card-title">Inference Config</div>'+
-      '<div class="settings-row" style="padding:0;"><span class="settings-label">Fallback Models</span><input type="text" id="cfgProvFallback" class="form-input" style="width:120px;padding:2px 6px;" value="'+(provCfg.fallback_models||'')+'" placeholder="claude-3-haiku, ..."></div>'+
-      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Max Tokens</span><input type="number" id="cfgProvMaxTokens" class="form-input" style="width:80px;padding:2px 6px;" value="'+(provCfg.max_tokens||4096)+'"></div>'+
-      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Temperature</span><input type="number" id="cfgProvTemp" class="form-input" style="width:80px;padding:2px 6px;" step="0.1" value="'+(provCfg.temperature||0.7)+'"></div>'+
-      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">Review Model</span><input type="text" id="cfgProvReview" class="form-input" style="width:120px;padding:2px 6px;" value="'+(provCfg.review_model||'')+'" placeholder="ex: gpt-4o"></div>'+
+      '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.inferenceConfig')+'</div>'+
+      '<div class="settings-row" style="padding:0;"><span class="settings-label">'+LaRuche.i18n.t('settings.fallbackModels')+'</span><input type="text" id="cfgProvFallback" class="form-input" style="width:120px;padding:2px 6px;" value="'+(provCfg.fallback_models||'')+'" placeholder="claude-3-haiku, ..."></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.maxTokensLabel')+'</span><input type="number" id="cfgProvMaxTokens" class="form-input" style="width:80px;padding:2px 6px;" value="'+(provCfg.max_tokens||4096)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.temperature')+'</span><input type="number" id="cfgProvTemp" class="form-input" style="width:80px;padding:2px 6px;" step="0.1" value="'+(provCfg.temperature||0.7)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.reviewModel')+'</span><input type="text" id="cfgProvReview" class="form-input" style="width:120px;padding:2px 6px;" value="'+(provCfg.review_model||'')+'" placeholder="'+LaRuche.i18n.t('settings.modelExample')+'"></div>'+
       '<button class="form-btn" onclick="LaRuche.Settings.saveProviderCfg()" style="margin-top:8px;">'+LaRuche.i18n.t('settings.save')+'</button>'+
-      '<div style="font-size:10px;color:var(--text-dim);margin-top:8px">Active: '+(provCfg.provider||'ollama')+' / '+(provCfg.model||'-')+'</div></div>'+
-      '<div class="settings-card"><div class="settings-card-title">Voice</div>'+
-      '<div class="settings-row"><span class="settings-label">STT</span><span style="color:'+(voice.stt&&voice.stt.available?'var(--green)':'var(--red)')+'">'+(voice.stt&&voice.stt.available?'OK':'Off')+'</span></div>'+
-      '<div class="settings-row"><span class="settings-label">TTS</span><span style="color:'+(voice.tts&&voice.tts.available?'var(--green)':'var(--red)')+'">'+(voice.tts&&voice.tts.available?'OK':'Off')+'</span></div></div>'+
-      '<div class="settings-card"><div class="settings-card-title">Security</div>'+
-      '<div class="settings-row"><span class="settings-label">Secrets</span><span class="settings-value">17 patterns</span></div>'+
-      '<div class="settings-row"><span class="settings-label">Protocol</span><span class="settings-value">Miel v'+(doc.version||'0.2.0')+'</span></div></div>'+
+      '<div style="font-size:10px;color:var(--text-dim);margin-top:8px">'+LaRuche.i18n.t('settings.activeLabel')+(provCfg.provider||'ollama')+' / '+(provCfg.model||'-')+'</div></div>'+
+      '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.voice')+'</div>'+
+      '<div class="settings-row"><span class="settings-label">STT</span><span style="color:'+(voice.stt&&voice.stt.available?'var(--green)':'var(--red)')+'">'+(voice.stt&&voice.stt.available?LaRuche.i18n.t('settings.statusOk'):LaRuche.i18n.t('settings.statusOff'))+'</span></div>'+
+      '<div class="settings-row"><span class="settings-label">TTS</span><span style="color:'+(voice.tts&&voice.tts.available?'var(--green)':'var(--red)')+'">'+(voice.tts&&voice.tts.available?LaRuche.i18n.t('settings.statusOk'):LaRuche.i18n.t('settings.statusOff'))+'</span></div></div>'+
+      '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.security')+'</div>'+
+      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.secretsTitle')+'</span><span class="settings-value">'+LaRuche.i18n.t('settings.secretsCount')+'</span></div>'+
+      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.protocol')+'</span><span class="settings-value">Miel v'+(doc.version||'0.2.0')+'</span></div></div>'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.curateur')+'</div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.autoSkillCreate')+'</span><label class="lr-switch"><input type="checkbox" id="cfgCurateur" '+(curCfg.enabled?'checked':'')+' '+(curCfg.env_forced?'disabled':'')+' onchange="LaRuche.Settings.toggleCurateur(this.checked)"><span class="lr-slider"></span></label></div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.dynToolsSelect')+'<span style="color:var(--text-dim);font-size:10px">'+LaRuche.i18n.t('settings.dynToolsHint')+'</span></span><label class="lr-switch"><input type="checkbox" id="cfgDynTools" '+(curCfg.dynamic_tools?'checked':'')+' onchange="LaRuche.Settings.toggleDynamicTools(this.checked)"><span class="lr-slider"></span></label></div>'+
       '<div style="font-size:10px;color:var(--text-dim);margin-top:6px">'+(curCfg.env_forced?LaRuche.i18n.t('settings.curEnvForced'):LaRuche.i18n.t('settings.curDefault'))+'</div></div>'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.system')+'</div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.showTransparency')+'</span><label class="lr-switch"><input type="checkbox" id="cfgTransparence" onchange="window.localStorage.setItem(\'laruche_hide_transparency\', this.checked ? \'false\' : \'true\')" \'+(window.localStorage.getItem(\'laruche_hide_transparency\') !== \'true\' ? \'checked\' : \'\')+\'><span class="lr-slider"></span></label></div>'+
-      ((doc.checks||[]).map(function(c){return '<div class="settings-row"><span class="settings-label">'+c.name+'</span><span style="color:'+(c.status==='ok'?'var(--green)':'var(--red)')+'">'+c.status+'</span></div>';}).join('')||'<div class="settings-row"><span class="settings-label">Status</span><span class="settings-value">OK</span></div>')+
+      ((doc.checks||[]).map(function(c){return '<div class="settings-row"><span class="settings-label">'+c.name+'</span><span style="color:'+(c.status==='ok'?'var(--green)':'var(--red)')+'">'+c.status+'</span></div>';}).join('')||'<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.statusLabel')+'</span><span class="settings-value">'+LaRuche.i18n.t('settings.statusOkValue')+'</span></div>')+
       '</div></div>';
   }
 
@@ -403,7 +510,7 @@ LaRuche.Settings = (function(){
       '<div id="codexAuthBox" style="font-size:12px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.codexLoading')+'</div>'+
       '</div>';
 
-    html += '<div style="margin-bottom:12px"><button class="settings-save-btn" onclick="LaRuche.Settings.showProfileForm()">+ Add Provider</button></div>';
+    html += '<div style="margin-bottom:12px"><button class="settings-save-btn" onclick="LaRuche.Settings.showProfileForm()">'+LaRuche.i18n.t('settings.addProvider')+'</button></div>';
     html += '<div id="profileFormContainer" style="display:none"></div>';
 
     // (MCP servers now have their own "MCP" tab, see loadMcp.)
@@ -447,29 +554,29 @@ LaRuche.Settings = (function(){
         });
         credsHtml += '</div>';
       }
-      var addCredBtn = '<button onclick="LaRuche.Settings.addCredential(\''+p.provider+'\')" style="margin-top:8px;background:none;border:1px dashed var(--border);color:var(--text-dim);border-radius:4px;padding:4px 10px;cursor:pointer;font-size:10px;width:100%">+ Add Credential Key</button>';
+      var addCredBtn = '<button onclick="LaRuche.Settings.addCredential(\''+p.provider+'\')" style="margin-top:8px;background:none;border:1px dashed var(--border);color:var(--text-dim);border-radius:4px;padding:4px 10px;cursor:pointer;font-size:10px;width:100%">'+LaRuche.i18n.t('settings.addCredKey')+'</button>';
 
       var _vis = p.visibility || 'prive';
       var _nAllowed = (p.allowed_peers||[]).length;
       var visBadge = _vis==='public_proxy'
-        ? '<span style="color:var(--blue);font-size:10px;font-weight:bold;margin-left:8px;">🌐 Public 📡</span>'
+        ? '<span style="color:var(--blue);font-size:10px;font-weight:bold;margin-left:8px;">'+LaRuche.i18n.t('settings.visPublic')+'</span>'
         : _vis==='restricted'
-        ? '<span style="color:var(--cyan);font-size:10px;font-weight:bold;margin-left:8px;">🐝 Restricted ('+_nAllowed+')</span>'
+        ? '<span style="color:var(--cyan);font-size:10px;font-weight:bold;margin-left:8px;">'+LaRuche.i18n.t('settings.visRestrictedN')+' ('+_nAllowed+')</span>'
         : '<span style="color:var(--text-dim);font-size:10px;font-weight:bold;margin-left:8px;">'+LaRuche.i18n.t('settings.visPrivate')+'</span>';
       var visToggleBtn = '<button onclick="LaRuche.Settings.openAccess(\''+id+'\', \''+_vis+'\', \''+encodeURIComponent(JSON.stringify(p.allowed_peers||[]))+'\')" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;">'+LaRuche.i18n.t('settings.accessBtn')+'</button>';
       html += '<div class="settings-card" style="'+(isActive?'border:1px solid var(--amber);':'')+'">'+
         '<div class="settings-card-title" style="display:flex;align-items:center;"><span>'+LaRuche.Utils.esc(p.name)+'</span>'+
-        (isActive?' <span style="color:var(--amber);font-size:10px;font-weight:normal;margin-left:4px;">(active)</span>':'')+
+        (isActive?' <span style="color:var(--amber);font-size:10px;font-weight:normal;margin-left:4px;">'+LaRuche.i18n.t('settings.activeBadge')+'</span>':'')+
         visBadge+visToggleBtn+
         '</div>'+
-        '<div class="settings-row"><span class="settings-label">Type</span><span class="settings-value">'+provLabel+'</span></div>'+
+        '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.typeLabel')+'</span><span class="settings-value">'+provLabel+'</span></div>'+
         '<div class="settings-row"><span class="settings-label">URL</span><span class="settings-value" style="font-size:10px;word-break:break-all">'+LaRuche.Utils.esc(p.base_url)+'</span></div>'+
-        '<div class="settings-row"><span class="settings-label">API Key</span><span class="settings-value">'+(p.api_key?'***set***':'(none)')+'</span></div>'+
-        '<div class="settings-row"><span class="settings-label">Models</span><span class="settings-value">'+modelCount+'</span></div>'+
+        '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.apiKeyLabel')+'</span><span class="settings-value">'+(p.api_key?LaRuche.i18n.t('settings.apiKeySet'):LaRuche.i18n.t('settings.apiKeyNone'))+'</span></div>'+
+        '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.modelsLabel')+'</span><span class="settings-value">'+modelCount+'</span></div>'+
         credsHtml + addCredBtn +
         '<div style="margin-top:12px;display:flex;gap:6px">'+
-        '<button onclick="LaRuche.Settings.editProfile(\''+id+'\')" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:10px">Edit</button>'+
-        '<button onclick="LaRuche.Settings.deleteProfile(\''+id+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:10px">Delete</button>'+
+        '<button onclick="LaRuche.Settings.editProfile(\''+id+'\')" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.editBtn')+'</button>'+
+        '<button onclick="LaRuche.Settings.deleteProfile(\''+id+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.deleteBtn')+'</button>'+
         '</div></div>';
     });
 
@@ -568,26 +675,26 @@ LaRuche.Settings = (function(){
     var defaultUrls = {ollama:'http://127.0.0.1:11434', openai:'https://api.openai.com', anthropic:'https://api.anthropic.com'};
     container.style.display = 'block';
     container.innerHTML = '<div class="settings-card" style="margin-bottom:16px">'+
-      '<div class="settings-card-title">'+(editId?'Edit':'Add')+' Provider</div>'+
-      '<div class="form-group"><label class="form-label">Profile ID'+(editId?' (read-only)':'')+'</label>'+
-      '<input class="form-input" id="pfId" value="'+LaRuche.Utils.esc(editId)+'" '+(editId?'readonly':'')+' placeholder="e.g. groq-free"></div>'+
-      '<div class="form-group"><label class="form-label">Display Name</label>'+
-      '<input class="form-input" id="pfName" value="'+LaRuche.Utils.esc(p.name||'')+'" placeholder="e.g. Groq Free Tier"></div>'+
-      '<div class="form-group"><label class="form-label">Provider Type</label>'+
+      '<div class="settings-card-title">'+(editId?LaRuche.i18n.t('settings.editProviderTitle'):LaRuche.i18n.t('settings.addProviderTitle'))+'</div>'+
+      '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.pfIdLabel')+(editId?LaRuche.i18n.t('settings.pfIdReadonly'):'')+'</label>'+
+      '<input class="form-input" id="pfId" value="'+LaRuche.Utils.esc(editId)+'" '+(editId?'readonly':'')+' placeholder="'+LaRuche.i18n.t('settings.pfIdPlaceholder')+'"></div>'+
+      '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.pfNameLabel')+'</label>'+
+      '<input class="form-input" id="pfName" value="'+LaRuche.Utils.esc(p.name||'')+'" placeholder="'+LaRuche.i18n.t('settings.pfNamePlaceholder')+'"></div>'+
+      '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.pfProviderTypeLabel')+'</label>'+
       '<select class="form-select" id="pfProvider" onchange="LaRuche.Settings.onProfileProviderChange()">'+
       '<option value="ollama"'+(provType==='ollama'?' selected':'')+'>Ollama</option>'+
       '<option value="openai"'+(provType==='openai'?' selected':'')+'>OpenAI-compatible</option>'+
       '<option value="anthropic"'+(provType==='anthropic'?' selected':'')+'>Anthropic</option>'+
       '</select></div>'+
-      '<div class="form-group"><label class="form-label">Base URL</label>'+
+      '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.pfBaseUrlLabel')+'</label>'+
       '<input class="form-input" id="pfBaseUrl" value="'+LaRuche.Utils.esc(p.base_url||defaultUrls[provType]||'')+'" placeholder="'+defaultUrls[provType]+'"></div>'+
-      '<div class="form-group"><label class="form-label">API Key</label>'+
-      '<input class="form-input" id="pfApiKey" type="password" value="'+LaRuche.Utils.esc(p.api_key||'')+'" placeholder="sk-... (leave empty for Ollama)" autocomplete="off"></div>'+
-      '<div class="form-group"><label class="form-label">Models (comma-separated, auto-detected for Ollama)</label>'+
-      '<input class="form-input" id="pfModels" value="'+LaRuche.Utils.esc((p.models||[]).join(', '))+'" placeholder="gpt-4o, gpt-4o-mini"></div>'+
+      '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.pfApiKeyLabel')+'</label>'+
+      '<input class="form-input" id="pfApiKey" type="password" value="'+LaRuche.Utils.esc(p.api_key||'')+'" placeholder="'+LaRuche.i18n.t('settings.pfApiKeyPlaceholder')+'" autocomplete="off"></div>'+
+      '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.pfModelsLabel')+'</label>'+
+      '<input class="form-input" id="pfModels" value="'+LaRuche.Utils.esc((p.models||[]).join(', '))+'" placeholder="'+LaRuche.i18n.t('settings.pfModelsPlaceholder')+'"></div>'+
       '<div style="display:flex;gap:8px;margin-top:8px">'+
-      '<button class="settings-save-btn" onclick="LaRuche.Settings.saveProfile()">Save</button>'+
-      '<button style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:6px 16px;cursor:pointer" onclick="document.getElementById(\'profileFormContainer\').style.display=\'none\'">Cancel</button>'+
+      '<button class="settings-save-btn" onclick="LaRuche.Settings.saveProfile()">'+LaRuche.i18n.t('settings.pfSave')+'</button>'+
+      '<button style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:6px 16px;cursor:pointer" onclick="document.getElementById(\'profileFormContainer\').style.display=\'none\'">'+LaRuche.i18n.t('settings.pfCancel')+'</button>'+
       '</div></div>';
   }
 
@@ -602,7 +709,7 @@ LaRuche.Settings = (function(){
 
   function saveProfile() {
     var id = (document.getElementById('pfId').value||'').trim();
-    if(!id) { LaRuche.Toast.show('Profile ID is required','err'); return; }
+    if(!id) { LaRuche.Toast.show(LaRuche.i18n.t('settings.profileIdRequired'),'err'); return; }
     var name = document.getElementById('pfName').value || id;
     var provider = document.getElementById('pfProvider').value;
     var baseUrl = document.getElementById('pfBaseUrl').value;
@@ -614,15 +721,15 @@ LaRuche.Settings = (function(){
       id:id, name:name, provider:provider, base_url:baseUrl, api_key:apiKey, models:models
     })}).then(function(r){return r.json();}).then(function(d){
       if(d.status==='ok') {
-        LaRuche.Toast.show('Profile "'+d.name+'" saved','ok');
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.profileSavedPrefix')+d.name+LaRuche.i18n.t('settings.profileSavedSuffix'),'ok');
         document.getElementById('profileFormContainer').style.display = 'none';
         loadTab('providers');
         // Refresh dropdown after a short delay to ensure server has processed
         setTimeout(function(){ LaRuche.Header.loadModels(); }, 300);
       } else {
-        LaRuche.Toast.show('Error: '+(d.error||'?'),'err');
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+(d.error||'?'),'err');
       }
-    }).catch(function(e){LaRuche.Toast.show('Error: '+e,'err');});
+    }).catch(function(e){LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err');});
   }
 
   function editProfile(id) {
@@ -630,14 +737,14 @@ LaRuche.Settings = (function(){
   }
 
   function deleteProfile(id) {
-    if(!confirm('Delete provider profile "'+id+'"?')) return;
+    if(!confirm(LaRuche.i18n.t('settings.deleteProfile')+id+'"?')) return;
     fetch('/api/profiles/'+id,{method:'DELETE'}).then(function(r){return r.json();}).then(function(d){
       if(d.status==='ok') {
-        LaRuche.Toast.show('Profile deleted','ok');
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.profileDeleted'),'ok');
         loadTab('providers');
         LaRuche.Header.loadModels();
       } else {
-        LaRuche.Toast.show('Error: '+(d.error||'?'),'err');
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+(d.error||'?'),'err');
       }
     });
   }
@@ -654,16 +761,16 @@ LaRuche.Settings = (function(){
 
     html += '<div class="settings-grid">'+tools.map(function(t, idx){
       var enabled = t.enabled !== false;
-      var originBadge = (t.origin === 'Custom') ? '<span style="margin-left:8px;font-size:9px;color:var(--purple);border:1px solid var(--purple-dim);background:var(--purple-dim);padding:2px 4px;border-radius:4px;">Custom</span>' : '<span style="margin-left:8px;font-size:9px;color:var(--text-dim);border:1px solid var(--border);padding:2px 4px;border-radius:4px;">Native Rust</span>';
+      var originBadge = (t.origin === 'Custom') ? '<span style="margin-left:8px;font-size:9px;color:var(--purple);border:1px solid var(--purple-dim);background:var(--purple-dim);padding:2px 4px;border-radius:4px;">'+LaRuche.i18n.t('settings.toolCustomBadge')+'</span>' : '<span style="margin-left:8px;font-size:9px;color:var(--text-dim);border:1px solid var(--border);padding:2px 4px;border-radius:4px;">'+LaRuche.i18n.t('settings.toolNativeBadge')+'</span>';
       var customActions = (t.origin === 'Custom') ? '<div style="margin-top:10px;display:flex;gap:8px;border-top:1px solid rgba(255,255,255,0.05);padding-top:8px;"><button style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();LaRuche.Toast.show(LaRuche.i18n.t(\'settings.pluginSrcUnavailable\'),\'err\')">'+LaRuche.i18n.t('settings.viewSource')+'</button><button style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();LaRuche.Toast.show(LaRuche.i18n.t(\'settings.pluginJsonNoEdit\'),\'err\')">'+LaRuche.i18n.t('settings.editJson')+'</button><button style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;" onclick="event.stopPropagation();fetch(\'/api/tools/\'+LaRuche.Utils.esc(t.name),{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})">'+LaRuche.i18n.t('settings.tlDelete')+'</button></div>' : '';
       return '<div class="settings-card" style="cursor:pointer; transition:transform 0.2s, box-shadow 0.2s; position:relative;" onmouseover="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 4px 12px rgba(0,0,0,0.3)\';" onmouseout="this.style.transform=\'\';this.style.boxShadow=\'\';" onclick="LaRuche.Utils.openMediaModal(\'text\', JSON.stringify(window._allTools['+idx+'], null, 2))">'+
         '<div class="settings-card-title" style="display:flex;justify-content:space-between;gap:8px;align-items:center">'+
           '<span style="color:var(--cyan);font-weight:600;">'+LaRuche.Utils.esc(t.name)+originBadge+'</span>'+
           '<label onclick="event.stopPropagation()" style="display:flex;align-items:center;gap:6px;color:'+(enabled?'var(--green)':'var(--red)')+';font-size:10px;text-transform:none;letter-spacing:0;background:'+(enabled?'rgba(16,185,129,0.1)':'rgba(239,68,68,0.1)')+';padding:3px 8px;border-radius:12px;font-weight:bold;">'+
-            '<input type="checkbox" '+(enabled?'checked':'')+' onchange="LaRuche.Settings.toggleTool(\''+LaRuche.Utils.esc(t.name)+'\',this.checked)"> '+(enabled?'ON':'OFF')+
+            '<input type="checkbox" '+(enabled?'checked':'')+' onchange="LaRuche.Settings.toggleTool(\''+LaRuche.Utils.esc(t.name)+'\',this.checked)"> '+(enabled?LaRuche.i18n.t('settings.toolOn'):LaRuche.i18n.t('settings.toolOff'))+
           '</label>'+
         '</div>'+
-        '<div class="settings-row" style="margin-top:8px;"><span class="settings-label">Danger</span><span class="settings-value" style="color:'+(t.danger==='high'?'var(--red)':(t.danger==='medium'?'var(--orange)':'var(--text-dim)'))+';font-weight:bold;">'+LaRuche.Utils.esc(t.danger||'safe')+'</span></div>'+
+        '<div class="settings-row" style="margin-top:8px;"><span class="settings-label">'+LaRuche.i18n.t('settings.toolDanger')+'</span><span class="settings-value" style="color:'+(t.danger==='high'?'var(--red)':(t.danger==='medium'?'var(--orange)':'var(--text-dim)'))+';font-weight:bold;">'+LaRuche.Utils.esc(t.danger||LaRuche.i18n.t('settings.toolDangerSafe'))+'</span></div>'+
         '<div style="font-size:12px;color:var(--text-dim);line-height:1.5;margin-top:10px;border-top:1px solid rgba(255,255,255,0.05);padding-top:10px;">'+LaRuche.Utils.esc((t.description||'').substring(0,180))+'</div>'+
         customActions+
       '</div>';
@@ -693,21 +800,21 @@ LaRuche.Settings = (function(){
       .then(function(r){return r.json();})
       .then(function(d){
         if(d.status !== 'ok') LaRuche.Toast.show(LaRuche.i18n.t('settings.toolsConfigErr'),'err');
-        else { LaRuche.Toast.show(name+(enabled?' enabled':' disabled'),'ok'); loadTab('tools'); }
+        else { LaRuche.Toast.show(name+(enabled?LaRuche.i18n.t('settings.toolEnabled'):LaRuche.i18n.t('settings.toolDisabled')),'ok'); loadTab('tools'); }
       })
       .catch(function(e){LaRuche.Toast.show(LaRuche.i18n.t('settings.toolsErr')+e,'err');});
   }
 
   async function loadNetwork(el) {
     var codeSet=false; try{ codeSet=(await fetch('/api/mesh/code').then(function(r){return r.json();})).set; }catch(e){}
-    var codeCard='<div class="settings-card"><div class="settings-card-title">Mesh code '+
+    var codeCard='<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.meshCodeTitle')+' '+
       (codeSet?'<span style="color:var(--green);font-size:11px">'+LaRuche.i18n.t('settings.meshCodeConfigured')+'</span>':'<span style="color:var(--text-muted);font-size:11px">'+LaRuche.i18n.t('settings.meshCodeUnconfigured')+'</span>')+'</div>'+
       '<p style="color:var(--text-dim);font-size:12px;margin:4px 0 8px">'+LaRuche.i18n.t('settings.meshCodeHint')+'</p>'+
       '<div style="display:flex;gap:8px"><input id="meshCodeInput" type="password" placeholder="'+(codeSet?LaRuche.i18n.t('settings.meshCodePlaceholderSet'):LaRuche.i18n.t('settings.meshCodePlaceholderNew'))+'" style="flex:1;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:14px"><button class="send-btn" id="meshCodeSave"><span>'+LaRuche.i18n.t('settings.meshSave')+'</span></button></div></div>';
     var d={nodes:[]};try{d=await fetch('/swarm').then(function(r){return r.json();});}catch(e){}
     var nodesHtml=(d.nodes||[]).map(function(n){
       var caps=(n.capabilities||[]).map(function(c){return '<span style="background:rgba(6,182,212,.15);color:var(--cyan);padding:1px 6px;border-radius:8px;font-size:10px">'+c+'</span>';}).join(' ');
-      return '<div class="settings-card"><div class="settings-card-title">'+(n.name||'?')+'</div><div class="settings-row"><span class="settings-label">Host</span><span class="settings-value">'+n.host+':'+(n.port||'?')+'</span></div><div style="margin-top:4px">'+caps+'</div></div>';
+      return '<div class="settings-card"><div class="settings-card-title">'+(n.name||'?')+'</div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.hostLabel')+'</span><span class="settings-value">'+n.host+':'+(n.port||'?')+'</span></div><div style="margin-top:4px">'+caps+'</div></div>';
     }).join('')||'<div style="text-align:center;color:var(--text-muted);padding:20px">'+LaRuche.i18n.t('settings.noNodes')+'</div>';
     el.innerHTML=codeCard+nodesHtml;
     var btn=document.getElementById('meshCodeSave');
@@ -797,7 +904,7 @@ LaRuche.Settings = (function(){
     function seg(h,lbl){return '<button class="'+(_tlSpanH===h?'on':'')+'" onclick="LaRuche.Settings.tlZoom('+h+')">'+lbl+'</button>';}
     var html='<div class="tl-ctrls"><div class="tl-seg">'+seg(24,'24h')+seg(48,'48h')+seg(168,'7j')+'</div>'+
       '<button class="tl-btn" onclick="LaRuche.Settings.tlRecenter()">'+LaRuche.i18n.t('settings.recenter')+'</button>'+
-      '<span style="color:var(--text-dim);font-size:10px">'+_tlJobs.length+' cron(s)</span></div>';
+      '<span style="color:var(--text-dim);font-size:10px">'+_tlJobs.length+' '+LaRuche.i18n.t('settings.cronCount')+'</span></div>';
     if(!_tlJobs.length){ el.innerHTML=html+'<div style="color:var(--text-dim);padding:20px">'+LaRuche.i18n.t('settings.noCron')+'</div>'; return; }
     // axe (ticks)
     var ticks=''; var stepH=_tlSpanH<=24?2:(_tlSpanH<=48?4:24);
@@ -899,12 +1006,12 @@ LaRuche.Settings = (function(){
     }
 
     d.innerHTML='<div class="tl-detail"><div style="font-weight:600;color:var(--amber);margin-bottom:8px">'+LaRuche.i18n.t('settings.tlEdit')+' : '+LaRuche.Utils.esc(job.name||'')+'</div>'+
-      '<label class="form-label">Name</label><input class="form-input" id="tlfName" value="'+LaRuche.Utils.esc(job.name||'')+'">'+
-      '<label class="form-label">Prompt</label><textarea class="form-input" id="tlfPrompt" rows="3">'+LaRuche.Utils.esc(job.prompt||'')+'</textarea>'+
-      '<label class="form-label">Cron (5 fields) or empty</label><input class="form-input" id="tlfCron" value="'+LaRuche.Utils.esc(job.cron_expr||'')+'" placeholder="*/30 * * * *">'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.nameLabel')+'</label><input class="form-input" id="tlfName" value="'+LaRuche.Utils.esc(job.name||'')+'">'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.promptLabel')+'</label><textarea class="form-input" id="tlfPrompt" rows="3">'+LaRuche.Utils.esc(job.prompt||'')+'</textarea>'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.tlCronFields')+'</label><input class="form-input" id="tlfCron" value="'+LaRuche.Utils.esc(job.cron_expr||'')+'" placeholder="*/30 * * * *">'+
       '<label class="form-label">'+LaRuche.i18n.t('settings.channelLabel')+'</label><input class="form-input" id="tlfChannel" value="'+LaRuche.Utils.esc(job.channel||'')+'" placeholder="telegram / empty">'+
-      '<label class="form-label">Provider</label><select class="form-input" id="tlfProfileId" onchange="LaRuche.Settings.updateCronEditModelSelect()">'+profOpts+'</select>'+
-      '<label class="form-label">Model</label><select class="form-input" id="tlfModel">'+modOpts+'</select>'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.providerLabel')+'</label><select class="form-input" id="tlfProfileId" onchange="LaRuche.Settings.updateCronEditModelSelect()">'+profOpts+'</select>'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.modelLabel')+'</label><select class="form-input" id="tlfModel">'+modOpts+'</select>'+
       skillHtml+
       '<div style="margin-top:10px;display:flex;gap:6px">'+
       '<button class="tl-btn" style="background:var(--amber);color:#000" onclick="LaRuche.Settings.tlSaveEdit('+i+')">'+LaRuche.i18n.t('settings.tlSaveEdit')+'</button>'+
@@ -978,13 +1085,13 @@ LaRuche.Settings = (function(){
   // Dedicated MCP tab (moved out of Providers).
   function loadMcp(el){
     var html = '<div class="settings-card" style="margin-bottom:16px">';
-    html += '  <div class="settings-card-title">MCP Servers (Model Context Protocol)</div>';
+    html += '  <div class="settings-card-title">'+LaRuche.i18n.t('settings.mcpServersTitle')+'</div>';
     html += '  <div style="color:var(--text-dim);font-size:12px;margin-bottom:12px">'+LaRuche.i18n.t('settings.mcpDesc')+'</div>';
     html += '  <div id="mcp-list" style="margin-bottom:12px"></div>';
     html += '  <div style="border:1px solid var(--border);border-radius:6px;padding:8px;background:var(--bg-panel)">';
-    html += '     <div style="margin-bottom:8px"><label class="form-label">Server name</label><input id="mcp-new-name" class="form-input" placeholder="e.g.: local-sqlite"></div>';
-    html += '     <div style="margin-bottom:8px"><label class="form-label">Command</label><input id="mcp-new-cmd" class="form-input" placeholder="e.g.: node"></div>';
-    html += '     <div style="margin-bottom:8px"><label class="form-label">'+LaRuche.i18n.t('settings.mcpArgsLabel')+'</label><input id="mcp-new-args" class="form-input" placeholder="ex: src/index.js --db sqlite.db"></div>';
+    html += '     <div style="margin-bottom:8px"><label class="form-label">'+LaRuche.i18n.t('settings.mcpNameLabel')+'</label><input id="mcp-new-name" class="form-input" placeholder="'+LaRuche.i18n.t('settings.mcpNamePlaceholder')+'"></div>';
+    html += '     <div style="margin-bottom:8px"><label class="form-label">'+LaRuche.i18n.t('settings.mcpCmdLabel')+'</label><input id="mcp-new-cmd" class="form-input" placeholder="'+LaRuche.i18n.t('settings.mcpCmdPlaceholder')+'"></div>';
+    html += '     <div style="margin-bottom:8px"><label class="form-label">'+LaRuche.i18n.t('settings.mcpArgsLabel')+'</label><input id="mcp-new-args" class="form-input" placeholder="'+LaRuche.i18n.t('settings.mcpArgsPlaceholder')+'"></div>';
     html += '     <button class="settings-save-btn" onclick="LaRuche.Settings.createMcpServer()">'+LaRuche.i18n.t('settings.mcpAddBtn')+'</button>';
     html += '  </div>';
     html += '</div>';
@@ -1073,23 +1180,23 @@ LaRuche.Settings = (function(){
         profOpts += '<option value="'+k+'">'+LaRuche.Utils.esc(profiles[k].name)+'</option>';
     });
 
-    el.innerHTML='<div style="margin-bottom:12px"><button class="settings-save-btn" onclick="document.getElementById(\'newCronForm\').style.display=\'block\'">+ New Task</button></div>'+
+    el.innerHTML='<div style="margin-bottom:12px"><button class="settings-save-btn" onclick="document.getElementById(\'newCronForm\').style.display=\'block\'">'+LaRuche.i18n.t('settings.newTaskBtn')+'</button></div>'+
       '<div id="newCronForm" style="display:none" class="settings-card">'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Name</label><input id="ncName" class="form-input"></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Prompt</label><input id="ncPrompt" class="form-input"></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.nameLabel')+'</label><input id="ncName" class="form-input"></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.promptLabel')+'</label><input id="ncPrompt" class="form-input"></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpScheduleLabel')+'</label><div id="ncCronBuilder"></div></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherChannelLabel')+'</label><select id="ncChannel" class="form-input"><option value="">None (Activity Log)</option><option value="telegram">Telegram</option><option value="discord">Discord</option></select></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Provider</label><select id="ncProfileId" class="form-input" onchange="LaRuche.Settings.updateCronModelSelect()">'+profOpts+'</select></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Model</label><select id="ncModel" class="form-input"><option value="">'+LaRuche.i18n.t('settings.providerDefault')+'</option></select></div>'+
-      '<button class="settings-save-btn" onclick="LaRuche.Settings.createCron()">Create</button></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherChannelLabel')+'</label><select id="ncChannel" class="form-input"><option value="">'+LaRuche.i18n.t('settings.cronChannelNone')+'</option><option value="telegram">Telegram</option><option value="discord">Discord</option></select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.providerLabel')+'</label><select id="ncProfileId" class="form-input" onchange="LaRuche.Settings.updateCronModelSelect()">'+profOpts+'</select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.modelLabel')+'</label><select id="ncModel" class="form-input"><option value="">'+LaRuche.i18n.t('settings.providerDefault')+'</option></select></div>'+
+      '<button class="settings-save-btn" onclick="LaRuche.Settings.createCron()">'+LaRuche.i18n.t('settings.createBtn')+'</button></div>'+
       tasks.map(function(t){
-          var effProv = "Default";
+          var effProv = LaRuche.i18n.t('settings.watcherDefaut');
           if(t.profile_id && profiles[t.profile_id]) effProv = profiles[t.profile_id].name;
           else if(t.profile_id) effProv = t.profile_id;
           else if(t.provider) effProv = t.provider + (t.model ? " / " + t.model : "");
           else if(t.model) effProv = t.model;
           if(t.profile_id && t.model) effProv += " (" + t.model + ")";
-          return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.Utils.esc(t.name)+'</div><div class="settings-row"><span class="settings-label">Schedule</span><span class="settings-value">'+(t.cron_expr||t.fire_at||'-')+'</span></div><div class="settings-row"><span class="settings-label">Runs</span><span class="settings-value">'+(t.run_count||0)+'</span></div><div class="settings-row"><span class="settings-label">Channel</span><span class="settings-value">'+LaRuche.Utils.esc(t.channel||'None')+'</span></div><div class="settings-row"><span class="settings-label">Provider/Model</span><span class="settings-value">'+LaRuche.Utils.esc(effProv)+'</span></div><button onclick="LaRuche.Settings.deleteCronTask(\''+t.id+'\',this)" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;margin-top:6px">Delete</button></div>';
+          return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.Utils.esc(t.name)+'</div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.scheduleLabel')+'</span><span class="settings-value">'+(t.cron_expr||t.fire_at||'-')+'</span></div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.runsLabel')+'</span><span class="settings-value">'+(t.run_count||0)+'</span></div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.channelLabelShort')+'</span><span class="settings-value">'+LaRuche.Utils.esc(t.channel||LaRuche.i18n.t('settings.channelNone'))+'</span></div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.providerModelLabel')+'</span><span class="settings-value">'+LaRuche.Utils.esc(effProv)+'</span></div><button onclick="LaRuche.Settings.deleteCronTask(\''+t.id+'\',this)" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;margin-top:6px">'+LaRuche.i18n.t('settings.deleteBtn')+'</button></div>';
       }).join('');
     // Human-friendly cron builder for the creation form.
     if(LaRuche.CronBuilder){ _ncCronBuilderId = LaRuche.CronBuilder.mount('ncCronBuilder', { value:'' }); }
@@ -1131,7 +1238,7 @@ LaRuche.Settings = (function(){
     if(profile_id) payload.profile_id = profile_id;
     if(model) payload.model = model;
     
-    fetch('/api/cron',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(function(){loadTab('cron');LaRuche.Toast.show('Cron task created','ok');});
+    fetch('/api/cron',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(function(){loadTab('cron');LaRuche.Toast.show(LaRuche.i18n.t('settings.cronTaskCreated'),'ok');});
   }
 
   async function loadWatchers(el) {
@@ -1145,25 +1252,25 @@ LaRuche.Settings = (function(){
     Object.keys(profiles).forEach(function(k){
         profOpts += '<option value="'+k+'">'+LaRuche.Utils.esc(profiles[k].name||k)+'</option>';
     });
-    el.innerHTML='<div style="margin-bottom:12px"><button class="settings-save-btn" onclick="document.getElementById(\'newWatcherForm\').style.display=\'block\'">+ New Watcher</button></div>'+
+    el.innerHTML='<div style="margin-bottom:12px"><button class="settings-save-btn" onclick="document.getElementById(\'newWatcherForm\').style.display=\'block\'">'+LaRuche.i18n.t('settings.newWatcherBtn')+'</button></div>'+
       '<div id="newWatcherForm" style="display:none" class="settings-card">'+
-      '<div style="font-weight:600;margin-bottom:8px">New Watcher</div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Name</label><input id="nwName" class="form-input"></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Type</label><select id="nwType" class="form-input"><option value="file">File</option><option value="url">URL</option><option value="log">Log Pattern</option></select></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Target (Path/URL)</label><input id="nwTarget" class="form-input"></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Condition (optional)</label><input id="nwCondition" class="form-input"></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Prompt</label><input id="nwPrompt" class="form-input"></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Provider</label><select id="watcher-profile" class="form-input" onchange="LaRuche.Settings.updateWatcherModelSelect()">'+profOpts+'</select></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">Model</label><select id="watcher-model" class="form-input"><option value="">'+LaRuche.i18n.t('settings.parDefault')+'</option></select></div>'+
+      '<div style="font-weight:600;margin-bottom:8px">'+LaRuche.i18n.t('settings.newWatcherTitle')+'</div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.nameLabel')+'</label><input id="nwName" class="form-input"></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherTypeLabel')+'</label><select id="nwType" class="form-input"><option value="file">'+LaRuche.i18n.t('settings.watcherTypeFile')+'</option><option value="url">'+LaRuche.i18n.t('settings.watcherTypeUrl')+'</option><option value="log">'+LaRuche.i18n.t('settings.watcherTypeLog')+'</option></select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherTargetField')+'</label><input id="nwTarget" class="form-input"></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherCondField')+'</label><input id="nwCondition" class="form-input"></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.promptLabel')+'</label><input id="nwPrompt" class="form-input"></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.providerLabel')+'</label><select id="watcher-profile" class="form-input" onchange="LaRuche.Settings.updateWatcherModelSelect()">'+profOpts+'</select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.modelLabel')+'</label><select id="watcher-model" class="form-input"><option value="">'+LaRuche.i18n.t('settings.parDefault')+'</option></select></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherChannelLabel')+'</label><select id="nwChannel" class="form-input"><option value="">'+LaRuche.i18n.t('settings.watcherHomeChannel')+'</option></select></div>'+
-      '<button class="settings-save-btn" onclick="LaRuche.Settings.createWatcher()">Create</button></div>'+
+      '<button class="settings-save-btn" onclick="LaRuche.Settings.createWatcher()">'+LaRuche.i18n.t('settings.createBtn')+'</button></div>'+
       watchers.map(function(w){
         var effProv = LaRuche.i18n.t('settings.watcherDefaut');
         if(w.profile_id && profiles[w.profile_id]) effProv = profiles[w.profile_id].name || w.profile_id;
         else if(w.profile_id) effProv = w.profile_id;
         else if(w.model) effProv = w.model;
         if(w.profile_id && w.model) effProv += " (" + w.model + ")";
-        return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.Utils.esc(w.name)+'</div><div class="settings-row"><span class="settings-label">Type</span><span class="settings-value">'+LaRuche.Utils.esc(w.watcher_type)+'</span></div><div class="settings-row"><span class="settings-label">Target</span><span class="settings-value">'+LaRuche.Utils.esc(w.target)+'</span></div><div class="settings-row"><span class="settings-label">Provider/Model</span><span class="settings-value">'+LaRuche.Utils.esc(effProv)+'</span></div><div class="settings-row"><span class="settings-label">Runs</span><span class="settings-value">'+(w.run_count||0)+'</span></div><div style="margin-top:6px;display:flex;gap:6px"><button onclick="LaRuche.Settings.editWatcher(\''+w.id+'\')" style="background:none;border:1px solid var(--amber);color:var(--amber);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.watcherEditBtn')+'</button><button onclick="fetch(\'/api/watchers/'+w.id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.deleteWatcherBtn')+'</button></div></div>';}).join('');
+        return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.Utils.esc(w.name)+'</div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.typeLabel')+'</span><span class="settings-value">'+LaRuche.Utils.esc(w.watcher_type)+'</span></div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.targetLabel')+'</span><span class="settings-value">'+LaRuche.Utils.esc(w.target)+'</span></div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.providerModelLabel')+'</span><span class="settings-value">'+LaRuche.Utils.esc(effProv)+'</span></div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.runsLabel')+'</span><span class="settings-value">'+(w.run_count||0)+'</span></div><div style="margin-top:6px;display:flex;gap:6px"><button onclick="LaRuche.Settings.editWatcher(\''+w.id+'\')" style="background:none;border:1px solid var(--amber);color:var(--amber);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.watcherEditBtn')+'</button><button onclick="fetch(\'/api/watchers/'+w.id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.deleteWatcherBtn')+'</button></div></div>';}).join('');
     window.__fillChannels(document.getElementById('nwChannel'), '', LaRuche.i18n.t('settings.watcherHomeChannel'));
   }
 
@@ -1182,7 +1289,7 @@ LaRuche.Settings = (function(){
     if(profile_id) body.profile_id = profile_id;
     if(model) body.model = model;
     if(channel) body.channel = channel;
-    fetch('/api/watchers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(){loadTab('watchers');LaRuche.Toast.show('Watcher created','ok');});
+    fetch('/api/watchers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(){loadTab('watchers');LaRuche.Toast.show(LaRuche.i18n.t('settings.watcherCreated'),'ok');});
   }
 
   // Inline watcher editing (parity with cron/kanban).
@@ -1190,7 +1297,7 @@ LaRuche.Settings = (function(){
     var w=null; try{ w=JSON.parse(_watchersLast).find(function(x){return x.id===id;}); }catch(e){}
     if(!w){ LaRuche.Toast.show(LaRuche.i18n.t('settings.fileNotFound'),'err'); return; }
     function opt(v,label,cur){ return '<option value="'+v+'" '+(cur===v?'selected':'')+'>'+label+'</option>'; }
-    var typeSel = opt('file','File',w.watcher_type)+opt('url','URL',w.watcher_type)+opt('log','Log Pattern',w.watcher_type);
+    var typeSel = opt('file',LaRuche.i18n.t('settings.watcherTypeFile'),w.watcher_type)+opt('url',LaRuche.i18n.t('settings.watcherTypeUrl'),w.watcher_type)+opt('log',LaRuche.i18n.t('settings.watcherTypeLog'),w.watcher_type);
     var profOpts = '<option value="">'+LaRuche.i18n.t('settings.watcherDefChannel')+'</option>';
     Object.keys(_profiles).forEach(function(k){ profOpts += '<option value="'+k+'" '+((w.profile_id===k)?'selected':'')+'>'+LaRuche.Utils.esc(_profiles[k].name||k)+'</option>'; });
     var modOpts = '<option value="">'+LaRuche.i18n.t('settings.parDefault')+'</option>';
@@ -1268,9 +1375,9 @@ LaRuche.Settings = (function(){
         LaRuche.Toast.show(LaRuche.i18n.t('settings.visibilityUpdated'),'ok'); window.LaRuche.forceReactivityUpdate();
         loadTab('providers');
       } else {
-        LaRuche.Toast.show('Error: '+(d.error||'?'),'err');
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+(d.error||'?'),'err');
       }
-    }).catch(function(e){LaRuche.Toast.show('Error: '+e,'err');});
+    }).catch(function(e){LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err');});
   }
 
   // Permissions menu: Private / Public / Restricted (checkbox per node) -> grants layer.
@@ -1305,8 +1412,8 @@ LaRuche.Settings = (function(){
       fetch('/api/profiles/'+id+'/visibility',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({visibility:vis,allowed_peers:aps})})
         .then(function(r){return r.json();}).then(function(d){
           if(d.status==='ok'){ LaRuche.Toast.show(LaRuche.i18n.t('settings.accessUpdated'),'ok'); ov.remove(); if(window.LaRuche.forceReactivityUpdate)window.LaRuche.forceReactivityUpdate(); loadTab('providers'); }
-          else LaRuche.Toast.show('Error: '+(d.error||'?'),'err');
-        }).catch(function(e){ LaRuche.Toast.show('Error: '+e,'err'); });
+          else LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+(d.error||'?'),'err');
+        }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err'); });
     };
   }
 
@@ -1328,27 +1435,27 @@ LaRuche.Settings = (function(){
     var dc = config.discord || {};
     var sl = config.slack || {};
     el.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">' +
-      '<div class="settings-card"><div class="card-title" style="color:var(--amber)">Notifications</div>' +
+      '<div class="settings-card"><div class="card-title" style="color:var(--amber)">'+LaRuche.i18n.t('settings.notificationsTitle')+'</div>' +
         '<div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">'+LaRuche.i18n.t('settings.notifyHint')+'</div>' +
         '<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="ch-notify-en" '+(notify.enabled?'checked':'')+'> <span>'+LaRuche.i18n.t('settings.notifyLabel')+'</span></label></div>' +
       '<div class="settings-card"><div class="card-title" style="color:var(--blue)">Telegram</div>' +
-        '<div class="form-group"><label class="form-label">Bot Token</label><input class="form-input" id="ch-tg-token" value="'+LaRuche.Utils.esc(tg.bot_token||'')+'" placeholder="7123456789:AAH..."></div>' +
-        '<div class="form-group"><label class="form-label">Allowed Chat IDs</label><input class="form-input" id="ch-tg-chats" value="'+LaRuche.Utils.esc(tg.allowed_chats||'')+'" placeholder="'+LaRuche.i18n.t('settings.chAllowedChats')+'"></div>' +
+        '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.botTokenLabel')+'</label><input class="form-input" id="ch-tg-token" value="'+LaRuche.Utils.esc(tg.bot_token||'')+'" placeholder="7123456789:AAH..."></div>' +
+        '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.tgAllowedChats')+'</label><input class="form-input" id="ch-tg-chats" value="'+LaRuche.Utils.esc(tg.allowed_chats||'')+'" placeholder="'+LaRuche.i18n.t('settings.chAllowedChats')+'"></div>' +
         '<div style="font-size:10px;color:var(--text-muted);margin-top:4px">'+LaRuche.i18n.t('settings.chTgLaunch')+'</div></div>' +
       '<div class="settings-card"><div class="card-title" style="color:var(--purple)">Discord</div>' +
-        '<div class="form-group"><label class="form-label">Bot Token</label><input class="form-input" id="ch-dc-token" value="'+LaRuche.Utils.esc(dc.bot_token||'')+'" placeholder="MTIxxx..."></div>' +
-        '<div class="form-group"><label class="form-label">Allowed Channel IDs</label><input class="form-input" id="ch-dc-channels" value="'+LaRuche.Utils.esc(dc.allowed_channels||'')+'" placeholder="'+LaRuche.i18n.t('settings.chAllowedChats')+'"></div>' +
+        '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.botTokenLabel')+'</label><input class="form-input" id="ch-dc-token" value="'+LaRuche.Utils.esc(dc.bot_token||'')+'" placeholder="MTIxxx..."></div>' +
+        '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.dcAllowedChannels')+'</label><input class="form-input" id="ch-dc-channels" value="'+LaRuche.Utils.esc(dc.allowed_channels||'')+'" placeholder="'+LaRuche.i18n.t('settings.chAllowedChats')+'"></div>' +
         '<div style="font-size:10px;color:var(--text-muted);margin-top:4px">'+LaRuche.i18n.t('settings.chDcLaunch')+'</div></div>' +
       '<div class="settings-card"><div class="card-title" style="color:var(--green)">Slack</div>' +
-        '<div class="form-group"><label class="form-label">Bot Token (xoxb-)</label><input class="form-input" id="ch-sl-bot" value="'+LaRuche.Utils.esc(sl.bot_token||'')+'" placeholder="xoxb-..."></div>' +
-        '<div class="form-group"><label class="form-label">App Token (xapp-)</label><input class="form-input" id="ch-sl-app" value="'+LaRuche.Utils.esc(sl.app_token||'')+'" placeholder="xapp-..."></div>' +
+        '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.slBotToken')+'</label><input class="form-input" id="ch-sl-bot" value="'+LaRuche.Utils.esc(sl.bot_token||'')+'" placeholder="xoxb-..."></div>' +
+        '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.slAppToken')+'</label><input class="form-input" id="ch-sl-app" value="'+LaRuche.Utils.esc(sl.app_token||'')+'" placeholder="xapp-..."></div>' +
         '<div style="font-size:10px;color:var(--text-muted);margin-top:4px">'+LaRuche.i18n.t('settings.chSlLaunch')+'</div></div>' +
       '<div class="settings-card" style="opacity:0.5;border-style:dashed"><div class="card-title" style="color:#25D366">WhatsApp</div>' +
-        '<div style="color:var(--text-muted);font-size:12px;padding:12px 0">Coming soon</div></div>' +
+        '<div style="color:var(--text-muted);font-size:12px;padding:12px 0">'+LaRuche.i18n.t('settings.comingSoon')+'</div></div>' +
       '<div class="settings-card" style="opacity:0.5;border-style:dashed"><div class="card-title" style="color:#3A76F0">Signal</div>' +
-        '<div style="color:var(--text-muted);font-size:12px;padding:12px 0">Coming soon</div></div>' +
+        '<div style="color:var(--text-muted);font-size:12px;padding:12px 0">'+LaRuche.i18n.t('settings.comingSoon')+'</div></div>' +
       '<div class="settings-card" style="opacity:0.5;border-style:dashed"><div class="card-title" style="color:#0DBD8B">Matrix</div>' +
-        '<div style="color:var(--text-muted);font-size:12px;padding:12px 0">Coming soon</div></div>' +
+        '<div style="color:var(--text-muted);font-size:12px;padding:12px 0">'+LaRuche.i18n.t('settings.comingSoon')+'</div></div>' +
     '</div>' +
     '<div style="margin-top:16px;display:flex;gap:8px">' +
       '<button class="form-btn" onclick="LaRuche.Settings.saveChannels()">'+LaRuche.i18n.t('settings.saveChannels')+'</button>' +
@@ -1521,7 +1628,7 @@ LaRuche.Settings = (function(){
     fetch(LaRuche.API.base+'/api/plugins/'+encodeURIComponent(name),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:content})})
       .then(function(r){return r.json();}).then(function(d){
         if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
-        LaRuche.Toast.show('Plugin "'+d.name+'"'+LaRuche.i18n.t('settings.pluginSaved'),'ok');
+        LaRuche.Toast.show(LaRuche.i18n.t('settings.pluginToast')+'"'+d.name+'"'+LaRuche.i18n.t('settings.pluginSaved'),'ok');
         var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove();
         LaRuche.Settings.refreshTab&&LaRuche.Settings.refreshTab();
       }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.pluginFailed'),'err'); });
@@ -1608,8 +1715,8 @@ LaRuche.Settings = (function(){
     el.innerHTML = '<div style="margin-bottom:16px;display:flex;gap:8px;align-items:end;flex-wrap:wrap">' +
       '<div style="flex:1;min-width:140px"><label class="form-label">'+LaRuche.i18n.t('settings.kanbanTitle')+'</label><input class="form-input" id="kanban-title" placeholder="'+LaRuche.i18n.t('settings.kanbanTitlePlaceholder')+'"></div>' +
       '<div style="flex:2;min-width:160px"><label class="form-label">'+LaRuche.i18n.t('settings.kanbanDesc')+'</label><input class="form-input" id="kanban-desc" placeholder="'+LaRuche.i18n.t('settings.kanbanDescPlaceholder')+'"></div>' +
-      '<div style="flex:1;min-width:130px"><label class="form-label">Provider</label><select class="form-input" id="kanban-profile" onchange="LaRuche.Settings.updateKanbanModelSelect()">'+profOpts+'</select></div>' +
-      '<div style="flex:1;min-width:130px"><label class="form-label">Model</label><select class="form-input" id="kanban-model"><option value="">'+LaRuche.i18n.t('settings.kanbanParDefault')+'</option></select></div>' +
+      '<div style="flex:1;min-width:130px"><label class="form-label">'+LaRuche.i18n.t('settings.providerLabel')+'</label><select class="form-input" id="kanban-profile" onchange="LaRuche.Settings.updateKanbanModelSelect()">'+profOpts+'</select></div>' +
+      '<div style="flex:1;min-width:130px"><label class="form-label">'+LaRuche.i18n.t('settings.modelLabel')+'</label><select class="form-input" id="kanban-model"><option value="">'+LaRuche.i18n.t('settings.kanbanParDefault')+'</option></select></div>' +
       '<div style="flex:1;min-width:150px"><label class="form-label">'+LaRuche.i18n.t('settings.kanbanChannel')+'</label><select class="form-input" id="kanban-channel"><option value="">'+LaRuche.i18n.t('settings.kanbanBoardChannel')+'</option></select></div>' +
       '<button class="form-btn" onclick="LaRuche.Settings.createKanbanTask()">'+LaRuche.i18n.t('settings.kanbanCreate')+'</button></div>' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">' +
@@ -1706,7 +1813,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       '<label class="form-label">'+LaRuche.i18n.t('settings.kanbanEditTitleLabel')+'</label><input class="form-input" id="kbeTitle" value="'+LaRuche.Utils.esc(t?t.title:'')+'">'+
       '<label class="form-label">'+LaRuche.i18n.t('settings.kanbanEditDescLabel')+'</label><textarea class="form-input" id="kbeDesc" rows="4">'+LaRuche.Utils.esc(t?(t.description||''):'')+'</textarea>'+
       '<label class="form-label">'+LaRuche.i18n.t('settings.kanbanEditProviderLabel')+'</label><select class="form-input" id="kbeProfile" onchange="LaRuche.Settings.updateKanbanEditModelSelect()">'+profOpts+'</select>'+
-      '<label class="form-label">Model</label><select class="form-input" id="kbeModel">'+modOpts+'</select>'+
+      '<label class="form-label">'+LaRuche.i18n.t('settings.modelLabel')+'</label><select class="form-input" id="kbeModel">'+modOpts+'</select>'+
       '<label class="form-label">'+LaRuche.i18n.t('settings.kanbanEditChannelLabel')+'</label><select class="form-input" id="kbeChannel"><option value="">'+LaRuche.i18n.t('settings.kanbanBoardChannel')+'</option></select>'+
       '<div style="margin-top:12px;display:flex;gap:8px"><button class="form-btn" onclick="LaRuche.Settings.saveKanbanEdit(\''+id+'\',this)">'+LaRuche.i18n.t('settings.kanbanEditSave')+'</button>'+
       '<button class="form-btn" style="background:none;border:1px solid var(--border);color:var(--text-dim)" onclick="this.closest(\'div[style*=fixed]\')&&this.closest(\'div[style*=fixed]\').remove()">'+LaRuche.i18n.t('settings.kanbanEditCancel')+'</button></div></div>';
@@ -1768,14 +1875,14 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
           temperature: temperature
         })
       });
-      if(res.ok) LaRuche.Toast.show('Inference config saved','ok');
-      else LaRuche.Toast.show('Save failed','err');
-    } catch(e) { LaRuche.Toast.show('Error: '+e,'err'); }
+      if(res.ok) LaRuche.Toast.show(LaRuche.i18n.t('settings.inferenceCfgSaved'),'ok');
+      else LaRuche.Toast.show(LaRuche.i18n.t('settings.saveFailed'),'err');
+    } catch(e) { LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err'); }
   }
 
   async function loadOnboarding(el) {
     var data = await fetch(LaRuche.API.base+'/api/onboarding').then(function(r){return r.json();}).catch(function(){return {steps:[],progress:'0/0',complete:false};});
-    var html = '<div style="margin-bottom:16px"><span style="font-size:18px;font-weight:600">Setup Checklist</span>' +
+    var html = '<div style="margin-bottom:16px"><span style="font-size:18px;font-weight:600">'+LaRuche.i18n.t('settings.setupChecklist')+'</span>' +
       '<span style="margin-left:12px;padding:2px 10px;border-radius:10px;font-size:12px;background:'+(data.complete?'var(--green)':'var(--amber)')+';color:#000">'+LaRuche.Utils.esc(data.progress)+'</span></div>';
     html += '<div style="display:flex;flex-direction:column;gap:12px">';
     (data.steps||[]).forEach(function(s){
@@ -1793,7 +1900,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     var th = parseFloat(document.getElementById('cfgCtxThresh').value);
     fetch(LaRuche.API.base+'/api/config/compaction',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({context_max_messages:max,compaction_threshold:th})})
       .then(function(r){if(r.ok) LaRuche.Toast.show(LaRuche.i18n.t('settings.contextSaved'), 'ok'); else LaRuche.Toast.show(LaRuche.i18n.t('settings.contextSaveFailed'), 'err');})
-      .catch(function(e){LaRuche.Toast.show('Error: '+e,'err');});
+      .catch(function(e){LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err');});
   }
 
   function saveRuntimeCfg() {
@@ -1806,7 +1913,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     };
     fetch(LaRuche.API.base+'/api/config/runtime',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
       .then(function(r){ if(r.ok) LaRuche.Toast.show(LaRuche.i18n.t('settings.generationApplied'),'ok'); else LaRuche.Toast.show(LaRuche.i18n.t('settings.errorGeneric'),'err'); })
-      .catch(function(e){ LaRuche.Toast.show('Error: '+e,'err'); });
+      .catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err'); });
   }
 
   function toggleCurateur(on) {
@@ -1833,8 +1940,8 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       fetch(LaRuche.API.base+'/api/config/channels',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(config)}),
       fetch(LaRuche.API.base+'/api/config/notify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:notifyEnabled})})
     ])
-      .then(function(){LaRuche.Toast.show('Channels config saved','ok');})
-      .catch(function(e){LaRuche.Toast.show('Error: '+e,'err');});
+      .then(function(){LaRuche.Toast.show(LaRuche.i18n.t('settings.channelsSaved'),'ok');})
+      .catch(function(e){LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err');});
   }
 
   async function loadKnowledge(el) {
@@ -1842,18 +1949,18 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     var html = '<div style="margin-bottom:16px;display:flex;gap:8px;align-items:end">' +
       '<div style="flex:1"><label class="form-label">'+LaRuche.i18n.t('settings.kbAddLabel')+'</label><input class="form-input" id="kb-text" placeholder="'+LaRuche.i18n.t('settings.kbAddPlaceholder')+'"></div>' +
       '<div><label class="form-label">'+LaRuche.i18n.t('settings.kbSourceLabel')+'</label><input class="form-input" id="kb-source" placeholder="'+LaRuche.i18n.t('settings.optional')+'" style="width:150px"></div>' +
-      '<button class="form-btn" onclick="LaRuche.Settings.addKnowledge()">'+LaRuche.i18n.t('settings.kbAddLabel')+'</button></div>';
+      '<button class="form-btn" onclick="LaRuche.Settings.addKnowledge()">'+LaRuche.i18n.t('settings.kbAddKnowledgeBtn')+'</button></div>';
     html += '<div style="margin-bottom:16px;display:flex;gap:8px;">' +
       '<button class="form-btn" onclick="LaRuche.Settings.exportOkf()">'+LaRuche.i18n.t('settings.kbExportBtn')+'</button>' +
       '<button class="form-btn" onclick="LaRuche.Settings.importOkf()">'+LaRuche.i18n.t('settings.kbImportBtn')+'</button>' +
       '</div>';
-    html += '<div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">'+data.count+' entry(ies) in the knowledge base</div>';
+    html += '<div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">'+data.count+LaRuche.i18n.t('settings.kbEntriesCount')+'</div>';
     if(data.entries && data.entries.length > 0) {
       html += '<table style="width:100%;border-collapse:collapse;font-size:12px">';
       html += '<tr><th style="text-align:left;padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">ID</th>';
-      html += '<th style="text-align:left;padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">Text</th>';
-      html += '<th style="padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">Source</th>';
-      html += '<th style="padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">Actions</th></tr>';
+      html += '<th style="text-align:left;padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">'+LaRuche.i18n.t('settings.kbColText')+'</th>';
+      html += '<th style="padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">'+LaRuche.i18n.t('settings.kbColSource')+'</th>';
+      html += '<th style="padding:6px;color:var(--text-dim);border-bottom:1px solid var(--border)">'+LaRuche.i18n.t('settings.kbColActions')+'</th></tr>';
       data.entries.forEach(function(e) {
         html += '<tr><td style="padding:6px;border-bottom:1px solid rgba(42,42,46,.3);font-family:var(--mono);font-size:10px;color:var(--text-muted)">'+LaRuche.Utils.esc(e.id)+'</td>';
         html += '<td style="padding:6px;border-bottom:1px solid rgba(42,42,46,.3)">'+LaRuche.Utils.esc((e.text||'').substring(0,100))+'</td>';
@@ -1876,10 +1983,10 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     fetch(LaRuche.API.base+'/api/knowledge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text,source:source||'manual'})})
       .then(function(r){return r.json();})
       .then(function(d){
-        if(d.error) LaRuche.Toast.show('Error: '+d.error,'err');
+        if(d.error) LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+d.error,'err');
         else { LaRuche.Toast.show(LaRuche.i18n.t('settings.kbAdded')+d.id+')','ok'); loadTab('knowledge'); }
       })
-      .catch(function(e){LaRuche.Toast.show('Error: '+e,'err');});
+      .catch(function(e){LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err');});
   }
 
   function exportOkf() {
@@ -1900,7 +2007,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
             LaRuche.Toast.show(LaRuche.i18n.t('settings.kbImported'), 'ok');
             loadKnowledge(document.getElementById('settings-content'));
         }
-        else LaRuche.Toast.show('Import error: ' + res.error, 'err');
+        else LaRuche.Toast.show(LaRuche.i18n.t('settings.kbImportError') + res.error, 'err');
       });
   }
 
@@ -1917,7 +2024,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
 
     // Replace buttons with Save/Cancel
     var actionsCell = row.cells[3];
-    actionsCell.innerHTML = '<button onclick="LaRuche.Settings.saveKnowledgeEdit(\''+id+'\',this)" style="background:var(--green);color:#000;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;margin-right:4px">OK</button>' +
+    actionsCell.innerHTML = '<button onclick="LaRuche.Settings.saveKnowledgeEdit(\''+id+'\',this)" style="background:var(--green);color:#000;border:none;border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;margin-right:4px">'+LaRuche.i18n.t('settings.statusOk')+'</button>' +
       '<button onclick="LaRuche.Settings.refreshTab()" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.tlCancel')+'</button>';
   }
 
@@ -1928,16 +2035,16 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     fetch(LaRuche.API.base+'/api/knowledge/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:newText,source:newSource||'manual'})})
       .then(function(r){return r.json();})
       .then(function(d){
-        if(d.error) LaRuche.Toast.show('Error: '+d.error,'err');
+        if(d.error) LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+d.error,'err');
         else { LaRuche.Toast.show(LaRuche.i18n.t('settings.kbUpdated'),'ok'); loadTab('knowledge'); }
       })
-      .catch(function(e){LaRuche.Toast.show('Error: '+e,'err');});
+      .catch(function(e){LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err');});
   }
 
   function deleteKnowledge(id) {
     fetch(LaRuche.API.base+'/api/knowledge/'+id,{method:'DELETE'})
       .then(function(){LaRuche.Toast.show(LaRuche.i18n.t('settings.kbDeleted'),'ok'); loadTab('knowledge');})
-      .catch(function(e){LaRuche.Toast.show('Error: '+e,'err');});
+      .catch(function(e){LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err');});
   }
 
   function refreshTab() { loadTab(currentTab); }
@@ -1948,7 +2055,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       .then(function(d){
         if(d.status==='started') LaRuche.Toast.show(name+LaRuche.i18n.t('settings.channelStarted'),'ok');
         else if(d.status==='already_running') LaRuche.Toast.show(name+LaRuche.i18n.t('settings.channelAlreadyRunning'),'info');
-        else LaRuche.Toast.show(d.message||'Error','err');
+        else LaRuche.Toast.show(d.message||LaRuche.i18n.t('settings.errorGeneric'),'err');
         loadTab('channels');
       });
   }
@@ -1997,9 +2104,9 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
   // --- Custom blueprint creation form ---
   function bpSlotRowHtml(){
     return '<div class="bp-slot-row" style="display:flex;gap:6px;margin-bottom:6px;align-items:center">' +
-      '<input class="form-input bp-slot-name" placeholder="name" style="flex:1">' +
-      '<input class="form-input bp-slot-label" placeholder="label" style="flex:1">' +
-      '<input class="form-input bp-slot-default" placeholder="default" style="flex:1">' +
+      '<input class="form-input bp-slot-name" placeholder="'+LaRuche.i18n.t('settings.bpSlotNamePlaceholder')+'" style="flex:1">' +
+      '<input class="form-input bp-slot-label" placeholder="'+LaRuche.i18n.t('settings.bpSlotLabelPlaceholder')+'" style="flex:1">' +
+      '<input class="form-input bp-slot-default" placeholder="'+LaRuche.i18n.t('settings.bpSlotDefaultPlaceholder')+'" style="flex:1">' +
       '<button onclick="this.parentNode.remove()" title="'+LaRuche.i18n.t('settings.bpDeleteSlotBtn')+'" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:4px 8px;cursor:pointer;font-size:11px;flex:0 0 auto">×</button>' +
       '</div>';
   }
@@ -2020,7 +2127,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       '<div class="settings-card" style="margin-bottom:12px;border:1px solid var(--amber)">' +
         '<div class="settings-card-title">'+LaRuche.i18n.t('settings.bpNewTitle')+'</div>' +
         '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpTitleLabel')+'</label>' +
-          '<input id="bpNewTitle" class="form-input" placeholder="E.g.: Daily watch"></div>' +
+          '<input id="bpNewTitle" class="form-input" placeholder="'+LaRuche.i18n.t('settings.bpTitlePlaceholder')+'"></div>' +
         '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpPromptLabel')+'</label>' +
           '<textarea id="bpNewPrompt" class="form-input" style="min-height:90px;resize:vertical" placeholder="'+LaRuche.i18n.t('settings.varPlaceholder')+'"></textarea></div>' +
         '<div style="margin-top:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpScheduleLabel')+'</label><div id="bpNewCron"></div></div>' +
@@ -2066,7 +2173,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
         } else {
           LaRuche.Toast.show(LaRuche.i18n.t('settings.bpCreateError')+((res.d&&res.d.error)||'?'),'err');
         }
-      }).catch(function(e){ LaRuche.Toast.show('Error: '+e,'err'); });
+      }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err'); });
   }
 
   function deleteBlueprint(idx){
@@ -2081,7 +2188,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
         } else {
           LaRuche.Toast.show(LaRuche.i18n.t('settings.bpDeleteRefused')+((res.d&&res.d.error)||LaRuche.i18n.t('settings.bpDeleteRefusedFallback')),'err');
         }
-      }).catch(function(e){ LaRuche.Toast.show('Error: '+e,'err'); });
+      }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err'); });
   }
 
   function openBlueprintForm(idx) {
@@ -2112,7 +2219,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       } else {
         LaRuche.Toast.show(LaRuche.i18n.t('settings.bpInstanciateError'), 'err');
       }
-    }).catch(function(e){ LaRuche.Toast.show('Error: '+e, 'err'); });
+    }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e, 'err'); });
   }
 
   return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
