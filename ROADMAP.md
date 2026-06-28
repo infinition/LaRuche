@@ -39,7 +39,7 @@ Suivis dans la liste de tâches du dépôt.
 
 ## ⏸️ Reste - nécessite une condition que je n'ai pas en l'état (honnête)
 > Tout le reste est soit un refacto énorme à faire **app fermée**, soit du **comportemental** qui doit être validé **runtime** (API/canaux réels) - le faire à l'aveugle risquerait l'app qui tourne. Plan précis pour chacun :
-- [ ] **Split `main.rs`** (11.7k) en modules node : gros refacto mécanique. À faire **app fermée** (le binaire est verrouillé pendant l'exécution) + `cargo build` complet à chaque module extrait. Plan : extraire par domaine (`channels.rs`, `config_api.rs`, `mesh.rs`, `missions_api.rs`, `lang.rs`) en gardant `main.rs` comme assembleur.
+- [~] **Split `main.rs`** : **démarré** - `web.rs` extrait (assets + i18n injection, ~100 lignes, sans couplage `AppState`, build vert). **Reste** : la majorité des handlers couplent à `AppState` (privé dans main.rs) ; les extraire impose de passer `AppState` + ~15 types privés (`CustomService`, `MetricsSnapshot`, `NodeEvent`, `ActivityLogEntry`...) en `pub(crate)`, puis sortir par domaine (`channels.rs`, `config_api.rs`, `missions_api.rs`). Gros refacto séquentiel, à faire d'un bloc en contexte frais avec `cargo build` à chaque étape.
 - [ ] **Settings « Avancé »** + migrer params tuning : reorg **frontend** (les params existent déjà dans General via `/api/config/runtime`). Nécessite **validation visuelle** dans le navigateur.
 - [ ] **Phase 2b - router les strings Rust visibles** via `i18n::t` + store langue/canal + `/lang` : nécessite **test canal live** (Telegram/Discord).
 - [ ] **`cache_control` (Anthropic)** + **`reasoning_effort`** : changent le **corps des requêtes provider** - à valider contre les **vraies API**.
