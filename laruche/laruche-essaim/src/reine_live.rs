@@ -169,7 +169,7 @@ async fn regenerer(
     instruction: &str,
 ) -> Option<String> {
     let invite = format!(
-        "You wrote the answer below for the user. Your supervisor LaReine asks you to revise it.\n\n\
+        "/no_think\nYou wrote the answer below for the user. Your supervisor LaReine asks you to revise it.\n\n\
          User request:\n{prompt}\n\nYour answer:\n{answer}\n\nRevision instruction:\n{instruction}\n\n\
          Apply the instruction in good faith. If part of it is clearly wrong or would make the answer \
          worse, keep what was already correct rather than degrading it. Reply with ONLY the revised \
@@ -193,7 +193,12 @@ async fn regenerer(
     while let Some(chunk) = stream.next().await {
         out.push_str(&chunk.text);
     }
-    (!out.trim().is_empty()).then_some(out)
+    // Drop any chain-of-thought the model still emitted.
+    let out = match out.rfind("</think>") {
+        Some(pos) => out[pos + "</think>".len()..].trim().to_string(),
+        None => out.trim().to_string(),
+    };
+    (!out.is_empty()).then_some(out)
 }
 
 /// The full Tier 1 review-revise loop: judge the answer, and while LaReine asks

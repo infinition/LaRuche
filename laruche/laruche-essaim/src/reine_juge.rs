@@ -21,18 +21,17 @@ pub struct DemandeJugement<'a> {
     pub charte: &'a str,
 }
 
-/// JSON shape the judge LLM must return. Kept here so the prompt and the parser
-/// can never drift apart.
-const FORMAT_REPONSE: &str = r#"{
-  "pertinence": <0-100>,
-  "methodologie": <0-100>,
-  "objectif": <0-100>,
-  "conformite_marque": <0-100>,
-  "confiance": <0-100>,
-  "avis": "approuver" | "reviser" | "escalader",
-  "instruction": "<corrective instruction for the worker, required when avis is reviser>",
-  "raison": "<one short line shown in the chat trace>"
-}"#;
+/// Line-based shape the judge must return (one `KEY: value` per line). Far more
+/// reliable for small local models than nested JSON. Kept here so the prompt and
+/// the parser never drift apart.
+const FORMAT_REPONSE: &str = "RELEVANCE: <0-100>\n\
+METHODOLOGY: <0-100>\n\
+OBJECTIVE: <0-100>\n\
+BRAND: <0-100>\n\
+CONFIDENCE: <0-100>\n\
+VERDICT: approve | revise | escalate\n\
+INSTRUCTION: <corrective instruction, only when VERDICT is revise>\n\
+REASON: <one short line>";
 
 fn tier_libelle(tier: Tier) -> &'static str {
     match tier {
@@ -53,7 +52,7 @@ pub fn construire_prompt(d: &DemandeJugement) -> String {
         d.objectif
     };
     format!(
-        "{charte}\n\n\
+        "/no_think\n{charte}\n\n\
          ---\n\
          You are judging {cible}.\n\n\
          User objective (north star):\n{objectif}\n\n\
@@ -64,12 +63,11 @@ pub fn construire_prompt(d: &DemandeJugement) -> String {
          revision that does not measurably improve the draft is worse than shipping \
          the original. When you revise, the instruction must be specific and \
          executable, naming what is wrong and what to do.\n\n\
-         Output a SINGLE JSON object and nothing else. No prose, no markdown, no code \
-         fence. Your reply MUST start with the character {{ and end with }}.\n\
-         Schema:\n{format}\n\n\
-         Example of a valid reply:\n\
-         {{\"pertinence\":85,\"methodologie\":80,\"objectif\":82,\"conformite_marque\":90,\
-\"confiance\":88,\"avis\":\"approuver\",\"instruction\":\"\",\"raison\":\"Clear, on-scope, grounded.\"}}",
+         Do not think out loud and do not explain. Reply with EXACTLY these lines, one \
+         \"KEY: value\" per line, and nothing else (no prose, no JSON, no markdown):\n{format}\n\n\
+         Example:\n\
+         RELEVANCE: 85\nMETHODOLOGY: 80\nOBJECTIVE: 82\nBRAND: 90\nCONFIDENCE: 88\n\
+         VERDICT: approve\nINSTRUCTION: \nREASON: Clear, on-scope, grounded.",
         charte = d.charte.trim(),
         cible = tier_libelle(d.tier),
         objectif = objectif.trim(),
@@ -120,19 +118,88 @@ fn score(v: &serde_json::Value, cle: &str) -> u8 {
 }
 
 fn avis_depuis(s: &str) -> Avis {
-    match s.trim().to_lowercase().as_str() {
-        "approuver" | "approve" | "approved" => Avis::Approuver,
-        "escalader" | "escalate" => Avis::Escalader,
+    let t = s.trim().to_lowercase();
+    if t.starts_with("approuver") || t.starts_with("approve") {
+        Avis::Approuver
+    } else if t.starts_with("escalader") || t.starts_with("escalate") {
+        Avis::Escalader
+    } else {
         // Default to revise: the conservative choice is to look again, not to ship.
-        _ => Avis::Reviser,
+        Avis::Reviser
     }
+}
+
+/// Drop a model's chain-of-thought: keep only what follows the last `</think>`.
+fn sans_reasoning(s: &str) -> String {
+    match s.rfind("</think>") {
+        Some(pos) => s[pos + "</think>".len()..].trim().to_string(),
+        None => s.trim().to_string(),
+    }
+}
+
+/// Extract the first run of digits as a 0..=100 score.
+fn nombre_borne(v: &str) -> u8 {
+    let n: String = v
+        .chars()
+        .skip_while(|c| !c.is_ascii_digit())
+        .take_while(|c| c.is_ascii_digit())
+        .collect();
+    n.parse::<u64>().unwrap_or(0).min(100) as u8
+}
+
+/// Parse a line-based judge reply (`KEY: value` per line). Robust for small models.
+/// Returns None when no recognizable verdict or score line is present.
+fn parser_lignes(s: &str) -> Option<Scorecard> {
+    use std::collections::HashMap;
+    let mut champs: HashMap<String, String> = HashMap::new();
+    for ligne in s.lines() {
+        if let Some((k, v)) = ligne.split_once(':') {
+            let key = k.trim().trim_start_matches(['-', '*', '#', '`', ' ']).to_lowercase();
+            // Keep only plausibly-alphabetic keys (avoids matching JSON like {"x":1}).
+            if !key.is_empty()
+                && key
+                    .chars()
+                    .all(|c| c.is_ascii_alphabetic() || c == '_' || c == ' ')
+            {
+                champs.entry(key).or_insert_with(|| v.trim().to_string());
+            }
+        }
+    }
+    let get = |keys: &[&str]| -> Option<String> {
+        keys.iter().find_map(|k| champs.get(*k).cloned())
+    };
+    let num = |keys: &[&str]| -> u8 { get(keys).map(|v| nombre_borne(&v)).unwrap_or(0) };
+
+    let verdict = get(&["verdict", "avis"]).unwrap_or_default();
+    let has_signal =
+        !verdict.is_empty() || champs.contains_key("relevance") || champs.contains_key("pertinence");
+    if !has_signal {
+        return None;
+    }
+    Some(Scorecard {
+        pertinence: num(&["relevance", "pertinence"]),
+        methodologie: num(&["methodology", "methodologie", "method"]),
+        objectif: num(&["objective", "objectif"]),
+        conformite_marque: num(&["brand", "conformite_marque", "brand_compliance"]),
+        confiance: num(&["confidence", "confiance"]),
+        avis: avis_depuis(&verdict),
+        instruction: get(&["instruction"]).unwrap_or_default(),
+        raison: get(&["reason", "raison"]).unwrap_or_default(),
+    })
 }
 
 /// Parse the judge LLM reply into a [`Scorecard`]. Tolerant of surrounding prose
 /// or a code fence. Missing scores default to 0, unknown verdicts default to
 /// "reviser" (the safe choice). Pure.
 pub fn parser_scorecard(reponse: &str) -> Result<Scorecard, String> {
-    let brut = extraire_json(reponse).ok_or("no JSON object found in judge reply")?;
+    // Strip any chain-of-thought first, then try the line format (robust for small
+    // models), then fall back to JSON (for models that emit it).
+    let propre = sans_reasoning(reponse);
+    if let Some(card) = parser_lignes(&propre) {
+        return Ok(card);
+    }
+    let brut = extraire_json(&propre)
+        .ok_or("judge reply has neither key:value lines nor a JSON object")?;
     let v: serde_json::Value =
         serde_json::from_str(brut).map_err(|e| format!("invalid judge JSON: {e}"))?;
 
@@ -177,7 +244,27 @@ mod tests {
         assert!(p.contains("CHARTER"));
         assert!(p.contains("what is 2 + 2?"));
         assert!(p.contains("Draft to judge"));
-        assert!(p.contains("\"avis\""));
+        assert!(p.contains("VERDICT"));
+        assert!(p.starts_with("/no_think"));
+    }
+
+    #[test]
+    fn parses_line_based_reply() {
+        let r = "RELEVANCE: 90\nMETHODOLOGY: 80\nOBJECTIVE: 85\nBRAND: 100\nCONFIDENCE: 95\nVERDICT: approve\nINSTRUCTION:\nREASON: solid";
+        let c = parser_scorecard(r).unwrap();
+        assert_eq!(c.pertinence, 90);
+        assert_eq!(c.conformite_marque, 100);
+        assert_eq!(c.avis, Avis::Approuver);
+        assert_eq!(c.raison, "solid");
+    }
+
+    #[test]
+    fn strips_reasoning_before_line_parse() {
+        let r = "<think>Let me weigh the tone and scope carefully...</think>\nRELEVANCE: 40\nVERDICT: revise\nINSTRUCTION: lead with the answer";
+        let c = parser_scorecard(r).unwrap();
+        assert_eq!(c.pertinence, 40);
+        assert_eq!(c.avis, Avis::Reviser);
+        assert_eq!(c.instruction, "lead with the answer");
     }
 
     #[test]
