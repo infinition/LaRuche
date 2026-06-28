@@ -35,14 +35,26 @@ LaRuche.i18n = (function(){
     'nav.dashboard':    { fr:'Dashboard',   en:'Dashboard' },
     'nav.settings':     { fr:'Settings',    en:'Settings' },
   };
-  var lang = (localStorage.getItem('laruche_lang') === 'en') ? 'en' : 'fr';
+  // Active language: injected by the node server (window.__LANG__), else localStorage.
+  var lang = (typeof window !== 'undefined' && window.__LANG__) ? window.__LANG__
+             : ((localStorage.getItem('laruche_lang') === 'en') ? 'en' : 'fr');
+  // OVERRIDE: flat { key: string } map injected from laruche/lang/<code>.json (single source of
+  // truth). Falls back to the inline DICT below if the file/injection is absent.
   function t(key, vars){
-    var e = DICT[key];
-    var s = e ? (e[lang] || e.fr || key) : key;
-    if(vars){ for(var k in vars){ s = s.split('{'+k+'}').join(vars[k]); } }
+    var ov = (typeof window !== 'undefined' && window.__I18N__) ? window.__I18N__ : null;
+    var s;
+    if(ov && ov[key] != null){ s = ov[key]; }
+    else { var e = DICT[key]; s = e ? (e[lang] || e.fr || key) : key; }
+    if(vars){ for(var k in vars){ s = String(s).split('{'+k+'}').join(vars[k]); } }
     return s;
   }
-  function setLang(l){ if(l !== lang){ localStorage.setItem('laruche_lang', l); location.reload(); } }
+  function setLang(l){
+    if(l !== lang){
+      localStorage.setItem('laruche_lang', l);
+      document.cookie = 'laruche_lang=' + l + ';path=/;max-age=31536000;samesite=lax';
+      location.reload();
+    }
+  }
   // Each module registers its own keys at load time, which avoids editing a central dict and conflicts.
   function add(obj){ if(obj){ for(var k in obj){ DICT[k] = obj[k]; } } }
   return { t:t, add:add, setLang:setLang, get:function(){ return lang; }, DICT:DICT };

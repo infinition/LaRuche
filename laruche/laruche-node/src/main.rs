@@ -58,6 +58,10 @@ use laruche_essaim::{
 use std::collections::VecDeque;
 
 const SPA_HTML: &str = include_str!("../../laruche-dashboard/src/templates/spa.html");
+// i18n language files (single source of truth). Injected into the SPA as window.__I18N__.
+// Adding a language: drop a laruche/lang/<code>.json file and wire it here.
+const LANG_EN: &str = include_str!("../../lang/en.json");
+const LANG_FR: &str = include_str!("../../lang/fr.json");
 // CSS + JS extracted from spa.html (served separately, compiled into the binary).
 const APP_CSS: &str = include_str!("../../laruche-dashboard/src/templates/app.css");
 // app.js is split into modules under `templates/js/` (one i18n agent per module). The node
@@ -2038,8 +2042,60 @@ async fn api_voice_status(State(state): State<Arc<AppState>>) -> Json<serde_json
     }))
 }
 
-async fn spa_page() -> Html<&'static str> {
-    Html(SPA_HTML)
+/// Picks the UI language from the `laruche_lang` cookie (default "fr").
+fn ui_lang(headers: &axum::http::HeaderMap) -> &'static str {
+    let code = headers
+        .get(axum::http::header::COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|c| {
+            c.split(';')
+                .map(|s| s.trim())
+                .find_map(|kv| kv.strip_prefix("laruche_lang="))
+        })
+        .unwrap_or("fr");
+    if code == "en" {
+        "en"
+    } else {
+        "fr"
+    }
+}
+
+/// Returns the flat translation map (JSON text) for a language code.
+fn lang_data(code: &str) -> &'static str {
+    match code {
+        "en" => LANG_EN,
+        _ => LANG_FR,
+    }
+}
+
+async fn spa_page(headers: axum::http::HeaderMap) -> Html<String> {
+    let lang = ui_lang(&headers);
+    // Escape '<' so a translation value can never break out of the inline <script> tag.
+    // '<' is a valid escape in both JSON and JS string literals.
+    let data = lang_data(lang).replace('<', "\\u003c");
+    let inject = format!(
+        "<script>window.__LANG__=\"{lang}\";window.__I18N__={data};</script>"
+    );
+    Html(SPA_HTML.replacen("<!--__LANG_INJECT__-->", &inject, 1))
+}
+
+/// GET /lang/<code>.json - serve a language file (for tooling and translators).
+async fn lang_file(
+    axum::extract::Path(file): axum::extract::Path<String>,
+) -> impl axum::response::IntoResponse {
+    let code = file.trim_end_matches(".json");
+    let body = match code {
+        "en" => LANG_EN,
+        "fr" => LANG_FR,
+        _ => "{}",
+    };
+    (
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "application/json; charset=utf-8",
+        )],
+        body,
+    )
 }
 
 /// App CSS (extracted from spa.html). Explicit Content-Type so the browser applies it.
@@ -10086,6 +10142,7 @@ async fn main() -> Result<()> {
         .route("/", get(spa_page))
         .route("/app.css", get(app_css))
         .route("/app.js", get(app_js))
+        .route("/lang/:file", get(lang_file))
         .route("/api/status", get(get_status))
         .route(
             "/api/blueprints",
