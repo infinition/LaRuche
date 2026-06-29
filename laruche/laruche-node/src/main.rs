@@ -1577,7 +1577,11 @@ async fn main() -> Result<()> {
 
     // Load users from disk
     let users_dir = std::path::Path::new("users");
-    let loaded_users = auth_user::load_all_users(users_dir);
+    let mut loaded_users = auth_user::load_all_users(users_dir);
+    let deduped = auth_user::dedupe_users(&mut loaded_users, users_dir);
+    if deduped > 0 {
+        info!(removed = deduped, "Deduplicated legacy duplicate accounts (old enroll bug)");
+    }
     if !loaded_users.is_empty() {
         info!(count = loaded_users.len(), "Users loaded from disk");
     }

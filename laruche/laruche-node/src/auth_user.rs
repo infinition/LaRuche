@@ -105,6 +105,74 @@ pub fn save_user(user: &User, dir: &Path) -> Result<()> {
     Ok(())
 }
 
+/// One-time cleanup of the duplicate accounts left by the old enrollment bug (which minted a
+/// fresh user on every login). For each set of same-name accounts it keeps the most recent one
+/// (the one the user most likely uses now), makes it admin if ANY duplicate was admin, fills in
+/// a missing password/avatar/TOTP from the others, and deletes the rest. Guarantees that at
+/// least one admin remains. Returns how many duplicates were removed.
+pub fn dedupe_users(users: &mut HashMap<Uuid, User>, dir: &Path) -> usize {
+    let mut by_name: HashMap<String, Vec<Uuid>> = HashMap::new();
+    for (id, u) in users.iter() {
+        by_name
+            .entry(u.display_name.to_lowercase())
+            .or_default()
+            .push(*id);
+    }
+    let mut removed = 0usize;
+    for (_, mut ids) in by_name {
+        if ids.len() < 2 {
+            continue;
+        }
+        ids.sort_by_key(|id| users.get(id).map(|u| u.created_at));
+        let survivor = *ids.last().unwrap();
+        let any_admin = ids
+            .iter()
+            .any(|id| users.get(id).map(|u| u.role == UserRole::Admin).unwrap_or(false));
+        let pw = ids
+            .iter()
+            .rev()
+            .find_map(|id| users.get(id).and_then(|u| u.password_hash.clone()));
+        let av = ids
+            .iter()
+            .rev()
+            .find_map(|id| users.get(id).and_then(|u| u.avatar.clone()));
+        let totp = ids
+            .iter()
+            .rev()
+            .find_map(|id| users.get(id).and_then(|u| u.totp_secret.clone()));
+        if let Some(s) = users.get_mut(&survivor) {
+            if any_admin {
+                s.role = UserRole::Admin;
+            }
+            if s.password_hash.is_none() {
+                s.password_hash = pw;
+            }
+            if s.avatar.is_none() {
+                s.avatar = av;
+            }
+            if s.totp_secret.is_none() {
+                s.totp_secret = totp;
+            }
+            let _ = save_user(s, dir);
+        }
+        for id in &ids[..ids.len() - 1] {
+            users.remove(id);
+            let _ = std::fs::remove_file(dir.join(format!("{id}.json")));
+            removed += 1;
+        }
+    }
+    // Never end up with zero admins (e.g. a fresh install would have one from first enroll).
+    if !users.values().any(|u| u.role == UserRole::Admin) {
+        if let Some(oldest) = users.values().min_by_key(|u| u.created_at).map(|u| u.id) {
+            if let Some(u) = users.get_mut(&oldest) {
+                u.role = UserRole::Admin;
+                let _ = save_user(u, dir);
+            }
+        }
+    }
+    removed
+}
+
 pub fn create_user(display_name: &str, role: UserRole, password: Option<&str>) -> User {
     use base64::Engine;
     use rand::RngCore;
