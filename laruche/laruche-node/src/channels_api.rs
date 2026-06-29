@@ -148,8 +148,11 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                 .unwrap_or("?");
 
                             // Text message, or a voice/audio message we transcribe via STT.
+                            // A voice message gets a voice answer back (voice begets voice),
+                            // in addition to the per-chat /voice toggle.
                             let mut text_owned =
                                 update["message"]["text"].as_str().unwrap_or("").to_string();
+                            let mut was_voice = false;
                             if text_owned.is_empty() && chat_id != 0 {
                                 let file_id = update["message"]["voice"]["file_id"]
                                     .as_str()
@@ -162,6 +165,7 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                                 .json(&serde_json::json!({"chat_id": chat_id, "text": format!("🎤 \"{}\"", t)}))
                                                 .send().await;
                                             text_owned = t;
+                                            was_voice = true;
                                         }
                                         None => {
                                             let _ = client.post(format!("{}/sendMessage", api))
@@ -639,8 +643,9 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                     }
                                 }
 
-                                // Voice reply (/voice): also send the answer as a TTS voice note.
-                                if tg_voice_clone.read().await.contains(&chat_id) {
+                                // Voice answer when the user sent a voice message, OR opted in
+                                // for this chat via /voice: send the answer as a TTS voice note.
+                                if was_voice || tg_voice_clone.read().await.contains(&chat_id) {
                                     if let Err(e) =
                                         send_telegram_voice(&client_clone, &api_clone, chat_id, &response).await
                                     {
