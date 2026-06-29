@@ -384,7 +384,6 @@ LaRuche.Chat = (function(){
           }
         }
         finishToolActivity(data.name,toolResult,!!data.success,data.elapsed_ms);
-        addToolMessage(data.name,toolResult,!!data.success,data.elapsed_ms,false,null);
         if(isStreaming)setFeedLive('thinking');
         break;
       case 'prompt_debug': onPromptDebug(data); break;

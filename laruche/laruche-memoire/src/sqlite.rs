@@ -122,6 +122,17 @@ fn node_parent_id(node_id: &str) -> Option<String> {
         .filter(|s| !s.is_empty())
 }
 
+/// LIKE pattern matching a node's subtree (`prefix.%`), with the prefix escaped so the
+/// snake_case `_` (and `%`/`\`) in node ids are matched literally instead of as wildcards.
+/// Must be used with `ESCAPE '\\'` in the query, otherwise deleting/renaming `a_b` would
+/// also hit unrelated subtrees like `axb.*`.
+fn subtree_like(prefix: &str) -> String {
+    format!(
+        "{}.%",
+        prefix.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_")
+    )
+}
+
 fn node_label(node_id: &str) -> String {
     node_id
         .trim_matches('.')
@@ -817,9 +828,9 @@ impl MemoireCognitive for SqliteBackend {
         // Optional scope: one node + its subtree (`id = prefix OR id LIKE prefix.%`).
         let nodes: Vec<(String, String, String)> = match prefix.map(|p| p.trim_matches('.')) {
             Some(p) if !p.is_empty() => {
-                let like = format!("{p}.%");
+                let like = subtree_like(&p);
                 let mut nstmt = conn
-                    .prepare("SELECT id, label, one_liner FROM nodes WHERE id=?1 OR id LIKE ?2")?;
+                    .prepare("SELECT id, label, one_liner FROM nodes WHERE id=?1 OR id LIKE ?2 ESCAPE '\\'")?;
                 let v: Vec<(String, String, String)> = nstmt
                     .query_map(rusqlite::params![p, like], |r| {
                         Ok((r.get(0)?, r.get(1)?, r.get(2)?))
@@ -953,14 +964,14 @@ impl MemoireCognitive for SqliteBackend {
             return Err(anyhow::anyhow!("empty node_id"));
         }
         let idlen = id.len() as i64;
-        let like = format!("{id}.%");
+        let like = subtree_like(&id);
         let conn = self.conn.lock().unwrap();
 
         if id == "orphans" || id.starts_with("orphans.") {
             // Hard delete for orphans
-            let _ = conn.execute("DELETE FROM items_fts WHERE node_id = ?1 OR node_id LIKE ?2", rusqlite::params![id, like]);
-            conn.execute("DELETE FROM items WHERE node_id = ?1 OR node_id LIKE ?2", rusqlite::params![id, like])?;
-            conn.execute("DELETE FROM nodes WHERE id = ?1 OR id LIKE ?2", rusqlite::params![id, like])?;
+            let _ = conn.execute("DELETE FROM items_fts WHERE node_id = ?1 OR node_id LIKE ?2 ESCAPE '\\'", rusqlite::params![id, like]);
+            conn.execute("DELETE FROM items WHERE node_id = ?1 OR node_id LIKE ?2 ESCAPE '\\'", rusqlite::params![id, like])?;
+            conn.execute("DELETE FROM nodes WHERE id = ?1 OR id LIKE ?2 ESCAPE '\\'", rusqlite::params![id, like])?;
             return Ok(json!({"deleted": id, "hard_delete": true}));
         }
 
@@ -976,19 +987,19 @@ impl MemoireCognitive for SqliteBackend {
         ensure_node(&conn, "orphans")?;
 
         conn.execute(
-            "UPDATE items SET node_id = ?1 || substr(node_id, ?2+1) WHERE node_id = ?3 OR node_id LIKE ?4",
+            "UPDATE items SET node_id = ?1 || substr(node_id, ?2+1) WHERE node_id = ?3 OR node_id LIKE ?4 ESCAPE '\\'",
             rusqlite::params![dest, idlen, id, like],
         )?;
         let _ = conn.execute(
-            "UPDATE items_fts SET node_id = ?1 || substr(node_id, ?2+1) WHERE node_id = ?3 OR node_id LIKE ?4",
+            "UPDATE items_fts SET node_id = ?1 || substr(node_id, ?2+1) WHERE node_id = ?3 OR node_id LIKE ?4 ESCAPE '\\'",
             rusqlite::params![dest, idlen, id, like],
         );
         conn.execute(
-            "UPDATE nodes SET parent_id = ?1 || substr(parent_id, ?2+1) WHERE parent_id = ?3 OR parent_id LIKE ?4",
+            "UPDATE nodes SET parent_id = ?1 || substr(parent_id, ?2+1) WHERE parent_id = ?3 OR parent_id LIKE ?4 ESCAPE '\\'",
             rusqlite::params![dest, idlen, id, like],
         )?;
         conn.execute(
-            "UPDATE nodes SET id = ?1 || substr(id, ?2+1) WHERE id = ?3 OR id LIKE ?4",
+            "UPDATE nodes SET id = ?1 || substr(id, ?2+1) WHERE id = ?3 OR id LIKE ?4 ESCAPE '\\'",
             rusqlite::params![dest, idlen, id, like],
         )?;
         conn.execute(
@@ -1084,26 +1095,26 @@ impl MemoireCognitive for SqliteBackend {
         if old.is_empty() || new.is_empty() {
             return Ok(0);
         }
-        let like = format!("{old}.%");
+        let like = subtree_like(&old);
         let oldlen = old.len() as i64;
         let conn = self.conn.lock().unwrap();
         // Items: node_id `old(.rest)` to `new(.rest)`.
         conn.execute(
-            "UPDATE items SET node_id = ?1 || substr(node_id, ?2+1) WHERE node_id = ?3 OR node_id LIKE ?4",
+            "UPDATE items SET node_id = ?1 || substr(node_id, ?2+1) WHERE node_id = ?3 OR node_id LIKE ?4 ESCAPE '\\'",
             rusqlite::params![new, oldlen, old, like],
         )?;
         // FTS index (same rows, node_id column).
         let _ = conn.execute(
-            "UPDATE items_fts SET node_id = ?1 || substr(node_id, ?2+1) WHERE node_id = ?3 OR node_id LIKE ?4",
+            "UPDATE items_fts SET node_id = ?1 || substr(node_id, ?2+1) WHERE node_id = ?3 OR node_id LIKE ?4 ESCAPE '\\'",
             rusqlite::params![new, oldlen, old, like],
         );
         // Nodes: parent_id first (otherwise the target is lost after renaming the ids).
         conn.execute(
-            "UPDATE nodes SET parent_id = ?1 || substr(parent_id, ?2+1) WHERE parent_id = ?3 OR parent_id LIKE ?4",
+            "UPDATE nodes SET parent_id = ?1 || substr(parent_id, ?2+1) WHERE parent_id = ?3 OR parent_id LIKE ?4 ESCAPE '\\'",
             rusqlite::params![new, oldlen, old, like],
         )?;
         let moved = conn.execute(
-            "UPDATE nodes SET id = ?1 || substr(id, ?2+1) WHERE id = ?3 OR id LIKE ?4",
+            "UPDATE nodes SET id = ?1 || substr(id, ?2+1) WHERE id = ?3 OR id LIKE ?4 ESCAPE '\\'",
             rusqlite::params![new, oldlen, old, like],
         )?;
         if moved > 0 {
@@ -1120,18 +1131,18 @@ impl MemoireCognitive for SqliteBackend {
         if p.is_empty() {
             return Ok(0);
         }
-        let like = format!("{p}.%");
+        let like = subtree_like(&p);
         let conn = self.conn.lock().unwrap();
         let _ = conn.execute(
-            "DELETE FROM items_fts WHERE node_id = ?1 OR node_id LIKE ?2",
+            "DELETE FROM items_fts WHERE node_id = ?1 OR node_id LIKE ?2 ESCAPE '\\'",
             rusqlite::params![p, like],
         );
         conn.execute(
-            "DELETE FROM items WHERE node_id = ?1 OR node_id LIKE ?2",
+            "DELETE FROM items WHERE node_id = ?1 OR node_id LIKE ?2 ESCAPE '\\'",
             rusqlite::params![p, like],
         )?;
         let removed = conn.execute(
-            "DELETE FROM nodes WHERE id = ?1 OR id LIKE ?2",
+            "DELETE FROM nodes WHERE id = ?1 OR id LIKE ?2 ESCAPE '\\'",
             rusqlite::params![p, like],
         )?;
         Ok(removed)

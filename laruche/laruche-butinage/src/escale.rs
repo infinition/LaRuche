@@ -108,6 +108,14 @@ pub async fn consolider(
     ];
     let reponse = fournisseur.repondre(&messages, &[]).await.ok()?;
     let faits = parse_faits(&reponse.texte);
+    if faits.is_empty() {
+        // Extraction produced nothing usable. Keep the full history rather than wiping it:
+        // resetting now would drop all the mission context for zero saved facts.
+        emet.emettre(Evenement::Statut(
+            "🧠 Consolidation skipped (no facts extracted)".into(),
+        ));
+        return None;
+    }
     for (node_id, content) in &faits {
         source.consigner(node_id, content).await;
     }

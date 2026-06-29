@@ -962,6 +962,35 @@ fn nettoyer_reponse_feed(s: &str) -> String {
 
 // MCP server registry endpoints (list, save, delete configured MCP servers) -> moved to mcp_api.rs
 
+/// Serve `app` on `addr`, with optional TLS. A bad/unreadable cert pair no longer panics
+/// the server task: it logs and falls back to plain HTTP so the node stays reachable.
+async fn serve_with_optional_tls(app: axum::Router, addr: String, tls: Option<(String, String)>) {
+    let make = app.into_make_service_with_connect_info::<SocketAddr>();
+    if let Some((cert, key)) = tls {
+        info!(cert = %cert, key = %key, "TLS enabled: starting HTTPS server");
+        match axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert, &key).await {
+            Ok(cfg) => match addr.parse::<SocketAddr>() {
+                Ok(bind_addr) => {
+                    let _ = axum_server::bind_rustls(bind_addr, cfg).serve(make).await;
+                }
+                Err(e) => error!(error = %e, addr = %addr, "Invalid bind address for HTTPS"),
+            },
+            Err(e) => {
+                error!(error = %e, "Failed to load TLS cert/key; falling back to HTTP");
+                match tokio::net::TcpListener::bind(&addr).await {
+                    Ok(l) => { let _ = axum::serve(l, make).await; }
+                    Err(e) => error!(error = %e, addr = %addr, "Failed to bind HTTP fallback"),
+                }
+            }
+        }
+    } else {
+        match tokio::net::TcpListener::bind(&addr).await {
+            Ok(l) => { let _ = axum::serve(l, make).await; }
+            Err(e) => error!(error = %e, addr = %addr, "Failed to bind HTTP listener"),
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let use_tui = !std::env::args().any(|a| a == "--no-tui");
@@ -3015,28 +3044,7 @@ async fn main() -> Result<()> {
         // Spawn server in background, run TUI in foreground
         let tui_state = state.clone();
         tokio::spawn(async move {
-            if let (Some(cert_path), Some(key_path)) = (tls_cert, tls_key) {
-                info!(cert = %cert_path, key = %key_path, "TLS enabled: starting HTTPS server");
-                let tls_config =
-                    axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert_path, &key_path)
-                        .await
-                        .expect("Failed to load TLS certificate/key");
-                let _ = axum_server::bind_rustls(
-                    addr.parse().expect("Invalid bind address"),
-                    tls_config,
-                )
-                .serve(app.into_make_service_with_connect_info::<SocketAddr>())
-                .await;
-            } else {
-                let listener_tcp = tokio::net::TcpListener::bind(&addr)
-                    .await
-                    .expect("Failed to bind");
-                let _ = axum::serve(
-                    listener_tcp,
-                    app.into_make_service_with_connect_info::<SocketAddr>(),
-                )
-                .await;
-            }
+            serve_with_optional_tls(app, addr, tls_cert.zip(tls_key)).await;
         });
 
         // Run TUI (blocks until user presses 'q')
@@ -3058,28 +3066,7 @@ async fn main() -> Result<()> {
 
         // Spawn HTTP server
         tokio::spawn(async move {
-            if let (Some(cert_path), Some(key_path)) = (tls_cert, tls_key) {
-                info!(cert = %cert_path, key = %key_path, "TLS enabled: starting HTTPS server");
-                let tls_config =
-                    axum_server::tls_rustls::RustlsConfig::from_pem_file(&cert_path, &key_path)
-                        .await
-                        .expect("Failed to load TLS certificate/key");
-                let _ = axum_server::bind_rustls(
-                    addr.parse().expect("Invalid bind address"),
-                    tls_config,
-                )
-                .serve(app.into_make_service_with_connect_info::<SocketAddr>())
-                .await;
-            } else {
-                let listener_tcp = tokio::net::TcpListener::bind(&addr)
-                    .await
-                    .expect("Failed to bind");
-                let _ = axum::serve(
-                    listener_tcp,
-                    app.into_make_service_with_connect_info::<SocketAddr>(),
-                )
-                .await;
-            }
+            serve_with_optional_tls(app, addr, tls_cert.zip(tls_key)).await;
         });
 
         // Wait for either Ctrl+C or tray "Quit"

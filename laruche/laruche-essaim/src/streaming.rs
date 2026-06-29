@@ -119,12 +119,19 @@ pub async fn ollama_chat_stream(
     let (tx, rx) = tokio::sync::mpsc::channel::<OllamaChunk>(64);
 
     tokio::spawn(async move {
+        // Accumulate bytes and only parse COMPLETE lines (up to the last newline). Ollama
+        // streams newline-delimited JSON; decoding per TCP chunk would drop any JSON object
+        // (including the final `done`/usage/tool_calls) split across two chunks, and corrupt
+        // multibyte chars split at a chunk boundary.
+        let mut buf: Vec<u8> = Vec::new();
         loop {
             match response.chunk().await {
                 Ok(Some(bytes)) => {
-                    let text = String::from_utf8_lossy(&bytes);
-                    for line in text.lines() {
-                        let line = line.trim();
+                    buf.extend_from_slice(&bytes);
+                    while let Some(pos) = buf.iter().position(|&b| b == b'\n') {
+                        let line_bytes: Vec<u8> = buf.drain(..=pos).collect();
+                        let line_cow = String::from_utf8_lossy(&line_bytes);
+                        let line = line_cow.trim();
                         if line.is_empty() {
                             continue;
                         }

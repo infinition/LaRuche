@@ -94,7 +94,13 @@ pub struct LayerRange {
 
 impl LayerRange {
     pub fn count(&self) -> u32 {
-        self.end - self.start + 1
+        // Guard against an inverted/degenerate range (e.g. from a deserialized manifest)
+        // so this never underflows.
+        if self.end < self.start {
+            0
+        } else {
+            self.end - self.start + 1
+        }
     }
 }
 
@@ -516,15 +522,19 @@ impl SwarmState {
 
         for (i, peer) in active_peers.iter().enumerate() {
             let is_last = i == active_peers.len() - 1;
+            // Layers still unassigned. saturating_sub avoids an underflow panic when
+            // proportional rounding has already over-allocated past total_layers.
+            let remaining = total_layers.saturating_sub(current_layer);
             let layer_count = if is_last {
-                // Last peer gets remaining layers
-                total_layers - current_layer
+                // Last peer gets whatever remains.
+                remaining
             } else if total_vram > 0 {
-                // Proportional to VRAM
-                ((peer.vram_mb as f64 / total_vram as f64) * total_layers as f64).round() as u32
+                // Proportional to VRAM, never more than what remains.
+                (((peer.vram_mb as f64 / total_vram as f64) * total_layers as f64).round() as u32)
+                    .min(remaining)
             } else {
-                // Equal distribution fallback
-                total_layers / active_peers.len() as u32
+                // Equal distribution fallback.
+                (total_layers / active_peers.len() as u32).min(remaining)
             };
 
             if layer_count > 0 {

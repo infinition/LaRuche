@@ -519,7 +519,7 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                             info!(
                                 user = user,
                                 chat_id = chat_id,
-                                text = &text[..text.len().min(50)],
+                                text = %text.chars().take(50).collect::<String>(),
                                 "Telegram message"
                             );
 
