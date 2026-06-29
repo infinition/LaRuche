@@ -130,9 +130,11 @@ LaRuche.Missions = (function(){
   }
 
   function create() {
-    var objective = (document.getElementById('misObjective').value || '').trim();
+    var _oEl=document.getElementById('misObjective'), _sEl=document.getElementById('misSlug');
+    if(!_oEl) return; // brief form not mounted
+    var objective = (_oEl.value || '').trim();
     var cadence = (_cadenceId && LaRuche.CronBuilder) ? LaRuche.CronBuilder.getValue(_cadenceId) : '';
-    var slug = (document.getElementById('misSlug').value || '').trim();
+    var slug = (_sEl ? (_sEl.value||'') : '').trim();
     var provEl = document.getElementById('misProvider');
     var chEl = document.getElementById('misChannel');
     var profile_id = provEl ? provEl.value : '';

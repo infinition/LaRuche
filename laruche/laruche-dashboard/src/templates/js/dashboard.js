@@ -155,6 +155,7 @@ LaRuche.Dashboard = (function(){
 
   function renderSharding(nodes){
     var section=document.getElementById('shard-section');
+    if(!section) return;
     if(nodes.length<2){section.classList.remove('active');return;}
     section.classList.add('active');
     var speedup=estimateSpeedup(nodes);

@@ -329,6 +329,7 @@ LaRuche.Chat = (function(){
           if(noThinkEnabled) recoveredPayload.no_think=true;
           LaRuche.WS.send(recoveredPayload);
           isStreaming=true;
+          setRunning(true); // restarted run: show Stop, not Send
           document.getElementById('userInput').placeholder=LaRuche.i18n.t('chat.steeringPlaceholder');
           showTypingIndicator(); startResponseTimeout();
           addActivity('status',LaRuche.i18n.t('chat.demandeRelancee'),LaRuche.i18n.t('chat.relanceeDetail'),false,{stepTitle:_feedTurnTitle});
@@ -864,6 +865,7 @@ LaRuche.Chat = (function(){
     if (!isStreaming) return;
     LaRuche.WS.send({ type: 'stop' });
     setRunning(false);
+    if(LaRuche.Voice && LaRuche.Voice.stopAllTts) LaRuche.Voice.stopAllTts(); // hush any in-flight speech
   }
 
   // ── Profile: locked user sheet, injected into LaRuche's context ──
@@ -1604,6 +1606,7 @@ LaRuche.Chat = (function(){
   }
 
   function switchSession(id, scrollTerm) {
+    if(LaRuche.Voice && LaRuche.Voice.stopAllTts) LaRuche.Voice.stopAllTts(); // stop reading the old answer
     var _af0=document.getElementById('activityFeed'); if(sessionId && _af0) feedCache[sessionId]=_af0.innerHTML; // save the feed we leave
     sessionId=id;
     delete unreadSessions[id]; // opening = mark read (clears the badge)
@@ -1979,7 +1982,7 @@ LaRuche.Chat = (function(){
   });
 
   return {
-    init:init, enter:enter, leave:leave, current:function(){return current;}, handleEvent:handleEvent, sendMessage:sendMessage,
+    init:init, enter:enter, leave:leave, handleEvent:handleEvent, sendMessage:sendMessage,
     useSuggestion:useSuggestion, newSession:newSession, deleteSession:deleteSession,
     respondApproval:respondApproval, toggleSidebar:toggleSidebar,
     removePendingFile:removePendingFile, loadSessions:loadSessions,
@@ -2307,8 +2310,14 @@ LaRuche.Voice = (function(){
     return new Blob([buffer],{type:'audio/wav'});
   }
 
-  function sendAudio(blob) {
-    if(!audioWs||audioWs.readyState!==WebSocket.OPEN){connectAudioWS();setTimeout(function(){sendAudio(blob);},500);return;}
+  function sendAudio(blob, attempt) {
+    attempt = attempt || 0;
+    if(!audioWs||audioWs.readyState!==WebSocket.OPEN){
+      if(attempt >= 10){ LaRuche.Console.log('error','Audio','WS not open after retries; dropping audio'); return; }
+      connectAudioWS();
+      setTimeout(function(){sendAudio(blob, attempt+1);},500);
+      return;
+    }
     blob.arrayBuffer().then(function(buf){audioWs.send(buf);});
   }
 
@@ -2334,11 +2343,15 @@ LaRuche.Voice = (function(){
       usingBrowserStt = !sttAvailable && browserSttSupported;
       var micUsable = sttAvailable || usingBrowserStt;
       var micBtn=document.getElementById('micBtn');
-      if(!micUsable){micBtn.style.opacity='0.3';micBtn.style.pointerEvents='none';micBtn.title=LaRuche.i18n.t('chat.sttUnavailable');}
-      else {micBtn.style.opacity='1';micBtn.style.pointerEvents='auto';micBtn.title=usingBrowserStt?LaRuche.i18n.t('chat.micBrowser'):LaRuche.i18n.t('chat.micTitle');}
+      if(micBtn){
+        if(!micUsable){micBtn.style.opacity='0.3';micBtn.style.pointerEvents='none';micBtn.title=LaRuche.i18n.t('chat.sttUnavailable');}
+        else {micBtn.style.opacity='1';micBtn.style.pointerEvents='auto';micBtn.title=usingBrowserStt?LaRuche.i18n.t('chat.micBrowser'):LaRuche.i18n.t('chat.micTitle');}
+      }
       var autoTtsBtn=document.getElementById('autoTtsToggle');
-      if(!ttsAvailable){autoTtsBtn.style.opacity='0.3';autoTtsBtn.title=LaRuche.i18n.t('chat.ttsUnavailable');}
-      else {autoTtsBtn.style.opacity='1';autoTtsBtn.title=LaRuche.i18n.t('chat.autoTtsTitle');}
+      if(autoTtsBtn){
+        if(!ttsAvailable){autoTtsBtn.style.opacity='0.3';autoTtsBtn.title=LaRuche.i18n.t('chat.ttsUnavailable');}
+        else {autoTtsBtn.style.opacity='1';autoTtsBtn.title=LaRuche.i18n.t('chat.autoTtsTitle');}
+      }
       // Dedicated TTS selector in the status bar: shown whenever a TTS is available.
       var sbTtsWrap=document.getElementById('sbTtsWrap');
       if(sbTtsWrap) sbTtsWrap.style.display = ttsAvailable ? '' : 'none';
@@ -2623,7 +2636,7 @@ LaRuche.Voice = (function(){
   }
 
   return {
-    init:init, speakText:speakText, feedStream:feedStream, finishStream:finishStream, toggleMic:toggleMic, toggleAutoTts:toggleAutoTts,
+    init:init, speakText:speakText, stopAllTts:stopAllTts, feedStream:feedStream, finishStream:finishStream, toggleMic:toggleMic, toggleAutoTts:toggleAutoTts,
     openVoiceMode:openVoiceMode, closeVoiceMode:closeVoiceMode, voiceModeTap:voiceModeTap,
     toggleWakeWord:toggleWakeWord,
     refreshStatus:checkVoiceStatus,

@@ -632,7 +632,7 @@ LaRuche.Auth = (function(){
   function enroll(){
     var nameEl=document.getElementById('enrollName');
     var displayName=(nameEl?nameEl.value:'').trim();
-    if(!displayName){nameEl.focus();return;}
+    if(!displayName){if(nameEl)nameEl.focus();return;}
 
     var pwEl=document.getElementById('enrollPassword');
     var password=(pwEl?pwEl.value:'').trim();

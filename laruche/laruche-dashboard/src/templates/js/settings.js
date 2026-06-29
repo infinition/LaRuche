@@ -2189,7 +2189,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       .then(function(res){
         if(res.ok) {
             LaRuche.Toast.show(LaRuche.i18n.t('settings.kbImported'), 'ok');
-            loadKnowledge(document.getElementById('settings-content'));
+            loadKnowledge(document.getElementById('settingsContent'));
         }
         else LaRuche.Toast.show(LaRuche.i18n.t('settings.kbImportError') + res.error, 'err');
       });
