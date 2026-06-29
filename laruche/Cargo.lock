@@ -2137,13 +2137,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "laruche-suggestions"
-version = "0.2.0"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "laruche-watchers"
 version = "0.2.0"
 dependencies = [

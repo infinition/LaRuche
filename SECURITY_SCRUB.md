@@ -4,7 +4,7 @@ Two secrets were committed and still live in git history (removing the files fro
 the working tree does NOT remove them from history):
 
 1. **Telegram bot token** in `laruche/_archive/football_scraper.py`
-   (`TOKEN = "***REDACTED***:AAH...GdM"`).
+   (a `TOKEN = "<numeric_id>:<secret>"` literal).
 2. **cookie_secret** inside the stale `laruche/laruche-node/laruche-state.json`
    (already untracked now, but present in past commits).
 
@@ -34,23 +34,23 @@ git filter-repo --force \
   --invert-paths
 ```
 
-Then, because the token also appears in commit content, also scrub the literal
-string anywhere it slipped in:
+Then, because the token also appears in commit content, scrub the literal string
+anywhere it slipped in. Put the real token (followed by `==>REDACTED`) in a file
+that is NOT committed, then run replace-text against it:
 
 ```bash
-# Replace the token string everywhere in history (belt and suspenders).
-printf '***REDACTED***==>REDACTED\n' > /tmp/replacements.txt
-git filter-repo --force --replace-text /tmp/replacements.txt
+# scrub-rules.txt holds one line:  <the-real-token>==>REDACTED   (do not commit it)
+git filter-repo --force --replace-text scrub-rules.txt
+rm scrub-rules.txt
 ```
 
-Verify it is gone:
+Verify it is gone (use the token's numeric id prefix to search):
 
 ```bash
-git log --all -p -S '***REDACTED***' | head
-git log --all --oneline -- laruche/_archive/football_scraper.py
+git log --all -p -S '<token numeric id>' | head
 ```
 
-Both should return nothing.
+This should return nothing.
 
 ## Step 3 - force-push (only if there is a remote)
 

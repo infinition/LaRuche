@@ -73,3 +73,6 @@ laruche/*.db
 laruche/*.db-wal
 laruche/*.db-shm
 laruche/*.log
+
+# Runtime tool outputs (not source)
+laruche/tool-results/
