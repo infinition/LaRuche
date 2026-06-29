@@ -36,7 +36,10 @@ pub struct MemoryItem {
     pub node_id: String,
     /// The fact/text to memorize.
     pub content: String,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    // `default` is REQUIRED alongside `skip_serializing_if`: an empty tags vec is
+    // omitted on serialize, so without a default it fails to round-trip ("missing
+    // field tags") when a proposal's stored MemoryItem is deserialized on approval.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<String>,
@@ -265,4 +268,21 @@ pub trait MemoireCognitive: Send + Sync {
 
     /// Checks that the backend responds.
     async fn health(&self) -> Result<bool>;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn memory_item_round_trips_with_empty_tags() {
+        // A curateur item with no tags must survive serialize -> deserialize, otherwise
+        // approving a queued proposal fails ("missing field tags").
+        let item = MemoryItem::new("people.fabien", "User's name is Fabien");
+        let json = serde_json::to_string(&item).unwrap();
+        assert!(!json.contains("tags")); // empty tags is omitted
+        let back: MemoryItem = serde_json::from_str(&json).unwrap();
+        assert_eq!(back.node_id, "people.fabien");
+        assert!(back.tags.is_empty());
+    }
 }

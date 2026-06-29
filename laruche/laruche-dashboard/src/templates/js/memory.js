@@ -1260,11 +1260,25 @@ LaRuche.Memory = (function(){
 
   function approveProposal(id){
     fetch(LaRuche.API.base+'/api/reine/proposals/'+encodeURIComponent(id)+'/approve',{method:'POST',credentials:'include'})
-      .then(function(){ refreshProposals(); if(loaded) loadTree(true); });
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+      .then(function(res){
+        if(res.ok && res.d && res.d.status==='ok'){
+          if(LaRuche.Toast) LaRuche.Toast.show(LaRuche.i18n.t('reine.queueApprove')+' OK','ok');
+        } else if(LaRuche.Toast){
+          LaRuche.Toast.show('Approve failed ('+((res.d&&res.d.status)||res.ok)+')','err');
+        }
+        refreshProposals(); if(loaded) loadTree(true);
+      })
+      .catch(function(e){ if(LaRuche.Toast) LaRuche.Toast.show('Approve error: '+e,'err'); refreshProposals(); });
   }
   function rejectProposal(id){
     fetch(LaRuche.API.base+'/api/reine/proposals/'+encodeURIComponent(id)+'/reject',{method:'POST',credentials:'include'})
-      .then(function(){ refreshProposals(); });
+      .then(function(r){ return r.json().catch(function(){return {};}).then(function(d){ return {ok:r.ok, d:d}; }); })
+      .then(function(res){
+        if(!res.ok && LaRuche.Toast){ LaRuche.Toast.show('Reject failed','err'); }
+        refreshProposals();
+      })
+      .catch(function(){ refreshProposals(); });
   }
   function applySafeProposals(){
     fetch(LaRuche.API.base+'/api/reine/proposals/apply-safe',{method:'POST',credentials:'include'})
