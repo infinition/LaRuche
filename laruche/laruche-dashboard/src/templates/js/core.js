@@ -102,6 +102,7 @@ LaRuche.i18n.add({
   'core.passwordMin':           { fr:'Mot de passe : 6 caractères minimum', en:'Password: 6 characters minimum' },
   'core.nameTaken':             { fr:'Ce nom est déjà pris. Connecte-toi.', en:'That name is already taken. Please log in.' },
   'core.enrollFailed':          { fr:'Création du compte impossible', en:'Could not create the account' },
+  'core.totpRequired':          { fr:'Entre ton code à 6 chiffres (2FA)', en:'Enter your 6-digit code (2FA)' },
   'core.helloUser':             { fr:'Bonjour {name} !',  en:'Hello {name}!' },
   'core.challengeExpires':      { fr:'Expire dans {s}s',  en:'Expires in {s}s' },
   'core.challengeError':        { fr:'Erreur challenge: {msg}', en:'Challenge error: {msg}' },
@@ -697,17 +698,35 @@ LaRuche.Auth = (function(){
     var name=(document.getElementById('loginName').value||'').trim();
     var pw=document.getElementById('loginPassword').value||'';
     var errEl=document.getElementById('loginError');
+    var totpEl=document.getElementById('loginTotp');
+    var totp=totpEl?(totpEl.value||'').trim():'';
     if(!name||!pw){if(errEl){errEl.textContent=LaRuche.i18n.t('core.namePasswordRequired');errEl.style.display='block';}return;}
     if(errEl) errEl.style.display='none';
 
     fetch('/api/auth/login',{
       method:'POST',credentials:'include',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({display_name:name,password:pw})
+      body:JSON.stringify({display_name:name,password:pw,totp_code:totp||undefined})
     }).then(function(r){
       if(!r.ok) throw new Error(LaRuche.i18n.t('core.badCredentials'));
       return r.json();
     }).then(function(data){
+      if(data&&data.totp_required){
+        // Password ok, 2FA needed: reveal a code field and ask again.
+        if(!totpEl){
+          var pwEl=document.getElementById('loginPassword');
+          totpEl=document.createElement('input');
+          totpEl.id='loginTotp'; totpEl.type='text'; totpEl.inputMode='numeric'; totpEl.maxLength=6;
+          totpEl.placeholder='000000'; totpEl.autocomplete='one-time-code';
+          totpEl.className=(pwEl&&pwEl.className)||'';
+          totpEl.style.cssText=(pwEl&&pwEl.style.cssText)||'';
+          if(pwEl&&pwEl.parentNode) pwEl.parentNode.insertBefore(totpEl, pwEl.nextSibling);
+        }
+        totpEl.style.display='';
+        if(errEl){errEl.textContent=LaRuche.i18n.t('core.totpRequired');errEl.style.display='block';}
+        totpEl.focus();
+        return;
+      }
       currentUser={user_id:data.user_id,display_name:data.display_name,role:data.role};
       showUserBadge();
       hideAllLoginSections();

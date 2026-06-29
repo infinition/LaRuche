@@ -2112,6 +2112,7 @@ dependencies = [
  "rustls",
  "serde",
  "serde_json",
+ "sha1_smol",
  "sysinfo",
  "tokio",
  "toml",

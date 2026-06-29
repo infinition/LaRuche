@@ -39,6 +39,7 @@ ratatui = "0.29"
 qrcode = "0.14"
 blake3.workspace = true
 rand.workspace = true
+sha1_smol = "1"
 ed25519-dalek = { version = "2", features = ["rand_core"] }
 base64.workspace = true
 laruche-watchers.workspace = true

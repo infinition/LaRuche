@@ -361,6 +361,22 @@ pub(crate) async fn api_auth_login(
 
     match &user.password_hash {
         Some(hash) if auth_user::verify_password(password, hash) => {
+            // Second factor: if TOTP is enabled, a valid current code is required. When the
+            // password is right but no code was supplied, tell the client to prompt for one.
+            if let Some(secret) = &user.totp_secret {
+                let code = body["totp_code"].as_str().unwrap_or("").trim();
+                if code.is_empty() {
+                    return Ok((
+                        axum::http::StatusCode::OK,
+                        axum::http::HeaderMap::new(),
+                        Json(serde_json::json!({ "totp_required": true })),
+                    ));
+                }
+                let now = chrono::Utc::now().timestamp() as u64;
+                if !crate::totp::verify(secret, code, now) {
+                    return Err(StatusCode::UNAUTHORIZED);
+                }
+            }
             let cookie_value = auth_user::create_auth_cookie(user.id, &state.cookie_secret);
             let mut headers = axum::http::HeaderMap::new();
             headers.insert(
@@ -567,4 +583,65 @@ pub(crate) async fn api_auth_update_account(
         "display_name": user.display_name,
         "avatar": user.avatar,
     })))
+}
+
+// ======================== TOTP (2FA) ========================
+
+/// POST /api/auth/totp/setup - generate a fresh TOTP secret (not yet enabled). Returns the
+/// secret plus an otpauth QR for the authenticator app.
+pub(crate) async fn api_totp_setup(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let uid = auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let users = state.users.read().await;
+    let user = users.get(&uid).ok_or(StatusCode::UNAUTHORIZED)?;
+    let secret = crate::totp::generate_secret();
+    let url = crate::totp::otpauth_url(&secret, &user.display_name, "LaRuche");
+    let qr = auth_user::generate_qr_svg(&url);
+    Ok(Json(serde_json::json!({ "secret": secret, "otpauth_url": url, "qr_svg": qr })))
+}
+
+/// POST /api/auth/totp/enable {secret, code} - verify a code against the pending secret, then
+/// turn 2FA on for the account.
+pub(crate) async fn api_totp_enable(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let uid = auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let secret = body["secret"].as_str().unwrap_or("");
+    let code = body["code"].as_str().unwrap_or("");
+    let now = chrono::Utc::now().timestamp() as u64;
+    if secret.is_empty() || !crate::totp::verify(secret, code, now) {
+        return Err(StatusCode::UNPROCESSABLE_ENTITY);
+    }
+    let mut users = state.users.write().await;
+    let user = users.get_mut(&uid).ok_or(StatusCode::NOT_FOUND)?;
+    user.totp_secret = Some(secret.to_string());
+    let _ = auth_user::save_user(user, std::path::Path::new("users"));
+    Ok(Json(serde_json::json!({ "status": "enabled" })))
+}
+
+/// POST /api/auth/totp/disable {code} - verify a current code, then turn 2FA off.
+pub(crate) async fn api_totp_disable(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let uid = auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let code = body["code"].as_str().unwrap_or("");
+    let now = chrono::Utc::now().timestamp() as u64;
+    let mut users = state.users.write().await;
+    let user = users.get_mut(&uid).ok_or(StatusCode::NOT_FOUND)?;
+    match &user.totp_secret {
+        Some(secret) if crate::totp::verify(secret, code, now) => {}
+        _ => return Err(StatusCode::UNPROCESSABLE_ENTITY),
+    }
+    user.totp_secret = None;
+    let _ = auth_user::save_user(user, std::path::Path::new("users"));
+    Ok(Json(serde_json::json!({ "status": "disabled" })))
 }

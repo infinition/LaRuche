@@ -441,6 +441,13 @@ LaRuche.i18n.add({
   'settings.profileFiche':     {fr:'Ce que LaRuche sait de toi', en:'What LaRuche knows about you'},
   'settings.profileFicheDesc': {fr:'Injecté dans le contexte de LaRuche pour personnaliser ses réponses.', en:'Injected into LaRuche context to personalize its answers.'},
   'settings.profileSaved':     {fr:'Profil enregistré.',  en:'Profile saved.'},
+  'settings.totpEnable':       {fr:'Activer la 2FA',      en:'Enable 2FA'},
+  'settings.totpDisable':      {fr:'Désactiver',          en:'Disable'},
+  'settings.totpScan':         {fr:'Scanne ce QR dans ton app d\'authentification (Google Authenticator, etc.), puis entre le code.', en:'Scan this QR in your authenticator app (Google Authenticator, etc.), then enter the code.'},
+  'settings.totpVerify':       {fr:'Vérifier & activer',  en:'Verify & enable'},
+  'settings.totpEnabled':      {fr:'2FA activée.',        en:'2FA enabled.'},
+  'settings.totpDisabled':     {fr:'2FA désactivée.',     en:'2FA disabled.'},
+  'settings.totpBadCode':      {fr:'Code invalide.',      en:'Invalid code.'},
   'settings.searchPlaceholder':{fr:'Rechercher un réglage...', en:'Search a setting...'},
   'settings.adminDesc':        {fr:'Gérer les comptes utilisateur de cette ruche.', en:'Manage the user accounts on this hive.'},
   'settings.adminNoUsers':     {fr:'Aucun compte.',      en:'No accounts.'},
@@ -2198,7 +2205,12 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       '<div class="settings-card"><div class="settings-card-title">'+T('settings.profilePassword')+'</div><div class="settings-card-desc">'+(u.has_password?T('settings.profilePwSet'):T('settings.profilePwNone'))+'</div>'+
         '<div class="settings-row"><span class="settings-label">'+T('settings.profileNewPw')+'</span><span style="display:flex;gap:6px"><input type="password" id="profPw" class="form-input" style="width:160px;padding:2px 6px" autocomplete="new-password"><button class="form-btn" style="font-size:10px;padding:2px 8px" onclick="LaRuche.Settings.profileSavePassword()">'+T('settings.save')+'</button></span></div>'+
       '</div>'+
-      '<div class="settings-card"><div class="settings-card-title">'+T('settings.profile2fa')+'</div><div class="settings-card-desc">'+(u.totp_enabled?T('settings.profile2faOn'):T('settings.profile2faOff'))+'</div></div>'+
+      '<div class="settings-card"><div class="settings-card-title">'+T('settings.profile2fa')+'</div><div class="settings-card-desc">'+(u.totp_enabled?T('settings.profile2faOn'):T('settings.profile2faOff'))+'</div>'+
+        '<div id="totpArea" style="margin-top:8px">'+
+          (u.totp_enabled
+            ? '<div style="display:flex;gap:6px;align-items:center"><input type="text" id="totpDisableCode" inputmode="numeric" maxlength="6" class="form-input" style="width:90px;padding:2px 6px" placeholder="000000"><button class="form-btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red)" onclick="LaRuche.Settings.totpDisable()">'+T('settings.totpDisable')+'</button></div>'
+            : '<button class="form-btn" onclick="LaRuche.Settings.totpStart()">'+T('settings.totpEnable')+'</button>')+
+        '</div></div>'+
       '<div class="settings-card"><div class="settings-card-title">'+T('settings.profileFiche')+'</div><div class="settings-card-desc">'+T('settings.profileFicheDesc')+'</div>'+
         '<textarea id="profFiche" class="form-input" style="width:100%;min-height:120px;margin-top:6px;box-sizing:border-box"></textarea>'+
         '<button class="form-btn" style="margin-top:8px" onclick="LaRuche.Settings.profileSaveFiche()">'+T('settings.save')+'</button>'+
@@ -2244,6 +2256,32 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     var ta=document.getElementById('profFiche'); var v=ta?ta.value:'';
     fetch('/api/profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fiche:v})}).then(function(r){
       LaRuche.Toast.show(r.ok?LaRuche.i18n.t('settings.profileSaved'):LaRuche.i18n.t('settings.saveFailed'), r.ok?'ok':'err');
+    });
+  }
+  function totpStart(){
+    fetch('/api/auth/totp/setup',{method:'POST'}).then(function(r){return r.ok?r.json():null;}).then(function(d){
+      if(!d){ LaRuche.Toast.show(LaRuche.i18n.t('settings.saveFailed'),'err'); return; }
+      var area=document.getElementById('totpArea'); if(!area) return;
+      area.innerHTML='<div style="display:flex;flex-direction:column;gap:8px">'+
+        '<div style="font-size:11px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.totpScan')+'</div>'+
+        '<div style="width:160px;background:#fff;padding:6px;border-radius:6px">'+d.qr_svg+'</div>'+
+        '<div style="font-size:10px;color:var(--text-dim);font-family:var(--mono);word-break:break-all">'+LaRuche.Utils.esc(d.secret)+'</div>'+
+        '<div style="display:flex;gap:6px;align-items:center"><input type="text" id="totpCode" inputmode="numeric" maxlength="6" class="form-input" style="width:90px;padding:2px 6px" placeholder="000000"><button class="form-btn" onclick="LaRuche.Settings.totpEnable(\''+d.secret+'\')">'+LaRuche.i18n.t('settings.totpVerify')+'</button></div>'+
+      '</div>';
+    });
+  }
+  function totpEnable(secret){
+    var code=((document.getElementById('totpCode')||{}).value||'').trim();
+    fetch('/api/auth/totp/enable',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({secret:secret,code:code})}).then(function(r){
+      if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.totpEnabled'),'ok'); var uu=LaRuche.Auth.getUser&&LaRuche.Auth.getUser(); if(uu) uu.totp_enabled=true; loadProfile(document.getElementById('settingsContent')); }
+      else LaRuche.Toast.show(LaRuche.i18n.t('settings.totpBadCode'),'err');
+    });
+  }
+  function totpDisable(){
+    var code=((document.getElementById('totpDisableCode')||{}).value||'').trim();
+    fetch('/api/auth/totp/disable',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:code})}).then(function(r){
+      if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.totpDisabled'),'ok'); var uu=LaRuche.Auth.getUser&&LaRuche.Auth.getUser(); if(uu) uu.totp_enabled=false; loadProfile(document.getElementById('settingsContent')); }
+      else LaRuche.Toast.show(LaRuche.i18n.t('settings.totpBadCode'),'err');
     });
   }
 
@@ -2728,7 +2766,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.codexError'),'err'); });
   }
 
-  return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
+  return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
     loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
