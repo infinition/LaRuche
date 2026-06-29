@@ -172,9 +172,11 @@ async fn openai_chat_stream(
     }
     let mut response = req.json(&body).send().await?;
 
+    tracing::info!(target: "provider", url = %url, model = %model, status = %response.status(), "openai-compatible request sent");
     if !response.status().is_success() {
         let status = response.status();
         let body_text = response.text().await.unwrap_or_default();
+        tracing::warn!(target: "provider", status = status.as_u16(), body = %body_text.chars().take(300).collect::<String>(), "openai-compatible request failed");
         return Err(ProviderError { status: status.as_u16(), body: body_text, retry_after: None }.into());
     }
 
@@ -182,6 +184,8 @@ async fn openai_chat_stream(
 
     tokio::spawn(async move {
         let mut buffer = String::new();
+        // Log the first few raw SSE lines once, to diagnose unfamiliar providers (GLM, etc.).
+        let mut dbg_lines = 0u8;
         // tool_calls accumulator keyed by index (streaming delta)
         // Each entry: (id, name, partial_args_string)
         let mut tool_call_acc: std::collections::HashMap<u32, (String, String, String)> = std::collections::HashMap::new();
@@ -203,6 +207,10 @@ async fn openai_chat_stream(
                     while let Some(newline_pos) = buffer.find('\n') {
                         let line = buffer[..newline_pos].trim().to_string();
                         buffer = buffer[newline_pos + 1..].to_string();
+                        if dbg_lines < 5 && !line.is_empty() {
+                            dbg_lines += 1;
+                            tracing::info!(target: "provider", line = %line.chars().take(280).collect::<String>(), "raw SSE line");
+                        }
                         if line.is_empty() || line == "data: [DONE]" {
                             if line == "data: [DONE]" {
                                 // Last resort: model produced only reasoning and no content, and the
