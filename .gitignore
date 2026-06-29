@@ -81,3 +81,12 @@ laruche/*.log
 
 # Runtime tool outputs (not source)
 laruche/tool-results/
+
+# Voice runtime config (per-machine; may hold Telegram chat ids) + LaReine proposal queue
+laruche/laruche-voice.json
+laruche/laruche-reine-queue.json
+
+# TTS model weights (large binaries, downloaded locally) + Python build artifacts
+laruche/laruche-voix/src/*.onnx
+laruche/laruche-voix/src/*.bin
+laruche/laruche-voix/src/*.egg-info/

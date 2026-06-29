@@ -14,7 +14,7 @@
 > - **Tier 3 COMPLET (anti-blocage)** : superviseur pur testé (`cap::reine::superviser`, +3 tests) branché dans la boucle butinage. Mesure l'avancement du plan ; si stagnation N passes -> consigne de recentrage, puis escalade après K relances. Opt-in (`Reglages.supervision`, OFF par défaut), plombé bout en bout (toggle UI -> ws_chat -> butinage_pont -> cycle).
 > - **Extras LaReine livrés** : re-runs **illimités** (sentinel 255), **fenêtre de contexte réglable** (la Reine voit N tours précédents), **juge robuste** (clés décorées + verdict inféré des scores), **avatars distincts** (couronne LaReine vs abeille LaRuche).
 > - **Provider/robustesse** : 429 « solde vide » -> fatal (stop net, plus de spin), **bouton Test** par provider (affiche l'erreur exacte), **prompt caching Anthropic** + fix system top-level (#48 partie 1, à valider sur clé live), **section Avancé** repliable dans Settings (#43).
-> - **Reste** : voix de la Reine (Kokoro), `reasoning_effort` (#48 partie 2, signature à threader), garde-fous destructifs avancés (soft-delete + confirm seuil), i18n par canal live (#45/#57), mesh 2 noeuds (#46, matériel).
+> - **Reste** : `reasoning_effort` (#48 partie 2, signature à threader), garde-fous destructifs avancés (soft-delete + confirm seuil), i18n par canal live (#45/#57), mesh 2 noeuds (#46, matériel). **Voix de la Reine : livrée** (cf. section Mode Reine ambiant + revue audit).
 
 ### Architecture - décisions actées
 - **Pas de nouveau moteur ReAct pour juger.** La revue est un **hook synchrone borné** dans le pipeline chat/butinage (`brain.rs`), 2-3 appels outils max (lire registre skills/tools, lire mémoire). Juger est court.
@@ -32,7 +32,7 @@
 - [ ] **Sélecteur de mode** : Off / Auto / Hybride / Humaine.
 - [ ] **Provider/modèle de la Reine** dans Settings (comme le provider par canal ; juge fort ou petit/local au choix).
 - [ ] **LaReine visible dans le chat** : locuteur distinct (avatar couronne), affiche verdict + instruction renvoyée, trace méthodo repliable. Mode Humaine = l'utilisateur prend son siège.
-- [ ] **Voix de la Reine** (Kokoro TTS, cf. backlog voix) : elle peut parler ses verdicts.
+- [x] **Voix de la Reine** (Kokoro/Voicebox TTS) : système voix complet livré (TTS streamé, appel plein écran, barge-in, mot d'éveil, Telegram bidirectionnel) - cf. section Mode Reine ambiant.
 
 ### Tiers d'autorité (activables séparément)
 - [ ] **Tier 1 - Revue de réponse** (cas chat). Risque bas, à livrer en premier. Modes Auto/Hybride/Humaine.
@@ -62,6 +62,18 @@
 3. Câblage UI (bouton/slider/mode/provider) + endpoint `reine_api.rs` + route Router **(après le split de main.rs)**.
 4. Tier 2 : brancher le même juge sur la création d'artefacts.
 5. Tier 3 : boucle superviseur optionnelle + garde-fous destructifs.
+
+## ✅ Revue projet exhaustive & corrections (audit complet)
+
+> Revue de tout le code (6 agents en parallèle sur des zones disjointes + relecture manuelle Opus du cœur `providers.rs`/`brain.rs`/sécurité), puis **correction de ~45 bugs/manques en 17 commits thématiques**. Workspace vert, `cargo test` **191 verts**, 0 em dash. Hygiène secrets/git vérifiée **clean** (aucun secret commité).
+
+- [x] **Sécurité backend** : `check_admin` sur tous les endpoints mutables non gardés (channels start/stop, missions create/run/update/delete/decompose, crons run/update/delete, profiles active/visibility/use, `/auth/approve`) · GET `/api/config/channels` **masque les `bot_token`** sauf admin (fuite) · bulk-sync ne donne le `cookie_secret` qu'à un pair **mesh-signé** (plus d'IP seule) · `/infer` gaté (admin ou pair mesh) · `/mcp` exige le token hors localhost (était open).
+- [x] **XSS frontend** : `esc()` sur données mesh/MCP/doctor injectées en `innerHTML` · `encodeURIComponent` sur URLs · checkbox transparence réparée.
+- [x] **Crash / perte de données** : SQL `LIKE` de sous-arbres **échappé + `ESCAPE`** (le `_` snake_case détruisait des sous-arbres non liés) · buffer SSE **Ollama** (perte du chunk final `done`/usage/tool_calls si coupé) · `escale` n'efface plus l'historique sur 0 fait extrait · cert TLS illisible → **fallback HTTP** au lieu de panic · slice Telegram en chars (panic multi-octets) · `addToolMessage` indéfini retiré · underflow `swarm.rs` (saturating + garde `LayerRange::count`).
+- [x] **Bugs LLM** : tool_calls **triés par index** (plus par id aléatoire) · buffer **UTF-8** openai/anthropic/codex (caractères coupés en frontière de chunk) · `stream_options.include_usage` (usage OpenAI réel) · `codex_headers` anti-403 · `audio/mpeg`→mp3 · **substitution `@@secret`** de la clé (moteur legacy) · `ToolCallRaw.arguments` `serde(default)` · `error_classifier` branche morte → `Fatal` · **tool_use natif Anthropic** parsé (Claude peut appeler des outils) · **pool credentials piloté dans le moteur butinage** (clé dispo + load-balance).
+- [x] **JS robustesse** : `stopAllTts` au stop/switch de conversation · null-guards (checkVoiceStatus, enroll, sharding, missions) · `sendAudio` cappé · `setRunning` au steer · `importOkf` bon id · `Chat.current` mort retiré.
+- [x] **Voix Python + tui + cleanup** : codes d'erreur HTTP corrects (plus de 200+JSON joué comme audio) · cap longueur texte · `/health` rapporte le backend actif · pyttsx3 lock module · uptime « 5ss » · vars/no-ops mortes.
+- [ ] **Restes assumés** (arbitrages, pas oublis) : rotation de clé **en cours de stream** (mid-call rate-limit) · CORS `*`/bind `0.0.0.0` des services voix (voulu LAN, durcir via token mesh) · format `tool_result` natif Anthropic sur tours multiples (à valider runtime) · code mort JS résiduel inoffensif.
 
 ## ✅ Fait récemment
 - [x] **Rangement racine** : `README.md` à jour + archivage des docs/scripts/lanceurs (`docs/_archive/`, `_archive/`, `laruche/_archive/`) + `.gitignore` durci.
@@ -105,7 +117,7 @@ Suivis dans la liste de tâches du dépôt.
 - [ ] **Phase 2b - router les strings Rust visibles** via `i18n::t` + store langue/canal + `/lang` : nécessite **test canal live** (Telegram/Discord).
 - [ ] **`cache_control` (Anthropic)** + **`reasoning_effort`** : changent le **corps des requêtes provider** - à valider contre les **vraies API**.
 - [ ] **Compression préflight** : comportemental, à **régler runtime** (seuils).
-- [ ] **Vérifs runtime** watchers loop + `credential_pool` retry : nécessitent l'app en marche + un 429 réel.
+- [~] **Vérifs runtime** watchers loop + `credential_pool` retry : le pool est désormais **piloté dans le moteur butinage** (sélection de clé dispo + load-balance, cf. audit) ; la **rotation en cours de stream** sur 429 réel reste à valider app en marche.
 
 ## ✅ Fait cette session (dette)
 - [x] **`laruche-suggestions`** orphelin → **supprimé** (stub 71 lignes jamais câblé).
@@ -118,11 +130,12 @@ Suivis dans la liste de tâches du dépôt.
 
 ### 👑🎙️ Mode Reine ambiant (Jarvis local, voix plein écran)
 > Aboutissement de LaReine + la voix : on parle à la Reine en continu, plein écran, et elle supervise et pilote l'essaim. **Local-first** (Kokoro + Whisper offline), donc différenciant face aux assistants cloud. La Reine est l'hôte naturel : elle voit déjà tout ce que LaRuche indexe (mémoire, registres, carnet, feed, mesh), elle agit en ton nom **mais gatée** par la file de propositions, et elle se relit avant de parler (anti-hallucination).
-- [ ] **UI ambiante plein écran** : mode voix d'abord de la SPA, montre la trace méthodo, la file de propositions et le feed live.
-- [ ] **Boucle voix temps réel** : STT bas-latence -> Reine -> butinage si action -> TTS streamé **phrase par phrase** (Kokoro déjà benché, brancher sur butinage).
-- [ ] **Provider STT/TTS pluggable** (comme provider par canal) : Kokoro, Whisper, ou autre.
-- [ ] **Barge-in** (la couper pendant qu'elle parle) + wake-word / push-to-talk (vie privée).
-- [ ] **Session ambiante persistante** (contexte continu, pas tour-par-tour).
+> ### ✅ Voix livrée (cette session) - cf. mémoire `laruche-voix-reine`
+- [x] **UI ambiante plein écran** : mode « Appeler LaRuche » (bouton 📞, overlay Jarvis, sous-titre des paroles, conversation continue).
+- [x] **Boucle voix temps réel** : **stream inverse LLM→TTS** (elle parle dès la 1re phrase finie, sans attendre la fin), file de lecture avec prefetch, repli voix navigateur. Idem Telegram (vocaux découpés en plusieurs notes).
+- [x] **Provider STT/TTS pluggable** : backends `kokoro` (défaut) / `edge-tts` / `pyttsx3` / **`voicebox`** (voicebox.sh = voix clonée), **sélecteur dans Settings** (backend + vitesse + voix), réglages persistés (`laruche-voice.json`). STT : service externe OU le modèle lui-même (Gemma) selon le toggle.
+- [x] **Barge-in** (la couper en parlant, filtre anti-écho) + **mot d'éveil « LaRuche »** (Web Speech continu, contexte sécurisé requis).
+- [ ] **Session ambiante persistante** (contexte continu, pas tour-par-tour) - reste.
 - [ ] **Omniscience = sources branchées** : agenda, mails, fichiers, Home Assistant via client MCP + capability nodes (`capability:rag`, `capability:audio`). Se construit source par source.
 
 *POCs de nœuds spécialisés par capacité (le mesh annonce déjà les `capability:*`) :*
