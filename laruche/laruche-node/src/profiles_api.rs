@@ -442,8 +442,46 @@ pub(crate) async fn api_get_unified_models(State(state): State<Arc<AppState>>) -
         }
     }
     save_persistent_state(&state).await;
+
+    // Provider models cover LLMs. Voice services (tts/stt) are Miel-discovered nodes,
+    // not provider profiles, so append them here too: this surfaces the local Kokoro TTS
+    // (and any STT) in the dashboard's mesh services and the voice selectors.
+    let mut models_val = serde_json::to_value(&models).unwrap_or_else(|_| serde_json::json!([]));
+    {
+        let listener = state.listener.read().await;
+        let nodes = listener.get_nodes().await;
+        if let Some(arr) = models_val.as_array_mut() {
+            for (_id, node) in &nodes {
+                let host = node.manifest.host.clone();
+                let port = node.manifest.port.unwrap_or(miel_protocol::DEFAULT_API_PORT);
+                let node_id = node.manifest.node_id.map(|x| x.to_string());
+                let model_name = node.manifest.model.clone().unwrap_or_default();
+                let node_name = node.manifest.node_name.clone().unwrap_or_default();
+                for cap in &node.manifest.capabilities {
+                    if matches!(
+                        cap,
+                        miel_protocol::capabilities::Capability::Tts
+                            | miel_protocol::capabilities::Capability::Stt
+                    ) {
+                        let capstr = cap.to_string();
+                        arr.push(serde_json::json!({
+                            "id": format!("mesh/{host}/{capstr}"),
+                            "name": if model_name.is_empty() { format!("{capstr}-node") } else { model_name.clone() },
+                            "capability": capstr,
+                            "host": host,
+                            "base_url": format!("http://{host}:{port}"),
+                            "node_id": node_id,
+                            "provider": "mesh",
+                            "profile_name": node_name,
+                        }));
+                    }
+                }
+            }
+        }
+    }
+
     Json(serde_json::json!({
-        "models": models,
+        "models": models_val,
         "active": active,
     }))
 }
