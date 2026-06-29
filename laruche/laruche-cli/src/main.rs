@@ -565,56 +565,67 @@ async fn cmd_chat() -> Result<()> {
         let mut agent_config = config.clone();
         agent_config.model = model_for_run;
         eprintln!();
-        let result = boucle_react(&input, &mut session, &registry, &agent_config, &tx).await;
 
-        drop(tx);
-        while let Ok(event) = rx.try_recv() {
-            match event {
-                ChatEvent::Token { text } => {
-                    print!("{}", text);
-                    io::stdout().flush()?;
+        // Drain events CONCURRENTLY with the run: long runs (more than the channel capacity)
+        // no longer lose the oldest events to broadcast lag, and tokens stream live instead of
+        // being buffered and dumped at the end.
+        let printer = tokio::spawn(async move {
+            loop {
+                match rx.recv().await {
+                    Ok(event) => match event {
+                        ChatEvent::Token { text } => {
+                            print!("{}", text);
+                            let _ = io::stdout().flush();
+                        }
+                        ChatEvent::ToolCall { name, .. } => {
+                            eprintln!(
+                                "\n  {} {}",
+                                "⚙ Tool".with(Color::Blue).bold(),
+                                name.with(Color::Cyan)
+                            );
+                        }
+                        ChatEvent::ToolResult {
+                            name,
+                            success,
+                            elapsed_ms,
+                            ..
+                        } => {
+                            let ms = elapsed_ms.unwrap_or(0);
+                            eprintln!(
+                                "  {} {} {}",
+                                if success { "✓".green() } else { "✗".red() },
+                                name.with(Color::Cyan),
+                                format!("({}ms)", ms).dark_grey()
+                            );
+                        }
+                        ChatEvent::Thinking { text } => {
+                            eprintln!("  {} {}", "💭".with(Color::Magenta), text.dark_grey());
+                        }
+                        ChatEvent::Plan { items } => {
+                            eprintln!("\n  {}", "Plan".with(AMBER).bold());
+                            for item in &items {
+                                let icon = match item.status.as_str() {
+                                    "done" => "✓".green(),
+                                    "in_progress" => "●".with(AMBER),
+                                    _ => "○".dark_grey(),
+                                };
+                                eprintln!("    {} {}", icon, item.task);
+                            }
+                        }
+                        ChatEvent::Error { message } => {
+                            eprintln!("\n  {} {}", "ERROR".red().bold(), message);
+                        }
+                        _ => {}
+                    },
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => break,
                 }
-                ChatEvent::ToolCall { name, .. } => {
-                    eprintln!(
-                        "\n  {} {}",
-                        "⚙ Tool".with(Color::Blue).bold(),
-                        name.with(Color::Cyan)
-                    );
-                }
-                ChatEvent::ToolResult {
-                    name,
-                    success,
-                    elapsed_ms,
-                    ..
-                } => {
-                    let ms = elapsed_ms.unwrap_or(0);
-                    eprintln!(
-                        "  {} {} {}",
-                        if success { "✓".green() } else { "✗".red() },
-                        name.with(Color::Cyan),
-                        format!("({}ms)", ms).dark_grey()
-                    );
-                }
-                ChatEvent::Thinking { text } => {
-                    eprintln!("  {} {}", "💭".with(Color::Magenta), text.dark_grey());
-                }
-                ChatEvent::Plan { items } => {
-                    eprintln!("\n  {}", "Plan".with(AMBER).bold());
-                    for item in &items {
-                        let icon = match item.status.as_str() {
-                            "done" => "✓".green(),
-                            "in_progress" => "●".with(AMBER),
-                            _ => "○".dark_grey(),
-                        };
-                        eprintln!("    {} {}", icon, item.task);
-                    }
-                }
-                ChatEvent::Error { message } => {
-                    eprintln!("\n  {} {}", "ERROR".red().bold(), message);
-                }
-                _ => {}
             }
-        }
+        });
+
+        let result = boucle_react(&input, &mut session, &registry, &agent_config, &tx).await;
+        drop(tx); // closes the channel; the printer drains the remainder and ends
+        let _ = printer.await;
 
         match result {
             Ok(_) => {
