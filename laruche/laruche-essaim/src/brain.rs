@@ -908,7 +908,7 @@ async fn resumer_resultat_si_gros(
             &messages,
             0.2,
             config.max_tokens.min(1024),
-            &config.api_key,
+            &crate::secrets::substituer(&config.api_key),
             config.api_base.as_deref(),
             &config.ollama_url,
             None,
@@ -1427,7 +1427,7 @@ fn sortie_tronquee(response_text: &str, finish_reason: Option<&str>) -> bool {
 struct ToolCallRaw {
     #[serde(alias = "tool", alias = "function", alias = "function_name")]
     name: String,
-    #[serde(alias = "arguments", alias = "args", alias = "parameters", alias = "input")]
+    #[serde(default, alias = "arguments", alias = "args", alias = "parameters", alias = "input")]
     arguments: serde_json::Value,
 }
 
@@ -2034,7 +2034,7 @@ async fn curer_memoire(
         &messages,
         0.0,
         512,
-        &config.api_key,
+        &crate::secrets::substituer(&config.api_key),
         config.api_base.as_deref(),
             &config.ollama_url,
             None,
@@ -2202,7 +2202,7 @@ pub async fn consolider_node(
         &messages,
         0.0,
         1400,
-        &config.api_key,
+        &crate::secrets::substituer(&config.api_key),
         config.api_base.as_deref(),
             &config.ollama_url,
             None,
@@ -2308,7 +2308,7 @@ async fn extraire_skill_memoire(
         &messages,
         0.0,
         1400,
-        &config.api_key,
+        &crate::secrets::substituer(&config.api_key),
         config.api_base.as_deref(),
             &config.ollama_url,
             None,
@@ -3330,7 +3330,7 @@ pub async fn boucle_react_multimodal_ext(
             });
         }
 
-        let mut current_api_key = config.api_key.clone();
+        let mut current_api_key = crate::secrets::substituer(&config.api_key);
         let mut rate_limit_retries = 0usize;
 
         let stream_result = loop {

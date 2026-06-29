@@ -50,6 +50,32 @@ pub fn convertir_tools_openai(tools: &[serde_json::Value]) -> Vec<serde_json::Va
     }).collect()
 }
 
+/// Finalize the streaming tool-call accumulator into an ordered list. The accumulator is
+/// keyed by the streaming `index`, so we sort by that (NOT by the provider-random `id`),
+/// which preserves the model's intended order of parallel tool calls.
+fn finaliser_tool_calls(
+    acc: &std::collections::HashMap<u32, (String, String, String)>,
+) -> Option<Vec<ToolCall>> {
+    if acc.is_empty() {
+        return None;
+    }
+    let mut calls: Vec<(u32, ToolCall)> = acc
+        .iter()
+        .map(|(idx, (id, name, args_str))| {
+            (
+                *idx,
+                ToolCall {
+                    id: id.clone(),
+                    name: name.clone(),
+                    args: serde_json::from_str(args_str).unwrap_or(serde_json::Value::Null),
+                },
+            )
+        })
+        .collect();
+    calls.sort_by_key(|(idx, _)| *idx);
+    Some(calls.into_iter().map(|(_, c)| c).collect())
+}
+
 /// Unified streaming entry point: dispatches to the correct provider.
 pub async fn provider_chat_stream(
     provider: &str,
@@ -133,7 +159,10 @@ async fn openai_chat_stream(
                         "url": format!("data:{};base64,{}", mime_type, data)
                     }}));
                 } else if kind == "audio" {
-                    let format = match mime_type { "audio/wav" | "audio/x-wav" => "wav", _ => "wav" };
+                    let format = match mime_type {
+                        "audio/mpeg" | "audio/mp3" => "mp3",
+                        _ => "wav",
+                    };
                     parts.push(serde_json::json!( {
                         "type": "input_audio",
                         "input_audio": {"data": data, "format": format}
@@ -155,6 +184,9 @@ async fn openai_chat_stream(
     if max_tokens > 0 {
         body["max_tokens"] = serde_json::json!(max_tokens);
     }
+    // Ask for real token usage on the final stream chunk (OpenAI, Groq, Deepseek, ...).
+    // Without this, streaming responses carry no usage and the gauge falls back to estimates.
+    body["stream_options"] = serde_json::json!({ "include_usage": true });
     // Send native tool definitions (OpenAI format)
     if let Some(tools_list) = tools {
         let openai_tools = convertir_tools_openai(tools_list);
@@ -183,7 +215,7 @@ async fn openai_chat_stream(
     let (tx, rx) = tokio::sync::mpsc::channel::<OllamaChunk>(64);
 
     tokio::spawn(async move {
-        let mut buffer = String::new();
+        let mut buffer: Vec<u8> = Vec::new();
         // Opt-in (RUCHE_DEBUG_SSE=1): log the first few raw SSE lines to diagnose an
         // unfamiliar provider's response shape. Off by default to avoid noise.
         let dbg_sse = std::env::var("RUCHE_DEBUG_SSE").as_deref() == Ok("1");
@@ -205,10 +237,10 @@ async fn openai_chat_stream(
         loop {
             match response.chunk().await {
                 Ok(Some(bytes)) => {
-                    buffer.push_str(&String::from_utf8_lossy(&bytes));
-                    while let Some(newline_pos) = buffer.find('\n') {
-                        let line = buffer[..newline_pos].trim().to_string();
-                        buffer = buffer[newline_pos + 1..].to_string();
+                    buffer.extend_from_slice(&bytes);
+                    while let Some(newline_pos) = buffer.iter().position(|&b| b == b'\n') {
+                        let line_bytes: Vec<u8> = buffer.drain(..=newline_pos).collect();
+                        let line = String::from_utf8_lossy(&line_bytes).trim().to_string();
                         if dbg_sse && dbg_lines < 5 && !line.is_empty() {
                             dbg_lines += 1;
                             tracing::info!(target: "provider", line = %line.chars().take(280).collect::<String>(), "raw SSE line");
@@ -229,20 +261,8 @@ async fn openai_chat_stream(
                                         }).await;
                                     }
                                 }
-                                // Finalize the accumulated tool_calls
-                                let tool_calls = if tool_call_acc.is_empty() {
-                                    None
-                                } else {
-                                    let mut calls: Vec<ToolCall> = tool_call_acc.iter()
-                                        .map(|(_, (id, name, args_str))| ToolCall {
-                                            id: id.clone(),
-                                            name: name.clone(),
-                                            args: serde_json::from_str(args_str).unwrap_or(serde_json::Value::Null),
-                                        })
-                                        .collect();
-                                    calls.sort_by_key(|c| c.id.clone());
-                                    Some(calls)
-                                };
+                                // Finalize the accumulated tool_calls (ordered by index).
+                                let tool_calls = finaliser_tool_calls(&tool_call_acc);
                                 let _ = tx.send(OllamaChunk {
                                     text: String::new(), done: true,
                                     finish_reason: Some("stop".to_string()),
@@ -284,7 +304,6 @@ async fn openai_chat_stream(
                             if let Some(tc_deltas) = parsed["choices"][0]["delta"]["tool_calls"].as_array() {
                                 for tc_delta in tc_deltas {
                                     let idx = tc_delta["index"].as_u64().unwrap_or(0) as u32;
-                                    let is_id = tc_delta.get("id").and_then(|v| v.as_str()).is_some();
                                     let entry = tool_call_acc.entry(idx).or_insert_with(|| {
                                         (String::new(), String::new(), String::new())
                                     });
@@ -308,17 +327,7 @@ async fn openai_chat_stream(
 
                             if !text.is_empty() || done {
                                 // Send the accumulated tool_calls only on the final chunk
-                                let tool_calls = if done && !tool_call_acc.is_empty() {
-                                    let mut calls: Vec<ToolCall> = tool_call_acc.iter()
-                                        .map(|(_, (id, name, args_str))| ToolCall {
-                                            id: id.clone(),
-                                            name: name.clone(),
-                                            args: serde_json::from_str(args_str).unwrap_or(serde_json::Value::Null),
-                                        })
-                                        .collect();
-                                    calls.sort_by_key(|c| c.id.clone());
-                                    Some(calls)
-                                } else { None };
+                                let tool_calls = if done { finaliser_tool_calls(&tool_call_acc) } else { None };
 
                                 let chunk = OllamaChunk {
                                     text, done, finish_reason,
@@ -441,7 +450,7 @@ async fn _anthropic_send_request(
     let (tx, rx) = tokio::sync::mpsc::channel::<OllamaChunk>(64);
 
     tokio::spawn(async move {
-        let mut buffer = String::new();
+        let mut buffer: Vec<u8> = Vec::new();
         // Actual usage provided by Anthropic in the stream: input at `message_start`,
         // output at `message_delta`. Emitted on the final chunk for an accurate gauge.
         let mut in_tok: Option<u64> = None;
@@ -449,10 +458,10 @@ async fn _anthropic_send_request(
         loop {
             match response.chunk().await {
                 Ok(Some(bytes)) => {
-                    buffer.push_str(&String::from_utf8_lossy(&bytes));
-                    while let Some(newline_pos) = buffer.find('\n') {
-                        let line = buffer[..newline_pos].trim().to_string();
-                        buffer = buffer[newline_pos + 1..].to_string();
+                    buffer.extend_from_slice(&bytes);
+                    while let Some(newline_pos) = buffer.iter().position(|&b| b == b'\n') {
+                        let line_bytes: Vec<u8> = buffer.drain(..=newline_pos).collect();
+                        let line = String::from_utf8_lossy(&line_bytes).trim().to_string();
                         if line.is_empty() { continue; }
 
                         // Anthropix SSE: event: ..., data: {...}
@@ -544,19 +553,22 @@ async fn codex_chat_stream(
     let mut req = client.post(&url)
         .header("Authorization", format!("Bearer {access_token}"))
         .header("Content-Type", "application/json");
+    // Anti-Cloudflare headers (User-Agent, originator, account id) required by the Codex
+    // backend; without them requests are likely rejected with a 403.
+    for (k, v) in codex_auth::codex_headers(&access_token) { req = req.header(k, v); }
     for (k, v) in mesh_headers("/responses") { req = req.header(k, v); }
     let mut response = req.json(&body).send().await?;
 
     let (tx, rx) = tokio::sync::mpsc::channel::<OllamaChunk>(64);
     tokio::spawn(async move {
-        let mut buffer = String::new();
+        let mut buffer: Vec<u8> = Vec::new();
         loop {
             match response.chunk().await {
                 Ok(Some(bytes)) => {
-                    buffer.push_str(&String::from_utf8_lossy(&bytes));
-                    while let Some(newline_pos) = buffer.find('\n') {
-                        let line = buffer[..newline_pos].trim().to_string();
-                        buffer = buffer[newline_pos + 1..].to_string();
+                    buffer.extend_from_slice(&bytes);
+                    while let Some(newline_pos) = buffer.iter().position(|&b| b == b'\n') {
+                        let line_bytes: Vec<u8> = buffer.drain(..=newline_pos).collect();
+                        let line = String::from_utf8_lossy(&line_bytes).trim().to_string();
                         if line.is_empty() { continue; }
                         if let Some(data) = line.strip_prefix("data: ") {
                             if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {

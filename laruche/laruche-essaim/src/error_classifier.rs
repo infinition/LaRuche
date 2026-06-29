@@ -186,7 +186,9 @@ pub fn classifier_erreur_reseau(err: &str) -> ErrorClass {
     if transitoire.iter().any(|needle| e.contains(needle)) {
         ErrorClass::Retryable
     } else {
-        ErrorClass::Retryable
+        // A network error matching none of the known-transient patterns is treated as fatal,
+        // so the retry loop does not spin on a genuinely unrecoverable failure.
+        ErrorClass::Fatal
     }
 }
 
