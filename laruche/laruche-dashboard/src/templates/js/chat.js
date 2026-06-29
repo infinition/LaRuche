@@ -151,6 +151,7 @@ LaRuche.Chat = (function(){
   var currentAssistantMsg = null;
   var currentAssistantRow = null;
   var _reineThinkingEl = null;
+  var _reineReworkEl = null;
   var _lastAssistantMsg = null;
   var _lastAssistantRow = null;
   var _nextMsgIsReine = false;
@@ -420,6 +421,7 @@ LaRuche.Chat = (function(){
           var vtxt=(vsep>=0?vpayload.slice(0,vsep):vpayload).trim();
           var vAnalyse=(vsep>=0?vpayload.slice(vsep+1):'').trim();
           if(_reineThinkingEl){_reineThinkingEl.remove(); _reineThinkingEl=null;}
+          if(_reineReworkEl){_reineReworkEl.remove(); _reineReworkEl=null;}
           if(vtxt){
             var vHost=(currentAssistantMsg&&currentAssistantMsg.parentNode)||(_lastAssistantMsg&&_lastAssistantMsg.parentNode)||currentAssistantRow||_lastAssistantRow;
             if(vHost){
@@ -448,6 +450,12 @@ LaRuche.Chat = (function(){
             rwc.className='reine-verdict';
             rwc.innerHTML='<span class="reine-crown">👑</span> '+LaRuche.i18n.t('reine.sentBack')+(rwInstr?': '+LaRuche.Utils.esc(rwInstr):'');
             rwHost.appendChild(rwc);
+            // Animated indicator while LaRuche redoes the work (until the rework appears).
+            if(_reineReworkEl){_reineReworkEl.remove();}
+            var rwa=document.createElement('div');
+            rwa.className='reine-thinking';
+            rwa.innerHTML='<span class="reine-crown">🐝</span><span>'+LaRuche.i18n.t('reine.redoing')+'</span><span class="reine-dots"><i></i><i></i><i></i></span>';
+            rwHost.appendChild(rwa); _reineReworkEl=rwa;
           }
           _nextMsgIsReine=true;
           break;
@@ -875,6 +883,7 @@ LaRuche.Chat = (function(){
     // assistant message after she sent the worker back).
     if(role==='assistant' && _nextMsgIsReine){
       _nextMsgIsReine=false;
+      if(_reineReworkEl){_reineReworkEl.remove(); _reineReworkEl=null;}
       // LaRuche (the bee) redid the work, at LaReine's request: keep the bee avatar,
       // just mark the context in a header. The crown stays on LaReine's review chips.
       row.classList.add('reine-rework-row');

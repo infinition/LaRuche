@@ -4846,5 +4846,9 @@
   "reine.sentBack": {
     "en": "LaReine sent it back to redo",
     "fr": "LaReine la renvoie bosser"
+  },
+  "reine.redoing": {
+    "en": "LaRuche is redoing the work",
+    "fr": "LaRuche refait le travail"
   }
 }
