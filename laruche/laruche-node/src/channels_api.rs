@@ -143,10 +143,36 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                             }
 
                             let chat_id = update["message"]["chat"]["id"].as_i64().unwrap_or(0);
-                            let text = update["message"]["text"].as_str().unwrap_or("");
                             let user = update["message"]["from"]["first_name"]
                                 .as_str()
                                 .unwrap_or("?");
+
+                            // Text message, or a voice/audio message we transcribe via STT.
+                            let mut text_owned =
+                                update["message"]["text"].as_str().unwrap_or("").to_string();
+                            if text_owned.is_empty() && chat_id != 0 {
+                                let file_id = update["message"]["voice"]["file_id"]
+                                    .as_str()
+                                    .or_else(|| update["message"]["audio"]["file_id"].as_str())
+                                    .or_else(|| update["message"]["video_note"]["file_id"].as_str());
+                                if let Some(fid) = file_id {
+                                    match transcribe_telegram_voice(&client, &token, fid).await {
+                                        Some(t) => {
+                                            let _ = client.post(format!("{}/sendMessage", api))
+                                                .json(&serde_json::json!({"chat_id": chat_id, "text": format!("🎤 \"{}\"", t)}))
+                                                .send().await;
+                                            text_owned = t;
+                                        }
+                                        None => {
+                                            let _ = client.post(format!("{}/sendMessage", api))
+                                                .json(&serde_json::json!({"chat_id": chat_id, "text": "I could not transcribe that audio (is the STT service running on :8421?)."}))
+                                                .send().await;
+                                            continue;
+                                        }
+                                    }
+                                }
+                            }
+                            let text = text_owned.as_str();
 
                             if text.is_empty() || chat_id == 0 {
                                 continue;
@@ -649,6 +675,63 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
     }
 }
 
+/// Remove emoji / pictographs / variation selectors so a TTS does not pronounce them.
+fn strip_emoji_for_speech(text: &str) -> String {
+    text.chars()
+        .filter(|c| {
+            let u = *c as u32;
+            !((0x1F000..=0x1FFFF).contains(&u)
+                || (0x2600..=0x27BF).contains(&u)
+                || (0x2B00..=0x2BFF).contains(&u)
+                || (0x2190..=0x21FF).contains(&u)
+                || (0x2300..=0x23FF).contains(&u)
+                || (0xFE00..=0xFE0F).contains(&u)
+                || u == 0x200D
+                || u == 0x20E3)
+        })
+        .collect()
+}
+
+/// Download a Telegram voice/audio file and transcribe it via the local STT service.
+/// Returns the transcript, or None if there is no STT service or it fails.
+async fn transcribe_telegram_voice(
+    client: &reqwest::Client,
+    token: &str,
+    file_id: &str,
+) -> Option<String> {
+    let api = format!("https://api.telegram.org/bot{token}");
+    // 1. Resolve the file path.
+    let gf = client
+        .get(format!("{api}/getFile"))
+        .query(&[("file_id", file_id)])
+        .send()
+        .await
+        .ok()?;
+    let v: serde_json::Value = gf.json().await.ok()?;
+    let file_path = v["result"]["file_path"].as_str()?;
+    // 2. Download the audio bytes.
+    let url = format!("https://api.telegram.org/file/bot{token}/{file_path}");
+    let bytes = client.get(&url).send().await.ok()?.bytes().await.ok()?;
+    // 3. Transcribe via the local STT service (handles OGG/Opus via ffmpeg).
+    let stt = reqwest::Client::new();
+    let part = reqwest::multipart::Part::bytes(bytes.to_vec())
+        .file_name("voice.oga")
+        .mime_str("audio/ogg")
+        .ok()?;
+    let form = reqwest::multipart::Form::new().part("file", part);
+    let resp = stt
+        .post("http://127.0.0.1:8421/transcribe")
+        .multipart(form)
+        .send()
+        .await
+        .ok()?;
+    let r: serde_json::Value = resp.json().await.ok()?;
+    r.get("text")
+        .and_then(|t| t.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
 /// Synthesize `text` via the local TTS service (as OGG/opus) and send it as a Telegram
 /// voice note. Best-effort: returns an error string the caller just logs.
 pub(crate) async fn send_telegram_voice(
@@ -657,8 +740,9 @@ pub(crate) async fn send_telegram_voice(
     chat_id: i64,
     text: &str,
 ) -> std::result::Result<(), String> {
-    // Cap the spoken length so a long answer does not become a giant voice note.
-    let spoken: String = text.chars().take(1200).collect();
+    // Strip emoji (do not pronounce them) and cap the length so a long answer does not
+    // become a giant voice note. Belt-and-suspenders: the TTS service also strips them.
+    let spoken: String = strip_emoji_for_speech(text).chars().take(1200).collect();
     let tts = reqwest::Client::new();
     let resp = tts
         .post("http://127.0.0.1:8422/synthesize")
