@@ -2039,16 +2039,26 @@ async fn main() -> Result<()> {
                             event_type: "connected".into(),
                             node_name: name,
                         });
-                        // Bulk sync from new peer
-                        let peer_host = node.manifest.host.clone();
-                        let peer_port = node
+                        // Bulk sync ONLY from full LaRuche peers (llm/agent). Voice-only
+                        // nodes (tts/stt) and other capability services do not serve the
+                        // /api/internal/sync/* endpoints, so syncing them just 404s and
+                        // spams the logs (plus a Windows asyncio ConnectionReset).
+                        let is_full_peer = node
                             .manifest
-                            .port
-                            .unwrap_or(miel_protocol::DEFAULT_API_PORT);
-                        let sync_state = update_state.clone();
-                        tokio::spawn(async move {
-                            sync::fetch_bulk_from_peer(&peer_host, peer_port, &sync_state).await;
-                        });
+                            .capabilities
+                            .iter()
+                            .any(|c| matches!(c, Capability::Llm | Capability::Agent));
+                        if is_full_peer {
+                            let peer_host = node.manifest.host.clone();
+                            let peer_port = node
+                                .manifest
+                                .port
+                                .unwrap_or(miel_protocol::DEFAULT_API_PORT);
+                            let sync_state = update_state.clone();
+                            tokio::spawn(async move {
+                                sync::fetch_bulk_from_peer(&peer_host, peer_port, &sync_state).await;
+                            });
+                        }
                     }
                 }
                 // Removed nodes (disconnected)
@@ -2730,6 +2740,14 @@ async fn main() -> Result<()> {
                     l.get_nodes()
                         .await
                         .into_iter()
+                        // Only full LaRuche peers (llm/agent) serve /api/memory/*; skip
+                        // voice-only nodes (tts/stt) so we do not query a host that runs
+                        // only a TTS/STT service.
+                        .filter(|(_, n)| {
+                            n.manifest.capabilities.iter().any(|c| {
+                                matches!(c, Capability::Llm | Capability::Agent)
+                            })
+                        })
                         .map(|(_, n)| n.manifest.host)
                         .collect()
                 };

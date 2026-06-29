@@ -414,6 +414,19 @@ async fn get_peer_endpoints(state: &Arc<AppState>) -> Vec<(String, u16)> {
         if node.manifest.node_id == Some(my_id) || node.manifest.host == my_host {
             continue;
         }
+        // Only sync with full LaRuche peers (llm/agent). Voice-only nodes (tts/stt) and
+        // other capability services do not serve /api/internal/sync/*, so pushing to
+        // them just 404s and spams the logs.
+        let is_full_peer = node.manifest.capabilities.iter().any(|c| {
+            matches!(
+                c,
+                miel_protocol::capabilities::Capability::Llm
+                    | miel_protocol::capabilities::Capability::Agent
+            )
+        });
+        if !is_full_peer {
+            continue;
+        }
         let port = node
             .manifest
             .port
