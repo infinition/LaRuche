@@ -17,6 +17,10 @@ const SPA_HTML: &str = include_str!("../../laruche-dashboard/src/templates/spa.h
 // value per key (one column), no key duplication. Served flat per language to the front-end.
 const LANG_STRINGS: &str = include_str!("../../lang/strings.json");
 const APP_CSS: &str = include_str!("../../laruche-dashboard/src/templates/app.css");
+// PWA assets (installable web app: add-to-home-screen on iPhone/Android, offline shell).
+const MANIFEST_JSON: &str = include_str!("../../laruche-dashboard/src/templates/manifest.json");
+const ICON_SVG: &str = include_str!("../../laruche-dashboard/src/templates/icon.svg");
+const SW_JS: &str = include_str!("../../laruche-dashboard/src/templates/sw.js");
 // app.js is split into modules under `templates/js/` (one i18n agent per module). The node
 // CONCATENATES them at compile time in dependency ORDER: one `/app.js` served, one binary.
 const APP_JS: &str = concat!(
@@ -113,6 +117,27 @@ pub async fn lang_file(Path(file): Path<String>) -> impl IntoResponse {
 /// App CSS (extracted from spa.html). Explicit Content-Type so the browser applies it.
 pub async fn app_css() -> impl IntoResponse {
     ([(header::CONTENT_TYPE, "text/css; charset=utf-8")], APP_CSS)
+}
+
+/// PWA manifest (installable web app).
+pub async fn manifest() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "application/manifest+json; charset=utf-8")],
+        MANIFEST_JSON,
+    )
+}
+
+/// App icon (home-screen / favicon).
+pub async fn icon_svg() -> impl IntoResponse {
+    ([(header::CONTENT_TYPE, "image/svg+xml; charset=utf-8")], ICON_SVG)
+}
+
+/// Service worker (offline shell + installability).
+pub async fn service_worker() -> impl IntoResponse {
+    (
+        [(header::CONTENT_TYPE, "application/javascript; charset=utf-8")],
+        SW_JS,
+    )
 }
 
 /// App JS (extracted from spa.html). Served before spa.html's small inline init script.

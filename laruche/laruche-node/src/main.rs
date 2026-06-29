@@ -1665,6 +1665,9 @@ async fn main() -> Result<()> {
         .route("/", get(web::spa_page))
         .route("/app.css", get(web::app_css))
         .route("/app.js", get(web::app_js))
+        .route("/manifest.json", get(web::manifest))
+        .route("/icon.svg", get(web::icon_svg))
+        .route("/sw.js", get(web::service_worker))
         .route("/lang/:file", get(web::lang_file))
         .route("/api/status", get(swarm_api::get_status))
         .route(

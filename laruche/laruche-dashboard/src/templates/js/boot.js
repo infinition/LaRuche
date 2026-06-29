@@ -57,4 +57,8 @@
       });
     }
   });
+  // PWA: register the service worker so the SPA is installable (add to home screen) + offline.
+  if('serviceWorker' in navigator){
+    window.addEventListener('load', function(){ navigator.serviceWorker.register('/sw.js').catch(function(){}); });
+  }
 })();
