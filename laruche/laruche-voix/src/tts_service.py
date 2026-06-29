@@ -22,6 +22,9 @@ from .miel_announce import MielAnnouncer
 PORT = 8422
 MAX_TTS_CHARS = 8000  # reject larger synthesis requests (resource-exhaustion guard)
 tts_backend = "none"
+import threading
+
+_PYTTSX3_LOCK = threading.Lock()  # pyttsx3's runAndWait is not safe across concurrent calls
 announcer = None
 
 # edge-tts voice (French neural voices)
@@ -107,10 +110,8 @@ async def synthesize_edge(text: str, voice: str = EDGE_VOICE) -> bytes:
 def synthesize_pyttsx3(text: str) -> bytes:
     """Synthesize with pyttsx3 (Windows native)."""
     import pyttsx3
-    import threading
 
-    lock = threading.Lock()
-    with lock:
+    with _PYTTSX3_LOCK:
         engine = pyttsx3.init()
         voices = engine.getProperty("voices")
         for v in voices:

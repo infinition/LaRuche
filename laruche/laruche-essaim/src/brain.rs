@@ -3646,8 +3646,7 @@ pub async fn boucle_react_multimodal_ext(
             if let Some(idx) = response_text.find("<tool_call>") {
                 let thinking = response_text[..idx].trim();
                 // Strip plan tags from thinking text
-                let thinking = thinking.replace(|_: char| false, ""); // no-op, just to own
-                let thinking = strip_plan_tags(&thinking);
+                let thinking = strip_plan_tags(thinking);
                 if !thinking.is_empty() {
                     emit_thought(
                         tx,

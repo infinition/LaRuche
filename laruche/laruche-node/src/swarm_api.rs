@@ -249,9 +249,6 @@ pub(crate) async fn post_infer(
         .unwrap_or_else(|| "unknown".to_string());
 
     // Swarm load balancing: check if a peer node has lower queue depth
-    let _target_url = config.ollama_url.clone();
-    let _target_node = config.node_name.clone();
-
     if std::env::var("ESSAIM_SWARM_LB").unwrap_or_default() == "1" {
         let listener = state.listener.read().await;
         let nodes = listener.get_nodes().await;
