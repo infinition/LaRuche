@@ -374,6 +374,14 @@ pub(crate) async fn lancer_iteration_mission(state: Arc<AppState>, mission: miss
             run_state.memoire.clone(),
         )
         .await;
+        // LaReine Tier 1 (only when enabled): review the iteration's output and re-do the work
+        // if it falls short, using the mission's own config, then deliver the approved version.
+        let result = match result {
+            Ok(bilan) => {
+                Ok(crate::reine_api::revue_mission(&run_state, &mut session, &cfg, &prompt, &bilan, &tx).await)
+            }
+            err => err,
+        };
         run_state
             .missions
             .write()

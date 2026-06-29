@@ -308,6 +308,70 @@ pub(crate) async fn revue_complete(
     fin(&tx);
 }
 
+/// LaReine Tier 1 review for a background MISSION iteration. Unlike `revue_complete` (which
+/// looks the session up in `essaim_sessions`), this operates on the mission's own ephemeral
+/// session and the mission's config (same provider/model/disabled-tools), and RETURNS the
+/// final text (reworked if she revised it, otherwise the original) so the caller can deliver
+/// the approved version. Runs only when Tier 1 is active; otherwise returns the original.
+pub(crate) async fn revue_mission(
+    state: &AppState,
+    session: &mut laruche_essaim::session::Session,
+    config: &laruche_essaim::EssaimConfig,
+    prompt: &str,
+    reponse: &str,
+    tx: &tokio::sync::broadcast::Sender<laruche_essaim::ChatEvent>,
+) -> String {
+    let rs = charger_reine_settings();
+    if !rs.active_for_responses() || reponse.trim().is_empty() {
+        return reponse.to_string();
+    }
+    // Judge profile: LaReine's own pick (`profile_id|||model`), else the active model.
+    let (j_pid, j_model) = match rs.provider_profile.as_deref().filter(|s| !s.is_empty()) {
+        Some(pp) => {
+            let mut p = pp.split("|||");
+            (
+                p.next().unwrap_or("").to_string(),
+                p.next().unwrap_or("").to_string(),
+            )
+        }
+        None => {
+            let pr = state.profiles.read().await;
+            (
+                pr.active_model.profile_id.clone(),
+                pr.active_model.model.clone(),
+            )
+        }
+    };
+    let juge = resoudre_creds(state, &j_pid, &j_model).await;
+    let charte = laruche_essaim::brain::charger_doc_systeme(&state.memoire, "system.prompt_reine")
+        .await
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| laruche_essaim::reine_live::prompt_reine_defaut().to_string());
+
+    let rev = laruche_essaim::reine_live::revue_et_refaire(
+        &juge,
+        &charte,
+        prompt,
+        reponse,
+        &rs.mode,
+        rs.max_revues,
+        rs.seuil_confiance,
+        rs.contexte_messages,
+        session,
+        &state.essaim_registry,
+        config,
+        state.memoire.clone(),
+        tx,
+    )
+    .await;
+
+    if rev.revised && !rev.final_answer.trim().is_empty() {
+        rev.final_answer
+    } else {
+        reponse.to_string()
+    }
+}
+
 // ======================== Proposals queue (Tier 2, PR-style backlog) ========================
 
 /// GET /api/reine/proposals - the proposals backlog (pending + recent decisions).
