@@ -1,4 +1,4 @@
-"""LaRuche TTS Service — Text-to-Speech with fallback chain.
+"""LaRuche TTS Service: Text-to-Speech with fallback chain.
 
 Priority: edge-tts (neural) > kokoro > pyttsx3 (robotic).
 Runs as a FastAPI server, announces itself on Miel with capability:tts.
@@ -25,12 +25,32 @@ announcer = None
 # edge-tts voice (French neural voices)
 EDGE_VOICE = "fr-FR-DeniseNeural"  # Other options: fr-FR-HenriNeural, fr-FR-EloiseNeural
 
+# Kokoro via kokoro-onnx (local neural TTS, 24kHz, free/offline, fast on CPU).
+# Matches the validated bench (kokoro-v1.0.onnx + voices-v1.0.bin, voice ff_siwis).
+# Point KOKORO_MODEL / KOKORO_VOICES at the downloaded files (or place them in cwd).
+KOKORO_VOICE = os.environ.get("KOKORO_VOICE", "ff_siwis")  # French female
+KOKORO_LANG = os.environ.get("KOKORO_LANG", "fr-fr")
+KOKORO_MODEL = os.environ.get("KOKORO_MODEL", "kokoro-v1.0.onnx")
+KOKORO_VOICES = os.environ.get("KOKORO_VOICES", "voices-v1.0.bin")
+_kokoro = None  # cached Kokoro instance (loading the model is slow)
+
 
 def detect_backend():
-    """Detect best available TTS backend."""
+    """Detect best available TTS backend.
+
+    Set TTS_BACKEND=kokoro|edge-tts|pyttsx3 to force one (otherwise the priority
+    chain below picks the best available). Kokoro is local and free; force it to give
+    LaReine her offline voice even when edge-tts is installed.
+    """
     global tts_backend
 
-    # Priority 1: edge-tts (Microsoft neural voices — best quality, free)
+    forced = os.environ.get("TTS_BACKEND", "").strip().lower()
+    if forced in ("edge-tts", "kokoro", "pyttsx3"):
+        tts_backend = forced
+        print(f"[TTS] Forced backend via TTS_BACKEND: {forced}")
+        return
+
+    # Priority 1: edge-tts (Microsoft neural voices, best quality, free)
     try:
         import edge_tts
         tts_backend = "edge-tts"
@@ -39,16 +59,18 @@ def detect_backend():
     except ImportError:
         print("[TTS] edge-tts not installed (pip install edge-tts)")
 
-    # Priority 2: Kokoro 82M
+    # Priority 2: Kokoro 82M via kokoro-onnx (local, free, fast on CPU).
     try:
-        from kokoro import KPipeline
-        tts_backend = "kokoro"
-        print("[TTS] Using Kokoro 82M")
-        return
+        import kokoro_onnx  # noqa: F401
+        if os.path.exists(KOKORO_MODEL) and os.path.exists(KOKORO_VOICES):
+            tts_backend = "kokoro"
+            print(f"[TTS] Using Kokoro ({KOKORO_MODEL}, voice {KOKORO_VOICE})")
+            return
+        print(f"[TTS] Kokoro model files missing ({KOKORO_MODEL} / {KOKORO_VOICES})")
     except Exception as e:
-        print(f"[TTS] Kokoro unavailable: {e}")
+        print(f"[TTS] Kokoro unavailable: {e} (pip install kokoro-onnx)")
 
-    # Priority 3: pyttsx3 (Windows SAPI5 — robotic but works offline)
+    # Priority 3: pyttsx3 (Windows SAPI5, robotic but works offline)
     try:
         import pyttsx3
         tts_backend = "pyttsx3"
@@ -103,6 +125,48 @@ def synthesize_pyttsx3(text: str) -> bytes:
                 pass
 
 
+def _phrases(t: str):
+    """Split text into sentences so synthesis streams phrase by phrase (low latency)."""
+    import re
+    parts = re.split(r"(?<=[.!?…:;])\s+", t.strip())
+    return [p for p in parts if p.strip()] or [t.strip()]
+
+
+def synthesize_kokoro(text: str, speed: float = 1.0) -> bytes:
+    """Synthesize with Kokoro via kokoro-onnx -> mono WAV bytes.
+
+    Mirrors the validated bench: `Kokoro(model, voices).create(text, voice, speed, lang)`
+    returns (float32 samples, sample_rate). We synthesize sentence by sentence and
+    concatenate, then wrap as PCM16 WAV (wave is stdlib; numpy ships with kokoro-onnx).
+    """
+    import wave
+    import numpy as np
+    from kokoro_onnx import Kokoro
+
+    global _kokoro
+    if _kokoro is None:
+        _kokoro = Kokoro(KOKORO_MODEL, KOKORO_VOICES)
+
+    chunks = []
+    sr = 24000
+    for phrase in _phrases(text):
+        samples, sr = _kokoro.create(phrase, voice=KOKORO_VOICE, speed=speed, lang=KOKORO_LANG)
+        chunks.append(np.asarray(samples, dtype=np.float32))
+    if not chunks:
+        return b""
+
+    samples = np.concatenate(chunks)
+    pcm16 = (np.clip(samples, -1.0, 1.0) * 32767.0).astype(np.int16)
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(sr)
+        w.writeframes(pcm16.tobytes())
+    buf.seek(0)
+    return buf.read()
+
+
 @asynccontextmanager
 async def lifespan(app):
     global announcer
@@ -145,6 +209,10 @@ async def synthesize(req: SynthesizeRequest):
         if tts_backend == "edge-tts":
             audio_bytes = await synthesize_edge(req.text, req.voice)
             media_type = "audio/mpeg"  # edge-tts outputs MP3
+        elif tts_backend == "kokoro":
+            # Run the (blocking) neural synthesis off the event loop.
+            audio_bytes = await asyncio.to_thread(synthesize_kokoro, req.text, req.speed)
+            media_type = "audio/wav"
         elif tts_backend == "pyttsx3":
             audio_bytes = synthesize_pyttsx3(req.text)
             media_type = "audio/wav"

@@ -17,7 +17,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-kokoro = ["kokoro>=0.9"]
+# Local neural TTS, fast on CPU. Needs the model files kokoro-v1.0.onnx +
+# voices-v1.0.bin (point KOKORO_MODEL / KOKORO_VOICES at them, or place in cwd).
+# Force it with TTS_BACKEND=kokoro (edge-tts wins the auto-detect otherwise).
+kokoro = ["kokoro-onnx>=0.4"]
 
 [project.scripts]
 laruche-stt = "src.stt_service:main"
