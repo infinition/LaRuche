@@ -2048,7 +2048,7 @@ LaRuche.Voice = (function(){
 
   var SPEAKER_SVG='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>';
   var _ttsSeq = 0; // bumped to cancel an in-flight streaming session
-  var ttsSpeed = 1.0, ttsVoice = ''; // synced from /api/config/voice
+  var ttsSpeed = 1.0, ttsVoice = '', ttsBackend = ''; // synced from /api/config/voice
   // Reverse stream LLM -> TTS: speak each sentence as the model produces it, so she
   // starts talking before the full answer is done. Driven from streamToken().
   var _stts = { el:null, enq:0, q:[], used:false, busy:false, seq:0, lastClean:'' };
@@ -2062,6 +2062,7 @@ LaRuche.Voice = (function(){
   function ttsFetchBlob(text){
     var body={text:text, speed:ttsSpeed};
     if(ttsVoice) body.voice=ttsVoice;
+    if(ttsBackend) body.backend=ttsBackend;
     return fetch('/api/voice/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
       .then(function(resp){
         var ct=(resp.headers.get('content-type')||'').toLowerCase();
@@ -2613,7 +2614,7 @@ LaRuche.Voice = (function(){
     // Restore the auto-TTS toggle.
     try{ if(localStorage.getItem('laruche_autotts')==='1'){ autoTtsEnabled=true; var ab=document.getElementById('autoTtsToggle'); if(ab){ ab.classList.add('active'); ab.title=LaRuche.i18n.t('chat.autoPlayEnabled'); } } }catch(e){}
     // Sync TTS speed/voice from the server config.
-    fetch('/api/config/voice').then(function(r){return r.json();}).then(function(c){ if(c){ if(c.tts_speed) ttsSpeed=c.tts_speed; if(c.tts_voice) ttsVoice=c.tts_voice; } }).catch(function(){});
+    fetch('/api/config/voice').then(function(r){return r.json();}).then(function(c){ if(c){ if(c.tts_speed) ttsSpeed=c.tts_speed; if(c.tts_voice) ttsVoice=c.tts_voice; if(c.tts_backend) ttsBackend=c.tts_backend; } }).catch(function(){});
     document.addEventListener('click',function(e){
       var drop=document.getElementById('sbTtsDrop'), lbl=document.getElementById('sbTtsLabel');
       if(drop && lbl && !drop.contains(e.target) && e.target!==lbl) drop.classList.remove('open');

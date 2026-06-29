@@ -863,10 +863,14 @@ async fn synth_and_send_voice(
     spoken: &str,
     speed: f32,
     voice: &str,
+    backend: &str,
 ) -> std::result::Result<(), String> {
     let mut payload = serde_json::json!({ "text": spoken, "format": "ogg", "speed": speed });
     if !voice.is_empty() {
         payload["voice"] = serde_json::Value::String(voice.to_string());
+    }
+    if !backend.is_empty() {
+        payload["backend"] = serde_json::Value::String(backend.to_string());
     }
     let resp = tts
         .post("http://127.0.0.1:8422/synthesize")
@@ -930,8 +934,17 @@ pub(crate) async fn send_telegram_voice(
     let mut sent = 0usize;
     let mut last_err = None;
     for chunk in chunks {
-        match synth_and_send_voice(client, &tts, api, chat_id, &chunk, cfg.tts_speed, &cfg.tts_voice)
-            .await
+        match synth_and_send_voice(
+            client,
+            &tts,
+            api,
+            chat_id,
+            &chunk,
+            cfg.tts_speed,
+            &cfg.tts_voice,
+            &cfg.tts_backend,
+        )
+        .await
         {
             Ok(()) => sent += 1,
             Err(e) => {

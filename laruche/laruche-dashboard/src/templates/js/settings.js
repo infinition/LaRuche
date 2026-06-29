@@ -307,6 +307,9 @@ LaRuche.i18n.add({
   'settings.sttExternalHint':    {fr:'Décoché (défaut) : le modèle transcrit lui-même l\'audio. Coché : utiliser le service STT externe (:8421).', en:'Unchecked (default): the model transcribes audio itself. Checked: use the external STT service (:8421).'},
   'settings.sttExternalNote':    {fr:'Par défaut, l\'audio (ex. vocal Telegram) va au modèle. Cochez si votre modèle ne sait pas faire le STT.', en:'By default, audio (e.g. Telegram voice) goes to the model. Check this if your model cannot do STT.'},
   'settings.ttsSpeed':           {fr:'Vitesse TTS',       en:'TTS speed'},
+  'settings.ttsBackend':         {fr:'Moteur TTS',        en:'TTS backend'},
+  'settings.ttsBackendAuto':     {fr:'Auto (défaut)',     en:'Auto (default)'},
+  'settings.ttsBackendHint':     {fr:'Moteur de synthèse. Voicebox = ta voix clonée (service voicebox.sh lancé). Auto = celui détecté par le service.', en:'Synthesis engine. Voicebox = your cloned voice (voicebox.sh running). Auto = whatever the service detected.'},
   'settings.ttsVoice':           {fr:'Voix TTS',          en:'TTS voice'},
   'settings.ttsVoiceHint':       {fr:'Identifiant de voix Kokoro (ex. ff_siwis). Vide = voix par défaut du service.', en:'Kokoro voice id (e.g. ff_siwis). Empty = the service default voice.'},
   'settings.security':           {fr:'Sécurité',         en:'Security'},
@@ -508,7 +511,9 @@ LaRuche.Settings = (function(){
       '<div class="settings-row"><span class="settings-label">TTS</span><span style="color:'+(voice.tts&&voice.tts.available?'var(--green)':'var(--red)')+'">'+(voice.tts&&voice.tts.available?LaRuche.i18n.t('settings.statusOk'):LaRuche.i18n.t('settings.statusOff'))+'</span></div>'+
       '<div class="settings-row" title="'+LaRuche.i18n.t('settings.sttExternalHint')+'"><span class="settings-label">'+LaRuche.i18n.t('settings.sttExternal')+'</span><input type="checkbox" id="cfgSttExternal" onchange="LaRuche.Settings.saveVoiceCfg()"'+(voiceCfg.stt_external?' checked':'')+'></div>'+
       '<div style="font-size:10px;color:var(--text-dim);margin-top:4px">'+LaRuche.i18n.t('settings.sttExternalNote')+'</div>'+
-      '<div class="settings-row" style="margin-top:6px"><span class="settings-label">'+LaRuche.i18n.t('settings.ttsSpeed')+'</span><span style="display:flex;align-items:center;gap:6px"><input type="range" id="cfgTtsSpeed" min="0.5" max="2" step="0.05" value="'+(voiceCfg.tts_speed||1)+'" oninput="document.getElementById(\'cfgTtsSpeedVal\').textContent=parseFloat(this.value).toFixed(2)+\'x\'"><span id="cfgTtsSpeedVal" style="font-size:11px;width:38px">'+(parseFloat(voiceCfg.tts_speed||1).toFixed(2))+'x</span></span></div>'+
+      '<div class="settings-row" style="margin-top:6px"><span class="settings-label" title="'+LaRuche.i18n.t('settings.ttsBackendHint')+'">'+LaRuche.i18n.t('settings.ttsBackend')+'</span><select id="cfgTtsBackend" class="form-input" style="width:130px;padding:2px 6px" onchange="LaRuche.Settings.saveVoiceCfg()">'+
+      ['','kokoro','voicebox','edge-tts'].map(function(b){ var lbl=b===''?LaRuche.i18n.t('settings.ttsBackendAuto'):b; return '<option value="'+b+'"'+((voiceCfg.tts_backend||'')===b?' selected':'')+'>'+lbl+'</option>'; }).join('')+'</select></div>'+
+      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.ttsSpeed')+'</span><span style="display:flex;align-items:center;gap:6px"><input type="range" id="cfgTtsSpeed" min="0.5" max="2" step="0.05" value="'+(voiceCfg.tts_speed||1)+'" oninput="document.getElementById(\'cfgTtsSpeedVal\').textContent=parseFloat(this.value).toFixed(2)+\'x\'"><span id="cfgTtsSpeedVal" style="font-size:11px;width:38px">'+(parseFloat(voiceCfg.tts_speed||1).toFixed(2))+'x</span></span></div>'+
       '<div class="settings-row"><span class="settings-label" title="'+LaRuche.i18n.t('settings.ttsVoiceHint')+'">'+LaRuche.i18n.t('settings.ttsVoice')+'</span><input type="text" id="cfgTtsVoice" class="form-input" style="width:120px;padding:2px 6px" value="'+LaRuche.Utils.esc(voiceCfg.tts_voice||'')+'" placeholder="ff_siwis"></div>'+
       '<button class="form-btn" onclick="LaRuche.Settings.saveVoiceCfg()" style="margin-top:8px">'+LaRuche.i18n.t('settings.save')+'</button></div>'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.security')+'</div>'+
@@ -1964,9 +1969,11 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     var stt_external = !!document.getElementById('cfgSttExternal').checked;
     var speedEl = document.getElementById('cfgTtsSpeed');
     var voiceEl = document.getElementById('cfgTtsVoice');
+    var backendEl = document.getElementById('cfgTtsBackend');
     var body = { stt_external: stt_external };
     if(speedEl) body.tts_speed = parseFloat(speedEl.value);
     if(voiceEl) body.tts_voice = voiceEl.value.trim();
+    if(backendEl) body.tts_backend = backendEl.value;
     try {
       var res = await fetch(LaRuche.API.base+'/api/config/voice', {
         method: 'POST',

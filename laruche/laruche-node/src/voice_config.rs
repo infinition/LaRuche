@@ -24,6 +24,9 @@ pub(crate) struct VoiceConfig {
     /// TTS voice override (e.g. a Kokoro voice id like "ff_siwis"). Empty = service default.
     #[serde(default)]
     pub tts_voice: String,
+    /// TTS backend override (kokoro/voicebox/edge-tts/...). Empty = the service default.
+    #[serde(default)]
+    pub tts_backend: String,
 }
 
 fn default_speed() -> f32 {
@@ -67,6 +70,7 @@ pub(crate) async fn api_get_voice() -> Json<serde_json::Value> {
         "stt_external": c.stt_external,
         "tts_speed": c.tts_speed,
         "tts_voice": c.tts_voice,
+        "tts_backend": c.tts_backend,
     }))
 }
 
@@ -87,6 +91,9 @@ pub(crate) async fn api_set_voice(
     }
     if let Some(v) = body.get("tts_voice").and_then(|x| x.as_str()) {
         c.tts_voice = v.trim().to_string();
+    }
+    if let Some(v) = body.get("tts_backend").and_then(|x| x.as_str()) {
+        c.tts_backend = v.trim().to_string();
     }
     sauver(&c);
     Ok(Json(serde_json::json!({ "status": "ok" })))

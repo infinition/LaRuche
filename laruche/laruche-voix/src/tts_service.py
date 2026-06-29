@@ -249,6 +249,7 @@ class SynthesizeRequest(BaseModel):
     voice: str = EDGE_VOICE
     speed: float = 1.0
     format: str = "wav"  # "wav"/"mp3" (native) or "ogg" (opus, for voice notes)
+    backend: str = ""  # override the active backend for this request (kokoro/voicebox/...)
 
 
 _EMOJI_RE = re.compile(
@@ -284,7 +285,12 @@ def to_ogg_opus(audio_bytes: bytes) -> bytes | None:
 
 @app.post("/synthesize")
 async def synthesize(req: SynthesizeRequest):
-    if tts_backend == "none":
+    # A request may override the active backend (Settings TTS-backend selector), as long as
+    # it is one we know; otherwise fall back to the service default.
+    active = req.backend.strip().lower()
+    if active not in ("edge-tts", "kokoro", "pyttsx3", "voicebox"):
+        active = tts_backend
+    if active == "none":
         return {"error": "No TTS backend available"}
     text = clean_for_speech(req.text)
     if not text.strip():
@@ -292,20 +298,20 @@ async def synthesize(req: SynthesizeRequest):
     req.text = text
 
     try:
-        if tts_backend == "edge-tts":
+        if active == "edge-tts":
             audio_bytes = await synthesize_edge(req.text, req.voice)
             media_type = "audio/mpeg"  # edge-tts outputs MP3
-        elif tts_backend == "kokoro":
+        elif active == "kokoro":
             # Run the (blocking) neural synthesis off the event loop. A caller-supplied
             # Kokoro voice (e.g. "ff_siwis") overrides the default; the edge default name
             # is treated as "unset" so the configured KOKORO_VOICE is used.
             kvoice = req.voice if (req.voice and req.voice != EDGE_VOICE) else None
             audio_bytes = await asyncio.to_thread(synthesize_kokoro, req.text, req.speed, kvoice)
             media_type = "audio/wav"
-        elif tts_backend == "pyttsx3":
+        elif active == "pyttsx3":
             audio_bytes = synthesize_pyttsx3(req.text)
             media_type = "audio/wav"
-        elif tts_backend == "voicebox":
+        elif active == "voicebox":
             # A caller-supplied profile name overrides the default; the edge default name
             # is treated as "unset" so VOICEBOX_PROFILE is used.
             vprofile = req.voice if (req.voice and req.voice != EDGE_VOICE) else None
