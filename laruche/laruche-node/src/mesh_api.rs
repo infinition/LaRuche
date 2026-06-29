@@ -92,7 +92,7 @@ pub(crate) async fn api_mesh_peers(State(state): State<Arc<AppState>>) -> Json<s
 // and SYNCHRONIZES by pulling from peers the skills it lacks (or whose hash differs).
 
 /// Lists local skills on disk (`skills/<slug>/SKILL.md`) with a content hash.
-fn lister_skills_locaux() -> Vec<(String, String, String)> {
+pub(crate) fn lister_skills_locaux() -> Vec<(String, String, String)> {
     // (slug, hash, content)
     let mut out = Vec::new();
     let Ok(rd) = std::fs::read_dir("skills") else {

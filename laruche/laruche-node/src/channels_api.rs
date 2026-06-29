@@ -193,15 +193,25 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                             }
 
                             // /help: command list (third-party style).
-                            if text == "/help" {
-                                let aide = "*LaRuche commands*\n\
+                            if text == "/help" || text == "/commands" {
+                                let aide = "*LaRuche - commands*\n\
+                                    *Status & info*\n\
                                     /help: this help\n\
-                                    /status: model, home channel, tasks\n\
-                                    /clear (or /reset, /start): clears the history of THIS chat\n\
+                                    /status: model, home channel, crons\n\
+                                    /model: current model + active profile\n\
+                                    /reine: LaReine supervisor settings\n\
+                                    /tools: registered tools\n\
+                                    /skills: enabled skills\n\
+                                    /missions: long-running missions\n\
+                                    /tasks: kanban tasks\n\
+                                    /crons: scheduled tasks\n\
+                                    /memory <query>: search the cognitive memory\n\
+                                    /whoami: this chat's identity\n\n\
+                                    *Actions*\n\
+                                    /clear (or /reset, /start): reset THIS chat's history\n\
                                     /sethome: set THIS chat as the task destination\n\
-                                    /crons: list the scheduled tasks\n\
                                     /delcron <name|all>: delete a cron (or all)\n\n\
-                                    _Tip: write a message during a running task to steer it (steering)._";
+                                    _Tip: send a message while a task runs to steer it. The full UI is at the web dashboard._";
                                 let _ = client.post(format!("{}/sendMessage", api))
                                     .json(&serde_json::json!({"chat_id": chat_id, "text": aide, "parse_mode": "Markdown"}))
                                     .send().await;
@@ -266,6 +276,112 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                     .json(&serde_json::json!({"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}))
                                     .send().await;
                                 continue;
+                            }
+
+                            // Helper to push a Markdown reply to this chat.
+                            macro_rules! repondre {
+                                ($txt:expr) => {{
+                                    let _ = client.post(format!("{}/sendMessage", api))
+                                        .json(&serde_json::json!({"chat_id": chat_id, "text": $txt, "parse_mode": "Markdown"}))
+                                        .send().await;
+                                    continue;
+                                }};
+                            }
+
+                            // /model: current model + active profile.
+                            if text == "/model" || text == "/models" {
+                                let modele = get_llm_default(state).await;
+                                let (prov_model, prof) = {
+                                    let p = state.profiles.read().await;
+                                    (p.active_model.model.clone(), p.active_model.profile_id.clone())
+                                };
+                                repondre!(format!(
+                                    "*Model*\nActive: `{modele}`\nProfile: `{prof}` (`{prov_model}`)\n\n_Switch models in the web UI > Settings > Providers._"
+                                ));
+                            }
+
+                            // /reine: LaReine supervisor settings.
+                            if text == "/reine" {
+                                let rs = crate::reine_api::charger_reine_settings();
+                                let reworks = if rs.max_revues == 255 { "unlimited".to_string() } else { rs.max_revues.to_string() };
+                                repondre!(format!(
+                                    "*LaReine* 👑\nMode: `{}`\nMax reworks: `{}`\nContext turns: `{}`\nProposals gate: `{}`\nSupervision: `{}`",
+                                    rs.mode, reworks, rs.contexte_messages, rs.queue_gate, rs.tier_supervision
+                                ));
+                            }
+
+                            // /tools: registered tools.
+                            if text == "/tools" {
+                                let mut noms = state.essaim_registry.noms();
+                                noms.sort();
+                                let n = noms.len();
+                                let apercu = noms.iter().take(40).map(|s| format!("`{s}`")).collect::<Vec<_>>().join(", ");
+                                let suite = if n > 40 { ", ..." } else { "" };
+                                repondre!(format!("*Tools* ({n})\n{apercu}{suite}"));
+                            }
+
+                            // /skills: enabled skills on disk.
+                            if text == "/skills" {
+                                let mut slugs: Vec<String> = crate::mesh_api::lister_skills_locaux()
+                                    .into_iter().map(|(slug, _, _)| slug).collect();
+                                slugs.sort();
+                                let msg = if slugs.is_empty() {
+                                    "No skill.".to_string()
+                                } else {
+                                    format!("*Skills* ({})\n{}", slugs.len(),
+                                        slugs.iter().map(|s| format!("• `{s}`")).collect::<Vec<_>>().join("\n"))
+                                };
+                                repondre!(msg);
+                            }
+
+                            // /missions: long-running missions.
+                            if text == "/missions" {
+                                let lignes: Vec<String> = state.missions.read().await.list().iter()
+                                    .map(|m| {
+                                        let obj: String = m.objective.chars().take(60).collect();
+                                        format!("• *{}* - {} (_{}_)", m.slug, obj, m.status)
+                                    })
+                                    .collect();
+                                let msg = if lignes.is_empty() { "No mission.".to_string() }
+                                    else { format!("*Missions*\n{}", lignes.join("\n")) };
+                                repondre!(msg);
+                            }
+
+                            // /tasks: kanban tasks.
+                            if text == "/tasks" {
+                                let lignes: Vec<String> = state.kanban_board.read().await.list().iter()
+                                    .map(|t| format!("• {} - _{:?}_", t.title, t.status))
+                                    .collect();
+                                let msg = if lignes.is_empty() { "No task.".to_string() }
+                                    else { format!("*Kanban tasks* ({})\n{}", lignes.len(), lignes.join("\n")) };
+                                repondre!(msg);
+                            }
+
+                            // /whoami: this chat's identity + session.
+                            if text == "/whoami" {
+                                let home = state.essaim_config.read().await.home_channel.clone()
+                                    .unwrap_or_else(|| "(not set)".into());
+                                let is_home = home == format!("telegram:{}", chat_id);
+                                repondre!(format!(
+                                    "*This chat*\nChannel: `telegram:{chat_id}`\nName: {user}\nIs home channel: `{is_home}`"
+                                ));
+                            }
+
+                            // /memory <query>: search the cognitive memory.
+                            if let Some(q) = text.strip_prefix("/memory").map(|s| s.trim().to_string()) {
+                                if q.is_empty() {
+                                    repondre!("Usage: /memory <query>");
+                                }
+                                let res = state.memoire.grep(&q, Some(8)).await.ok();
+                                let body = match res {
+                                    Some(v) => {
+                                        let s = serde_json::to_string(&v).unwrap_or_default();
+                                        if s.is_empty() || s == "null" { "(no match)".to_string() }
+                                        else { s.chars().take(600).collect::<String>() }
+                                    }
+                                    None => "(search failed)".to_string(),
+                                };
+                                repondre!(format!("*Memory* `{q}`\n```\n{body}\n```"));
                             }
 
                             // Check for active steering

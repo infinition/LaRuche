@@ -249,6 +249,12 @@ fn print_help() {
         "[cmd]".dark_grey(),
         "/quit".with(AMBER)
     );
+    eprintln!(
+        "    {}    List skills       {}   List sessions",
+        "/skills".with(AMBER),
+        "/sessions".with(AMBER)
+    );
+    eprintln!("    {}   Message count", "/history".with(AMBER));
     eprintln!();
     eprintln!(
         "  {} /server start | stop | restart | status | install | uninstall | update",
@@ -491,6 +497,59 @@ async fn cmd_chat() -> Result<()> {
                 }
                 "/doctor" | "/status" => {
                     cmd_doctor().await.ok();
+                    continue;
+                }
+                "/skills" => {
+                    let mut slugs: Vec<String> = std::fs::read_dir("skills")
+                        .map(|rd| {
+                            rd.flatten()
+                                .filter(|e| e.path().is_dir())
+                                .map(|e| e.file_name().to_string_lossy().to_string())
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    slugs.sort();
+                    eprintln!(
+                        "\n  {} {}",
+                        "Skills".with(AMBER).bold(),
+                        format!("({})", slugs.len()).dark_grey()
+                    );
+                    if slugs.is_empty() {
+                        eprintln!("  {}", "(none in ./skills)".dark_grey());
+                    }
+                    for s in &slugs {
+                        eprintln!("  {} {}", "·".with(AMBER), s.as_str().with(Color::Cyan));
+                    }
+                    eprintln!();
+                    continue;
+                }
+                "/sessions" => {
+                    let mut files: Vec<String> = std::fs::read_dir(&sessions_dir)
+                        .map(|rd| {
+                            rd.flatten()
+                                .filter(|e| e.path().extension().map(|x| x == "json").unwrap_or(false))
+                                .map(|e| e.file_name().to_string_lossy().to_string())
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    files.sort();
+                    eprintln!(
+                        "\n  {} {}",
+                        "Sessions".with(AMBER).bold(),
+                        format!("({})", files.len()).dark_grey()
+                    );
+                    for f in files.iter().take(30) {
+                        eprintln!("  {} {}", "·".with(AMBER), f.as_str().dark_grey());
+                    }
+                    eprintln!();
+                    continue;
+                }
+                "/history" => {
+                    eprintln!(
+                        "  {} {} messages in this session\n",
+                        "·".with(AMBER),
+                        session.messages.len()
+                    );
                     continue;
                 }
                 _ => {
