@@ -35,6 +35,30 @@ struct FournisseurPont {
     temperature: f32,
     max_tokens: u32,
     tx: broadcast::Sender<ChatEvent>,
+    /// Shared credential pool: when present, the bridge picks an available (non rate-limited,
+    /// non-invalid) key for the provider and records usage, instead of always using api_key.
+    credential_pool:
+        Option<std::sync::Arc<tokio::sync::RwLock<crate::credential_pool::CredentialPool>>>,
+}
+
+impl FournisseurPont {
+    /// Resolve the API key to use: an available pool credential (load-balanced, skipping
+    /// rate-limited/invalid keys) when a pool is configured, otherwise the static key. The
+    /// returned key has any `${NAME}` vault reference substituted.
+    async fn choisir_cle(&self) -> String {
+        if let Some(pool_lock) = &self.credential_pool {
+            let now = chrono::Utc::now().timestamp();
+            let mut pool = pool_lock.write().await;
+            let key = pool
+                .prochain_disponible(&self.provider, now)
+                .map(|e| e.api_key.clone());
+            if let Some(k) = key {
+                pool.enregistrer_utilisation(&self.provider, &k);
+                return crate::secrets::substituer(&k);
+            }
+        }
+        crate::secrets::substituer(&self.api_key)
+    }
 }
 
 #[async_trait]
@@ -46,8 +70,10 @@ impl but::Fournisseur for FournisseurPont {
     ) -> std::result::Result<but::ReponseModele, but::ErreurFournisseur> {
         let msgs = convertir_messages(messages);
         let tools = if schemas.is_empty() { None } else { Some(schemas) };
-        // The API key may be a `${NAME}` reference into the vault: substitute before the call.
-        let api_key = crate::secrets::substituer(&self.api_key);
+        // Pick an available credential from the pool (skips rate-limited/invalid keys and
+        // load-balances by usage) when one is configured, otherwise the static key. The key
+        // may be a `${NAME}` vault reference, so it is substituted inside choisir_cle.
+        let api_key = self.choisir_cle().await;
 
         let mut stream = match provider_chat_stream(
             &self.provider,
@@ -346,6 +372,7 @@ impl OutilsPont<'_> {
             temperature: self.config.temperature,
             max_tokens: self.config.max_tokens,
             tx: self.tx.clone(),
+            credential_pool: self.config.credential_pool.clone(),
         };
         let mut disabled = self.disabled.clone();
         for d in OUTILS_DELEGATION {
@@ -944,6 +971,7 @@ pub async fn lancer_curateur_arriere_plan(
         temperature: 0.4,
         max_tokens: config.max_tokens,
         tx: tx.clone(),
+        credential_pool: config.credential_pool.clone(),
     };
     let emet = EmetteurPont { tx: tx.clone() };
     let outils = OutilsCurateur {
@@ -1162,6 +1190,7 @@ pub async fn executer(
         temperature: config.temperature,
         max_tokens: config.max_tokens,
         tx: tx.clone(),
+        credential_pool: config.credential_pool.clone(),
     };
     // Approval channel (UI popup) shared with the tools via Mutex (sequential mutating
     // execution: no contention). `None` => Ask tools executed without confirmation.
@@ -1322,6 +1351,7 @@ pub async fn reprendre_carnet(
         temperature: config.temperature,
         max_tokens: config.max_tokens,
         tx: tx.clone(),
+        credential_pool: config.credential_pool.clone(),
     };
     let outils = OutilsPont {
         registry,
