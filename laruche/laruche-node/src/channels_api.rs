@@ -151,28 +151,48 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                             // ON -> voice note only; OFF -> text only (whatever the input was).
                             let voice_on = tg_voice.read().await.contains(&chat_id);
 
-                            // Text message, or a voice/audio message we transcribe via STT.
+                            // Text message, or a voice/audio message. We prefer the local STT
+                            // service when it answers (clean text, any model); otherwise we hand
+                            // the audio straight to the model, which transcribes it itself if it
+                            // is audio-capable (e.g. Gemma) - no separate STT service needed.
                             let mut text_owned =
                                 update["message"]["text"].as_str().unwrap_or("").to_string();
+                            let mut tg_attachment: Vec<laruche_essaim::session::Attachment> = Vec::new();
                             if text_owned.is_empty() && chat_id != 0 {
                                 let file_id = update["message"]["voice"]["file_id"]
                                     .as_str()
                                     .or_else(|| update["message"]["audio"]["file_id"].as_str())
                                     .or_else(|| update["message"]["video_note"]["file_id"].as_str());
                                 if let Some(fid) = file_id {
-                                    match transcribe_telegram_voice(&client, &token, fid).await {
-                                        Some(t) => {
-                                            // Confirm what was heard only in text mode (voice mode = voice only).
-                                            if !voice_on {
+                                    match download_telegram_file(&client, &token, fid).await {
+                                        Some(bytes) => {
+                                            if let Some(t) = stt_transcribe_bytes(&bytes).await {
+                                                if !voice_on {
+                                                    let _ = client.post(format!("{}/sendMessage", api))
+                                                        .json(&serde_json::json!({"chat_id": chat_id, "text": format!("🎤 \"{}\"", t)}))
+                                                        .send().await;
+                                                }
+                                                text_owned = t;
+                                            } else if let Some(wav) = audio_to_wav(bytes).await {
+                                                use base64::Engine;
+                                                let b64 = base64::engine::general_purpose::STANDARD.encode(&wav);
+                                                tg_attachment.push(laruche_essaim::session::Attachment {
+                                                    kind: "audio".to_string(),
+                                                    mime_type: "audio/wav".to_string(),
+                                                    data: b64,
+                                                    filename: None,
+                                                });
+                                                text_owned = "[The user sent a voice message. Listen to the attached audio and reply to it.]".to_string();
+                                            } else {
                                                 let _ = client.post(format!("{}/sendMessage", api))
-                                                    .json(&serde_json::json!({"chat_id": chat_id, "text": format!("🎤 \"{}\"", t)}))
+                                                    .json(&serde_json::json!({"chat_id": chat_id, "text": "I could not handle that audio. Either run the STT service (:8421), or use an audio-capable model (with ffmpeg installed for conversion)."}))
                                                     .send().await;
+                                                continue;
                                             }
-                                            text_owned = t;
                                         }
                                         None => {
                                             let _ = client.post(format!("{}/sendMessage", api))
-                                                .json(&serde_json::json!({"chat_id": chat_id, "text": "I could not transcribe that audio (is the STT service running on :8421?)."}))
+                                                .json(&serde_json::json!({"chat_id": chat_id, "text": "Could not download that audio from Telegram."}))
                                                 .send().await;
                                             continue;
                                         }
@@ -581,7 +601,7 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                     &config,
                                     &tx,
                                     state_clone.memoire.clone(),
-                                    vec![],
+                                    tg_attachment,
                                     None,
                                     Some(steer_rx),
                                 )
@@ -704,15 +724,13 @@ fn strip_emoji_for_speech(text: &str) -> String {
         .collect()
 }
 
-/// Download a Telegram voice/audio file and transcribe it via the local STT service.
-/// Returns the transcript, or None if there is no STT service or it fails.
-async fn transcribe_telegram_voice(
+/// Download a Telegram file (voice/audio) to bytes.
+async fn download_telegram_file(
     client: &reqwest::Client,
     token: &str,
     file_id: &str,
-) -> Option<String> {
+) -> Option<Vec<u8>> {
     let api = format!("https://api.telegram.org/bot{token}");
-    // 1. Resolve the file path.
     let gf = client
         .get(format!("{api}/getFile"))
         .query(&[("file_id", file_id)])
@@ -721,10 +739,14 @@ async fn transcribe_telegram_voice(
         .ok()?;
     let v: serde_json::Value = gf.json().await.ok()?;
     let file_path = v["result"]["file_path"].as_str()?;
-    // 2. Download the audio bytes.
     let url = format!("https://api.telegram.org/file/bot{token}/{file_path}");
     let bytes = client.get(&url).send().await.ok()?.bytes().await.ok()?;
-    // 3. Transcribe via the local STT service (handles OGG/Opus via ffmpeg).
+    Some(bytes.to_vec())
+}
+
+/// Transcribe audio bytes via the local STT service (handles OGG/Opus via ffmpeg).
+/// None if no STT service answers.
+async fn stt_transcribe_bytes(bytes: &[u8]) -> Option<String> {
     let stt = reqwest::Client::new();
     let part = reqwest::multipart::Part::bytes(bytes.to_vec())
         .file_name("voice.oga")
@@ -742,6 +764,37 @@ async fn transcribe_telegram_voice(
         .and_then(|t| t.as_str())
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty())
+}
+
+/// Transcode audio bytes (OGG/Opus etc.) to 16kHz mono WAV via ffmpeg, so they can be
+/// attached as `input_audio` to an audio-capable model. None if ffmpeg is unavailable.
+async fn audio_to_wav(bytes: Vec<u8>) -> Option<Vec<u8>> {
+    tokio::task::spawn_blocking(move || {
+        use std::io::Write;
+        if which::which("ffmpeg").is_err() {
+            return None;
+        }
+        let dir = std::env::temp_dir();
+        let stamp = std::process::id();
+        let in_path = dir.join(format!("laruche_tg_in_{stamp}.bin"));
+        let out_path = dir.join(format!("laruche_tg_out_{stamp}.wav"));
+        std::fs::File::create(&in_path).ok()?.write_all(&bytes).ok()?;
+        let ok = std::process::Command::new("ffmpeg")
+            .args(["-y", "-i"])
+            .arg(&in_path)
+            .args(["-ar", "16000", "-ac", "1"])
+            .arg(&out_path)
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false);
+        let wav = if ok { std::fs::read(&out_path).ok() } else { None };
+        let _ = std::fs::remove_file(&in_path);
+        let _ = std::fs::remove_file(&out_path);
+        wav
+    })
+    .await
+    .ok()
+    .flatten()
 }
 
 /// Synthesize `text` via the local TTS service (as OGG/opus) and send it as a Telegram
