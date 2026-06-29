@@ -2059,7 +2059,15 @@ async fn curer_memoire(
                 if let Some(src) = f.source {
                     item.source = Some(src);
                 }
-                let _ = memoire.write(item).await;
+                // When LaReine's queue gate is on, the write becomes a proposal in the
+                // backlog (approved by a human) instead of being applied directly.
+                let _ = crate::reine_queue::proposer_memoire(
+                    memoire,
+                    item,
+                    config.reine.queue_gate,
+                    "curateur",
+                )
+                .await;
             }
         }
     }

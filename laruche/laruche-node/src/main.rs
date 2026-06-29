@@ -1736,6 +1736,19 @@ async fn main() -> Result<()> {
             "/api/config/reine",
             get(reine_api::api_get_reine_config).post(reine_api::api_set_reine_config),
         )
+        .route("/api/reine/proposals", get(reine_api::api_list_proposals))
+        .route(
+            "/api/reine/proposals/apply-safe",
+            post(reine_api::api_approve_safe),
+        )
+        .route(
+            "/api/reine/proposals/:id/approve",
+            post(reine_api::api_approve_proposal),
+        )
+        .route(
+            "/api/reine/proposals/:id/reject",
+            post(reine_api::api_reject_proposal),
+        )
         .route(
             "/api/secrets",
             get(settings_api::api_secrets_list).post(settings_api::api_secrets_set),

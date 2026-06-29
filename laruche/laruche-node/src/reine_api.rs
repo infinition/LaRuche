@@ -6,7 +6,7 @@
 //! endpoints land in a later step.
 
 use crate::*;
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Json;
 use serde::{Deserialize, Serialize};
@@ -284,4 +284,66 @@ pub(crate) async fn revue_complete(
     }
 
     fin(&tx);
+}
+
+// ======================== Proposals queue (Tier 2, PR-style backlog) ========================
+
+/// GET /api/reine/proposals - the proposals backlog (pending + recent decisions).
+pub(crate) async fn api_list_proposals() -> Json<serde_json::Value> {
+    let props = laruche_essaim::reine_queue::charger();
+    let items: Vec<serde_json::Value> = props
+        .iter()
+        .map(|p| {
+            serde_json::json!({
+                "id": p.id,
+                "type": format!("{:?}", p.type_),
+                "target": p.cible,
+                "preview": p.raison,
+                "provenance": p.provenance,
+                "status": format!("{:?}", p.statut),
+                "risk": format!("{:?}", p.risque()),
+                "created_at": p.cree_a,
+            })
+        })
+        .collect();
+    let pending = props
+        .iter()
+        .filter(|p| p.statut == laruche_essaim::reine_file::Statut::EnAttente)
+        .count();
+    Json(serde_json::json!({ "proposals": items, "pending": pending }))
+}
+
+/// POST /api/reine/proposals/:id/approve - apply a proposal to memory (auth).
+pub(crate) async fn api_approve_proposal(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let ok = laruche_essaim::reine_queue::approuver(&state.memoire, &id).await;
+    Ok(Json(serde_json::json!({ "status": if ok { "ok" } else { "failed" } })))
+}
+
+/// POST /api/reine/proposals/:id/reject - discard a proposal, kept for audit (auth).
+pub(crate) async fn api_reject_proposal(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let ok = laruche_essaim::reine_queue::rejeter(&id);
+    Ok(Json(serde_json::json!({ "status": if ok { "ok" } else { "failed" } })))
+}
+
+/// POST /api/reine/proposals/apply-safe - approve all pending safe proposals (auth).
+pub(crate) async fn api_approve_safe(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let n = laruche_essaim::reine_queue::approuver_surs(&state.memoire).await;
+    Ok(Json(serde_json::json!({ "status": "ok", "applied": n })))
 }

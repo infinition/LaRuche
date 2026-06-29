@@ -37,6 +37,7 @@ pub mod rag;
 pub mod reine_file;
 pub mod reine_juge;
 pub mod reine_live;
+pub mod reine_queue;
 pub mod session;
 pub mod stdout_filter;
 pub mod streaming;

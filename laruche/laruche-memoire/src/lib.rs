@@ -13,7 +13,7 @@
 
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 mod curator;
@@ -30,7 +30,7 @@ pub use sqlite::SqliteBackend;
 /// A memory item to write into the cognitive map.
 ///
 /// Mirrors the paradigm schema (`memory_write` / `memory_propose_write`).
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryItem {
     /// Dotted node identifier, e.g. `projects.laruche`, `decisions.archi`, `people.fabien`.
     pub node_id: String,

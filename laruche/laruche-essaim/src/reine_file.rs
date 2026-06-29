@@ -18,9 +18,10 @@
 //! stays deterministic and testable.
 
 use laruche_butinage::cap::reine::ModeReine;
+use serde::{Deserialize, Serialize};
 
 /// What a proposal would do if applied.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TypeProposition {
     /// Add a new memory record.
     MemoireAjout,
@@ -37,7 +38,7 @@ pub enum TypeProposition {
 }
 
 /// How risky applying a proposal is. Drives whether it can ever auto-apply.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Risque {
     /// New, non-colliding information. Auto-approvable in autonomous modes.
     Sur,
@@ -50,7 +51,7 @@ pub enum Risque {
 
 /// Lifecycle of a proposal. `EnAttente` is the only mutable-by-the-Reine state;
 /// the others are terminal except `Obsolete`, which requires a re-review.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Statut {
     /// Waiting in the backlog.
     EnAttente,
@@ -74,7 +75,7 @@ impl Statut {
 
 /// A single queued change. `base_version` is the version of the target record at
 /// proposal time, used to detect staleness.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Proposition {
     pub id: String,
     pub type_: TypeProposition,
