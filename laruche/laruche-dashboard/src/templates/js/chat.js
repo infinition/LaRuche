@@ -135,6 +135,7 @@ LaRuche.i18n.add({
   'chat.autoPlayEnabled':       {fr:'Lecture automatique activée', en:'Auto-play enabled'},
   'chat.autoPlayDisabled':      {fr:'Lecture automatique désactivée', en:'Auto-play disabled'},
   'chat.sttUnavailable':        {fr:'STT indisponible',        en:'STT unavailable'},
+  'chat.micBrowser':            {fr:'Dictée navigateur (clic pour parler)', en:'Browser dictation (click to talk)'},
   'chat.ttsUnavailable':        {fr:'TTS indisponible',        en:'TTS unavailable'},
   'chat.autoFirstDetected':     {fr:'Auto (premier détecté)',  en:'Auto (first detected)'},
   'chat.enCours':               {fr:' · en cours',             en:' · running'},
@@ -1992,6 +1993,11 @@ LaRuche.Voice = (function(){
   var recordedSamples = [];
   var sttAvailable = false;
   var ttsAvailable = false;
+  // Browser-native speech recognition (Chrome/Edge), used as a fallback when no local
+  // STT service is running, so the mic works with just the hardware microphone.
+  var browserSttSupported = ('SpeechRecognition' in window) || ('webkitSpeechRecognition' in window);
+  var usingBrowserStt = false;
+  var browserRecognition = null;
 
   function cleanTextForTTS(text) {
     var clean = text;
@@ -2076,7 +2082,50 @@ LaRuche.Voice = (function(){
   }
 
   async function toggleMic() {
+    if(usingBrowserStt){ if(isRecording) stopBrowserStt(); else startBrowserStt(); return; }
     if(isRecording) stopRecording(); else await startRecording();
+  }
+
+  // Dictation via the browser's Web Speech API: the transcript lands in the input so
+  // the user can review and send it. No local STT service needed.
+  function startBrowserStt() {
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SR){ LaRuche.Toast.show(LaRuche.i18n.t('chat.sttUnavailable'),'err'); return; }
+    var input = document.getElementById('userInput');
+    var base = (input && input.value) ? input.value.trim() : '';
+    browserRecognition = new SR();
+    browserRecognition.lang = (navigator.language && navigator.language.indexOf('en')===0) ? 'en-US' : 'fr-FR';
+    browserRecognition.interimResults = true;
+    browserRecognition.continuous = false;
+    browserRecognition.onresult = function(e){
+      var txt='';
+      for(var i=0;i<e.results.length;i++){ txt += e.results[i][0].transcript; }
+      if(input){
+        input.value = base ? (base + ' ' + txt) : txt;
+        input.dispatchEvent(new Event('input'));
+      }
+    };
+    browserRecognition.onerror = function(ev){
+      LaRuche.Toast.show(LaRuche.i18n.t('chat.micError')+(ev.error||''),'err');
+      stopBrowserStt();
+    };
+    browserRecognition.onend = function(){ stopBrowserStt(); };
+    try {
+      browserRecognition.start();
+      isRecording = true;
+      var mb=document.getElementById('micBtn'); if(mb) mb.classList.add('recording');
+      var hw=document.getElementById('honeyWave'); if(hw) hw.style.display='flex';
+    } catch(e){
+      LaRuche.Toast.show(LaRuche.i18n.t('chat.micError')+e.message,'err');
+      stopBrowserStt();
+    }
+  }
+
+  function stopBrowserStt() {
+    isRecording = false;
+    var mb=document.getElementById('micBtn'); if(mb) mb.classList.remove('recording');
+    var hw=document.getElementById('honeyWave'); if(hw) hw.style.display='none';
+    if(browserRecognition){ try{ browserRecognition.stop(); }catch(e){} browserRecognition=null; }
   }
 
   async function startRecording() {
@@ -2157,13 +2206,23 @@ LaRuche.Voice = (function(){
     fetch('/api/voice/status').then(function(r){return r.json();}).then(function(data){
       sttAvailable=data.stt&&data.stt.available;
       ttsAvailable=data.tts&&data.tts.available;
+      // Use the local STT service when present, otherwise fall back to the browser's
+      // own speech recognition so the mic still works with just the hardware mic.
+      usingBrowserStt = !sttAvailable && browserSttSupported;
+      var micUsable = sttAvailable || usingBrowserStt;
       var micBtn=document.getElementById('micBtn');
-      if(!sttAvailable){micBtn.style.opacity='0.3';micBtn.style.pointerEvents='none';micBtn.title=LaRuche.i18n.t('chat.sttUnavailable');}
-      else {micBtn.style.opacity='1';micBtn.style.pointerEvents='auto';micBtn.title=LaRuche.i18n.t('chat.micTitle');}
+      if(!micUsable){micBtn.style.opacity='0.3';micBtn.style.pointerEvents='none';micBtn.title=LaRuche.i18n.t('chat.sttUnavailable');}
+      else {micBtn.style.opacity='1';micBtn.style.pointerEvents='auto';micBtn.title=usingBrowserStt?LaRuche.i18n.t('chat.micBrowser'):LaRuche.i18n.t('chat.micTitle');}
       var autoTtsBtn=document.getElementById('autoTtsToggle');
       if(!ttsAvailable){autoTtsBtn.style.opacity='0.3';autoTtsBtn.title=LaRuche.i18n.t('chat.ttsUnavailable');}
       else {autoTtsBtn.style.opacity='1';autoTtsBtn.title=LaRuche.i18n.t('chat.autoTtsTitle');}
-    }).catch(function(){sttAvailable=false;ttsAvailable=false;});
+    }).catch(function(){
+      // Voice status endpoint unreachable: still enable browser dictation if supported.
+      sttAvailable=false; ttsAvailable=false;
+      usingBrowserStt = browserSttSupported;
+      var micBtn=document.getElementById('micBtn');
+      if(micBtn && usingBrowserStt){ micBtn.style.opacity='1'; micBtn.style.pointerEvents='auto'; micBtn.title=LaRuche.i18n.t('chat.micBrowser'); }
+    });
   }
 
   function init() {
