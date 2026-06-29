@@ -838,7 +838,7 @@ fn str_array(v: &serde_json::Value) -> Vec<String> {
 
 /// Sync SQL -> disk: writes the skill's `SKILL.md` under `skills/<slug>/` (flat-file,
 /// compatible with agentskills.io / third-party: editable, versionable, re-importable).
-fn ecrire_skill_md(node_id: &str, content: &str) {
+pub(crate) fn ecrire_skill_md(node_id: &str, content: &str) {
     let slug = node_id.strip_prefix("capacities.skills.").unwrap_or(node_id);
     if slug.is_empty() {
         return;
@@ -875,7 +875,7 @@ fn build_skill_okf(
 }
 
 /// Replaces ALL content of a skill node with `content` (deletes active items, then writes).
-async fn set_skill_content(
+pub(crate) async fn set_skill_content(
     mem: &Arc<dyn MemoireCognitive>,
     node_id: &str,
     content: &str,
@@ -955,6 +955,14 @@ impl Abeille for MemoireSkillCreate {
             &str_array(&args["scripts"]),
             args["body"].as_str().unwrap_or(""),
         );
+        // LaReine gate: when on, a self-created skill is HELD for human approval
+        // (proposals queue in the Memory tab) instead of being written immediately.
+        if crate::reine_queue::gate_actif() {
+            crate::reine_queue::proposer_skill(&node_id, &content, "skill_create");
+            return Ok(ResultatAbeille::ok(format!(
+                "Skill `{name}` proposed for review. It will become active once approved in the Memory tab (LaReine gate is on)."
+            )));
+        }
         match set_skill_content(&self.mem, &node_id, &content).await {
             Ok(_) => {
                 ecrire_skill_md(&node_id, &content); // sync SQL -> disk (flat-file)

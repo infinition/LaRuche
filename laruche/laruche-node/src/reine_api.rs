@@ -144,6 +144,8 @@ pub(crate) async fn api_set_reine_config(
     }
     cfg.assainir();
     sauver_reine_settings(&cfg).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // Apply the gate immediately (skill_create reads this process-global).
+    laruche_essaim::reine_queue::definir_gate(cfg.queue_gate);
     Ok(Json(serde_json::json!({ "status": "ok" })))
 }
 

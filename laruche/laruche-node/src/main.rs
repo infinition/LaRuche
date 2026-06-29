@@ -1601,6 +1601,10 @@ async fn main() -> Result<()> {
         last_activity: RwLock::new(std::time::Instant::now()),
     });
 
+    // Mirror the saved LaReine gate into the process-global at boot, so self-created
+    // skills are held for approval even before the first chat turn (cron/curateur).
+    laruche_essaim::reine_queue::definir_gate(reine_api::charger_reine_settings().queue_gate);
+
     let app = Router::new()
         .route("/", get(web::spa_page))
         .route("/app.css", get(web::app_css))

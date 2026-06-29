@@ -341,6 +341,9 @@ pub(crate) async fn ws_chat_connection(
                 config.reine.mode = rs.mode;
                 // Tier 3: the supervisor watches the live butinage loop for stalls.
                 config.reine.tier_supervision = rs.tier_supervision;
+                // Mirror the gate into the process-global so self-created skills are
+                // held for approval (used by the skill_create tool).
+                laruche_essaim::reine_queue::definir_gate(rs.queue_gate);
             }
 
             let result = boucle_react_memoire_multimodal(

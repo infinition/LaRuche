@@ -8,10 +8,47 @@
 use crate::reine_file::{classifier_risque, disposition, Disposition, Proposition, Statut, TypeProposition};
 use laruche_butinage::cap::reine::ModeReine;
 use laruche_memoire::{MemoireCognitive, MemoryItem};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const QUEUE_FILE: &str = "laruche-reine-queue.json";
+
+/// Process-global mirror of the queue-gate setting. The node sets it (startup + on
+/// change); live tools that perform a self-modification (skill creation) read it to
+/// decide whether to apply directly or enqueue a proposal for human approval.
+/// Self-created code is always queued when the gate is on (never auto-applied), since
+/// it is riskier than a single memory fact.
+static GATE_ACTIF: AtomicBool = AtomicBool::new(false);
+
+/// Set the queue-gate flag (called by the node when the setting loads or changes).
+pub fn definir_gate(actif: bool) {
+    GATE_ACTIF.store(actif, Ordering::Relaxed);
+}
+
+/// Is the queue gate on? When true, self-created skills go to the proposals queue
+/// instead of being applied immediately.
+pub fn gate_actif() -> bool {
+    GATE_ACTIF.load(Ordering::Relaxed)
+}
+
+/// Enqueue a self-created skill for human approval. The full OKF content is stored so
+/// approval can write it verbatim (memory node + `skills/.../SKILL.md`).
+pub fn proposer_skill(node_id: &str, contenu: &str, provenance: &str) {
+    let p = Proposition {
+        id: id_unique(node_id),
+        type_: TypeProposition::SkillNouveau,
+        cible: Some(node_id.to_string()),
+        base_version: None,
+        contenu: contenu.to_string(),
+        provenance: provenance.to_string(),
+        raison: format!("New skill: {node_id}"),
+        ecrase_existant: false,
+        statut: Statut::EnAttente,
+        cree_a: maintenant_secs(),
+    };
+    enfiler(p);
+}
 
 fn maintenant_secs() -> i64 {
     SystemTime::now()
@@ -131,7 +168,21 @@ async fn appliquer(memoire: &Arc<dyn MemoireCognitive>, p: &Proposition) -> bool
             Some(node) => memoire.delete_node(node).await.is_ok(),
             None => false,
         },
-        // Skill/tool/mission proposals carry no memory write.
+        // A self-created skill held for approval: write the OKF content to the memory
+        // node AND sync the flat-file `skills/.../SKILL.md`, exactly as skill_create does.
+        TypeProposition::SkillNouveau => match &p.cible {
+            Some(node) => {
+                let ok = crate::abeilles::memoire::set_skill_content(memoire, node, &p.contenu)
+                    .await
+                    .is_ok();
+                if ok {
+                    crate::abeilles::memoire::ecrire_skill_md(node, &p.contenu);
+                }
+                ok
+            }
+            None => false,
+        },
+        // Tool/mission proposals carry no memory write (applied elsewhere).
         _ => false,
     }
 }
