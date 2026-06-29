@@ -139,6 +139,9 @@ LaRuche.i18n.add({
   'chat.micInsecure':           {fr:'Micro bloqué : ouvre LaRuche via http://localhost (ou en HTTPS). Le navigateur interdit le micro sur une adresse IP en HTTP.', en:'Mic blocked: open LaRuche via http://localhost (or HTTPS). Browsers forbid the mic on a plain-HTTP IP address.'},
   'chat.micDenied':             {fr:'Accès micro refusé. Autorise le micro pour ce site dans le navigateur.', en:'Mic access denied. Allow the microphone for this site in your browser.'},
   'chat.voiceModeTitle':        {fr:'Mode vocal (plein écran)', en:'Voice mode (full screen)'},
+  'chat.wakeWordTitle':         {fr:'Mot d\'éveil : dis "LaRuche" pour ouvrir le mode vocal', en:'Wake word: say "LaRuche" to open voice mode'},
+  'chat.wakeWordOn':            {fr:'Mot d\'éveil activé : dis "LaRuche".', en:'Wake word on: say "LaRuche".'},
+  'chat.wakeWordOff':           {fr:'Mot d\'éveil désactivé.', en:'Wake word off.'},
   'chat.voiceTapToTalk':        {fr:'Touchez pour parler',     en:'Tap to talk'},
   'chat.voiceListening':        {fr:'À l\'écoute...',           en:'Listening...'},
   'chat.voiceThinking':         {fr:'Réflexion...',            en:'Thinking...'},
@@ -2349,6 +2352,7 @@ LaRuche.Voice = (function(){
 
   function openVoiceMode(){
     var ov=document.getElementById('voiceModeOverlay'); if(!ov) return;
+    if(typeof stopWakeWord==='function') stopWakeWord(true); // pause wake listener (mic)
     vmOpen=true; ov.classList.add('open');
     vmPrevAutoTts=autoTtsEnabled; autoTtsEnabled=true; // her responses get spoken
     vmInitCanvas();
@@ -2368,6 +2372,7 @@ LaRuche.Voice = (function(){
     stopAllTts();
     document.removeEventListener('keydown', vmEsc);
     var tr=document.getElementById('voiceModeTranscript'); if(tr) tr.textContent='';
+    if(wakeWordOn) setTimeout(startWakeWord, 500); // resume the wake listener
   }
 
   function voiceModeTap(){
@@ -2452,10 +2457,56 @@ LaRuche.Voice = (function(){
     if(LaRuche.Toast) LaRuche.Toast.show('TTS: '+name,'ok');
   }
 
+  // ── Wake word (Option A): continuously listen for "LaRuche" to open voice mode ──
+  var wakeWordOn = false, wakeRecognition = null;
+  function startWakeWord(){
+    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR || !window.isSecureContext || vmOpen) return; // voice mode owns the mic
+    try{ if(wakeRecognition) wakeRecognition.stop(); }catch(e){}
+    wakeRecognition=new SR();
+    wakeRecognition.lang=(navigator.language&&navigator.language.indexOf('en')===0)?'en-US':'fr-FR';
+    wakeRecognition.continuous=true;
+    wakeRecognition.interimResults=true;
+    wakeRecognition.onresult=function(e){
+      var txt='';
+      for(var i=e.resultIndex;i<e.results.length;i++){ txt+=e.results[i][0].transcript; }
+      txt=txt.toLowerCase();
+      if(txt.indexOf('laruche')>=0 || txt.indexOf('la ruche')>=0){
+        stopWakeWord(true);   // pause; resumes when the voice mode closes
+        openVoiceMode();
+      }
+    };
+    wakeRecognition.onerror=function(){};
+    wakeRecognition.onend=function(){
+      wakeRecognition=null;
+      // Web Speech stops on silence: restart while enabled and voice mode is closed.
+      if(wakeWordOn && !vmOpen) setTimeout(startWakeWord, 400);
+    };
+    try{ wakeRecognition.start(); }catch(e){}
+  }
+  function stopWakeWord(keepFlag){
+    if(!keepFlag) wakeWordOn=false;
+    if(wakeRecognition){ try{ wakeRecognition.stop(); }catch(e){} wakeRecognition=null; }
+  }
+  function toggleWakeWord(){
+    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR || !window.isSecureContext){
+      if(LaRuche.Toast) LaRuche.Toast.show(LaRuche.i18n.t('chat.micInsecure'),'err');
+      return;
+    }
+    wakeWordOn=!wakeWordOn;
+    try{ localStorage.setItem('laruche_wakeword', wakeWordOn?'1':'0'); }catch(e){}
+    var btn=document.getElementById('wakeWordBtn'); if(btn) btn.classList.toggle('active', wakeWordOn);
+    if(wakeWordOn){ startWakeWord(); if(LaRuche.Toast) LaRuche.Toast.show(LaRuche.i18n.t('chat.wakeWordOn'),'ok'); }
+    else { stopWakeWord(false); if(LaRuche.Toast) LaRuche.Toast.show(LaRuche.i18n.t('chat.wakeWordOff'),'ok'); }
+  }
+
   function init() {
     connectAudioWS();
     checkVoiceStatus();
     setInterval(checkVoiceStatus,15000);
+    // Restore the wake-word toggle.
+    try{ if(localStorage.getItem('laruche_wakeword')==='1'){ wakeWordOn=true; var wb=document.getElementById('wakeWordBtn'); if(wb) wb.classList.add('active'); startWakeWord(); } }catch(e){}
     document.addEventListener('click',function(e){
       var drop=document.getElementById('sbTtsDrop'), lbl=document.getElementById('sbTtsLabel');
       if(drop && lbl && !drop.contains(e.target) && e.target!==lbl) drop.classList.remove('open');
@@ -2465,6 +2516,7 @@ LaRuche.Voice = (function(){
   return {
     init:init, speakText:speakText, toggleMic:toggleMic, toggleAutoTts:toggleAutoTts,
     openVoiceMode:openVoiceMode, closeVoiceMode:closeVoiceMode, voiceModeTap:voiceModeTap,
+    toggleWakeWord:toggleWakeWord,
     refreshStatus:checkVoiceStatus,
     isAutoTts:function(){return autoTtsEnabled;}, cleanTextForTTS:cleanTextForTTS,
     selectTTS: function(v){ if(!v)return; var p=v.split('|'); LaRuche.Dashboard.useMeshModel(p[0],p[1],'tts'); },
