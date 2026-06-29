@@ -67,7 +67,11 @@ impl Default for ReineSettings {
 impl ReineSettings {
     /// Clamp values to safe ranges and reject unknown modes.
     fn assainir(&mut self) {
-        self.max_revues = self.max_revues.min(PLAFOND_REVUES);
+        // 255 is the unlimited sentinel (mirrors cap::reine::REVUES_ILLIMITEES);
+        // every finite value is clamped to the runaway ceiling.
+        if self.max_revues != u8::MAX {
+            self.max_revues = self.max_revues.min(PLAFOND_REVUES);
+        }
         self.seuil_confiance = self.seuil_confiance.min(100);
         self.contexte_messages = self.contexte_messages.min(PLAFOND_CONTEXTE);
         if !matches!(self.mode.as_str(), "off" | "auto" | "hybride" | "humaine") {

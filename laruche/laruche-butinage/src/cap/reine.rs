@@ -10,9 +10,14 @@
 //! here we only decide what to do with that score, with a hard bound on rounds
 //! so the supervisor can never run away on cost or latency.
 
-/// Hard ceiling on revision rounds, whatever the user configures. The Reine
-/// stops as soon as a draft passes, so this is only a runaway guard.
+/// Hard ceiling on revision rounds for FINITE budgets. The Reine stops as soon as
+/// a draft passes, so this is only a runaway guard. Bypassed by [`REVUES_ILLIMITEES`].
 pub const PLAFOND_REVUES: u8 = 10;
+
+/// Sentinel `max_revues` value meaning "no finite cap": rework until the draft
+/// passes (or the user stops the run). Useful for experimenting with a local model
+/// at no cost. Practically bounded at 255 rounds, which is effectively unlimited.
+pub const REVUES_ILLIMITEES: u8 = u8::MAX;
 
 /// How the Reine operates over a request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -94,9 +99,14 @@ impl Default for ConfigReine {
 }
 
 impl ConfigReine {
-    /// Effective round budget after clamping to the ceiling.
+    /// Effective round budget. The unlimited sentinel passes through uncapped;
+    /// every finite value is clamped to the runaway ceiling.
     pub fn revues_effectives(&self) -> u8 {
-        self.max_revues.min(PLAFOND_REVUES)
+        if self.max_revues == REVUES_ILLIMITEES {
+            REVUES_ILLIMITEES
+        } else {
+            self.max_revues.min(PLAFOND_REVUES)
+        }
     }
 
     /// Is the Reine doing anything at all? Off mode or a zero budget means no.
@@ -346,6 +356,20 @@ mod tests {
     fn budget_is_clamped_to_ceiling() {
         let c = config(ModeReine::Auto, 250);
         assert_eq!(c.revues_effectives(), PLAFOND_REVUES);
+    }
+
+    #[test]
+    fn unlimited_sentinel_bypasses_the_ceiling() {
+        let c = config(ModeReine::Auto, REVUES_ILLIMITEES);
+        assert_eq!(c.revues_effectives(), REVUES_ILLIMITEES);
+        // It is active and keeps asking for reworks well past the finite ceiling.
+        let mut r = Reine::nouvelle(config(ModeReine::Auto, REVUES_ILLIMITEES));
+        for i in 1..=15u8 {
+            assert!(matches!(
+                r.juger(&carte(Avis::Reviser, [40, 40, 40, 40], 90)),
+                Action::Reviser { tour, .. } if tour == i
+            ));
+        }
     }
 
     #[test]

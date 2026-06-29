@@ -4684,8 +4684,12 @@
     "fr": "Re-runs max"
   },
   "reine.maxReviewsHint": {
-    "en": "0 = off, up to 10. Each rework sends the worker back to redo the work. She stops as soon as the answer passes.",
-    "fr": "0 = off, jusqu'à 10. Chaque re-run renvoie l'abeille refaire le travail. Elle s'arrête dès que la réponse passe."
+    "en": "0 = off, up to 10, or Unlimited (rework until the answer passes; handy for experimenting with a local model). Each rework sends the worker back to redo the work; she stops as soon as the answer passes.",
+    "fr": "0 = off, jusqu'à 10, ou Illimité (re-run jusqu'à ce que la réponse passe; pratique pour experimenter avec un modèle local). Chaque re-run renvoie l'abeille refaire le travail; elle s'arrête dès que la réponse passe."
+  },
+  "reine.unlimited": {
+    "en": "Unlimited",
+    "fr": "Illimité"
   },
   "reine.contextMessages": {
     "en": "Context turns",
