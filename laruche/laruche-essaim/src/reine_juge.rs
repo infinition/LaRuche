@@ -170,35 +170,68 @@ fn parser_lignes(s: &str) -> Option<Scorecard> {
     let mut champs: HashMap<String, String> = HashMap::new();
     for ligne in s.lines() {
         if let Some((k, v)) = ligne.split_once(':') {
-            let key = k.trim().trim_start_matches(['-', '*', '#', '`', ' ']).to_lowercase();
-            // Keep only plausibly-alphabetic keys (avoids matching JSON like {"x":1}).
-            if !key.is_empty()
-                && key
-                    .chars()
-                    .all(|c| c.is_ascii_alphabetic() || c == '_' || c == ' ')
-            {
+            let raw = k.trim().trim_start_matches(['-', '*', '#', '`', ' ']).to_lowercase();
+            // Take the leading alphabetic run as the key, dropping trailing decorations
+            // like "(0-100)". A key starting with a non-letter (e.g. JSON `{"x"`) yields
+            // an empty key and is skipped, so JSON lines still do not pollute the map.
+            let key: String = raw
+                .chars()
+                .take_while(|c| c.is_ascii_alphabetic() || *c == '_' || *c == ' ')
+                .collect();
+            let key = key.trim().to_string();
+            if !key.is_empty() {
                 champs.entry(key).or_insert_with(|| v.trim().to_string());
             }
         }
     }
+    // Match a key exactly, or by prefix so decorated keys still resolve (a small model
+    // writing "RELEVANCE SCORE: 85" or "confidence (0-100): 70" still maps correctly).
     let get = |keys: &[&str]| -> Option<String> {
-        keys.iter().find_map(|k| champs.get(*k).cloned())
+        keys.iter().find_map(|k| {
+            champs.get(*k).cloned().or_else(|| {
+                champs
+                    .iter()
+                    .find(|(kk, _)| kk.as_str().starts_with(*k))
+                    .map(|(_, v)| v.clone())
+            })
+        })
     };
     let num = |keys: &[&str]| -> u8 { get(keys).map(|v| nombre_borne(&v)).unwrap_or(0) };
 
     let verdict = get(&["verdict", "avis"]).unwrap_or_default();
-    let has_signal =
-        !verdict.is_empty() || champs.contains_key("relevance") || champs.contains_key("pertinence");
+    let pertinence = num(&["relevance", "pertinence"]);
+    let has_signal = !verdict.is_empty()
+        || champs
+            .keys()
+            .any(|k| k.starts_with("relevance") || k.starts_with("pertinence"));
     if !has_signal {
         return None;
     }
+    let methodologie = num(&["methodology", "methodologie", "method"]);
+    let objectif = num(&["objective", "objectif"]);
+    let conformite_marque = num(&["brand", "conformite_marque", "brand_compliance"]);
+    let confiance = num(&["confidence", "confiance"]);
+    // Verdict: explicit when the model gave one; inferred from the scores when it
+    // omitted the line. Inference avoids forcing a rework on a clearly strong draft
+    // just because a small model forgot the VERDICT line (the conservative default of
+    // "revise" otherwise burns rework rounds on a good answer).
+    let avis = if verdict.trim().is_empty() {
+        let solide = pertinence >= 75 && methodologie >= 75 && objectif >= 75 && confiance >= 75;
+        if solide {
+            Avis::Approuver
+        } else {
+            Avis::Reviser
+        }
+    } else {
+        avis_depuis(&verdict)
+    };
     Some(Scorecard {
-        pertinence: num(&["relevance", "pertinence"]),
-        methodologie: num(&["methodology", "methodologie", "method"]),
-        objectif: num(&["objective", "objectif"]),
-        conformite_marque: num(&["brand", "conformite_marque", "brand_compliance"]),
-        confiance: num(&["confidence", "confiance"]),
-        avis: avis_depuis(&verdict),
+        pertinence,
+        methodologie,
+        objectif,
+        conformite_marque,
+        confiance,
+        avis,
         instruction: get(&["instruction"]).unwrap_or_default(),
         raison: get(&["reason", "raison"]).unwrap_or_default(),
         analyse: get(&["analysis", "analyse"]).unwrap_or_default(),
@@ -280,6 +313,27 @@ mod tests {
         assert_eq!(c.conformite_marque, 100);
         assert_eq!(c.avis, Avis::Approuver);
         assert_eq!(c.raison, "solid");
+    }
+
+    #[test]
+    fn decorated_keys_still_resolve() {
+        // Small models often decorate the key. Prefix matching must still map them.
+        let r = "RELEVANCE SCORE: 88\nMETHODOLOGY (0-100): 82\nOBJECTIVE: 80\nBRAND: 90\nCONFIDENCE level: 77\nVERDICT: approve\nREASON: ok";
+        let c = parser_scorecard(r).unwrap();
+        assert_eq!(c.pertinence, 88);
+        assert_eq!(c.methodologie, 82);
+        assert_eq!(c.confiance, 77);
+        assert_eq!(c.avis, Avis::Approuver);
+    }
+
+    #[test]
+    fn missing_verdict_is_inferred_from_scores() {
+        // Strong scores but the model forgot the VERDICT line: approve, do not rework.
+        let strong = "RELEVANCE: 85\nMETHODOLOGY: 80\nOBJECTIVE: 82\nBRAND: 90\nCONFIDENCE: 88\nREASON: good";
+        assert_eq!(parser_scorecard(strong).unwrap().avis, Avis::Approuver);
+        // Weak scores and no verdict: still revise (the safe choice).
+        let weak = "RELEVANCE: 40\nMETHODOLOGY: 50\nOBJECTIVE: 45\nBRAND: 90\nCONFIDENCE: 60\nREASON: thin";
+        assert_eq!(parser_scorecard(weak).unwrap().avis, Avis::Reviser);
     }
 
     #[test]
