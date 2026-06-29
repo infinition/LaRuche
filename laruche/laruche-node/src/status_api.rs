@@ -68,10 +68,40 @@ pub(crate) async fn api_voice_status(State(state): State<Arc<AppState>>) -> Json
         }
     }
 
+    // Fallback: mDNS discovery can fail (Windows firewall, interface binding) even when
+    // a voice service runs locally. Probe the default localhost ports directly so a TTS
+    // (8422) or STT (8421) service started on this machine is still detected.
+    if !tts_available {
+        if let Some(u) = probe_local_voice(8422).await {
+            tts_available = true;
+            if tts_url.is_empty() { tts_url = u; }
+        }
+    }
+    if !stt_available {
+        if let Some(u) = probe_local_voice(8421).await {
+            stt_available = true;
+            if stt_url.is_empty() { stt_url = u; }
+        }
+    }
+
     Json(serde_json::json!({
         "stt": { "available": stt_available, "url": stt_url, "selected_model": stt_model, "is_selected": stt_locked },
         "tts": { "available": tts_available, "url": tts_url, "selected_model": tts_model, "is_selected": tts_locked },
     }))
+}
+
+/// Quick `/health` probe of a local voice service. Returns its base URL when it
+/// responds, otherwise None. Short timeout so the status endpoint stays snappy.
+async fn probe_local_voice(port: u16) -> Option<String> {
+    let url = format!("http://127.0.0.1:{port}");
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_millis(600))
+        .build()
+        .ok()?;
+    match client.get(format!("{url}/health")).send().await {
+        Ok(r) if r.status().is_success() => Some(url),
+        _ => None,
+    }
 }
 
 /// GET /metrics/history - recent metrics snapshots and node events for the dashboard.

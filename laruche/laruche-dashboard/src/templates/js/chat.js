@@ -136,6 +136,8 @@ LaRuche.i18n.add({
   'chat.autoPlayDisabled':      {fr:'Lecture automatique désactivée', en:'Auto-play disabled'},
   'chat.sttUnavailable':        {fr:'STT indisponible',        en:'STT unavailable'},
   'chat.micBrowser':            {fr:'Dictée navigateur (clic pour parler)', en:'Browser dictation (click to talk)'},
+  'chat.micInsecure':           {fr:'Micro bloqué : ouvre LaRuche via http://localhost (ou en HTTPS). Le navigateur interdit le micro sur une adresse IP en HTTP.', en:'Mic blocked: open LaRuche via http://localhost (or HTTPS). Browsers forbid the mic on a plain-HTTP IP address.'},
+  'chat.micDenied':             {fr:'Accès micro refusé. Autorise le micro pour ce site dans le navigateur.', en:'Mic access denied. Allow the microphone for this site in your browser.'},
   'chat.voiceModeTitle':        {fr:'Mode vocal (plein écran)', en:'Voice mode (full screen)'},
   'chat.voiceTapToTalk':        {fr:'Touchez pour parler',     en:'Tap to talk'},
   'chat.voiceListening':        {fr:'À l\'écoute...',           en:'Listening...'},
@@ -2086,6 +2088,15 @@ LaRuche.Voice = (function(){
     };
   }
 
+  // Turn a SpeechRecognition error code into a clear, actionable message.
+  function micErrorMessage(err){
+    if(err==='not-allowed' || err==='service-not-allowed'){
+      return (!window.isSecureContext) ? LaRuche.i18n.t('chat.micInsecure') : LaRuche.i18n.t('chat.micDenied');
+    }
+    if(err==='no-speech') return null; // silent: nothing said, not an error worth a toast
+    return LaRuche.i18n.t('chat.micError')+(err||'');
+  }
+
   async function toggleMic() {
     if(usingBrowserStt){ if(isRecording) stopBrowserStt(); else startBrowserStt(); return; }
     if(isRecording) stopRecording(); else await startRecording();
@@ -2111,7 +2122,7 @@ LaRuche.Voice = (function(){
       }
     };
     browserRecognition.onerror = function(ev){
-      LaRuche.Toast.show(LaRuche.i18n.t('chat.micError')+(ev.error||''),'err');
+      var m=micErrorMessage(ev.error); if(m) LaRuche.Toast.show(m,'err');
       stopBrowserStt();
     };
     browserRecognition.onend = function(){ stopBrowserStt(); };
@@ -2340,7 +2351,10 @@ LaRuche.Voice = (function(){
       }
       var tr=document.getElementById('voiceModeTranscript'); if(tr) tr.textContent=finalTxt||interim;
     };
-    vmRecognition.onerror=function(){ if(vmOpen && vmState==='listening') vmSetState('idle'); };
+    vmRecognition.onerror=function(ev){
+      var m=micErrorMessage(ev.error); if(m && LaRuche.Toast) LaRuche.Toast.show(m,'err');
+      if(vmOpen && vmState==='listening') vmSetState('idle');
+    };
     vmRecognition.onend=function(){
       vmRecognition=null;
       var txt=finalTxt.trim();
