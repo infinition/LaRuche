@@ -184,7 +184,9 @@ async fn openai_chat_stream(
 
     tokio::spawn(async move {
         let mut buffer = String::new();
-        // Log the first few raw SSE lines once, to diagnose unfamiliar providers (GLM, etc.).
+        // Opt-in (RUCHE_DEBUG_SSE=1): log the first few raw SSE lines to diagnose an
+        // unfamiliar provider's response shape. Off by default to avoid noise.
+        let dbg_sse = std::env::var("RUCHE_DEBUG_SSE").as_deref() == Ok("1");
         let mut dbg_lines = 0u8;
         // tool_calls accumulator keyed by index (streaming delta)
         // Each entry: (id, name, partial_args_string)
@@ -207,7 +209,7 @@ async fn openai_chat_stream(
                     while let Some(newline_pos) = buffer.find('\n') {
                         let line = buffer[..newline_pos].trim().to_string();
                         buffer = buffer[newline_pos + 1..].to_string();
-                        if dbg_lines < 5 && !line.is_empty() {
+                        if dbg_sse && dbg_lines < 5 && !line.is_empty() {
                             dbg_lines += 1;
                             tracing::info!(target: "provider", line = %line.chars().take(280).collect::<String>(), "raw SSE line");
                         }
