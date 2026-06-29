@@ -2133,10 +2133,12 @@ LaRuche.Voice = (function(){
   // Feed the running clean text (from streamToken). Enqueue every complete sentence except
   // the last (which may still be growing); the tail is flushed by finishStream().
   function feedStream(el, clean){
-    if(!autoTtsEnabled) return;
-    if(el !== _stts.el){ // new assistant message: reset
+    // Always reset on a new assistant message, even when auto-TTS is off, so a later
+    // finishStream never replays a stale tail from the previous message.
+    if(el !== _stts.el){
       _stts.el=el; _stts.enq=0; _stts.q=[]; _stts.used=false; _stts.busy=false; _stts.seq++; _stts.lastClean='';
     }
+    if(!autoTtsEnabled) return;
     _stts.lastClean=clean;
     if(vmOpen){ vmSpokenText=clean; var vmTr=document.getElementById('voiceModeTranscript'); if(vmTr) vmTr.textContent=clean; }
     var sents=ttsSentences(clean);
@@ -2150,11 +2152,11 @@ LaRuche.Voice = (function(){
     var cleaned=cleanTextForTTS(_stts.q.shift());
     if(!cleaned){ _stts.busy=false; return pumpStream(seq); }
     ttsFetchBlob(cleaned).then(function(blob){
-      if(seq!==_stts.seq){ _stts.busy=false; return; }
+      if(seq!==_stts.seq) return; // superseded (stop/new message already reset busy)
       if(!blob){ // TTS service down: speak this sentence with the browser voice, keep going
         if('speechSynthesis' in window){
           var u=new SpeechSynthesisUtterance(cleaned); u.lang='fr-FR'; u.rate=ttsSpeed; currentTtsUtterance=u;
-          u.onend=u.onerror=function(){ currentTtsUtterance=null; if(seq!==_stts.seq){_stts.busy=false;return;} _stts.busy=false; pumpStream(seq); };
+          u.onend=u.onerror=function(){ currentTtsUtterance=null; if(seq!==_stts.seq) return; _stts.busy=false; pumpStream(seq); };
           speechSynthesis.speak(u);
         } else { _stts.busy=false; pumpStream(seq); }
         return;
@@ -2163,7 +2165,7 @@ LaRuche.Voice = (function(){
       currentTtsAudio=new Audio(url);
       currentTtsAudio.onended=currentTtsAudio.onerror=function(){
         URL.revokeObjectURL(url);
-        if(seq!==_stts.seq){ _stts.busy=false; return; }
+        if(seq!==_stts.seq) return; // superseded
         currentTtsAudio=null; _stts.busy=false; pumpStream(seq);
       };
       currentTtsAudio.play().catch(function(){ if(seq===_stts.seq){ currentTtsAudio=null; _stts.busy=false; pumpStream(seq); } });
