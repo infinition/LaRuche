@@ -2065,6 +2065,7 @@ async fn curer_memoire(
                     memoire,
                     item,
                     config.reine.queue_gate,
+                    &config.reine.mode,
                     "curateur",
                 )
                 .await;

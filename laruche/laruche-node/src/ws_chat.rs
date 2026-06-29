@@ -333,8 +333,13 @@ pub(crate) async fn ws_chat_connection(
                 config.model = model.clone();
             }
 
-            // LaReine memory gate: when on, the curateur's writes become proposals.
-            config.reine.queue_gate = reine_api::charger_reine_settings().queue_gate;
+            // LaReine memory gate: when on, the curateur's writes become proposals
+            // (the mode decides whether the Reine auto-applies the safe ones).
+            {
+                let rs = reine_api::charger_reine_settings();
+                config.reine.queue_gate = rs.queue_gate;
+                config.reine.mode = rs.mode;
+            }
 
             let result = boucle_react_memoire_multimodal(
                 &user_text_clone,

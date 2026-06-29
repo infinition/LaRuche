@@ -290,6 +290,8 @@ pub(crate) async fn revue_complete(
 
 /// GET /api/reine/proposals - the proposals backlog (pending + recent decisions).
 pub(crate) async fn api_list_proposals() -> Json<serde_json::Value> {
+    // Age out pending proposals older than 14 days (anti-rot).
+    let _ = laruche_essaim::reine_queue::purger_perimes(14 * 86_400);
     let props = laruche_essaim::reine_queue::charger();
     let items: Vec<serde_json::Value> = props
         .iter()

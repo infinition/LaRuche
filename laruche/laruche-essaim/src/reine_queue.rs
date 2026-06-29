@@ -5,7 +5,8 @@
 //! The backlog is a first-class store: disabling the gate never touches it, it only
 //! stops gating new writes (see [`crate::reine_file::transition_desactivation`]).
 
-use crate::reine_file::{Proposition, Statut, TypeProposition};
+use crate::reine_file::{classifier_risque, disposition, Disposition, Proposition, Statut, TypeProposition};
+use laruche_butinage::cap::reine::ModeReine;
 use laruche_memoire::{MemoireCognitive, MemoryItem};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -48,12 +49,16 @@ pub fn enfiler(p: Proposition) {
     sauver(&props);
 }
 
-/// Route a curateur memory write. When `gate` is on, queue it as a proposal and
-/// return true (queued); otherwise apply it directly and return false.
+/// Route a curateur memory write through the gate. When the gate is off it applies
+/// directly. When on, the disposition policy decides: in Off/Humaine mode every
+/// write is queued for human review; in Auto/Hybride the Reine auto-applies safe
+/// writes (new, non-colliding facts) and queues only the risky ones. Returns true
+/// when the write was queued (left for a human).
 pub async fn proposer_memoire(
     memoire: &Arc<dyn MemoireCognitive>,
     item: MemoryItem,
     gate: bool,
+    mode: &str,
     provenance: &str,
 ) -> bool {
     if !gate {
@@ -72,14 +77,34 @@ pub async fn proposer_memoire(
                 .map(|a| !a.is_empty())
         })
         .unwrap_or(false);
+    let type_ = if existe {
+        TypeProposition::MemoireMaj
+    } else {
+        TypeProposition::MemoireAjout
+    };
+    let risque = classifier_risque(type_, false);
+    let confiance = item
+        .confidence
+        .map(|c| (c * 100.0).clamp(0.0, 100.0) as u8)
+        .unwrap_or(80);
+
+    // Gate on but Reine off -> a pure human gate: queue everything. Otherwise the
+    // disposition policy decides (Humaine queues all, Auto/Hybride auto-applies safe).
+    let m = ModeReine::depuis_str(mode);
+    let disp = if m == ModeReine::Off {
+        Disposition::MettreEnFile
+    } else {
+        disposition(m, risque, confiance, 60)
+    };
+    if disp == Disposition::AutoApprouver {
+        let _ = memoire.write(item).await;
+        return false;
+    }
+
     let apercu = item.content.clone();
     let p = Proposition {
         id: id_unique(&cible),
-        type_: if existe {
-            TypeProposition::MemoireMaj
-        } else {
-            TypeProposition::MemoireAjout
-        },
+        type_,
         cible: Some(cible),
         base_version: None,
         contenu: serde_json::to_string(&item).unwrap_or_default(),
@@ -139,6 +164,24 @@ pub fn rejeter(id: &str) -> bool {
         }
     }
     false
+}
+
+/// Mark pending proposals older than `ttl_secondes` as expired (anti-rot policy,
+/// independent of the Reine toggle). Returns how many were aged out.
+pub fn purger_perimes(ttl_secondes: i64) -> usize {
+    let now = maintenant_secs();
+    let mut props = charger();
+    let mut n = 0;
+    for p in props.iter_mut() {
+        if p.perime(now, ttl_secondes) {
+            p.statut = Statut::Perime;
+            n += 1;
+        }
+    }
+    if n > 0 {
+        sauver(&props);
+    }
+    n
 }
 
 /// Approve every pending **safe** proposal (additions of new, non-colliding info)
