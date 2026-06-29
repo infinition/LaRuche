@@ -35,6 +35,13 @@ KOKORO_MODEL = os.environ.get("KOKORO_MODEL", "kokoro-v1.0.onnx")
 KOKORO_VOICES = os.environ.get("KOKORO_VOICES", "voices-v1.0.bin")
 _kokoro = None  # cached Kokoro instance (loading the model is slow)
 
+# Voicebox (voicebox.sh): a local-first voice studio exposing a REST API. Clone your own
+# voice there, then point LaRuche at it to speak in that voice. Set TTS_BACKEND=voicebox
+# and VOICEBOX_PROFILE to your cloned profile name (or pass it as the request voice).
+VOICEBOX_URL = os.environ.get("VOICEBOX_URL", "http://127.0.0.1:17493").rstrip("/")
+VOICEBOX_PROFILE = os.environ.get("VOICEBOX_PROFILE", "")  # cloned voice profile name
+VOICEBOX_LANG = os.environ.get("VOICEBOX_LANG", "fr")
+
 
 def detect_backend():
     """Detect best available TTS backend.
@@ -46,7 +53,7 @@ def detect_backend():
     global tts_backend
 
     forced = os.environ.get("TTS_BACKEND", "").strip().lower()
-    if forced in ("edge-tts", "kokoro", "pyttsx3"):
+    if forced in ("edge-tts", "kokoro", "pyttsx3", "voicebox"):
         tts_backend = forced
         print(f"[TTS] Forced backend via TTS_BACKEND: {forced}")
         return
@@ -200,6 +207,43 @@ async def health():
     return {"status": "ok" if tts_backend != "none" else "no_engine", "backend": tts_backend, "voice": EDGE_VOICE}
 
 
+def synthesize_voicebox(text: str, voice: str = None) -> tuple:
+    """Synthesize via a local Voicebox (voicebox.sh) REST server, using a cloned voice.
+
+    Voicebox exposes POST /speak {text, profile, language}. `profile` matches a cloned
+    voice by name (case-insensitive). Returns (audio_bytes, media_type).
+    """
+    import urllib.request
+    import json as _json
+    import base64
+
+    profile = voice or VOICEBOX_PROFILE
+    payload = {"text": text, "language": VOICEBOX_LANG}
+    if profile:
+        payload["profile"] = profile
+    data = _json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        f"{VOICEBOX_URL}/speak",
+        data=data,
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        ctype = (resp.headers.get("Content-Type") or "").lower()
+        body = resp.read()
+    # Most likely: raw audio bytes. Fall back to common JSON shapes.
+    if "application/json" in ctype:
+        obj = _json.loads(body.decode("utf-8"))
+        if isinstance(obj, dict):
+            if obj.get("audio"):
+                return base64.b64decode(obj["audio"]), "audio/wav"
+            if obj.get("path") and os.path.exists(obj["path"]):
+                with open(obj["path"], "rb") as f:
+                    return f.read(), "audio/wav"
+        raise RuntimeError(f"Voicebox returned JSON without audio: {str(obj)[:200]}")
+    media = "audio/mpeg" if ("mpeg" in ctype or "mp3" in ctype) else "audio/wav"
+    return body, media
+
+
 class SynthesizeRequest(BaseModel):
     text: str
     voice: str = EDGE_VOICE
@@ -261,6 +305,13 @@ async def synthesize(req: SynthesizeRequest):
         elif tts_backend == "pyttsx3":
             audio_bytes = synthesize_pyttsx3(req.text)
             media_type = "audio/wav"
+        elif tts_backend == "voicebox":
+            # A caller-supplied profile name overrides the default; the edge default name
+            # is treated as "unset" so VOICEBOX_PROFILE is used.
+            vprofile = req.voice if (req.voice and req.voice != EDGE_VOICE) else None
+            audio_bytes, media_type = await asyncio.to_thread(
+                synthesize_voicebox, req.text, vprofile
+            )
         else:
             return {"error": "No backend"}
 
