@@ -455,6 +455,9 @@ async fn _anthropic_send_request(
         // output at `message_delta`. Emitted on the final chunk for an accurate gauge.
         let mut in_tok: Option<u64> = None;
         let mut out_tok: Option<u64> = None;
+        // Native tool_use blocks, keyed by content-block index: (id, name, partial_json).
+        let mut tool_acc: std::collections::HashMap<u64, (String, String, String)> =
+            std::collections::HashMap::new();
         loop {
             match response.chunk().await {
                 Ok(Some(bytes)) => {
@@ -464,17 +467,43 @@ async fn _anthropic_send_request(
                         let line = String::from_utf8_lossy(&line_bytes).trim().to_string();
                         if line.is_empty() { continue; }
 
-                        // Anthropix SSE: event: ..., data: {...}
+                        // Anthropic SSE: event: ..., data: {...}
                         if let Some(data) = line.strip_prefix("data: ") {
                             if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(data) {
                                 let chunk_type = parsed.get("type").and_then(|v| v.as_str()).unwrap_or("");
-                                if chunk_type == "message_start" {
-                                    if let Some(u) = parsed["message"]["usage"]["input_tokens"].as_u64() {
-                                        in_tok = Some(u);
+                                match chunk_type {
+                                    "message_start" => {
+                                        if let Some(u) = parsed["message"]["usage"]["input_tokens"].as_u64() {
+                                            in_tok = Some(u);
+                                        }
                                     }
-                                } else if chunk_type == "message_delta" {
-                                    if let Some(u) = parsed["usage"]["output_tokens"].as_u64() {
-                                        out_tok = Some(u);
+                                    "message_delta" => {
+                                        if let Some(u) = parsed["usage"]["output_tokens"].as_u64() {
+                                            out_tok = Some(u);
+                                        }
+                                    }
+                                    "content_block_start" => {
+                                        // A tool_use block opens with its id + name.
+                                        if parsed["content_block"]["type"].as_str() == Some("tool_use") {
+                                            let idx = parsed["index"].as_u64().unwrap_or(0);
+                                            let id = parsed["content_block"]["id"].as_str().unwrap_or("").to_string();
+                                            let name = parsed["content_block"]["name"].as_str().unwrap_or("").to_string();
+                                            tool_acc.insert(idx, (id, name, String::new()));
+                                        }
+                                    }
+                                    _ => {}
+                                }
+                                // tool_use arguments stream as input_json_delta on the block.
+                                if chunk_type == "content_block_delta"
+                                    && parsed["delta"]["type"].as_str() == Some("input_json_delta")
+                                {
+                                    if let Some(pj) = parsed["delta"]["partial_json"].as_str() {
+                                        let idx = parsed["index"].as_u64().unwrap_or(0);
+                                        tool_acc
+                                            .entry(idx)
+                                            .or_insert_with(|| (String::new(), String::new(), String::new()))
+                                            .2
+                                            .push_str(pj);
                                     }
                                 }
                                 let text = match chunk_type {
@@ -483,6 +512,24 @@ async fn _anthropic_send_request(
                                 };
                                 let done = chunk_type == "message_stop";
                                 let finish_reason = if done { Some("stop".to_string()) } else { None };
+                                // Emit the accumulated tool_use blocks (ordered by index) on stop.
+                                let tool_calls = if done && !tool_acc.is_empty() {
+                                    let mut calls: Vec<(u64, ToolCall)> = tool_acc
+                                        .iter()
+                                        .map(|(idx, (id, name, args_str))| {
+                                            let args = if args_str.trim().is_empty() {
+                                                serde_json::json!({})
+                                            } else {
+                                                serde_json::from_str(args_str).unwrap_or(serde_json::Value::Null)
+                                            };
+                                            (*idx, ToolCall { id: id.clone(), name: name.clone(), args })
+                                        })
+                                        .collect();
+                                    calls.sort_by_key(|(idx, _)| *idx);
+                                    Some(calls.into_iter().map(|(_, c)| c).collect())
+                                } else {
+                                    None
+                                };
 
                                 if !text.is_empty() || done {
                                     let _ = tx.send(OllamaChunk {
@@ -490,7 +537,7 @@ async fn _anthropic_send_request(
                                         eval_count: if done { out_tok } else { None },
                                         eval_duration: None,
                                         prompt_eval_count: if done { in_tok } else { None },
-                                        tool_calls: None,
+                                        tool_calls,
                                     }).await;
                                 }
                             }
