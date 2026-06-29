@@ -900,7 +900,12 @@ LaRuche.Chat = (function(){
     row.className = 'message-row '+(role==='error'?'error-row':role);
     if(role!=='error') {
       var avatar = document.createElement('div');
-      if(role==='user' || role==='steer'){ avatar.className='avatar user-avatar'; avatar.textContent='U'; }
+      if(role==='user' || role==='steer'){
+        avatar.className='avatar user-avatar';
+        var _cu=(window.LaRuche && LaRuche.Auth && LaRuche.Auth.getUser && LaRuche.Auth.getUser())||null;
+        if(_cu && _cu.avatar){ avatar.innerHTML='<img src="'+_cu.avatar+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'; }
+        else { avatar.textContent=(_cu && _cu.display_name)?_cu.display_name.charAt(0).toUpperCase():'U'; }
+      }
       else { avatar.className='avatar assistant-avatar'; avatar.innerHTML='<div class="bee"><div class="bee--wings"></div><div class="bee--body"><span></span><span></span></div><div class="bee--head"><div class="bee--head-eyes"></div><div class="bee--head-antennas"></div></div></div>'; }
       row.appendChild(avatar);
     }

@@ -629,6 +629,12 @@ LaRuche.Auth = (function(){
       if(currentUser.role==='admin') avatar.style.borderColor='var(--amber)';
     }
     if(name){name.textContent=currentUser.display_name+(currentUser.role==='admin'?' (admin)':'');}
+    // Refresh already-rendered chat user thumbnails (e.g. right after changing the photo).
+    if(currentUser.avatar){
+      document.querySelectorAll('.message-row.user .avatar.user-avatar, .message-row.steer .avatar.user-avatar').forEach(function(a){
+        a.innerHTML='<img src="'+currentUser.avatar+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+      });
+    }
   }
   function isAdmin(){ return currentUser && currentUser.role==='admin'; }
 
