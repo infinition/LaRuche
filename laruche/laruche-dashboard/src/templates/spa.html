@@ -213,7 +213,8 @@
           </button>
           <div class="actions-tray">
             <button class="input-action-btn mic-btn" id="micBtn" data-i18n-title="chat.micTitle" title="Click to record / stop"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg></button>
-          
+            <button class="input-action-btn voicemode-btn" id="voiceModeBtn" onclick="LaRuche.Voice.openVoiceMode()" data-i18n-title="chat.voiceModeTitle" title="Voice mode (full screen)"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"></path></svg></button>
+
           <label class="input-action-btn upload-btn" data-i18n-title="shell.tipAttach" title="Attach a file">
             <input type="file" id="fileInput" style="display:none" accept="image/*,audio/*,.pdf,.txt,.md,.json,.csv,.py,.rs,.js,.ts" multiple>
             <svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
@@ -655,6 +656,17 @@
     .then(function(c){ cur=(c&&c.mode)||'off'; paint(); }).catch(function(){ paint(); });
 })();
 </script>
+
+<!-- Full-screen "Jarvis" voice mode: animated swarm + talk/listen loop -->
+<div class="voicemode-overlay" id="voiceModeOverlay">
+  <canvas id="voiceModeCanvas"></canvas>
+  <button class="voicemode-close" onclick="LaRuche.Voice.closeVoiceMode()" title="Close (Esc)">&#x2715;</button>
+  <div class="voicemode-center">
+    <div class="voicemode-orb" id="voiceModeOrb" onclick="LaRuche.Voice.voiceModeTap()"></div>
+    <div class="voicemode-status" id="voiceModeStatus" data-i18n="chat.voiceTapToTalk">Tap to talk</div>
+    <div class="voicemode-transcript" id="voiceModeTranscript"></div>
+  </div>
+</div>
 
 </body>
 </html>

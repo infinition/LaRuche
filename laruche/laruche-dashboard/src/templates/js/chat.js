@@ -136,6 +136,11 @@ LaRuche.i18n.add({
   'chat.autoPlayDisabled':      {fr:'Lecture automatique désactivée', en:'Auto-play disabled'},
   'chat.sttUnavailable':        {fr:'STT indisponible',        en:'STT unavailable'},
   'chat.micBrowser':            {fr:'Dictée navigateur (clic pour parler)', en:'Browser dictation (click to talk)'},
+  'chat.voiceModeTitle':        {fr:'Mode vocal (plein écran)', en:'Voice mode (full screen)'},
+  'chat.voiceTapToTalk':        {fr:'Touchez pour parler',     en:'Tap to talk'},
+  'chat.voiceListening':        {fr:'À l\'écoute...',           en:'Listening...'},
+  'chat.voiceThinking':         {fr:'Réflexion...',            en:'Thinking...'},
+  'chat.voiceSpeaking':         {fr:'Elle parle...',           en:'Speaking...'},
   'chat.ttsUnavailable':        {fr:'TTS indisponible',        en:'TTS unavailable'},
   'chat.autoFirstDetected':     {fr:'Auto (premier détecté)',  en:'Auto (first detected)'},
   'chat.enCours':               {fr:' · en cours',             en:' · running'},
@@ -2225,6 +2230,130 @@ LaRuche.Voice = (function(){
     });
   }
 
+  // ── Full-screen "Jarvis" voice mode: swarm canvas + listen/think/speak loop ──
+  var vmOpen=false, vmRaf=null, vmState='idle', vmIntensity=0, vmTarget=0;
+  var vmCanvas=null, vmCtx=null, vmParticles=[], vmRecognition=null, vmPrevAutoTts=false, vmResizeBound=false;
+
+  function vmResize(){ if(vmCanvas){ vmCanvas.width=window.innerWidth; vmCanvas.height=window.innerHeight; } }
+
+  function vmInitCanvas(){
+    vmCanvas=document.getElementById('voiceModeCanvas');
+    if(!vmCanvas) return;
+    vmCtx=vmCanvas.getContext('2d');
+    vmResize();
+    if(!vmResizeBound){ window.addEventListener('resize', vmResize); vmResizeBound=true; }
+    vmParticles=[];
+    for(var i=0;i<150;i++){
+      vmParticles.push({
+        ang:Math.random()*Math.PI*2,
+        rad:55+Math.random()*130,
+        speed:(0.15+Math.random()*0.6)*(Math.random()<0.5?-1:1),
+        size:1+Math.random()*2.5,
+        phase:Math.random()*Math.PI*2
+      });
+    }
+  }
+
+  function vmLoop(){
+    if(!vmOpen||!vmCtx){ return; }
+    // Poll the TTS state to drive transitions without touching speakText().
+    var speaking = !!currentTtsAudio || (('speechSynthesis' in window) && speechSynthesis.speaking);
+    if(vmState==='thinking' && speaking){ vmSetState('speaking'); }
+    else if(vmState==='speaking' && !speaking){ vmSetState('listening'); vmListen(); }
+
+    vmIntensity += (vmTarget - vmIntensity)*0.08;
+    var w=vmCanvas.width, h=vmCanvas.height, cx=w/2, cy=h/2;
+    vmCtx.clearRect(0,0,w,h);
+    var t=Date.now()/1000;
+    var pulse=1 + vmIntensity*0.6*(0.7+0.3*Math.sin(t*8));
+    var col = (vmState==='listening') ? '56,189,248' : '245,158,11';
+    for(var i=0;i<vmParticles.length;i++){
+      var p=vmParticles[i];
+      p.ang += p.speed*0.01*(1+vmIntensity*2);
+      var jitter=vmIntensity*18*Math.sin(t*6 + p.phase);
+      var r=(p.rad + jitter)*pulse;
+      var x=cx+Math.cos(p.ang)*r;
+      var y=cy+Math.sin(p.ang)*r*0.85;
+      vmCtx.beginPath();
+      vmCtx.arc(x,y,p.size*(1+vmIntensity*0.8),0,Math.PI*2);
+      vmCtx.fillStyle='rgba('+col+','+(0.22+vmIntensity*0.6)+')';
+      vmCtx.fill();
+    }
+    vmRaf=requestAnimationFrame(vmLoop);
+  }
+
+  function vmSetState(s){
+    vmState=s;
+    var st=document.getElementById('voiceModeStatus');
+    var orb=document.getElementById('voiceModeOrb');
+    var key={idle:'chat.voiceTapToTalk',listening:'chat.voiceListening',thinking:'chat.voiceThinking',speaking:'chat.voiceSpeaking'}[s]||'chat.voiceTapToTalk';
+    if(st) st.textContent=LaRuche.i18n.t(key);
+    if(orb) orb.classList.toggle('listening', s==='listening');
+    vmTarget = (s==='speaking')?1.0 : (s==='listening')?0.45 : (s==='thinking')?0.25 : 0.08;
+  }
+
+  function vmEsc(e){ if(e.key==='Escape') closeVoiceMode(); }
+
+  function openVoiceMode(){
+    var ov=document.getElementById('voiceModeOverlay'); if(!ov) return;
+    vmOpen=true; ov.classList.add('open');
+    vmPrevAutoTts=autoTtsEnabled; autoTtsEnabled=true; // her responses get spoken
+    vmInitCanvas();
+    vmSetState('idle');
+    if(vmRaf) cancelAnimationFrame(vmRaf);
+    vmLoop();
+    document.addEventListener('keydown', vmEsc);
+    setTimeout(function(){ if(vmOpen) vmListen(); }, 450);
+  }
+
+  function closeVoiceMode(){
+    var ov=document.getElementById('voiceModeOverlay'); if(ov) ov.classList.remove('open');
+    vmOpen=false;
+    autoTtsEnabled=vmPrevAutoTts;
+    if(vmRaf){ cancelAnimationFrame(vmRaf); vmRaf=null; }
+    if(vmRecognition){ try{ vmRecognition.stop(); }catch(e){} vmRecognition=null; }
+    stopAllTts();
+    document.removeEventListener('keydown', vmEsc);
+    var tr=document.getElementById('voiceModeTranscript'); if(tr) tr.textContent='';
+  }
+
+  function voiceModeTap(){
+    if(vmState==='speaking'){ stopAllTts(); vmSetState('listening'); vmListen(); }
+    else if(vmState==='listening'){ if(vmRecognition){ try{ vmRecognition.stop(); }catch(e){} } }
+    else { vmListen(); }
+  }
+
+  function vmListen(){
+    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR){ vmSetState('idle'); LaRuche.Toast.show(LaRuche.i18n.t('chat.sttUnavailable'),'err'); return; }
+    if(vmRecognition){ try{ vmRecognition.stop(); }catch(e){} }
+    vmSetState('listening');
+    var finalTxt='';
+    vmRecognition=new SR();
+    vmRecognition.lang=(navigator.language&&navigator.language.indexOf('en')===0)?'en-US':'fr-FR';
+    vmRecognition.interimResults=true; vmRecognition.continuous=false;
+    vmRecognition.onresult=function(e){
+      var interim='';
+      for(var i=e.resultIndex;i<e.results.length;i++){
+        if(e.results[i].isFinal) finalTxt+=e.results[i][0].transcript;
+        else interim+=e.results[i][0].transcript;
+      }
+      var tr=document.getElementById('voiceModeTranscript'); if(tr) tr.textContent=finalTxt||interim;
+    };
+    vmRecognition.onerror=function(){ if(vmOpen && vmState==='listening') vmSetState('idle'); };
+    vmRecognition.onend=function(){
+      vmRecognition=null;
+      var txt=finalTxt.trim();
+      if(vmOpen && txt){
+        var input=document.getElementById('userInput');
+        if(input) input.value=txt;
+        vmSetState('thinking');
+        LaRuche.Chat.sendMessage();
+      } else if(vmOpen && vmState==='listening'){ vmSetState('idle'); }
+    };
+    try{ vmRecognition.start(); }catch(e){ vmSetState('idle'); }
+  }
+
   function init() {
     connectAudioWS();
     checkVoiceStatus();
@@ -2233,6 +2362,7 @@ LaRuche.Voice = (function(){
 
   return {
     init:init, speakText:speakText, toggleMic:toggleMic, toggleAutoTts:toggleAutoTts,
+    openVoiceMode:openVoiceMode, closeVoiceMode:closeVoiceMode, voiceModeTap:voiceModeTap,
     refreshStatus:checkVoiceStatus,
     isAutoTts:function(){return autoTtsEnabled;}, cleanTextForTTS:cleanTextForTTS,
     selectTTS: function(v){ if(!v)return; var p=v.split('|'); LaRuche.Dashboard.useMeshModel(p[0],p[1],'tts'); },

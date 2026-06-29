@@ -909,6 +909,32 @@ pre:hover .code-copy-btn { opacity:1; }
 }
 .input-action-btn:hover { border-color:var(--amber); color:var(--amber); }
 .mic-btn.recording { background:var(--amber-glow); border-color:var(--amber); color:var(--amber); animation:pulse-mic 1s infinite; }
+
+/* Full-screen "Jarvis" voice mode: animated swarm + central orb */
+.voicemode-overlay {
+  position:fixed; inset:0; z-index:9999; display:none;
+  background:radial-gradient(ellipse at center, #0a0a12 0%, #000 80%);
+  align-items:center; justify-content:center; flex-direction:column;
+}
+.voicemode-overlay.open { display:flex; }
+#voiceModeCanvas { position:absolute; inset:0; width:100%; height:100%; }
+.voicemode-close {
+  position:absolute; top:18px; right:22px; z-index:2;
+  background:none; border:1px solid var(--border); color:var(--text-dim);
+  width:38px; height:38px; border-radius:50%; cursor:pointer; font-size:16px; line-height:1;
+}
+.voicemode-close:hover { color:var(--text); border-color:var(--amber); }
+.voicemode-center { position:relative; z-index:2; display:flex; flex-direction:column; align-items:center; gap:24px; pointer-events:none; }
+.voicemode-orb {
+  width:160px; height:160px; border-radius:50%; cursor:pointer; pointer-events:auto;
+  background:radial-gradient(circle at 35% 30%, rgba(245,158,11,.9), rgba(245,158,11,.25) 60%, transparent 72%);
+  box-shadow:0 0 60px rgba(245,158,11,.4), inset 0 0 40px rgba(245,158,11,.3);
+  transition:transform .15s;
+}
+.voicemode-orb:hover { transform:scale(1.05); }
+.voicemode-orb.listening { box-shadow:0 0 70px rgba(56,189,248,.5), inset 0 0 40px rgba(56,189,248,.35); background:radial-gradient(circle at 35% 30%, rgba(56,189,248,.9), rgba(56,189,248,.25) 60%, transparent 72%); }
+.voicemode-status { color:var(--amber); font-size:14px; letter-spacing:1.5px; text-transform:uppercase; }
+.voicemode-transcript { color:var(--text-dim); font-size:13px; max-width:600px; text-align:center; min-height:18px; padding:0 20px; }
 .code-toggle-label input, .input-action-btn input[type="file"] { display:none; }
 .code-toggle-label.active { border-color:var(--amber); color:var(--amber); background:var(--amber-glow); }
 .cwd-toggle-btn.active { border-color:var(--amber); color:var(--amber); background:var(--amber-glow); }
