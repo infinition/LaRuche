@@ -75,6 +75,19 @@
 - [x] **Voix Python + tui + cleanup** : codes d'erreur HTTP corrects (plus de 200+JSON joué comme audio) · cap longueur texte · `/health` rapporte le backend actif · pyttsx3 lock module · uptime « 5ss » · vars/no-ops mortes.
 - [ ] **Restes assumés** (arbitrages, pas oublis) : rotation de clé **en cours de stream** (mid-call rate-limit) · CORS `*`/bind `0.0.0.0` des services voix (voulu LAN, durcir via token mesh) · format `tool_result` natif Anthropic sur tours multiples (à valider runtime) · code mort JS résiduel inoffensif.
 
+## ✅ Grand batch UX / mobile / auth / PWA / TUI (récent)
+
+> ~16 demandes regroupées, livrées en lots. Workspace vert, 0 em dash, code EN / marque FR. **À tester app en marche** (auth sensible : pose un mot de passe avant de relancer pour éviter le lockout).
+
+- [x] **Voix (avant ce lot)** : `/voice` Telegram exclusif (ON=voix seule / OFF=texte seul) · STT externe optionnel (service vs LLM) · vocaux longs Telegram **découpés** (≤8 notes, frontières de phrase) · **vitesse TTS** réglable · **voix Kokoro par canal** · **barge-in** + mot d'éveil · backend **Voicebox** (voix clonée) + sélecteur de backend · **stream inverse LLM→TTS**.
+- [x] **Auth durcie + comptes cloisonnés** : bug d'enroll (un compte créé à **chaque** login) **corrigé** (password ≥6 + rejet doublon de nom) · **mot de passe + TOTP (2FA)** RFC 6238 maison (pas de dépendance fetchée, vecteurs RFC 4226 verts) · **migration de dé-duplication** au démarrage (collapse les doublons par nom → garde le plus récent, hérite admin, ≥1 admin garanti) → **répare le compte admin**.
+- [x] **Profil + admin** : section **Profil** (photo avatar redimensionnée 128px, nom, mot de passe, fiche « ce que LaRuche sait », 2FA) · section **Admin** (lister/supprimer/changer rôle, anti-auto-suppression) · **avatar partout** où il y a une miniature (badge, **feed**, **modal profil**, **messages chat** - était codé en dur sur `'U'`).
+- [x] **Mobile / cross-platform** : barre de statut **safe-area** (plus tronquée par les coins arrondis) · inputs `font-size:16px` (anti-zoom iOS) · clavier virtuel iOS géré · **collapse sidebar** desktop + fermeture mobile au clic extérieur · **PWA** (manifest + service worker network-first + icône honeycomb, servis par le node) → **« ajouter à l'écran d'accueil »** iPhone/Android, standalone, shell offline.
+- [x] **Refonte UX/UI Settings** : nav **verticale** par sections (9), recherche, sections `adminOnly` filtrées, `/infer` **retiré** (route + types + zone Dashboard morts supprimés).
+- [x] **Missions × LaReine** : la revue Tier 1 ne s'appliquait qu'au chat → **`revue_mission`** (juge + refait si insuffisant + livre la version approuvée) branchée sur les itérations de mission.
+- [x] **Audit logging** : helper **`log_activite`** → les événements **sécurité** (login OK/échec, nouveau compte, suppression/rôle admin) remontent maintenant dans le **volet Audit** du Dashboard (avant : CLI seulement).
+- [x] **Refonte TUI (façon Claude Code)** : moniteur mono-log → **5 vues à onglets** (Overview / Logs / Activity / Sessions / Swarm) + **palette de commandes slash** (`/` → complétion live `/overview /logs /activity /sessions /swarm /clear /help /quit`, Tab complète, Entrée exécute) · `Tab`/`1-5` navigation · `?` aide.
+
 ## ✅ Fait récemment
 - [x] **Rangement racine** : `README.md` à jour + archivage des docs/scripts/lanceurs (`docs/_archive/`, `_archive/`, `laruche/_archive/`) + `.gitignore` durci.
 - [x] **Split `spa.html`** → `app.css` + `app.js` + routes node (`/app.css`, `/app.js`).
