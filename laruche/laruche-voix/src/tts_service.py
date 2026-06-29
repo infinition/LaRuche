@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from .miel_announce import MielAnnouncer
 
 PORT = 8422
+MAX_TTS_CHARS = 8000  # reject larger synthesis requests (resource-exhaustion guard)
 tts_backend = "none"
 announcer = None
 
@@ -204,7 +205,16 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 @app.get("/health")
 async def health():
-    return {"status": "ok" if tts_backend != "none" else "no_engine", "backend": tts_backend, "voice": EDGE_VOICE}
+    voice = {
+        "kokoro": KOKORO_VOICE,
+        "edge-tts": EDGE_VOICE,
+        "voicebox": VOICEBOX_PROFILE or "(default)",
+    }.get(tts_backend, EDGE_VOICE)
+    return {
+        "status": "ok" if tts_backend != "none" else "no_engine",
+        "backend": tts_backend,
+        "voice": voice,
+    }
 
 
 def synthesize_voicebox(text: str, voice: str = None) -> tuple:
@@ -290,11 +300,19 @@ async def synthesize(req: SynthesizeRequest):
     active = req.backend.strip().lower()
     if active not in ("edge-tts", "kokoro", "pyttsx3", "voicebox"):
         active = tts_backend
+    from fastapi.responses import JSONResponse
+
     if active == "none":
-        return {"error": "No TTS backend available"}
+        return JSONResponse(status_code=503, content={"error": "No TTS backend available"})
+    # Cap the input so a huge payload cannot exhaust CPU/memory on this open endpoint.
+    if len(req.text) > MAX_TTS_CHARS:
+        return JSONResponse(
+            status_code=413,
+            content={"error": f"text too long (max {MAX_TTS_CHARS} chars)"},
+        )
     text = clean_for_speech(req.text)
     if not text.strip():
-        return {"error": "Empty text"}
+        return JSONResponse(status_code=400, content={"error": "Empty text"})
     req.text = text
 
     try:
@@ -319,10 +337,10 @@ async def synthesize(req: SynthesizeRequest):
                 synthesize_voicebox, req.text, vprofile
             )
         else:
-            return {"error": "No backend"}
+            return JSONResponse(status_code=503, content={"error": "No backend"})
 
         if not audio_bytes:
-            return {"error": "No audio generated"}
+            return JSONResponse(status_code=500, content={"error": "No audio generated"})
 
         filename = "speech"
         if req.format.lower() == "ogg":

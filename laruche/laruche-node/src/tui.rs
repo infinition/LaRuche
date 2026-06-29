@@ -377,7 +377,7 @@ fn draw_header(f: &mut Frame, area: Rect, stats: &LiveStats) {
             Style::default().fg(dim),
         ),
         Span::styled(
-            format!("up {}s", stats.uptime),
+            format!("up {}", stats.uptime),
             Style::default().fg(Color::Green),
         ),
         Span::raw("  "),
