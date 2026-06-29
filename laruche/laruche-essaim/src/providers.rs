@@ -358,17 +358,46 @@ async fn anthropic_chat_stream(
 
     let anthropic_max: u32 = if max_tokens > 0 { max_tokens } else { 4096 };
 
+    // Anthropic wants the system prompt as a top-level `system` field, NOT a message
+    // (a system role inside `messages` is rejected). Pull any system messages out, and
+    // mark the last system block with `cache_control: ephemeral` so the large, stable
+    // prefix (system prompt) is served from the prompt cache on repeated calls, cutting
+    // input cost and latency. The remaining user/assistant turns stay in `messages`.
+    let mut system_blocks: Vec<serde_json::Value> = Vec::new();
+    let convo: Vec<serde_json::Value> = messages
+        .iter()
+        .filter(|m| {
+            if m["role"].as_str() == Some("system") {
+                if let Some(text) = m["content"].as_str() {
+                    if !text.trim().is_empty() {
+                        system_blocks.push(serde_json::json!({"type": "text", "text": text}));
+                    }
+                }
+                false
+            } else {
+                true
+            }
+        })
+        .cloned()
+        .collect();
+    if let Some(last) = system_blocks.last_mut() {
+        last["cache_control"] = serde_json::json!({"type": "ephemeral"});
+    }
+
     let mut body = serde_json::json!({
         "model": model,
-        "messages": messages,
+        "messages": convo,
         "stream": true,
         "max_tokens": anthropic_max,
         "temperature": temperature,
     });
+    if !system_blocks.is_empty() {
+        body["system"] = serde_json::json!(system_blocks);
+    }
 
     // Anthropic also supports native tool calling, with a slightly different format
     if let Some(tools_list) = tools {
-        let anthropic_tools: Vec<serde_json::Value> = tools_list.iter().filter_map(|t| {
+        let mut anthropic_tools: Vec<serde_json::Value> = tools_list.iter().filter_map(|t| {
             Some(serde_json::json!({
                 "name": t["name"].as_str()?,
                 "description": t["description"].as_str().unwrap_or(""),
@@ -376,6 +405,11 @@ async fn anthropic_chat_stream(
             }))
         }).collect();
         if !anthropic_tools.is_empty() {
+            // Cache the tool definitions too (stable across a conversation): mark the
+            // last tool so the whole tools block is cached up to that point.
+            if let Some(last) = anthropic_tools.last_mut() {
+                last["cache_control"] = serde_json::json!({"type": "ephemeral"});
+            }
             body["tools"] = serde_json::json!(anthropic_tools);
         }
     }
