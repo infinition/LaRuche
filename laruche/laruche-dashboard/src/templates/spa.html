@@ -435,15 +435,9 @@
   <!-- ====== SETTINGS PAGE ====== -->
   <div class="page" id="page-settings">
     <div class="settings-page-layout">
-      <div class="settings-tabs-bar" id="settingsTabsBar">
-        <button class="settings-tab-btn active" data-tab="general" data-i18n="shell.tabGeneral">General</button>
-        <button class="settings-tab-btn" data-tab="providers" data-i18n="shell.tabProviders">Providers</button>
-        <button class="settings-tab-btn" data-tab="mcp" data-i18n="capabilities.typeMcp">MCP</button>
-        <button class="settings-tab-btn" data-tab="secrets" data-i18n="core.secretsHeader">Secrets</button>
-        <button class="settings-tab-btn" data-tab="channels" data-i18n="shell.tabChannels">Channels</button>
-        <button class="settings-tab-btn" data-tab="network" data-i18n="shell.tabNetwork">Network</button>
-        <button class="settings-tab-btn" data-tab="onboarding" data-i18n="shell.tabOnboarding">Onboarding</button>
-      </div>
+      <!-- Section nav is rendered by LaRuche.Settings (left vertical nav on desktop,
+           scrollable bar on mobile). The search box is inserted before the content. -->
+      <div class="settings-tabs-bar settings-nav-vertical" id="settingsTabsBar"></div>
       <div class="settings-content" id="settingsContent"></div>
     </div>
   </div>

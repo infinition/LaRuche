@@ -413,28 +413,142 @@ LaRuche.i18n.add({
   'settings.bpSlotLabelPlaceholder':   {fr:'libellé', en:'label'},
   'settings.bpSlotDefaultPlaceholder': {fr:'défaut',  en:'default'},
   'settings.bpTitlePlaceholder':       {fr:'Ex. : Veille quotidienne', en:'E.g.: Daily watch'},
-  'settings.pluginToast':              {fr:'Plugin ', en:'Plugin '}
+  'settings.pluginToast':              {fr:'Plugin ', en:'Plugin '},
+  // ── New Settings sections (left vertical nav) ──────────────────────────
+  'settings.navGeneral':       {fr:'Général',            en:'General'},
+  'settings.navGeneration':    {fr:'Génération',         en:'Generation'},
+  'settings.navModels':        {fr:'Modèles & Providers', en:'Models & Providers'},
+  'settings.navVoice':         {fr:'Voix',               en:'Voice'},
+  'settings.navReine':         {fr:'LaReine',            en:'LaReine'},
+  'settings.navChannels':      {fr:'Canaux',             en:'Channels'},
+  'settings.navSecrets':       {fr:'Secrets & Webhooks', en:'Secrets & Webhooks'},
+  'settings.navNetwork':       {fr:'Réseau / Mesh',      en:'Network / Mesh'},
+  'settings.navCapabilities':  {fr:'Capacités',          en:'Capabilities'},
+  'settings.searchPlaceholder':{fr:'Rechercher un réglage...', en:'Search a setting...'},
+  'settings.searchNoResults':  {fr:'Aucun réglage ne correspond.', en:'No setting matches.'},
+  'settings.language':         {fr:'Langue',             en:'Language'},
+  'settings.languageHint':     {fr:'Recharge l\'interface dans la langue choisie.', en:'Reloads the interface in the chosen language.'},
+  'settings.onboardingTitle':  {fr:'Onboarding',         en:'Onboarding'}
 });
 
 LaRuche.Settings = (function(){
   var currentTab = 'general';
 
-  function init() {
-    document.getElementById('settingsTabsBar').addEventListener('click', function(e){
-      var btn = e.target.closest('.settings-tab-btn');
-      if(!btn) return;
-      currentTab = btn.dataset.tab;
-      document.querySelectorAll('#settingsTabsBar .settings-tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===currentTab);});
-      loadTab(currentTab);
-    });
+  // ── New Settings sections (left vertical nav on desktop, scrollable bar on mobile) ──
+  // Each entry: { id, i18n (label key), icon (inline SVG) }. The wiring (data-tab ->
+  // loader) is preserved: switching a section still calls the matching load*().
+  function _ic(path){ return '<svg class="settings-nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+path+'</svg>'; }
+  var SECTIONS = [
+    { id:'general',      i18n:'settings.navGeneral',      icon:_ic('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>') },
+    { id:'generation',   i18n:'settings.navGeneration',   icon:_ic('<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z"/>') },
+    { id:'providers',    i18n:'settings.navModels',       icon:_ic('<path d="M9.5 2a4.5 4.5 0 0 0-4.4 5.6A4.5 4.5 0 0 0 4 16.5 4.5 4.5 0 0 0 12 19V4.5A2.5 2.5 0 0 0 9.5 2z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5V19a4.5 4.5 0 0 0 8-2.5 4.5 4.5 0 0 0-1.1-8.9A4.5 4.5 0 0 0 14.5 2z"/>') },
+    { id:'voice',        i18n:'settings.navVoice',        icon:_ic('<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="17" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/>') },
+    { id:'reine',        i18n:'settings.navReine',        icon:_ic('<path d="M3 8l4 4 5-7 5 7 4-4v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>') },
+    { id:'channels',     i18n:'settings.navChannels',     icon:_ic('<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/>') },
+    { id:'secrets',      i18n:'settings.navSecrets',      icon:_ic('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>') },
+    { id:'network',      i18n:'settings.navNetwork',      icon:_ic('<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>') },
+    { id:'capabilities', i18n:'settings.navCapabilities', icon:_ic('<path d="M19.4 13a2.4 2.4 0 0 1 0-4.8h.6V6a2 2 0 0 0-2-2h-2.2v-.6a2.4 2.4 0 0 0-4.8 0V4H8a2 2 0 0 0-2 2v2.2H5.4a2.4 2.4 0 0 0 0 4.8H6V17a2 2 0 0 0 2 2h2.2v.6a2.4 2.4 0 0 0 4.8 0V19H18a2 2 0 0 0 2-2v-4z"/>') }
+  ];
+  // Legacy alias: old code/links that referenced 'mcp' now resolve to the Capabilities section.
+  var _ALIASES = { mcp:'capabilities', models:'providers' };
+
+  function _renderNav(){
+    var bar = document.getElementById('settingsTabsBar');
+    if(!bar) return;
+    bar.innerHTML = SECTIONS.map(function(s){
+      var on = (s.id===currentTab) ? ' active' : '';
+      return '<button class="settings-tab-btn settings-nav-btn'+on+'" data-tab="'+s.id+'">'+s.icon+'<span class="settings-nav-label">'+LaRuche.i18n.t(s.i18n)+'</span></button>';
+    }).join('');
   }
 
-  function enter() { loadTab(currentTab); }
+  function init() {
+    _renderNav();
+    var bar = document.getElementById('settingsTabsBar');
+    if(bar){
+      bar.classList.add('settings-nav-vertical');
+      bar.addEventListener('click', function(e){
+        var btn = e.target.closest('.settings-tab-btn');
+        if(!btn) return;
+        currentTab = btn.dataset.tab;
+        document.querySelectorAll('#settingsTabsBar .settings-tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===currentTab);});
+        loadTab(currentTab);
+      });
+    }
+    // Search box: lives above the content, filters visible rows/cards by label text.
+    var layout = bar ? bar.closest('.settings-page-layout') : null;
+    var host = document.getElementById('settingsContent');
+    if(layout && host && !document.getElementById('settingsSearch')){
+      var sw = document.createElement('div');
+      sw.className = 'settings-search';
+      sw.innerHTML = '<input type="search" id="settingsSearch" autocomplete="off" placeholder="'+LaRuche.i18n.t('settings.searchPlaceholder')+'">';
+      layout.insertBefore(sw, host);
+      sw.querySelector('input').addEventListener('input', function(){ _applySearch(this.value); });
+    }
+  }
+
+  // Filter the rendered cards/rows by case-insensitive label text. Empty query
+  // restores everything. Shows a "no results" hint when nothing matches.
+  function _applySearch(q){
+    var host = document.getElementById('settingsContent');
+    if(!host) return;
+    q = (q||'').trim().toLowerCase();
+    var cards = host.querySelectorAll('.settings-card');
+    var anyVisible = false;
+    if(!q){
+      host.querySelectorAll('.settings-row, .settings-card').forEach(function(n){ n.style.display=''; });
+      anyVisible = true;
+    } else {
+      cards.forEach(function(card){
+        var title = (card.querySelector('.settings-card-title, .card-title') || {}).textContent || '';
+        var titleHit = title.toLowerCase().indexOf(q) !== -1;
+        var rows = card.querySelectorAll('.settings-row');
+        var cardHit = titleHit;
+        if(rows.length){
+          rows.forEach(function(r){
+            var hit = titleHit || (r.textContent||'').toLowerCase().indexOf(q) !== -1;
+            r.style.display = hit ? '' : 'none';
+            if(hit) cardHit = true;
+          });
+        } else {
+          cardHit = titleHit || (card.textContent||'').toLowerCase().indexOf(q) !== -1;
+        }
+        card.style.display = cardHit ? '' : 'none';
+        if(cardHit) anyVisible = true;
+      });
+      // Cards living outside a .settings-card (free rows) are matched directly.
+      host.querySelectorAll('.settings-tab-canvas > .settings-row').forEach(function(r){
+        var hit = (r.textContent||'').toLowerCase().indexOf(q) !== -1;
+        r.style.display = hit ? '' : 'none';
+        if(hit) anyVisible = true;
+      });
+    }
+    var hint = host.querySelector('.settings-no-results');
+    if(!anyVisible){
+      if(!hint){
+        hint = document.createElement('div');
+        hint.className = 'settings-no-results';
+        hint.textContent = LaRuche.i18n.t('settings.searchNoResults');
+        host.appendChild(hint);
+      }
+      hint.style.display = '';
+    } else if(hint){ hint.style.display = 'none'; }
+  }
+
+  function _clearSearch(){
+    var s = document.getElementById('settingsSearch');
+    if(s) s.value = '';
+  }
+
+  function enter() { _renderNav(); loadTab(currentTab); }
   function leave() {}
 
   function loadTab(tab) {
+    tab = _ALIASES[tab] || tab;
+    currentTab = tab;
     var host = document.getElementById('settingsContent');
     if(!host) return;
+    document.querySelectorAll('#settingsTabsBar .settings-tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===tab);});
+    _clearSearch();
     // Anti-race: give EACH load a fresh canvas. If a slow async loader finishes
     // AFTER the tab has changed, it writes into ITS old `el` (now detached
     // from the DOM) -> invisible. No more "General shows up when I clicked Provider".
@@ -445,7 +559,11 @@ LaRuche.Settings = (function(){
     el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">'+LaRuche.i18n.t('settings.loading')+'</div>';
     switch(tab) {
       case 'general': loadGeneral(el); break;
+      case 'generation': loadGeneration(el); break;
       case 'providers': loadProviders(el); break;
+      case 'voice': loadVoice(el); break;
+      case 'reine': loadReine(el); break;
+      case 'capabilities': loadMcp(el); break;
       case 'mcp': loadMcp(el); break;
       case 'secrets': loadSecrets(el); break;
       case 'tools': loadTools(el); break;
@@ -462,9 +580,10 @@ LaRuche.Settings = (function(){
     }
   }
 
-  async function loadGeneral(el) {
-    // The 6 calls are INDEPENDENT -> run them in PARALLEL (Promise.all) instead of 6 serial awaits
-    // (that was the slowness: each fetch waited for the previous one). gj = error-tolerant fetch.
+  // Shared data fetch for the General/Generation/Voice/LaReine sections. These used to
+  // be one monolithic "general" tab; the fetch is kept whole so each split section gets
+  // the same data shape (gj = error-tolerant fetch). Returns a normalized bag.
+  async function _loadGeneralData() {
     function gj(u){ return fetch(u).then(function(r){return r.json();}).catch(function(){return {};}); }
     var _r = await Promise.all([
       gj('/api/doctor'), gj('/api/voice/status'), gj('/api/config/provider'),
@@ -472,17 +591,72 @@ LaRuche.Settings = (function(){
       gj('/api/config/runtime'), gj('/api/config/reine'), gj('/api/config/channel-models'),
       gj('/api/config/voice')
     ]);
-    var doc=_r[0], voice=_r[1], provCfg=_r[2], ctxStats=_r[3], ctxCfg=_r[4], curCfg=_r[5], rt=_r[6]||{}, reineCfg=_r[7]||{}, chmReine=_r[8]||{options:[]}, voiceCfg=_r[9]||{};
-    // Provider dropdown options for LaReine's judge (reuse the channel-models catalog).
-    var reineProvOpts = '<option value="">'+LaRuche.i18n.t('reine.providerSame')+'</option>';
-    (chmReine.options||[]).forEach(function(o){
-      var rpVal = o.profile_id+'|||'+o.model;
-      var rpSel = (reineCfg.provider_profile===rpVal) ? ' selected' : '';
-      reineProvOpts += '<option value="'+LaRuche.Utils.esc(rpVal)+'"'+rpSel+'>'+LaRuche.Utils.esc((o.name||o.provider)+' / '+o.model)+'</option>';
-    });
-    // Max reworks: 255 is the unlimited sentinel (rework until the draft passes).
-    var reineUnlim = (reineCfg.max_revues===255);
-    var reineMaxVal = reineUnlim ? 10 : (reineCfg.max_revues||0);
+    return {
+      doc:_r[0], voice:_r[1], provCfg:_r[2], ctxStats:_r[3], ctxCfg:_r[4], curCfg:_r[5],
+      rt:_r[6]||{}, reineCfg:_r[7]||{}, chmReine:_r[8]||{options:[]}, voiceCfg:_r[9]||{}
+    };
+  }
+
+  // ── Voice card (reused by the Voice section) ──────────────────────────
+  function _voiceCardHtml(voice, voiceCfg){
+    return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.voice')+'</div>'+
+      '<div class="settings-row"><span class="settings-label">STT</span><span style="color:'+(voice.stt&&voice.stt.available?'var(--green)':'var(--red)')+'">'+(voice.stt&&voice.stt.available?LaRuche.i18n.t('settings.statusOk'):LaRuche.i18n.t('settings.statusOff'))+'</span></div>'+
+      '<div class="settings-row"><span class="settings-label">TTS</span><span style="color:'+(voice.tts&&voice.tts.available?'var(--green)':'var(--red)')+'">'+(voice.tts&&voice.tts.available?LaRuche.i18n.t('settings.statusOk'):LaRuche.i18n.t('settings.statusOff'))+'</span></div>'+
+      '<div class="settings-row" title="'+LaRuche.i18n.t('settings.sttExternalHint')+'"><span class="settings-label">'+LaRuche.i18n.t('settings.sttExternal')+'</span><input type="checkbox" id="cfgSttExternal" onchange="LaRuche.Settings.saveVoiceCfg()"'+(voiceCfg.stt_external?' checked':'')+'></div>'+
+      '<div style="font-size:10px;color:var(--text-dim);margin-top:4px">'+LaRuche.i18n.t('settings.sttExternalNote')+'</div>'+
+      '<div class="settings-row" style="margin-top:6px"><span class="settings-label" title="'+LaRuche.i18n.t('settings.ttsBackendHint')+'">'+LaRuche.i18n.t('settings.ttsBackend')+'</span><select id="cfgTtsBackend" class="form-input" style="width:130px;padding:2px 6px" onchange="LaRuche.Settings.saveVoiceCfg()">'+
+      ['','kokoro','voicebox','edge-tts'].map(function(b){ var lbl=b===''?LaRuche.i18n.t('settings.ttsBackendAuto'):b; return '<option value="'+b+'"'+((voiceCfg.tts_backend||'')===b?' selected':'')+'>'+lbl+'</option>'; }).join('')+'</select></div>'+
+      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.ttsSpeed')+'</span><span style="display:flex;align-items:center;gap:6px"><input type="range" id="cfgTtsSpeed" min="0.5" max="2" step="0.05" value="'+(voiceCfg.tts_speed||1)+'" oninput="document.getElementById(\'cfgTtsSpeedVal\').textContent=parseFloat(this.value).toFixed(2)+\'x\'"><span id="cfgTtsSpeedVal" style="font-size:11px;width:38px">'+(parseFloat(voiceCfg.tts_speed||1).toFixed(2))+'x</span></span></div>'+
+      '<div class="settings-row"><span class="settings-label" title="'+LaRuche.i18n.t('settings.ttsVoiceHint')+'">'+LaRuche.i18n.t('settings.ttsVoice')+'</span><input type="text" id="cfgTtsVoice" class="form-input" style="width:120px;padding:2px 6px" value="'+LaRuche.Utils.esc(voiceCfg.tts_voice||'')+'" placeholder="ff_siwis"></div>'+
+      '<button class="form-btn" onclick="LaRuche.Settings.saveVoiceCfg()" style="margin-top:8px">'+LaRuche.i18n.t('settings.save')+'</button></div>';
+  }
+
+  // ── Inference config card (reused by the Models & Providers section) ──
+  function _inferenceCardHtml(provCfg){
+    provCfg = provCfg || {};
+    return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.inferenceConfig')+'</div>'+
+      '<div class="settings-row" style="padding:0;"><span class="settings-label">'+LaRuche.i18n.t('settings.fallbackModels')+'</span><input type="text" id="cfgProvFallback" class="form-input" style="width:120px;padding:2px 6px;" value="'+(provCfg.fallback_models||'')+'" placeholder="claude-3-haiku, ..."></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.maxTokensLabel')+'</span><input type="number" id="cfgProvMaxTokens" class="form-input" style="width:80px;padding:2px 6px;" value="'+(provCfg.max_tokens||4096)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.temperature')+'</span><input type="number" id="cfgProvTemp" class="form-input" style="width:80px;padding:2px 6px;" step="0.1" value="'+(provCfg.temperature||0.7)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.reviewModel')+'</span><input type="text" id="cfgProvReview" class="form-input" style="width:120px;padding:2px 6px;" value="'+(provCfg.review_model||'')+'" placeholder="'+LaRuche.i18n.t('settings.modelExample')+'"></div>'+
+      '<button class="form-btn" onclick="LaRuche.Settings.saveProviderCfg()" style="margin-top:8px;">'+LaRuche.i18n.t('settings.save')+'</button>'+
+      '<div style="font-size:10px;color:var(--text-dim);margin-top:8px">'+LaRuche.i18n.t('settings.activeLabel')+(provCfg.provider||'ollama')+' / '+(provCfg.model||'-')+'</div></div>';
+  }
+
+  // ── GENERAL section: language, transparency, security/system, onboarding ──
+  async function loadGeneral(el) {
+    var data = await _loadGeneralData();
+    var doc = data.doc;
+    var curLang = (LaRuche.i18n && LaRuche.i18n.get) ? LaRuche.i18n.get() : 'fr';
+    var onboarding = await fetch(LaRuche.API.base+'/api/onboarding').then(function(r){return r.json();}).catch(function(){return {steps:[],progress:'0/0',complete:false};});
+    var onbSteps = (onboarding.steps||[]).map(function(s){
+      var icon = s.done ? '<span style="color:var(--green);margin-right:8px"><svg width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><polyline points="20 6 9 17 4 12"></polyline></svg></span>' : '<span style="color:var(--red);margin-right:8px">&#x2717;</span>';
+      return '<div class="settings-row"><span class="settings-label">'+icon+LaRuche.Utils.esc(s.title)+'</span><span class="settings-value" style="font-size:10px">'+(s.done?'':LaRuche.Utils.esc(s.instruction||''))+'</span></div>';
+    }).join('');
+    el.innerHTML = '<div class="settings-grid">'+
+      '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.navGeneral')+'</div>'+
+      '<div class="settings-card-desc">'+LaRuche.i18n.t('settings.languageHint')+'</div>'+
+      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.language')+'</span><select id="cfgLang" class="form-input" style="width:120px;padding:2px 6px" onchange="LaRuche.i18n.setLang(this.value)">'+
+        '<option value="fr"'+(curLang==='fr'?' selected':'')+'>Français</option>'+
+        '<option value="en"'+(curLang==='en'?' selected':'')+'>English</option>'+
+      '</select></div>'+
+      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.showTransparency')+'</span><label class="lr-switch"><input type="checkbox" id="cfgTransparence" onchange="window.localStorage.setItem(\'laruche_hide_transparency\', this.checked ? \'false\' : \'true\')" '+(window.localStorage.getItem('laruche_hide_transparency') !== 'true' ? 'checked' : '')+'><span class="lr-slider"></span></label></div></div>'+
+      '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.security')+'</div>'+
+      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.secretsTitle')+'</span><span class="settings-value">'+LaRuche.i18n.t('settings.secretsCount')+'</span></div>'+
+      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.protocol')+'</span><span class="settings-value">Miel v'+(doc.version||'0.2.0')+'</span></div>'+
+      ((doc.checks||[]).map(function(c){return '<div class="settings-row"><span class="settings-label">'+LaRuche.Utils.esc(c.name)+'</span><span style="color:'+(c.status==='ok'?'var(--green)':'var(--red)')+'">'+LaRuche.Utils.esc(c.status)+'</span></div>';}).join('')||'<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.statusLabel')+'</span><span class="settings-value">'+LaRuche.i18n.t('settings.statusOkValue')+'</span></div>')+
+      '</div>'+
+      '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.onboardingTitle')+
+        ' <span style="margin-left:8px;padding:1px 8px;border-radius:10px;font-size:10px;background:'+(onboarding.complete?'var(--green)':'var(--amber)')+';color:#000">'+LaRuche.Utils.esc(onboarding.progress||'')+'</span></div>'+
+      (onbSteps||'<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.statusLabel')+'</span><span class="settings-value">'+LaRuche.i18n.t('settings.statusOkValue')+'</span></div>')+
+      '</div>'+
+      '</div>';
+  }
+
+  // ── GENERATION section: generation params (+ advanced), context/compaction, curateur ──
+  async function loadGeneration(el) {
+    var data = await _loadGeneralData();
+    var rt = data.rt, ctxCfg = data.ctxCfg, curCfg = data.curCfg;
     el.innerHTML = '<div class="settings-grid">'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.generationTitle')+'</div>'+
       '<div class="settings-row" style="flex-direction:column;align-items:stretch;gap:4px;">'+
@@ -498,31 +672,33 @@ LaRuche.Settings = (function(){
       '<div class="settings-row" style="flex-direction:column;align-items:stretch;gap:4px;">'+
       '<div class="settings-row" style="padding:0;"><span class="settings-label">'+LaRuche.i18n.t('settings.maxMessages')+'</span><input type="number" id="cfgCtxMax" class="form-input" style="width:80px;padding:2px 6px;" value="'+(ctxCfg.context_max_messages||50)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.compactionThreshold')+'</span><input type="number" id="cfgCtxThresh" class="form-input" style="width:80px;padding:2px 6px;" step="0.05" value="'+(ctxCfg.compaction_threshold||0.75)+'"></div>'+
-      '<button class="form-btn" onclick="LaRuche.Settings.saveContextCfg()" style="margin-top:8px;">'+LaRuche.i18n.t('settings.save')+'</button></div>'+
-      '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.inferenceConfig')+'</div>'+
-      '<div class="settings-row" style="padding:0;"><span class="settings-label">'+LaRuche.i18n.t('settings.fallbackModels')+'</span><input type="text" id="cfgProvFallback" class="form-input" style="width:120px;padding:2px 6px;" value="'+(provCfg.fallback_models||'')+'" placeholder="claude-3-haiku, ..."></div>'+
-      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.maxTokensLabel')+'</span><input type="number" id="cfgProvMaxTokens" class="form-input" style="width:80px;padding:2px 6px;" value="'+(provCfg.max_tokens||4096)+'"></div>'+
-      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.temperature')+'</span><input type="number" id="cfgProvTemp" class="form-input" style="width:80px;padding:2px 6px;" step="0.1" value="'+(provCfg.temperature||0.7)+'"></div>'+
-      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.reviewModel')+'</span><input type="text" id="cfgProvReview" class="form-input" style="width:120px;padding:2px 6px;" value="'+(provCfg.review_model||'')+'" placeholder="'+LaRuche.i18n.t('settings.modelExample')+'"></div>'+
-      '<button class="form-btn" onclick="LaRuche.Settings.saveProviderCfg()" style="margin-top:8px;">'+LaRuche.i18n.t('settings.save')+'</button>'+
-      '<div style="font-size:10px;color:var(--text-dim);margin-top:8px">'+LaRuche.i18n.t('settings.activeLabel')+(provCfg.provider||'ollama')+' / '+(provCfg.model||'-')+'</div></div>'+
-      '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.voice')+'</div>'+
-      '<div class="settings-row"><span class="settings-label">STT</span><span style="color:'+(voice.stt&&voice.stt.available?'var(--green)':'var(--red)')+'">'+(voice.stt&&voice.stt.available?LaRuche.i18n.t('settings.statusOk'):LaRuche.i18n.t('settings.statusOff'))+'</span></div>'+
-      '<div class="settings-row"><span class="settings-label">TTS</span><span style="color:'+(voice.tts&&voice.tts.available?'var(--green)':'var(--red)')+'">'+(voice.tts&&voice.tts.available?LaRuche.i18n.t('settings.statusOk'):LaRuche.i18n.t('settings.statusOff'))+'</span></div>'+
-      '<div class="settings-row" title="'+LaRuche.i18n.t('settings.sttExternalHint')+'"><span class="settings-label">'+LaRuche.i18n.t('settings.sttExternal')+'</span><input type="checkbox" id="cfgSttExternal" onchange="LaRuche.Settings.saveVoiceCfg()"'+(voiceCfg.stt_external?' checked':'')+'></div>'+
-      '<div style="font-size:10px;color:var(--text-dim);margin-top:4px">'+LaRuche.i18n.t('settings.sttExternalNote')+'</div>'+
-      '<div class="settings-row" style="margin-top:6px"><span class="settings-label" title="'+LaRuche.i18n.t('settings.ttsBackendHint')+'">'+LaRuche.i18n.t('settings.ttsBackend')+'</span><select id="cfgTtsBackend" class="form-input" style="width:130px;padding:2px 6px" onchange="LaRuche.Settings.saveVoiceCfg()">'+
-      ['','kokoro','voicebox','edge-tts'].map(function(b){ var lbl=b===''?LaRuche.i18n.t('settings.ttsBackendAuto'):b; return '<option value="'+b+'"'+((voiceCfg.tts_backend||'')===b?' selected':'')+'>'+lbl+'</option>'; }).join('')+'</select></div>'+
-      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.ttsSpeed')+'</span><span style="display:flex;align-items:center;gap:6px"><input type="range" id="cfgTtsSpeed" min="0.5" max="2" step="0.05" value="'+(voiceCfg.tts_speed||1)+'" oninput="document.getElementById(\'cfgTtsSpeedVal\').textContent=parseFloat(this.value).toFixed(2)+\'x\'"><span id="cfgTtsSpeedVal" style="font-size:11px;width:38px">'+(parseFloat(voiceCfg.tts_speed||1).toFixed(2))+'x</span></span></div>'+
-      '<div class="settings-row"><span class="settings-label" title="'+LaRuche.i18n.t('settings.ttsVoiceHint')+'">'+LaRuche.i18n.t('settings.ttsVoice')+'</span><input type="text" id="cfgTtsVoice" class="form-input" style="width:120px;padding:2px 6px" value="'+LaRuche.Utils.esc(voiceCfg.tts_voice||'')+'" placeholder="ff_siwis"></div>'+
-      '<button class="form-btn" onclick="LaRuche.Settings.saveVoiceCfg()" style="margin-top:8px">'+LaRuche.i18n.t('settings.save')+'</button></div>'+
-      '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.security')+'</div>'+
-      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.secretsTitle')+'</span><span class="settings-value">'+LaRuche.i18n.t('settings.secretsCount')+'</span></div>'+
-      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.protocol')+'</span><span class="settings-value">Miel v'+(doc.version||'0.2.0')+'</span></div></div>'+
+      '<button class="form-btn" onclick="LaRuche.Settings.saveContextCfg()" style="margin-top:8px;">'+LaRuche.i18n.t('settings.save')+'</button></div></div>'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.curateur')+'</div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.autoSkillCreate')+'</span><label class="lr-switch"><input type="checkbox" id="cfgCurateur" '+(curCfg.enabled?'checked':'')+' '+(curCfg.env_forced?'disabled':'')+' onchange="LaRuche.Settings.toggleCurateur(this.checked)"><span class="lr-slider"></span></label></div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.dynToolsSelect')+'<span style="color:var(--text-dim);font-size:10px">'+LaRuche.i18n.t('settings.dynToolsHint')+'</span></span><label class="lr-switch"><input type="checkbox" id="cfgDynTools" '+(curCfg.dynamic_tools?'checked':'')+' onchange="LaRuche.Settings.toggleDynamicTools(this.checked)"><span class="lr-slider"></span></label></div>'+
       '<div style="font-size:10px;color:var(--text-dim);margin-top:6px">'+(curCfg.env_forced?LaRuche.i18n.t('settings.curEnvForced'):LaRuche.i18n.t('settings.curDefault'))+'</div></div>'+
+      '</div>';
+  }
+
+  // ── VOICE section ──────────────────────────────────────────────────────
+  async function loadVoice(el) {
+    var data = await _loadGeneralData();
+    el.innerHTML = '<div class="settings-grid">'+_voiceCardHtml(data.voice, data.voiceCfg)+'</div>';
+  }
+
+  // ── LAREINE section (supervisor config) ────────────────────────────────
+  async function loadReine(el) {
+    var data = await _loadGeneralData();
+    var reineCfg = data.reineCfg, chmReine = data.chmReine;
+    var reineProvOpts = '<option value="">'+LaRuche.i18n.t('reine.providerSame')+'</option>';
+    (chmReine.options||[]).forEach(function(o){
+      var rpVal = o.profile_id+'|||'+o.model;
+      var rpSel = (reineCfg.provider_profile===rpVal) ? ' selected' : '';
+      reineProvOpts += '<option value="'+LaRuche.Utils.esc(rpVal)+'"'+rpSel+'>'+LaRuche.Utils.esc((o.name||o.provider)+' / '+o.model)+'</option>';
+    });
+    var reineUnlim = (reineCfg.max_revues===255);
+    var reineMaxVal = reineUnlim ? 10 : (reineCfg.max_revues||0);
+    el.innerHTML = '<div class="settings-grid">'+
       '<div class="settings-card"><div class="settings-card-title">👑 '+LaRuche.i18n.t('reine.settingsTitle')+'</div>'+
       '<div style="font-size:10px;color:var(--text-dim);margin-bottom:6px">'+LaRuche.i18n.t('reine.settingsDesc')+'</div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('reine.modeLabel')+'</span><select id="cfgReineMode" class="form-input" style="width:150px;padding:2px 6px;">'+
@@ -544,10 +720,7 @@ LaRuche.Settings = (function(){
       '<div style="margin-top:10px;border-top:1px solid rgba(245,158,11,.2);padding-top:8px">'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('reine.queueTitle')+'</span><span style="font-size:10px;color:var(--text-dim);text-align:right">'+LaRuche.i18n.t('reine.queueInMemory')+'</span></div>'+
       '</div></div>'+
-      '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.system')+'</div>'+
-      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.showTransparency')+'</span><label class="lr-switch"><input type="checkbox" id="cfgTransparence" onchange="window.localStorage.setItem(\'laruche_hide_transparency\', this.checked ? \'false\' : \'true\')" '+(window.localStorage.getItem('laruche_hide_transparency') !== 'true' ? 'checked' : '')+'><span class="lr-slider"></span></label></div>'+
-      ((doc.checks||[]).map(function(c){return '<div class="settings-row"><span class="settings-label">'+LaRuche.Utils.esc(c.name)+'</span><span style="color:'+(c.status==='ok'?'var(--green)':'var(--red)')+'">'+LaRuche.Utils.esc(c.status)+'</span></div>';}).join('')||'<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.statusLabel')+'</span><span class="settings-value">'+LaRuche.i18n.t('settings.statusOkValue')+'</span></div>')+
-      '</div></div>';
+      '</div>';
   }
 
   // ── Providers Tab ─────────────────────────────────────────────
@@ -563,8 +736,14 @@ LaRuche.Settings = (function(){
     try { credsData = await fetch('/api/credentials').then(function(r){return r.json();}); } catch(e) {}
     var allCreds = credsData.credentials || [];
 
+    // Inference config (fallback / max tokens / temperature / review model) belongs to the
+    // Models & Providers section now.
+    var provCfg = {};
+    try { provCfg = await fetch('/api/config/provider').then(function(r){return r.json();}); } catch(e) {}
+
     // Dedicated card: ChatGPT Codex connection via subscription (OAuth).
-    var html = '<div class="settings-card" id="codexAuthCard" style="margin-bottom:16px;border:1px solid var(--amber)">'+
+    var html = '<div style="margin-bottom:16px">'+_inferenceCardHtml(provCfg)+'</div>' +
+      '<div class="settings-card" id="codexAuthCard" style="margin-bottom:16px;border:1px solid var(--amber)">'+
       '<div class="settings-card-title">ChatGPT Codex <span style="color:var(--text-dim);font-size:10px;font-weight:normal">'+LaRuche.i18n.t('settings.codexSubscription')+'</span></div>'+
       '<div id="codexAuthBox" style="font-size:12px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.codexLoading')+'</div>'+
       '</div>';
