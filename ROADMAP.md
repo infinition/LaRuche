@@ -8,6 +8,11 @@
 >
 > Règles de build : tout en **anglais par défaut** (code, chaînes, commentaires propres non « LLM-like »), **chaînes UI variabilisées + i18n** (`lang/strings.json`, `t()`), **aucun em dash**, termes de marque FR conservés. La Reine n'est PAS la vigie : la **vigie garde la boucle de l'intérieur** (anti-loop/budget), la **Reine supervise le résultat de l'extérieur** (pertinence, méthodo, objectif).
 
+> ### ✅ État (livré, build vert, ~31 tests)
+> - **Tier 1 COMPLET** : config + UI (couronne header / slider = nb de re-runs / mode / provider dropdown), charte complète embarquée + éditable en Mémoire (`system.prompt_reine`), juge robuste (raisonnement borné via champ `ANALYSIS`, `/no_think` + strip `<think>`, format ligne `KEY: value` + repli JSON, résolution du profil actif), **re-run agentique RÉEL par LaRuche visible en direct** (streaming, animation « LaRuche refait le travail »), verdict final explicite + analyse toujours affichée, attribution correcte (abeille = travail, couronne = jugement), persistance de la version refaite, prompt de réécriture « bonne foi » (pas de soumission aveugle).
+> - **Tier 2 COMPLET (core)** : file de propositions persistée (`laruche-reine-queue.json`), gate du curateur, **disposition risk-tier** (gate+Off/Humaine = tout en file ; Auto/Hybride = la Reine auto-approuve le sûr, met en file le risqué), endpoints + panneau Settings (approuver/rejeter/tout-appliquer-sûr), **backlog découplé** (désactiver le gate ne le perd jamais, invariant testé), **péremption** 14j. Reste : étendre aux skills/tools auto-créés, panneau dans l'onglet Mémoire (option).
+> - **Reste** : Tier 3 (boucle superviseur proactive), voix de la Reine (Kokoro), garde-fous destructifs avancés (soft-delete + confirm seuil), bonus (gardienne de marque auto sur artefacts, étoile polaire).
+
 ### Architecture - décisions actées
 - **Pas de nouveau moteur ReAct pour juger.** La revue est un **hook synchrone borné** dans le pipeline chat/butinage (`brain.rs`), 2-3 appels outils max (lire registre skills/tools, lire mémoire). Juger est court.
 - **Boucle superviseur dédiée et optionnelle** (Tier 3 seulement), **OFF par défaut** : se réveille, audite, agit via les abeilles existantes, vérifie, dort. Réutilise l'infra cron/missions, pas un moteur neuf.
