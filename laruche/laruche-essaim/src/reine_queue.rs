@@ -32,6 +32,24 @@ pub fn gate_actif() -> bool {
     GATE_ACTIF.load(Ordering::Relaxed)
 }
 
+/// Enqueue a node deletion for human approval. Nothing is removed until the proposal
+/// is approved, so a destructive `memory_delete_node` becomes a confirmable action.
+pub fn proposer_suppression(node_id: &str, provenance: &str) {
+    let p = Proposition {
+        id: id_unique(node_id),
+        type_: TypeProposition::MemoireSuppr,
+        cible: Some(node_id.to_string()),
+        base_version: None,
+        contenu: String::new(),
+        provenance: provenance.to_string(),
+        raison: format!("Delete node: {node_id}"),
+        ecrase_existant: false,
+        statut: Statut::EnAttente,
+        cree_a: maintenant_secs(),
+    };
+    enfiler(p);
+}
+
 /// Enqueue a self-created skill for human approval. The full OKF content is stored so
 /// approval can write it verbatim (memory node + `skills/.../SKILL.md`).
 pub fn proposer_skill(node_id: &str, contenu: &str, provenance: &str) {

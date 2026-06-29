@@ -563,6 +563,15 @@ impl Abeille for MemoireDeleteNode {
                  Only reorganize your own memory (people/projects/decisions/...)."
             )));
         }
+        // LaReine gate: a destructive whole-node deletion is HELD for confirmation
+        // (proposals queue) instead of happening immediately. Nothing is removed until
+        // you approve it in the Memory tab.
+        if crate::reine_queue::gate_actif() {
+            crate::reine_queue::proposer_suppression(node_id, "memory_delete_node");
+            return Ok(ResultatAbeille::ok(format!(
+                "Deletion of `{node_id}` proposed for confirmation. It will be removed only once you approve it in the Memory tab (LaReine gate is on)."
+            )));
+        }
         match self.mem.delete_node(node_id).await {
             Ok(v) => Ok(ResultatAbeille::ok(format!(
                 "Node deleted/merged: {}",
