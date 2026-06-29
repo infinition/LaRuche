@@ -100,7 +100,24 @@ async fn openai_chat_stream(
         anyhow::bail!("API key is required for OpenAI-compatible provider. Configure in Settings > Providers.");
     }
     let bearer = if api_key.is_empty() { "local-no-key" } else { api_key };
-    let url = format!("{}/v1/chat/completions", base.trim_end_matches('/'));
+    // Build the chat-completions URL. Most OpenAI-compatible APIs (OpenAI, Groq,
+    // Deepseek, Together) take a bare host and expect `/v1/chat/completions`. Some
+    // (z.ai GLM at `/api/paas/v4`, OpenRouter at `/api/v1`) already carry a version
+    // segment in the base path, where forcing another `/v1` would 404. So only add
+    // `/v1` when the base does not already end in a version segment or the full path.
+    let trimmed = base.trim_end_matches('/');
+    let has_version = trimmed
+        .rsplit('/')
+        .next()
+        .map(|s| s.len() >= 2 && s.starts_with('v') && s[1..].chars().all(|c| c.is_ascii_digit()))
+        .unwrap_or(false);
+    let url = if trimmed.ends_with("/chat/completions") {
+        trimmed.to_string()
+    } else if has_version {
+        format!("{trimmed}/chat/completions")
+    } else {
+        format!("{trimmed}/v1/chat/completions")
+    };
 
     let openai_messages: Vec<serde_json::Value> = messages.iter().map(|m| {
         let attachments_val = m.get("attachments").and_then(|a| a.as_array());
