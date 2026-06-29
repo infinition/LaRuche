@@ -443,6 +443,20 @@ fn is_known_peer(remote_ip: &str, known_peers: &HashSet<String>) -> bool {
     known_peers.contains(remote_ip)
 }
 
+/// True if a request comes from a trusted mesh peer: a valid mesh signature, or (when the
+/// request is unsigned) a known peer IP. Use to gate peer-to-peer endpoints such as /infer.
+pub async fn mesh_peer_ok(
+    state: &Arc<AppState>,
+    headers: &axum::http::HeaderMap,
+    addr: &SocketAddr,
+    path: &str,
+) -> bool {
+    match mesh_auth_ok(headers, path) {
+        Some(ok) => ok,
+        None => is_known_peer(&addr.ip().to_string(), &get_known_peer_ips(state).await),
+    }
+}
+
 async fn get_known_peer_ips(state: &Arc<AppState>) -> HashSet<String> {
     use std::sync::{Mutex, OnceLock};
     use std::time::{Duration, Instant};

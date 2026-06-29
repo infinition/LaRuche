@@ -235,9 +235,19 @@ pub(crate) async fn get_swarm(State(state): State<Arc<AppState>>) -> Json<SwarmR
 /// POST /infer - Inference endpoint (proxies to Ollama)
 pub(crate) async fn post_infer(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     connect_info: Option<ConnectInfo<SocketAddr>>,
     Json(req): Json<InferenceRequest>,
 ) -> Result<Json<InferenceResponse>, StatusCode> {
+    // Gate the inference proxy: an authenticated admin, or a trusted mesh peer (valid mesh
+    // signature, or a known peer IP). Stops any host on the network from driving compute.
+    let mesh_ok = match &connect_info {
+        Some(ConnectInfo(addr)) => crate::sync::mesh_peer_ok(&state, &headers, addr, "/infer").await,
+        None => false,
+    };
+    if !auth_user::require_admin(&state, &headers).await && !mesh_ok {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
     let config = &state.config;
     let model = match req.model {
         Some(m) if !m.trim().is_empty() => m,

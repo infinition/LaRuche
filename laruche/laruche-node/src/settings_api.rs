@@ -259,6 +259,7 @@ pub(crate) async fn api_secrets_delete(
 pub(crate) async fn api_mcp_server(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
+    connect_info: Option<axum::extract::ConnectInfo<std::net::SocketAddr>>,
     Json(req): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
     let id = req.get("id").cloned().unwrap_or(serde_json::Value::Null);
@@ -266,11 +267,19 @@ pub(crate) async fn api_mcp_server(
     let err = |code: i64, msg: String| {
         Json(serde_json::json!({"jsonrpc":"2.0","id":id,"error":{"code":code,"message":msg}}))
     };
-    // Opt-in token guard (recommended if exposed outside localhost).
-    if let Ok(tok) = std::env::var("LARUCHE_MCP_TOKEN") {
+    // Security: this executes tools (incl. shell/file). A configured LARUCHE_MCP_TOKEN is
+    // required for non-local callers; when no token is set, only loopback callers are allowed
+    // (local POC), so a remote host cannot drive tool execution by default.
+    {
+        let token = std::env::var("LARUCHE_MCP_TOKEN").ok();
         let got = headers.get("x-laruche-mcp-token").and_then(|v| v.to_str().ok());
-        if got != Some(tok.as_str()) {
-            return err(-32000, "Unauthorized (X-LaRuche-MCP-Token)".into());
+        let is_local = connect_info.as_ref().map(|ci| ci.0.ip().is_loopback()).unwrap_or(false);
+        let authed = match &token {
+            Some(t) => got == Some(t.as_str()),
+            None => is_local,
+        };
+        if !authed {
+            return err(-32000, "Unauthorized (set LARUCHE_MCP_TOKEN, or call from localhost)".into());
         }
     }
     let ok = |result: serde_json::Value| {
