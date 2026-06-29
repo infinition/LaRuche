@@ -321,6 +321,7 @@ LaRuche.i18n.add({
   'settings.editBtn':            {fr:'Éditer',           en:'Edit'},
   'settings.deleteBtn':          {fr:'Supprimer',        en:'Delete'},
   'settings.testBtn':            {fr:'Tester',           en:'Test'},
+  'settings.advancedSection':    {fr:'Avancé',           en:'Advanced'},
   'settings.testRunning':        {fr:'Test en cours...', en:'Testing...'},
   'settings.testOk':             {fr:'Connecté',         en:'Connected'},
   'settings.testFail':           {fr:'Échec',            en:'Failed'},
@@ -478,8 +479,10 @@ LaRuche.Settings = (function(){
       '<div class="settings-row" style="padding:0;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.maxPassesTitle')+'">'+LaRuche.i18n.t('settings.maxPassesLabel')+'</span><input type="number" id="cfgMaxIter" class="form-input" style="width:80px;padding:2px 6px;" value="'+(rt.max_iterations||40)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.temperature')+'</span><input type="number" id="cfgTemp" class="form-input" style="width:80px;padding:2px 6px;" step="0.05" min="0" max="2" value="'+(rt.temperature!=null?rt.temperature:0.7)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.maxTokensOut')+'</span><input type="number" id="cfgMaxTok" class="form-input" style="width:90px;padding:2px 6px;" value="'+(rt.max_tokens||4096)+'"></div>'+
-      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.dynToolsLimit')+'">'+LaRuche.i18n.t('settings.dynToolsLimitLabel')+'</span><input type="number" id="cfgToolLim" class="form-input" style="width:80px;padding:2px 6px;" value="'+(rt.tool_selection_limit||24)+'"></div>'+
+      '<details class="settings-advanced" style="margin-top:6px;"><summary style="cursor:pointer;font-size:11px;color:var(--text-dim);user-select:none;">'+LaRuche.i18n.t('settings.advancedSection')+'</summary>'+
+      '<div class="settings-row" style="padding:0;margin-top:6px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.dynToolsLimit')+'">'+LaRuche.i18n.t('settings.dynToolsLimitLabel')+'</span><input type="number" id="cfgToolLim" class="form-input" style="width:80px;padding:2px 6px;" value="'+(rt.tool_selection_limit||24)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.narrowCtxThreshold')+'">'+LaRuche.i18n.t('settings.narrowCtxLabel')+'</span><input type="number" id="cfgCtxThreshold" class="form-input" style="width:90px;padding:2px 6px;" value="'+(rt.dynamic_context_threshold||40000)+'"></div>'+
+      '</details>'+
       '<button class="form-btn" onclick="LaRuche.Settings.saveRuntimeCfg()" style="margin-top:8px;">'+LaRuche.i18n.t('settings.apply')+'</button></div></div>'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.contextCompaction')+'</div>'+
       '<div class="settings-row" style="flex-direction:column;align-items:stretch;gap:4px;">'+
