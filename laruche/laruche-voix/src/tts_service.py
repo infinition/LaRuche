@@ -133,7 +133,7 @@ def _phrases(t: str):
     return [p for p in parts if p.strip()] or [t.strip()]
 
 
-def synthesize_kokoro(text: str, speed: float = 1.0) -> bytes:
+def synthesize_kokoro(text: str, speed: float = 1.0, voice: str = None) -> bytes:
     """Synthesize with Kokoro via kokoro-onnx -> mono WAV bytes.
 
     Mirrors the validated bench: `Kokoro(model, voices).create(text, voice, speed, lang)`
@@ -154,10 +154,11 @@ def synthesize_kokoro(text: str, speed: float = 1.0) -> bytes:
             )
         _kokoro = Kokoro(KOKORO_MODEL, KOKORO_VOICES)
 
+    kvoice = voice or KOKORO_VOICE
     chunks = []
     sr = 24000
     for phrase in _phrases(text):
-        samples, sr = _kokoro.create(phrase, voice=KOKORO_VOICE, speed=speed, lang=KOKORO_LANG)
+        samples, sr = _kokoro.create(phrase, voice=kvoice, speed=speed, lang=KOKORO_LANG)
         chunks.append(np.asarray(samples, dtype=np.float32))
     if not chunks:
         return b""
@@ -251,8 +252,11 @@ async def synthesize(req: SynthesizeRequest):
             audio_bytes = await synthesize_edge(req.text, req.voice)
             media_type = "audio/mpeg"  # edge-tts outputs MP3
         elif tts_backend == "kokoro":
-            # Run the (blocking) neural synthesis off the event loop.
-            audio_bytes = await asyncio.to_thread(synthesize_kokoro, req.text, req.speed)
+            # Run the (blocking) neural synthesis off the event loop. A caller-supplied
+            # Kokoro voice (e.g. "ff_siwis") overrides the default; the edge default name
+            # is treated as "unset" so the configured KOKORO_VOICE is used.
+            kvoice = req.voice if (req.voice and req.voice != EDGE_VOICE) else None
+            audio_bytes = await asyncio.to_thread(synthesize_kokoro, req.text, req.speed, kvoice)
             media_type = "audio/wav"
         elif tts_backend == "pyttsx3":
             audio_bytes = synthesize_pyttsx3(req.text)

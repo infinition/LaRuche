@@ -2045,6 +2045,7 @@ LaRuche.Voice = (function(){
 
   var SPEAKER_SVG='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>';
   var _ttsSeq = 0; // bumped to cancel an in-flight streaming session
+  var ttsSpeed = 1.0, ttsVoice = ''; // synced from /api/config/voice
   function ttsResetBtn(btn){ if(btn){ btn.classList.remove('playing'); btn.innerHTML=SPEAKER_SVG+' '+LaRuche.i18n.t('chat.lire'); } }
 
   // Split into sentences so we synthesize and play phrase by phrase (low latency).
@@ -2053,7 +2054,9 @@ LaRuche.Voice = (function(){
   }
   // Fetch one sentence as an audio blob (null if the service did not return audio).
   function ttsFetchBlob(text){
-    return fetch('/api/voice/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text})})
+    var body={text:text, speed:ttsSpeed};
+    if(ttsVoice) body.voice=ttsVoice;
+    return fetch('/api/voice/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
       .then(function(resp){
         var ct=(resp.headers.get('content-type')||'').toLowerCase();
         if(!resp.ok || ct.indexOf('audio')<0) return null;
@@ -2085,8 +2088,9 @@ LaRuche.Voice = (function(){
     if(btn && btn.classList.contains('playing')){ stopAllTts(); ttsResetBtn(btn); return; }
     var cleanText=cleanTextForTTS(text);
     if(!cleanText)return;
-    // In full-screen voice mode, show what she is saying as a subtitle.
-    if(vmOpen){ var vmTr=document.getElementById('voiceModeTranscript'); if(vmTr) vmTr.textContent=cleanText; }
+    // In full-screen voice mode, show what she is saying as a subtitle, and remember it
+    // so the barge-in listener can tell her own voice from a real interruption.
+    if(vmOpen){ vmSpokenText=cleanText; var vmTr=document.getElementById('voiceModeTranscript'); if(vmTr) vmTr.textContent=cleanText; }
     if(btn){btn.classList.add('playing');btn.innerHTML='&#x23F9; '+LaRuche.i18n.t('chat.stopBtn');}
     var sentences=ttsSentences(cleanText);
     if(!sentences.length){ ttsResetBtn(btn); return; }
@@ -2349,7 +2353,46 @@ LaRuche.Voice = (function(){
     if(st) st.textContent=LaRuche.i18n.t(key);
     if(orb) orb.classList.toggle('listening', s==='listening');
     vmTarget = (s==='speaking')?1.0 : (s==='listening')?0.45 : (s==='thinking')?0.25 : 0.08;
+    // Barge-in: listen for interruptions only while she is speaking.
+    if(s==='speaking') vmStartBarge(); else vmStopBarge();
   }
+
+  // ── Barge-in: interrupt her by speaking (not just by tapping) ──
+  // The mic stays open while she talks; a fresh utterance that is not just an echo of her
+  // own words stops the TTS and is taken as the next question. Best with headphones, since
+  // SpeechRecognition cannot apply echo cancellation to the speaker output.
+  var vmBarge=null, vmSpokenText='';
+  function vmBargeIsEcho(said){
+    if(!vmSpokenText) return false;
+    var spoken=vmSpokenText.toLowerCase();
+    var words=said.toLowerCase().split(/\s+/).filter(function(w){return w.length>2;});
+    if(!words.length) return false;
+    var hits=0; words.forEach(function(w){ if(spoken.indexOf(w)>=0) hits++; });
+    return (hits/words.length) > 0.6; // mostly her own words -> echo, ignore
+  }
+  function vmStartBarge(){
+    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR || !vmOpen) return;
+    try{ if(vmBarge) vmBarge.stop(); }catch(e){}
+    vmBarge=new SR();
+    vmBarge.lang=(navigator.language&&navigator.language.indexOf('en')===0)?'en-US':'fr-FR';
+    vmBarge.interimResults=false; vmBarge.continuous=true;
+    vmBarge.onresult=function(e){
+      if(vmState!=='speaking') return;
+      var said='';
+      for(var i=e.resultIndex;i<e.results.length;i++){ if(e.results[i].isFinal) said+=e.results[i][0].transcript; }
+      said=said.trim();
+      if(said.split(/\s+/).length<2) return;     // need a couple of words to barge in
+      if(vmBargeIsEcho(said)) return;            // filter her own voice
+      vmStopBarge(); stopAllTts();               // take over
+      var input=document.getElementById('userInput'); if(input) input.value=said;
+      vmSetState('thinking'); LaRuche.Chat.sendMessage();
+    };
+    vmBarge.onerror=function(){};
+    vmBarge.onend=function(){ vmBarge=null; if(vmOpen && vmState==='speaking') setTimeout(vmStartBarge,300); };
+    try{ vmBarge.start(); }catch(e){}
+  }
+  function vmStopBarge(){ if(vmBarge){ try{ vmBarge.stop(); }catch(e){} vmBarge=null; } }
 
   function vmEsc(e){ if(e.key==='Escape') closeVoiceMode(); }
 
@@ -2373,6 +2416,7 @@ LaRuche.Voice = (function(){
     if(vmRaf){ cancelAnimationFrame(vmRaf); vmRaf=null; }
     if(vmRecognition){ try{ vmRecognition.stop(); }catch(e){} vmRecognition=null; }
     stopAllTts();
+    if(typeof vmStopBarge==='function') vmStopBarge();
     document.removeEventListener('keydown', vmEsc);
     var tr=document.getElementById('voiceModeTranscript'); if(tr) tr.textContent='';
     if(wakeWordOn) setTimeout(startWakeWord, 500); // resume the wake listener
@@ -2512,6 +2556,8 @@ LaRuche.Voice = (function(){
     try{ if(localStorage.getItem('laruche_wakeword')==='1'){ wakeWordOn=true; var wb=document.getElementById('wakeWordBtn'); if(wb) wb.classList.add('active'); startWakeWord(); } }catch(e){}
     // Restore the auto-TTS toggle.
     try{ if(localStorage.getItem('laruche_autotts')==='1'){ autoTtsEnabled=true; var ab=document.getElementById('autoTtsToggle'); if(ab){ ab.classList.add('active'); ab.title=LaRuche.i18n.t('chat.autoPlayEnabled'); } } }catch(e){}
+    // Sync TTS speed/voice from the server config.
+    fetch('/api/config/voice').then(function(r){return r.json();}).then(function(c){ if(c){ if(c.tts_speed) ttsSpeed=c.tts_speed; if(c.tts_voice) ttsVoice=c.tts_voice; } }).catch(function(){});
     document.addEventListener('click',function(e){
       var drop=document.getElementById('sbTtsDrop'), lbl=document.getElementById('sbTtsLabel');
       if(drop && lbl && !drop.contains(e.target) && e.target!==lbl) drop.classList.remove('open');

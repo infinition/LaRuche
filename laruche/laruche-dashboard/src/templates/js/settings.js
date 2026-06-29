@@ -306,6 +306,9 @@ LaRuche.i18n.add({
   'settings.sttExternal':        {fr:'STT externe',      en:'External STT'},
   'settings.sttExternalHint':    {fr:'Décoché (défaut) : le modèle transcrit lui-même l\'audio. Coché : utiliser le service STT externe (:8421).', en:'Unchecked (default): the model transcribes audio itself. Checked: use the external STT service (:8421).'},
   'settings.sttExternalNote':    {fr:'Par défaut, l\'audio (ex. vocal Telegram) va au modèle. Cochez si votre modèle ne sait pas faire le STT.', en:'By default, audio (e.g. Telegram voice) goes to the model. Check this if your model cannot do STT.'},
+  'settings.ttsSpeed':           {fr:'Vitesse TTS',       en:'TTS speed'},
+  'settings.ttsVoice':           {fr:'Voix TTS',          en:'TTS voice'},
+  'settings.ttsVoiceHint':       {fr:'Identifiant de voix Kokoro (ex. ff_siwis). Vide = voix par défaut du service.', en:'Kokoro voice id (e.g. ff_siwis). Empty = the service default voice.'},
   'settings.security':           {fr:'Sécurité',         en:'Security'},
   'settings.secretsCount':       {fr:'17 motifs',        en:'17 patterns'},
   'settings.protocol':           {fr:'Protocole',        en:'Protocol'},
@@ -504,7 +507,10 @@ LaRuche.Settings = (function(){
       '<div class="settings-row"><span class="settings-label">STT</span><span style="color:'+(voice.stt&&voice.stt.available?'var(--green)':'var(--red)')+'">'+(voice.stt&&voice.stt.available?LaRuche.i18n.t('settings.statusOk'):LaRuche.i18n.t('settings.statusOff'))+'</span></div>'+
       '<div class="settings-row"><span class="settings-label">TTS</span><span style="color:'+(voice.tts&&voice.tts.available?'var(--green)':'var(--red)')+'">'+(voice.tts&&voice.tts.available?LaRuche.i18n.t('settings.statusOk'):LaRuche.i18n.t('settings.statusOff'))+'</span></div>'+
       '<div class="settings-row" title="'+LaRuche.i18n.t('settings.sttExternalHint')+'"><span class="settings-label">'+LaRuche.i18n.t('settings.sttExternal')+'</span><input type="checkbox" id="cfgSttExternal" onchange="LaRuche.Settings.saveVoiceCfg()"'+(voiceCfg.stt_external?' checked':'')+'></div>'+
-      '<div style="font-size:10px;color:var(--text-dim);margin-top:4px">'+LaRuche.i18n.t('settings.sttExternalNote')+'</div></div>'+
+      '<div style="font-size:10px;color:var(--text-dim);margin-top:4px">'+LaRuche.i18n.t('settings.sttExternalNote')+'</div>'+
+      '<div class="settings-row" style="margin-top:6px"><span class="settings-label">'+LaRuche.i18n.t('settings.ttsSpeed')+'</span><span style="display:flex;align-items:center;gap:6px"><input type="range" id="cfgTtsSpeed" min="0.5" max="2" step="0.05" value="'+(voiceCfg.tts_speed||1)+'" oninput="document.getElementById(\'cfgTtsSpeedVal\').textContent=parseFloat(this.value).toFixed(2)+\'x\'"><span id="cfgTtsSpeedVal" style="font-size:11px;width:38px">'+(parseFloat(voiceCfg.tts_speed||1).toFixed(2))+'x</span></span></div>'+
+      '<div class="settings-row"><span class="settings-label" title="'+LaRuche.i18n.t('settings.ttsVoiceHint')+'">'+LaRuche.i18n.t('settings.ttsVoice')+'</span><input type="text" id="cfgTtsVoice" class="form-input" style="width:120px;padding:2px 6px" value="'+LaRuche.Utils.esc(voiceCfg.tts_voice||'')+'" placeholder="ff_siwis"></div>'+
+      '<button class="form-btn" onclick="LaRuche.Settings.saveVoiceCfg()" style="margin-top:8px">'+LaRuche.i18n.t('settings.save')+'</button></div>'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.security')+'</div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.secretsTitle')+'</span><span class="settings-value">'+LaRuche.i18n.t('settings.secretsCount')+'</span></div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.protocol')+'</span><span class="settings-value">Miel v'+(doc.version||'0.2.0')+'</span></div></div>'+
@@ -1956,11 +1962,16 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
 
   async function saveVoiceCfg() {
     var stt_external = !!document.getElementById('cfgSttExternal').checked;
+    var speedEl = document.getElementById('cfgTtsSpeed');
+    var voiceEl = document.getElementById('cfgTtsVoice');
+    var body = { stt_external: stt_external };
+    if(speedEl) body.tts_speed = parseFloat(speedEl.value);
+    if(voiceEl) body.tts_voice = voiceEl.value.trim();
     try {
       var res = await fetch(LaRuche.API.base+'/api/config/voice', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ stt_external: stt_external })
+        body: JSON.stringify(body)
       });
       if(res.ok) LaRuche.Toast.show(LaRuche.i18n.t('settings.save'),'ok');
       else LaRuche.Toast.show(LaRuche.i18n.t('settings.saveFailed'),'err');

@@ -816,19 +816,61 @@ async fn audio_to_wav(bytes: Vec<u8>) -> Option<Vec<u8>> {
 
 /// Synthesize `text` via the local TTS service (as OGG/opus) and send it as a Telegram
 /// voice note. Best-effort: returns an error string the caller just logs.
-pub(crate) async fn send_telegram_voice(
+/// Split text into speakable chunks of at most `max` chars, preferring sentence breaks,
+/// so a long answer becomes several voice notes instead of one truncated one.
+fn split_for_voice(text: &str, max: usize) -> Vec<String> {
+    let text = text.trim();
+    if text.is_empty() {
+        return vec![];
+    }
+    let chars: Vec<char> = text.chars().collect();
+    if chars.len() <= max {
+        return vec![text.to_string()];
+    }
+    let mut out = Vec::new();
+    let mut start = 0;
+    while start < chars.len() {
+        let end = (start + max).min(chars.len());
+        let mut brk = end;
+        if end < chars.len() {
+            // Search backward (within the second half) for a sentence boundary.
+            let mut i = end;
+            while i > start + max / 2 {
+                i -= 1;
+                let c = chars[i];
+                if c == '.' || c == '!' || c == '?' || c == '\n' {
+                    brk = i + 1;
+                    break;
+                }
+            }
+        }
+        let piece: String = chars[start..brk].iter().collect();
+        let piece = piece.trim().to_string();
+        if !piece.is_empty() {
+            out.push(piece);
+        }
+        start = brk;
+    }
+    out
+}
+
+/// Synthesize one chunk and send it as a Telegram voice note.
+async fn synth_and_send_voice(
     client: &reqwest::Client,
+    tts: &reqwest::Client,
     api: &str,
     chat_id: i64,
-    text: &str,
+    spoken: &str,
+    speed: f32,
+    voice: &str,
 ) -> std::result::Result<(), String> {
-    // Strip emoji (do not pronounce them) and cap the length so a long answer does not
-    // become a giant voice note. Belt-and-suspenders: the TTS service also strips them.
-    let spoken: String = strip_emoji_for_speech(text).chars().take(1200).collect();
-    let tts = reqwest::Client::new();
+    let mut payload = serde_json::json!({ "text": spoken, "format": "ogg", "speed": speed });
+    if !voice.is_empty() {
+        payload["voice"] = serde_json::Value::String(voice.to_string());
+    }
     let resp = tts
         .post("http://127.0.0.1:8422/synthesize")
-        .json(&serde_json::json!({ "text": spoken, "format": "ogg" }))
+        .json(&payload)
         .send()
         .await
         .map_err(|e| format!("tts request: {e}"))?;
@@ -860,6 +902,46 @@ pub(crate) async fn send_telegram_voice(
         .map_err(|e| format!("sendVoice: {e}"))?;
     if !r.status().is_success() {
         return Err(format!("sendVoice status {}", r.status()));
+    }
+    Ok(())
+}
+
+pub(crate) async fn send_telegram_voice(
+    client: &reqwest::Client,
+    api: &str,
+    chat_id: i64,
+    text: &str,
+) -> std::result::Result<(), String> {
+    // Strip emoji (do not pronounce them) and split long answers into several notes.
+    // Belt-and-suspenders: the TTS service also strips emoji.
+    let cfg = crate::voice_config::charger();
+    let stripped = strip_emoji_for_speech(text);
+    let mut chunks = split_for_voice(&stripped, 1000);
+    // Cap the number of notes so a very long answer cannot flood the chat.
+    const MAX_NOTES: usize = 8;
+    if chunks.len() > MAX_NOTES {
+        tracing::warn!(chat_id, total = chunks.len(), "Telegram voice answer truncated to {MAX_NOTES} notes");
+        chunks.truncate(MAX_NOTES);
+    }
+    if chunks.is_empty() {
+        return Ok(());
+    }
+    let tts = reqwest::Client::new();
+    let mut sent = 0usize;
+    let mut last_err = None;
+    for chunk in chunks {
+        match synth_and_send_voice(client, &tts, api, chat_id, &chunk, cfg.tts_speed, &cfg.tts_voice)
+            .await
+        {
+            Ok(()) => sent += 1,
+            Err(e) => {
+                last_err = Some(e);
+                break;
+            }
+        }
+    }
+    if sent == 0 {
+        return Err(last_err.unwrap_or_else(|| "no audio sent".into()));
     }
     Ok(())
 }
