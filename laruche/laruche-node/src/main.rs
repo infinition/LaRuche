@@ -54,6 +54,7 @@ mod mcp_api;
 mod status_api;
 mod blueprints_api;
 mod reine_api;
+mod voice_config;
 
 use anyhow::Result;
 use axum::{
@@ -1770,6 +1771,10 @@ async fn main() -> Result<()> {
         .route(
             "/api/config/reine",
             get(reine_api::api_get_reine_config).post(reine_api::api_set_reine_config),
+        )
+        .route(
+            "/api/config/voice",
+            get(voice_config::api_get_voice).post(voice_config::api_set_voice),
         )
         .route("/api/reine/proposals", get(reine_api::api_list_proposals))
         .route(

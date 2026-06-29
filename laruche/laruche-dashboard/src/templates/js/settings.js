@@ -303,6 +303,9 @@ LaRuche.i18n.add({
   'settings.voice':              {fr:'Voix',             en:'Voice'},
   'settings.statusOk':           {fr:'OK',               en:'OK'},
   'settings.statusOff':          {fr:'Off',              en:'Off'},
+  'settings.sttExternal':        {fr:'STT externe',      en:'External STT'},
+  'settings.sttExternalHint':    {fr:'Décoché (défaut) : le modèle transcrit lui-même l\'audio. Coché : utiliser le service STT externe (:8421).', en:'Unchecked (default): the model transcribes audio itself. Checked: use the external STT service (:8421).'},
+  'settings.sttExternalNote':    {fr:'Par défaut, l\'audio (ex. vocal Telegram) va au modèle. Cochez si votre modèle ne sait pas faire le STT.', en:'By default, audio (e.g. Telegram voice) goes to the model. Check this if your model cannot do STT.'},
   'settings.security':           {fr:'Sécurité',         en:'Security'},
   'settings.secretsCount':       {fr:'17 motifs',        en:'17 patterns'},
   'settings.protocol':           {fr:'Protocole',        en:'Protocol'},
@@ -460,9 +463,10 @@ LaRuche.Settings = (function(){
     var _r = await Promise.all([
       gj('/api/doctor'), gj('/api/voice/status'), gj('/api/config/provider'),
       gj('/api/context/stats'), gj('/api/config/compaction'), gj('/api/config/curateur'),
-      gj('/api/config/runtime'), gj('/api/config/reine'), gj('/api/config/channel-models')
+      gj('/api/config/runtime'), gj('/api/config/reine'), gj('/api/config/channel-models'),
+      gj('/api/config/voice')
     ]);
-    var doc=_r[0], voice=_r[1], provCfg=_r[2], ctxStats=_r[3], ctxCfg=_r[4], curCfg=_r[5], rt=_r[6]||{}, reineCfg=_r[7]||{}, chmReine=_r[8]||{options:[]};
+    var doc=_r[0], voice=_r[1], provCfg=_r[2], ctxStats=_r[3], ctxCfg=_r[4], curCfg=_r[5], rt=_r[6]||{}, reineCfg=_r[7]||{}, chmReine=_r[8]||{options:[]}, voiceCfg=_r[9]||{};
     // Provider dropdown options for LaReine's judge (reuse the channel-models catalog).
     var reineProvOpts = '<option value="">'+LaRuche.i18n.t('reine.providerSame')+'</option>';
     (chmReine.options||[]).forEach(function(o){
@@ -498,7 +502,9 @@ LaRuche.Settings = (function(){
       '<div style="font-size:10px;color:var(--text-dim);margin-top:8px">'+LaRuche.i18n.t('settings.activeLabel')+(provCfg.provider||'ollama')+' / '+(provCfg.model||'-')+'</div></div>'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.voice')+'</div>'+
       '<div class="settings-row"><span class="settings-label">STT</span><span style="color:'+(voice.stt&&voice.stt.available?'var(--green)':'var(--red)')+'">'+(voice.stt&&voice.stt.available?LaRuche.i18n.t('settings.statusOk'):LaRuche.i18n.t('settings.statusOff'))+'</span></div>'+
-      '<div class="settings-row"><span class="settings-label">TTS</span><span style="color:'+(voice.tts&&voice.tts.available?'var(--green)':'var(--red)')+'">'+(voice.tts&&voice.tts.available?LaRuche.i18n.t('settings.statusOk'):LaRuche.i18n.t('settings.statusOff'))+'</span></div></div>'+
+      '<div class="settings-row"><span class="settings-label">TTS</span><span style="color:'+(voice.tts&&voice.tts.available?'var(--green)':'var(--red)')+'">'+(voice.tts&&voice.tts.available?LaRuche.i18n.t('settings.statusOk'):LaRuche.i18n.t('settings.statusOff'))+'</span></div>'+
+      '<div class="settings-row" title="'+LaRuche.i18n.t('settings.sttExternalHint')+'"><span class="settings-label">'+LaRuche.i18n.t('settings.sttExternal')+'</span><input type="checkbox" id="cfgSttExternal" onchange="LaRuche.Settings.saveVoiceCfg()"'+(voiceCfg.stt_external?' checked':'')+'></div>'+
+      '<div style="font-size:10px;color:var(--text-dim);margin-top:4px">'+LaRuche.i18n.t('settings.sttExternalNote')+'</div></div>'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.security')+'</div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.secretsTitle')+'</span><span class="settings-value">'+LaRuche.i18n.t('settings.secretsCount')+'</span></div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.protocol')+'</span><span class="settings-value">Miel v'+(doc.version||'0.2.0')+'</span></div></div>'+
@@ -1948,6 +1954,19 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     }
   }
 
+  async function saveVoiceCfg() {
+    var stt_external = !!document.getElementById('cfgSttExternal').checked;
+    try {
+      var res = await fetch(LaRuche.API.base+'/api/config/voice', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ stt_external: stt_external })
+      });
+      if(res.ok) LaRuche.Toast.show(LaRuche.i18n.t('settings.save'),'ok');
+      else LaRuche.Toast.show(LaRuche.i18n.t('settings.saveFailed'),'err');
+    } catch(e) { LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err'); }
+  }
+
   async function saveProviderCfg() {
     var fallback_models = document.getElementById('cfgProvFallback').value;
     var max_tokens = parseInt(document.getElementById('cfgProvMaxTokens').value, 10);
@@ -2379,7 +2398,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
   }
 
   return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder: reusable "human-friendly" component (missions + cron) ── */

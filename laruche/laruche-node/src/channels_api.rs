@@ -106,9 +106,15 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
     let mut offset: i64 = 0;
     let mut processed_ids: std::collections::HashSet<i64> = std::collections::HashSet::new();
     let mut tg_sessions: std::collections::HashMap<i64, Uuid> = std::collections::HashMap::new();
-    // Chats that opted into voice replies (/voice). In-memory: resets on restart.
-    let tg_voice: Arc<tokio::sync::RwLock<std::collections::HashSet<i64>>> =
-        Arc::new(tokio::sync::RwLock::new(std::collections::HashSet::new()));
+    // Chats that opted into voice replies (/voice), restored from the persisted config.
+    let tg_voice: Arc<tokio::sync::RwLock<std::collections::HashSet<i64>>> = Arc::new(
+        tokio::sync::RwLock::new(
+            crate::voice_config::charger()
+                .telegram_voice_chats
+                .into_iter()
+                .collect(),
+        ),
+    );
     let active_steers: Arc<
         tokio::sync::RwLock<std::collections::HashMap<i64, tokio::sync::mpsc::Sender<String>>>,
     > = Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));
@@ -164,9 +170,17 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                     .or_else(|| update["message"]["audio"]["file_id"].as_str())
                                     .or_else(|| update["message"]["video_note"]["file_id"].as_str());
                                 if let Some(fid) = file_id {
+                                    // Default: let the model transcribe (native STT). The Settings
+                                    // toggle forces the external STT service instead.
+                                    let use_external_stt = crate::voice_config::charger().stt_external;
                                     match download_telegram_file(&client, &token, fid).await {
                                         Some(bytes) => {
-                                            if let Some(t) = stt_transcribe_bytes(&bytes).await {
+                                            let stt_text = if use_external_stt {
+                                                stt_transcribe_bytes(&bytes).await
+                                            } else {
+                                                None
+                                            };
+                                            if let Some(t) = stt_text {
                                                 if !voice_on {
                                                     let _ = client.post(format!("{}/sendMessage", api))
                                                         .json(&serde_json::json!({"chat_id": chat_id, "text": format!("🎤 \"{}\"", t)}))
@@ -426,6 +440,7 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                         true
                                     }
                                 };
+                                crate::voice_config::set_telegram_voice(chat_id, on); // persist
                                 repondre!(if on {
                                     "🔊 Voice replies ON: I will also send my answers as a voice note. (/voice to turn off)"
                                 } else {

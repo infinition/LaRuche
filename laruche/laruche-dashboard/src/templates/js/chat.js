@@ -2255,6 +2255,7 @@ LaRuche.Voice = (function(){
 
   function toggleAutoTts() {
     autoTtsEnabled=!autoTtsEnabled;
+    try{ localStorage.setItem('laruche_autotts', autoTtsEnabled?'1':'0'); }catch(e){}
     var btn=document.getElementById('autoTtsToggle');
     btn.classList.toggle('active',autoTtsEnabled);
     btn.title=autoTtsEnabled?LaRuche.i18n.t('chat.autoPlayEnabled'):LaRuche.i18n.t('chat.autoPlayDisabled');
@@ -2507,6 +2508,8 @@ LaRuche.Voice = (function(){
     setInterval(checkVoiceStatus,15000);
     // Restore the wake-word toggle.
     try{ if(localStorage.getItem('laruche_wakeword')==='1'){ wakeWordOn=true; var wb=document.getElementById('wakeWordBtn'); if(wb) wb.classList.add('active'); startWakeWord(); } }catch(e){}
+    // Restore the auto-TTS toggle.
+    try{ if(localStorage.getItem('laruche_autotts')==='1'){ autoTtsEnabled=true; var ab=document.getElementById('autoTtsToggle'); if(ab){ ab.classList.add('active'); ab.title=LaRuche.i18n.t('chat.autoPlayEnabled'); } } }catch(e){}
     document.addEventListener('click',function(e){
       var drop=document.getElementById('sbTtsDrop'), lbl=document.getElementById('sbTtsLabel');
       if(drop && lbl && !drop.contains(e.target) && e.target!==lbl) drop.classList.remove('open');
