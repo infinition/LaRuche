@@ -27,18 +27,27 @@ pub(crate) async fn api_auth_enroll(
     if display_name.is_empty() {
         return Err(StatusCode::BAD_REQUEST);
     }
+    // A password is now mandatory: "name + empty/any password" can no longer mint an account.
+    let password = body["password"].as_str().unwrap_or("");
+    if password.len() < 6 {
+        return Err(StatusCode::UNPROCESSABLE_ENTITY);
+    }
 
-    // First user ever registered becomes admin, others are regular users
+    // Reject a name that already exists, so re-typing a name does not silently create a
+    // duplicate account (the previous behaviour). Returning users must use /api/auth/login.
+    // The first user ever registered becomes admin, others are regular users.
     let role = {
         let users = state.users.read().await;
+        if auth_user::find_user_by_name(&users, display_name).is_some() {
+            return Err(StatusCode::CONFLICT);
+        }
         if users.is_empty() {
             auth_user::UserRole::Admin
         } else {
             auth_user::UserRole::User
         }
     };
-    let password = body["password"].as_str().filter(|p| !p.is_empty());
-    let user = auth_user::create_user(display_name, role, password);
+    let user = auth_user::create_user(display_name, role, Some(password));
     let users_dir = std::path::Path::new("users");
     if let Err(e) = auth_user::save_user(&user, users_dir) {
         warn!(error = %e, "Failed to save user");

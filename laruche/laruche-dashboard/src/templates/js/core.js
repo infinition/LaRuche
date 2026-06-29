@@ -99,6 +99,9 @@ LaRuche.i18n.add({
   'core.welcomeUser':           { fr:'Bienvenue {name} !', en:'Welcome {name}!' },
   'core.namePasswordRequired':  { fr:'Nom et mot de passe requis', en:'Name and password required' },
   'core.badCredentials':        { fr:'Identifiants incorrects', en:'Incorrect credentials' },
+  'core.passwordMin':           { fr:'Mot de passe : 6 caractères minimum', en:'Password: 6 characters minimum' },
+  'core.nameTaken':             { fr:'Ce nom est déjà pris. Connecte-toi.', en:'That name is already taken. Please log in.' },
+  'core.enrollFailed':          { fr:'Création du compte impossible', en:'Could not create the account' },
   'core.helloUser':             { fr:'Bonjour {name} !',  en:'Hello {name}!' },
   'core.challengeExpires':      { fr:'Expire dans {s}s',  en:'Expires in {s}s' },
   'core.challengeError':        { fr:'Erreur challenge: {msg}', en:'Challenge error: {msg}' },
@@ -636,12 +639,17 @@ LaRuche.Auth = (function(){
 
     var pwEl=document.getElementById('enrollPassword');
     var password=(pwEl?pwEl.value:'').trim();
+    if(password.length<6){ LaRuche.Toast.show(LaRuche.i18n.t('core.passwordMin'),'error'); if(pwEl)pwEl.focus(); return; }
 
     fetch('/api/auth/enroll',{
       method:'POST',credentials:'include',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({display_name:displayName, password:password||undefined})
-    }).then(function(r){return r.json();}).then(function(data){
+      body:JSON.stringify({display_name:displayName, password:password})
+    }).then(function(r){
+      if(r.status===409) throw new Error(LaRuche.i18n.t('core.nameTaken'));
+      if(!r.ok) throw new Error(LaRuche.i18n.t('core.enrollFailed'));
+      return r.json();
+    }).then(function(data){
       currentUser={user_id:data.user_id,display_name:data.display_name,role:data.role};
       showUserBadge();
 
