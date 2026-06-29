@@ -683,10 +683,16 @@ pub(crate) async fn post_auth_request(
     })
 }
 
-/// POST /auth/approve - Simulate physical button press (for POC)
+/// POST /auth/approve - approve the pending device-auth request. Restricted to an
+/// authenticated admin (the trusted operator), so anyone on the network cannot mint a
+/// trust token by hitting this route.
 pub(crate) async fn post_auth_approve(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !auth_user::require_admin(&state, &headers).await {
+        return Err(StatusCode::UNAUTHORIZED);
+    }
     let mut auth = state.auth.write().await;
     match auth.approve_pending() {
         Some(token) => Ok(Json(serde_json::json!({

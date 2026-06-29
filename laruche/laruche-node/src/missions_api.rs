@@ -244,8 +244,12 @@ pub(crate) async fn api_create_cron(
 /// DELETE /api/cron/:id - remove a scheduled task.
 pub(crate) async fn api_delete_cron(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> StatusCode {
+    if !auth_user::require_admin(&state, &headers).await {
+        return StatusCode::FORBIDDEN;
+    }
     if let Ok(uuid) = Uuid::parse_str(&id) {
         let mut cron = state.essaim_cron.write().await;
         if cron.remove(&uuid) {
@@ -265,8 +269,12 @@ pub(crate) async fn api_list_missions(State(state): State<Arc<AppState>>) -> Jso
 /// POST /api/missions - creates a mission. Body: {objective, slug?, cadence?}.
 pub(crate) async fn api_create_mission(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
+    if !auth_user::require_admin(&state, &headers).await {
+        return Json(serde_json::json!({"error": "unauthorized (admin required)"}));
+    }
     let objective = body["objective"]
         .as_str()
         .unwrap_or_default()
@@ -491,8 +499,12 @@ pub(crate) async fn api_carnet_resume(
 /// POST /api/missions/:slug/run - triggers ONE iteration.
 pub(crate) async fn api_run_mission(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     axum::extract::Path(slug): axum::extract::Path<String>,
 ) -> Json<serde_json::Value> {
+    if !auth_user::require_admin(&state, &headers).await {
+        return Json(serde_json::json!({"error": "unauthorized (admin required)"}));
+    }
     let Some(mission) = state.missions.read().await.get(&slug) else {
         return Json(serde_json::json!({"error": "mission not found"}));
     };
@@ -572,9 +584,13 @@ pub(crate) async fn api_mission_dossier(
 /// POST /api/missions/:slug - updates a mission (status pause/active/done, objective, cadence).
 pub(crate) async fn api_update_mission(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     axum::extract::Path(slug): axum::extract::Path<String>,
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
+    if !auth_user::require_admin(&state, &headers).await {
+        return Json(serde_json::json!({"error": "unauthorized (admin required)"}));
+    }
     let mut store = state.missions.write().await;
     let Some(mut m) = store.get(&slug) else {
         return Json(serde_json::json!({"error": "mission not found"}));
@@ -598,8 +614,12 @@ pub(crate) async fn api_update_mission(
 /// DELETE /api/missions/:slug - deletes a mission (the metadata; the knowledge stays in memory).
 pub(crate) async fn api_delete_mission(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     axum::extract::Path(slug): axum::extract::Path<String>,
 ) -> Json<serde_json::Value> {
+    if !auth_user::require_admin(&state, &headers).await {
+        return Json(serde_json::json!({"error": "unauthorized (admin required)"}));
+    }
     let ok = state.missions.write().await.remove(&slug);
     Json(serde_json::json!({"status": if ok {"ok"} else {"not_found"}, "slug": slug}))
 }
@@ -661,8 +681,12 @@ pub(crate) async fn decomposer_mission(
 /// POST /api/missions/:slug/decompose - splits the mission into parallel kanban tasks.
 pub(crate) async fn api_decompose_mission(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     axum::extract::Path(slug): axum::extract::Path<String>,
 ) -> Json<serde_json::Value> {
+    if !auth_user::require_admin(&state, &headers).await {
+        return Json(serde_json::json!({"error": "unauthorized (admin required)"}));
+    }
     let Some(mission) = state.missions.read().await.get(&slug) else {
         return Json(serde_json::json!({"error": "mission not found"}));
     };
@@ -672,8 +696,12 @@ pub(crate) async fn api_decompose_mission(
 
 pub(crate) async fn api_run_cron(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Json<serde_json::Value> {
+    if !auth_user::require_admin(&state, &headers).await {
+        return Json(serde_json::json!({"error": "unauthorized (admin required)"}));
+    }
     let uuid = match Uuid::parse_str(&id) {
         Ok(u) => u,
         Err(_) => return Json(serde_json::json!({"error": "bad id"})),
@@ -732,9 +760,13 @@ pub(crate) async fn api_run_cron(
 /// PUT /api/cron/:id - updates a cron (editing / schedule shift).
 pub(crate) async fn api_update_cron(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
+    if !auth_user::require_admin(&state, &headers).await {
+        return Json(serde_json::json!({"error": "unauthorized (admin required)"}));
+    }
     let uuid = match Uuid::parse_str(&id) {
         Ok(u) => u,
         Err(_) => return Json(serde_json::json!({"error": "bad id"})),

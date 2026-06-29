@@ -479,8 +479,12 @@ pub(crate) async fn probe_voice_backend(port: u16) -> Option<String> {
 /// POST /api/profiles/active: set the active model.
 pub(crate) async fn api_set_active_model(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
+    if !auth_user::require_admin(&state, &headers).await {
+        return Json(serde_json::json!({"error": "unauthorized (admin required)"}));
+    }
     let profile_id = match body["profile_id"].as_str() {
         Some(id) => id.to_string(),
         None => return Json(serde_json::json!({"error": "missing profile_id"})),
@@ -510,9 +514,13 @@ pub(crate) async fn api_set_active_model(
 /// POST /api/profiles/:id/visibility: toggles the mesh visibility of a provider.
 pub(crate) async fn api_set_visibility(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     axum::extract::Path(id): axum::extract::Path<String>,
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
+    if !auth_user::require_admin(&state, &headers).await {
+        return Json(serde_json::json!({"error": "unauthorized (admin required)"}));
+    }
     let vis = match body["visibility"].as_str() {
         Some("public_proxy") => profiles::Visibilite::PublicProxy,
         Some("restricted") => profiles::Visibilite::Restricted,
@@ -544,8 +552,12 @@ pub(crate) async fn api_set_visibility(
 /// POST /api/models/use: 2-click selection of a model (local or mesh) for its capability.
 pub(crate) async fn api_models_use(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
+    if !auth_user::require_admin(&state, &headers).await {
+        return Json(serde_json::json!({"error": "unauthorized (admin required)"}));
+    }
     let name = body["name"].as_str().unwrap_or_default().to_string();
     if name.is_empty() {
         return Json(serde_json::json!({"error": "missing model name"}));

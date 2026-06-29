@@ -548,7 +548,9 @@ pub async fn handle_bulk_sync(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: axum::http::HeaderMap,
 ) -> Result<Json<BulkSyncResponse>, StatusCode> {
-    let authed = match mesh_auth_ok(&headers, "/api/internal/sync/bulk") {
+    let mesh = mesh_auth_ok(&headers, "/api/internal/sync/bulk");
+    let signed_ok = mesh == Some(true);
+    let authed = match mesh {
         Some(ok) => ok,
         None => is_known_peer(&addr.ip().to_string(), &get_known_peer_ips(&state).await),
     };
@@ -563,7 +565,14 @@ pub async fn handle_bulk_sync(
     let all_sessions: Vec<Session> = sessions.values().cloned().collect();
     let all_users: Vec<auth_user::User> = users.values().cloned().collect();
 
-    let cookie_secret_b64 = Some(auth_user::cookie_secret_to_base64(&state.cookie_secret));
+    // The cookie-signing secret lets a node forge any user's auth cookie. Only hand it to a
+    // cryptographically authenticated peer (valid mesh signature), never to an IP-allowlist-
+    // only caller. Sessions/users still sync over the IP fallback.
+    let cookie_secret_b64 = if signed_ok {
+        Some(auth_user::cookie_secret_to_base64(&state.cookie_secret))
+    } else {
+        None
+    };
 
     info!(
         sessions = all_sessions.len(),

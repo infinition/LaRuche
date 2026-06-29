@@ -6,21 +6,35 @@ use axum::response::Json;
 use axum::http::StatusCode;
 use std::sync::Arc;
 
-/// GET /api/config/channels - read channel configuration.
-pub(crate) async fn api_get_channels_config() -> Json<serde_json::Value> {
+/// GET /api/config/channels - read channel configuration. Bot tokens are secrets, so they
+/// are only returned to an authenticated admin; other callers get them masked.
+pub(crate) async fn api_get_channels_config(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Json<serde_json::Value> {
     let path = std::path::Path::new("channels-config.json");
-    if path.exists() {
-        if let Ok(content) = std::fs::read_to_string(path) {
-            if let Ok(config) = serde_json::from_str::<serde_json::Value>(&content) {
-                return Json(config);
+    let mut config = std::fs::read_to_string(path)
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .unwrap_or_else(|| {
+            serde_json::json!({
+                "telegram": {"bot_token": "", "allowed_chats": "", "enabled": false},
+                "discord": {"bot_token": "", "allowed_channels": "", "enabled": false},
+                "slack": {"bot_token": "", "app_token": "", "enabled": false},
+            })
+        });
+    if !auth_user::require_admin(&state, &headers).await {
+        for ch in ["telegram", "discord", "slack"] {
+            for field in ["bot_token", "app_token"] {
+                if let Some(v) = config.get_mut(ch).and_then(|c| c.get_mut(field)) {
+                    if v.is_string() {
+                        *v = serde_json::json!("");
+                    }
+                }
             }
         }
     }
-    Json(serde_json::json!({
-        "telegram": {"bot_token": "", "allowed_chats": "", "enabled": false},
-        "discord": {"bot_token": "", "allowed_channels": "", "enabled": false},
-        "slack": {"bot_token": "", "app_token": "", "enabled": false},
-    }))
+    Json(config)
 }
 
 /// POST /api/config/channels - save channel configuration.

@@ -223,6 +223,16 @@ pub fn check_admin(
     (uid, is_admin)
 }
 
+/// True if the request carries an authenticated admin cookie. Use to gate mutating
+/// endpoints (start/stop channels, run/edit missions and crons, change the active model).
+pub async fn require_admin(
+    state: &crate::AppState,
+    headers: &axum::http::HeaderMap,
+) -> bool {
+    let users = state.users.read().await;
+    check_admin(headers, &state.cookie_secret, &users).1
+}
+
 // ─── QR Code generation ─────────────────────────────────────────────────────
 
 /// Generate an SVG QR code with LaRuche branding (amber on dark).

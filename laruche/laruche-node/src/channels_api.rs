@@ -9,8 +9,12 @@ use std::sync::Arc;
 /// Body: {"channel": "telegram"}
 pub(crate) async fn api_start_channel(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
+    if !auth_user::require_admin(&state, &headers).await {
+        return Json(serde_json::json!({"status": "error", "message": "unauthorized (admin required)"}));
+    }
     let channel = body["channel"].as_str().unwrap_or("");
 
     // Check if already running
@@ -70,8 +74,12 @@ pub(crate) async fn api_start_channel(
 /// POST /api/channels/stop: stop a channel bot.
 pub(crate) async fn api_stop_channel(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
+    if !auth_user::require_admin(&state, &headers).await {
+        return Json(serde_json::json!({"status": "error", "message": "unauthorized (admin required)"}));
+    }
     let channel = body["channel"].as_str().unwrap_or("");
     let mut handles = state.channel_handles.write().await;
     if let Some(handle) = handles.remove(channel) {
