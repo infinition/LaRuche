@@ -213,7 +213,7 @@
           </button>
           <div class="actions-tray">
             <button class="input-action-btn mic-btn" id="micBtn" data-i18n-title="chat.micTitle" title="Click to record / stop"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="22"></line></svg></button>
-            <button class="input-action-btn voicemode-btn" id="voiceModeBtn" onclick="LaRuche.Voice.openVoiceMode()" data-i18n-title="chat.voiceModeTitle" title="Voice mode (full screen)"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"></path></svg></button>
+            <button class="input-action-btn voicemode-btn" id="voiceModeBtn" onclick="LaRuche.Voice.openVoiceMode()" data-i18n-title="chat.voiceModeTitle" title="Call LaRuche (voice mode)"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg></button>
             <button class="input-action-btn wakeword-btn" id="wakeWordBtn" onclick="LaRuche.Voice.toggleWakeWord()" data-i18n-title="chat.wakeWordTitle" title="Wake word: say 'LaRuche' to open voice mode"><svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M2 13a9 9 0 0 1 9-9"></path><path d="M5 13a6 6 0 0 1 6-6"></path><path d="M8 13a3 3 0 0 1 3-3"></path><circle cx="11" cy="13" r="1"></circle><path d="M16 8l5-5M21 8h-5V3"></path></svg></button>
 
           <label class="input-action-btn upload-btn" data-i18n-title="shell.tipAttach" title="Attach a file">
@@ -667,6 +667,7 @@
   <canvas id="voiceModeCanvas"></canvas>
   <button class="voicemode-close" onclick="LaRuche.Voice.closeVoiceMode()" title="Close (Esc)">&#x2715;</button>
   <div class="voicemode-center">
+    <div class="voicemode-callhdr" id="voiceModeCallHdr" data-i18n="chat.callHeader">In call with LaRuche</div>
     <div class="voicemode-orb" id="voiceModeOrb" onclick="LaRuche.Voice.voiceModeTap()"></div>
     <div class="voicemode-status" id="voiceModeStatus" data-i18n="chat.voiceTapToTalk">Tap to talk</div>
     <div class="voicemode-transcript" id="voiceModeTranscript"></div>
