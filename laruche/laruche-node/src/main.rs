@@ -451,31 +451,6 @@ impl Default for NodeConfig {
 
 // ======================== API Types ========================
 
-#[derive(Debug, Deserialize)]
-struct InferenceRequest {
-    prompt: String,
-    model: Option<String>,
-    capability: Option<String>,
-    #[allow(dead_code)]
-    #[serde(default = "default_qos")]
-    qos: String,
-    max_tokens: Option<u32>,
-    temperature: Option<f32>,
-}
-
-fn default_qos() -> String {
-    "normal".into()
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct InferenceResponse {
-    response: String,
-    model: String,
-    tokens_generated: u32,
-    latency_ms: u64,
-    node_name: String,
-}
-
 #[derive(Debug, Serialize)]
 struct NodeStatus {
     node_id: String,
@@ -722,17 +697,6 @@ async fn apply_channel_model(state: &AppState, channel: &str, config: &mut Essai
         };
         config.model = model.to_string();
     }
-}
-
-/// Resolve a model for a given capability from the per-capability map.
-async fn resolve_model_for_capability(state: &AppState, capability: Option<&str>) -> String {
-    let cap = normalize_capability_label(capability.unwrap_or("llm"));
-    let defaults = state.default_models.read().await;
-    defaults
-        .get(&cap)
-        .or_else(|| defaults.get("llm"))
-        .cloned()
-        .unwrap_or_else(|| state.config.default_model.clone())
 }
 
 fn preview_text(input: &str, max_chars: usize) -> String {
@@ -1688,7 +1652,6 @@ async fn main() -> Result<()> {
         .route("/swarm/models", get(swarm_api::get_swarm_models))
         .route("/models", get(swarm_api::get_models))
         .route("/activity", get(swarm_api::get_activity))
-        .route("/infer", post(swarm_api::post_infer))
         .route("/v1/chat/completions", post(openai_api::api_v1_chat_completions))
         .route("/auth/request", post(swarm_api::post_auth_request))
         .route("/auth/approve", post(swarm_api::post_auth_approve))

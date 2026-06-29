@@ -60,7 +60,7 @@ body.feed-docked { padding-right: 360px; }
 /* But the status-bar stays FULL WIDTH (the drawer stops at bottom:28px, above it):
    cancel the offset with a negative margin. */
 body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s cubic-bezier(.22,.61,.36,1); }
-.status-bar { flex-shrink:0; height:28px; display:flex; align-items:center; justify-content:flex-start; gap:8px; padding:0 10px; background:var(--bg-panel); border-top:1px solid var(--border); font-size:11px; color:var(--text-dim); }
+.status-bar { flex-shrink:0; min-height:28px; display:flex; align-items:center; justify-content:flex-start; gap:8px; padding:0 max(10px,var(--safe-right)) var(--safe-bottom) max(10px,var(--safe-left)); background:var(--bg-panel); border-top:1px solid var(--border); font-size:11px; color:var(--text-dim); box-sizing:border-box; }
 .status-bar select { background:transparent; border:none; color:var(--amber); font-size:11px; font-weight:500; cursor:pointer; outline:none; }
 .status-bar select:hover { color:var(--amber); text-decoration:underline; }
 .status-bar .sb-model-wrap { position:relative; }
@@ -72,6 +72,13 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 @media (max-width:600px) {
   body.feed-docked { padding-right: 0; } /* full-width drawer: no offset */
   body.feed-docked .status-bar { margin-right:0; } /* no offset, so no compensation */
+  /* Keep the bottom bar clear of the phone's rounded corner / home indicator even on
+     devices that report no safe-area inset (most flat-bottom Androids). */
+  .status-bar { padding-bottom: max(var(--safe-bottom), 10px); }
+  /* iOS auto-zooms when a focused field is under 16px (it ignores user-scalable=no). Force
+     16px on text entry so focusing an input never zooms the page. */
+  input:not([type=checkbox]):not([type=radio]):not([type=range]),
+  textarea, select { font-size:16px; }
 }
 
 /* ============================== */
@@ -953,7 +960,7 @@ pre:hover .code-copy-btn { opacity:1; }
 .reconnect-spinner { width:12px; height:12px; border:2px solid var(--amber); border-top-color:transparent; border-radius:50%; animation:spin .8s linear infinite; }
 
 /* Sidebar toggle */
-.sidebar-toggle { display:none; background:none; border:none; color:var(--text-dim); font-size:22px; cursor:pointer; padding:4px 8px; border-radius:4px; transition:color var(--transition-fast); min-width:40px; min-height:40px; align-items:center; justify-content:center; }
+.sidebar-toggle { display:inline-flex; background:none; border:none; color:var(--text-dim); font-size:22px; cursor:pointer; padding:4px 8px; border-radius:4px; transition:color var(--transition-fast); min-width:40px; min-height:40px; align-items:center; justify-content:center; }
 .sidebar-toggle:hover { color:var(--amber); }
 .sidebar-close { display:none; background:none; border:none; color:var(--text-dim); font-size:28px; cursor:pointer; align-items:center; justify-content:center; position:absolute; top:6px; right:6px; width:36px; height:36px; z-index:50; }
 .sidebar-close:hover { color:var(--amber); }
@@ -1375,7 +1382,12 @@ pre:hover .code-copy-btn { opacity:1; }
 .settings-tabs-bar {
   display:flex; gap:0; border-bottom:1px solid var(--border); flex-shrink:0; padding:0 16px;
   overflow-x:auto; scrollbar-width:none; -ms-overflow-style:none;
+  /* Fade the right edge so it is clear the tab strip scrolls when it overflows (mobile). */
+  -webkit-mask-image:linear-gradient(to right, #000 calc(100% - 22px), transparent);
+  mask-image:linear-gradient(to right, #000 calc(100% - 22px), transparent);
+  scroll-snap-type:x proximity;
 }
+.settings-tab-btn { scroll-snap-align:start; }
 .settings-tabs-bar::-webkit-scrollbar { display:none; }
 .settings-tab-btn {
   padding:10px 16px; font-size:12px; color:var(--text-dim); cursor:pointer; white-space:nowrap;
@@ -1838,6 +1850,9 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   .chat-sidebar.open, .mem2-side.open, .mis-side.open {
     transform: translateX(0);
   }
+  /* Backdrop sits just under the drawer (120) and above page content, so tapping the
+     uncovered strip reliably closes the drawer at every mobile width. */
+  .sidebar-overlay.open { display:block; z-index:119; }
   .mis-layout, .mem2-layout {
     display: flex;
     flex-direction: column;

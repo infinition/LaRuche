@@ -490,29 +490,6 @@ LaRuche.Dashboard = (function(){
     } catch(e){}
   }
 
-  /* Inference */
-  var inferRunning = false;
-  async function runInference(){
-    var prompt=document.getElementById('infer-input').value.trim();if(!prompt||inferRunning)return;
-    inferRunning=true;var btn=document.getElementById('infer-btn');btn.disabled=true;btn.classList.add('running');btn.textContent='\u2026';
-    var result=document.getElementById('infer-result');result.textContent='';result.classList.add('active');
-    document.getElementById('infer-meta').classList.remove('active');
-    var t0=performance.now();
-    try{
-      var payload={prompt:prompt,capability:'llm'};if(preferredModels['llm'])payload.model=preferredModels['llm'];
-      var r=await fetch(LaRuche.API.base+'/infer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-      var elapsed=performance.now()-t0;
-      if(!r.ok){result.textContent=LaRuche.i18n.t('dashboard.inferError',{status:r.status});result.style.color='var(--red)';addLog('INFER','log-err',LaRuche.i18n.t('dashboard.inferFailedHttp',{status:r.status}));return;}
-      var d=await r.json();var response=d.response||d.text||d.content||d.message||JSON.stringify(d);
-      result.textContent=response;result.style.color='var(--text-mid)';
-      document.getElementById('infer-latency').textContent='\u23F1 '+(elapsed/1000).toFixed(2)+'s';
-      if(d.tokens_generated||d.eval_count){var tokCount=d.tokens_generated||d.eval_count;var tokRate=d.tokens_per_sec||d.eval_rate||(tokCount/(elapsed/1000));document.getElementById('infer-tokens').textContent=tokCount+' tok @ '+tokRate.toFixed(1)+' t/s';}else document.getElementById('infer-tokens').textContent='';
-      if(d.model)document.getElementById('infer-model').textContent='\u25C8 '+d.model;else document.getElementById('infer-model').textContent='';
-      document.getElementById('infer-meta').classList.add('active');
-      addLog('INFER','log-ok',LaRuche.i18n.t('dashboard.inferResponseIn',{s:(elapsed/1000).toFixed(2),via:(d.model?LaRuche.i18n.t('dashboard.inferVia',{model:d.model}):'')}));
-    } catch(e){result.textContent=LaRuche.i18n.t('dashboard.inferNetworkError',{msg:e.message});result.style.color='var(--red)';addLog('INFER','log-err',LaRuche.i18n.t('dashboard.inferErrorMsg',{msg:e.message}));}
-    finally{inferRunning=false;btn.disabled=false;btn.classList.remove('running');btn.textContent=LaRuche.i18n.t('dashboard.send');}
-  }
 
   /* Chart rendering */
   function renderChart(){
