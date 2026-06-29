@@ -1061,6 +1061,8 @@ LaRuche.Chat = (function(){
     while(el.firstChild && el.firstChild !== cursor) el.removeChild(el.firstChild);
     if(clean) el.insertBefore(document.createTextNode(clean), cursor);
     scrollToBottom();
+    // Reverse stream to TTS: speak finished sentences as they arrive (guarded inside).
+    if(LaRuche.Voice && LaRuche.Voice.feedStream) LaRuche.Voice.feedStream(el, clean);
   }
 
   function takeMediaDeclarations(text) {
@@ -1215,7 +1217,7 @@ LaRuche.Chat = (function(){
       }
     }
     scrollToBottom();
-    if(LaRuche.Voice.isAutoTts()) LaRuche.Voice.speakText(text,ttsBtn);
+    if(LaRuche.Voice.isAutoTts()) LaRuche.Voice.finishStream(text,ttsBtn);
   }
 
   // Auto-scroll "stuck to bottom": we only re-scroll IF the user was already at the bottom.
@@ -2047,6 +2049,9 @@ LaRuche.Voice = (function(){
   var SPEAKER_SVG='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>';
   var _ttsSeq = 0; // bumped to cancel an in-flight streaming session
   var ttsSpeed = 1.0, ttsVoice = ''; // synced from /api/config/voice
+  // Reverse stream LLM -> TTS: speak each sentence as the model produces it, so she
+  // starts talking before the full answer is done. Driven from streamToken().
+  var _stts = { el:null, enq:0, q:[], used:false, busy:false, seq:0, lastClean:'' };
   function ttsResetBtn(btn){ if(btn){ btn.classList.remove('playing'); btn.innerHTML=SPEAKER_SVG+' '+LaRuche.i18n.t('chat.lire'); } }
 
   // Split into sentences so we synthesize and play phrase by phrase (low latency).
@@ -2118,9 +2123,59 @@ LaRuche.Voice = (function(){
 
   function stopAllTts() {
     _ttsSeq++; // cancel any in-flight phrase-by-phrase streaming
+    _stts.seq++; _stts.q=[]; _stts.busy=false; // cancel reverse-stream queue too
     if(currentTtsAudio){currentTtsAudio.pause();currentTtsAudio.currentTime=0;currentTtsAudio=null;}
     if('speechSynthesis' in window) speechSynthesis.cancel();
     currentTtsUtterance=null;
+  }
+
+  // Feed the running clean text (from streamToken). Enqueue every complete sentence except
+  // the last (which may still be growing); the tail is flushed by finishStream().
+  function feedStream(el, clean){
+    if(!autoTtsEnabled) return;
+    if(el !== _stts.el){ // new assistant message: reset
+      _stts.el=el; _stts.enq=0; _stts.q=[]; _stts.used=false; _stts.busy=false; _stts.seq++; _stts.lastClean='';
+    }
+    _stts.lastClean=clean;
+    if(vmOpen){ vmSpokenText=clean; var vmTr=document.getElementById('voiceModeTranscript'); if(vmTr) vmTr.textContent=clean; }
+    var sents=ttsSentences(clean);
+    for(var i=_stts.enq; i<sents.length-1; i++){ _stts.q.push(sents[i]); _stts.enq=i+1; _stts.used=true; }
+    pumpStream(_stts.seq);
+  }
+  // Play the queued sentences one after another (fetch + play, chained).
+  function pumpStream(seq){
+    if(seq!==_stts.seq || _stts.busy || !_stts.q.length) return;
+    _stts.busy=true;
+    var cleaned=cleanTextForTTS(_stts.q.shift());
+    if(!cleaned){ _stts.busy=false; return pumpStream(seq); }
+    ttsFetchBlob(cleaned).then(function(blob){
+      if(seq!==_stts.seq){ _stts.busy=false; return; }
+      if(!blob){ // TTS service down: speak this sentence with the browser voice, keep going
+        if('speechSynthesis' in window){
+          var u=new SpeechSynthesisUtterance(cleaned); u.lang='fr-FR'; u.rate=ttsSpeed; currentTtsUtterance=u;
+          u.onend=u.onerror=function(){ currentTtsUtterance=null; if(seq!==_stts.seq){_stts.busy=false;return;} _stts.busy=false; pumpStream(seq); };
+          speechSynthesis.speak(u);
+        } else { _stts.busy=false; pumpStream(seq); }
+        return;
+      }
+      var url=URL.createObjectURL(blob);
+      currentTtsAudio=new Audio(url);
+      currentTtsAudio.onended=currentTtsAudio.onerror=function(){
+        URL.revokeObjectURL(url);
+        if(seq!==_stts.seq){ _stts.busy=false; return; }
+        currentTtsAudio=null; _stts.busy=false; pumpStream(seq);
+      };
+      currentTtsAudio.play().catch(function(){ if(seq===_stts.seq){ currentTtsAudio=null; _stts.busy=false; pumpStream(seq); } });
+    });
+  }
+  // Flush the final tail at end of message. Falls back to a one-shot read if streaming
+  // never kicked in (e.g. a single-sentence answer, or auto-TTS toggled mid-stream).
+  function finishStream(fullText, btn){
+    if(!autoTtsEnabled) return;
+    if(!_stts.used){ speakText(fullText, btn); return; } // streaming never ran: one-shot read
+    var sents=ttsSentences(_stts.lastClean||fullText);
+    for(var i=_stts.enq; i<sents.length; i++){ _stts.q.push(sents[i]); _stts.enq=i+1; }
+    pumpStream(_stts.seq);
   }
 
   function connectAudioWS() {
@@ -2566,7 +2621,7 @@ LaRuche.Voice = (function(){
   }
 
   return {
-    init:init, speakText:speakText, toggleMic:toggleMic, toggleAutoTts:toggleAutoTts,
+    init:init, speakText:speakText, feedStream:feedStream, finishStream:finishStream, toggleMic:toggleMic, toggleAutoTts:toggleAutoTts,
     openVoiceMode:openVoiceMode, closeVoiceMode:closeVoiceMode, voiceModeTap:voiceModeTap,
     toggleWakeWord:toggleWakeWord,
     refreshStatus:checkVoiceStatus,
