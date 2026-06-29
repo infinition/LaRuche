@@ -443,71 +443,11 @@ pub(crate) async fn api_get_unified_models(State(state): State<Arc<AppState>>) -
     }
     save_persistent_state(&state).await;
 
-    // Provider models cover LLMs. Voice services (tts/stt) are Miel-discovered nodes,
-    // not provider profiles, so append them here too: this surfaces the local Kokoro TTS
-    // (and any STT) in the dashboard's mesh services and the voice selectors.
-    let mut models_val = serde_json::to_value(&models).unwrap_or_else(|_| serde_json::json!([]));
-    {
-        let listener = state.listener.read().await;
-        let nodes = listener.get_nodes().await;
-        if let Some(arr) = models_val.as_array_mut() {
-            for (_id, node) in &nodes {
-                let host = node.manifest.host.clone();
-                let port = node.manifest.port.unwrap_or(miel_protocol::DEFAULT_API_PORT);
-                let node_id = node.manifest.node_id.map(|x| x.to_string());
-                let model_name = node.manifest.model.clone().unwrap_or_default();
-                let node_name = node.manifest.node_name.clone().unwrap_or_default();
-                for cap in &node.manifest.capabilities {
-                    if matches!(
-                        cap,
-                        miel_protocol::capabilities::Capability::Tts
-                            | miel_protocol::capabilities::Capability::Stt
-                    ) {
-                        let capstr = cap.to_string();
-                        arr.push(serde_json::json!({
-                            "id": format!("mesh/{host}/{capstr}"),
-                            "name": if model_name.is_empty() { format!("{capstr}-node") } else { model_name.clone() },
-                            "capability": capstr,
-                            "host": host,
-                            "base_url": format!("http://{host}:{port}"),
-                            "node_id": node_id,
-                            "provider": "mesh",
-                            "profile_name": node_name,
-                        }));
-                    }
-                }
-            }
-        }
-    }
-
-    // mDNS discovery is flaky on Windows, so a locally-running voice service may be
-    // missing from the node list above. Probe the default local ports directly and add
-    // a synthetic entry when present, so the local TTS/STT ALWAYS shows up.
-    if let Some(arr) = models_val.as_array_mut() {
-        for (port, cap) in [(8422u16, "tts"), (8421u16, "stt")] {
-            let already = arr
-                .iter()
-                .any(|m| m.get("capability").and_then(|c| c.as_str()) == Some(cap));
-            if already {
-                continue;
-            }
-            if let Some(backend) = probe_voice_backend(port).await {
-                arr.push(serde_json::json!({
-                    "id": format!("local/{cap}"),
-                    "name": format!("{cap}-{backend}"),
-                    "capability": cap,
-                    "host": "127.0.0.1",
-                    "base_url": format!("http://127.0.0.1:{port}"),
-                    "node_id": serde_json::Value::Null,
-                    "provider": "local",
-                    "profile_name": "Local voice",
-                }));
-            }
-        }
-    }
-
+    // NOTE: voice services (tts/stt) are deliberately NOT added here. This endpoint feeds
+    // the LLM model selector; voice nodes are surfaced separately via /swarm/models (the
+    // dashboard mesh panel + the dedicated TTS selector in the status bar).
     Json(serde_json::json!({
-        "models": models_val,
+        "models": models,
         "active": active,
     }))
 }

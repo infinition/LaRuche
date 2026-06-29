@@ -2271,6 +2271,9 @@ LaRuche.Voice = (function(){
       var autoTtsBtn=document.getElementById('autoTtsToggle');
       if(!ttsAvailable){autoTtsBtn.style.opacity='0.3';autoTtsBtn.title=LaRuche.i18n.t('chat.ttsUnavailable');}
       else {autoTtsBtn.style.opacity='1';autoTtsBtn.title=LaRuche.i18n.t('chat.autoTtsTitle');}
+      // Dedicated TTS selector in the status bar: shown whenever a TTS is available.
+      var sbTtsWrap=document.getElementById('sbTtsWrap');
+      if(sbTtsWrap) sbTtsWrap.style.display = ttsAvailable ? '' : 'none';
     }).catch(function(){
       // Voice status endpoint unreachable: still enable browser dictation if supported.
       sttAvailable=false; ttsAvailable=false;
@@ -2417,9 +2420,10 @@ LaRuche.Voice = (function(){
   }
   function buildSbTtsDrop(){
     var drop=document.getElementById('sbTtsDrop'); if(!drop) return;
-    function fill(selVal){
+    function fill(models, selVal){
       drop.innerHTML='';
-      _sbTtsModels.forEach(function(m){
+      if(!models.length){ drop.innerHTML='<div style="opacity:.6">'+LaRuche.i18n.t('chat.sttUnavailable')+'</div>'; return; }
+      models.forEach(function(m){
         var v=m.host+'|'+m.name, dv=document.createElement('div');
         dv.textContent=m.name;
         if(v===selVal) dv.className='active';
@@ -2427,9 +2431,14 @@ LaRuche.Voice = (function(){
         drop.appendChild(dv);
       });
     }
-    fetch('/api/voice/status').then(function(r){return r.json();})
-      .then(function(d){ fill((d.tts&&d.tts.is_selected)?(d.tts.selected_host+'|'+d.tts.selected_model):''); })
-      .catch(function(){ fill(''); });
+    // Fetch fresh so the TTS list works on any page (not only the dashboard).
+    fetch(LaRuche.API.base+'/swarm/models').then(function(r){return r.json();}).then(function(d){
+      var tts=(d.models||[]).filter(function(m){return (m.capability||'').toLowerCase()==='tts';});
+      _sbTtsModels=tts;
+      fetch('/api/voice/status').then(function(r){return r.json();})
+        .then(function(s){ fill(tts,(s.tts&&s.tts.is_selected)?(s.tts.selected_host+'|'+s.tts.selected_model):''); })
+        .catch(function(){ fill(tts,''); });
+    }).catch(function(){ fill(_sbTtsModels,''); });
   }
   function toggleTtsDrop(e){
     if(e) e.stopPropagation();
