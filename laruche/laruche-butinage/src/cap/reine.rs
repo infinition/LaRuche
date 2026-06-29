@@ -177,6 +177,83 @@ pub enum Action {
     Escalader(String),
 }
 
+// ============================ Tier 3: supervision ============================
+//
+// Tier 1 (juger) reviews a finished draft; Tier 3 watches a long-running task WHILE
+// it runs and steps in when it stalls. The core here is pure: it detects plan
+// stagnation (no step completed for several passes) and decides to nudge the worker
+// back on track or escalate to a human. The butinage loop feeds it a snapshot each
+// pass; the decision is opt-in (off unless `tier_supervision` is enabled).
+
+/// Snapshot of a supervised task at one pass.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EtatTache {
+    /// Plan steps completed so far.
+    pub etapes_faites: u32,
+    /// Total plan steps (0 when no plan exists yet: supervision then stays passive).
+    pub etapes_totales: u32,
+    /// Consecutive passes with no newly completed step.
+    pub passes_sans_progres: u32,
+}
+
+/// Tunables for the stagnation supervisor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ConfigSupervision {
+    /// Master switch (mirrors `tier_supervision`).
+    pub actif: bool,
+    /// Passes without plan progress before the first nudge (>=1).
+    pub seuil_stagnation: u32,
+    /// Nudges allowed before escalating to a human.
+    pub max_interventions: u32,
+}
+
+impl Default for ConfigSupervision {
+    fn default() -> Self {
+        Self { actif: false, seuil_stagnation: 3, max_interventions: 2 }
+    }
+}
+
+/// What the supervisor does at a pass.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ActionSupervision {
+    /// On track (or supervision inactive / no plan): let the task run.
+    Continuer,
+    /// Stalled: inject this corrective nudge into the worker's next turn.
+    Intervenir(String),
+    /// Stalled past the nudge budget: hand off to a human with this rationale.
+    Escalader(String),
+}
+
+/// Pure supervision policy: `(config, snapshot, nudges-so-far) -> action`. Stays
+/// passive unless enabled AND a plan exists AND progress has stalled past the
+/// threshold. After `max_interventions` nudges with no progress, it escalates.
+pub fn superviser(
+    cfg: &ConfigSupervision,
+    etat: &EtatTache,
+    interventions: u32,
+) -> ActionSupervision {
+    // Inactive, or no plan to measure progress against: do nothing.
+    if !cfg.actif || etat.etapes_totales == 0 {
+        return ActionSupervision::Continuer;
+    }
+    if etat.passes_sans_progres < cfg.seuil_stagnation.max(1) {
+        return ActionSupervision::Continuer;
+    }
+    if interventions >= cfg.max_interventions {
+        return ActionSupervision::Escalader(format!(
+            "Task stalled: {} of {} plan steps done, no progress for {} passes after {} nudge(s).",
+            etat.etapes_faites, etat.etapes_totales, etat.passes_sans_progres, interventions
+        ));
+    }
+    ActionSupervision::Intervenir(
+        "[Supervisor LaReine] You have not advanced the plan for several steps. Stop \
+         restating the plan or repeating yourself: pick the next unfinished step, take ONE \
+         concrete action toward it now (call a tool, or give the final answer if it is \
+         ready), and report what you did."
+            .into(),
+    )
+}
+
 /// Stateful supervisor for the duration of one request. Counts rounds and keeps
 /// the best score seen, so a revision that regresses can be rejected in favor of
 /// the previous draft.
@@ -356,6 +433,31 @@ mod tests {
     fn budget_is_clamped_to_ceiling() {
         let c = config(ModeReine::Auto, 250);
         assert_eq!(c.revues_effectives(), PLAFOND_REVUES);
+    }
+
+    fn etat(faites: u32, totales: u32, sans_progres: u32) -> EtatTache {
+        EtatTache { etapes_faites: faites, etapes_totales: totales, passes_sans_progres: sans_progres }
+    }
+
+    #[test]
+    fn supervision_passive_when_off_or_no_plan() {
+        let off = ConfigSupervision { actif: false, seuil_stagnation: 2, max_interventions: 2 };
+        assert_eq!(superviser(&off, &etat(0, 5, 9), 0), ActionSupervision::Continuer);
+        let on = ConfigSupervision { actif: true, seuil_stagnation: 2, max_interventions: 2 };
+        // No plan (0 total) -> stays passive even when "stalled".
+        assert_eq!(superviser(&on, &etat(0, 0, 9), 0), ActionSupervision::Continuer);
+    }
+
+    #[test]
+    fn supervision_nudges_then_escalates_on_stall() {
+        let cfg = ConfigSupervision { actif: true, seuil_stagnation: 3, max_interventions: 2 };
+        // Progress is happening (below threshold): continue.
+        assert_eq!(superviser(&cfg, &etat(2, 5, 1), 0), ActionSupervision::Continuer);
+        // Stalled past threshold, within nudge budget: intervene.
+        assert!(matches!(superviser(&cfg, &etat(2, 5, 3), 0), ActionSupervision::Intervenir(_)));
+        assert!(matches!(superviser(&cfg, &etat(2, 5, 3), 1), ActionSupervision::Intervenir(_)));
+        // Nudge budget spent: escalate.
+        assert!(matches!(superviser(&cfg, &etat(2, 5, 3), 2), ActionSupervision::Escalader(_)));
     }
 
     #[test]

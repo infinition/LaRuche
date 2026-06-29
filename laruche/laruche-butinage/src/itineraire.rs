@@ -104,6 +104,12 @@ impl Itineraire {
         self.etapes.iter().any(|e| e.statut.est_ouverte())
     }
 
+    /// Number of closed (completed/abandoned) steps. Progress signal for the Tier 3
+    /// supervisor: when this stops increasing, the task is stalling.
+    pub fn nb_faites(&self) -> u32 {
+        self.etapes.iter().filter(|e| e.statut.est_close()).count() as u32
+    }
+
     /// Index of the next open step, if any.
     pub fn prochaine_ouverte(&self) -> Option<usize> {
         self.etapes.iter().position(|e| e.statut.est_ouverte())

@@ -4724,12 +4724,12 @@
     "fr": "Relire les skills et tools auto-créés"
   },
   "reine.tier3": {
-    "en": "Proactive orchestration",
-    "fr": "Orchestration proactive"
+    "en": "Supervision (anti-stall)",
+    "fr": "Supervision (anti-blocage)"
   },
   "reine.tier3Warn": {
-    "en": "Lets LaReine act on the swarm on her own. Off by default.",
-    "fr": "Laisse LaReine agir seule sur l'essaim. Désactivé par défaut."
+    "en": "LaReine watches a running task and, if it stops advancing its plan for several steps, nudges it back on track, then escalates to you if it stays stuck. Off by default.",
+    "fr": "LaReine surveille une tache en cours et, si elle cesse d'avancer son plan pendant plusieurs etapes, la recentre, puis t'escalade si elle reste bloquee. Desactive par defaut."
   },
   "reine.verdictApproved": {
     "en": "Approved by LaReine",

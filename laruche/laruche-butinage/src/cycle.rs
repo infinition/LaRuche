@@ -40,6 +40,11 @@ pub async fn butiner(
     let mut jauge = crate::cap::jauge::Jauge::nouvelle(reglages.context_max_tokens, 0.70, 0.85);
     let schemas = outils.schemas();
 
+    // Tier 3 supervision state (only used when `reglages.supervision` is active).
+    let mut sup_faites = carnet.itineraire.nb_faites();
+    let mut sup_sans_progres: u32 = 0;
+    let mut sup_interventions: u32 = 0;
+
     loop {
         if carnet.passe >= reglages.plafond_passes {
             let msg = format!("Cap of {} passes reached, may be incomplete.", reglages.plafond_passes);
@@ -155,6 +160,39 @@ pub async fn butiner(
         if let Some(chemin) = &reglages.chemin_carnet {
             if let Err(e) = carnet.sauver(chemin, chrono::Utc::now()) {
                 tracing::warn!(error = %e, "carnet checkpoint failed");
+            }
+        }
+
+        // Tier 3 supervision: the loop reached here because the task is CONTINUING
+        // (relance or a non-sterile harvest). Measure plan progress; if it has stalled,
+        // LaReine nudges the worker back on track, then escalates if it stays stuck.
+        if let Some(sup) = &reglages.supervision {
+            let faites = carnet.itineraire.nb_faites();
+            if faites > sup_faites {
+                sup_faites = faites;
+                sup_sans_progres = 0;
+            } else {
+                sup_sans_progres += 1;
+            }
+            let etat = crate::cap::reine::EtatTache {
+                etapes_faites: faites,
+                etapes_totales: carnet.itineraire.etapes.len() as u32,
+                passes_sans_progres: sup_sans_progres,
+            };
+            match crate::cap::reine::superviser(sup, &etat, sup_interventions) {
+                crate::cap::reine::ActionSupervision::Continuer => {}
+                crate::cap::reine::ActionSupervision::Intervenir(consigne) => {
+                    emet.emettre(Evenement::Statut(
+                        "Supervisor LaReine: task stalled, nudging back on track.".into(),
+                    ));
+                    carnet.historique.push(Message::nudge(consigne)); // internal, not persisted
+                    sup_interventions += 1;
+                    sup_sans_progres = 0;
+                }
+                crate::cap::reine::ActionSupervision::Escalader(motif) => {
+                    emet.emettre(Evenement::Statut(format!("Supervisor LaReine escalation: {motif}")));
+                    return Ok(Bilan::nouveau(motif.clone(), FinDeVol::Plafond, carnet.passe));
+                }
             }
         }
     }

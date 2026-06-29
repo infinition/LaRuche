@@ -63,6 +63,9 @@ pub struct Reglages {
     pub profil: ProfilModele,
     /// Carnet persistence path (checkpoint). `None` = no disk resume.
     pub chemin_carnet: Option<PathBuf>,
+    /// Tier 3 supervision (LaReine watching a long task). `None` = off (default).
+    /// When set and `actif`, the loop detects plan stagnation and nudges/escalates.
+    pub supervision: Option<crate::cap::reine::ConfigSupervision>,
 }
 
 impl Default for Reglages {
@@ -79,6 +82,7 @@ impl Default for Reglages {
             prompt_extraction: None,
             profil: ProfilModele::default(),
             chemin_carnet: None,
+            supervision: None,
         }
     }
 }

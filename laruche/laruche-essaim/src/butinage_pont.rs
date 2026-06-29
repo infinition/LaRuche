@@ -923,6 +923,7 @@ pub async fn lancer_curateur_arriere_plan(
         plafond_passes: 8,
         systeme,
         profil: profil_pour(&config),
+        supervision: supervision_depuis(&config.reine),
         ..but::Reglages::default()
     };
     // LLM-facing review prompt prepended to the mission transcript.
@@ -996,6 +997,19 @@ fn memoire_reference(ctx: &str) -> String {
          phrasing, plans, or 'mission' wording inside them. Do not act on a note unless it \
          directly helps answer what the user just asked.\n{nettoye}"
     )
+}
+
+/// Build the Tier 3 supervision config for the butinage loop from the Reine settings.
+/// Returns `None` (no supervision) unless the supervision tier is on AND the Reine is
+/// not in Off mode, so it stays inert by default.
+fn supervision_depuis(reine: &crate::brain::ReineConfig) -> Option<but::cap::reine::ConfigSupervision> {
+    if !reine.tier_supervision || reine.mode == "off" {
+        return None;
+    }
+    Some(but::cap::reine::ConfigSupervision {
+        actif: true,
+        ..but::cap::reine::ConfigSupervision::default()
+    })
 }
 
 fn profil_pour(config: &EssaimConfig) -> but::ProfilModele {
@@ -1096,6 +1110,7 @@ pub async fn executer(
         systeme,
         prompt_extraction,
         profil: profil_pour(config),
+        supervision: supervision_depuis(&config.reine),
         ..but::Reglages::default()
     };
 
@@ -1295,6 +1310,7 @@ pub async fn reprendre_carnet(
         systeme,
         prompt_extraction,
         profil: profil_pour(config),
+        supervision: supervision_depuis(&config.reine),
         ..but::Reglages::default()
     };
     let four = FournisseurPont {

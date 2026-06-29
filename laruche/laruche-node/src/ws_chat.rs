@@ -339,6 +339,8 @@ pub(crate) async fn ws_chat_connection(
                 let rs = reine_api::charger_reine_settings();
                 config.reine.queue_gate = rs.queue_gate;
                 config.reine.mode = rs.mode;
+                // Tier 3: the supervisor watches the live butinage loop for stalls.
+                config.reine.tier_supervision = rs.tier_supervision;
             }
 
             let result = boucle_react_memoire_multimodal(
