@@ -320,6 +320,10 @@ LaRuche.i18n.add({
   'settings.apiKeyNone':         {fr:'(aucune)',         en:'(none)'},
   'settings.editBtn':            {fr:'Éditer',           en:'Edit'},
   'settings.deleteBtn':          {fr:'Supprimer',        en:'Delete'},
+  'settings.testBtn':            {fr:'Tester',           en:'Test'},
+  'settings.testRunning':        {fr:'Test en cours...', en:'Testing...'},
+  'settings.testOk':             {fr:'Connecté',         en:'Connected'},
+  'settings.testFail':           {fr:'Échec',            en:'Failed'},
   'settings.addCredKey':         {fr:'+ Ajouter une clé', en:'+ Add Credential Key'},
   'settings.editProviderTitle':  {fr:'Éditer le provider', en:'Edit Provider'},
   'settings.addProviderTitle':   {fr:'Ajouter un provider', en:'Add Provider'},
@@ -606,9 +610,12 @@ LaRuche.Settings = (function(){
         '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.modelsLabel')+'</span><span class="settings-value">'+modelCount+'</span></div>'+
         credsHtml + addCredBtn +
         '<div style="margin-top:12px;display:flex;gap:6px">'+
+        '<button id="pftestbtn-'+id+'" onclick="LaRuche.Settings.testProfile(\''+id+'\')" style="background:none;border:1px solid var(--cyan);color:var(--cyan);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.testBtn')+'</button>'+
         '<button onclick="LaRuche.Settings.editProfile(\''+id+'\')" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.editBtn')+'</button>'+
         '<button onclick="LaRuche.Settings.deleteProfile(\''+id+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 10px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.deleteBtn')+'</button>'+
-        '</div></div>';
+        '</div>'+
+        '<div id="pftest-'+id+'" style="margin-top:8px;font-size:10px;line-height:1.4;word-break:break-word"></div>'+
+        '</div>';
     });
 
     html += '</div>';
@@ -777,6 +784,27 @@ LaRuche.Settings = (function(){
       } else {
         LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+(d.error||'?'),'err');
       }
+    });
+  }
+
+  function testProfile(id) {
+    var out = document.getElementById('pftest-'+id);
+    var btn = document.getElementById('pftestbtn-'+id);
+    if(out){ out.innerHTML = '<span style="color:var(--text-dim)">'+LaRuche.i18n.t('settings.testRunning')+'</span>'; }
+    if(btn){ btn.disabled = true; }
+    fetch('/api/profiles/'+id+'/test',{method:'POST'}).then(function(r){return r.json();}).then(function(d){
+      if(btn){ btn.disabled = false; }
+      if(!out) return;
+      if(d.ok){
+        out.innerHTML = '<span style="color:var(--green)">✔ '+LaRuche.i18n.t('settings.testOk')+(d.model?' ('+LaRuche.Utils.esc(d.model)+')':'')+'</span>';
+      } else {
+        var st = d.status?(' [HTTP '+d.status+']'):'';
+        out.innerHTML = '<span style="color:var(--red)">✗ '+LaRuche.i18n.t('settings.testFail')+st+'</span>'+
+          (d.message?'<div style="color:var(--text-dim);margin-top:2px">'+LaRuche.Utils.esc(d.message)+'</div>':'');
+      }
+    }).catch(function(){
+      if(btn){ btn.disabled = false; }
+      if(out){ out.innerHTML = '<span style="color:var(--red)">✗ '+LaRuche.i18n.t('settings.testFail')+'</span>'; }
     });
   }
 
@@ -2331,7 +2359,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
   }
 
   return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder: reusable "human-friendly" component (missions + cron) ── */

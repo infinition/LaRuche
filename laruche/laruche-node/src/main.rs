@@ -1768,6 +1768,7 @@ async fn main() -> Result<()> {
         .route("/api/profiles/models", get(profiles_api::api_get_unified_models))
         .route("/api/profiles/active", post(profiles_api::api_set_active_model))
         .route("/api/profiles/:id/visibility", post(profiles_api::api_set_visibility))
+        .route("/api/profiles/:id/test", post(profiles_api::api_test_profile))
         .route("/api/models/use", post(profiles_api::api_models_use))
         .route(
             "/api/capabilities/selection",

@@ -36,6 +36,106 @@ pub(crate) async fn api_get_profiles(
     })))
 }
 
+/// POST /api/profiles/:id/test: send a minimal request to verify this profile's
+/// credentials and endpoint actually work. Returns `{ok, status, message}` so the UI
+/// shows "Connected" or the exact provider error (e.g. a 429 "insufficient balance"
+/// from z.ai) instead of the user digging through logs.
+pub(crate) async fn api_test_profile(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    // Resolve provider/model/key/base for THIS profile (same mapping as the worker).
+    let (provider, model, api_key, api_base, ollama_url) = {
+        let cfg = state.profiles.read().await;
+        let Some(profile) = cfg.profiles.get(&id) else {
+            return Ok(Json(serde_json::json!({"ok": false, "message": "unknown profile"})));
+        };
+        // Prefer the active model if this profile is active, else its first listed model.
+        let model = if cfg.active_model.profile_id == id {
+            cfg.active_model.model.clone()
+        } else {
+            profile.models.first().cloned().unwrap_or_default()
+        };
+        if model.is_empty() {
+            return Ok(Json(serde_json::json!({
+                "ok": false,
+                "message": "no model configured for this profile"
+            })));
+        }
+        let ollama_url = if profile.provider == "ollama" {
+            profile.base_url.clone()
+        } else {
+            cfg.profiles
+                .values()
+                .find(|p| p.provider == "ollama")
+                .map(|p| p.base_url.clone())
+                .unwrap_or_else(|| "http://127.0.0.1:11434".to_string())
+        };
+        let api_base = if profile.provider != "ollama" {
+            Some(profile.base_url.clone())
+        } else {
+            None
+        };
+        (
+            profile.provider.clone(),
+            model,
+            profile.api_key.clone(),
+            api_base,
+            ollama_url,
+        )
+    };
+
+    // Substitute a `@@secret/${NAME}` vault reference before the call.
+    let api_key = laruche_essaim::secrets::substituer(&api_key);
+
+    let messages = vec![serde_json::json!({"role": "user", "content": "ping"})];
+    let res = laruche_essaim::providers::provider_chat_stream(
+        &provider,
+        &model,
+        &messages,
+        0.0,
+        8,
+        &api_key,
+        api_base.as_deref(),
+        &ollama_url,
+        None,
+    )
+    .await;
+
+    match res {
+        Ok(mut stream) => {
+            use futures_util::StreamExt;
+            // Pull one chunk to confirm the stream actually flows.
+            let _ = stream.next().await;
+            Ok(Json(serde_json::json!({
+                "ok": true,
+                "model": model,
+                "message": "Connected"
+            })))
+        }
+        Err(e) => {
+            // Surface the real HTTP status + a body excerpt (e.g. z.ai code 1113).
+            if let Some(pe) = e.downcast_ref::<laruche_essaim::providers::ProviderError>() {
+                let body: String = pe.body.chars().take(300).collect();
+                Ok(Json(serde_json::json!({
+                    "ok": false,
+                    "status": pe.status,
+                    "message": body.trim()
+                })))
+            } else {
+                Ok(Json(serde_json::json!({
+                    "ok": false,
+                    "message": e.to_string()
+                })))
+            }
+        }
+    }
+}
+
 /// POST /api/profiles: create or update a profile (auth required).
 pub(crate) async fn api_upsert_profile(
     State(state): State<Arc<AppState>>,
