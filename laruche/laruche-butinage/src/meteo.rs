@@ -21,9 +21,26 @@ impl ClasseErreur {
     /// Classifies an error from the HTTP status and hints (body, retry-after header).
     pub fn classer(status: u16, retry_after: Option<&str>, corps: &str) -> ClasseErreur {
         match status {
-            429 => ClasseErreur::RateLimited {
-                reset_at: parser_retry_after(retry_after),
-            },
+            429 => {
+                // A 429 for an EXHAUSTED BALANCE (no credit / no resource package, e.g.
+                // z.ai code 1113) will never resolve on its own: do not waste retries,
+                // treat it as fatal so the loop stops with a clear message. A 429 that is
+                // a genuine RATE limit (too fast) stays retryable.
+                let c = corps.to_lowercase();
+                let solde_vide = c.contains("balance")
+                    || c.contains("insufficient")
+                    || c.contains("recharge")
+                    || c.contains("resource package")
+                    || c.contains("billing")
+                    || c.contains("payment");
+                if solde_vide {
+                    ClasseErreur::Fatal
+                } else {
+                    ClasseErreur::RateLimited {
+                        reset_at: parser_retry_after(retry_after),
+                    }
+                }
+            }
             401 | 403 => {
                 // Some providers return 403 for a plain exhausted quota.
                 if corps.to_lowercase().contains("rate")
@@ -160,6 +177,20 @@ mod tests {
     fn classe_429_est_rate_limited() {
         let c = ClasseErreur::classer(429, Some("30"), "{}");
         assert!(matches!(c, ClasseErreur::RateLimited { reset_at: Some(_) }));
+    }
+
+    #[test]
+    fn classe_429_solde_vide_est_fatal() {
+        // z.ai code 1113: empty balance never resolves -> fatal, stop immediately.
+        assert_eq!(
+            ClasseErreur::classer(429, None, "Insufficient balance or no resource package"),
+            ClasseErreur::Fatal
+        );
+        // A genuine rate limit (too fast) stays retryable.
+        assert!(matches!(
+            ClasseErreur::classer(429, None, "Rate limit reached for requests"),
+            ClasseErreur::RateLimited { .. }
+        ));
     }
 
     #[test]
