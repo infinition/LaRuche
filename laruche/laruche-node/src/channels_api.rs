@@ -546,6 +546,8 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                 tokio::sync::watch::channel(false);
                             let typing_client = client.clone();
                             let typing_api = api.clone();
+                            // Show "recording voice" when a voice note is coming, else "typing".
+                            let typing_action = if voice_on { "record_voice" } else { "typing" };
                             let typing_task = tokio::spawn(async move {
                                 let mut ticker =
                                     tokio::time::interval(std::time::Duration::from_secs(4));
@@ -554,7 +556,7 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                         _ = ticker.tick() => {
                                             if let Err(error) = typing_client
                                                 .post(format!("{}/sendChatAction", typing_api))
-                                                .json(&serde_json::json!({"chat_id": chat_id, "action": "typing"}))
+                                                .json(&serde_json::json!({"chat_id": chat_id, "action": typing_action}))
                                                 .send()
                                                 .await
                                             {

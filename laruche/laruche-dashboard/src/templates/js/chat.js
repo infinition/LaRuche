@@ -2085,6 +2085,8 @@ LaRuche.Voice = (function(){
     if(btn && btn.classList.contains('playing')){ stopAllTts(); ttsResetBtn(btn); return; }
     var cleanText=cleanTextForTTS(text);
     if(!cleanText)return;
+    // In full-screen voice mode, show what she is saying as a subtitle.
+    if(vmOpen){ var vmTr=document.getElementById('voiceModeTranscript'); if(vmTr) vmTr.textContent=cleanText; }
     if(btn){btn.classList.add('playing');btn.innerHTML='&#x23F9; '+LaRuche.i18n.t('chat.stopBtn');}
     var sentences=ttsSentences(cleanText);
     if(!sentences.length){ ttsResetBtn(btn); return; }
