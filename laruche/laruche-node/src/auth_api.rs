@@ -114,6 +114,9 @@ pub(crate) async fn api_auth_me(
         "display_name": user.display_name,
         "role": user.role,
         "created_at": user.created_at.to_rfc3339(),
+        "avatar": user.avatar,
+        "has_password": user.password_hash.is_some(),
+        "totp_enabled": user.totp_secret.is_some(),
     })))
 }
 
@@ -518,4 +521,50 @@ pub(crate) async fn api_admin_set_role(
     user.role = role;
     let _ = auth_user::save_user(user, std::path::Path::new("users"));
     Ok(Json(serde_json::json!({ "status": "ok", "id": id, "role": user.role })))
+}
+
+/// POST /api/auth/account {display_name?, avatar?} - update your own profile.
+pub(crate) async fn api_auth_update_account(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let uid = auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let mut users = state.users.write().await;
+    // Reject renaming to a name another account already uses.
+    if let Some(name) = body["display_name"].as_str() {
+        let name = name.trim();
+        if !name.is_empty()
+            && users
+                .values()
+                .any(|u| u.id != uid && u.display_name.to_lowercase() == name.to_lowercase())
+        {
+            return Err(StatusCode::CONFLICT);
+        }
+    }
+    let user = users.get_mut(&uid).ok_or(StatusCode::NOT_FOUND)?;
+    if let Some(name) = body["display_name"].as_str() {
+        let name = name.trim();
+        if !name.is_empty() && name.chars().count() <= 60 {
+            user.display_name = name.to_string();
+        }
+    }
+    if let Some(av) = body.get("avatar") {
+        if av.is_null() {
+            user.avatar = None;
+        } else if let Some(s) = av.as_str() {
+            // Cap the data URL (client resizes to a small thumbnail) to keep the user file
+            // and peer sync light.
+            if s.len() <= 200_000 {
+                user.avatar = Some(s.to_string());
+            }
+        }
+    }
+    let _ = auth_user::save_user(user, std::path::Path::new("users"));
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "display_name": user.display_name,
+        "avatar": user.avatar,
+    })))
 }

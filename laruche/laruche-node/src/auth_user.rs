@@ -46,6 +46,12 @@ pub struct User {
     /// Per-user preferred provider. None = use global.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preferred_provider: Option<String>,
+    /// Optional avatar as a small base64 data URL (resized client-side). None = initials.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub avatar: Option<String>,
+    /// Base32 TOTP secret once 2FA is enabled. None = no 2FA.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub totp_secret: Option<String>,
 }
 
 /// A pending login challenge (ephemeral, 60s TTL).
@@ -118,6 +124,8 @@ pub fn create_user(display_name: &str, role: UserRole, password: Option<&str>) -
         password_hash,
         preferred_model: None,
         preferred_provider: None,
+        avatar: None,
+        totp_secret: None,
     }
 }
 

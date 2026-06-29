@@ -1924,6 +1924,7 @@ async fn main() -> Result<()> {
         )
         .route("/api/admin/users/:id/role", post(auth_api::api_admin_set_role))
         .route("/api/auth/password", post(auth_api::api_auth_set_password))
+        .route("/api/auth/account", post(auth_api::api_auth_update_account))
         .route("/api/auth/model", post(auth_api::api_auth_set_model))
         .route("/auth/scan/:id", get(auth_api::auth_scan_challenge))
         .route("/auth/link/:user_id/:secret", get(auth_api::auth_permanent_link))

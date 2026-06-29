@@ -622,7 +622,11 @@ LaRuche.Auth = (function(){
     var name=document.getElementById('userName');
     if(badge){badge.style.display='flex';}
     var initial=(currentUser.display_name||'?').charAt(0).toUpperCase();
-    if(avatar){avatar.textContent=initial; if(currentUser.role==='admin') avatar.style.borderColor='var(--amber)';}
+    if(avatar){
+      if(currentUser.avatar){ avatar.innerHTML='<img src="'+currentUser.avatar+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'; }
+      else { avatar.innerHTML=''; avatar.textContent=initial; }
+      if(currentUser.role==='admin') avatar.style.borderColor='var(--amber)';
+    }
     if(name){name.textContent=currentUser.display_name+(currentUser.role==='admin'?' (admin)':'');}
   }
   function isAdmin(){ return currentUser && currentUser.role==='admin'; }
@@ -785,7 +789,7 @@ LaRuche.Auth = (function(){
   }
 
   return {
-    init:init, isAuthenticated:isAuthenticated, getUser:getUser, isAdmin:isAdmin,
+    init:init, isAuthenticated:isAuthenticated, getUser:getUser, isAdmin:isAdmin, refreshBadge:showUserBadge,
     enroll:enroll, loginPassword:loginPassword,
     showLoginMode:showLoginMode, showEnrollMode:showEnrollMode, showQrMode:showQrMode,
     startChallenge:startChallenge, continueToChat:continueToChat, logout:logout

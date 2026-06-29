@@ -424,7 +424,23 @@ LaRuche.i18n.add({
   'settings.navSecrets':       {fr:'Secrets & Webhooks', en:'Secrets & Webhooks'},
   'settings.navNetwork':       {fr:'Réseau / Mesh',      en:'Network / Mesh'},
   'settings.navCapabilities':  {fr:'Capacités',          en:'Capabilities'},
+  'settings.navProfile':       {fr:'Profil',             en:'Profile'},
   'settings.navAdmin':         {fr:'Admin',              en:'Admin'},
+  'settings.profileAccount':   {fr:'Compte',             en:'Account'},
+  'settings.profileAvatar':    {fr:'Photo',              en:'Photo'},
+  'settings.profileChangePhoto':{fr:'Changer',           en:'Change'},
+  'settings.profileName':      {fr:'Nom affiché',        en:'Display name'},
+  'settings.profilePassword':  {fr:'Mot de passe',       en:'Password'},
+  'settings.profilePwSet':     {fr:'Un mot de passe est défini.', en:'A password is set.'},
+  'settings.profilePwNone':    {fr:'Aucun mot de passe : définis-en un pour pouvoir te reconnecter.', en:'No password yet: set one so you can log back in.'},
+  'settings.profileNewPw':     {fr:'Nouveau mot de passe', en:'New password'},
+  'settings.profilePwChanged': {fr:'Mot de passe mis à jour.', en:'Password updated.'},
+  'settings.profile2fa':       {fr:'Double authentification (2FA)', en:'Two-factor (2FA)'},
+  'settings.profile2faOn':     {fr:'2FA activée (TOTP).', en:'2FA enabled (TOTP).'},
+  'settings.profile2faOff':    {fr:'2FA désactivée. (Enrôlement TOTP bientôt.)', en:'2FA disabled. (TOTP enrollment coming.)'},
+  'settings.profileFiche':     {fr:'Ce que LaRuche sait de toi', en:'What LaRuche knows about you'},
+  'settings.profileFicheDesc': {fr:'Injecté dans le contexte de LaRuche pour personnaliser ses réponses.', en:'Injected into LaRuche context to personalize its answers.'},
+  'settings.profileSaved':     {fr:'Profil enregistré.',  en:'Profile saved.'},
   'settings.searchPlaceholder':{fr:'Rechercher un réglage...', en:'Search a setting...'},
   'settings.adminDesc':        {fr:'Gérer les comptes utilisateur de cette ruche.', en:'Manage the user accounts on this hive.'},
   'settings.adminNoUsers':     {fr:'Aucun compte.',      en:'No accounts.'},
@@ -449,6 +465,7 @@ LaRuche.Settings = (function(){
   // loader) is preserved: switching a section still calls the matching load*().
   function _ic(path){ return '<svg class="settings-nav-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+path+'</svg>'; }
   var SECTIONS = [
+    { id:'profile',      i18n:'settings.navProfile',      icon:_ic('<circle cx="12" cy="8" r="4"/><path d="M5 20a7 7 0 0 1 14 0"/>') },
     { id:'general',      i18n:'settings.navGeneral',      icon:_ic('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>') },
     { id:'generation',   i18n:'settings.navGeneration',   icon:_ic('<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z"/>') },
     { id:'providers',    i18n:'settings.navModels',       icon:_ic('<path d="M9.5 2a4.5 4.5 0 0 0-4.4 5.6A4.5 4.5 0 0 0 4 16.5 4.5 4.5 0 0 0 12 19V4.5A2.5 2.5 0 0 0 9.5 2z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5V19a4.5 4.5 0 0 0 8-2.5 4.5 4.5 0 0 0-1.1-8.9A4.5 4.5 0 0 0 14.5 2z"/>') },
@@ -573,6 +590,7 @@ LaRuche.Settings = (function(){
     host.appendChild(el);
     el.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px">'+LaRuche.i18n.t('settings.loading')+'</div>';
     switch(tab) {
+      case 'profile': loadProfile(el); break;
       case 'general': loadGeneral(el); break;
       case 'generation': loadGeneration(el); break;
       case 'providers': loadProviders(el); break;
@@ -2160,6 +2178,75 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     }
   }
 
+  function _avatarInner(u){
+    if(u && u.avatar) return '<img src="'+u.avatar+'" alt="" style="width:100%;height:100%;object-fit:cover">';
+    return LaRuche.Utils.esc(((u&&u.display_name)||'?').charAt(0).toUpperCase());
+  }
+  function loadProfile(el){
+    var T=LaRuche.i18n.t.bind(LaRuche.i18n), esc=LaRuche.Utils.esc;
+    var u=(LaRuche.Auth&&LaRuche.Auth.getUser&&LaRuche.Auth.getUser())||{};
+    el.innerHTML =
+      '<div class="settings-card"><div class="settings-card-title">'+T('settings.profileAccount')+'</div>'+
+        '<div class="settings-row"><span class="settings-label">'+T('settings.profileAvatar')+'</span><span style="display:flex;align-items:center;gap:8px">'+
+          '<span id="profAvatar" style="width:44px;height:44px;border-radius:50%;background:var(--bg-card);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-weight:700;overflow:hidden">'+_avatarInner(u)+'</span>'+
+          '<input type="file" id="profAvatarFile" accept="image/*" style="display:none">'+
+          '<button class="form-btn" style="font-size:10px;padding:2px 8px" onclick="document.getElementById(\'profAvatarFile\').click()">'+T('settings.profileChangePhoto')+'</button>'+
+          (u.avatar?'<button class="form-btn" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:var(--red)" onclick="LaRuche.Settings.profileRemoveAvatar()">'+T('settings.tlDelete')+'</button>':'')+
+        '</span></div>'+
+        '<div class="settings-row"><span class="settings-label">'+T('settings.profileName')+'</span><span style="display:flex;gap:6px"><input type="text" id="profName" class="form-input" style="width:160px;padding:2px 6px" value="'+esc(u.display_name||'')+'"><button class="form-btn" style="font-size:10px;padding:2px 8px" onclick="LaRuche.Settings.profileSaveName()">'+T('settings.save')+'</button></span></div>'+
+      '</div>'+
+      '<div class="settings-card"><div class="settings-card-title">'+T('settings.profilePassword')+'</div><div class="settings-card-desc">'+(u.has_password?T('settings.profilePwSet'):T('settings.profilePwNone'))+'</div>'+
+        '<div class="settings-row"><span class="settings-label">'+T('settings.profileNewPw')+'</span><span style="display:flex;gap:6px"><input type="password" id="profPw" class="form-input" style="width:160px;padding:2px 6px" autocomplete="new-password"><button class="form-btn" style="font-size:10px;padding:2px 8px" onclick="LaRuche.Settings.profileSavePassword()">'+T('settings.save')+'</button></span></div>'+
+      '</div>'+
+      '<div class="settings-card"><div class="settings-card-title">'+T('settings.profile2fa')+'</div><div class="settings-card-desc">'+(u.totp_enabled?T('settings.profile2faOn'):T('settings.profile2faOff'))+'</div></div>'+
+      '<div class="settings-card"><div class="settings-card-title">'+T('settings.profileFiche')+'</div><div class="settings-card-desc">'+T('settings.profileFicheDesc')+'</div>'+
+        '<textarea id="profFiche" class="form-input" style="width:100%;min-height:120px;margin-top:6px;box-sizing:border-box"></textarea>'+
+        '<button class="form-btn" style="margin-top:8px" onclick="LaRuche.Settings.profileSaveFiche()">'+T('settings.save')+'</button>'+
+      '</div>';
+    var f=document.getElementById('profAvatarFile'); if(f) f.addEventListener('change', _profAvatarPick);
+    fetch('/api/profile').then(function(r){return r.json();}).then(function(d){ var ta=document.getElementById('profFiche'); if(ta) ta.value=(d&&(d.fiche||d.content||d.text))||''; }).catch(function(){});
+  }
+  function _profAvatarPick(e){
+    var file=e.target.files&&e.target.files[0]; if(!file) return;
+    var reader=new FileReader();
+    reader.onload=function(ev){
+      var img=new Image();
+      img.onload=function(){
+        var c=document.createElement('canvas'); c.width=c.height=128;
+        var ctx=c.getContext('2d');
+        var s=Math.min(img.width,img.height), sx=(img.width-s)/2, sy=(img.height-s)/2;
+        ctx.drawImage(img,sx,sy,s,s,0,0,128,128);
+        var data=c.toDataURL('image/jpeg',0.82);
+        _profSave({avatar:data}, function(){ var a=document.getElementById('profAvatar'); if(a) a.innerHTML='<img src="'+data+'" alt="" style="width:100%;height:100%;object-fit:cover">'; if(LaRuche.Auth.getUser()) LaRuche.Auth.getUser().avatar=data; if(LaRuche.Auth.refreshBadge) LaRuche.Auth.refreshBadge(); });
+      };
+      img.src=ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+  function _profSave(body, ok){
+    fetch('/api/auth/account',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(r){
+      if(r.status===409){ LaRuche.Toast.show(LaRuche.i18n.t('core.nameTaken'),'err'); return; }
+      if(!r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.saveFailed'),'err'); return; }
+      LaRuche.Toast.show(LaRuche.i18n.t('settings.profileSaved'),'ok'); if(ok) ok();
+    });
+  }
+  function profileSaveName(){ var v=(document.getElementById('profName')||{}).value||''; if(!v.trim()) return; _profSave({display_name:v.trim()}, function(){ var uu=LaRuche.Auth.getUser&&LaRuche.Auth.getUser(); if(uu) uu.display_name=v.trim(); if(LaRuche.Auth.refreshBadge) LaRuche.Auth.refreshBadge(); }); }
+  function profileRemoveAvatar(){ _profSave({avatar:null}, function(){ var uu=LaRuche.Auth.getUser&&LaRuche.Auth.getUser(); if(uu) uu.avatar=null; loadProfile(document.getElementById('settingsContent')); if(LaRuche.Auth.refreshBadge) LaRuche.Auth.refreshBadge(); }); }
+  function profileSavePassword(){
+    var el=document.getElementById('profPw'); var pw=el?el.value:'';
+    if(pw.length<6){ LaRuche.Toast.show(LaRuche.i18n.t('core.passwordMin'),'err'); return; }
+    fetch('/api/auth/password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})}).then(function(r){return r.ok?r.json():null;}).then(function(d){
+      if(d&&!d.error){ LaRuche.Toast.show(LaRuche.i18n.t('settings.profilePwChanged'),'ok'); if(el) el.value=''; }
+      else LaRuche.Toast.show((d&&d.error)||LaRuche.i18n.t('settings.saveFailed'),'err');
+    });
+  }
+  function profileSaveFiche(){
+    var ta=document.getElementById('profFiche'); var v=ta?ta.value:'';
+    fetch('/api/profile',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({fiche:v})}).then(function(r){
+      LaRuche.Toast.show(r.ok?LaRuche.i18n.t('settings.profileSaved'):LaRuche.i18n.t('settings.saveFailed'), r.ok?'ok':'err');
+    });
+  }
+
   function loadAdmin(el){
     el.innerHTML = '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.navAdmin')+'</div><div class="settings-card-desc">'+LaRuche.i18n.t('settings.adminDesc')+'</div><div id="adminUserList" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"><div style="color:var(--text-dim);font-size:11px">'+LaRuche.i18n.t('common.loading')+'</div></div></div>';
     fetch('/api/admin/users').then(function(r){ if(!r.ok) throw new Error(); return r.json(); }).then(function(d){
@@ -2641,7 +2728,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.codexError'),'err'); });
   }
 
-  return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
+  return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
     loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
