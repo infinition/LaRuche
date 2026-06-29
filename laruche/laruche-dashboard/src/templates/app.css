@@ -309,6 +309,40 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .header-nav a:hover { color:var(--text); }
 .header-nav a.active { color:var(--amber); border-bottom-color:var(--amber); }
 
+/* iOS-style notification badge on a nav tab (e.g. pending memory proposals). */
+.nav-badge {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:16px; height:16px; padding:0 5px; margin-left:6px;
+  font-size:10px; font-weight:700; line-height:1; color:#fff;
+  background:var(--red); border-radius:9px; box-shadow:0 0 0 1px rgba(0,0,0,.3);
+}
+.mobile-tabs a { position:relative; }
+.mobile-tabs a .nav-badge { position:absolute; top:2px; right:8px; margin-left:0; }
+
+/* LaReine pending-proposals panel, surfaced at the top of the Memory page. */
+.mem-proposals {
+  margin:0 0 10px; padding:10px 12px;
+  background:linear-gradient(180deg, rgba(245,158,11,.08), rgba(245,158,11,.02));
+  border:1px solid rgba(245,158,11,.3); border-radius:8px;
+}
+.mem-proposals-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; gap:8px; }
+.mem-proposals-title { font-size:12px; font-weight:600; color:var(--amber); }
+.mem-prop-count {
+  display:inline-flex; align-items:center; justify-content:center;
+  min-width:16px; height:16px; padding:0 5px; margin-left:4px;
+  font-size:10px; font-weight:700; color:#fff; background:var(--red); border-radius:9px;
+}
+.mem-prop-item {
+  display:flex; align-items:flex-start; gap:8px; padding:7px 0;
+  border-top:1px solid rgba(255,255,255,.06);
+}
+.mem-prop-dot { font-size:9px; margin-top:4px; }
+.mem-prop-main { flex:1; min-width:0; }
+.mem-prop-target { color:var(--text); font-size:12px; font-weight:600; word-break:break-word; }
+.mem-prop-preview { color:var(--text-dim); font-size:11px; margin-top:2px; word-break:break-word; }
+.mem-prop-meta { color:var(--text-muted); font-size:9px; margin-top:2px; text-transform:uppercase; letter-spacing:.4px; }
+.mem-prop-actions { display:flex; gap:4px; flex-shrink:0; }
+
 .header-right { display:flex; align-items:center; gap:12px; font-size:12px; color:var(--text-dim); }
 .model-select {
   background:var(--bg-input); border:1px solid var(--border); border-radius:6px;

@@ -156,6 +156,7 @@ LaRuche.Memory = (function(){
       var q = input.value.trim();
       searchTimer = setTimeout(function(){ q ? runSearch(q) : refreshTree(); }, 220);
     });
+    startProposalsPoll();
   }
 
   // dispatch based on the current mode (semantic vs exact content)
@@ -204,9 +205,10 @@ LaRuche.Memory = (function(){
   }
 
   var memPollTimer = null;
-  function enter() { 
-    setView('tree'); 
-    if(!loaded) loadTree(); else renderTree(); 
+  function enter() {
+    setView('tree');
+    if(!loaded) loadTree(); else renderTree();
+    refreshProposals();
     if(!memPollTimer) memPollTimer = setInterval(function(){
       var input = document.getElementById('mem2Search');
       if (input && input.value.trim()) return; // Pause auto-refresh during search
@@ -1204,6 +1206,78 @@ LaRuche.Memory = (function(){
     renderTree();
   }
 
+  // ── LaReine proposals (Tier 2 queue): surfaced here in Memory + a nav badge ──
+  var propPollTimer = null;
+
+  // Fetch the queue, update the iOS-style nav badge (count of pending) and, when on
+  // the Memory page, the proposals panel. Runs on a poll so the badge stays live
+  // regardless of which page is open.
+  function refreshProposals() {
+    return fetch(LaRuche.API.base+'/api/reine/proposals',{credentials:'include'})
+      .then(function(r){return r.json();})
+      .catch(function(){return {proposals:[]};})
+      .then(function(d){
+        var pend = (d.proposals||[]).filter(function(p){ return p.status==='EnAttente'; });
+        updateProposalsBadge(pend.length);
+        renderProposalsPanel(pend);
+        return pend.length;
+      });
+  }
+
+  function updateProposalsBadge(n) {
+    var badges = document.querySelectorAll('.nav-badge-memory');
+    for (var i=0;i<badges.length;i++){
+      badges[i].textContent = n>99 ? '99+' : String(n);
+      badges[i].style.display = n>0 ? '' : 'none';
+    }
+  }
+
+  function renderProposalsPanel(pend) {
+    var panel = document.getElementById('memProposalsPanel');
+    var list = document.getElementById('memProposalsList');
+    var count = document.getElementById('memProposalsCount');
+    if(!panel || !list) return;
+    if(!pend.length){ panel.style.display='none'; list.innerHTML=''; return; }
+    panel.style.display='';
+    if(count) count.textContent = String(pend.length);
+    list.innerHTML = pend.map(function(p){
+      var rc = p.risk==='Critique'?'var(--red)':(p.risk==='Sensible'?'var(--amber)':'var(--green)');
+      var meta = [p.type, p.provenance].filter(Boolean).map(esc).join(' · ');
+      return '<div class="mem-prop-item">'+
+        '<span class="mem-prop-dot" style="color:'+rc+'">●</span>'+
+        '<div class="mem-prop-main">'+
+          '<div class="mem-prop-target">'+esc(p.target||p.type||'')+'</div>'+
+          (p.preview?'<div class="mem-prop-preview">'+esc(p.preview)+'</div>':'')+
+          (meta?'<div class="mem-prop-meta">'+meta+'</div>':'')+
+        '</div>'+
+        '<div class="mem-prop-actions">'+
+          '<button class="mem2-tbtn" onclick="LaRuche.Memory.approveProposal(\''+p.id+'\')">'+LaRuche.i18n.t('reine.queueApprove')+'</button>'+
+          '<button class="mem2-tbtn" onclick="LaRuche.Memory.rejectProposal(\''+p.id+'\')">'+LaRuche.i18n.t('reine.queueReject')+'</button>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }
+
+  function approveProposal(id){
+    fetch(LaRuche.API.base+'/api/reine/proposals/'+encodeURIComponent(id)+'/approve',{method:'POST',credentials:'include'})
+      .then(function(){ refreshProposals(); if(loaded) loadTree(true); });
+  }
+  function rejectProposal(id){
+    fetch(LaRuche.API.base+'/api/reine/proposals/'+encodeURIComponent(id)+'/reject',{method:'POST',credentials:'include'})
+      .then(function(){ refreshProposals(); });
+  }
+  function applySafeProposals(){
+    fetch(LaRuche.API.base+'/api/reine/proposals/apply-safe',{method:'POST',credentials:'include'})
+      .then(function(r){return r.json();})
+      .then(function(d){ if(LaRuche.Toast) LaRuche.Toast.show((d.applied||0)+' OK','ok'); refreshProposals(); if(loaded) loadTree(true); })
+      .catch(function(){ refreshProposals(); });
+  }
+
+  function startProposalsPoll() {
+    refreshProposals();
+    if(!propPollTimer) propPollTimer = setInterval(refreshProposals, 20000);
+  }
+
   return {
     init:init, enter:enter, leave:leave, current:function(){return current;},
     loadNode:loadNode, setView:setView,
@@ -1211,7 +1285,9 @@ LaRuche.Memory = (function(){
     toggleAll:toggleAll, deleteNode:deleteNode, renameNode:renameNode,
     createSubnode:createSubnode, moveItem:moveItem,
     toggleEditMode:toggleEditMode, createRoot:createRoot,
-    toggleExact:toggleExact
+    toggleExact:toggleExact,
+    refreshProposals:refreshProposals, startProposalsPoll:startProposalsPoll,
+    approveProposal:approveProposal, rejectProposal:rejectProposal, applySafeProposals:applySafeProposals
   };
 })();
 

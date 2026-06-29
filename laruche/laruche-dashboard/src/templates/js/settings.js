@@ -522,13 +522,12 @@ LaRuche.Settings = (function(){
       '<div class="settings-row" title="'+LaRuche.i18n.t('reine.queueGateHint')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.queueGate')+'</span><label class="lr-switch"><input type="checkbox" id="cfgReineQueue" '+(reineCfg.queue_gate?'checked':'')+'><span class="lr-slider"></span></label></div>'+
       '<button class="form-btn" onclick="LaRuche.Settings.saveReineCfg()" style="margin-top:8px;">'+LaRuche.i18n.t('settings.save')+'</button>'+
       '<div style="margin-top:10px;border-top:1px solid rgba(245,158,11,.2);padding-top:8px">'+
-      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('reine.queueTitle')+'</span><button class="form-btn" style="font-size:10px;padding:2px 8px" onclick="LaRuche.Settings.reineApplySafe()">'+LaRuche.i18n.t('reine.queueApplySafe')+'</button></div>'+
-      '<div id="reineProposals" style="font-size:11px;color:var(--text-dim);margin-top:4px"></div></div></div>'+
+      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('reine.queueTitle')+'</span><span style="font-size:10px;color:var(--text-dim);text-align:right">'+LaRuche.i18n.t('reine.queueInMemory')+'</span></div>'+
+      '</div></div>'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.system')+'</div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.showTransparency')+'</span><label class="lr-switch"><input type="checkbox" id="cfgTransparence" onchange="window.localStorage.setItem(\'laruche_hide_transparency\', this.checked ? \'false\' : \'true\')" \'+(window.localStorage.getItem(\'laruche_hide_transparency\') !== \'true\' ? \'checked\' : \'\')+\'><span class="lr-slider"></span></label></div>'+
       ((doc.checks||[]).map(function(c){return '<div class="settings-row"><span class="settings-label">'+c.name+'</span><span style="color:'+(c.status==='ok'?'var(--green)':'var(--red)')+'">'+c.status+'</span></div>';}).join('')||'<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.statusLabel')+'</span><span class="settings-value">'+LaRuche.i18n.t('settings.statusOkValue')+'</span></div>')+
       '</div></div>';
-    renderReineProposals();
   }
 
   // ── Providers Tab ─────────────────────────────────────────────

@@ -4799,6 +4799,14 @@
     "en": "Apply all safe",
     "fr": "Tout appliquer (sûr)"
   },
+  "reine.queueApplySafeHint": {
+    "en": "Approve every safe addition (new, non-colliding facts) at once.",
+    "fr": "Approuver d'un coup tous les ajouts sûrs (faits nouveaux, sans collision)."
+  },
+  "reine.queueInMemory": {
+    "en": "Reviewed in the Memory tab",
+    "fr": "Gérées dans l'onglet Mémoire"
+  },
   "reine.statusPending": {
     "en": "Pending",
     "fr": "En attente"
