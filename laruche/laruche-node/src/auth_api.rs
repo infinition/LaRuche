@@ -440,3 +440,82 @@ pub(crate) async fn api_auth_set_model(
         Err(StatusCode::NOT_FOUND)
     }
 }
+
+// ======================== Admin: user management ========================
+
+/// GET /api/admin/users - list all accounts (admin only).
+pub(crate) async fn api_admin_list_users(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let users = state.users.read().await;
+    let (uid, is_admin) = auth_user::check_admin(&headers, &state.cookie_secret, &users);
+    if !is_admin {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let mut list: Vec<serde_json::Value> = users
+        .values()
+        .map(|u| {
+            serde_json::json!({
+                "id": u.id.to_string(),
+                "display_name": u.display_name,
+                "role": u.role,
+                "has_password": u.password_hash.is_some(),
+                "created_at": u.created_at,
+                "is_self": Some(u.id) == uid,
+            })
+        })
+        .collect();
+    list.sort_by(|a, b| a["display_name"].as_str().cmp(&b["display_name"].as_str()));
+    Ok(Json(serde_json::json!({ "users": list })))
+}
+
+/// DELETE /api/admin/users/:id - delete an account (admin only; cannot delete yourself).
+pub(crate) async fn api_admin_delete_user(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let target = Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let mut users = state.users.write().await;
+    let (uid, is_admin) = auth_user::check_admin(&headers, &state.cookie_secret, &users);
+    if !is_admin {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    if Some(target) == uid {
+        return Err(StatusCode::BAD_REQUEST); // cannot delete yourself
+    }
+    if users.remove(&target).is_none() {
+        return Err(StatusCode::NOT_FOUND);
+    }
+    let _ = std::fs::remove_file(std::path::Path::new("users").join(format!("{target}.json")));
+    info!(target = %target, "Admin deleted user");
+    Ok(Json(serde_json::json!({ "status": "deleted", "id": id })))
+}
+
+/// POST /api/admin/users/:id/role {role} - change a user's role (admin only).
+pub(crate) async fn api_admin_set_role(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let target = Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let role = match body["role"].as_str() {
+        Some("admin") => auth_user::UserRole::Admin,
+        Some("user") => auth_user::UserRole::User,
+        _ => return Err(StatusCode::BAD_REQUEST),
+    };
+    let mut users = state.users.write().await;
+    let (uid, is_admin) = auth_user::check_admin(&headers, &state.cookie_secret, &users);
+    if !is_admin {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    if Some(target) == uid && role == auth_user::UserRole::User {
+        return Err(StatusCode::BAD_REQUEST); // do not demote yourself (avoid lockout)
+    }
+    let user = users.get_mut(&target).ok_or(StatusCode::NOT_FOUND)?;
+    user.role = role;
+    let _ = auth_user::save_user(user, std::path::Path::new("users"));
+    Ok(Json(serde_json::json!({ "status": "ok", "id": id, "role": user.role })))
+}

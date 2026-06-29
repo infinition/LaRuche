@@ -1917,6 +1917,12 @@ async fn main() -> Result<()> {
         .route("/api/auth/status/:id", get(auth_api::api_auth_status))
         .route("/api/auth/logout", post(auth_api::api_auth_logout))
         .route("/api/auth/login", post(auth_api::api_auth_login))
+        .route("/api/admin/users", get(auth_api::api_admin_list_users))
+        .route(
+            "/api/admin/users/:id",
+            axum::routing::delete(auth_api::api_admin_delete_user),
+        )
+        .route("/api/admin/users/:id/role", post(auth_api::api_admin_set_role))
         .route("/api/auth/password", post(auth_api::api_auth_set_password))
         .route("/api/auth/model", post(auth_api::api_auth_set_model))
         .route("/auth/scan/:id", get(auth_api::auth_scan_challenge))

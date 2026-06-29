@@ -424,7 +424,17 @@ LaRuche.i18n.add({
   'settings.navSecrets':       {fr:'Secrets & Webhooks', en:'Secrets & Webhooks'},
   'settings.navNetwork':       {fr:'Réseau / Mesh',      en:'Network / Mesh'},
   'settings.navCapabilities':  {fr:'Capacités',          en:'Capabilities'},
+  'settings.navAdmin':         {fr:'Admin',              en:'Admin'},
   'settings.searchPlaceholder':{fr:'Rechercher un réglage...', en:'Search a setting...'},
+  'settings.adminDesc':        {fr:'Gérer les comptes utilisateur de cette ruche.', en:'Manage the user accounts on this hive.'},
+  'settings.adminNoUsers':     {fr:'Aucun compte.',      en:'No accounts.'},
+  'settings.adminLoadError':   {fr:'Impossible de charger les comptes.', en:'Could not load the accounts.'},
+  'settings.adminPromote':     {fr:'Promouvoir admin',   en:'Make admin'},
+  'settings.adminDemote':      {fr:'Rétrograder',        en:'Demote'},
+  'settings.adminYou':         {fr:'(toi)',              en:'(you)'},
+  'settings.adminNoPw':        {fr:'sans mdp',           en:'no password'},
+  'settings.adminConfirmDelete':{fr:'Supprimer le compte "{name}" ? Action irréversible.', en:'Delete the account "{name}"? This cannot be undone.'},
+  'settings.adminDeleted':     {fr:'Compte supprimé.',   en:'Account deleted.'},
   'settings.searchNoResults':  {fr:'Aucun réglage ne correspond.', en:'No setting matches.'},
   'settings.language':         {fr:'Langue',             en:'Language'},
   'settings.languageHint':     {fr:'Recharge l\'interface dans la langue choisie.', en:'Reloads the interface in the chosen language.'},
@@ -447,15 +457,20 @@ LaRuche.Settings = (function(){
     { id:'channels',     i18n:'settings.navChannels',     icon:_ic('<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"/>') },
     { id:'secrets',      i18n:'settings.navSecrets',      icon:_ic('<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>') },
     { id:'network',      i18n:'settings.navNetwork',      icon:_ic('<circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>') },
-    { id:'capabilities', i18n:'settings.navCapabilities', icon:_ic('<path d="M19.4 13a2.4 2.4 0 0 1 0-4.8h.6V6a2 2 0 0 0-2-2h-2.2v-.6a2.4 2.4 0 0 0-4.8 0V4H8a2 2 0 0 0-2 2v2.2H5.4a2.4 2.4 0 0 0 0 4.8H6V17a2 2 0 0 0 2 2h2.2v.6a2.4 2.4 0 0 0 4.8 0V19H18a2 2 0 0 0 2-2v-4z"/>') }
+    { id:'capabilities', i18n:'settings.navCapabilities', icon:_ic('<path d="M19.4 13a2.4 2.4 0 0 1 0-4.8h.6V6a2 2 0 0 0-2-2h-2.2v-.6a2.4 2.4 0 0 0-4.8 0V4H8a2 2 0 0 0-2 2v2.2H5.4a2.4 2.4 0 0 0 0 4.8H6V17a2 2 0 0 0 2 2h2.2v.6a2.4 2.4 0 0 0 4.8 0V19H18a2 2 0 0 0 2-2v-4z"/>') },
+    { id:'admin', i18n:'settings.navAdmin', adminOnly:true, icon:_ic('<path d="M12 2l8 4v5c0 5-3.4 8.5-8 10-4.6-1.5-8-5-8-10V6z"/><circle cx="12" cy="10" r="2.2"/><path d="M8.5 16a3.5 3.5 0 0 1 7 0"/>') }
   ];
+  function _visibleSections(){
+    var admin = !!(LaRuche.Auth && LaRuche.Auth.isAdmin && LaRuche.Auth.isAdmin());
+    return SECTIONS.filter(function(s){ return !s.adminOnly || admin; });
+  }
   // Legacy alias: old code/links that referenced 'mcp' now resolve to the Capabilities section.
   var _ALIASES = { mcp:'capabilities', models:'providers' };
 
   function _renderNav(){
     var bar = document.getElementById('settingsTabsBar');
     if(!bar) return;
-    bar.innerHTML = SECTIONS.map(function(s){
+    bar.innerHTML = _visibleSections().map(function(s){
       var on = (s.id===currentTab) ? ' active' : '';
       return '<button class="settings-tab-btn settings-nav-btn'+on+'" data-tab="'+s.id+'">'+s.icon+'<span class="settings-nav-label">'+LaRuche.i18n.t(s.i18n)+'</span></button>';
     }).join('');
@@ -570,6 +585,7 @@ LaRuche.Settings = (function(){
       case 'channels': loadChannels(el); break;
       case 'knowledge': loadKnowledge(el); break;
       case 'network': loadNetwork(el); break;
+      case 'admin': loadAdmin(el); break;
       case 'cron': loadCron(el); break;
       case 'cron-timeline': loadCronTimeline(el); break;
       case 'blueprints': loadBlueprints(el); break;
@@ -2144,6 +2160,37 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     }
   }
 
+  function loadAdmin(el){
+    el.innerHTML = '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.navAdmin')+'</div><div class="settings-card-desc">'+LaRuche.i18n.t('settings.adminDesc')+'</div><div id="adminUserList" style="display:flex;flex-direction:column;gap:6px;margin-top:8px"><div style="color:var(--text-dim);font-size:11px">'+LaRuche.i18n.t('common.loading')+'</div></div></div>';
+    fetch('/api/admin/users').then(function(r){ if(!r.ok) throw new Error(); return r.json(); }).then(function(d){
+      var host = document.getElementById('adminUserList'); if(!host) return;
+      var users = d.users||[];
+      if(!users.length){ host.innerHTML = '<div style="color:var(--text-dim);font-size:11px">'+LaRuche.i18n.t('settings.adminNoUsers')+'</div>'; return; }
+      host.innerHTML = users.map(function(u){
+        var isAdmin = u.role==='admin';
+        var safeName = (u.display_name||'').replace(/[\\']/g,'');
+        var roleBadge = '<span style="font-size:9px;padding:1px 6px;border-radius:4px;border:1px solid '+(isAdmin?'var(--amber)':'var(--border)')+';color:'+(isAdmin?'var(--amber)':'var(--text-dim)')+'">'+(isAdmin?'admin':'user')+'</span>';
+        var pw = u.has_password ? '' : ' <span style="font-size:9px;color:var(--red)">'+LaRuche.i18n.t('settings.adminNoPw')+'</span>';
+        var roleBtn = u.is_self ? '' : '<button class="form-btn" style="font-size:10px;padding:2px 6px" onclick="LaRuche.Settings.adminSetRole(\''+u.id+'\',\''+(isAdmin?'user':'admin')+'\')">'+(isAdmin?LaRuche.i18n.t('settings.adminDemote'):LaRuche.i18n.t('settings.adminPromote'))+'</button>';
+        var delBtn = u.is_self ? '<span style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.adminYou')+'</span>' : '<button class="form-btn" style="font-size:10px;padding:2px 6px;color:var(--red);border-color:var(--red)" onclick="LaRuche.Settings.adminDeleteUser(\''+u.id+'\',\''+safeName+'\')">'+LaRuche.i18n.t('settings.tlDelete')+'</button>';
+        return '<div class="settings-row"><span class="settings-label" style="flex:1">'+LaRuche.Utils.esc(u.display_name)+' '+roleBadge+pw+'</span><span style="display:flex;gap:6px;align-items:center">'+roleBtn+delBtn+'</span></div>';
+      }).join('');
+    }).catch(function(){ var host=document.getElementById('adminUserList'); if(host) host.innerHTML='<div style="color:var(--red);font-size:11px">'+LaRuche.i18n.t('settings.adminLoadError')+'</div>'; });
+  }
+  function adminDeleteUser(id, name){
+    if(!confirm(LaRuche.i18n.t('settings.adminConfirmDelete',{name:name}))) return;
+    fetch('/api/admin/users/'+encodeURIComponent(id),{method:'DELETE'}).then(function(r){
+      if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.adminDeleted'),'ok'); loadAdmin(document.getElementById('settingsContent')); }
+      else LaRuche.Toast.show(LaRuche.i18n.t('settings.saveFailed'),'err');
+    });
+  }
+  function adminSetRole(id, role){
+    fetch('/api/admin/users/'+encodeURIComponent(id)+'/role',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:role})}).then(function(r){
+      if(r.ok){ loadAdmin(document.getElementById('settingsContent')); }
+      else LaRuche.Toast.show(LaRuche.i18n.t('settings.saveFailed'),'err');
+    });
+  }
+
   async function saveVoiceCfg() {
     var stt_external = !!document.getElementById('cfgSttExternal').checked;
     var speedEl = document.getElementById('cfgTtsSpeed');
@@ -2594,7 +2641,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.codexError'),'err'); });
   }
 
-  return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
+  return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
     loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
