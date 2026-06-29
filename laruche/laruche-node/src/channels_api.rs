@@ -147,12 +147,13 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                 .as_str()
                                 .unwrap_or("?");
 
+                            // The reply format is governed only by the /voice toggle:
+                            // ON -> voice note only; OFF -> text only (whatever the input was).
+                            let voice_on = tg_voice.read().await.contains(&chat_id);
+
                             // Text message, or a voice/audio message we transcribe via STT.
-                            // A voice message gets a voice answer back (voice begets voice),
-                            // in addition to the per-chat /voice toggle.
                             let mut text_owned =
                                 update["message"]["text"].as_str().unwrap_or("").to_string();
-                            let mut was_voice = false;
                             if text_owned.is_empty() && chat_id != 0 {
                                 let file_id = update["message"]["voice"]["file_id"]
                                     .as_str()
@@ -161,11 +162,13 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                 if let Some(fid) = file_id {
                                     match transcribe_telegram_voice(&client, &token, fid).await {
                                         Some(t) => {
-                                            let _ = client.post(format!("{}/sendMessage", api))
-                                                .json(&serde_json::json!({"chat_id": chat_id, "text": format!("🎤 \"{}\"", t)}))
-                                                .send().await;
+                                            // Confirm what was heard only in text mode (voice mode = voice only).
+                                            if !voice_on {
+                                                let _ = client.post(format!("{}/sendMessage", api))
+                                                    .json(&serde_json::json!({"chat_id": chat_id, "text": format!("🎤 \"{}\"", t)}))
+                                                    .send().await;
+                                            }
                                             text_owned = t;
-                                            was_voice = true;
                                         }
                                         None => {
                                             let _ = client.post(format!("{}/sendMessage", api))
@@ -569,7 +572,6 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                             let text_clone = text.to_string();
                             let user_clone = user.to_string();
                             let active_steers_clone = active_steers.clone();
-                            let tg_voice_clone = tg_voice.clone();
 
                             tokio::spawn(async move {
                                 let result = boucle_react_memoire_multimodal(
@@ -630,26 +632,31 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                     .chunks(4000)
                                     .map(|c| c.iter().collect())
                                     .collect();
-                                for chunk in chunks {
-                                    if let Err(error) = send_telegram_text(
-                                        &client_clone,
-                                        &api_clone,
-                                        chat_id,
-                                        &chunk,
-                                    )
-                                    .await
-                                    {
-                                        tracing::error!(error = %error, chat_id, "Telegram final response failed to send");
+                                // /voice ON: send the answer as a voice note ONLY (no text).
+                                // If synthesis fails, fall back to text so nothing is lost.
+                                let voice_sent = if voice_on {
+                                    match send_telegram_voice(&client_clone, &api_clone, chat_id, &response).await {
+                                        Ok(()) => true,
+                                        Err(e) => {
+                                            tracing::warn!(error = %e, chat_id, "Telegram voice reply failed; falling back to text");
+                                            false
+                                        }
                                     }
-                                }
-
-                                // Voice answer when the user sent a voice message, OR opted in
-                                // for this chat via /voice: send the answer as a TTS voice note.
-                                if was_voice || tg_voice_clone.read().await.contains(&chat_id) {
-                                    if let Err(e) =
-                                        send_telegram_voice(&client_clone, &api_clone, chat_id, &response).await
-                                    {
-                                        tracing::warn!(error = %e, chat_id, "Telegram voice reply failed");
+                                } else {
+                                    false
+                                };
+                                if !voice_sent {
+                                    for chunk in &chunks {
+                                        if let Err(error) = send_telegram_text(
+                                            &client_clone,
+                                            &api_clone,
+                                            chat_id,
+                                            chunk,
+                                        )
+                                        .await
+                                        {
+                                            tracing::error!(error = %error, chat_id, "Telegram final response failed to send");
+                                        }
                                     }
                                 }
 
