@@ -660,6 +660,36 @@ fn resolve_model_capability(model_name: &str, capabilities: &[CapabilityConfig])
     infer_capability_from_model_name(model_name)
 }
 
+/// Best-effort local LAN IP (for the cert SAN list), via a UDP connect trick. No packet
+/// is actually sent; the OS just picks the outbound interface address.
+fn detect_local_ip() -> Option<String> {
+    let sock = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
+    sock.connect("8.8.8.8:80").ok()?;
+    sock.local_addr().ok().map(|a| a.ip().to_string())
+}
+
+/// Ensure a self-signed cert + key exist on disk (generated once), returning their
+/// paths. The SANs cover localhost, 127.0.0.1 and the detected LAN IP so HTTPS works
+/// from other devices. Browsers warn on a self-signed cert: accept it once.
+fn ensure_self_signed_cert() -> Option<(String, String)> {
+    let cert_path = "laruche-cert.pem";
+    let key_path = "laruche-key.pem";
+    if std::path::Path::new(cert_path).exists() && std::path::Path::new(key_path).exists() {
+        return Some((cert_path.to_string(), key_path.to_string()));
+    }
+    let mut sans = vec!["localhost".to_string(), "127.0.0.1".to_string()];
+    if let Some(ip) = detect_local_ip() {
+        if !sans.contains(&ip) {
+            sans.push(ip);
+        }
+    }
+    let certified = rcgen::generate_simple_self_signed(sans).ok()?;
+    std::fs::write(cert_path, certified.cert.pem()).ok()?;
+    std::fs::write(key_path, certified.key_pair.serialize_pem()).ok()?;
+    info!(cert = cert_path, "generated self-signed TLS certificate for HTTPS");
+    Some((cert_path.to_string(), key_path.to_string()))
+}
+
 /// Read the "llm" default model from the per-capability map, falling back to config.
 async fn get_llm_default(state: &AppState) -> String {
     // First check profiles (new system)
@@ -2721,7 +2751,14 @@ async fn main() -> Result<()> {
     });
 
     let addr = format!("0.0.0.0:{}", config.api_port);
-    info!("LaRuche ready → http://localhost:{}", config.api_port);
+    let scheme = if std::env::var("LARUCHE_HTTPS").as_deref() == Ok("1")
+        || std::env::var("LARUCHE_TLS_CERT").map(|s| !s.is_empty()).unwrap_or(false)
+    {
+        "https"
+    } else {
+        "http"
+    };
+    info!("LaRuche ready → {scheme}://localhost:{}", config.api_port);
 
     // Sync essaim config from active profile at startup
     profiles_api::sync_essaim_from_profiles(&state).await;
@@ -2941,9 +2978,26 @@ async fn main() -> Result<()> {
         }
     }
 
-    // TLS support: if LARUCHE_TLS_CERT and LARUCHE_TLS_KEY are set, use HTTPS
-    let tls_cert = std::env::var("LARUCHE_TLS_CERT").ok();
-    let tls_key = std::env::var("LARUCHE_TLS_KEY").ok();
+    // TLS: explicit LARUCHE_TLS_CERT/KEY win. Otherwise LARUCHE_HTTPS=1 auto-generates a
+    // self-signed cert (localhost + 127.0.0.1 + LAN IP), so the browser microphone works
+    // from other devices on the network (a secure context), not just localhost.
+    let (tls_cert, tls_key) = {
+        let cert = std::env::var("LARUCHE_TLS_CERT").ok().filter(|s| !s.is_empty());
+        let key = std::env::var("LARUCHE_TLS_KEY").ok().filter(|s| !s.is_empty());
+        if cert.is_some() && key.is_some() {
+            (cert, key)
+        } else if std::env::var("LARUCHE_HTTPS").as_deref() == Ok("1") {
+            match ensure_self_signed_cert() {
+                Some((c, k)) => (Some(c), Some(k)),
+                None => {
+                    error!("LARUCHE_HTTPS=1 but self-signed cert generation failed; serving HTTP");
+                    (None, None)
+                }
+            }
+        } else {
+            (None, None)
+        }
+    };
 
     if use_tui {
         // Spawn server in background, run TUI in foreground
