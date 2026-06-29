@@ -106,6 +106,9 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
     let mut offset: i64 = 0;
     let mut processed_ids: std::collections::HashSet<i64> = std::collections::HashSet::new();
     let mut tg_sessions: std::collections::HashMap<i64, Uuid> = std::collections::HashMap::new();
+    // Chats that opted into voice replies (/voice). In-memory: resets on restart.
+    let tg_voice: Arc<tokio::sync::RwLock<std::collections::HashSet<i64>>> =
+        Arc::new(tokio::sync::RwLock::new(std::collections::HashSet::new()));
     let active_steers: Arc<
         tokio::sync::RwLock<std::collections::HashMap<i64, tokio::sync::mpsc::Sender<String>>>,
     > = Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));
@@ -210,6 +213,7 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                     *Actions*\n\
                                     /clear (or /reset, /start): reset THIS chat's history\n\
                                     /sethome: set THIS chat as the task destination\n\
+                                    /voice: toggle voice-note replies (TTS) for this chat\n\
                                     /delcron <name|all>: delete a cron (or all)\n\n\
                                     _Tip: send a message while a task runs to steer it. The full UI is at the web dashboard._";
                                 let _ = client.post(format!("{}/sendMessage", api))
@@ -355,6 +359,25 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                 let msg = if lignes.is_empty() { "No task.".to_string() }
                                     else { format!("*Kanban tasks* ({})\n{}", lignes.len(), lignes.join("\n")) };
                                 repondre!(msg);
+                            }
+
+                            // /voice: toggle voice-note replies (TTS) for THIS chat.
+                            if text == "/voice" {
+                                let on = {
+                                    let mut v = tg_voice.write().await;
+                                    if v.contains(&chat_id) {
+                                        v.remove(&chat_id);
+                                        false
+                                    } else {
+                                        v.insert(chat_id);
+                                        true
+                                    }
+                                };
+                                repondre!(if on {
+                                    "🔊 Voice replies ON: I will also send my answers as a voice note. (/voice to turn off)"
+                                } else {
+                                    "🔇 Voice replies OFF."
+                                });
                             }
 
                             // /whoami: this chat's identity + session.
@@ -516,6 +539,7 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                             let text_clone = text.to_string();
                             let user_clone = user.to_string();
                             let active_steers_clone = active_steers.clone();
+                            let tg_voice_clone = tg_voice.clone();
 
                             tokio::spawn(async move {
                                 let result = boucle_react_memoire_multimodal(
@@ -589,6 +613,15 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                     }
                                 }
 
+                                // Voice reply (/voice): also send the answer as a TTS voice note.
+                                if tg_voice_clone.read().await.contains(&chat_id) {
+                                    if let Err(e) =
+                                        send_telegram_voice(&client_clone, &api_clone, chat_id, &response).await
+                                    {
+                                        tracing::warn!(error = %e, chat_id, "Telegram voice reply failed");
+                                    }
+                                }
+
                                 let _ = session.sauvegarder();
                                 state_clone
                                     .essaim_sessions
@@ -614,6 +647,55 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
             }
         }
     }
+}
+
+/// Synthesize `text` via the local TTS service (as OGG/opus) and send it as a Telegram
+/// voice note. Best-effort: returns an error string the caller just logs.
+pub(crate) async fn send_telegram_voice(
+    client: &reqwest::Client,
+    api: &str,
+    chat_id: i64,
+    text: &str,
+) -> std::result::Result<(), String> {
+    // Cap the spoken length so a long answer does not become a giant voice note.
+    let spoken: String = text.chars().take(1200).collect();
+    let tts = reqwest::Client::new();
+    let resp = tts
+        .post("http://127.0.0.1:8422/synthesize")
+        .json(&serde_json::json!({ "text": spoken, "format": "ogg" }))
+        .send()
+        .await
+        .map_err(|e| format!("tts request: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("tts status {}", resp.status()));
+    }
+    let is_audio = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|c| c.contains("audio"))
+        .unwrap_or(false);
+    if !is_audio {
+        return Err("tts did not return audio (check the TTS service)".into());
+    }
+    let bytes = resp.bytes().await.map_err(|e| format!("tts read: {e}"))?;
+    let part = reqwest::multipart::Part::bytes(bytes.to_vec())
+        .file_name("voice.ogg")
+        .mime_str("audio/ogg")
+        .map_err(|e| format!("mime: {e}"))?;
+    let form = reqwest::multipart::Form::new()
+        .text("chat_id", chat_id.to_string())
+        .part("voice", part);
+    let r = client
+        .post(format!("{api}/sendVoice"))
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| format!("sendVoice: {e}"))?;
+    if !r.status().is_success() {
+        return Err(format!("sendVoice status {}", r.status()));
+    }
+    Ok(())
 }
 
 /// Sends a plain Telegram message and treats API rejections as real errors.

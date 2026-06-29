@@ -5,6 +5,7 @@ Runs as a FastAPI server, announces itself on Miel with capability:tts.
 """
 
 import io
+import re
 import asyncio
 import tempfile
 import os
@@ -202,14 +203,48 @@ class SynthesizeRequest(BaseModel):
     text: str
     voice: str = EDGE_VOICE
     speed: float = 1.0
+    format: str = "wav"  # "wav"/"mp3" (native) or "ogg" (opus, for voice notes)
+
+
+_EMOJI_RE = re.compile(
+    "[\U0001F000-\U0001FFFF\U00002600-\U000027BF\U00002B00-\U00002BFF"
+    "\U00002190-\U000021FF\U00002300-\U000023FF\U0000FE00-\U0000FE0F\U0000200D\U000020E3]",
+    flags=re.UNICODE,
+)
+
+
+def clean_for_speech(text: str) -> str:
+    """Strip emoji and collapse whitespace so they are not pronounced."""
+    return re.sub(r"\s{2,}", " ", _EMOJI_RE.sub("", text)).strip()
+
+
+def to_ogg_opus(audio_bytes: bytes) -> bytes | None:
+    """Transcode audio (wav/mp3) to OGG/Opus via ffmpeg, for Telegram voice notes.
+    Returns None when ffmpeg is unavailable or fails."""
+    import shutil
+    import subprocess
+
+    if not shutil.which("ffmpeg"):
+        return None
+    try:
+        p = subprocess.run(
+            ["ffmpeg", "-y", "-i", "pipe:0", "-c:a", "libopus", "-b:a", "32k", "-f", "ogg", "pipe:1"],
+            input=audio_bytes,
+            capture_output=True,
+        )
+        return p.stdout if p.returncode == 0 and p.stdout else None
+    except Exception:
+        return None
 
 
 @app.post("/synthesize")
 async def synthesize(req: SynthesizeRequest):
     if tts_backend == "none":
         return {"error": "No TTS backend available"}
-    if not req.text.strip():
+    text = clean_for_speech(req.text)
+    if not text.strip():
         return {"error": "Empty text"}
+    req.text = text
 
     try:
         if tts_backend == "edge-tts":
@@ -228,10 +263,17 @@ async def synthesize(req: SynthesizeRequest):
         if not audio_bytes:
             return {"error": "No audio generated"}
 
+        filename = "speech"
+        if req.format.lower() == "ogg":
+            ogg = await asyncio.to_thread(to_ogg_opus, audio_bytes)
+            if ogg:
+                audio_bytes, media_type, filename = ogg, "audio/ogg", "voice.ogg"
+            # If ffmpeg is missing, fall through with the native format.
+
         return StreamingResponse(
             io.BytesIO(audio_bytes),
             media_type=media_type,
-            headers={"Content-Disposition": "inline; filename=speech.mp3"},
+            headers={"Content-Disposition": f"inline; filename={filename}"},
         )
     except Exception as e:
         # Surface the real cause (a 200 + JSON would make the browser try to play JSON
