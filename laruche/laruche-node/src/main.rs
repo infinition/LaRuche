@@ -1726,6 +1726,7 @@ async fn main() -> Result<()> {
         .route("/api/sessions/search", get(sessions_api::api_search_sessions))
         .route("/api/sessions/:id/messages", get(sessions_api::api_get_session_messages))
         .route("/api/voice/status", get(status_api::api_voice_status))
+        .route("/api/voice/tts", post(status_api::api_tts_proxy))
         .route("/api/webhook", post(local_api::api_webhook))
         .route("/api/preload", post(local_api::api_preload))
         .route("/api/rpc", post(local_api::api_rpc))
@@ -2977,6 +2978,12 @@ async fn main() -> Result<()> {
             }
         }
     }
+
+    // rustls 0.23 requires a process-wide crypto provider before any TLS server starts;
+    // with both ring and aws-lc-rs in the tree it cannot auto-pick, so install ring here.
+    // Without this, bind_rustls panics inside its spawned task and HTTPS silently never
+    // starts (the app keeps serving plain HTTP).
+    let _ = rustls::crypto::ring::default_provider().install_default();
 
     // TLS: explicit LARUCHE_TLS_CERT/KEY win. Otherwise LARUCHE_HTTPS=1 auto-generates a
     // self-signed cert (localhost + 127.0.0.1 + LAN IP), so the browser microphone works

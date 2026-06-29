@@ -2044,7 +2044,7 @@ LaRuche.Voice = (function(){
     if(!cleanText)return;
     if(btn){btn.classList.add('playing');btn.innerHTML='&#x23F9; '+LaRuche.i18n.t('chat.stopBtn');}
     try {
-      var resp=await fetch(TTS_URL+'/synthesize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:cleanText})});
+      var resp=await fetch('/api/voice/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:cleanText})});
       if(!resp.ok){speakBrowser(cleanText,btn);return;}
       var blob=await resp.blob(); var url=URL.createObjectURL(blob);
       currentTtsAudio=new Audio(url);

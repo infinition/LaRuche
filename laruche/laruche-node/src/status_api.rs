@@ -90,6 +90,48 @@ pub(crate) async fn api_voice_status(State(state): State<Arc<AppState>>) -> Json
     }))
 }
 
+/// POST /api/voice/tts - same-origin proxy to the TTS service. Lets the browser reach
+/// it without CORS / mixed-content (the page may be HTTPS while the TTS is HTTP), and
+/// works from a remote device (which cannot reach the server's 127.0.0.1). Body is the
+/// synthesize payload ({"text": "..."}); the audio is streamed straight back.
+pub(crate) async fn api_tts_proxy(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<serde_json::Value>,
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+    // Prefer a discovered TTS node, otherwise the local default port.
+    let tts_base = {
+        let listener = state.listener.read().await;
+        let nodes = listener.get_nodes().await;
+        nodes
+            .values()
+            .find(|n| {
+                n.manifest
+                    .capabilities
+                    .iter()
+                    .any(|c| matches!(c, miel_protocol::capabilities::Capability::Tts))
+            })
+            .and_then(|n| n.manifest.port.map(|p| format!("http://{}:{}", n.manifest.host, p)))
+            .unwrap_or_else(|| "http://127.0.0.1:8422".to_string())
+    };
+    let client = reqwest::Client::new();
+    match client.post(format!("{tts_base}/synthesize")).json(&body).send().await {
+        Ok(resp) => {
+            let ct = resp
+                .headers()
+                .get(axum::http::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("audio/wav")
+                .to_string();
+            match resp.bytes().await {
+                Ok(b) => ([(axum::http::header::CONTENT_TYPE, ct)], b).into_response(),
+                Err(_) => (axum::http::StatusCode::BAD_GATEWAY, "tts read failed").into_response(),
+            }
+        }
+        Err(_) => (axum::http::StatusCode::BAD_GATEWAY, "tts unreachable").into_response(),
+    }
+}
+
 /// Quick `/health` probe of a local voice service. Returns its base URL when it
 /// responds, otherwise None. Short timeout so the status endpoint stays snappy.
 async fn probe_local_voice(port: u16) -> Option<String> {
