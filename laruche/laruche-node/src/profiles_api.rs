@@ -480,10 +480,60 @@ pub(crate) async fn api_get_unified_models(State(state): State<Arc<AppState>>) -
         }
     }
 
+    // mDNS discovery is flaky on Windows, so a locally-running voice service may be
+    // missing from the node list above. Probe the default local ports directly and add
+    // a synthetic entry when present, so the local TTS/STT ALWAYS shows up.
+    if let Some(arr) = models_val.as_array_mut() {
+        for (port, cap) in [(8422u16, "tts"), (8421u16, "stt")] {
+            let already = arr
+                .iter()
+                .any(|m| m.get("capability").and_then(|c| c.as_str()) == Some(cap));
+            if already {
+                continue;
+            }
+            if let Some(backend) = probe_voice_backend(port).await {
+                arr.push(serde_json::json!({
+                    "id": format!("local/{cap}"),
+                    "name": format!("{cap}-{backend}"),
+                    "capability": cap,
+                    "host": "127.0.0.1",
+                    "base_url": format!("http://127.0.0.1:{port}"),
+                    "node_id": serde_json::Value::Null,
+                    "provider": "local",
+                    "profile_name": "Local voice",
+                }));
+            }
+        }
+    }
+
     Json(serde_json::json!({
         "models": models_val,
         "active": active,
     }))
+}
+
+/// Probe a local voice service `/health`, returning its backend name (e.g. "kokoro")
+/// when it responds. Short timeout so the models endpoint stays responsive.
+pub(crate) async fn probe_voice_backend(port: u16) -> Option<String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_millis(700))
+        .build()
+        .ok()?;
+    let resp = client
+        .get(format!("http://127.0.0.1:{port}/health"))
+        .send()
+        .await
+        .ok()?;
+    if !resp.status().is_success() {
+        return None;
+    }
+    let v: serde_json::Value = resp.json().await.ok()?;
+    Some(
+        v.get("backend")
+            .and_then(|x| x.as_str())
+            .unwrap_or("local")
+            .to_string(),
+    )
 }
 
 /// POST /api/profiles/active: set the active model.

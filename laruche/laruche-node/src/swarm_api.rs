@@ -619,6 +619,29 @@ pub(crate) async fn get_swarm_models(
         }
     }
 
+    // Voice services (tts/stt) share THIS host, so the same-host filter above skips them,
+    // and mDNS is flaky on Windows. Probe the default local voice ports directly so the
+    // local TTS/STT ALWAYS shows up in the mesh services panel and the voice selectors.
+    for (port, cap) in [(8422u16, "tts"), (8421u16, "stt")] {
+        if models.iter().any(|m| m.capability.as_deref() == Some(cap)) {
+            continue;
+        }
+        if let Some(backend) = crate::profiles_api::probe_voice_backend(port).await {
+            hosts.insert("127.0.0.1".to_string());
+            models.push(SwarmModelInfo {
+                host: "127.0.0.1".to_string(),
+                node_name: "Local voice".to_string(),
+                node_id: None,
+                name: format!("{cap}-{backend}"),
+                size_gb: 0.0,
+                digest: String::new(),
+                is_default: false,
+                is_local: true,
+                capability: Some(cap.to_string()),
+            });
+        }
+    }
+
     models.sort_by(|a, b| {
         a.capability
             .cmp(&b.capability)
