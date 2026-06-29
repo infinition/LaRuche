@@ -2026,6 +2026,8 @@ LaRuche.Voice = (function(){
     clean=clean.replace(/^[-]{3,}$/gm,'');
     clean=clean.replace(/^>\s*/gm,'');
     clean=clean.replace(/<[^>]+>/g,'');
+    // Strip emoji + pictographs + variation selectors (do not pronounce them).
+    clean=clean.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{2190}-\u{21FF}\u{2300}-\u{23FF}\u{2900}-\u{297F}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}\u{FE0F}]/gu,'');
     clean=clean.replace(/\|/g,', ');
     clean=clean.replace(/^[\s]*[-:]+[\s]*$/gm,'');
     clean=clean.replace(/\n{2,}/g,'. ');
@@ -2038,25 +2040,56 @@ LaRuche.Voice = (function(){
     return clean;
   }
 
+  var SPEAKER_SVG='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>';
+  var _ttsSeq = 0; // bumped to cancel an in-flight streaming session
+  function ttsResetBtn(btn){ if(btn){ btn.classList.remove('playing'); btn.innerHTML=SPEAKER_SVG+' '+LaRuche.i18n.t('chat.lire'); } }
+
+  // Split into sentences so we synthesize and play phrase by phrase (low latency).
+  function ttsSentences(t){
+    return t.split(/(?<=[.!?…:;])\s+/).map(function(s){return s.trim();}).filter(function(s){return s.length;});
+  }
+  // Fetch one sentence as an audio blob (null if the service did not return audio).
+  function ttsFetchBlob(text){
+    return fetch('/api/voice/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text})})
+      .then(function(resp){
+        var ct=(resp.headers.get('content-type')||'').toLowerCase();
+        if(!resp.ok || ct.indexOf('audio')<0) return null;
+        return resp.blob();
+      })
+      .then(function(blob){ return (blob && blob.size>=64) ? blob : null; })
+      .catch(function(){ return null; });
+  }
+  // Play sentence i, prefetching i+1 so she keeps talking with no gap.
+  function ttsPlayQueue(sentences, i, blob, btn, seq){
+    if(seq!==_ttsSeq) return;
+    var url=URL.createObjectURL(blob);
+    currentTtsAudio=new Audio(url);
+    var nextP=(i+1<sentences.length)?ttsFetchBlob(sentences[i+1]):Promise.resolve(null);
+    currentTtsAudio.onended=function(){
+      URL.revokeObjectURL(url);
+      if(seq!==_ttsSeq) return;
+      nextP.then(function(nb){
+        if(seq!==_ttsSeq) return;
+        if(nb){ ttsPlayQueue(sentences,i+1,nb,btn,seq); }
+        else { currentTtsAudio=null; ttsResetBtn(btn); }
+      });
+    };
+    currentTtsAudio.onerror=function(){ URL.revokeObjectURL(url); if(seq===_ttsSeq){ currentTtsAudio=null; ttsResetBtn(btn); } };
+    currentTtsAudio.play().catch(function(){ if(seq===_ttsSeq){ currentTtsAudio=null; ttsResetBtn(btn); } });
+  }
+
   async function speakText(text, btn) {
-    if(btn && btn.classList.contains('playing')){stopAllTts();btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> '+LaRuche.i18n.t('chat.lire')+'';return;}
+    if(btn && btn.classList.contains('playing')){ stopAllTts(); ttsResetBtn(btn); return; }
     var cleanText=cleanTextForTTS(text);
     if(!cleanText)return;
     if(btn){btn.classList.add('playing');btn.innerHTML='&#x23F9; '+LaRuche.i18n.t('chat.stopBtn');}
-    try {
-      var resp=await fetch('/api/voice/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:cleanText})});
-      // The TTS service returns its errors as 200 + JSON; if it is not audio, fall back
-      // to the browser voice instead of feeding non-audio to <audio> (NotSupportedError).
-      var ct=(resp.headers.get('content-type')||'').toLowerCase();
-      if(!resp.ok || ct.indexOf('audio')<0){ speakBrowser(cleanText,btn); return; }
-      var blob=await resp.blob();
-      if(!blob || blob.size<64){ speakBrowser(cleanText,btn); return; }
-      var url=URL.createObjectURL(blob);
-      currentTtsAudio=new Audio(url);
-      currentTtsAudio.onended=function(){if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> '+LaRuche.i18n.t('chat.lire')+'';}currentTtsAudio=null;};
-      currentTtsAudio.onerror=function(){ currentTtsAudio=null; speakBrowser(cleanText,btn); };
-      currentTtsAudio.play().catch(function(){ currentTtsAudio=null; speakBrowser(cleanText,btn); });
-    } catch(e){speakBrowser(cleanText,btn);}
+    var sentences=ttsSentences(cleanText);
+    if(!sentences.length){ ttsResetBtn(btn); return; }
+    var seq=++_ttsSeq;
+    var first=await ttsFetchBlob(sentences[0]);
+    if(seq!==_ttsSeq){ return; } // a newer call superseded this one
+    if(!first){ speakBrowser(cleanText,btn); return; } // TTS unavailable: browser voice
+    ttsPlayQueue(sentences,0,first,btn,seq);
   }
 
   function speakBrowser(text, btn) {
@@ -2074,6 +2107,7 @@ LaRuche.Voice = (function(){
   }
 
   function stopAllTts() {
+    _ttsSeq++; // cancel any in-flight phrase-by-phrase streaming
     if(currentTtsAudio){currentTtsAudio.pause();currentTtsAudio.currentTime=0;currentTtsAudio=null;}
     if('speechSynthesis' in window) speechSynthesis.cancel();
     currentTtsUtterance=null;
@@ -2373,10 +2407,50 @@ LaRuche.Voice = (function(){
     try{ vmRecognition.start(); }catch(e){ vmSetState('idle'); }
   }
 
+  // ── Status-bar voice (TTS) indicator + selector (next to model + crown) ──
+  var _sbTtsModels = [];
+  function renderSbTtsDrop(ttsModels){
+    _sbTtsModels = ttsModels || [];
+    var wrap=document.getElementById('sbTtsWrap');
+    if(!wrap) return;
+    wrap.style.display = _sbTtsModels.length ? '' : 'none';
+  }
+  function buildSbTtsDrop(){
+    var drop=document.getElementById('sbTtsDrop'); if(!drop) return;
+    function fill(selVal){
+      drop.innerHTML='';
+      _sbTtsModels.forEach(function(m){
+        var v=m.host+'|'+m.name, dv=document.createElement('div');
+        dv.textContent=m.name;
+        if(v===selVal) dv.className='active';
+        dv.onclick=function(){ pickSbTts(m.host,m.name); drop.classList.remove('open'); };
+        drop.appendChild(dv);
+      });
+    }
+    fetch('/api/voice/status').then(function(r){return r.json();})
+      .then(function(d){ fill((d.tts&&d.tts.is_selected)?(d.tts.selected_host+'|'+d.tts.selected_model):''); })
+      .catch(function(){ fill(''); });
+  }
+  function toggleTtsDrop(e){
+    if(e) e.stopPropagation();
+    var drop=document.getElementById('sbTtsDrop'); if(!drop) return;
+    buildSbTtsDrop();
+    drop.classList.toggle('open');
+  }
+  function pickSbTts(host,name){
+    if(LaRuche.Dashboard && LaRuche.Dashboard.useMeshModel) LaRuche.Dashboard.useMeshModel(host,name,'tts');
+    var ttsSel=document.getElementById('ttsSelect'); if(ttsSel) ttsSel.value=host+'|'+name;
+    if(LaRuche.Toast) LaRuche.Toast.show('TTS: '+name,'ok');
+  }
+
   function init() {
     connectAudioWS();
     checkVoiceStatus();
     setInterval(checkVoiceStatus,15000);
+    document.addEventListener('click',function(e){
+      var drop=document.getElementById('sbTtsDrop'), lbl=document.getElementById('sbTtsLabel');
+      if(drop && lbl && !drop.contains(e.target) && e.target!==lbl) drop.classList.remove('open');
+    });
   }
 
   return {
@@ -2385,6 +2459,7 @@ LaRuche.Voice = (function(){
     refreshStatus:checkVoiceStatus,
     isAutoTts:function(){return autoTtsEnabled;}, cleanTextForTTS:cleanTextForTTS,
     selectTTS: function(v){ if(!v)return; var p=v.split('|'); LaRuche.Dashboard.useMeshModel(p[0],p[1],'tts'); },
+    toggleTtsDrop:toggleTtsDrop, pickSbTts:pickSbTts,
     selectSTT: function(v){ if(!v)return; var p=v.split('|'); LaRuche.Dashboard.useMeshModel(p[0],p[1],'stt'); },
     updateVoiceSelectors: function(models) {
       var tts = document.getElementById('ttsSelect');
@@ -2393,11 +2468,13 @@ LaRuche.Voice = (function(){
       var currentTts = tts.value; var currentStt = stt.value;
       tts.innerHTML = '<option value="">'+LaRuche.i18n.t('chat.autoFirstDetected')+'</option>';
       stt.innerHTML = '<option value="">'+LaRuche.i18n.t('chat.autoFirstDetected')+'</option>';
+      var ttsModels=[];
       models.forEach(function(m){
         var cap=(m.capability||'llm').toLowerCase();
-        if(cap==='tts') tts.innerHTML += '<option value="'+m.host+'|'+m.name+'">'+m.name+'</option>';
+        if(cap==='tts'){ tts.innerHTML += '<option value="'+m.host+'|'+m.name+'">'+m.name+'</option>'; ttsModels.push(m); }
         if(cap==='stt') stt.innerHTML += '<option value="'+m.host+'|'+m.name+'">'+m.name+'</option>';
       });
+      renderSbTtsDrop(ttsModels);
       fetch('/api/voice/status').then(function(r){return r.json();}).then(function(d){
          if(d.tts && d.tts.is_selected) tts.value = d.tts.selected_host + '|' + d.tts.selected_model;
          if(d.stt && d.stt.is_selected) stt.value = d.stt.selected_host + '|' + d.stt.selected_model;

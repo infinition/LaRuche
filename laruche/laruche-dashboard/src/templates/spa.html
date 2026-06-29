@@ -589,6 +589,10 @@
   <select id="modelSelect" onchange="LaRuche.Header.changeModel(this.value)" data-i18n-title="shell.tipChangeModel" title="Change model" style="display:none;">
     <option value="" data-i18n="automations.chargement">Loading...</option>
   </select>
+  <div class="sb-model-wrap" id="sbTtsWrap" style="margin-left:8px;display:none">
+    <span id="sbTtsLabel" title="Voice (TTS)" style="cursor:pointer;font-size:13px;line-height:1;opacity:.6" onclick="LaRuche.Voice.toggleTtsDrop(event)">&#128266;</span>
+    <div class="sb-model-drop" id="sbTtsDrop"></div>
+  </div>
   <div class="sb-model-wrap" id="sbReineWrap" style="margin-left:8px">
     <span id="sbReineLabel" title="LaReine" style="cursor:pointer;font-size:13px;line-height:1;opacity:.4">&#128081;</span>
     <div class="sb-model-drop" id="sbReineDrop"></div>
