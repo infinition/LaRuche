@@ -86,6 +86,7 @@ pub(crate) async fn api_auth_enroll(
     });
 
     info!(user_id = %user.id, name = %user.display_name, "New user enrolled");
+    crate::log_activite(&state, "info", "AUTH", format!("New account: {}", user.display_name), Some(user.id)).await;
 
     Ok((
         axum::http::StatusCode::OK,
@@ -389,6 +390,7 @@ pub(crate) async fn api_auth_login(
                 .unwrap(),
             );
             info!(user_id = %user.id, name = %user.display_name, "Login via password");
+            crate::log_activite(&state, "info", "AUTH", format!("Login: {}", user.display_name), Some(user.id)).await;
             Ok((
                 axum::http::StatusCode::OK,
                 headers,
@@ -401,6 +403,7 @@ pub(crate) async fn api_auth_login(
         }
         _ => {
             warn!(name = %name, "Failed login attempt");
+            crate::log_activite(&state, "warn", "AUTH", format!("Failed login: {}", name), None).await;
             Err(StatusCode::UNAUTHORIZED)
         }
     }
@@ -509,6 +512,8 @@ pub(crate) async fn api_admin_delete_user(
     }
     let _ = std::fs::remove_file(std::path::Path::new("users").join(format!("{target}.json")));
     info!(target = %target, "Admin deleted user");
+    drop(users);
+    crate::log_activite(&state, "warn", "ADMIN", format!("Admin deleted account {target}"), uid).await;
     Ok(Json(serde_json::json!({ "status": "deleted", "id": id })))
 }
 
@@ -536,7 +541,10 @@ pub(crate) async fn api_admin_set_role(
     let user = users.get_mut(&target).ok_or(StatusCode::NOT_FOUND)?;
     user.role = role;
     let _ = auth_user::save_user(user, std::path::Path::new("users"));
-    Ok(Json(serde_json::json!({ "status": "ok", "id": id, "role": user.role })))
+    let new_role = user.role;
+    drop(users);
+    crate::log_activite(&state, "warn", "ADMIN", format!("Admin set role of {target} to {new_role:?}"), uid).await;
+    Ok(Json(serde_json::json!({ "status": "ok", "id": id, "role": new_role })))
 }
 
 /// POST /api/auth/account {display_name?, avatar?} - update your own profile.

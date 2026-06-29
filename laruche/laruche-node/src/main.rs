@@ -122,6 +122,33 @@ struct ActivityLogEntry {
     user_id: Option<Uuid>,
 }
 
+/// Push a simple entry to the activity log shown in the dashboard Audit panel. Use for events
+/// that should be auditable (logins, account changes), which otherwise only reach the CLI.
+pub(crate) async fn log_activite(
+    state: &AppState,
+    level: &str,
+    tag: &str,
+    message: String,
+    user_id: Option<Uuid>,
+) {
+    let mut activity = state.activity_log.write().await;
+    if activity.len() >= ACTIVITY_LOG_LIMIT {
+        activity.pop_front();
+    }
+    activity.push_back(ActivityLogEntry {
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        level: level.into(),
+        tag: tag.into(),
+        message,
+        full_prompt: None,
+        full_response: None,
+        model_used: None,
+        tokens_generated: None,
+        latency_ms: None,
+        user_id,
+    });
+}
+
 /// Persistent state saved to disk (survives restarts)
 #[derive(Debug, Serialize, Deserialize, Default)]
 struct PersistentState {
