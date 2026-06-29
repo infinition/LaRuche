@@ -145,6 +145,12 @@ def synthesize_kokoro(text: str, speed: float = 1.0) -> bytes:
 
     global _kokoro
     if _kokoro is None:
+        if not os.path.exists(KOKORO_MODEL) or not os.path.exists(KOKORO_VOICES):
+            raise FileNotFoundError(
+                f"Kokoro model files not found: '{KOKORO_MODEL}' / '{KOKORO_VOICES}'. "
+                f"Set KOKORO_MODEL and KOKORO_VOICES to the full paths (e.g. your kokoro-test "
+                f"folder), or place kokoro-v1.0.onnx + voices-v1.0.bin in the working directory."
+            )
         _kokoro = Kokoro(KOKORO_MODEL, KOKORO_VOICES)
 
     chunks = []
@@ -228,7 +234,13 @@ async def synthesize(req: SynthesizeRequest):
             headers={"Content-Disposition": "inline; filename=speech.mp3"},
         )
     except Exception as e:
-        return {"error": str(e)}
+        # Surface the real cause (a 200 + JSON would make the browser try to play JSON
+        # as audio -> NotSupportedError). Log it and return a proper error status.
+        import traceback
+        print(f"[TTS] synthesize failed ({tts_backend}): {e}")
+        traceback.print_exc()
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=500, content={"error": str(e), "backend": tts_backend})
 
 
 @app.get("/voices")

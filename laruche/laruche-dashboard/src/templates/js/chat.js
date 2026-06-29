@@ -2045,12 +2045,17 @@ LaRuche.Voice = (function(){
     if(btn){btn.classList.add('playing');btn.innerHTML='&#x23F9; '+LaRuche.i18n.t('chat.stopBtn');}
     try {
       var resp=await fetch('/api/voice/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:cleanText})});
-      if(!resp.ok){speakBrowser(cleanText,btn);return;}
-      var blob=await resp.blob(); var url=URL.createObjectURL(blob);
+      // The TTS service returns its errors as 200 + JSON; if it is not audio, fall back
+      // to the browser voice instead of feeding non-audio to <audio> (NotSupportedError).
+      var ct=(resp.headers.get('content-type')||'').toLowerCase();
+      if(!resp.ok || ct.indexOf('audio')<0){ speakBrowser(cleanText,btn); return; }
+      var blob=await resp.blob();
+      if(!blob || blob.size<64){ speakBrowser(cleanText,btn); return; }
+      var url=URL.createObjectURL(blob);
       currentTtsAudio=new Audio(url);
       currentTtsAudio.onended=function(){if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> '+LaRuche.i18n.t('chat.lire')+'';}currentTtsAudio=null;};
-      currentTtsAudio.onerror=function(){if(btn){btn.classList.remove('playing');btn.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg> '+LaRuche.i18n.t('chat.lire')+'';}currentTtsAudio=null;};
-      currentTtsAudio.play();
+      currentTtsAudio.onerror=function(){ currentTtsAudio=null; speakBrowser(cleanText,btn); };
+      currentTtsAudio.play().catch(function(){ currentTtsAudio=null; speakBrowser(cleanText,btn); });
     } catch(e){speakBrowser(cleanText,btn);}
   }
 
