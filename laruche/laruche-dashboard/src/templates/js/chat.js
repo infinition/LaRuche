@@ -873,7 +873,8 @@ LaRuche.Chat = (function(){
     var ov = document.getElementById('profileModal'); if(!ov) return;
     var u = (window.LaRuche && LaRuche.Auth && LaRuche.Auth.getUser && LaRuche.Auth.getUser()) || {};
     var nm = document.getElementById('profileModalName'); if(nm) nm.textContent = u.display_name || LaRuche.i18n.t('chat.monProfil');
-    var av = document.getElementById('profileModalAvatar'); if(av) av.textContent = (u.display_name||'?').charAt(0).toUpperCase();
+    var av = document.getElementById('profileModalAvatar');
+    if(av){ if(u.avatar){ av.innerHTML='<img src="'+u.avatar+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">'; } else { av.innerHTML=''; av.textContent=(u.display_name||'?').charAt(0).toUpperCase(); } }
     var ta = document.getElementById('profileFiche');
     if(ta){ ta.value = LaRuche.i18n.t('chat.chargement'); ta.disabled = true; }
     ov.classList.add('open');

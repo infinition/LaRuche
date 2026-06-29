@@ -525,10 +525,14 @@ LaRuche.Feed = (function(){
     return (ev.actor==='User') ? 'actor-user' : 'actor-laruche';
   }
   // Avatar: initial (User / peer ruche) / STATIC honeycomb (LaRuche).
+  // Round thumbnail inner: the user's avatar photo if set, otherwise their initial.
+  function userAvInner(u){
+    if(u && u.avatar) return '<img src="'+u.avatar+'" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">';
+    return esc(((u && u.display_name)||'?').charAt(0).toUpperCase());
+  }
   function actorAvatar(ev){
     if(ev.actor==='User'){
-      var u=feedUser(); var init=((u && u.display_name)||'?').charAt(0).toUpperCase();
-      return '<span class="feed-av feed-av-user">'+esc(init)+'</span>';
+      return '<span class="feed-av feed-av-user">'+userAvInner(feedUser())+'</span>';
     }
     if(ev.actor_kind==='peer'){
       return '<span class="feed-av feed-av-peer">'+esc((ev.actor||'?').charAt(0).toUpperCase())+'</span>';
@@ -725,12 +729,12 @@ LaRuche.Feed = (function(){
   function showPending(text){
     var list = document.getElementById('feedList'); if(!list) return;
     var old = document.getElementById('feedPending'); if(old) old.remove();
-    var u = feedUser(); var init = ((u && u.display_name)||'?').charAt(0).toUpperCase();
+    var u = feedUser();
     var el = document.createElement('div');
     el.id = 'feedPending'; el.className = 'feed-row kind-agent feed-pending';
     el.innerHTML =
       '<div class="feed-row-top">'+
-        '<span class="feed-av feed-av-user">'+esc(init)+'</span>'+
+        '<span class="feed-av feed-av-user">'+userAvInner(u)+'</span>'+
         '<span class="feed-actor actor-user">'+esc((u && u.display_name)||LaRuche.i18n.t('capabilities.you'))+'</span>'+
         '<span class="feed-ask-spin" aria-label="'+LaRuche.i18n.t('capabilities.laruchemusing')+'"></span>'+
         '<span class="feed-row-time">'+LaRuche.i18n.t('capabilities.now')+'</span>'+
