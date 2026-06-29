@@ -4687,6 +4687,14 @@
     "en": "0 = off, up to 10. Each rework sends the worker back to redo the work. She stops as soon as the answer passes.",
     "fr": "0 = off, jusqu'à 10. Chaque re-run renvoie l'abeille refaire le travail. Elle s'arrête dès que la réponse passe."
   },
+  "reine.contextMessages": {
+    "en": "Context turns",
+    "fr": "Messages de contexte"
+  },
+  "reine.contextMessagesHint": {
+    "en": "How many earlier conversation turns LaReine sees when reviewing (0 = only the current request, up to 20). More context = better judgment on follow-up questions.",
+    "fr": "Combien de tours de conversation précédents LaReine voit lors de la revue (0 = seulement la requête courante, jusqu'à 20). Plus de contexte = meilleur jugement sur les questions de suivi."
+  },
   "reine.providerLabel": {
     "en": "LaReine provider",
     "fr": "Provider LaReine"

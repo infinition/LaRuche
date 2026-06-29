@@ -19,6 +19,10 @@ pub struct DemandeJugement<'a> {
     pub brouillon: &'a str,
     /// The LaReine charter body (the rubric). Loaded from the charter skill.
     pub charte: &'a str,
+    /// Recent conversation transcript for context (the last N turns before the
+    /// draft), so the Reine judges with awareness of what came before. Empty when
+    /// the context window is 0 or there is no prior history.
+    pub contexte: &'a str,
 }
 
 /// Line-based shape the judge must return (one `KEY: value` per line). Far more
@@ -52,11 +56,20 @@ pub fn construire_prompt(d: &DemandeJugement) -> String {
     } else {
         d.objectif
     };
+    let contexte_bloc = if d.contexte.trim().is_empty() {
+        String::new()
+    } else {
+        format!(
+            "Recent conversation (for context, oldest first):\n{}\n\n",
+            d.contexte.trim()
+        )
+    };
     format!(
         "{charte}\n\n\
          ---\n\
          You are judging {cible}.\n\n\
          User objective (north star):\n{objectif}\n\n\
+         {contexte_bloc}\
          Original request:\n{requete}\n\n\
          Draft to judge:\n{brouillon}\n\n\
          ---\n\
@@ -73,6 +86,7 @@ pub fn construire_prompt(d: &DemandeJugement) -> String {
         charte = d.charte.trim(),
         cible = tier_libelle(d.tier),
         objectif = objectif.trim(),
+        contexte_bloc = contexte_bloc,
         requete = d.requete.trim(),
         brouillon = d.brouillon.trim(),
         format = FORMAT_REPONSE,
@@ -244,6 +258,7 @@ mod tests {
             requete: "what is 2 + 2?",
             brouillon,
             charte: "CHARTER: judge relevance and methodology.",
+            contexte: "",
         }
     }
 

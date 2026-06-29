@@ -77,6 +77,7 @@ pub async fn juger_avec(
     reponse: &str,
     prompt: &str,
     charte: &str,
+    contexte: &str,
 ) -> Option<Scorecard> {
     let demande = DemandeJugement {
         tier: Tier::Reponse,
@@ -84,6 +85,7 @@ pub async fn juger_avec(
         requete: prompt,
         brouillon: reponse,
         charte,
+        contexte,
     };
     let invite = construire_prompt(&demande);
     let messages = vec![serde_json::json!({ "role": "user", "content": invite })];
@@ -152,6 +154,42 @@ fn ligne_verdict(card: &Scorecard) -> String {
 /// only the final answer surfaces. `session` is a working copy (the node persists
 /// the final answer to the real session afterwards).
 #[allow(clippy::too_many_arguments)]
+/// Format the last `n` conversation turns (User / Assistant) for the judge's context,
+/// excluding the trailing draft (last assistant) and the current request (last user)
+/// which the prompt already shows separately. Each turn is capped to keep the judge's
+/// context bounded. Empty when `n == 0` or there is no earlier history.
+fn construire_contexte(session: &Session, n: usize) -> String {
+    if n == 0 {
+        return String::new();
+    }
+    use crate::session::Message;
+    let mut tours: Vec<(&'static str, String)> = Vec::new();
+    for m in &session.messages {
+        match m {
+            Message::User(t) => tours.push(("User", t.clone())),
+            Message::UserMultimodal { text, .. } => tours.push(("User", text.clone())),
+            Message::Assistant(t) => tours.push(("LaRuche", t.clone())),
+            _ => {}
+        }
+    }
+    // Drop the trailing draft (last assistant) then the current request (last user).
+    if tours.last().map(|t| t.0 == "LaRuche").unwrap_or(false) {
+        tours.pop();
+    }
+    if tours.last().map(|t| t.0 == "User").unwrap_or(false) {
+        tours.pop();
+    }
+    let start = tours.len().saturating_sub(n);
+    tours[start..]
+        .iter()
+        .map(|t| {
+            let body: String = t.1.trim().chars().take(800).collect();
+            format!("{}: {}", t.0, body)
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 pub async fn revue_et_refaire(
     juge: &ProviderCreds,
     charte: &str,
@@ -160,6 +198,7 @@ pub async fn revue_et_refaire(
     mode: &str,
     max_revues: u8,
     seuil: u8,
+    contexte_messages: u8,
     session: &mut Session,
     registry: &AbeilleRegistry,
     config: &EssaimConfig,
@@ -175,6 +214,10 @@ pub async fn revue_et_refaire(
         tier_supervision: false,
     };
     let mut reine = Reine::nouvelle(cfg);
+    // Recent conversation context for the judge (last N turns before this one), so
+    // she reviews with awareness of what came before. Built once from the history
+    // captured before the rework starts mutating the session.
+    let contexte = construire_contexte(session, contexte_messages as usize);
     let mut answer = answer_initial.to_string();
     let mut journal: Vec<String> = Vec::new();
     let mut revised = false;
@@ -192,6 +235,7 @@ pub async fn revue_et_refaire(
             &answer,
             user_prompt,
             charte,
+            &contexte,
         )
         .await
         {

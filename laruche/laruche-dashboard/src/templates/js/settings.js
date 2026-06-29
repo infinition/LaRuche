@@ -510,6 +510,7 @@ LaRuche.Settings = (function(){
       '</select></div>'+
       '<div class="settings-row" title="'+LaRuche.i18n.t('reine.maxReviewsHint')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.maxReviews')+'</span><input type="range" id="cfgReineMax" min="0" max="10" value="'+(reineCfg.max_revues||0)+'" oninput="document.getElementById(\'cfgReineMaxVal\').textContent=this.value" style="width:100px"> <span id="cfgReineMaxVal" style="min-width:18px;text-align:right;color:var(--text-muted)">'+(reineCfg.max_revues||0)+'</span></div>'+
       '<div class="settings-row" title="'+LaRuche.i18n.t('reine.confidenceHint')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.confidenceThreshold')+'</span><input type="number" id="cfgReineSeuil" class="form-input" style="width:70px;padding:2px 6px;" min="0" max="100" value="'+(reineCfg.seuil_confiance!=null?reineCfg.seuil_confiance:60)+'"></div>'+
+      '<div class="settings-row" title="'+LaRuche.i18n.t('reine.contextMessagesHint')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.contextMessages')+'</span><input type="range" id="cfgReineCtx" min="0" max="20" value="'+(reineCfg.contexte_messages!=null?reineCfg.contexte_messages:4)+'" oninput="document.getElementById(\'cfgReineCtxVal\').textContent=this.value" style="width:100px"> <span id="cfgReineCtxVal" style="min-width:18px;text-align:right;color:var(--text-muted)">'+(reineCfg.contexte_messages!=null?reineCfg.contexte_messages:4)+'</span></div>'+
       '<div class="settings-row" title="'+LaRuche.i18n.t('reine.providerHint')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.providerLabel')+'</span><select id="cfgReineProvider" class="form-input" style="width:160px;padding:2px 6px;">'+reineProvOpts+'</select></div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('reine.tier1')+'</span><label class="lr-switch"><input type="checkbox" id="cfgReineTier1" '+(reineCfg.tier_reponse?'checked':'')+'><span class="lr-slider"></span></label></div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('reine.tier2')+'</span><label class="lr-switch"><input type="checkbox" id="cfgReineTier2" '+(reineCfg.tier_artefacts?'checked':'')+'><span class="lr-slider"></span></label></div>'+
@@ -2018,7 +2019,8 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       tier_reponse: !!document.getElementById('cfgReineTier1').checked,
       tier_artefacts: !!document.getElementById('cfgReineTier2').checked,
       tier_supervision: !!document.getElementById('cfgReineTier3').checked,
-      queue_gate: !!document.getElementById('cfgReineQueue').checked
+      queue_gate: !!document.getElementById('cfgReineQueue').checked,
+      contexte_messages: parseInt(document.getElementById('cfgReineCtx').value,10)
     };
     fetch(LaRuche.API.base+'/api/config/reine',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
       .then(function(r){ if(r.ok) LaRuche.Toast.show(LaRuche.i18n.t('settings.save'),'ok'); else LaRuche.Toast.show(LaRuche.i18n.t('settings.errorGeneric'),'err'); })

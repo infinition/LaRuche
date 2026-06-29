@@ -152,6 +152,7 @@ LaRuche.Chat = (function(){
   var currentAssistantRow = null;
   var _reineThinkingEl = null;
   var _reineReworkEl = null;
+  var _reineRow = null; // LaReine's own message row (crown avatar) for the current review
   var _lastAssistantMsg = null;
   var _lastAssistantRow = null;
   var _nextMsgIsReine = false;
@@ -406,12 +407,13 @@ LaRuche.Chat = (function(){
         // Appended to the ROW (not the bubble) so finalizeMessage on 'done' does not wipe it.
         if(statusMessage==='__reine_thinking__'){
           if(_reineThinkingEl){_reineThinkingEl.remove();}
-          var rHost=(currentAssistantMsg&&currentAssistantMsg.parentNode)||(_lastAssistantMsg&&_lastAssistantMsg.parentNode)||currentAssistantRow||_lastAssistantRow;
+          var rHost=reineHost();
           if(rHost){
             var tc=document.createElement('div');
             tc.className='reine-thinking';
             tc.innerHTML='<span class="reine-crown">👑</span><span>'+LaRuche.i18n.t('reine.reviewing')+'</span><span class="reine-dots"><i></i><i></i><i></i></span>';
             rHost.appendChild(tc); _reineThinkingEl=tc;
+            updateAssistantAvatars();
           }
           break;
         }
@@ -423,7 +425,7 @@ LaRuche.Chat = (function(){
           if(_reineThinkingEl){_reineThinkingEl.remove(); _reineThinkingEl=null;}
           if(_reineReworkEl){_reineReworkEl.remove(); _reineReworkEl=null;}
           if(vtxt){
-            var vHost=(currentAssistantMsg&&currentAssistantMsg.parentNode)||(_lastAssistantMsg&&_lastAssistantMsg.parentNode)||currentAssistantRow||_lastAssistantRow;
+            var vHost=reineHost();
             if(vHost){
               var vc=document.createElement('div');
               vc.className='reine-verdict';
@@ -435,8 +437,12 @@ LaRuche.Chat = (function(){
                 vpan.textContent=vAnalyse;
                 vHost.appendChild(vpan);
               }
+              updateAssistantAvatars();
             }
           }
+          // The review pass is closed: the next thinking (re-judge or next turn)
+          // opens a fresh LaReine row.
+          _reineRow=null;
           break;
         }
         // LaReine sends the worker back to redo the work: show a chip and tag the
@@ -444,19 +450,24 @@ LaRuche.Chat = (function(){
         if(statusMessage.indexOf('__reine_rework_start__|')===0){
           var rwInstr=statusMessage.slice('__reine_rework_start__|'.length).trim();
           if(_reineThinkingEl){_reineThinkingEl.remove(); _reineThinkingEl=null;}
-          var rwHost=(currentAssistantMsg&&currentAssistantMsg.parentNode)||(_lastAssistantMsg&&_lastAssistantMsg.parentNode)||currentAssistantRow||_lastAssistantRow;
+          var rwHost=reineHost();
           if(rwHost){
             var rwc=document.createElement('div');
             rwc.className='reine-verdict';
             rwc.innerHTML='<span class="reine-crown">👑</span> '+LaRuche.i18n.t('reine.sentBack')+(rwInstr?': '+LaRuche.Utils.esc(rwInstr):'');
             rwHost.appendChild(rwc);
             // Animated indicator while LaRuche redoes the work (until the rework appears).
+            // The bee indicator lives on LaReine's row but signals LaRuche is working.
             if(_reineReworkEl){_reineReworkEl.remove();}
             var rwa=document.createElement('div');
             rwa.className='reine-thinking';
             rwa.innerHTML='<span class="reine-crown">🐝</span><span>'+LaRuche.i18n.t('reine.redoing')+'</span><span class="reine-dots"><i></i><i></i><i></i></span>';
             rwHost.appendChild(rwa); _reineReworkEl=rwa;
+            updateAssistantAvatars();
           }
+          // Close this LaReine row: the rework is LaRuche's (bee), and the re-judge
+          // afterwards opens a new LaReine row.
+          _reineRow=null;
           _nextMsgIsReine=true;
           break;
         }
@@ -601,6 +612,7 @@ LaRuche.Chat = (function(){
     var fullMsg = msg + fileData.text;
     startPlanMission(msg);
     addMessage('user', msg, fileData.attachments);
+    _reineRow=null; // new turn -> LaReine's next review opens a fresh crowned row
     // new turn -> clear the Skills section of the left panel
     var spChips0=document.getElementById('skillsPanelChips'); if(spChips0) spChips0.innerHTML='';
     var sp0=document.getElementById('skillsPanel'); if(sp0) sp0.style.display='none';
@@ -779,6 +791,29 @@ LaRuche.Chat = (function(){
     _skillsInlineEl.appendChild(chip);
   }
 
+  // LaReine's own review row: a dedicated assistant row carrying the CROWNED bee
+  // avatar, so her review sits next to LaRuche's bee like a two-party conversation
+  // (instead of her chips being glued under LaRuche's message). Reused for the chips
+  // of one review pass (reviewing -> verdict / sent back); reset between passes and
+  // turns so a fresh review gets its own row.
+  function reineEnsureRow() {
+    if (_reineRow && _reineRow.parentNode) return _reineRow;
+    var container = document.getElementById('chatContainer');
+    var row = document.createElement('div');
+    row.className = 'message-row assistant reine-row';
+    var avatar = document.createElement('div');
+    avatar.className = 'avatar assistant-avatar';
+    avatar.innerHTML = '<div class="bee bee-reine"><div class="bee--wings"></div><div class="bee--body"><span></span><span></span></div><div class="bee--head"><div class="bee--head-eyes"></div><div class="bee--head-antennas"></div></div><div class="bee--crown"></div></div>';
+    row.appendChild(avatar);
+    var wrapper = document.createElement('div');
+    wrapper.className = 'message-wrapper';
+    row.appendChild(wrapper);
+    container.appendChild(row);
+    _reineRow = row;
+    return row;
+  }
+  function reineHost() { return reineEnsureRow().querySelector('.message-wrapper'); }
+
   // Tool avatar shown only on the LAST assistant message (visibility -> keeps
   // alignment, no layout shift). Recomputed on each message append.
   function updateAssistantAvatars() {
@@ -794,7 +829,9 @@ LaRuche.Chat = (function(){
     var rows = document.querySelectorAll('#chatContainer .message-row.assistant:not(#typingIndicator)');
     var lastLaruche = -1, lastReine = -1;
     for (var i = 0; i < rows.length; i++) {
-      if (rows[i].classList.contains('reine-revised-row')) lastReine = i; else lastLaruche = i;
+      // reine-row / reine-revised-row carry LaReine's crown; everything else (incl.
+      // reine-rework-row, which is LaRuche redoing the work) carries LaRuche's bee.
+      if (rows[i].classList.contains('reine-row') || rows[i].classList.contains('reine-revised-row')) lastReine = i; else lastLaruche = i;
     }
     for (var j = 0; j < rows.length; j++) {
       var av = rows[j].querySelector('.avatar.assistant-avatar');

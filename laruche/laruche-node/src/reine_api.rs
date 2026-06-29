@@ -15,6 +15,8 @@ use std::sync::Arc;
 const REINE_CONFIG_FILE: &str = "laruche-reine.json";
 /// Hard ceiling on revision rounds, mirrored from `cap::reine::PLAFOND_REVUES`.
 const PLAFOND_REVUES: u8 = 10;
+/// Hard ceiling on how many recent turns the judge may be fed as context.
+const PLAFOND_CONTEXTE: u8 = 20;
 
 /// LaReine settings, persisted to `laruche-reine.json` and bound by the UI.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,6 +38,14 @@ pub(crate) struct ReineSettings {
     pub queue_gate: bool,
     /// Provider profile id used by the judge (None = same as the worker model).
     pub provider_profile: Option<String>,
+    /// How many recent conversation turns the judge sees for context (0 = none,
+    /// capped at [`PLAFOND_CONTEXTE`]). Gives her awareness of prior questions.
+    #[serde(default = "defaut_contexte_messages")]
+    pub contexte_messages: u8,
+}
+
+fn defaut_contexte_messages() -> u8 {
+    4
 }
 
 impl Default for ReineSettings {
@@ -49,6 +59,7 @@ impl Default for ReineSettings {
             tier_supervision: false,
             queue_gate: false,
             provider_profile: None,
+            contexte_messages: defaut_contexte_messages(),
         }
     }
 }
@@ -58,6 +69,7 @@ impl ReineSettings {
     fn assainir(&mut self) {
         self.max_revues = self.max_revues.min(PLAFOND_REVUES);
         self.seuil_confiance = self.seuil_confiance.min(100);
+        self.contexte_messages = self.contexte_messages.min(PLAFOND_CONTEXTE);
         if !matches!(self.mode.as_str(), "off" | "auto" | "hybride" | "humaine") {
             self.mode = "off".into();
         }
@@ -115,6 +127,9 @@ pub(crate) async fn api_set_reine_config(
     }
     if let Some(v) = body.get("queue_gate").and_then(|x| x.as_bool()) {
         cfg.queue_gate = v;
+    }
+    if let Some(v) = body.get("contexte_messages").and_then(|x| x.as_u64()) {
+        cfg.contexte_messages = v.min(255) as u8;
     }
     if body.get("provider_profile").is_some() {
         cfg.provider_profile = body
@@ -258,6 +273,7 @@ pub(crate) async fn revue_complete(
         &rs.mode,
         rs.max_revues,
         rs.seuil_confiance,
+        rs.contexte_messages,
         &mut session,
         &state.essaim_registry,
         &config,
