@@ -8,6 +8,7 @@
 //! 2. **same tool fails**: a tool fails N times (varying args) -> warn then stop;
 //! 3. **idempotent without progress**: a read tool returns the same result N times.
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// The Vigie's decision. Side-effect-free: the loop applies it.
@@ -36,7 +37,7 @@ impl Signal {
 
 /// Detection thresholds. Warnings always active; hard stops opt-in
 /// (`arret_dur`) so as not to constrain an interactive agent.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SeuilsVigie {
     pub avertir_echec_exact: u32,
     pub bloquer_echec_exact: u32,
@@ -88,7 +89,9 @@ impl SeuilsVigie {
 }
 
 /// The monitor. Keeps per-signature/tool counters for the duration of a butinage.
-#[derive(Debug, Clone, Default)]
+/// Serializable: persisted in the [`crate::carnet::Carnet`] so a crash-resume does
+/// not grant a stuck model a free round of re-looping.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Vigie {
     seuils: SeuilsVigie,
     echecs_exacts: HashMap<u64, u32>,
@@ -103,6 +106,11 @@ impl Vigie {
             seuils,
             ..Default::default()
         }
+    }
+
+    /// Overrides the thresholds (on resume: the profile may have changed since the checkpoint).
+    pub fn set_seuils(&mut self, seuils: SeuilsVigie) {
+        self.seuils = seuils;
     }
 
     /// Before executing: do we block this call because it has already failed/stagnated too much?

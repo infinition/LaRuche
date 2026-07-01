@@ -31,8 +31,12 @@ pub struct Appel {
 
 impl Appel {
     pub fn nouveau(nom: impl Into<String>, args: serde_json::Value) -> Self {
+        // Short id (9 hex chars): some providers (e.g. Mistral) truncate tool-call ids
+        // to 9 characters internally; a full UUID would silently desynchronize.
+        let mut id = uuid::Uuid::new_v4().simple().to_string();
+        id.truncate(9);
         Self {
-            id: uuid::Uuid::new_v4().to_string(),
+            id,
             nom: nom.into(),
             args,
         }
@@ -110,12 +114,16 @@ pub enum FinDeVol {
     Plafond,
     /// Fatal error (provider/auth) after exhausting recovery options.
     Erreur(String),
-    /// Interrupted by the user.
+    /// Interrupted by the user (cancellation flag).
     Interrompue,
     /// The tool requests a clarification (hands control back).
     Clarification(String),
     /// Clean stop by the vigie (sterile loop detected).
     BoucleSterile(String),
+    /// Tier 3 supervisor escalated to a human (stalled past the nudge budget).
+    Escalade(String),
+    /// Cumulative token budget exhausted (`Reglages::budget_tokens`).
+    Budget,
 }
 
 /// Final result of a butinage, reported to the caller (node/dashboard).

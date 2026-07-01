@@ -46,6 +46,7 @@ pub use messagerie::{Message, Piece, Role};
 pub use meteo::{ClasseErreur, Reaction};
 pub use nectar::Source;
 pub use outils::{Outils, ResultatOutil};
+pub use recolte::{Moisson, plafonner_observation};
 pub use reglages::{ProfilModele, Reglages};
 pub use cap::boussole::{cap, ContexteCap, Decision};
 pub use cap::jauge::{Besoin, Jauge};

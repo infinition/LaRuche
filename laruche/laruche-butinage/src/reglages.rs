@@ -66,6 +66,20 @@ pub struct Reglages {
     /// Tier 3 supervision (LaReine watching a long task). `None` = off (default).
     /// When set and `actif`, the loop detects plan stagnation and nudges/escalates.
     pub supervision: Option<crate::cap::reine::ConfigSupervision>,
+    /// Default per-tool timeout (seconds). A hung tool (network, subprocess) must never
+    /// freeze the whole butinage. `0` = no timeout. Overridable per tool via
+    /// [`crate::outils::Outils::timeout_secs`].
+    pub timeout_outil_secs: u64,
+    /// Hard cap (characters) on a single tool observation reinjected into the history
+    /// (head+tail kept, middle elided). Protects the context from a 500 KB web page.
+    /// `0` = no cap.
+    pub max_chars_observation: usize,
+    /// Cumulative token budget (input + output) for the whole butinage. `0` = unlimited.
+    /// When exhausted, the loop lands with [`crate::issue::FinDeVol::Budget`].
+    pub budget_tokens: u64,
+    /// LLM-summarized compaction (dense, preserves discoveries/decisions/dead-ends).
+    /// Falls back to the extractive compaction when the auxiliary call fails.
+    pub compaction_llm: bool,
 }
 
 impl Default for Reglages {
@@ -83,6 +97,10 @@ impl Default for Reglages {
             profil: ProfilModele::default(),
             chemin_carnet: None,
             supervision: None,
+            timeout_outil_secs: 300,
+            max_chars_observation: 30_000,
+            budget_tokens: 0,
+            compaction_llm: true,
         }
     }
 }

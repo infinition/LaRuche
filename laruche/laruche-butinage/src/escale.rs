@@ -1,10 +1,16 @@
 //! The **escale**: the halt where the tool "makes honey": context compaction
 //! between passes to last over time.
 //!
-//! Driven by the [`Jauge`]. POC version: **extractive** compaction (no LLM call,
-//! deterministic): keep the anchor (the mission), a summary of intermediate turns
-//! (tools used + latest observations), and the N recent turns intact. LLM
-//! consolidation into cognitive memory will come via the bridge (`Source`).
+//! Driven by the [`Jauge`]. Two compaction modes:
+//! - **LLM summary** (default, [`compacter_intelligent`]): dense summary preserving
+//!   discoveries, decisions, plan state and dead-ends — what a long research needs
+//!   to not re-explore. Falls back to extractive when the auxiliary call fails.
+//! - **Extractive** ([`compacter`]): deterministic, no LLM call (tools used +
+//!   latest observations). POC mode and fallback.
+//!
+//! When the gauge is critical and a memory is plugged in, [`consolider`] extracts
+//! durable facts to long-term memory and restarts on a fresh — but self-sufficient —
+//! context (mission + plan + facts + last turns).
 
 use crate::cap::jauge::{Besoin, Jauge};
 use crate::carnet::Carnet;
@@ -13,16 +19,74 @@ use crate::fournisseur::Fournisseur;
 use crate::messagerie::{Message, Role};
 use crate::nectar::Source;
 
-/// Examines the gauge and compacts if needed. Returns an escale event if a
-/// compaction occurred (for the UI), otherwise `None`.
-pub fn peut_etre(carnet: &mut Carnet, jauge: &Jauge, garder_recents: usize) -> Option<Evenement> {
-    let cible = match jauge.besoin() {
-        Besoin::Rien => return None,
-        Besoin::Compacter => garder_recents,
+/// Number of recent turns to keep for a given gauge need. `None` = nothing to do.
+fn cible_recents(jauge: &Jauge, garder_recents: usize) -> Option<usize> {
+    match jauge.besoin() {
+        Besoin::Rien => None,
+        Besoin::Compacter => Some(garder_recents),
         // Consolidation: more aggressive compaction (keep fewer turns).
-        Besoin::Consolider => (garder_recents / 2).max(4),
-    };
+        Besoin::Consolider => Some((garder_recents / 2).max(4)),
+    }
+}
+
+/// Examines the gauge and compacts (extractively) if needed. Returns an escale event
+/// if a compaction occurred (for the UI), otherwise `None`.
+pub fn peut_etre(carnet: &mut Carnet, jauge: &Jauge, garder_recents: usize) -> Option<Evenement> {
+    let cible = cible_recents(jauge, garder_recents)?;
     compacter(&mut carnet.historique, cible).map(|(avant, apres)| Evenement::Escale { avant, apres })
+}
+
+const PROMPT_COMPACTION: &str = "You are compacting the working context of an autonomous agent \
+mid-mission. Summarize the transcript segment below DENSELY so the agent can continue seamlessly. \
+You MUST preserve: (1) concrete discoveries and facts WITH their sources/URLs; (2) decisions taken \
+and why; (3) the current plan state and what remains to do; (4) dead ends and approaches already \
+tried that FAILED (so they are not retried); (5) exact identifiers (paths, names, ids, numbers). \
+Omit pleasantries and reasoning chatter. Output the summary only, no preamble.";
+
+/// **LLM compaction** (default mode): summarizes the old turns via an auxiliary call,
+/// keeping the anchor (mission) and the recent turns intact. Falls back to the
+/// extractive [`compacter`] when the call fails or returns nothing.
+pub async fn compacter_intelligent(
+    carnet: &mut Carnet,
+    fournisseur: &dyn Fournisseur,
+    jauge: &Jauge,
+    garder_recents: usize,
+    emet: &dyn Emetteur,
+) -> Option<Evenement> {
+    let cible = cible_recents(jauge, garder_recents)?;
+    let avant = carnet.historique.len();
+    if avant <= cible + 2 {
+        return None; // too short to be worthwhile
+    }
+    emet.emettre(Evenement::Statut("🍯 LLM context compaction…".into()));
+    let split = avant - cible;
+    let rendu = rendu_historique(&carnet.historique[..split]);
+    let messages = vec![Message::systeme(PROMPT_COMPACTION), Message::utilisateur(rendu)];
+    match fournisseur.repondre(&messages, &[]).await {
+        Ok(r) if !r.texte.trim().is_empty() => {
+            let ancre = carnet.historique[..split]
+                .iter()
+                .find(|m| m.role == Role::Utilisateur)
+                .cloned();
+            let resume = Message::systeme(format!(
+                "[Compacted context: {} earlier messages summarized]\n{}",
+                split,
+                r.texte.trim()
+            ));
+            let queue: Vec<Message> = carnet.historique[split..].to_vec();
+            let mut nouveau = Vec::with_capacity(cible + 2);
+            if let Some(a) = ancre {
+                nouveau.push(a);
+            }
+            nouveau.push(resume);
+            nouveau.extend(queue);
+            carnet.historique = nouveau;
+            Some(Evenement::Escale { avant, apres: carnet.historique.len() })
+        }
+        // Auxiliary call failed or empty: deterministic fallback, never skip the pass.
+        _ => compacter(&mut carnet.historique, cible)
+            .map(|(avant, apres)| Evenement::Escale { avant, apres }),
+    }
 }
 
 /// Extractive compaction of the history. Returns `(avant, apres)` if it occurred.
@@ -91,9 +155,24 @@ pub fn prompt_extraction_defaut() -> &'static str {
     PROMPT_EXTRACTION
 }
 
+/// Renders the plan with statuses, so a fresh context still shows where the mission stands.
+fn rendu_plan(it: &crate::itineraire::Itineraire) -> String {
+    if it.est_vide() {
+        return String::new();
+    }
+    let lignes: Vec<String> = it
+        .etapes
+        .iter()
+        .map(|e| format!("- [{:?}] {}", e.statut, e.titre))
+        .collect();
+    format!("\nCurrent plan state:\n{}", lignes.join("\n"))
+}
+
 /// **Cognitive consolidation** (heavy escale): extracts durable facts from the history
 /// via an auxiliary LLM call, writes them to memory (`source`), then restarts on a fresh
-/// context (anchor + resume). Makes the mission *cumulative* without saturating the context.
+/// but SELF-SUFFICIENT context: mission (with its attachments), extracted facts inline,
+/// plan state, and the last few turns. Makes the mission *cumulative* without
+/// saturating the context — and without amnesia about where it stood.
 pub async fn consolider(
     carnet: &mut Carnet,
     fournisseur: &dyn Fournisseur,
@@ -121,22 +200,49 @@ pub async fn consolider(
     }
 
     let avant = carnet.historique.len();
-    // Fresh context: anchor (mission) + resume instruction via memory.
-    carnet.historique = vec![
+    // The original anchor may carry multimodal pieces (images/audio): keep them.
+    let pieces_ancre = carnet
+        .historique
+        .iter()
+        .find(|m| m.role == Role::Utilisateur)
+        .map(|m| m.pieces.clone())
+        .unwrap_or_default();
+    // Last few turns (non-internal): the immediate thread survives the reset.
+    let mut queue: Vec<Message> = carnet
+        .historique
+        .iter()
+        .rev()
+        .filter(|m| !m.interne)
+        .take(3)
+        .cloned()
+        .collect();
+    queue.reverse();
+    let faits_liste: Vec<String> = faits
+        .iter()
+        .take(20)
+        .map(|(n, c)| format!("- {n}: {c}"))
+        .collect();
+
+    let mut nouveau = vec![
         Message::systeme(format!(
-            "=== Resumed after cognitive consolidation: {} fact(s) stored to long-term memory. \
-             Use memory_search to recall what you already found, then continue the mission from where it stood. ===",
-            faits.len()
+            "=== Resumed after cognitive consolidation ===\n\
+             {} fact(s) stored to long-term memory, including:\n{}\n{}\n\
+             Use memory_search to recall older details. Continue the mission from where it stood.",
+            faits.len(),
+            faits_liste.join("\n"),
+            rendu_plan(&carnet.itineraire)
         )),
-        Message::utilisateur(carnet.mission.clone()),
+        Message::utilisateur_multimodal(carnet.mission.clone(), pieces_ancre),
     ];
+    nouveau.extend(queue);
+    carnet.historique = nouveau;
     Some(Evenement::Escale { avant, apres: carnet.historique.len() })
 }
 
-/// Renders the history as flat text for extraction.
+/// Renders the history as flat text for extraction/compaction.
 fn rendu_historique(h: &[Message]) -> String {
     h.iter()
-        .filter(|m| !m.contenu.trim().is_empty())
+        .filter(|m| !m.contenu.trim().is_empty() || !m.appels.is_empty())
         .map(|m| {
             let role = match m.role {
                 Role::Systeme => "system",
@@ -144,7 +250,11 @@ fn rendu_historique(h: &[Message]) -> String {
                 Role::Assistant => "assistant",
                 Role::Observation => "tool",
             };
-            format!("[{role}] {}", m.contenu)
+            let mut ligne = format!("[{role}] {}", m.contenu);
+            for a in &m.appels {
+                ligne.push_str(&format!("\n[call] {} {}", a.nom, a.args));
+            }
+            ligne
         })
         .collect::<Vec<_>>()
         .join("\n\n")
@@ -237,6 +347,75 @@ mod tests {
         jauge.utilise = 300; // ratio 0.3
         assert!(peut_etre(&mut carnet, &jauge, 8).is_none());
         assert_eq!(carnet.historique.len(), 41);
+    }
+
+    #[tokio::test]
+    async fn compacter_intelligent_utilise_le_resume_llm() {
+        use crate::fournisseur::{ErreurFournisseur, ReponseModele};
+        use crate::issue::StopReason;
+        struct FournisseurResume;
+        #[async_trait::async_trait]
+        impl Fournisseur for FournisseurResume {
+            async fn repondre(
+                &self,
+                _m: &[Message],
+                _s: &[serde_json::Value],
+            ) -> Result<ReponseModele, ErreurFournisseur> {
+                Ok(ReponseModele {
+                    texte: "RESUME_DENSE: la source X confirme Y.".into(),
+                    stop: StopReason::FinTour,
+                    appels: vec![],
+                    usage: None,
+                })
+            }
+        }
+        let mut carnet = Carnet::ouvrir("m", ModeMission::Standard, t0());
+        carnet.historique = hist(20);
+        let mut jauge = Jauge::nouvelle(1000, 0.70, 0.85);
+        jauge.utilise = 750;
+        let ev = compacter_intelligent(
+            &mut carnet,
+            &FournisseurResume,
+            &jauge,
+            8,
+            &crate::evenement::Silencieux,
+        )
+        .await;
+        assert!(matches!(ev, Some(Evenement::Escale { .. })));
+        assert_eq!(carnet.historique[0].contenu, "MISSION"); // anchor kept
+        assert!(carnet.historique[1].contenu.contains("RESUME_DENSE")); // LLM summary
+    }
+
+    #[tokio::test]
+    async fn compacter_intelligent_retombe_sur_l_extractif_en_cas_d_echec() {
+        use crate::fournisseur::{ErreurFournisseur, ReponseModele};
+        struct FournisseurMort;
+        #[async_trait::async_trait]
+        impl Fournisseur for FournisseurMort {
+            async fn repondre(
+                &self,
+                _m: &[Message],
+                _s: &[serde_json::Value],
+            ) -> Result<ReponseModele, ErreurFournisseur> {
+                Err(ErreurFournisseur { status: 500, retry_after: None, corps: "down".into() })
+            }
+        }
+        let mut carnet = Carnet::ouvrir("m", ModeMission::Standard, t0());
+        carnet.historique = hist(20);
+        let mut jauge = Jauge::nouvelle(1000, 0.70, 0.85);
+        jauge.utilise = 750;
+        let ev = compacter_intelligent(
+            &mut carnet,
+            &FournisseurMort,
+            &jauge,
+            8,
+            &crate::evenement::Silencieux,
+        )
+        .await;
+        // fallback: the extractive compaction still happened
+        assert!(matches!(ev, Some(Evenement::Escale { .. })));
+        assert!(carnet.historique.len() < 41);
+        assert!(carnet.historique[1].contenu.contains("Tools already used"));
     }
 
     #[test]

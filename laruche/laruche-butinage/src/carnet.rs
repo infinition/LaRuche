@@ -43,6 +43,15 @@ pub struct Carnet {
     pub auto_continue: usize,
     /// Web/network tool calls actually performed (proof of search).
     pub recolte_web: usize,
+    /// Cumulative real input tokens over the whole butinage (provider-reported).
+    #[serde(default)]
+    pub tokens_entree_total: u64,
+    /// Cumulative real output tokens over the whole butinage (provider-reported).
+    #[serde(default)]
+    pub tokens_sortie_total: u64,
+    /// Vigie counters, persisted so a crash-resume keeps its anti-loop memory.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vigie: Option<crate::cap::vigie::Vigie>,
     pub cree_le: chrono::DateTime<chrono::Utc>,
     pub maj_le: chrono::DateTime<chrono::Utc>,
 }
@@ -61,9 +70,17 @@ impl Carnet {
             passe: 0,
             auto_continue: 0,
             recolte_web: 0,
+            tokens_entree_total: 0,
+            tokens_sortie_total: 0,
+            vigie: None,
             cree_le: now,
             maj_le: now,
         }
+    }
+
+    /// Cumulative token spend (input + output), the budget signal.
+    pub fn tokens_total(&self) -> u64 {
+        self.tokens_entree_total + self.tokens_sortie_total
     }
 
     /// Rearms the auto-continuation budget (called when a tool runs = real progress).
@@ -88,14 +105,24 @@ impl Carnet {
     }
 
     /// Persists the carnet as JSON (checkpoint). `now` is injected for `maj_le`.
+    ///
+    /// - **Internal** messages (steering nudges, resume notes) are filtered out: they
+    ///   must not reappear on reload.
+    /// - **Atomic** write (tmp + rename): a crash mid-write must not corrupt the very
+    ///   checkpoint that exists to survive crashes.
     pub fn sauver(&mut self, chemin: &Path, now: chrono::DateTime<chrono::Utc>) -> Result<()> {
         self.maj_le = now;
         if let Some(parent) = chemin.parent() {
             std::fs::create_dir_all(parent)
                 .with_context(|| format!("creating directory {}", parent.display()))?;
         }
-        let json = serde_json::to_string_pretty(self).context("serializing the carnet")?;
-        std::fs::write(chemin, json).with_context(|| format!("writing {}", chemin.display()))?;
+        let mut copie = self.clone();
+        copie.historique.retain(|m| !m.interne);
+        let json = serde_json::to_string_pretty(&copie).context("serializing the carnet")?;
+        let tmp = chemin.with_extension("json.tmp");
+        std::fs::write(&tmp, json).with_context(|| format!("writing {}", tmp.display()))?;
+        std::fs::rename(&tmp, chemin)
+            .with_context(|| format!("renaming {} -> {}", tmp.display(), chemin.display()))?;
         Ok(())
     }
 

@@ -64,6 +64,16 @@ impl Role {
         }
     }
 
+    /// Minimal web calls before the exploration rail accepts an end. Only the scout
+    /// searches broadly; the other roles must not be forced into web quotas sized
+    /// for the parent's long research.
+    fn min_web(self) -> usize {
+        match self {
+            Role::Eclaireuse => 6,
+            _ => 0,
+        }
+    }
+
     fn mode(self) -> ModeMission {
         match self {
             Role::Eclaireuse => ModeMission::Exploration,
@@ -105,11 +115,14 @@ pub async fn depecher(
     outils: &dyn Outils,
     emet: &dyn Emetteur,
     now: chrono::DateTime<chrono::Utc>,
+    annulation: Option<&std::sync::atomic::AtomicBool>,
 ) -> Result<Rapport> {
     let reglages_enfant = Reglages {
         plafond_passes: ordre.role.plafond(),
+        min_web_exploration: ordre.role.min_web(),
         systeme: format!("{}\n\n## Sub-mission role\n{}", reglages_parent.systeme, ordre.role.directive()),
         chemin_carnet: None, // the child does not need a disk checkpoint
+        supervision: None,   // the parent's Tier 3 watches the PARENT, not the child
         ..reglages_parent.clone()
     };
 
@@ -120,9 +133,18 @@ pub async fn depecher(
 
     let mut carnet = Carnet::ouvrir(&mission, ordre.role.mode(), now);
     // Éclaireuses are bounded and short, so no memory consolidation (source None).
-    let bilan =
-        crate::cycle::butiner(&mut carnet, &reglages_enfant, fournisseur, outils, emet, None, None)
-            .await?;
+    // The parent's cancellation flag propagates: killing the run kills the children.
+    let bilan = crate::cycle::butiner(
+        &mut carnet,
+        &reglages_enfant,
+        fournisseur,
+        outils,
+        emet,
+        None,
+        None,
+        annulation,
+    )
+    .await?;
 
     Ok(Rapport {
         tache: ordre.tache,
@@ -192,9 +214,10 @@ mod tests {
             tache: "trouver des sources sur X".into(),
             contexte: None,
         };
-        let rapport = depecher(ordre, &Reglages::default(), &four, &OutilsVides, &Silencieux, t0())
-            .await
-            .unwrap();
+        let rapport =
+            depecher(ordre, &Reglages::default(), &four, &OutilsVides, &Silencieux, t0(), None)
+                .await
+                .unwrap();
         assert_eq!(rapport.role, Role::Eclaireuse);
         assert_eq!(rapport.synthese, "3 sources trouvées");
         assert!(rapport.en_observation().contains("trouver des sources"));

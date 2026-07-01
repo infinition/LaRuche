@@ -71,6 +71,13 @@ impl Jauge {
         self.utilise as f32 / self.max_tokens as f32
     }
 
+    /// Calibrated characters-per-token ratio (base 4 chars/token corrected by the
+    /// factor learned from real usage). Single source of truth for every consumer
+    /// that reasons in characters (e.g. the hard truncation guardrail).
+    pub fn chars_par_token(&self) -> f32 {
+        (4.0 / self.facteur).clamp(1.0, 8.0)
+    }
+
     pub fn besoin(&self) -> Besoin {
         let r = self.ratio();
         if r >= self.seuil_consolidation {

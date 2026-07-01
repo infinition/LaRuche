@@ -48,6 +48,12 @@ pub trait Outils: Send + Sync {
         self.idempotent(&appel.nom)
     }
 
+    /// Per-tool timeout override (seconds). `None` = use `Reglages::timeout_outil_secs`;
+    /// `Some(0)` = no timeout (e.g. delegation to a sub-agent, approval waits).
+    fn timeout_secs(&self, _nom: &str) -> Option<u64> {
+        None
+    }
+
     /// Counts a call as a "web search" (proof of effort in exploration mode).
     fn est_web(&self, appel: &Appel) -> bool {
         appel.nom.starts_with("web_") || appel.nom.starts_with("browser_")

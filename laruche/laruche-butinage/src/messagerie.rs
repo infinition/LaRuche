@@ -3,6 +3,7 @@
 //! Minimal, provider-neutral type. The adapters ([`crate::fournisseur`])
 //! translate it to the OpenAI/Anthropic/Ollama format. Serializable, lives in the [`Carnet`].
 
+use crate::issue::Appel;
 use serde::{Deserialize, Serialize};
 
 /// Role of a message.
@@ -46,34 +47,72 @@ pub struct Message {
     pub outil: Option<String>,
     /// **Internal** message (steering nudge, resume...): the model sees it in the context,
     /// but it must NOT be persisted/shown to the user (otherwise it reappears on reload).
+    /// [`crate::carnet::Carnet::sauver`] filters these out of the checkpoint.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub interne: bool,
     /// Multimodal attachments (multiple images, audio...): only on a user
     /// message. Empty for everything else.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub pieces: Vec<Piece>,
+    /// Tool calls emitted with this assistant message. Keeping them in the history lets
+    /// the adapter reconstruct a coherent transcript (the model must see WHICH calls
+    /// produced the observations that follow), and survives crash-resume.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub appels: Vec<Appel>,
+    /// For an observation: id of the [`Appel`] that produced it (native `tool_result`
+    /// correlation for providers that support it).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub appel_id: Option<String>,
 }
 
 impl Message {
+    fn base(role: Role, contenu: String) -> Self {
+        Self {
+            role,
+            contenu,
+            outil: None,
+            interne: false,
+            pieces: Vec::new(),
+            appels: Vec::new(),
+            appel_id: None,
+        }
+    }
+
     pub fn systeme(c: impl Into<String>) -> Self {
-        Self { role: Role::Systeme, contenu: c.into(), outil: None, interne: false, pieces: Vec::new() }
+        Self::base(Role::Systeme, c.into())
     }
     pub fn utilisateur(c: impl Into<String>) -> Self {
-        Self { role: Role::Utilisateur, contenu: c.into(), outil: None, interne: false, pieces: Vec::new() }
+        Self::base(Role::Utilisateur, c.into())
     }
     /// User message with multimodal attachments (images/audio).
     pub fn utilisateur_multimodal(c: impl Into<String>, pieces: Vec<Piece>) -> Self {
-        Self { role: Role::Utilisateur, contenu: c.into(), outil: None, interne: false, pieces }
+        Self { pieces, ..Self::base(Role::Utilisateur, c.into()) }
     }
     pub fn assistant(c: impl Into<String>) -> Self {
-        Self { role: Role::Assistant, contenu: c.into(), outil: None, interne: false, pieces: Vec::new() }
+        Self::base(Role::Assistant, c.into())
+    }
+    /// Assistant message carrying the tool calls it emitted this turn.
+    pub fn assistant_avec_appels(c: impl Into<String>, appels: Vec<Appel>) -> Self {
+        Self { appels, ..Self::base(Role::Assistant, c.into()) }
     }
     pub fn observation(outil: impl Into<String>, c: impl Into<String>) -> Self {
-        Self { role: Role::Observation, contenu: c.into(), outil: Some(outil.into()), interne: false, pieces: Vec::new() }
+        Self { outil: Some(outil.into()), ..Self::base(Role::Observation, c.into()) }
+    }
+    /// Observation correlated to the tool call that produced it.
+    pub fn observation_liee(
+        outil: impl Into<String>,
+        appel_id: impl Into<String>,
+        c: impl Into<String>,
+    ) -> Self {
+        Self {
+            outil: Some(outil.into()),
+            appel_id: Some(appel_id.into()),
+            ..Self::base(Role::Observation, c.into())
+        }
     }
     /// Steering nudge: user role (the model follows it), but marked internal
     /// so it is not persisted, not displayed.
     pub fn nudge(c: impl Into<String>) -> Self {
-        Self { role: Role::Utilisateur, contenu: c.into(), outil: None, interne: true, pieces: Vec::new() }
+        Self { interne: true, ..Self::base(Role::Utilisateur, c.into()) }
     }
 }
