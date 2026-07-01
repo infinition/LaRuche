@@ -80,6 +80,9 @@ pub struct Reglages {
     /// LLM-summarized compaction (dense, preserves discoveries/decisions/dead-ends).
     /// Falls back to the extractive compaction when the auxiliary call fails.
     pub compaction_llm: bool,
+    /// Is `delegate` available in this context? False for sub-agents (anti-recursion):
+    /// steering nudges then stop suggesting an impossible fan-out.
+    pub delegation_disponible: bool,
 }
 
 impl Default for Reglages {
@@ -101,6 +104,7 @@ impl Default for Reglages {
             max_chars_observation: 30_000,
             budget_tokens: 0,
             compaction_llm: true,
+            delegation_disponible: true,
         }
     }
 }

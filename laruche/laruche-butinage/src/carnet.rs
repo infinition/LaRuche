@@ -94,13 +94,19 @@ impl Carnet {
     }
 
     /// Builds the decision context for [`crate::cap::boussole::cap`].
-    pub fn contexte_cap(&self, relance_max: usize, min_web_exploration: usize) -> ContexteCap {
+    pub fn contexte_cap(
+        &self,
+        relance_max: usize,
+        min_web_exploration: usize,
+        delegation_dispo: bool,
+    ) -> ContexteCap {
         ContexteCap {
             auto_continue: self.auto_continue,
             relance_max,
             mode_exploration: self.mode == ModeMission::Exploration,
             recolte_web: self.recolte_web,
             min_web_exploration,
+            delegation_dispo,
         }
     }
 
@@ -149,7 +155,7 @@ mod tests {
         c.itineraire.definir(vec!["a".into(), "b".into()]);
         c.recolte_web = 4;
         c.auto_continue = 2;
-        let ctx = c.contexte_cap(3, 12);
+        let ctx = c.contexte_cap(3, 12, true);
         assert!(ctx.mode_exploration);
         assert_eq!(ctx.recolte_web, 4);
         assert_eq!(ctx.auto_continue, 2);

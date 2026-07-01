@@ -207,7 +207,11 @@ pub async fn butiner(
             _ => reponse.texte.clone(),
         };
 
-        let ctx = carnet.contexte_cap(reglages.relance_max, reglages.min_web_exploration);
+        let ctx = carnet.contexte_cap(
+            reglages.relance_max,
+            reglages.min_web_exploration,
+            reglages.delegation_disponible,
+        );
         match cap(&ctx, issue) {
             Decision::Poser(fin) => {
                 carnet.itineraire.finaliser();

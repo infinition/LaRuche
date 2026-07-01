@@ -136,6 +136,7 @@ pub async fn depecher(
         ),
         chemin_carnet: None, // the child does not need a disk checkpoint
         supervision: None,   // the parent's Tier 3 watches the PARENT, not the child
+        delegation_disponible: false, // anti-recursion: nudges must not suggest a fan-out
         ..reglages_parent.clone()
     };
 

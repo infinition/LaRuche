@@ -34,6 +34,9 @@ pub struct ContexteCap {
     pub recolte_web: usize,
     /// In exploration mode, minimum web calls below which we relaunch (bounded by `relance_max`).
     pub min_web_exploration: usize,
+    /// Is `delegate` available in THIS context? False for sub-agents (anti-recursion):
+    /// the exploration nudge must not order a fan-out they cannot perform.
+    pub delegation_dispo: bool,
 }
 
 impl ContexteCap {
@@ -56,8 +59,9 @@ languages EN/FR, time periods, adjacent topics).\n\
 the SAME message (role: \"eclaireuse\", each with a precise, self-contained brief). They \
 run IN PARALLEL on isolated contexts and each returns a compact report.\n\
 3. CROSS-CHECK decisive or conflicting findings with a `delegate` role \"gardienne\".\n\
-4. ITERATE: every report opens new angles (names, forums, archives, mirrors). A blocked \
-page (403/paywall/captcha) is an obstacle, NOT a dead end: retry via web archives \
+4. ITERATE: every report opens new angles (names, forums, archives, mirrors). Search \
+queries must be SHORT and FOCUSED (2-5 terms; never keyword soup). A blocked page \
+(403/paywall/captcha) is an obstacle, NOT a dead end: retry via web archives \
 (web.archive.org), search-engine caches, alternate mirrors and sources.\n\
 5. SYNTHESIZE (yourself, or a `delegate` role \"architecte\"): a structured answer with \
 concrete findings and source URLs.\n\
@@ -74,8 +78,15 @@ mod nudge {
     pub const EXPLORER_PLUS: &str = "This is a long-running research mission and you have not searched \
         enough yet. Do not conclude, and do NOT hand the search back to the user. Open NEW angles NOW: \
         either dispatch several parallel `delegate` scouts (role: eclaireuse, one per angle, in the same \
-        message), or call web tools directly - vary queries (synonyms, EN/FR), try archives/forums/source \
-        sites and advanced operators. A 403/paywall is not a dead end: use web archives, caches, mirrors.";
+        message), or call web tools directly. Queries must be SHORT and FOCUSED (2-5 terms; never keyword \
+        soup) - vary them (synonyms, EN/FR), try archives/forums/source sites and advanced operators. \
+        A 403/paywall is not a dead end: use web archives, caches, mirrors.";
+    /// Variant for contexts WITHOUT delegation (sub-agents): direct tools only.
+    pub const EXPLORER_PLUS_SOLO: &str = "This is a long-running research mission and you have not searched \
+        enough yet. Do not conclude, and do NOT hand the search back to the user. Open NEW angles NOW with \
+        your direct web tools (web_deep_search, web_fetch). Queries must be SHORT and FOCUSED (2-5 terms; \
+        never keyword soup) - vary them (synonyms, EN/FR), try archives/forums/source sites and advanced \
+        operators. A 403/paywall is not a dead end: use web archives, caches, mirrors.";
 }
 
 /// **The** continuation decision. Pure: `(contexte, issue) -> Decision`.
@@ -119,7 +130,14 @@ pub fn cap(ctx: &ContexteCap, issue: Issue) -> Decision {
                 && ctx.recolte_web < ctx.min_web_exploration
                 && ctx.relance_dispo()
             {
-                return Decision::Relancer(nudge::EXPLORER_PLUS.to_string());
+                // Never order a fan-out where delegation is unavailable (sub-agents):
+                // the model would burn passes against the anti-recursion wall.
+                let n = if ctx.delegation_dispo {
+                    nudge::EXPLORER_PLUS
+                } else {
+                    nudge::EXPLORER_PLUS_SOLO
+                };
+                return Decision::Relancer(n.to_string());
             }
             // Otherwise: end of turn (yield control back to the user).
             Decision::Poser(FinDeVol::Accomplie)
@@ -140,6 +158,22 @@ mod tests {
             mode_exploration: false,
             recolte_web: 0,
             min_web_exploration: 12,
+            delegation_dispo: true,
+        }
+    }
+
+    #[test]
+    fn exploration_sans_delegation_nudge_les_outils_directs() {
+        let mut c = ctx();
+        c.mode_exploration = true;
+        c.recolte_web = 2;
+        c.delegation_dispo = false; // sub-agent context
+        match cap(&c, texte(base_texte())) {
+            Decision::Relancer(n) => {
+                assert!(n.contains("direct web tools"));
+                assert!(!n.contains("delegate"), "must not order an impossible fan-out");
+            }
+            autre => panic!("expected Relancer, got {autre:?}"),
         }
     }
 
