@@ -404,9 +404,13 @@ impl MemoireCognitive for SqliteBackend {
 
         if let Some(qv) = &qvec {
             // Semantic branch: cosine + small lexical flag + activation + bonus.
+            // `capacities.*`/`system.*` are system-managed projections (skills catalog,
+            // prompts) with their OWN injection channels: surfacing their big bodies
+            // here drowned real facts (observed: a GPU question recalled skill guides).
             let mut stmt = conn.prepare(
                 "SELECT id, node_id, content, embedding, importance, COALESCE(access_count,0), updated_at \
-                 FROM items WHERE status='active' AND embedding IS NOT NULL",
+                 FROM items WHERE status='active' AND embedding IS NOT NULL \
+                 AND node_id NOT LIKE 'capacities.%' AND node_id NOT LIKE 'system.%'",
             )?;
             let rows = stmt.query_map([], |r| {
                 Ok((
@@ -443,7 +447,9 @@ impl MemoireCognitive for SqliteBackend {
             let mut stmt = conn.prepare(
                 "SELECT i.id, i.node_id, i.content, i.importance, COALESCE(i.access_count,0), i.updated_at \
                  FROM items_fts f JOIN items i ON i.id = f.rowid \
-                 WHERE f.items_fts MATCH ?1 AND i.status='active' ORDER BY bm25(items_fts) LIMIT ?2",
+                 WHERE f.items_fts MATCH ?1 AND i.status='active' \
+                 AND i.node_id NOT LIKE 'capacities.%' AND i.node_id NOT LIKE 'system.%' \
+                 ORDER BY bm25(items_fts) LIMIT ?2",
             )?;
             let rows = stmt.query_map(
                 rusqlite::params![match_expr, (limit * 3) as i64],
@@ -490,7 +496,15 @@ impl MemoireCognitive for SqliteBackend {
             if seen.insert(node.clone()) {
                 nodes.push(node_json(&conn, &node)?);
             }
-            items.push(json!({ "id": format!("itm_{id}"), "node_id": node, "content": content }));
+            // Cap per-item content: one verbose item must not eat the whole recall
+            // budget (full documents stay reachable via memory_read_node).
+            let apercu: String = content.chars().take(600).collect();
+            let contenu = if apercu.len() < content.len() {
+                format!("{apercu} …[truncated: read node {node} for the rest]")
+            } else {
+                content
+            };
+            items.push(json!({ "id": format!("itm_{id}"), "node_id": node, "content": contenu }));
         }
         Ok(Self::pack(nodes, items))
     }
@@ -514,18 +528,32 @@ impl MemoireCognitive for SqliteBackend {
                 }));
             }
             if let Some(qv) = &emb_vec {
+                // Supersede scope = the whole ROOT DOMAIN (`hardware.*`), not just the
+                // exact node: the model files the same fact under sibling nodes
+                // (observed: 4070 Ti in hardware.local_model_setup, its replacement
+                // 5080 in hardware.gpu — both stayed active). Same-node matches keep
+                // the 0.88 threshold; cross-node needs a slightly stronger 0.90.
+                let domaine = format!(
+                    "{}.%",
+                    item.node_id.split('.').next().unwrap_or(&item.node_id)
+                );
                 let mut remplaces: Vec<i64> = Vec::new();
                 {
                     let mut stmt = conn.prepare(
-                        "SELECT id, embedding FROM items \
-                         WHERE node_id=?1 AND status='active' AND embedding IS NOT NULL",
+                        "SELECT id, node_id, embedding FROM items \
+                         WHERE (node_id=?1 OR node_id LIKE ?2) AND status='active' AND embedding IS NOT NULL",
                     )?;
-                    let rows = stmt.query_map(rusqlite::params![item.node_id], |r| {
-                        Ok((r.get::<_, i64>(0)?, r.get::<_, Vec<u8>>(1)?))
+                    let rows = stmt.query_map(rusqlite::params![item.node_id, domaine], |r| {
+                        Ok((
+                            r.get::<_, i64>(0)?,
+                            r.get::<_, String>(1)?,
+                            r.get::<_, Vec<u8>>(2)?,
+                        ))
                     })?;
                     for row in rows {
-                        let (id, blob) = row?;
-                        if cosine(qv, &blob_to_vec(&blob)) > 0.88 {
+                        let (id, node, blob) = row?;
+                        let seuil = if node == item.node_id { 0.88 } else { 0.90 };
+                        if cosine(qv, &blob_to_vec(&blob)) > seuil {
                             remplaces.push(id);
                         }
                     }
