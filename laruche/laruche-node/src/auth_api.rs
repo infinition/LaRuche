@@ -106,10 +106,34 @@ pub(crate) async fn api_auth_me(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let user_id = auth_user::extract_user_from_headers(&headers, &state.cookie_secret)
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+    // Diagnostic 401s: each failure mode logs its exact cause, so "re-login every
+    // launch" is attributable in one glance at the console (no cookie sent by the
+    // browser? signature mismatch = secret changed? user files missing?).
+    let user_id = match auth_user::extract_user_from_headers(&headers, &state.cookie_secret) {
+        Some(id) => id,
+        None => {
+            let a_cookie = headers
+                .get(axum::http::header::COOKIE)
+                .and_then(|v| v.to_str().ok())
+                .map(|c| c.contains("laruche_auth="))
+                .unwrap_or(false);
+            if a_cookie {
+                warn!("auth/me 401: laruche_auth cookie PRESENT but invalid (secret changed since it was issued, or expired >30d)");
+            } else {
+                warn!("auth/me 401: no laruche_auth cookie sent by the browser (cookie never stored, or cleared client-side)");
+            }
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+    };
     let users = state.users.read().await;
-    let user = users.get(&user_id).ok_or(StatusCode::UNAUTHORIZED)?;
+    let user = match users.get(&user_id) {
+        Some(u) => u,
+        None => {
+            warn!(user_id = %user_id, users_charges = users.len(),
+                "auth/me 401: cookie VALID but user unknown (users/ dir not loaded from this cwd?)");
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+    };
     Ok(Json(serde_json::json!({
         "user_id": user.id.to_string(),
         "display_name": user.display_name,

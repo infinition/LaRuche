@@ -1586,16 +1586,35 @@ async fn main() -> Result<()> {
         info!(count = loaded_users.len(), "Users loaded from disk");
     }
 
-    // Load or generate cookie secret (persisted in laruche-state.json)
+    // Load or generate cookie secret (persisted in laruche-state.json).
+    // The fingerprint log is the auth debugging anchor: if it CHANGES between two
+    // boots, every session cookie is invalidated (that is the "re-login every
+    // launch" symptom) and the state file is not persisting/loading correctly.
     let cookie_secret = if let Some(ref hex) = persistent.cookie_secret {
-        auth_user::cookie_secret_from_base64(hex).unwrap_or_else(|| {
-            let s = auth_user::generate_cookie_secret();
-            info!("Generated new cookie secret (stored was invalid)");
-            s
-        })
+        match auth_user::cookie_secret_from_base64(hex) {
+            Some(s) => {
+                info!(
+                    fingerprint = %&auth_user::cookie_secret_to_base64(&s)[..8],
+                    "Cookie secret loaded from laruche-state.json (sessions survive restarts)"
+                );
+                s
+            }
+            None => {
+                let s = auth_user::generate_cookie_secret();
+                warn!(
+                    stored_len = hex.len(),
+                    fingerprint = %&auth_user::cookie_secret_to_base64(&s)[..8],
+                    "Stored cookie secret INVALID -> regenerated: every session cookie is now invalid (re-login required)"
+                );
+                s
+            }
+        }
     } else {
         let s = auth_user::generate_cookie_secret();
-        info!("Generated new cookie secret");
+        warn!(
+            fingerprint = %&auth_user::cookie_secret_to_base64(&s)[..8],
+            "No cookie secret in laruche-state.json -> generated: previous sessions are invalid"
+        );
         s
     };
 
@@ -1656,6 +1675,14 @@ async fn main() -> Result<()> {
         credentials_path,
         last_activity: RwLock::new(std::time::Instant::now()),
     });
+
+    // Persist the state RIGHT AWAY: the shutdown save only runs on a clean exit
+    // (Ctrl+C / tray Quit). Closing the console window kills the process without
+    // saving — a cookie secret generated this boot would then never be written,
+    // and the NEXT boot would regenerate it, invalidating every session cookie
+    // ("re-login on every launch"). Saving here makes the secret durable no
+    // matter how the process dies.
+    save_persistent_state(&state).await;
 
     // Mirror the saved LaReine gate into the process-global at boot, so self-created
     // skills are held for approval even before the first chat turn (cron/curateur).
