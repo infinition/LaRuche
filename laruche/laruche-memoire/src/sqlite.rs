@@ -552,7 +552,12 @@ impl MemoireCognitive for SqliteBackend {
                     })?;
                     for row in rows {
                         let (id, node, blob) = row?;
-                        let seuil = if node == item.node_id { 0.88 } else { 0.90 };
+                        // Thresholds CALIBRATED on real nomic-embed-text measurements
+                        // (2026-07-02): a same-fact PARAPHRASE lands at ~0.86 (0.88
+                        // silently missed it), unrelated facts at ~0.48, and a fact
+                        // UPDATE (4070→5080) at ~0.71 — updates are a contradiction
+                        // relation, not a similarity: an LLM check will handle them.
+                        let seuil = if node == item.node_id { 0.83 } else { 0.85 };
                         if cosine(qv, &blob_to_vec(&blob)) > seuil {
                             remplaces.push(id);
                         }
