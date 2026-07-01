@@ -90,3 +90,8 @@ laruche/laruche-reine-queue.json
 laruche/laruche-voix/src/*.onnx
 laruche/laruche-voix/src/*.bin
 laruche/laruche-voix/src/*.egg-info/
+
+# Eval run artifacts (JSONL per run) - keep evals/baseline.json tracked
+laruche/evals/results/
+# Nested standalone repo (window manager checkout)
+laruche/le-wm/

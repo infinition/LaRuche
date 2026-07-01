@@ -2047,6 +2047,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "laruche-evals"
+version = "0.2.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "futures-util",
+ "laruche-essaim",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "laruche-events"
 version = "0.2.0"
 dependencies = [
