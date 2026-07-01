@@ -161,29 +161,96 @@ impl but::Fournisseur for FournisseurPont {
     }
 }
 
+/// Translates the engine history into the generic wire format consumed by
+/// `provider_chat_stream`. **Native tool transcript** when possible:
+///
+/// - an assistant turn whose calls are ANSWERED by the observations that follow it
+///   carries `tool_calls: [{id, type, function:{name, arguments<object>}}]`;
+/// - the matching observations become `{role:"tool", tool_call_id, name, content}`;
+/// - everything else (text-parsed local models whose `<tool_call>` blocks stay in the
+///   text, prelude messages without ids, orphans created by compaction/truncation)
+///   falls back to the text rendering — native APIs reject unpaired calls/results,
+///   so the correlation pre-pass is what makes this safe.
 fn convertir_messages(messages: &[but::Message]) -> Vec<serde_json::Value> {
     use but::Role;
+    // Correlation pre-pass: for each assistant turn, which of its call ids are
+    // answered by the CONTIGUOUS run of observations right after it?
+    let n = messages.len();
+    let mut repondu: Vec<std::collections::HashSet<&str>> = vec![Default::default(); n];
+    for (i, m) in messages.iter().enumerate() {
+        if m.role == Role::Assistant && !m.appels.is_empty() && !m.contenu.contains("<tool_call>")
+        {
+            let mut j = i + 1;
+            while j < n && messages[j].role == Role::Observation {
+                if let Some(id) = messages[j].appel_id.as_deref() {
+                    repondu[i].insert(id);
+                }
+                j += 1;
+            }
+        }
+    }
+    // Ids natively carried by the LAST emitted assistant turn, not yet consumed.
+    let mut ids_natifs: std::collections::HashSet<String> = Default::default();
+
     let brut: Vec<serde_json::Value> = messages
         .iter()
-        .map(|m| {
-            let role = match m.role {
-                Role::Systeme => "system",
-                Role::Utilisateur | Role::Observation => "user",
-                Role::Assistant => "assistant",
-            };
-            let contenu = match m.role {
-                Role::Observation => format!(
-                    "[Tool Result: {}]\n{}",
-                    m.outil.as_deref().unwrap_or("tool"),
-                    m.contenu
-                ),
-                // Assistant turn carrying tool calls: re-render them so the transcript
-                // stays coherent (the model must SEE which calls produced the results
-                // that follow, otherwise multi-turn tool use degrades and the model
-                // starts imitating the "[Tool Result:]" format). Calls already present
-                // as text (<tool_call> parsed from the output) are not duplicated; the
-                // synthetic `plan` call is skipped (its <plan> block stays in the text).
-                Role::Assistant if !m.appels.is_empty() && !m.contenu.contains("<tool_call>") => {
+        .enumerate()
+        .map(|(i, m)| {
+            // ── Native observation: role "tool" correlated to its call. ──
+            if m.role == Role::Observation {
+                if let Some(id) = m.appel_id.as_deref() {
+                    if ids_natifs.remove(id) {
+                        return serde_json::json!({
+                            "role": "tool",
+                            "tool_call_id": id,
+                            "name": m.outil.as_deref().unwrap_or("tool"),
+                            "content": m.contenu,
+                        });
+                    }
+                }
+                // Orphan / legacy observation: text fallback.
+                return serde_json::json!({
+                    "role": "user",
+                    "content": format!(
+                        "[Tool Result: {}]\n{}",
+                        m.outil.as_deref().unwrap_or("tool"),
+                        m.contenu
+                    ),
+                });
+            }
+            // ── Native assistant: carries its answered tool calls. ──
+            if m.role == Role::Assistant {
+                let natifs: Vec<&but::Appel> = m
+                    .appels
+                    .iter()
+                    .filter(|a| a.nom != "plan" && repondu[i].contains(a.id.as_str()))
+                    .collect();
+                if !natifs.is_empty() {
+                    ids_natifs = natifs.iter().map(|a| a.id.clone()).collect();
+                    let tool_calls: Vec<serde_json::Value> = natifs
+                        .iter()
+                        .map(|a| {
+                            serde_json::json!({
+                                "id": a.id,
+                                "type": "function",
+                                // arguments as OBJECT here; each provider builder
+                                // stringifies (OpenAI) or keeps it (Anthropic/Ollama).
+                                "function": { "name": a.nom, "arguments": a.args },
+                            })
+                        })
+                        .collect();
+                    return serde_json::json!({
+                        "role": "assistant",
+                        "content": m.contenu,
+                        "tool_calls": tool_calls,
+                    });
+                }
+                ids_natifs.clear();
+                // Text fallback: re-render unanswered/text-mode calls so the transcript
+                // stays coherent (the model must SEE which calls produced the results).
+                // Calls already present as text (<tool_call> parsed from the output) are
+                // not duplicated; the synthetic `plan` call is skipped.
+                let contenu = if !m.appels.is_empty() && !m.contenu.contains("<tool_call>") {
                     let mut c = m.contenu.clone();
                     for a in m.appels.iter().filter(|a| a.nom != "plan") {
                         c.push_str(&format!(
@@ -192,8 +259,15 @@ fn convertir_messages(messages: &[but::Message]) -> Vec<serde_json::Value> {
                         ));
                     }
                     c
-                }
-                _ => m.contenu.clone(),
+                } else {
+                    m.contenu.clone()
+                };
+                return serde_json::json!({ "role": "assistant", "content": contenu });
+            }
+
+            let role = match m.role {
+                Role::Systeme => "system",
+                _ => "user",
             };
             // Multimodal: a user message may carry images (multiple) and/or
             // audio. Ollama format: `images: [base64]` for vision, `attachments`
@@ -214,12 +288,12 @@ fn convertir_messages(messages: &[but::Message]) -> Vec<serde_json::Value> {
                     .collect();
                 return serde_json::json!({
                     "role": role,
-                    "content": contenu,
+                    "content": m.contenu,
                     "images": images,
                     "attachments": attachments,
                 });
             }
-            serde_json::json!({ "role": role, "content": contenu })
+            serde_json::json!({ "role": role, "content": m.contenu })
         })
         .collect();
 
@@ -227,10 +301,18 @@ fn convertir_messages(messages: &[but::Message]) -> Vec<serde_json::Value> {
     // (Anthropic/Claude) return a 400 when two `user` messages follow each other, which
     // happens with parallel tool observations or a failed turn (orphan user message
     // re-injected). No effect for Ollama/OpenAI (alternation not required).
+    // NEVER merge native tool messages (one tool_call_id each) nor assistant turns
+    // carrying tool_calls (their structure must stay intact).
+    let intouchable = |v: &serde_json::Value| {
+        v.get("role").and_then(|r| r.as_str()) == Some("tool") || v.get("tool_calls").is_some()
+    };
     let mut out: Vec<serde_json::Value> = Vec::with_capacity(brut.len());
     for m in brut {
         let meme_role = out.last().map(|l| l.get("role") == m.get("role")).unwrap_or(false);
-        if meme_role {
+        let fusible = meme_role
+            && !intouchable(&m)
+            && out.last().map(|l| !intouchable(l)).unwrap_or(false);
+        if fusible {
             let last = out.last_mut().unwrap();
             let a = last.get("content").and_then(|v| v.as_str()).unwrap_or("").to_string();
             let b = m.get("content").and_then(|v| v.as_str()).unwrap_or("");
@@ -1468,6 +1550,58 @@ mod tests_prelude {
         assert_eq!(out[1]["role"], "user");
         let c = out[1]["content"].as_str().unwrap();
         assert!(c.contains("question") && c.contains("resultat"), "merged content");
+    }
+
+    #[test]
+    fn convertir_emet_le_transcript_natif_correle() {
+        // assistant(2 calls) + 2 observations correlated -> native tool_calls + role tool.
+        let a1 = but::Appel::nouveau("web_search", serde_json::json!({"q": "x"}));
+        let a2 = but::Appel::nouveau("file_read", serde_json::json!({"path": "y"}));
+        let msgs = vec![
+            but::Message::utilisateur("mission"),
+            but::Message::assistant_avec_appels("je cherche", vec![a1.clone(), a2.clone()]),
+            but::Message::observation_liee("web_search", &a1.id, "resultat web"),
+            but::Message::observation_liee("file_read", &a2.id, "contenu fichier"),
+        ];
+        let out = convertir_messages(&msgs);
+        assert_eq!(out.len(), 4);
+        // assistant carries its native tool_calls (arguments as OBJECT)
+        assert_eq!(out[1]["role"], "assistant");
+        let tcs = out[1]["tool_calls"].as_array().unwrap();
+        assert_eq!(tcs.len(), 2);
+        assert_eq!(tcs[0]["function"]["name"], "web_search");
+        assert_eq!(tcs[0]["function"]["arguments"]["q"], "x");
+        // observations become role "tool" with the matching tool_call_id
+        assert_eq!(out[2]["role"], "tool");
+        assert_eq!(out[2]["tool_call_id"], serde_json::json!(a1.id));
+        assert_eq!(out[3]["role"], "tool");
+        assert_eq!(out[3]["tool_call_id"], serde_json::json!(a2.id));
+        // tool messages are NEVER merged together
+        assert_ne!(out[2]["content"], out[3]["content"]);
+    }
+
+    #[test]
+    fn convertir_retombe_en_texte_pour_les_orphelins() {
+        // Call whose observation was lost (compaction/truncation): NO native structure
+        // (native APIs reject unpaired calls), text rendering instead.
+        let a1 = but::Appel::nouveau("web_search", serde_json::json!({"q": "x"}));
+        let msgs = vec![
+            but::Message::utilisateur("mission"),
+            but::Message::assistant_avec_appels("je cherche", vec![a1]),
+            but::Message::utilisateur("[Steering during run] change de sujet"),
+        ];
+        let out = convertir_messages(&msgs);
+        assert!(out[1].get("tool_calls").is_none(), "unanswered call: no native emission");
+        assert!(out[1]["content"].as_str().unwrap().contains("<tool_call>"), "text fallback");
+        // Orphan observation (no matching call before it): user-text fallback.
+        let a2 = but::Appel::nouveau("web_search", serde_json::json!({"q": "z"}));
+        let msgs = vec![
+            but::Message::utilisateur("mission"),
+            but::Message::observation_liee("web_search", &a2.id, "resultat orphelin"),
+        ];
+        let out = convertir_messages(&msgs);
+        // merged into the user message ([Tool Result:] text), never role "tool"
+        assert!(out.iter().all(|m| m["role"] != "tool"));
     }
 
     #[test]
