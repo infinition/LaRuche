@@ -117,10 +117,23 @@ pub async fn depecher(
     now: chrono::DateTime<chrono::Utc>,
     annulation: Option<&std::sync::atomic::AtomicBool>,
 ) -> Result<Rapport> {
+    // The parent's system prompt may carry the deep-research protocol, which orders a
+    // `delegate` fan-out — but delegation is DISABLED in the child (single recursion
+    // level). Left in place, every scout would waste its first passes hitting the
+    // anti-recursion wall. Strip it, and state the boundary explicitly.
+    let systeme_parent = reglages_parent
+        .systeme
+        .replace(crate::cap::boussole::PROTOCOLE_EXPLORATION, "");
     let reglages_enfant = Reglages {
         plafond_passes: ordre.role.plafond(),
         min_web_exploration: ordre.role.min_web(),
-        systeme: format!("{}\n\n## Sub-mission role\n{}", reglages_parent.systeme, ordre.role.directive()),
+        systeme: format!(
+            "{}\n\n## Sub-mission role\n{}\nYou CANNOT delegate further: `delegate` is \
+             unavailable at your level. Do the work YOURSELF with your direct tools \
+             (searches, fetches, files, shell).",
+            systeme_parent.trim_end(),
+            ordre.role.directive()
+        ),
         chemin_carnet: None, // the child does not need a disk checkpoint
         supervision: None,   // the parent's Tier 3 watches the PARENT, not the child
         ..reglages_parent.clone()
@@ -199,6 +212,54 @@ mod tests {
         assert_eq!(Role::depuis("verify"), Role::Gardienne);
         assert_eq!(Role::depuis("report"), Role::Architecte);
         assert_eq!(Role::depuis("n'importe"), Role::Eclaireuse);
+    }
+
+    /// Captures the system message of the first model call (child prompt inspection).
+    struct FournisseurEspion(Mutex<Option<String>>);
+    #[async_trait]
+    impl Fournisseur for FournisseurEspion {
+        async fn repondre(
+            &self,
+            m: &[crate::messagerie::Message],
+            _s: &[serde_json::Value],
+        ) -> std::result::Result<ReponseModele, ErreurFournisseur> {
+            let sys = m
+                .iter()
+                .find(|x| x.role == crate::messagerie::Role::Systeme)
+                .map(|x| x.contenu.clone())
+                .unwrap_or_default();
+            *self.0.lock().unwrap() = Some(sys);
+            Ok(ReponseModele {
+                texte: String::new(),
+                stop: StopReason::Outils,
+                appels: vec![Appel::nouveau("task_complete", json!({"summary": "ok"}))],
+                usage: None,
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn le_prompt_enfant_est_purge_du_protocole_fan_out() {
+        let four = FournisseurEspion(Mutex::new(None));
+        let parent = Reglages::default().avec_systeme(format!(
+            "IDENTITE\n\n{}",
+            crate::cap::boussole::PROTOCOLE_EXPLORATION
+        ));
+        let ordre = OrdreEclaireuse {
+            role: Role::Eclaireuse,
+            tache: "angle 1".into(),
+            contexte: None,
+        };
+        depecher(ordre, &parent, &four, &OutilsVides, &Silencieux, t0(), None)
+            .await
+            .unwrap();
+        let sys = four.0.lock().unwrap().clone().unwrap();
+        assert!(sys.contains("IDENTITE"), "parent identity kept");
+        assert!(
+            !sys.contains("Deep-research protocol"),
+            "fan-out protocol stripped: the child cannot delegate"
+        );
+        assert!(sys.contains("CANNOT delegate further"), "boundary stated explicitly");
     }
 
     #[tokio::test]

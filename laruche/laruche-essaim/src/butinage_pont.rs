@@ -530,6 +530,18 @@ async fn attendre_approbation(rx: &mut crate::brain::ApprovalReceiver, tcid: &st
 impl but::Outils for OutilsPont<'_> {
     async fn executer(&self, appel: &but::Appel) -> but::ResultatOutil {
         if self.disabled.iter().any(|d| d == &appel.nom) {
+            // Delegation blocked (sub-agent anti-recursion, or disabled in Settings):
+            // the message must REDIRECT the model, not just refuse — otherwise it
+            // retries delegate instead of doing the work directly.
+            if OUTILS_DELEGATION.contains(&appel.nom.as_str()) {
+                return self.bloquer(
+                    &appel.nom,
+                    "Delegation is not available in this context. Execute the sub-task \
+                     YOURSELF now with your direct tools (web_deep_search, web_fetch, \
+                     file/shell tools). Do NOT retry delegate."
+                        .into(),
+                );
+            }
             return self.bloquer(&appel.nom, "Blocked: tool disabled in Settings".into());
         }
 
@@ -1178,8 +1190,74 @@ fn profil_pour(config: &EssaimConfig) -> but::ProfilModele {
     }
 }
 
-/// Runs the mission via the `butinage` engine then recomposes the session (persistence/UI).
+/// Rich mission report for harnesses (evals, APIs): everything a caller needs to
+/// JUDGE the run, not just read its final text.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct RapportMission {
+    pub texte: String,
+    /// Terminal reason, stable snake_case: accomplie | plafond | erreur | interrompue |
+    /// clarification | boucle_sterile | escalade | budget.
+    pub fin: String,
+    pub succes: bool,
+    pub passes: usize,
+    /// Web/search effort actually performed (incl. dispatched scouts).
+    pub recolte_web: usize,
+    pub tokens_entree: u64,
+    pub tokens_sortie: u64,
+    /// Final mission mode: standard | exploration (may have escalated mid-run).
+    pub mode_final: String,
+    pub etapes_plan: usize,
+    pub etapes_faites: u32,
+}
+
+fn fin_str(f: &but::FinDeVol) -> &'static str {
+    match f {
+        but::FinDeVol::Accomplie => "accomplie",
+        but::FinDeVol::Plafond => "plafond",
+        but::FinDeVol::Erreur(_) => "erreur",
+        but::FinDeVol::Interrompue => "interrompue",
+        but::FinDeVol::Clarification(_) => "clarification",
+        but::FinDeVol::BoucleSterile(_) => "boucle_sterile",
+        but::FinDeVol::Escalade(_) => "escalade",
+        but::FinDeVol::Budget => "budget",
+    }
+}
+
+/// Runs the mission via the `butinage` engine then recomposes the session
+/// (persistence/UI). Thin wrapper over [`executer_avec_bilan`] for callers that
+/// only need the final text (chat loop).
+#[allow(clippy::too_many_arguments)]
 pub async fn executer(
+    prompt_utilisateur: &str,
+    session: &mut Session,
+    registry: &AbeilleRegistry,
+    config: &EssaimConfig,
+    tx: &broadcast::Sender<ChatEvent>,
+    ephemeral_context: &Option<String>,
+    memoire: &Option<Arc<dyn MemoireCognitive>>,
+    steer_rx: Option<tokio::sync::mpsc::Receiver<String>>,
+    attachments: &[crate::session::Attachment],
+    approval_rx: Option<crate::brain::ApprovalReceiver>,
+) -> Result<String> {
+    executer_avec_bilan(
+        prompt_utilisateur,
+        session,
+        registry,
+        config,
+        tx,
+        ephemeral_context,
+        memoire,
+        steer_rx,
+        attachments,
+        approval_rx,
+    )
+    .await
+    .map(|r| r.texte)
+}
+
+/// Same as [`executer`], returning the full [`RapportMission`] (evals/API).
+#[allow(clippy::too_many_arguments)]
+pub async fn executer_avec_bilan(
     prompt_utilisateur: &str,
     session: &mut Session,
     registry: &AbeilleRegistry,
@@ -1190,7 +1268,7 @@ pub async fn executer(
     mut steer_rx: Option<tokio::sync::mpsc::Receiver<String>>,
     attachments: &[crate::session::Attachment],
     approval_rx: Option<crate::brain::ApprovalReceiver>,
-) -> Result<String> {
+) -> Result<RapportMission> {
     let _ = tx.send(ChatEvent::Status {
         message: "Butinage engine active (RUCHE_MOTEUR=butinage).".into(),
     });
@@ -1434,7 +1512,21 @@ pub async fn executer(
     // The CURATOR runs in the BACKGROUND, launched by the node after the mission (it holds
     // the Arc<AbeilleRegistry> needed for the 'static spawn): see lancer_curateur_arriere_plan.
 
-    Ok(bilan.texte)
+    Ok(RapportMission {
+        succes: bilan.est_succes(),
+        fin: fin_str(&bilan.fin).to_string(),
+        passes: bilan.passes,
+        recolte_web: carnet.recolte_web,
+        tokens_entree: carnet.tokens_entree_total,
+        tokens_sortie: carnet.tokens_sortie_total,
+        mode_final: match carnet.mode {
+            but::ModeMission::Exploration => "exploration".to_string(),
+            but::ModeMission::Standard => "standard".to_string(),
+        },
+        etapes_plan: carnet.itineraire.etapes.len(),
+        etapes_faites: carnet.itineraire.nb_faites(),
+        texte: bilan.texte,
+    })
 }
 
 /// **Effective resume** of an unfinished notebook (crash/abrupt stop): reloads the state

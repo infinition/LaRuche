@@ -13,6 +13,7 @@ members = [
     "laruche-permissions",
     "laruche-compaction",
     "laruche-butinage",
+    "laruche-evals",
 ]
 
 [workspace.package]

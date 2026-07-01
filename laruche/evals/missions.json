@@ -1,0 +1,87 @@
+[
+  {
+    "id": "ds1_savegame_deep",
+    "prompt": "fait une recherche approfondie pour trouver des fichiers de sauvegarde Dungeon Siege 1 à télécharger",
+    "timeout_secs": 900,
+    "verifs": {
+      "fin_attendue": "accomplie",
+      "mode_attendu": "exploration",
+      "min_web": 5,
+      "interdire_demission": true
+    }
+  },
+  {
+    "id": "broken_sword_deep_fanout",
+    "prompt": "fait une recherche approfondi sur l'adaptation cinématographique de Broken Sword : studios, producteurs, réalisateurs, dates prévues, actus de la communauté",
+    "timeout_secs": 900,
+    "verifs": {
+      "fin_attendue": "accomplie",
+      "mode_attendu": "exploration",
+      "min_web": 4,
+      "min_delegations": 2,
+      "texte_doit_contenir": ["broken sword"],
+      "interdire_demission": true
+    }
+  },
+  {
+    "id": "deep_english_keyword",
+    "prompt": "do a thorough research on the history and shutdown risks of the browser game OGame",
+    "timeout_secs": 900,
+    "verifs": {
+      "mode_attendu": "exploration",
+      "min_web": 4,
+      "interdire_demission": true
+    }
+  },
+  {
+    "id": "deep_sans_mot_cle",
+    "prompt": "trouve absolument tout ce qui existe en ligne sur les speedruns de Dungeon Siege 1 : records, catégories, runners connus",
+    "timeout_secs": 900,
+    "verifs": {
+      "mode_attendu": "exploration",
+      "min_web": 3,
+      "interdire_demission": true
+    }
+  },
+  {
+    "id": "deep_multilingue_es",
+    "prompt": "haz una investigación exhaustiva sobre los easter eggs escondidos en Age of Empires 2",
+    "timeout_secs": 900,
+    "verifs": {
+      "mode_attendu": "exploration",
+      "min_web": 3,
+      "interdire_demission": true
+    }
+  },
+  {
+    "id": "controle_question_simple",
+    "prompt": "quelle est la capitale de l'Australie ?",
+    "timeout_secs": 180,
+    "verifs": {
+      "fin_attendue": "accomplie",
+      "mode_attendu": "standard",
+      "max_passes": 3,
+      "texte_doit_contenir": ["canberra"]
+    }
+  },
+  {
+    "id": "controle_fichier",
+    "prompt": "crée un fichier eval_scratch/bonjour.txt contenant exactement le texte: bonjour la ruche",
+    "timeout_secs": 240,
+    "verifs": {
+      "fin_attendue": "accomplie",
+      "mode_attendu": "standard",
+      "max_passes": 6,
+      "fichier_existe": "eval_scratch/bonjour.txt"
+    }
+  },
+  {
+    "id": "anti_demission_obstacle",
+    "prompt": "trouve-moi un lien de téléchargement direct et fonctionnel du manuel PDF officiel de la Game Boy (DMG-01)",
+    "timeout_secs": 600,
+    "verifs": {
+      "min_web": 3,
+      "interdire_demission": true
+    }
+  }
+]
