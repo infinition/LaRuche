@@ -177,6 +177,22 @@ fn convertir_messages(messages: &[but::Message]) -> Vec<serde_json::Value> {
                     m.outil.as_deref().unwrap_or("tool"),
                     m.contenu
                 ),
+                // Assistant turn carrying tool calls: re-render them so the transcript
+                // stays coherent (the model must SEE which calls produced the results
+                // that follow, otherwise multi-turn tool use degrades and the model
+                // starts imitating the "[Tool Result:]" format). Calls already present
+                // as text (<tool_call> parsed from the output) are not duplicated; the
+                // synthetic `plan` call is skipped (its <plan> block stays in the text).
+                Role::Assistant if !m.appels.is_empty() && !m.contenu.contains("<tool_call>") => {
+                    let mut c = m.contenu.clone();
+                    for a in m.appels.iter().filter(|a| a.nom != "plan") {
+                        c.push_str(&format!(
+                            "\n<tool_call>{}</tool_call>",
+                            serde_json::json!({ "name": a.nom, "arguments": a.args })
+                        ));
+                    }
+                    c
+                }
                 _ => m.contenu.clone(),
             };
             // Multimodal: a user message may carry images (multiple) and/or
@@ -399,6 +415,7 @@ impl OutilsPont<'_> {
             &outils_enfant,
             &emet,
             chrono::Utc::now(),
+            None,
         )
         .await
         {
@@ -555,6 +572,22 @@ impl but::Outils for OutilsPont<'_> {
 
     fn idempotent(&self, nom: &str) -> bool {
         est_lecture_seule(nom)
+    }
+
+    /// Éclaireuses run on ISOLATED contexts: several scouts dispatched in the same
+    /// turn are safe to run concurrently (parallel fan-out, Claude Code style).
+    fn concurrence_sure(&self, appel: &but::Appel) -> bool {
+        self.idempotent(&appel.nom) || OUTILS_DELEGATION.contains(&appel.nom.as_str())
+    }
+
+    /// Delegation runs a whole sub-agent (up to 30 passes) and approval popups wait
+    /// on a human: they must NOT be bounded by the default per-tool timeout.
+    fn timeout_secs(&self, nom: &str) -> Option<u64> {
+        if OUTILS_DELEGATION.contains(&nom) {
+            Some(0) // unbounded: the child has its own pass ceiling
+        } else {
+            None // Reglages::timeout_outil_secs
+        }
     }
 
     fn schemas(&self) -> Vec<serde_json::Value> {
@@ -984,7 +1017,7 @@ pub async fn lancer_curateur_arriere_plan(
     let _ = tx.send(ChatEvent::Status {
         message: "🐝 Curateur: reviewing capabilities in the background...".into(),
     });
-    match but::butiner(&mut carnet, &reglages, &four, &outils, &emet, None, None).await {
+    match but::butiner(&mut carnet, &reglages, &four, &outils, &emet, None, None, None).await {
         Ok(b) => {
             let _ = tx.send(ChatEvent::Status {
                 message: format!("🐝 Curateur: {}", b.texte.chars().take(160).collect::<String>()),
@@ -1210,9 +1243,17 @@ pub async fn executer(
     let source_pont = memoire.as_ref().map(|m| SourcePont { mem: m.clone() });
     let source: Option<&dyn but::Source> = source_pont.as_ref().map(|s| s as &dyn but::Source);
 
-    let bilan =
-        but::butiner(&mut carnet, &reglages, &four, &outils, &emet, source, steer_rx.as_mut())
-            .await?;
+    let bilan = but::butiner(
+        &mut carnet,
+        &reglages,
+        &four,
+        &outils,
+        &emet,
+        source,
+        steer_rx.as_mut(),
+        None,
+    )
+    .await?;
 
     // Final plan to the UI: a weak model does not always re-mark its plan, so it
     // stayed at 0/3 even with the mission accomplished. On success, push everything to "done".
@@ -1263,7 +1304,16 @@ pub async fn executer(
                 session.ajouter_user_multimodal(&m.contenu, atts);
             }
             but::Role::Utilisateur => session.ajouter_user(&m.contenu),
-            but::Role::Assistant if !m.contenu.is_empty() => session.ajouter_assistant(&m.contenu),
+            but::Role::Assistant => {
+                if !m.contenu.is_empty() {
+                    session.ajouter_assistant(&m.contenu);
+                }
+                // Persist the turn's tool calls (replay fidelity: the session shows
+                // WHICH calls produced the observations that follow).
+                for a in m.appels.iter().filter(|a| a.nom != "plan") {
+                    session.ajouter_tool_call(&a.nom, a.args.clone());
+                }
+            }
             but::Role::Observation => {
                 session.ajouter_observation(m.outil.as_deref().unwrap_or("tool"), &m.contenu)
             }
@@ -1367,7 +1417,7 @@ pub async fn reprendre_carnet(
     let source: Option<&dyn but::Source> = source_pont.as_ref().map(|s| s as &dyn but::Source);
 
     let bilan =
-        but::butiner(&mut carnet, &reglages, &four, &outils, &emet, source, None).await?;
+        but::butiner(&mut carnet, &reglages, &four, &outils, &emet, source, None, None).await?;
     if bilan.est_succes() {
         let _ = std::fs::remove_file(chemin);
     }
