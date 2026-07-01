@@ -132,11 +132,32 @@ pub(crate) async fn api_onboarding(State(state): State<Arc<AppState>>) -> Json<s
     }));
     let _ = ec;
 
-    // 3. Embedding model for RAG?
+    // 3. Embedding model (semantic memory)? REAL probe — this was a hardcoded
+    // `done: false` stub. We ask for an actual vector through the same client the
+    // memory uses (HttpEmbedder: Ollama `/api/embed` or llama.cpp `/v1/embeddings`,
+    // format auto-detected), so the check reflects the truth whatever the backend.
+    let embed_url = std::env::var("LARUCHE_EMBED_URL")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
+    let embed_model = std::env::var("LARUCHE_EMBED_MODEL")
+        .unwrap_or_else(|_| "nomic-embed-text".to_string());
+    let embed_ok = {
+        use laruche_memoire::Embedder;
+        laruche_memoire::HttpEmbedder::new(&embed_url, &embed_model)
+            .embed("ping")
+            .await
+            .map(|v| !v.is_empty())
+            .unwrap_or(false)
+    };
     steps.push(serde_json::json!({
         "step": 3, "title": "Embeddings Model (RAG)",
-        "done": false,
-        "instruction": "For RAG: ollama pull nomic-embed-text",
+        "done": embed_ok,
+        "instruction": if embed_ok {
+            format!("Semantic memory active: {embed_model} @ {embed_url}")
+        } else {
+            format!("Run lancer_embeddings.bat (auto-download), or: ollama pull {embed_model}")
+        },
     }));
 
     // 4. Voice services?
