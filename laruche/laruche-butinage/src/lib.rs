@@ -48,6 +48,6 @@ pub use nectar::Source;
 pub use outils::{Outils, ResultatOutil};
 pub use recolte::{Moisson, plafonner_observation};
 pub use reglages::{ProfilModele, Reglages};
-pub use cap::boussole::{cap, ContexteCap, Decision};
+pub use cap::boussole::{cap, ContexteCap, Decision, PROTOCOLE_EXPLORATION};
 pub use cap::jauge::{Besoin, Jauge};
 pub use cap::vigie::{SeuilsVigie, Signal, Vigie};

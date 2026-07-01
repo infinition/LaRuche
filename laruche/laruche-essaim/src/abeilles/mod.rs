@@ -29,6 +29,7 @@ pub mod plan_mode;
 pub mod read_extract;
 pub mod recherche_fichiers;
 pub mod reload_plugins;
+pub mod research_mode;
 pub mod run_script;
 pub mod shell;
 pub mod spawn_specialist;
@@ -93,6 +94,8 @@ pub fn enregistrer_abeilles_builtin(registry: &AbeilleRegistry) {
     registry.enregistrer(Box::new(essaim_status::SystemInfo));
     // Clarification (ask the user a question)
     registry.enregistrer(Box::new(clarify::Clarify));
+    // Deep-research self-declaration (intercepted by the butinage engine)
+    registry.enregistrer(Box::new(research_mode::ResearchMode));
     // File watch
     registry.enregistrer(Box::new(file_watch::FileWatch));
     // Worktree

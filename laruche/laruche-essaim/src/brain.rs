@@ -331,6 +331,11 @@ const SEMANTIC_CORE: &[&str] = &[
     // Long background jobs
     "submit_job",
     "check_job_status",
+    // Deep research: mode self-declaration + parallel scout fan-out. ALWAYS present:
+    // dynamic selection must never strip the orchestration tools right when a
+    // narrow-context model starts a research mission.
+    "research_mode",
+    "delegate",
 ];
 
 const CORE_TOOL_NAMES: &[&str] = &[
@@ -368,6 +373,7 @@ const CORE_TOOL_NAMES: &[&str] = &[
     "clarify",
     "run_script",
     "delegate",
+    "research_mode",
     "mixture_of_agents",
 ];
 
@@ -1036,6 +1042,10 @@ fn reponse_negative_recherche(text: &str) -> bool {
 /// an early negative conclusion must not stop the loop.
 pub fn demande_recherche_longue(prompt: &str) -> bool {
     let p = prompt.to_lowercase();
+    // Keyword FALLBACK only: the reliable channel is the model's own `research_mode`
+    // declaration (intercepted by the butinage engine, cycle::analyser). Keep this list
+    // broad — a missed match means a 1-search "deep research" (observed: "recherche
+    // approfondie" was absent and the agent concluded after a single query).
     [
         "ne t'arrete pas",
         "ne t'arrête pas",
@@ -1054,6 +1064,18 @@ pub fn demande_recherche_longue(prompt: &str) -> bool {
         "des heures",
         "longue recherche",
         "deep research",
+        "approfondi", // couvre approfondi/approfondie/approfondir
+        "exhaustif",
+        "exhaustive",
+        "fouillée",
+        "fouillee",
+        "creuse à fond",
+        "creuse a fond",
+        "de fond en comble",
+        "thorough",
+        "in depth",
+        "in-depth",
+        "deep dive",
     ]
     .iter()
     .any(|m| p.contains(m))

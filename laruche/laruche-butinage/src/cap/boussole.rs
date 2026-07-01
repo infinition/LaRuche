@@ -42,6 +42,27 @@ impl ContexteCap {
     }
 }
 
+/// The deep-research protocol, injected when a mission enters exploration mode
+/// (keyword gate at mission start, or mid-run via the model's own `research_mode`
+/// declaration). Also appended to the system prompt by the integration layer.
+/// English: better instruction following, cacheable prefix.
+pub const PROTOCOLE_EXPLORATION: &str = "\
+## Deep-research protocol (exploration mode)\n\
+This is a LONG-RUNNING research mission. You are autonomous: NEVER hand the search back \
+to the user, NEVER ask permission to continue, NEVER conclude after a single query.\n\
+1. DECOMPOSE the question into 3-5 INDEPENDENT angles (source types, communities, \
+languages EN/FR, time periods, adjacent topics).\n\
+2. FAN OUT: dispatch one `delegate` scout PER angle - emit SEVERAL <tool_call> blocks in \
+the SAME message (role: \"eclaireuse\", each with a precise, self-contained brief). They \
+run IN PARALLEL on isolated contexts and each returns a compact report.\n\
+3. CROSS-CHECK decisive or conflicting findings with a `delegate` role \"gardienne\".\n\
+4. ITERATE: every report opens new angles (names, forums, archives, mirrors). A blocked \
+page (403/paywall/captcha) is an obstacle, NOT a dead end: retry via web archives \
+(web.archive.org), search-engine caches, alternate mirrors and sources.\n\
+5. SYNTHESIZE (yourself, or a `delegate` role \"architecte\"): a structured answer with \
+concrete findings and source URLs.\n\
+Only conclude (mission_accomplie) when NEW angles stop yielding NEW information.";
+
 /// Injected advice (English: better instruction following, cacheable prefix).
 mod nudge {
     pub const REPRISE_TRONQUEE: &str = "Your previous message was cut off mid-output. Continue exactly \
@@ -51,8 +72,10 @@ mod nudge {
     pub const DEMARRER_PLAN: &str = "Plan recorded. Now EXECUTE the first step by calling the needed \
         tool - do not just restate the plan or ask for confirmation.";
     pub const EXPLORER_PLUS: &str = "This is a long-running research mission and you have not searched \
-        enough yet. Do not conclude. Open a NEW angle and call a web tool now: vary queries (synonyms, EN/FR), \
-        try archives/forums/source sites, and advanced operators. Record the queries and URLs you try.";
+        enough yet. Do not conclude, and do NOT hand the search back to the user. Open NEW angles NOW: \
+        either dispatch several parallel `delegate` scouts (role: eclaireuse, one per angle, in the same \
+        message), or call web tools directly - vary queries (synonyms, EN/FR), try archives/forums/source \
+        sites and advanced operators. A 403/paywall is not a dead end: use web archives, caches, mirrors.";
 }
 
 /// **The** continuation decision. Pure: `(contexte, issue) -> Decision`.

@@ -225,9 +225,12 @@ fn section_outils(tools_schema: &serde_json::Value) -> String {
          <tool_call>{{\"name\": \"tool_name\", \"arguments\": {{\"param1\": \"value1\"}}}}</tool_call>\n\
          ```\n\n\
          STRICT rules:\n\
-         - You may call ONLY ONE tool per message.\n\
-         - After writing the </tool_call> tag, you MUST stop your reply immediately.\n\
-         - You will receive the tool result in the next message, then you can call another tool or answer.\n\
+         - Default: ONE tool per message. EXCEPTION - independent READ-ONLY calls (several \
+         web searches/reads) or several `delegate` scouts MAY be emitted in the SAME message, \
+         each in its own complete <tool_call>...</tool_call> block: they run in parallel.\n\
+         - NEVER combine a mutating tool (write, shell, delete) with other calls: emit it alone.\n\
+         - After writing the last </tool_call> tag, you MUST stop your reply immediately.\n\
+         - You will receive the tool results in the next message, then you can call another tool or answer.\n\
          - If you don't need a tool, answer directly without a <tool_call> tag.\n\
          - NEVER simulate a tool result. ALWAYS call it.\n\
          - When you download, create, modify or move a file/folder, verify its existence afterward with a tool.\n\
@@ -263,6 +266,14 @@ pub fn section_comportement() -> &'static str {
      - You can schedule (cron_create), watch (watcher_create), retrieve your conversations (session_search) and create your own skills.\n\
      - Use the tools provided for this turn (they are selected based on your intent). If you need a capability that isn't present, search for it in memory first.\n\
      - Memorize DURABLE facts with memory_write (preferences, decisions, persistent info); don't record trivia.\n\n\
+     ## Autonomy during missions\n\n\
+     - FINISH the job yourself. NEVER advise the user to search or do it themselves - you have the tools, use them.\n\
+     - NEVER ask permission to continue mid-mission (\"do you want me to...?\" is forbidden). Either act, or conclude with results. \
+     Use `clarify` ONLY when truly blocked on information ONLY the user has.\n\
+     - A failed access (403, paywall, captcha, empty result) is an OBSTACLE, not a conclusion: retry via web archives \
+     (web.archive.org), search-engine caches, mirrors and alternate sources before abandoning that angle.\n\
+     - If the user asks for a thorough/deep/exhaustive research - or a quick lookup proves insufficient - call `research_mode` \
+     FIRST: it activates the deep-research protocol (parallel `delegate` scouts, one per angle, no premature conclusions).\n\n\
      ## Self-improvement: forge your SKILLS and your TOOLS\n\n\
      You learn from your experiences by turning them into reusable knowledge. TWO distinct things:\n\n\
      ### SKILL = a PROCEDURE (the *how*)\n\
@@ -298,7 +309,9 @@ mod tests {
         let custom = prompt.find("## Additional instructions").unwrap();
         assert!(env < outils);
         assert!(outils < custom);
-        assert!(prompt.contains("ONLY ONE tool"));
+        assert!(prompt.contains("ONE tool per message"));
+        assert!(prompt.contains("run in parallel"), "multi-call fan-out documented");
+        assert!(prompt.contains("Autonomy during missions"));
     }
 
     #[test]

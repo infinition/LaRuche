@@ -672,6 +672,15 @@ impl but::Outils for OutilsPont<'_> {
         }
     }
 
+    /// A dispatched scout IS research effort: without this, a parent that fans out
+    /// `delegate` calls would show `recolte_web = 0` and the exploration rail would
+    /// keep relaunching it despite massive delegated work.
+    fn est_web(&self, appel: &but::Appel) -> bool {
+        appel.nom.starts_with("web_")
+            || appel.nom.starts_with("browser_")
+            || OUTILS_DELEGATION.contains(&appel.nom.as_str())
+    }
+
     fn schemas(&self) -> Vec<serde_json::Value> {
         // The NATIVE `tools:` field (sent to the provider API) must carry EXACTLY the same
         // tool set as the prompt's dynamic selection: otherwise we sent `schema_complet()`
@@ -1234,6 +1243,16 @@ pub async fn executer(
     } else {
         but::ModeMission::Standard
     };
+    // Exploration from the start (keyword gate): the deep-research protocol goes in the
+    // SYSTEM prompt (stable tier). Mid-run escalations (`research_mode`) are handled by
+    // the engine, which injects the same protocol as a nudge.
+    if mode == but::ModeMission::Exploration {
+        systeme.push_str("\n\n");
+        systeme.push_str(but::PROTOCOLE_EXPLORATION);
+        let _ = tx.send(ChatEvent::Status {
+            message: "🔎 Deep-research mode (exploration): scout fan-out protocol active.".into(),
+        });
+    }
 
     // Disk checkpoint: the notebook is saved on every pass: resume after a crash.
     let chemin_carnet = Some(
@@ -1452,7 +1471,7 @@ pub async fn reprendre_carnet(
     if let Some(sk) = config.skills_index.as_deref() {
         index.push_str(sk);
     }
-    let systeme = build_system_prompt(
+    let mut systeme = build_system_prompt(
         &tool_schema,
         config.system_prompt_override.as_deref(),
         config.behavior_override.as_deref(),
@@ -1460,6 +1479,11 @@ pub async fn reprendre_carnet(
         Some(&index),
         config.custom_instructions.as_deref(),
     );
+    // Resumed exploration mission: restore the deep-research protocol too.
+    if carnet.mode == but::ModeMission::Exploration {
+        systeme.push_str("\n\n");
+        systeme.push_str(but::PROTOCOLE_EXPLORATION);
+    }
     let prompt_extraction = match memoire {
         Some(m) => crate::brain::charger_doc_systeme(m, "system.prompt_extraction").await,
         None => None,

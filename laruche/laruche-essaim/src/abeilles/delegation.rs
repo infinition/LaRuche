@@ -25,10 +25,10 @@ impl Abeille for Delegate {
     }
 
     fn description(&self) -> &str {
-        "Delegate a sub-task to a fresh agent. The sub-agent will execute the task \
-         independently using all available tools and return the result. \
-         Use this for complex tasks that can be broken into independent sub-tasks, \
-         or when you need to run something in a separate context."
+        "Delegate a sub-task to a fresh sub-agent with an isolated context. \
+         Use this for complex tasks that break into independent sub-tasks — especially \
+         RESEARCH: dispatch SEVERAL delegate calls in the SAME message (one per angle), \
+         they run in PARALLEL and each returns a compact report."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -37,11 +37,16 @@ impl Abeille for Delegate {
             "properties": {
                 "task": {
                     "type": "string",
-                    "description": "The task description for the sub-agent to execute"
+                    "description": "Precise, self-contained brief for the sub-agent"
                 },
                 "context": {
                     "type": "string",
                     "description": "Optional context or instructions for the sub-agent"
+                },
+                "role": {
+                    "type": "string",
+                    "enum": ["eclaireuse", "ouvriere", "gardienne", "architecte"],
+                    "description": "eclaireuse=broad research scout (default), ouvriere=execute a focused sub-task, gardienne=critically verify a claim/result, architecte=synthesize provided material"
                 }
             },
             "required": ["task"]

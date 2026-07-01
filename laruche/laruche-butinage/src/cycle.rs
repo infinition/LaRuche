@@ -6,9 +6,9 @@
 //! `analyser` the response into an [`Issue`], `cap` decides, act (post / relaunch /
 //! récolte), checkpoint.
 
-use crate::cap::boussole::{cap, Decision};
+use crate::cap::boussole::{cap, Decision, PROTOCOLE_EXPLORATION};
 use crate::cap::vigie::Vigie;
-use crate::carnet::Carnet;
+use crate::carnet::{Carnet, ModeMission};
 use crate::evenement::{Emetteur, Evenement};
 use crate::fournisseur::{Fournisseur, ReponseModele};
 use crate::issue::{Appel, Bilan, FinDeVol, Issue, StopReason, TexteSeul};
@@ -198,6 +198,7 @@ pub async fn butiner(
                 .push(Message::assistant_avec_appels(reponse.texte.clone(), reponse.appels.clone()));
         }
 
+        let mode_avant = carnet.mode;
         let issue = analyser(&reponse, carnet, reglages.profil);
         // Candidate final text (before `cap` consumes the issue).
         let texte_final = match &issue {
@@ -253,6 +254,16 @@ pub async fn butiner(
                     }
                 }
             }
+        }
+
+        // Mid-run escalation to exploration (the model called `research_mode`, or set
+        // a `mode` on its plan): inject the deep-research protocol ONCE, positioned
+        // after this pass's observations so the next turn starts with it fresh.
+        if mode_avant != carnet.mode {
+            emet.emettre(Evenement::Statut(
+                "🔎 Deep-research mode activated (exploration protocol injected).".into(),
+            ));
+            carnet.historique.push(Message::nudge(PROTOCOLE_EXPLORATION));
         }
 
         carnet.passe += 1;
@@ -484,6 +495,20 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet, profil: ProfilModele) 
                 carnet.itineraire.definir(titres);
             }
         }
+        // A plan may also declare the mission mode (`"mode": "deep_research"`).
+        if let Some(m) = a.args.get("mode").and_then(|v| v.as_str()) {
+            escalader_mode(carnet, m);
+        }
+    }
+
+    // `research_mode`: the model SELF-DECLARES a long-running research once it has read
+    // the mission (more reliable than keyword gates on the user prompt). Intercepted —
+    // never executed as a tool. One-way escalation; declaring it is a productive act.
+    let mut mode_declare = false;
+    if let Some(pos) = appels.iter().position(|a| a.nom == "research_mode") {
+        let a = appels.remove(pos);
+        let mode = a.args.get("mode").and_then(|v| v.as_str()).unwrap_or("deep");
+        mode_declare = escalader_mode(carnet, mode);
     }
 
     // Explicit completion tools: `mission_accomplie` (native foraging) or `task_complete`
@@ -532,8 +557,8 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet, profil: ProfilModele) 
         return Issue::Outils(appels);
     }
 
-    // Plan posted alone (no other tool): productive act, we continue (bounded), not an end.
-    if plan_trouve {
+    // Plan or mode posted alone (no other tool): productive act, we continue (bounded).
+    if plan_trouve || mode_declare {
         return Issue::PlanEnregistre;
     }
 
@@ -553,6 +578,20 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet, profil: ProfilModele) 
         malforme: stop_outils_vide || (heuristiques && ressemble_a_un_outil(&reponse.texte)),
         tronquee,
     })
+}
+
+/// One-way escalation Standard -> Exploration (a model must never downgrade mid-run
+/// to escape the exploration rails). Returns `true` if the mode flipped.
+fn escalader_mode(carnet: &mut Carnet, mode: &str) -> bool {
+    let deep = matches!(
+        mode.trim().to_lowercase().as_str(),
+        "deep" | "exploration" | "deep_research" | "recherche_longue" | "long"
+    );
+    if deep && carnet.mode == ModeMission::Standard {
+        carnet.mode = ModeMission::Exploration;
+        return true;
+    }
+    false
 }
 
 /// Does the text look like a tool_call (but wasn't parsed)? Rail for weak models.
@@ -803,6 +842,38 @@ mod tests {
             .unwrap();
         assert_eq!(bilan.fin, FinDeVol::Budget);
         assert_eq!(carnet.tokens_total(), 1100);
+    }
+
+    #[tokio::test]
+    async fn research_mode_escalade_en_exploration_et_injecte_le_protocole() {
+        let four = FournisseurScript::scenario(vec![
+            rep_appel("research_mode", json!({"mode": "deep", "reason": "large sweep"})),
+            rep_appel("web_search", json!({"q": "a"})),
+            rep_appel("mission_accomplie", json!({"resume": "ok"})),
+        ]);
+        let mut carnet = Carnet::ouvrir("cherche tout sur X", ModeMission::Standard, t0());
+        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(bilan.fin, FinDeVol::Accomplie);
+        assert_eq!(carnet.mode, ModeMission::Exploration, "self-declared escalation");
+        // the deep-research protocol was injected as an internal nudge
+        assert!(carnet
+            .historique
+            .iter()
+            .any(|m| m.interne && m.contenu.contains("Deep-research protocol")));
+        // research_mode was intercepted: never executed as a tool
+        assert!(!carnet.historique.iter().any(|m| m.outil.as_deref() == Some("research_mode")));
+    }
+
+    #[test]
+    fn escalade_est_a_sens_unique() {
+        let mut carnet = Carnet::ouvrir("m", ModeMission::Exploration, t0());
+        assert!(!escalader_mode(&mut carnet, "standard"), "no downgrade");
+        assert_eq!(carnet.mode, ModeMission::Exploration);
+        let mut carnet = Carnet::ouvrir("m", ModeMission::Standard, t0());
+        assert!(escalader_mode(&mut carnet, "deep_research"));
+        assert_eq!(carnet.mode, ModeMission::Exploration);
     }
 
     #[test]
