@@ -220,13 +220,24 @@ impl Abeille for FileWrite {
             }
         }
 
-        match std::fs::write(path, content) {
+        // Atomic write (tmp + rename): a crash mid-write must never leave a
+        // half-written file behind.
+        let tmp = path.with_extension(format!(
+            "{}.tmp",
+            path.extension().and_then(|e| e.to_str()).unwrap_or("laruche")
+        ));
+        let ecriture = std::fs::write(&tmp, content)
+            .and_then(|()| std::fs::rename(&tmp, path));
+        match ecriture {
             Ok(()) => Ok(ResultatAbeille::ok(format!(
                 "File written successfully: {} ({} bytes)",
                 path_str,
                 content.len()
             ))),
-            Err(e) => Ok(ResultatAbeille::err(format!("Failed to write file: {}", e))),
+            Err(e) => {
+                let _ = std::fs::remove_file(&tmp);
+                Ok(ResultatAbeille::err(format!("Failed to write file: {}", e)))
+            }
         }
     }
 }
@@ -311,7 +322,18 @@ impl Abeille for FileRead {
         let end = (start + count).min(total);
         let mut out = String::new();
         for (i, line) in lines[start..end].iter().enumerate() {
-            out.push_str(&format!("{:>6}\t{}\n", start + i + 1, line));
+            // A single minified/generated line can weigh 500k chars and blow up the
+            // context: cap per line (the model can re-read via a narrower range).
+            if line.chars().count() > 2000 {
+                let tronquee: String = line.chars().take(2000).collect();
+                out.push_str(&format!(
+                    "{:>6}\t{tronquee} …[line truncated: {} chars]\n",
+                    start + i + 1,
+                    line.chars().count()
+                ));
+            } else {
+                out.push_str(&format!("{:>6}\t{}\n", start + i + 1, line));
+            }
         }
         if end < total {
             out.push_str(&format!(
@@ -427,7 +449,8 @@ impl Abeille for FileList {
     }
 
     fn description(&self) -> &str {
-        "List files and directories at the given path. Returns names with [DIR] or [FILE] prefix."
+        "List files and directories at the given path (sorted: directories first, with \
+         file sizes). Set `recursive` to true for a tree view (build/VCS dirs skipped)."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -437,6 +460,14 @@ impl Abeille for FileList {
                 "path": {
                     "type": "string",
                     "description": "The directory path to list"
+                },
+                "recursive": {
+                    "type": "boolean",
+                    "description": "Tree view of subdirectories (default false)"
+                },
+                "max_depth": {
+                    "type": "integer",
+                    "description": "Recursion depth when recursive=true (default 3)"
                 }
             },
             "required": ["path"]
@@ -472,34 +503,18 @@ impl Abeille for FileList {
             )));
         }
 
+        let recursive = args["recursive"].as_bool().unwrap_or(false);
+        let max_depth = if recursive {
+            args["max_depth"].as_u64().unwrap_or(3) as usize
+        } else {
+            0
+        };
         let mut entries = Vec::new();
-        let mut count = 0;
-
-        match std::fs::read_dir(path) {
-            Ok(reader) => {
-                for entry in reader {
-                    if count >= 100 {
-                        entries.push("... (truncated, more than 100 entries)".to_string());
-                        break;
-                    }
-                    if let Ok(entry) = entry {
-                        let name = entry.file_name().to_string_lossy().to_string();
-                        let prefix = if entry.path().is_dir() {
-                            "[DIR]"
-                        } else {
-                            "[FILE]"
-                        };
-                        entries.push(format!("{} {}", prefix, name));
-                        count += 1;
-                    }
-                }
-            }
-            Err(e) => {
-                return Ok(ResultatAbeille::err(format!(
-                    "Failed to read directory: {}",
-                    e
-                )));
-            }
+        lister_trie(path, 0, max_depth, &mut entries);
+        let tronque = entries.len() > 300;
+        entries.truncate(300);
+        if tronque {
+            entries.push("... (truncated at 300 entries - narrow the path or depth)".into());
         }
 
         if entries.is_empty() {
@@ -507,5 +522,69 @@ impl Abeille for FileList {
         } else {
             Ok(ResultatAbeille::ok(entries.join("\n")))
         }
+    }
+}
+
+/// Noise directories skipped during recursive listings/searches (build artifacts,
+/// VCS, dependency caches): pure pollution for an agent reading a project.
+pub(crate) const DOSSIERS_IGNORES: &[&str] = &[
+    ".git",
+    "node_modules",
+    "target",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "dist",
+    "build",
+    ".next",
+    ".cache",
+];
+
+fn taille_humaine(octets: u64) -> String {
+    if octets >= 1_048_576 {
+        format!("{:.1} MB", octets as f64 / 1_048_576.0)
+    } else if octets >= 1024 {
+        format!("{:.1} KB", octets as f64 / 1024.0)
+    } else {
+        format!("{octets} B")
+    }
+}
+
+/// Sorted listing (directories first, alphabetical), sizes on files, bounded
+/// recursion with noise dirs skipped.
+fn lister_trie(dir: &Path, depth: usize, max_depth: usize, out: &mut Vec<String>) {
+    if out.len() >= 320 {
+        return;
+    }
+    let Ok(reader) = std::fs::read_dir(dir) else {
+        return;
+    };
+    let mut dossiers: Vec<(String, PathBuf)> = Vec::new();
+    let mut fichiers: Vec<(String, u64)> = Vec::new();
+    for entry in reader.flatten() {
+        let name = entry.file_name().to_string_lossy().to_string();
+        let p = entry.path();
+        if p.is_dir() {
+            dossiers.push((name, p));
+        } else {
+            let taille = entry.metadata().map(|m| m.len()).unwrap_or(0);
+            fichiers.push((name, taille));
+        }
+    }
+    dossiers.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+    fichiers.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+    let indent = "  ".repeat(depth);
+    for (name, p) in &dossiers {
+        let ignore = DOSSIERS_IGNORES.contains(&name.as_str());
+        out.push(format!(
+            "{indent}[DIR] {name}/{}",
+            if ignore && depth < max_depth { " (skipped)" } else { "" }
+        ));
+        if depth < max_depth && !ignore && !name.starts_with('.') {
+            lister_trie(p, depth + 1, max_depth, out);
+        }
+    }
+    for (name, taille) in &fichiers {
+        out.push(format!("{indent}[FILE] {name} ({})", taille_humaine(*taille)));
     }
 }

@@ -57,6 +57,7 @@ impl Abeille for WebSearch {
             "type": "object",
             "properties": {
                 "query": { "type": "string", "description": "Search query (min 2 characters)" },
+                "num_results": { "type": "integer", "description": "Max results returned (default 8, max 15)" },
                 "allowed_domains": { "type": "array", "items": { "type": "string" }, "description": "Keep only these domains" },
                 "blocked_domains": { "type": "array", "items": { "type": "string" }, "description": "Exclude these domains" }
             },
@@ -107,7 +108,8 @@ impl Abeille for WebSearch {
             }
             true
         });
-        results.truncate(8);
+        let n = args["num_results"].as_u64().unwrap_or(8).clamp(1, 15) as usize;
+        results.truncate(n);
 
         if results.is_empty() {
             return Ok(ResultatAbeille::ok(format!(

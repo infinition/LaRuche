@@ -1,13 +1,23 @@
-//! Deep web search: web_search typed results + fetch/cleanup of top pages.
+//! Deep web search: web_search typed results + PARALLEL fetch/cleanup of top pages.
+//!
+//! War-machine spec: the top pages are fetched CONCURRENTLY (wall-clock = slowest
+//! page, not the sum), each failed/JS-shell page falls back to r.jina.ai before
+//! being skipped, and every truncation is char-safe (the old byte-based
+//! `String::truncate` PANICKED on multi-byte characters — French accents).
 
 use crate::abeille::{Abeille, ContextExecution, NiveauDanger, ResultatAbeille};
+use crate::abeilles::web_fetch::{extraire_lisible, fetch_via_jina, looks_like_js_shell};
 use crate::abeilles::web_recherche::search_web_results;
 use anyhow::Result;
 use async_trait::async_trait;
-use scraper::{Html, Selector};
 
 /// Deep web search: search + auto-fetch top results for full content.
 pub struct WebDeepSearch;
+
+/// Per-page and total char budgets (head+tail keeps intros AND conclusions).
+const PAGE_TETE: usize = 2_600;
+const PAGE_QUEUE: usize = 600;
+const TOTAL_MAX: usize = 16_000;
 
 #[async_trait]
 impl Abeille for WebDeepSearch {
@@ -16,10 +26,9 @@ impl Abeille for WebDeepSearch {
     }
 
     fn description(&self) -> &str {
-        "Perform a deep web search: first searches the web, then automatically fetches \
-         and extracts content from the top 3 results. Returns both search snippets AND \
-         full page content. Use this for thorough research when you need detailed information, \
-         not just snippets."
+        "Perform a deep web search: searches the web, then fetches the top results IN \
+         PARALLEL and extracts their content. Returns search snippets AND full page \
+         content. Use this for thorough research when you need details, not just snippets."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -32,7 +41,7 @@ impl Abeille for WebDeepSearch {
                 },
                 "num_results": {
                     "type": "integer",
-                    "description": "Number of results to fetch in detail (default: 3, max: 5)"
+                    "description": "Number of results to fetch in detail (default: 3, max: 6)"
                 }
             },
             "required": ["query"]
@@ -51,14 +60,14 @@ impl Abeille for WebDeepSearch {
         let query = args["query"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Missing 'query' argument"))?;
-        let num = args["num_results"].as_u64().unwrap_or(3).min(5) as usize;
+        let num = args["num_results"].as_u64().unwrap_or(3).clamp(1, 6) as usize;
 
         let client = reqwest::Client::builder()
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
             .timeout(std::time::Duration::from_secs(15))
             .build()?;
 
-        // Step 1: Search with the robust web_search engine, then keep web_deep cleanup.
+        // Step 1: search with the robust web_search engine.
         let urls: Vec<(String, String, String)> = match search_web_results(&client, query).await {
             Ok(results) => results
                 .into_iter()
@@ -78,74 +87,93 @@ impl Abeille for WebDeepSearch {
 
         let mut output = format!("# Deep Search: {}\n\n", query);
         output.push_str(&format!(
-            "Found {} results. Fetching top {}...\n\n",
+            "Found {} results. Fetching top {} in parallel...\n\n",
             urls.len(),
             num.min(urls.len())
         ));
 
-        // Step 2: Fetch top N results
-        for (i, (title, url, snippet)) in urls.iter().take(num).enumerate() {
-            output.push_str(&format!(
-                "---\n## {}. {}\n**URL:** {}\n**Snippet:** {}\n\n",
-                i + 1,
-                title,
-                url,
-                snippet
-            ));
-
-            match client.get(url).send().await {
-                Ok(resp) => {
-                    if resp.status().is_success() {
-                        let ctype = resp
-                            .headers()
-                            .get(reqwest::header::CONTENT_TYPE)
-                            .and_then(|v| v.to_str().ok())
-                            .unwrap_or("")
-                            .to_lowercase();
-                        if !ctype.is_empty()
-                            && !ctype.contains("html")
-                            && !ctype.contains("text/plain")
-                        {
-                            output.push_str("(non-HTML content ignored)\n\n");
-                            continue;
-                        }
-                        let html = resp.text().await.unwrap_or_default();
-                        let text = readability_text(&html);
-                        if looks_like_js_shell(&text) {
-                            output.push_str(
-                                "(JavaScript shell page detected: insufficient readable content)\n",
-                            );
-                            continue;
-                        }
-
-                        let chars: Vec<char> = text.chars().collect();
-                        if chars.len() > 2000 {
-                            let head: String = chars[..1500].iter().collect();
-                            let tail: String = chars[chars.len() - 400..].iter().collect();
-                            output.push_str(&head);
-                            output.push_str("\n...(middle truncated)...\n");
-                            output.push_str(&tail);
-                        } else {
-                            output.push_str(&text);
-                        }
-                    } else {
-                        output.push_str(&format!("(HTTP {})", resp.status()));
-                    }
-                }
-                Err(e) => {
-                    output.push_str(&format!("(Failed to fetch: {})", e));
-                }
+        // Step 2: fetch the top N CONCURRENTLY (each with its own fallback chain).
+        let futs = urls.iter().take(num).enumerate().map(|(i, (title, url, snippet))| {
+            let client = client.clone();
+            async move {
+                let corps = recolter_page(&client, url).await;
+                let mut section = format!(
+                    "---\n## {}. {}\n**URL:** {}\n**Snippet:** {}\n\n",
+                    i + 1,
+                    title,
+                    url,
+                    snippet
+                );
+                section.push_str(&corps);
+                section.push_str("\n\n");
+                section
             }
-            output.push_str("\n\n");
+        });
+        for section in futures_util::future::join_all(futs).await {
+            output.push_str(&section);
         }
 
-        if output.len() > 8000 {
-            output.truncate(8000);
-            output.push_str("\n\n...(total output truncated)");
+        // Char-safe total cap (byte-based truncate panicked mid-UTF-8).
+        if output.chars().count() > TOTAL_MAX {
+            output = output.chars().take(TOTAL_MAX).collect();
+            output.push_str("\n\n...(total output truncated - re-run with a narrower query or fetch a specific URL with web_fetch)");
         }
 
         Ok(ResultatAbeille::ok(output))
     }
+}
+
+/// Fetches one page's readable content: direct → readability; on failure, HTTP error
+/// or JS shell → r.jina.ai fallback; head+tail char-safe capping.
+async fn recolter_page(client: &reqwest::Client, url: &str) -> String {
+    let direct = match client.get(url).send().await {
+        Ok(resp) if resp.status().is_success() => {
+            let ctype = resp
+                .headers()
+                .get(reqwest::header::CONTENT_TYPE)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("")
+                .to_lowercase();
+            if !ctype.is_empty()
+                && !ctype.contains("html")
+                && !ctype.contains("text/plain")
+            {
+                Err("(non-HTML content)".to_string())
+            } else {
+                let html = resp.text().await.unwrap_or_default();
+                let text = extraire_lisible(&html);
+                if text.trim().is_empty() || looks_like_js_shell(&text) {
+                    Err("(JS shell / empty)".to_string())
+                } else {
+                    Ok(text)
+                }
+            }
+        }
+        Ok(resp) => Err(format!("(HTTP {})", resp.status())),
+        Err(e) => Err(format!("(fetch failed: {e})")),
+    };
+    match direct {
+        Ok(text) => tete_queue(&text),
+        Err(motif) => {
+            // Second chance: jina renders JS and bypasses simple blocks.
+            if let Some(text) = fetch_via_jina(client, url).await {
+                format!("[via r.jina.ai - direct: {motif}]\n{}", tete_queue(&text))
+            } else {
+                motif
+            }
+        }
+    }
+}
+
+/// Head + tail char-safe extract of a page body.
+fn tete_queue(text: &str) -> String {
+    let n = text.chars().count();
+    if n <= PAGE_TETE + PAGE_QUEUE {
+        return text.to_string();
+    }
+    let head: String = text.chars().take(PAGE_TETE).collect();
+    let tail: String = text.chars().skip(n - PAGE_QUEUE).collect();
+    format!("{head}\n...(middle truncated, {n} chars total - use web_fetch with offset to read it all)...\n{tail}")
 }
 
 /// Clean a DuckDuckGo result URL: decode the `uddg=` redirect, normalize the
@@ -170,7 +198,7 @@ fn clean_result_url(raw: &str) -> Option<String> {
     }
     const ASSETS: &[&str] = &[
         ".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2", ".mp4",
-        ".webp", ".pdf", ".zip",
+        ".webp", ".zip",
     ];
     let path = lower.split(['?', '#']).next().unwrap_or(&lower);
     if ASSETS.iter().any(|ext| path.ends_with(ext)) {
@@ -179,137 +207,29 @@ fn clean_result_url(raw: &str) -> Option<String> {
     Some(url)
 }
 
-fn readability_text(html: &str) -> String {
-    let doc = Html::parse_document(html);
-    let mut best = String::new();
-    for selector in [
-        "article",
-        "main",
-        "[role=\"main\"]",
-        ".entry-content",
-        ".post-content",
-        ".article-content",
-        ".content",
-        "#content",
-    ] {
-        let Ok(sel) = Selector::parse(selector) else {
-            continue;
-        };
-        for node in doc.select(&sel) {
-            let text = html_to_text(&node.html());
-            if text.chars().count() > best.chars().count() {
-                best = text;
-            }
-        }
-    }
-    if best.chars().count() >= 500 {
-        best
-    } else {
-        html_to_text(html)
-    }
-}
-
-fn html_to_text(html: &str) -> String {
-    let mut result = String::new();
-    let mut in_tag = false;
-    let mut skip_stack: Vec<String> = Vec::new();
-    let mut tag_buf = String::new();
-
-    for ch in html.chars() {
-        match ch {
-            '<' => {
-                in_tag = true;
-                tag_buf.clear();
-            }
-            '>' => {
-                in_tag = false;
-                let t = tag_buf.to_lowercase();
-                let tag_name = t
-                    .split_whitespace()
-                    .next()
-                    .unwrap_or("")
-                    .trim_start_matches('/')
-                    .to_string();
-                if t.starts_with('/') {
-                    if skip_stack.last().is_some_and(|open| open == &tag_name) {
-                        skip_stack.pop();
-                    }
-                } else if matches!(
-                    tag_name.as_str(),
-                    "script"
-                        | "style"
-                        | "nav"
-                        | "footer"
-                        | "header"
-                        | "aside"
-                        | "form"
-                        | "svg"
-                        | "noscript"
-                ) {
-                    skip_stack.push(tag_name);
-                } else if skip_stack.is_empty()
-                    && matches!(
-                        t.split_whitespace()
-                            .next()
-                            .unwrap_or("")
-                            .trim_start_matches('/'),
-                        "p" | "div" | "br" | "h1" | "h2" | "h3" | "h4" | "li" | "tr"
-                    )
-                {
-                    result.push('\n');
-                }
-            }
-            _ if in_tag => {
-                tag_buf.push(ch);
-            }
-            _ if skip_stack.is_empty() => {
-                result.push(ch);
-            }
-            _ => {}
-        }
-    }
-
-    result
-        .replace("&amp;", "&")
-        .replace("&nbsp;", " ")
-        .lines()
-        .map(|l| l.trim())
-        .filter(|l| !l.is_empty())
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-fn looks_like_js_shell(text: &str) -> bool {
-    let lower = text.to_lowercase();
-    let short = text.chars().count() < 500;
-    short
-        && (lower.contains("enable javascript")
-            || lower.contains("requires javascript")
-            || lower.contains("please enable js")
-            || lower.contains("app shell"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn readability_prefers_article_and_ignores_nav_footer() {
-        let html = format!(
-            "<html><body><nav>menu repeated repeated</nav><article><h1>Titre</h1><p>{}</p></article><footer>legal legal legal</footer></body></html>",
-            "contenu utile ".repeat(80)
-        );
-        let text = readability_text(&html);
-        assert!(text.contains("contenu utile"));
-        assert!(!text.contains("menu repeated"));
-        assert!(!text.contains("legal legal"));
+    fn tete_queue_est_char_safe() {
+        // The old byte-based truncate panicked here (multi-byte at the boundary).
+        let text = "é".repeat(PAGE_TETE + PAGE_QUEUE + 100);
+        let capped = tete_queue(&text);
+        assert!(capped.contains("middle truncated"));
+        // short text untouched
+        assert_eq!(tete_queue("court"), "court");
     }
 
     #[test]
-    fn detects_js_shells() {
-        assert!(looks_like_js_shell(
-            "Please enable JavaScript to use this app"
-        ));
-        assert!(!looks_like_js_shell(&"article ".repeat(200)));
+    fn clean_url_decode_et_filtre() {
+        assert_eq!(
+            clean_result_url("//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.org%2Fpage"),
+            Some("https://example.org/page".to_string())
+        );
+        assert_eq!(clean_result_url("https://site.com/style.css"), None);
+        assert_eq!(clean_result_url("javascript:void(0)"), None);
+        // PDFs are no longer rejected: web_fetch converts them via jina.
+        assert!(clean_result_url("https://site.com/manual.pdf").is_some());
     }
 }

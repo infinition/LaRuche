@@ -1,3 +1,15 @@
+//! web_fetch: fetch a page and return CLEAN, PAGINATED text.
+//!
+//! War-machine spec:
+//! - readability extraction (article/main selectors, boilerplate stripped);
+//! - **pagination**: `offset`/`max_chars` let the model read a LONG page in several
+//!   calls instead of losing everything past a tiny cap;
+//! - **links extraction** (`include_links`): the model can crawl OUTWARD (find the
+//!   download page, the forum thread) instead of being stuck on one page;
+//! - anti-blocking chain: direct (1 retry) → r.jina.ai → Wayback Machine;
+//! - PDFs routed through jina (which renders them as text) instead of binary garbage;
+//! - `render=true`: headless Chrome/Edge for JS-only pages.
+
 use crate::abeille::{Abeille, ContextExecution, NiveauDanger, ResultatAbeille};
 use anyhow::Result;
 use async_trait::async_trait;
@@ -7,6 +19,8 @@ use tokio::process::Command;
 /// Fetch a web page and return its text content.
 pub struct WebFetch;
 
+const MAX_CHARS_DEFAUT: usize = 12_000;
+
 #[async_trait]
 impl Abeille for WebFetch {
     fn nom(&self) -> &str {
@@ -14,23 +28,21 @@ impl Abeille for WebFetch {
     }
 
     fn description(&self) -> &str {
-        "Fetch the content of a web page at the given URL and return it as clean text. \
-         Use this to read articles, documentation, or any web page content. Set `render` \
-         to true for pages that need JavaScript rendering."
+        "Fetch a web page and return its clean text. Long pages are PAGINATED: the output \
+         tells you the total size and the `offset` to pass to read the next chunk. Set \
+         `include_links` to true to also get the page's links (to crawl further). Set \
+         `render` to true for JavaScript-only pages. PDFs are converted to text."
     }
 
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({
             "type": "object",
             "properties": {
-                "url": {
-                    "type": "string",
-                    "description": "The URL to fetch"
-                },
-                "render": {
-                    "type": "boolean",
-                    "description": "If true, attempt a headless Chrome/Edge render before extraction (JS pages)."
-                }
+                "url": { "type": "string", "description": "The URL to fetch" },
+                "offset": { "type": "integer", "description": "Character offset to continue reading a long page (from a previous call's hint). Default 0." },
+                "max_chars": { "type": "integer", "description": "Max characters returned (default 12000, max 40000)" },
+                "include_links": { "type": "boolean", "description": "Append the page's links (text + URL) to crawl further" },
+                "render": { "type": "boolean", "description": "Headless Chrome/Edge render before extraction (JS pages)" }
             },
             "required": ["url"]
         })
@@ -59,12 +71,21 @@ impl Abeille for WebFetch {
             ));
         }
 
+        let offset = args["offset"].as_u64().unwrap_or(0) as usize;
+        let max_chars = (args["max_chars"].as_u64().unwrap_or(MAX_CHARS_DEFAUT as u64) as usize)
+            .clamp(1_000, 40_000);
+        let avec_liens = args["include_links"].as_bool().unwrap_or(false);
+
         if args["render"].as_bool().unwrap_or(false) {
             return match render_url_dom(url, 3).await {
-                Ok(html) => Ok(ResultatAbeille::ok(cap_head_tail(
-                    html_to_text(&html),
-                    6000,
-                ))),
+                Ok(html) => {
+                    let texte = extraire_lisible(&html);
+                    let liens = if avec_liens { rendu_liens(&html, url) } else { String::new() };
+                    Ok(ResultatAbeille::ok(format!(
+                        "{}{liens}",
+                        paginer(&texte, offset, max_chars)
+                    )))
+                }
                 Err(e) => Ok(ResultatAbeille::err(format!(
                     "Render requested but browser rendering failed: {e}"
                 ))),
@@ -73,13 +94,50 @@ impl Abeille for WebFetch {
 
         let client = reqwest::Client::builder()
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-            .timeout(std::time::Duration::from_secs(15))
+            .timeout(std::time::Duration::from_secs(20))
             .build()?;
 
-        // Direct fetch, then anti-blocking fallback chain on failure/empty.
-        match fetch_direct(&client, url).await {
-            Ok(text) if !text.trim().is_empty() => {
-                Ok(ResultatAbeille::ok(cap_head_tail(text, 6000)))
+        // Direct fetch (1 retry on transient network error), then anti-blocking chain.
+        let direct = match fetch_direct(&client, url).await {
+            Err(e) if e.to_string().starts_with("network") => fetch_direct(&client, url).await,
+            autre => autre,
+        };
+        match direct {
+            Ok(Recolte::Pdf) => {
+                // r.jina.ai renders PDFs to text; direct bytes would be garbage.
+                if let Some(text) = fetch_via_jina(&client, url).await {
+                    return Ok(ResultatAbeille::ok(format!(
+                        "[PDF converted via r.jina.ai]\n\n{}",
+                        paginer(&text, offset, max_chars)
+                    )));
+                }
+                Ok(ResultatAbeille::err(
+                    "PDF detected and jina conversion failed. Download it (shell/file tools) \
+                     and use read_extract on the local file.",
+                ))
+            }
+            Ok(Recolte::Html(html)) => {
+                let texte = extraire_lisible(&html);
+                if texte.trim().is_empty() || looks_like_js_shell(&texte) {
+                    // Empty/JS shell: try jina (renders JS) before giving up.
+                    if let Some(text) = fetch_via_jina(&client, url).await {
+                        return Ok(ResultatAbeille::ok(format!(
+                            "[via r.jina.ai - page needed rendering]\n\n{}",
+                            paginer(&text, offset, max_chars)
+                        )));
+                    }
+                    return Ok(ResultatAbeille::err(
+                        "Page has no readable content (JS shell). Retry with render=true.",
+                    ));
+                }
+                let liens = if avec_liens { rendu_liens(&html, url) } else { String::new() };
+                Ok(ResultatAbeille::ok(format!(
+                    "{}{liens}",
+                    paginer(&texte, offset, max_chars)
+                )))
+            }
+            Ok(Recolte::Texte(t)) if !t.trim().is_empty() => {
+                Ok(ResultatAbeille::ok(paginer(&t, offset, max_chars)))
             }
             issue => {
                 let motif = match issue {
@@ -90,14 +148,14 @@ impl Abeille for WebFetch {
                 if let Some(text) = fetch_via_jina(&client, url).await {
                     return Ok(ResultatAbeille::ok(format!(
                         "[via r.jina.ai - direct fetch failed: {motif}]\n\n{}",
-                        cap_head_tail(text, 6000)
+                        paginer(&text, offset, max_chars)
                     )));
                 }
                 // Fallback 2: Wayback Machine (archived snapshot).
                 if let Some(text) = fetch_via_wayback(&client, url).await {
                     return Ok(ResultatAbeille::ok(format!(
                         "[via Wayback Machine - direct fetch failed: {motif}]\n\n{}",
-                        cap_head_tail(text, 6000)
+                        paginer(&text, offset, max_chars)
                     )));
                 }
                 Ok(ResultatAbeille::err(format!(
@@ -109,8 +167,15 @@ impl Abeille for WebFetch {
     }
 }
 
-/// Direct fetch: returns cleaned text, or an error (network or non-2xx status).
-async fn fetch_direct(client: &reqwest::Client, url: &str) -> Result<String> {
+/// What a direct fetch yielded.
+enum Recolte {
+    Html(String),
+    Texte(String),
+    Pdf,
+}
+
+/// Direct fetch: raw HTML/text, or an error (network or non-2xx status).
+async fn fetch_direct(client: &reqwest::Client, url: &str) -> Result<Recolte> {
     let response = client
         .get(url)
         .send()
@@ -124,17 +189,21 @@ async fn fetch_direct(client: &reqwest::Client, url: &str) -> Result<String> {
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("")
-        .to_string();
+        .to_lowercase();
+    if content_type.contains("pdf") {
+        return Ok(Recolte::Pdf);
+    }
     let body = response.text().await.unwrap_or_default();
-    Ok(if content_type.contains("html") {
-        html_to_text(&body)
+    Ok(if content_type.contains("html") || body.trim_start().starts_with('<') {
+        Recolte::Html(body)
     } else {
-        body
+        Recolte::Texte(body)
     })
 }
 
-/// Fallback via r.jina.ai: reader proxy that already returns clean text/markdown.
-async fn fetch_via_jina(client: &reqwest::Client, url: &str) -> Option<String> {
+/// Fallback via r.jina.ai: reader proxy that already returns clean text/markdown
+/// (with links inline). Shared with web_deep_search.
+pub(crate) async fn fetch_via_jina(client: &reqwest::Client, url: &str) -> Option<String> {
     let proxied = format!("https://r.jina.ai/{url}");
     let resp = client
         .get(&proxied)
@@ -162,7 +231,7 @@ async fn fetch_via_wayback(client: &reqwest::Client, url: &str) -> Option<String
     let v: serde_json::Value = client.get(&api).send().await.ok()?.json().await.ok()?;
     let snap = v["archived_snapshots"]["closest"]["url"].as_str()?;
     let html = client.get(snap).send().await.ok()?.text().await.ok()?;
-    let text = html_to_text(&html);
+    let text = extraire_lisible(&html);
     if text.trim().is_empty() {
         None
     } else {
@@ -228,23 +297,131 @@ async fn render_url_dom(url: &str, wait_seconds: u64) -> Result<String> {
     Ok(html)
 }
 
-fn cap_head_tail(text: String, max_len: usize) -> String {
-    let chars: Vec<char> = text.chars().collect();
-    if chars.len() <= max_len {
-        return text;
+/// Char-safe pagination window over the extracted text. Tells the model the total
+/// size and the exact `offset` for the next chunk — a long page is READ, not lost.
+pub(crate) fn paginer(texte: &str, offset: usize, max_chars: usize) -> String {
+    let total = texte.chars().count();
+    if offset >= total && total > 0 {
+        return format!(
+            "(offset {offset} is past the end: the page has {total} characters total)"
+        );
     }
-    let tail_len = 1200.min(max_len / 2).min(chars.len());
-    let head_len = max_len.saturating_sub(tail_len);
-    let head: String = chars[..head_len].iter().collect();
-    let tail: String = chars[chars.len() - tail_len..].iter().collect();
-    format!(
-        "{head}\n\n...(milieu tronque, {} caracteres au total)...\n\n{tail}",
-        chars.len()
-    )
+    let fenetre: String = texte.chars().skip(offset).take(max_chars).collect();
+    let fin = offset + fenetre.chars().count();
+    if fin < total {
+        format!(
+            "{fenetre}\n\n[... page continues: {total} chars total, showing {offset}..{fin}. \
+             Call web_fetch again with offset={fin} to read more. ...]"
+        )
+    } else if offset > 0 {
+        format!("{fenetre}\n\n[end of page: {total} chars total]")
+    } else {
+        fenetre
+    }
 }
 
-/// Simple HTML to text converter: strips tags, scripts, styles.
-fn html_to_text(html: &str) -> String {
+/// JS shell page: nothing readable without a renderer.
+pub(crate) fn looks_like_js_shell(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    let short = text.chars().count() < 500;
+    short
+        && (lower.contains("enable javascript")
+            || lower.contains("requires javascript")
+            || lower.contains("please enable js")
+            || lower.contains("app shell"))
+}
+
+/// Readability extraction: prefer the densest article/main region (scraper
+/// selectors), fall back to whole-page tag stripping. Shared with web_deep_search.
+pub(crate) fn extraire_lisible(html: &str) -> String {
+    use scraper::{Html, Selector};
+    let doc = Html::parse_document(html);
+    let mut best = String::new();
+    for selector in [
+        "article",
+        "main",
+        "[role=\"main\"]",
+        ".entry-content",
+        ".post-content",
+        ".article-content",
+        ".content",
+        "#content",
+    ] {
+        let Ok(sel) = Selector::parse(selector) else {
+            continue;
+        };
+        for node in doc.select(&sel) {
+            let text = html_to_text(&node.html());
+            if text.chars().count() > best.chars().count() {
+                best = text;
+            }
+        }
+    }
+    if best.chars().count() >= 500 {
+        best
+    } else {
+        html_to_text(html)
+    }
+}
+
+/// Extracts the page's links (anchor text + ABSOLUTE url), deduplicated, capped.
+/// This is what lets a scout CRAWL: find the download page, the next forum page...
+pub(crate) fn extraire_liens(html: &str, base: &str) -> Vec<(String, String)> {
+    use scraper::{Html, Selector};
+    let doc = Html::parse_document(html);
+    let Ok(sel) = Selector::parse("a[href]") else {
+        return Vec::new();
+    };
+    let base_url = reqwest::Url::parse(base).ok();
+    let mut vus = std::collections::HashSet::new();
+    let mut liens = Vec::new();
+    for a in doc.select(&sel) {
+        let Some(href) = a.value().attr("href") else { continue };
+        // Resolve relative hrefs against the page URL.
+        let abs = match reqwest::Url::parse(href) {
+            Ok(u) => u.to_string(),
+            Err(_) => match &base_url {
+                Some(b) => match b.join(href) {
+                    Ok(u) => u.to_string(),
+                    Err(_) => continue,
+                },
+                None => continue,
+            },
+        };
+        if !abs.starts_with("http") {
+            continue;
+        }
+        let texte: String = a.text().collect::<String>().split_whitespace().collect::<Vec<_>>().join(" ");
+        let texte: String = texte.chars().take(80).collect();
+        if texte.is_empty() {
+            continue;
+        }
+        let cle = abs.split('#').next().unwrap_or(&abs).to_string();
+        if vus.insert(cle) {
+            liens.push((texte, abs));
+            if liens.len() >= 40 {
+                break;
+            }
+        }
+    }
+    liens
+}
+
+/// Links section appended to the output when `include_links=true`.
+fn rendu_liens(html: &str, base: &str) -> String {
+    let liens = extraire_liens(html, base);
+    if liens.is_empty() {
+        return String::new();
+    }
+    let mut out = format!("\n\n## Links on this page ({})\n", liens.len());
+    for (texte, url) in liens {
+        out.push_str(&format!("- {texte} — {url}\n"));
+    }
+    out
+}
+
+/// Simple HTML to text converter: strips tags, scripts, styles, boilerplate.
+pub(crate) fn html_to_text(html: &str) -> String {
     // Boilerplate regions to skip (nav/menus/footer/ads): this is what polluted
     // extraction and drowned out the real content. We do NOT touch <header>
     // (may contain the article title) or <main>/<article>.
@@ -362,9 +539,11 @@ mod tests {
     use crate::abeille::Abeille;
 
     #[test]
-    fn schema_exposes_render_parameter() {
+    fn schema_exposes_new_parameters() {
         let schema = WebFetch.schema();
-        assert!(schema["properties"].get("render").is_some());
+        for p in ["render", "offset", "max_chars", "include_links"] {
+            assert!(schema["properties"].get(p).is_some(), "missing {p}");
+        }
     }
 
     #[test]
@@ -380,10 +559,47 @@ mod tests {
     }
 
     #[test]
-    fn cap_head_tail_keeps_tail() {
-        let text = format!("{}END", "a".repeat(7000));
-        let capped = cap_head_tail(text, 6000);
-        assert!(capped.contains("milieu tronque"));
-        assert!(capped.ends_with("END"));
+    fn paginer_fenetre_et_offset() {
+        let texte: String = "abcdefghij".repeat(100); // 1000 chars
+        // first window announces the continuation offset
+        let p0 = paginer(&texte, 0, 400);
+        assert!(p0.contains("offset=400"));
+        assert!(p0.contains("1000 chars total"));
+        // middle window
+        let p1 = paginer(&texte, 400, 400);
+        assert!(p1.contains("offset=800"));
+        // last window marks the end
+        let p2 = paginer(&texte, 800, 400);
+        assert!(p2.contains("end of page"));
+        // short text: returned as-is
+        assert_eq!(paginer("court", 0, 400), "court");
+        // char-safe with multibyte (no panic)
+        let acc = "éàü".repeat(500);
+        let _ = paginer(&acc, 100, 200);
+    }
+
+    #[test]
+    fn extraire_liens_absolus_dedupliques() {
+        let html = r##"<html><body>
+            <a href="/download/save.zip">Download savegame</a>
+            <a href="https://example.org/page2">Page 2</a>
+            <a href="/download/save.zip">Download savegame (dup)</a>
+            <a href="#anchor">ignore</a>
+        </body></html>"##;
+        let liens = extraire_liens(html, "https://example.org/base/");
+        assert_eq!(liens.len(), 3, "{liens:?}"); // dup collapsed, anchor resolves to base
+        assert!(liens.iter().any(|(t, u)| t.contains("Download")
+            && u == "https://example.org/download/save.zip"));
+    }
+
+    #[test]
+    fn readability_prefere_l_article() {
+        let html = format!(
+            "<html><body><nav>menu</nav><article><p>{}</p></article><footer>legal</footer></body></html>",
+            "contenu utile ".repeat(80)
+        );
+        let t = extraire_lisible(&html);
+        assert!(t.contains("contenu utile"));
+        assert!(!t.contains("menu"));
     }
 }
