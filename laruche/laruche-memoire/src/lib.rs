@@ -22,7 +22,7 @@ mod native;
 mod sidecar;
 mod sqlite;
 pub use curator::{maybe_run_curator, Curator, CuratorState};
-pub use embed::{cosine, Embedder, OllamaEmbedder};
+pub use embed::{cosine, Embedder, HttpEmbedder, OllamaEmbedder};
 pub use native::NativeBackend;
 pub use sidecar::{SidecarBackend, SidecarConfig};
 pub use sqlite::SqliteBackend;
@@ -264,6 +264,13 @@ pub trait MemoireCognitive: Send + Sync {
     /// Imports an **OKF bundle** (Markdown+YAML folder) into the memory. Returns the number of imported items.
     async fn import_okf(&self, _dir: &std::path::Path) -> Result<usize> {
         Err(anyhow!("import_okf unsupported by this backend"))
+    }
+
+    /// Backfills missing embeddings for active items (items written while the
+    /// embedder was down would otherwise stay invisible to semantic recall).
+    /// No-op without an embedder. Returns the number of items embedded.
+    async fn backfill_embeddings(&self, _max: usize) -> Result<usize> {
+        Ok(0)
     }
 
     /// Checks that the backend responds.

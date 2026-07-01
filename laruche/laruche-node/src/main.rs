@@ -1357,27 +1357,43 @@ async fn main() -> Result<()> {
     let memoire: Arc<dyn laruche_memoire::MemoireCognitive> =
         match std::env::var("LARUCHE_MEMOIRE_BACKEND").as_deref() {
             Ok("sidecar") => Arc::new(laruche_memoire::SidecarBackend::loopback()),
-            Ok("sqlite") => match std::env::var("LARUCHE_EMBED_URL") {
-                // With Ollama embedder → hybrid semantic recall.
-                Ok(url) if !url.is_empty() => {
-                    let model = std::env::var("LARUCHE_EMBED_MODEL")
-                        .unwrap_or_else(|_| "nomic-embed-text".to_string());
-                    Arc::new(
-                        laruche_memoire::SqliteBackend::open_with_embedder(
-                            "memoire.db",
-                            Arc::new(laruche_memoire::OllamaEmbedder::new(url, model)),
-                        )
-                        .expect("opening memoire.db (SQLite+FTS5+embeddings)"),
+            Ok("sqlite") => {
+                // Embedder ALWAYS wired (semantic recall by default): LARUCHE_EMBED_URL
+                // (Ollama `/api/embed` OR llama.cpp/OpenAI-compat `/v1/embeddings` —
+                // format auto-detected), falling back to the local Ollama default.
+                // HttpEmbedder opens a circuit breaker when the server is down, so a
+                // missing embedder costs ~nothing and recall degrades to FTS5.
+                let url = std::env::var("LARUCHE_EMBED_URL")
+                    .ok()
+                    .filter(|s| !s.is_empty())
+                    .unwrap_or_else(|| "http://127.0.0.1:11434".to_string());
+                let model = std::env::var("LARUCHE_EMBED_MODEL")
+                    .unwrap_or_else(|_| "nomic-embed-text".to_string());
+                info!(url = %url, model = %model, "memory embedder: semantic recall active (auto-detected format)");
+                Arc::new(
+                    laruche_memoire::SqliteBackend::open_with_embedder(
+                        "memoire.db",
+                        Arc::new(laruche_memoire::HttpEmbedder::new(url, model)),
                     )
-                }
-                // Without embedder → FTS5 lexical recall.
-                _ => Arc::new(
-                    laruche_memoire::SqliteBackend::open("memoire.db")
-                        .expect("opening memoire.db (SQLite+FTS5)"),
-                ),
-            },
+                    .expect("opening memoire.db (SQLite+FTS5+embeddings)"),
+                )
+            }
             _ => Arc::new(laruche_memoire::NativeBackend::new()),
         };
+    // Backfill: items written while the embedder was down get their embeddings
+    // (semantic recall would otherwise never see them). Deferred a little so the
+    // local embed server has time to come up; the breaker makes failures cheap.
+    {
+        let mem_bf = memoire.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(20)).await;
+            if let Ok(n) = mem_bf.backfill_embeddings(500).await {
+                if n > 0 {
+                    info!(items = n, "memory: missing embeddings backfilled");
+                }
+            }
+        });
+    }
     laruche_essaim::abeilles::enregistrer_memoire(&essaim_registry, memoire.clone());
     // LLM consolidation (item merging): requires memory + config (aux model).
     essaim_registry.enregistrer(Box::new(

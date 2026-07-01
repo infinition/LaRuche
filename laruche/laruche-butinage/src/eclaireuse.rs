@@ -116,6 +116,7 @@ pub async fn depecher(
     emet: &dyn Emetteur,
     now: chrono::DateTime<chrono::Utc>,
     annulation: Option<&std::sync::atomic::AtomicBool>,
+    source: Option<&dyn crate::nectar::Source>,
 ) -> Result<Rapport> {
     // The parent's system prompt may carry the deep-research protocol, which orders a
     // `delegate` fan-out — but delegation is DISABLED in the child (single recursion
@@ -137,6 +138,7 @@ pub async fn depecher(
         chemin_carnet: None, // the child does not need a disk checkpoint
         supervision: None,   // the parent's Tier 3 watches the PARENT, not the child
         delegation_disponible: false, // anti-recursion: nudges must not suggest a fan-out
+        rappel_initial: true, // scouts start WITH memory: past findings, known dead ends
         ..reglages_parent.clone()
     };
 
@@ -146,7 +148,8 @@ pub async fn depecher(
     };
 
     let mut carnet = Carnet::ouvrir(&mission, ordre.role.mode(), now);
-    // Éclaireuses are bounded and short, so no memory consolidation (source None).
+    // The source powers the scout's INITIAL recall (rappel_initial) — consolidation
+    // stays off in practice (short bounded runs rarely hit the gauge threshold).
     // The parent's cancellation flag propagates: killing the run kills the children.
     let bilan = crate::cycle::butiner(
         &mut carnet,
@@ -154,7 +157,7 @@ pub async fn depecher(
         fournisseur,
         outils,
         emet,
-        None,
+        source,
         None,
         annulation,
     )
@@ -251,7 +254,7 @@ mod tests {
             tache: "angle 1".into(),
             contexte: None,
         };
-        depecher(ordre, &parent, &four, &OutilsVides, &Silencieux, t0(), None)
+        depecher(ordre, &parent, &four, &OutilsVides, &Silencieux, t0(), None, None)
             .await
             .unwrap();
         let sys = four.0.lock().unwrap().clone().unwrap();
@@ -276,10 +279,11 @@ mod tests {
             tache: "trouver des sources sur X".into(),
             contexte: None,
         };
-        let rapport =
-            depecher(ordre, &Reglages::default(), &four, &OutilsVides, &Silencieux, t0(), None)
-                .await
-                .unwrap();
+        let rapport = depecher(
+            ordre, &Reglages::default(), &four, &OutilsVides, &Silencieux, t0(), None, None,
+        )
+        .await
+        .unwrap();
         assert_eq!(rapport.role, Role::Eclaireuse);
         assert_eq!(rapport.synthese, "3 sources trouvées");
         assert!(rapport.en_observation().contains("trouver des sources"));

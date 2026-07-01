@@ -276,6 +276,11 @@ impl SqliteBackend {
         let _ = conn.execute("ALTER TABLE nodes ADD COLUMN source TEXT", []);
         // Mutation actor (source/reason) for the Feed (User vs LaRuche).
         let _ = conn.execute("ALTER TABLE mutations ADD COLUMN src TEXT", []);
+        // Value & usage signals (priority decay: ranking, never deletion).
+        let _ = conn.execute("ALTER TABLE items ADD COLUMN importance REAL", []);
+        let _ = conn.execute("ALTER TABLE items ADD COLUMN confidence REAL", []);
+        let _ = conn.execute("ALTER TABLE items ADD COLUMN access_count INTEGER DEFAULT 0", []);
+        let _ = conn.execute("ALTER TABLE items ADD COLUMN accessed_at INTEGER", []);
         Ok(Self {
             conn: Mutex::new(conn),
             embedder,
@@ -286,8 +291,18 @@ impl SqliteBackend {
         let conn = self.conn.lock().unwrap();
         ensure_node(&conn, &item.node_id)?;
         conn.execute(
-            "INSERT INTO items(node_id,content,source,status,embedding,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?6)",
-            rusqlite::params![item.node_id, item.content, item.source, status, embedding, now()],
+            "INSERT INTO items(node_id,content,source,status,embedding,created_at,updated_at,importance,confidence) \
+             VALUES(?1,?2,?3,?4,?5,?6,?6,?7,?8)",
+            rusqlite::params![
+                item.node_id,
+                item.content,
+                item.source,
+                status,
+                embedding,
+                now(),
+                item.importance,
+                item.confidence
+            ],
         )?;
         let id = conn.last_insert_rowid();
         if status == "active" {
@@ -336,9 +351,6 @@ impl MemoireCognitive for SqliteBackend {
 
         let conn = self.conn.lock().unwrap();
 
-        // (score, item id, node, content)
-        let mut hits: Vec<(f32, i64, String, String)> = Vec::new();
-
         // Cognitive activation: each node lights up based on query/path-label overlap
         // + its importance. Items of a relevant subtree are then boosted (paradigm-style).
         let mut node_act: std::collections::HashMap<String, f32> = std::collections::HashMap::new();
@@ -372,10 +384,29 @@ impl MemoireCognitive for SqliteBackend {
             na + 0.3 * pa
         };
 
-        if let Some(qv) = qvec {
-            // HYBRID recall: semantic cosine + small lexical boost.
+        // Value/usage/freshness bonus — the "priority decay": an item never expires,
+        // but a stored-important, frequently-recalled (Hebbian) or recently-updated
+        // fact outranks a stale never-used one.
+        let now_ts = now();
+        let bonus = |imp: Option<f32>, acces: i64, maj: Option<i64>| -> f32 {
+            let valeur = 0.2 * imp.unwrap_or(0.5);
+            let usage = (0.05 * (acces.max(0) as f32).ln_1p()).min(0.15);
+            let age_jours = maj
+                .map(|u| ((now_ts - u) as f32 / 86_400.0).max(0.0))
+                .unwrap_or(365.0);
+            let fraicheur = 0.1 * (-age_jours / 90.0).exp();
+            valeur + usage + fraicheur
+        };
+        // id -> (score, node, content) — semantic and lexical branches MERGE here
+        // (max score wins): an item without an embedding stays reachable via FTS.
+        let mut fusion: std::collections::HashMap<i64, (f32, String, String)> =
+            std::collections::HashMap::new();
+
+        if let Some(qv) = &qvec {
+            // Semantic branch: cosine + small lexical flag + activation + bonus.
             let mut stmt = conn.prepare(
-                "SELECT id, node_id, content, embedding FROM items WHERE status='active' AND embedding IS NOT NULL",
+                "SELECT id, node_id, content, embedding, importance, COALESCE(access_count,0), updated_at \
+                 FROM items WHERE status='active' AND embedding IS NOT NULL",
             )?;
             let rows = stmt.query_map([], |r| {
                 Ok((
@@ -383,47 +414,67 @@ impl MemoireCognitive for SqliteBackend {
                     r.get::<_, String>(1)?,
                     r.get::<_, String>(2)?,
                     r.get::<_, Vec<u8>>(3)?,
+                    r.get::<_, Option<f32>>(4)?,
+                    r.get::<_, i64>(5)?,
+                    r.get::<_, Option<i64>>(6)?,
                 ))
             })?;
             for row in rows {
-                let (id, node, content, blob) = row?;
-                let sem = cosine(&qv, &blob_to_vec(&blob));
+                let (id, node, content, blob, imp, acces, maj) = row?;
+                let sem = cosine(qv, &blob_to_vec(&blob));
                 let hay = format!("{node} {content}").to_lowercase();
-                let lex = if qtoks.iter().any(|t| hay.contains(t)) {
-                    0.3
-                } else {
-                    0.0
-                };
-                let score = 0.7 * sem + lex + 0.25 * activation_of(&node);
-                if score > 0.05 {
-                    hits.push((score, id, node, content));
+                let lex = if qtoks.iter().any(|t| hay.contains(t)) { 0.3 } else { 0.0 };
+                // RELEVANCE gates; the value/usage bonus only RE-RANKS relevant
+                // hits (a fresh but off-topic item must never surface).
+                let pertinence = 0.7 * sem + lex + 0.25 * activation_of(&node);
+                if pertinence > 0.05 {
+                    fusion.insert(id, (pertinence + bonus(imp, acces, maj), node, content));
                 }
             }
-        } else if !qtoks.is_empty() {
-            // LEXICAL fallback: FTS5 BM25.
+        }
+        if !qtoks.is_empty() {
+            // Lexical branch (ALWAYS runs): FTS5 BM25. Catches items with no
+            // embedding (written while the embedder was down) and exact wording.
             let match_expr = qtoks
                 .iter()
                 .map(|t| format!("\"{t}\"*"))
                 .collect::<Vec<_>>()
                 .join(" OR ");
             let mut stmt = conn.prepare(
-                "SELECT i.id, i.node_id, i.content FROM items_fts f JOIN items i ON i.id = f.rowid \
+                "SELECT i.id, i.node_id, i.content, i.importance, COALESCE(i.access_count,0), i.updated_at \
+                 FROM items_fts f JOIN items i ON i.id = f.rowid \
                  WHERE f.items_fts MATCH ?1 AND i.status='active' ORDER BY bm25(items_fts) LIMIT ?2",
             )?;
-            let rows = stmt.query_map(rusqlite::params![match_expr, limit as i64], |r| {
-                Ok((
-                    r.get::<_, i64>(0)?,
-                    r.get::<_, String>(1)?,
-                    r.get::<_, String>(2)?,
-                ))
-            })?;
+            let rows = stmt.query_map(
+                rusqlite::params![match_expr, (limit * 3) as i64],
+                |r| {
+                    Ok((
+                        r.get::<_, i64>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, String>(2)?,
+                        r.get::<_, Option<f32>>(3)?,
+                        r.get::<_, i64>(4)?,
+                        r.get::<_, Option<i64>>(5)?,
+                    ))
+                },
+            )?;
+            // Base below a strong semantic match, above a weak one: exact wording
+            // competes without drowning meaning.
+            let base = if qvec.is_some() { 0.55 } else { 1.0 };
             for row in rows {
-                let (id, node, content) = row?;
-                let score = 1.0 + 0.25 * activation_of(&node);
-                hits.push((score, id, node, content));
+                let (id, node, content, imp, acces, maj) = row?;
+                let score = base + 0.25 * activation_of(&node) + bonus(imp, acces, maj);
+                let e = fusion.entry(id).or_insert((0.0, node, content));
+                if score > e.0 {
+                    e.0 = score;
+                }
             }
         }
 
+        let mut hits: Vec<(f32, i64, String, String)> = fusion
+            .into_iter()
+            .map(|(id, (s, n, c))| (s, id, n, c))
+            .collect();
         hits.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
         hits.truncate(limit);
 
@@ -431,6 +482,11 @@ impl MemoireCognitive for SqliteBackend {
         let mut items = Vec::new();
         let mut seen = std::collections::HashSet::new();
         for (_, id, node, content) in hits {
+            // Hebbian trace: being recalled strengthens future ranking.
+            let _ = conn.execute(
+                "UPDATE items SET access_count = COALESCE(access_count,0)+1, accessed_at=?1 WHERE id=?2",
+                rusqlite::params![now_ts, id],
+            );
             if seen.insert(node.clone()) {
                 nodes.push(node_json(&conn, &node)?);
             }
@@ -440,8 +496,62 @@ impl MemoireCognitive for SqliteBackend {
     }
 
     async fn write(&self, item: MemoryItem) -> Result<Value> {
-        let emb = self.embed_opt(&item.content).await.map(|v| vec_to_blob(&v));
-        let id = self.insert(&item, "active", emb)?;
+        let emb_vec = self.embed_opt(&item.content).await;
+        // Facts do not rot with time — they rot when REPLACED. At write time:
+        // exact duplicate (same node) -> no-op; near-duplicate (cosine > 0.88, same
+        // node) -> the OLD version is marked `superseded` (kept for audit, excluded
+        // from recall). This is what keeps the map clean without any hard decay.
+        {
+            let conn = self.conn.lock().unwrap();
+            if let Ok(id) = conn.query_row(
+                "SELECT id FROM items WHERE node_id=?1 AND content=?2 AND status='active'",
+                rusqlite::params![item.node_id, item.content],
+                |r| r.get::<_, i64>(0),
+            ) {
+                return Ok(json!({
+                    "ok": true, "item_id": format!("itm_{id}"),
+                    "node_id": item.node_id, "dedup": true
+                }));
+            }
+            if let Some(qv) = &emb_vec {
+                let mut remplaces: Vec<i64> = Vec::new();
+                {
+                    let mut stmt = conn.prepare(
+                        "SELECT id, embedding FROM items \
+                         WHERE node_id=?1 AND status='active' AND embedding IS NOT NULL",
+                    )?;
+                    let rows = stmt.query_map(rusqlite::params![item.node_id], |r| {
+                        Ok((r.get::<_, i64>(0)?, r.get::<_, Vec<u8>>(1)?))
+                    })?;
+                    for row in rows {
+                        let (id, blob) = row?;
+                        if cosine(qv, &blob_to_vec(&blob)) > 0.88 {
+                            remplaces.push(id);
+                        }
+                    }
+                }
+                for id in remplaces {
+                    conn.execute(
+                        "UPDATE items SET status='superseded', updated_at=?1 WHERE id=?2",
+                        rusqlite::params![now(), id],
+                    )?;
+                    conn.execute(
+                        "DELETE FROM items_fts WHERE rowid=?1",
+                        rusqlite::params![id],
+                    )?;
+                    conn.execute(
+                        "INSERT INTO mutations(op,node_id,content,ts,src) VALUES('supersede',?1,?2,?3,?4)",
+                        rusqlite::params![
+                            item.node_id,
+                            format!("itm_{id} superseded by a newer fact"),
+                            now(),
+                            item.source
+                        ],
+                    )?;
+                }
+            }
+        }
+        let id = self.insert(&item, "active", emb_vec.map(|v| vec_to_blob(&v)))?;
         Ok(json!({ "ok": true, "item_id": format!("itm_{id}"), "node_id": item.node_id }))
     }
 
@@ -1146,6 +1256,37 @@ impl MemoireCognitive for SqliteBackend {
             rusqlite::params![p, like],
         )?;
         Ok(removed)
+    }
+
+    async fn backfill_embeddings(&self, max: usize) -> Result<usize> {
+        if self.embedder.is_none() {
+            return Ok(0);
+        }
+        // Collect under the lock, embed WITHOUT the lock (network awaits), update after.
+        let manquants: Vec<(i64, String)> = {
+            let conn = self.conn.lock().unwrap();
+            let mut stmt = conn.prepare(
+                "SELECT id, content FROM items \
+                 WHERE status='active' AND embedding IS NULL LIMIT ?1",
+            )?;
+            let rows = stmt.query_map(rusqlite::params![max as i64], |r| {
+                Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))
+            })?;
+            rows.filter_map(|r| r.ok()).collect()
+        };
+        let mut faits = 0usize;
+        for (id, content) in manquants {
+            let Some(v) = self.embed_opt(&content).await else {
+                break; // embedder down (breaker open): retry another day
+            };
+            let conn = self.conn.lock().unwrap();
+            conn.execute(
+                "UPDATE items SET embedding=?1 WHERE id=?2",
+                rusqlite::params![vec_to_blob(&v), id],
+            )?;
+            faits += 1;
+        }
+        Ok(faits)
     }
 
     async fn health(&self) -> Result<bool> {

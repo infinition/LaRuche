@@ -92,6 +92,12 @@ pub async fn provider_chat_stream(
         "openai" | "miel" => {
             openai_chat_stream(model, messages, temperature, max_tokens, api_key, api_base, tools).await
         }
+        // llama.cpp `llama-server` (OpenAI-compatible, local, no key). Default base
+        // matches the local launch scripts (port 8001); override via api_base.
+        "llamacpp" | "llama.cpp" | "llama-server" => {
+            let base = api_base.or(Some("http://127.0.0.1:8001"));
+            openai_chat_stream(model, messages, temperature, max_tokens, api_key, base, tools).await
+        }
         "anthropic" => {
             anthropic_chat_stream(model, messages, temperature, max_tokens, api_key, api_base, tools).await
         }

@@ -83,6 +83,11 @@ pub struct Reglages {
     /// Is `delegate` available in this context? False for sub-agents (anti-recursion):
     /// steering nudges then stop suggesting an impossible fan-out.
     pub delegation_disponible: bool,
+    /// Just-in-time memory recall at mission start (`Source::rappeler(mission)`
+    /// injected as internal context). ON for sub-agents (scouts must know past
+    /// findings and dead ends) and resumed runs; OFF for the main chat mission,
+    /// whose caller already injects a budgeted working set into the system prompt.
+    pub rappel_initial: bool,
 }
 
 impl Default for Reglages {
@@ -105,6 +110,7 @@ impl Default for Reglages {
             budget_tokens: 0,
             compaction_llm: true,
             delegation_disponible: true,
+            rappel_initial: false,
         }
     }
 }

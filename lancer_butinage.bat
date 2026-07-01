@@ -27,9 +27,17 @@ REM   ou un SearXNG auto-heberge :
 REM set "LARUCHE_SEARXNG_URL=http://localhost:8888"
 REM   Sans cle : scrapers gratuits (Yahoo+DDG) interroges en parallele et fusionnes.
 
-REM --- (optionnel) embeddings semantiques via Ollama ---
-REM set "LARUCHE_EMBED_URL=http://localhost:11434"
-REM set "LARUCHE_EMBED_MODEL=nomic-embed-text"
+REM --- Embeddings semantiques de la MEMOIRE (recall par sens, pas par mots) ---
+REM   Par defaut le node tente Ollama local (nomic-embed-text, ~270 Mo :
+REM   `ollama pull nomic-embed-text`). Serveur absent = disjoncteur, recall FTS5.
+set "LARUCHE_EMBED_URL=http://localhost:11434"
+set "LARUCHE_EMBED_MODEL=nomic-embed-text"
+REM   Alternative llama.cpp (llama-server --embeddings, format auto-detecte) :
+REM set "LARUCHE_EMBED_URL=http://localhost:8001"
+
+REM --- LLM via llama.cpp (tes .bat C:\DEV\_Local_AI\*, port 8001) ---
+REM   Settings > Providers : provider "llamacpp" (base par defaut
+REM   http://127.0.0.1:8001, pas de cle) ou provider "openai" + api_base.
 
 echo.
 echo ============================================================

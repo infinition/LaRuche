@@ -234,7 +234,10 @@ async fn sqlite_okf_round_trip() {
 }
 
 #[tokio::test]
-async fn sqlite_dream_reports_duplicate_suggestions() {
+async fn ecriture_deduplique_a_la_source_et_dream_reste_propre() {
+    // NEW behavior: an exact duplicate is refused AT WRITE TIME (dedup no-op),
+    // so dream() has nothing to report - the map stays clean by construction.
+    // (dream's duplicate report remains for LEGACY databases.)
     let dir = temp_db("dream");
     cleanup_db(&dir);
 
@@ -246,21 +249,20 @@ async fn sqlite_dream_reports_duplicate_suggestions() {
         ))
         .await
         .unwrap();
-    backend
+    let deux = backend
         .write(MemoryItem::new(
             "decisions.archi",
             "Garder un mono-binaire Rust.",
         ))
         .await
         .unwrap();
+    assert_eq!(deux["dedup"], true, "exact duplicate must be a no-op: {deux}");
 
+    // Only ONE active item remains, and dream reports zero duplicates.
+    let node = backend.read_node("decisions.archi").await.unwrap();
+    assert_eq!(node["items"].as_array().unwrap().len(), 1);
     let dream = backend.dream().await.unwrap();
-    assert!(dream["duplicates"].as_i64().unwrap_or(0) >= 1);
-    assert!(dream["suggestions"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|s| { s["kind"] == "duplicate" && s["node_id"] == "decisions.archi" }));
+    assert_eq!(dream["duplicates"].as_i64().unwrap_or(-1), 0);
 
     cleanup_db(&dir);
 }

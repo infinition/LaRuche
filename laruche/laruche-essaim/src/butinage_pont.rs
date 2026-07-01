@@ -417,6 +417,9 @@ struct OutilsPont<'a> {
     /// `Mutex` because the `Outils::executer` trait takes `&self`; mutating tools are
     /// executed sequentially (récolte): no contention.
     approval: Option<&'a tokio::sync::Mutex<crate::brain::ApprovalReceiver>>,
+    /// Cognitive memory: powers the SCOUTS' initial recall (past findings, known
+    /// dead ends) via `Source::rappeler`. `None` = children start blank.
+    memoire: Option<Arc<dyn MemoireCognitive>>,
 }
 
 impl OutilsPont<'_> {
@@ -486,8 +489,15 @@ impl OutilsPont<'_> {
             disabled,
             tx: self.tx.clone(),
             approval: None, // éclaireuses are autonomous: no popup
+            memoire: self.memoire.clone(),
         };
         let emet = EmetteurPont { tx: self.tx.clone() };
+
+        // Memory for the scout's initial recall: it starts KNOWING what past
+        // missions already found (and which dead ends to skip).
+        let source_enfant = self.memoire.as_ref().map(|m| SourcePont { mem: m.clone() });
+        let source_dyn: Option<&dyn but::Source> =
+            source_enfant.as_ref().map(|s| s as &dyn but::Source);
 
         let ordre = but::OrdreEclaireuse { role, tache, contexte };
         let resultat = match but::depecher(
@@ -498,6 +508,7 @@ impl OutilsPont<'_> {
             &emet,
             chrono::Utc::now(),
             None,
+            source_dyn,
         )
         .await
         {
@@ -1415,6 +1426,7 @@ pub async fn executer_avec_bilan(
         disabled: config.disabled_tools.clone(),
         tx: tx.clone(),
         approval: approval_mx.as_ref(),
+        memoire: memoire.clone(),
     };
     let emet = EmetteurPont { tx: tx.clone() };
 
@@ -1512,6 +1524,49 @@ pub async fn executer_avec_bilan(
     // The CURATOR runs in the BACKGROUND, launched by the node after the mission (it holds
     // the Arc<AbeilleRegistry> needed for the 'static spawn): see lancer_curateur_arriere_plan.
 
+    // EPISODIC memory: one compact trace per non-trivial mission (what was asked,
+    // how it ended, key result + session id). Makes "what did we do on Tuesday?"
+    // answerable, and gives future scouts an episode to recall. Fire-and-forget.
+    if bilan.passes >= 3 {
+        if let Some(m) = memoire {
+            let date = chrono::Utc::now().format("%Y_%m_%d");
+            let slug: String = prompt_utilisateur
+                .to_lowercase()
+                .chars()
+                .map(|c| if c.is_alphanumeric() { c } else { ' ' })
+                .collect::<String>()
+                .split_whitespace()
+                .take(4)
+                .collect::<Vec<_>>()
+                .join("_");
+            let extrait: String = bilan
+                .texte
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+                .chars()
+                .take(400)
+                .collect();
+            let contenu = format!(
+                "Mission: {} | outcome: {} | passes: {} | web: {} | session: {} | result: {extrait}",
+                prompt_utilisateur.chars().take(200).collect::<String>(),
+                fin_str(&bilan.fin),
+                bilan.passes,
+                carnet.recolte_web,
+                session.id
+            );
+            let item = laruche_memoire::MemoryItem::new(
+                format!("episodes.{date}.{}", if slug.is_empty() { "mission".into() } else { slug }),
+                contenu,
+            )
+            .with_source("butinage");
+            let m2 = m.clone();
+            tokio::spawn(async move {
+                let _ = m2.write(item).await;
+            });
+        }
+    }
+
     Ok(RapportMission {
         succes: bilan.est_succes(),
         fin: fin_str(&bilan.fin).to_string(),
@@ -1588,6 +1643,7 @@ pub async fn reprendre_carnet(
         prompt_extraction,
         profil: profil_pour(config),
         supervision: supervision_depuis(&config.reine),
+        rappel_initial: true, // resumed run: re-anchor on what memory already knows
         ..but::Reglages::default()
     };
     let four = FournisseurPont {
@@ -1609,6 +1665,7 @@ pub async fn reprendre_carnet(
         disabled: config.disabled_tools.clone(),
         tx: tx.clone(),
         approval: None,
+        memoire: memoire.clone(),
     };
     let emet = EmetteurPont { tx: tx.clone() };
     let source_pont = memoire.as_ref().map(|m| SourcePont { mem: m.clone() });
