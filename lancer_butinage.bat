@@ -32,8 +32,9 @@ REM   Par defaut le node tente Ollama local (nomic-embed-text, ~270 Mo :
 REM   `ollama pull nomic-embed-text`). Serveur absent = disjoncteur, recall FTS5.
 set "LARUCHE_EMBED_URL=http://localhost:11434"
 set "LARUCHE_EMBED_MODEL=nomic-embed-text"
-REM   Alternative llama.cpp (llama-server --embeddings, format auto-detecte) :
-REM set "LARUCHE_EMBED_URL=http://localhost:8001"
+REM   Alternative llama.cpp : lance `lancer_embeddings.bat llamacpp` (port 8002,
+REM   telechargement auto du GGUF nomic) puis :
+REM set "LARUCHE_EMBED_URL=http://localhost:8002"
 
 REM --- LLM via llama.cpp (tes .bat C:\DEV\_Local_AI\*, port 8001) ---
 REM   Settings > Providers : provider "llamacpp" (base par defaut
