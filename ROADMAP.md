@@ -147,6 +147,16 @@
 - [x] **Audit logging** : helper **`log_activite`** → les événements **sécurité** (login OK/échec, nouveau compte, suppression/rôle admin) remontent maintenant dans le **volet Audit** du Dashboard (avant : CLI seulement).
 - [x] **Refonte TUI (façon Claude Code)** : moniteur mono-log → **5 vues à onglets** (Overview / Logs / Activity / Sessions / Swarm) + **palette de commandes slash** (`/` → complétion live `/overview /logs /activity /sessions /swarm /clear /help /quit`, Tab complète, Entrée exécute) · `Tab`/`1-5` navigation · `?` aide.
 
+## ✅ Batch soirée : watchers v3, LaReine durcie, curateur discipliné (2026-07-02 soir)
+- [x] **Audit LaReine appliqué (6 correctifs)** : anti-régression réelle (meilleur brouillon expédié), juge avec introspection atelier (outils dispo + trace réelle du brouillon), verdicts persistés (thought reine/verdict + JSONL `evals/reine-scorecards.jsonl`), boutons Garder/Faire refaire sur escalade, hint juge≠travailleur, Hybride escalade les approbations peu confiantes, budget temps cumulé des re-runs.
+- [x] **Secrets `[SECRET:NAME]`** : masquage déterministe des valeurs du coffre dans TOUTES les observations d'outils (+ flux live) - un `env` ou un curl verbeux ne peut plus refaire fuiter une clé dans le contexte/la session.
+- [x] **Watchers v2 puis v3** : transitions apparition/suppression/up-down avec durée, hash sur texte extrait, intervalles/cooldown par watcher, mode sustained ; puis **règles compilées** (DSL déterministe + `llm_check` en court-circuit, skill `watcher-architecte`, bulle UI résumé+JSON). Gardes dures à la création (chemin absolu exigé, dossier refusé, anti-doublon sauf force) après les 6 doublons observés en live.
+- [x] **Cartes watcher pipeline** : repliée = synthèse à pastille d'état vivante ; dépliée = la boucle en bulles éditables (le schéma EST le formulaire). Fix rafraîchissement depuis la page Automations (conteneur mémorisé).
+- [x] **Curateur discipliné** : diagnostic live (2 slots × 10k tokens en silence) → single-flight + cooldown 10 min + **s'efface si un chat/agent est en cours** (compteur `runs_en_vol` dans le pont, garde Drop testée panique comprise) + trace de fin avec durée dans le feed.
+- [x] **Mission terminée = plus de cron affiché** (status done filtré des vues fusionnées).
+- [x] **Propositions LaReine : contenu complet** dépliable au clic (texte du MemoryItem / corps OKF du skill), fini l'approbation sur aperçu tronqué.
+- [ ] **Reste noté en passant** : diff avant/après pour les propositions `MemoireMaj` ; interruption coopérative du curateur si un run démarre en cours de review ; mini-historique des tirs dans la carte watcher ; bulles crons façon pipeline.
+
 ## ✅ Batch UX & fiabilité chat/boot/outils (2026-07-02 après-midi)
 - [x] **Boot 6s au lieu de plusieurs minutes** : sync skills disque→SQL INCRÉMENTALE (fini le delete+rewrite des 71 skills à chaque boot, qui déclenchait embed+arbitre LLM par skill) + sync et chargement MCP en arrière-plan (computer-use python = 8s d'imports mesurés) + chronos de phase `boot: ... t_ms` permanents.
 - [x] **Sessions chat fiables** : miroir live (F5 en plein run = reprise à l'identique, plan/outils/résultats), plan persisté pour les vieilles sessions, titre immédiat (fini « Sans titre » pendant un run), pastille onglet Chat (desktop+mobile) + par conversation.

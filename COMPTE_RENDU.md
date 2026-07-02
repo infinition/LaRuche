@@ -7,6 +7,53 @@
 
 ---
 
+## Session 2026-07-02 (apres-midi + soir) - UX, watchers v3, LaReine, curateur
+
+Branche `butinage`. ~30 commits, workspace vert en continu, essaim/node a zero warning.
+
+### Fiabilite & UX
+- Boot 6s au lieu de plusieurs minutes : sync skills incrementale + MCP en arriere-plan,
+  chronos de phase permanents (`4986b44`).
+- Sessions chat : miroir live (F5 en plein run = reprise a l'identique), plan persiste,
+  titre immediat, pastilles onglet Chat + par conversation (`a2279aa`).
+- Roue de chargement au boot + launcher qui ouvre le navigateur quand le node repond
+  (`c21709f`, `2d04e2d`).
+
+### Outils & robustesse petits modeles
+- tool_call/tool_search/run_script rebranches sur le registre principal LIVE (`9644b5f`).
+- Parser tool-call tolerant (forme attributs gemma) + fallback JSON brut cable dans le
+  pont (`3499784`, `ecb1ae0`).
+- Validation JSON Schema des args avant execution, avec coercitions (`798d81a`).
+- Outils missions (list/create/delete) + cadences missions dans cron_list (`a26e74b`).
+- Catalogue skills complet retabli dans le contexte (`67db1bb`).
+
+### Moteur
+- Boucle legacy brain.rs SUPPRIMEE (~2600 lignes), _ext = facade vers le pont
+  (`40a876b`, `ecb1ae0`). laruche-channels archive (`8f83a7b`).
+
+### Watchers v3 (killer feature)
+- v2 : apparition/suppression, up/down avec duree, hash texte extrait, intervalles/
+  cooldown/sustained, gate LLM semantique (`2d1e5ec`).
+- v3 : REGLES COMPILEES - DSL deterministe (jours/heures/dates/etat/contenu/taille/
+  status) + llm_check en court-circuit, skill watcher-architecte, bulle UI resume+JSON
+  (`806dcf3`). Gardes creation : chemin absolu, dossier refuse, anti-doublon (`274c6d0`).
+- Cartes pipeline repliees/depliees, le schema EST le formulaire (`728f662`, `0314a36`).
+
+### LaReine
+- Audit complet puis 6 correctifs (`f964c11`) : anti-regression reelle, juge avec
+  introspection atelier, verdicts persistes + JSONL scorecards, siege humain avec
+  boutons, hint juge distinct, Hybride durci, budget temps des re-runs.
+- Propositions : contenu complet depliable avant approbation (`0907bbf`).
+
+### Hygiene de charge & secrets
+- Curateur : single-flight + cooldown + priorite au premier plan via compteur
+  runs_en_vol (`23f8b8c`, `288e6b7`) - diagnostic live de 2 slots llama satures en
+  silence par une file de reviews.
+- Secrets : masquage [SECRET:NAME] des valeurs du coffre dans toutes les observations
+  (`adb3144`).
+
+---
+
 ## Session 2026-07-01 / 07-02 - Audit expert + durcissement complet
 
 Branche `butinage`. Point de retour global avant la session : commit `b9499f0`.
