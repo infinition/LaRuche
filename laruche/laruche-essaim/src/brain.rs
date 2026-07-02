@@ -2436,6 +2436,11 @@ async fn extraire_skill_memoire(
         submit_job, check_job_status, spawn_specialist). \
         If a needed tool doesn't exist, put it in '## Pitfalls' as \
         \\\"tool to create: my_script.py\\\" but NOT in `tools`. \
+        NEVER extract a skill from a DIAGNOSTIC DEAD-END or self-investigation: a mission \
+        where the agent was confused, hunting for the source of something (a reminder, cron, \
+        notification, unexpected state) or troubleshooting LaRuche's own internals is a one-off \
+        investigation, NOT a reusable procedure - return NO_SKILL (never 'diagnose_*' or \
+        'find_source_*' meta-skills). \
         If nothing generalizable, return NO_SKILL. No text outside the document.";
     let messages = vec![
         serde_json::json!({ "role": "system", "content": sys }),

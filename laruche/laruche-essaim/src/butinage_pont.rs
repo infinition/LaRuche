@@ -907,6 +907,7 @@ A user CORRECTION or stated PREFERENCE ("stop doing X", "always format like Y") 
 - Negative claims about tools ("X is broken") - they become refusals for months.
 - Environment failures (missing binary, unconfigured creds) - capture the FIX under a setup skill, never "this doesn't work".
 - Transient errors that resolved.
+- DIAGNOSTIC DEAD-ENDS and self-investigation. A mission where the agent was CONFUSED, hunting for the source of something (a reminder, a cron, a notification, unexpected state), troubleshooting LaRuche's OWN internals, or checking "where does X come from" is NOT a reusable procedure - it was a one-off investigation that reached no durable technique. NEVER create meta-skills about the system itself (e.g. "diagnose_system_discrepancy", "task_source_diagnoser", "find_where_reminder_comes_from"). If the investigation ended without a concrete, repeatable FIX, save NOTHING.
 
 ## Output
 Almost always: call `task_complete` with "Nothing to save." Only when the strict bar above is clearly met, make ONE update and call `task_complete` with a one-line summary."#;
