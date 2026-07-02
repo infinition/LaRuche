@@ -33,6 +33,7 @@ pub mod job_queue;
 pub mod mcp_client;
 pub mod orchestration;
 pub mod parsing;
+pub mod permissions;
 pub mod prompt;
 pub mod providers;
 pub mod rag;
