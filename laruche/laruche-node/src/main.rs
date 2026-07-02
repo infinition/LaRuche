@@ -197,40 +197,6 @@ fn ensure_self_signed_cert() -> Option<(String, String)> {
 
 // Memory change-sync (disk-to-SQL skill sync, OKF change import/export, mesh pull) and state version endpoint -> moved to changes_api.rs
 
-/// Actor of a memory mutation based on its `src` (source/reason). UI -> User, otherwise LaRuche.
-fn feed_actor(src: &str) -> &'static str {
-    let s = src.trim().to_lowercase();
-    if s.starts_with("ui") || s == "user" || s == "fabien" || s == "admin" {
-        "User"
-    } else {
-        "LaRuche"
-    }
-}
-
-/// Cleans an agent response for the Feed: removes protocol blocks (`<plan>`, `<tool_call>`,
-/// `<think>`) - complete or truncated - and normalizes whitespace. Otherwise the Feed shows JSON/XML
-/// unreadable to a human.
-fn nettoyer_reponse_feed(s: &str) -> String {
-    let mut out = s.to_string();
-    for (open, close) in [
-        ("<plan>", "</plan>"),
-        ("<tool_call>", "</tool_call>"),
-        ("<think>", "</think>"),
-    ] {
-        loop {
-            let Some(i) = out.find(open) else { break };
-            match out[i..].find(close) {
-                Some(j_rel) => {
-                    let j = i + j_rel + close.len();
-                    out.replace_range(i..j, " ");
-                }
-                None => out.truncate(i), // opening tag without closing -> cut the tail
-            }
-        }
-    }
-    out.split_whitespace().collect::<Vec<_>>().join(" ")
-}
-
 // Mesh messaging (Phase 4 DM between instances/users): identity/peers, mesh skills sync, send/receive, local inbox storage -> moved to mesh_api.rs
 
 // Feed endpoints (feed poll, ask LaRuche from the feed, profile get/save, system prompt defaults) -> moved to feed_api.rs
