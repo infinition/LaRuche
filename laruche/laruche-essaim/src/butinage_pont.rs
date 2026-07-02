@@ -1113,6 +1113,15 @@ pub fn prompt_extraction_defaut() -> &'static str {
     but::escale::prompt_extraction_defaut()
 }
 
+/// Single-flight + cooldown guard for the background curateur. Observed live: a
+/// burst of chat turns queued one FULL review each (8-pass agent runs with 10k
+/// token prompts), silently monopolizing the local model for tens of minutes.
+/// The curateur is opportunistic hygiene: skipping a turn is always fine.
+static CURATEUR_EN_COURS: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+static CURATEUR_DERNIER: std::sync::Mutex<Option<std::time::Instant>> =
+    std::sync::Mutex::new(None);
+
 pub async fn lancer_curateur_arriere_plan(
     messages: Vec<crate::Message>,
     registry: Arc<AbeilleRegistry>,
@@ -1120,10 +1129,42 @@ pub async fn lancer_curateur_arriere_plan(
     tx: broadcast::Sender<ChatEvent>,
     memoire: Option<Arc<dyn MemoireCognitive>>,
 ) {
+    use std::sync::atomic::Ordering;
     let transcript = rendre_session_messages(&messages);
     if transcript.chars().count() < 120 {
         return; // too short to warrant a review
     }
+    // Cooldown between reviews (default 10 min, tunable): a burst of turns gets
+    // ONE review, not one per turn.
+    let cooldown_secs: u64 = std::env::var("LARUCHE_CURATEUR_COOLDOWN_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(600);
+    {
+        let dernier = CURATEUR_DERNIER.lock().unwrap();
+        if let Some(d) = *dernier {
+            if d.elapsed().as_secs() < cooldown_secs {
+                tracing::debug!("curateur skipped (cooldown)");
+                return;
+            }
+        }
+    }
+    // Single-flight: never two concurrent reviews grinding the model.
+    if CURATEUR_EN_COURS.swap(true, Ordering::SeqCst) {
+        tracing::info!("curateur skipped (a review is already running)");
+        return;
+    }
+    // Release the guard on every exit path from here on.
+    struct Garde;
+    impl Drop for Garde {
+        fn drop(&mut self) {
+            CURATEUR_EN_COURS.store(false, std::sync::atomic::Ordering::SeqCst);
+            if let Ok(mut d) = CURATEUR_DERNIER.lock() {
+                *d = Some(std::time::Instant::now());
+            }
+        }
+    }
+    let _garde = Garde;
     // HARDCODED PROMPT -> MEMORY MIRROR: the user can override this prompt via the
     // `system.prompt_curateur` node (hot-reload, no restart). Empty/absent: code default.
     let systeme = match &memoire {
@@ -1180,6 +1221,7 @@ pub async fn lancer_curateur_arriere_plan(
     let _ = tx.send(ChatEvent::Status {
         message: "🐝 Curateur: reviewing capabilities in the background...".into(),
     });
+    let depart = std::time::Instant::now();
     match but::butiner(&mut carnet, &reglages, &four, &outils, &emet, None, None, None).await {
         Ok(b) => {
             let _ = tx.send(ChatEvent::Status {
@@ -1188,6 +1230,15 @@ pub async fn lancer_curateur_arriere_plan(
         }
         Err(e) => tracing::warn!(error = %e, "curateur failed"),
     }
+    // Close the loop in the feed: the invisible background load was the exact
+    // complaint (the model grinding with nothing shown anywhere).
+    crate::feed_journal::record(
+        "Curateur",
+        "curator",
+        "finished the capability review",
+        format!("({}s)", depart.elapsed().as_secs()),
+        chrono::Utc::now(),
+    );
 }
 
 // ───────────────────────── Facade ─────────────────────────
