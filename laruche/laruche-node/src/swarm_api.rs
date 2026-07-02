@@ -6,6 +6,115 @@ use axum::response::Json;
 use axum::http::StatusCode;
 use std::sync::Arc;
 
+// ======================== API Types ========================
+
+#[derive(Debug, Serialize)]
+pub(crate) struct NodeStatus {
+    pub(crate) node_id: String,
+    pub(crate) node_name: String,
+    pub(crate) tier: String,
+    pub(crate) protocol_version: String,
+    pub(crate) capabilities: Vec<String>,
+    pub(crate) tokens_per_sec: f32,
+    /// Real memory usage % from sysinfo
+    pub(crate) memory_usage_pct: f32,
+    /// Real CPU usage % from sysinfo
+    pub(crate) cpu_usage_pct: f32,
+    pub(crate) memory_used_mb: u64,
+    pub(crate) memory_total_mb: u64,
+    pub(crate) vram_used_mb: Option<u64>,
+    pub(crate) vram_total_mb: Option<u64>,
+    pub(crate) gpu_usage_pct: Option<f32>,
+    pub(crate) temperature_c: Option<f32>,
+    pub(crate) queue_depth: usize,
+    pub(crate) uptime_secs: u64,
+    pub(crate) swarm: SwarmStatus,
+    pub(crate) auth: AuthStatus,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct SwarmStatus {
+    pub(crate) in_swarm: bool,
+    pub(crate) peer_count: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct SwarmResponse {
+    pub(crate) swarm_id: String,
+    pub(crate) total_nodes: usize,
+    pub(crate) collective_tps: f32,
+    pub(crate) collective_queue: u32,
+    pub(crate) total_vram_mb: u64,
+    pub(crate) total_ram_mb: u64,
+    pub(crate) estimated_speedup: f32,
+    pub(crate) sharding_possible: bool,
+    pub(crate) nodes: Vec<DiscoveredNodeInfo>,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct AuthStatus {
+    pub(crate) active_tokens: usize,
+    pub(crate) pending_requests: usize,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct DiscoveredNodesResponse {
+    pub(crate) nodes: Vec<DiscoveredNodeInfo>,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct DiscoveredNodeInfo {
+    pub(crate) node_id: Option<String>,
+    pub(crate) name: Option<String>,
+    pub(crate) host: String,
+    pub(crate) port: Option<u16>,
+    pub(crate) capabilities: Vec<String>,
+    /// Primary model running on this node (from Miel TXT record)
+    pub(crate) model: Option<String>,
+    pub(crate) tokens_per_sec: Option<f32>,
+    pub(crate) queue_depth: Option<u32>,
+    pub(crate) memory_used_mb: Option<u64>,
+    pub(crate) memory_total_mb: Option<u64>,
+    pub(crate) memory_usage_pct: Option<f32>,
+    pub(crate) cpu_usage_pct: Option<f32>,
+    pub(crate) vram_total_mb: Option<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct AuthRequest {
+    pub(crate) device_name: String,
+    pub(crate) circle: String,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct AuthPendingResponse {
+    pub(crate) request_id: String,
+    pub(crate) message: String,
+    pub(crate) expires_in_secs: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct SwarmModelInfo {
+    pub(crate) host: String,
+    pub(crate) node_name: String,
+    pub(crate) node_id: Option<String>,
+    pub(crate) name: String,
+    pub(crate) size_gb: f64,
+    pub(crate) digest: String,
+    pub(crate) is_default: bool,
+    pub(crate) is_local: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) capability: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct SwarmModelsResponse {
+    pub(crate) total_hosts: usize,
+    pub(crate) models: Vec<SwarmModelInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) default_models: Option<HashMap<String, String>>,
+}
+
 /// GET / - Node status with real system metrics
 pub(crate) async fn get_status(State(state): State<Arc<AppState>>) -> Json<NodeStatus> {
     let manifest = state.manifest.read().await;
