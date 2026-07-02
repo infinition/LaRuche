@@ -60,8 +60,11 @@ if errorlevel 1 (
 )
 
 echo.
-echo === Ouverture de l'UI : http://localhost:8419 ===
-start "" "http://localhost:8419"
+echo === L'UI s'ouvrira automatiquement des que le serveur repond ===
+REM Ouvre le navigateur SEULEMENT quand le node ecoute : sinon la page se charge
+REM pendant le demarrage et le service worker sert un shell en cache (potentiellement
+REM perime) avec des appels API qui echouent. Sonde en fenetre reduite, 5 min max.
+start "" /min powershell -NoProfile -Command "$ok=$false; for($i=0;$i -lt 600;$i++){ try{ $null=Invoke-WebRequest -UseBasicParsing -TimeoutSec 1 'http://127.0.0.1:8419/'; $ok=$true; break } catch { Start-Sleep -Milliseconds 500 } }; if($ok){ Start-Process 'http://localhost:8419' }"
 
 echo === Demarrage du serveur ^(moteur butinage, Ctrl+C pour arreter^) ===
 cargo run -p laruche-node
