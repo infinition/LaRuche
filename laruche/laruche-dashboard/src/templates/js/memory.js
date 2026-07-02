@@ -1243,11 +1243,15 @@ LaRuche.Memory = (function(){
     list.innerHTML = pend.map(function(p){
       var rc = p.risk==='Critique'?'var(--red)':(p.risk==='Sensible'?'var(--amber)':'var(--green)');
       var meta = [p.type, p.provenance].filter(Boolean).map(esc).join(' · ');
+      // Full content on demand: nobody should approve a memory write from a
+      // truncated one-liner. The preview toggles the complete proposed text.
+      var aFull = p.full && p.full !== p.preview;
       return '<div class="mem-prop-item">'+
         '<span class="mem-prop-dot" style="color:'+rc+'">●</span>'+
         '<div class="mem-prop-main">'+
           '<div class="mem-prop-target">'+esc(p.target||p.type||'')+'</div>'+
-          (p.preview?'<div class="mem-prop-preview">'+esc(p.preview)+'</div>':'')+
+          (p.preview?'<div class="mem-prop-preview"'+(aFull?' style="cursor:pointer" title="'+LaRuche.i18n.t('reine.queueVoirTout')+'" onclick="var f=this.parentElement.querySelector(\'.mem-prop-full\');if(f)f.style.display=(f.style.display===\'none\'?\'\':\'none\')"':'')+'>'+esc(p.preview)+(aFull?' <span style="color:var(--amber)">▾</span>':'')+'</div>':'')+
+          (aFull?'<pre class="mem-prop-full" style="display:none;white-space:pre-wrap;max-height:260px;overflow:auto;background:rgba(0,0,0,0.25);border:1px solid var(--border);border-radius:6px;padding:8px;font-size:10px;margin:4px 0">'+esc(p.full)+'</pre>':'')+
           (meta?'<div class="mem-prop-meta">'+meta+'</div>':'')+
         '</div>'+
         '<div class="mem-prop-actions">'+

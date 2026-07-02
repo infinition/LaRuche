@@ -4970,5 +4970,9 @@
   "settings.wfReglesInvalid": {
     "en": "Invalid rules JSON",
     "fr": "JSON de regles invalide"
+  },
+  "reine.queueVoirTout": {
+    "en": "Click to show the full proposed content",
+    "fr": "Cliquer pour voir le contenu propose complet"
   }
 }

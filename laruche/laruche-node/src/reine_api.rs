@@ -393,11 +393,23 @@ pub(crate) async fn api_list_proposals() -> Json<serde_json::Value> {
     let items: Vec<serde_json::Value> = props
         .iter()
         .map(|p| {
+            // Full proposed content, display-ready: memory writes store a
+            // serialized MemoryItem (extract its text), skills store the raw
+            // OKF body, hygiene proposals carry their message in `raison`.
+            let full = match serde_json::from_str::<serde_json::Value>(&p.contenu) {
+                Ok(v) => v
+                    .get("content")
+                    .and_then(|c| c.as_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| p.contenu.clone()),
+                Err(_) => p.contenu.clone(),
+            };
             serde_json::json!({
                 "id": p.id,
                 "type": format!("{:?}", p.type_),
                 "target": p.cible,
                 "preview": p.raison,
+                "full": if full.trim().is_empty() { p.raison.clone() } else { full },
                 "provenance": p.provenance,
                 "status": format!("{:?}", p.statut),
                 "risk": format!("{:?}", p.risque()),
