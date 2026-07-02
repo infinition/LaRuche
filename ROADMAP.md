@@ -81,7 +81,7 @@
 
 ### Skill « charte » de la Reine (expertise béton)
 - [x] **Charte LaReine** (skill hand-écrit, EN) : livrée dans `laruche/skills/lareine-charte/SKILL.md`, embarquée au build (`include_str!` dans `reine_live.rs`) + éditable en Mémoire (`system.prompt_reine`).
-- [ ] **Introspection live** : droit de LIRE l'état réel au moment de juger (registre skills, registre tools, schéma mémoire, roadmap). Aujourd'hui le juge reçoit charte + contexte de conversation ; il ne consulte pas encore les registres au moment de juger.
+- [x] **Introspection live (1re tranche, 2026-07-02)** : le juge reçoit un bloc « atelier » live - outils disponibles (registre réel) + trace des appels du brouillon jugé (échecs marqués) → le score METHODOLOGY se fonde sur les faits. Reste : schéma mémoire + roadmap dans le bloc.
 - [ ] **Maintenue par le curateur** : la charte se met à jour quand LaRuche évolue (processus continu).
 
 ### UI (câblé, livré avec le Tier 1)
@@ -106,12 +106,12 @@
 - [ ] **Destructif = soft-delete réversible + log d'audit**, jamais de hard delete. memoire.db jamais touché à la légère. (= « garde-fous destructifs avancés » du reste LaReine)
 - [x] **Confirmation humaine** au-dessus d'un seuil de risque : via risk-tier - le critique (suppression, écrasement, contradiction) va TOUJOURS en file (gate humain), jamais d'auto-apply destructif.
 - [x] **La Reine ne se relit pas elle-même** (anti-récursion) : structurel - elle juge le travail de l'abeille, jamais son propre verdict ; re-runs bornés ; mode Humaine = l'utilisateur la surcharge.
-- [ ] **Anti-régression** : une révision qui n'améliore pas un signal mesurable peut revenir au brouillon d'origine.
+- [x] **Anti-régression (fait 2026-07-02)** : le meilleur brouillon (score global) est conservé et expédié quand le budget (tours ou temps cumulé `LARUCHE_REINE_BUDGET_SECS`) force la sortie ; `Reine::regression()` enfin câblée.
 - [x] **Borné en coût** : slider de tours (illimité = opt-in explicite) + supervision Tier 3 opt-in OFF par défaut.
 
 ### Bonus (forte valeur)
 - [ ] **Gardienne de marque et de style** : applique automatiquement le lexique FR de marque, l'anglais dans le code, zéro em dash, ton pro, sur chaque artefact généré. Automatise ce qui a été fait à la main.
-- [~] **Scorecard** : le type `Scorecard` + `juger()` existent (`cap/reine.rs`) et portent chaque verdict. Reste : le tableau de bord d'éval agrégé.
+- [~] **Scorecard** : type + `juger()` + **journal JSONL `evals/reine-scorecards.jsonl` (2026-07-02)** + verdicts persistés en session (thought reine/verdict, restaurés au reload). Reste : le tableau de bord d'éval agrégé (la donnée existe maintenant).
 - [ ] **Étoile polaire** : la Reine tient l'objectif d'une conversation/mission et détecte la dérive. Partiellement couvert par la supervision Tier 3 (stagnation de plan) ; le cap sur TOUTE l'interaction reste.
 
 ### Ordre de construction (déroulé, historique)
