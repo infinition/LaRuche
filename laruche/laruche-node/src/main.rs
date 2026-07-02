@@ -131,72 +131,7 @@ fn ensure_self_signed_cert() -> Option<(String, String)> {
     Some((cert_path.to_string(), key_path.to_string()))
 }
 
-// Blueprint endpoints (list/create/delete parameterized cron automation templates, instantiate) -> moved to blueprints_api.rs
-
-// ======================== Handlers ========================
-
-// Node and swarm API (status, discovered nodes, swarm view, inference, model lists, auth request/approve, default model, activity feed, health, service register) -> moved to swarm_api.rs
-// OpenAI-compatible chat completions endpoint with signed peer verification -> moved to openai_api.rs
-
-// System status endpoints (voice STT/TTS availability, metrics history) -> moved to status_api.rs
-
-
-// Tool registry endpoints (list tools, get/save tool enablement config) -> moved to tools_api.rs
-
-// Cognitive memory CRUD (search, write, enrich, node create/update/move/delete, review, dream, consolidate, grep) -> moved to memory_crud_api.rs
-
-// Memory change-sync (disk-to-SQL skill sync, OKF change import/export, mesh pull) and state version endpoint -> moved to changes_api.rs
-
-// Mesh messaging (Phase 4 DM between instances/users): identity/peers, mesh skills sync, send/receive, local inbox storage -> moved to mesh_api.rs
-
-// Feed endpoints (feed poll, ask LaRuche from the feed, profile get/save, system prompt defaults) -> moved to feed_api.rs
-
-// Memory endpoints (cognitive-map tree, stats, mutations, OKF and zip export, OKF import) -> moved to memory_api.rs
-
-// Session endpoints (list, delete, messages, search, export, fork) and the client-facing message display helpers with their tests -> moved to sessions_api.rs
-
-// Mission, cron and subagent endpoints (cron CRUD/run, mission CRUD/run/decompose, subagent spawn, notebooks, mission iteration runtime) -> moved to missions_api.rs
-
-// --- Skills (OKF in memory, capacities.skills.*) - Settings page ----------------
-
-/// GET /api/skills - lists skills (name, description, enabled).
-// Skill endpoints (list, get, upsert, toggle, delete agent skills) -> moved to skills_api.rs
-
-// Watcher endpoints (list, create, update, delete file/event watchers) -> moved to watchers_api.rs
-
-// Kanban board endpoints (task list/create/update/status/dependency/delete, default channel, known channels) -> moved to kanban_api.rs
-
-// System diagnostics endpoint (health check and configuration validation) -> moved to doctor_api.rs
-
-/// GET /api/onboarding - guided setup checklist.
-// Runtime settings endpoints (channel/notify/permission/curateur config, secrets vault HTTP layer, MCP server RPC) -> moved to settings_api.rs
-
-/// GET /api/config/channel-models: per-channel model overrides + the available
-// Config/settings API handlers moved to config_api.rs (provider, channel models,
-// runtime generation levers, compaction, context stats).
-
-// Credential pool API (list, add, delete shared provider credentials) -> moved to credentials_api.rs
-// Provider profiles + codex + active model + capabilities API -> moved to profiles_api.rs
-
-// Event log endpoints (list recent events, export as NDJSON) -> moved to events_api.rs
-
-// Authentication endpoints (passkey enroll/challenge, login/logout, password, model selection, QR scan, permanent link) -> moved to auth_api.rs
-
-// Knowledge endpoints -> moved to knowledge_api.rs
-
-// Channel bot management (start/stop/status) and Telegram bot runtime, plus shared channel query helpers -> moved to channels_api.rs
-
-// Discord interaction webhook (slash command and interaction callbacks) -> moved to discord_api.rs
-
-// Slack Events API (url_verification challenge, message and app_mention event callbacks) -> moved to slack_api.rs
-// Local/system HTTP endpoints (cwd, local media, onboarding, file suggest, RPC, model preload, webhook) -> moved to local_api.rs
-// WebSocket chat handler (interactive streaming chat over WS) and its event serializer helper -> moved to ws_chat.rs
-
-// Voice pipeline (STT/TTS websocket) -> moved to voice_api.rs
-// Plugins API (plugin CRUD + plugin file browser) -> moved to plugins_api.rs
 // ======================== Main ========================
-
-// MCP server registry endpoints (list, save, delete configured MCP servers) -> moved to mcp_api.rs
 
 /// Serve `app` on `addr`, with optional TLS. A bad/unreadable cert pair no longer panics
 /// the server task: it logs and falls back to plain HTTP so the node stays reachable.
@@ -1135,9 +1070,6 @@ fn parse_env_capabilities(default_model: &str) -> Option<Vec<CapabilityConfig>> 
     Some(caps)
 }
 
-/// GET /metrics/history - Time-series metrics for dashboard charts
-// get_metrics_history -> moved to status_api.rs
-
 /// At startup: purges stale butinage notebooks (checkpoints of crashed/abandoned
 /// missions, > 3 days) and logs the still-recent ones (potentially resumable).
 /// Successful missions already delete their notebook at the end.
@@ -1281,45 +1213,3 @@ fn load_config() -> Result<NodeConfig> {
 
     Ok(config)
 }
-
-// Trigger rebuild
-
-// Trigger rebuild 2
-
-// Trigger rebuild 3
-
-// Trigger rebuild 4
-
-// Trigger rebuild 5
-
-// Trigger rebuild 6
-
-// Trigger rebuild 7
-
-// Trigger rebuild 8
-
-// Trigger rebuild 9
-
-// Trigger rebuild 10
-
-// Trigger rebuild 11
-
-// Trigger rebuild 12
-
-// Trigger rebuild 13
-
-// Trigger rebuild 14
-
-// Trigger rebuild 15
-
-// Trigger rebuild 16
-
-// Trigger rebuild 17
-
-// Trigger rebuild 18
-
-// Trigger rebuild 19
-
-// Trigger rebuild 20
-
-// Trigger rebuild 21
