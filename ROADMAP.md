@@ -4,30 +4,30 @@
 
 ## 🔒 Audit sécurité & hygiène (2026-07-02) - PRIORITÉ ABSOLUE avant toute feature
 
-> Audit complet du projet (probes ciblés + connaissance du moteur/mémoire/outils déjà lus). Le cœur agentique est solide ; la **couche d'exposition réseau est le point faible critique**. Ordre imposé : sécurité réseau AVANT les features. Le fan-out d'agents d'audit a échoué (type d'agent pointé sur `deepseek-v4-flash` indisponible - cf. point config ci-dessous) : `brain.rs`/shell/secrets/micro-crates restent à auditer en profondeur.
+> Audit complet du projet (probes ciblés + connaissance du moteur/mémoire/outils déjà lus). Le cœur agentique est solide ; la **couche d'exposition réseau était le point faible critique**. Cluster critique + XSS + mesh + vendorisation **CORRIGÉS** (commits `e610365`, `9b1ccca`, `ee44d11`, 2026-07-02). Hygiène repo vérifiée propre (aucun secret committé, aucun fichier runtime tracké). Reste : dette (main.rs monolithique, brain.rs) + audit profond shell/crates (non bloquant, gate d'approbation = vrai contrôle).
 
-### 🔴 CRITIQUE - Cluster exposition réseau (les 4 se combinent en UNE vulnérabilité)
-- [ ] **Bind sur `0.0.0.0:8419`** (`laruche-node/src/main.rs:2839`) : serveur exposé à tout le LAN. → bind `127.0.0.1` par défaut, opt-in LAN explicite (env/flag).
-- [ ] **CORS grand ouvert** (`main.rs:2021` : `AllowOrigin::any()` + methods/headers `Any`) : n'importe quel site web visité peut requêter LaRuche via le navigateur. → restreindre à `localhost`/origines connues.
-- [ ] **Aucun middleware d'auth global** : ~178 routes, auth vérifiée à la main dans seulement 6 fichiers (channels, missions, profiles, settings, swarm). NON protégés : `memory_crud_api` (17 fns dont `memory_delete`/`node_delete`/`write`), `kanban_api` (9), `watchers_api`, `feed_api`, `tools_api`, `plugins_api`, `local_api`, `voice_api`, `mcp_api`, `blueprints_api`, `events_api`, `status_api`. → `route_layer` d'auth global (allowlist explicite pour les rares routes publiques).
-- [ ] **Scénario d'attaque** : LaRuche ouvert + site piégé → `fetch('http://127.0.0.1:8419/api/memory/node_delete',{method:POST})` efface/lit la mémoire cognitive ; idem depuis n'importe quel poste du LAN. Le fix auth cookie (`fd48aac`) protège la session, PAS les endpoints.
-- [ ] **Auto-sync mémoire mesh en HTTP clair + import non vérifié** (`main.rs:2882` : `fetch http://{peer}:8419/api/memory/export_changes` → import direct). Le `mesh_signer` ed25519 signe les sorties mais vérifier que `export_changes` VALIDE la signature en réception. Sinon : un peer malveillant/MITM injecte des faits → remontent dans le contexte agent (injection indirecte). → vérif signature obligatoire + HTTPS mesh.
+### ✅ CRITIQUE - Cluster exposition réseau (CORRIGÉ, commit e610365 + ee44d11)
+- [x] **Bind `127.0.0.1` par défaut** (était `0.0.0.0`) : exposition LAN = opt-in explicite `LARUCHE_BIND_LAN=1`, loggué en warn.
+- [x] **CORS restreint** : prédicat n'autorisant que les origines `localhost`/`127.0.0.1`/`[::1]` (était `AllowOrigin::any()`).
+- [x] **Middleware `auth_guard` global** : exige le cookie sur les requêtes MUTANTES (POST/PUT/DELETE/PATCH) vers `/api/*`, uniquement si un compte à mot de passe existe (fresh install + onboarding restent ouverts) ; GET passe (lectures UI) ; allowlist auth flow + sync interne. Ferme le scénario site-piégé/LAN → mutation.
+- [x] **Auto-sync mémoire mesh en opt-in** `LARUCHE_MESH_MEMORY_SYNC=1` (était auto toutes les 5 min sans vérif de pair). Faits importés provenance-taggés + traités en REFERENCE DATA. `import_changes` POST couvert par `auth_guard`.
 
-### 🔴 CRITIQUE - XSS chat
-- [ ] **Corps des messages agent rendu `marked.parse(text)` → `innerHTML` SANS sanitizer** (`laruche-dashboard/src/templates/js/chat.js:1203` et `:1653`). `marked` v5+ ne nettoie plus le HTML ; l'agent ramène du contenu web (`web_fetch`/`web_deep_search`) → page piégée avec `<img src=x onerror=...>` = exécution JS dans l'UI admin. → `DOMPurify.sanitize(marked.parse(text))`. (Le reste du code échappe correctement via `Utils.esc` : seul ce chemin fuit.)
+### ✅ CRITIQUE - XSS chat (CORRIGÉ, commit 9b1ccca)
+- [x] **`LaRuche.Utils.safeMarkdown` = `marked.parse` + `DOMPurify.sanitize`** sur les 2 rendus innerHTML du chat (streaming + restauration). Un `<img onerror>` ramené par `web_fetch` ne s'exécute plus dans l'UI.
 
-### 🟠 MAJEUR
-- [ ] **`marked.min.js` chargé d'un CDN externe** (`spa.html:15`, jsdelivr) : contredit le local-first/offline (pas de rendu markdown sans Internet) + aucun SRI (`integrity`) = exécution de code si le CDN est compromis. → vendoriser en local.
-- [ ] **Config d'agents cassée** : le type d'agent (`.claude/agents` ou équivalent) pointe sur `deepseek-v4-flash` indisponible → tout fan-out d'audit/orchestration échoue. → corriger le modèle par défaut des sous-agents.
-- [ ] **Vérifier les autres checks d'onboarding** (STT/TTS, TLS/HTTPS) : après le stub embeddings `done:false`, suspects d'afficher un statut décoratif non sondé (`laruche-node/src/local_api.rs`).
+### ✅ MAJEUR (CORRIGÉ, commit 9b1ccca)
+- [x] **marked + DOMPurify + highlight.js vendorisés** dans `templates/vendor/`, servis via `/vendor/:name` (`web::vendor_js`), thème hljs inline dans app.css, `sw.js` v2 cache les vendors. Fin des `<script>` CDN (offline réel, zéro supply-chain).
+- [x] **Onboarding embeddings = vraie sonde** (déjà fait `0943092`) ; checks voix/Chrome vérifiés RÉELS (pas des stubs) ; "warning" STT/TTS/TLS = état honnête (services non lancés).
+- [ ] **Config d'agents (hors projet)** : `~/.claude.json` pointe le modèle des sous-agents Claude Code sur `deepseek-v4-flash` indisponible → fan-out d'audit KO. Réglage APP Claude Code, à corriger côté user (pas dans le repo).
 
-### 🟡 MINEUR / dette
-- [ ] **`main.rs` ingérable** (~2900 lignes : boot, bind, TLS, backgrounds mesh, assemblage 178 routes, AppState). Le split `*_api.rs` est engagé mais le cœur reste monolithique - c'est ce qui rend le trou d'auth invisible (aucun point unique ne liste les routes protégées). → extraire le routeur + un module d'auth centralisé.
-- [ ] **Polling front cumulé** : plusieurs `setInterval` (propositions 20s, métriques, feed) tournent même onglet inactif. → pause sur `visibilitychange`.
-- [ ] **À AUDITER en profondeur (non couvert, fan-out échoué)** : `abeilles/shell.rs` + `execute_code.rs` (réalité sandbox, blocklist contournable, timeout), `secrets.rs` (fuite des valeurs dans les observations réinjectées ?), `mcp_client.rs`, micro-crates (`laruche-compaction` vs `escale` du moteur ? `laruche-events` vs `feed_journal` ? crates morts ?), et l'ancien `brain.rs` (heuristiques, duplication).
+### 🟡 MINEUR / dette (non bloquant)
+- [ ] **`main.rs` ingérable** (~3000 lignes). → extraire le routeur + centraliser l'auth (le `auth_guard` global est un premier pas : l'auth n'est plus éparpillée).
+- [ ] **Polling front cumulé** : plusieurs `setInterval` tournent même onglet inactif. → pause sur `visibilitychange`.
+- [ ] **Blocklist shell contournable** (`shell.rs` : `BLOCKED_PATTERNS` par sous-chaîne, `rm  -rf  /` double-espace passe) : ralentisseur, le VRAI contrôle est le gate d'approbation (`niveau_danger`=NeedsApproval + popup) + timeout. Sandbox OS dure = chantier différé. `secrets.rs` vérifié : valeurs jamais sérialisées/logguées (bon).
+- [ ] **À AUDITER en profondeur (fan-out KO)** : `execute_code.rs`, `mcp_client.rs`, micro-crates (`laruche-compaction` vs `escale` ? `laruche-events` vs `feed_journal` ? crates morts ?).
 
 ### 🗑️ Dette moteur
-- [ ] **Tuer ou promouvoir l'ancien moteur `brain.rs` (~4000 lignes)** : encore le DÉFAUT sans `RUCHE_MOTEUR=butinage`. Le nouveau moteur `butinage` (durci toute la semaine : transcript natif, mémoire, deep-research, annulation, budget) doit devenir le défaut ; sinon on maintient deux moteurs divergents et chaque fix butinage laisse le bug dans brain. → décision : butinage par défaut, brain déprécié puis supprimé.
+- [ ] **Tuer ou promouvoir l'ancien moteur `brain.rs` (~4000 lignes)** : encore le DÉFAUT sans `RUCHE_MOTEUR=butinage`. → décision : butinage par défaut, brain déprécié puis supprimé.
 
 ## 🐝 Moteur butinage, évals, outils & mémoire - audit expert appliqué (2026-07-01/02)
 
