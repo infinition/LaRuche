@@ -19,41 +19,57 @@ pub(crate) async fn ws_audio_handler(
     ws.on_upgrade(move |socket| ws_audio_connection(socket, state))
 }
 
+/// Resolve the STT/TTS service base URLs the way the runtime does: local
+/// defaults (8421/8422), overridden by any stt/tts capability node discovered
+/// on the Miel mesh. Shared by the voice websocket, the doctor and onboarding
+/// so their probes reflect the URLs actually used at runtime.
+pub(crate) async fn resolve_voice_urls(state: &Arc<AppState>) -> (String, String) {
+    let mut stt_url = "http://127.0.0.1:8421".to_string();
+    let mut tts_url = "http://127.0.0.1:8422".to_string();
+    let listener = state.listener.read().await;
+    let nodes = listener.get_nodes().await;
+    for (_id, node) in &nodes {
+        let caps: Vec<String> = node
+            .manifest
+            .capabilities
+            .iter()
+            .map(|c| c.to_string())
+            .collect();
+        let host = &node.manifest.host;
+        if caps.iter().any(|c| c == "stt") {
+            if let Some(port) = node.manifest.port {
+                stt_url = format!("http://{}:{}", host, port);
+                info!(stt_url = %stt_url, "Discovered STT node via Miel");
+            }
+        }
+        if caps.iter().any(|c| c == "tts") {
+            if let Some(port) = node.manifest.port {
+                tts_url = format!("http://{}:{}", host, port);
+                info!(tts_url = %tts_url, "Discovered TTS node via Miel");
+            }
+        }
+    }
+    (stt_url, tts_url)
+}
+
+/// True if the voice service answers 2xx on GET /health within 3 seconds.
+pub(crate) async fn voice_service_up(base_url: &str) -> bool {
+    reqwest::Client::new()
+        .get(format!("{}/health", base_url))
+        .timeout(std::time::Duration::from_secs(3))
+        .send()
+        .await
+        .map(|r| r.status().is_success())
+        .unwrap_or(false)
+}
+
 pub(crate) async fn ws_audio_connection(socket: ws::WebSocket, state: Arc<AppState>) {
     use futures_util::{SinkExt, StreamExt};
 
     let (mut sender, mut receiver) = socket.split();
 
-    // Default STT/TTS endpoints: can be overridden by client config message
-    let mut stt_url = "http://127.0.0.1:8421".to_string();
-    let mut tts_url = "http://127.0.0.1:8422".to_string();
-
-    // Try to discover STT/TTS nodes from Miel listener
-    {
-        let listener = state.listener.read().await;
-        let nodes = listener.get_nodes().await;
-        for (_id, node) in &nodes {
-            let caps: Vec<String> = node
-                .manifest
-                .capabilities
-                .iter()
-                .map(|c| c.to_string())
-                .collect();
-            let host = &node.manifest.host;
-            if caps.iter().any(|c| c == "stt") {
-                if let Some(port) = node.manifest.port {
-                    stt_url = format!("http://{}:{}", host, port);
-                    info!(stt_url = %stt_url, "Discovered STT node via Miel");
-                }
-            }
-            if caps.iter().any(|c| c == "tts") {
-                if let Some(port) = node.manifest.port {
-                    tts_url = format!("http://{}:{}", host, port);
-                    info!(tts_url = %tts_url, "Discovered TTS node via Miel");
-                }
-            }
-        }
-    }
+    // Default STT/TTS endpoints (mesh-aware): can be overridden by client config message
+    let (mut stt_url, mut tts_url) = resolve_voice_urls(&state).await;
 
     let _ = sender
         .send(ws::Message::Text(

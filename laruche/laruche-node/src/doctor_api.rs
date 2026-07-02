@@ -42,32 +42,25 @@ pub(crate) async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde
         "detail": format!("{} peer(s) discovered", nodes.len()),
     }));
 
-    // Check STT/TTS
-    let mut stt_found = false;
-    let mut tts_found = false;
-    for (_id, node) in &nodes {
-        let caps: Vec<String> = node
-            .manifest
-            .capabilities
-            .iter()
-            .map(|c| c.to_string())
-            .collect();
-        if caps.iter().any(|c| c == "stt") {
-            stt_found = true;
-        }
-        if caps.iter().any(|c| c == "tts") {
-            tts_found = true;
-        }
-    }
+    // Check STT/TTS: real HTTP probe on the same URLs the runtime resolves
+    // (local defaults, mesh discovery on top), not just mesh capability flags.
+    drop(listener);
+    let (stt_url, tts_url) = crate::voice_api::resolve_voice_urls(&state).await;
+    let (stt_up, tts_up) = tokio::join!(
+        crate::voice_api::voice_service_up(&stt_url),
+        crate::voice_api::voice_service_up(&tts_url),
+    );
     checks.push(serde_json::json!({
         "name": "STT Service",
-        "status": if stt_found { "ok" } else { "warning" },
-        "detail": if stt_found { "Available" } else { "Not found - voice input disabled" },
+        "status": if stt_up { "ok" } else { "warning" },
+        "detail": if stt_up { format!("Responding at {stt_url}") }
+                  else { format!("No /health at {stt_url} - voice input disabled") },
     }));
     checks.push(serde_json::json!({
         "name": "TTS Service",
-        "status": if tts_found { "ok" } else { "warning" },
-        "detail": if tts_found { "Available" } else { "Not found - voice output disabled" },
+        "status": if tts_up { "ok" } else { "warning" },
+        "detail": if tts_up { format!("Responding at {tts_url}") }
+                  else { format!("No /health at {tts_url} - voice output disabled") },
     }));
 
     // Check sessions directory
@@ -115,13 +108,29 @@ pub(crate) async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde
         "detail": if chrome_found { "Available for browser_navigate/screenshot" } else { "Not found - browser tools disabled" },
     }));
 
-    // Check TLS configuration
-    let tls_configured =
-        std::env::var("LARUCHE_TLS_CERT").is_ok() && std::env::var("LARUCHE_TLS_KEY").is_ok();
+    // Check TLS configuration: mirror the startup resolution (explicit cert/key
+    // win, else LARUCHE_HTTPS=1 self-signs) and verify the files are actually
+    // readable, since an unreadable cert makes the server fall back to plain HTTP.
+    let tls_cert = std::env::var("LARUCHE_TLS_CERT").ok().filter(|s| !s.is_empty());
+    let tls_key = std::env::var("LARUCHE_TLS_KEY").ok().filter(|s| !s.is_empty());
+    let (tls_status, tls_detail) = match (tls_cert, tls_key) {
+        (Some(cert), Some(key)) => {
+            let readable = std::fs::metadata(&cert).is_ok() && std::fs::metadata(&key).is_ok();
+            if readable {
+                ("ok", "TLS enabled (cert/key readable)".to_string())
+            } else {
+                ("error", format!("LARUCHE_TLS_CERT/KEY set but unreadable ({cert}) - server fell back to plain HTTP"))
+            }
+        }
+        _ if std::env::var("LARUCHE_HTTPS").as_deref() == Ok("1") => {
+            ("ok", "Self-signed TLS (LARUCHE_HTTPS=1, generated at startup)".to_string())
+        }
+        _ => ("warning", "Not configured - using plain HTTP".to_string()),
+    };
     checks.push(serde_json::json!({
         "name": "TLS/HTTPS",
-        "status": if tls_configured { "ok" } else { "warning" },
-        "detail": if tls_configured { "TLS enabled" } else { "Not configured - using plain HTTP" },
+        "status": tls_status,
+        "detail": tls_detail,
     }));
 
     // Abeilles count

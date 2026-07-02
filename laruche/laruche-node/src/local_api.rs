@@ -160,26 +160,20 @@ pub(crate) async fn api_onboarding(State(state): State<Arc<AppState>>) -> Json<s
         },
     }));
 
-    // 4. Voice services?
-    let listener = state.listener.read().await;
-    let nodes = listener.get_nodes().await;
-    let has_stt = nodes.values().any(|n| {
-        n.manifest
-            .capabilities
-            .iter()
-            .any(|c| c.to_string() == "stt")
-    });
-    let has_tts = nodes.values().any(|n| {
-        n.manifest
-            .capabilities
-            .iter()
-            .any(|c| c.to_string() == "tts")
-    });
+    // 4. Voice services? REAL probe: GET /health on the URLs the runtime
+    // resolves (local defaults + mesh discovery), like the embeddings check.
+    // Mesh capability flags alone said "not found" while the local services
+    // were up, and could say "available" for a dead node.
+    let (stt_url, tts_url) = crate::voice_api::resolve_voice_urls(&state).await;
+    let (has_stt, has_tts) = tokio::join!(
+        crate::voice_api::voice_service_up(&stt_url),
+        crate::voice_api::voice_service_up(&tts_url),
+    );
     steps.push(serde_json::json!({
         "step": 4, "title": "Voice services (STT/TTS)",
         "done": has_stt && has_tts,
-        "instruction": if has_stt && has_tts { "STT and TTS available." }
-            else { "Run: cd laruche-voix && python -m src.stt_service && python -m src.tts_service" },
+        "instruction": if has_stt && has_tts { format!("STT ({stt_url}) and TTS ({tts_url}) responding.") }
+            else { "Run: cd laruche-voix && python -m src.stt_service && python -m src.tts_service".to_string() },
     }));
 
     // 5. Chrome for browser tools?
