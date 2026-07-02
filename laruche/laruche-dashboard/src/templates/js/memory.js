@@ -209,7 +209,7 @@ LaRuche.Memory = (function(){
     setView('tree');
     if(!loaded) loadTree(); else renderTree();
     refreshProposals();
-    if(!memPollTimer) memPollTimer = setInterval(function(){
+    if(!memPollTimer) memPollTimer = LaRuche.Poll.every(function(){
       var input = document.getElementById('mem2Search');
       if (input && input.value.trim()) return; // Pause auto-refresh during search
       loadTree(true);
@@ -217,7 +217,7 @@ LaRuche.Memory = (function(){
     }, 2000);
   }
   function leave() {
-    if(memPollTimer) { clearInterval(memPollTimer); memPollTimer = null; }
+    if(memPollTimer) { LaRuche.Poll.stop(memPollTimer); memPollTimer = null; }
   }
 
   function esc(t){ return LaRuche.Utils.esc(t); }
@@ -1289,7 +1289,7 @@ LaRuche.Memory = (function(){
 
   function startProposalsPoll() {
     refreshProposals();
-    if(!propPollTimer) propPollTimer = setInterval(refreshProposals, 20000);
+    if(!propPollTimer) propPollTimer = LaRuche.Poll.every(refreshProposals, 20000);
   }
 
   return {

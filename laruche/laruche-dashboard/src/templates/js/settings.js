@@ -1193,8 +1193,8 @@ LaRuche.Settings = (function(){
     try{_tlJobs=await fetch('/api/cron').then(function(r){return r.json();});}catch(e){_tlJobs=[];}
     var spanMs=_tlSpanH*3600000; _tlFromMs=Date.now()-0.28*spanMs;
     renderTimeline(el);
-    if(_tlTimer)clearInterval(_tlTimer);
-    _tlTimer=setInterval(function(){ var nowLine=document.getElementById('tlNow'); if(!nowLine){clearInterval(_tlTimer);return;} positionNow(); },1000);
+    if(_tlTimer)LaRuche.Poll.stop(_tlTimer);
+    _tlTimer=LaRuche.Poll.every(function(){ var nowLine=document.getElementById('tlNow'); if(!nowLine){LaRuche.Poll.stop(_tlTimer);return;} positionNow(); },1000);
   }
   function positionNow(){
     var strip=document.getElementById('tlStrip'); var nowEl=document.getElementById('tlNow'); if(!strip||!nowEl)return;
@@ -2050,11 +2050,11 @@ LaRuche.Settings = (function(){
     window.__fillChannels(document.getElementById('kanban-channel'), '', LaRuche.i18n.t('settings.kanbanBoardChannel'));
     try{ var dc=await fetch('/api/kanban/default_channel').then(function(r){return r.json();}); window.__fillChannels(document.getElementById('kanban-default-channel'), (dc&&dc.channel)||'', LaRuche.i18n.t('settings.kanbanBoardChannelNone')); }catch(e){}
     await refreshKanbanCols();
-    if(_kanbanTimer) clearInterval(_kanbanTimer);
+    if(_kanbanTimer) LaRuche.Poll.stop(_kanbanTimer);
     // Auto-refresh (the agent/daemon can modify the board): re-render
     // only if the content changed -> doesn't break in-progress input.
-    _kanbanTimer=setInterval(function(){
-      if(!document.getElementById('kanbanCols')){ clearInterval(_kanbanTimer); _kanbanTimer=null; return; }
+    _kanbanTimer=LaRuche.Poll.every(function(){
+      if(!document.getElementById('kanbanCols')){ LaRuche.Poll.stop(_kanbanTimer); _kanbanTimer=null; return; }
       refreshKanbanCols();
     }, 4000);
   }

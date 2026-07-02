@@ -1311,7 +1311,7 @@ LaRuche.Chat = (function(){
     if(!_feedLiveStartedAt)_feedLiveStartedAt=Date.now();
     status.className='feed-live-status active '+mode;
     text.textContent=mode==='tool'?LaRuche.i18n.t('chat.executionEnCours'):LaRuche.i18n.t('chat.reflexionEnCours');
-    if(!_feedTimer)_feedTimer=setInterval(function(){
+    if(!_feedTimer)_feedTimer=LaRuche.Poll.every(function(){
       if(!_feedLiveStartedAt)return;
       var seconds=Math.max(1,Math.floor((Date.now()-_feedLiveStartedAt)/1000));
       text.innerHTML=(status.classList.contains('tool')?LaRuche.i18n.t('chat.executionEnCours'):LaRuche.i18n.t('chat.reflexionEnCours'))+' <span style="color:var(--green)">· '+seconds+' s</span>';
@@ -2628,7 +2628,7 @@ LaRuche.Voice = (function(){
   function init() {
     connectAudioWS();
     checkVoiceStatus();
-    setInterval(checkVoiceStatus,15000);
+    LaRuche.Poll.every(checkVoiceStatus,15000);
     // Restore the wake-word toggle.
     try{ if(localStorage.getItem('laruche_wakeword')==='1'){ wakeWordOn=true; var wb=document.getElementById('wakeWordBtn'); if(wb) wb.classList.add('active'); startWakeWord(); } }catch(e){}
     // Restore the auto-TTS toggle.

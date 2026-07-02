@@ -3,6 +3,38 @@
 /* ================================================================ */
 window.LaRuche = {};
 
+/* Central polling gate. Drop-in for setInterval: ticks are skipped while the tab
+ * is hidden, and one catch-up tick fires as soon as it becomes visible again.
+ * Returns a real interval id; pair with LaRuche.Poll.stop (not clearInterval) so
+ * the catch-up registry stays clean. Auth flows keep plain setInterval on purpose:
+ * they must keep polling while the user approves from another tab. */
+LaRuche.Poll = (function(){
+  var reg = {};
+  function every(fn, ms){
+    var id = setInterval(function(){
+      if(document.hidden){ if(reg[id]) reg[id].missed = true; return; }
+      fn();
+    }, ms);
+    reg[id] = { fn: fn, missed: false };
+    return id;
+  }
+  function stop(id){
+    if(id == null) return;
+    clearInterval(id);
+    delete reg[id];
+  }
+  document.addEventListener('visibilitychange', function(){
+    if(document.hidden) return;
+    Object.keys(reg).forEach(function(id){
+      var e = reg[id];
+      if(!e || !e.missed) return;
+      e.missed = false;
+      try{ e.fn(); }catch(err){}
+    });
+  });
+  return { every: every, stop: stop };
+})();
+
 /* i18n: FR/EN language choice.
  * Central dictionary { "key": { fr, en } }. t('key') returns the string in the current
  * language (localStorage). LaRuche brand terms (LaRuche, l'essaim, butinage, Miel, ruche,
@@ -267,7 +299,7 @@ LaRuche.Secrets = (function(){
     else if(e.key==='Escape'){ e.stopPropagation(); hide(); }
   }
   function init(){
-    refresh(); setInterval(refresh, 45000);
+    refresh(); LaRuche.Poll.every(refresh, 45000);
     document.addEventListener('input', onInput, true);
     document.addEventListener('keydown', onKey, true);
     document.addEventListener('click', function(e){ if(box && box.style.display!=='none' && !box.contains(e.target)) hide(); }, true);
@@ -613,7 +645,7 @@ LaRuche.Console = (function(){
       var btn = e.target.closest('.filter-btn');
       if(btn) setFilter(btn.dataset.level);
     });
-    pollTimer = setInterval(pollEvents, 3000);
+    pollTimer = LaRuche.Poll.every(pollEvents, 3000);
     pollEvents();
   }, enter:render, leave:function(){} };
 })();
@@ -923,13 +955,13 @@ LaRuche.Header = (function(){
     // Refresh the model list in the background (without F5): a closed local provider
     // (llama.cpp/ollama) disappears, and reappears as soon as it comes back. Avoid re-rendering
     // while the user has the menu open.
-    setInterval(function(){
+    LaRuche.Poll.every(function(){
       var drop=document.getElementById('sbModelDrop');
       if(drop && drop.classList.contains('open')) return;
       if(Date.now()-lastModelChangeAt < 8000) return; // not right after a manual choice
       loadModels();
     }, 20000);
-    setInterval(fetchContextStats, 1500);
+    LaRuche.Poll.every(fetchContextStats, 1500);
     fetchContextStats();
   }
 

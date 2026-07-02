@@ -633,12 +633,12 @@ LaRuche.Feed = (function(){
   function startPolling(){
     if(pollTimer) return;
     poll(); refreshNext();
-    pollTimer = setInterval(poll, 4000);
-    nextTimer = setInterval(refreshNext, 30000);
+    pollTimer = LaRuche.Poll.every(poll, 4000);
+    nextTimer = LaRuche.Poll.every(refreshNext, 30000);
   }
   function stopPolling(){
-    if(pollTimer){ clearInterval(pollTimer); pollTimer=null; }
-    if(nextTimer){ clearInterval(nextTimer); nextTimer=null; }
+    if(pollTimer){ LaRuche.Poll.stop(pollTimer); pollTimer=null; }
+    if(nextTimer){ LaRuche.Poll.stop(nextTimer); nextTimer=null; }
   }
 
   // ── Filters ──────────────────────────────────────────────────
@@ -789,7 +789,7 @@ LaRuche.Mesh = (function(){
     }
     lastUnread=u;
   }
-  function start(){ if(pollTimer) return; refresh(); pollTimer=setInterval(refresh,5000); }
+  function start(){ if(pollTimer) return; refresh(); pollTimer=LaRuche.Poll.every(refresh,5000); }
   // Position mesh chat windows JUST ABOVE the bottom bars that are actually visible:
   // status bar (PC) + mobile tabs bar + chat input bar (chat page only).
   // Dynamic measurement (offsetParent != null = actually displayed) → correct on each tab.

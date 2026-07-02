@@ -539,10 +539,10 @@ LaRuche.Dashboard = (function(){
     if(hexMap[metric]){var el=document.getElementById(hexMap[metric]);if(el)el.classList.add('active-chart');}
     document.querySelectorAll('#stats-pills .stats-pill').forEach(function(p){p.classList.toggle('active',p.dataset.metric===statsMetric);});
     fetchMetricsHistory();
-    if(statsRefreshTimer)clearInterval(statsRefreshTimer);
-    statsRefreshTimer=setInterval(fetchMetricsHistory,5000);
+    if(statsRefreshTimer)LaRuche.Poll.stop(statsRefreshTimer);
+    statsRefreshTimer=LaRuche.Poll.every(fetchMetricsHistory,5000);
   }
-  function closeStatsCard(){statsCardOpen=false;document.getElementById('stats-card').classList.remove('active');document.querySelectorAll('.hex-gauge').forEach(function(h){h.classList.remove('active-chart');});if(statsRefreshTimer){clearInterval(statsRefreshTimer);statsRefreshTimer=null;}viewTMin=null;viewTMax=null;}
+  function closeStatsCard(){statsCardOpen=false;document.getElementById('stats-card').classList.remove('active');document.querySelectorAll('.hex-gauge').forEach(function(h){h.classList.remove('active-chart');});if(statsRefreshTimer){LaRuche.Poll.stop(statsRefreshTimer);statsRefreshTimer=null;}viewTMin=null;viewTMax=null;}
 
   async function fetchMetricsHistory(){
     try{var res=await fetch(LaRuche.API.base+'/metrics/history');if(!res.ok)return;var data=await res.json();metricsHistory=data.snapshots||[];nodeEvents=data.events||[];renderChart();}catch(e){}
@@ -550,13 +550,13 @@ LaRuche.Dashboard = (function(){
 
   function startPolling(){
     fetchSwarm();fetchStatus();fetchModels();fetchActivity();
-    pollTimers.push(setInterval(fetchSwarm,3000));
-    pollTimers.push(setInterval(fetchStatus,5000));
-    pollTimers.push(setInterval(fetchActivity,2000));
-    pollTimers.push(setInterval(fetchModels,15000));
+    pollTimers.push(LaRuche.Poll.every(fetchSwarm,3000));
+    pollTimers.push(LaRuche.Poll.every(fetchStatus,5000));
+    pollTimers.push(LaRuche.Poll.every(fetchActivity,2000));
+    pollTimers.push(LaRuche.Poll.every(fetchModels,15000));
     addLog('SYS','log-info',LaRuche.i18n.t('dashboard.initialized'));
   }
-  function stopPolling(){pollTimers.forEach(function(t){clearInterval(t);});pollTimers=[];if(statsRefreshTimer){clearInterval(statsRefreshTimer);statsRefreshTimer=null;}}
+  function stopPolling(){pollTimers.forEach(function(t){LaRuche.Poll.stop(t);});pollTimers=[];if(statsRefreshTimer){LaRuche.Poll.stop(statsRefreshTimer);statsRefreshTimer=null;}}
 
   function init(){
     // Log scroll tracking
