@@ -152,21 +152,32 @@ pub fn enregistrer_memoire(
     tracing::info!("Memoire abeilles registered (cognitive memory wired)");
 }
 
-/// Register the delegate abeille (requires registry reference + config).
-/// Call this AFTER enregistrer_abeilles_builtin, passing an Arc<AbeilleRegistry>.
+/// Register the delegate abeille (requires registry references + config).
+/// Call this AFTER enregistrer_abeilles_builtin.
+///
+/// Two registries on purpose:
+/// - `full_registry`: the LIVE main registry. tool_call / tool_search / run_script
+///   must see every tool that will ever register on it (node-local crons/watchers,
+///   memory, plugins, MCP loaded in the background...). They carry their own
+///   by-name recursion guards. Wiring them on a snapshot registry made
+///   `tool_call(tool="cron_list")` fail with "Unknown tool" while cron_list
+///   existed on the main registry.
+/// - `sub_registry`: the reduced toolset handed to spawned scouts (delegate /
+///   spawn_specialist), which must NOT be able to delegate recursively.
 pub fn enregistrer_delegation(
     registry: &AbeilleRegistry,
+    full_registry: std::sync::Arc<AbeilleRegistry>,
     sub_registry: std::sync::Arc<AbeilleRegistry>,
     config: crate::brain::EssaimConfig,
 ) {
     registry.enregistrer(Box::new(run_script::RunScript {
-        registry: sub_registry.clone(),
+        registry: full_registry.clone(),
     }));
     registry.enregistrer(Box::new(run_script::ToolSearch {
-        registry: sub_registry.clone(),
+        registry: full_registry.clone(),
     }));
     registry.enregistrer(Box::new(run_script::ToolCall {
-        registry: sub_registry.clone(),
+        registry: full_registry,
     }));
     registry.enregistrer(Box::new(delegation::Delegate {
         registry: sub_registry.clone(),
@@ -174,7 +185,7 @@ pub fn enregistrer_delegation(
     }));
     registry.enregistrer(Box::new(mixture::MixtureOfAgents { config: config.clone() }));
     registry.enregistrer(Box::new(spawn_specialist::SpawnSpecialist {
-        registry: sub_registry.clone(),
+        registry: sub_registry,
         config,
     }));
     tracing::info!("Delegate + run_script + mixture + spawn_specialist abeilles registered");

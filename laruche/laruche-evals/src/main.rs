@@ -334,7 +334,7 @@ async fn main() -> Result<()> {
         enregistrer_abeilles_builtin(&r);
         r
     });
-    enregistrer_delegation(&registry, sub_registry, config.clone());
+    enregistrer_delegation(&registry, registry.clone(), sub_registry, config.clone());
 
     println!(
         "## Evals — provider={} model={} · {} mission(s) × {repeat}\n",

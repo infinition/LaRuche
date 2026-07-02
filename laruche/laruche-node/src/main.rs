@@ -522,13 +522,21 @@ async fn main() -> Result<()> {
         }
     }
 
-    // Create a sub-registry for delegation (contains all tools except delegate itself)
+    // Scout toolset: the reduced registry handed to delegated sub-agents (builtins
+    // only, no delegate = no recursive fan-out). tool_call / tool_search / run_script
+    // get the LIVE main registry instead, so they can reach and discover every tool
+    // registered later (crons, watchers, memory, plugins, background-loaded MCP).
     let sub_registry = Arc::new({
         let mut r = AbeilleRegistry::new();
         enregistrer_abeilles_builtin(&mut r);
         r
     });
-    enregistrer_delegation(&essaim_registry, sub_registry, essaim_config.clone());
+    enregistrer_delegation(
+        &essaim_registry,
+        essaim_registry.clone(),
+        sub_registry,
+        essaim_config.clone(),
+    );
 
     // Cognitive memory (laruche-memoire): env-selectable backend.
     //   LARUCHE_MEMOIRE_BACKEND=sidecar  → real paradigm on http://127.0.0.1:8765
