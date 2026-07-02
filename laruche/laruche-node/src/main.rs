@@ -2309,7 +2309,36 @@ async fn main() -> Result<()> {
                 loop {
                     interval.tick().await;
                     match dream_state.memoire.dream().await {
-                        Ok(_) => info!("Periodic memory dream finished (consolidation + dedup)"),
+                        Ok(report) => {
+                            // Duplicate suggestions become actionable proposals in the
+                            // Reine queue (critical class: a human click runs the dedup).
+                            // Overloaded/orphan suggestions stay advisory for now: they
+                            // have no mechanical apply and need an agent mission.
+                            let mut enqueued = 0usize;
+                            for s in report
+                                .get("suggestions")
+                                .and_then(|v| v.as_array())
+                                .map(|a| a.as_slice())
+                                .unwrap_or(&[])
+                            {
+                                if s.get("kind").and_then(|k| k.as_str()) != Some("duplicate") {
+                                    continue;
+                                }
+                                let (Some(node_id), Some(message)) = (
+                                    s.get("node_id").and_then(|v| v.as_str()),
+                                    s.get("message").and_then(|v| v.as_str()),
+                                ) else {
+                                    continue;
+                                };
+                                if laruche_essaim::reine_queue::proposer_hygiene(node_id, message) {
+                                    enqueued += 1;
+                                }
+                            }
+                            info!(
+                                proposals = enqueued,
+                                "Periodic memory dream finished (consolidation + dedup)"
+                            );
+                        }
                         Err(e) => warn!(error = %e, "Periodic memory dream failed"),
                     }
                 }

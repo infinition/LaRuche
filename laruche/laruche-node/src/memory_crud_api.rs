@@ -436,11 +436,36 @@ pub(crate) async fn api_memory_suggest(
 
 /// POST /api/memory/dream - trigger active memory consolidation.
 pub(crate) async fn api_memory_dream(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
-    let dream = state
+    let mut dream = state
         .memoire
         .dream()
         .await
         .unwrap_or_else(|e| serde_json::json!({ "error": e.to_string() }));
+    // Same wiring as the periodic pass: duplicate suggestions become actionable
+    // proposals in the Reine queue (human click = dedup applied).
+    let mut enqueued = 0usize;
+    for s in dream
+        .get("suggestions")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default()
+    {
+        if s.get("kind").and_then(|k| k.as_str()) != Some("duplicate") {
+            continue;
+        }
+        let (Some(node_id), Some(message)) = (
+            s.get("node_id").and_then(|v| v.as_str()),
+            s.get("message").and_then(|v| v.as_str()),
+        ) else {
+            continue;
+        };
+        if laruche_essaim::reine_queue::proposer_hygiene(node_id, message) {
+            enqueued += 1;
+        }
+    }
+    if let Some(obj) = dream.as_object_mut() {
+        obj.insert("proposals_enqueued".into(), serde_json::json!(enqueued));
+    }
     Json(dream)
 }
 

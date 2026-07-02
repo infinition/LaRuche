@@ -68,6 +68,32 @@ pub fn proposer_skill(node_id: &str, contenu: &str, provenance: &str) {
     enfiler(p);
 }
 
+/// Enqueue a memory-hygiene suggestion from the dream pass (exact duplicates in
+/// `node_id`). Critical by classification, so it always waits for a human click;
+/// approval runs the dedup (see [`appliquer`]). Recurring dream runs are guarded:
+/// an actionable proposal for the same node is not enqueued twice. Returns true
+/// when a proposal was actually added.
+pub fn proposer_hygiene(node_id: &str, message: &str) -> bool {
+    let props = charger();
+    if crate::reine_file::deja_en_file(&props, TypeProposition::MemoireHygiene, node_id) {
+        return false;
+    }
+    let p = Proposition {
+        id: id_unique(node_id),
+        type_: TypeProposition::MemoireHygiene,
+        cible: Some(node_id.to_string()),
+        base_version: None,
+        contenu: String::new(),
+        provenance: "dream".to_string(),
+        raison: message.to_string(),
+        ecrase_existant: false,
+        statut: Statut::EnAttente,
+        cree_a: maintenant_secs(),
+    };
+    enfiler(p);
+    true
+}
+
 fn maintenant_secs() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -197,6 +223,41 @@ async fn appliquer(memoire: &Arc<dyn MemoireCognitive>, p: &Proposition) -> bool
                     crate::abeilles::memoire::ecrire_skill_md(node, &p.contenu);
                 }
                 ok
+            }
+            None => false,
+        },
+        // Dream hygiene: soft-delete the redundant copies of every exact
+        // duplicate in the target node, keeping the oldest of each group
+        // (read_node returns items ordered by created_at). delete_item only
+        // flips status='deleted' and logs a mutation, so this stays reversible
+        // at the storage level.
+        TypeProposition::MemoireHygiene => match &p.cible {
+            Some(node) => {
+                let Ok(n) = memoire.read_node(node).await else {
+                    return false;
+                };
+                let items = n
+                    .get("items")
+                    .and_then(|i| i.as_array())
+                    .cloned()
+                    .unwrap_or_default();
+                let mut vus: std::collections::HashSet<String> = std::collections::HashSet::new();
+                let mut tout_ok = true;
+                for item in items {
+                    let (Some(id), Some(content)) = (
+                        item.get("id").and_then(|v| v.as_str()),
+                        item.get("content").and_then(|v| v.as_str()),
+                    ) else {
+                        continue;
+                    };
+                    if !vus.insert(content.to_string()) {
+                        tout_ok &= memoire
+                            .delete_item(id, Some("Dream dedup approved via the Reine queue"))
+                            .await
+                            .is_ok();
+                    }
+                }
+                tout_ok
             }
             None => false,
         },

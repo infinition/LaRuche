@@ -35,6 +35,10 @@ pub enum TypeProposition {
     ToolNouveau,
     /// A self-created mission.
     Mission,
+    /// Memory hygiene suggested by the dream pass (dedup of exact duplicates in
+    /// a node). Applying it soft-deletes redundant copies, so it is critical and
+    /// always requires a human click.
+    MemoireHygiene,
 }
 
 /// How risky applying a proposal is. Drives whether it can ever auto-apply.
@@ -122,7 +126,7 @@ impl Proposition {
 /// an existing record.
 pub fn classifier_risque(type_: TypeProposition, ecrase_existant: bool) -> Risque {
     match type_ {
-        TypeProposition::MemoireSuppr => Risque::Critique,
+        TypeProposition::MemoireSuppr | TypeProposition::MemoireHygiene => Risque::Critique,
         TypeProposition::MemoireMaj if ecrase_existant => Risque::Critique,
         TypeProposition::MemoireAjout if ecrase_existant => Risque::Critique,
         TypeProposition::MemoireMaj => Risque::Sensible,
@@ -175,6 +179,16 @@ pub fn transition_desactivation(statut: Statut) -> Statut {
     statut
 }
 
+/// Is an actionable proposal of this type already queued for this target?
+/// Guards recurring producers (the 6h dream pass) against flooding the backlog
+/// with the same suggestion on every run. Terminal statuses do not block a
+/// re-proposal: a rejected or expired suggestion may legitimately come back.
+pub fn deja_en_file(props: &[Proposition], type_: TypeProposition, cible: &str) -> bool {
+    props.iter().any(|p| {
+        p.type_ == type_ && p.statut.actionnable() && p.cible.as_deref() == Some(cible)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,6 +213,23 @@ mod tests {
         assert_eq!(classifier_risque(TypeProposition::MemoireSuppr, false), Risque::Critique);
         assert_eq!(classifier_risque(TypeProposition::MemoireMaj, true), Risque::Critique);
         assert_eq!(classifier_risque(TypeProposition::MemoireAjout, true), Risque::Critique);
+        // Dream hygiene soft-deletes redundant copies: never auto-applied.
+        assert_eq!(classifier_risque(TypeProposition::MemoireHygiene, false), Risque::Critique);
+    }
+
+    #[test]
+    fn recurring_suggestions_do_not_flood_the_queue() {
+        let mut hygiene = prop(TypeProposition::MemoireHygiene, false);
+        hygiene.cible = Some("projets.laruche".into());
+        let props = vec![hygiene.clone()];
+        // Same target, still actionable: blocked.
+        assert!(deja_en_file(&props, TypeProposition::MemoireHygiene, "projets.laruche"));
+        // Different target or type: allowed.
+        assert!(!deja_en_file(&props, TypeProposition::MemoireHygiene, "projets.autre"));
+        assert!(!deja_en_file(&props, TypeProposition::MemoireSuppr, "projets.laruche"));
+        // Terminal status: a fresh identical suggestion may come back.
+        hygiene.statut = Statut::Rejete;
+        assert!(!deja_en_file(&[hygiene], TypeProposition::MemoireHygiene, "projets.laruche"));
     }
 
     #[test]
