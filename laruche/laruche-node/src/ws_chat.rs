@@ -269,9 +269,13 @@ pub(crate) async fn ws_chat_connection(
             // Makes the session visible IMMEDIATELY (even before the response) + persists it to
             // disk: it appears in Sessions and survives an F5 (the agent itself already runs
             // in the background in this tokio::spawn detached from the WebSocket).
+            let run_fini = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
             {
                 let mut snapshot = session.clone();
                 snapshot.ajouter_user(&user_text_log);
+                // Title right away (not only at the end of the run), so the Sessions
+                // list never shows "Untitled" while the agent works.
+                snapshot.auto_title();
                 let _ = snapshot.sauvegarder();
                 state_clone.active_context_stats.write().await.insert(
                     session_id,
@@ -281,7 +285,76 @@ pub(crate) async fn ws_chat_connection(
                     .essaim_sessions
                     .write()
                     .await
-                    .insert(session_id, snapshot);
+                    .insert(session_id, snapshot.clone());
+
+                // Live mirror: while the engine runs it mutates a LOCAL session, so the
+                // shared map + disk would only hold the initial prompt until the end of
+                // the run, and a page refresh lost the whole workflow view. This task
+                // appends the run's key events (plan, tool calls, results, thoughts) to
+                // the shared copy and checkpoints it, so /api/sessions/:id/messages
+                // restores the work-in-progress at any moment. The engine's final
+                // reconciliation replaces the mirror wholesale (run_fini guard), so
+                // duplicates never survive the run.
+                let mirror_state = state_clone.clone();
+                let mut mirror_rx = tx_clone.subscribe();
+                let mirror_fini = run_fini.clone();
+                let mut mirror = snapshot;
+                tokio::spawn(async move {
+                    use laruche_essaim::ChatEvent as Ev;
+                    use std::sync::atomic::Ordering;
+                    let mut last_save = std::time::Instant::now();
+                    loop {
+                        match mirror_rx.recv().await {
+                            Ok(event) => {
+                                let important = match &event {
+                                    Ev::ToolCall { name, args, .. } => {
+                                        if name == "plan" {
+                                            continue;
+                                        }
+                                        mirror.ajouter_tool_call(name, args.clone());
+                                        true
+                                    }
+                                    Ev::ToolResult { name, result, .. } => {
+                                        mirror.ajouter_observation(name, result);
+                                        true
+                                    }
+                                    Ev::Plan { items } => {
+                                        match serde_json::to_string(items) {
+                                            Ok(json) => {
+                                                mirror.ajouter_thought("plan", "plan", &json);
+                                                true
+                                            }
+                                            Err(_) => continue,
+                                        }
+                                    }
+                                    Ev::Thought { phase, kind, text } => {
+                                        mirror.ajouter_thought(phase, kind, text);
+                                        false
+                                    }
+                                    Ev::Done { .. } | Ev::Error { .. } => break,
+                                    _ => continue,
+                                };
+                                if important
+                                    || last_save.elapsed() > std::time::Duration::from_secs(2)
+                                {
+                                    // Flag checked INSIDE the lock: once the run task has
+                                    // published the authoritative session, the mirror must
+                                    // never overwrite it with a stale copy.
+                                    let mut sessions = mirror_state.essaim_sessions.write().await;
+                                    if mirror_fini.load(Ordering::Relaxed) {
+                                        break;
+                                    }
+                                    sessions.insert(session_id, mirror.clone());
+                                    let _ = mirror.sauvegarder();
+                                    drop(sessions);
+                                    last_save = std::time::Instant::now();
+                                }
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+                            Err(_) => break,
+                        }
+                    }
+                });
             }
 
             let mut config = ec_snapshot;
@@ -386,10 +459,18 @@ pub(crate) async fn ws_chat_connection(
                 });
             }
 
-            // Auto-title and save session
+            // Auto-title, then publish the authoritative session. The disk save and
+            // the map insert happen under the sessions lock, AFTER raising run_fini:
+            // the live mirror checks that flag inside the same lock, so a lagging
+            // mirror event can never overwrite the reconciled session (map or disk).
             session.auto_title();
-            if let Err(e) = session.sauvegarder() {
-                tracing::warn!(error = %e, "Failed to save session");
+            {
+                let mut sessions = state_clone.essaim_sessions.write().await;
+                run_fini.store(true, std::sync::atomic::Ordering::Relaxed);
+                if let Err(e) = session.sauvegarder() {
+                    tracing::warn!(error = %e, "Failed to save session");
+                }
+                sessions.insert(session_id, session.clone());
             }
             // Sync to peers
             let sync_s = session.clone();
@@ -397,11 +478,6 @@ pub(crate) async fn ws_chat_connection(
             tokio::spawn(async move {
                 sync::push_session_to_peers(&sync_s, &sync_st).await;
             });
-
-            // Put session back
-            let mut sessions = state_clone.essaim_sessions.write().await;
-            sessions.insert(session_id, session.clone());
-            drop(sessions);
             state_clone.active_context_stats.write().await.insert(
                 session_id,
                 ActiveContextStats::from_session(&session, false),
