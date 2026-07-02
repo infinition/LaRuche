@@ -83,7 +83,13 @@ message telegram toutes les 20 minutes"
 ```
 
 ## Rules of thumb
-- Target the FILE path, not its folder, for appear/delete watches.
+- BEFORE creating: `watcher_list`. If a watcher already covers the target,
+  UPDATE or DELETE it instead of creating a twin (the tool refuses duplicates
+  on the same target unless you pass `force: true` with a reason).
+- Target the ABSOLUTE FILE path, not its folder, for appear/delete watches.
+  The tool refuses relative paths and directories: a relative path resolves
+  against the server's working directory, and a folder fires on every
+  unrelated change inside it.
 - Push everything mechanical (days, hours, durations, patterns, sizes, statuses)
   into deterministic leaves; keep `llm_check` for judgment calls only, and put it
   LAST inside an `et` so the cheap leaves filter first.

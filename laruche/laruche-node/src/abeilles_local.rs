@@ -577,6 +577,34 @@ impl Abeille for AbeilleWatcherCreate {
             _ => laruche_watchers::WatcherType::File,
         };
 
+        // Hard target validation: an invalid target silently watches NOTHING
+        // forever (a relative path resolves against the SERVER's working dir,
+        // not the user's). Reject with a corrective message so the model fixes
+        // the call instead of shipping a dead watcher.
+        if let Err(e) = valider_cible_watcher(&watcher_type, &target) {
+            return Ok(ResultatAbeille::err(e));
+        }
+
+        // Anti-duplicate: models happily create a twin watcher at every retry
+        // instead of checking. Same type + same target + still active = refused,
+        // unless force=true (legitimate twins with different rules exist).
+        if args.get("force").and_then(|v| v.as_bool()) != Some(true) {
+            let store = self.watcher_store.read().await;
+            if let Some(existant) = store.list().into_iter().find(|w| {
+                w.active
+                    && w.watcher_type == watcher_type
+                    && w.target.trim().eq_ignore_ascii_case(target.trim())
+            }) {
+                return Ok(ResultatAbeille::err(format!(
+                    "A watcher already exists on this target: '{}' (id {}). Use \
+                     watcher_list to inspect it, watcher_delete to replace it, or \
+                     pass force=true if you REALLY want a second one with different \
+                     rules.",
+                    existant.name, existant.id
+                )));
+            }
+        }
+
         let profile_id = args
             .get("profile_id")
             .and_then(|v| v.as_str())
@@ -936,5 +964,86 @@ impl Abeille for AbeilleKanbanList {
         }
 
         Ok(ResultatAbeille::ok(output))
+    }
+}
+
+/// Hard validation of a watcher target BEFORE creation. A watcher with a bad
+/// target watches nothing forever, silently: relative paths resolve against the
+/// node's working directory (not the user's desktop), and a folder target for a
+/// file watch fires on every unrelated change in it.
+fn valider_cible_watcher(
+    watcher_type: &laruche_watchers::WatcherType,
+    target: &str,
+) -> Result<(), String> {
+    let cible = target.trim();
+    if cible.is_empty() {
+        return Err("Parameter 'target' is required.".to_string());
+    }
+    match watcher_type {
+        laruche_watchers::WatcherType::Url => {
+            if !(cible.starts_with("http://") || cible.starts_with("https://")) {
+                return Err(format!(
+                    "URL target must start with http:// or https:// (got '{cible}')."
+                ));
+            }
+            Ok(())
+        }
+        laruche_watchers::WatcherType::File | laruche_watchers::WatcherType::Log => {
+            let chemin = std::path::Path::new(cible);
+            if !chemin.is_absolute() {
+                return Err(format!(
+                    "File target must be an ABSOLUTE path (got '{cible}'): a relative \
+                     path resolves against the SERVER's working directory, not the \
+                     user's folders. Example: C:\\Users\\<user>\\Desktop\\ala.txt."
+                ));
+            }
+            // The file itself may legitimately not exist yet (appear-watch), but
+            // its parent directory must: otherwise the path is a typo.
+            let parent_ok = chemin
+                .parent()
+                .map(|p| p.as_os_str().is_empty() || p.exists())
+                .unwrap_or(false);
+            if !parent_ok {
+                return Err(format!(
+                    "The parent directory of '{cible}' does not exist. Check the path \
+                     (the file itself may be absent for an appear-watch, its folder \
+                     may not)."
+                ));
+            }
+            if chemin.is_dir() {
+                return Err(format!(
+                    "'{cible}' is a DIRECTORY: it would fire on every unrelated change \
+                     inside it. Target the specific file instead (appear/delete/modify \
+                     are detected even if it does not exist yet)."
+                ));
+            }
+            Ok(())
+        }
+    }
+}
+
+#[cfg(test)]
+mod watcher_garde_tests {
+    use super::*;
+
+    #[test]
+    fn cible_relative_ou_dossier_refusee() {
+        use laruche_watchers::WatcherType as T;
+        // Relative paths: the exact mistake observed live ('Desktop', 'Desktop/ala.txt').
+        assert!(valider_cible_watcher(&T::File, "Desktop").is_err());
+        assert!(valider_cible_watcher(&T::File, "Desktop/ala.txt").is_err());
+        // A directory target is refused with the reason.
+        let e = valider_cible_watcher(&T::File, std::env::temp_dir().to_str().unwrap())
+            .unwrap_err();
+        assert!(e.contains("DIRECTORY"), "{e}");
+        // Absolute file in an existing dir passes even if the file is absent.
+        let absent = std::env::temp_dir().join("laruche-test-absent-b7f2.txt");
+        assert!(valider_cible_watcher(&T::File, absent.to_str().unwrap()).is_ok());
+        // Nonexistent parent directory is refused.
+        let mauvais = std::env::temp_dir().join("dossier-inexistant-b7f2").join("x.txt");
+        assert!(valider_cible_watcher(&T::File, mauvais.to_str().unwrap()).is_err());
+        // URLs must be http(s).
+        assert!(valider_cible_watcher(&T::Url, "localhost:8080").is_err());
+        assert!(valider_cible_watcher(&T::Url, "http://127.0.0.1:8080").is_ok());
     }
 }
