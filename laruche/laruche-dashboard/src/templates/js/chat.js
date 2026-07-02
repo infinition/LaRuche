@@ -1040,12 +1040,17 @@ LaRuche.Chat = (function(){
 
     // Strip all complete hidden blocks.
     var clean = buf.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, '');
+    // Attribute variant emitted by some local models:
+    // <tool_call name="x" arguments={...}> with an optional stray closing tag.
+    clean = clean.replace(/<tool_call\s[^>]*>(\s*<\/tool_call>)?/g, '');
     clean = clean.replace(/<plan>[\s\S]*?<\/plan>/g, '');
     clean = clean.replace(/<think>[\s\S]*?<\/think>/g, '');
 
-    // Strip incomplete opening tags at the end
+    // Strip incomplete opening tags at the end (canonical then attribute form)
     var tcIdx = clean.indexOf('<tool_call>');
     if(tcIdx !== -1) clean = clean.substring(0, tcIdx);
+    var tcaIdx = clean.indexOf('<tool_call ');
+    if(tcaIdx !== -1) clean = clean.substring(0, tcaIdx);
     var plIdx = clean.indexOf('<plan>');
     if(plIdx !== -1) clean = clean.substring(0, plIdx);
     var thIdx = clean.indexOf('<think>');
@@ -1055,7 +1060,7 @@ LaRuche.Chat = (function(){
     var lt = clean.lastIndexOf('<');
     if(lt !== -1 && lt > clean.length - 13) {
       var tail = clean.substring(lt);
-      if('<tool_call>'.startsWith(tail) || '<plan>'.startsWith(tail) || '<think>'.startsWith(tail) || '</tool_call>'.startsWith(tail) || '</plan>'.startsWith(tail) || '</think>'.startsWith(tail)) {
+      if('<tool_call'.startsWith(tail) || '<plan>'.startsWith(tail) || '<think>'.startsWith(tail) || '</tool_call>'.startsWith(tail) || '</plan>'.startsWith(tail) || '</think>'.startsWith(tail)) {
         clean = clean.substring(0, lt);
       }
     }

@@ -1313,30 +1313,138 @@ pub fn parse_tool_calls(text: &str) -> Vec<ToolCall> {
     let mut calls = Vec::new();
     let mut search_from = 0;
 
-    while let Some(start) = text[search_from..].find("<tool_call>") {
-        let abs_start = search_from + start + "<tool_call>".len();
-        if let Some(end) = text[abs_start..].find("</tool_call>") {
-            let abs_end = abs_start + end;
-            let json_str = text[abs_start..abs_end].trim();
-            match serde_json::from_str::<ToolCallRaw>(json_str) {
-                Ok(raw) => {
-                    calls.push(ToolCall {
-                        id: uuid::Uuid::new_v4().to_string(),
-                        name: raw.name,
-                        args: raw.arguments,
-                    });
+    while let Some(start) = text[search_from..].find("<tool_call") {
+        let after_tag = search_from + start + "<tool_call".len();
+        let rest = &text[after_tag..];
+        if let Some(body) = rest.strip_prefix('>') {
+            // Canonical form: <tool_call>{"name":...,"arguments":{...}}</tool_call>
+            if let Some(end) = body.find("</tool_call>") {
+                let json_str = body[..end].trim();
+                match serde_json::from_str::<ToolCallRaw>(json_str) {
+                    Ok(raw) => {
+                        calls.push(ToolCall {
+                            id: uuid::Uuid::new_v4().to_string(),
+                            name: raw.name,
+                            args: raw.arguments,
+                        });
+                    }
+                    Err(e) => {
+                        tracing::warn!(json = %json_str, error = %e, "Failed to parse tool_call JSON");
+                    }
                 }
-                Err(e) => {
-                    tracing::warn!(json = %json_str, error = %e, "Failed to parse tool_call JSON");
-                }
+                search_from = after_tag + 1 + end + "</tool_call>".len();
+                continue;
             }
-            search_from = abs_end + "</tool_call>".len();
-        } else {
             break;
         }
+        // Attribute form emitted by some local models (observed with gemma):
+        //   <tool_call name="memory_search" arguments={"query": "missions", "limit": 10}>
+        if rest.starts_with(|c: char| c.is_whitespace()) {
+            if let Some((call, consumed)) = parse_tool_call_attributs(rest) {
+                calls.push(call);
+                search_from = after_tag + consumed;
+                continue;
+            }
+        }
+        // Unrecognized shape after the opener: move past it and keep scanning.
+        search_from = after_tag;
     }
 
     calls
+}
+
+/// Parse the attribute form that follows `<tool_call` (whitespace included):
+/// `name="X" arguments={...}>` with `args=` accepted, quotes optional, and an
+/// optional stray `</tool_call>` right after. Returns the call and how many
+/// bytes of the input were consumed.
+fn parse_tool_call_attributs(rest: &str) -> Option<(ToolCall, usize)> {
+    let name_pos = rest.find("name=")?;
+    let after_name = &rest[name_pos + "name=".len()..];
+    let first = after_name.chars().next()?;
+    let (name, name_attr_len) = if first == '"' || first == '\'' {
+        let end = after_name[1..].find(first)?;
+        (after_name[1..1 + end].to_string(), end + 2)
+    } else {
+        let n: String = after_name
+            .chars()
+            .take_while(|c| !c.is_whitespace() && *c != '>' && *c != '/')
+            .collect();
+        let l = n.len();
+        (n, l)
+    };
+    if name.is_empty()
+        || !name
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+    {
+        return None;
+    }
+
+    let v_start = rest
+        .find("arguments=")
+        .map(|i| i + "arguments=".len())
+        .or_else(|| rest.find("args=").map(|i| i + "args=".len()));
+    let (args, mut end) = match v_start {
+        Some(v) => {
+            let (js, je) = plage_objet_json(&rest[v..])?;
+            let obj = &rest[v + js..v + je];
+            (serde_json::from_str::<serde_json::Value>(obj).ok()?, v + je)
+        }
+        None => (
+            serde_json::json!({}),
+            name_pos + "name=".len() + name_attr_len,
+        ),
+    };
+    // Consume through the tag's closing '>' and an optional stray closing tag.
+    if let Some(gt) = rest[end..].find('>') {
+        end += gt + 1;
+    }
+    let apres = rest[end..].trim_start();
+    if let Some(sans) = apres.strip_prefix("</tool_call>") {
+        end = rest.len() - sans.len();
+    }
+    Some((
+        ToolCall {
+            id: uuid::Uuid::new_v4().to_string(),
+            name,
+            args,
+        },
+        end,
+    ))
+}
+
+/// Locate the first brace-balanced JSON object in `s` (string-aware, so a `}`
+/// or `>` inside a string value does not end the scan). Returns its byte range.
+fn plage_objet_json(s: &str) -> Option<(usize, usize)> {
+    let start = s.find('{')?;
+    let bytes = s.as_bytes();
+    let mut depth = 0i32;
+    let mut in_str = false;
+    let mut esc = false;
+    for (i, &b) in bytes.iter().enumerate().skip(start) {
+        if in_str {
+            if esc {
+                esc = false;
+            } else if b == b'\\' {
+                esc = true;
+            } else if b == b'"' {
+                in_str = false;
+            }
+        } else {
+            match b {
+                b'"' => in_str = true,
+                b'{' => depth += 1,
+                b'}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some((start, i + 1));
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    None
 }
 
 /// Defensive fallback: try to parse raw JSON when the model did not use
@@ -4662,6 +4770,43 @@ mod tests {
             &ctx,
         );
         assert_eq!(decision, PermissionBehavior::Deny);
+    }
+
+    #[test]
+    fn parse_tool_call_style_attributs_gemma() {
+        // Exact shape observed in chat: the model emits an XML-attribute call
+        // instead of the canonical JSON body, which used to leak as raw text.
+        let calls = parse_tool_calls(
+            r#"<tool_call name="memory_search" arguments={"query": "missions", "limit": 10}>"#,
+        );
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "memory_search");
+        assert_eq!(calls[0].args["query"], "missions");
+        assert_eq!(calls[0].args["limit"], 10);
+    }
+
+    #[test]
+    fn parse_tool_call_attributs_sans_arguments_puis_canonique() {
+        let calls = parse_tool_calls(concat!(
+            "avant <tool_call name='cron_list'> milieu ",
+            r#"<tool_call>{"name":"web_fetch","arguments":{"url":"https://a.b"}}</tool_call>"#,
+        ));
+        assert_eq!(calls.len(), 2);
+        assert_eq!(calls[0].name, "cron_list");
+        assert_eq!(calls[0].args, serde_json::json!({}));
+        assert_eq!(calls[1].name, "web_fetch");
+        assert_eq!(calls[1].args["url"], "https://a.b");
+    }
+
+    #[test]
+    fn parse_tool_call_attributs_accolades_dans_les_chaines() {
+        // A '>' or '}' inside a string value must not truncate the JSON scan.
+        let calls = parse_tool_calls(
+            r#"<tool_call name="file_write" args={"path": "a.md", "content": "x > y et {z}"}></tool_call>"#,
+        );
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].name, "file_write");
+        assert_eq!(calls[0].args["content"], "x > y et {z}");
     }
 
     #[test]
