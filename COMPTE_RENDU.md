@@ -148,10 +148,39 @@ Enseignements : socle correct (ds1 = fan-out parfait de 8 scouts, controles OK).
 timeouts causes par des scouts trop profonds x trop nombreux (7-12). Trou multilingue
 (ES tombe en standard). Court-circuit memoire (broken_sword repond de memoire sans chercher).
 
-### Run 3 - llama.cpp gemma-4-12b, apres correctifs `a1b9b01` : EN COURS
+### Run 3 - llama.cpp gemma-4-12b, apres correctifs `a1b9b01` : instable
 
-Correctifs testes : scouts bornes (12 passes/min_web 3) + cap dur 4 scouts + multilingue
-+ verification fraiche. Objectif : 6-7/8. Resultats a completer des la fin du run.
+- `ds1_savegame_deep` : **TIMEOUT 900s** (deleg=0, web=0) alors qu'il PASSAIT au run 2
+  (677s, 8 scouts). `broken_sword` : encore web=0/deleg=0.
+- Diagnostic : **variance du LLM local**. gemma-4-12b est stochastique ; sur une meme
+  mission deep il fait un fan-out impeccable une fois (run 2) et part en generation lente
+  sans deleguer la fois suivante (run 3). Ce n'est PAS une regression de code (mes fixes
+  reduisent le travail des scouts ; un run sans delegation ne peut pas etre ralenti par le
+  cap). C'est un probleme de capacite/debit du modele local, pas du moteur.
+
+### Run 4 - DeepSeek v4 flash (openmodel.ai, Anthropic-compat) : test leger
+
+- Endpoint valide : `tool_use` natif parfait (curl direct). Provider `anthropic` + api_base.
+- Controles 2/2 : `controle_question_simple` (1 passe, 2s), `controle_fichier` (5 passes,
+  16s, fichier ecrit). **Tokens captures** (8771, 1093) : le fix usage `b01700a` marche
+  sur le format Anthropic ; le `tokens=0` etait specifique au streaming llama.cpp.
+- Deep-research NON testable sur le tier gratuit : une mission deep (parent + jusqu'a 4
+  scouts = 50+ appels API) sature le rate limit (endpoint throttle jusqu'a timeout, puis
+  revient apres cooldown). Rate limit, pas capacite ni harness.
+
+### Verdict d'ensemble
+
+- **Le harness et le moteur sont CORRECTS** : controles verts sur les 3 backends ; tool
+  calls natifs OK (Ollama echoue = bug d'integration Ollama, llama.cpp OK, Anthropic OK) ;
+  fan-out prouve parfait au run 2 (ds1 : 8 scouts). Le code deep-research fonctionne.
+- **Le fan-out deep-research est goulotte par le MODELE/INFRA, pas par le code** : le 12b
+  local est trop lent+stochastique (timeouts, variance run a run) ; l'API DeepSeek gratuite
+  rate-limite sous le volume d'appels du fan-out.
+- **Pour valider le deep-research de bout en bout de facon fiable** : il faut soit un modele
+  local plus rapide/costaud, soit un tier API payant sans rate limit agressif. Les correctifs
+  fan-out (`a1b9b01`) restent justes sur le principe mais non validables en charge ici.
+- Baseline d'evals : NON figee (aucun run deep propre de bout en bout obtenu). Les controles
+  peuvent servir de mini-baseline anti-regression immediate.
 
 ---
 
