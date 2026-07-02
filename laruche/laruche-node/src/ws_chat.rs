@@ -413,7 +413,7 @@ pub(crate) async fn ws_chat_connection(
             // Conservative (most missions => nothing).
             let curateur_on = config.curateur_actif
                 || std::env::var("RUCHE_CURATEUR").as_deref() == Ok("1");
-            if std::env::var("RUCHE_MOTEUR").as_deref() == Ok("butinage")
+            if laruche_essaim::butinage_pont::moteur_butinage_actif()
                 && curateur_on
                 && session.messages.len() >= 6
             {

@@ -2,8 +2,28 @@
 //!
 //! Implements the engine traits (`Fournisseur`, `Outils`, `Emetteur`) from the
 //! existing building blocks (providers, `AbeilleRegistry`, `ChatEvent`), and exposes
-//! [`executer`]: the facade called by `boucle_react_multimodal_ext` when the flag
-//! `RUCHE_MOTEUR=butinage` is active. The old engine (`brain.rs`) stays intact.
+//! [`executer`]: the facade called by `boucle_react_multimodal_ext`. Butinage is
+//! the DEFAULT engine; the legacy `brain.rs` loop only runs when the user forces
+//! `RUCHE_MOTEUR=brain` (deprecated, kept during the transition).
+
+/// Engine selection. Butinage is the default; the legacy brain engine is
+/// deprecated and only used when `RUCHE_MOTEUR=brain` is set explicitly.
+/// `RUCHE_MOTEUR=butinage` (the old opt-in) still works and is a no-op.
+pub fn moteur_butinage_actif() -> bool {
+    match std::env::var("RUCHE_MOTEUR").as_deref() {
+        Ok("brain") => {
+            static WARN_ONCE: std::sync::Once = std::sync::Once::new();
+            WARN_ONCE.call_once(|| {
+                tracing::warn!(
+                    "RUCHE_MOTEUR=brain: the legacy engine is DEPRECATED and will be \
+                     removed; unset RUCHE_MOTEUR to use the butinage engine"
+                );
+            });
+            false
+        }
+        _ => true,
+    }
+}
 
 use crate::abeille::{AbeilleRegistry, ContextExecution, NiveauDanger};
 use crate::brain::{
@@ -1281,7 +1301,7 @@ pub async fn executer_avec_bilan(
     approval_rx: Option<crate::brain::ApprovalReceiver>,
 ) -> Result<RapportMission> {
     let _ = tx.send(ChatEvent::Status {
-        message: "Butinage engine active (RUCHE_MOTEUR=butinage).".into(),
+        message: "Butinage engine active (default).".into(),
     });
 
     // Small models: if the window is narrow (<= 40k, e.g. gemma/llama.cpp n_ctx=32768),

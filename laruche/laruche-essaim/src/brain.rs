@@ -3139,10 +3139,10 @@ pub async fn boucle_react_multimodal_ext(
     ephemeral_context: Option<String>,
     memoire: Option<Arc<dyn laruche_memoire::MemoireCognitive>>,
 ) -> Result<String> {
-    // Cohabitation: "butinage" ReAct engine (new) enabled by flag, without touching
-    // the node. Multimodal attachments (multiple images + audio) are forwarded to the bridge.
-    // Without the flag, keep the old engine below.
-    if std::env::var("RUCHE_MOTEUR").as_deref() == Ok("butinage") {
+    // Butinage ReAct engine is the DEFAULT. The legacy loop below only runs when
+    // RUCHE_MOTEUR=brain is forced (deprecated). Multimodal attachments (multiple
+    // images + audio) are forwarded to the bridge.
+    if crate::butinage_pont::moteur_butinage_actif() {
         return crate::butinage_pont::executer(
             prompt_utilisateur,
             session,
