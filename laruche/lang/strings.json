@@ -4870,5 +4870,9 @@
   "reine.redoing": {
     "en": "LaRuche is redoing the work",
     "fr": "LaRuche refait le travail"
+  },
+  "boot.starting": {
+    "en": "LaRuche is starting…",
+    "fr": "LaRuche démarre…"
   }
 }

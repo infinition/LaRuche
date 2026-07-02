@@ -51,6 +51,7 @@ LaRuche.i18n = (function(){
     'common.apply':   { fr:'Appliquer',   en:'Apply' },
     'common.create':  { fr:'Créer',       en:'Create' },
     'common.loading': { fr:'Chargement…', en:'Loading…' },
+    'boot.starting':  { fr:'LaRuche démarre…', en:'LaRuche is starting…' },
     'common.search':  { fr:'Rechercher',  en:'Search' },
     'common.none':    { fr:'Aucun',       en:'None' },
     'common.range7d': { fr:'7j',          en:'7d' },
@@ -656,18 +657,51 @@ LaRuche.Auth = (function(){
   var pollTimer = null;
   var challengeTimer = null;
 
+  // Boot overlay: the PWA shell can render (service worker cache) before the
+  // node listens, and every API call then fails. That is "server starting",
+  // NOT "logged out": without this distinction the login page flashed during
+  // startup and a manual F5 was needed once the node was up.
+  var bootOverlay = null;
+  function showBootOverlay(){
+    if(bootOverlay) return;
+    bootOverlay = document.createElement('div');
+    bootOverlay.id = 'bootOverlay';
+    bootOverlay.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--bg-primary,#0d1117)';
+    bootOverlay.innerHTML =
+      '<div style="width:42px;height:42px;border:3px solid var(--border,#333);border-top-color:var(--amber,#e8a33d);border-radius:50%;animation:lrBootSpin .9s linear infinite"></div>'+
+      '<div style="color:var(--text-dim,#888);font-size:13px">'+LaRuche.i18n.t('boot.starting')+'</div>';
+    var st = document.createElement('style');
+    st.textContent = '@keyframes lrBootSpin{to{transform:rotate(360deg)}}';
+    bootOverlay.appendChild(st);
+    document.body.appendChild(bootOverlay);
+  }
+  function hideBootOverlay(){ if(bootOverlay){ bootOverlay.remove(); bootOverlay = null; } }
+
   function init(cb) {
-    fetch('/api/auth/me',{credentials:'include'}).then(function(r){
-      if(r.ok) return r.json();
-      throw new Error('not auth');
-    }).then(function(u){
-      currentUser = u;
-      showUserBadge();
-      if(cb) cb(true);
-    }).catch(function(){
-      currentUser = null;
-      if(cb) cb(false);
-    });
+    function attempt(){
+      fetch('/api/auth/me',{credentials:'include'}).then(function(r){
+        if(r.ok) return r.json().then(function(u){
+          currentUser = u;
+          hideBootOverlay();
+          showUserBadge();
+          if(cb) cb(true);
+        });
+        if(r.status===401 || r.status===403){
+          // A real auth decision from a live server: show the login page.
+          currentUser = null;
+          hideBootOverlay();
+          if(cb) cb(false);
+          return;
+        }
+        throw new Error('server not ready ('+r.status+')');
+      }).catch(function(){
+        // Network error or 5xx: the node is still starting. Wait and retry
+        // instead of flashing the login page; no manual F5 needed.
+        showBootOverlay();
+        setTimeout(attempt, 1500);
+      });
+    }
+    attempt();
   }
 
   function isAuthenticated(){ return !!currentUser; }
