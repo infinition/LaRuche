@@ -4,7 +4,7 @@
 
 ## 🔒 Audit sécurité & hygiène (2026-07-02) - PRIORITÉ ABSOLUE avant toute feature
 
-> Revue complète du projet (probes ciblés + connaissance du moteur/mémoire/outils déjà lus). Le cœur agentique est solide ; la **couche d'exposition réseau était le point faible critique**. Durcissement réseau + sanitisation du rendu + mesh + vendorisation **LIVRÉS** (commits `e610365`, `9b1ccca`, `ee44d11`, 2026-07-02). Hygiène repo vérifiée propre (aucun secret committé, aucun fichier runtime tracké). Reste : dette (main.rs monolithique, brain.rs) + revue approfondie shell/crates (non bloquant, gate d'approbation = vrai contrôle).
+> Revue complète du projet (probes ciblés + connaissance du moteur/mémoire/outils déjà lus). Le cœur agentique est solide ; la **couche d'exposition réseau était le point faible critique**. Durcissement réseau + sanitisation du rendu + mesh + vendorisation **LIVRÉS** (commits `e610365`, `9b1ccca`, `ee44d11`, 2026-07-02). Hygiène repo vérifiée propre (aucun secret committé, aucun fichier runtime tracké). Audit profond execute_code/mcp_client/crates FAIT (2026-07-02, cf. MINEUR). Reste : dette main.rs monolithique + suppression de brain.rs (déprécié, butinage est le défaut) + sandbox shell dure (différé, gate d'approbation = vrai contrôle).
 
 ### ✅ CRITIQUE - Cluster exposition réseau (CORRIGÉ, commit e610365 + ee44d11)
 - [x] **Bind `127.0.0.1` par défaut** (était `0.0.0.0`) : exposition LAN = opt-in explicite `LARUCHE_BIND_LAN=1`, loggué en warn.
@@ -22,12 +22,14 @@
 
 ### 🟡 MINEUR / dette (non bloquant)
 - [ ] **`main.rs` ingérable** (~3000 lignes). → extraire le routeur + centraliser l'auth (le `auth_guard` global est un premier pas : l'auth n'est plus éparpillée).
-- [ ] **Polling front cumulé** : plusieurs `setInterval` tournent même onglet inactif. → pause sur `visibilitychange`.
+- [x] **Polling front cumulé CORRIGÉ (2026-07-02)** : helper central `LaRuche.Poll.every/stop` (core.js) - tick sauté onglet caché, rattrapage immédiat au retour. 14 pollings convertis ; les flux d'auth (codex, challenge login) restent en `setInterval` volontairement.
 - [ ] **Blocklist shell contournable** (`shell.rs` : `BLOCKED_PATTERNS` par sous-chaîne, `rm  -rf  /` double-espace passe) : ralentisseur, le VRAI contrôle est le gate d'approbation (`niveau_danger`=NeedsApproval + popup) + timeout. Sandbox OS dure = chantier différé. `secrets.rs` vérifié : valeurs jamais sérialisées/logguées (bon).
-- [ ] **À AUDITER en profondeur (fan-out rétabli, audit à relancer)** : `execute_code.rs`, `mcp_client.rs`, micro-crates (`laruche-compaction` vs `escale` ? `laruche-events` vs `feed_journal` ? crates morts ?).
+- [x] **Audit profond FAIT (2026-07-02)** : `execute_code.rs` sain (gate approbation, python -I, timeout 30s, caps, troncature char-safe ; fix : broken pipe stdin non fatal). `mcp_client.rs` : **timeout 60s par requête ajouté** (un serveur MCP muet au handshake bloquait le BOOT du node pour toujours) + reap du process (zombies Unix) + outil malformé loggué. Micro-crates : **aucun crate workspace mort** (`laruche-evals` harness binaire et `laruche-dashboard` porte-assets = voulus sans dépendants) ; `laruche-compaction` vs `escale` = doublon assumé, compaction ne sert que brain.rs+session.rs et mourra avec brain ; `laruche-events` (EventBus volatile) vs `feed_journal` (NDJSON persisté) = rôles distincts, pas un doublon.
+- [ ] **`laruche-channels/` (Python)** : bots telegram/discord/slack legacy plus référencés nulle part dans le Rust (canaux natifs) → à archiver dans `_archive/` après confirmation user.
 
 ### 🗑️ Dette moteur
-- [ ] **Tuer ou promouvoir l'ancien moteur `brain.rs` (~4000 lignes)** : encore le DÉFAUT sans `RUCHE_MOTEUR=butinage`. → décision : butinage par défaut, brain déprécié puis supprimé.
+- [x] **Butinage PAR DÉFAUT (fait 2026-07-02)** : `moteur_butinage_actif()` centralisé dans `butinage_pont` - butinage par défaut, `RUCHE_MOTEUR=brain` = opt-out déprécié avec warn (une fois), l'ancien opt-in `=butinage` reste accepté (no-op). Dispatch unique vérifié (chat, canaux, missions, Reine).
+- [ ] **Supprimer `brain.rs` (~4000 lignes)** une fois la dépréciation digérée (quelques semaines de runtime butinage sans regression) ; `laruche-compaction` part avec lui (session.rs à migrer sur `escale`).
 
 ## 🐝 Moteur butinage, évals, outils & mémoire - audit expert appliqué (2026-07-01/02)
 
@@ -45,12 +47,12 @@
 ### 🔜 En attente (backlog priorisé)
 - [x] **Mystère qwen3:8b RÉSOLU** (2026-07-02) : c'était l'intégration tools d'**Ollama**, pas le harness. Via `llamacpp` + gemma-4-e4b, tool_calls natifs OK (test direct + évals contrôle 2/2, `controle_fichier` écrit vraiment). Bug corrigé au passage : usage OpenAI-compat (`b01700a`) - `stream_options.include_usage` arrive dans un chunk dédié qui était droppé (tokens=0). Reste : **figer la baseline** une fois la suite deep complète lancée (`--save-baseline`).
 - [x] **Check LLM de contradiction au write** (fait `656111a`) : trait `Arbitre`+`VerdictArbitre` (inversion de dépendance), bande d'ambiguïté 0.62-0.83 même domaine → `ArbitreLLM` (modèle aux, REPLACE/DISTINCT) → supersede ; échec = Distinct (jamais destructif), opt-out `LARUCHE_MEMOIRE_ARBITRE=0`. Test de régression déterministe.
-- [ ] **dream→reine_queue** : les suggestions du dream 6h (doublons legacy, surcharges, orphelins) deviennent des propositions actionnables dans la file LaReine (gate humain existant) = auto-nettoyage supervisé.
+- [x] **dream→reine_queue (fait 2026-07-02)** : les suggestions `duplicate` du dream (6h + bouton manuel) deviennent des propositions `MemoireHygiene` dans la file LaReine - classe Critique (jamais auto-appliqué), approbation = dédup soft-delete réversible du nœud, garde anti-flood `deja_en_file` testée. Reste : `overloaded`/`orphan` sont consultatives (pas d'apply mécanique → mission agent, Tier 3).
 - [ ] **Hebbien niveau 2** : ne renforcer que les rappels réellement UTILISÉS dans la réponse (mesurable par le juge des évals).
 - [ ] **OKF + git** : auto-commit du bundle exporté = mémoire time-travel (diff/rollback) puis **fédération mesh des faits** entre nœuds (provenance) - session dédiée.
 - [x] **FTS moins permissive** (fait `04514c3`) : requête riche (≥3 tokens) exige ≥2 tokens matchés ; requêtes courtes gardent le OR permissif.
 - [x] **Évals mémoire** (fait `04514c3`) : scénarios « bruit du recall » et « supersede inter-nœuds » protégés par tests de régression déterministes dans `laruche-memoire` (mieux que missions LLM non-déterministes).
-- [ ] **Audit des checks d'onboarding restants** (STT/TTS, TLS) - suspects d'être des stubs comme l'était le check embeddings.
+- [x] **Audit des checks d'onboarding restants FAIT (2026-07-02)** : STT/TTS ne regardaient que les capability flags mesh (mensongers : 'not found' avec les services locaux up, 'available' pour un nœud mort) → vraie sonde `GET /health` sur les URLs résolues comme au runtime (helper partagé `resolve_voice_urls`/`voice_service_up`, réutilisé par le websocket voix). TLS : vérifie que cert/key sont lisibles (sinon le serveur retombe en HTTP → statut error) + cas `LARUCHE_HTTPS=1` auto-signé couvert.
 - [ ] **Référentiel multi-provider (doc Sonnet)** : validation client-side des args vs JSON Schema avant exécution (filet non-négociable modèles locaux), puis `tool_choice`/`parallel_tool_calls` par provider, parser pythonic, tests de non-régression par modèle (jeu de tool calls fixes).
 
 ## 👑 LaReine - superviseur de la ruche (nouveau chantier)
