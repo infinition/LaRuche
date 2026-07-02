@@ -318,7 +318,10 @@ async fn main() -> Result<()> {
         .with_context(|| format!("reading {chemin_missions} (run from the workspace root?)"))?;
     let mut missions: Vec<Mission> = serde_json::from_str(&brut).context("parsing missions")?;
     if let Some(f) = &only {
-        missions.retain(|m| m.id.contains(f.as_str()));
+        // Comma-separated substrings: `--only controle,deep_english` keeps any mission
+        // whose id contains ANY of the terms.
+        let termes: Vec<&str> = f.split(',').map(str::trim).filter(|s| !s.is_empty()).collect();
+        missions.retain(|m| termes.iter().any(|t| m.id.contains(t)));
     }
     anyhow::ensure!(!missions.is_empty(), "no mission matches");
 
