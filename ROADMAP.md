@@ -2,6 +2,33 @@
 
 > Reste-à-faire **récupéré des anciens docs de conception** (avant archivage dans `docs/_archive/`) + chantiers en cours. Source de vérité du travail restant. Coché = fait.
 
+## 🔒 Audit sécurité & hygiène (2026-07-02) - PRIORITÉ ABSOLUE avant toute feature
+
+> Audit complet du projet (probes ciblés + connaissance du moteur/mémoire/outils déjà lus). Le cœur agentique est solide ; la **couche d'exposition réseau est le point faible critique**. Ordre imposé : sécurité réseau AVANT les features. Le fan-out d'agents d'audit a échoué (type d'agent pointé sur `deepseek-v4-flash` indisponible - cf. point config ci-dessous) : `brain.rs`/shell/secrets/micro-crates restent à auditer en profondeur.
+
+### 🔴 CRITIQUE - Cluster exposition réseau (les 4 se combinent en UNE vulnérabilité)
+- [ ] **Bind sur `0.0.0.0:8419`** (`laruche-node/src/main.rs:2839`) : serveur exposé à tout le LAN. → bind `127.0.0.1` par défaut, opt-in LAN explicite (env/flag).
+- [ ] **CORS grand ouvert** (`main.rs:2021` : `AllowOrigin::any()` + methods/headers `Any`) : n'importe quel site web visité peut requêter LaRuche via le navigateur. → restreindre à `localhost`/origines connues.
+- [ ] **Aucun middleware d'auth global** : ~178 routes, auth vérifiée à la main dans seulement 6 fichiers (channels, missions, profiles, settings, swarm). NON protégés : `memory_crud_api` (17 fns dont `memory_delete`/`node_delete`/`write`), `kanban_api` (9), `watchers_api`, `feed_api`, `tools_api`, `plugins_api`, `local_api`, `voice_api`, `mcp_api`, `blueprints_api`, `events_api`, `status_api`. → `route_layer` d'auth global (allowlist explicite pour les rares routes publiques).
+- [ ] **Scénario d'attaque** : LaRuche ouvert + site piégé → `fetch('http://127.0.0.1:8419/api/memory/node_delete',{method:POST})` efface/lit la mémoire cognitive ; idem depuis n'importe quel poste du LAN. Le fix auth cookie (`fd48aac`) protège la session, PAS les endpoints.
+- [ ] **Auto-sync mémoire mesh en HTTP clair + import non vérifié** (`main.rs:2882` : `fetch http://{peer}:8419/api/memory/export_changes` → import direct). Le `mesh_signer` ed25519 signe les sorties mais vérifier que `export_changes` VALIDE la signature en réception. Sinon : un peer malveillant/MITM injecte des faits → remontent dans le contexte agent (injection indirecte). → vérif signature obligatoire + HTTPS mesh.
+
+### 🔴 CRITIQUE - XSS chat
+- [ ] **Corps des messages agent rendu `marked.parse(text)` → `innerHTML` SANS sanitizer** (`laruche-dashboard/src/templates/js/chat.js:1203` et `:1653`). `marked` v5+ ne nettoie plus le HTML ; l'agent ramène du contenu web (`web_fetch`/`web_deep_search`) → page piégée avec `<img src=x onerror=...>` = exécution JS dans l'UI admin. → `DOMPurify.sanitize(marked.parse(text))`. (Le reste du code échappe correctement via `Utils.esc` : seul ce chemin fuit.)
+
+### 🟠 MAJEUR
+- [ ] **`marked.min.js` chargé d'un CDN externe** (`spa.html:15`, jsdelivr) : contredit le local-first/offline (pas de rendu markdown sans Internet) + aucun SRI (`integrity`) = exécution de code si le CDN est compromis. → vendoriser en local.
+- [ ] **Config d'agents cassée** : le type d'agent (`.claude/agents` ou équivalent) pointe sur `deepseek-v4-flash` indisponible → tout fan-out d'audit/orchestration échoue. → corriger le modèle par défaut des sous-agents.
+- [ ] **Vérifier les autres checks d'onboarding** (STT/TTS, TLS/HTTPS) : après le stub embeddings `done:false`, suspects d'afficher un statut décoratif non sondé (`laruche-node/src/local_api.rs`).
+
+### 🟡 MINEUR / dette
+- [ ] **`main.rs` ingérable** (~2900 lignes : boot, bind, TLS, backgrounds mesh, assemblage 178 routes, AppState). Le split `*_api.rs` est engagé mais le cœur reste monolithique - c'est ce qui rend le trou d'auth invisible (aucun point unique ne liste les routes protégées). → extraire le routeur + un module d'auth centralisé.
+- [ ] **Polling front cumulé** : plusieurs `setInterval` (propositions 20s, métriques, feed) tournent même onglet inactif. → pause sur `visibilitychange`.
+- [ ] **À AUDITER en profondeur (non couvert, fan-out échoué)** : `abeilles/shell.rs` + `execute_code.rs` (réalité sandbox, blocklist contournable, timeout), `secrets.rs` (fuite des valeurs dans les observations réinjectées ?), `mcp_client.rs`, micro-crates (`laruche-compaction` vs `escale` du moteur ? `laruche-events` vs `feed_journal` ? crates morts ?), et l'ancien `brain.rs` (heuristiques, duplication).
+
+### 🗑️ Dette moteur
+- [ ] **Tuer ou promouvoir l'ancien moteur `brain.rs` (~4000 lignes)** : encore le DÉFAUT sans `RUCHE_MOTEUR=butinage`. Le nouveau moteur `butinage` (durci toute la semaine : transcript natif, mémoire, deep-research, annulation, budget) doit devenir le défaut ; sinon on maintient deux moteurs divergents et chaque fix butinage laisse le bug dans brain. → décision : butinage par défaut, brain déprécié puis supprimé.
+
 ## 🐝 Moteur butinage, évals, outils & mémoire - audit expert appliqué (2026-07-01/02)
 
 > Audit complet de la boucle ReAct + implémentation. 15 commits (`5e979b5`..`59e6167`), workspace tests verts. Détails : messages de commit + notes de session.
