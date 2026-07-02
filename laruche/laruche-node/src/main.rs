@@ -58,8 +58,10 @@ mod reine_api;
 mod voice_config;
 mod totp;
 mod state;
+mod helpers;
 
 pub(crate) use state::*;
+pub(crate) use helpers::*;
 
 use anyhow::Result;
 use axum::{
@@ -146,10 +148,6 @@ use std::collections::VecDeque;
 
 // Web asset serving (SPA shell, CSS, concatenated JS) and i18n language-file
 // injection live in `web.rs` (handlers: web::spa_page / app_css / app_js / lang_file).
-const PEER_FETCH_TIMEOUT_MS: u64 = 4000;
-// Peer staleness window. MUST be > the mDNS re-announce interval (30s below),
-// otherwise a peer "flickers": it goes stale between two announcements. 90s tolerates 2 missed announcements.
-const PEER_STALE_SECS: i64 = 90;
 const MDNS_REANNOUNCE_INTERVAL_SECS: u64 = 2;
 
 // ======================== API Types ========================
@@ -239,32 +237,6 @@ struct AuthPendingResponse {
     expires_in_secs: i64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct OllamaModelInfo {
-    name: String,
-    size_gb: f64,
-    digest: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ModelsResponse {
-    models: Vec<OllamaModelInfo>,
-    default_model: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct PeerStatusResponse {
-    node_name: String,
-    capabilities: Vec<String>,
-    tokens_per_sec: f32,
-    queue_depth: usize,
-    memory_used_mb: u64,
-    memory_total_mb: u64,
-    memory_usage_pct: f32,
-    cpu_usage_pct: f32,
-    vram_total_mb: Option<u64>,
-}
-
 #[derive(Debug, Serialize)]
 struct SwarmModelInfo {
     host: String,
@@ -285,58 +257,6 @@ struct SwarmModelsResponse {
     models: Vec<SwarmModelInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
     default_models: Option<HashMap<String, String>>,
-}
-
-/// Infer a Miel capability from a model name using heuristics.
-/// Falls back to "llm" if no specific pattern is matched.
-fn infer_capability_from_model_name(name: &str) -> String {
-    let lower = name.to_lowercase();
-    if lower.contains("coder")
-        || lower.contains("codestral")
-        || lower.contains("deepseek-coder")
-        || lower.contains("starcoder")
-        || lower.contains("code")
-    {
-        return "code".into();
-    }
-    if lower.contains("llava")
-        || lower.contains("bakllava")
-        || lower.contains("moondream")
-        || lower.contains("minicpm-v")
-        || lower.contains("vision")
-    {
-        return "vlm".into();
-    }
-    if lower.contains("whisper") || lower.contains("audio") {
-        return "audio".into();
-    }
-    if lower.contains("nomic-embed")
-        || lower.contains("mxbai-embed")
-        || lower.contains("all-minilm")
-        || lower.contains("embed")
-    {
-        return "embed".into();
-    }
-    if lower.contains("stable-diffusion") || lower.contains("sdxl") || lower.contains("dall") {
-        return "image".into();
-    }
-    "llm".into()
-}
-
-/// Resolve capability for a model: first check CapabilityConfig mappings, then heuristic.
-fn resolve_model_capability(model_name: &str, capabilities: &[CapabilityConfig]) -> String {
-    // Check if any capability config explicitly maps this model
-    for cap in capabilities {
-        let cap_model = cap.model_name.to_lowercase();
-        let check = model_name.to_lowercase();
-        if check == cap_model
-            || check.starts_with(&format!("{}:", cap_model))
-            || cap_model.starts_with(&check)
-        {
-            return normalize_capability_label(&cap.capability);
-        }
-    }
-    infer_capability_from_model_name(model_name)
 }
 
 /// Best-effort local LAN IP (for the cert SAN list), via a UDP connect trick. No packet
@@ -367,165 +287,6 @@ fn ensure_self_signed_cert() -> Option<(String, String)> {
     std::fs::write(key_path, certified.key_pair.serialize_pem()).ok()?;
     info!(cert = cert_path, "generated self-signed TLS certificate for HTTPS");
     Some((cert_path.to_string(), key_path.to_string()))
-}
-
-/// Read the "llm" default model from the per-capability map, falling back to config.
-async fn get_llm_default(state: &AppState) -> String {
-    // First check profiles (new system)
-    let profiles = state.profiles.read().await;
-    if !profiles.active_model.model.is_empty() {
-        return profiles.active_model.model.clone();
-    }
-    drop(profiles);
-    // Fallback to old default_models
-    let dm = state.default_models.read().await;
-    dm.get("llm")
-        .cloned()
-        .unwrap_or_else(|| state.config.default_model.clone())
-}
-
-/// Override a config's provider/model with the per-channel choice (Settings >
-/// Channels). Channels without an override keep the global active model, so this
-/// is always safe to call. Lets e.g. Telegram run a tool-reliable model while the
-/// web chat uses a faster one.
-async fn apply_channel_model(state: &AppState, channel: &str, config: &mut EssaimConfig) {
-    let profiles = state.profiles.read().await;
-    if let Some((profile, model)) = profiles::model_for_channel(&profiles, channel) {
-        config.provider = profile.provider.clone();
-        config.api_key = profile.api_key.clone();
-        config.api_base = if profile.base_url.is_empty() {
-            None
-        } else {
-            Some(profile.base_url.clone())
-        };
-        config.model = model.to_string();
-    }
-}
-
-fn preview_text(input: &str, max_chars: usize) -> String {
-    let flat = input.replace(['\n', '\r'], " ");
-    let truncated: String = flat.chars().take(max_chars).collect();
-    if flat.chars().count() > max_chars {
-        format!("{truncated}...")
-    } else {
-        truncated
-    }
-}
-
-fn inject_no_think(prompt: &str, no_think: bool) -> String {
-    if no_think && !prompt.trim_start().starts_with("/no_think") {
-        format!("/no_think\n{prompt}")
-    } else {
-        prompt.to_string()
-    }
-}
-
-fn normalize_capability_label(raw: &str) -> String {
-    raw.strip_prefix("capability:")
-        .unwrap_or(raw)
-        .trim()
-        .to_lowercase()
-}
-
-fn normalize_capabilities(caps: Vec<String>) -> Vec<String> {
-    let mut normalized: Vec<String> = caps
-        .into_iter()
-        .map(|c| normalize_capability_label(&c))
-        .filter(|c| !c.is_empty())
-        .collect();
-    normalized.sort();
-    normalized.dedup();
-    normalized
-}
-
-fn merge_capabilities(primary: Vec<String>, fallback: Vec<String>) -> Vec<String> {
-    let mut merged = normalize_capabilities(primary);
-    for cap in normalize_capabilities(fallback) {
-        if !merged.contains(&cap) {
-            merged.push(cap);
-        }
-    }
-    merged.sort();
-    merged.dedup();
-    merged
-}
-
-fn format_host_for_url(host: &str) -> String {
-    if host.contains(':') && !host.starts_with('[') && !host.ends_with(']') {
-        format!("[{host}]")
-    } else {
-        host.to_string()
-    }
-}
-
-fn endpoint_url(host: &str, port: u16, path: &str) -> String {
-    let safe_host = format_host_for_url(host);
-    format!("http://{safe_host}:{port}{path}")
-}
-
-fn is_stale(last_seen: chrono::DateTime<chrono::Utc>) -> bool {
-    (chrono::Utc::now() - last_seen).num_seconds() > PEER_STALE_SECS
-}
-
-async fn fetch_peer_status(
-    client: &reqwest::Client,
-    host: &str,
-    port: u16,
-) -> Option<PeerStatusResponse> {
-    let url = endpoint_url(host, port, "/");
-    match client.get(url).send().await {
-        Ok(resp) if resp.status().is_success() => resp.json::<PeerStatusResponse>().await.ok(),
-        _ => None,
-    }
-}
-
-async fn fetch_models_from_node(
-    client: &reqwest::Client,
-    host: &str,
-    port: u16,
-) -> Option<ModelsResponse> {
-    let url = endpoint_url(host, port, "/models");
-    match client.get(url).send().await {
-        Ok(resp) if resp.status().is_success() => resp.json::<ModelsResponse>().await.ok(),
-        _ => None,
-    }
-}
-
-async fn fetch_local_models(
-    ollama_url: &str,
-    default_model: &str,
-) -> Result<ModelsResponse, StatusCode> {
-    let client = reqwest::Client::new();
-    let url = format!("{ollama_url}/api/tags");
-
-    match client.get(&url).send().await {
-        Ok(resp) => match resp.json::<serde_json::Value>().await {
-            Ok(body) => {
-                let models: Vec<OllamaModelInfo> = body["models"]
-                    .as_array()
-                    .unwrap_or(&vec![])
-                    .iter()
-                    .map(|m| OllamaModelInfo {
-                        name: m["name"].as_str().unwrap_or("unknown").to_string(),
-                        size_gb: m["size"].as_f64().unwrap_or(0.0) / 1_073_741_824.0,
-                        digest: m["digest"]
-                            .as_str()
-                            .unwrap_or("")
-                            .chars()
-                            .take(12)
-                            .collect(),
-                    })
-                    .collect();
-
-                Ok(ModelsResponse {
-                    models,
-                    default_model: default_model.to_string(),
-                })
-            }
-            Err(_) => Err(StatusCode::BAD_GATEWAY),
-        },
-        Err(_) => Err(StatusCode::SERVICE_UNAVAILABLE),
-    }
 }
 
 // Blueprint endpoints (list/create/delete parameterized cron automation templates, instantiate) -> moved to blueprints_api.rs
