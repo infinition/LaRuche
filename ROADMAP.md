@@ -82,7 +82,7 @@
 
 ### Skill « charte » de la Reine (expertise béton)
 - [x] **Charte LaReine** (skill hand-écrit, EN) : livrée dans `laruche/skills/lareine-charte/SKILL.md`, embarquée au build (`include_str!` dans `reine_live.rs`) + éditable en Mémoire (`system.prompt_reine`).
-- [x] **Introspection live (1re tranche, 2026-07-02)** : le juge reçoit un bloc « atelier » live - outils disponibles (registre réel) + trace des appels du brouillon jugé (échecs marqués) → le score METHODOLOGY se fonde sur les faits. Reste : schéma mémoire + roadmap dans le bloc.
+- [x] **Introspection live (2026-07-02, 2 tranches)** : bloc « atelier » (outils + trace réelle du brouillon) puis **domaines mémoire racine de la ruche** ajoutés au juge. Reste éventuel : roadmap dans le bloc.
 - [ ] **Maintenue par le curateur** : la charte se met à jour quand LaRuche évolue (processus continu).
 
 ### UI (câblé, livré avec le Tier 1)
@@ -112,7 +112,7 @@
 
 ### Bonus (forte valeur)
 - [ ] **Gardienne de marque et de style** : applique automatiquement le lexique FR de marque, l'anglais dans le code, zéro em dash, ton pro, sur chaque artefact généré. Automatise ce qui a été fait à la main.
-- [~] **Scorecard** : type + `juger()` + **journal JSONL `evals/reine-scorecards.jsonl` (2026-07-02)** + verdicts persistés en session (thought reine/verdict, restaurés au reload). Reste : le tableau de bord d'éval agrégé (la donnée existe maintenant).
+- [x] **Scorecard COMPLET (2026-07-02 soir)** : journal JSONL + verdicts persistés + **dashboard** (Settings > LaReine : totaux par verdict, moyennes des 5 axes en barres, tours moyens) via `/api/reine/scorecards`.
 - [ ] **Étoile polaire** : la Reine tient l'objectif d'une conversation/mission et détecte la dérive. Partiellement couvert par la supervision Tier 3 (stagnation de plan) ; le cap sur TOUTE l'interaction reste.
 
 ### Ordre de construction (déroulé, historique)
