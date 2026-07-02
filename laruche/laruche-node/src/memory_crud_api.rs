@@ -454,7 +454,41 @@ pub(crate) async fn api_memory_consolidate(
     let config = state.essaim_config.read().await.clone();
     let node = q.get("node").map(|s| s.as_str()).filter(|s| !s.is_empty());
     let res = match node {
-        Some(n) => laruche_essaim::brain::consolider_node(&state.memoire, &config, n).await,
+        Some(n) => {
+            // RECURSIVE: consolidate the node AND every node of its subtree - each
+            // node individually (merging children INTO the parent would destroy the
+            // structure). Before, sub-node items were silently ignored.
+            let prefixe = format!("{n}.");
+            let cibles: Vec<String> = state
+                .memoire
+                .list_nodes()
+                .await
+                .ok()
+                .and_then(|v| v.as_array().cloned())
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|x| {
+                            x.get("node_id")
+                                .or_else(|| x.get("id"))
+                                .and_then(|v| v.as_str())
+                                .filter(|id| *id == n || id.starts_with(&prefixe))
+                                .map(str::to_string)
+                        })
+                        .collect()
+                })
+                .filter(|v: &Vec<String>| !v.is_empty())
+                .unwrap_or_else(|| vec![n.to_string()]);
+            let mut rapports = Vec::new();
+            for cible in &cibles {
+                match laruche_essaim::brain::consolider_node(&state.memoire, &config, cible).await
+                {
+                    Ok(r) => rapports.push(r),
+                    Err(e) => rapports
+                        .push(serde_json::json!({ "node_id": cible, "error": e.to_string() })),
+                }
+            }
+            Ok(serde_json::json!({ "node_id": n, "nodes_traites": cibles.len(), "rapports": rapports }))
+        }
         None => laruche_essaim::brain::consolider_memoire(&state.memoire, &config).await,
     };
     Json(res.unwrap_or_else(|e| serde_json::json!({ "error": e.to_string() })))
