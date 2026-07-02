@@ -43,8 +43,8 @@
 - **Fixes transverses** : auth (secret cookie sauvé au boot = fini le re-login à chaque lancement, 401 diagnostiqués), onboarding embeddings = vraie sonde (était un stub `done:false`).
 
 ### 🔜 En attente (backlog priorisé)
-- [ ] **Mystère qwen3:8b aux évals** : 0/8, zéro tool call exécuté - trancher bug d'intégration tools Ollama vs modèle (`RUCHE_DEBUG_SSE=1`), re-lancer les évals sur `llamacpp` + gemma-4-12b, puis **figer la baseline** (`--save-baseline`).
-- [ ] **Check LLM de contradiction au write** (mémoire) : un UPDATE de fait (4070→5080) mesure 0.71 de similarité - hors de portée des embeddings. Bande 0.60-0.83 → micro-appel `aux_model` (« même fait / mise à jour / sans rapport ») → supersede auto ou proposition. Le chaînon d'une mémoire qui se met à jour seule.
+- [x] **Mystère qwen3:8b RÉSOLU** (2026-07-02) : c'était l'intégration tools d'**Ollama**, pas le harness. Via `llamacpp` + gemma-4-e4b, tool_calls natifs OK (test direct + évals contrôle 2/2, `controle_fichier` écrit vraiment). Bug corrigé au passage : usage OpenAI-compat (`b01700a`) - `stream_options.include_usage` arrive dans un chunk dédié qui était droppé (tokens=0). Reste : **figer la baseline** une fois la suite deep complète lancée (`--save-baseline`).
+- [x] **Check LLM de contradiction au write** (fait `656111a`) : trait `Arbitre`+`VerdictArbitre` (inversion de dépendance), bande d'ambiguïté 0.62-0.83 même domaine → `ArbitreLLM` (modèle aux, REPLACE/DISTINCT) → supersede ; échec = Distinct (jamais destructif), opt-out `LARUCHE_MEMOIRE_ARBITRE=0`. Test de régression déterministe.
 - [ ] **dream→reine_queue** : les suggestions du dream 6h (doublons legacy, surcharges, orphelins) deviennent des propositions actionnables dans la file LaReine (gate humain existant) = auto-nettoyage supervisé.
 - [ ] **Hebbien niveau 2** : ne renforcer que les rappels réellement UTILISÉS dans la réponse (mesurable par le juge des évals).
 - [ ] **OKF + git** : auto-commit du bundle exporté = mémoire time-travel (diff/rollback) puis **fédération mesh des faits** entre nœuds (provenance) - session dédiée.
