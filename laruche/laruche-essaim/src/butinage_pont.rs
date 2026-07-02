@@ -1134,6 +1134,13 @@ pub async fn lancer_curateur_arriere_plan(
     if transcript.chars().count() < 120 {
         return; // too short to warrant a review
     }
+    // Yield to live work: never compete with a chat/agent run for the local
+    // model. The curateur is spawned right after a run FINISHES, so a non-zero
+    // count here means OTHER sessions/jobs are actively working.
+    if runs_en_vol() > 0 {
+        tracing::info!(en_vol = runs_en_vol(), "curateur skipped (agent runs in flight)");
+        return;
+    }
     // Cooldown between reviews (default 10 min, tunable): a burst of turns gets
     // ONE review, not one per turn.
     let cooldown_secs: u64 = std::env::var("LARUCHE_CURATEUR_COOLDOWN_SECS")
@@ -1368,6 +1375,29 @@ pub async fn executer(
 
 /// Same as [`executer`], returning the full [`RapportMission`] (evals/API).
 #[allow(clippy::too_many_arguments)]
+/// Foreground-ish agentic runs currently in flight (chat, channels, missions,
+/// watchers, kanban, Reine reworks: everything goes through the engine facade).
+/// Background hygiene (the curateur) consults it to yield the local model.
+static RUNS_EN_VOL: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Number of agentic runs currently executing.
+pub fn runs_en_vol() -> usize {
+    RUNS_EN_VOL.load(std::sync::atomic::Ordering::SeqCst)
+}
+
+struct GardeRun;
+impl GardeRun {
+    fn nouvelle() -> Self {
+        RUNS_EN_VOL.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        GardeRun
+    }
+}
+impl Drop for GardeRun {
+    fn drop(&mut self) {
+        RUNS_EN_VOL.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
 pub async fn executer_avec_bilan(
     prompt_utilisateur: &str,
     session: &mut Session,
@@ -1380,6 +1410,8 @@ pub async fn executer_avec_bilan(
     attachments: &[crate::session::Attachment],
     approval_rx: Option<crate::brain::ApprovalReceiver>,
 ) -> Result<RapportMission> {
+    // Counted for the whole run, released on every exit path (Drop).
+    let _en_vol = GardeRun::nouvelle();
     let _ = tx.send(ChatEvent::Status {
         message: "Butinage engine active (default).".into(),
     });
@@ -1794,6 +1826,28 @@ pub async fn reprendre_carnet(
 #[cfg(test)]
 mod tests_prelude {
     use super::*;
+
+    #[test]
+    fn compteur_runs_en_vol_libere_sur_tous_les_chemins() {
+        let base = runs_en_vol();
+        {
+            let _g = GardeRun::nouvelle();
+            assert_eq!(runs_en_vol(), base + 1);
+            {
+                let _g2 = GardeRun::nouvelle();
+                assert_eq!(runs_en_vol(), base + 2);
+            }
+            assert_eq!(runs_en_vol(), base + 1);
+        }
+        assert_eq!(runs_en_vol(), base);
+        // Released even when the run panics (Drop): the curateur must never be
+        // starved forever by a crashed run.
+        let _ = std::panic::catch_unwind(|| {
+            let _g = GardeRun::nouvelle();
+            panic!("boom");
+        });
+        assert_eq!(runs_en_vol(), base);
+    }
 
     #[test]
     fn prelude_reinjecte_les_tours_et_ignore_le_bruit() {
