@@ -143,6 +143,16 @@
 - [x] **Audit logging** : helper **`log_activite`** → les événements **sécurité** (login OK/échec, nouveau compte, suppression/rôle admin) remontent maintenant dans le **volet Audit** du Dashboard (avant : CLI seulement).
 - [x] **Refonte TUI (façon Claude Code)** : moniteur mono-log → **5 vues à onglets** (Overview / Logs / Activity / Sessions / Swarm) + **palette de commandes slash** (`/` → complétion live `/overview /logs /activity /sessions /swarm /clear /help /quit`, Tab complète, Entrée exécute) · `Tab`/`1-5` navigation · `?` aide.
 
+## ✅ Batch UX & fiabilité chat/boot/outils (2026-07-02 après-midi)
+- [x] **Boot 6s au lieu de plusieurs minutes** : sync skills disque→SQL INCRÉMENTALE (fini le delete+rewrite des 71 skills à chaque boot, qui déclenchait embed+arbitre LLM par skill) + sync et chargement MCP en arrière-plan (computer-use python = 8s d'imports mesurés) + chronos de phase `boot: ... t_ms` permanents.
+- [x] **Sessions chat fiables** : miroir live (F5 en plein run = reprise à l'identique, plan/outils/résultats), plan persisté pour les vieilles sessions, titre immédiat (fini « Sans titre » pendant un run), pastille onglet Chat (desktop+mobile) + par conversation.
+- [x] **Roue de chargement au boot** (plus de page login pendant le démarrage, 401/403 seuls mènent au login) + launcher `.bat` qui n'ouvre le navigateur que quand le node répond.
+- [x] **`tool_call`/`tool_search`/`run_script` sur le registre principal LIVE** (étaient sur le sub_registry builtins-only : 'Unknown tool: cron_list' + hallucination) ; scouts inchangés (sous-registre réduit, pas de fan-out récursif).
+- [x] **Parser tool-call tolérant** : forme attributs des modèles locaux (`<tool_call name="x" arguments={...}>`) parsée + masquée au streaming ; chaîne exacte observée gelée en test.
+- [x] **Outils missions** : `mission_list`/`mission_create` (approbation)/`mission_delete` + cadences de missions visibles dans `cron_list` et `/api/cron` (kind=mission) = une réponse vraie à « qu'est-ce qui est planifié ? ». Hint de capacités mis à jour.
+- [x] **Catalogue skills complet rétabli** (nom + description ~2k tokens, toute requête non triviale) - il était filtré par tokens de la requête via le couplage au Lever 2 ; les corps restent lazy (`skill_view`).
+- [x] **Éval deep terminée** (l'autre session) → l'item « figer la baseline » (`--save-baseline`) est actionnable.
+
 ## ✅ Fait récemment
 - [x] **Rangement racine** : `README.md` à jour + archivage des docs/scripts/lanceurs (`docs/_archive/`, `_archive/`, `laruche/_archive/`) + `.gitignore` durci.
 - [x] **Split `spa.html`** → `app.css` + `app.js` + routes node (`/app.css`, `/app.js`).
