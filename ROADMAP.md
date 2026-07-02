@@ -48,8 +48,8 @@
 - [ ] **dream→reine_queue** : les suggestions du dream 6h (doublons legacy, surcharges, orphelins) deviennent des propositions actionnables dans la file LaReine (gate humain existant) = auto-nettoyage supervisé.
 - [ ] **Hebbien niveau 2** : ne renforcer que les rappels réellement UTILISÉS dans la réponse (mesurable par le juge des évals).
 - [ ] **OKF + git** : auto-commit du bundle exporté = mémoire time-travel (diff/rollback) puis **fédération mesh des faits** entre nœuds (provenance) - session dédiée.
-- [ ] **FTS moins permissive** : exiger ≥2 tokens matchés (un token commun fait remonter des synthèses hors-sujet, classées derrière mais bruit).
-- [ ] **Évals mémoire** : scénarios « bruit du recall » et « supersede » en missions protégées dans `evals/missions.json`.
+- [x] **FTS moins permissive** (fait `04514c3`) : requête riche (≥3 tokens) exige ≥2 tokens matchés ; requêtes courtes gardent le OR permissif.
+- [x] **Évals mémoire** (fait `04514c3`) : scénarios « bruit du recall » et « supersede inter-nœuds » protégés par tests de régression déterministes dans `laruche-memoire` (mieux que missions LLM non-déterministes).
 - [ ] **Audit des checks d'onboarding restants** (STT/TTS, TLS) - suspects d'être des stubs comme l'était le check embeddings.
 - [ ] **Référentiel multi-provider (doc Sonnet)** : validation client-side des args vs JSON Schema avant exécution (filet non-négociable modèles locaux), puis `tool_choice`/`parallel_tool_calls` par provider, parser pythonic, tests de non-régression par modèle (jeu de tool calls fixes).
 
