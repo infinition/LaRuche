@@ -25,13 +25,13 @@
 - [x] **Polling front cumulé CORRIGÉ (2026-07-02)** : helper central `LaRuche.Poll.every/stop` (core.js) - tick sauté onglet caché, rattrapage immédiat au retour. 14 pollings convertis ; les flux d'auth (codex, challenge login) restent en `setInterval` volontairement.
 - [ ] **Blocklist shell contournable** (`shell.rs` : `BLOCKED_PATTERNS` par sous-chaîne, `rm  -rf  /` double-espace passe) : ralentisseur, le VRAI contrôle est le gate d'approbation (`niveau_danger`=NeedsApproval + popup) + timeout. Sandbox OS dure = chantier différé. `secrets.rs` vérifié : valeurs jamais sérialisées/logguées (bon).
 - [x] **Audit profond FAIT (2026-07-02)** : `execute_code.rs` sain (gate approbation, python -I, timeout 30s, caps, troncature char-safe ; fix : broken pipe stdin non fatal). `mcp_client.rs` : **timeout 60s par requête ajouté** (un serveur MCP muet au handshake bloquait le BOOT du node pour toujours) + reap du process (zombies Unix) + outil malformé loggué. Micro-crates : **aucun crate workspace mort** (`laruche-evals` harness binaire et `laruche-dashboard` porte-assets = voulus sans dépendants) ; `laruche-compaction` vs `escale` = doublon assumé, compaction ne sert que brain.rs+session.rs et mourra avec brain ; `laruche-events` (EventBus volatile) vs `feed_journal` (NDJSON persisté) = rôles distincts, pas un doublon.
-- [ ] **`laruche-channels/` (Python)** : bots telegram/discord/slack legacy plus référencés nulle part dans le Rust (canaux natifs) → à archiver dans `_archive/` après confirmation user.
-- [ ] **Duplication `log_activite`** (repérée au split de main.rs) : le heartbeat Ollama et les dispatchers cron/watcher/kanban (`background.rs`) reconstruisent `ActivityLogEntry` à la main au lieu d'appeler le helper `log_activite`. Pas un bug, juste de la duplication à résorber.
-- [ ] **Imports inutilisés préexistants** (~9 warnings : knowledge_api, plugins_api, profiles_api, voice_api, laruche-essaim) → passe `cargo fix` rapide.
+- [x] **`laruche-channels/` archivé (2026-07-02)** dans `laruche/_archive/` (confirmé user, canaux natifs Rust).
+- [x] **Duplication `log_activite` résorbée (2026-07-02)** : `log_activite_riche` (prompt/réponse/modèle) + les 5 constructions manuelles de `background.rs` passent par les helpers.
+- [x] **Warnings purgés (2026-07-02)** : essaim + node à ZÉRO warning (imports, serde rename mcpServers, dead-fields documentés). Restent 4 warnings préexistants dans laruche-cli.
 
 ### 🗑️ Dette moteur
 - [x] **Butinage PAR DÉFAUT (fait 2026-07-02)** : `moteur_butinage_actif()` centralisé dans `butinage_pont` - butinage par défaut, `RUCHE_MOTEUR=brain` = opt-out déprécié avec warn (une fois), l'ancien opt-in `=butinage` reste accepté (no-op). Dispatch unique vérifié (chat, canaux, missions, Reine).
-- [ ] **Supprimer `brain.rs` (~4000 lignes)** une fois la dépréciation digérée (quelques semaines de runtime butinage sans regression) ; `laruche-compaction` part avec lui (session.rs à migrer sur `escale`).
+- [x] **Boucle legacy de `brain.rs` SUPPRIMÉE (2026-07-02, confirmé user)** : `_ext` = façade vers le pont, ~2600 lignes retirées (boucle + 26 helpers morts + 10 tests orphelins), fallback JSON brut sauvé et câblé dans le pont. `brain.rs` garde les types/parsers/wrapper mémoire partagés (3000 lignes). `laruche-compaction` reste VIVANT (session.rs + events Budget), contrairement à l'hypothèse initiale.
 
 ## 🐝 Moteur butinage, évals, outils & mémoire - audit expert appliqué (2026-07-01/02)
 
