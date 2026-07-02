@@ -29,8 +29,25 @@ pub(crate) async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::M
             continue;
         };
         let node_id = format!("capacities.skills.{slug}");
+        let existing = memoire.read_node(&node_id).await.ok();
+        // INCREMENTAL: skip when the SQL copy already matches the disk file. The
+        // unconditional delete+rewrite re-embedded every skill at every boot and
+        // could consult the write arbiter (aux LLM) per skill; with the LLM busy,
+        // startup crawled for minutes. Unchanged file = untouched row.
+        let identique = existing
+            .as_ref()
+            .and_then(|node| node.get("items").and_then(|i| i.as_array()))
+            .map(|items| {
+                items.len() == 1
+                    && items[0].get("content").and_then(|c| c.as_str())
+                        == Some(content.as_str())
+            })
+            .unwrap_or(false);
+        if identique {
+            continue;
+        }
         // Replace the existing item (skill = single item).
-        if let Ok(node) = memoire.read_node(&node_id).await {
+        if let Some(node) = existing {
             if let Some(items) = node.get("items").and_then(|i| i.as_array()) {
                 for it in items {
                     if let Some(id) = it.get("id").and_then(|x| x.as_str()) {

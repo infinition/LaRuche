@@ -602,6 +602,10 @@ async fn main() -> Result<()> {
     laruche_essaim::abeilles::enregistrer_forge(&essaim_registry, essaim_registry.clone());
     essaim_registry.enregistrer(Box::new(abeilles_local::AbeilleMeshSend));
 
+    // Boot phase chronometer: each heavy startup step logs its cumulative time,
+    // so a slow boot points at its culprit instead of a silent multi-second gap.
+    let boot_t0 = std::time::Instant::now();
+
     // Migration `tools.* → capacities.*` (idempotent, run at every boot but no-op afterwards).
     // The forged skills (real data) are PRESERVED; tools.abeilles (a mere projection)
     // is purged then recreated by the indexer under capacities.tools/plugins/mcp.
@@ -614,6 +618,7 @@ async fn main() -> Result<()> {
         Err(e) => tracing::warn!(error = %e, "skills migration skipped (backend without support)"),
     }
     let _ = memoire.supprimer_sous_arbre("tools").await; // purge the remaining legacy projection
+    info!(t_ms = boot_t0.elapsed().as_millis() as u64, "boot: legacy tools migration done");
 
     // Map nodes (virtual .md files). Created empty if absent (idempotent).
     // `capacities.*` = tool ecosystem (protected); `system.*` = editable prompt/SOUL base.
@@ -710,6 +715,7 @@ async fn main() -> Result<()> {
                 .await;
         }
     }
+    info!(t_ms = boot_t0.elapsed().as_millis() as u64, "boot: map nodes + seed done");
 
     // Index the tool registry into the map (capacities.*) RIGHT FROM startup, incrementally,
     // so any new tool is visible in memory and semantically retrievable.
@@ -719,24 +725,48 @@ async fn main() -> Result<()> {
     {
         tracing::warn!(error = %e, "tool indexing at startup skipped");
     }
+    info!(t_ms = boot_t0.elapsed().as_millis() as u64, "boot: tool indexing done");
 
-    // Phase 1: flat-file layer: disk → SQL sync of skills (skills/<slug>/SKILL.md).
-    changes_api::sync_skills_disk_to_sql(&memoire).await;
+    // Phase 1: flat-file layer: disk → SQL sync of skills (skills/<slug>/SKILL.md),
+    // in the BACKGROUND. Unchanged files are no-ops (incremental), but a real
+    // resync re-embeds and can consult the write arbiter (aux LLM): with the LLM
+    // busy that took minutes and must never delay the HTTP bind.
+    {
+        let mem_sync = memoire.clone();
+        let t0 = boot_t0;
+        tokio::spawn(async move {
+            changes_api::sync_skills_disk_to_sql(&mem_sync).await;
+            info!(t_ms = t0.elapsed().as_millis() as u64, "boot: skills disk->SQL sync done (background)");
+        });
+    }
 
-    // Load MCP servers
-    let (_count, mcp_clients) =
-        charger_mcp_servers(std::path::Path::new("mcp_servers.json"), &essaim_registry).await;
-    let mcp_clients = Arc::new(mcp_clients);
-    essaim_registry.enregistrer(Box::new(
-        laruche_essaim::abeilles::mcp_resources::McpListResources {
-            clients: mcp_clients.clone(),
-        },
-    ));
-    essaim_registry.enregistrer(Box::new(
-        laruche_essaim::abeilles::mcp_resources::McpReadResource {
-            clients: mcp_clients.clone(),
-        },
-    ));
+    // Load MCP servers in the BACKGROUND: a slow server must not delay the HTTP
+    // bind (the computer-use python server takes 8s+ of imports before answering
+    // the handshake; a mute one costs the full 60s request timeout). The registry
+    // has interior mutability, so MCP tools and the resource abeilles register
+    // themselves as soon as each server is ready.
+    {
+        let registry_mcp = essaim_registry.clone();
+        tokio::spawn(async move {
+            let (count, mcp_clients) =
+                charger_mcp_servers(std::path::Path::new("mcp_servers.json"), &registry_mcp)
+                    .await;
+            let mcp_clients = Arc::new(mcp_clients);
+            registry_mcp.enregistrer(Box::new(
+                laruche_essaim::abeilles::mcp_resources::McpListResources {
+                    clients: mcp_clients.clone(),
+                },
+            ));
+            registry_mcp.enregistrer(Box::new(
+                laruche_essaim::abeilles::mcp_resources::McpReadResource {
+                    clients: mcp_clients.clone(),
+                },
+            ));
+            if count > 0 {
+                info!(tools = count, "MCP servers ready (background load)");
+            }
+        });
+    }
 
     // Initialize RAG knowledge base
     let kb = Arc::new(tokio::sync::RwLock::new(
