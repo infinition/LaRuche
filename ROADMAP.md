@@ -18,13 +18,13 @@
 ### ✅ MAJEUR (CORRIGÉ, commit 9b1ccca)
 - [x] **marked + DOMPurify + highlight.js vendorisés** dans `templates/vendor/`, servis via `/vendor/:name` (`web::vendor_js`), thème hljs inline dans app.css, `sw.js` v2 cache les vendors. Fin des `<script>` CDN (offline réel, zéro dépendance externe au chargement).
 - [x] **Onboarding embeddings = vraie sonde** (déjà fait `0943092`) ; checks voix/Chrome vérifiés RÉELS (pas des stubs) ; "warning" STT/TTS/TLS = état honnête (services non lancés).
-- [ ] **Config d'agents (hors projet)** : `~/.claude.json` pointe le modèle des sous-agents Claude Code sur `deepseek-v4-flash` indisponible → fan-out d'audit KO. Réglage APP Claude Code, à corriger côté user (pas dans le repo).
+- [x] **Config d'agents (hors projet) CORRIGÉ (2026-07-02, côté user)** : le launcher `.0xid/apps/claude-code.bat` écrasait `~/.claude/settings.json` avec `CLAUDE_CODE_SUBAGENT_MODEL=deepseek-v4-flash` pour les profils DeepSeek/Local. Fix : profils `CLAUDE_CONFIG_DIR` dédiés (`~/.claude-deepseek`, `~/.claude-local`) + `~/.claude` nettoyé (`env: {}`). Fan-out de sous-agents rétabli.
 
 ### 🟡 MINEUR / dette (non bloquant)
 - [ ] **`main.rs` ingérable** (~3000 lignes). → extraire le routeur + centraliser l'auth (le `auth_guard` global est un premier pas : l'auth n'est plus éparpillée).
 - [ ] **Polling front cumulé** : plusieurs `setInterval` tournent même onglet inactif. → pause sur `visibilitychange`.
 - [ ] **Blocklist shell contournable** (`shell.rs` : `BLOCKED_PATTERNS` par sous-chaîne, `rm  -rf  /` double-espace passe) : ralentisseur, le VRAI contrôle est le gate d'approbation (`niveau_danger`=NeedsApproval + popup) + timeout. Sandbox OS dure = chantier différé. `secrets.rs` vérifié : valeurs jamais sérialisées/logguées (bon).
-- [ ] **À AUDITER en profondeur (fan-out KO)** : `execute_code.rs`, `mcp_client.rs`, micro-crates (`laruche-compaction` vs `escale` ? `laruche-events` vs `feed_journal` ? crates morts ?).
+- [ ] **À AUDITER en profondeur (fan-out rétabli, audit à relancer)** : `execute_code.rs`, `mcp_client.rs`, micro-crates (`laruche-compaction` vs `escale` ? `laruche-events` vs `feed_journal` ? crates morts ?).
 
 ### 🗑️ Dette moteur
 - [ ] **Tuer ou promouvoir l'ancien moteur `brain.rs` (~4000 lignes)** : encore le DÉFAUT sans `RUCHE_MOTEUR=butinage`. → décision : butinage par défaut, brain déprécié puis supprimé.
@@ -73,46 +73,46 @@
 - **Cœur pur et testé** dans `laruche-butinage/src/cap/reine.rs` (à côté de vigie/boussole) : `ModeReine`, `ConfigReine`, `Verdict`, `Scorecard`, contrôleur de tours borné. La décision est pure ; l'appel LLM du juge vit dans la couche d'intégration.
 
 ### Skill « charte » de la Reine (expertise béton)
-- [ ] **Charte LaReine** (skill hand-écrit, EN) : valeurs, lexique de marque, à quoi ressemble une bonne réponse / un bon skill / un bon tool / une bonne entrée mémoire, anti-patterns. C'est sa **rubrique de jugement**, stable.
-- [ ] **Introspection live** : droit de LIRE l'état réel au moment de juger (registre skills, registre tools, schéma mémoire, roadmap) plutôt qu'une carte figée qui pourrit.
-- [ ] **Maintenue par le curateur** : la charte se met à jour quand LaRuche évolue.
+- [x] **Charte LaReine** (skill hand-écrit, EN) : livrée dans `laruche/skills/lareine-charte/SKILL.md`, embarquée au build (`include_str!` dans `reine_live.rs`) + éditable en Mémoire (`system.prompt_reine`).
+- [ ] **Introspection live** : droit de LIRE l'état réel au moment de juger (registre skills, registre tools, schéma mémoire, roadmap). Aujourd'hui le juge reçoit charte + contexte de conversation ; il ne consulte pas encore les registres au moment de juger.
+- [ ] **Maintenue par le curateur** : la charte se met à jour quand LaRuche évolue (processus continu).
 
-### UI (à câbler après le split de main.rs)
-- [ ] **Bouton couronne activable** à côté du dropdown de choix LLM (header chat).
-- [ ] **Slider nb max de revues** : **0 = OFF**, **1 à 10 = tours max** (elle s'arrête dès que la réponse passe ; pas d'infini = pas de runaway tokens/latence).
-- [ ] **Sélecteur de mode** : Off / Auto / Hybride / Humaine.
-- [ ] **Provider/modèle de la Reine** dans Settings (comme le provider par canal ; juge fort ou petit/local au choix).
-- [ ] **LaReine visible dans le chat** : locuteur distinct (avatar couronne), affiche verdict + instruction renvoyée, trace méthodo repliable. Mode Humaine = l'utilisateur prend son siège.
+### UI (câblé, livré avec le Tier 1)
+- [x] **Bouton couronne activable** à côté du dropdown de choix LLM (header chat).
+- [x] **Slider nb max de revues** : 0 = OFF, 1 à 10 = tours max, + case « illimité » (sentinel 255, opt-in explicite).
+- [x] **Sélecteur de mode** : Off / Auto / Hybride / Humaine (Settings > LaReine).
+- [x] **Provider/modèle de la Reine** dans Settings (dropdown des profils provider, défaut = même que le chat).
+- [x] **LaReine visible dans le chat** : avatar couronne distinct, verdict + analyse affichés, re-run streamé en direct. Mode Humaine = l'utilisateur prend son siège.
 - [x] **Voix de la Reine** (Kokoro/Voicebox TTS) : système voix complet livré (TTS streamé, appel plein écran, barge-in, mot d'éveil, Telegram bidirectionnel) - cf. section Mode Reine ambiant.
 
 ### Tiers d'autorité (activables séparément)
-- [ ] **Tier 1 - Revue de réponse** (cas chat). Risque bas, à livrer en premier. Modes Auto/Hybride/Humaine.
-- [ ] **Tier 2 - Revue d'artefacts via file de propositions (façon pull requests)** : à la création d'un skill / tool / édition mémoire / mission auto-générée, la proposition entre dans une **file durable** que la Reine draine (valide / corrige / rejette). Séparation créateur (curateur) / relecteur (Reine). Décisions actées :
+- [x] **Tier 1 - Revue de réponse** (cas chat). Livré (cf. État) : juge + re-run agentique réel streamé, appliqué au chat ET aux missions (`revue_mission`).
+- [x] **Tier 2 - Revue d'artefacts via file de propositions (façon pull requests)** : livré (cf. État) - file durable `reine_file.rs` (statut `Obsolete` + `base_version` = détection d'obsolescence, péremption 14j, backlog découplé invariant testé, risk-tier). Décisions actées (toutes implémentées) :
   - **File découplée de la Reine** : c'est un store de premier rang, pas la propriété du toggle. **Désactiver la Reine ne perd jamais le backlog** : les propositions en attente restent gelées et visibles (Mémoire > En attente), actionnables à la main ; seules les **nouvelles** écritures repassent en direct. Notice non bloquante à la désactivation. (invariant testé : `transition_desactivation`).
   - **Risk-tier** pour ne pas noyer l'utilisateur : auto-approuve le **sûr** (fait nouveau non contradictoire) ; **toujours** mettre en file / escalader le **critique** (suppression, écrasement, contradiction) - jamais d'auto-apply destructif.
   - **Détection d'obsolescence** : une proposition versionnée contre sa cible passe en **Obsolète** (« needs rebase ») si la cible a bougé depuis, au lieu d'écraser à l'aveugle.
   - **Péremption** : TTL propre à la file, indépendant de la Reine, pour éviter un backlog qui pourrit.
   - Hook existant : `background_review.rs` (`memory_write`, `skill_propose`) à rediriger de l'auto-apply vers la file. Cœur pur fait : `laruche-essaim/src/reine_file.rs` (10 tests).
-- [ ] **Tier 3 - Orchestration proactive** (boucle superviseur OFF par défaut) : elle initie, missionne des abeilles (ranger une section mémoire, fusionner des tools en doublon), vérifie le résultat.
+- [x] **Tier 3 - Orchestration proactive** (boucle superviseur OFF par défaut) : livré en anti-blocage (`cap::reine::superviser` : stagnation → recentrage → escalade, opt-in). L'orchestration « elle initie des missions de rangement » reste couverte par dream→reine_queue (backlog moteur).
 
 ### Garde-fous (non négociables)
-- [ ] **Destructif = soft-delete réversible + log d'audit**, jamais de hard delete. memoire.db jamais touché à la légère.
-- [ ] **Confirmation humaine** au-dessus d'un seuil de risque (au moins tant que la confiance n'est pas établie).
-- [ ] **La Reine ne se relit pas elle-même** (anti-récursion) ; l'utilisateur peut **toujours la surcharger**.
+- [ ] **Destructif = soft-delete réversible + log d'audit**, jamais de hard delete. memoire.db jamais touché à la légère. (= « garde-fous destructifs avancés » du reste LaReine)
+- [x] **Confirmation humaine** au-dessus d'un seuil de risque : via risk-tier - le critique (suppression, écrasement, contradiction) va TOUJOURS en file (gate humain), jamais d'auto-apply destructif.
+- [x] **La Reine ne se relit pas elle-même** (anti-récursion) : structurel - elle juge le travail de l'abeille, jamais son propre verdict ; re-runs bornés ; mode Humaine = l'utilisateur la surcharge.
 - [ ] **Anti-régression** : une révision qui n'améliore pas un signal mesurable peut revenir au brouillon d'origine.
-- [ ] **Borné en coût** : slider de tours + cadence de la boucle superviseur.
+- [x] **Borné en coût** : slider de tours (illimité = opt-in explicite) + supervision Tier 3 opt-in OFF par défaut.
 
 ### Bonus (forte valeur)
 - [ ] **Gardienne de marque et de style** : applique automatiquement le lexique FR de marque, l'anglais dans le code, zéro em dash, ton pro, sur chaque artefact généré. Automatise ce qui a été fait à la main.
-- [ ] **Scorecard** : chaque intervention émet un score structuré (pertinence / méthodo / objectif / conformité marque) -> tableau de bord d'éval + carburant pour le curateur.
-- [ ] **Étoile polaire** : la Reine tient l'objectif d'une conversation/mission et détecte la dérive (la boussole oriente DANS une boucle ; la Reine tient le cap SUR toute l'interaction).
+- [~] **Scorecard** : le type `Scorecard` + `juger()` existent (`cap/reine.rs`) et portent chaque verdict. Reste : le tableau de bord d'éval agrégé.
+- [ ] **Étoile polaire** : la Reine tient l'objectif d'une conversation/mission et détecte la dérive. Partiellement couvert par la supervision Tier 3 (stagnation de plan) ; le cap sur TOUTE l'interaction reste.
 
-### Ordre de construction
-1. Cœur pur `cap/reine.rs` (types + contrôleur de tours borné + tests) + charte skill + clés i18n. **(en cours, isolé de main.rs)**
-2. Hook de revue synchrone (Tier 1) dans `brain.rs` + appel LLM du juge.
-3. Câblage UI (bouton/slider/mode/provider) + endpoint `reine_api.rs` + route Router **(après le split de main.rs)**.
-4. Tier 2 : brancher le même juge sur la création d'artefacts.
-5. Tier 3 : boucle superviseur optionnelle + garde-fous destructifs.
+### Ordre de construction (déroulé, historique)
+1. ~~Cœur pur `cap/reine.rs` + charte skill + clés i18n~~ **FAIT**
+2. ~~Hook de revue synchrone (Tier 1) + appel LLM du juge~~ **FAIT**
+3. ~~Câblage UI + endpoint `reine_api.rs`~~ **FAIT**
+4. ~~Tier 2 : le juge sur la création d'artefacts (file)~~ **FAIT**
+5. Tier 3 : ~~boucle superviseur optionnelle~~ **FAIT** ; garde-fous destructifs avancés (soft-delete + anti-régression) **RESTE**.
 
 ## ✅ Revue projet exhaustive & corrections (audit complet)
 
