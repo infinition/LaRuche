@@ -342,6 +342,7 @@ LaRuche.Timeline = (function(){
     var events = [];
     (crons||[]).forEach(function(c){
       if(c.enabled===false) return;
+      if(c.kind==='mission') return; // /api/cron now lists mission cadences too; here they come from /api/missions (richer)
       var nx = nextCron(c.cron_expr, now);
       events.push({kind:'cron', id:c.id, name:c.name||LaRuche.i18n.t('automations.cronSansNom'), expr:c.cron_expr||'', human:humanCron(c.cron_expr),
         next:nx, last:c.last_run||null, runs:c.run_count||0, status:c.last_status||'', icon:'⏰', color:'var(--amber)'});

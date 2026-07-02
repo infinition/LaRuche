@@ -173,6 +173,7 @@ impl Abeille for AbeilleCronCreate {
 
 pub struct AbeilleCronList {
     pub cron_store: Arc<RwLock<laruche_essaim::cron::CronScheduler>>,
+    pub missions: Arc<RwLock<crate::missions::MissionStore>>,
 }
 
 #[async_trait]
@@ -186,7 +187,7 @@ impl Abeille for AbeilleCronList {
     }
 
     fn description(&self) -> &str {
-        "List all scheduled tasks."
+        "List everything scheduled: cron tasks AND mission cadences (kind='mission', managed via mission_* tools)."
     }
 
     fn schema(&self) -> Value {
@@ -202,7 +203,7 @@ impl Abeille for AbeilleCronList {
         _ctx: &ContextExecution,
     ) -> anyhow::Result<ResultatAbeille> {
         let cron = self.cron_store.read().await;
-        let tasks: Vec<Value> = cron
+        let mut tasks: Vec<Value> = cron
             .list()
             .iter()
             .map(|t| {
@@ -215,6 +216,19 @@ impl Abeille for AbeilleCronList {
                 })
             })
             .collect();
+        drop(cron);
+        // Mission cadences are schedules too: list them here so "what is
+        // scheduled?" gets ONE truthful answer. Managed via mission_* tools.
+        let store = self.missions.read().await;
+        for m in store.list().iter().filter(|m| m.cadence.is_some()) {
+            tasks.push(json!({
+                "id": format!("mission:{}", m.slug),
+                "name": format!("Mission: {}", m.objective),
+                "cron_expr": m.cadence,
+                "enabled": m.status == "active",
+                "kind": "mission",
+            }));
+        }
 
         Ok(ResultatAbeille::ok(
             serde_json::to_string(&tasks).unwrap_or_default(),
@@ -273,6 +287,213 @@ impl Abeille for AbeilleCronDelete {
         Ok(ResultatAbeille::err(
             "Task not found or invalid ID".to_string(),
         ))
+    }
+}
+
+pub struct AbeilleMissionList {
+    pub missions: Arc<RwLock<crate::missions::MissionStore>>,
+}
+
+#[async_trait]
+impl Abeille for AbeilleMissionList {
+    fn nom(&self) -> &str {
+        "mission_list"
+    }
+
+    fn niveau_danger(&self) -> NiveauDanger {
+        NiveauDanger::Safe
+    }
+
+    fn description(&self) -> &str {
+        "List the long-running missions (objective, cadence, status, iterations, last run)."
+    }
+
+    fn schema(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {}
+        })
+    }
+
+    async fn executer(
+        &self,
+        _args: Value,
+        _ctx: &ContextExecution,
+    ) -> anyhow::Result<ResultatAbeille> {
+        let store = self.missions.read().await;
+        let items: Vec<Value> = store
+            .list()
+            .iter()
+            .map(|m| {
+                json!({
+                    "slug": m.slug,
+                    "objective": m.objective,
+                    "cadence": m.cadence,
+                    "status": m.status,
+                    "iterations": m.iterations,
+                    "last_run": m.last_run,
+                    "channel": m.channel,
+                })
+            })
+            .collect();
+        Ok(ResultatAbeille::ok(
+            serde_json::to_string(&items).unwrap_or_default(),
+        ))
+    }
+}
+
+pub struct AbeilleMissionCreate {
+    pub missions: Arc<RwLock<crate::missions::MissionStore>>,
+}
+
+#[async_trait]
+impl Abeille for AbeilleMissionCreate {
+    fn nom(&self) -> &str {
+        "mission_create"
+    }
+
+    fn niveau_danger(&self) -> NiveauDanger {
+        NiveauDanger::NeedsApproval
+    }
+
+    fn description(&self) -> &str {
+        "Create a long-running mission. `objective` = what to accomplish across iterations; \
+         `cadence` = optional cron expression (e.g. '0 9 * * *') for automatic iterations, \
+         omit it for a manual mission; `channel` = optional delivery channel for reports."
+    }
+
+    fn schema(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "objective": { "type": "string", "description": "Mission objective" },
+                "cadence": { "type": "string", "description": "Cron expression for automatic iterations (optional)" },
+                "channel": { "type": "string", "description": "Delivery channel, e.g. telegram:123 (optional)" }
+            },
+            "required": ["objective"]
+        })
+    }
+
+    async fn executer(
+        &self,
+        args: Value,
+        _ctx: &ContextExecution,
+    ) -> anyhow::Result<ResultatAbeille> {
+        let objective = match args["objective"].as_str().map(str::trim) {
+            Some(o) if !o.is_empty() => o.to_string(),
+            _ => {
+                return Ok(ResultatAbeille::err(
+                    "Parameter 'objective' is required.".to_string(),
+                ))
+            }
+        };
+        let cadence = args["cadence"]
+            .as_str()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(String::from);
+        let channel = args["channel"]
+            .as_str()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(String::from);
+        let slug = crate::missions::slugify(&objective);
+        {
+            let mut store = self.missions.write().await;
+            if store.get(&slug).is_some() {
+                return Ok(ResultatAbeille::err(format!(
+                    "A mission with slug '{slug}' already exists (mission_list to inspect it)."
+                )));
+            }
+            store.upsert(crate::missions::Mission {
+                slug: slug.clone(),
+                objective: objective.clone(),
+                cadence: cadence.clone(),
+                profile_id: None,
+                model: None,
+                channel,
+                status: "active".to_string(),
+                iterations: 0,
+                last_run: None,
+                created_at: chrono::Utc::now().to_rfc3339(),
+            });
+        }
+        laruche_essaim::feed_journal::record(
+            "LaRuche",
+            "mission",
+            "created the mission",
+            &objective,
+            chrono::Utc::now(),
+        );
+        Ok(ResultatAbeille::ok(format!(
+            "Mission '{slug}' created{}",
+            match cadence {
+                Some(c) => format!(" (cadence: {c})"),
+                None => " (manual, no cadence)".to_string(),
+            }
+        )))
+    }
+}
+
+pub struct AbeilleMissionDelete {
+    pub missions: Arc<RwLock<crate::missions::MissionStore>>,
+}
+
+#[async_trait]
+impl Abeille for AbeilleMissionDelete {
+    fn nom(&self) -> &str {
+        "mission_delete"
+    }
+
+    fn niveau_danger(&self) -> NiveauDanger {
+        NiveauDanger::Safe
+    }
+
+    fn description(&self) -> &str {
+        "Delete a mission by slug (see mission_list). Its memory dossier (missions.<slug>) is kept."
+    }
+
+    fn schema(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "slug": { "type": "string" }
+            },
+            "required": ["slug"]
+        })
+    }
+
+    async fn executer(
+        &self,
+        args: Value,
+        _ctx: &ContextExecution,
+    ) -> anyhow::Result<ResultatAbeille> {
+        let slug = match args["slug"].as_str().map(str::trim) {
+            Some(s) if !s.is_empty() => s,
+            _ => {
+                return Ok(ResultatAbeille::err(
+                    "Parameter 'slug' is required.".to_string(),
+                ))
+            }
+        };
+        let removed = {
+            let mut store = self.missions.write().await;
+            store.remove(slug)
+        };
+        if removed {
+            laruche_essaim::feed_journal::record(
+                "LaRuche",
+                "mission",
+                "deleted the mission",
+                slug,
+                chrono::Utc::now(),
+            );
+            Ok(ResultatAbeille::ok(format!("Mission '{slug}' deleted")))
+        } else {
+            Ok(ResultatAbeille::err(format!(
+                "Unknown mission: '{slug}' (mission_list to see the slugs)."
+            )))
+        }
     }
 }
 

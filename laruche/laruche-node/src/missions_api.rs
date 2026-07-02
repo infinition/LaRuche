@@ -9,7 +9,7 @@ use std::sync::Arc;
 /// GET /api/cron - list scheduled tasks.
 pub(crate) async fn api_list_cron(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let cron = state.essaim_cron.read().await;
-    let tasks: Vec<serde_json::Value> = cron
+    let mut tasks: Vec<serde_json::Value> = cron
         .list()
         .iter()
         .map(|t| {
@@ -29,6 +29,23 @@ pub(crate) async fn api_list_cron(State(state): State<Arc<AppState>>) -> Json<se
             })
         })
         .collect();
+    drop(cron);
+    // Mission cadences appear in the same list (kind="mission"): one truthful
+    // view of everything scheduled. They are managed from the Missions page /
+    // mission_* tools, so the UI renders them read-only here.
+    let store = state.missions.read().await;
+    for m in store.list().iter().filter(|m| m.cadence.is_some()) {
+        tasks.push(serde_json::json!({
+            "id": format!("mission:{}", m.slug),
+            "name": format!("Mission: {}", m.objective),
+            "cron_expr": m.cadence,
+            "enabled": m.status == "active",
+            "last_run": m.last_run,
+            "run_count": m.iterations,
+            "channel": m.channel.clone(),
+            "kind": "mission",
+        }));
+    }
     Json(serde_json::json!(tasks))
 }
 

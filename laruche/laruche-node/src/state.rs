@@ -271,7 +271,8 @@ pub(crate) struct AppState {
     /// Per-capability service selection (with source), for voice/code/vision routing.
     pub(crate) capability_selection: RwLock<HashMap<String, CapabilitySelection>>,
     /// Long-running missions ("La Reine"): metadata; the knowledge lives in the cognitive map.
-    pub(crate) missions: RwLock<missions::MissionStore>,
+    /// Arc-shared: the mission_* abeilles hold a clone (registered before AppState exists).
+    pub(crate) missions: Arc<RwLock<missions::MissionStore>>,
     pub(crate) sys: RwLock<System>,
     pub(crate) activity_log: RwLock<VecDeque<ActivityLogEntry>>,
     /// Path to laruche-state.json for persistence

@@ -463,14 +463,28 @@ async fn main() -> Result<()> {
     laruche_essaim::providers::set_mesh_signer(std::sync::Arc::new(|path: &str| {
         sync::sign_headers(path)
     }));
+    // Mission store, Arc-shared with the mission_* abeilles and AppState.
+    let missions_arc = Arc::new(RwLock::new(missions::MissionStore::new(
+        std::path::Path::new("missions.json"),
+    )));
     essaim_registry.enregistrer(Box::new(abeilles_local::AbeilleCronCreate {
         cron_store: cron_arc.clone(),
     }));
     essaim_registry.enregistrer(Box::new(abeilles_local::AbeilleCronList {
         cron_store: cron_arc.clone(),
+        missions: missions_arc.clone(),
     }));
     essaim_registry.enregistrer(Box::new(abeilles_local::AbeilleCronDelete {
         cron_store: cron_arc.clone(),
+    }));
+    essaim_registry.enregistrer(Box::new(abeilles_local::AbeilleMissionList {
+        missions: missions_arc.clone(),
+    }));
+    essaim_registry.enregistrer(Box::new(abeilles_local::AbeilleMissionCreate {
+        missions: missions_arc.clone(),
+    }));
+    essaim_registry.enregistrer(Box::new(abeilles_local::AbeilleMissionDelete {
+        missions: missions_arc.clone(),
     }));
     essaim_registry.enregistrer(Box::new(abeilles_local::AbeilleWatcherCreate {
         watcher_store: watchers_arc.clone(),
@@ -883,9 +897,7 @@ async fn main() -> Result<()> {
         capability_selection: RwLock::new(
             persistent.capability_selection.clone().unwrap_or_default(),
         ),
-        missions: RwLock::new(missions::MissionStore::new(std::path::Path::new(
-            "missions.json",
-        ))),
+        missions: missions_arc.clone(),
         config: config.clone(),
         sys: RwLock::new(sys),
         activity_log: RwLock::new(initial_log),
