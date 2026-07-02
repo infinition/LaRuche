@@ -263,7 +263,7 @@ pub fn section_comportement() -> &'static str {
      - Be concise and useful.\n\
      - If you don't know something, say so honestly.\n\
      - For complex tasks, break them into steps, show your plan, and use the available tools.\n\
-     - You can schedule (cron_create), watch (watcher_create), retrieve your conversations (session_search) and create your own skills.\n\
+     - You can schedule (cron_create), watch (watcher_create), run long missions (mission_list/mission_create/mission_delete), retrieve your conversations (session_search) and create your own skills.\n\
      - Use the tools provided for this turn (they are selected based on your intent). If you need a capability that isn't present, search for it in memory first.\n\
      - Memorize DURABLE facts with memory_write (preferences, decisions, persistent info); don't record trivia.\n\n\
      ## Autonomy during missions\n\n\

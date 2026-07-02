@@ -145,7 +145,7 @@ pub(crate) async fn ws_chat_connection(
         };
         let mut user_text_for_agent =
             inject_no_think(&user_text, incoming["no_think"].as_bool().unwrap_or(false));
-        user_text_for_agent = format!("{}\n\n[SYSTEM] You can schedule (cron_create), watch (watcher_create) and search your past conversations (session_search) yourself.", user_text_for_agent);
+        user_text_for_agent = format!("{}\n\n[SYSTEM] You can schedule (cron_create), watch (watcher_create), run long missions (mission_list/mission_create) and search your past conversations (session_search) yourself.", user_text_for_agent);
 
         // Get or create session
         let session_id = incoming["session_id"]

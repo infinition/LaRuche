@@ -78,7 +78,9 @@ fn strip_display_tag_blocks(text: &str, tag: &str) -> String {
 
 /// Removes instructions injected for the ReAct loop from the user-facing transcript.
 fn display_user_text(text: &str) -> Option<String> {
-    const CAPABILITY_HINT: &str = "\n\n[SYSTEM] You can schedule (cron_create), watch (watcher_create) and search your past conversations (session_search) yourself.";
+    const CAPABILITY_HINT: &str = "\n\n[SYSTEM] You can schedule (cron_create), watch (watcher_create), run long missions (mission_list/mission_create) and search your past conversations (session_search) yourself.";
+    // Sessions recorded before the missions hint was added carry the old wording.
+    const CAPABILITY_HINT_LEGACY: &str = "\n\n[SYSTEM] You can schedule (cron_create), watch (watcher_create) and search your past conversations (session_search) yourself.";
     const AUTO_CONTINUE: &str = "Continue immediately with the next step of the plan";
     const OUTPUT_RECOVERY: &str = "Continue exactly from the interrupted response.";
     const FAILOVER_RECOVERY: &str = "The previous response was truncated twice.";
@@ -91,6 +93,7 @@ fn display_user_text(text: &str) -> Option<String> {
     }
 
     let text = text.strip_suffix(CAPABILITY_HINT).unwrap_or(text);
+    let text = text.strip_suffix(CAPABILITY_HINT_LEGACY).unwrap_or(text);
     let text = text.strip_prefix("/no_think\n").unwrap_or(text);
     if let Some((_, steering)) = text.split_once("\n") {
         if text.starts_with("[User steering injected during") {
@@ -173,8 +176,11 @@ mod session_display_tests {
 
     #[test]
     fn user_display_hides_agent_only_instructions() {
+        // Legacy hint (recorded sessions) and current hint are both stripped.
         let raw = "Download this\n\n[SYSTEM] You can schedule (cron_create), watch (watcher_create) and search your past conversations (session_search) yourself.";
         assert_eq!(display_user_text(raw).as_deref(), Some("Download this"));
+        let raw2 = "Download this\n\n[SYSTEM] You can schedule (cron_create), watch (watcher_create), run long missions (mission_list/mission_create) and search your past conversations (session_search) yourself.";
+        assert_eq!(display_user_text(raw2).as_deref(), Some("Download this"));
         assert!(display_user_text(
             "Continue immediately with the next step of the plan, without stopping."
         )
