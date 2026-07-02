@@ -2915,10 +2915,9 @@ async fn main() -> Result<()> {
         }
     });
 
-    // SECURITY: bind to loopback ONLY by default. The API has no global auth layer
-    // for every route, so exposing it on 0.0.0.0 would let any host on the LAN
-    // read/mutate memory, run tools, etc. LAN exposure is an explicit opt-in
-    // (LARUCHE_BIND_LAN=1), and it is loudly logged so it is never accidental.
+    // Bind to loopback ONLY by default (single-user local app). Serving on the whole
+    // network is an explicit opt-in (LARUCHE_BIND_LAN=1) since not every route requires
+    // the session cookie; the choice is loudly logged so it is never accidental.
     let bind_lan = std::env::var("LARUCHE_BIND_LAN").as_deref() == Ok("1");
     let bind_ip = if bind_lan { "0.0.0.0" } else { "127.0.0.1" };
     let addr = format!("{bind_ip}:{}", config.api_port);
@@ -2943,11 +2942,11 @@ async fn main() -> Result<()> {
 
     // L3 (slice 2): AUTO memory SYNC from peer nodes (Miel), every 5 min: each
     // node pulls+dedups the others' facts → COLLECTIVE memory of the ruche, without cloud.
-    // SECURITY: OFF by default and OPT-IN (LARUCHE_MESH_MEMORY_SYNC=1). The pull has no
-    // per-peer signature check yet, so on an untrusted LAN any node advertising llm/agent
-    // could feed facts into memory. Imported facts are provenance-tagged (source=mesh:<peer>)
-    // and treated as REFERENCE DATA (never instructions) by the recall framing, but syncing
-    // is not enabled silently. Full mutual mesh auth is tracked in the roadmap.
+    // OFF by default and OPT-IN (LARUCHE_MESH_MEMORY_SYNC=1). The pull does not yet
+    // verify per-peer signatures, so a peer's facts are trusted as-is; imported facts
+    // are provenance-tagged (source=mesh:<peer>) and treated as REFERENCE DATA (never
+    // instructions) by the recall framing. Sync stays opt-in until mutual peer
+    // verification lands (tracked in the roadmap).
     if std::env::var("LARUCHE_MESH_MEMORY_SYNC").as_deref() == Ok("1") {
         info!("LARUCHE_MESH_MEMORY_SYNC=1: collective memory sync enabled (pulls facts from LAN peers every 5 min).");
         let sync_state = state.clone();

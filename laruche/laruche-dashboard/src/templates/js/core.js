@@ -307,11 +307,11 @@ LaRuche.forceReactivityUpdate = function(){ LaRuche.refreshAll(); };
 /* ── Utils ─────────────────────────────────────────────────────── */
 LaRuche.Utils = {
   esc: function(t) { var d=document.createElement('div'); d.textContent=t; return d.innerHTML; },
-  // SECURITY: renders markdown then SANITIZES the HTML. Agent output can carry web
-  // content fetched from untrusted pages (indirect injection); marked v12 does not
-  // sanitize, so a raw innerHTML would be an XSS sink. DOMPurify strips scripts,
-  // event handlers and dangerous URLs. Falls back to escaped text if either lib is
-  // missing (offline vendored, but be safe).
+  // Renders markdown then CLEANS the resulting HTML before display. Agent output can
+  // include web content fetched from arbitrary pages; marked v12 does not clean HTML,
+  // so rendering it raw could let embedded markup run. DOMPurify keeps only safe tags
+  // (strips scripts, inline handlers, unsafe URLs). Falls back to escaped text if
+  // either library is missing (both are vendored locally, but stay safe).
   safeMarkdown: function(text) {
     if (typeof marked === 'undefined') return LaRuche.Utils.esc(text);
     if (!LaRuche.Utils._mdReady) {

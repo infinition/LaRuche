@@ -149,7 +149,7 @@ pub async fn app_js() -> impl IntoResponse {
 }
 
 // Vendored third-party libraries, served LOCALLY (local-first: the UI must render
-// markdown offline) instead of a CDN, and with no supply-chain exposure.
+// markdown offline) instead of a CDN, and with no external runtime dependency.
 const VENDOR_MARKED: &str =
     include_str!("../../laruche-dashboard/src/templates/vendor/marked.min.js");
 const VENDOR_PURIFY: &str =

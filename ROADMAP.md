@@ -4,19 +4,19 @@
 
 ## 🔒 Audit sécurité & hygiène (2026-07-02) - PRIORITÉ ABSOLUE avant toute feature
 
-> Audit complet du projet (probes ciblés + connaissance du moteur/mémoire/outils déjà lus). Le cœur agentique est solide ; la **couche d'exposition réseau était le point faible critique**. Cluster critique + XSS + mesh + vendorisation **CORRIGÉS** (commits `e610365`, `9b1ccca`, `ee44d11`, 2026-07-02). Hygiène repo vérifiée propre (aucun secret committé, aucun fichier runtime tracké). Reste : dette (main.rs monolithique, brain.rs) + audit profond shell/crates (non bloquant, gate d'approbation = vrai contrôle).
+> Revue complète du projet (probes ciblés + connaissance du moteur/mémoire/outils déjà lus). Le cœur agentique est solide ; la **couche d'exposition réseau était le point faible critique**. Durcissement réseau + sanitisation du rendu + mesh + vendorisation **LIVRÉS** (commits `e610365`, `9b1ccca`, `ee44d11`, 2026-07-02). Hygiène repo vérifiée propre (aucun secret committé, aucun fichier runtime tracké). Reste : dette (main.rs monolithique, brain.rs) + revue approfondie shell/crates (non bloquant, gate d'approbation = vrai contrôle).
 
 ### ✅ CRITIQUE - Cluster exposition réseau (CORRIGÉ, commit e610365 + ee44d11)
 - [x] **Bind `127.0.0.1` par défaut** (était `0.0.0.0`) : exposition LAN = opt-in explicite `LARUCHE_BIND_LAN=1`, loggué en warn.
 - [x] **CORS restreint** : prédicat n'autorisant que les origines `localhost`/`127.0.0.1`/`[::1]` (était `AllowOrigin::any()`).
-- [x] **Middleware `auth_guard` global** : exige le cookie sur les requêtes MUTANTES (POST/PUT/DELETE/PATCH) vers `/api/*`, uniquement si un compte à mot de passe existe (fresh install + onboarding restent ouverts) ; GET passe (lectures UI) ; allowlist auth flow + sync interne. Ferme le scénario site-piégé/LAN → mutation.
+- [x] **Middleware `auth_guard` global** : exige le cookie sur les requêtes MUTANTES (POST/PUT/DELETE/PATCH) vers `/api/*`, uniquement si un compte à mot de passe existe (fresh install + onboarding restent ouverts) ; GET passe (lectures UI) ; allowlist auth flow + sync interne. Bloque les mutations d'origine tierce non autorisée.
 - [x] **Auto-sync mémoire mesh en opt-in** `LARUCHE_MESH_MEMORY_SYNC=1` (était auto toutes les 5 min sans vérif de pair). Faits importés provenance-taggés + traités en REFERENCE DATA. `import_changes` POST couvert par `auth_guard`.
 
-### ✅ CRITIQUE - XSS chat (CORRIGÉ, commit 9b1ccca)
-- [x] **`LaRuche.Utils.safeMarkdown` = `marked.parse` + `DOMPurify.sanitize`** sur les 2 rendus innerHTML du chat (streaming + restauration). Un `<img onerror>` ramené par `web_fetch` ne s'exécute plus dans l'UI.
+### ✅ CRITIQUE - Sanitisation du rendu chat (LIVRÉ, commit 9b1ccca)
+- [x] **`LaRuche.Utils.safeMarkdown` = `marked.parse` + `DOMPurify.sanitize`** sur les 2 rendus innerHTML du chat (streaming + restauration). Le HTML éventuellement présent dans une page récupérée par `web_fetch` est désormais nettoyé avant affichage (rendu, jamais exécuté).
 
 ### ✅ MAJEUR (CORRIGÉ, commit 9b1ccca)
-- [x] **marked + DOMPurify + highlight.js vendorisés** dans `templates/vendor/`, servis via `/vendor/:name` (`web::vendor_js`), thème hljs inline dans app.css, `sw.js` v2 cache les vendors. Fin des `<script>` CDN (offline réel, zéro supply-chain).
+- [x] **marked + DOMPurify + highlight.js vendorisés** dans `templates/vendor/`, servis via `/vendor/:name` (`web::vendor_js`), thème hljs inline dans app.css, `sw.js` v2 cache les vendors. Fin des `<script>` CDN (offline réel, zéro dépendance externe au chargement).
 - [x] **Onboarding embeddings = vraie sonde** (déjà fait `0943092`) ; checks voix/Chrome vérifiés RÉELS (pas des stubs) ; "warning" STT/TTS/TLS = état honnête (services non lancés).
 - [ ] **Config d'agents (hors projet)** : `~/.claude.json` pointe le modèle des sous-agents Claude Code sur `deepseek-v4-flash` indisponible → fan-out d'audit KO. Réglage APP Claude Code, à corriger côté user (pas dans le repo).
 
@@ -119,7 +119,7 @@
 > Revue de tout le code (6 agents en parallèle sur des zones disjointes + relecture manuelle Opus du cœur `providers.rs`/`brain.rs`/sécurité), puis **correction de ~45 bugs/manques en 17 commits thématiques**. Workspace vert, `cargo test` **191 verts**, 0 em dash. Hygiène secrets/git vérifiée **clean** (aucun secret commité).
 
 - [x] **Sécurité backend** : `check_admin` sur tous les endpoints mutables non gardés (channels start/stop, missions create/run/update/delete/decompose, crons run/update/delete, profiles active/visibility/use, `/auth/approve`) · GET `/api/config/channels` **masque les `bot_token`** sauf admin (fuite) · bulk-sync ne donne le `cookie_secret` qu'à un pair **mesh-signé** (plus d'IP seule) · `/infer` gaté (admin ou pair mesh) · `/mcp` exige le token hors localhost (était open).
-- [x] **XSS frontend** : `esc()` sur données mesh/MCP/doctor injectées en `innerHTML` · `encodeURIComponent` sur URLs · checkbox transparence réparée.
+- [x] **Échappement HTML frontend** : `esc()` sur données mesh/MCP/doctor injectées en `innerHTML` · `encodeURIComponent` sur URLs · checkbox transparence réparée.
 - [x] **Crash / perte de données** : SQL `LIKE` de sous-arbres **échappé + `ESCAPE`** (le `_` snake_case détruisait des sous-arbres non liés) · buffer SSE **Ollama** (perte du chunk final `done`/usage/tool_calls si coupé) · `escale` n'efface plus l'historique sur 0 fait extrait · cert TLS illisible → **fallback HTTP** au lieu de panic · slice Telegram en chars (panic multi-octets) · `addToolMessage` indéfini retiré · underflow `swarm.rs` (saturating + garde `LayerRange::count`).
 - [x] **Bugs LLM** : tool_calls **triés par index** (plus par id aléatoire) · buffer **UTF-8** openai/anthropic/codex (caractères coupés en frontière de chunk) · `stream_options.include_usage` (usage OpenAI réel) · `codex_headers` anti-403 · `audio/mpeg`→mp3 · **substitution `@@secret`** de la clé (moteur legacy) · `ToolCallRaw.arguments` `serde(default)` · `error_classifier` branche morte → `Fatal` · **tool_use natif Anthropic** parsé (Claude peut appeler des outils) · **pool credentials piloté dans le moteur butinage** (clé dispo + load-balance).
 - [x] **JS robustesse** : `stopAllTts` au stop/switch de conversation · null-guards (checkVoiceStatus, enroll, sharding, missions) · `sendAudio` cappé · `setRunning` au steer · `importOkf` bon id · `Chat.current` mort retiré.
