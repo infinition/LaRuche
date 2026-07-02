@@ -503,17 +503,9 @@ pub(crate) fn spawn_watchers_checker(state: &Arc<AppState>) {
                 let mut registry = watcher_state.watchers.write().await;
                 registry.check_triggered_watchers().await
             };
-            for (watcher_id, prompt, context) in triggered {
-                info!(watcher_id = %watcher_id, "Executing watcher task");
-                let _ = watcher_state.events.write().await.emit(
-                    laruche_events::EventKind::WatcherFired,
-                    "watcher_dispatcher",
-                    serde_json::json!({ "watcher_id": watcher_id, "prompt": prompt, "context": context })
-                );
+            for d in triggered {
+                let (watcher_id, prompt, context) = (d.id, d.prompt, d.contexte);
                 let current_model = get_llm_default(&watcher_state).await;
-                let sessions_dir = std::path::Path::new("sessions");
-                let mut session = Session::new_with_path(&current_model, sessions_dir);
-                let (tx, _rx) = broadcast::channel::<ChatEvent>(64);
                 let (w_profile, w_model, w_channel) = {
                     let reg = watcher_state.watchers.read().await;
                     reg.list()
@@ -526,8 +518,28 @@ pub(crate) fn spawn_watchers_checker(state: &Arc<AppState>) {
                 if let Some(pid) = w_profile {
                     profiles_api::appliquer_profil(&watcher_state, &mut config, &pid, w_model.as_deref()).await;
                 } else {
-                    config.model = current_model;
+                    config.model = current_model.clone();
                 }
+
+                // Semantic condition gate (file/url with a condition): a tiny LLM
+                // call decides whether the OBSERVED event satisfies the user's
+                // condition, with the current datetime in hand ("only on Tuesday
+                // and Thursday", "offline for at least 10 minutes"...). Fail-open:
+                // an unusable gate must not silence an alert.
+                if d.semantique && !condition_satisfaite(&config, &d.condition, &context).await {
+                    info!(watcher_id = %watcher_id, "Watcher event rejected by the condition gate");
+                    continue;
+                }
+
+                info!(watcher_id = %watcher_id, "Executing watcher task");
+                let _ = watcher_state.events.write().await.emit(
+                    laruche_events::EventKind::WatcherFired,
+                    "watcher_dispatcher",
+                    serde_json::json!({ "watcher_id": watcher_id, "prompt": prompt, "context": context })
+                );
+                let sessions_dir = std::path::Path::new("sessions");
+                let mut session = Session::new_with_path(&current_model, sessions_dir);
+                let (tx, _rx) = broadcast::channel::<ChatEvent>(64);
 
                 let full_prompt = format!("[CONTEXT: {}]\n\n{}", context, prompt);
                 let result = boucle_react_memoire(
@@ -563,6 +575,59 @@ pub(crate) fn spawn_watchers_checker(state: &Arc<AppState>) {
             }
         }
     });
+}
+
+/// Semantic condition gate for file/url watchers: one small LLM call with the
+/// observed event and the CURRENT LOCAL DATETIME, answering YES/NO. Fail-open on
+/// provider or parse trouble (a broken gate must never silence an alert; the
+/// fire cooldown already bounds the noise).
+async fn condition_satisfaite(
+    config: &laruche_essaim::EssaimConfig,
+    condition: &str,
+    contexte: &str,
+) -> bool {
+    use futures_util::StreamExt;
+    let maintenant = chrono::Local::now().format("%A %Y-%m-%d %H:%M");
+    let invite = format!(
+        "You are the trigger gate of a monitoring watcher.\n\
+         Current local datetime: {maintenant}\n\
+         Observed event: {contexte}\n\
+         User condition: \"{condition}\"\n\
+         Does the observed event satisfy the condition RIGHT NOW? Take dates, days \
+         of week and durations into account when the condition mentions them.\n\
+         Answer STRICTLY with YES or NO."
+    );
+    let messages = vec![serde_json::json!({ "role": "user", "content": invite })];
+    let mut stream = match laruche_essaim::providers::provider_chat_stream(
+        &config.provider,
+        &config.model,
+        &messages,
+        0.0,
+        8,
+        &laruche_essaim::secrets::substituer(&config.api_key),
+        config.api_base.as_deref(),
+        &config.ollama_url,
+        None,
+    )
+    .await
+    {
+        Ok(s) => s,
+        Err(e) => {
+            warn!(error = %e, "watcher condition gate unavailable, firing anyway");
+            return true;
+        }
+    };
+    let mut texte = String::new();
+    while let Some(chunk) = stream.next().await {
+        texte.push_str(&chunk.text);
+    }
+    let rep = texte.to_uppercase();
+    if rep.contains("NO") && !rep.contains("YES") {
+        false
+    } else {
+        // YES, or unusable output: fail-open.
+        true
+    }
 }
 
 // Background: periodic mDNS re-announce (P4): reflects the REAL models (active +

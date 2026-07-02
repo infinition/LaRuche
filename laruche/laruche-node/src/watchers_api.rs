@@ -77,6 +77,9 @@ pub(crate) async fn api_create_watcher(
             .as_str()
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string()),
+        interval_secs: body["interval_secs"].as_u64().filter(|n| *n > 0),
+        cooldown_secs: body["cooldown_secs"].as_u64().filter(|n| *n > 0),
+        sustained: body["sustained"].as_bool().unwrap_or(false),
     };
 
     let log_name = watcher.name.clone();
@@ -116,6 +119,11 @@ pub(crate) async fn api_update_watcher(
             .map(|v| v.as_str().filter(|x| !x.is_empty()).map(|x| x.to_string()))
     };
     let mut registry = state.watchers.write().await;
+    // Key present -> update; 0 clears (back to the type default).
+    let opt_u64 = |k: &str| {
+        body.get(k)
+            .map(|v| v.as_u64().filter(|n| *n > 0))
+    };
     let ok = registry.update(
         &uuid,
         s("name"),
@@ -127,6 +135,9 @@ pub(crate) async fn api_update_watcher(
         opt("model"),
         opt("profile_id"),
         opt("channel"),
+        opt_u64("interval_secs"),
+        opt_u64("cooldown_secs"),
+        body.get("sustained").and_then(|v| v.as_bool()),
     );
     if ok {
         StatusCode::OK

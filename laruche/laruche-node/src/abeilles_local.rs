@@ -71,7 +71,7 @@ impl Abeille for AbeilleCronCreate {
     }
 
     fn niveau_danger(&self) -> NiveauDanger {
-        NiveauDanger::Safe
+        NiveauDanger::NeedsApproval
     }
 
     fn description(&self) -> &str {
@@ -508,7 +508,7 @@ impl Abeille for AbeilleWatcherCreate {
     }
 
     fn niveau_danger(&self) -> NiveauDanger {
-        NiveauDanger::Safe
+        NiveauDanger::NeedsApproval
     }
 
     fn description(&self) -> &str {
@@ -522,8 +522,11 @@ impl Abeille for AbeilleWatcherCreate {
                 "name": { "type": "string" },
                 "watcher_type": { "type": "string", "description": "'file', 'url', or 'log'" },
                 "target": { "type": "string", "description": "File path or URL to watch" },
-                "condition": { "type": "string", "description": "Condition that triggers the prompt" },
-                "prompt": { "type": "string", "description": "Prompt to run when triggered" }
+                "condition": { "type": "string", "description": "Natural-language condition checked by an LLM gate before firing (file/url), with the current datetime available: e.g. 'only on Tuesday or Thursday', 'the site has been down for at least 10 minutes', 'the changelog mentions a security fix'. For 'log': plain substring the new lines must contain. Empty = fire on every change." },
+                "prompt": { "type": "string", "description": "Prompt to run when triggered" },
+                "interval_secs": { "type": "integer", "description": "Poll interval in seconds (default: 10 for file/log, 60 for url; floor 5)" },
+                "cooldown_secs": { "type": "integer", "description": "Minimum seconds between two fires (default: 900 for url, 0 otherwise)" },
+                "sustained": { "type": "boolean", "description": "Keep re-firing every cooldown while the situation lasts (e.g. remind every 20 min while the site is down). Requires a condition." }
             },
             "required": ["name", "watcher_type", "target", "prompt"]
         })
@@ -580,6 +583,12 @@ impl Abeille for AbeilleWatcherCreate {
             last_state: None,
             profile_id,
             model,
+            interval_secs: args.get("interval_secs").and_then(|v| v.as_u64()),
+            cooldown_secs: args.get("cooldown_secs").and_then(|v| v.as_u64()),
+            sustained: args
+                .get("sustained")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false),
         };
 
         let id = watcher.id.clone();
