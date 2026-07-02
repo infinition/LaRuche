@@ -307,6 +307,31 @@ LaRuche.forceReactivityUpdate = function(){ LaRuche.refreshAll(); };
 /* ── Utils ─────────────────────────────────────────────────────── */
 LaRuche.Utils = {
   esc: function(t) { var d=document.createElement('div'); d.textContent=t; return d.innerHTML; },
+  // SECURITY: renders markdown then SANITIZES the HTML. Agent output can carry web
+  // content fetched from untrusted pages (indirect injection); marked v12 does not
+  // sanitize, so a raw innerHTML would be an XSS sink. DOMPurify strips scripts,
+  // event handlers and dangerous URLs. Falls back to escaped text if either lib is
+  // missing (offline vendored, but be safe).
+  safeMarkdown: function(text) {
+    if (typeof marked === 'undefined') return LaRuche.Utils.esc(text);
+    if (!LaRuche.Utils._mdReady) {
+      marked.setOptions({ breaks: true, gfm: true, highlight: function(code, lang) {
+        if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+          try { return hljs.highlight(code, { language: lang }).value; } catch (e) {}
+        }
+        if (typeof hljs !== 'undefined') {
+          try { return hljs.highlightAuto(code).value; } catch (e) {}
+        }
+        return code;
+      }});
+      LaRuche.Utils._mdReady = true;
+    }
+    var html = marked.parse(text);
+    if (typeof DOMPurify !== 'undefined') {
+      return DOMPurify.sanitize(html, { ADD_ATTR: ['target'] });
+    }
+    return html;
+  },
   clamp: function(v,lo,hi) { return Math.min(hi,Math.max(lo,v)); },
   fmtMB: function(mb) { return mb>=1024?(mb/1024).toFixed(1)+' GB':mb+' MB'; },
   fmtTime: function(d) {

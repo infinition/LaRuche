@@ -1,7 +1,8 @@
 /* LaRuche service worker: makes the SPA installable + offline-capable.
    Network-first so the UI is never stale; the cached shell is only a fallback. */
-var CACHE = 'laruche-shell-v1';
-var SHELL = ['/', '/app.css', '/app.js'];
+var CACHE = 'laruche-shell-v2';
+var SHELL = ['/', '/app.css', '/app.js',
+  '/vendor/marked.min.js', '/vendor/purify.min.js', '/vendor/highlight.min.js'];
 
 self.addEventListener('install', function(e){
   e.waitUntil(caches.open(CACHE).then(function(c){ return c.addAll(SHELL); }).catch(function(){}));
@@ -24,7 +25,7 @@ self.addEventListener('fetch', function(e){
   if(url.pathname.indexOf('/api') === 0 || url.pathname.indexOf('/ws') === 0) return;
   e.respondWith(
     fetch(req).then(function(res){
-      if(res && res.ok && (url.pathname === '/' || url.pathname === '/app.css' || url.pathname === '/app.js')){
+      if(res && res.ok && (url.pathname === '/' || url.pathname === '/app.css' || url.pathname === '/app.js' || url.pathname.indexOf('/vendor/') === 0)){
         var clone = res.clone();
         caches.open(CACHE).then(function(c){ c.put(req, clone); });
       }

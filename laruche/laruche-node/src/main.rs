@@ -1756,6 +1756,7 @@ async fn main() -> Result<()> {
         .route("/", get(web::spa_page))
         .route("/app.css", get(web::app_css))
         .route("/app.js", get(web::app_js))
+        .route("/vendor/:name", get(web::vendor_js))
         .route("/manifest.json", get(web::manifest))
         .route("/icon.svg", get(web::icon_svg))
         .route("/sw.js", get(web::service_worker))

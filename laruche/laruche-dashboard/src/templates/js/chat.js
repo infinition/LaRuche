@@ -1200,7 +1200,7 @@ LaRuche.Chat = (function(){
         if(typeof hljs!=='undefined'){try{return hljs.highlightAuto(code).value;}catch(e){}}
         return code;
       }});
-      el.innerHTML = marked.parse(text);
+      el.innerHTML = LaRuche.Utils.safeMarkdown(text);
       el.classList.add('rendered');
       if(window.lrEnhanceCode) window.lrEnhanceCode(el);
     }
@@ -1650,7 +1650,7 @@ LaRuche.Chat = (function(){
           var restored=takeMediaDeclarations(msg.text||'');
           var result=addMessage('assistant','');
           var el=result.msgEl;
-          if(restored.text&&typeof marked!=='undefined'){marked.setOptions({breaks:true,gfm:true});el.innerHTML=marked.parse(restored.text);el.classList.add('rendered');if(window.lrEnhanceCode)window.lrEnhanceCode(el);}
+          if(restored.text&&typeof marked!=='undefined'){el.innerHTML=LaRuche.Utils.safeMarkdown(restored.text);el.classList.add('rendered');if(window.lrEnhanceCode)window.lrEnhanceCode(el);}
           else el.textContent=restored.text;
           linkifyUrls(el);
           appendMediaGallery(el,historyMedia.concat(restored.items)); historyMedia=[];

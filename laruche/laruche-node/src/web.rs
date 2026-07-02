@@ -147,3 +147,32 @@ pub async fn app_js() -> impl IntoResponse {
         APP_JS,
     )
 }
+
+// Vendored third-party libraries, served LOCALLY (local-first: the UI must render
+// markdown offline) instead of a CDN, and with no supply-chain exposure.
+const VENDOR_MARKED: &str =
+    include_str!("../../laruche-dashboard/src/templates/vendor/marked.min.js");
+const VENDOR_PURIFY: &str =
+    include_str!("../../laruche-dashboard/src/templates/vendor/purify.min.js");
+const VENDOR_HLJS: &str =
+    include_str!("../../laruche-dashboard/src/templates/vendor/highlight.min.js");
+
+/// Serves a vendored JS library by name (`marked` | `purify` | `highlight`).
+pub async fn vendor_js(Path(name): Path<String>) -> impl IntoResponse {
+    let body = match name.trim_end_matches(".min.js").trim_end_matches(".js") {
+        "marked" => VENDOR_MARKED,
+        "purify" | "dompurify" => VENDOR_PURIFY,
+        "highlight" | "highlight.min" => VENDOR_HLJS,
+        _ => "",
+    };
+    let code = if body.is_empty() {
+        axum::http::StatusCode::NOT_FOUND
+    } else {
+        axum::http::StatusCode::OK
+    };
+    (
+        code,
+        [(header::CONTENT_TYPE, "application/javascript; charset=utf-8")],
+        body,
+    )
+}
