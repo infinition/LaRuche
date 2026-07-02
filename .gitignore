@@ -95,3 +95,8 @@ laruche/laruche-voix/src/*.egg-info/
 laruche/evals/results/
 # Nested standalone repo (window manager checkout)
 laruche/le-wm/
+
+# Eval scratch dir (created by controle_fichier mission)
+laruche/eval_scratch/
+# Windows shortcuts dropped in the repo
+*.lnk
