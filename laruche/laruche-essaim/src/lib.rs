@@ -20,6 +20,7 @@ pub mod brain;
 pub mod budget;
 pub mod butinage_pont;
 pub mod codex_auth;
+pub mod config;
 pub mod credential_pool;
 pub mod cron;
 pub mod error_classifier;
