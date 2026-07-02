@@ -184,16 +184,26 @@ timeouts causes par des scouts trop profonds x trop nombreux (7-12). Trou multil
 
 ---
 
+## Suites (2026-07-02, apres campagne d'evals)
+
+FAIT :
+- `--only` de l'eval accepte une liste separee par virgule (`d8e3ff8`).
+- Outil `mission_list` (cote user) : l'agent voit desormais ses missions planifiees
+  (il tournait en rond quand une se declenchait).
+- Etat nettoye (cote user) : mission broken-sword recurrente + skills-poubelle en attente.
+- Split `main.rs` termine (cote user) : router.rs / state.rs / background.rs / helpers.rs.
+- Polling front en pause sur onglet cache (cote user, helper `LaRuche.Poll`).
+- Charte curateur durcie (`d423ae9`) : ne capture plus les impasses de diagnostic ni les
+  meta-skills sur les internes du systeme (les DEUX chemins : PROMPT_CURATEUR + extracteur brain).
+
 ## Reste a faire (backlog priorise)
 
-Voir `ROADMAP.md` section "Audit securite" et "Moteur butinage". Principaux :
+Voir `ROADMAP.md`. Principaux :
 
-- Figer la baseline d'evals une fois un bon run obtenu (`--save-baseline`).
-- Outil `mission_list` : l'agent ne voit pas ses missions planifiees (missions.json vs
-  cron-tasks.json), il tourne en rond quand une mission planifiee se declenche.
-- Durcir la charte du curateur (capture les impasses de diagnostic comme skills).
+- Figer la baseline d'evals une fois un backend fiable disponible (12b local trop
+  instable, DeepSeek gratuit rate-limite). Les controles servent de mini-baseline.
 - dream -> reine_queue (auto-nettoyage supervise de la memoire).
 - Tuer ou promouvoir l'ancien moteur `brain.rs` (encore le defaut sans `RUCHE_MOTEUR=butinage`).
-- Split de `main.rs` (~3000 lignes) + centraliser l'auth.
 - Auth mesh mutuelle (verification de pair). Sandbox OS pour shell.
-- Investiguer : usage tokens=0 sur llama.cpp aux evals.
+- Investiguer : usage tokens=0 sur llama.cpp aux evals (OK sur Anthropic/DeepSeek : le
+  fix `b01700a` marche, le probleme est specifique au format de streaming llama.cpp).
