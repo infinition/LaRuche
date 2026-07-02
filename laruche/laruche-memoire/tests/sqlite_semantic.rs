@@ -266,3 +266,50 @@ async fn ecriture_deduplique_a_la_source_et_dream_reste_propre() {
 
     cleanup_db(&dir);
 }
+
+#[tokio::test]
+async fn recall_exclut_les_projections_skills_systeme() {
+    // A GPU-ish question must NOT surface skill catalog bodies (capacities.*) nor
+    // system.* projections, even if their tokens overlap. Regression: a recall used
+    // to dump full skill guides into a hardware question.
+    let dir = temp_db("skills_noise");
+    cleanup_db(&dir);
+    let backend = SqliteBackend::open_with_embedder(&dir, Arc::new(FakeEmbedder)).unwrap();
+    backend
+        .write(MemoryItem::new("capacities.skills.local_discovery", "Procedure: code jazz tongs guide"))
+        .await
+        .unwrap();
+    backend
+        .write(MemoryItem::new("people.fabien", "Il code en tongs en ecoutant du jazz"))
+        .await
+        .unwrap();
+    let pack = backend.search("comment je code habituellement", SearchOpts::default()).await.unwrap();
+    let text = pack.to_prompt_text();
+    assert!(!text.contains("Procedure"), "skills projection must be excluded: {text}");
+    cleanup_db(&dir);
+}
+
+#[tokio::test]
+async fn supersede_traverse_les_noeuds_du_domaine() {
+    // The same fact filed under SIBLING nodes of one domain (hardware.a, hardware.b)
+    // must not both stay active: writing the second supersedes the first. Regression:
+    // 4070 Ti in hardware.local_model_setup + 5080 in hardware.gpu both stayed active.
+    let dir = temp_db("supersede_domain");
+    cleanup_db(&dir);
+    let backend = SqliteBackend::open_with_embedder(&dir, Arc::new(FakeEmbedder)).unwrap();
+    backend
+        .write(MemoryItem::new("hardware.local_model_setup", "code jazz tongs setup"))
+        .await
+        .unwrap();
+    // Same embedding (shared keywords -> identical FakeEmbedder vector), sibling node.
+    backend
+        .write(MemoryItem::new("hardware.gpu", "code jazz tongs setup v2"))
+        .await
+        .unwrap();
+    let a = backend.read_node("hardware.local_model_setup").await.unwrap();
+    let b = backend.read_node("hardware.gpu").await.unwrap();
+    let active_a = a["items"].as_array().map(|x| x.len()).unwrap_or(0);
+    let active_b = b["items"].as_array().map(|x| x.len()).unwrap_or(0);
+    assert_eq!(active_a + active_b, 1, "cross-node supersede: only the newest fact stays active");
+    cleanup_db(&dir);
+}

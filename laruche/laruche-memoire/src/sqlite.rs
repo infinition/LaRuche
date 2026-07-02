@@ -467,8 +467,18 @@ impl MemoireCognitive for SqliteBackend {
             // Base below a strong semantic match, above a weak one: exact wording
             // competes without drowning meaning.
             let base = if qvec.is_some() { 0.55 } else { 1.0 };
+            // Noise guard: FTS `OR`s the tokens, so a SINGLE common word ("local",
+            // "recherche") drags in off-topic items. When the query is rich (>=3
+            // tokens) require the candidate to match at least 2 distinct query tokens.
+            // Short queries keep the permissive OR (recall matters more there).
+            let min_tokens = if qtoks.len() >= 3 { 2 } else { 1 };
             for row in rows {
                 let (id, node, content, imp, acces, maj) = row?;
+                let hay = format!("{node} {content}").to_lowercase();
+                let matched = qtoks.iter().filter(|t| hay.contains(*t)).count();
+                if matched < min_tokens {
+                    continue;
+                }
                 let score = base + 0.25 * activation_of(&node) + bonus(imp, acces, maj);
                 let e = fusion.entry(id).or_insert((0.0, node, content));
                 if score > e.0 {
