@@ -2,6 +2,30 @@
 
 > Reste-à-faire **récupéré des anciens docs de conception** (avant archivage dans `docs/_archive/`) + chantiers en cours. Source de vérité du travail restant. Coché = fait.
 
+## 🐝 Moteur butinage, évals, outils & mémoire - audit expert appliqué (2026-07-01/02)
+
+> Audit complet de la boucle ReAct + implémentation. 15 commits (`5e979b5`..`59e6167`), workspace tests verts. Détails : messages de commit + notes de session.
+
+### ✅ Livré (build vert, testé)
+- **Moteur ReAct corrigé (12 fixes)** : transcript tool-calling porté par l'historique (`Message.appels`/`appel_id`), ancre mission épinglée + troncature low-watermark calibrée par la jauge, checkpoint atomique + nudges filtrés + vigie persistée, timeout par outil, cap des observations (30k head+tail), annulation coopérative, budget tokens (`FinDeVol::Budget`), boucle d'appels bloqués stoppée, `mission_accomplie`/`clarify` honorés seuls, compaction LLM par défaut + consolidation auto-portante, escalade superviseur dédiée.
+- **Tool-calling NATIF par provider** : pré-passe de corrélation (appel natif ⇔ résultat présent, anti-400), OpenAI-compat `tool_calls`, Anthropic `tool_use`/`tool_result` + images natives, fallback texte pour modèles locaux. Provider **`llamacpp`** (base défaut `:8001`).
+- **Deep-research SOTA** : 3 canaux de décision de mode (mots-clés élargis / **outil `research_mode` auto-déclaré intercepté par le moteur** / arg `mode` du plan), `PROTOCOLE_EXPLORATION` (fan-out `delegate` parallèle, gardienne, 403=contournement), scouts avec prompt purgé + nudge adapté au contexte (`delegation_disponible`), autonomie durcie (jamais renvoyer l'utilisateur chercher).
+- **Harness d'évals** (`cargo run -p laruche-evals`) : missions fixes vs vrai moteur, checks durs (fin/mode/web/fan-out/démission/fichier), juge LLM optionnel, JSONL + baseline avec régressions signalées. `RapportMission` riche exposé par le pont.
+- **Outils machines de guerre** : `web_fetch` paginé + `include_links` + PDF via jina ; `web_deep_search` parallèle (+fix panic UTF-8) ; `file_search` glob + grep contenu + bruit ignoré ; `file_list` arbre trié ; `file_write` atomique.
+- **Mémoire - exploitation complète** : embedder universel TOUJOURS actif (`HttpEmbedder` Ollama/llama.cpp auto-détecté, disjoncteur, backfill au boot, `lancer_embeddings.bat` avec téléchargement auto), search v2 (fusion sémantique+FTS, **decay de priorité** = importance persistée + usage hebbien + fraîcheur, jamais de suppression), **supersede à l'écriture** (dedup exact + quasi-doublons à l'échelle du domaine, seuils **calibrés sur mesures réelles** 0.83/0.85), rappel JIT `Source::rappeler` câblé (scouts + reprises + stagnation), mémoire épisodique (`episodes.*`), recall sans bruit skills (`capacities.*`/`system.*` exclus, items plafonnés 600c), **Consolider récursif** (sous-arbre entier).
+- **Fixes transverses** : auth (secret cookie sauvé au boot = fini le re-login à chaque lancement, 401 diagnostiqués), onboarding embeddings = vraie sonde (était un stub `done:false`).
+
+### 🔜 En attente (backlog priorisé)
+- [ ] **Mystère qwen3:8b aux évals** : 0/8, zéro tool call exécuté - trancher bug d'intégration tools Ollama vs modèle (`RUCHE_DEBUG_SSE=1`), re-lancer les évals sur `llamacpp` + gemma-4-12b, puis **figer la baseline** (`--save-baseline`).
+- [ ] **Check LLM de contradiction au write** (mémoire) : un UPDATE de fait (4070→5080) mesure 0.71 de similarité - hors de portée des embeddings. Bande 0.60-0.83 → micro-appel `aux_model` (« même fait / mise à jour / sans rapport ») → supersede auto ou proposition. Le chaînon d'une mémoire qui se met à jour seule.
+- [ ] **dream→reine_queue** : les suggestions du dream 6h (doublons legacy, surcharges, orphelins) deviennent des propositions actionnables dans la file LaReine (gate humain existant) = auto-nettoyage supervisé.
+- [ ] **Hebbien niveau 2** : ne renforcer que les rappels réellement UTILISÉS dans la réponse (mesurable par le juge des évals).
+- [ ] **OKF + git** : auto-commit du bundle exporté = mémoire time-travel (diff/rollback) puis **fédération mesh des faits** entre nœuds (provenance) - session dédiée.
+- [ ] **FTS moins permissive** : exiger ≥2 tokens matchés (un token commun fait remonter des synthèses hors-sujet, classées derrière mais bruit).
+- [ ] **Évals mémoire** : scénarios « bruit du recall » et « supersede » en missions protégées dans `evals/missions.json`.
+- [ ] **Audit des checks d'onboarding restants** (STT/TTS, TLS) - suspects d'être des stubs comme l'était le check embeddings.
+- [ ] **Référentiel multi-provider (doc Sonnet)** : validation client-side des args vs JSON Schema avant exécution (filet non-négociable modèles locaux), puis `tool_choice`/`parallel_tool_calls` par provider, parser pythonic, tests de non-régression par modèle (jeu de tool calls fixes).
+
 ## 👑 LaReine - superviseur de la ruche (nouveau chantier)
 
 > Mode activable qui place une **Reine** au-dessus des butineuses : elle juge la pertinence et la méthodologie d'une réponse (ou d'un artefact), renvoie au LLM des instructions correctives jusqu'à atteindre l'objectif, et peut gouverner l'auto-modification de LaRuche. Principe directeur : **le curateur propose, la Reine dispose.**
