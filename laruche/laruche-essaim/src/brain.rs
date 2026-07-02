@@ -31,22 +31,6 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-async fn executer_outil_robuste(
-    registry: &AbeilleRegistry,
-    name: &str,
-    args: serde_json::Value,
-    ctx: &ContextExecution,
-) -> ResultatAbeille {
-    let timeout = timeout_for_tool(name);
-    match tokio::time::timeout(timeout, registry.executer(name, args, ctx)).await {
-        Ok(Ok(result)) => result,
-        Ok(Err(err)) => ResultatAbeille::err(format!("Tool execution error: {err}")),
-        Err(_) => ResultatAbeille::err(format!(
-            "Tool timed out after {}s. Continue by checking state, retrying with a smaller action, or using submit_job for long-running work.",
-            timeout.as_secs()
-        )),
-    }
-}
 
 /// Response to an approval request.
 #[derive(Debug, Clone)]
@@ -842,123 +826,11 @@ pub fn decision_permission(
     }
 }
 
-/// A tool is "concurrency-safe" if it has no side effects (pure read):
-/// it can then run in parallel with other safe tools. Writes,
-/// deletions, code execution and mutating shell commands are not
-/// (Claude Code orchestration technique: `partitionToolCalls`).
-fn budget_status_session(session: &Session, config: &EssaimConfig) -> BudgetStatus {
-    BudgetTracker::with_used(context_budget_tokens(config), session.estimated_tokens()).status()
-}
 
-fn context_budget_tokens(config: &EssaimConfig) -> usize {
-    (config.context_max_messages.max(1) * 1_000)
-        .max(config.max_tokens as usize * 8)
-        .max(8_000)
-}
 
-fn doit_compacter_session(session: &Session, config: &EssaimConfig, status: BudgetStatus) -> bool {
-    if session.len() > config.context_max_messages {
-        return true;
-    }
-    let budget = CompactionBudgetStatus {
-        used: status.used,
-        max: status.max,
-        ratio: status.ratio,
-        warn: status.warn,
-        critical: status.critical,
-    };
-    let marker = [serde_json::json!({
-        "role": "system",
-        "content": "budget-check"
-    })];
-    laruche_compaction::doit_compacter(&marker, config.compaction_threshold, &budget)
-}
 
-fn resultat_observable(registry: &AbeilleRegistry, name: &str, output: String) -> String {
-    match registry
-        .get(name)
-        .and_then(|abeille| abeille.max_result_size())
-    {
-        Some(max) => tronquer_resultat(&output, max),
-        None => output,
-    }
-}
 
-async fn resumer_resultat_si_gros(
-    config: &EssaimConfig,
-    tool_name: &str,
-    output: String,
-) -> String {
-    if output.chars().count() <= DEFAULT_TOOL_SUMMARY_THRESHOLD {
-        return output;
-    }
 
-    let prompt = construire_prompt_resume(&output);
-    let model = config.aux_model.as_deref().unwrap_or(&config.model);
-    let messages = vec![
-        serde_json::json!({
-            "role": "system",
-            "content": "You summarize large tool outputs for an agent. Reply only with a useful, actionable summary."
-        }),
-        serde_json::json!({
-            "role": "user",
-            "content": prompt
-        }),
-    ];
-
-    let stream_result = tokio::time::timeout(
-        Duration::from_secs(45),
-        provider_chat_stream(
-            &config.provider,
-            model,
-            &messages,
-            0.2,
-            config.max_tokens.min(1024),
-            &crate::secrets::substituer(&config.api_key),
-            config.api_base.as_deref(),
-            &config.ollama_url,
-            None,
-        ),
-    )
-    .await;
-
-    let Ok(Ok(mut stream)) = stream_result else {
-        return format!(
-            "[Large result from `{tool_name}` summarized locally]\n{}",
-            resume_extractif(&output)
-        );
-    };
-
-    let mut text = String::new();
-    let collection = tokio::time::timeout(Duration::from_secs(45), async {
-        while let Some(chunk) = stream.next().await {
-            text.push_str(&chunk.text);
-        }
-    })
-    .await;
-
-    if collection.is_err() || text.trim().is_empty() {
-        return format!(
-            "[Large result from `{tool_name}` summarized locally]\n{}",
-            resume_extractif(&output)
-        );
-    }
-
-    format!(
-        "[Large result from `{tool_name}` summarized by auxiliary model]\n{}",
-        text.trim()
-    )
-}
-
-fn is_concurrency_safe(name: &str, args: &serde_json::Value, danger: NiveauDanger) -> bool {
-    // Read-only shell commands (git status, ls, cat...) are safe;
-    // a mutating shell command is not.
-    if name == "shell_exec" {
-        return est_commande_read_only(name, args);
-    }
-    // Otherwise: safe if it's not a write/mutation tool.
-    !outil_ecriture(name, danger)
-}
 
 /// Injection guard: scans the arguments of a mutating action tool for
 /// injection/exfiltration patterns (third-party `threat_patterns`). Returns
@@ -987,55 +859,8 @@ pub fn garde_injection(name: &str, args: &serde_json::Value) -> Option<String> {
     }
 }
 
-/// True if a plan item's status indicates it is done.
-fn plan_item_termine(status: &str) -> bool {
-    let s = status.to_lowercase();
-    s.contains("done")
-        || s.contains("termin")
-        || s.contains("complet")
-        || s.contains("fait")
-        || s.contains("ok")
-        || s.contains("✓")
-        || s.contains("✅")
-}
 
-/// True if a plan item's status is terminal, even if the step was not
-/// strictly accomplished. Useful for conditional branches:
-/// e.g. "download if a link is found" becomes terminal when no
-/// reliable source exists after sufficient search.
-fn plan_item_terminal(status: &str) -> bool {
-    let s = status.to_lowercase();
-    plan_item_termine(status)
-        || s.contains("skip")
-        || s.contains("ignor")
-        || s.contains("non applicable")
-        || s.contains("failed")
-        || s.contains("échec")
-        || s.contains("echec")
-        || s.contains("blocked")
-        || s.contains("bloqu")
-        || s.contains("impossible")
-}
 
-fn reponse_negative_recherche(text: &str) -> bool {
-    let t = text.to_lowercase();
-    [
-        "je n'ai pas trouvé",
-        "je n'ai pas trouve",
-        "je n'ai pas réussi",
-        "je n'ai pas reussi",
-        "aucun lien",
-        "aucune source",
-        "pas trouvé de lien",
-        "pas trouve de lien",
-        "absence de liens",
-        "impossible de trouver",
-        "n'a pas été trouvé",
-        "n'a pas ete trouve",
-    ]
-    .iter()
-    .any(|m| t.contains(m))
-}
 
 /// Detects requests where the user explicitly expects a long,
 /// exploratory search with several successive strategies. In this mode,
@@ -1090,224 +915,15 @@ pub fn demande_recherche_longue(prompt: &str) -> bool {
     .any(|m| p.contains(m))
 }
 
-fn finaliser_plan_pour_reponse(last_plan: &[PlanItem], response_text: &str) -> Option<Vec<PlanItem>> {
-    if last_plan.is_empty() {
-        return None;
-    }
 
-    let negatif = reponse_negative_recherche(response_text);
-    let final_plan = last_plan
-        .iter()
-        .map(|p| {
-            let mut item = p.clone();
-            if !plan_item_terminal(&item.status) {
-                let task = item.task.to_lowercase();
-                item.status = if negatif
-                    && (task.contains("récup")
-                        || task.contains("recup")
-                        || task.contains("télécharg")
-                        || task.contains("telecharg")
-                        || task.contains("fichier")
-                        || task.contains("lien"))
-                {
-                    "ok: not applicable, no usable link found".to_string()
-                } else if negatif {
-                    "ok: done with negative result".to_string()
-                } else {
-                    "ok: done".to_string()
-                };
-            }
-            item
-        })
-        .collect::<Vec<_>>();
 
-    Some(final_plan)
-}
 
-/// True if the response signals a real conclusion (not an intermediate step).
-/// Acts as a valve: stop auto-continuation even if the plan isn't checked off.
-fn reponse_signale_fin(text: &str) -> bool {
-    let t = text.to_lowercase();
-    [
-        "toutes les tâches",
-        "toutes les taches",
-        "tâche accomplie",
-        "tache accomplie",
-        "plan terminé",
-        "plan termine",
-        "tout est terminé",
-        "tout est termine",
-        "tout est fait",
-        "j'ai terminé",
-        "j'ai termine",
-        "mission accomplie",
-        "rien d'autre à faire",
-        "rien d'autre a faire",
-        "en résumé final",
-        "résultat final",
-        "resultat final",
-    ]
-    .iter()
-    .any(|m| t.contains(m))
-}
 
-/// True if the model announces an action but did not emit a valid tool_call.
-fn reponse_annonce_action_sans_outil(text: &str) -> bool {
-    let t = strip_plan_tags(&strip_think_tags(text)).to_lowercase();
-    let t = t.trim();
-    if t.is_empty() || reponse_signale_fin(t) {
-        return false;
-    }
 
-    [
-        "maintenant je ",
-        "je vais ",
-        "je vais maintenant ",
-        "je regarde ",
-        "je lis ",
-        "je verifie ",
-        "je vérifie ",
-        "je modifie ",
-        "je corrige ",
-        "je patche ",
-        "je patch ",
-        "je mets a jour ",
-        "je mets à jour ",
-        "je lance ",
-        "je cree ",
-        "je crée ",
-        "je recharge ",
-        "j'appelle ",
-        "j appelle ",
-        "je vais appeler ",
-        "je commence par ",
-        "je procede ",
-        "je procède ",
-    ]
-    .iter()
-    .any(|m| t.contains(m))
-}
 
-/// True if the model tried to write a tool call in a non-executable textual
-/// form (`tool_call{tool: ...}` for example). This case is dangerous:
-/// the UI may display text that looks like a call, but no tool was launched.
-fn reponse_contient_tool_call_malforme(text: &str) -> bool {
-    let t = strip_plan_tags(&strip_think_tags(text)).to_lowercase();
 
-    let contient_marqueur_malforme = t.contains("tool_call{")
-        || t.contains("tool_call {")
-        || t.contains("tool_call(")
-        || t.contains("tool_call:")
-        || t.contains("tool_call=")
-        || t.contains("tool_call `")
-        || t.contains("outil_call{")
-        || t.contains("appel_outil{");
 
-    let contient_tool_call_valide = t.contains("<tool_call>") && t.contains("</tool_call>");
 
-    contient_marqueur_malforme && !contient_tool_call_valide
-}
-
-/// Detects requests where a conclusion with no tool trace is suspicious.
-/// Not proof of success, only a guard against narrative "I searched" claims.
-fn demande_implique_recherche_web(prompt: &str) -> bool {
-    let p = prompt.to_lowercase();
-    [
-        "internet",
-        "web",
-        "recherche",
-        "cherche",
-        "trouve",
-        "télécharg",
-        "telecharg",
-        "lien",
-        "source",
-        "archive",
-        "forum",
-    ]
-    .iter()
-    .any(|m| p.contains(m))
-}
-
-fn reponse_conclut_recherche_sans_trace(prompt: &str, response_text: &str, web_tool_count: usize) -> bool {
-    if web_tool_count > 0 || !demande_implique_recherche_web(prompt) {
-        return false;
-    }
-
-    let t = response_text.to_lowercase();
-    let conclusion_negative = [
-        "je n'ai pas réussi",
-        "je n'ai pas reussi",
-        "aucun lien",
-        "absence de liens",
-        "pas trouvé",
-        "pas trouve",
-        "impossible de trouver",
-        "recherche terminée",
-        "recherche terminee",
-    ]
-    .iter()
-    .any(|m| t.contains(m));
-
-    let contient_url = t.contains("http://") || t.contains("https://") || t.contains("www.");
-
-    conclusion_negative && !contient_url
-}
-
-/// Classify a provider error: if it's a structured `ProviderError` (status+body),
-/// classify precisely (429->RateLimited, 401/403->ReloginRequired...); otherwise treat
-/// as a network error (usually transient). Delegates to `error_classifier`.
-fn classer_erreur_provider(e: &anyhow::Error) -> ErrorClass {
-    if let Some(pe) = e.downcast_ref::<ProviderError>() {
-        error_classifier::classifier_avec_retry_after(
-            pe.status,
-            &pe.body,
-            pe.retry_after.as_deref(),
-        )
-    } else {
-        error_classifier::classifier_erreur_reseau(&e.to_string())
-    }
-}
-
-const MAX_RATE_LIMIT_RETRIES: usize = 6;
-
-fn delai_retry_rate_limit_secs(reset_at: Option<i64>, attempt: usize) -> u64 {
-    if let Some(reset_at) = reset_at {
-        let now = chrono::Utc::now().timestamp();
-        return (reset_at - now).clamp(1, 300) as u64;
-    }
-
-    match attempt {
-        0 | 1 => 65,
-        2 => 90,
-        3 => 120,
-        4 => 180,
-        _ => 300,
-    }
-}
-
-/// Split tool calls into ordered batches (Claude Code technique):
-/// - a run of consecutive concurrency-safe tools -> one parallel batch,
-/// - each non-safe tool -> its own sequential batch.
-/// The original order is preserved. Returns indices into `tool_calls`.
-fn partition_tool_calls(
-    tool_calls: &[ToolCall],
-    registry: &AbeilleRegistry,
-) -> Vec<(bool, Vec<usize>)> {
-    let mut batches: Vec<(bool, Vec<usize>)> = Vec::new();
-    for (i, call) in tool_calls.iter().enumerate() {
-        let danger = registry
-            .get(&call.name)
-            .map(|a| a.niveau_danger())
-            .unwrap_or(NiveauDanger::Safe);
-        let safe = is_concurrency_safe(&call.name, &call.args, danger);
-        match batches.last_mut() {
-            Some((batch_safe, idxs)) if *batch_safe && safe => idxs.push(i),
-            _ => batches.push((safe, vec![i])),
-        }
-    }
-    batches
-}
 
 pub fn parse_tool_calls(text: &str) -> Vec<ToolCall> {
     let mut calls = Vec::new();
@@ -1460,7 +1076,7 @@ fn try_parse_as_tool_call(json: &str) -> Option<ToolCall> {
         })
 }
 
-fn parse_tool_calls_json_brut(text: &str) -> Vec<ToolCall> {
+pub(crate) fn parse_tool_calls_json_brut(text: &str) -> Vec<ToolCall> {
     let trimmed = text.trim();
 
     // Format 1: ```json\n{...}\n``` block
@@ -1533,34 +1149,7 @@ fn parse_tool_calls_json_brut(text: &str) -> Vec<ToolCall> {
     calls
 }
 
-fn keep_single_tool_call(tool_calls: &mut Vec<ToolCall>) -> Option<String> {
-    if tool_calls.len() <= 1 {
-        return None;
-    }
-    let ignored = tool_calls.len() - 1;
-    tool_calls.truncate(1);
-    Some(format!(
-        "You emitted several tool calls in a single response. Only one tool is allowed per turn; {ignored} call(s) ignored. Wait for the result before calling the next one."
-    ))
-}
 
-fn sortie_tronquee(response_text: &str, finish_reason: Option<&str>) -> bool {
-    let reason_truncated = finish_reason
-        .map(|reason| matches!(reason, "length" | "max_tokens"))
-        .unwrap_or(false);
-    if reason_truncated {
-        return true;
-    }
-
-    match (
-        response_text.rfind("<tool_call>"),
-        response_text.rfind("</tool_call>"),
-    ) {
-        (Some(open), Some(close)) => open > close,
-        (Some(_), None) => true,
-        _ => false,
-    }
-}
 
 #[derive(Debug, Deserialize)]
 struct ToolCallRaw {
@@ -1581,50 +1170,9 @@ pub fn parse_plan(text: &str) -> Option<Vec<PlanItem>> {
     serde_json::from_str::<Vec<PlanItem>>(json_str).ok()
 }
 
-fn strip_tag_blocks(text: &str, tag: &str) -> String {
-    let open = format!("<{tag}>");
-    let close = format!("</{tag}>");
-    let mut result = text.to_string();
-    while let Some(start) = result.find(&open) {
-        let search_from = start + open.len();
-        if let Some(rel_end) = result[search_from..].find(&close) {
-            let end = search_from + rel_end;
-            result = format!("{}{}", &result[..start], &result[end + close.len()..]);
-        } else {
-            result.truncate(start);
-            break;
-        }
-    }
-    result.trim().to_string()
-}
 
-/// Strip `<plan>...</plan>` blocks from text.
-fn strip_plan_tags(text: &str) -> String {
-    strip_tag_blocks(text, "plan")
-}
 
-/// Strip reasoning traces emitted by thinking models.
-fn strip_think_tags(text: &str) -> String {
-    strip_tag_blocks(text, "think")
-}
 
-fn emit_thought(
-    tx: &tokio::sync::broadcast::Sender<ChatEvent>,
-    session: &mut Session,
-    thoughts: &mut ThoughtStreamer,
-    phase: &str,
-    kind: &str,
-    text: impl AsRef<str>,
-) {
-    if let Some(update) = thoughts.emit(phase, kind, text) {
-        session.ajouter_thought(&update.phase, &update.kind, &update.text);
-        let _ = tx.send(ChatEvent::Thought {
-            phase: update.phase,
-            kind: update.kind,
-            text: update.text,
-        });
-    }
-}
 
 /// Per-tool timeout (seconds).
 pub fn timeout_for_tool(name: &str) -> std::time::Duration {
@@ -3354,75 +2902,6 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn execution_robuste_convertit_erreur_outil_en_observation() {
-        let registry = AbeilleRegistry::new();
-        registry.enregistrer(Box::new(FailingTool));
-
-        let result = executer_outil_robuste(
-            &registry,
-            "failing_tool",
-            serde_json::json!({}),
-            &ContextExecution::default(),
-        )
-        .await;
-
-        assert!(!result.success);
-        assert!(result
-            .error
-            .unwrap_or_default()
-            .contains("Tool execution error: internal boom"));
-    }
-
-    #[test]
-    fn erreur_provider_rate_limit_utilise_retry_after() {
-        let err: anyhow::Error = ProviderError {
-            status: 429,
-            body: "{}".into(),
-            retry_after: Some("42".into()),
-        }
-        .into();
-
-        match classer_erreur_provider(&err) {
-            ErrorClass::RateLimited { reset_at: Some(reset_at) } => {
-                let delta = reset_at - chrono::Utc::now().timestamp();
-                assert!((35..=42).contains(&delta));
-            }
-            other => panic!("expected RateLimited with reset_at, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn delai_rate_limit_sans_header_attend_une_fenetre_rpm() {
-        assert_eq!(delai_retry_rate_limit_secs(None, 1), 65);
-        assert_eq!(delai_retry_rate_limit_secs(None, 2), 90);
-    }
-
-    #[test]
-    fn auto_continue_helpers() {
-        assert!(plan_item_termine("done"));
-        assert!(plan_item_termine("Terminé"));
-        assert!(!plan_item_termine("pending"));
-        assert!(!plan_item_termine("in_progress"));
-        // A step narration is not an ending, so auto-continue.
-        assert!(!reponse_signale_fin(
-            "Étape 4 : je vais maintenant recréer le cron."
-        ));
-        assert!(reponse_annonce_action_sans_outil(
-            "Parfait. Maintenant je mets a jour le plugin pour passer le message."
-        ));
-        assert!(reponse_annonce_action_sans_outil(
-            "Je vais lire le fichier de configuration."
-        ));
-        assert!(!reponse_annonce_action_sans_outil(
-            "Toutes les tâches sont terminées, mission accomplie."
-        ));
-        // A real conclusion stops the auto-continue.
-        assert!(reponse_signale_fin(
-            "Toutes les tâches sont terminées, mission accomplie."
-        ));
-    }
-
     #[test]
     fn garde_injection_bloque_exfil_et_laisse_passer_lecture() {
         // shell_exec exfiltrating a token: blocked.
@@ -3443,64 +2922,6 @@ mod tests {
         .is_none());
         // read tool: never blocked by this guard.
         assert!(garde_injection("file_read", &serde_json::json!({"path": ".env"})).is_none());
-    }
-
-    #[test]
-    fn concurrency_safe_distingue_lecture_et_ecriture() {
-        // Pure read: safe; write/exec: non-safe.
-        assert!(is_concurrency_safe(
-            "shell_exec",
-            &serde_json::json!({"command": "git status"}),
-            NiveauDanger::NeedsApproval
-        ));
-        assert!(!is_concurrency_safe(
-            "shell_exec",
-            &serde_json::json!({"command": "rm foo.txt"}),
-            NiveauDanger::NeedsApproval
-        ));
-        assert!(!is_concurrency_safe(
-            "file_write",
-            &serde_json::json!({"path": "a", "content": "b"}),
-            NiveauDanger::NeedsApproval
-        ));
-        assert!(is_concurrency_safe(
-            "file_read",
-            &serde_json::json!({"path": "a"}),
-            NiveauDanger::Safe
-        ));
-    }
-
-    #[test]
-    fn partition_preserve_ordre_et_groupe_les_lectures() {
-        let registry = AbeilleRegistry::new();
-        let calls = vec![
-            ToolCall {
-                id: "1".into(),
-                name: "file_read".into(),
-                args: serde_json::json!({}),
-            },
-            ToolCall {
-                id: "2".into(),
-                name: "file_read".into(),
-                args: serde_json::json!({}),
-            },
-            ToolCall {
-                id: "3".into(),
-                name: "file_write".into(),
-                args: serde_json::json!({}),
-            },
-            ToolCall {
-                id: "4".into(),
-                name: "file_read".into(),
-                args: serde_json::json!({}),
-            },
-        ];
-        let batches = partition_tool_calls(&calls, &registry);
-        // [read,read] parallel, [write] sequential, [read] parallel.
-        assert_eq!(batches.len(), 3);
-        assert_eq!(batches[0], (true, vec![0, 1]));
-        assert_eq!(batches[1], (false, vec![2]));
-        assert_eq!(batches[2], (true, vec![3]));
     }
 
     #[test]
@@ -3590,51 +3011,4 @@ mod tests {
         assert_eq!(calls[0].args["content"], "x > y et {z}");
     }
 
-    #[test]
-    fn keep_single_tool_call_discards_extra_calls() {
-        let mut calls = parse_tool_calls(
-            r#"<tool_call>{"name":"shell_exec","arguments":{"command":"dir"}}</tool_call>
-<tool_call>{"name":"shell_exec","arguments":{"command":"type a.txt"}}</tool_call>"#,
-        );
-        let msg = keep_single_tool_call(&mut calls).unwrap();
-        assert_eq!(calls.len(), 1);
-        assert_eq!(calls[0].args["command"], "dir");
-        assert!(msg.contains("1 call(s) ignored"));
-    }
-
-    #[test]
-    fn sortie_tronquee_detecte_length_et_tool_call_ouvert() {
-        assert!(sortie_tronquee("texte partiel", Some("length")));
-        assert!(sortie_tronquee(
-            r#"<tool_call>{"name":"shell_exec","arguments":{"command":"dir"}}"#,
-            None
-        ));
-        assert!(!sortie_tronquee(
-            r#"<tool_call>{"name":"shell_exec","arguments":{"command":"dir"}}</tool_call>"#,
-            Some("stop")
-        ));
-    }
-
-    #[test]
-    fn resultat_observable_applique_budget_outil() {
-        let mut registry = AbeilleRegistry::new();
-        registry.enregistrer(Box::new(LimitedTool));
-
-        let output = resultat_observable(&registry, "limited", "abcdefghijkl".to_string());
-
-        assert!(output.starts_with("abcde"));
-        assert!(output.contains("chars omis"));
-    }
-
-    #[test]
-    fn budget_session_declenche_compaction_par_ratio() {
-        let mut cfg = EssaimConfig::default();
-        cfg.context_max_messages = 1;
-        cfg.compaction_threshold = 0.01;
-        let mut session = Session::new("test");
-        session.ajouter_user(&"x".repeat(10_000));
-        let status = budget_status_session(&session, &cfg);
-
-        assert!(doit_compacter_session(&session, &cfg, status));
-    }
 }

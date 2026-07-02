@@ -146,10 +146,15 @@ impl but::Fournisseur for FournisseurPont {
         // Calls: native (API) otherwise parsed from text (fallback rail for weak models).
         let mut appels: Vec<but::Appel> = match natifs {
             Some(tcs) if !tcs.is_empty() => tcs.into_iter().map(appel_depuis_toolcall).collect(),
-            _ => parse_tool_calls(&texte)
-                .into_iter()
-                .map(appel_depuis_toolcall)
-                .collect(),
+            _ => {
+                let mut tcs = parse_tool_calls(&texte);
+                if tcs.is_empty() {
+                    // Second rail: raw JSON without tags (fenced ```json block, bare
+                    // {"name":...,"arguments":{...}} or array), seen with local models.
+                    tcs = crate::brain::parse_tool_calls_json_brut(&texte);
+                }
+                tcs.into_iter().map(appel_depuis_toolcall).collect()
+            }
         };
 
         // stop_reason computed on the REAL calls (before injecting the synthetic plan).
