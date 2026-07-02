@@ -508,11 +508,20 @@ impl MemoireCognitive for SqliteBackend {
         let mut items = Vec::new();
         let mut seen = std::collections::HashSet::new();
         for (_, id, node, content) in hits {
-            // Hebbian trace: being recalled strengthens future ranking.
-            let _ = conn.execute(
-                "UPDATE items SET access_count = COALESCE(access_count,0)+1, accessed_at=?1 WHERE id=?2",
-                rusqlite::params![now_ts, id],
-            );
+            if opts.sans_trace {
+                // Hebbian level 2 caller: freshness only. The weight comes later,
+                // via renforcer(), for the items actually used in the answer.
+                let _ = conn.execute(
+                    "UPDATE items SET accessed_at=?1 WHERE id=?2",
+                    rusqlite::params![now_ts, id],
+                );
+            } else {
+                // Hebbian trace: being recalled strengthens future ranking.
+                let _ = conn.execute(
+                    "UPDATE items SET access_count = COALESCE(access_count,0)+1, accessed_at=?1 WHERE id=?2",
+                    rusqlite::params![now_ts, id],
+                );
+            }
             if seen.insert(node.clone()) {
                 nodes.push(node_json(&conn, &node)?);
             }
@@ -956,6 +965,27 @@ impl MemoireCognitive for SqliteBackend {
         })?;
         let items: Vec<Value> = rows.filter_map(|x| x.ok()).collect();
         Ok(json!({ "count": items.len(), "items": items }))
+    }
+
+    async fn renforcer(&self, item_ids: &[String]) -> Result<usize> {
+        if item_ids.is_empty() {
+            return Ok(0);
+        }
+        let conn = self.conn.lock().unwrap();
+        let now_ts = now();
+        let mut n = 0usize;
+        for id in item_ids {
+            if let Ok(rowid) = parse_item_rowid(id) {
+                n += conn
+                    .execute(
+                        "UPDATE items SET access_count = COALESCE(access_count,0)+1, accessed_at=?1 \
+                         WHERE id=?2 AND status='active'",
+                        rusqlite::params![now_ts, rowid],
+                    )
+                    .unwrap_or(0);
+            }
+        }
+        Ok(n)
     }
 
     async fn dream(&self) -> Result<Value> {

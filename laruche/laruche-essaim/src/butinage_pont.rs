@@ -826,7 +826,14 @@ impl but::Source for SourcePont {
     async fn rappeler(&self, requete: &str) -> Option<String> {
         let pack = self
             .mem
-            .search(requete, SearchOpts { depth: None, limit: Some(8) })
+            .search(
+                requete,
+                SearchOpts {
+                    depth: None,
+                    limit: Some(8),
+                    sans_trace: false,
+                },
+            )
             .await
             .ok()?;
         let t = pack.to_prompt_text();

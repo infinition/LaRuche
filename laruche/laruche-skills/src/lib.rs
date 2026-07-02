@@ -273,7 +273,14 @@ pub async fn list_skills(mem: &dyn MemoireCognitive, limit: Option<u8>) -> Resul
         return Ok(json!({ "skills": children }));
     }
     Ok(mem
-        .search("type: skill", SearchOpts { depth: None, limit })
+        .search(
+            "type: skill",
+            SearchOpts {
+                depth: None,
+                limit,
+                sans_trace: false,
+            },
+        )
         .await?
         .raw)
 }

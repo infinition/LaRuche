@@ -452,9 +452,11 @@ async fn assembler_working_set(
     memoire: &Arc<dyn MemoireCognitive>,
     prompt: &str,
     budget_chars: usize,
-) -> Option<String> {
+) -> Option<(String, Vec<(String, String)>)> {
     let mut seen: HashSet<String> = HashSet::new();
     let mut lignes: Vec<String> = Vec::new();
+    // (item_id, content) of the recalled evidence, for post-answer reinforcement.
+    let mut rappeles: Vec<(String, String)> = Vec::new();
 
     // Source 1 - RELEVANCE (semantic/lexical).
     // Filter out INFRASTRUCTURE nodes (`system.*` = sections of the system prompt itself;
@@ -467,6 +469,7 @@ async fn assembler_working_set(
             SearchOpts {
                 depth: None,
                 limit: Some(16),
+                sans_trace: true, // hebbian level 2: weight added after use, via renforcer()
             },
         )
         .await
@@ -527,6 +530,11 @@ async fn assembler_working_set(
                     let l = format!("- {}", content.trim());
                     if !content.trim().is_empty() && seen.insert(l.trim().to_string()) {
                         lignes.push(l);
+                        // Hebbian level 2: remember WHICH items were recalled, so
+                        // only the ones actually used in the answer get weight.
+                        if let Some(id) = it.get("id").and_then(|v| v.as_str()) {
+                            rappeles.push((id.to_string(), content.trim().to_string()));
+                        }
                     }
                 }
             }
@@ -570,8 +578,48 @@ async fn assembler_working_set(
     if out.is_empty() {
         None
     } else {
-        Some(out)
+        Some((out, rappeles))
     }
+}
+
+/// Hebbian level 2, pure decision: which recalled items did the answer actually
+/// USE? Deterministic lexical overlap: an item is used when at least two of its
+/// significant tokens (>=5 chars, case-insensitive) appear in the answer, or one
+/// for very short items. Cheap, testable, and honest enough: unused recalls stop
+/// gaining weight, so noise no longer climbs the ranking by mere co-occurrence.
+fn rappels_utilises(rappeles: &[(String, String)], reponse: &str) -> Vec<String> {
+    // Significant tokens: >=4 chars (so model numbers like `5080` or `vram`
+    // count) minus the most common fr/en filler words of that length.
+    const VIDES: &[&str] = &[
+        "pour", "dans", "avec", "sans", "sont", "vous", "nous", "mais", "plus", "tout",
+        "toute", "comme", "leur", "elle", "cette", "fait", "etre", "être", "aussi", "donc",
+        "alors", "meme", "même", "bien", "peut", "vers", "chez", "this", "that", "with",
+        "from", "your", "have", "will", "been", "were", "they", "than", "then", "when",
+        "what", "which", "there", "their", "about", "would", "could",
+    ];
+    let jetons = |s: &str| -> HashSet<String> {
+        s.to_lowercase()
+            .split(|c: char| !c.is_alphanumeric())
+            .filter(|t| t.chars().count() >= 4 && !VIDES.contains(t))
+            .map(String::from)
+            .collect()
+    };
+    let rep = jetons(reponse);
+    if rep.is_empty() {
+        return Vec::new();
+    }
+    rappeles
+        .iter()
+        .filter(|(_, contenu)| {
+            let it = jetons(contenu);
+            if it.is_empty() {
+                return false;
+            }
+            let communs = it.intersection(&rep).count();
+            communs >= 2 || (it.len() <= 3 && communs >= 1)
+        })
+        .map(|(id, _)| id.clone())
+        .collect()
 }
 
 /// Multimodal variant of [`boucle_react_memoire`] for the WebSocket UI:
@@ -658,11 +706,13 @@ pub async fn boucle_react_memoire_multimodal(
     // Pre-retrieval -> trailing EPHEMERAL context (NOT in the system prompt:
     // keeps the prefix stable -> hot prefix cache, third-party trick).
     // Lever 1 (first slice): BUDGETED working set instead of a fixed top-N.
+    let mut rappels_du_tour: Vec<(String, String)> = Vec::new();
     let ephemeral = match assembler_working_set(&memoire, prompt_utilisateur, 2400).await {
-        Some(recall) => {
+        Some((recall, rappeles)) => {
             let _ = tx.send(ChatEvent::Status {
                 message: format!("Memory: working set {} chars.", recall.len()),
             });
+            rappels_du_tour = rappeles;
             Some(recall)
         }
         None => None,
@@ -714,6 +764,18 @@ pub async fn boucle_react_memoire_multimodal(
         Some(memoire.clone()),
     )
     .await?;
+
+    // Hebbian level 2: of everything recalled into the working set, reinforce
+    // ONLY the items whose content actually irrigated the answer (deterministic
+    // overlap). Best-effort, cheap SQL.
+    if !rappels_du_tour.is_empty() {
+        let utilises = rappels_utilises(&rappels_du_tour, &reponse);
+        if !utilises.is_empty() {
+            if let Ok(n) = memoire.renforcer(&utilises).await {
+                tracing::debug!(utilises = n, rappeles = rappels_du_tour.len(), "hebbian level 2");
+            }
+        }
+    }
 
     // 3) Best-effort background review: the response is already rendered. The reviewer receives
     //    neither the session nor the Abeille registry, only the memory/skill accesses below.
@@ -1011,6 +1073,7 @@ async fn recuperer_abeilles_pertinentes(
             SearchOpts {
                 depth: Some(2),
                 limit: Some(20),
+                sans_trace: false,
             },
         )
         .await
@@ -1112,6 +1175,7 @@ async fn construire_index_skills(
             SearchOpts {
                 depth: Some(2),
                 limit: Some(200),
+                sans_trace: false,
             },
         )
         .await
@@ -1198,6 +1262,7 @@ async fn recuperer_skills_pertinents(
             SearchOpts {
                 depth: Some(2),
                 limit: Some(8),
+                sans_trace: false,
             },
         )
         .await
@@ -1368,6 +1433,32 @@ fn compter_tool_calls(session: &Session) -> usize {
 #[cfg(test)]
 mod apprentissage_tests {
     use super::*;
+
+    #[test]
+    fn hebbien_2_ne_renforce_que_les_rappels_utilises() {
+        let rappeles = vec![
+            (
+                "itm_1".to_string(),
+                "Fabien utilise une carte graphique RTX 5080 avec 16 Go de VRAM".to_string(),
+            ),
+            (
+                "itm_2".to_string(),
+                "Le chat de la voisine s'appelle Filou et adore les croquettes".to_string(),
+            ),
+            ("itm_3".to_string(), "Broken Sword".to_string()), // short item: 1 shared token suffices
+        ];
+        let reponse = "Ta config actuelle repose sur la RTX 5080 et ses 16 Go de VRAM, \
+                       largement suffisante pour les recherches sur Broken Sword.";
+        let utilises = rappels_utilises(&rappeles, reponse);
+        assert!(utilises.contains(&"itm_1".to_string()), "{utilises:?}");
+        assert!(utilises.contains(&"itm_3".to_string()), "{utilises:?}");
+        assert!(
+            !utilises.contains(&"itm_2".to_string()),
+            "unused recall must NOT gain weight: {utilises:?}"
+        );
+        // Empty answer reinforces nothing.
+        assert!(rappels_utilises(&rappeles, "").is_empty());
+    }
 
     #[test]
     fn rappel_skill_injecte_et_signale() {

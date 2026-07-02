@@ -63,6 +63,7 @@ impl Abeille for MemoireSearch {
         let opts = SearchOpts {
             depth: None,
             limit: args["limit"].as_u64().map(|l| l as u8),
+            sans_trace: false,
         };
         match self.mem.search(query, opts).await {
             Ok(pack) => {

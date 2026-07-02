@@ -31,6 +31,7 @@ pub(crate) async fn api_memory_search(
             laruche_memoire::SearchOpts {
                 depth: None,
                 limit: Some(limit),
+                sans_trace: false,
             },
         )
         .await

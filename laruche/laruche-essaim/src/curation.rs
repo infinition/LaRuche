@@ -120,6 +120,7 @@ pub async fn detecter_contradictions(
             SearchOpts {
                 depth: None,
                 limit: Some(5),
+                sans_trace: false,
             },
         )
         .await?;
@@ -415,6 +416,7 @@ async fn trouver_skill_existant(
             SearchOpts {
                 depth: Some(2),
                 limit: Some(5),
+                sans_trace: false,
             },
         )
         .await?;

@@ -283,6 +283,7 @@ impl Abeille for SkillList {
             let opts = SearchOpts {
                 depth: None,
                 limit: Some(limit.min(u8::MAX as usize) as u8),
+                sans_trace: false,
             };
             match self.mem.search("type: skill", opts).await {
                 Ok(pack) => {

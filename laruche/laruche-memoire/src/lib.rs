@@ -100,6 +100,12 @@ pub struct SearchOpts {
     pub depth: Option<u8>,
     /// Max number of evidence items.
     pub limit: Option<u8>,
+    /// Hebbian level 2: when true, being returned by this search does NOT add
+    /// hebbian weight (only the freshness trace is updated). The automatic
+    /// recall sets this and reinforces AFTERWARDS, via [`MemoireCognitive::renforcer`],
+    /// only the items whose content actually irrigated the final answer, so
+    /// noise recalled over and over stops climbing the ranking by itself.
+    pub sans_trace: bool,
 }
 
 /// Search result: the raw "context pack" returned by the engine,
@@ -166,6 +172,13 @@ impl ContextPack {
 pub trait MemoireCognitive: Send + Sync {
     /// Retrieval: map activation + hybrid retrieval -> context pack.
     async fn search(&self, query: &str, opts: SearchOpts) -> Result<ContextPack>;
+
+    /// Hebbian level 2: add weight to the items that were actually USED (their
+    /// content irrigated the final answer), identified by `itm_<id>`. Called by
+    /// the engine after the run; backends without support are a no-op.
+    async fn renforcer(&self, _item_ids: &[String]) -> Result<usize> {
+        Ok(0)
+    }
 
     /// Direct write of an active item (trusted caller). Audited.
     async fn write(&self, item: MemoryItem) -> Result<Value>;
