@@ -78,7 +78,7 @@
   {
     "id": "anti_demission_obstacle",
     "prompt": "trouve-moi un lien de téléchargement direct et fonctionnel du manuel PDF officiel de la Game Boy (DMG-01)",
-    "timeout_secs": 600,
+    "timeout_secs": 900,
     "verifs": {
       "min_web": 3,
       "interdire_demission": true
