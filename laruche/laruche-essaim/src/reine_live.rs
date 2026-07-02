@@ -223,6 +223,10 @@ pub async fn revue_et_refaire(
     // she reviews with awareness of what came before. Built once from the history
     // captured before the rework starts mutating the session.
     let contexte = construire_contexte(session, contexte_messages as usize);
+    // Extended live introspection, built once per review: the ruche's memory
+    // domains (top-level nodes). The Reine is the guardian of memory use, so she
+    // judges knowing what LaRuche actually knows about.
+    let etat_ruche = construire_etat_ruche(&memoire).await;
     let mut answer = answer_initial.to_string();
     let mut journal: Vec<String> = Vec::new();
     let mut revised = false;
@@ -245,7 +249,11 @@ pub async fn revue_et_refaire(
     loop {
         // Live workshop introspection for THIS draft (recomputed per round: a rework
         // appends its own turn and trace to the working session).
-        let atelier = construire_atelier(session, registry);
+        let mut atelier = construire_atelier(session, registry);
+        if !etat_ruche.is_empty() {
+            atelier.push('\n');
+            atelier.push_str(&etat_ruche);
+        }
         let card = match juger_avec(
             &juge.provider,
             &juge.model,
@@ -451,6 +459,42 @@ fn construire_atelier(session: &Session, registry: &AbeilleRegistry) -> String {
         )
     };
     format!("Tools available ({total}): {liste}\nTrace for this draft: {trace_txt}")
+}
+
+/// Top-level memory domains of the ruche, one compact line for the judge. The
+/// Reine guards memory use: knowing the real domains lets her spot an answer
+/// that ignored (or should have written to) the cognitive map.
+async fn construire_etat_ruche(memoire: &Arc<dyn MemoireCognitive>) -> String {
+    let Ok(v) = memoire.list_nodes().await else {
+        return String::new();
+    };
+    let noeuds = v
+        .as_array()
+        .cloned()
+        .or_else(|| v.get("nodes").and_then(|n| n.as_array()).cloned())
+        .unwrap_or_default();
+    let mut racines: Vec<String> = noeuds
+        .iter()
+        .filter(|n| {
+            n.get("parent_id")
+                .map(|p| p.is_null())
+                .unwrap_or(true)
+        })
+        .filter_map(|n| n.get("id").and_then(|i| i.as_str()).map(String::from))
+        .collect();
+    if racines.is_empty() {
+        return String::new();
+    }
+    racines.sort();
+    let mut liste = racines.join(", ");
+    if liste.len() > 300 {
+        liste.truncate(300);
+        if let Some(p) = liste.rfind(", ") {
+            liste.truncate(p);
+        }
+        liste.push_str(", ...");
+    }
+    format!("Memory domains of the ruche: {liste}")
 }
 
 /// Append the review outcome to `evals/reine-scorecards.jsonl` (best-effort).

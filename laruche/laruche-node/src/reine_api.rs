@@ -424,6 +424,47 @@ pub(crate) async fn api_list_proposals() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "proposals": items, "pending": pending }))
 }
 
+/// GET /api/reine/scorecards - aggregate view of the review journal
+/// (`evals/reine-scorecards.jsonl`): totals per verdict, average scores, and the
+/// most recent entries. This is the Scorecard dashboard's data.
+pub(crate) async fn api_reine_scorecards() -> Json<serde_json::Value> {
+    let brut = std::fs::read_to_string("evals/reine-scorecards.jsonl").unwrap_or_default();
+    let lignes: Vec<serde_json::Value> = brut
+        .lines()
+        .filter_map(|l| serde_json::from_str(l).ok())
+        .collect();
+    let total = lignes.len();
+    let compte = |avis: &str| lignes.iter().filter(|v| v["avis"] == avis).count();
+    let moyenne = |champ: &str| -> f64 {
+        if lignes.is_empty() {
+            return 0.0;
+        }
+        let somme: f64 = lignes
+            .iter()
+            .filter_map(|v| v[champ].as_f64())
+            .sum();
+        (somme / lignes.len() as f64 * 10.0).round() / 10.0
+    };
+    let revises = lignes.iter().filter(|v| v["revised"] == true).count();
+    let recentes: Vec<serde_json::Value> = lignes.iter().rev().take(15).cloned().collect();
+    Json(serde_json::json!({
+        "total": total,
+        "approve": compte("approve"),
+        "revise": compte("revise"),
+        "escalate": compte("escalate"),
+        "revised": revises,
+        "avg": {
+            "relevance": moyenne("relevance"),
+            "methodology": moyenne("methodology"),
+            "objective": moyenne("objective"),
+            "brand": moyenne("brand"),
+            "confidence": moyenne("confidence"),
+            "rounds": moyenne("rounds"),
+        },
+        "recent": recentes,
+    }))
+}
+
 /// POST /api/reine/proposals/:id/approve - apply a proposal to memory (auth).
 pub(crate) async fn api_approve_proposal(
     State(state): State<Arc<AppState>>,

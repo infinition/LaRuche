@@ -761,8 +761,44 @@ LaRuche.Settings = (function(){
       '<button class="form-btn" onclick="LaRuche.Settings.saveReineCfg()" style="margin-top:8px;">'+LaRuche.i18n.t('settings.save')+'</button>'+
       '<div style="margin-top:10px;border-top:1px solid rgba(245,158,11,.2);padding-top:8px">'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('reine.queueTitle')+'</span><span style="font-size:10px;color:var(--text-dim);text-align:right">'+LaRuche.i18n.t('reine.queueInMemory')+'</span></div>'+
-      '</div></div>'+
+      '</div>'+
+      '<div id="reineScorecards" style="margin-top:10px;border-top:1px solid rgba(245,158,11,.2);padding-top:8px"></div>'+
+      '</div>'+
       '</div>';
+    renderReineScorecards();
+  }
+
+  // Scorecard dashboard: aggregates of every completed review (the JSONL journal
+  // finally has a face). Silent when no review has run yet.
+  function renderReineScorecards(){
+    fetch(LaRuche.API.base+'/api/reine/scorecards').then(function(r){return r.json();}).then(function(d){
+      var host=document.getElementById('reineScorecards');
+      if(!host) return;
+      var t=LaRuche.i18n.t;
+      if(!d || !d.total){ host.innerHTML='<div style="font-size:10px;color:var(--text-dim)">'+t('reine.scoreAucune')+'</div>'; return; }
+      var pct=function(n){ return Math.round(n*100/d.total)+'%'; };
+      var barre=function(label,val){
+        return '<div style="display:flex;align-items:center;gap:6px;font-size:10px;margin:2px 0">'+
+          '<span style="width:86px;color:var(--text-dim)">'+label+'</span>'+
+          '<div style="flex:1;height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden"><div style="width:'+Math.min(100,val)+'%;height:100%;background:var(--amber)"></div></div>'+
+          '<span style="width:30px;text-align:right;color:var(--text)">'+val+'</span></div>';
+      };
+      host.innerHTML=
+        '<div class="settings-card-title" style="margin-bottom:4px">👑 '+t('reine.scoreTitre')+'</div>'+
+        '<div style="display:flex;gap:12px;font-size:11px;margin-bottom:6px">'+
+          '<span>'+d.total+' '+t('reine.scoreRevues')+'</span>'+
+          '<span style="color:var(--green)">✓ '+pct(d.approve)+'</span>'+
+          '<span style="color:var(--amber)">↻ '+pct(d.revise)+'</span>'+
+          '<span style="color:var(--red)">⚑ '+pct(d.escalate)+'</span>'+
+          '<span style="color:var(--text-dim)">'+t('reine.scoreRefaits').replace('{n}', d.revised)+'</span>'+
+        '</div>'+
+        barre(t('reine.scorePertinence'), d.avg.relevance)+
+        barre(t('reine.scoreMethodo'), d.avg.methodology)+
+        barre(t('reine.scoreObjectif'), d.avg.objective)+
+        barre(t('reine.scoreMarque'), d.avg.brand)+
+        barre(t('reine.scoreConfiance'), d.avg.confidence)+
+        '<div style="font-size:9px;color:var(--text-dim);margin-top:4px">'+t('reine.scoreTours').replace('{n}', d.avg.rounds)+'</div>';
+    }).catch(function(){});
   }
 
   // ── Providers Tab ─────────────────────────────────────────────

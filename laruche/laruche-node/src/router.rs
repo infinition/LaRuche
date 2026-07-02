@@ -206,6 +206,7 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
             get(voice_config::api_get_voice).post(voice_config::api_set_voice),
         )
         .route("/api/reine/proposals", get(reine_api::api_list_proposals))
+        .route("/api/reine/scorecards", get(reine_api::api_reine_scorecards))
         .route(
             "/api/reine/proposals/apply-safe",
             post(reine_api::api_approve_safe),

@@ -4974,5 +4974,45 @@
   "reine.queueVoirTout": {
     "en": "Click to show the full proposed content",
     "fr": "Cliquer pour voir le contenu propose complet"
+  },
+  "reine.scoreTitre": {
+    "en": "Scorecards - review history",
+    "fr": "Scorecards - historique des revues"
+  },
+  "reine.scoreAucune": {
+    "en": "No review recorded yet (the journal fills up as LaReine judges).",
+    "fr": "Aucune revue enregistree pour le moment (le journal se remplit au fil des jugements)."
+  },
+  "reine.scoreRevues": {
+    "en": "reviews",
+    "fr": "revues"
+  },
+  "reine.scoreRefaits": {
+    "en": "{n} redone",
+    "fr": "{n} refaits"
+  },
+  "reine.scorePertinence": {
+    "en": "Relevance",
+    "fr": "Pertinence"
+  },
+  "reine.scoreMethodo": {
+    "en": "Methodology",
+    "fr": "Methodologie"
+  },
+  "reine.scoreObjectif": {
+    "en": "Objective",
+    "fr": "Objectif"
+  },
+  "reine.scoreMarque": {
+    "en": "Brand",
+    "fr": "Marque"
+  },
+  "reine.scoreConfiance": {
+    "en": "Confidence",
+    "fr": "Confiance"
+  },
+  "reine.scoreTours": {
+    "en": "avg rework rounds: {n}",
+    "fr": "tours de revision moyens : {n}"
   }
 }
