@@ -2934,7 +2934,13 @@ async fn main() -> Result<()> {
 
     // L3 (slice 2): AUTO memory SYNC from peer nodes (Miel), every 5 min: each
     // node pulls+dedups the others' facts → COLLECTIVE memory of the ruche, without cloud.
-    {
+    // SECURITY: OFF by default and OPT-IN (LARUCHE_MESH_MEMORY_SYNC=1). The pull has no
+    // per-peer signature check yet, so on an untrusted LAN any node advertising llm/agent
+    // could feed facts into memory. Imported facts are provenance-tagged (source=mesh:<peer>)
+    // and treated as REFERENCE DATA (never instructions) by the recall framing, but syncing
+    // is not enabled silently. Full mutual mesh auth is tracked in the roadmap.
+    if std::env::var("LARUCHE_MESH_MEMORY_SYNC").as_deref() == Ok("1") {
+        info!("LARUCHE_MESH_MEMORY_SYNC=1: collective memory sync enabled (pulls facts from LAN peers every 5 min).");
         let sync_state = state.clone();
         tokio::spawn(async move {
             let mut last_sync: std::collections::HashMap<String, i64> = std::collections::HashMap::new();
