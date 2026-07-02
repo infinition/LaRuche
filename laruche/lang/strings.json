@@ -4878,5 +4878,85 @@
   "reine.judgeDistinctHint": {
     "en": "Tip: pick a judge DIFFERENT from the chat model. A model judging its own output approves itself too easily; a distinct judge (even a small one) catches more.",
     "fr": "Conseil : choisis un juge DIFFERENT du modele de chat. Un modele qui juge sa propre production s’auto-approuve trop facilement ; un juge distinct (meme petit) attrape plus de choses."
+  },
+  "settings.wfName": {
+    "en": "Name",
+    "fr": "Nom"
+  },
+  "settings.wfObserve": {
+    "en": "Observe",
+    "fr": "Observer"
+  },
+  "settings.wfEvery": {
+    "en": "Every",
+    "fr": "Toutes les"
+  },
+  "settings.wfEveryHint": {
+    "en": "seconds (empty = default)",
+    "fr": "secondes (vide = defaut)"
+  },
+  "settings.wfCondition": {
+    "en": "Condition (LLM gate)",
+    "fr": "Condition (gate LLM)"
+  },
+  "settings.wfPattern": {
+    "en": "Pattern (substring)",
+    "fr": "Motif (sous-chaine)"
+  },
+  "settings.wfCondHint": {
+    "en": "empty = fire on every change",
+    "fr": "vide = declenche a chaque changement"
+  },
+  "settings.wfSustained": {
+    "en": "keep firing while it lasts",
+    "fr": "re-declenche tant que ca dure"
+  },
+  "settings.wfCooldown": {
+    "en": "Cooldown",
+    "fr": "Cooldown"
+  },
+  "settings.wfCooldownHint": {
+    "en": "min seconds between fires",
+    "fr": "secondes min entre deux tirs"
+  },
+  "settings.wfAction": {
+    "en": "Action (prompt)",
+    "fr": "Action (prompt)"
+  },
+  "settings.wfDeliver": {
+    "en": "Deliver",
+    "fr": "Livraison"
+  },
+  "settings.wfLoop": {
+    "en": "back to observe (loop)",
+    "fr": "retour a l observation (boucle)"
+  },
+  "settings.wfDown": {
+    "en": "DOWN",
+    "fr": "HORS LIGNE"
+  },
+  "settings.wfUp": {
+    "en": "up",
+    "fr": "en ligne"
+  },
+  "settings.wfPresent": {
+    "en": "file present",
+    "fr": "fichier present"
+  },
+  "settings.wfAbsent": {
+    "en": "file absent",
+    "fr": "fichier absent"
+  },
+  "settings.wfNoBaseline": {
+    "en": "no observation yet",
+    "fr": "pas encore d observation"
+  },
+  "settings.wfPause": {
+    "en": "Pause",
+    "fr": "Mettre en pause"
+  },
+  "settings.wfResume": {
+    "en": "Resume",
+    "fr": "Reactiver"
   }
 }

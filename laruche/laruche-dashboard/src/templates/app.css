@@ -1430,6 +1430,33 @@ pre:hover .code-copy-btn { opacity:1; }
 /* One-line description under a card title (optional). */
 .settings-card-desc { color:var(--text-dim); font-size:11px; margin:-4px 0 8px; line-height:1.4; }
 
+/* ── Watcher cards: collapsed synthesis + expanded pipeline (the diagram IS the form) ── */
+.wcard { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:0; margin-bottom:10px; overflow:hidden; }
+.wcard-head { display:flex; align-items:center; gap:10px; padding:10px 14px; cursor:pointer; user-select:none; }
+.wcard-head:hover { background:rgba(255,255,255,0.03); }
+.wdot { width:9px; height:9px; border-radius:50%; flex:none; }
+.wdot.up { background:var(--green); box-shadow:0 0 6px var(--green); }
+.wdot.down { background:var(--red); box-shadow:0 0 6px var(--red); }
+.wdot.idle { background:var(--text-dim); }
+.wdot.log { background:var(--cyan); }
+.wcard-name { font-weight:600; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.wcard-type { font-size:9px; border:1px solid var(--cyan); color:var(--cyan); padding:1px 6px; border-radius:8px; flex:none; }
+.wcard-sust { font-size:9px; border:1px solid var(--amber); color:var(--amber); padding:1px 6px; border-radius:8px; flex:none; }
+.wcard-synth { font-size:10px; color:var(--text-dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; text-align:right; }
+.wcard-chev { color:var(--text-dim); flex:none; transition:transform .15s; }
+.wcard.open .wcard-chev { transform:rotate(90deg); }
+.wflow { display:flex; flex-wrap:wrap; align-items:stretch; gap:0; padding:12px 14px 6px; border-top:1px dashed var(--border); }
+.wnode { border:1px solid var(--border); border-radius:12px; background:var(--bg-panel); padding:8px 10px; min-width:130px; max-width:240px; flex:1; margin:4px 0; }
+.wnode:hover { border-color:var(--amber); }
+.wnode-title { font-size:9px; text-transform:uppercase; letter-spacing:.6px; color:var(--amber); margin-bottom:5px; display:flex; align-items:center; gap:4px; }
+.wnode input, .wnode select, .wnode textarea { width:100%; background:rgba(0,0,0,0.25); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:11px; padding:3px 6px; box-sizing:border-box; }
+.wnode textarea { resize:vertical; min-height:34px; font-family:inherit; }
+.wnode .wnode-sub { font-size:9px; color:var(--text-dim); margin-top:4px; }
+.warrow { display:flex; align-items:center; color:var(--amber); font-size:15px; padding:0 6px; flex:none; opacity:.7; }
+.warrow.wloop { color:var(--text-dim); font-size:17px; }
+.wcard-foot { display:flex; align-items:center; gap:8px; padding:8px 14px 12px; }
+.wcard-state { font-size:10px; color:var(--text-dim); font-family:var(--mono); flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
 /* ── Reworked Settings: left vertical nav (desktop) + search + uniform cards ── */
 /* Only the Settings page carries .settings-nav-vertical, so the row layout and the
    nav restyle stay scoped and never touch the Automations/Capabilities tab bars. */

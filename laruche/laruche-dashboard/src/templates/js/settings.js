@@ -1568,14 +1568,90 @@ LaRuche.Settings = (function(){
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.modelLabel')+'</label><select id="watcher-model" class="form-input"><option value="">'+LaRuche.i18n.t('settings.parDefault')+'</option></select></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherChannelLabel')+'</label><select id="nwChannel" class="form-input"><option value="">'+LaRuche.i18n.t('settings.watcherHomeChannel')+'</option></select></div>'+
       '<button class="settings-save-btn" onclick="LaRuche.Settings.createWatcher()">'+LaRuche.i18n.t('settings.createBtn')+'</button></div>'+
-      watchers.map(function(w){
-        var effProv = LaRuche.i18n.t('settings.watcherDefaut');
-        if(w.profile_id && profiles[w.profile_id]) effProv = profiles[w.profile_id].name || w.profile_id;
-        else if(w.profile_id) effProv = w.profile_id;
-        else if(w.model) effProv = w.model;
-        if(w.profile_id && w.model) effProv += " (" + w.model + ")";
-        return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.Utils.esc(w.name)+'</div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.typeLabel')+'</span><span class="settings-value">'+LaRuche.Utils.esc(w.watcher_type)+'</span></div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.targetLabel')+'</span><span class="settings-value">'+LaRuche.Utils.esc(w.target)+'</span></div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.providerModelLabel')+'</span><span class="settings-value">'+LaRuche.Utils.esc(effProv)+'</span></div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.runsLabel')+'</span><span class="settings-value">'+(w.run_count||0)+'</span></div><div style="margin-top:6px;display:flex;gap:6px"><button onclick="LaRuche.Settings.editWatcher(\''+w.id+'\')" style="background:none;border:1px solid var(--amber);color:var(--amber);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.watcherEditBtn')+'</button><button onclick="fetch(\'/api/watchers/'+w.id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.deleteWatcherBtn')+'</button></div></div>';}).join('');
+      watchers.map(function(w){ return renderWatcherCard(w, profiles); }).join('');
     window.__fillChannels(document.getElementById('nwChannel'), '', LaRuche.i18n.t('settings.watcherHomeChannel'));
+    // Channel selectors of the expanded cards need the live channel list too.
+    watchers.forEach(function(w){
+      if(_watcherOpen[w.id]){
+        var c=document.getElementById('wf-chan-'+w.id);
+        if(c) window.__fillChannels(c, w.channel||'', LaRuche.i18n.t('settings.watcherHomeChannel'));
+      }
+    });
+  }
+
+  // Health dot + one-line synthesis derived from the watcher's persisted state.
+  function watcherEtat(w){
+    var t=LaRuche.i18n.t, ls=w.last_state||'';
+    if(ls.indexOf('down:')===0) return {cls:'down', txt:t('settings.wfDown')+' · '+ls.slice(5,21).replace('T',' ')};
+    if(ls==='absent') return {cls:'idle', txt:t('settings.wfAbsent')};
+    if(ls.indexOf('present:')===0) return {cls:'up', txt:t('settings.wfPresent')};
+    if(w.watcher_type==='log' && ls) return {cls:'log', txt:'offset '+ls};
+    if(ls) return {cls:'up', txt:t('settings.wfUp')};
+    return {cls:'idle', txt:t('settings.wfNoBaseline')};
+  }
+
+  // A watcher card: collapsed = synthesis line; expanded = the execution loop as
+  // a bubble pipeline where each bubble IS the edit field (observe -> every ->
+  // condition gate -> cooldown -> action -> deliver -> back to observe).
+  function renderWatcherCard(w, profiles){
+    var open=!!_watcherOpen[w.id], etat=watcherEtat(w), esc=LaRuche.Utils.esc, t=LaRuche.i18n.t;
+    var ivDef=(w.watcher_type==='url')?60:10, cdDef=(w.watcher_type==='url')?900:0;
+    var head='<div class="wcard-head" onclick="LaRuche.Settings.toggleWatcherCard(\''+w.id+'\')">'+
+      '<span class="wdot '+etat.cls+'"></span>'+
+      '<span class="wcard-name">'+esc(w.name||'?')+'</span>'+
+      '<span class="wcard-type">'+esc(w.watcher_type||'')+'</span>'+
+      (w.sustained?'<span class="wcard-sust" title="'+t('settings.wfSustained')+'">⟳</span>':'')+
+      (w.active===false?'<span class="wcard-sust" style="border-color:var(--red);color:var(--red)">OFF</span>':'')+
+      '<span class="wcard-synth">'+esc(w.target||'')+' · '+(w.interval_secs||ivDef)+'s · '+(w.run_count||0)+t('automations.runsSuffix')+'</span>'+
+      '<span class="wcard-chev">▶</span></div>';
+    if(!open) return '<div class="wcard">'+head+'</div>';
+    var id=w.id;
+    function opt(v,label,cur){ return '<option value="'+v+'"'+(cur===v?' selected':'')+'>'+label+'</option>'; }
+    var typeSel=opt('file',t('settings.watcherTypeFile'),w.watcher_type)+opt('url',t('settings.watcherTypeUrl'),w.watcher_type)+opt('log',t('settings.watcherTypeLog'),w.watcher_type);
+    var profOpts='<option value="">'+t('settings.parDefault')+'</option>';
+    Object.keys(profiles).forEach(function(k){ profOpts+='<option value="'+esc(k)+'"'+((w.profile_id===k)?' selected':'')+'>'+esc(profiles[k].name||k)+'</option>'; });
+    var modOpts='<option value="">'+t('settings.parDefault')+'</option>';
+    if(w.profile_id && profiles[w.profile_id] && profiles[w.profile_id].models){
+      profiles[w.profile_id].models.forEach(function(m){ modOpts+='<option value="'+esc(m)+'"'+((w.model===m)?' selected':'')+'>'+esc(m)+'</option>'; });
+    }
+    var fleche='<span class="warrow">→</span>';
+    var condTitre=(w.watcher_type==='log')?('🔎 '+t('settings.wfPattern')):('🧠 '+t('settings.wfCondition'));
+    var flow='<div class="wflow">'+
+      '<div class="wnode" style="max-width:150px"><div class="wnode-title">🏷 '+t('settings.wfName')+'</div><input id="wf-name-'+id+'" value="'+esc(w.name||'')+'"></div>'+fleche+
+      '<div class="wnode" style="flex:2"><div class="wnode-title">👁 '+t('settings.wfObserve')+'</div><select id="wf-type-'+id+'" style="margin-bottom:4px">'+typeSel+'</select><input id="wf-target-'+id+'" value="'+esc(w.target||'')+'"></div>'+fleche+
+      '<div class="wnode" style="max-width:110px"><div class="wnode-title">⏱ '+t('settings.wfEvery')+'</div><input id="wf-iv-'+id+'" type="number" min="5" placeholder="'+ivDef+'" value="'+(w.interval_secs||'')+'"><div class="wnode-sub">'+t('settings.wfEveryHint')+'</div></div>'+fleche+
+      '<div class="wnode" style="flex:2"><div class="wnode-title">'+condTitre+'</div><textarea id="wf-cond-'+id+'" rows="2">'+esc(w.condition||'')+'</textarea>'+
+        '<label class="wnode-sub" style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="wf-sust-'+id+'" style="width:auto"'+(w.sustained?' checked':'')+'> ⟳ '+t('settings.wfSustained')+'</label>'+
+        '<div class="wnode-sub">'+t('settings.wfCondHint')+'</div></div>'+fleche+
+      '<div class="wnode" style="max-width:110px"><div class="wnode-title">⏳ '+t('settings.wfCooldown')+'</div><input id="wf-cd-'+id+'" type="number" min="0" placeholder="'+cdDef+'" value="'+(w.cooldown_secs!=null?w.cooldown_secs:'')+'"><div class="wnode-sub">'+t('settings.wfCooldownHint')+'</div></div>'+fleche+
+      '<div class="wnode" style="flex:2"><div class="wnode-title">🚀 '+t('settings.wfAction')+'</div><textarea id="wf-prompt-'+id+'" rows="2">'+esc(w.prompt||'')+'</textarea></div>'+fleche+
+      '<div class="wnode" style="max-width:170px"><div class="wnode-title">📨 '+t('settings.wfDeliver')+'</div>'+
+        '<select id="wf-chan-'+id+'" style="margin-bottom:4px"><option value="">'+t('settings.watcherHomeChannel')+'</option></select>'+
+        '<select id="wf-prof-'+id+'" style="margin-bottom:4px" onchange="LaRuche.Settings.updateWatcherCardModelSelect(\''+id+'\')">'+profOpts+'</select>'+
+        '<select id="wf-model-'+id+'">'+modOpts+'</select></div>'+
+      '<span class="warrow wloop" title="'+t('settings.wfLoop')+'">↺</span>'+
+      '</div>';
+    var foot='<div class="wcard-foot">'+
+      '<span class="wcard-state" title="'+esc(w.last_state||'')+'">'+esc(etat.txt)+'</span>'+
+      '<button class="form-btn" onclick="LaRuche.Settings.saveWatcherEdit(\''+id+'\')">'+t('settings.watcherSave')+'</button>'+
+      '<button class="tl-btn" onclick="LaRuche.Settings.toggleWatcherActive(\''+id+'\','+(w.active===false?'true':'false')+')">'+(w.active===false?t('settings.wfResume'):t('settings.wfPause'))+'</button>'+
+      '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="fetch(\'/api/watchers/'+id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})">'+t('settings.deleteWatcherBtn')+'</button>'+
+      '</div>';
+    return '<div class="wcard open">'+head+flow+foot+'</div>';
+  }
+
+  function toggleWatcherCard(id){ _watcherOpen[id]=!_watcherOpen[id]; loadTab('watchers'); }
+
+  function toggleWatcherActive(id, active){
+    fetch(LaRuche.API.base+'/api/watchers/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({active:active})})
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('toast.saved'),'ok'); loadTab('watchers'); } else LaRuche.Toast.show(LaRuche.i18n.t('toast.failed'),'err'); });
+  }
+
+  function updateWatcherCardModelSelect(id){
+    var pId=document.getElementById('wf-prof-'+id).value, sel=document.getElementById('wf-model-'+id);
+    if(!sel) return;
+    sel.innerHTML='<option value="">'+LaRuche.i18n.t('settings.parDefault')+'</option>';
+    if(pId && _profiles[pId] && _profiles[pId].models){ _profiles[pId].models.forEach(function(m){ sel.innerHTML+='<option value="'+LaRuche.Utils.esc(m)+'">'+LaRuche.Utils.esc(m)+'</option>'; }); }
   }
 
   function createWatcher() {
@@ -1597,58 +1673,32 @@ LaRuche.Settings = (function(){
   }
 
   // Inline watcher editing (parity with cron/kanban).
+  // The pipeline card replaced the old modal editor: editing happens in place.
   function editWatcher(id) {
-    var w=null; try{ w=JSON.parse(_watchersLast).find(function(x){return x.id===id;}); }catch(e){}
-    if(!w){ LaRuche.Toast.show(LaRuche.i18n.t('settings.fileNotFound'),'err'); return; }
-    function opt(v,label,cur){ return '<option value="'+v+'" '+(cur===v?'selected':'')+'>'+label+'</option>'; }
-    var typeSel = opt('file',LaRuche.i18n.t('settings.watcherTypeFile'),w.watcher_type)+opt('url',LaRuche.i18n.t('settings.watcherTypeUrl'),w.watcher_type)+opt('log',LaRuche.i18n.t('settings.watcherTypeLog'),w.watcher_type);
-    var profOpts = '<option value="">'+LaRuche.i18n.t('settings.watcherDefChannel')+'</option>';
-    Object.keys(_profiles).forEach(function(k){ profOpts += '<option value="'+k+'" '+((w.profile_id===k)?'selected':'')+'>'+LaRuche.Utils.esc(_profiles[k].name||k)+'</option>'; });
-    var modOpts = '<option value="">'+LaRuche.i18n.t('settings.parDefault')+'</option>';
-    if(w.profile_id && _profiles[w.profile_id] && _profiles[w.profile_id].models){
-      _profiles[w.profile_id].models.forEach(function(mm){ modOpts += '<option value="'+LaRuche.Utils.esc(mm)+'" '+((w.model===mm)?'selected':'')+'>'+LaRuche.Utils.esc(mm)+'</option>'; });
-    }
-    var ov=document.createElement('div');
-    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center';
-    ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
-    ov.innerHTML='<div style="width:480px;max-width:92vw;background:#0d0d10;border:1px solid var(--amber);border-radius:10px;padding:16px;max-height:90vh;overflow:auto">'+
-      '<div style="font-weight:600;color:var(--amber);margin-bottom:10px">'+LaRuche.i18n.t('settings.watcherEditTitle')+'</div>'+
-      '<label class="form-label">'+LaRuche.i18n.t('settings.watcherNomLabel')+'</label><input class="form-input" id="weName" value="'+LaRuche.Utils.esc(w.name||'')+'">'+
-      '<label class="form-label">'+LaRuche.i18n.t('settings.watcherTypeLabel')+'</label><select class="form-input" id="weType">'+typeSel+'</select>'+
-      '<label class="form-label">'+LaRuche.i18n.t('settings.watcherTargetLabel')+'</label><input class="form-input" id="weTarget" value="'+LaRuche.Utils.esc(w.target||'')+'">'+
-      '<label class="form-label">'+LaRuche.i18n.t('settings.watcherCondLabel')+'</label><input class="form-input" id="weCondition" value="'+LaRuche.Utils.esc(w.condition||'')+'">'+
-      '<label class="form-label">'+LaRuche.i18n.t('settings.watcherPromptLabel')+'</label><textarea class="form-input" id="wePrompt" rows="3">'+LaRuche.Utils.esc(w.prompt||'')+'</textarea>'+
-      '<label class="form-label">'+LaRuche.i18n.t('settings.watcherProviderLabel')+'</label><select class="form-input" id="weProfile" onchange="LaRuche.Settings.updateWatcherEditModelSelect()">'+profOpts+'</select>'+
-      '<label class="form-label">'+LaRuche.i18n.t('settings.watcherModelLabel')+'</label><select class="form-input" id="weModel">'+modOpts+'</select>'+
-      '<label class="form-label">'+LaRuche.i18n.t('settings.watcherChannelLabel')+'</label><select class="form-input" id="weChannel"><option value="">'+LaRuche.i18n.t('settings.watcherHomeChannel')+'</option></select>'+
-      '<label class="form-label" style="display:flex;align-items:center;gap:8px;margin-top:8px"><input type="checkbox" id="weActive" '+(w.active?'checked':'')+'> '+LaRuche.i18n.t('settings.watcherActiveLabel')+'</label>'+
-      '<div style="margin-top:12px;display:flex;gap:8px"><button class="form-btn" onclick="LaRuche.Settings.saveWatcherEdit(\''+id+'\',this)">'+LaRuche.i18n.t('settings.watcherSave')+'</button>'+
-      '<button class="form-btn" style="background:none;border:1px solid var(--border);color:var(--text-dim)" onclick="this.closest(\'div[style*=fixed]\')&&this.closest(\'div[style*=fixed]\').remove()">'+LaRuche.i18n.t('settings.watcherCancel')+'</button></div></div>';
-    document.body.appendChild(ov);
-    window.__fillChannels(document.getElementById('weChannel'), (w&&w.channel)||'', LaRuche.i18n.t('settings.watcherHomeChannel'));
+    _watcherOpen[id]=true;
+    loadTab('watchers');
   }
 
-  function updateWatcherEditModelSelect() {
-    var pId=document.getElementById('weProfile').value, sel=document.getElementById('weModel');
-    if(!sel) return;
-    sel.innerHTML='<option value="">'+LaRuche.i18n.t('settings.parDefault')+'</option>';
-    if(pId && _profiles[pId] && _profiles[pId].models){ _profiles[pId].models.forEach(function(m){ sel.innerHTML+='<option value="'+LaRuche.Utils.esc(m)+'">'+LaRuche.Utils.esc(m)+'</option>'; }); }
-  }
+  function updateWatcherEditModelSelect() { /* kept for export compat; card variant below */ }
 
-  function saveWatcherEdit(id, btn) {
+  function saveWatcherEdit(id) {
+    function v(k){ var e=document.getElementById('wf-'+k+'-'+id); return e?e.value:''; }
+    var sust=document.getElementById('wf-sust-'+id);
     var body={
-      name: document.getElementById('weName').value,
-      watcher_type: document.getElementById('weType').value,
-      target: document.getElementById('weTarget').value,
-      condition: document.getElementById('weCondition').value,
-      prompt: document.getElementById('wePrompt').value,
-      active: document.getElementById('weActive').checked,
-      profile_id: document.getElementById('weProfile').value,
-      model: document.getElementById('weModel').value,
-      channel: document.getElementById('weChannel')?document.getElementById('weChannel').value:''
+      name: v('name'),
+      watcher_type: v('type'),
+      target: v('target'),
+      condition: v('cond'),
+      prompt: v('prompt'),
+      sustained: !!(sust&&sust.checked),
+      interval_secs: parseInt(v('iv'),10)||0,   // 0/empty = back to the type default
+      cooldown_secs: parseInt(v('cd'),10)||0,
+      profile_id: v('prof'),
+      model: v('model'),
+      channel: v('chan')
     };
     fetch(LaRuche.API.base+'/api/watchers/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-      .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.watcherSaved'),'ok'); var ov=btn.closest('div[style*=fixed]'); if(ov)ov.remove(); refreshTab(); } else { LaRuche.Toast.show(LaRuche.i18n.t('settings.watcherSaveFailed'),'err'); } });
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.watcherSaved'),'ok'); refreshTab(); } else { LaRuche.Toast.show(LaRuche.i18n.t('settings.watcherSaveFailed'),'err'); } });
   }
 
   function addCredential(provider) {
@@ -1968,6 +2018,7 @@ LaRuche.Settings = (function(){
   var _kanbanView=(function(){ try{ return localStorage.getItem('lr_kanban_view')||'cols'; }catch(e){ return 'cols'; } })();
   var _profiles={}; // P1: profiles cache for the Provider selectors (kanban/watcher)
   var _watchersLast='[]'; // watchers cache for inline editing
+  var _watcherOpen={}; // expanded watcher cards (the pipeline diagram IS the editor)
 
   function setKanbanView(mode){
     _kanbanView = mode;
@@ -2767,7 +2818,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.codexError'),'err'); });
   }
 
-  return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, refreshTab:refreshTab,
+  return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, updateWatcherCardModelSelect:updateWatcherCardModelSelect, refreshTab:refreshTab,
     loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
