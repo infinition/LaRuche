@@ -61,6 +61,7 @@ mod state;
 mod helpers;
 mod router;
 mod background;
+mod okf_git;
 
 pub(crate) use state::*;
 pub(crate) use helpers::*;
@@ -968,6 +969,8 @@ async fn main() -> Result<()> {
     background::spawn_kanban_dispatcher(&state);
 
     background::spawn_idle_dream(&state);
+
+    okf_git::spawn_okf_git(&state);
 
     // Graceful shutdown: save state on Ctrl+C
     let shutdown_state = state.clone();
