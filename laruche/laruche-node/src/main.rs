@@ -65,6 +65,54 @@ use axum::{
     routing::{get, post},
     Router,
 };
+
+/// Global auth guard (defense in depth, on top of loopback bind + strict CORS).
+///
+/// Enforces the session cookie on STATE-CHANGING requests (POST/PUT/DELETE/PATCH)
+/// to `/api/*`, but ONLY once an account with a password exists - so a fresh install
+/// and the onboarding flow stay open. GET/HEAD reads pass (low risk on loopback and
+/// needed to render the UI). The auth flow and the mesh sync endpoints (own ed25519
+/// signature) are allowlisted.
+async fn auth_guard(
+    State(state): State<Arc<AppState>>,
+    req: axum::http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let method = req.method().clone();
+    let mutating = matches!(
+        method,
+        axum::http::Method::POST
+            | axum::http::Method::PUT
+            | axum::http::Method::DELETE
+            | axum::http::Method::PATCH
+    );
+    let path = req.uri().path().to_string();
+    let exempte = !mutating
+        || !path.starts_with("/api/")
+        || path.starts_with("/api/auth/")
+        || path.starts_with("/api/internal/sync");
+    if exempte {
+        return next.run(req).await;
+    }
+    // Only enforce once the user has actually configured an account with a password.
+    let (auth_configuree, cookie_ok) = {
+        let users = state.users.read().await;
+        let configuree = users.values().any(|u| u.password_hash.is_some());
+        let ok = auth_user::extract_user_from_headers(req.headers(), &state.cookie_secret)
+            .map(|id| users.contains_key(&id))
+            .unwrap_or(false);
+        (configuree, ok)
+    };
+    if !auth_configuree || cookie_ok {
+        return next.run(req).await;
+    }
+    warn!(path = %path, method = %method, "auth guard: rejected unauthenticated mutation");
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(serde_json::json!({ "error": "authentication required" })),
+    )
+        .into_response()
+}
 use miel_protocol::{
     auth::ProximityAuth,
     capabilities::{Capability, CapabilityInfo},
@@ -2018,11 +2066,32 @@ async fn main() -> Result<()> {
         .route("/api/internal/sync/user", post(sync::handle_user_sync))
         .route("/api/internal/sync/bulk", get(sync::handle_bulk_sync))
         .layer(
+            // SECURITY: only same-machine origins may make cross-origin calls. The UI
+            // is served same-origin (no CORS needed); a wildcard used to let ANY visited
+            // website script requests to LaRuche. We reflect only localhost/127.0.0.1
+            // origins (any port, http/https).
             tower_http::cors::CorsLayer::new()
-                .allow_origin(tower_http::cors::AllowOrigin::any())
+                .allow_origin(tower_http::cors::AllowOrigin::predicate(
+                    |origin: &axum::http::HeaderValue, _req: &_| {
+                        origin
+                            .to_str()
+                            .map(|o| {
+                                o.starts_with("http://localhost")
+                                    || o.starts_with("https://localhost")
+                                    || o.starts_with("http://127.0.0.1")
+                                    || o.starts_with("https://127.0.0.1")
+                                    || o.starts_with("http://[::1]")
+                            })
+                            .unwrap_or(false)
+                    },
+                ))
                 .allow_methods(tower_http::cors::Any)
                 .allow_headers(tower_http::cors::Any),
         )
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            auth_guard,
+        ))
         .with_state(state.clone());
 
     // Background: refresh real metrics + re-announce mDNS + periodic save
@@ -2836,7 +2905,13 @@ async fn main() -> Result<()> {
         }
     });
 
-    let addr = format!("0.0.0.0:{}", config.api_port);
+    // SECURITY: bind to loopback ONLY by default. The API has no global auth layer
+    // for every route, so exposing it on 0.0.0.0 would let any host on the LAN
+    // read/mutate memory, run tools, etc. LAN exposure is an explicit opt-in
+    // (LARUCHE_BIND_LAN=1), and it is loudly logged so it is never accidental.
+    let bind_lan = std::env::var("LARUCHE_BIND_LAN").as_deref() == Ok("1");
+    let bind_ip = if bind_lan { "0.0.0.0" } else { "127.0.0.1" };
+    let addr = format!("{bind_ip}:{}", config.api_port);
     let scheme = if std::env::var("LARUCHE_HTTPS").as_deref() == Ok("1")
         || std::env::var("LARUCHE_TLS_CERT").map(|s| !s.is_empty()).unwrap_or(false)
     {
@@ -2844,6 +2919,13 @@ async fn main() -> Result<()> {
     } else {
         "http"
     };
+    if bind_lan {
+        warn!(
+            "LARUCHE_BIND_LAN=1: API exposed on the whole LAN ({bind_ip}:{}). Ensure auth \
+             is configured; anyone on the network can reach it.",
+            config.api_port
+        );
+    }
     info!("LaRuche ready → {scheme}://localhost:{}", config.api_port);
 
     // Sync essaim config from active profile at startup
