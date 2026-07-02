@@ -314,6 +314,25 @@ async fn openai_chat_stream(
                             // Actual usage (top-level, present on the final chunk or a dedicated chunk).
                             if let Some(u) = parsed["usage"]["prompt_tokens"].as_u64() { in_tok = Some(u); }
                             if let Some(u) = parsed["usage"]["completion_tokens"].as_u64() { out_tok = Some(u); }
+                            // With `stream_options.include_usage`, usage arrives in a DEDICATED
+                            // final chunk (empty `choices`), AFTER the finish_reason chunk. That
+                            // chunk has no content and no finish_reason, so the emission below
+                            // would drop it and the gauge/budget would see 0 tokens. Emit a
+                            // trailing done-chunk carrying the usage so it is never lost.
+                            let usage_only = parsed["usage"].is_object()
+                                && parsed["choices"].as_array().map(|a| a.is_empty()).unwrap_or(true);
+                            if usage_only && (in_tok.is_some() || out_tok.is_some()) {
+                                let _ = tx.send(OllamaChunk {
+                                    text: String::new(),
+                                    done: true,
+                                    finish_reason: Some("stop".to_string()),
+                                    eval_count: out_tok,
+                                    eval_duration: None,
+                                    prompt_eval_count: in_tok,
+                                    tool_calls: None,
+                                }).await;
+                                continue;
+                            }
                             let mut text = parsed["choices"][0]["delta"]["content"].as_str().unwrap_or("").to_string();
                             if !text.is_empty() {
                                 content_streamed = true;
