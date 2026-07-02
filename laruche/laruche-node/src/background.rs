@@ -521,14 +521,20 @@ pub(crate) fn spawn_watchers_checker(state: &Arc<AppState>) {
                     config.model = current_model.clone();
                 }
 
-                // Semantic condition gate (file/url with a condition): a tiny LLM
-                // call decides whether the OBSERVED event satisfies the user's
-                // condition, with the current datetime in hand ("only on Tuesday
-                // and Thursday", "offline for at least 10 minutes"...). Fail-open:
-                // an unusable gate must not silence an alert.
-                if d.semantique && !condition_satisfaite(&config, &d.condition, &context).await {
-                    info!(watcher_id = %watcher_id, "Watcher event rejected by the condition gate");
-                    continue;
+                // LLM gate, two sources: the residual llm_check question of a
+                // compiled-rules watcher (deterministic prefix already passed), or
+                // the legacy free-text condition. One tiny call with the current
+                // datetime in hand. Fail-open: an unusable gate must not silence
+                // an alert.
+                let question_gate: Option<String> = d
+                    .question_llm
+                    .clone()
+                    .or_else(|| if d.semantique { Some(d.condition.clone()) } else { None });
+                if let Some(q) = question_gate {
+                    if !condition_satisfaite(&config, &q, &context).await {
+                        info!(watcher_id = %watcher_id, "Watcher event rejected by the condition gate");
+                        continue;
+                    }
                 }
 
                 info!(watcher_id = %watcher_id, "Executing watcher task");

@@ -80,6 +80,13 @@ pub(crate) async fn api_create_watcher(
         interval_secs: body["interval_secs"].as_u64().filter(|n| *n > 0),
         cooldown_secs: body["cooldown_secs"].as_u64().filter(|n| *n > 0),
         sustained: body["sustained"].as_bool().unwrap_or(false),
+        regles: match body.get("regles") {
+            None | Some(serde_json::Value::Null) => None,
+            Some(v) => match serde_json::from_value::<laruche_watchers::Regle>(v.clone()) {
+                Ok(r) => Some(r),
+                Err(_) => return StatusCode::BAD_REQUEST,
+            },
+        },
     };
 
     let log_name = watcher.name.clone();
@@ -124,6 +131,15 @@ pub(crate) async fn api_update_watcher(
         body.get(k)
             .map(|v| v.as_u64().filter(|n| *n > 0))
     };
+    // regles: key absent = unchanged; null = cleared; object = replaced (400 on bad shape).
+    let regles: Option<Option<laruche_watchers::Regle>> = match body.get("regles") {
+        None => None,
+        Some(serde_json::Value::Null) => Some(None),
+        Some(v) => match serde_json::from_value::<laruche_watchers::Regle>(v.clone()) {
+            Ok(r) => Some(Some(r)),
+            Err(_) => return StatusCode::BAD_REQUEST,
+        },
+    };
     let ok = registry.update(
         &uuid,
         s("name"),
@@ -138,6 +154,7 @@ pub(crate) async fn api_update_watcher(
         opt_u64("interval_secs"),
         opt_u64("cooldown_secs"),
         body.get("sustained").and_then(|v| v.as_bool()),
+        regles,
     );
     if ok {
         StatusCode::OK

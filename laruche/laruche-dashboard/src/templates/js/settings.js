@@ -1582,6 +1582,31 @@ LaRuche.Settings = (function(){
     });
   }
 
+  // Compact human summary of a compiled rules tree (mirror of Regle::resume()).
+  function resumeRegle(r){
+    if(!r||!r.op) return '';
+    switch(r.op){
+      case 'et': return 'ET('+(r.regles||[]).map(resumeRegle).join(', ')+')';
+      case 'ou': return 'OU('+(r.regles||[]).map(resumeRegle).join(', ')+')';
+      case 'non': return 'NON('+resumeRegle(r.regle||{})+')';
+      case 'jour_semaine': return 'jour∈['+(r.jours||[]).join(',')+']';
+      case 'heure_entre': return (r.de||'?')+'-'+(r.a||'?');
+      case 'plage_date': return (r.du||'?')+'..'+(r.au||'?');
+      case 'apparu': return 'apparu';
+      case 'supprime': return 'supprimé';
+      case 'modifie': return 'modifié';
+      case 'contenu_change': return 'contenu≠';
+      case 'est_down': return 'down';
+      case 'down_depuis_min': return 'down≥'+(r.minutes||0)+'min';
+      case 'retour_en_ligne': return 'retour en ligne';
+      case 'contient': return 'contient « '+(r.motif||'')+' »';
+      case 'taille_depasse_mo': return 'taille≥'+(r.mo||0)+'Mo';
+      case 'status_http': return 'http∈['+(r.codes||[]).join(',')+']';
+      case 'llm_check': return '🧠« '+(r.question||'')+' »';
+      default: return r.op;
+    }
+  }
+
   // Health dot + one-line synthesis derived from the watcher's persisted state.
   function watcherEtat(w){
     var t=LaRuche.i18n.t, ls=w.last_state||'';
@@ -1619,13 +1644,25 @@ LaRuche.Settings = (function(){
     }
     var fleche='<span class="warrow">→</span>';
     var condTitre=(w.watcher_type==='log')?('🔎 '+t('settings.wfPattern')):('🧠 '+t('settings.wfCondition'));
+    // Compiled rules take over the condition bubble: summary line (auditable at
+    // a glance) + the JSON tree, editable in place. Clearing the JSON falls back
+    // to the legacy text condition.
+    var condCorps;
+    if(w.regles){
+      condCorps='<div class="wnode-sub" style="color:var(--green);margin:0 0 4px" title="'+t('settings.wfReglesHint')+'">⚙ '+esc(resumeRegle(w.regles))+'</div>'+
+        '<textarea id="wf-regles-'+id+'" rows="3" style="font-family:var(--mono);font-size:10px">'+esc(JSON.stringify(w.regles))+'</textarea>'+
+        '<div class="wnode-sub">'+t('settings.wfReglesHint')+'</div>';
+      condTitre='⚙ '+t('settings.wfRegles');
+    } else {
+      condCorps='<textarea id="wf-cond-'+id+'" rows="2">'+esc(w.condition||'')+'</textarea>'+
+        '<label class="wnode-sub" style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="wf-sust-'+id+'" style="width:auto"'+(w.sustained?' checked':'')+'> ⟳ '+t('settings.wfSustained')+'</label>'+
+        '<div class="wnode-sub">'+t('settings.wfCondHint')+'</div>';
+    }
     var flow='<div class="wflow">'+
       '<div class="wnode" style="max-width:150px"><div class="wnode-title">🏷 '+t('settings.wfName')+'</div><input id="wf-name-'+id+'" value="'+esc(w.name||'')+'"></div>'+fleche+
       '<div class="wnode" style="flex:2"><div class="wnode-title">👁 '+t('settings.wfObserve')+'</div><select id="wf-type-'+id+'" style="margin-bottom:4px">'+typeSel+'</select><input id="wf-target-'+id+'" value="'+esc(w.target||'')+'"></div>'+fleche+
       '<div class="wnode" style="max-width:110px"><div class="wnode-title">⏱ '+t('settings.wfEvery')+'</div><input id="wf-iv-'+id+'" type="number" min="5" placeholder="'+ivDef+'" value="'+(w.interval_secs||'')+'"><div class="wnode-sub">'+t('settings.wfEveryHint')+'</div></div>'+fleche+
-      '<div class="wnode" style="flex:2"><div class="wnode-title">'+condTitre+'</div><textarea id="wf-cond-'+id+'" rows="2">'+esc(w.condition||'')+'</textarea>'+
-        '<label class="wnode-sub" style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="checkbox" id="wf-sust-'+id+'" style="width:auto"'+(w.sustained?' checked':'')+'> ⟳ '+t('settings.wfSustained')+'</label>'+
-        '<div class="wnode-sub">'+t('settings.wfCondHint')+'</div></div>'+fleche+
+      '<div class="wnode" style="flex:2"><div class="wnode-title">'+condTitre+'</div>'+condCorps+'</div>'+fleche+
       '<div class="wnode" style="max-width:110px"><div class="wnode-title">⏳ '+t('settings.wfCooldown')+'</div><input id="wf-cd-'+id+'" type="number" min="0" placeholder="'+cdDef+'" value="'+(w.cooldown_secs!=null?w.cooldown_secs:'')+'"><div class="wnode-sub">'+t('settings.wfCooldownHint')+'</div></div>'+fleche+
       '<div class="wnode" style="flex:2"><div class="wnode-title">🚀 '+t('settings.wfAction')+'</div><textarea id="wf-prompt-'+id+'" rows="2">'+esc(w.prompt||'')+'</textarea></div>'+fleche+
       '<div class="wnode" style="max-width:170px"><div class="wnode-title">📨 '+t('settings.wfDeliver')+'</div>'+
@@ -1698,7 +1735,6 @@ LaRuche.Settings = (function(){
       name: v('name'),
       watcher_type: v('type'),
       target: v('target'),
-      condition: v('cond'),
       prompt: v('prompt'),
       sustained: !!(sust&&sust.checked),
       interval_secs: parseInt(v('iv'),10)||0,   // 0/empty = back to the type default
@@ -1707,6 +1743,18 @@ LaRuche.Settings = (function(){
       model: v('model'),
       channel: v('chan')
     };
+    // Compiled-rules bubble: parse the JSON tree (empty = clear, back to legacy).
+    var reglesEl=document.getElementById('wf-regles-'+id);
+    if(reglesEl){
+      var txt=reglesEl.value.trim();
+      if(!txt){ body.regles=null; }
+      else {
+        try{ body.regles=JSON.parse(txt); }
+        catch(e){ LaRuche.Toast.show(LaRuche.i18n.t('settings.wfReglesInvalid'),'err'); return; }
+      }
+    } else {
+      body.condition=v('cond');
+    }
     fetch(LaRuche.API.base+'/api/watchers/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
       .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.watcherSaved'),'ok'); rechargerWatchers(); } else { LaRuche.Toast.show(LaRuche.i18n.t('settings.watcherSaveFailed'),'err'); } });
   }

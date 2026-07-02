@@ -4958,5 +4958,17 @@
   "settings.wfResume": {
     "en": "Resume",
     "fr": "Reactiver"
+  },
+  "settings.wfRegles": {
+    "en": "Compiled rules",
+    "fr": "Regles compilees"
+  },
+  "settings.wfReglesHint": {
+    "en": "Deterministic tree, free at runtime; only llm_check costs a call. Empty = back to text condition.",
+    "fr": "Arbre deterministe, gratuit a l execution ; seul llm_check coute un appel. Vide = retour a la condition texte."
+  },
+  "settings.wfReglesInvalid": {
+    "en": "Invalid rules JSON",
+    "fr": "JSON de regles invalide"
   }
 }

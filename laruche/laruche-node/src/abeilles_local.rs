@@ -527,11 +527,12 @@ impl Abeille for AbeilleWatcherCreate {
                 "name": { "type": "string" },
                 "watcher_type": { "type": "string", "description": "'file', 'url', or 'log'" },
                 "target": { "type": "string", "description": "File path or URL to watch" },
-                "condition": { "type": "string", "description": "Natural-language condition checked by an LLM gate before firing (file/url), with the current datetime available: e.g. 'only on Tuesday or Thursday', 'the site has been down for at least 10 minutes', 'the changelog mentions a security fix'. For 'log': plain substring the new lines must contain. Empty = fire on every change." },
+                "condition": { "type": "string", "description": "LEGACY natural-language condition (LLM gate at every event). PREFER 'regles' below: deterministic, free at runtime. For 'log': plain substring the new lines must contain." },
+                "regles": { "type": "object", "description": "COMPILED condition tree (preferred): deterministic predicates evaluated at every poll for free. Read the 'watcher-architecte' skill (skill_view) for the full op list and examples. Ops: et/ou/non, jour_semaine{jours:[mar,jeu]}, heure_entre{de,a}, plage_date{du,au}, apparu, supprime, modifie, contenu_change, est_down, down_depuis_min{minutes}, retour_en_ligne, contient{motif}, taille_depasse_mo{mo}, status_http{codes}, llm_check{question} (the ONLY op that costs an LLM call, after the deterministic prefix passed). A state rule (down_depuis_min) re-fires every cooldown while true." },
                 "prompt": { "type": "string", "description": "Prompt to run when triggered" },
                 "interval_secs": { "type": "integer", "description": "Poll interval in seconds (default: 10 for file/log, 60 for url; floor 5)" },
                 "cooldown_secs": { "type": "integer", "description": "Minimum seconds between two fires (default: 900 for url, 0 otherwise)" },
-                "sustained": { "type": "boolean", "description": "Keep re-firing every cooldown while the situation lasts (e.g. remind every 20 min while the site is down). Requires a condition." }
+                "sustained": { "type": "boolean", "description": "LEGACY mode only (ignored with 'regles'): keep re-firing every cooldown while the situation lasts. Requires a condition." }
             },
             "required": ["name", "watcher_type", "target", "prompt"]
         })
@@ -556,6 +557,18 @@ impl Abeille for AbeilleWatcherCreate {
         };
         let target = args["target"].as_str().unwrap_or("").to_string();
         let condition = args["condition"].as_str().unwrap_or("").to_string();
+        let regles = match args.get("regles") {
+            None | Some(Value::Null) => None,
+            Some(v) => match serde_json::from_value::<laruche_watchers::Regle>(v.clone()) {
+                Ok(r) => Some(r),
+                Err(e) => {
+                    return Ok(ResultatAbeille::err(format!(
+                        "Invalid 'regles' tree: {e}. Read the watcher-architecte skill \
+                         (skill_view) for the op list and examples."
+                    )))
+                }
+            },
+        };
         let w_type_str = args["watcher_type"].as_str().unwrap_or("file");
 
         let watcher_type = match w_type_str {
@@ -594,6 +607,7 @@ impl Abeille for AbeilleWatcherCreate {
                 .get("sustained")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false),
+            regles,
         };
 
         let id = watcher.id.clone();
