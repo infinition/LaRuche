@@ -287,7 +287,12 @@ async fn openai_chat_stream(
                                 if !content_streamed && !reasoning_emitted {
                                     let r = reasoning_acc.trim();
                                     if !r.is_empty() {
-                                        reasoning_emitted = true;
+                                        // Defensive: a malformed stream could send [DONE] twice;
+                                        // the flag prevents re-emitting the reasoning block.
+                                        #[allow(unused_assignments)]
+                                        {
+                                            reasoning_emitted = true;
+                                        }
                                         let _ = tx.send(OllamaChunk {
                                             text: r.to_string(), done: false,
                                             finish_reason: None, eval_count: None,

@@ -88,6 +88,9 @@ struct NodeMeta {
     label: Option<String>,
     one_liner: Option<String>,
     importance: Option<f32>,
+    /// Provenance, written at node creation. Not read by the native backend
+    /// (SQLite persists and serves it); kept so both backends share the shape.
+    #[allow(dead_code)]
     source: Option<String>,
 }
 

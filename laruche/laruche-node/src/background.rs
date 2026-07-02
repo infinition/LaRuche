@@ -270,22 +270,14 @@ pub(crate) fn spawn_ollama_heartbeat(state: &Arc<AppState>) {
                 Ok(resp) if resp.status().is_success() => {
                     if was_down {
                         info!("Ollama heartbeat: recovered (back online)");
-                        let mut activity = heartbeat_state.activity_log.write().await;
-                        if activity.len() >= ACTIVITY_LOG_LIMIT {
-                            activity.pop_front();
-                        }
-                        activity.push_back(ActivityLogEntry {
-                            timestamp: chrono::Utc::now().to_rfc3339(),
-                            level: "info".into(),
-                            tag: "heartbeat".into(),
-                            message: "Ollama recovered".into(),
-                            full_prompt: None,
-                            full_response: None,
-                            model_used: None,
-                            tokens_generated: None,
-                            latency_ms: None,
-                            user_id: None,
-                        });
+                        log_activite(
+                            &heartbeat_state,
+                            "info",
+                            "heartbeat",
+                            "Ollama recovered".into(),
+                            None,
+                        )
+                        .await;
                         was_down = false;
                     }
                 }
@@ -300,22 +292,14 @@ pub(crate) fn spawn_ollama_heartbeat(state: &Arc<AppState>) {
                         }
 
                         warn!("Ollama heartbeat: DOWN (not responding)");
-                        let mut activity = heartbeat_state.activity_log.write().await;
-                        if activity.len() >= ACTIVITY_LOG_LIMIT {
-                            activity.pop_front();
-                        }
-                        activity.push_back(ActivityLogEntry {
-                            timestamp: chrono::Utc::now().to_rfc3339(),
-                            level: "error".into(),
-                            tag: "heartbeat".into(),
-                            message: "Ollama is not responding".into(),
-                            full_prompt: None,
-                            full_response: None,
-                            model_used: None,
-                            tokens_generated: None,
-                            latency_ms: None,
-                            user_id: None,
-                        });
+                        log_activite(
+                            &heartbeat_state,
+                            "error",
+                            "heartbeat",
+                            "Ollama is not responding".into(),
+                            None,
+                        )
+                        .await;
                         was_down = true;
                     }
                 }
@@ -491,24 +475,17 @@ pub(crate) fn spawn_cron_checker(state: &Arc<AppState>) {
                         }
                     }
                 } else {
-                    // Log to activity
-                    let now = chrono::Utc::now().to_rfc3339();
-                    let mut activity = cron_state.activity_log.write().await;
-                    if activity.len() >= ACTIVITY_LOG_LIMIT {
-                        activity.pop_front();
-                    }
-                    activity.push_back(ActivityLogEntry {
-                        timestamp: now,
-                        level: if result.is_ok() { "info" } else { "error" }.into(),
-                        tag: "cron".into(),
-                        message: format!("Cron task: {}", preview_text(&prompt, 60)),
-                        full_prompt: Some(prompt),
-                        full_response: result.ok().map(|r| preview_text(&r, 4000)),
-                        model_used: Some(cron_config.model.clone()),
-                        tokens_generated: None,
-                        latency_ms: None,
-                        user_id: None,
-                    });
+                    log_activite_riche(
+                        &cron_state,
+                        if result.is_ok() { "info" } else { "error" },
+                        "cron",
+                        format!("Cron task: {}", preview_text(&prompt, 60)),
+                        Some(prompt),
+                        result.ok().map(|r| preview_text(&r, 4000)),
+                        Some(cron_config.model.clone()),
+                        None,
+                    )
+                    .await;
                 }
             }
         }
@@ -572,23 +549,17 @@ pub(crate) fn spawn_watchers_checker(state: &Arc<AppState>) {
                     missions_api::livrer_telegram(&ch, &format!("🔔 Watcher triggered\n\n{}", res)).await;
                 }
 
-                let now = chrono::Utc::now().to_rfc3339();
-                let mut activity = watcher_state.activity_log.write().await;
-                if activity.len() >= ACTIVITY_LOG_LIMIT {
-                    activity.pop_front();
-                }
-                activity.push_back(ActivityLogEntry {
-                    timestamp: now,
-                    level: if result.is_ok() { "info" } else { "error" }.into(),
-                    tag: "watcher".into(),
-                    message: format!("Watcher task: {}", preview_text(&prompt, 60)),
-                    full_prompt: Some(full_prompt),
-                    full_response: result.ok().map(|r| preview_text(&r, 4000)),
-                    model_used: Some(config.model.clone()),
-                    tokens_generated: None,
-                    latency_ms: None,
-                    user_id: None,
-                });
+                log_activite_riche(
+                    &watcher_state,
+                    if result.is_ok() { "info" } else { "error" },
+                    "watcher",
+                    format!("Watcher task: {}", preview_text(&prompt, 60)),
+                    Some(full_prompt),
+                    result.ok().map(|r| preview_text(&r, 4000)),
+                    Some(config.model.clone()),
+                    None,
+                )
+                .await;
             }
         }
     });
@@ -793,24 +764,17 @@ pub(crate) fn spawn_kanban_dispatcher(state: &Arc<AppState>) {
                         .await;
                 }
 
-                // Log
-                let now = chrono::Utc::now().to_rfc3339();
-                let mut activity = kanban_state.activity_log.write().await;
-                if activity.len() >= ACTIVITY_LOG_LIMIT {
-                    activity.pop_front();
-                }
-                activity.push_back(ActivityLogEntry {
-                    timestamp: now,
-                    level: if result.is_ok() { "info" } else { "error" }.into(),
-                    tag: "kanban".into(),
-                    message: format!("Kanban task: {}", preview_text(&kanban_task.title, 60)),
-                    full_prompt: Some(prompt),
-                    full_response: result.ok().map(|r| preview_text(&r, 4000)),
-                    model_used: Some(config.model.clone()),
-                    tokens_generated: None,
-                    latency_ms: None,
-                    user_id: None,
-                });
+                log_activite_riche(
+                    &kanban_state,
+                    if result.is_ok() { "info" } else { "error" },
+                    "kanban",
+                    format!("Kanban task: {}", preview_text(&kanban_task.title, 60)),
+                    Some(prompt),
+                    result.ok().map(|r| preview_text(&r, 4000)),
+                    Some(config.model.clone()),
+                    None,
+                )
+                .await;
             }
         }
     });

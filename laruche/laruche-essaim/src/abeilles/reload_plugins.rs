@@ -2,7 +2,6 @@ use crate::abeille::{Abeille, AbeilleRegistry, ContextExecution, NiveauDanger, R
 use anyhow::Result;
 use async_trait::async_trait;
 use serde_json::json;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 pub struct ReloadPluginsTool {

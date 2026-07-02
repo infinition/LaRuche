@@ -7,20 +7,12 @@
 //! - Streaming with thinking blocks separation
 //! - Tool execution with timing
 
-use crate::abeille::{AbeilleRegistry, ContextExecution, NiveauDanger, ResultatAbeille};
-use crate::budget::{BudgetStatus, BudgetTracker};
-use crate::error_classifier::{self, ErrorClass};
-use crate::prompt::build_system_prompt;
-use crate::providers::{provider_chat_stream, ProviderError};
+use crate::abeille::{AbeilleRegistry, ContextExecution, NiveauDanger};
+use crate::budget::BudgetStatus;
+use crate::providers::provider_chat_stream;
 use crate::session::Session;
-use crate::thought_stream::ThoughtStreamer;
-use crate::tool_budget::tronquer_resultat;
-use crate::tool_summary::{
-    construire_prompt_resume, resume_extractif, DEFAULT_TOOL_SUMMARY_THRESHOLD,
-};
 use anyhow::Result;
 use futures_util::StreamExt;
-use laruche_compaction::CompactionBudgetStatus;
 use laruche_memoire::{MemoireCognitive, MemoryItem, SearchOpts};
 use laruche_permissions::{
     PermissionBehavior, PermissionCheck, PermissionContext, PermissionEngine, PermissionMode,
@@ -29,7 +21,6 @@ use laruche_permissions::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 
 
 /// Response to an approval request.

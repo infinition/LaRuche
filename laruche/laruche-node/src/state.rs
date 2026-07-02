@@ -37,6 +37,23 @@ pub(crate) async fn log_activite(
     message: String,
     user_id: Option<Uuid>,
 ) {
+    log_activite_riche(state, level, tag, message, None, None, None, user_id).await;
+}
+
+/// Rich variant: activity entry with the prompt/response/model attached. Used by
+/// the background dispatchers (cron, watcher, kanban); `log_activite` is the
+/// sugar for the common case.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn log_activite_riche(
+    state: &AppState,
+    level: &str,
+    tag: &str,
+    message: String,
+    full_prompt: Option<String>,
+    full_response: Option<String>,
+    model_used: Option<String>,
+    user_id: Option<Uuid>,
+) {
     let mut activity = state.activity_log.write().await;
     if activity.len() >= ACTIVITY_LOG_LIMIT {
         activity.pop_front();
@@ -46,9 +63,9 @@ pub(crate) async fn log_activite(
         level: level.into(),
         tag: tag.into(),
         message,
-        full_prompt: None,
-        full_response: None,
-        model_used: None,
+        full_prompt,
+        full_response,
+        model_used,
         tokens_generated: None,
         latency_ms: None,
         user_id,

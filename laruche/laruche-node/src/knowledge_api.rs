@@ -1,8 +1,8 @@
 //! Knowledge endpoints - split out of main.rs.
 
 use crate::*;
-use axum::extract::{Path, Query, State};
-use axum::response::{IntoResponse, Json};
+use axum::extract::State;
+use axum::response::Json;
 use axum::http::StatusCode;
 use std::sync::Arc;
 

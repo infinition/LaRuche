@@ -40,16 +40,16 @@ pub(crate) async fn api_mcp_save_server(
         let content = std::fs::read_to_string(path).unwrap_or_default();
         serde_json::from_str(&content).unwrap_or_else(|_| {
             laruche_essaim::mcp_client::McpServersFile {
-                mcpServers: std::collections::HashMap::new(),
+                mcp_servers: std::collections::HashMap::new(),
             }
         })
     } else {
         laruche_essaim::mcp_client::McpServersFile {
-            mcpServers: std::collections::HashMap::new(),
+            mcp_servers: std::collections::HashMap::new(),
         }
     };
 
-    servers.mcpServers.insert(
+    servers.mcp_servers.insert(
         name.clone(),
         laruche_essaim::mcp_client::McpServerConfig { command, args },
     );
@@ -78,7 +78,7 @@ pub(crate) async fn api_mcp_delete_server(
             if let Ok(mut servers) =
                 serde_json::from_str::<laruche_essaim::mcp_client::McpServersFile>(&content)
             {
-                servers.mcpServers.remove(&name);
+                servers.mcp_servers.remove(&name);
                 if let Ok(json) = serde_json::to_string_pretty(&servers) {
                     let _ = std::fs::write(path, json);
                 }

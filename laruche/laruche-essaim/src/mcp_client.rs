@@ -6,8 +6,8 @@ use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::process::{Child, ChildStdin, Command};
-use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
+use tokio::process::Command;
+use tokio::sync::{mpsc, oneshot, Mutex};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpToolDef {
@@ -258,7 +258,8 @@ pub struct McpServerConfig {
 
 #[derive(Serialize, Deserialize)]
 pub struct McpServersFile {
-    pub mcpServers: HashMap<String, McpServerConfig>,
+    #[serde(rename = "mcpServers")]
+    pub mcp_servers: HashMap<String, McpServerConfig>,
 }
 
 pub async fn charger_mcp_servers(
@@ -284,7 +285,7 @@ pub async fn charger_mcp_servers(
         }
     };
 
-    for (name, config) in servers.mcpServers {
+    for (name, config) in servers.mcp_servers {
         tracing::info!(
             "Starting MCP server '{}': {} {:?}",
             name,
