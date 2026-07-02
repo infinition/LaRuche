@@ -75,9 +75,46 @@ pub fn substituer(texte: &str) -> String {
     out
 }
 
+/// **Masking** (the return trip): replaces every occurrence of a vault VALUE with
+/// `[SECRET:NAME]`. Applied to tool observations before they reach the LLM context
+/// and the persisted session, so a command that echoes a token (`env`, a verbose
+/// curl, a config dump) no longer leaks it. Deterministic exact match, longest
+/// value first; values shorter than 6 chars are skipped (collision-prone).
+pub fn masquer(texte: &str) -> String {
+    let Ok(c) = coffre().read() else {
+        return texte.to_string();
+    };
+    if c.is_empty() {
+        return texte.to_string();
+    }
+    let mut paires: Vec<(&String, &String)> = c.iter().filter(|(_, v)| v.len() >= 6).collect();
+    paires.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
+    let mut out = texte.to_string();
+    for (nom, val) in paires {
+        if out.contains(val.as_str()) {
+            out = out.replace(val.as_str(), &format!("[SECRET:{nom}]"));
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn masque_les_valeurs_du_coffre_dans_les_sorties() {
+        // definir() (not init) so the parallel test's map is not wiped.
+        definir("MASK_TOKEN", "sk-abcdef123456");
+        definir("MASK_COURT", "abc"); // < 6 chars: never masked (collisions)
+        let sortie = "header Authorization: Bearer sk-abcdef123456 fin abc";
+        assert_eq!(
+            masquer(sortie),
+            "header Authorization: Bearer [SECRET:MASK_TOKEN] fin abc"
+        );
+        // No secret in the text: untouched.
+        assert_eq!(masquer("rien ici"), "rien ici");
+    }
 
     #[test]
     fn substitue_les_references_connues_garde_les_autres() {

@@ -155,7 +155,10 @@ impl ContextExecution {
         if text.is_empty() {
             return;
         }
-        let redacted = redact_live_output(text);
+        // Line heuristic first, then exact-match vault masking. Best effort on a
+        // LIVE stream (a secret split across two chunks escapes the exact match);
+        // the durable copy is fully masked at the registry level.
+        let redacted = crate::secrets::masquer(&redact_live_output(text));
         if let Some(sender) = &self.live_output {
             let _ = sender.send(ToolOutputChunk {
                 tool_name: tool_name.to_string(),
@@ -315,7 +318,18 @@ impl AbeilleRegistry {
                     "Invalid arguments for {nom}: {e}. Check the tool schema and retry."
                 )));
             }
-            a.executer(args, ctx).await
+            let mut res = a.executer(args, ctx).await?;
+            // Return trip of the vault: a tool output that ECHOES a secret value
+            // (env dump, verbose curl, config cat...) would leak it into the LLM
+            // context and the persisted session. Exact-match masking turns every
+            // vault value back into [SECRET:NAME] before the observation leaves.
+            if crate::secrets::non_vide() {
+                res.output = crate::secrets::masquer(&res.output);
+                if let Some(e) = res.error.take() {
+                    res.error = Some(crate::secrets::masquer(&e));
+                }
+            }
+            Ok(res)
         } else {
             Ok(ResultatAbeille::err(format!("Unknown tool: {nom}")))
         }
