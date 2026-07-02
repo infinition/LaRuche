@@ -90,7 +90,9 @@ impl Abeille for ExecuteCode {
         ));
 
         if let Some(mut stdin) = child.stdin.take() {
-            stdin.write_all(code.as_bytes()).await?;
+            // A snippet that exits before reading all of stdin breaks the pipe;
+            // that is not fatal, the exit code and captured stderr tell the story.
+            let _ = stdin.write_all(code.as_bytes()).await;
         }
 
         match tokio::time::timeout(std::time::Duration::from_secs(30), async {

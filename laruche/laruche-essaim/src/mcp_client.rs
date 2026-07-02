@@ -26,6 +26,11 @@ pub struct McpResourceDef {
     pub mime_type: String,
 }
 
+/// Upper bound on any single MCP round-trip. The engine already applies its own
+/// per-tool timeout on top; this one protects the boot path (initialize/list_tools)
+/// from a server that spawns but never answers the handshake.
+const REQUEST_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(60);
+
 #[derive(Clone)]
 pub struct McpClient {
     tx: mpsc::Sender<(Value, oneshot::Sender<Result<Value>>)>,
@@ -45,6 +50,16 @@ impl McpClient {
         let stdin = child.stdin.take().unwrap();
         let stdout = child.stdout.take().unwrap();
         let stderr = child.stderr.take().unwrap();
+
+        // Reap the server process when it exits, otherwise it lingers as a
+        // zombie (Unix). The server is meant to outlive this function, so the
+        // child is parked in its own task rather than stored on the client.
+        tokio::spawn(async move {
+            match child.wait().await {
+                Ok(status) => tracing::debug!("MCP server exited: {status}"),
+                Err(e) => tracing::debug!("MCP server wait failed: {e}"),
+            }
+        });
 
         // Log stderr
         tokio::spawn(async move {
@@ -126,7 +141,13 @@ impl McpClient {
 
         let (reply_tx, reply_rx) = oneshot::channel();
         self.tx.send((req, reply_tx)).await?;
-        reply_rx.await?
+        match tokio::time::timeout(REQUEST_TIMEOUT, reply_rx).await {
+            Ok(reply) => reply?,
+            Err(_) => Err(anyhow::anyhow!(
+                "MCP request '{method}' timed out after {}s",
+                REQUEST_TIMEOUT.as_secs()
+            )),
+        }
     }
 
     pub async fn send_notification(&self, method: &str, params: Value) -> Result<()> {
@@ -179,8 +200,9 @@ impl McpClient {
                 if let Some(schema) = t_obj.remove("inputSchema") {
                     t_obj.insert("input_schema".to_string(), schema);
                 }
-                if let Ok(def) = serde_json::from_value(serde_json::Value::Object(t_obj.clone())) {
-                    defs.push(def);
+                match serde_json::from_value(serde_json::Value::Object(t_obj.clone())) {
+                    Ok(def) => defs.push(def),
+                    Err(e) => tracing::warn!("Skipping malformed MCP tool definition: {e}"),
                 }
             }
         }
