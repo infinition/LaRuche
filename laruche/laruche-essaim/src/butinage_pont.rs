@@ -440,7 +440,16 @@ struct OutilsPont<'a> {
     /// Cognitive memory: powers the SCOUTS' initial recall (past findings, known
     /// dead ends) via `Source::rappeler`. `None` = children start blank.
     memoire: Option<Arc<dyn MemoireCognitive>>,
+    /// Scouts dispatched so far this mission. HARD cap on fan-out breadth: the model
+    /// ignored the prompt's "3-4 angles" and dispatched 7-12 scouts (each a full
+    /// sub-agent), the measured cause of eval timeouts. Beyond the cap, delegation is
+    /// refused and the model is steered to direct tools. Shared so children see the
+    /// parent's count (children have delegation disabled anyway).
+    delegations: Arc<std::sync::atomic::AtomicUsize>,
 }
+
+/// Max scouts dispatched per mission (fan-out breadth ceiling).
+const MAX_DELEGATIONS: usize = 4;
 
 impl OutilsPont<'_> {
     fn bloquer(&self, nom: &str, motif: String) -> but::ResultatOutil {
@@ -468,6 +477,19 @@ impl OutilsPont<'_> {
             .to_string();
         if tache.trim().is_empty() {
             return but::ResultatOutil::echec("delegate: missing 'task' argument");
+        }
+        // HARD fan-out cap: past MAX_DELEGATIONS scouts, refuse and steer to direct
+        // tools / synthesis. Prevents the timeout-inducing 7-12 scout explosions.
+        let n = self.delegations.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        if n >= MAX_DELEGATIONS {
+            return self.bloquer(
+                &appel.nom,
+                format!(
+                    "Scout limit reached ({MAX_DELEGATIONS} already dispatched this mission). \
+                     Do NOT delegate more: use the reports you have, or run web_deep_search/web_fetch \
+                     directly, then synthesize the final answer."
+                ),
+            );
         }
         let contexte = ["context", "contexte"]
             .iter()
@@ -510,6 +532,7 @@ impl OutilsPont<'_> {
             tx: self.tx.clone(),
             approval: None, // éclaireuses are autonomous: no popup
             memoire: self.memoire.clone(),
+            delegations: self.delegations.clone(), // shared (children can't delegate anyway)
         };
         let emet = EmetteurPont { tx: self.tx.clone() };
 
@@ -1447,6 +1470,7 @@ pub async fn executer_avec_bilan(
         tx: tx.clone(),
         approval: approval_mx.as_ref(),
         memoire: memoire.clone(),
+        delegations: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
     };
     let emet = EmetteurPont { tx: tx.clone() };
 
@@ -1520,9 +1544,19 @@ pub async fn executer_avec_bilan(
                     session.ajouter_assistant(&m.contenu);
                 }
                 // Persist the turn's tool calls (replay fidelity: the session shows
-                // WHICH calls produced the observations that follow).
-                for a in m.appels.iter().filter(|a| a.nom != "plan") {
-                    session.ajouter_tool_call(&a.nom, a.args.clone());
+                // WHICH calls produced the observations that follow). The synthetic
+                // `plan` call is persisted as a plan thought instead of a tool call,
+                // so the itinerary widget can be rebuilt when reloading old sessions.
+                for a in &m.appels {
+                    if a.nom == "plan" {
+                        if let Some(items) = a.args.get("items") {
+                            if let Ok(json) = serde_json::to_string(items) {
+                                session.ajouter_thought("plan", "plan", &json);
+                            }
+                        }
+                    } else {
+                        session.ajouter_tool_call(&a.nom, a.args.clone());
+                    }
                 }
             }
             but::Role::Observation => {
@@ -1686,6 +1720,7 @@ pub async fn reprendre_carnet(
         tx: tx.clone(),
         approval: None,
         memoire: memoire.clone(),
+        delegations: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
     };
     let emet = EmetteurPont { tx: tx.clone() };
     let source_pont = memoire.as_ref().map(|m| SourcePont { mem: m.clone() });

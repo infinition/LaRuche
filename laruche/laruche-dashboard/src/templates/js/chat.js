@@ -244,6 +244,7 @@ LaRuche.Chat = (function(){
         unreadSessions[data.session_id]=true;
         if(data.type!=='approval_request') delete feedCache[data.session_id]; // finished -> /messages is authoritative
         loadSessions();
+        updateChatBadge();
       }
       return;
     }
@@ -1553,6 +1554,17 @@ LaRuche.Chat = (function(){
   // something new in a NON-open conversation (no more random "garish" colors).
   function getSeenMap(){ try{ return JSON.parse(localStorage.getItem('lr_conv_seen')||'{}'); }catch(e){ return {}; } }
   function markConvSeen(id, updatedAt){ if(!id) return; var m=getSeenMap(); m[id]=updatedAt||new Date().toISOString(); try{ localStorage.setItem('lr_conv_seen', JSON.stringify(m)); }catch(e){} }
+
+  // Chat tab badge (desktop nav + mobile tabs), same pattern as the Memory
+  // proposals badge: number of conversations with unseen finished output.
+  function updateChatBadge(){
+    var n=Object.keys(unreadSessions).length;
+    var badges=document.querySelectorAll('.nav-badge-chat');
+    for(var i=0;i<badges.length;i++){
+      badges[i].textContent=n>99?'99+':String(n);
+      badges[i].style.display=n>0?'':'none';
+    }
+  }
   function convIsUnread(s){
     if(s.id===sessionId) return false; // open = read
     // Badge ONLY on NEW finished output (final message / popup), never on
@@ -1616,6 +1628,7 @@ LaRuche.Chat = (function(){
     var _af0=document.getElementById('activityFeed'); if(sessionId && _af0) feedCache[sessionId]=_af0.innerHTML; // save the feed we leave
     sessionId=id;
     delete unreadSessions[id]; // opening = mark read (clears the badge)
+    updateChatBadge();
     markConvSeen(id);
     // The run we were watching continues IN THE BACKGROUND; this view becomes ready to send again.
     // Without this, the button stays "Stop" (red) and we cannot type in the new conversation.
@@ -1640,6 +1653,10 @@ LaRuche.Chat = (function(){
       data.messages.forEach(function(msg){
         if(Array.isArray(msg.plan)) updatePlan(msg.plan);
         if(msg.role==='user'){startPlanMission(msg.text);addMessage('user',msg.text, msg.attachments); _feedBody=null; /* new turn -> new step */ }
+        else if(msg.role==='thought'&&msg.kind==='plan'){
+          // Persisted itinerary state: rebuild the plan widget (last one wins).
+          try{ updatePlan(JSON.parse(msg.text||'[]')); }catch(e){}
+        }
         else if(msg.role==='thought'){
           if(msg.kind!=='next_action') addActivity('thinking',thoughtLabel(msg.phase||'',msg.kind||''),msg.text||'',false,{stepTitle:_feedTurnTitle});
         }
