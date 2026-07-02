@@ -73,6 +73,26 @@ impl MemoryItem {
     }
 }
 
+/// Verdict of the contradiction arbiter comparing an existing fact with a new one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VerdictArbitre {
+    /// Same or superseding fact (paraphrase, or an UPDATE like 4070 -> 5080):
+    /// the existing item is retired (`superseded`) in favor of the new one.
+    Remplace,
+    /// Unrelated facts that merely share vocabulary: keep both.
+    Distinct,
+}
+
+/// Resolves near-miss contradictions at write time. Cosine similarity catches
+/// paraphrases (>0.83) but NOT semantic updates ("4070 Ti" vs "5080" measure ~0.71),
+/// which look moderately similar yet contradict. In the ambiguity band the backend
+/// asks this arbiter (an aux LLM, wired by the node) whether the new fact REPLACES
+/// the old one. Dependency inversion: `laruche-memoire` stays provider-agnostic.
+#[async_trait]
+pub trait Arbitre: Send + Sync {
+    async fn trancher(&self, existant: &str, nouveau: &str) -> VerdictArbitre;
+}
+
 /// Cognitive search options.
 #[derive(Debug, Clone, Default)]
 pub struct SearchOpts {
@@ -272,6 +292,10 @@ pub trait MemoireCognitive: Send + Sync {
     async fn backfill_embeddings(&self, _max: usize) -> Result<usize> {
         Ok(0)
     }
+
+    /// Wires the write-time contradiction arbiter (aux LLM). Default: no-op
+    /// (backends without an arbiter keep pure cosine-based supersede).
+    fn definir_arbitre(&self, _arbitre: std::sync::Arc<dyn Arbitre>) {}
 
     /// Checks that the backend responds.
     async fn health(&self) -> Result<bool>;

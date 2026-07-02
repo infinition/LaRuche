@@ -18,6 +18,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub struct SqliteBackend {
     conn: Mutex<Connection>,
     embedder: Option<Arc<dyn Embedder>>,
+    /// Optional LLM arbiter for near-miss contradictions at write time (see [`crate::Arbitre`]).
+    arbitre: std::sync::RwLock<Option<Arc<dyn crate::Arbitre>>>,
 }
 
 fn now() -> i64 {
@@ -284,7 +286,15 @@ impl SqliteBackend {
         Ok(Self {
             conn: Mutex::new(conn),
             embedder,
+            arbitre: std::sync::RwLock::new(None),
         })
+    }
+
+    /// Wires the contradiction arbiter (aux LLM), inherent helper.
+    fn poser_arbitre(&self, arbitre: Arc<dyn crate::Arbitre>) {
+        if let Ok(mut a) = self.arbitre.write() {
+            *a = Some(arbitre);
+        }
     }
 
     fn insert(&self, item: &MemoryItem, status: &str, embedding: Option<Vec<u8>>) -> Result<i64> {
@@ -525,6 +535,8 @@ impl MemoireCognitive for SqliteBackend {
         // exact duplicate (same node) -> no-op; near-duplicate (cosine > 0.88, same
         // node) -> the OLD version is marked `superseded` (kept for audit, excluded
         // from recall). This is what keeps the map clean without any hard decay.
+        // Items in the similarity band the cosine pass could not decide: (id, content).
+        let mut ambigus: Vec<(i64, String)> = Vec::new();
         {
             let conn = self.conn.lock().unwrap();
             if let Ok(id) = conn.query_row(
@@ -550,26 +562,32 @@ impl MemoireCognitive for SqliteBackend {
                 let mut remplaces: Vec<i64> = Vec::new();
                 {
                     let mut stmt = conn.prepare(
-                        "SELECT id, node_id, embedding FROM items \
+                        "SELECT id, node_id, content, embedding FROM items \
                          WHERE (node_id=?1 OR node_id LIKE ?2) AND status='active' AND embedding IS NOT NULL",
                     )?;
                     let rows = stmt.query_map(rusqlite::params![item.node_id, domaine], |r| {
                         Ok((
                             r.get::<_, i64>(0)?,
                             r.get::<_, String>(1)?,
-                            r.get::<_, Vec<u8>>(2)?,
+                            r.get::<_, String>(2)?,
+                            r.get::<_, Vec<u8>>(3)?,
                         ))
                     })?;
                     for row in rows {
-                        let (id, node, blob) = row?;
+                        let (id, node, content, blob) = row?;
                         // Thresholds CALIBRATED on real nomic-embed-text measurements
                         // (2026-07-02): a same-fact PARAPHRASE lands at ~0.86 (0.88
                         // silently missed it), unrelated facts at ~0.48, and a fact
-                        // UPDATE (4070→5080) at ~0.71 — updates are a contradiction
-                        // relation, not a similarity: an LLM check will handle them.
+                        // UPDATE (4070→5080) at ~0.71 — updates are a contradiction,
+                        // not a similarity, so cosine alone cannot catch them.
+                        let sim = cosine(qv, &blob_to_vec(&blob));
                         let seuil = if node == item.node_id { 0.83 } else { 0.85 };
-                        if cosine(qv, &blob_to_vec(&blob)) > seuil {
+                        if sim > seuil {
                             remplaces.push(id);
+                        } else if sim >= 0.62 {
+                            // AMBIGUITY BAND: moderately similar, might be an update or
+                            // just shared vocabulary. Defer to the LLM arbiter (below).
+                            ambigus.push((id, content));
                         }
                     }
                 }
@@ -591,6 +609,42 @@ impl MemoireCognitive for SqliteBackend {
                             item.source
                         ],
                     )?;
+                }
+            }
+        }
+        // ARBITER pass (async, LLM): for band candidates cosine could not resolve, ask
+        // whether the new fact REPLACES the existing one (an UPDATE like 4070 -> 5080).
+        // Done OUTSIDE the connection lock (no await under a std::sync lock). Best-effort:
+        // no arbiter wired, or a Distinct verdict, leaves the old fact untouched.
+        if !ambigus.is_empty() {
+            let arbitre = self.arbitre.read().ok().and_then(|a| a.clone());
+            if let Some(arbitre) = arbitre {
+                let mut a_remplacer: Vec<i64> = Vec::new();
+                for (id, existant) in &ambigus {
+                    if arbitre.trancher(existant, &item.content).await
+                        == crate::VerdictArbitre::Remplace
+                    {
+                        a_remplacer.push(*id);
+                    }
+                }
+                if !a_remplacer.is_empty() {
+                    let conn = self.conn.lock().unwrap();
+                    for id in a_remplacer {
+                        conn.execute(
+                            "UPDATE items SET status='superseded', updated_at=?1 WHERE id=?2",
+                            rusqlite::params![now(), id],
+                        )?;
+                        conn.execute("DELETE FROM items_fts WHERE rowid=?1", rusqlite::params![id])?;
+                        conn.execute(
+                            "INSERT INTO mutations(op,node_id,content,ts,src) VALUES('supersede',?1,?2,?3,?4)",
+                            rusqlite::params![
+                                item.node_id,
+                                format!("itm_{id} superseded (arbiter: fact update)"),
+                                now(),
+                                item.source
+                            ],
+                        )?;
+                    }
                 }
             }
         }
@@ -1299,6 +1353,10 @@ impl MemoireCognitive for SqliteBackend {
             rusqlite::params![p, like],
         )?;
         Ok(removed)
+    }
+
+    fn definir_arbitre(&self, arbitre: Arc<dyn crate::Arbitre>) {
+        self.poser_arbitre(arbitre);
     }
 
     async fn backfill_embeddings(&self, max: usize) -> Result<usize> {

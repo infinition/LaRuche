@@ -313,3 +313,44 @@ async fn supersede_traverse_les_noeuds_du_domaine() {
     assert_eq!(active_a + active_b, 1, "cross-node supersede: only the newest fact stays active");
     cleanup_db(&dir);
 }
+
+// Arbiter that always says the new fact REPLACES the old (simulates the aux LLM
+// verdict on a fact update like 4070 -> 5080, which cosine alone rates ~0.71).
+struct ArbitreRemplace;
+#[async_trait::async_trait]
+impl laruche_memoire::Arbitre for ArbitreRemplace {
+    async fn trancher(&self, _existant: &str, _nouveau: &str) -> laruche_memoire::VerdictArbitre {
+        laruche_memoire::VerdictArbitre::Remplace
+    }
+}
+
+#[tokio::test]
+async fn arbitre_supersede_les_updates_dans_la_bande() {
+    // FakeEmbedder: "code jazz" -> [1,0], "programme" also code-ish -> [1,0]. To land in
+    // the AMBIGUITY band (0.62..0.83) rather than >0.83, we need a partial-overlap vector.
+    // We use a dedicated embedder mixing both axes for the two facts.
+    struct BandEmbedder;
+    #[async_trait::async_trait]
+    impl laruche_memoire::Embedder for BandEmbedder {
+        async fn embed(&self, text: &str) -> anyhow::Result<Vec<f32>> {
+            // "4070" -> mostly axis A; "5080" -> A with a tilt, cosine ~0.7 with the first.
+            let t = text.to_lowercase();
+            if t.contains("4070") { Ok(vec![1.0, 0.0]) }
+            else if t.contains("5080") { Ok(vec![0.72, 0.7]) } // cosine(v1,v2) ~= 0.72
+            else { Ok(vec![0.0, 1.0]) }
+        }
+    }
+    let dir = temp_db("arbitre_band");
+    cleanup_db(&dir);
+    let backend = SqliteBackend::open_with_embedder(&dir, Arc::new(BandEmbedder)).unwrap();
+    backend.definir_arbitre(Arc::new(ArbitreRemplace));
+    backend.write(MemoryItem::new("hardware.gpu", "GPU: RTX 4070 Ti 12 Go")).await.unwrap();
+    backend.write(MemoryItem::new("hardware.gpu", "GPU: RTX 5080 16 Go")).await.unwrap();
+    // The 4070 fact sat in the band (~0.72, below the 0.83 auto threshold); the arbiter
+    // ruled it a replacement -> superseded. Only the 5080 remains active.
+    let node = backend.read_node("hardware.gpu").await.unwrap();
+    let actifs = node["items"].as_array().unwrap();
+    assert_eq!(actifs.len(), 1, "arbiter should supersede the outdated fact: {actifs:?}");
+    assert!(actifs[0]["content"].as_str().unwrap().contains("5080"));
+    cleanup_db(&dir);
+}

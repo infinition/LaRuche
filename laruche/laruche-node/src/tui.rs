@@ -8,7 +8,7 @@
 
 use crate::AppState;
 use crossterm::{
-    event::{self, Event, KeyCode, KeyModifiers},
+    event::{self, Event, KeyCode, KeyEventKind, KeyModifiers},
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     ExecutableCommand,
 };
@@ -285,6 +285,11 @@ pub async fn run_tui(
         // Handle input (poll with timeout for ~60fps)
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
+                // Windows: crossterm emits Press AND Release events; only handle Press,
+                // otherwise every keystroke is processed twice.
+                if key.kind != KeyEventKind::Press {
+                    continue;
+                }
                 // Command palette captures all keystrokes while open.
                 if tui.cmd_mode {
                     match key.code {

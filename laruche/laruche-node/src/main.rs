@@ -12,6 +12,7 @@
 //! 9. Discord & Slack channel integrations
 
 mod abeilles_local;
+mod arbitre_memoire;
 mod auth_user;
 mod local_inference;
 mod mcp;
@@ -1441,6 +1442,14 @@ async fn main() -> Result<()> {
                 }
             }
         });
+    }
+    // Write-time contradiction arbiter (aux LLM): resolves near-miss updates cosine
+    // cannot (e.g. "4070 Ti" -> "5080" ~0.71). No-op on backends without arbiter support;
+    // any LLM failure keeps both facts (never destructive). Opt-out via LARUCHE_MEMOIRE_ARBITRE=0.
+    if std::env::var("LARUCHE_MEMOIRE_ARBITRE").as_deref() != Ok("0") {
+        memoire.definir_arbitre(std::sync::Arc::new(
+            arbitre_memoire::ArbitreLLM::depuis_config(&essaim_config),
+        ));
     }
     laruche_essaim::abeilles::enregistrer_memoire(&essaim_registry, memoire.clone());
     // LLM consolidation (item merging): requires memory + config (aux model).
