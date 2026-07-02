@@ -2887,56 +2887,20 @@ async fn construire_index_skills(
     let total = lignes.len();
     lignes.sort();
 
-    // LARGE CONTEXT (dynamic=false): FULL catalog (stable prefix -> cacheable).
-    // SMALL CONTEXT (dynamic=true): the semantic DB surfaces only the RELEVANT skills
-    // (consistent with dynamic tool selection), + a `skill_list` pointer for the rest.
-    // For smalltalk -> 0 skills listed, just the pointer. This is where we "leverage the DB".
+    // The compact catalog (name + one-line description, ~2k tokens for ~70 skills)
+    // is cheap; it is the skill BODIES that stay lazy (`skill_view` on demand).
+    // Filtering the LIST itself by query tokens made most skills invisible to the
+    // model on every real request (the user only saw 0-12 entries). So: FULL
+    // catalog for any non-trivial request, whatever the context width; `dynamic`
+    // only keeps the smalltalk shortcut (pointer alone, zero listing).
     if dynamic {
         let q = query.split("[SYSTEM]").next().unwrap_or(query).to_lowercase();
-        let toks: Vec<&str> = q
-            .split(|c: char| !c.is_alphanumeric())
-            .filter(|t| t.chars().count() >= 4)
-            .collect();
-        let pertinents: Vec<&(String, String)> = if requete_triviale(&q) || toks.is_empty() {
-            Vec::new()
-        } else {
-            let mut scores: Vec<(usize, &(String, String))> = lignes
-                .iter()
-                .map(|sk| {
-                    let hay = format!("{} {}", sk.0, sk.1).to_lowercase();
-                    (toks.iter().filter(|t| hay.contains(**t)).count(), sk)
-                })
-                .filter(|(n, _)| *n > 0)
-                .collect();
-            scores.sort_by(|a, b| b.0.cmp(&a.0));
-            scores.into_iter().take(12).map(|(_, sk)| sk).collect()
-        };
-        let mut out = String::from("## Available skills\n\n");
-        if pertinents.is_empty() {
-            out.push_str(&format!(
-                "{total} reusable skill procedures are available - call `skill_list` to browse them \
-                 or `skill_view(name)` to read one.\n\n"
+        if requete_triviale(&q) {
+            return Some(format!(
+                "## Available skills\n\n{total} reusable skill procedures are available - call \
+                 `skill_list` to browse them or `skill_view(name)` to read one.\n\n"
             ));
-        } else {
-            out.push_str(
-                "Skills relevant to this request (full procedure via `skill_view(name)`):\n",
-            );
-            for sk in &pertinents {
-                if sk.1.is_empty() {
-                    out.push_str(&format!("- {}\n", sk.0));
-                } else {
-                    out.push_str(&format!("- {} - {}\n", sk.0, sk.1));
-                }
-            }
-            let reste = total.saturating_sub(pertinents.len());
-            if reste > 0 {
-                out.push_str(&format!(
-                    "(+{reste} other skills - `skill_list` to browse, `skill_view(name)` to read.)\n"
-                ));
-            }
-            out.push('\n');
         }
-        return Some(out);
     }
 
     let mut out = String::from(
