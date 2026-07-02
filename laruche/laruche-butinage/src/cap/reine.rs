@@ -289,8 +289,9 @@ impl Reine {
     /// Order of precedence:
     /// 1. inactive config -> ship untouched;
     /// 2. [`ModeReine::Humaine`] -> always escalate (a person takes the seat);
-    /// 3. judge approves -> ship;
-    /// 4. Hybride and confidence below threshold -> escalate;
+    /// 3. Hybride and confidence below threshold -> escalate, WHATEVER the avis:
+    ///    an approval the judge does not trust is exactly what a human should see;
+    /// 4. judge approves -> ship;
     /// 5. judge escalates -> escalate;
     /// 6. rework budget exhausted -> ship the best draft so far;
     /// 7. otherwise -> issue a rework with the judge's instruction.
@@ -310,19 +311,19 @@ impl Reine {
             });
         }
 
+        if self.config.mode == ModeReine::Hybride && carte.confiance < self.config.seuil_confiance {
+            return Action::Escalader(format!(
+                "low confidence ({} < {}): {}",
+                carte.confiance, self.config.seuil_confiance, carte.raison
+            ));
+        }
+
         if carte.avis == Avis::Approuver {
             return Action::Expedier(if carte.raison.is_empty() {
                 "approved by the reine".into()
             } else {
                 carte.raison.clone()
             });
-        }
-
-        if self.config.mode == ModeReine::Hybride && carte.confiance < self.config.seuil_confiance {
-            return Action::Escalader(format!(
-                "low confidence ({} < {}): {}",
-                carte.confiance, self.config.seuil_confiance, carte.raison
-            ));
         }
 
         if carte.avis == Avis::Escalader {
@@ -485,6 +486,33 @@ mod tests {
         assert!(matches!(
             r.juger(&carte(Avis::Reviser, [40, 40, 40, 40], 50)),
             Action::Escalader(_)
+        ));
+    }
+
+    #[test]
+    fn hybride_escalates_even_an_approval_it_does_not_trust() {
+        // An approval with confidence below the threshold is exactly what a human
+        // should see: the confidence gate outranks the avis in Hybride.
+        let mut r = Reine::nouvelle(ConfigReine {
+            mode: ModeReine::Hybride,
+            max_revues: 3,
+            seuil_confiance: 70,
+            ..Default::default()
+        });
+        assert!(matches!(
+            r.juger(&carte(Avis::Approuver, [90, 90, 90, 90], 30)),
+            Action::Escalader(_)
+        ));
+        // A confident approval still ships.
+        let mut r2 = Reine::nouvelle(ConfigReine {
+            mode: ModeReine::Hybride,
+            max_revues: 3,
+            seuil_confiance: 70,
+            ..Default::default()
+        });
+        assert!(matches!(
+            r2.juger(&carte(Avis::Approuver, [90, 90, 90, 90], 95)),
+            Action::Expedier(_)
         ));
     }
 

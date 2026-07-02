@@ -288,18 +288,29 @@ pub(crate) async fn revue_complete(
     )
     .await;
 
-    // Persist the redone answer into the real session (replace the last assistant
-    // message), so the conversation continues from LaReine's approved version.
-    if rev.revised {
+    // Persist into the real session: the redone answer (replace the last assistant
+    // message) AND the verdict itself as a reine thought, so the judgment survives
+    // a reload instead of evaporating with the ephemeral status event.
+    {
         let mut sessions = state.essaim_sessions.write().await;
         if let Some(s) = sessions.get_mut(&session_id) {
-            if let Some(m) = s
-                .messages
-                .iter_mut()
-                .rev()
-                .find(|m| matches!(m, laruche_essaim::session::Message::Assistant(_)))
-            {
-                *m = laruche_essaim::session::Message::Assistant(rev.final_answer.clone());
+            if rev.revised {
+                if let Some(m) = s
+                    .messages
+                    .iter_mut()
+                    .rev()
+                    .find(|m| matches!(m, laruche_essaim::session::Message::Assistant(_)))
+                {
+                    *m = laruche_essaim::session::Message::Assistant(rev.final_answer.clone());
+                }
+            }
+            if !rev.resume.is_empty() {
+                let texte = if rev.analyse.is_empty() {
+                    rev.resume.clone()
+                } else {
+                    format!("{}\n{}", rev.resume, rev.analyse)
+                };
+                s.ajouter_thought("reine", "verdict", &texte);
             }
             let _ = s.sauvegarder();
         }

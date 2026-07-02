@@ -23,6 +23,11 @@ pub struct DemandeJugement<'a> {
     /// draft), so the Reine judges with awareness of what came before. Empty when
     /// the context window is 0 or there is no prior history.
     pub contexte: &'a str,
+    /// Live workshop introspection: which tools the worker HAD available and which
+    /// it actually called for this draft (with failures). This is what makes the
+    /// METHODOLOGY score real: a draft claiming verification without a single tool
+    /// call reads very differently from one backed by fetches. Empty = unknown.
+    pub atelier: &'a str,
 }
 
 /// Line-based shape the judge must return (one `KEY: value` per line). Far more
@@ -64,12 +69,23 @@ pub fn construire_prompt(d: &DemandeJugement) -> String {
             d.contexte.trim()
         )
     };
+    let atelier_bloc = if d.atelier.trim().is_empty() {
+        String::new()
+    } else {
+        format!(
+            "Workshop introspection (tools available to the worker, and what it \
+             actually did to produce this draft - weigh METHODOLOGY on this, not on \
+             what the draft claims):\n{}\n\n",
+            d.atelier.trim()
+        )
+    };
     format!(
         "{charte}\n\n\
          ---\n\
          You are judging {cible}.\n\n\
          User objective (north star):\n{objectif}\n\n\
          {contexte_bloc}\
+         {atelier_bloc}\
          Original request:\n{requete}\n\n\
          Draft to judge:\n{brouillon}\n\n\
          ---\n\
@@ -87,6 +103,7 @@ pub fn construire_prompt(d: &DemandeJugement) -> String {
         cible = tier_libelle(d.tier),
         objectif = objectif.trim(),
         contexte_bloc = contexte_bloc,
+        atelier_bloc = atelier_bloc,
         requete = d.requete.trim(),
         brouillon = d.brouillon.trim(),
         format = FORMAT_REPONSE,
@@ -292,7 +309,20 @@ mod tests {
             brouillon,
             charte: "CHARTER: judge relevance and methodology.",
             contexte: "",
+            atelier: "",
         }
+    }
+
+    #[test]
+    fn prompt_carries_workshop_introspection_when_present() {
+        let mut d = demande("4");
+        d.atelier = "Tools available: calculator. Trace: 1 call, calculator OK.";
+        let p = construire_prompt(&d);
+        assert!(p.contains("Workshop introspection"));
+        assert!(p.contains("calculator OK"));
+        // Absent when empty (no hollow header).
+        let p2 = construire_prompt(&demande("4"));
+        assert!(!p2.contains("Workshop introspection"));
     }
 
     #[test]

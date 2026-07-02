@@ -68,6 +68,9 @@ LaRuche.i18n.add({
   'chat.thoughtCheckpoint':     {fr:"Point d'étape",   en:'Checkpoint'},
   'chat.thoughtNextAction':     {fr:'Prochaine action',         en:'Next action'},
   'chat.thoughtDefault':        {fr:'Je prépare la suite', en:'Preparing next step'},
+  'chat.reineGarder':           {fr:'Garder telle quelle', en:'Keep as is'},
+  'chat.reineRefaire':          {fr:'Faire refaire', en:'Redo'},
+  'chat.reineRefairePrefix':    {fr:'Refais ta dernière réponse en tenant compte de : ', en:'Redo your last answer taking into account: '},
   'chat.tool.shell_exec':       {fr:'Commande terminal',           en:'Terminal command'},
   'chat.tool.execute_code':     {fr:'Exécution de code',           en:'Code execution'},
   'chat.tool.run_script':       {fr:'Script',                      en:'Script'},
@@ -449,6 +452,32 @@ LaRuche.Chat = (function(){
                 vpan.className='reine-analyse';
                 vpan.textContent=vAnalyse;
                 vHost.appendChild(vpan);
+              }
+              // Escalated to the human: give the seat actual controls. "Keep"
+              // dismisses; "Redo" prefills the input with the judge's concern so
+              // the user can edit and send (the normal chat path does the rest).
+              if(vtxt.indexOf('flagged for you')!==-1){
+                var vact=document.createElement('div');
+                vact.className='reine-actions';
+                vact.style.cssText='display:flex;gap:8px;margin-top:6px';
+                var bKeep=document.createElement('button');
+                bKeep.className='tl-btn';
+                bKeep.textContent='✓ '+LaRuche.i18n.t('chat.reineGarder');
+                bKeep.onclick=function(){ vact.remove(); };
+                var bRedo=document.createElement('button');
+                bRedo.className='tl-btn';
+                bRedo.textContent='↻ '+LaRuche.i18n.t('chat.reineRefaire');
+                bRedo.onclick=function(){
+                  var ui=document.getElementById('userInput');
+                  if(ui){
+                    var motif=(vAnalyse||vtxt).replace(/^LaReine[^:]*:\s*/,'');
+                    ui.value=LaRuche.i18n.t('chat.reineRefairePrefix')+motif;
+                    ui.focus();
+                  }
+                  vact.remove();
+                };
+                vact.appendChild(bKeep); vact.appendChild(bRedo);
+                vHost.appendChild(vact);
               }
               updateAssistantAvatars();
             }
@@ -1661,6 +1690,25 @@ LaRuche.Chat = (function(){
         else if(msg.role==='thought'&&msg.kind==='plan'){
           // Persisted itinerary state: rebuild the plan widget (last one wins).
           try{ updatePlan(JSON.parse(msg.text||'[]')); }catch(e){}
+        }
+        else if(msg.role==='thought'&&msg.kind==='verdict'){
+          // Persisted LaReine verdict: re-render the crowned block under the
+          // last assistant message (first line = summary, rest = analysis).
+          var vtLines=(msg.text||'').split('\n');
+          var vtHost=container.querySelector('.message-row.assistant:last-of-type .message-wrapper');
+          if(vtHost&&vtLines[0]){
+            var vtc=document.createElement('div');
+            vtc.className='reine-verdict';
+            vtc.innerHTML='<span class="reine-crown">👑</span> '+LaRuche.Utils.esc(vtLines[0]);
+            vtHost.appendChild(vtc);
+            var vtRest=vtLines.slice(1).join('\n').trim();
+            if(vtRest){
+              var vtp=document.createElement('div');
+              vtp.className='reine-analyse';
+              vtp.textContent=vtRest;
+              vtHost.appendChild(vtp);
+            }
+          }
         }
         else if(msg.role==='thought'){
           if(msg.kind!=='next_action') addActivity('thinking',thoughtLabel(msg.phase||'',msg.kind||''),msg.text||'',false,{stepTitle:_feedTurnTitle});

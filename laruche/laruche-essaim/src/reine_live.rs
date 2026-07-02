@@ -41,6 +41,9 @@ pub struct Revision {
     pub rounds: u8,
     /// The judge's reasoning from the final assessment (shown on demand).
     pub analyse: String,
+    /// One-line outcome summary (also sent as the `__reine_verdict__` event); the
+    /// caller persists it into the real session so the verdict survives a reload.
+    pub resume: String,
 }
 
 /// The full LaReine charter, embedded at compile time so the engine is
@@ -78,6 +81,7 @@ pub async fn juger_avec(
     prompt: &str,
     charte: &str,
     contexte: &str,
+    atelier: &str,
 ) -> Option<Scorecard> {
     let demande = DemandeJugement {
         tier: Tier::Reponse,
@@ -86,6 +90,7 @@ pub async fn juger_avec(
         brouillon: reponse,
         charte,
         contexte,
+        atelier,
     };
     let invite = construire_prompt(&demande);
     let messages = vec![serde_json::json!({ "role": "user", "content": invite })];
@@ -224,8 +229,23 @@ pub async fn revue_et_refaire(
     let mut rounds = 0u8;
     let mut analyse = String::new();
     let mut carte_finale: Option<Scorecard> = None;
+    // Best draft seen so far (score, text): when the budget forces shipping, the
+    // best-scoring draft goes out, not blindly the last one (anti-regression).
+    let mut meilleur: (u8, String) = (0, String::new());
+    // Cumulative wall-clock budget across ALL reworks: each rework is a full
+    // agentic run, so unlimited rounds on a slow model need a global bound.
+    let debut = std::time::Instant::now();
+    let budget = std::time::Duration::from_secs(
+        std::env::var("LARUCHE_REINE_BUDGET_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(600),
+    );
 
     loop {
+        // Live workshop introspection for THIS draft (recomputed per round: a rework
+        // appends its own turn and trace to the working session).
+        let atelier = construire_atelier(session, registry);
         let card = match juger_avec(
             &juge.provider,
             &juge.model,
@@ -236,6 +256,7 @@ pub async fn revue_et_refaire(
             user_prompt,
             charte,
             &contexte,
+            &atelier,
         )
         .await
         {
@@ -246,9 +267,28 @@ pub async fn revue_et_refaire(
             }
         };
         analyse = card.analyse.clone();
+        let score_courant = card.score_global();
+        if meilleur.1.is_empty() || score_courant >= meilleur.0 {
+            meilleur = (score_courant, answer.clone());
+        }
 
         match reine.juger(&card) {
             Action::Reviser { tour, instruction } => {
+                if debut.elapsed() >= budget {
+                    if reine.regression(score_courant) {
+                        answer = meilleur.1.clone();
+                        journal.push(format!(
+                            "LaReine anti-regression: kept the best draft (score {} > {score_courant})",
+                            meilleur.0
+                        ));
+                    }
+                    journal.push(format!(
+                        "LaReine: cumulative time budget reached ({}s), shipping without further rework",
+                        budget.as_secs()
+                    ));
+                    carte_finale = Some(card.clone());
+                    break;
+                }
                 journal.push(format!("LaReine round {tour}: {}", instruction.trim()));
                 // Tell the UI she is sending it back, then stream the rework live.
                 let _ = tx.send(ChatEvent::Status {
@@ -284,8 +324,21 @@ pub async fn revue_et_refaire(
                     }
                 }
             }
-            // Approved or budget reached or escalated: keep the current answer.
-            _ => {
+            // Approved, escalated, or round budget reached.
+            action => {
+                // Anti-regression: when the ROUND budget forces shipping (the judge
+                // still wanted a revision), take the best-scoring draft, not the
+                // last one. An explicit approval always ships as-is.
+                if matches!(action, Action::Expedier(_))
+                    && card.avis == Avis::Reviser
+                    && reine.regression(score_courant)
+                {
+                    answer = meilleur.1.clone();
+                    journal.push(format!(
+                        "LaReine anti-regression: kept the best draft (score {} > {score_courant})",
+                        meilleur.0
+                    ));
+                }
                 journal.push(ligne_verdict(&card));
                 carte_finale = Some(card.clone());
                 break;
@@ -316,6 +369,11 @@ pub async fn revue_et_refaire(
     let _ = tx.send(ChatEvent::Status {
         message: format!("__reine_verdict__|{summary}\u{1f}{analyse}"),
     });
+    // Scorecard journal: one JSONL line per completed review. This is the data the
+    // future eval dashboard aggregates; without it every verdict evaporated.
+    if let Some(c) = &carte_finale {
+        journaliser_scorecard(c, mode, rounds, revised);
+    }
 
     Revision {
         final_answer: answer,
@@ -323,5 +381,103 @@ pub async fn revue_et_refaire(
         revised,
         rounds,
         analyse,
+        resume: summary,
+    }
+}
+
+/// Compact workshop introspection for the judge: which tools the worker HAD, and
+/// what it actually called to produce the current draft (since the last user
+/// turn). This grounds the METHODOLOGY score in facts instead of the draft's own
+/// claims, and gives the Reine live knowledge of the ruche's real capabilities.
+fn construire_atelier(session: &Session, registry: &AbeilleRegistry) -> String {
+    use crate::session::Message;
+    let mut noms = registry.noms();
+    noms.sort();
+    let total = noms.len();
+    let mut liste = noms.join(", ");
+    if liste.len() > 600 {
+        liste.truncate(600);
+        if let Some(p) = liste.rfind(", ") {
+            liste.truncate(p);
+        }
+        liste.push_str(", ...");
+    }
+
+    let dernier_user = session
+        .messages
+        .iter()
+        .rposition(|m| matches!(m, Message::User(_) | Message::UserMultimodal { .. }))
+        .map(|i| i + 1)
+        .unwrap_or(0);
+    let mut trace: Vec<String> = Vec::new();
+    let mut echecs = 0usize;
+    for m in &session.messages[dernier_user..] {
+        match m {
+            Message::ToolCall { name, .. } => trace.push(name.clone()),
+            Message::Observation { tool, result, .. } => {
+                let ko = result.trim_start().to_lowercase().starts_with("error");
+                if ko {
+                    echecs += 1;
+                    if let Some(last) = trace.last_mut() {
+                        if last == tool {
+                            *last = format!("{tool} (FAILED)");
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    let trace_txt = if trace.is_empty() {
+        "No tool was called to produce this draft.".to_string()
+    } else {
+        let mut suite = trace.join(", ");
+        if suite.len() > 400 {
+            suite.truncate(400);
+            if let Some(p) = suite.rfind(", ") {
+                suite.truncate(p);
+            }
+            suite.push_str(", ...");
+        }
+        format!(
+            "{} tool call(s): {}{}",
+            trace.len(),
+            suite,
+            if echecs > 0 {
+                format!(" ({echecs} failed)")
+            } else {
+                String::new()
+            }
+        )
+    };
+    format!("Tools available ({total}): {liste}\nTrace for this draft: {trace_txt}")
+}
+
+/// Append the review outcome to `evals/reine-scorecards.jsonl` (best-effort).
+fn journaliser_scorecard(card: &Scorecard, mode: &str, rounds: u8, revised: bool) {
+    let ligne = serde_json::json!({
+        "ts": chrono::Utc::now().to_rfc3339(),
+        "mode": mode,
+        "rounds": rounds,
+        "revised": revised,
+        "relevance": card.pertinence,
+        "methodology": card.methodologie,
+        "objective": card.objectif,
+        "brand": card.conformite_marque,
+        "confidence": card.confiance,
+        "avis": match card.avis {
+            Avis::Approuver => "approve",
+            Avis::Reviser => "revise",
+            Avis::Escalader => "escalate",
+        },
+    });
+    let _ = std::fs::create_dir_all("evals");
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("evals/reine-scorecards.jsonl")
+    {
+        use std::io::Write;
+        let _ = writeln!(f, "{ligne}");
     }
 }

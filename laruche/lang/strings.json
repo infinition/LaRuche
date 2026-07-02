@@ -4874,5 +4874,9 @@
   "boot.starting": {
     "en": "LaRuche is starting…",
     "fr": "LaRuche démarre…"
+  },
+  "reine.judgeDistinctHint": {
+    "en": "Tip: pick a judge DIFFERENT from the chat model. A model judging its own output approves itself too easily; a distinct judge (even a small one) catches more.",
+    "fr": "Conseil : choisis un juge DIFFERENT du modele de chat. Un modele qui juge sa propre production s’auto-approuve trop facilement ; un juge distinct (meme petit) attrape plus de choses."
   }
 }
