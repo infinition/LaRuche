@@ -54,22 +54,25 @@ impl Role {
         }
     }
 
-    /// Default pass budget for the role.
+    /// Default pass budget for the role. A scout is a FOCUSED sub-mission on ONE
+    /// angle, not a deep research of its own: kept short so a parent fan-out of
+    /// several scouts (each a full sub-agent loop) completes in reasonable time.
+    /// Measured cause of eval timeouts: 30-pass scouts × 7-12 of them on a local 12B.
     pub fn plafond(self) -> usize {
         match self {
-            Role::Eclaireuse => 30,
-            Role::Ouvriere => 20,
-            Role::Architecte => 12,
-            Role::Gardienne => 10,
+            Role::Eclaireuse => 12,
+            Role::Ouvriere => 16,
+            Role::Architecte => 10,
+            Role::Gardienne => 8,
         }
     }
 
     /// Minimal web calls before the exploration rail accepts an end. Only the scout
-    /// searches broadly; the other roles must not be forced into web quotas sized
-    /// for the parent's long research.
+    /// searches; kept low (3) so a focused angle concludes fast — the BREADTH comes
+    /// from the parent dispatching several scouts, not from each scout going deep.
     fn min_web(self) -> usize {
         match self {
-            Role::Eclaireuse => 6,
+            Role::Eclaireuse => 3,
             _ => 0,
         }
     }

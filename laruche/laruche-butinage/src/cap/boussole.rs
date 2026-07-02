@@ -52,12 +52,15 @@ impl ContexteCap {
 pub const PROTOCOLE_EXPLORATION: &str = "\
 ## Deep-research protocol (exploration mode)\n\
 This is a LONG-RUNNING research mission. You are autonomous: NEVER hand the search back \
-to the user, NEVER ask permission to continue, NEVER conclude after a single query.\n\
-1. DECOMPOSE the question into 3-5 INDEPENDENT angles (source types, communities, \
-languages EN/FR, time periods, adjacent topics).\n\
-2. FAN OUT: dispatch one `delegate` scout PER angle - emit SEVERAL <tool_call> blocks in \
-the SAME message (role: \"eclaireuse\", each with a precise, self-contained brief). They \
-run IN PARALLEL on isolated contexts and each returns a compact report.\n\
+to the user, NEVER ask permission to continue, NEVER conclude after a single query. Even \
+if you already recall an answer from memory, a deep-research request requires FRESH \
+verification: search anyway, do not answer from memory alone.\n\
+1. DECOMPOSE the question into 3 to 4 INDEPENDENT angles MAX (source types, communities, \
+time periods, adjacent topics). More angles is NOT better: quality over quantity.\n\
+2. FAN OUT: dispatch ONE `delegate` scout PER angle - AT MOST 4 scouts total for the whole \
+mission - emit the <tool_call> blocks in the SAME message (role: \"eclaireuse\", each with a \
+precise, self-contained brief). They run IN PARALLEL on isolated contexts and each returns a \
+compact report. Do NOT dispatch more scouts once you have their reports: synthesize.\n\
 3. CROSS-CHECK decisive or conflicting findings with a `delegate` role \"gardienne\".\n\
 4. ITERATE: every report opens new angles (names, forums, archives, mirrors). Search \
 queries must be SHORT and FOCUSED (2-5 terms; never keyword soup). A blocked page \

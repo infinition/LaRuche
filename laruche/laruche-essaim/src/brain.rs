@@ -1076,6 +1076,15 @@ pub fn demande_recherche_longue(prompt: &str) -> bool {
         "in depth",
         "in-depth",
         "deep dive",
+        // Multilingue (ES/IT/PT/DE) : le raccourci mots-clés reste un filet ; le canal
+        // fiable est `research_mode` que le modèle auto-déclare (language-agnostic).
+        "exhaustiv",      // ES/IT/PT exhaustiva/exhaustivo + EN déjà couvert
+        "investigaci",    // ES investigación / investigacion
+        "investigazione", // IT
+        "aprofund",       // PT/ES aprofundada
+        "gründlich",      // DE
+        "ausführlich",    // DE
+        "approfondit",    // IT approfondita
     ]
     .iter()
     .any(|m| p.contains(m))
