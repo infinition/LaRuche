@@ -1,0 +1,454 @@
+//! Shared application state (AppState, state types) and persistence - split out of main.rs.
+
+use crate::*;
+
+pub(crate) const ACTIVITY_LOG_LIMIT: usize = 400;
+
+pub(crate) const METRICS_HISTORY_LIMIT: usize = 360; // ~1 hour at 10s intervals
+pub(crate) const NODE_EVENTS_LIMIT: usize = 200;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct ActivityLogEntry {
+    pub(crate) timestamp: String,
+    pub(crate) level: String,
+    pub(crate) tag: String,
+    pub(crate) message: String,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub(crate) full_prompt: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub(crate) full_response: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub(crate) model_used: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub(crate) tokens_generated: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub(crate) latency_ms: Option<u64>,
+    /// Owner user ID (for filtering: users see only their own logs, admin sees all)
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub(crate) user_id: Option<Uuid>,
+}
+
+/// Push a simple entry to the activity log shown in the dashboard Audit panel. Use for events
+/// that should be auditable (logins, account changes), which otherwise only reach the CLI.
+pub(crate) async fn log_activite(
+    state: &AppState,
+    level: &str,
+    tag: &str,
+    message: String,
+    user_id: Option<Uuid>,
+) {
+    let mut activity = state.activity_log.write().await;
+    if activity.len() >= ACTIVITY_LOG_LIMIT {
+        activity.pop_front();
+    }
+    activity.push_back(ActivityLogEntry {
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        level: level.into(),
+        tag: tag.into(),
+        message,
+        full_prompt: None,
+        full_response: None,
+        model_used: None,
+        tokens_generated: None,
+        latency_ms: None,
+        user_id,
+    });
+}
+
+/// Persistent state saved to disk (survives restarts)
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub(crate) struct PersistentState {
+    /// Legacy single default model (kept for backward-compatible deserialization)
+    #[serde(default)]
+    pub(crate) default_model: Option<String>,
+    /// Per-capability default models (new format)
+    #[serde(default)]
+    pub(crate) default_models: Option<HashMap<String, String>>,
+    /// Per-capability service selection (with source): survives restart.
+    #[serde(default)]
+    pub(crate) capability_selection: Option<HashMap<String, CapabilitySelection>>,
+    #[serde(default)]
+    pub(crate) activity_log: Vec<ActivityLogEntry>,
+    #[serde(default)]
+    pub(crate) disabled_tools: Vec<String>,
+    #[serde(default)]
+    pub(crate) disabled_skills: Vec<String>,
+    /// Permission mode ("default" | "plan" | "acceptEdits" | "auto" | "bubble").
+    #[serde(default)]
+    pub(crate) permission_mode: Option<String>,
+    #[serde(default)]
+    pub(crate) saved_at: String,
+    /// BLAKE3 cookie secret (base64), shared across cluster
+    #[serde(default)]
+    pub(crate) cookie_secret: Option<String>,
+    #[serde(default)]
+    pub(crate) context_max_messages: Option<usize>,
+    #[serde(default)]
+    pub(crate) context_max_tokens: Option<u32>,
+    #[serde(default)]
+    pub(crate) compaction_threshold: Option<f32>,
+    /// Curateur (auto-skills/tools) enabled from Settings: survives restart.
+    #[serde(default)]
+    pub(crate) curateur_actif: Option<bool>,
+    /// "Home" channel (/sethome): default destination for proactive messages.
+    #[serde(default)]
+    pub(crate) home_channel: Option<String>,
+    /// Dynamic tool selection (inject only relevant schemas: lighter prompt
+    /// for small-context models). Survives restart.
+    #[serde(default)]
+    pub(crate) dynamic_tool_selection: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct MetricsSnapshot {
+    pub(crate) epoch_ms: u64,
+    pub(crate) cpu_pct: f32,
+    pub(crate) ram_pct: f32,
+    pub(crate) tokens_per_sec: f32,
+    pub(crate) queue_depth: u32,
+    pub(crate) node_count: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) gpu_pct: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) vram_pct: Option<f32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct NodeEvent {
+    pub(crate) epoch_ms: u64,
+    pub(crate) event_type: String,
+    pub(crate) node_name: String,
+}
+
+#[derive(Debug, Serialize)]
+pub(crate) struct MetricsHistoryResponse {
+    pub(crate) snapshots: Vec<MetricsSnapshot>,
+    pub(crate) events: Vec<NodeEvent>,
+}
+
+/// Current service selection for a given capability (stt/tts/code/vlm/vla/llm...).
+/// Goes beyond a plain model name: keeps the SOURCE (backend / node mesh)
+/// for routing (e.g. voice dictation to the chosen STT, auto-TTS to the chosen TTS).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct CapabilitySelection {
+    pub(crate) capability: String,
+    pub(crate) model: String,
+    /// Backend/host (local label "llama.cpp"... or mesh node IP).
+    pub(crate) backend: String,
+    /// Remote Miel node id (None if local service).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) node_id: Option<String>,
+    pub(crate) is_local: bool,
+    /// Provider profile serving this capability (to resolve provider/base_url/key at runtime).
+    pub(crate) profile_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct CustomService {
+    pub(crate) name: String,
+    pub(crate) capability: String,
+    pub(crate) url: String,
+    pub(crate) protocol: String,
+}
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct ActiveContextStats {
+    pub(crate) messages: u32,
+    pub(crate) base_tokens: u32,
+    pub(crate) streamed_chars: usize,
+    pub(crate) extra_tokens: u32,
+    pub(crate) streaming_response_open: bool,
+    pub(crate) running: bool,
+}
+
+impl ActiveContextStats {
+    pub(crate) fn from_session(session: &Session, running: bool) -> Self {
+        Self {
+            messages: session.len() as u32,
+            base_tokens: session.estimated_tokens() as u32,
+            streamed_chars: 0,
+            extra_tokens: 0,
+            streaming_response_open: false,
+            running,
+        }
+    }
+
+    pub(crate) fn used_tokens(&self) -> u32 {
+        self.base_tokens
+            .saturating_add((self.streamed_chars / 4) as u32)
+            .saturating_add(self.extra_tokens)
+    }
+
+    pub(crate) fn apply_event(&mut self, event: &ChatEvent) {
+        match event {
+            ChatEvent::Token { text } => {
+                if !text.is_empty() {
+                    self.streamed_chars = self.streamed_chars.saturating_add(text.len());
+                    self.streaming_response_open = true;
+                    self.running = true;
+                }
+            }
+            ChatEvent::ToolCall { name, args, .. } => {
+                if self.streaming_response_open {
+                    self.messages = self.messages.saturating_add(1);
+                    self.streaming_response_open = false;
+                }
+                self.messages = self.messages.saturating_add(1);
+                self.extra_tokens = self
+                    .extra_tokens
+                    .saturating_add(approx_context_tokens(&format!("{name}{args}")));
+                self.running = true;
+            }
+            ChatEvent::ToolResult { name, result, .. } => {
+                self.messages = self.messages.saturating_add(1);
+                self.extra_tokens = self
+                    .extra_tokens
+                    .saturating_add(approx_context_tokens(&format!("{name}{result}")));
+                self.running = true;
+            }
+            ChatEvent::Usage {
+                input_tokens,
+                output_tokens,
+                ..
+            } => {
+                let usage_total = input_tokens.saturating_add(*output_tokens);
+                if usage_total > self.used_tokens() {
+                    self.base_tokens = usage_total;
+                    self.streamed_chars = 0;
+                    self.extra_tokens = 0;
+                }
+            }
+            ChatEvent::Done { full_response } => {
+                if self.streaming_response_open || !full_response.is_empty() {
+                    self.messages = self.messages.saturating_add(1);
+                    self.streaming_response_open = false;
+                }
+                self.running = false;
+            }
+            ChatEvent::Error { .. } => {
+                self.running = false;
+            }
+            _ => {}
+        }
+    }
+}
+
+fn approx_context_tokens(text: &str) -> u32 {
+    if text.is_empty() {
+        0
+    } else {
+        ((text.len() + 3) / 4) as u32
+    }
+}
+
+pub(crate) async fn update_active_context_stats(
+    state: &Arc<AppState>,
+    session_id: Uuid,
+    event: &ChatEvent,
+) {
+    let mut stats_by_session = state.active_context_stats.write().await;
+    let stats = stats_by_session
+        .entry(session_id)
+        .or_insert_with(|| ActiveContextStats {
+            running: true,
+            ..ActiveContextStats::default()
+        });
+
+    stats.apply_event(event);
+}
+
+pub(crate) struct AppState {
+    pub(crate) manifest: RwLock<CognitiveManifest>,
+    pub(crate) auth: RwLock<ProximityAuth>,
+    pub(crate) queue: RwLock<RequestQueue>,
+    pub(crate) listener: RwLock<MielListener>,
+    pub(crate) config: NodeConfig,
+    /// Manually declared mesh services (P6)
+    pub(crate) custom_services: RwLock<HashMap<String, CustomService>>,
+    /// Per-capability default models (e.g. "llm" → "mistral", "code" → "qwen3-coder:30b")
+    /// The "llm" key is the universal fallback for unspecified capabilities.
+    pub(crate) default_models: RwLock<HashMap<String, String>>,
+    /// Per-capability service selection (with source), for voice/code/vision routing.
+    pub(crate) capability_selection: RwLock<HashMap<String, CapabilitySelection>>,
+    /// Long-running missions ("La Reine"): metadata; the knowledge lives in the cognitive map.
+    pub(crate) missions: RwLock<missions::MissionStore>,
+    pub(crate) sys: RwLock<System>,
+    pub(crate) activity_log: RwLock<VecDeque<ActivityLogEntry>>,
+    /// Path to laruche-state.json for persistence
+    pub(crate) state_file_path: PathBuf,
+    /// Time-series metrics for charts
+    pub(crate) metrics_history: RwLock<VecDeque<MetricsSnapshot>>,
+    /// Node connect/disconnect events
+    pub(crate) node_events: RwLock<VecDeque<NodeEvent>>,
+    /// Track known node IDs for event detection
+    pub(crate) known_node_ids: RwLock<HashSet<String>>,
+    /// Essaim agent engine
+    pub(crate) essaim_registry: Arc<AbeilleRegistry>,
+    pub(crate) essaim_config: RwLock<EssaimConfig>,
+    pub(crate) memoire: Arc<dyn laruche_memoire::MemoireCognitive>,
+    pub(crate) essaim_sessions: Arc<RwLock<HashMap<Uuid, Session>>>,
+    pub(crate) active_context_stats: Arc<RwLock<HashMap<Uuid, ActiveContextStats>>>,
+    pub(crate) essaim_cron: Arc<RwLock<CronScheduler>>,
+    pub(crate) watchers: Arc<RwLock<laruche_watchers::WatchersRegistry>>,
+    pub(crate) kanban_board: Arc<RwLock<laruche_kanban::KanbanBoard>>,
+    pub(crate) essaim_kb: Arc<tokio::sync::RwLock<laruche_essaim::rag::KnowledgeBase>>,
+    pub(crate) events: Arc<RwLock<laruche_events::EventBus>>,
+    /// Active channel bots (keyed by channel name)
+    pub(crate) channel_handles: RwLock<HashMap<String, tokio::task::JoinHandle<()>>>,
+    /// Provider profiles (multi-provider support)
+    pub(crate) profiles: RwLock<profiles::ProfilesConfig>,
+    /// Path to provider-profiles.json
+    pub(crate) profiles_path: PathBuf,
+    /// Registered users
+    pub(crate) users: RwLock<HashMap<Uuid, auth_user::User>>,
+    /// Pending login challenges (ephemeral, 60s TTL)
+    pub(crate) auth_challenges: RwLock<HashMap<Uuid, auth_user::AuthChallenge>>,
+    /// BLAKE3 key for signing auth cookies (shared across cluster)
+    pub(crate) cookie_secret: [u8; 32],
+    /// Credential pool for multiple API keys per provider
+    pub(crate) credential_pool: Arc<RwLock<laruche_essaim::credential_pool::CredentialPool>>,
+    /// Path to credentials.json
+    pub(crate) credentials_path: PathBuf,
+    /// Last activity timestamp to trigger Dream mode
+    pub(crate) last_activity: RwLock<std::time::Instant>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct NodeConfig {
+    pub(crate) node_name: String,
+    pub(crate) tier: HardwareTier,
+    pub(crate) ollama_url: String,
+    pub(crate) default_model: String,
+    pub(crate) api_port: u16,
+    pub(crate) dashboard_port: u16,
+    pub(crate) capabilities: Vec<CapabilityConfig>,
+    /// LLM provider: "ollama" (default), "openai", "anthropic"
+    #[serde(default)]
+    pub(crate) provider: String,
+    /// API key for cloud providers
+    #[serde(default)]
+    pub(crate) api_key: String,
+    /// API base URL override
+    #[serde(default)]
+    pub(crate) api_base: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct CapabilityConfig {
+    pub(crate) capability: String,
+    pub(crate) model_name: String,
+    pub(crate) model_size: Option<String>,
+    pub(crate) quantization: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Default)]
+pub(crate) struct NodeConfigFile {
+    pub(crate) node_name: Option<String>,
+    pub(crate) tier: Option<HardwareTier>,
+    pub(crate) ollama_url: Option<String>,
+    pub(crate) default_model: Option<String>,
+    pub(crate) api_port: Option<u16>,
+    pub(crate) dashboard_port: Option<u16>,
+    pub(crate) capabilities: Option<Vec<CapabilityConfig>>,
+    pub(crate) provider: Option<String>,
+    pub(crate) api_key: Option<String>,
+    pub(crate) api_base: Option<String>,
+}
+
+impl Default for NodeConfig {
+    fn default() -> Self {
+        Self {
+            node_name: {
+                let id = Uuid::new_v4().to_string();
+                format!("laruche-{}", &id[..6])
+            },
+            tier: HardwareTier::Core,
+            ollama_url: "http://127.0.0.1:11434".into(),
+            default_model: "mistral".into(),
+            api_port: miel_protocol::DEFAULT_API_PORT,
+            dashboard_port: miel_protocol::DEFAULT_DASHBOARD_PORT,
+            capabilities: vec![CapabilityConfig {
+                capability: "llm".into(),
+                model_name: "mistral-7b".into(),
+                model_size: Some("7B".into()),
+                quantization: Some("Q4_K_M".into()),
+            }],
+            provider: "ollama".into(),
+            api_key: String::new(),
+            api_base: None,
+        }
+    }
+}
+
+// ── Persistence ──────────────────────────────────────────────────────
+
+pub(crate) fn resolve_state_file_path() -> PathBuf {
+    if let Ok(dir) = std::env::var("LARUCHE_DATA_DIR") {
+        PathBuf::from(dir).join("laruche-state.json")
+    } else {
+        PathBuf::from("laruche-state.json")
+    }
+}
+
+pub(crate) fn load_persistent_state(path: &std::path::Path) -> PersistentState {
+    match std::fs::read_to_string(path) {
+        Ok(raw) => match serde_json::from_str::<PersistentState>(&raw) {
+            Ok(s) => {
+                info!(path = %path.display(), entries = s.activity_log.len(), "Loaded persistent state");
+                s
+            }
+            Err(e) => {
+                warn!(path = %path.display(), error = %e, "Failed to parse state file, starting fresh");
+                PersistentState::default()
+            }
+        },
+        Err(_) => {
+            info!(path = %path.display(), "No state file found, starting fresh");
+            PersistentState::default()
+        }
+    }
+}
+
+pub(crate) async fn save_persistent_state(state: &Arc<AppState>) {
+    let logs = state.activity_log.read().await;
+    let dm = state.default_models.read().await;
+    let llm_default = dm.get("llm").cloned();
+    let persistent = PersistentState {
+        default_model: llm_default, // backward compat
+        default_models: Some(dm.clone()),
+        capability_selection: Some(state.capability_selection.read().await.clone()),
+        activity_log: logs.iter().cloned().collect(),
+        disabled_tools: state.essaim_config.read().await.disabled_tools.clone(),
+        disabled_skills: state.essaim_config.read().await.disabled_skills.clone(),
+        permission_mode: Some(
+            settings_api::permission_mode_to_str(state.essaim_config.read().await.permission_mode).to_string(),
+        ),
+        saved_at: chrono::Utc::now().to_rfc3339(),
+        cookie_secret: Some(auth_user::cookie_secret_to_base64(&state.cookie_secret)),
+        context_max_messages: Some(state.essaim_config.read().await.context_max_messages),
+        compaction_threshold: Some(state.essaim_config.read().await.compaction_threshold),
+        context_max_tokens: Some(state.essaim_config.read().await.context_max_tokens),
+        curateur_actif: Some(state.essaim_config.read().await.curateur_actif),
+        dynamic_tool_selection: Some(state.essaim_config.read().await.dynamic_tool_selection),
+        home_channel: state.essaim_config.read().await.home_channel.clone(),
+    };
+    drop(logs);
+    drop(dm);
+
+    let json = match serde_json::to_string_pretty(&persistent) {
+        Ok(j) => j,
+        Err(e) => {
+            warn!(error = %e, "Failed to serialize state");
+            return;
+        }
+    };
+
+    let tmp_path = state.state_file_path.with_extension("json.tmp");
+    if let Err(e) = tokio::fs::write(&tmp_path, &json).await {
+        warn!(error = %e, "Failed to write state temp file");
+        return;
+    }
+    if let Err(e) = tokio::fs::rename(&tmp_path, &state.state_file_path).await {
+        warn!(error = %e, "Failed to rename state file");
+    }
+}
