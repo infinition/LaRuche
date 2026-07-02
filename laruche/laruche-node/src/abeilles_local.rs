@@ -219,8 +219,13 @@ impl Abeille for AbeilleCronList {
         drop(cron);
         // Mission cadences are schedules too: list them here so "what is
         // scheduled?" gets ONE truthful answer. Managed via mission_* tools.
+        // Finished missions have no schedule anymore.
         let store = self.missions.read().await;
-        for m in store.list().iter().filter(|m| m.cadence.is_some()) {
+        for m in store
+            .list()
+            .iter()
+            .filter(|m| m.cadence.is_some() && m.status != "done")
+        {
             tasks.push(json!({
                 "id": format!("mission:{}", m.slug),
                 "name": format!("Mission: {}", m.objective),

@@ -1546,6 +1546,9 @@ LaRuche.Settings = (function(){
   }
 
   async function loadWatchers(el) {
+    // The watchers view is embedded by TWO pages (Settings and Automations):
+    // remember the real container so in-place refreshes work from both.
+    _watchersEl = el;
     var watchers=[];try{watchers=await fetch('/api/watchers').then(function(r){return r.json();});}catch(e){}
     _watchersLast = JSON.stringify(watchers);
     // P1: profiles for the watcher's Provider selector.
@@ -1635,16 +1638,23 @@ LaRuche.Settings = (function(){
       '<span class="wcard-state" title="'+esc(w.last_state||'')+'">'+esc(etat.txt)+'</span>'+
       '<button class="form-btn" onclick="LaRuche.Settings.saveWatcherEdit(\''+id+'\')">'+t('settings.watcherSave')+'</button>'+
       '<button class="tl-btn" onclick="LaRuche.Settings.toggleWatcherActive(\''+id+'\','+(w.active===false?'true':'false')+')">'+(w.active===false?t('settings.wfResume'):t('settings.wfPause'))+'</button>'+
-      '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="fetch(\'/api/watchers/'+id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.refreshTab()})">'+t('settings.deleteWatcherBtn')+'</button>'+
+      '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="fetch(\'/api/watchers/'+id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.rechargerWatchers()})">'+t('settings.deleteWatcherBtn')+'</button>'+
       '</div>';
     return '<div class="wcard open">'+head+flow+foot+'</div>';
   }
 
-  function toggleWatcherCard(id){ _watcherOpen[id]=!_watcherOpen[id]; loadTab('watchers'); }
+  // In-place refresh that works from Settings AND Automations (loadTab only
+  // targets the Settings container and silently no-ops elsewhere).
+  function rechargerWatchers(){
+    var el=(_watchersEl&&document.body.contains(_watchersEl))?_watchersEl:document.getElementById('settingsContent');
+    if(el) loadWatchers(el);
+  }
+
+  function toggleWatcherCard(id){ _watcherOpen[id]=!_watcherOpen[id]; rechargerWatchers(); }
 
   function toggleWatcherActive(id, active){
     fetch(LaRuche.API.base+'/api/watchers/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({active:active})})
-      .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('toast.saved'),'ok'); loadTab('watchers'); } else LaRuche.Toast.show(LaRuche.i18n.t('toast.failed'),'err'); });
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('toast.saved'),'ok'); rechargerWatchers(); } else LaRuche.Toast.show(LaRuche.i18n.t('toast.failed'),'err'); });
   }
 
   function updateWatcherCardModelSelect(id){
@@ -1669,14 +1679,14 @@ LaRuche.Settings = (function(){
     if(profile_id) body.profile_id = profile_id;
     if(model) body.model = model;
     if(channel) body.channel = channel;
-    fetch('/api/watchers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(){loadTab('watchers');LaRuche.Toast.show(LaRuche.i18n.t('settings.watcherCreated'),'ok');});
+    fetch('/api/watchers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(function(){rechargerWatchers();LaRuche.Toast.show(LaRuche.i18n.t('settings.watcherCreated'),'ok');});
   }
 
   // Inline watcher editing (parity with cron/kanban).
   // The pipeline card replaced the old modal editor: editing happens in place.
   function editWatcher(id) {
     _watcherOpen[id]=true;
-    loadTab('watchers');
+    rechargerWatchers();
   }
 
   function updateWatcherEditModelSelect() { /* kept for export compat; card variant below */ }
@@ -1698,7 +1708,7 @@ LaRuche.Settings = (function(){
       channel: v('chan')
     };
     fetch(LaRuche.API.base+'/api/watchers/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-      .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.watcherSaved'),'ok'); refreshTab(); } else { LaRuche.Toast.show(LaRuche.i18n.t('settings.watcherSaveFailed'),'err'); } });
+      .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.watcherSaved'),'ok'); rechargerWatchers(); } else { LaRuche.Toast.show(LaRuche.i18n.t('settings.watcherSaveFailed'),'err'); } });
   }
 
   function addCredential(provider) {
@@ -2019,6 +2029,7 @@ LaRuche.Settings = (function(){
   var _profiles={}; // P1: profiles cache for the Provider selectors (kanban/watcher)
   var _watchersLast='[]'; // watchers cache for inline editing
   var _watcherOpen={}; // expanded watcher cards (the pipeline diagram IS the editor)
+  var _watchersEl=null; // container the watchers tab last rendered into (Settings OR Automations)
 
   function setKanbanView(mode){
     _kanbanView = mode;
@@ -2818,7 +2829,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.codexError'),'err'); });
   }
 
-  return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, updateWatcherCardModelSelect:updateWatcherCardModelSelect, refreshTab:refreshTab,
+  return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab,
     loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 

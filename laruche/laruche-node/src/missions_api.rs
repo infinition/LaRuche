@@ -34,7 +34,13 @@ pub(crate) async fn api_list_cron(State(state): State<Arc<AppState>>) -> Json<se
     // view of everything scheduled. They are managed from the Missions page /
     // mission_* tools, so the UI renders them read-only here.
     let store = state.missions.read().await;
-    for m in store.list().iter().filter(|m| m.cadence.is_some()) {
+    // A finished mission has no schedule anymore: only active/paused cadenced
+    // missions appear (paused shows as disabled, like a disabled cron).
+    for m in store
+        .list()
+        .iter()
+        .filter(|m| m.cadence.is_some() && m.status != "done")
+    {
         tasks.push(serde_json::json!({
             "id": format!("mission:{}", m.slug),
             "name": format!("Mission: {}", m.objective),
