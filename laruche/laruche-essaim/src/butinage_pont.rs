@@ -1751,6 +1751,21 @@ pub async fn executer_avec_bilan(
         }
     }
 
+    // Filet : un vol peut se terminer SANS texte final (dernière passe purement outil,
+    // budget/plafond atteint juste après). Retomber sur le dernier texte assistant non vide
+    // du carnet plutôt que de renvoyer une réponse vide (observé : LaReine « rework returned
+    // an empty answer » → l'appelant jetait tout le travail du vol).
+    let mut texte = bilan.texte.clone();
+    if texte.trim().is_empty() {
+        if let Some(m) = carnet
+            .historique
+            .iter()
+            .rev()
+            .find(|m| m.role == but::Role::Assistant && !m.contenu.trim().is_empty())
+        {
+            texte = m.contenu.clone();
+        }
+    }
     Ok(RapportMission {
         succes: bilan.est_succes(),
         fin: fin_str(&bilan.fin).to_string(),
@@ -1764,7 +1779,7 @@ pub async fn executer_avec_bilan(
         },
         etapes_plan: carnet.itineraire.etapes.len(),
         etapes_faites: carnet.itineraire.nb_faites(),
-        texte: bilan.texte,
+        texte,
     })
 }
 

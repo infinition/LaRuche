@@ -326,8 +326,19 @@ pub async fn revue_et_refaire(
                         revised = true;
                         rounds = tour;
                     }
-                    _ => {
-                        journal.push("LaReine: the rework could not be completed".into());
+                    // Cause VISIBLE (journal + logs) : le générique « could not be completed »
+                    // masquait s'il s'agissait d'une réponse vide (fin de vol sans texte) ou
+                    // d'une vraie erreur moteur/provider — indiagnosticable a posteriori.
+                    Ok(_) => {
+                        tracing::warn!("reine rework returned an empty answer");
+                        journal.push(
+                            "LaReine: the rework returned an EMPTY answer (flight ended without text); keeping the previous draft".into(),
+                        );
+                        break;
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "reine rework failed");
+                        journal.push(format!("LaReine: the rework FAILED ({e}); keeping the previous draft"));
                         break;
                     }
                 }
