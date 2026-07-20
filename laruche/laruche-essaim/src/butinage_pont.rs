@@ -511,6 +511,13 @@ impl OutilsPont<'_> {
         });
 
         // CHILD adapters: delegation disabled (anti-recursion).
+        // CANAL PRIVÉ drainé pour les TOKENS et le PLAN du scout : plusieurs éclaireuses tournent
+        // en PARALLÈLE — si chacune streamait ses tokens sur le tx du chat, les flux s'entrelacent
+        // caractère par caractère dans la bulle (bug observé : réponse « zippée » illisible), et
+        // leurs <plan> écrasaient la barre de plan du parent. Leurs ToolCall/ToolResult restent
+        // sur le vrai tx (les chips « Recherche web · en cours » demeurent visibles).
+        let (tx_prive, mut rx_prive) = tokio::sync::broadcast::channel::<ChatEvent>(64);
+        tokio::spawn(async move { while rx_prive.recv().await.is_ok() {} });
         let four = FournisseurPont {
             provider: self.config.provider.clone(),
             model: self.config.model.clone(),
@@ -519,7 +526,7 @@ impl OutilsPont<'_> {
             ollama_url: self.config.ollama_url.clone(),
             temperature: self.config.temperature,
             max_tokens: self.config.max_tokens,
-            tx: self.tx.clone(),
+            tx: tx_prive.clone(),
             credential_pool: self.config.credential_pool.clone(),
         };
         let mut disabled = self.disabled.clone();
@@ -539,7 +546,7 @@ impl OutilsPont<'_> {
             memoire: self.memoire.clone(),
             delegations: self.delegations.clone(), // shared (children can't delegate anyway)
         };
-        let emet = EmetteurPont { tx: self.tx.clone() };
+        let emet = EmetteurPont { tx: tx_prive.clone() };
 
         // Memory for the scout's initial recall: it starts KNOWING what past
         // missions already found (and which dead ends to skip).
