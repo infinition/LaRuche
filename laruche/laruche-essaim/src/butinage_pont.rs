@@ -1001,6 +1001,12 @@ A user CORRECTION or stated PREFERENCE ("stop doing X", "always format like Y") 
 - Transient errors that resolved.
 - DIAGNOSTIC DEAD-ENDS and self-investigation. A mission where the agent was CONFUSED, hunting for the source of something (a reminder, a cron, a notification, unexpected state), troubleshooting LaRuche's OWN internals, or checking "where does X come from" is NOT a reusable procedure - it was a one-off investigation that reached no durable technique. NEVER create meta-skills about the system itself (e.g. "diagnose_system_discrepancy", "task_source_diagnoser", "find_where_reminder_comes_from"). If the investigation ended without a concrete, repeatable FIX, save NOTHING.
 
+## Tool reliability stats (only when a "TOOL RELIABILITY" section is present)
+Those tools have a LOW cumulative success rate for THIS model. The stats re-rank your ATTENTION; they are NEVER evidence by themselves - the transcript is the only admissible evidence of a cause. Then:
+- PLUGIN tool (visible in `plugin_list`) whose failures come from unclear usage (wrong slots, bad argument format, missing example): RE-CREATE it via `plugin_create` with the SAME name (same name = overwrite) keeping the same `command`, with a sharper description and schema that document the exact pitfall. Then `reload_plugins` and VERIFY once via `shell_exec`. Fundamentally broken plugin: `plugin_delete`.
+- BUILT-IN tool: you cannot edit it. If (and ONLY if) the transcript shows a repeatable MISUSE pattern and its fix, patch the governing skill with the CORRECT usage - positive framing ("call X with quoted paths"), never a negative claim ("X is broken").
+- No transcript evidence of the cause: do NOTHING. A statistic alone is not a diagnosis.
+
 ## Output
 Almost always: call `task_complete` with "Nothing to save." Only when the strict bar above is clearly met, make ONE update and call `task_complete` with a one-line summary."#;
 
@@ -1285,11 +1291,19 @@ pub async fn lancer_curateur_arriere_plan(
         ..but::Reglages::default()
     };
     // LLM-facing review prompt prepended to the mission transcript.
-    let revue = format!(
+    let mut revue = format!(
         "Review the mission transcript below and update the capability library if warranted \
          (skills and/or verified plugins), following your rules strictly.\n\n\
          === MISSION TRANSCRIPT ===\n{transcript}"
     );
+    // Phase 2 of the tool stats: the curateur SEES which tools struggle with this
+    // model (cumulative reliability). Attention re-ranking only — its prompt requires
+    // transcript evidence before touching anything.
+    if let Some(digest) = crate::stats_outils::globales().digest_problemes(&config.model, 8) {
+        revue.push_str(&format!(
+            "\n\n=== TOOL RELIABILITY (this model, cumulative across missions) ===\n{digest}"
+        ));
+    }
     let mut carnet = but::Carnet::ouvrir(revue, but::ModeMission::Standard, chrono::Utc::now());
 
     // CANAL PRIVÉ drainé : le curateur est un réviseur d'arrière-plan (« the main conversation is

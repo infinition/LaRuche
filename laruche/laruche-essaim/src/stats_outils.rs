@@ -131,6 +131,44 @@ impl StatsOutils {
         (s.appels >= MIN_ESSAIS_SIGNAL).then(|| s.taux_succes())
     }
 
+    /// Compact digest of the tools that STRUGGLE with this model — success rate
+    /// below 80% over at least 5 attempts, worst first, `n` max. `None` when
+    /// nothing is noteworthy (the common case: the curateur then sees nothing).
+    /// Consumed by the curateur (phase 2): stats re-rank its ATTENTION; the
+    /// transcript remains the only admissible evidence of a cause.
+    pub fn digest_problemes(&self, modele: &str, n: usize) -> Option<String> {
+        const MIN_ESSAIS: u64 = 5;
+        const SEUIL_OK: f32 = 0.8;
+        let g = self.etat.lock().unwrap();
+        let m = g.0.par_modele.get(modele)?;
+        let mut mauvais: Vec<(&String, &StatOutil)> = m
+            .iter()
+            .filter(|(_, s)| s.appels >= MIN_ESSAIS && s.taux_succes() < SEUIL_OK)
+            .collect();
+        if mauvais.is_empty() {
+            return None;
+        }
+        mauvais.sort_by(|a, b| {
+            a.1.taux_succes()
+                .partial_cmp(&b.1.taux_succes())
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| a.0.cmp(b.0))
+        });
+        let lignes: Vec<String> = mauvais
+            .into_iter()
+            .take(n)
+            .map(|(o, s)| {
+                format!(
+                    "- {o}: {:.0}% success over {} calls (avg {} ms)",
+                    s.taux_succes() * 100.0,
+                    s.appels,
+                    s.latence_moyenne_ms()
+                )
+            })
+            .collect();
+        Some(lignes.join("\n"))
+    }
+
     /// Full snapshot (dashboard/API/debug).
     pub fn snapshot(&self) -> serde_json::Value {
         let g = self.etat.lock().unwrap();
@@ -176,6 +214,27 @@ mod tests {
         assert_eq!(s.fiabilite("claude", "web_fetch"), None);
         assert_eq!(s.essais("gemma", "web_fetch"), 3);
         assert_eq!(s.essais("gemma", "jamais_vu"), 0);
+    }
+
+    #[test]
+    fn digest_ne_liste_que_les_outils_en_difficulte() {
+        let s = store();
+        // Healthy tool: 10/10 — must not appear.
+        for _ in 0..10 {
+            s.enregistrer("gemma", "web_fetch", true, 50);
+        }
+        // Struggling tool: 2/6 — must appear.
+        for i in 0..6 {
+            s.enregistrer("gemma", "convert_pdf", i < 2, 200);
+        }
+        // Too few attempts: 0/2 — must NOT appear (no signal yet).
+        s.enregistrer("gemma", "rare_tool", false, 10);
+        s.enregistrer("gemma", "rare_tool", false, 10);
+        let d = s.digest_problemes("gemma", 8).expect("one struggling tool");
+        assert!(d.contains("convert_pdf") && d.contains("33%"), "{d}");
+        assert!(!d.contains("web_fetch") && !d.contains("rare_tool"), "{d}");
+        // Other model: clean slate, no digest.
+        assert!(s.digest_problemes("claude", 8).is_none());
     }
 
     #[test]
