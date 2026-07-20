@@ -791,21 +791,28 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .honey-wave .bar:nth-child(3){animation-delay:.2s;background:#eab308} .honey-wave .bar:nth-child(4){animation-delay:.3s;background:#ca8a04}
 .honey-wave .bar:nth-child(5){animation-delay:.4s;background:#a16207}
 
-/* Markdown rendered */
-.message.assistant.rendered { white-space:normal; }
-.message.assistant h1,.message.assistant h2,.message.assistant h3,.message.assistant h4,.message.assistant h5 { margin:10px 0 6px; font-size:15px; color:var(--amber); }
-.message.assistant h1 { font-size:18px; } .message.assistant h2 { font-size:16px; }
-.message.assistant ul,.message.assistant ol { margin:4px 0 4px 20px; }
-.message.assistant li { margin:2px 0; } .message.assistant p { margin:4px 0; }
+/* Markdown rendered — typographie aérée (la refonte sans-bulle avait tout tassé) */
+.message.assistant.rendered { white-space:normal; line-height:1.65; }
+.message.assistant h1,.message.assistant h2,.message.assistant h3,.message.assistant h4,.message.assistant h5 { margin:14px 0 6px; font-size:14.5px; font-weight:700; color:var(--amber); }
+.message.assistant h1 { font-size:19px; border-bottom:1px solid var(--border); padding-bottom:4px; }
+.message.assistant h2 { font-size:17px; }
+.message.assistant h3 { font-size:15.5px; }
+.message.assistant h1:first-child,.message.assistant h2:first-child,.message.assistant h3:first-child { margin-top:2px; }
+.message.assistant ul,.message.assistant ol { margin:6px 0 8px 24px; }
+.message.assistant li { margin:3px 0; }
+.message.assistant li::marker { color:var(--amber); }
+.message.assistant p { margin:7px 0; }
+.message.assistant hr { border:none; border-top:1px solid var(--border); margin:12px 0; }
 .message.assistant code { background:rgba(0,0,0,.35); padding:1px 5px; border-radius:3px; font-family:var(--mono); font-size:12px; }
 .message.assistant pre { background:rgba(0,0,0,.4); padding:10px 12px; border-radius:6px; overflow-x:auto; margin:8px 0; font-size:12px; line-height:1.4; position:relative; }
 .message.assistant pre code { background:none; padding:0; font-size:12px; }
-.message.assistant blockquote { border-left:3px solid var(--amber-dim); padding-left:10px; margin:6px 0; color:var(--text-dim); }
-.message.assistant strong { color:var(--text); }
+.message.assistant blockquote { border-left:3px solid var(--amber-dim); padding-left:10px; margin:8px 0; color:var(--text-dim); }
+.message.assistant strong { color:var(--text); font-weight:700; }
 .message.assistant a { color:var(--amber); }
-.message.assistant table { border-collapse:collapse; margin:6px 0; font-size:12px; }
-.message.assistant th,.message.assistant td { border:1px solid var(--border); padding:4px 8px; }
-.message.assistant th { background:rgba(245,158,11,.1); }
+.message.assistant table { border-collapse:collapse; margin:8px 0; font-size:12.5px; }
+.message.assistant th,.message.assistant td { border:1px solid var(--border); padding:5px 10px; }
+.message.assistant th { background:rgba(245,158,11,.1); color:var(--amber); }
+.message.assistant tr:nth-child(even) td { background:rgba(255,255,255,.02); }
 .message.error { background:var(--red-dim); border:1px solid rgba(239,68,68,.3); color:var(--red); font-size:13px; border-radius:var(--radius-msg); }
 .error-actions { display:flex; gap:8px; margin-top:8px; }
 .retry-btn { background:none; border:1px solid rgba(239,68,68,.4); border-radius:var(--radius); color:var(--red); font-size:11px; padding:4px 12px; cursor:pointer; transition:all var(--transition-fast); }
