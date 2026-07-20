@@ -129,8 +129,10 @@ impl but::Fournisseur for FournisseurPont {
             if let Some(e) = chunk.eval_count {
                 tok_sortie = e;
             }
-            if chunk.tool_calls.is_some() {
-                natifs = chunk.tool_calls.clone();
+            if let Some(tcs) = chunk.tool_calls.clone() {
+                // ACCUMULATE: Ollama may stream one tool call per intermediate chunk
+                // (qwen3); overwriting kept only the last one.
+                natifs.get_or_insert_with(Vec::new).extend(tcs);
             }
             if !chunk.text.is_empty() {
                 texte.push_str(&chunk.text);
@@ -550,7 +552,7 @@ impl OutilsPont<'_> {
 
         // Memory for the scout's initial recall: it starts KNOWING what past
         // missions already found (and which dead ends to skip).
-        let source_enfant = self.memoire.as_ref().map(|m| SourcePont { mem: m.clone() });
+        let source_enfant = self.memoire.as_ref().map(|m| SourcePont::nouveau(m.clone()));
         let source_dyn: Option<&dyn but::Source> =
             source_enfant.as_ref().map(|s| s as &dyn but::Source);
 
@@ -567,7 +569,14 @@ impl OutilsPont<'_> {
         )
         .await
         {
-            Ok(rapport) => but::ResultatOutil::ok(rapport.en_observation()),
+            Ok(rapport) => {
+                // Hebbian level 2 for the scout's own recalls: reinforce the memory
+                // items its report actually used.
+                if let Some(src) = source_enfant.as_ref() {
+                    src.renforcer_utilises(&rapport.synthese).await;
+                }
+                but::ResultatOutil::ok(rapport.en_observation())
+            }
             Err(e) => but::ResultatOutil::echec(format!("éclaireuse failed: {e}")),
         };
 
@@ -716,6 +725,10 @@ impl but::Outils for OutilsPont<'_> {
         };
         let ms = t0.elapsed().as_millis() as u64;
 
+        // Stats (modèle, outil): success/latency signal for the dynamic selection
+        // tiebreak and the curateur. Blocks never reach here (not the tool's fault).
+        crate::stats_outils::globales().enregistrer(&self.config.model, &appel.nom, res.ok, ms);
+
         let _ = self.tx.send(ChatEvent::ToolResult {
             name: appel.nom.clone(),
             result: res.sortie.clone(),
@@ -847,6 +860,33 @@ impl but::Emetteur for EmetteurPont {
 
 struct SourcePont {
     mem: Arc<dyn MemoireCognitive>,
+    /// (item_id, content) of every recall served during the run. Hebbian level 2:
+    /// recalls add NO ranking weight by themselves (`sans_trace`); after the mission,
+    /// only the items whose content actually irrigated the final answer are
+    /// reinforced (same doctrine as the chat working-set path).
+    rappels: std::sync::Mutex<Vec<(String, String)>>,
+}
+
+impl SourcePont {
+    fn nouveau(mem: Arc<dyn MemoireCognitive>) -> Self {
+        Self { mem, rappels: std::sync::Mutex::new(Vec::new()) }
+    }
+
+    /// Post-mission Hebbian level-2 reinforcement: of everything recalled during the
+    /// run, add weight ONLY to the items the final answer actually used.
+    async fn renforcer_utilises(&self, reponse: &str) {
+        let rappels: Vec<(String, String)> = self.rappels.lock().unwrap().clone();
+        if rappels.is_empty() || reponse.trim().is_empty() {
+            return;
+        }
+        let utilises = crate::contexte::rappels_utilises(&rappels, reponse);
+        if utilises.is_empty() {
+            return;
+        }
+        if let Ok(n) = self.mem.renforcer(&utilises).await {
+            tracing::debug!(utilises = n, rappeles = rappels.len(), "hebbian level 2 (butinage)");
+        }
+    }
 }
 
 #[async_trait]
@@ -859,11 +899,23 @@ impl but::Source for SourcePont {
                 SearchOpts {
                     depth: None,
                     limit: Some(8),
-                    sans_trace: false,
+                    sans_trace: true, // hebbian level 2: weight added after use, via renforcer()
                 },
             )
             .await
             .ok()?;
+        // Log what was served: the post-mission pass reinforces only what was USED.
+        if let Some(items) = pack.raw.get("items").and_then(|v| v.as_array()) {
+            let mut journal = self.rappels.lock().unwrap();
+            for it in items {
+                if let (Some(id), Some(c)) = (
+                    it.get("id").and_then(|v| v.as_str()),
+                    it.get("content").and_then(|v| v.as_str()),
+                ) {
+                    journal.push((id.to_string(), c.to_string()));
+                }
+            }
+        }
         let t = pack.to_prompt_text();
         if t.trim().is_empty() {
             None
@@ -1626,7 +1678,7 @@ pub async fn executer_avec_bilan(
     let emet = EmetteurPont { tx: tx.clone() };
 
     // Injected memory (consolidation + just-in-time recall) if available.
-    let source_pont = memoire.as_ref().map(|m| SourcePont { mem: m.clone() });
+    let source_pont = memoire.as_ref().map(|m| SourcePont::nouveau(m.clone()));
     let source: Option<&dyn but::Source> = source_pont.as_ref().map(|s| s as &dyn but::Source);
 
     let bilan = but::butiner(
@@ -1640,6 +1692,11 @@ pub async fn executer_avec_bilan(
         None,
     )
     .await?;
+
+    // Hebbian level 2: reinforce only the recalled items the final answer used.
+    if let Some(src) = source_pont.as_ref() {
+        src.renforcer_utilises(&bilan.texte).await;
+    }
 
     // Final plan to the UI: a weak model does not always re-mark its plan, so it
     // stayed at 0/3 even with the mission accomplished. On success, push everything to "done".
@@ -1889,11 +1946,14 @@ pub async fn reprendre_carnet(
         delegations: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
     };
     let emet = EmetteurPont { tx: tx.clone() };
-    let source_pont = memoire.as_ref().map(|m| SourcePont { mem: m.clone() });
+    let source_pont = memoire.as_ref().map(|m| SourcePont::nouveau(m.clone()));
     let source: Option<&dyn but::Source> = source_pont.as_ref().map(|s| s as &dyn but::Source);
 
     let bilan =
         but::butiner(&mut carnet, &reglages, &four, &outils, &emet, source, None, None).await?;
+    if let Some(src) = source_pont.as_ref() {
+        src.renforcer_utilises(&bilan.texte).await;
+    }
     if bilan.est_succes() {
         let _ = std::fs::remove_file(chemin);
     }

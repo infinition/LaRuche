@@ -27,6 +27,8 @@ struct OllamaStreamLine {
     message: Option<OllamaStreamMessage>,
     response: Option<String>,
     done: Option<bool>,
+    /// Real stop reason on the final chunk ("stop", "length", ...).
+    done_reason: Option<String>,
     eval_count: Option<u64>,
     eval_duration: Option<u64>,
     prompt_eval_count: Option<u64>,
@@ -143,31 +145,44 @@ pub async fn ollama_chat_stream(
                                 .or(parsed.response.clone())
                                 .unwrap_or_default();
                             let done = parsed.done.unwrap_or(false);
+                            // Real stop reason when Ollama supplies it ("stop"/"length");
+                            // hardcoding "stop" broke truncation detection downstream.
                             let finish_reason = if done {
-                                Some("stop".to_string())
+                                Some(parsed.done_reason.clone().unwrap_or_else(|| "stop".to_string()))
                             } else {
                                 None
                             };
 
-                            // Parse the native tool_calls from the last Ollama chunk
-                            let tool_calls = if done {
-                                parsed.message.as_ref()
-                                    .and_then(|m| m.tool_calls.as_ref())
-                                    .map(|calls| {
-                                        calls.iter().filter_map(|tc| {
-                                            Some(ToolCall {
-                                                id: format!("call_{}", uuid::Uuid::new_v4()),
-                                                name: tc.function.name.clone()?,
-                                                args: tc.function.arguments.clone().unwrap_or(serde_json::Value::Null),
-                                            })
-                                        }).collect::<Vec<_>>()
-                                    })
-                                    .filter(|v: &Vec<ToolCall>| !v.is_empty())
-                            } else {
-                                None
-                            };
+                            // Native tool_calls: recent Ollama streams them on INTERMEDIATE
+                            // chunks (done:false, empty content) — qwen3 notably — while the
+                            // final done-chunk only carries usage. Reading them only on `done`
+                            // dropped EVERY call (observed: qwen3 evals 0/8, "zero tool
+                            // calls"). Parse on every chunk; the consumer accumulates.
+                            let tool_calls = parsed.message.as_ref()
+                                .and_then(|m| m.tool_calls.as_ref())
+                                .map(|calls| {
+                                    calls.iter().filter_map(|tc| {
+                                        // Some models emit `arguments` as an embedded JSON
+                                        // STRING: unwrap it so the engine sees an object.
+                                        let args = match tc.function.arguments.clone() {
+                                            Some(serde_json::Value::String(s)) => {
+                                                serde_json::from_str(&s)
+                                                    .unwrap_or(serde_json::Value::String(s))
+                                            }
+                                            Some(v) => v,
+                                            None => serde_json::Value::Null,
+                                        };
+                                        Some(ToolCall {
+                                            id: format!("call_{}", uuid::Uuid::new_v4()),
+                                            name: tc.function.name.clone()?,
+                                            args,
+                                        })
+                                    }).collect::<Vec<_>>()
+                                })
+                                .filter(|v: &Vec<ToolCall>| !v.is_empty());
 
-                            if !content.is_empty() || done {
+                            // A tool-call-only chunk (no text, not done) must NOT be dropped.
+                            if !content.is_empty() || done || tool_calls.is_some() {
                                 let _ = tx
                                     .send(OllamaChunk {
                                         text: content,

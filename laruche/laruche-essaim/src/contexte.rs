@@ -313,13 +313,52 @@ pub fn schema_outils_pour_prompt(
             })
         })
         .collect();
-    scored.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+    // Stats (modèle, outil): reliability is a TIEBREAK between equally relevant
+    // tools — availability re-ranking only, never an exhortation in the prompt
+    // (doctrine: usage signals re-rank, never decide). Unknown (< 3 tries) = neutral.
+    let stats = crate::stats_outils::globales();
+    let fiab = |name: &str| -> i64 {
+        stats
+            .fiabilite(&config.model, name)
+            .map(|f| (f * 1000.0) as i64)
+            .unwrap_or(500)
+    };
+    scored.sort_by(|a, b| {
+        b.0.cmp(&a.0)
+            .then_with(|| fiab(&b.1).cmp(&fiab(&a.1)))
+            .then_with(|| a.1.cmp(&b.1))
+    });
     for (score, name) in scored {
         if selected.len() >= total_limit {
             break;
         }
         if score > 0 {
             selected.insert(name);
+        }
+    }
+
+    // ε-greedy cold start: a FORGED tool (origin `custom`, e.g. built by the
+    // curateur) that this model has never tried can never earn a track record if
+    // the selection always ignores it. Roughly 1 turn in 4 (deterministic on the
+    // prompt: no rand, replayable), give ONE never-tried custom tool a seat.
+    if selected.len() < total_limit {
+        let mut jamais: Vec<&str> = tools
+            .iter()
+            .filter(|t| t.get("origin").and_then(|o| o.as_str()) == Some("custom"))
+            .filter_map(|t| tool_name(t))
+            .filter(|n| !selected.contains(*n) && stats.essais(&config.model, n) == 0)
+            .collect();
+        if !jamais.is_empty() {
+            jamais.sort_unstable();
+            let h = {
+                use std::hash::{Hash, Hasher};
+                let mut h = std::collections::hash_map::DefaultHasher::new();
+                prompt.hash(&mut h);
+                h.finish() as usize
+            };
+            if h % 4 == 0 {
+                selected.insert(jamais[h % jamais.len()].to_string());
+            }
         }
     }
 
@@ -591,7 +630,7 @@ async fn assembler_working_set(
 /// significant tokens (>=5 chars, case-insensitive) appear in the answer, or one
 /// for very short items. Cheap, testable, and honest enough: unused recalls stop
 /// gaining weight, so noise no longer climbs the ranking by mere co-occurrence.
-fn rappels_utilises(rappeles: &[(String, String)], reponse: &str) -> Vec<String> {
+pub(crate) fn rappels_utilises(rappeles: &[(String, String)], reponse: &str) -> Vec<String> {
     // Significant tokens: >=4 chars (so model numbers like `5080` or `vram`
     // count) minus the most common fr/en filler words of that length.
     const VIDES: &[&str] = &[

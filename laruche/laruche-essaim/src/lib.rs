@@ -45,6 +45,7 @@ pub mod reine_juge;
 pub mod reine_live;
 pub mod reine_queue;
 pub mod session;
+pub mod stats_outils;
 pub mod stdout_filter;
 pub mod streaming;
 pub mod subagent;
