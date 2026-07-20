@@ -103,6 +103,10 @@ pub struct TexteSeul {
     pub malforme: bool,
     /// True if the output was truncated (stop_reason=length or unclosed tool block).
     pub tronquee: bool,
+    /// True if the response is COMPLETELY empty (no text, no calls): abnormal on any
+    /// profile (prompt truncation, content filter). Rail: one bounded relaunch instead
+    /// of handing the user an empty answer.
+    pub vide: bool,
 }
 
 /// Terminal reason of a butinage.

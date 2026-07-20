@@ -18,4 +18,5 @@ async-trait = "0.1"
 futures-util = "0.3"
 
 [dev-dependencies]
-tokio = { workspace = true }
+# test-util: virtual time (`start_paused`) so hung-provider/timeout tests run instantly.
+tokio = { workspace = true, features = ["test-util"] }

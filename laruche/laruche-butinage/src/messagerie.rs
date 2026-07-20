@@ -115,4 +115,23 @@ impl Message {
     pub fn nudge(c: impl Into<String>) -> Self {
         Self { interne: true, ..Self::base(Role::Utilisateur, c.into()) }
     }
+
+    /// Estimated cost of this message in CHARACTERS, as seen by the provider.
+    /// `contenu.len()` alone is blind to two real payloads:
+    /// - `appels`: the serialized tool calls (name + JSON args) travel in the request;
+    /// - `pieces`: a base64 image is huge on the wire but its token cost is the
+    ///   provider's VISION cost, not its byte count. We charge a bounded heuristic
+    ///   (`len/8`, clamped to [2048, 16384] chars ≈ 512–4096 tokens at 4 chars/token);
+    ///   the jauge's learned calibration factor absorbs the per-provider remainder.
+    /// Single source of truth for the jauge and the truncation guardrail.
+    pub fn cout_chars(&self) -> usize {
+        let mut n = self.contenu.len();
+        for a in &self.appels {
+            n += a.nom.len() + a.args.to_string().len() + 24;
+        }
+        for p in &self.pieces {
+            n += (p.data.len() / 8).clamp(2048, 16_384);
+        }
+        n
+    }
 }

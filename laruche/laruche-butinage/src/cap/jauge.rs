@@ -47,8 +47,12 @@ impl Jauge {
     }
 
     /// `characters / 4` estimate, recalibrated by the factor learned from real usage.
-    pub fn estimer(&mut self, systeme: &str, historique: &[Message]) {
-        let chars: usize = systeme.len() + historique.iter().map(|m| m.contenu.len()).sum::<usize>();
+    /// Counts the FULL request payload: system + per-message cost (text + serialized
+    /// tool calls + multimodal pieces, via [`Message::cout_chars`]) + `extra_chars`
+    /// (tool schemas sent with every call — dozens of tools are far from free).
+    pub fn estimer(&mut self, systeme: &str, historique: &[Message], extra_chars: usize) {
+        let chars: usize =
+            systeme.len() + extra_chars + historique.iter().map(|m| m.cout_chars()).sum::<usize>();
         let brut = chars / 4;
         self.dernier_brut = brut;
         self.utilise = (brut as f32 * self.facteur).round() as usize;
@@ -109,14 +113,37 @@ mod tests {
     fn estimer_compte_systeme_et_historique() {
         let mut j = Jauge::nouvelle(1000, 0.7, 0.85);
         let h = vec![Message::utilisateur("a".repeat(40)), Message::assistant("b".repeat(40))];
-        j.estimer(&"s".repeat(20), &h);
+        j.estimer(&"s".repeat(20), &h, 0);
         assert_eq!(j.utilise, (20 + 80) / 4);
+    }
+
+    #[test]
+    fn estimer_compte_les_schemas_les_appels_et_les_pieces() {
+        let mut j = Jauge::nouvelle(1_000_000, 0.7, 0.85);
+        // Schemas (extra_chars) count.
+        j.estimer("", &[], 4000);
+        assert_eq!(j.utilise, 1000);
+        // An assistant message carrying tool calls costs more than its bare text.
+        let appel = crate::issue::Appel::nouveau("web_search", serde_json::json!({"q": "x".repeat(400)}));
+        let h = vec![Message::assistant_avec_appels("", vec![appel])];
+        j.estimer("", &h, 0);
+        assert!(j.utilise > 100, "serialized tool call counted, got {}", j.utilise);
+        // A multimodal piece is charged a bounded vision cost, not its byte count.
+        let piece = crate::messagerie::Piece {
+            kind: "image".into(),
+            mime: "image/png".into(),
+            data: "A".repeat(2_000_000), // 2 MB base64
+        };
+        let h = vec![Message::utilisateur_multimodal("voici", vec![piece])];
+        j.estimer("", &h, 0);
+        let borne_haute = 16_384 / 4 + 10;
+        assert!(j.utilise > 500 && j.utilise < borne_haute, "clamped vision cost, got {}", j.utilise);
     }
 
     #[test]
     fn usage_reel_surclasse_l_estimation() {
         let mut j = Jauge::nouvelle(1000, 0.7, 0.85);
-        j.estimer("x", &[]);
+        j.estimer("x", &[], 0);
         j.maj_usage(640);
         assert_eq!(j.utilise, 640);
         assert!((j.ratio() - 0.64).abs() < 1e-6);
@@ -127,13 +154,13 @@ mod tests {
         let mut j = Jauge::nouvelle(100_000, 0.7, 0.85);
         // 4000 characters -> raw = 1000 estimated tokens.
         let h = vec![Message::utilisateur("a".repeat(4000))];
-        j.estimer("", &h);
+        j.estimer("", &h, 0);
         assert_eq!(j.utilise, 1000);
         // The provider reveals 1500 real tokens -> factor 1.5 learned.
         j.maj_usage(1500);
         assert_eq!(j.utilise, 1500);
         // The next estimate (same content) is now recalibrated to 1500.
-        j.estimer("", &h);
+        j.estimer("", &h, 0);
         assert_eq!(j.utilise, 1500);
     }
 }

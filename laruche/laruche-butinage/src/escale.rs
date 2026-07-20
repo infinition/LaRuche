@@ -43,15 +43,28 @@ and why; (3) the current plan state and what remains to do; (4) dead ends and ap
 tried that FAILED (so they are not retried); (5) exact identifiers (paths, names, ids, numbers). \
 Omit pleasantries and reasoning chatter. Output the summary only, no preamble.";
 
+/// Turn-boundary alignment for a split index: the kept tail must never START with
+/// observations whose emitting assistant (carrying the tool calls) falls in the
+/// summarized part — orphan tool_results force the adapter's text fallback.
+fn aligner_sur_tour(historique: &[Message], mut split: usize) -> usize {
+    while split + 1 < historique.len() && historique[split].role == Role::Observation {
+        split += 1;
+    }
+    split
+}
+
 /// **LLM compaction** (default mode): summarizes the old turns via an auxiliary call,
 /// keeping the anchor (mission) and the recent turns intact. Falls back to the
 /// extractive [`compacter`] when the call fails or returns nothing.
+/// `max_chars_rendu` caps the transcript sent to the auxiliary call (head+tail kept):
+/// fired when the context is nearly full, the call must not itself overflow the window.
 pub async fn compacter_intelligent(
     carnet: &mut Carnet,
     fournisseur: &dyn Fournisseur,
     jauge: &Jauge,
     garder_recents: usize,
     emet: &dyn Emetteur,
+    max_chars_rendu: usize,
 ) -> Option<Evenement> {
     let cible = cible_recents(jauge, garder_recents)?;
     let avant = carnet.historique.len();
@@ -59,8 +72,11 @@ pub async fn compacter_intelligent(
         return None; // too short to be worthwhile
     }
     emet.emettre(Evenement::Statut("🍯 LLM context compaction…".into()));
-    let split = avant - cible;
-    let rendu = rendu_historique(&carnet.historique[..split]);
+    let split = aligner_sur_tour(&carnet.historique, avant - cible);
+    let rendu = crate::recolte::plafonner_observation(
+        &rendu_historique(&carnet.historique[..split]),
+        max_chars_rendu,
+    );
     let messages = vec![Message::systeme(PROMPT_COMPACTION), Message::utilisateur(rendu)];
     match fournisseur.repondre(&messages, &[]).await {
         Ok(r) if !r.texte.trim().is_empty() => {
@@ -95,7 +111,7 @@ pub fn compacter(historique: &mut Vec<Message>, garder_recents: usize) -> Option
     if avant <= garder_recents + 2 {
         return None; // too short to be worthwhile
     }
-    let split = avant - garder_recents;
+    let split = aligner_sur_tour(historique, avant - garder_recents);
     let milieu = &historique[..split];
     let ancre = milieu.iter().find(|m| m.role == Role::Utilisateur).cloned();
     let resume = Message::systeme(resumer(milieu));
@@ -179,11 +195,19 @@ pub async fn consolider(
     source: &dyn Source,
     emet: &dyn Emetteur,
     prompt_extraction: Option<&str>,
+    max_chars_rendu: usize,
 ) -> Option<Evenement> {
     emet.emettre(Evenement::Statut("🧠 Cognitive consolidation…".into()));
+    // Cap the rendered transcript (head+tail): consolidation fires at ~85% of the
+    // window, so an uncapped render sent to the SAME provider would structurally
+    // overflow small n_ctx models and make consolidation always fail.
+    let rendu = crate::recolte::plafonner_observation(
+        &rendu_historique(&carnet.historique),
+        max_chars_rendu,
+    );
     let messages = vec![
         Message::systeme(prompt_extraction.unwrap_or(PROMPT_EXTRACTION)),
-        Message::utilisateur(rendu_historique(&carnet.historique)),
+        Message::utilisateur(rendu),
     ];
     let reponse = fournisseur.repondre(&messages, &[]).await.ok()?;
     let faits = parse_faits(&reponse.texte);
@@ -217,6 +241,11 @@ pub async fn consolider(
         .cloned()
         .collect();
     queue.reverse();
+    // Never start the fresh context with orphan observations (their emitting
+    // assistant was not kept): the adapter would lose native correlation.
+    while queue.first().is_some_and(|m| m.role == Role::Observation) {
+        queue.remove(0);
+    }
     let faits_liste: Vec<String> = faits
         .iter()
         .take(20)
@@ -322,6 +351,18 @@ mod tests {
     }
 
     #[test]
+    fn compacter_coupe_aux_frontieres_de_tour() {
+        // garder_recents=5 -> raw split lands on an OBSERVATION (its assistant would be
+        // summarized away): the split shifts forward so the kept tail starts on a turn.
+        let mut h = hist(10); // [user, (assistant, obs)*10] = 21
+        let (avant, apres) = compacter(&mut h, 5).unwrap();
+        assert_eq!(avant, 21);
+        // shifted split=17: anchor + summary + 4 kept = 6
+        assert_eq!(apres, 6);
+        assert_ne!(h[2].role, Role::Observation, "kept tail must not start with an orphan observation");
+    }
+
+    #[test]
     fn compacter_noop_si_court() {
         let mut h = hist(1); // 3 messages
         assert!(compacter(&mut h, 6).is_none());
@@ -379,6 +420,7 @@ mod tests {
             &jauge,
             8,
             &crate::evenement::Silencieux,
+            100_000,
         )
         .await;
         assert!(matches!(ev, Some(Evenement::Escale { .. })));
@@ -410,6 +452,7 @@ mod tests {
             &jauge,
             8,
             &crate::evenement::Silencieux,
+            100_000,
         )
         .await;
         // fallback: the extractive compaction still happened

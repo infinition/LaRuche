@@ -76,6 +76,8 @@ mod nudge {
         where it stopped - do not repeat what you already wrote; finish the sentence or the tool-call block.";
     pub const REFORMER_OUTIL: &str = "You emitted something that looks like a tool call but is not valid \
         and executable. Re-emit ONLY one valid tool call now - no markdown, no prose.";
+    pub const REPONSE_VIDE: &str = "Your previous response was completely empty (no text, no tool call). \
+        Respond now: either call the tool you need, or write your answer to the user.";
     pub const DEMARRER_PLAN: &str = "Plan recorded. Now EXECUTE the first step by calling the needed \
         tool - do not just restate the plan or ask for confirmation.";
     pub const EXPLORER_PLUS: &str = "This is a long-running research mission and you have not searched \
@@ -124,6 +126,13 @@ pub fn cap(ctx: &ContexteCap, issue: Issue) -> Decision {
             // Rail 2: malformed tool call, re-emit. Weak model that botched the syntax.
             if t.malforme && ctx.relance_dispo() {
                 return Decision::Relancer(nudge::REFORMER_OUTIL.to_string());
+            }
+            // Rail 2b: completely empty response (no text, no call): abnormal on any
+            // profile (prompt truncation, content filter, backend hiccup). One bounded
+            // relaunch beats handing the user an empty answer. After malforme: an empty
+            // stop=Outils turn is a tool problem first.
+            if t.vide && ctx.relance_dispo() {
+                return Decision::Relancer(nudge::REPONSE_VIDE.to_string());
             }
             // Rail 3: long search not thorough enough, push a bit. BOUNDED by
             //   relance_max over STERILE turns (auto_continue resets to 0 as soon as a
@@ -191,7 +200,23 @@ mod tests {
             plan_inacheve: false,
             malforme: false,
             tronquee: false,
+            vide: false,
         }
+    }
+
+    #[test]
+    fn reponse_vide_relance_puis_rend_la_main() {
+        let mut t = base_texte();
+        t.texte = String::new();
+        t.vide = true;
+        match cap(&ctx(), texte(t.clone())) {
+            Decision::Relancer(n) => assert!(n.contains("empty")),
+            autre => panic!("expected Relancer, got {autre:?}"),
+        }
+        // bounded: sterile relaunches exhausted -> end of turn even if empty
+        let mut c = ctx();
+        c.auto_continue = 3;
+        assert_eq!(cap(&c, texte(t)), Decision::Poser(FinDeVol::Accomplie));
     }
 
     #[test]

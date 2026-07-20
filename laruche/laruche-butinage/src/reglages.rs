@@ -70,6 +70,11 @@ pub struct Reglages {
     /// freeze the whole butinage. `0` = no timeout. Overridable per tool via
     /// [`crate::outils::Outils::timeout_secs`].
     pub timeout_outil_secs: u64,
+    /// Timeout (seconds) on a single MODEL call — mirror of the per-tool bound. A
+    /// stalled stream (backend swap, half-dead connection) must never freeze the
+    /// butinage; expiry is classed transient (backoff, then give up). `0` = unbounded.
+    /// Generous default: a local 12B on CPU legitimately takes minutes.
+    pub timeout_modele_secs: u64,
     /// Hard cap (characters) on a single tool observation reinjected into the history
     /// (head+tail kept, middle elided). Protects the context from a 500 KB web page.
     /// `0` = no cap.
@@ -106,6 +111,7 @@ impl Default for Reglages {
             chemin_carnet: None,
             supervision: None,
             timeout_outil_secs: 300,
+            timeout_modele_secs: 600,
             max_chars_observation: 30_000,
             budget_tokens: 0,
             compaction_llm: true,

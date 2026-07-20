@@ -97,6 +97,21 @@ pub async fn recolter(
     let parallele = reglages.profil.parallelisme();
     let mut executes = 0usize;
 
+    // Intra-pass dedup: local models routinely emit the SAME call twice in one message.
+    // Only the first occurrence executes; duplicates get a synthetic observation (a
+    // tool_result is still ALWAYS reinjected). Also spares double-firing mutations.
+    let mut doublons: std::collections::HashSet<usize> = std::collections::HashSet::new();
+    {
+        let mut vues: std::collections::HashSet<u64> = std::collections::HashSet::new();
+        for (i, a) in appels.iter().enumerate() {
+            if !vues.insert(a.signature()) {
+                doublons.insert(i);
+            }
+        }
+    }
+    const MSG_DOUBLON: &str = "duplicate call: same tool with identical arguments as an \
+        earlier call in this same message. Not re-executed - use that call's result.";
+
     for (sur, idxs) in partitionner(appels, outils) {
         if annule(annulation) {
             return Moisson { arret: Some(bilan_interrompu(carnet)), executes };
@@ -108,7 +123,9 @@ pub async fn recolter(
             let mut bloques: HashMap<usize, String> = HashMap::new();
             let mut a_lancer: Vec<usize> = Vec::new();
             for &i in &idxs {
-                if let Signal::Bloquer(msg) = vigie.avant_appel(appels[i].signature()) {
+                if doublons.contains(&i) {
+                    bloques.insert(i, MSG_DOUBLON.to_string());
+                } else if let Signal::Bloquer(msg) = vigie.avant_appel(appels[i].signature()) {
                     bloques.insert(i, msg);
                 } else {
                     a_lancer.push(i);
@@ -160,6 +177,10 @@ pub async fn recolter(
                     return Moisson { arret: Some(bilan_interrompu(carnet)), executes };
                 }
                 let appel = &appels[i];
+                if doublons.contains(&i) {
+                    pousser_blocage(carnet, appel, MSG_DOUBLON, emet);
+                    continue;
+                }
                 if let Signal::Bloquer(msg) = vigie.avant_appel(appel.signature()) {
                     pousser_blocage(carnet, appel, &msg, emet);
                     continue;
@@ -386,6 +407,34 @@ mod tests {
         assert!(moisson.arret.is_none());
         assert_eq!(moisson.executes, 0, "a blocked call is not an execution");
         assert!(carnet.historique.last().unwrap().contenu.starts_with("Blocked:"));
+    }
+
+    #[tokio::test]
+    async fn doublon_intra_passe_n_execute_qu_une_fois() {
+        // The same call emitted twice in one message: one execution, but TWO
+        // observations (a tool_result is always reinjected, even for the duplicate).
+        let appels = vec![
+            Appel::nouveau("web_a", json!({"q": "x"})),
+            Appel::nouveau("web_a", json!({"q": "x"})),
+            Appel::nouveau("web_b", json!({})),
+        ];
+        let mut carnet = Carnet::ouvrir("m", ModeMission::Standard, t0());
+        let reglages = Reglages { profil: ProfilModele::Robuste, ..Reglages::default() };
+        let mut vigie = Vigie::nouvelle(ProfilModele::Robuste.seuils_vigie());
+        let moisson =
+            recolter(&appels, &mut carnet, &reglages, &OutilsMock, &mut vigie, &Silencieux, None)
+                .await;
+        assert_eq!(moisson.executes, 2, "the duplicate must not execute");
+        let obs: Vec<&Message> = carnet.historique.iter().filter(|m| m.outil.is_some()).collect();
+        assert_eq!(obs.len(), 3, "every call still gets an observation");
+        assert!(obs[1].contenu.contains("duplicate call"));
+        // sequential path too (Fragile profile)
+        let mut carnet2 = Carnet::ouvrir("m", ModeMission::Standard, t0());
+        let reglages2 = Reglages { profil: ProfilModele::Fragile, ..Reglages::default() };
+        let mut vigie2 = Vigie::nouvelle(ProfilModele::Fragile.seuils_vigie());
+        let m2 = recolter(&appels, &mut carnet2, &reglages2, &OutilsMock, &mut vigie2, &Silencieux, None)
+            .await;
+        assert_eq!(m2.executes, 2);
     }
 
     #[tokio::test]

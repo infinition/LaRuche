@@ -80,6 +80,9 @@ pub async fn butiner(
     };
     let mut jauge = crate::cap::jauge::Jauge::nouvelle(reglages.context_max_tokens, 0.70, 0.85);
     let schemas = outils.schemas();
+    // The tool schemas ride along with EVERY model call (native `tools:` field):
+    // dozens of tools are thousands of tokens the jauge must not ignore.
+    let schemas_chars: usize = schemas.iter().map(|s| s.to_string().len()).sum();
 
     // Tier 3 supervision state (only used when `reglages.supervision` is active).
     let mut sup_faites = carnet.itineraire.nb_faites();
@@ -131,7 +134,7 @@ pub async fn butiner(
         // gauge is critical and a memory is plugged in, cognitive consolidation
         // (durable facts, fresh context). A failed consolidation falls back to
         // compaction and is frozen for a few passes (each attempt costs an LLM call).
-        jauge.estimer(&reglages.systeme, &carnet.historique);
+        jauge.estimer(&reglages.systeme, &carnet.historique, schemas_chars);
         let veut_consolider = matches!(jauge.besoin(), crate::cap::jauge::Besoin::Consolider)
             && source.is_some()
             && gel_consolidation == 0;
@@ -142,24 +145,27 @@ pub async fn butiner(
                 source.unwrap(),
                 emet,
                 reglages.prompt_extraction.as_deref(),
+                budget_rendu(reglages, &jauge),
             )
             .await
             {
                 Some(ev) => {
                     emet.emettre(ev);
-                    jauge.estimer(&reglages.systeme, &carnet.historique);
+                    jauge.estimer(&reglages.systeme, &carnet.historique, schemas_chars);
                 }
                 None => {
-                    gel_consolidation = GEL_CONSOLIDATION;
+                    // +1: the cooldown is decremented at the end of THIS very pass; without
+                    // it the effective freeze would be GEL_CONSOLIDATION - 1 passes.
+                    gel_consolidation = GEL_CONSOLIDATION + 1;
                     if let Some(ev) = compacter(carnet, fournisseur, &jauge, reglages, emet).await {
                         emet.emettre(ev);
-                        jauge.estimer(&reglages.systeme, &carnet.historique);
+                        jauge.estimer(&reglages.systeme, &carnet.historique, schemas_chars);
                     }
                 }
             }
         } else if let Some(ev) = compacter(carnet, fournisseur, &jauge, reglages, emet).await {
             emet.emettre(ev);
-            jauge.estimer(&reglages.systeme, &carnet.historique);
+            jauge.estimer(&reglages.systeme, &carnet.historique, schemas_chars);
         }
         gel_consolidation = gel_consolidation.saturating_sub(1);
 
@@ -202,6 +208,14 @@ pub async fn butiner(
             jauge.maj_usage(u.entree as usize);
             carnet.tokens_entree_total += u.entree as u64;
             carnet.tokens_sortie_total += u.sortie as u64;
+        } else if reglages.budget_tokens > 0 {
+            // Provider silent on usage: feed the budget with the jauge ESTIMATE so the
+            // spend ceiling stays a guarantee instead of silently never triggering.
+            let cpt = jauge.chars_par_token().max(1.0);
+            carnet.tokens_entree_total += jauge.utilise as u64;
+            let sortie_chars = reponse.texte.len()
+                + reponse.appels.iter().map(|a| a.args.to_string().len() + a.nom.len()).sum::<usize>();
+            carnet.tokens_sortie_total += (sortie_chars as f32 / cpt) as u64;
         }
 
         if !reponse.texte.is_empty() {
@@ -366,6 +380,14 @@ pub async fn butiner(
     }
 }
 
+/// Character budget for a rendered transcript sent to an AUXILIARY call (compaction
+/// summary, consolidation extraction): half the model window, in calibrated chars.
+/// Without this cap the auxiliary call — fired precisely when the context is nearly
+/// FULL — would itself overflow the window and structurally always fail on small n_ctx.
+fn budget_rendu(reglages: &Reglages, jauge: &crate::cap::jauge::Jauge) -> usize {
+    (reglages.context_max_tokens as f32 * 0.5 * jauge.chars_par_token()) as usize
+}
+
 /// Compaction dispatch: LLM summary (default) or extractive, per settings.
 async fn compacter(
     carnet: &mut Carnet,
@@ -375,8 +397,15 @@ async fn compacter(
     emet: &dyn Emetteur,
 ) -> Option<Evenement> {
     if reglages.compaction_llm {
-        crate::escale::compacter_intelligent(carnet, fournisseur, jauge, reglages.garder_recents, emet)
-            .await
+        crate::escale::compacter_intelligent(
+            carnet,
+            fournisseur,
+            jauge,
+            reglages.garder_recents,
+            emet,
+            budget_rendu(reglages, jauge),
+        )
+        .await
     } else {
         crate::escale::peut_etre(carnet, jauge, reglages.garder_recents)
     }
@@ -399,8 +428,10 @@ fn tronquer_historique(
     }
     let declencheur = (budget_tokens as f32 * 0.90 * chars_par_token) as usize;
     let cible = (budget_tokens as f32 * 0.60 * chars_par_token) as usize;
+    // Full payload cost (text + serialized tool calls + multimodal pieces): a message
+    // whose weight is in its `pieces`/`appels` must not look free to the guardrail.
     let total: usize =
-        systeme.len() + carnet.historique.iter().map(|m| m.contenu.len()).sum::<usize>();
+        systeme.len() + carnet.historique.iter().map(|m| m.cout_chars()).sum::<usize>();
     if total <= declencheur {
         return;
     }
@@ -421,7 +452,13 @@ fn tronquer_historique(
     let mut restant = total;
     let mut k = proteges;
     while k + 1 < carnet.historique.len() && restant > cible {
-        restant -= carnet.historique[k].contenu.len();
+        restant -= carnet.historique[k].cout_chars();
+        k += 1;
+    }
+    // Turn-boundary alignment: never let the kept window START with observations
+    // whose emitting assistant (carrying the tool calls) was just dropped — orphan
+    // tool_results force the adapter's text fallback and destabilize the prefix.
+    while k + 1 < carnet.historique.len() && carnet.historique[k].role == Role::Observation {
         k += 1;
     }
     if k > proteges {
@@ -451,6 +488,11 @@ enum EchecAppel {
 /// rerouting are handled internally by the `Fournisseur` adapter; the core
 /// applies the wait and the abandon. Waits are sliced so a user cancellation
 /// (up to 300 s rate-limit sleeps) is honored within a second.
+///
+/// The call itself is BOUNDED and CANCELLABLE (mirror of the per-tool timeout):
+/// a hung stream (stalled backend, half-dead connection with no RST) must never
+/// freeze the butinage, and the user's stop must be honored within ~1 s even
+/// mid-call. A timeout is classed as a transient error (backoff, then give up).
 async fn appeler_modele(
     fournisseur: &dyn Fournisseur,
     messages: &[Message],
@@ -461,7 +503,34 @@ async fn appeler_modele(
 ) -> Result<ReponseModele, EchecAppel> {
     let mut tentative = 0usize;
     loop {
-        match fournisseur.repondre(messages, schemas).await {
+        let resultat = {
+            let fut = fournisseur.repondre(messages, schemas);
+            tokio::pin!(fut);
+            let debut = tokio::time::Instant::now();
+            loop {
+                tokio::select! {
+                    r = &mut fut => break r,
+                    _ = tokio::time::sleep(Duration::from_secs(1)) => {
+                        if est_annule(annulation) {
+                            return Err(EchecAppel::Interrompu);
+                        }
+                        if reglages.timeout_modele_secs > 0
+                            && debut.elapsed().as_secs() >= reglages.timeout_modele_secs
+                        {
+                            break Err(crate::fournisseur::ErreurFournisseur {
+                                status: 0, // transport-class: retried with backoff
+                                retry_after: None,
+                                corps: format!(
+                                    "model call timed out after {}s (no response from provider)",
+                                    reglages.timeout_modele_secs
+                                ),
+                            });
+                        }
+                    }
+                }
+            }
+        };
+        match resultat {
             Ok(r) => return Ok(r),
             Err(e) => {
                 tentative += 1;
@@ -633,6 +702,7 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet, profil: ProfilModele) 
         plan_inacheve: carnet.itineraire.a_des_ouvertes(),
         malforme: stop_outils_vide || (heuristiques && ressemble_a_un_outil(&reponse.texte)),
         tronquee,
+        vide: reponse.texte.trim().is_empty(),
     })
 }
 
@@ -693,6 +763,30 @@ mod tests {
         assert!(carnet.historique.first().unwrap().contenu.ends_with('0'));
         // the LAST message (the most recent) is preserved
         assert!(carnet.historique.last().unwrap().contenu.ends_with("49"));
+    }
+
+    #[test]
+    fn tronque_ne_laisse_pas_d_observations_orphelines_en_tete() {
+        // Turns of [assistant+calls, obs, obs]: the cut must land on a turn start,
+        // never leaving observations whose emitting assistant was dropped.
+        let mut carnet = Carnet::ouvrir("m", ModeMission::Standard, t0());
+        carnet.historique.clear();
+        carnet.historique.push(Message::utilisateur("MISSION"));
+        for _ in 0..20 {
+            carnet.historique.push(Message::assistant_avec_appels(
+                "je lance l'outil",
+                vec![Appel::nouveau("t", json!({}))],
+            ));
+            carnet.historique.push(Message::observation_liee("t", "id1", "r".repeat(300)));
+            carnet.historique.push(Message::observation_liee("t", "id2", "r".repeat(300)));
+        }
+        tronquer_historique(&mut carnet, "", 1000, 3.0);
+        assert_eq!(carnet.historique[0].contenu, "MISSION");
+        assert_ne!(
+            carnet.historique[1].role,
+            Role::Observation,
+            "kept window must start on a turn boundary"
+        );
     }
 
     #[test]
@@ -853,6 +947,89 @@ mod tests {
             .unwrap();
         assert_eq!(bilan.fin, FinDeVol::Accomplie);
         assert!(carnet.auto_continue >= 1 || carnet.passe >= 2, "auto-continuation must have triggered");
+    }
+
+    #[tokio::test]
+    async fn reponse_vide_est_relancee_puis_aboutit() {
+        // Completely empty response: one bounded relaunch instead of an empty answer.
+        let four = FournisseurScript::scenario(vec![rep_texte(""), rep_texte("la vraie réponse")]);
+        let mut carnet = Carnet::ouvrir("question", ModeMission::Standard, t0());
+        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(bilan.fin, FinDeVol::Accomplie);
+        assert_eq!(bilan.texte, "la vraie réponse");
+        assert_eq!(bilan.passes, 2);
+    }
+
+    /// Provider that never answers: only the model-call timeout brings it back.
+    struct FournisseurPendu;
+    #[async_trait]
+    impl Fournisseur for FournisseurPendu {
+        async fn repondre(
+            &self,
+            _m: &[Message],
+            _s: &[serde_json::Value],
+        ) -> Result<ReponseModele, ErreurFournisseur> {
+            tokio::time::sleep(Duration::from_secs(1_000_000)).await;
+            unreachable!("the hung call must be cut by the timeout");
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn appel_modele_pendu_est_borne_par_le_timeout() {
+        let reglages = Reglages {
+            timeout_modele_secs: 2,
+            max_transitoire: 1, // 1 retry then give up (keeps the test tight)
+            ..Reglages::default()
+        };
+        let mut carnet = Carnet::ouvrir("x", ModeMission::Standard, t0());
+        let bilan = butiner(&mut carnet, &reglages, &FournisseurPendu, &OutilsMock, &Silencieux, None, None, None)
+            .await
+            .unwrap();
+        match bilan.fin {
+            FinDeVol::Erreur(motif) => assert!(motif.contains("timed out"), "got: {motif}"),
+            autre => panic!("expected Erreur(timeout), got {autre:?}"),
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn annulation_pendant_l_appel_modele_est_honoree() {
+        // The stop is raised WHILE the provider hangs: honored within ~1 s, without
+        // waiting for the stream to come back.
+        use std::sync::Arc;
+        let flag = Arc::new(AtomicBool::new(false));
+        let f2 = flag.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_secs(3)).await;
+            f2.store(true, Ordering::Relaxed);
+        });
+        let reglages = Reglages { timeout_modele_secs: 0, ..Reglages::default() }; // unbounded call
+        let mut carnet = Carnet::ouvrir("x", ModeMission::Standard, t0());
+        let bilan = butiner(&mut carnet, &reglages, &FournisseurPendu, &OutilsMock, &Silencieux, None, None, Some(&flag))
+            .await
+            .unwrap();
+        assert_eq!(bilan.fin, FinDeVol::Interrompue);
+    }
+
+    #[tokio::test]
+    async fn budget_sans_usage_s_appuie_sur_l_estimation() {
+        // The provider never reports usage: the budget must still trigger, fed by
+        // the jauge estimate (otherwise the spend ceiling silently never fires).
+        let four = FournisseurScript::scenario(vec![
+            rep_appel("web_search", json!({"q": "x"})),
+            rep_texte("jamais atteint"),
+        ]);
+        let mut carnet = Carnet::ouvrir("mission", ModeMission::Standard, t0());
+        // Big history: the estimate alone (~10k tokens) exceeds the budget.
+        carnet.historique.push(Message::utilisateur("mission"));
+        carnet.historique.push(Message::assistant("y".repeat(40_000)));
+        let reglages = Reglages { budget_tokens: 5_000, ..Reglages::default() };
+        let bilan = butiner(&mut carnet, &reglages, &four, &OutilsMock, &Silencieux, None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(bilan.fin, FinDeVol::Budget);
+        assert!(carnet.tokens_total() >= 5_000, "estimated spend recorded");
     }
 
     #[tokio::test]

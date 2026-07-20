@@ -156,7 +156,8 @@ pub fn delai_rate_limit(reset_at: Option<i64>, tentative: usize, now: i64) -> u6
     }
 }
 
-/// Parses a `Retry-After` header ("42" seconds, or absolute epoch).
+/// Parses a `Retry-After` header ("42" seconds, absolute epoch, or an HTTP-date
+/// like "Wed, 21 Oct 2026 07:28:00 GMT" — used by some proxies/Cloudflare).
 fn parser_retry_after(h: Option<&str>) -> Option<i64> {
     let s = h?.trim();
     if let Ok(secs) = s.parse::<i64>() {
@@ -165,6 +166,9 @@ fn parser_retry_after(h: Option<&str>) -> Option<i64> {
             return Some(chrono::Utc::now().timestamp() + secs);
         }
         return Some(secs);
+    }
+    if let Ok(date) = chrono::DateTime::parse_from_rfc2822(s) {
+        return Some(date.timestamp());
     }
     None
 }
@@ -248,6 +252,13 @@ mod tests {
         assert_eq!(delai_backoff(2), 2);
         assert_eq!(delai_backoff(3), 4);
         assert_eq!(delai_backoff(100), 30); // capped
+    }
+
+    #[test]
+    fn retry_after_http_date_est_parse() {
+        let epoch = parser_retry_after(Some("Wed, 21 Oct 2026 07:28:00 GMT"));
+        assert_eq!(epoch, Some(1792567680));
+        assert_eq!(parser_retry_after(Some("n'importe quoi")), None);
     }
 
     #[test]
