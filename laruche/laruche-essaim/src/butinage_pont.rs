@@ -1212,6 +1212,13 @@ pub async fn lancer_curateur_arriere_plan(
     );
     let mut carnet = but::Carnet::ouvrir(revue, but::ModeMission::Standard, chrono::Utc::now());
 
+    // CANAL PRIVÉ drainé : le curateur est un réviseur d'arrière-plan (« the main conversation is
+    // untouched by you ») — ses Token/Plan/ToolResult ne doivent JAMAIS fuir dans le chat de
+    // l'utilisateur (bug observé : son monologue s'affichait comme une réponse). Seuls les deux
+    // messages de Status début/fin passent sur le vrai `tx`.
+    let (tx_prive, mut rx_prive) = broadcast::channel::<ChatEvent>(64);
+    tokio::spawn(async move { while rx_prive.recv().await.is_ok() {} });
+
     let four = FournisseurPont {
         provider: config.provider.clone(),
         // Auxiliary model if configured (small/fast, does not compete with the chat KV-cache).
@@ -1221,15 +1228,15 @@ pub async fn lancer_curateur_arriere_plan(
         ollama_url: config.ollama_url.clone(),
         temperature: 0.4,
         max_tokens: config.max_tokens,
-        tx: tx.clone(),
+        tx: tx_prive.clone(),
         credential_pool: config.credential_pool.clone(),
     };
-    let emet = EmetteurPont { tx: tx.clone() };
+    let emet = EmetteurPont { tx: tx_prive.clone() };
     let outils = OutilsCurateur {
         registry,
         config,
         permis,
-        tx: tx.clone(),
+        tx: tx_prive.clone(),
     };
 
     let _ = tx.send(ChatEvent::Status {
