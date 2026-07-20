@@ -227,6 +227,33 @@ pub async fn revue_et_refaire(
     // domains (top-level nodes). The Reine is the guardian of memory use, so she
     // judges knowing what LaRuche actually knows about.
     let etat_ruche = construire_etat_ruche(&memoire).await;
+    // Détecte une « réponse » qui n'est PAS du travail : une erreur système/provider renvoyée
+    // telle quelle (« Provider API error 500… », timeout réseau, builder reqwest…). La juger ou
+    // la faire refaire ne sert à RIEN (observé : « redone 5x » contre un provider en panne).
+    // Conservateur : texte court uniquement — une vraie réponse qui CITE une erreur ne matche pas.
+    fn est_erreur_systeme(texte: &str) -> bool {
+        let t = texte.trim();
+        if t.is_empty() {
+            return true;
+        }
+        if t.chars().count() > 500 {
+            return false;
+        }
+        let bas = t.to_lowercase();
+        [
+            "provider api error",
+            "error sending request",
+            "builder error",
+            "connection refused",
+            "connect timeout",
+            "timed out",
+            "erreur fournisseur",
+            "fatal provider",
+        ]
+        .iter()
+        .any(|s| bas.contains(s))
+    }
+
     let mut answer = answer_initial.to_string();
     let mut journal: Vec<String> = Vec::new();
     let mut revised = false;
@@ -247,6 +274,16 @@ pub async fn revue_et_refaire(
     );
 
     loop {
+        // COURT-CIRCUIT : le brouillon est une erreur système, pas du travail. Inutile de payer
+        // un appel juge ou des redos contre un provider en panne — on signale et on sort.
+        // (Le plafond de rounds/budget reste intact : l'option « reine infinie » sert au testing.)
+        if est_erreur_systeme(&answer) {
+            tracing::warn!(extrait = %answer.chars().take(120).collect::<String>(), "reine: draft is a system error, skipping judge/redo");
+            journal.push(
+                "LaReine: the draft is a SYSTEM/PROVIDER ERROR, not work — no redo will fix it; flagged for you".into(),
+            );
+            break;
+        }
         // Live workshop introspection for THIS draft (recomputed per round: a rework
         // appends its own turn and trace to the working session).
         let mut atelier = construire_atelier(session, registry);
@@ -321,6 +358,15 @@ pub async fn revue_et_refaire(
                 )
                 .await
                 {
+                    // Un rework qui revient en ERREUR SYSTÈME n'écrase pas le brouillon précédent
+                    // (sinon la boucle repartirait juger/refaire une erreur — gaspillage observé).
+                    Ok(new_answer) if est_erreur_systeme(&new_answer) => {
+                        tracing::warn!("reine rework came back as a system/provider error; keeping previous draft");
+                        journal.push(
+                            "LaReine: the rework came back as a SYSTEM/PROVIDER ERROR; keeping the previous draft".into(),
+                        );
+                        break;
+                    }
                     Ok(new_answer) if !new_answer.trim().is_empty() => {
                         answer = new_answer;
                         revised = true;
