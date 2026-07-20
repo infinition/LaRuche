@@ -126,6 +126,33 @@ impl Itineraire {
         self.etapes.iter().position(|e| e.statut.est_ouverte())
     }
 
+    /// Replaces the itineraire with a re-emitted plan WITHOUT losing progress:
+    /// a step whose title matches an existing one keeps the OLD status when the old
+    /// one is closed and the new one is open. Weak models routinely re-emit their
+    /// plan shortened or with statuses reset to pending; a wholesale replace then
+    /// wipes `done` marks and the Tier 3 supervisor sees phantom stagnation.
+    pub fn fusionner(&mut self, nouvelles: Vec<Etape>) {
+        if nouvelles.is_empty() {
+            return;
+        }
+        let cle = |t: &str| t.trim().to_lowercase();
+        let anciennes: Vec<(String, StatutEtape)> =
+            self.etapes.iter().map(|e| (cle(&e.titre), e.statut)).collect();
+        self.etapes = nouvelles
+            .into_iter()
+            .map(|mut n| {
+                if n.statut.est_ouverte() {
+                    if let Some((_, ancien)) =
+                        anciennes.iter().find(|(t, s)| *t == cle(&n.titre) && s.est_close())
+                    {
+                        n.statut = *ancien;
+                    }
+                }
+                n
+            })
+            .collect();
+    }
+
     /// Renders the itineraire "terminal" for the final display: every still-open
     /// step becomes `NonApplicable` (the mission hands back control, these steps
     /// will not be done). Used when posting a final answer.
@@ -184,6 +211,31 @@ mod tests {
         it.finaliser();
         assert!(it.tout_termine());
         assert_eq!(it.etapes[1].statut, StatutEtape::NonApplicable);
+    }
+
+    #[test]
+    fn fusionner_ne_perd_pas_la_progression() {
+        let mut it = Itineraire::vide();
+        it.definir(vec!["chercher".into(), "vérifier".into(), "rédiger".into()]);
+        it.marquer(0, StatutEtape::Terminee);
+        it.marquer(1, StatutEtape::Bloquee);
+        // The model re-emits its plan with everything back to pending (classic).
+        it.fusionner(vec![
+            Etape::nouvelle("Chercher "), // case/space variation: still matched
+            Etape::nouvelle("vérifier"),
+            Etape::nouvelle("rédiger"),
+            Etape::nouvelle("publier"), // new step appended
+        ]);
+        assert_eq!(it.etapes[0].statut, StatutEtape::Terminee, "done survives");
+        assert_eq!(it.etapes[1].statut, StatutEtape::Bloquee, "blocked survives");
+        assert_eq!(it.etapes[2].statut, StatutEtape::AFaire);
+        assert_eq!(it.etapes.len(), 4);
+        // An EXPLICIT new closed status is respected (the model corrects itself).
+        it.fusionner(vec![Etape { titre: "publier".into(), statut: StatutEtape::Terminee }]);
+        assert_eq!(it.etapes[0].statut, StatutEtape::Terminee);
+        // An empty re-emission never wipes the plan.
+        it.fusionner(vec![]);
+        assert_eq!(it.etapes.len(), 1);
     }
 
     #[test]

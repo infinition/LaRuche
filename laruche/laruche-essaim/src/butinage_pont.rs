@@ -759,6 +759,18 @@ impl but::Outils for OutilsPont<'_> {
             || OUTILS_DELEGATION.contains(&appel.nom.as_str())
     }
 
+    /// A dispatched scout runs several real searches in its own context (its
+    /// exploration rail demands >=3): weight it accordingly, or a perfect 4-scout
+    /// fan-out shows recolte_web=4 against min_web_exploration=12 and the parent
+    /// burns its sterile relaunches on EXPLORER_PLUS nudges before concluding.
+    fn poids_web(&self, appel: &but::Appel) -> usize {
+        if OUTILS_DELEGATION.contains(&appel.nom.as_str()) {
+            3
+        } else {
+            usize::from(self.est_web(appel))
+        }
+    }
+
     fn schemas(&self) -> Vec<serde_json::Value> {
         // The NATIVE `tools:` field (sent to the provider API) must carry EXACTLY the same
         // tool set as the prompt's dynamic selection: otherwise we sent `schema_complet()`

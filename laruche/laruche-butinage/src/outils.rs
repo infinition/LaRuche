@@ -59,6 +59,15 @@ pub trait Outils: Send + Sync {
         appel.nom.starts_with("web_") || appel.nom.starts_with("browser_")
     }
 
+    /// WEIGHT of a call toward the exploration effort counter (`recolte_web`).
+    /// Default: 1 per web call. Adapters override it for calls that embody MORE
+    /// than one search — e.g. a `delegate` scout runs several real searches in its
+    /// own context, so counting it as 1 starves the parent's `min_web_exploration`
+    /// and gets a perfect fan-out nudged for "not searching enough".
+    fn poids_web(&self, appel: &Appel) -> usize {
+        usize::from(self.est_web(appel))
+    }
+
     /// Tool schemas to inject into the prompt.
     fn schemas(&self) -> Vec<serde_json::Value> {
         Vec::new()

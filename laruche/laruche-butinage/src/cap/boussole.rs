@@ -37,6 +37,11 @@ pub struct ContexteCap {
     /// Is `delegate` available in THIS context? False for sub-agents (anti-recursion):
     /// the exploration nudge must not order a fan-out they cannot perform.
     pub delegation_dispo: bool,
+    /// Is the pre-landing SELF-CHECK still available? The loop arms it once per
+    /// butinage (and disarms it for sub-agents, whose parent cross-checks anyway):
+    /// the first `mission_accomplie` of an exploration run — or a low-confidence one
+    /// anywhere — gets ONE bounded verification bounce instead of landing unchecked.
+    pub verification_dispo: bool,
 }
 
 impl ContexteCap {
@@ -66,8 +71,11 @@ compact report. Do NOT dispatch more scouts once you have their reports: synthes
 queries must be SHORT and FOCUSED (2-5 terms; never keyword soup). A blocked page \
 (403/paywall/captcha) is an obstacle, NOT a dead end: retry via web archives \
 (web.archive.org), search-engine caches, alternate mirrors and sources.\n\
-5. SYNTHESIZE (yourself, or a `delegate` role \"architecte\"): a structured answer with \
-concrete findings and source URLs.\n\
+5. RECORD every decisive fact the moment you learn it: call `finding` with the fact and \
+its source URL. The findings ledger survives context compaction - anything NOT recorded \
+may be lost before the synthesis.\n\
+6. SYNTHESIZE (yourself, or a `delegate` role \"architecte\"): a structured answer with \
+concrete findings and source URLs, built on the findings ledger.\n\
 Only conclude (mission_accomplie) when NEW angles stop yielding NEW information.";
 
 /// Injected advice (English: better instruction following, cacheable prefix).
@@ -78,6 +86,11 @@ mod nudge {
         and executable. Re-emit ONLY one valid tool call now - no markdown, no prose.";
     pub const REPONSE_VIDE: &str = "Your previous response was completely empty (no text, no tool call). \
         Respond now: either call the tool you need, or write your answer to the user.";
+    pub const VERIFIER_AVANT_DE_POSER: &str = "Before landing: SELF-CHECK your conclusion. Re-read it \
+        critically. Every decisive claim must be backed by a source or observation from THIS run - if \
+        any is unverified or shaky, verify it NOW with your tools (or a `delegate` role \"gardienne\" \
+        cross-check if available). Then re-emit mission_accomplie: with the corrected conclusion, or \
+        the same one if it fully holds.";
     pub const DEMARRER_PLAN: &str = "Plan recorded. Now EXECUTE the first step by calling the needed \
         tool - do not just restate the plan or ask for confirmation.";
     pub const EXPLORER_PLUS: &str = "This is a long-running research mission and you have not searched \
@@ -94,13 +107,24 @@ mod nudge {
         operators. A 403/paywall is not a dead end: use web archives, caches, mirrors.";
 }
 
+/// Below this self-declared confidence, a `mission_accomplie` gets a self-check
+/// bounce even outside exploration mode (when the check is still available).
+const SEUIL_CONFIANCE_VERIF: f32 = 0.6;
+
 /// **The** continuation decision. Pure: `(contexte, issue) -> Decision`.
 pub fn cap(ctx: &ContexteCap, issue: Issue) -> Decision {
     match issue {
-        // Explicit terminations: trust the dedicated tools. The `mission_accomplie`
-        // summary is carried by the caller (which already has the Issue), so here we
-        // just decide the end.
-        Issue::MissionAccomplie { .. } => Decision::Poser(FinDeVol::Accomplie),
+        // Explicit termination: trust the dedicated tool — after ONE bounded
+        // verification bounce when the check is armed and warranted (exploration
+        // run, or a completion the model itself does not trust). The loop disarms
+        // `verification_dispo` after the bounce: no verification loop possible.
+        Issue::MissionAccomplie { confiance, .. } => {
+            let meritant = ctx.mode_exploration || confiance < SEUIL_CONFIANCE_VERIF;
+            if ctx.verification_dispo && meritant && ctx.relance_dispo() {
+                return Decision::Relancer(nudge::VERIFIER_AVANT_DE_POSER.to_string());
+            }
+            Decision::Poser(FinDeVol::Accomplie)
+        }
         Issue::Clarification(q) => Decision::Clarifier(q),
         Issue::Outils(appels) => Decision::Recolter(appels),
 
@@ -171,7 +195,32 @@ mod tests {
             recolte_web: 0,
             min_web_exploration: 12,
             delegation_dispo: true,
+            verification_dispo: false,
         }
+    }
+
+    #[test]
+    fn self_check_borne_avant_mission_accomplie() {
+        let fin = |confiance: f32| Issue::MissionAccomplie { resume: "fini".into(), confiance };
+        // Exploration + check armed: one verification bounce.
+        let mut c = ctx();
+        c.mode_exploration = true;
+        c.verification_dispo = true;
+        match cap(&c, fin(0.95)) {
+            Decision::Relancer(n) => assert!(n.contains("SELF-CHECK")),
+            autre => panic!("expected Relancer, got {autre:?}"),
+        }
+        // Check consumed (loop disarms it): the completion lands.
+        c.verification_dispo = false;
+        assert_eq!(cap(&c, fin(0.95)), Decision::Poser(FinDeVol::Accomplie));
+        // Standard mode: only a LOW-confidence completion gets the bounce.
+        let mut c = ctx();
+        c.verification_dispo = true;
+        assert_eq!(cap(&c, fin(0.9)), Decision::Poser(FinDeVol::Accomplie));
+        assert!(matches!(cap(&c, fin(0.3)), Decision::Relancer(_)));
+        // Sterile-relaunch budget exhausted: never bounce, land.
+        c.auto_continue = 3;
+        assert_eq!(cap(&c, fin(0.3)), Decision::Poser(FinDeVol::Accomplie));
     }
 
     #[test]

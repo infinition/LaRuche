@@ -66,6 +66,9 @@ const SEMANTIC_CORE: &[&str] = &[
     // narrow-context model starts a research mission.
     "research_mode",
     "delegate",
+    // Findings ledger: compaction-proof fact recording. ALWAYS present - a fact not
+    // recorded before compaction may be lost from the synthesis.
+    "finding",
 ];
 
 const CORE_TOOL_NAMES: &[&str] = &[
@@ -104,6 +107,7 @@ const CORE_TOOL_NAMES: &[&str] = &[
     "run_script",
     "delegate",
     "research_mode",
+    "finding",
     "mixture_of_agents",
 ];
 

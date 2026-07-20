@@ -49,6 +49,13 @@ pub struct Carnet {
     /// Cumulative real output tokens over the whole butinage (provider-reported).
     #[serde(default)]
     pub tokens_sortie_total: u64,
+    /// **Findings ledger**: decisive facts (with sources) recorded via the `finding`
+    /// tool. Machine-side and BOUNDED: unlike the transcript, it survives compaction
+    /// and truncation — the final synthesis leans on it, not on whatever the
+    /// compaction summary happened to keep. Rendered at the TAIL of the outbound
+    /// context (prefix-cache friendly).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub decouvertes: Vec<String>,
     /// Vigie counters, persisted so a crash-resume keeps its anti-loop memory.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vigie: Option<crate::cap::vigie::Vigie>,
@@ -67,6 +74,7 @@ impl Carnet {
             itineraire: Itineraire::vide(),
             historique: Vec::new(),
             pieces: Vec::new(),
+            decouvertes: Vec::new(),
             passe: 0,
             auto_continue: 0,
             recolte_web: 0,
@@ -81,6 +89,33 @@ impl Carnet {
     /// Cumulative token spend (input + output), the budget signal.
     pub fn tokens_total(&self) -> u64 {
         self.tokens_entree_total + self.tokens_sortie_total
+    }
+
+    /// Records a finding into the ledger (bounded, deduplicated). `source` is
+    /// appended when given. Oldest entries are evicted past the cap: the ledger is
+    /// a working set, not an archive (memory consolidation owns the durable copy).
+    pub fn ajouter_decouverte(&mut self, fait: &str, source: Option<&str>) {
+        const MAX_ENTREES: usize = 40;
+        const MAX_CHARS: usize = 400;
+        let fait = fait.trim();
+        if fait.is_empty() {
+            return;
+        }
+        let mut entree: String = match source.map(str::trim).filter(|s| !s.is_empty()) {
+            Some(s) => format!("{fait} — {s}"),
+            None => fait.to_string(),
+        };
+        if entree.chars().count() > MAX_CHARS {
+            entree = entree.chars().take(MAX_CHARS).collect();
+        }
+        let cle = entree.to_lowercase();
+        if self.decouvertes.iter().any(|d| d.to_lowercase() == cle) {
+            return; // exact duplicate: no-op
+        }
+        self.decouvertes.push(entree);
+        if self.decouvertes.len() > MAX_ENTREES {
+            self.decouvertes.remove(0);
+        }
     }
 
     /// Rearms the auto-continuation budget (called when a tool runs = real progress).
@@ -99,6 +134,7 @@ impl Carnet {
         relance_max: usize,
         min_web_exploration: usize,
         delegation_dispo: bool,
+        verification_dispo: bool,
     ) -> ContexteCap {
         ContexteCap {
             auto_continue: self.auto_continue,
@@ -107,6 +143,7 @@ impl Carnet {
             recolte_web: self.recolte_web,
             min_web_exploration,
             delegation_dispo,
+            verification_dispo,
         }
     }
 
@@ -231,7 +268,7 @@ mod tests {
         c.itineraire.definir(vec!["a".into(), "b".into()]);
         c.recolte_web = 4;
         c.auto_continue = 2;
-        let ctx = c.contexte_cap(3, 12, true);
+        let ctx = c.contexte_cap(3, 12, true, true);
         assert!(ctx.mode_exploration);
         assert_eq!(ctx.recolte_web, 4);
         assert_eq!(ctx.auto_continue, 2);

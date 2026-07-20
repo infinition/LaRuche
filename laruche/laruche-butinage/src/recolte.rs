@@ -238,9 +238,7 @@ fn appliquer(
     vigie: &mut Vigie,
     emet: &dyn Emetteur,
 ) -> Option<Bilan> {
-    if outils.est_web(appel) {
-        carnet.recolte_web += 1;
-    }
+    carnet.recolte_web += outils.poids_web(appel);
     let signal = vigie.apres_appel(
         &appel.nom,
         appel.signature(),

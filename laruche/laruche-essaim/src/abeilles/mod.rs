@@ -18,6 +18,7 @@ pub use forge::enregistrer_forge;
 pub mod execute_code;
 pub mod fichiers;
 pub mod file_watch;
+pub mod finding;
 pub mod lsp;
 pub mod math;
 pub mod mcp_resources;
@@ -96,6 +97,8 @@ pub fn enregistrer_abeilles_builtin(registry: &AbeilleRegistry) {
     registry.enregistrer(Box::new(clarify::Clarify));
     // Deep-research self-declaration (intercepted by the butinage engine)
     registry.enregistrer(Box::new(research_mode::ResearchMode));
+    // Findings ledger (intercepted by the butinage engine)
+    registry.enregistrer(Box::new(finding::Finding));
     // File watch
     registry.enregistrer(Box::new(file_watch::FileWatch));
     // Worktree

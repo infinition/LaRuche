@@ -29,6 +29,22 @@ const MAX_PASSES_BLOQUEES: u32 = 3;
 /// (each attempt costs an auxiliary LLM call).
 const GEL_CONSOLIDATION: usize = 3;
 
+/// Below this pass ceiling, no wind-down nudge (the mission is too short for a
+/// "wrap up" phase to mean anything).
+const WINDDOWN_PLAFOND_MIN: usize = 5;
+
+/// Wind-down warning injected ONCE when ~80% of the pass ceiling or token budget is
+/// consumed. Without it, `FinDeVol::Plafond`/`Budget` guillotines the model mid-flight
+/// and the user gets "may be incomplete" instead of a synthesis of what WAS found.
+fn nudge_winddown(restant: &str) -> String {
+    format!(
+        "[Wind-down] {restant}. The mission is about to be capped. STOP opening new \
+         angles or launching broad new searches. Consolidate NOW: check what you already \
+         have, close the plan steps you can, and deliver your final answer (with sources) \
+         via mission_accomplie before the ceiling cuts you off."
+    )
+}
+
 fn est_annule(flag: Option<&AtomicBool>) -> bool {
     flag.is_some_and(|f| f.load(Ordering::Relaxed))
 }
@@ -92,6 +108,10 @@ pub async fn butiner(
     let mut passes_bloquees: u32 = 0;
     // Passes remaining before a new consolidation attempt is allowed.
     let mut gel_consolidation: usize = 0;
+    // One-shot wind-down warning near the pass/budget ceiling.
+    let mut winddown_emis = false;
+    // Pre-landing self-check consumed (one bounce max per butinage).
+    let mut verif_faite = false;
 
     loop {
         if est_annule(annulation) {
@@ -114,6 +134,32 @@ pub async fn butiner(
             );
             emet.emettre(Evenement::Statut(msg.clone()));
             return Ok(Bilan::nouveau(msg, FinDeVol::Budget, carnet.passe));
+        }
+
+        // Wind-down: one-shot warning at ~80% of the pass ceiling or token budget,
+        // so the model lands with a synthesis instead of being guillotined.
+        if !winddown_emis {
+            let passes_proches = reglages.plafond_passes >= WINDDOWN_PLAFOND_MIN
+                && carnet.passe >= reglages.plafond_passes * 4 / 5;
+            let budget_proche = reglages.budget_tokens > 0
+                && carnet.tokens_total() >= reglages.budget_tokens * 4 / 5;
+            if passes_proches || budget_proche {
+                winddown_emis = true;
+                let restant = if passes_proches {
+                    format!(
+                        "You have used {} of your {} passes",
+                        carnet.passe, reglages.plafond_passes
+                    )
+                } else {
+                    format!(
+                        "You have used {} of your {} token budget",
+                        carnet.tokens_total(),
+                        reglages.budget_tokens
+                    )
+                };
+                emet.emettre(Evenement::Statut("⏳ Wind-down: nearing the cap, asking for a final synthesis.".into()));
+                carnet.historique.push(Message::nudge(nudge_winddown(&restant)));
+            }
         }
 
         // Steering: messages the user injects DURING the run (non-blocking).
@@ -256,11 +302,15 @@ pub async fn butiner(
             _ => reponse.texte.clone(),
         };
 
+        // Self-check armed once per butinage; sub-agents skip it (their parent
+        // cross-checks via gardienne, and each bounce costs a model call per scout).
         let ctx = carnet.contexte_cap(
             reglages.relance_max,
             reglages.min_web_exploration,
             reglages.delegation_disponible,
+            !verif_faite && reglages.delegation_disponible,
         );
+        let etait_fin = matches!(issue, Issue::MissionAccomplie { .. });
         match cap(&ctx, issue) {
             Decision::Poser(fin) => {
                 carnet.itineraire.finaliser();
@@ -272,6 +322,12 @@ pub async fn butiner(
                 return Ok(Bilan::nouveau(q.clone(), FinDeVol::Clarification(q), carnet.passe + 1));
             }
             Decision::Relancer(nudge) => {
+                if etait_fin {
+                    // The relaunch of a mission_accomplie IS the self-check bounce:
+                    // disarm it so the next completion lands (no verification loop).
+                    verif_faite = true;
+                    emet.emettre(Evenement::Statut("🔎 Self-check before landing…".into()));
+                }
                 carnet.consommer_auto();
                 emet.emettre(Evenement::Statut(format!(
                     "Relaunch ({}/{})",
@@ -350,15 +406,18 @@ pub async fn butiner(
                     emet.emettre(Evenement::Statut(
                         "Supervisor LaReine: task stalled, nudging back on track.".into(),
                     ));
-                    // In-loop recall on stagnation: has memory seen this problem before?
                     let mut nudge = consigne;
+                    // Name the concrete next step: a generic "advance the plan" nudge is
+                    // far weaker than pointing at the exact step to attack.
+                    let etape = carnet
+                        .itineraire
+                        .prochaine_ouverte()
+                        .and_then(|i| carnet.itineraire.etapes.get(i))
+                        .map(|e| e.titre.clone())
+                        .unwrap_or_else(|| carnet.mission.clone());
+                    nudge.push_str(&format!("\nThe next unfinished step is: \"{etape}\"."));
+                    // In-loop recall on stagnation: has memory seen this problem before?
                     if let Some(src) = source {
-                        let etape = carnet
-                            .itineraire
-                            .prochaine_ouverte()
-                            .and_then(|i| carnet.itineraire.etapes.get(i))
-                            .map(|e| e.titre.clone())
-                            .unwrap_or_else(|| carnet.mission.clone());
                         if let Some(rappel) = src.rappeler(&etape).await {
                             if !rappel.trim().is_empty() {
                                 nudge.push_str(&format!(
@@ -466,13 +525,27 @@ fn tronquer_historique(
     }
 }
 
-/// Assembles the messages sent to the model: system (stable tier) + history.
+/// Assembles the messages sent to the model: system (stable tier) + history + the
+/// findings ledger at the TAIL (outbound only, never persisted in the history —
+/// and tail position keeps the cached prefix stable while staying maximally fresh
+/// in the model's attention).
 fn assembler(carnet: &Carnet, reglages: &Reglages) -> Vec<Message> {
-    let mut v = Vec::with_capacity(carnet.historique.len() + 1);
+    let mut v = Vec::with_capacity(carnet.historique.len() + 2);
     if !reglages.systeme.is_empty() {
         v.push(Message::systeme(reglages.systeme.clone()));
     }
     v.extend(carnet.historique.iter().cloned());
+    if !carnet.decouvertes.is_empty() {
+        let lignes: Vec<String> =
+            carnet.decouvertes.iter().map(|d| format!("- {d}")).collect();
+        v.push(Message::systeme(format!(
+            "## Findings ledger ({} recorded)\nDecisive facts recorded this mission via the \
+             `finding` tool. This ledger SURVIVES context compaction - your final synthesis \
+             must build on it:\n{}",
+            carnet.decouvertes.len(),
+            lignes.join("\n")
+        )));
+    }
     v
 }
 
@@ -608,17 +681,15 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet, profil: ProfilModele) 
                     })
                 })
                 .collect();
-            if !etapes.is_empty() {
-                carnet.itineraire.etapes = etapes;
-            }
+            // Merge (never wholesale replace): a re-emitted plan with statuses reset
+            // to pending must not wipe the `done` marks already earned.
+            carnet.itineraire.fusionner(etapes);
         } else if let Some(steps) = a.args.get("steps").and_then(|v| v.as_array()) {
-            let titres: Vec<String> = steps
+            let etapes: Vec<crate::itineraire::Etape> = steps
                 .iter()
-                .filter_map(|s| s.as_str().map(str::to_string))
+                .filter_map(|s| s.as_str().map(crate::itineraire::Etape::nouvelle))
                 .collect();
-            if !titres.is_empty() {
-                carnet.itineraire.definir(titres);
-            }
+            carnet.itineraire.fusionner(etapes);
         }
         // A plan may also declare the mission mode (`"mode": "deep_research"`).
         if let Some(m) = a.args.get("mode").and_then(|v| v.as_str()) {
@@ -634,6 +705,25 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet, profil: ProfilModele) 
         let a = appels.remove(pos);
         let mode = a.args.get("mode").and_then(|v| v.as_str()).unwrap_or("deep");
         mode_declare = escalader_mode(carnet, mode);
+    }
+
+    // `finding`: records a decisive fact (with source) into the mission LEDGER —
+    // intercepted like `plan`, never executed as a tool. The ledger survives
+    // compaction/truncation and is re-rendered at the tail of every context.
+    let mut finding_trouve = false;
+    while let Some(pos) = appels.iter().position(|a| a.nom == "finding") {
+        let a = appels.remove(pos);
+        let fait = a
+            .args
+            .get("fact")
+            .or_else(|| a.args.get("fait"))
+            .or_else(|| a.args.get("finding"))
+            .and_then(|v| v.as_str());
+        let src = a.args.get("source").and_then(|v| v.as_str());
+        if let Some(f) = fait {
+            carnet.ajouter_decouverte(f, src);
+            finding_trouve = true;
+        }
     }
 
     // Explicit completion tools: `mission_accomplie` (native foraging) or `task_complete`
@@ -682,8 +772,8 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet, profil: ProfilModele) 
         return Issue::Outils(appels);
     }
 
-    // Plan or mode posted alone (no other tool): productive act, we continue (bounded).
-    if plan_trouve || mode_declare {
+    // Plan, mode or finding posted alone (no other tool): productive act, continue (bounded).
+    if plan_trouve || mode_declare || finding_trouve {
         return Issue::PlanEnregistre;
     }
 
@@ -1033,6 +1123,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn self_check_en_exploration_puis_atterrissage() {
+        // First mission_accomplie of an exploration run: bounced ONCE for self-check;
+        // the second lands. The nudge is internal (not persisted).
+        let four = FournisseurScript::scenario(vec![
+            rep_appel("web_search", json!({"q": "a"})),
+            rep_appel("mission_accomplie", json!({"resume": "v1", "confiance": 0.95})),
+            rep_appel("mission_accomplie", json!({"resume": "v2 vérifiée", "confiance": 0.95})),
+        ]);
+        let mut carnet = Carnet::ouvrir("cherche tout sur X", ModeMission::Exploration, t0());
+        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(bilan.fin, FinDeVol::Accomplie);
+        assert_eq!(bilan.texte, "v2 vérifiée");
+        assert!(carnet
+            .historique
+            .iter()
+            .any(|m| m.interne && m.contenu.contains("SELF-CHECK")));
+    }
+
+    #[tokio::test]
     async fn erreur_fatale_arrete_proprement() {
         let four = FournisseurScript::en_erreur(400); // invalid request: fatal, no fallback
         let mut carnet = Carnet::ouvrir("x", ModeMission::Standard, t0());
@@ -1054,6 +1165,27 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(bilan.fin, FinDeVol::Interrompue);
+    }
+
+    #[tokio::test]
+    async fn winddown_previent_avant_le_plafond() {
+        // 5-pass ceiling, model keeps calling tools: at 80% a single wind-down nudge
+        // must be injected before the guillotine.
+        let reponses: Vec<ReponseModele> =
+            (0..6).map(|i| rep_appel("web_search", json!({"q": i}))).collect();
+        let four = FournisseurScript::scenario(reponses);
+        let mut carnet = Carnet::ouvrir("mission", ModeMission::Standard, t0());
+        let reglages = Reglages { plafond_passes: 5, ..Reglages::default() };
+        let bilan = butiner(&mut carnet, &reglages, &four, &OutilsMock, &Silencieux, None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(bilan.fin, FinDeVol::Plafond);
+        let nudges: Vec<_> = carnet
+            .historique
+            .iter()
+            .filter(|m| m.interne && m.contenu.contains("[Wind-down]"))
+            .collect();
+        assert_eq!(nudges.len(), 1, "exactly one wind-down warning");
     }
 
     #[tokio::test]
@@ -1097,6 +1229,45 @@ mod tests {
             .any(|m| m.interne && m.contenu.contains("Deep-research protocol")));
         // research_mode was intercepted: never executed as a tool
         assert!(!carnet.historique.iter().any(|m| m.outil.as_deref() == Some("research_mode")));
+    }
+
+    #[tokio::test]
+    async fn finding_alimente_le_ledger_et_le_contexte() {
+        // [finding + web_search] same turn: the fact is recorded, the search executes.
+        let four = FournisseurScript::scenario(vec![
+            rep_appels(vec![
+                Appel::nouveau("finding", json!({"fact": "Le jeu est sorti en 2002", "source": "https://ex.org"})),
+                Appel::nouveau("web_search", json!({"q": "suite"})),
+            ]),
+            rep_appel("mission_accomplie", json!({"resume": "ok"})),
+        ]);
+        let mut carnet = Carnet::ouvrir("cherche", ModeMission::Standard, t0());
+        let bilan = butiner(&mut carnet, &Reglages::default(), &four, &OutilsMock, &Silencieux, None, None, None)
+            .await
+            .unwrap();
+        assert_eq!(bilan.fin, FinDeVol::Accomplie);
+        assert_eq!(carnet.decouvertes.len(), 1);
+        assert!(carnet.decouvertes[0].contains("2002"));
+        assert!(carnet.decouvertes[0].contains("https://ex.org"));
+        // finding was intercepted: never executed as a tool
+        assert!(!carnet.historique.iter().any(|m| m.outil.as_deref() == Some("finding")));
+        // the ledger is rendered at the tail of the outbound context
+        let sortant = assembler(&carnet, &Reglages::default());
+        assert!(sortant.last().unwrap().contenu.contains("Findings ledger"));
+    }
+
+    #[test]
+    fn ledger_borne_et_deduplique() {
+        let mut carnet = Carnet::ouvrir("m", ModeMission::Standard, t0());
+        carnet.ajouter_decouverte("fait A", Some("src1"));
+        carnet.ajouter_decouverte("Fait a", Some("SRC1")); // dup (case-insensitive)
+        assert_eq!(carnet.decouvertes.len(), 1);
+        for i in 0..50 {
+            carnet.ajouter_decouverte(&format!("fait {i}"), None);
+        }
+        assert_eq!(carnet.decouvertes.len(), 40, "FIFO cap");
+        carnet.ajouter_decouverte("", None); // empty: no-op
+        assert_eq!(carnet.decouvertes.len(), 40);
     }
 
     #[test]
