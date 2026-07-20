@@ -37,6 +37,17 @@ impl StatutEtape {
         matches!(self, StatutEtape::AFaire | StatutEtape::EnCours)
     }
 
+    /// Canonical textual key (inverse of `depuis`), for events/UI.
+    pub fn cle(self) -> &'static str {
+        match self {
+            StatutEtape::Terminee => "done",
+            StatutEtape::EnCours => "in_progress",
+            StatutEtape::Bloquee => "blocked",
+            StatutEtape::NonApplicable => "skipped",
+            StatutEtape::AFaire => "pending",
+        }
+    }
+
     /// Maps a textual status (model FR/EN formats) to the typed status.
     pub fn depuis(s: &str) -> StatutEtape {
         match s.trim().to_lowercase().as_str() {

@@ -216,7 +216,25 @@ pub async fn butiner(
         }
 
         let mode_avant = carnet.mode;
+        // Empreinte de l'itinéraire AVANT analyse : si l'appel `plan` (outil natif) le modifie,
+        // on notifie l'UI — sans ça la barre de plan ne bouge jamais avec les modèles qui
+        // émettent leur plan en tool call natif plutôt qu'en bloc <plan> texte.
+        let itineraire_avant: Vec<(String, String)> = carnet
+            .itineraire
+            .etapes
+            .iter()
+            .map(|e| (e.titre.clone(), e.statut.cle().to_string()))
+            .collect();
         let issue = analyser(&reponse, carnet, reglages.profil);
+        let itineraire_apres: Vec<(String, String)> = carnet
+            .itineraire
+            .etapes
+            .iter()
+            .map(|e| (e.titre.clone(), e.statut.cle().to_string()))
+            .collect();
+        if itineraire_apres != itineraire_avant && !itineraire_apres.is_empty() {
+            emet.emettre(Evenement::Itineraire { etapes: itineraire_apres });
+        }
         // Candidate final text (before `cap` consumes the issue).
         let texte_final = match &issue {
             Issue::MissionAccomplie { resume, .. } => resume.clone(),

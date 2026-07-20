@@ -600,6 +600,9 @@ LaRuche.Chat = (function(){
       case 'error':
         clearResponseTimeout(); removeTypingIndicator();
         addErrorMessage(data.message);
+        // FINALISER le brouillon en cours avant de l'abandonner : sinon le texte déjà streamé
+        // reste brut à l'écran (markdown non rendu, pas de boutons) — observé sur erreur provider.
+        if(currentAssistantMsg) finalizeMessage(currentAssistantMsg, '');
         currentAssistantMsg=null; currentAssistantRow=null;
         isStreaming=false;
         staleRecoveryActive=false;
@@ -894,6 +897,8 @@ LaRuche.Chat = (function(){
   function stopRun() {
     if (!isStreaming) return;
     LaRuche.WS.send({ type: 'stop' });
+    // Finalise le brouillon en cours (rendu markdown + boutons) au lieu de le laisser brut.
+    if(currentAssistantMsg){ finalizeMessage(currentAssistantMsg, ''); currentAssistantMsg=null; currentAssistantRow=null; }
     setRunning(false);
     if(LaRuche.Voice && LaRuche.Voice.stopAllTts) LaRuche.Voice.stopAllTts(); // hush any in-flight speech
   }

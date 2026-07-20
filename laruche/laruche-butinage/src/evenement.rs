@@ -17,6 +17,11 @@ pub enum Evenement {
     ResultatOutil { nom: String, ok: bool, ms: u64 },
     /// Context compaction/consolidation.
     Escale { avant: usize, apres: usize },
+    /// Itinerary changed (plan set or statuses updated). `(titre, statut)` pairs,
+    /// statut in {"pending","in_progress","done","blocked","skipped"}. Lets the UI
+    /// track plan progress even when the plan arrives as a NATIVE tool call (the
+    /// text-based `<plan>` path never fires then).
+    Itineraire { etapes: Vec<(String, String)> },
     /// Final response ready.
     Fin(String),
 }

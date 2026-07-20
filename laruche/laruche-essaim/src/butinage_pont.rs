@@ -813,6 +813,15 @@ impl but::Emetteur for EmetteurPont {
                 messages_before: avant,
                 messages_after: apres,
             },
+            // Itinéraire du moteur → barre de plan UI (statuts inclus). Couvre le cas des
+            // modèles qui posent/màj leur plan via l'outil natif `plan` (aucun bloc <plan>
+            // texte n'est alors émis, la barre restait figée à 0/N).
+            E::Itineraire { etapes } => ChatEvent::Plan {
+                items: etapes
+                    .into_iter()
+                    .map(|(titre, statut)| crate::evenements::PlanItem { task: titre, status: statut })
+                    .collect(),
+            },
             E::Fin(t) => ChatEvent::Done { full_response: t },
             // Tokens, calls and tool results are already emitted (richer) by
             // FournisseurPont / OutilsPont: avoid duplicates.
