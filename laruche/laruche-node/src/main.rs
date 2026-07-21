@@ -529,6 +529,27 @@ async fn main() -> Result<()> {
     if let Some(d) = persistent.dynamic_tool_selection {
         essaim_config.dynamic_tool_selection = d;
     }
+    if let Some(v) = persistent.max_iterations {
+        essaim_config.max_iterations = v;
+    }
+    if let Some(v) = persistent.temperature {
+        essaim_config.temperature = v;
+    }
+    if let Some(v) = persistent.max_tokens {
+        essaim_config.max_tokens = v;
+    }
+    if let Some(v) = persistent.tool_selection_limit {
+        essaim_config.tool_selection_limit = v;
+    }
+    if let Some(v) = persistent.dynamic_context_threshold {
+        essaim_config.dynamic_context_threshold = v;
+    }
+    if let Some(ref models) = persistent.fallback_models {
+        essaim_config.fallback_models = models.clone();
+    }
+    if persistent.review_model.is_some() {
+        essaim_config.review_model = persistent.review_model.clone();
+    }
     if persistent.home_channel.is_some() {
         essaim_config.home_channel = persistent.home_channel.clone();
     }

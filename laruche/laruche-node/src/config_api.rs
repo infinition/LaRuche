@@ -61,6 +61,7 @@ pub(crate) async fn api_get_provider_config(State(state): State<Arc<AppState>>) 
         "model": ec.model,
         "ollama_url": ec.ollama_url,
         "fallback_models": ec.fallback_models.join(", "),
+        "review_model": ec.review_model,
         "max_tokens": ec.max_tokens,
         "temperature": ec.temperature,
     }))
@@ -255,5 +256,6 @@ pub(crate) async fn api_save_provider_config(
         "model": cg.model,
     });
     drop(cg);
+    save_persistent_state(&state).await;
     Json(result)
 }

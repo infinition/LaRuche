@@ -114,6 +114,23 @@ pub(crate) struct PersistentState {
     /// for small-context models). Survives restart.
     #[serde(default)]
     pub(crate) dynamic_tool_selection: Option<bool>,
+    /// Hot generation settings edited in the dashboard.
+    #[serde(default)]
+    pub(crate) max_iterations: Option<usize>,
+    #[serde(default)]
+    pub(crate) temperature: Option<f32>,
+    #[serde(default)]
+    pub(crate) max_tokens: Option<u32>,
+    #[serde(default)]
+    pub(crate) tool_selection_limit: Option<usize>,
+    #[serde(default)]
+    pub(crate) dynamic_context_threshold: Option<u32>,
+    /// Models used only by the Mixture tool when no explicit candidates are supplied.
+    #[serde(default)]
+    pub(crate) fallback_models: Option<Vec<String>>,
+    /// Optional model used by cognitive-memory enrichment.
+    #[serde(default)]
+    pub(crate) review_model: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -475,6 +492,13 @@ pub(crate) async fn save_persistent_state(state: &Arc<AppState>) {
         context_max_tokens: Some(state.essaim_config.read().await.context_max_tokens),
         curateur_actif: Some(state.essaim_config.read().await.curateur_actif),
         dynamic_tool_selection: Some(state.essaim_config.read().await.dynamic_tool_selection),
+        max_iterations: Some(state.essaim_config.read().await.max_iterations),
+        temperature: Some(state.essaim_config.read().await.temperature),
+        max_tokens: Some(state.essaim_config.read().await.max_tokens),
+        tool_selection_limit: Some(state.essaim_config.read().await.tool_selection_limit),
+        dynamic_context_threshold: Some(state.essaim_config.read().await.dynamic_context_threshold),
+        fallback_models: Some(state.essaim_config.read().await.fallback_models.clone()),
+        review_model: state.essaim_config.read().await.review_model.clone(),
         home_channel: state.essaim_config.read().await.home_channel.clone(),
     };
     drop(logs);

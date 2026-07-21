@@ -307,12 +307,18 @@ pub(crate) async fn ensure_codex_profile(state: &Arc<AppState>) {
     // (`gpt-5.4-mini`), even though that model had just disappeared from the picker.
     // Land on the flagship current option when the active Codex model is no longer
     // part of the supported subscription list.
-    if cfg.active_model.profile_id == id
+    let codex_is_active = cfg.active_model.profile_id == id;
+    if codex_is_active
         && !CODEX_CHATGPT_MODELS.contains(&cfg.active_model.model.as_str())
     {
         cfg.active_model.model = CODEX_CHATGPT_MODELS[0].to_string();
     }
     let _ = profiles::save_profiles(&state.profiles_path, &cfg);
+    drop(cfg);
+    if codex_is_active {
+        // Keep the legacy Essaim runtime view aligned with the profile source of truth.
+        sync_essaim_from_profiles(state).await;
+    }
 }
 
 /// GET /api/auth/codex/status: ChatGPT Codex connection state.
@@ -333,6 +339,9 @@ pub(crate) async fn api_codex_status(
     // Otherwise, reflect the persisted tokens.
     match laruche_essaim::codex_auth::read_codex_tokens() {
         Some(t) => {
+            // A connected account must always have the matching provider card. This also
+            // refreshes model IDs after upgrades without forcing a logout/login cycle.
+            ensure_codex_profile(&state).await;
             let acct = laruche_essaim::codex_auth::account_id_from_token(&t.access_token);
             Ok(Json(serde_json::json!({
                 "phase": "connected",

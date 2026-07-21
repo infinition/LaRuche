@@ -736,6 +736,17 @@ async fn _anthropic_send_request(
 
 // ─── Codex (ChatGPT) ────────────────────────────────────────────────────────
 
+fn codex_request_body(model: &str, input: Vec<serde_json::Value>) -> serde_json::Value {
+    serde_json::json!({
+        "model": model,
+        "input": input,
+        "stream": true,
+        // The ChatGPT Codex backend rejects stored responses for subscription
+        // OAuth calls (`400: Store must be set to false`).
+        "store": false,
+    })
+}
+
 async fn codex_chat_stream(
     model: &str,
     messages: &[serde_json::Value],
@@ -793,11 +804,7 @@ async fn codex_chat_stream(
         }
     }
 
-    let mut body = serde_json::json!({
-        "model": model,
-        "input": input,
-        "stream": true,
-    });
+    let mut body = codex_request_body(model, input);
     if !instructions.trim().is_empty() {
         body["instructions"] = serde_json::json!(instructions.trim());
     }
@@ -809,12 +816,32 @@ async fn codex_chat_stream(
     let client = reqwest::Client::new();
     let mut req = client.post(&url)
         .header("Authorization", format!("Bearer {access_token}"))
-        .header("Content-Type", "application/json");
+        .header("Content-Type", "application/json")
+        .header("Accept", "text/event-stream");
     // Anti-Cloudflare headers (User-Agent, originator, account id) required by the Codex
     // backend; without them requests are likely rejected with a 403.
     for (k, v) in codex_auth::codex_headers(&access_token) { req = req.header(k, v); }
-    for (k, v) in mesh_headers("/responses") { req = req.header(k, v); }
     let mut response = req.json(&body).send().await?;
+
+    let status = response.status();
+    tracing::info!(target: "provider", url = %url, model = %model, status = %status, "Codex request sent");
+    if !status.is_success() {
+        let retry_after = response
+            .headers()
+            .get("retry-after")
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string);
+        let body = response
+            .text()
+            .await
+            .unwrap_or_else(|e| format!("unable to read provider error: {e}"));
+        return Err(ProviderError {
+            status: status.as_u16(),
+            body,
+            retry_after,
+        }
+        .into());
+    }
 
     let (tx, rx) = tokio::sync::mpsc::channel::<OllamaChunk>(64);
     tokio::spawn(async move {
@@ -874,4 +901,17 @@ fn normalize_base_url(url: &str) -> String {
 fn is_local_base_url(url: &str) -> bool {
     let u = url.to_lowercase();
     u.contains("localhost") || u.contains("127.0.0.1") || u.contains("::1") || u.contains(".local")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn codex_subscription_requests_disable_storage() {
+        let body = codex_request_body("gpt-5.6-luna", vec![]);
+        assert_eq!(body["store"], false);
+        assert_eq!(body["stream"], true);
+        assert_eq!(body["model"], "gpt-5.6-luna");
+    }
 }

@@ -298,6 +298,11 @@ LaRuche.i18n.add({
   'settings.fallbackModels':     {fr:'Modèles de repli', en:'Fallback Models'},
   'settings.maxTokensLabel':     {fr:'Max Tokens',       en:'Max Tokens'},
   'settings.reviewModel':        {fr:'Modèle de revue',  en:'Review Model'},
+  'settings.mixtureModels':      {fr:'Candidats Mixture', en:'Mixture candidates'},
+  'settings.mixtureModelsHint':  {fr:'Utilisés uniquement par l’outil Mixture quand aucun candidat n’est fourni.', en:'Used only by the Mixture tool when no candidates are supplied.'},
+  'settings.memoryReviewModel':  {fr:'Modèle d’enrichissement mémoire', en:'Memory enrichment model'},
+  'settings.memoryReviewHint':   {fr:'Optionnel · utilisé seulement pour enrichir un nœud mémoire.', en:'Optional · used only when enriching a memory node.'},
+  'settings.codexRuntimeHint':   {fr:'Codex gère actuellement ses propres paramètres : Température et Max tokens ne lui sont pas envoyés. Ces valeurs restent actives pour les autres providers.', en:'Codex currently manages its own parameters: Temperature and Max tokens are not sent to it. These values still apply to other providers.'},
   'settings.modelExample':       {fr:'ex: gpt-4o',       en:'e.g.: gpt-4o'},
   'settings.activeLabel':        {fr:'Actif : ',         en:'Active: '},
   'settings.voice':              {fr:'Voix',             en:'Voice'},
@@ -652,18 +657,6 @@ LaRuche.Settings = (function(){
       '<button class="form-btn" onclick="LaRuche.Settings.saveVoiceCfg()" style="margin-top:8px">'+LaRuche.i18n.t('settings.save')+'</button></div>';
   }
 
-  // ── Inference config card (reused by the Models & Providers section) ──
-  function _inferenceCardHtml(provCfg){
-    provCfg = provCfg || {};
-    return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.inferenceConfig')+'</div>'+
-      '<div class="settings-row" style="padding:0;"><span class="settings-label">'+LaRuche.i18n.t('settings.fallbackModels')+'</span><input type="text" id="cfgProvFallback" class="form-input" style="width:120px;padding:2px 6px;" value="'+(provCfg.fallback_models||'')+'" placeholder="claude-3-haiku, ..."></div>'+
-      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.maxTokensLabel')+'</span><input type="number" id="cfgProvMaxTokens" class="form-input" style="width:80px;padding:2px 6px;" value="'+(provCfg.max_tokens||4096)+'"></div>'+
-      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.temperature')+'</span><input type="number" id="cfgProvTemp" class="form-input" style="width:80px;padding:2px 6px;" step="0.1" value="'+(provCfg.temperature||0.7)+'"></div>'+
-      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.reviewModel')+'</span><input type="text" id="cfgProvReview" class="form-input" style="width:120px;padding:2px 6px;" value="'+(provCfg.review_model||'')+'" placeholder="'+LaRuche.i18n.t('settings.modelExample')+'"></div>'+
-      '<button class="form-btn" onclick="LaRuche.Settings.saveProviderCfg()" style="margin-top:8px;">'+LaRuche.i18n.t('settings.save')+'</button>'+
-      '<div style="font-size:10px;color:var(--text-dim);margin-top:8px">'+LaRuche.i18n.t('settings.activeLabel')+(provCfg.provider||'ollama')+' / '+(provCfg.model||'-')+'</div></div>';
-  }
-
   // ── GENERAL section: language, transparency, security/system, onboarding ──
   async function loadGeneral(el) {
     var data = await _loadGeneralData();
@@ -697,16 +690,22 @@ LaRuche.Settings = (function(){
   // ── GENERATION section: generation params (+ advanced), context/compaction, curateur ──
   async function loadGeneration(el) {
     var data = await _loadGeneralData();
-    var rt = data.rt, ctxCfg = data.ctxCfg, curCfg = data.curCfg;
+    var rt = data.rt, ctxCfg = data.ctxCfg, curCfg = data.curCfg, provCfg = data.provCfg || {};
+    var codexRuntimeHint = provCfg.provider === 'codex'
+      ? '<div class="provider-runtime-note">'+LaRuche.i18n.t('settings.codexRuntimeHint')+'</div>'
+      : '';
     el.innerHTML = '<div class="settings-grid">'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.generationTitle')+'</div>'+
       '<div class="settings-row" style="flex-direction:column;align-items:stretch;gap:4px;">'+
       '<div class="settings-row" style="padding:0;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.maxPassesTitle')+'">'+LaRuche.i18n.t('settings.maxPassesLabel')+'</span><input type="number" id="cfgMaxIter" class="form-input" style="width:80px;padding:2px 6px;" value="'+(rt.max_iterations||40)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.temperature')+'</span><input type="number" id="cfgTemp" class="form-input" style="width:80px;padding:2px 6px;" step="0.05" min="0" max="2" value="'+(rt.temperature!=null?rt.temperature:0.7)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label">'+LaRuche.i18n.t('settings.maxTokensOut')+'</span><input type="number" id="cfgMaxTok" class="form-input" style="width:90px;padding:2px 6px;" value="'+(rt.max_tokens||4096)+'"></div>'+
+      codexRuntimeHint+
       '<details class="settings-advanced" style="margin-top:6px;"><summary style="cursor:pointer;font-size:11px;color:var(--text-dim);user-select:none;">'+LaRuche.i18n.t('settings.advancedSection')+'</summary>'+
       '<div class="settings-row" style="padding:0;margin-top:6px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.dynToolsLimit')+'">'+LaRuche.i18n.t('settings.dynToolsLimitLabel')+'</span><input type="number" id="cfgToolLim" class="form-input" style="width:80px;padding:2px 6px;" value="'+(rt.tool_selection_limit||24)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.narrowCtxThreshold')+'">'+LaRuche.i18n.t('settings.narrowCtxLabel')+'</span><input type="number" id="cfgCtxThreshold" class="form-input" style="width:90px;padding:2px 6px;" value="'+(rt.dynamic_context_threshold||40000)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.mixtureModelsHint')+'">'+LaRuche.i18n.t('settings.mixtureModels')+'</span><input type="text" id="cfgProvFallback" class="form-input" style="width:180px;padding:2px 6px;" value="'+LaRuche.Utils.esc(provCfg.fallback_models||'')+'" placeholder="model-a, model-b"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.memoryReviewHint')+'">'+LaRuche.i18n.t('settings.memoryReviewModel')+'</span><input type="text" id="cfgProvReview" class="form-input" style="width:180px;padding:2px 6px;" value="'+LaRuche.Utils.esc(provCfg.review_model||'')+'" placeholder="'+LaRuche.i18n.t('settings.optional')+'"></div>'+
       '</details>'+
       '<button class="form-btn" onclick="LaRuche.Settings.saveRuntimeCfg()" style="margin-top:8px;">'+LaRuche.i18n.t('settings.apply')+'</button></div></div>'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.contextCompaction')+'</div>'+
@@ -803,7 +802,29 @@ LaRuche.Settings = (function(){
 
   // ── Providers Tab ─────────────────────────────────────────────
 
+  function _providerFaviconUrl(baseUrl) {
+    try {
+      var parsed = new URL(baseUrl || '', window.location.origin);
+      if(parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return '';
+      return parsed.origin + '/favicon.ico';
+    } catch(e) { return ''; }
+  }
+
+  function _providerIconHtml(p) {
+    p = p || {};
+    var provider = (p.provider || '').toLowerCase();
+    var fallback = provider === 'codex' ? 'AI' : provider === 'anthropic' ? 'A' : provider === 'ollama' ? 'O' : 'LL';
+    var favicon = _providerFaviconUrl(p.base_url);
+    return '<span class="provider-favicon" aria-hidden="true">'+
+      '<span class="provider-favicon-fallback">'+fallback+'</span>'+
+      (favicon ? '<img src="'+LaRuche.Utils.esc(favicon)+'" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">' : '')+
+      '</span>';
+  }
+
   async function loadProviders(el) {
+    // Status refresh also repairs/updates the built-in Codex profile server-side.
+    var codexStatus = {};
+    try { codexStatus = await fetch('/api/auth/codex/status').then(function(r){return r.json();}); } catch(e) {}
     var data = {};
     try { data = await fetch('/api/profiles').then(function(r){return r.json();}); } catch(e) {}
     var profiles = data.profiles || {};
@@ -814,25 +835,20 @@ LaRuche.Settings = (function(){
     try { credsData = await fetch('/api/credentials').then(function(r){return r.json();}); } catch(e) {}
     var allCreds = credsData.credentials || [];
 
-    // Inference config (fallback / max tokens / temperature / review model) belongs to the
-    // Models & Providers section now.
-    var provCfg = {};
-    try { provCfg = await fetch('/api/config/provider').then(function(r){return r.json();}); } catch(e) {}
-
-    // Dedicated card: ChatGPT Codex connection via subscription (OAuth).
-    var html = '<div style="margin-bottom:16px">'+_inferenceCardHtml(provCfg)+'</div>' +
-      '<div class="settings-card" id="codexAuthCard" style="margin-bottom:16px;border:1px solid var(--amber)">'+
-      '<div class="settings-card-title">ChatGPT Codex <span style="color:var(--text-dim);font-size:10px;font-weight:normal">'+LaRuche.i18n.t('settings.codexSubscription')+'</span></div>'+
-      '<div id="codexAuthBox" style="font-size:12px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.codexLoading')+'</div>'+
-      '</div>';
-
-    html += '<div style="margin-bottom:12px"><button class="settings-save-btn" onclick="LaRuche.Settings.showProfileForm()">'+LaRuche.i18n.t('settings.addProvider')+'</button></div>';
+    var html = '<div style="margin-bottom:12px"><button class="settings-save-btn" onclick="LaRuche.Settings.showProfileForm()">'+LaRuche.i18n.t('settings.addProvider')+'</button></div>';
     html += '<div id="profileFormContainer" style="display:none"></div>';
 
     // (MCP servers now have their own "MCP" tab, see loadMcp.)
 
     html += '<div class="settings-grid">';
     var sharedHtml = '';
+    var hasCodexProfile = ids.some(function(id){ return profiles[id] && profiles[id].provider === 'codex'; });
+    if(!hasCodexProfile) {
+      html += '<div class="settings-card codex-provider-card" style="border:1px solid var(--amber)">'+
+        '<div class="settings-card-title provider-card-title">'+_providerIconHtml({provider:'codex',base_url:'https://chatgpt.com'})+
+        '<span>ChatGPT Codex <span class="provider-subtitle">'+LaRuche.i18n.t('settings.codexSubscription')+'</span></span></div>'+
+        '<div id="codexAuthBox" class="codex-auth-inline">'+LaRuche.i18n.t('settings.codexLoading')+'</div></div>';
+    }
 
     ids.forEach(function(id) {
       var p = profiles[id];
@@ -845,7 +861,7 @@ LaRuche.Settings = (function(){
       var _shared = /(^|\/\/)(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(_bu) && !/127\.0\.0\.1|localhost/.test(_bu);
       if(_shared){
         sharedHtml += '<div class="settings-card">'+
-          '<div class="settings-card-title" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span>'+LaRuche.Utils.esc(p.name)+'</span>'+
+          '<div class="settings-card-title provider-card-title" style="flex-wrap:wrap">'+_providerIconHtml(p)+'<span>'+LaRuche.Utils.esc(p.name)+'</span>'+
           '<span style="color:var(--cyan);font-size:10px;font-weight:normal">'+LaRuche.i18n.t('settings.sharedReadOnly')+'</span></div>'+
           '<div class="settings-row"><span class="settings-label">URL</span><span class="settings-value" style="font-size:10px;word-break:break-all">'+LaRuche.Utils.esc(p.base_url)+'</span></div>'+
           '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.modelsLabel')+'</span><span class="settings-value">'+modelCount+'</span></div>'+
@@ -856,7 +872,7 @@ LaRuche.Settings = (function(){
 
       var pCreds = allCreds.filter(function(c){ return c.provider.toLowerCase() === p.provider.toLowerCase(); });
       var credsHtml = '';
-      if(pCreds.length > 0) {
+      if(p.provider !== 'codex' && pCreds.length > 0) {
         credsHtml += '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">';
         credsHtml += '<div style="font-size:10px;color:var(--text-dim);margin-bottom:6px;font-weight:bold">'+LaRuche.i18n.t('settings.credPool')+'</div>';
         pCreds.forEach(function(c){
@@ -870,7 +886,12 @@ LaRuche.Settings = (function(){
         });
         credsHtml += '</div>';
       }
-      var addCredBtn = '<button onclick="LaRuche.Settings.addCredential(\''+p.provider+'\')" style="margin-top:8px;background:none;border:1px dashed var(--border);color:var(--text-dim);border-radius:4px;padding:4px 10px;cursor:pointer;font-size:10px;width:100%">'+LaRuche.i18n.t('settings.addCredKey')+'</button>';
+      var addCredBtn = p.provider === 'codex' ? '' : '<button onclick="LaRuche.Settings.addCredential(\''+p.provider+'\')" style="margin-top:8px;background:none;border:1px dashed var(--border);color:var(--text-dim);border-radius:4px;padding:4px 10px;cursor:pointer;font-size:10px;width:100%">'+LaRuche.i18n.t('settings.addCredKey')+'</button>';
+      var codexAuthHtml = p.provider === 'codex'
+        ? '<div id="codexAuthBox" class="codex-auth-inline">'+LaRuche.i18n.t('settings.codexLoading')+'</div>'
+        : '';
+      var apiKeyHtml = p.provider === 'codex' ? '' :
+        '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.apiKeyLabel')+'</span><span class="settings-value">'+(p.api_key?LaRuche.i18n.t('settings.apiKeySet'):LaRuche.i18n.t('settings.apiKeyNone'))+'</span></div>';
 
       var _vis = p.visibility || 'prive';
       var _nAllowed = (p.allowed_peers||[]).length;
@@ -880,14 +901,16 @@ LaRuche.Settings = (function(){
         ? '<span style="color:var(--cyan);font-size:10px;font-weight:bold;margin-left:8px;">'+LaRuche.i18n.t('settings.visRestrictedN')+' ('+_nAllowed+')</span>'
         : '<span style="color:var(--text-dim);font-size:10px;font-weight:bold;margin-left:8px;">'+LaRuche.i18n.t('settings.visPrivate')+'</span>';
       var visToggleBtn = '<button onclick="LaRuche.Settings.openAccess(\''+id+'\', \''+_vis+'\', \''+encodeURIComponent(JSON.stringify(p.allowed_peers||[]))+'\')" style="margin-left:auto;background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;">'+LaRuche.i18n.t('settings.accessBtn')+'</button>';
-      html += '<div class="settings-card" style="'+(isActive?'border:1px solid var(--amber);':'')+'">'+
-        '<div class="settings-card-title" style="display:flex;align-items:center;"><span>'+LaRuche.Utils.esc(p.name)+'</span>'+
+      html += '<div class="settings-card '+(p.provider==='codex'?'codex-provider-card':'')+'" style="'+(isActive?'border:1px solid var(--amber);':'')+'">'+
+        '<div class="settings-card-title provider-card-title">'+_providerIconHtml(p)+'<span>'+LaRuche.Utils.esc(p.name)+
+        (p.provider==='codex'?' <span class="provider-subtitle">'+LaRuche.i18n.t('settings.codexSubscription')+'</span>':'')+'</span>'+
         (isActive?' <span style="color:var(--amber);font-size:10px;font-weight:normal;margin-left:4px;">'+LaRuche.i18n.t('settings.activeBadge')+'</span>':'')+
         visBadge+visToggleBtn+
         '</div>'+
+        codexAuthHtml+
         '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.typeLabel')+'</span><span class="settings-value">'+provLabel+'</span></div>'+
         '<div class="settings-row"><span class="settings-label">URL</span><span class="settings-value" style="font-size:10px;word-break:break-all">'+LaRuche.Utils.esc(p.base_url)+'</span></div>'+
-        '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.apiKeyLabel')+'</span><span class="settings-value">'+(p.api_key?LaRuche.i18n.t('settings.apiKeySet'):LaRuche.i18n.t('settings.apiKeyNone'))+'</span></div>'+
+        apiKeyHtml+
         '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.modelsLabel')+'</span><span class="settings-value">'+modelCount+'</span></div>'+
         credsHtml + addCredBtn +
         '<div style="margin-top:12px;display:flex;gap:6px">'+
@@ -906,7 +929,7 @@ LaRuche.Settings = (function(){
         '<div class="settings-grid">'+sharedHtml+'</div>';
     }
     el.innerHTML = html;
-    refreshCodexStatus();
+    if(codexStatus.phase) renderCodexBox(codexStatus); else refreshCodexStatus();
   }
 
   // ── ChatGPT Codex (OAuth subscription) ──────────────────────────
@@ -961,7 +984,11 @@ LaRuche.Settings = (function(){
         if(s.phase === 'connected' || s.phase === 'error') {
           clearInterval(_codexPoll); _codexPoll = null;
           renderCodexBox(s);
-          if(s.phase === 'connected' && LaRuche.Models && LaRuche.Models.loadModels) LaRuche.Models.loadModels();
+          if(s.phase === 'connected') {
+            if(LaRuche.Models && LaRuche.Models.loadModels) LaRuche.Models.loadModels();
+            var content = document.getElementById('settingsContent');
+            if(content) loadProviders(content);
+          }
         } else {
           renderCodexBox(s);
         }
@@ -2483,25 +2510,6 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     } catch(e) { LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err'); }
   }
 
-  async function saveProviderCfg() {
-    var fallback_models = document.getElementById('cfgProvFallback').value;
-    var max_tokens = parseInt(document.getElementById('cfgProvMaxTokens').value, 10);
-    var temperature = parseFloat(document.getElementById('cfgProvTemp').value);
-    try {
-      var res = await fetch(LaRuche.API.base+'/api/config/provider', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          fallback_models: fallback_models,
-          max_tokens: max_tokens,
-          temperature: temperature
-        })
-      });
-      if(res.ok) LaRuche.Toast.show(LaRuche.i18n.t('settings.inferenceCfgSaved'),'ok');
-      else LaRuche.Toast.show(LaRuche.i18n.t('settings.saveFailed'),'err');
-    } catch(e) { LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err'); }
-  }
-
   async function loadOnboarding(el) {
     var data = await fetch(LaRuche.API.base+'/api/onboarding').then(function(r){return r.json();}).catch(function(){return {steps:[],progress:'0/0',complete:false};});
     var html = '<div style="margin-bottom:16px"><span style="font-size:18px;font-weight:600">'+LaRuche.i18n.t('settings.setupChecklist')+'</span>' +
@@ -2533,8 +2541,15 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       tool_selection_limit: parseInt(document.getElementById('cfgToolLim').value,10),
       dynamic_context_threshold: parseInt(document.getElementById('cfgCtxThreshold').value,10)
     };
-    fetch(LaRuche.API.base+'/api/config/runtime',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
-      .then(function(r){ if(r.ok) LaRuche.Toast.show(LaRuche.i18n.t('settings.generationApplied'),'ok'); else LaRuche.Toast.show(LaRuche.i18n.t('settings.errorGeneric'),'err'); })
+    var auxiliary = {
+      fallback_models: document.getElementById('cfgProvFallback').value,
+      review_model: document.getElementById('cfgProvReview').value
+    };
+    Promise.all([
+      fetch(LaRuche.API.base+'/api/config/runtime',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),
+      fetch(LaRuche.API.base+'/api/config/provider',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(auxiliary)})
+    ])
+      .then(function(responses){ if(responses.every(function(r){return r.ok;})) LaRuche.Toast.show(LaRuche.i18n.t('settings.generationApplied'),'ok'); else LaRuche.Toast.show(LaRuche.i18n.t('settings.errorGeneric'),'err'); })
       .catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err'); });
   }
 
@@ -2914,7 +2929,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
   }
 
   return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveProviderCfg:saveProviderCfg, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder: reusable "human-friendly" component (missions + cron) ── */
