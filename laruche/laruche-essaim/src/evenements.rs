@@ -28,6 +28,11 @@ pub enum ChatEvent {
         args: serde_json::Value,
         #[serde(skip_serializing_if = "Option::is_none")]
         iteration: Option<usize>,
+        /// Sub-agent that emitted this call (e.g. `Eclaireuse#2`). `None` = the main
+        /// agent. Without it, a fan-out of 3-4 scouts produces an unattributable
+        /// pile of identical tool calls in the transcript.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        agent: Option<String>,
     },
 
     #[serde(rename = "tool_result")]
@@ -37,6 +42,9 @@ pub enum ChatEvent {
         success: bool,
         #[serde(skip_serializing_if = "Option::is_none")]
         elapsed_ms: Option<u64>,
+        /// Sub-agent this result belongs to (see [`ChatEvent::ToolCall::agent`]).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        agent: Option<String>,
     },
 
     #[serde(rename = "approval_request")]

@@ -372,9 +372,10 @@ LaRuche.Chat = (function(){
       case 'tool_call':
         closeAssistantSegmentForTool();
         setFeedLive('tool');
-        var toolLabel=toolActivityLabel(data.name,data.args);
+        // Sub-agent badge: during a fan-out the transcript says WHO is searching what.
+        var toolLabel=agentBadge(data.agent)+toolActivityLabel(data.name,data.args);
         maybeRenderFileDiff(data.name,data.args); // inline diff card for file edits
-        addActivity('tool-call',toolLabel+LaRuche.i18n.t('chat.enCours'),toolContext(data.args),true,{toolName:data.name,activityLabel:toolLabel,live:true,terminal:(data.name==='shell_exec'||data.name==='execute_code'||data.name==='run_script'),command:toolContext(data.args)});
+        addActivity('tool-call',toolLabel+LaRuche.i18n.t('chat.enCours'),toolContext(data.args),true,{toolName:data.name,activityLabel:toolLabel,agent:data.agent,live:true,terminal:(data.name==='shell_exec'||data.name==='execute_code'||data.name==='run_script'),command:toolContext(data.args)});
         break;
       case 'tool_output':
         appendToolOutput(data.name,data.text||data.chunk||'');
@@ -388,7 +389,7 @@ LaRuche.Chat = (function(){
             toolResult=declaredMedia.text || (declaredMedia.items.length+LaRuche.i18n.t('chat.mediaAjoutes'));
           }
         }
-        finishToolActivity(data.name,toolResult,!!data.success,data.elapsed_ms);
+        finishToolActivity(data.name,toolResult,!!data.success,data.elapsed_ms,data.agent);
         if(isStreaming)setFeedLive('thinking');
         break;
       case 'prompt_debug': onPromptDebug(data); break;
@@ -1461,6 +1462,7 @@ LaRuche.Chat = (function(){
     item.className='cc-act '+type+(type.indexOf('tool-')===0?' act-major':' act-noise')+(collapsible?' collapsible':'')+(options.live?' live':'')+(options.terminal?' terminal':'');
     if(options.toolName)item.dataset.toolName=options.toolName;
     if(options.activityLabel)item.dataset.activityLabel=options.activityLabel;
+    if(options.agent)item.dataset.agent=options.agent;
     // Timestamp with seconds to avoid mixing events from the same minute
     var now=new Date();
     var timeStr=now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
@@ -1531,10 +1533,19 @@ LaRuche.Chat = (function(){
     }
     return false;
   }
-  function pendingTool(name){for(var i=_feedPendingTools.length-1;i>=0;i--){var item=_feedPendingTools[i];if(item&&item.dataset.toolName===name&&item.classList.contains('live'))return item;}return null;}
-  function finishToolActivity(name,result,success,elapsed){
-    var item=pendingTool(name);
-    if(!item)return addActivity(success?'tool-ok':'tool-err',humanToolName(name)+(success?' '+LaRuche.i18n.t('chat.termineState'):' '+LaRuche.i18n.t('chat.erreurState')),result,true,{toolName:name});
+  // Correlation key is (tool, agent): during a parallel fan-out several scouts run
+  // the SAME tool, so matching on the name alone closed the wrong live line.
+  function pendingTool(name,agent){
+    var want=agent||'';
+    for(var i=_feedPendingTools.length-1;i>=0;i--){
+      var item=_feedPendingTools[i];
+      if(item&&item.dataset.toolName===name&&(item.dataset.agent||'')===want&&item.classList.contains('live'))return item;
+    }
+    return null;
+  }
+  function finishToolActivity(name,result,success,elapsed,agent){
+    var item=pendingTool(name,agent);
+    if(!item)return addActivity(success?'tool-ok':'tool-err',agentBadge(agent)+humanToolName(name)+(success?' '+LaRuche.i18n.t('chat.termineState'):' '+LaRuche.i18n.t('chat.erreurState')),result,true,{toolName:name,agent:agent});
     item.classList.remove('tool-call','live');item.classList.add(success?'tool-ok':'tool-err');
     var ico=item.querySelector('.act-ico');if(ico)ico.className='act-ico '+(success?'tool-ok':'tool-err');
     var title=item.querySelector('.act-txt');if(title)title.textContent=(item.dataset.activityLabel||humanToolName(name))+(success?' · '+LaRuche.i18n.t('chat.termineState'):' · '+LaRuche.i18n.t('chat.erreurState'));
@@ -1542,6 +1553,8 @@ LaRuche.Chat = (function(){
     var body=item.querySelector('.act-body');if(!body&&result){body=document.createElement('pre');body.className='act-body';item.appendChild(body);}if(body){if(item.classList.contains('terminal'))setTerminalContent(body,item.dataset.command||'',result||LaRuche.i18n.t('chat.aucuneSortie'));else body.textContent=result||LaRuche.i18n.t('chat.aucuneSortie');}
     if(!success){item.classList.remove('cc-collapsed');}_feedPendingTools=_feedPendingTools.filter(function(candidate){return candidate!==item;});return item;
   }
+  // Prefix identifying the sub-agent that ran a tool ('' for the main agent).
+  function agentBadge(agent){return agent?('🐝 '+agent+' · '):'';}
   function appendToolOutput(name,chunk){var item=pendingTool(name);if(!item)return;var body=item.querySelector('.act-body');if(!body){body=document.createElement('pre');body.className='act-body';item.appendChild(body);}if(item.classList.contains('terminal')){item._terminalOutput=(item._terminalOutput||'')+(chunk||'');setTerminalContent(body,item.dataset.command||'',item._terminalOutput);}else body.textContent+=(chunk||'');body.scrollTop=body.scrollHeight;}
   function startPlanMission(message){
     var title=titleForUserMessage(message);

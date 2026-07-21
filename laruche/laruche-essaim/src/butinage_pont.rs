@@ -457,6 +457,10 @@ struct OutilsPont<'a> {
     /// refused and the model is steered to direct tools. Shared so children see the
     /// parent's count (children have delegation disabled anyway).
     delegations: Arc<std::sync::atomic::AtomicUsize>,
+    /// Identity stamped on every tool event emitted by this registry. `None` for the
+    /// main agent; `Some("Eclaireuse#2")` for a scout, so the transcript says WHO ran
+    /// what during a parallel fan-out instead of piling up anonymous calls.
+    agent: Option<String>,
 }
 
 /// Max scouts dispatched per mission (fan-out breadth ceiling).
@@ -469,6 +473,7 @@ impl OutilsPont<'_> {
             result: motif.clone(),
             success: false,
             elapsed_ms: Some(0),
+            agent: self.agent.clone(),
         });
         but::ResultatOutil::echec(motif)
     }
@@ -511,6 +516,7 @@ impl OutilsPont<'_> {
             name: appel.nom.clone(),
             args: appel.args.clone(),
             iteration: None,
+            agent: self.agent.clone(),
         });
         let _ = self.tx.send(ChatEvent::Status {
             message: format!("🐝 Éclaireuse ({role:?}) dispatched: {tache}"),
@@ -544,6 +550,11 @@ impl OutilsPont<'_> {
                 disabled.push((*d).to_string());
             }
         }
+        // LIVE TRANSCRIPT of the scout: its statuses reach the chat prefixed with its
+        // identity (a fan-out used to be a black box for minutes), while its raw
+        // tokens/plan stay on the private channel — several scouts stream in parallel.
+        let numero = self.delegations.load(std::sync::atomic::Ordering::Relaxed);
+        let identite = format!("{role:?}#{numero}");
         let outils_enfant = OutilsPont {
             registry: self.registry,
             config: self.config,
@@ -554,14 +565,13 @@ impl OutilsPont<'_> {
             approval: None, // éclaireuses are autonomous: no popup
             memoire: self.memoire.clone(),
             delegations: self.delegations.clone(), // shared (children can't delegate anyway)
+            // Every tool this scout runs is STAMPED with its identity: during a
+            // parallel fan-out the transcript says who searched what.
+            agent: Some(identite.clone()),
         };
-        // LIVE TRANSCRIPT of the scout: its statuses reach the chat prefixed with its
-        // identity (a fan-out used to be a black box for minutes), while its raw
-        // tokens/plan stay on the private channel — several scouts stream in parallel.
-        let numero = self.delegations.load(std::sync::atomic::Ordering::Relaxed);
         let emet = EmetteurPont {
             tx: self.tx.clone(),
-            etiquette: Some(format!("🐝 {role:?}#{numero}")),
+            etiquette: Some(format!("🐝 {identite}")),
         };
 
         // Memory for the scout's initial recall: it starts KNOWING what past
@@ -599,6 +609,7 @@ impl OutilsPont<'_> {
             result: resultat.sortie.clone(),
             success: resultat.ok,
             elapsed_ms: None,
+            agent: self.agent.clone(),
         });
         resultat
     }
@@ -775,6 +786,7 @@ impl but::Outils for OutilsPont<'_> {
             name: appel.nom.clone(),
             args: appel.args.clone(),
             iteration: None,
+            agent: self.agent.clone(),
         });
 
         let t0 = Instant::now();
@@ -811,6 +823,7 @@ impl but::Outils for OutilsPont<'_> {
             result: res.sortie.clone(),
             success: res.ok,
             elapsed_ms: Some(ms),
+            agent: self.agent.clone(),
         });
 
         // Gap D - USER HOOKS: post_tool (observation, best-effort, non-blocking).
@@ -1174,6 +1187,7 @@ impl but::Outils for OutilsCurateur {
             name: appel.nom.clone(),
             args: appel.args.clone(),
             iteration: None,
+            agent: Some("Curateur".into()),
         });
         let res = match self
             .registry
@@ -1189,6 +1203,7 @@ impl but::Outils for OutilsCurateur {
             result: res.sortie.clone(),
             success: res.ok,
             elapsed_ms: None,
+            agent: Some("Curateur".into()),
         });
         res
     }
@@ -1796,6 +1811,7 @@ pub async fn executer_avec_bilan(
         approval: approval_mx.as_ref(),
         memoire: memoire.clone(),
         delegations: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+        agent: None, // main agent: tool events stay unattributed
     };
     let emet = EmetteurPont::parent(tx.clone());
 
@@ -2074,6 +2090,7 @@ pub async fn reprendre_carnet(
         approval: None,
         memoire: memoire.clone(),
         delegations: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+        agent: None, // main agent: tool events stay unattributed
     };
     let emet = EmetteurPont::parent(tx.clone());
     let source_pont = memoire.as_ref().map(|m| SourcePont::nouveau(m.clone()));
