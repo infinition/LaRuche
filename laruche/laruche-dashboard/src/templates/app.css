@@ -632,6 +632,8 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 /* Real bubbles (user / final response) keep breathing room; activities stay dense. */
 .chat-container > .message-row { margin:6px 0; }
 .message-row { display:flex; gap:10px; max-width:80%; animation:msgIn .25s ease-out; }
+.message-row[aria-expanded] { cursor:pointer; }
+.message-row[aria-expanded]:focus-visible { outline:1px solid rgba(245,158,11,.65); outline-offset:5px; border-radius:6px; }
 .message-row.user { align-self:flex-end; flex-direction:row-reverse; }
 .message-row.steer { align-self:flex-end; flex-direction:row-reverse; }
 .message-row.assistant { align-self:flex-start; align-items:flex-end; }
@@ -748,11 +750,11 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .message.user a, .message.steer a { color:var(--bg); font-weight:700; text-decoration:underline; text-underline-offset:2px; }
 .message.steer { background:var(--amber); color:var(--bg); border-bottom-right-radius:4px; border: 2px dashed rgba(0,0,0,0.2); font-style: italic; }
 .message.assistant { background:var(--bg-card); border:1px solid var(--border); border-bottom-left-radius:4px; }
-/* Reasoning metadata: hidden by default, revealed ON HOVER at the bottom (time · model · tokens). */
+/* Reasoning metadata: hidden by default, revealed with the message actions. */
 .assistant-segment-label { margin:0; color:var(--text-dim); font:10px var(--mono); opacity:0; max-height:0; overflow:hidden; transition:max-height .15s ease, opacity .15s ease; }
-.message-row.assistant-intermediate:hover .assistant-segment-label { max-height:20px; opacity:.6; transition:max-height .15s ease 1s, opacity .15s ease 1s; }
+.message-row.assistant-intermediate.details-open .assistant-segment-label { max-height:20px; opacity:.6; }
 /* FINAL RESPONSE *and* REASONING: full width, NO bubble, SAME STYLE (Claude Code style). The
-   reasoning is distinguished ONLY by the metadata revealed on hover. */
+   reasoning is distinguished ONLY by the metadata revealed on explicit selection. */
 .message-row.assistant { max-width:100%; align-self:stretch; align-items:flex-start; }
 .message-row.assistant > .avatar.assistant-avatar { align-self:flex-end; }
 .message-row.assistant > .message-wrapper > .message.assistant {
@@ -767,8 +769,8 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .tool-msg-status { color:var(--green); }
 .tool-msg-status.err { color:var(--red); }
 .message.assistant .cursor { display:inline-block; width:2px; height:14px; background:var(--amber); animation:blink .8s infinite; vertical-align:text-bottom; margin-left:2px; }
-.msg-timestamp { font-size:10px; color:var(--text-muted); font-family:var(--mono); max-height:0; overflow:hidden; opacity:0; transition:max-height .15s ease, opacity .15s ease; }
-.message-row:hover .msg-timestamp { max-height:20px; opacity:1; transition:max-height .15s ease 1s, opacity .15s ease 1s; }
+.msg-timestamp { font-size:10px; color:var(--text-muted); font-family:var(--mono); max-height:0; overflow:hidden; opacity:0; visibility:hidden; transition:max-height .15s ease, opacity .15s ease, visibility 0s linear .15s; }
+.message-row.details-open .msg-timestamp { max-height:20px; opacity:1; visibility:visible; transition:max-height .15s ease, opacity .15s ease; }
 .message-row.user .msg-timestamp { text-align:right; }
 .message-row.steer .msg-timestamp { text-align:right; }
 /* Typing bees */
@@ -835,15 +837,19 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .error-actions { display:flex; gap:8px; margin-top:8px; }
 .retry-btn { background:none; border:1px solid rgba(239,68,68,.4); border-radius:var(--radius); color:var(--red); font-size:11px; padding:4px 12px; cursor:pointer; transition:all var(--transition-fast); }
 .retry-btn:hover { background:var(--red-dim); border-color:var(--red); }
-.msg-actions { display:flex; gap:6px; border-top:1px solid rgba(42,42,46,.4); max-height:0; overflow:hidden; opacity:0; padding:0; margin:0; transition:max-height .15s ease, opacity .15s ease, padding .15s ease, margin .15s ease; }
-.message-row:hover .msg-actions { max-height:40px; opacity:1; padding-top:6px; margin-top:8px; transition:max-height .15s ease 1s, opacity .15s ease 1s, padding .15s ease 1s, margin .15s ease 1s; }
+.msg-actions { display:flex; gap:6px; border-top:1px solid rgba(42,42,46,.4); max-height:0; overflow:hidden; opacity:0; visibility:hidden; pointer-events:none; padding:0; margin:0; transition:max-height .15s ease, opacity .15s ease, padding .15s ease, margin .15s ease, visibility 0s linear .15s; }
+.message-row.details-open .msg-actions { max-height:40px; opacity:1; visibility:visible; pointer-events:auto; padding-top:6px; margin-top:8px; transition:max-height .15s ease, opacity .15s ease, padding .15s ease, margin .15s ease; }
 .msg-action-btn { background:none; border:1px solid var(--border); border-radius:var(--radius); color:var(--text-muted); font-size:11px; padding:3px 10px; cursor:pointer; display:flex; align-items:center; gap:4px; transition:all var(--transition-fast); }
 .msg-action-btn:hover { color:var(--amber); border-color:var(--amber); }
 .msg-action-btn.playing { color:var(--green); border-color:var(--green); }
 .msg-action-btn.copied { color:var(--green); border-color:var(--green); }
-.code-copy-btn { position:absolute; top:4px; right:4px; background:var(--bg-input); border:1px solid var(--border); border-radius:4px; color:var(--text-dim); font-size:10px; padding:2px 8px; cursor:pointer; opacity:0; transition:opacity var(--transition-fast); }
-pre:hover .code-copy-btn { opacity:1; }
-.code-copy-btn:hover { color:var(--amber); border-color:var(--amber); }
+.code-toolbar { position:absolute; top:6px; right:6px; z-index:3; display:flex; align-items:center; gap:5px; padding:3px; border:1px solid rgba(255,255,255,.08); border-radius:8px; background:rgba(9,10,12,.86); box-shadow:0 5px 18px rgba(0,0,0,.28); backdrop-filter:blur(8px); }
+.message.assistant pre.has-code-toolbar { padding-top:42px; }
+.code-tool-btn { min-width:28px; height:26px; display:inline-flex; align-items:center; justify-content:center; gap:5px; padding:0 8px; border:1px solid transparent; border-radius:6px; background:transparent; color:var(--text-muted); font:600 10px var(--font); cursor:pointer; transition:background var(--transition-fast),border-color var(--transition-fast),color var(--transition-fast),transform var(--transition-fast); }
+.code-tool-btn svg { width:13px; height:13px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+.code-tool-btn:hover,.code-tool-btn:focus-visible { color:var(--text); border-color:rgba(245,158,11,.35); background:rgba(245,158,11,.12); outline:none; }
+.code-tool-btn:active { transform:translateY(1px); }
+.code-tool-btn.copied { color:var(--green); border-color:rgba(70,196,106,.35); background:rgba(70,196,106,.1); }
 .hljs-addition { color:var(--green); background:rgba(34,197,94,.1); }
 .hljs-deletion { color:var(--red); background:rgba(239,68,68,.1); }
 
@@ -1717,6 +1723,8 @@ pre:hover .code-copy-btn { opacity:1; }
   .model-select { max-width:90px; }
   /* Prevent horizontal overflow from code blocks */
   .message pre, .message code { max-width:calc(100vw - 80px); overflow-x:auto; word-break:break-all; }
+  .code-tool-btn { width:34px; height:34px; padding:0; }
+  .code-tool-btn span { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
   .message table { display:block; overflow-x:auto; max-width:calc(100vw - 80px); }
   .message img { max-width:100%; height:auto; }
 }

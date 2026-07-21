@@ -29,8 +29,9 @@ LaRuche.i18n.add({
   'chat.code':                  {fr:'Code',                     en:'Code'},
   'chat.copier':                {fr:'Copier',                   en:'Copy'},
   'chat.copie':                 {fr:'Copié!',                   en:'Copied!'},
-  'chat.ouvrir':                {fr:'⛶ Ouvrir',                en:'⛶ Open'},
   'chat.lire':                  {fr:'Lire',                     en:'Read aloud'},
+  'chat.actionsMessage':        {fr:'Afficher les actions du message', en:'Show message actions'},
+  'chat.actionsCode':           {fr:'Actions du bloc de code', en:'Code block actions'},
   'chat.ouvrirMedia':           {fr:'Ouvrir ↗',                 en:'Open ↗'},
   'chat.retryBtn':              {fr:'↻ Reessayer',         en:'↻ Retry'},
   'chat.profilEnregistre':      {fr:'Profil enregistré : LaRuche en tiendra compte.', en:'Profile saved: LaRuche will take it into account.'},
@@ -184,6 +185,7 @@ LaRuche.Chat = (function(){
 
   function init() {
     ensureFeedStyle();
+    bindMessageDisclosure();
     var userInput = document.getElementById('userInput');
     userInput.addEventListener('input', function(){
       this.style.height = 'auto';
@@ -231,6 +233,50 @@ LaRuche.Chat = (function(){
     var noThinkWrap = document.getElementById('noThinkWrap');
     if(noThink) noThink.checked = noThinkEnabled;
     if(noThinkWrap) noThinkWrap.classList.toggle('active', noThinkEnabled);
+  }
+
+  function setMessageDisclosure(row, expanded) {
+    var container=document.getElementById('chatContainer');
+    if(!container) return;
+    container.querySelectorAll('.message-row.details-open').forEach(function(openRow){
+      if(openRow!==row){
+        openRow.classList.remove('details-open');
+        openRow.setAttribute('aria-expanded','false');
+      }
+    });
+    if(!row) return;
+    row.classList.toggle('details-open', expanded);
+    row.setAttribute('aria-expanded', expanded?'true':'false');
+  }
+
+  function bindMessageDisclosure() {
+    var container=document.getElementById('chatContainer');
+    if(!container || container.dataset.disclosureBound==='1') return;
+    container.dataset.disclosureBound='1';
+    function isInteractive(target){
+      return !!target.closest('a,button,input,textarea,select,label,audio,video,iframe,[contenteditable="true"]');
+    }
+    function canToggle(row){
+      return row && row.id!=='typingIndicator' && !row.classList.contains('error-row') && !row.classList.contains('tool-row');
+    }
+    container.addEventListener('click',function(e){
+      var row=e.target.closest('.message-row');
+      if(!row || !container.contains(row)){
+        setMessageDisclosure(null,false);
+        return;
+      }
+      if(!canToggle(row) || isInteractive(e.target)) return;
+      var selection=window.getSelection && window.getSelection();
+      if(selection && !selection.isCollapsed && String(selection).trim()) return;
+      setMessageDisclosure(row,!row.classList.contains('details-open'));
+    });
+    container.addEventListener('keydown',function(e){
+      if(e.key!=='Enter' && e.key!==' ') return;
+      var row=e.target.closest('.message-row');
+      if(!canToggle(row) || e.target!==row) return;
+      e.preventDefault();
+      setMessageDisclosure(row,!row.classList.contains('details-open'));
+    });
   }
 
   function enter() { loadCwd(); }
@@ -709,9 +755,6 @@ LaRuche.Chat = (function(){
       if(!document.getElementById('lr-artifact-style')){
         var st=document.createElement('style'); st.id='lr-artifact-style';
         st.textContent=
-          '.code-toolbar{position:absolute;top:6px;right:6px;display:flex;gap:4px;z-index:3}'+
-          '.code-tool-btn{background:rgba(0,0,0,.55);border:1px solid var(--border,#333);color:#cfcfcf;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer}'+
-          '.code-tool-btn:hover{background:var(--amber,#f5a623);color:#000;border-color:transparent}'+
           '.lr-art-ov{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center;animation:lrfade .12s ease}'+
           '@keyframes lrfade{from{opacity:0}to{opacity:1}}'+
           '.lr-art-win{width:92vw;height:90vh;background:#0d0d10;border:1px solid var(--amber,#f5a623);border-radius:10px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.6)}'+
@@ -753,7 +796,8 @@ LaRuche.Chat = (function(){
       win.appendChild(head); win.appendChild(body); ov.appendChild(win); document.body.appendChild(ov);
       if(renderable && preferPreview!==false){ showPreview(); } else { showCode(); }
     };
-    // Add the bar (Preview/Open/Copy) under each code block of a message.
+    // Add contextual actions to code blocks. Arbitrary paths and commands are not
+    // "openable": only a standalone web URL gets an Open action.
     window.lrEnhanceCode = function(el){
       el.querySelectorAll('pre code').forEach(function(block){
         var pre=block.parentElement; if(!pre || pre.querySelector('.code-toolbar')) return;
@@ -762,18 +806,33 @@ LaRuche.Chat = (function(){
         var lang=''; (block.className||'').split(/\s+/).forEach(function(c){if(c.indexOf('language-')===0)lang=c.slice(9);});
         var code=block.textContent||'';
         var renderable=/^(html|xml|svg|markup)$/i.test(lang) || (!lang && /<(\!doctype|html|svg|body|div|section)\b/i.test(code));
-        var bar=document.createElement('div'); bar.className='code-toolbar';
-        if(renderable){
-          var prev=document.createElement('button'); prev.className='code-tool-btn'; prev.innerHTML='&#x25B6; '+LaRuche.i18n.t('chat.apercu');
-          prev.onclick=function(){window.lrShowArtifact(code, lang||'html', true);};
-          bar.appendChild(prev);
+        var trimmed=code.trim();
+        var openUrl=/^https?:\/\/[^\s<>]+$/i.test(trimmed)?trimmed:'';
+        var bar=document.createElement('div'); bar.className='code-toolbar'; bar.setAttribute('aria-label',LaRuche.i18n.t('chat.actionsCode'));
+        function addButton(label, icon, handler, extraClass){
+          var button=document.createElement('button');
+          button.type='button';
+          button.className='code-tool-btn'+(extraClass?' '+extraClass:'');
+          button.title=label;
+          button.setAttribute('aria-label',label);
+          button.innerHTML=icon+'<span>'+label+'</span>';
+          button.onclick=function(e){e.stopPropagation();handler(button);};
+          bar.appendChild(button);
         }
-        var open=document.createElement('button'); open.className='code-tool-btn'; open.innerHTML=LaRuche.i18n.t('chat.ouvrir');
-        open.onclick=function(){window.lrShowArtifact(code, lang||'text', false);};
-        bar.appendChild(open);
-        var copyBtn=document.createElement('button'); copyBtn.className='code-tool-btn'; copyBtn.textContent=LaRuche.i18n.t('chat.copier');
-        copyBtn.onclick=function(){navigator.clipboard.writeText(code).then(function(){copyBtn.textContent=LaRuche.i18n.t('chat.copie');setTimeout(function(){copyBtn.textContent=LaRuche.i18n.t('chat.copier');},1500);});};
-        bar.appendChild(copyBtn);
+        if(renderable){
+          addButton(LaRuche.i18n.t('chat.apercu'),'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></svg>',function(){window.lrShowArtifact(code, lang||'html', true);},'code-tool-preview');
+        }
+        if(openUrl){
+          addButton(LaRuche.i18n.t('chat.ouvrirBtn'),'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8"/><path d="M17 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h5"/></svg>',function(){var opened=window.open(openUrl,'_blank','noopener,noreferrer');if(opened)opened.opener=null;},'code-tool-open');
+        }
+        addButton(LaRuche.i18n.t('chat.copier'),'<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',function(copyBtn){
+          navigator.clipboard.writeText(code).then(function(){
+            var label=LaRuche.i18n.t('chat.copie');
+            copyBtn.classList.add('copied'); copyBtn.title=label; copyBtn.setAttribute('aria-label',label); copyBtn.querySelector('span').textContent=label;
+            setTimeout(function(){label=LaRuche.i18n.t('chat.copier');copyBtn.classList.remove('copied');copyBtn.title=label;copyBtn.setAttribute('aria-label',label);copyBtn.querySelector('span').textContent=label;},1500);
+          });
+        },'code-tool-copy');
+        pre.classList.add('has-code-toolbar');
         pre.appendChild(bar);
       });
     };
@@ -934,6 +993,11 @@ LaRuche.Chat = (function(){
     var container = document.getElementById('chatContainer');
     var row = document.createElement('div');
     row.className = 'message-row '+(role==='error'?'error-row':role);
+    if(role!=='error'){
+      row.tabIndex=0;
+      row.setAttribute('aria-expanded','false');
+      row.setAttribute('aria-label',LaRuche.i18n.t('chat.actionsMessage'));
+    }
     if(role!=='error') {
       var avatar = document.createElement('div');
       if(role==='user' || role==='steer'){
@@ -967,7 +1031,7 @@ LaRuche.Chat = (function(){
     var ts = document.createElement('div'); ts.className='msg-timestamp';
     var timeStr = new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
     ts.textContent = timeStr;
-    // Store metadata for hover enrichment
+    // Store metadata for the explicit message-details disclosure.
     ts.dataset.time = timeStr;
     wrapper.appendChild(ts);
     row.appendChild(wrapper);
@@ -1253,7 +1317,7 @@ LaRuche.Chat = (function(){
     var copyBtn2 = document.createElement('button'); copyBtn2.className='msg-action-btn'; copyBtn2.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> '+LaRuche.i18n.t('chat.copier');
     copyBtn2.onclick=function(){navigator.clipboard.writeText(text).then(function(){copyBtn2.classList.add('copied');copyBtn2.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="20 6 9 17 4 12"></polyline></svg> '+LaRuche.i18n.t('chat.copie');setTimeout(function(){copyBtn2.classList.remove('copied');copyBtn2.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> '+LaRuche.i18n.t('chat.copier');},2000);});}; actions.appendChild(copyBtn2);
     el.appendChild(actions);
-    // Enrich timestamp with model + tokens on hover
+    // Enrich the timestamp shown when the message details are expanded.
     var row = el.closest('.message-row');
     if(row) {
       var tsEl = row.querySelector('.msg-timestamp');
