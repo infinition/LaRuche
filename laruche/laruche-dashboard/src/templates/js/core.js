@@ -340,6 +340,78 @@ LaRuche.forceReactivityUpdate = function(){ LaRuche.refreshAll(); };
 /* ── Utils ─────────────────────────────────────────────────────── */
 LaRuche.Utils = {
   esc: function(t) { var d=document.createElement('div'); d.textContent=t; return d.innerHTML; },
+  // Keep rich chat output local-first: Markdown is rendered by marked, while this
+  // lightweight TeX renderer covers the notation LLMs use most often without a CDN
+  // dependency. It intentionally leaves unknown commands readable instead of hiding
+  // part of an answer.
+  _renderLatex: function(source) {
+    var greek={alpha:'α',beta:'β',gamma:'γ',delta:'δ',epsilon:'ε',theta:'θ',lambda:'λ',mu:'μ',pi:'π',sigma:'σ',phi:'φ',omega:'ω',Gamma:'Γ',Delta:'Δ',Theta:'Θ',Lambda:'Λ',Pi:'Π',Sigma:'Σ',Phi:'Φ',Omega:'Ω'};
+    var operators={rightarrow:'→',to:'→',leftarrow:'←',leftrightarrow:'↔',Rightarrow:'⇒',Leftarrow:'⇐',Leftrightarrow:'⇔',times:'×',cdot:'·',pm:'±',mp:'∓',le:'≤',leq:'≤',ge:'≥',geq:'≥',ne:'≠',neq:'≠',approx:'≈',equiv:'≡',infty:'∞',partial:'∂',nabla:'∇',in:'∈',notin:'∉',subset:'⊂',subseteq:'⊆',supset:'⊃',supseteq:'⊇',cup:'∪',cap:'∩',land:'∧',lor:'∨',sum:'∑',prod:'∏',int:'∫',iint:'∬',oint:'∮',ldots:'…',cdots:'⋯',quad:' ',qquad:'  ',degree:'°',angle:'∠'};
+    var text=String(source||''), pos=0;
+    function esc(value){ return String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    function group(){
+      if(text.charAt(pos)!=='{') return text.charAt(pos++);
+      pos++; var start=pos, depth=1;
+      while(pos<text.length && depth){ if(text.charAt(pos)==='{') depth++; else if(text.charAt(pos)==='}') depth--; pos++; }
+      return text.slice(start,pos-1);
+    }
+    function atom(){
+      if(text.charAt(pos)==='{'){ var value=group(), previous=text, previousPos=pos; text=value; pos=0; var rendered=parse(); text=previous; pos=previousPos; return rendered; }
+      if(text.charAt(pos)==='\\'){ return command(); }
+      return esc(text.charAt(pos++));
+    }
+    function command(){
+      pos++; var match=/^[A-Za-z]+/.exec(text.slice(pos));
+      if(!match) return esc(text.charAt(pos++));
+      var name=match[0]; pos+=name.length;
+      if(name==='frac'){ var numerator=atom(), denominator=atom(); return '<span class="lr-frac"><span>'+numerator+'</span><span>'+denominator+'</span></span>'; }
+      if(name==='sqrt'){ var index=''; if(text.charAt(pos)==='['){ var close=text.indexOf(']',pos+1); if(close!==-1){ index='<sup>'+esc(text.slice(pos+1,close))+'</sup>'; pos=close+1; } } return '<span class="lr-root">'+index+'√</span>'+atom(); }
+      if(name==='text' || name==='mathrm' || name==='mathbf' || name==='operatorname'){ var content=atom(); return name==='mathbf'?'<strong>'+content+'</strong>':content; }
+      if(name==='left' || name==='right' || name==='displaystyle' || name==='limits' || name==='nolimits') return '';
+      if(operators[name]) return operators[name];
+      if(greek[name]) return greek[name];
+      return esc(name);
+    }
+    function parse(){
+      var output='';
+      while(pos<text.length){
+        var ch=text.charAt(pos);
+        if(ch==='^' || ch==='_'){ pos++; var value=atom(); output+='<'+(ch==='^'?'sup':'sub')+'>'+value+'</'+(ch==='^'?'sup':'sub')+'>'; }
+        else if(ch==='\\'){ output+=command(); }
+        else if(ch==='{'){ output+=atom(); }
+        else { pos++; output+=ch==='~'?'&nbsp;':esc(ch); }
+      }
+      return output;
+    }
+    return parse();
+  },
+  _richMarkdownSource: function(text) {
+    var source=String(text||''), protectedParts=[];
+    // Never interpret TeX or Obsidian syntax inside code spans/fences.
+    source=source.replace(/```[\s\S]*?```|`[^`\n]*`/g,function(match){ var key='@@LR_CODE_'+protectedParts.length+'@@'; protectedParts.push(match); return key; });
+    function math(tex,display){ return '<span class="lr-math'+(display?' lr-math-display':'')+'">'+LaRuche.Utils._renderLatex(tex)+'</span>'; }
+    source=source.replace(/\\\[([\s\S]*?)\\\]/g,function(_all,tex){ return math(tex,true); });
+    source=source.replace(/\\\(([\s\S]*?)\\\)/g,function(_all,tex){ return math(tex,false); });
+    source=source.replace(/\$\$([\s\S]*?)\$\$/g,function(_all,tex){ return math(tex,true); });
+    source=source.replace(/(^|[^\\$])\$([^\n$]+?)\$/g,function(_all,prefix,tex){ return prefix+math(tex,false); });
+    // Obsidian wiki links and transclusions remain local links. Their target is
+    // visible in the title, and opening one takes the reader to the memory view.
+    source=source.replace(/!\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g,function(_all,target,label){ var shown=label||target; return '<a class="lr-obsidian-link lr-obsidian-embed" href="#memory" title="'+LaRuche.Utils.esc(target)+'">↗ '+LaRuche.Utils.esc(shown)+'</a>'; });
+    source=source.replace(/\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]/g,function(_all,target,label){ var shown=label||target; return '<a class="lr-obsidian-link" href="#memory" title="'+LaRuche.Utils.esc(target)+'">'+LaRuche.Utils.esc(shown)+'</a>'; });
+    protectedParts.forEach(function(part,index){ source=source.replace('@@LR_CODE_'+index+'@@',part); });
+    return source;
+  },
+  _decorateObsidianCallouts: function(html) {
+    var holder=document.createElement('div'); holder.innerHTML=html;
+    holder.querySelectorAll('blockquote').forEach(function(block){
+      var first=block.querySelector('p'); if(!first) return;
+      var match=/^\s*\[!([A-Za-z_-]+)\][+-]?\s*(.*)$/.exec(first.textContent||''); if(!match) return;
+      block.classList.add('lr-callout','lr-callout-'+match[1].toLowerCase());
+      var title=document.createElement('div'); title.className='lr-callout-title'; title.textContent=(match[2]||match[1]).trim();
+      first.remove(); block.insertBefore(title,block.firstChild);
+    });
+    return holder.innerHTML;
+  },
   // Renders markdown then CLEANS the resulting HTML before display. Agent output can
   // include web content fetched from arbitrary pages; marked v12 does not clean HTML,
   // so rendering it raw could let embedded markup run. DOMPurify keeps only safe tags
@@ -359,11 +431,11 @@ LaRuche.Utils = {
       }});
       LaRuche.Utils._mdReady = true;
     }
-    var html = marked.parse(text);
+    var html = marked.parse(LaRuche.Utils._richMarkdownSource(text));
     if (typeof DOMPurify !== 'undefined') {
-      return DOMPurify.sanitize(html, { ADD_ATTR: ['target'] });
+      html = DOMPurify.sanitize(html, { ADD_ATTR: ['target'] });
     }
-    return html;
+    return LaRuche.Utils._decorateObsidianCallouts(html);
   },
   clamp: function(v,lo,hi) { return Math.min(hi,Math.max(lo,v)); },
   fmtMB: function(mb) { return mb>=1024?(mb/1024).toFixed(1)+' GB':mb+' MB'; },

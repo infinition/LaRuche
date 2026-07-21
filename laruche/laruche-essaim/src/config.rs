@@ -56,6 +56,17 @@ pub struct EssaimConfig {
     /// driven from Settings; env fallback `RUCHE_CURATEUR=1`. Off by default (anti-bloat).
     #[serde(default)]
     pub curateur_actif: bool,
+    /// **Smart approvals**: an auxiliary LLM judges a flagged call before bothering
+    /// the human (approve / deny / escalate), and approving once approves the whole
+    /// PATTERN CLASS for the session. On by default: it removes most popups while
+    /// ADDING a check on the autonomous path (which used to execute blindly).
+    #[serde(default = "vrai")]
+    pub smart_approvals: bool,
+    /// Fail-closed: when no human is reachable (cron, scout) and the call is still
+    /// unresolved, REFUSE instead of executing. Off by default — LaRuche's
+    /// autonomous runs must keep working — but recommended for exposed nodes.
+    #[serde(default)]
+    pub approbation_stricte: bool,
     /// Origin channel of the current run (e.g. `telegram:12345`, `discord:bob`, `web`). Runtime
     /// only (never persisted): lets tools (`cron_create`) know where the request came from
     /// and route the recurring output back there.
@@ -183,6 +194,11 @@ fn default_dynamic_context_threshold() -> u32 {
     40_000
 }
 
+/// serde default for opt-OUT booleans (absent in an old config file = enabled).
+fn vrai() -> bool {
+    true
+}
+
 impl Default for EssaimConfig {
     fn default() -> Self {
         Self {
@@ -205,6 +221,8 @@ impl Default for EssaimConfig {
             disabled_tools: Vec::new(),
             disabled_skills: Vec::new(),
             curateur_actif: false,
+            smart_approvals: true,
+            approbation_stricte: false,
             origin_channel: None,
             home_channel: None,
             dynamic_tool_selection: false,

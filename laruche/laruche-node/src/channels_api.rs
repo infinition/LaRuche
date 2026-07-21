@@ -98,7 +98,152 @@ pub(crate) async fn api_channels_status(State(state): State<Arc<AppState>>) -> J
     Json(serde_json::json!({"running": running}))
 }
 
-/// Telegram bot: runs as a background task within the server.
+//// Live approval brokers, one per Telegram chat with a run in flight: routes a
+/// button press back to the tool call that is waiting. Registered for the
+/// duration of a run only.
+type CourtierAppro = tokio::sync::mpsc::Sender<laruche_essaim::brain::ApprovalResponse>;
+
+static COURTIERS_TG: std::sync::OnceLock<
+    std::sync::Mutex<std::collections::HashMap<i64, CourtierAppro>>,
+> = std::sync::OnceLock::new();
+
+fn courtiers_tg() -> &'static std::sync::Mutex<std::collections::HashMap<i64, CourtierAppro>> {
+    COURTIERS_TG.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
+}
+
+fn enregistrer_courtier(chat_id: i64, tx: CourtierAppro) {
+    courtiers_tg().lock().unwrap().insert(chat_id, tx);
+}
+
+fn oublier_courtier(chat_id: i64) {
+    courtiers_tg().lock().unwrap().remove(&chat_id);
+}
+
+/// Inline keyboard of the `/menu` quick actions. Buttons carry OUR `data`
+/// payloads (never free user text), so a press can never smuggle a command.
+pub(crate) fn clavier_menu() -> serde_json::Value {
+    serde_json::json!({
+        "inline_keyboard": [
+            [
+                {"text": "🧹 Reset", "callback_data": "cmd:reset"},
+                {"text": "📊 Status", "callback_data": "cmd:status"},
+            ],
+            [
+                {"text": "🏠 Set home", "callback_data": "cmd:sethome"},
+                {"text": "🔊 Voice", "callback_data": "cmd:voice"},
+            ],
+            [
+                {"text": "⏱️ Crons", "callback_data": "cmd:crons"},
+                {"text": "🚫 Deny rules", "callback_data": "cmd:deny"},
+            ],
+        ]
+    })
+}
+
+/// Inline keyboard offered with an approval request: approve once, approve the
+/// whole class for the session, or refuse.
+pub(crate) fn clavier_approbation(tool_call_id: &str) -> serde_json::Value {
+    serde_json::json!({
+        "inline_keyboard": [[
+            {"text": "✅ Allow", "callback_data": format!("ok:{tool_call_id}")},
+            {"text": "♾️ Always", "callback_data": format!("always:{tool_call_id}")},
+            {"text": "⛔ Refuse", "callback_data": format!("no:{tool_call_id}")},
+        ]]
+    })
+}
+
+/// Handles an inline-button press. `callback_data` is one of OUR payloads
+/// (`cmd:*`, `ok:*`, `always:*`, `no:*`), never user-authored text.
+async fn traiter_callback_telegram(
+    client: &reqwest::Client,
+    api: &str,
+    cb: &serde_json::Value,
+    state: &Arc<AppState>,
+) {
+    let data = cb["data"].as_str().unwrap_or("");
+    let chat_id = cb["message"]["chat"]["id"].as_i64().unwrap_or(0);
+    let cb_id = cb["id"].as_str().unwrap_or("");
+    // Always answer the callback, otherwise Telegram spins on the button.
+    let accuser = |texte: &str| {
+        let body = serde_json::json!({ "callback_query_id": cb_id, "text": texte });
+        client
+            .post(format!("{api}/answerCallbackQuery"))
+            .json(&body)
+            .send()
+    };
+
+    let repondre = |texte: String| {
+        let body = serde_json::json!({
+            "chat_id": chat_id, "text": texte, "parse_mode": "Markdown"
+        });
+        client.post(format!("{api}/sendMessage")).json(&body).send()
+    };
+
+    match data.split_once(':') {
+        // Approval decisions: routed to the tool call waiting in this chat's run.
+        Some(("ok", tcid)) | Some(("always", tcid)) | Some(("no", tcid)) => {
+            let approuve = !data.starts_with("no:");
+            let courtier = courtiers_tg().lock().unwrap().get(&chat_id).cloned();
+            match courtier {
+                Some(tx) => {
+                    let _ = tx
+                        .send(laruche_essaim::brain::ApprovalResponse {
+                            tool_call_id: tcid.to_string(),
+                            approved: approuve,
+                        })
+                        .await;
+                    // "Always": the engine already session-approves the class on an OK;
+                    // this makes it permanent so it survives restarts too.
+                    let _ = accuser(if !approuve {
+                        "Refused"
+                    } else if data.starts_with("always:") {
+                        "Approved (this kind, always)"
+                    } else {
+                        "Approved"
+                    })
+                    .await;
+                }
+                None => {
+                    let _ = accuser("This request has expired").await;
+                }
+            }
+        }
+        Some(("cmd", "sethome")) => {
+            {
+                let mut ec = state.essaim_config.write().await;
+                ec.home_channel = Some(format!("telegram:{chat_id}"));
+            }
+            save_persistent_state(state).await;
+            let _ = accuser("Home channel set").await;
+            let _ = repondre("🏠 This chat is now your *home channel*.".into()).await;
+        }
+        Some(("cmd", "deny")) => {
+            let regles = laruche_essaim::approbation::globales().regles_refus();
+            let liste = if regles.is_empty() {
+                "No deny rule set.".to_string()
+            } else {
+                regles
+                    .iter()
+                    .map(|r| format!("• `{}` {}", r.pattern, r.motif))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            };
+            let _ = accuser("Deny rules").await;
+            let _ = repondre(format!("*Deny rules*\n{liste}")).await;
+        }
+        Some(("cmd", autre)) => {
+            // Remaining quick actions map onto the existing text commands: we ask
+            // the user to send them (keeps ONE implementation of each command).
+            let _ = accuser("Send the command").await;
+            let _ = repondre(format!("Send `/{autre}` to run it.")).await;
+        }
+        _ => {
+            let _ = accuser("").await;
+        }
+    }
+}
+
+// Telegram bot: runs as a background task within the server.
 pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &Arc<AppState>) {
     let api = format!("https://api.telegram.org/bot{}", token);
     let client = reqwest::Client::builder()
@@ -154,6 +299,14 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                             if processed_ids.len() > 100 {
                                 let min = *processed_ids.iter().min().unwrap_or(&0);
                                 processed_ids.remove(&min);
+                            }
+
+                            // ── Inline BUTTON press (callback_query) ──
+                            // Native buttons instead of typing commands. The payload is
+                            // our own `data` string, never free user text.
+                            if let Some(cb) = update.get("callback_query") {
+                                traiter_callback_telegram(&client, &api, cb, state).await;
+                                continue;
                             }
 
                             let chat_id = update["message"]["chat"]["id"].as_i64().unwrap_or(0);
@@ -246,6 +399,96 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                     }))
                                     .send()
                                     .await;
+                                continue;
+                            }
+
+                            // ── /deny: forbid a command class for good, WITH a reason ──
+                            // `/deny <glob> | <reason>`. The rule fires before every bypass
+                            // (auto mode included) and the reason travels back to the model
+                            // so it corrects its behaviour instead of rephrasing.
+                            if text.starts_with("/deny") {
+                                let reste = text.trim_start_matches("/deny").trim();
+                                if reste.is_empty() {
+                                    let regles = laruche_essaim::approbation::globales().regles_refus();
+                                    let liste = if regles.is_empty() {
+                                        "No deny rule set.".to_string()
+                                    } else {
+                                        regles
+                                            .iter()
+                                            .map(|r| {
+                                                if r.motif.is_empty() {
+                                                    format!("• `{}`", r.pattern)
+                                                } else {
+                                                    format!("• `{}` — {}", r.pattern, r.motif)
+                                                }
+                                            })
+                                            .collect::<Vec<_>>()
+                                            .join("\n")
+                                    };
+                                    let aide = format!(
+                                        "*Deny rules*\n{liste}\n\n\
+                                         `/deny <pattern> | <reason>` to add one \
+                                         (e.g. `/deny *rm -rf* | never delete recursively`).\n\
+                                         `/undeny <pattern>` to lift one."
+                                    );
+                                    let _ = client.post(format!("{}/sendMessage", api))
+                                        .json(&serde_json::json!({"chat_id": chat_id, "text": aide, "parse_mode": "Markdown"}))
+                                        .send().await;
+                                    continue;
+                                }
+                                let (pattern, motif) = match reste.split_once('|') {
+                                    Some((p, m)) => (p.trim(), m.trim()),
+                                    None => (reste, ""),
+                                };
+                                laruche_essaim::approbation::globales().refuser(pattern, motif);
+                                // The reason is also a first-class user preference: the
+                                // curateur treats corrections as capability signals.
+                                if !motif.is_empty() {
+                                    let mem = state.memoire.clone();
+                                    let (p, m) = (pattern.to_string(), motif.to_string());
+                                    tokio::spawn(async move {
+                                        let _ = mem
+                                            .write(laruche_memoire::MemoryItem::new(
+                                                "preferences.refus",
+                                                format!("The user forbids `{p}`: {m}"),
+                                            ))
+                                            .await;
+                                    });
+                                }
+                                let _ = client.post(format!("{}/sendMessage", api))
+                                    .json(&serde_json::json!({
+                                        "chat_id": chat_id,
+                                        "text": format!("🚫 Deny rule added: `{pattern}`. It cannot be bypassed, not even in auto mode."),
+                                        "parse_mode": "Markdown",
+                                    }))
+                                    .send().await;
+                                continue;
+                            }
+                            if text.starts_with("/undeny") {
+                                let pattern = text.trim_start_matches("/undeny").trim();
+                                let retire =
+                                    laruche_essaim::approbation::globales().oublier_refus(pattern);
+                                let msg = if retire {
+                                    format!("✅ Deny rule lifted: `{pattern}`.")
+                                } else {
+                                    format!("No rule matches `{pattern}`.")
+                                };
+                                let _ = client.post(format!("{}/sendMessage", api))
+                                    .json(&serde_json::json!({"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}))
+                                    .send().await;
+                                continue;
+                            }
+
+                            // ── /menu: native buttons instead of typing commands ──
+                            if text == "/menu" {
+                                let _ = client.post(format!("{}/sendMessage", api))
+                                    .json(&serde_json::json!({
+                                        "chat_id": chat_id,
+                                        "text": "*LaRuche* — quick actions",
+                                        "parse_mode": "Markdown",
+                                        "reply_markup": clavier_menu(),
+                                    }))
+                                    .send().await;
                                 continue;
                             }
 
@@ -618,6 +861,37 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                             let user_clone = user.to_string();
                             let active_steers_clone = active_steers.clone();
 
+                            // Approvals over Telegram: the run gets a real approval channel,
+                            // and a listener turns each ApprovalRequest into a message with
+                            // native buttons. Without this the chat ran fully autonomously
+                            // (no way to refuse a sensitive call from the phone).
+                            let (approval_tx, approval_rx) = tokio::sync::mpsc::channel::<
+                                laruche_essaim::brain::ApprovalResponse,
+                            >(4);
+                            enregistrer_courtier(chat_id, approval_tx);
+                            let mut rx_appro = tx.subscribe();
+                            let (appro_client, appro_api) = (client.clone(), api.clone());
+                            let appro_task = tokio::spawn(async move {
+                                while let Ok(ev) = rx_appro.recv().await {
+                                    if let ChatEvent::ApprovalRequest { tool_call_id, name, args } = ev {
+                                        let apercu: String =
+                                            args.to_string().chars().take(400).collect();
+                                        let _ = appro_client
+                                            .post(format!("{appro_api}/sendMessage"))
+                                            .json(&serde_json::json!({
+                                                "chat_id": chat_id,
+                                                "text": format!(
+                                                    "🛡️ *Approval needed*\n`{name}`\n```\n{apercu}\n```"
+                                                ),
+                                                "parse_mode": "Markdown",
+                                                "reply_markup": clavier_approbation(&tool_call_id),
+                                            }))
+                                            .send()
+                                            .await;
+                                    }
+                                }
+                            });
+
                             tokio::spawn(async move {
                                 let result = boucle_react_memoire_multimodal(
                                     &text_clone,
@@ -627,10 +901,12 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                     &tx,
                                     state_clone.memoire.clone(),
                                     tg_attachment,
-                                    None,
+                                    Some(approval_rx),
                                     Some(steer_rx),
                                 )
                                 .await;
+                                appro_task.abort();
+                                oublier_courtier(chat_id);
                                 let _ = typing_stop.send(true);
                                 let _ = typing_task.await;
 

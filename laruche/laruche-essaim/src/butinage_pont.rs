@@ -409,7 +409,7 @@ fn classer_erreur(e: anyhow::Error) -> but::ErreurFournisseur {
 
 /// Strips `<tag>...</tag>` blocks from the text (e.g. `think`, `plan`). Tolerant of an
 /// unclosed block (cuts at the opening).
-fn retirer_bloc(t: &str, tag: &str) -> String {
+pub(crate) fn retirer_bloc(t: &str, tag: &str) -> String {
     let open = format!("<{tag}>");
     let close = format!("</{tag}>");
     let mut out = String::with_capacity(t.len());
@@ -638,8 +638,27 @@ impl but::Outils for OutilsPont<'_> {
             return self.bloquer(&appel.nom, format!("Blocked (injection guard): {reason}"));
         }
 
-        // Permission engine: Deny blocks; Dangerous always refused; Ask triggers the
-        // approval popup (UI) and waits for the response. Without a channel (éclaireuse/auto): passes.
+        // ── SMART APPROVALS ──
+        // User deny rules are the hard floor: they fire BEFORE the permission engine,
+        // so `auto` mode / a Safe danger level cannot bypass what the user forbade.
+        let regle = crate::approbation::globales().regle_refus(&appel.nom, &appel.args);
+        if let Some(r) = &regle {
+            let ctx_refus = crate::approbation::ContexteApprobation {
+                regle_refus: Some((r.pattern.as_str(), r.motif.as_str())),
+                deja_approuve: false,
+                verdict: None,
+                humain_dispo: self.approval.is_some(),
+                autonome_permissif: true,
+            };
+            if let crate::approbation::DecisionApprobation::Refuser(msg) =
+                crate::approbation::decider(&ctx_refus)
+            {
+                return self.bloquer(&appel.nom, msg);
+            }
+        }
+
+        // Permission engine: Deny blocks; Dangerous always refused; Ask goes through
+        // the smart-approval gate (allowlist -> LLM judge -> human popup).
         let danger = self
             .registry
             .get(&appel.nom)
@@ -651,38 +670,82 @@ impl but::Outils for OutilsPont<'_> {
                 return self.bloquer(&appel.nom, "Blocked: permission denied".into());
             }
             PermissionBehavior::Ask => {
-                if let Some(mx) = self.approval {
-                    let tcid = if appel.id.is_empty() {
-                        uuid::Uuid::new_v4().to_string()
-                    } else {
-                        appel.id.clone()
-                    };
-                    // Ask the UI (the node routes the response to this channel).
-                    let _ = self.tx.send(ChatEvent::ApprovalRequest {
-                        tool_call_id: tcid.clone(),
-                        name: appel.nom.clone(),
-                        args: appel.args.clone(),
-                    });
-                    let mut rx = mx.lock().await;
-                    // Timeout: without a response we REFUSE (autonomous mode = `auto`, which never
-                    // reaches here because permission resolves to Allow there).
-                    let verdict = tokio::time::timeout(
-                        std::time::Duration::from_secs(180),
-                        attendre_approbation(&mut rx, &tcid),
+                let registre = crate::approbation::globales();
+                let cle = crate::approbation::cle_pattern(&appel.nom, &appel.args);
+                let deja = registre.est_approuve(&cle);
+                // The judge only runs when it can change the outcome (not already
+                // approved) and is enabled: one small auxiliary call per NEW class.
+                let verdict = if deja || !self.config.smart_approvals {
+                    None
+                } else {
+                    Some(
+                        crate::approbation::juger(
+                            &appel.nom,
+                            &appel.args,
+                            &format!("{danger:?} tool requiring approval"),
+                            self.config,
+                        )
+                        .await,
                     )
-                    .await;
-                    match verdict {
-                        Ok(true) => {}
-                        Ok(false) => {
-                            return self.bloquer(&appel.nom, "Refused by the user.".into());
-                        }
-                        Err(_) => {
-                            return self
-                                .bloquer(&appel.nom, "Approval expired (no response).".into());
+                };
+                let decision = crate::approbation::decider(&crate::approbation::ContexteApprobation {
+                    regle_refus: None, // already handled above
+                    deja_approuve: deja,
+                    verdict,
+                    humain_dispo: self.approval.is_some(),
+                    autonome_permissif: !self.config.approbation_stricte,
+                });
+                match decision {
+                    crate::approbation::DecisionApprobation::Autoriser(motif) => {
+                        if !deja {
+                            let _ = self.tx.send(ChatEvent::Status {
+                                message: format!("🛡️ {} auto-approved ({motif}).", appel.nom),
+                            });
                         }
                     }
+                    crate::approbation::DecisionApprobation::Refuser(msg) => {
+                        return self.bloquer(&appel.nom, msg);
+                    }
+                    crate::approbation::DecisionApprobation::Demander => {
+                        if let Some(mx) = self.approval {
+                            let tcid = if appel.id.is_empty() {
+                                uuid::Uuid::new_v4().to_string()
+                            } else {
+                                appel.id.clone()
+                            };
+                            // Ask the UI (the node routes the response to this channel).
+                            let _ = self.tx.send(ChatEvent::ApprovalRequest {
+                                tool_call_id: tcid.clone(),
+                                name: appel.nom.clone(),
+                                args: appel.args.clone(),
+                            });
+                            let mut rx = mx.lock().await;
+                            // Timeout: without a response we REFUSE (fail-safe).
+                            let verdict = tokio::time::timeout(
+                                std::time::Duration::from_secs(180),
+                                attendre_approbation(&mut rx, &tcid),
+                            )
+                            .await;
+                            match verdict {
+                                Ok(true) => {
+                                    // Approving once approves the CLASS for this session:
+                                    // the same kind of call stops prompting.
+                                    registre.approuver_session(&cle);
+                                }
+                                Ok(false) => {
+                                    return self.bloquer(&appel.nom, "Refused by the user.".into());
+                                }
+                                Err(_) => {
+                                    return self.bloquer(
+                                        &appel.nom,
+                                        "Approval expired (no response).".into(),
+                                    );
+                                }
+                            }
+                        }
+                        // No approval channel: autonomous execution (sub-agent / no UI).
+                    }
                 }
-                // No approval channel: autonomous execution (sub-agent / no UI).
             }
         }
 
@@ -847,7 +910,11 @@ impl but::Emetteur for EmetteurPont {
                     .map(|(titre, statut)| crate::evenements::PlanItem { task: titre, status: statut })
                     .collect(),
             },
-            E::Fin(t) => ChatEvent::Done { full_response: t },
+            // `Done` is deliberately emitted by the facade after `butiner` returns.
+            // At this layer the notebook's final plan has not yet been reconciled, and
+            // the WebSocket closes its event stream as soon as it sees `Done`. Emitting
+            // it here made the final `Plan` event unreachable, leaving the UI at 1/N.
+            E::Fin(_) => return,
             // Tokens, calls and tool results are already emitted (richer) by
             // FournisseurPont / OutilsPont: avoid duplicates.
             E::Texte(_) | E::AppelOutil { .. } | E::ResultatOutil { .. } => return,
@@ -1736,6 +1803,13 @@ pub async fn executer_avec_bilan(
         let _ = tx.send(ChatEvent::Plan { items });
     }
 
+    // Terminal event must be last: the WebSocket considers `Done` a terminal frame and
+    // stops forwarding the broadcast stream. This therefore follows the final Plan
+    // reconciliation above, so a successful mission visibly lands at N/N.
+    let _ = tx.send(ChatEvent::Done {
+        full_response: bilan.texte.clone(),
+    });
+
     // Recompose the session from the notebook (disk persistence + UI replay). We skip
     // `nb_prelude`: those history messages were ALREADY in the session (re-injected for
     // memory), re-adding them would create duplicates. So we persist only the current
@@ -1971,6 +2045,9 @@ pub async fn reprendre_carnet(
     if bilan.est_succes() {
         let _ = std::fs::remove_file(chemin);
     }
+    let _ = tx.send(ChatEvent::Done {
+        full_response: bilan.texte.clone(),
+    });
     Ok(bilan.texte)
 }
 
