@@ -137,7 +137,9 @@ async fn interroger_candidat(
         "role": "user",
         "content": prompt
     })];
-    let mut stream = provider_chat_stream(
+    // MoA role effort: an ADVISOR is where thinking pays off — its job is to explore
+    // an angle in depth. It gets the main effort setting.
+    let mut stream = crate::providers::provider_chat_stream_effort(
         provider,
         &candidate.model,
         &messages,
@@ -146,8 +148,9 @@ async fn interroger_candidat(
         &config.api_key,
         api_base,
         &config.ollama_url,
-            None,
-        )
+        None,
+        Some(config.reasoning_effort.as_str()).filter(|e| !e.is_empty()),
+    )
     .await?;
     let mut out = String::new();
     while let Some(chunk) = stream.next().await {
@@ -177,9 +180,11 @@ async fn synthetiser(
             "content": format!("Question:\n{prompt}\n\nCandidate responses:\n{joined}\n\nSynthesis:")
         }),
     ];
+    // The SYNTHESIZER answers fast: the thinking already happened in the advisors,
+    // its job is to merge them. Auxiliary effort (empty by default = no thinking).
     let stream_result = tokio::time::timeout(
         Duration::from_secs(60),
-        provider_chat_stream(
+        crate::providers::provider_chat_stream_effort(
             &config.provider,
             model,
             &messages,
@@ -189,6 +194,7 @@ async fn synthetiser(
             config.api_base.as_deref(),
             &config.ollama_url,
             None,
+            Some(config.reasoning_effort_aux.as_str()).filter(|e| !e.is_empty()),
         ),
     )
     .await

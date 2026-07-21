@@ -1,4 +1,4 @@
-//! # Bridge between `laruche-essaim` and the `laruche-butinage` engine.
+﻿//! # Bridge between `laruche-essaim` and the `laruche-butinage` engine.
 //!
 //! Implements the engine traits (`Fournisseur`, `Outils`, `Emetteur`) from the
 //! existing building blocks (providers, `AbeilleRegistry`, `ChatEvent`), and exposes
@@ -44,7 +44,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::broadcast;
 
-// ───────────────────────── Provider (LLM) ─────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Provider (LLM) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 struct FournisseurPont {
     provider: String,
@@ -59,6 +59,9 @@ struct FournisseurPont {
     /// non-invalid) key for the provider and records usage, instead of always using api_key.
     credential_pool:
         Option<std::sync::Arc<tokio::sync::RwLock<crate::credential_pool::CredentialPool>>>,
+    /// Reasoning effort for THIS provider instance. The main run takes the user's
+    /// setting; auxiliary runs (curateur, scouts) take the lighter aux setting.
+    effort: String,
 }
 
 impl FournisseurPont {
@@ -95,7 +98,7 @@ impl but::Fournisseur for FournisseurPont {
         // may be a `${NAME}` vault reference, so it is substituted inside choisir_cle.
         let api_key = self.choisir_cle().await;
 
-        let mut stream = match provider_chat_stream(
+        let mut stream = match crate::providers::provider_chat_stream_effort(
             &self.provider,
             &self.model,
             &msgs,
@@ -105,6 +108,7 @@ impl but::Fournisseur for FournisseurPont {
             self.api_base.as_deref(),
             &self.ollama_url,
             tools,
+            Some(self.effort.as_str()).filter(|e| !e.is_empty()),
         )
         .await
         {
@@ -196,7 +200,7 @@ impl but::Fournisseur for FournisseurPont {
 /// - the matching observations become `{role:"tool", tool_call_id, name, content}`;
 /// - everything else (text-parsed local models whose `<tool_call>` blocks stay in the
 ///   text, prelude messages without ids, orphans created by compaction/truncation)
-///   falls back to the text rendering — native APIs reject unpaired calls/results,
+///   falls back to the text rendering â€” native APIs reject unpaired calls/results,
 ///   so the correlation pre-pass is what makes this safe.
 fn convertir_messages(messages: &[but::Message]) -> Vec<serde_json::Value> {
     use but::Role;
@@ -223,7 +227,7 @@ fn convertir_messages(messages: &[but::Message]) -> Vec<serde_json::Value> {
         .iter()
         .enumerate()
         .map(|(i, m)| {
-            // ── Native observation: role "tool" correlated to its call. ──
+            // â”€â”€ Native observation: role "tool" correlated to its call. â”€â”€
             if m.role == Role::Observation {
                 if let Some(id) = m.appel_id.as_deref() {
                     if ids_natifs.remove(id) {
@@ -245,7 +249,7 @@ fn convertir_messages(messages: &[but::Message]) -> Vec<serde_json::Value> {
                     ),
                 });
             }
-            // ── Native assistant: carries its answered tool calls. ──
+            // â”€â”€ Native assistant: carries its answered tool calls. â”€â”€
             if m.role == Role::Assistant {
                 let natifs: Vec<&but::Appel> = m
                     .appels
@@ -427,9 +431,9 @@ pub(crate) fn retirer_bloc(t: &str, tag: &str) -> String {
     out.trim().to_string()
 }
 
-// ───────────────────────── Tools (registry) ─────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Tools (registry) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-/// Tools interpreted as delegation to an éclaireuse (sub-agent).
+/// Tools interpreted as delegation to an Ã©claireuse (sub-agent).
 const OUTILS_DELEGATION: &[&str] = &["delegate", "delegate_task", "deleguer", "spawn_specialist"];
 
 struct OutilsPont<'a> {
@@ -440,9 +444,9 @@ struct OutilsPont<'a> {
     disabled: Vec<String>,
     tx: broadcast::Sender<ChatEvent>,
     /// Approval channel (UI popup) for mutating tools in `Ask` permission mode.
-    /// `None` for éclaireuses (autonomous) or when the UI does not provide one: auto-approved.
+    /// `None` for Ã©claireuses (autonomous) or when the UI does not provide one: auto-approved.
     /// `Mutex` because the `Outils::executer` trait takes `&self`; mutating tools are
-    /// executed sequentially (récolte): no contention.
+    /// executed sequentially (rÃ©colte): no contention.
     approval: Option<&'a tokio::sync::Mutex<crate::brain::ApprovalReceiver>>,
     /// Cognitive memory: powers the SCOUTS' initial recall (past findings, known
     /// dead ends) via `Source::rappeler`. `None` = children start blank.
@@ -469,7 +473,7 @@ impl OutilsPont<'_> {
         but::ResultatOutil::echec(motif)
     }
 
-    /// Dispatches an éclaireuse (butinage sub-agent) with an isolated context.
+    /// Dispatches an Ã©claireuse (butinage sub-agent) with an isolated context.
     async fn deleguer(&self, appel: &but::Appel) -> but::ResultatOutil {
         let role = appel
             .args
@@ -509,15 +513,15 @@ impl OutilsPont<'_> {
             iteration: None,
         });
         let _ = self.tx.send(ChatEvent::Status {
-            message: format!("🐝 Éclaireuse ({role:?}) dispatched: {tache}"),
+            message: format!("ðŸ Ã‰claireuse ({role:?}) dispatched: {tache}"),
         });
 
         // CHILD adapters: delegation disabled (anti-recursion).
-        // CANAL PRIVÉ drainé pour les TOKENS et le PLAN du scout : plusieurs éclaireuses tournent
-        // en PARALLÈLE — si chacune streamait ses tokens sur le tx du chat, les flux s'entrelacent
-        // caractère par caractère dans la bulle (bug observé : réponse « zippée » illisible), et
-        // leurs <plan> écrasaient la barre de plan du parent. Leurs ToolCall/ToolResult restent
-        // sur le vrai tx (les chips « Recherche web · en cours » demeurent visibles).
+        // CANAL PRIVÃ‰ drainÃ© pour les TOKENS et le PLAN du scout : plusieurs Ã©claireuses tournent
+        // en PARALLÃˆLE â€” si chacune streamait ses tokens sur le tx du chat, les flux s'entrelacent
+        // caractÃ¨re par caractÃ¨re dans la bulle (bug observÃ© : rÃ©ponse Â« zippÃ©e Â» illisible), et
+        // leurs <plan> Ã©crasaient la barre de plan du parent. Leurs ToolCall/ToolResult restent
+        // sur le vrai tx (les chips Â« Recherche web Â· en cours Â» demeurent visibles).
         let (tx_prive, mut rx_prive) = tokio::sync::broadcast::channel::<ChatEvent>(64);
         tokio::spawn(async move { while rx_prive.recv().await.is_ok() {} });
         let four = FournisseurPont {
@@ -530,6 +534,9 @@ impl OutilsPont<'_> {
             max_tokens: self.config.max_tokens,
             tx: tx_prive.clone(),
             credential_pool: self.config.credential_pool.clone(),
+            // Sub-agent = auxiliary effort: a scout on ONE focused angle must not
+            // burn the deep-reasoning budget of the parent, times N scouts.
+            effort: self.config.reasoning_effort_aux.clone(),
         };
         let mut disabled = self.disabled.clone();
         for d in OUTILS_DELEGATION {
@@ -544,11 +551,18 @@ impl OutilsPont<'_> {
             working_dir: self.working_dir.clone(),
             disabled,
             tx: self.tx.clone(),
-            approval: None, // éclaireuses are autonomous: no popup
+            approval: None, // Ã©claireuses are autonomous: no popup
             memoire: self.memoire.clone(),
             delegations: self.delegations.clone(), // shared (children can't delegate anyway)
         };
-        let emet = EmetteurPont { tx: tx_prive.clone() };
+        // LIVE TRANSCRIPT of the scout: its statuses reach the chat prefixed with its
+        // identity (a fan-out used to be a black box for minutes), while its raw
+        // tokens/plan stay on the private channel â€” several scouts stream in parallel.
+        let numero = self.delegations.load(std::sync::atomic::Ordering::Relaxed);
+        let emet = EmetteurPont {
+            tx: self.tx.clone(),
+            etiquette: Some(format!("ðŸ {role:?}#{numero}")),
+        };
 
         // Memory for the scout's initial recall: it starts KNOWING what past
         // missions already found (and which dead ends to skip).
@@ -577,7 +591,7 @@ impl OutilsPont<'_> {
                 }
                 but::ResultatOutil::ok(rapport.en_observation())
             }
-            Err(e) => but::ResultatOutil::echec(format!("éclaireuse failed: {e}")),
+            Err(e) => but::ResultatOutil::echec(format!("Ã©claireuse failed: {e}")),
         };
 
         let _ = self.tx.send(ChatEvent::ToolResult {
@@ -606,7 +620,7 @@ impl but::Outils for OutilsPont<'_> {
     async fn executer(&self, appel: &but::Appel) -> but::ResultatOutil {
         if self.disabled.iter().any(|d| d == &appel.nom) {
             // Delegation blocked (sub-agent anti-recursion, or disabled in Settings):
-            // the message must REDIRECT the model, not just refuse — otherwise it
+            // the message must REDIRECT the model, not just refuse â€” otherwise it
             // retries delegate instead of doing the work directly.
             if OUTILS_DELEGATION.contains(&appel.nom.as_str()) {
                 return self.bloquer(
@@ -620,7 +634,7 @@ impl but::Outils for OutilsPont<'_> {
             return self.bloquer(&appel.nom, "Blocked: tool disabled in Settings".into());
         }
 
-        // Delegation: dispatch an éclaireuse (butinage sub-agent) instead of running
+        // Delegation: dispatch an Ã©claireuse (butinage sub-agent) instead of running
         // a tool. `delegate` is disabled in the child: a single recursion level.
         if OUTILS_DELEGATION.contains(&appel.nom.as_str()) {
             return self.deleguer(appel).await;
@@ -638,7 +652,7 @@ impl but::Outils for OutilsPont<'_> {
             return self.bloquer(&appel.nom, format!("Blocked (injection guard): {reason}"));
         }
 
-        // ── SMART APPROVALS ──
+        // â”€â”€ SMART APPROVALS â”€â”€
         // User deny rules are the hard floor: they fire BEFORE the permission engine,
         // so `auto` mode / a Safe danger level cannot bypass what the user forbade.
         let regle = crate::approbation::globales().regle_refus(&appel.nom, &appel.args);
@@ -699,7 +713,7 @@ impl but::Outils for OutilsPont<'_> {
                     crate::approbation::DecisionApprobation::Autoriser(motif) => {
                         if !deja {
                             let _ = self.tx.send(ChatEvent::Status {
-                                message: format!("🛡️ {} auto-approved ({motif}).", appel.nom),
+                                message: format!("ðŸ›¡ï¸ {} auto-approved ({motif}).", appel.nom),
                             });
                         }
                     }
@@ -788,7 +802,7 @@ impl but::Outils for OutilsPont<'_> {
         };
         let ms = t0.elapsed().as_millis() as u64;
 
-        // Stats (modèle, outil): success/latency signal for the dynamic selection
+        // Stats (modÃ¨le, outil): success/latency signal for the dynamic selection
         // tiebreak and the curateur. Blocks never reach here (not the tool's fault).
         crate::stats_outils::globales().enregistrer(&self.config.model, &appel.nom, res.ok, ms);
 
@@ -810,7 +824,7 @@ impl but::Outils for OutilsPont<'_> {
         est_lecture_seule(nom)
     }
 
-    /// Éclaireuses run on ISOLATED contexts: several scouts dispatched in the same
+    /// Ã‰claireuses run on ISOLATED contexts: several scouts dispatched in the same
     /// turn are safe to run concurrently (parallel fan-out, Claude Code style).
     fn concurrence_sure(&self, appel: &but::Appel) -> bool {
         self.idempotent(&appel.nom) || OUTILS_DELEGATION.contains(&appel.nom.as_str())
@@ -886,24 +900,49 @@ fn est_lecture_seule(nom: &str) -> bool {
         || nom == "skill_list"
 }
 
-// ───────────────────────── Emetteur (events) ─────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Emetteur (events) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 struct EmetteurPont {
     tx: broadcast::Sender<ChatEvent>,
+    /// Identity label of a sub-agent (e.g. `ðŸ” Ã‰claireuse#2`). `None` for the
+    /// parent run. When set, the emitter runs in **scout transcript** mode: its
+    /// statuses are prefixed and its plan is NOT forwarded (several scouts run in
+    /// parallel; their plans would fight over the parent's plan bar).
+    etiquette: Option<String>,
+}
+
+impl EmetteurPont {
+    fn parent(tx: broadcast::Sender<ChatEvent>) -> Self {
+        Self { tx, etiquette: None }
+    }
 }
 
 impl but::Emetteur for EmetteurPont {
     fn emettre(&self, ev: but::Evenement) {
         use but::Evenement as E;
+        // Sub-agent: forward a READABLE transcript (statuses, escales) prefixed with
+        // its identity, but never its plan. Raw token streaming stays private â€”
+        // parallel scouts would interleave char by char in the bubble.
+        if let Some(etiq) = &self.etiquette {
+            let msg = match ev {
+                E::Statut(m) => format!("{etiq} Â· {m}"),
+                E::Escale { avant, apres } => {
+                    format!("{etiq} Â· context compacted ({avant} â†’ {apres} messages)")
+                }
+                _ => return,
+            };
+            let _ = self.tx.send(ChatEvent::Status { message: msg });
+            return;
+        }
         let ce = match ev {
             E::Statut(m) => ChatEvent::Status { message: m },
             E::Escale { avant, apres } => ChatEvent::Compaction {
                 messages_before: avant,
                 messages_after: apres,
             },
-            // Itinéraire du moteur → barre de plan UI (statuts inclus). Couvre le cas des
-            // modèles qui posent/màj leur plan via l'outil natif `plan` (aucun bloc <plan>
-            // texte n'est alors émis, la barre restait figée à 0/N).
+            // ItinÃ©raire du moteur â†’ barre de plan UI (statuts inclus). Couvre le cas des
+            // modÃ¨les qui posent/mÃ j leur plan via l'outil natif `plan` (aucun bloc <plan>
+            // texte n'est alors Ã©mis, la barre restait figÃ©e Ã  0/N).
             E::Itineraire { etapes } => ChatEvent::Plan {
                 items: etapes
                     .into_iter()
@@ -923,7 +962,7 @@ impl but::Emetteur for EmetteurPont {
     }
 }
 
-// ───────────────────────── Source (memory) ─────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Source (memory) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 struct SourcePont {
     mem: Arc<dyn MemoireCognitive>,
@@ -1014,7 +1053,7 @@ impl but::Source for SourcePont {
     }
 }
 
-// ───────────────────────── Curateur (auto-skills & tools) ─────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Curateur (auto-skills & tools) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// Tools allowed to the curateur (whitelist). Everything else is disabled for this sub-run.
 const CURATEUR_OUTILS: &[&str] = &[
@@ -1344,7 +1383,7 @@ pub async fn lancer_curateur_arriere_plan(
         "Curateur",
         "curator",
         "started a capability review",
-        "(arrière-plan)",
+        "(arriÃ¨re-plan)",
         chrono::Utc::now(),
     );
 
@@ -1364,7 +1403,7 @@ pub async fn lancer_curateur_arriere_plan(
          === MISSION TRANSCRIPT ===\n{transcript}"
     );
     // Phase 2 of the tool stats: the curateur SEES which tools struggle with this
-    // model (cumulative reliability). Attention re-ranking only — its prompt requires
+    // model (cumulative reliability). Attention re-ranking only â€” its prompt requires
     // transcript evidence before touching anything.
     if let Some(digest) = crate::stats_outils::globales().digest_problemes(&config.model, 8) {
         revue.push_str(&format!(
@@ -1373,10 +1412,10 @@ pub async fn lancer_curateur_arriere_plan(
     }
     let mut carnet = but::Carnet::ouvrir(revue, but::ModeMission::Standard, chrono::Utc::now());
 
-    // CANAL PRIVÉ drainé : le curateur est un réviseur d'arrière-plan (« the main conversation is
-    // untouched by you ») — ses Token/Plan/ToolResult ne doivent JAMAIS fuir dans le chat de
-    // l'utilisateur (bug observé : son monologue s'affichait comme une réponse). Seuls les deux
-    // messages de Status début/fin passent sur le vrai `tx`.
+    // CANAL PRIVÃ‰ drainÃ© : le curateur est un rÃ©viseur d'arriÃ¨re-plan (Â« the main conversation is
+    // untouched by you Â») â€” ses Token/Plan/ToolResult ne doivent JAMAIS fuir dans le chat de
+    // l'utilisateur (bug observÃ© : son monologue s'affichait comme une rÃ©ponse). Seuls les deux
+    // messages de Status dÃ©but/fin passent sur le vrai `tx`.
     let (tx_prive, mut rx_prive) = broadcast::channel::<ChatEvent>(64);
     tokio::spawn(async move { while rx_prive.recv().await.is_ok() {} });
 
@@ -1391,8 +1430,9 @@ pub async fn lancer_curateur_arriere_plan(
         max_tokens: config.max_tokens,
         tx: tx_prive.clone(),
         credential_pool: config.credential_pool.clone(),
+        effort: config.reasoning_effort_aux.clone(), // background reviewer
     };
-    let emet = EmetteurPont { tx: tx_prive.clone() };
+    let emet = EmetteurPont::parent(tx_prive.clone());
     let outils = OutilsCurateur {
         registry,
         config,
@@ -1401,13 +1441,13 @@ pub async fn lancer_curateur_arriere_plan(
     };
 
     let _ = tx.send(ChatEvent::Status {
-        message: "🐝 Curateur: reviewing capabilities in the background...".into(),
+        message: "ðŸ Curateur: reviewing capabilities in the background...".into(),
     });
     let depart = std::time::Instant::now();
     match but::butiner(&mut carnet, &reglages, &four, &outils, &emet, None, None, None).await {
         Ok(b) => {
             let _ = tx.send(ChatEvent::Status {
-                message: format!("🐝 Curateur: {}", b.texte.chars().take(160).collect::<String>()),
+                message: format!("ðŸ Curateur: {}", b.texte.chars().take(160).collect::<String>()),
             });
         }
         Err(e) => tracing::warn!(error = %e, "curateur failed"),
@@ -1423,7 +1463,7 @@ pub async fn lancer_curateur_arriere_plan(
     );
 }
 
-// ───────────────────────── Facade ─────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ Facade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// Frames recalled memory as **reference data**, never as instructions.
 /// Anti-drift observed with gemma e4B: unrelated nodes (watches, other projects)
@@ -1438,7 +1478,7 @@ fn memoire_reference(ctx: &str) -> String {
             !u.contains("NOUVELLE MISSION")
                 && !u.contains("IGNORE LE PLAN")
                 && !u.contains("IGNORE THE PLAN")
-                && !u.contains("IGNORE LES ÉTAPES")
+                && !u.contains("IGNORE LES Ã‰TAPES")
                 && !u.contains("IGNORE LES ETAPES")
                 && !u.contains("IGNORE THE PREVIOUS")
         })
@@ -1447,10 +1487,10 @@ fn memoire_reference(ctx: &str) -> String {
     if nettoye.trim().is_empty() {
         return String::new();
     }
-    // La ligne « [Current date and time: …] » (préfixée à l'éphémère par contexte.rs) ne doit PAS
-    // tomber sous le disclaimer « REFERENCE DATA - not instructions », qui la neutralise : le modèle
-    // retombe alors sur la date de son entraînement (observé : recherche « coupe du monde 2022 » en
-    // juillet 2026). On l'extrait et on l'émet AU-DESSUS, avec un cadrage autoritaire.
+    // La ligne Â« [Current date and time: â€¦] Â» (prÃ©fixÃ©e Ã  l'Ã©phÃ©mÃ¨re par contexte.rs) ne doit PAS
+    // tomber sous le disclaimer Â« REFERENCE DATA - not instructions Â», qui la neutralise : le modÃ¨le
+    // retombe alors sur la date de son entraÃ®nement (observÃ© : recherche Â« coupe du monde 2022 Â» en
+    // juillet 2026). On l'extrait et on l'Ã©met AU-DESSUS, avec un cadrage autoritaire.
     let (dates, corps): (Vec<&str>, Vec<&str>) = nettoye
         .lines()
         .partition(|l| l.trim_start().starts_with("[Current date and time:"));
@@ -1666,7 +1706,7 @@ pub async fn executer_avec_bilan(
         systeme.push_str("\n\n");
         systeme.push_str(but::PROTOCOLE_EXPLORATION);
         let _ = tx.send(ChatEvent::Status {
-            message: "🔎 Deep-research mode (exploration): scout fan-out protocol active.".into(),
+            message: "ðŸ”Ž Deep-research mode (exploration): scout fan-out protocol active.".into(),
         });
     }
 
@@ -1692,7 +1732,7 @@ pub async fn executer_avec_bilan(
         ..but::Reglages::default()
     };
 
-    // Debug 👁: emits the real context (system prompt + message) for the "view the sent
+    // Debug ðŸ‘: emits the real context (system prompt + message) for the "view the sent
     // message" button on the user bubble (the old engine emitted it, butinage not yet).
     let _ = tx.send(ChatEvent::PromptDebug {
         payload: serde_json::json!([
@@ -1741,6 +1781,7 @@ pub async fn executer_avec_bilan(
         max_tokens: config.max_tokens,
         tx: tx.clone(),
         credential_pool: config.credential_pool.clone(),
+        effort: config.reasoning_effort.clone(),
     };
     // Approval channel (UI popup) shared with the tools via Mutex (sequential mutating
     // execution: no contention). `None` => Ask tools executed without confirmation.
@@ -1756,7 +1797,7 @@ pub async fn executer_avec_bilan(
         memoire: memoire.clone(),
         delegations: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
     };
-    let emet = EmetteurPont { tx: tx.clone() };
+    let emet = EmetteurPont::parent(tx.clone());
 
     // Injected memory (consolidation + just-in-time recall) if available.
     let source_pont = memoire.as_ref().map(|m| SourcePont::nouveau(m.clone()));
@@ -1917,10 +1958,10 @@ pub async fn executer_avec_bilan(
         }
     }
 
-    // Filet : un vol peut se terminer SANS texte final (dernière passe purement outil,
-    // budget/plafond atteint juste après). Retomber sur le dernier texte assistant non vide
-    // du carnet plutôt que de renvoyer une réponse vide (observé : LaReine « rework returned
-    // an empty answer » → l'appelant jetait tout le travail du vol).
+    // Filet : un vol peut se terminer SANS texte final (derniÃ¨re passe purement outil,
+    // budget/plafond atteint juste aprÃ¨s). Retomber sur le dernier texte assistant non vide
+    // du carnet plutÃ´t que de renvoyer une rÃ©ponse vide (observÃ© : LaReine Â« rework returned
+    // an empty answer Â» â†’ l'appelant jetait tout le travail du vol).
     let mut texte = bilan.texte.clone();
     if texte.trim().is_empty() {
         if let Some(m) = carnet
@@ -2021,6 +2062,7 @@ pub async fn reprendre_carnet(
         max_tokens: config.max_tokens,
         tx: tx.clone(),
         credential_pool: config.credential_pool.clone(),
+        effort: config.reasoning_effort.clone(),
     };
     let outils = OutilsPont {
         registry,
@@ -2033,7 +2075,7 @@ pub async fn reprendre_carnet(
         memoire: memoire.clone(),
         delegations: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
     };
-    let emet = EmetteurPont { tx: tx.clone() };
+    let emet = EmetteurPont::parent(tx.clone());
     let source_pont = memoire.as_ref().map(|m| SourcePont::nouveau(m.clone()));
     let source: Option<&dyn but::Source> = source_pont.as_ref().map(|s| s as &dyn but::Source);
 
@@ -2174,7 +2216,7 @@ mod tests_prelude {
     #[test]
     fn prelude_multimodal_garde_le_texte_sans_re_envoyer_les_images() {
         let session = vec![crate::Message::UserMultimodal {
-            text: "décris cette image".into(),
+            text: "dÃ©cris cette image".into(),
             attachments: vec![crate::session::Attachment {
                 kind: "image".into(),
                 mime_type: "image/png".into(),
@@ -2184,7 +2226,7 @@ mod tests_prelude {
         }];
         let p = prelude_butinage(&session);
         assert_eq!(p.len(), 1);
-        assert_eq!(p[0].contenu, "décris cette image");
+        assert_eq!(p[0].contenu, "dÃ©cris cette image");
         assert!(p[0].pieces.is_empty(), "images from old turns are not re-sent");
     }
 }

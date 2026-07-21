@@ -67,6 +67,17 @@ pub struct EssaimConfig {
     /// autonomous runs must keep working — but recommended for exposed nodes.
     #[serde(default)]
     pub approbation_stricte: bool,
+    /// **Reasoning effort** for thinking-capable models (`minimal|low|medium|high|max|
+    /// ultra`, provider-dependent). Empty = the provider default. Mapped per backend:
+    /// `reasoning_effort` (OpenAI), a thinking budget (Anthropic), `reasoning.effort`
+    /// (Codex); ignored by backends that have no such knob.
+    #[serde(default)]
+    pub reasoning_effort: String,
+    /// Effort for AUXILIARY tasks (curateur, judge, compaction, memory extraction).
+    /// Empty = no thinking: a background pass must never burn a deep-reasoning
+    /// budget. Kept separate from the main one on purpose.
+    #[serde(default)]
+    pub reasoning_effort_aux: String,
     /// Origin channel of the current run (e.g. `telegram:12345`, `discord:bob`, `web`). Runtime
     /// only (never persisted): lets tools (`cron_create`) know where the request came from
     /// and route the recurring output back there.
@@ -223,6 +234,8 @@ impl Default for EssaimConfig {
             curateur_actif: false,
             smart_approvals: true,
             approbation_stricte: false,
+            reasoning_effort: String::new(),
+            reasoning_effort_aux: String::new(),
             origin_channel: None,
             home_channel: None,
             dynamic_tool_selection: false,

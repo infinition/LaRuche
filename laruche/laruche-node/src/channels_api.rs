@@ -273,6 +273,10 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
     > = Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new()));
     info!("Telegram bot polling started");
 
+    // Delivery registry: an answer produced but never delivered (crash/restart
+    // between "the answer exists" and "Telegram accepted it") is re-sent now.
+    crate::outbox::rejouer(Some(token)).await;
+
     loop {
         let url = format!("{}/getUpdates?offset={}&timeout=30", api, offset);
         match client.get(&url).send().await {
@@ -968,7 +972,16 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                 };
                                 if !voice_sent {
                                     for chunk in &chunks {
-                                        if let Err(error) = send_telegram_text(
+                                        // Delivery registry: the answer is recorded BEFORE the
+                                        // send and cleared only once Telegram accepted it. A
+                                        // crash in between re-sends it at the next boot instead
+                                        // of losing the whole turn's work.
+                                        let billet = crate::outbox::enregistrer(
+                                            "telegram",
+                                            &chat_id.to_string(),
+                                            chunk,
+                                        );
+                                        match send_telegram_text(
                                             &client_clone,
                                             &api_clone,
                                             chat_id,
@@ -976,7 +989,10 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                         )
                                         .await
                                         {
-                                            tracing::error!(error = %error, chat_id, "Telegram final response failed to send");
+                                            Ok(()) => crate::outbox::confirmer(&billet),
+                                            Err(error) => {
+                                                tracing::error!(error = %error, chat_id, "Telegram final response failed to send (kept in the outbox)");
+                                            }
                                         }
                                     }
                                 }

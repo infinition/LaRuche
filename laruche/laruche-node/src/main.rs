@@ -17,6 +17,7 @@ mod auth_user;
 mod local_inference;
 mod mcp;
 mod missions;
+mod outbox;
 mod profiles;
 mod secrets_vault;
 mod sync;

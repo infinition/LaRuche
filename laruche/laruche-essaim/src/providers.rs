@@ -76,7 +76,31 @@ fn finaliser_tool_calls(
     Some(calls.into_iter().map(|(_, c)| c).collect())
 }
 
+/// Reasoning effort asked of a thinking-capable model. Provider-neutral here;
+/// each backend maps it to its own knob (`reasoning_effort` for OpenAI/Codex,
+/// a `thinking` budget for Anthropic). Free-form so a new level (`max`,
+/// `ultra`...) works without a code change.
+///
+/// The point is **granularity**: a MoA advisor should think hard while the
+/// synthesizer answers fast, and a background task (curateur, judge) should
+/// never burn a deep-reasoning budget.
+pub type Effort<'a> = Option<&'a str>;
+
+/// Token budget granted to Anthropic "extended thinking" per effort level.
+/// `None` = no thinking block (the model answers directly).
+fn budget_pensee(effort: &str) -> Option<u32> {
+    match effort.trim().to_lowercase().as_str() {
+        "none" | "off" | "minimal" => None,
+        "low" => Some(4_000),
+        "medium" => Some(10_000),
+        "high" => Some(24_000),
+        "max" | "ultra" => Some(48_000),
+        _ => None,
+    }
+}
+
 /// Unified streaming entry point: dispatches to the correct provider.
+#[allow(clippy::too_many_arguments)]
 pub async fn provider_chat_stream(
     provider: &str,
     model: &str,
@@ -88,20 +112,43 @@ pub async fn provider_chat_stream(
     ollama_url: &str,
     tools: Option<&[serde_json::Value]>,  // new parameter
 ) -> Result<Pin<Box<dyn Stream<Item = OllamaChunk> + Send>>> {
+    provider_chat_stream_effort(
+        provider, model, messages, temperature, max_tokens, api_key, api_base, ollama_url, tools,
+        None,
+    )
+    .await
+}
+
+/// Same, with an explicit **reasoning effort**. Callers that care (the main
+/// butinage loop, MoA roles) use this one; everything else keeps the plain
+/// entry point, which passes `None`.
+#[allow(clippy::too_many_arguments)]
+pub async fn provider_chat_stream_effort(
+    provider: &str,
+    model: &str,
+    messages: &[serde_json::Value],
+    temperature: f32,
+    max_tokens: u32,
+    api_key: &str,
+    api_base: Option<&str>,
+    ollama_url: &str,
+    tools: Option<&[serde_json::Value]>,
+    effort: Effort<'_>,
+) -> Result<Pin<Box<dyn Stream<Item = OllamaChunk> + Send>>> {
     match provider {
         "openai" | "miel" => {
-            openai_chat_stream(model, messages, temperature, max_tokens, api_key, api_base, tools).await
+            openai_chat_stream(model, messages, temperature, max_tokens, api_key, api_base, tools, effort).await
         }
         // llama.cpp `llama-server` (OpenAI-compatible, local, no key). Default base
         // matches the local launch scripts (port 8001); override via api_base.
         "llamacpp" | "llama.cpp" | "llama-server" => {
             let base = api_base.or(Some("http://127.0.0.1:8001"));
-            openai_chat_stream(model, messages, temperature, max_tokens, api_key, base, tools).await
+            openai_chat_stream(model, messages, temperature, max_tokens, api_key, base, tools, effort).await
         }
         "anthropic" => {
-            anthropic_chat_stream(model, messages, temperature, max_tokens, api_key, api_base, tools).await
+            anthropic_chat_stream(model, messages, temperature, max_tokens, api_key, api_base, tools, effort).await
         }
-        "codex" => codex_chat_stream(model, messages, temperature, max_tokens, api_base).await,
+        "codex" => codex_chat_stream(model, messages, temperature, max_tokens, api_base, effort).await,
         _ => ollama_chat_stream(ollama_url, model, messages, temperature, max_tokens, tools).await,
     }
 }
@@ -116,6 +163,7 @@ fn mesh_headers(path: &str) -> Vec<(String, String)> {
 
 // ─── OpenAI-compatible streaming (Deepseek, Together, Groq, etc.) ────────────
 
+#[allow(clippy::too_many_arguments)]
 async fn openai_chat_stream(
     model: &str,
     messages: &[serde_json::Value],
@@ -124,6 +172,7 @@ async fn openai_chat_stream(
     api_key: &str,
     api_base: Option<&str>,
     tools: Option<&[serde_json::Value]>,
+    effort: Effort<'_>,
 ) -> Result<Pin<Box<dyn Stream<Item = OllamaChunk> + Send>>> {
     let api_key = api_key.trim();
     let base = normalize_base_url(api_base.unwrap_or("https://api.openai.com"));
@@ -222,6 +271,11 @@ async fn openai_chat_stream(
     // Ask for real token usage on the final stream chunk (OpenAI, Groq, Deepseek, ...).
     // Without this, streaming responses carry no usage and the gauge falls back to estimates.
     body["stream_options"] = serde_json::json!({ "include_usage": true });
+    // Reasoning effort (thinking models). Unknown values are forwarded as-is: a new
+    // level ships without a code change; backends that ignore the field are unaffected.
+    if let Some(e) = effort.map(str::trim).filter(|e| !e.is_empty()) {
+        body["reasoning_effort"] = serde_json::json!(e);
+    }
     // Send native tool definitions (OpenAI format)
     if let Some(tools_list) = tools {
         let openai_tools = convertir_tools_openai(tools_list);
@@ -411,6 +465,7 @@ async fn openai_chat_stream(
 
 // ─── Anthropic (Claude) streaming ──────────────────────────────────────────
 
+#[allow(clippy::too_many_arguments)]
 async fn anthropic_chat_stream(
     model: &str,
     messages: &[serde_json::Value],
@@ -419,6 +474,7 @@ async fn anthropic_chat_stream(
     api_key: &str,
     api_base: Option<&str>,
     tools: Option<&[serde_json::Value]>,
+    effort: Effort<'_>,
 ) -> Result<Pin<Box<dyn Stream<Item = OllamaChunk> + Send>>> {
     let api_key = api_key.trim();
     let base = normalize_base_url(api_base.unwrap_or("https://api.anthropic.com"));
@@ -520,6 +576,13 @@ async fn anthropic_chat_stream(
     });
     if !system_blocks.is_empty() {
         body["system"] = serde_json::json!(system_blocks);
+    }
+    // Extended thinking: Anthropic takes a token BUDGET, not a level. It must stay
+    // below max_tokens, and the API requires temperature=1 when thinking is on.
+    if let Some(budget) = effort.and_then(budget_pensee) {
+        let budget = budget.min(anthropic_max.saturating_sub(1024).max(1024));
+        body["thinking"] = serde_json::json!({ "type": "enabled", "budget_tokens": budget });
+        body["temperature"] = serde_json::json!(1);
     }
 
     // Anthropic also supports native tool calling, with a slightly different format
@@ -679,6 +742,7 @@ async fn codex_chat_stream(
     temperature: f32,
     max_tokens: u32,
     api_base: Option<&str>,
+    effort: Effort<'_>,
 ) -> Result<Pin<Box<dyn Stream<Item = OllamaChunk> + Send>>> {
     use crate::codex_auth;
     let _ = (temperature, max_tokens);
@@ -736,6 +800,10 @@ async fn codex_chat_stream(
     });
     if !instructions.trim().is_empty() {
         body["instructions"] = serde_json::json!(instructions.trim());
+    }
+    // Codex Responses API: reasoning effort travels in its own object.
+    if let Some(e) = effort.map(str::trim).filter(|e| !e.is_empty()) {
+        body["reasoning"] = serde_json::json!({ "effort": e });
     }
 
     let client = reqwest::Client::new();

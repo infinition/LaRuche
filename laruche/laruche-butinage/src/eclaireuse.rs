@@ -138,8 +138,14 @@ pub async fn depecher(
             systeme_parent.trim_end(),
             ordre.role.directive()
         ),
-        chemin_carnet: None, // the child does not need a disk checkpoint
-        supervision: None,   // the parent's Tier 3 watches the PARENT, not the child
+        // Checkpoint the child too when the parent has one: a crash mid-fan-out
+        // (scouts can run for minutes) otherwise loses every finding they had
+        // already gathered, with no trace left to inspect or resume.
+        chemin_carnet: reglages_parent.chemin_carnet.as_ref().map(|p| {
+            let suffixe = uuid::Uuid::new_v4().simple().to_string();
+            p.with_extension(format!("scout-{}.json", &suffixe[..8]))
+        }),
+        supervision: None, // the parent's Tier 3 watches the PARENT, not the child
         delegation_disponible: false, // anti-recursion: nudges must not suggest a fan-out
         rappel_initial: true, // scouts start WITH memory: past findings, known dead ends
         ..reglages_parent.clone()
@@ -165,6 +171,12 @@ pub async fn depecher(
         annulation,
     )
     .await?;
+
+    // The sub-mission is over: its checkpoint has served its purpose (crash
+    // recovery DURING the run) and must not pile up on disk.
+    if let Some(p) = &reglages_enfant.chemin_carnet {
+        let _ = std::fs::remove_file(p);
+    }
 
     Ok(Rapport {
         tache: ordre.tache,
