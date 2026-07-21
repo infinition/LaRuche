@@ -205,23 +205,50 @@ impl ActiveContextStats {
                     self.running = true;
                 }
             }
-            ChatEvent::ToolCall { name, args, .. } => {
+            ChatEvent::ToolCall { name, args, agent, .. } => {
                 if self.streaming_response_open {
                     self.messages = self.messages.saturating_add(1);
                     self.streaming_response_open = false;
                 }
                 self.messages = self.messages.saturating_add(1);
-                self.extra_tokens = self
-                    .extra_tokens
-                    .saturating_add(approx_context_tokens(&format!("{name}{args}")));
+                // Sub-agent calls live in an isolated context (see ToolResult below).
+                if agent.is_none() {
+                    self.extra_tokens = self
+                        .extra_tokens
+                        .saturating_add(approx_context_tokens(&format!("{name}{args}")));
+                }
                 self.running = true;
             }
-            ChatEvent::ToolResult { name, result, .. } => {
+            ChatEvent::ToolResult { name, result, agent, .. } => {
                 self.messages = self.messages.saturating_add(1);
-                self.extra_tokens = self
-                    .extra_tokens
-                    .saturating_add(approx_context_tokens(&format!("{name}{result}")));
+                // A SUB-AGENT's tool result never enters the main context: it runs on
+                // an isolated context and only its compact report comes back. Counting
+                // it here inflated the gauge with work the main agent never sees
+                // (measured: a scout fan-out pushed the bar past 100%).
+                if agent.is_none() {
+                    self.extra_tokens = self
+                        .extra_tokens
+                        .saturating_add(approx_context_tokens(&format!("{name}{result}")));
+                }
                 self.running = true;
+            }
+            // COMPACTION: the engine just shrank its working context. Without this the
+            // estimate only ever grew — the bar sat at 105% while the real context had
+            // just been halved. Scale the accumulated estimate by the message ratio;
+            // the next provider `Usage` re-anchors it on the truth.
+            ChatEvent::Compaction {
+                messages_before,
+                messages_after,
+            } => {
+                let (avant, apres) = (*messages_before as u64, *messages_after as u64);
+                if avant > 0 && apres < avant {
+                    let garde = |v: u32| ((v as u64 * apres) / avant) as u32;
+                    self.extra_tokens = garde(self.extra_tokens);
+                    self.base_tokens = garde(self.base_tokens);
+                    self.streamed_chars =
+                        ((self.streamed_chars as u64 * apres) / avant) as usize;
+                    self.messages = apres as u32;
+                }
             }
             ChatEvent::Usage {
                 input_tokens,

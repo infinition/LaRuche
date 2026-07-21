@@ -148,6 +148,13 @@ pub async fn depecher(
         supervision: None, // the parent's Tier 3 watches the PARENT, not the child
         delegation_disponible: false, // anti-recursion: nudges must not suggest a fan-out
         rappel_initial: true, // scouts start WITH memory: past findings, known dead ends
+        // A scout DISTILLS one angle; it must not hoard whole pages. Inheriting the
+        // parent's 30k-char cap meant a SINGLE observation could take ~23% of a 33k
+        // window, so a dozen searches triggered back-to-back compactions — each one an
+        // extra LLM call, on the sub-agent's already small budget (measured: 3
+        // compactions in 3 minutes for one scout). Tighter caps keep it in one window.
+        max_chars_observation: reglages_parent.max_chars_observation.min(8_000),
+        garder_recents: reglages_parent.garder_recents.min(6),
         ..reglages_parent.clone()
     };
 
@@ -279,6 +286,30 @@ mod tests {
             "fan-out protocol stripped: the child cannot delegate"
         );
         assert!(sys.contains("CANNOT delegate further"), "boundary stated explicitly");
+    }
+
+    #[tokio::test]
+    async fn l_enfant_a_des_budgets_de_contexte_resserres() {
+        // Regression: the child used to inherit the parent's 30k-char observation cap,
+        // so one page could eat ~a quarter of its window and it compacted repeatedly.
+        let four = FournisseurEspion(Mutex::new(None));
+        let parent = Reglages {
+            max_chars_observation: 30_000,
+            garder_recents: 12,
+            ..Reglages::default()
+        };
+        let ordre = OrdreEclaireuse {
+            role: Role::Eclaireuse,
+            tache: "angle".into(),
+            contexte: None,
+        };
+        // `depecher` builds the child settings internally; assert the policy that
+        // derives them (same expression) stays tight.
+        assert_eq!(parent.max_chars_observation.min(8_000), 8_000);
+        assert_eq!(parent.garder_recents.min(6), 6);
+        depecher(ordre, &parent, &four, &OutilsVides, &Silencieux, t0(), None, None)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]

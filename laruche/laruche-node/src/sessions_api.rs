@@ -214,17 +214,61 @@ mod session_display_tests {
             name: "web_fetch".into(),
             args: serde_json::json!({"url":"https://example.test/long-page"}),
             iteration: Some(1),
+            agent: None,
         });
         stats.apply_event(&ChatEvent::ToolResult {
             name: "web_fetch".into(),
             result: "content ".repeat(200),
             success: true,
             elapsed_ms: Some(42),
+            agent: None,
         });
 
         assert!(stats.messages >= 4);
         assert!(stats.used_tokens() > 65);
         assert!(stats.running);
+    }
+
+    #[test]
+    fn la_compaction_fait_redescendre_la_jauge() {
+        let mut stats = ActiveContextStats {
+            messages: 14,
+            base_tokens: 20_000,
+            extra_tokens: 14_000,
+            running: true,
+            ..ActiveContextStats::default()
+        };
+        let avant = stats.used_tokens();
+        // The engine halves its working context: the gauge must follow it DOWN.
+        // Previously this event was ignored and the bar stayed pinned past 100%.
+        stats.apply_event(&ChatEvent::Compaction {
+            messages_before: 14,
+            messages_after: 6,
+        });
+        assert!(stats.used_tokens() < avant, "the gauge must drop after a compaction");
+        assert_eq!(stats.messages, 6);
+    }
+
+    #[test]
+    fn le_travail_des_sous_agents_ne_gonfle_pas_la_jauge() {
+        // A scout runs on an ISOLATED context: only its compact report reaches the
+        // main context. Counting its pages here pushed the bar past 100%.
+        let mut stats = ActiveContextStats {
+            messages: 1,
+            base_tokens: 1_000,
+            running: true,
+            ..ActiveContextStats::default()
+        };
+        let avant = stats.used_tokens();
+        stats.apply_event(&ChatEvent::ToolResult {
+            name: "web_deep_search".into(),
+            result: "page ".repeat(4000),
+            success: true,
+            elapsed_ms: Some(10),
+            agent: Some("Eclaireuse#1".into()),
+        });
+        assert_eq!(stats.used_tokens(), avant, "a scout's page is not the main context");
+        assert!(stats.messages > 1, "but it is still counted as activity");
     }
 }
 
