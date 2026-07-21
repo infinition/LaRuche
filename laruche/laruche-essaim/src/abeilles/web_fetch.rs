@@ -337,6 +337,7 @@ pub(crate) fn extraire_lisible(html: &str) -> String {
     use scraper::{Html, Selector};
     let doc = Html::parse_document(html);
     let mut best = String::new();
+    let mut meilleur_score = i64::MIN;
     for selector in [
         "article",
         "main",
@@ -351,8 +352,18 @@ pub(crate) fn extraire_lisible(html: &str) -> String {
             continue;
         };
         for node in doc.select(&sel) {
-            let text = html_to_text(&node.html());
-            if text.chars().count() > best.chars().count() {
+            let brut = node.html();
+            let text = html_to_text(&brut);
+            // LINK DENSITY (standard readability metric): pick the container with the
+            // most PROSE per link, not merely the largest one. Site navigation is a
+            // big block of tiny anchors and used to win on raw length alone (measured:
+            // a Nexus Mods page returned "My games / Your favourited games..." instead
+            // of the mod list). Links are NOT stripped - a page of download links is
+            // exactly what a scout is after; only the choice of container changes.
+            let liens = brut.matches("<a ").count() as i64;
+            let score = text.chars().count() as i64 - 40 * liens;
+            if score > meilleur_score {
+                meilleur_score = score;
                 best = text;
             }
         }
@@ -601,5 +612,34 @@ mod tests {
         let t = extraire_lisible(&html);
         assert!(t.contains("contenu utile"));
         assert!(!t.contains("menu"));
+    }
+
+    #[test]
+    fn readability_ecarte_la_navigation_dense_en_liens() {
+        // `main` = site chrome: LONGER than the article but made of tiny anchors
+        // (the real Nexus Mods case). Link density must make the article win.
+        let nav_links = (0..60)
+            .map(|i| format!("<a href=\"/x{i}\">Mod category {i}</a>"))
+            .collect::<String>();
+        let html = format!(
+            "<html><body><main>My games. Your favourited games will be displayed here. {nav_links}</main>\
+             <article><p>{}</p></article></body></html>",
+            "sauvegarde .dsparty documentee ".repeat(30)
+        );
+        let t = extraire_lisible(&html);
+        assert!(t.contains("sauvegarde .dsparty"), "the article wins: {t:.120}");
+        assert!(!t.contains("Your favourited games"), "nav chrome discarded");
+    }
+
+    #[test]
+    fn readability_garde_une_page_de_liens_utiles() {
+        // No prose competitor: a page that IS a list of download links must survive
+        // intact - stripping links would destroy exactly what a scout is after.
+        let liens = (0..12)
+            .map(|i| format!("<a href=\"/dl{i}\">savegame_pack_{i}.dsparty</a> "))
+            .collect::<String>();
+        let html = format!("<html><body><main>Downloads: {liens}</main></body></html>");
+        let t = extraire_lisible(&html);
+        assert!(t.contains("savegame_pack_0.dsparty"), "download links kept: {t:.160}");
     }
 }

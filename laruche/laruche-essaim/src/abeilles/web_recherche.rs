@@ -20,6 +20,70 @@ pub(crate) struct SearchResult {
 
 const UA: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
+/// Words that carry no discriminating power in a search query: dropping them is
+/// what turns a "keyword soup" back into a real query. FR + EN, plus the generic
+/// filler models love to pile on ("best", "site", "download"...).
+const MOTS_VIDES_REQUETE: &[&str] = &[
+    "le", "la", "les", "des", "de", "du", "un", "une", "et", "ou", "pour", "avec", "sur", "dans",
+    "par", "aux", "au", "en", "qui", "que", "the", "a", "an", "and", "or", "for", "with", "on",
+    "in", "of", "to", "best", "top", "site", "sites", "web", "online", "free", "download",
+    "downloads", "file", "files", "how", "comment", "trouver", "find", "search", "recherche",
+];
+
+/// Number of significant terms in a query (quoted phrases and `site:`-style
+/// operators count as one).
+pub fn termes_significatifs(query: &str) -> usize {
+    query
+        .split_whitespace()
+        .filter(|m| {
+            let m = m.trim_matches(|c: char| !c.is_alphanumeric() && c != ':' && c != '"');
+            !m.is_empty() && !MOTS_VIDES_REQUETE.contains(&m.to_lowercase().as_str())
+        })
+        .count()
+}
+
+/// Trims a keyword-soup query down to its `max` most discriminating terms:
+/// operators (`site:`, quoted phrases) first — they are the most selective —
+/// then the remaining significant words in their original order.
+pub fn resserrer_requete(query: &str, max: usize) -> String {
+    let mots: Vec<&str> = query.split_whitespace().collect();
+    let significatif = |m: &str| {
+        let t = m.trim_matches(|c: char| !c.is_alphanumeric() && c != ':' && c != '"');
+        !t.is_empty() && !MOTS_VIDES_REQUETE.contains(&t.to_lowercase().as_str())
+    };
+    let est_operateur = |m: &str| m.contains(':') || m.starts_with('"') || m.ends_with('"');
+    let mut gardes: Vec<&str> = mots.iter().copied().filter(|m| est_operateur(m)).collect();
+    for m in mots.iter().copied().filter(|m| !est_operateur(m) && significatif(m)) {
+        if gardes.len() >= max {
+            break;
+        }
+        gardes.push(m);
+    }
+    gardes.truncate(max.max(1));
+    gardes.join(" ")
+}
+
+/// Observation returned when a search yields NOTHING. A bare "no results" is a
+/// dead end: the model re-fires a variant of the same soup and burns its
+/// relaunches (measured: a 12-term scout query, 0 results, then a relaunch).
+/// Here the observation DIAGNOSES the likely cause and hands back a ready query.
+pub fn conseil_recherche_vide(query: &str) -> String {
+    let n = termes_significatifs(query);
+    if n <= 5 {
+        return format!(
+            "No results for: {query}\nThe query is already short. Try DIFFERENT wording \
+             (synonyms, the other language), a narrower source (`site:archive.org ...`, \
+             `site:reddit.com ...`), or a related angle - not the same words again."
+        );
+    }
+    format!(
+        "No results for: {query}\nCAUSE: this query has {n} significant terms - search \
+         engines return nothing for keyword soup. Retry with 2-5 core terms, then refine.\n\
+         Suggested: `{}`",
+        resserrer_requete(query, 4)
+    )
+}
+
 fn domain_of(url: &str) -> String {
     url.split("://")
         .nth(1)
@@ -113,7 +177,8 @@ impl Abeille for WebSearch {
 
         if results.is_empty() {
             return Ok(ResultatAbeille::ok(format!(
-                "No results for: \"{query}\". If the information is unavailable, tell the user honestly."
+                "{}\nIf the information is genuinely unavailable after real variation, say so honestly.",
+                conseil_recherche_vide(&query)
             )));
         }
 
@@ -484,6 +549,40 @@ fn strip_html_tags(html: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn compte_les_termes_significatifs() {
+        assert_eq!(termes_significatifs("dungeon siege save"), 3);
+        // Filler words do not inflate the count.
+        assert_eq!(termes_significatifs("find the best site for dungeon siege"), 2);
+        // The real soup observed in production (12+ terms).
+        let soupe = "Dungeon Siege 1 save files mods custom items .dsparty .DSSAVE Nexus Mods RPG modding forums";
+        assert!(termes_significatifs(soupe) >= 10, "soup detected");
+    }
+
+    #[test]
+    fn resserre_en_gardant_les_operateurs() {
+        let soupe = "Dungeon Siege 1 save files mods custom items .dsparty .DSSAVE Nexus Mods";
+        let court = resserrer_requete(soupe, 4);
+        assert_eq!(court.split_whitespace().count(), 4);
+        assert!(court.starts_with("Dungeon Siege"), "order preserved: {court}");
+        // Operators are the most selective: they are kept first.
+        let avec_op = resserrer_requete("site:archive.org dungeon siege save files mods custom", 3);
+        assert!(avec_op.starts_with("site:archive.org"), "{avec_op}");
+        assert_eq!(avec_op.split_whitespace().count(), 3);
+    }
+
+    #[test]
+    fn conseil_diagnostique_la_soupe() {
+        let soupe = "Dungeon Siege 1 save files mods custom items .dsparty .DSSAVE Nexus Mods RPG modding forums";
+        let c = conseil_recherche_vide(soupe);
+        assert!(c.contains("keyword soup"), "{c}");
+        assert!(c.contains("Suggested:"), "hands back a ready query: {c}");
+        // A short query gets the OTHER advice (vary, do not shorten further).
+        let court = conseil_recherche_vide("dsparty savegame");
+        assert!(court.contains("already short"), "{court}");
+        assert!(!court.contains("keyword soup"));
+    }
 
     #[test]
     fn domain_extraction() {

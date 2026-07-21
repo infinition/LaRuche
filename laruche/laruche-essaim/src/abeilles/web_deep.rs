@@ -79,10 +79,11 @@ impl Abeille for WebDeepSearch {
         };
 
         if urls.is_empty() {
-            return Ok(ResultatAbeille::ok(format!(
-                "No results found for: {}",
-                query
-            )));
+            // Actionable coaching instead of a dead end: diagnose the keyword soup
+            // and hand back a tightened query (the prompt rule alone was ignored).
+            return Ok(ResultatAbeille::ok(
+                crate::abeilles::web_recherche::conseil_recherche_vide(query),
+            ));
         }
 
         let mut output = format!("# Deep Search: {}\n\n", query);

@@ -102,9 +102,15 @@ pub fn masquer(texte: &str) -> String {
 mod tests {
     use super::*;
 
+    /// The vault is a process-global: these tests MUST NOT run concurrently.
+    /// `substitue_...` calls `init()`, which replaces the whole map and used to
+    /// wipe the other test's entries mid-run (latent race: it only failed once
+    /// unrelated additions changed the scheduling). Serialize them explicitly.
+    static VERROU: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[test]
     fn masque_les_valeurs_du_coffre_dans_les_sorties() {
-        // definir() (not init) so the parallel test's map is not wiped.
+        let _g = VERROU.lock().unwrap_or_else(|e| e.into_inner());
         definir("MASK_TOKEN", "sk-abcdef123456");
         definir("MASK_COURT", "abc"); // < 6 chars: never masked (collisions)
         let sortie = "header Authorization: Bearer sk-abcdef123456 fin abc";
@@ -118,6 +124,7 @@ mod tests {
 
     #[test]
     fn substitue_les_references_connues_garde_les_autres() {
+        let _g = VERROU.lock().unwrap_or_else(|e| e.into_inner());
         let mut m = HashMap::new();
         m.insert("TOKEN_X".to_string(), "secret123".to_string());
         init(m);
