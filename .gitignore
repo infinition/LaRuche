@@ -13,6 +13,18 @@ node_modules/
 sessions/
 users/
 
+# État runtime par machine (jamais versionné)
+# - outbox: file de livraison en attente (transitoire par nature)
+# - stats-outils: télémétrie (modèle, outil) accumulée localement
+# - approbations: règles de refus + allowlist de classes auto-approuvées.
+#   Versionner une allowlist d'exécution serait un mauvais réflexe de sécurité.
+laruche/outbox.json
+laruche/stats-outils.json
+laruche/approbations.json
+outbox.json
+stats-outils.json
+approbations.json
+
 # OS / éditeurs
 .DS_Store
 Thumbs.db
