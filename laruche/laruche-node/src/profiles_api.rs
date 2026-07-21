@@ -271,9 +271,9 @@ fn codex_set_status(f: impl FnOnce(&mut CodexLoginStatus)) {
 }
 
 /// Models supported by Codex with a ChatGPT account (subscription).
-/// NB: the `*-codex` variants (gpt-5.4-codex...) are rejected with 400 on this
-/// backend: only general "chat" models are accepted.
-const CODEX_CHATGPT_MODELS: &[&str] = &["gpt-5.5", "gpt-5.4", "gpt-5.4-mini"];
+/// Keep this independent of the public API catalog: ChatGPT subscription access is
+/// entitlement-based and accepts the general GPT-5.6 model variants on this backend.
+const CODEX_CHATGPT_MODELS: &[&str] = &["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"];
 
 /// Auto-creates (or updates) the "codex" provider profile (ChatGPT subscription).
 pub(crate) async fn ensure_codex_profile(state: &Arc<AppState>) {
@@ -286,7 +286,7 @@ pub(crate) async fn ensure_codex_profile(state: &Arc<AppState>) {
             // (fixes a profile created with old unsupported models).
             p.provider = "codex".to_string();
             p.base_url = laruche_essaim::codex_auth::DEFAULT_CODEX_BASE_URL.to_string();
-            p.models = models;
+            p.models = models.clone();
         }
         None => {
             cfg.profiles.insert(
@@ -302,6 +302,15 @@ pub(crate) async fn ensure_codex_profile(state: &Arc<AppState>) {
                 },
             );
         }
+    }
+    // A profile refresh used to leave the global active selection on an old model
+    // (`gpt-5.4-mini`), even though that model had just disappeared from the picker.
+    // Land on the flagship current option when the active Codex model is no longer
+    // part of the supported subscription list.
+    if cfg.active_model.profile_id == id
+        && !CODEX_CHATGPT_MODELS.contains(&cfg.active_model.model.as_str())
+    {
+        cfg.active_model.model = CODEX_CHATGPT_MODELS[0].to_string();
     }
     let _ = profiles::save_profiles(&state.profiles_path, &cfg);
 }
