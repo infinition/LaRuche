@@ -277,7 +277,7 @@ pub async fn butiner(
 
         let mode_avant = carnet.mode;
         // Empreinte de l'itinéraire AVANT analyse : si l'appel `plan` (outil natif) le modifie,
-        // on notifie l'UI — sans ça la barre de plan ne bouge jamais avec les modèles qui
+        // on notifie l'UI - sans ça la barre de plan ne bouge jamais avec les modèles qui
         // émettent leur plan en tool call natif plutôt qu'en bloc <plan> texte.
         let itineraire_avant: Vec<(String, String)> = carnet
             .itineraire
@@ -441,8 +441,8 @@ pub async fn butiner(
 
 /// Character budget for a rendered transcript sent to an AUXILIARY call (compaction
 /// summary, consolidation extraction): half the model window, in calibrated chars.
-/// Without this cap the auxiliary call — fired precisely when the context is nearly
-/// FULL — would itself overflow the window and structurally always fail on small n_ctx.
+/// Without this cap the auxiliary call - fired precisely when the context is nearly
+/// FULL - would itself overflow the window and structurally always fail on small n_ctx.
 fn budget_rendu(reglages: &Reglages, jauge: &crate::cap::jauge::Jauge) -> usize {
     (reglages.context_max_tokens as f32 * 0.5 * jauge.chars_par_token()) as usize
 }
@@ -515,7 +515,7 @@ fn tronquer_historique(
         k += 1;
     }
     // Turn-boundary alignment: never let the kept window START with observations
-    // whose emitting assistant (carrying the tool calls) was just dropped — orphan
+    // whose emitting assistant (carrying the tool calls) was just dropped - orphan
     // tool_results force the adapter's text fallback and destabilize the prefix.
     while k + 1 < carnet.historique.len() && carnet.historique[k].role == Role::Observation {
         k += 1;
@@ -526,7 +526,7 @@ fn tronquer_historique(
 }
 
 /// Assembles the messages sent to the model: system (stable tier) + history + the
-/// findings ledger at the TAIL (outbound only, never persisted in the history —
+/// findings ledger at the TAIL (outbound only, never persisted in the history -
 /// and tail position keeps the cached prefix stable while staying maximally fresh
 /// in the model's attention).
 fn assembler(carnet: &Carnet, reglages: &Reglages) -> Vec<Message> {
@@ -698,7 +698,7 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet, profil: ProfilModele) 
     }
 
     // `research_mode`: the model SELF-DECLARES a long-running research once it has read
-    // the mission (more reliable than keyword gates on the user prompt). Intercepted —
+    // the mission (more reliable than keyword gates on the user prompt). Intercepted -
     // never executed as a tool. One-way escalation; declaring it is a productive act.
     let mut mode_declare = false;
     if let Some(pos) = appels.iter().position(|a| a.nom == "research_mode") {
@@ -707,7 +707,7 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet, profil: ProfilModele) 
         mode_declare = escalader_mode(carnet, mode);
     }
 
-    // `finding`: records a decisive fact (with source) into the mission LEDGER —
+    // `finding`: records a decisive fact (with source) into the mission LEDGER -
     // intercepted like `plan`, never executed as a tool. The ledger survives
     // compaction/truncation and is re-rendered at the tail of every context.
     let mut finding_trouve = false;
@@ -729,7 +729,7 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet, profil: ProfilModele) 
     // Explicit completion tools: `mission_accomplie` (native foraging) or `task_complete`
     // (already registered in LaRuche). Honored ONLY when they are the sole call: when
     // the model emits real work + completion in the same turn (e.g. [file_write,
-    // mission_accomplie]), the WORK executes first and the completion is dropped —
+    // mission_accomplie]), the WORK executes first and the completion is dropped -
     // the model will re-conclude next turn once the work is actually done.
     let est_fin = |a: &Appel| a.nom == "mission_accomplie" || a.nom == "task_complete";
     if appels.len() == 1 && est_fin(&appels[0]) {
@@ -779,10 +779,10 @@ fn analyser(reponse: &ReponseModele, carnet: &mut Carnet, profil: ProfilModele) 
 
     // Text-format heuristics (broken <tool_call> detection) are rails for weak models:
     // on native-tools profiles they only produce false positives (text that merely
-    // DISCUSSES json) — the native stop_reason is authoritative there.
+    // DISCUSSES json) - the native stop_reason is authoritative there.
     let heuristiques = profil != ProfilModele::NatifOutils;
     // stop=Outils with zero parsed calls: the provider says the model wanted tools but
-    // nothing was extractable — a strong malformed signal, whatever the profile.
+    // nothing was extractable - a strong malformed signal, whatever the profile.
     let stop_outils_vide = matches!(reponse.stop, StopReason::Outils);
     let tronquee = matches!(reponse.stop, StopReason::Longueur)
         || (heuristiques && bloc_outil_non_ferme(&reponse.texte));

@@ -27,7 +27,7 @@ Thumbs.db
 *.log
 /env_debug.txt
 
-# Secrets — NE JAMAIS versionner
+# Secrets - NE JAMAIS versionner
 /identity.json
 /mesh-secret.json
 /credentials.json
@@ -51,6 +51,9 @@ Thumbs.db
 /cli-config.json
 /knowledge-base.json
 /laruche.toml
+
+# Runtime output of LaReine's judge (regenerated on every run)
+/evals/reine-scorecards.jsonl
 
 # Temp / local scratch files
 *.tmp

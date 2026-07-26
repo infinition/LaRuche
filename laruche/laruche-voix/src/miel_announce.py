@@ -1,4 +1,4 @@
-"""Miel Protocol announcer — register this service on the local network via mDNS.
+"""Miel Protocol announcer - register this service on the local network via mDNS.
 
 Runs zeroconf in a background thread to avoid blocking the async event loop.
 """

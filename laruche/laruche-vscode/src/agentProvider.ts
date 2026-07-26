@@ -79,7 +79,7 @@ Each block must contain a valid JSON object with "name" and "args".
 
 ### read_file
 Read the contents of a file in the workspace.
-Args: path (string, required) — workspace-relative or absolute path.
+Args: path (string, required) - workspace-relative or absolute path.
 
 ### write_file
 Create or completely overwrite a file.
@@ -93,25 +93,25 @@ Args: path (string, required), old_text (string, required), new_text (string, re
 
 ### list_files
 List files in a directory with an optional glob pattern.
-Args: directory (string, required — relative or absolute), pattern (string, optional — glob like "*.ts").
+Args: directory (string, required - relative or absolute), pattern (string, optional - glob like "*.ts").
 
 ### search_files
 Search for text across workspace files (case-insensitive).
-Args: query (string, required), path (string, optional — restrict to a subdirectory).
+Args: query (string, required), path (string, optional - restrict to a subdirectory).
 
 ### batch_read_files
 Read multiple files at once in a single call (saves iterations).
-Args: paths (array of strings, required — list of file paths to read, max 10).
+Args: paths (array of strings, required - list of file paths to read, max 10).
 
 ### find_and_read
 List files matching a pattern AND read their contents in one call.
 This is much more efficient than calling list_files then read_file separately.
-Args: directory (string, required), pattern (string, optional — glob like "*.md"), max_files (number, optional — default 5, max 10).
+Args: directory (string, required), pattern (string, optional - glob like "*.md"), max_files (number, optional - default 5, max 10).
 
 ### project_structure
 Get a tree view of the project directory structure.
 Use this first when you need to understand the codebase layout.
-Args: directory (string, optional — default "."), max_depth (number, optional — default 3, max 5).
+Args: directory (string, optional - default "."), max_depth (number, optional - default 3, max 5).
 
 ### move
 Rename or move a file or directory. Also use this for renaming.
@@ -136,15 +136,15 @@ Args: path (string, required).
 
 ## Rules
 - Think step by step. Plan before coding.
-- You may call MULTIPLE tools in a single response — just include multiple <tool_call> blocks.
+- You may call MULTIPLE tools in a single response - just include multiple <tool_call> blocks.
 - After you receive tool results, continue reasoning and make more tool calls if needed.
 - When you are DONE (no more tool calls needed), write your final summary in plain text with NO <tool_call> blocks.
 - For file edits, prefer edit_file over write_file when modifying existing files.
 - Always read a file before editing it unless you just created it.
 - When creating new files, use write_file.
 - Never output <tool_call> blocks inside markdown code fences.
-- If a tool returns an error about file not found, check your path — remember to use workspace-relative paths without the workspace folder name prefix.
-- **Multi-file tasks**: Use find_and_read or batch_read_files to read multiple files at once — this is MUCH faster than reading files one by one. Use project_structure first to understand the codebase layout.
+- If a tool returns an error about file not found, check your path - remember to use workspace-relative paths without the workspace folder name prefix.
+- **Multi-file tasks**: Use find_and_read or batch_read_files to read multiple files at once - this is MUCH faster than reading files one by one. Use project_structure first to understand the codebase layout.
 `;
 }
 
@@ -185,7 +185,7 @@ function resolveWorkspacePath(filePath: string): vscode.Uri {
     if (normalized.startsWith(rootName + '/')) {
         const stripped = normalized.slice(rootName.length + 1);
         const candidate = path.join(root, stripped);
-        // Prefer the stripped version — but we'll validate at read time
+        // Prefer the stripped version - but we'll validate at read time
         return vscode.Uri.file(candidate);
     }
 
@@ -252,7 +252,7 @@ async function resolveWithFallback(filePath: string): Promise<vscode.Uri> {
         }
     }
 
-    // None exist — return the primary candidate (caller will get the ENOENT)
+    // None exist - return the primary candidate (caller will get the ENOENT)
     return unique[0];
 }
 
@@ -345,11 +345,11 @@ async function toolListFiles(args: Record<string, any>): Promise<ToolResult> {
         try {
             const stat = await vscode.workspace.fs.stat(uri);
             if (stat.type !== vscode.FileType.Directory) {
-                // It's a file — list its parent
+                // It's a file - list its parent
                 uri = vscode.Uri.file(path.dirname(uri.fsPath));
             }
         } catch {
-            // Directory doesn't exist — provide helpful error
+            // Directory doesn't exist - provide helpful error
             const root = getWorkspaceRoot() || '(unknown)';
             return {
                 name: 'list_files',
@@ -460,7 +460,7 @@ async function toolBatchReadFiles(args: Record<string, any>): Promise<ToolResult
 
     for (const filePath of filesToRead) {
         if (totalChars >= MAX_TOTAL) {
-            results.push(`\n━━━ ${filePath} ━━━\n[SKIPPED — total size limit reached]`);
+            results.push(`\n━━━ ${filePath} ━━━\n[SKIPPED - total size limit reached]`);
             continue;
         }
         try {
@@ -540,7 +540,7 @@ async function toolFindAndRead(args: Record<string, any>): Promise<ToolResult> {
 
         for (const { uri: fileUri, rel } of sorted) {
             if (totalChars >= MAX_TOTAL) {
-                results.push(`\n━━━ ${rel} ━━━\n[SKIPPED — size limit reached]`);
+                results.push(`\n━━━ ${rel} ━━━\n[SKIPPED - size limit reached]`);
                 continue;
             }
             try {
@@ -558,7 +558,7 @@ async function toolFindAndRead(args: Record<string, any>): Promise<ToolResult> {
         }
 
         if (files.length > sorted.length) {
-            results.push(`\n[${files.length - sorted.length} more file(s) not shown — increase max_files to see more]`);
+            results.push(`\n[${files.length - sorted.length} more file(s) not shown - increase max_files to see more]`);
         }
 
         return { name: 'find_and_read', success: true, result: results.join('\n') };
@@ -980,7 +980,7 @@ export class AgentProvider {
             if (content.length < MAX_FILE_READ_SIZE) {
                 conversation += `\n## Currently open file: ${fileName} (${lang})\n\`\`\`${lang}\n${content}\n\`\`\`\n\n`;
             } else {
-                conversation += `\n## Currently open file: ${fileName} (${lang}) — too large to include, use read_file to access it.\n\n`;
+                conversation += `\n## Currently open file: ${fileName} (${lang}) - too large to include, use read_file to access it.\n\n`;
             }
         }
 
@@ -993,7 +993,7 @@ export class AgentProvider {
         while (iteration < MAX_ITERATIONS) {
             iteration++;
 
-            onProgress({ type: 'agentProgress', text: `Iteration ${iteration}/${MAX_ITERATIONS} — thinking...` });
+            onProgress({ type: 'agentProgress', text: `Iteration ${iteration}/${MAX_ITERATIONS} - thinking...` });
 
             // Call the LLM
             let resp;
@@ -1009,7 +1009,7 @@ export class AgentProvider {
 
             const rawResponse = resp.response.trim();
 
-            // Handle empty responses — retry once with a nudge
+            // Handle empty responses - retry once with a nudge
             if (!rawResponse) {
                 onProgress({ type: 'agentProgress', text: 'Empty response from model, retrying...' });
                 conversation += '[The model returned an empty response. Please try again and provide a useful answer. If you need to use a tool, emit a <tool_call> block.]\n\n';
@@ -1159,7 +1159,7 @@ export class AgentProvider {
             const data = await vscode.workspace.fs.readFile(uri);
             originalContent = Buffer.from(data).toString('utf8');
         } catch {
-            // New file — no preview needed for write_file
+            // New file - no preview needed for write_file
             if (tc.name === 'write_file') { return true; }
         }
 
@@ -1177,7 +1177,7 @@ export class AgentProvider {
                 if (contentNorm.includes(oldNorm)) {
                     proposedContent = contentNorm.replace(oldNorm, newText);
                 } else {
-                    // Can't preview — let the tool handler report the error
+                    // Can't preview - let the tool handler report the error
                     return true;
                 }
             }
@@ -1191,7 +1191,7 @@ export class AgentProvider {
                 'vscode.diff',
                 origDoc.uri,
                 proposedDoc.uri,
-                `LaRuche Agent: ${tc.name} — ${filePath}`,
+                `LaRuche Agent: ${tc.name} - ${filePath}`,
                 { preview: true },
             );
         } catch {

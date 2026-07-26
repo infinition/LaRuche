@@ -394,7 +394,7 @@ impl MemoireCognitive for SqliteBackend {
             na + 0.3 * pa
         };
 
-        // Value/usage/freshness bonus — the "priority decay": an item never expires,
+        // Value/usage/freshness bonus - the "priority decay": an item never expires,
         // but a stored-important, frequently-recalled (Hebbian) or recently-updated
         // fact outranks a stale never-used one.
         let now_ts = now();
@@ -407,7 +407,7 @@ impl MemoireCognitive for SqliteBackend {
             let fraicheur = 0.1 * (-age_jours / 90.0).exp();
             valeur + usage + fraicheur
         };
-        // id -> (score, node, content) — semantic and lexical branches MERGE here
+        // id -> (score, node, content) - semantic and lexical branches MERGE here
         // (max score wins): an item without an embedding stays reachable via FTS.
         let mut fusion: std::collections::HashMap<i64, (f32, String, String)> =
             std::collections::HashMap::new();
@@ -540,7 +540,7 @@ impl MemoireCognitive for SqliteBackend {
 
     async fn write(&self, item: MemoryItem) -> Result<Value> {
         let emb_vec = self.embed_opt(&item.content).await;
-        // Facts do not rot with time — they rot when REPLACED. At write time:
+        // Facts do not rot with time - they rot when REPLACED. At write time:
         // exact duplicate (same node) -> no-op; near-duplicate (cosine > 0.88, same
         // node) -> the OLD version is marked `superseded` (kept for audit, excluded
         // from recall). This is what keeps the map clean without any hard decay.
@@ -562,7 +562,7 @@ impl MemoireCognitive for SqliteBackend {
                 // Supersede scope = the whole ROOT DOMAIN (`hardware.*`), not just the
                 // exact node: the model files the same fact under sibling nodes
                 // (observed: 4070 Ti in hardware.local_model_setup, its replacement
-                // 5080 in hardware.gpu — both stayed active). Same-node matches keep
+                // 5080 in hardware.gpu - both stayed active). Same-node matches keep
                 // the 0.88 threshold; cross-node needs a slightly stronger 0.90.
                 let domaine = format!(
                     "{}.%",
@@ -587,7 +587,7 @@ impl MemoireCognitive for SqliteBackend {
                         // Thresholds CALIBRATED on real nomic-embed-text measurements
                         // (2026-07-02): a same-fact PARAPHRASE lands at ~0.86 (0.88
                         // silently missed it), unrelated facts at ~0.48, and a fact
-                        // UPDATE (4070→5080) at ~0.71 — updates are a contradiction,
+                        // UPDATE (4070→5080) at ~0.71 - updates are a contradiction,
                         // not a similarity, so cosine alone cannot catch them.
                         let sim = cosine(qv, &blob_to_vec(&blob));
                         let seuil = if node == item.node_id { 0.83 } else { 0.85 };

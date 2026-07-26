@@ -63,8 +63,8 @@ pub struct EssaimConfig {
     #[serde(default = "vrai")]
     pub smart_approvals: bool,
     /// Fail-closed: when no human is reachable (cron, scout) and the call is still
-    /// unresolved, REFUSE instead of executing. Off by default — LaRuche's
-    /// autonomous runs must keep working — but recommended for exposed nodes.
+    /// unresolved, REFUSE instead of executing. Off by default - LaRuche's
+    /// autonomous runs must keep working - but recommended for exposed nodes.
     #[serde(default)]
     pub approbation_stricte: bool,
     /// **Reasoning effort** for thinking-capable models (`minimal|low|medium|high|max|

@@ -1,7 +1,7 @@
-"""LaRuche STT Service — Speech-to-Text via Whisper.
+"""LaRuche STT Service - Speech-to-Text via Whisper.
 
 Runs as a FastAPI server, announces itself on Miel with capability:stt.
-Accepts audio via POST /transcribe (file upload — WAV, WebM, MP3, etc.).
+Accepts audio via POST /transcribe (file upload - WAV, WebM, MP3, etc.).
 """
 
 import subprocess

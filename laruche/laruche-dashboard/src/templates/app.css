@@ -793,7 +793,7 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .honey-wave .bar:nth-child(3){animation-delay:.2s;background:#eab308} .honey-wave .bar:nth-child(4){animation-delay:.3s;background:#ca8a04}
 .honey-wave .bar:nth-child(5){animation-delay:.4s;background:#a16207}
 
-/* Markdown rendered — typographie aérée (la refonte sans-bulle avait tout tassé) */
+/* Markdown rendered - typographie aérée (la refonte sans-bulle avait tout tassé) */
 .message.assistant.rendered { white-space:normal; line-height:1.65; }
 .message.assistant h1,.message.assistant h2,.message.assistant h3,.message.assistant h4,.message.assistant h5 { margin:14px 0 6px; font-size:14.5px; font-weight:700; color:var(--amber); }
 .message.assistant h1 { font-size:19px; border-bottom:1px solid var(--border); padding-bottom:4px; }

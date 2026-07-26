@@ -61,7 +61,7 @@ pub trait Outils: Send + Sync {
 
     /// WEIGHT of a call toward the exploration effort counter (`recolte_web`).
     /// Default: 1 per web call. Adapters override it for calls that embody MORE
-    /// than one search — e.g. a `delegate` scout runs several real searches in its
+    /// than one search - e.g. a `delegate` scout runs several real searches in its
     /// own context, so counting it as 1 starves the parent's `min_web_exploration`
     /// and gets a perfect fan-out nudged for "not searching enough".
     fn poids_web(&self, appel: &Appel) -> usize {

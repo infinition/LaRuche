@@ -200,7 +200,7 @@ impl but::Fournisseur for FournisseurPont {
 /// - the matching observations become `{role:"tool", tool_call_id, name, content}`;
 /// - everything else (text-parsed local models whose `<tool_call>` blocks stay in the
 ///   text, prelude messages without ids, orphans created by compaction/truncation)
-///   falls back to the text rendering — native APIs reject unpaired calls/results,
+///   falls back to the text rendering - native APIs reject unpaired calls/results,
 ///   so the correlation pre-pass is what makes this safe.
 fn convertir_messages(messages: &[but::Message]) -> Vec<serde_json::Value> {
     use but::Role;
@@ -524,7 +524,7 @@ impl OutilsPont<'_> {
 
         // CHILD adapters: delegation disabled (anti-recursion).
         // CANAL PRIVÉ drainé pour les TOKENS et le PLAN du scout : plusieurs éclaireuses tournent
-        // en PARALLÈLE — si chacune streamait ses tokens sur le tx du chat, les flux s'entrelacent
+        // en PARALLÈLE - si chacune streamait ses tokens sur le tx du chat, les flux s'entrelacent
         // caractère par caractère dans la bulle (bug observé : réponse « zippée » illisible), et
         // leurs <plan> écrasaient la barre de plan du parent. Leurs ToolCall/ToolResult restent
         // sur le vrai tx (les chips « Recherche web · en cours » demeurent visibles).
@@ -552,7 +552,7 @@ impl OutilsPont<'_> {
         }
         // LIVE TRANSCRIPT of the scout: its statuses reach the chat prefixed with its
         // identity (a fan-out used to be a black box for minutes), while its raw
-        // tokens/plan stay on the private channel — several scouts stream in parallel.
+        // tokens/plan stay on the private channel - several scouts stream in parallel.
         let numero = self.delegations.load(std::sync::atomic::Ordering::Relaxed);
         let identite = format!("{role:?}#{numero}");
         let outils_enfant = OutilsPont {
@@ -631,7 +631,7 @@ impl but::Outils for OutilsPont<'_> {
     async fn executer(&self, appel: &but::Appel) -> but::ResultatOutil {
         if self.disabled.iter().any(|d| d == &appel.nom) {
             // Delegation blocked (sub-agent anti-recursion, or disabled in Settings):
-            // the message must REDIRECT the model, not just refuse — otherwise it
+            // the message must REDIRECT the model, not just refuse - otherwise it
             // retries delegate instead of doing the work directly.
             if OUTILS_DELEGATION.contains(&appel.nom.as_str()) {
                 return self.bloquer(
@@ -934,7 +934,7 @@ impl but::Emetteur for EmetteurPont {
     fn emettre(&self, ev: but::Evenement) {
         use but::Evenement as E;
         // Sub-agent: forward a READABLE transcript (statuses, escales) prefixed with
-        // its identity, but never its plan. Raw token streaming stays private —
+        // its identity, but never its plan. Raw token streaming stays private -
         // parallel scouts would interleave char by char in the bubble.
         if let Some(etiq) = &self.etiquette {
             let msg = match ev {
@@ -1418,7 +1418,7 @@ pub async fn lancer_curateur_arriere_plan(
          === MISSION TRANSCRIPT ===\n{transcript}"
     );
     // Phase 2 of the tool stats: the curateur SEES which tools struggle with this
-    // model (cumulative reliability). Attention re-ranking only — its prompt requires
+    // model (cumulative reliability). Attention re-ranking only - its prompt requires
     // transcript evidence before touching anything.
     if let Some(digest) = crate::stats_outils::globales().digest_problemes(&config.model, 8) {
         revue.push_str(&format!(
@@ -1428,7 +1428,7 @@ pub async fn lancer_curateur_arriere_plan(
     let mut carnet = but::Carnet::ouvrir(revue, but::ModeMission::Standard, chrono::Utc::now());
 
     // CANAL PRIVÉ drainé : le curateur est un réviseur d'arrière-plan (« the main conversation is
-    // untouched by you ») — ses Token/Plan/ToolResult ne doivent JAMAIS fuir dans le chat de
+    // untouched by you ») - ses Token/Plan/ToolResult ne doivent JAMAIS fuir dans le chat de
     // l'utilisateur (bug observé : son monologue s'affichait comme une réponse). Seuls les deux
     // messages de Status début/fin passent sur le vrai `tx`.
     let (tx_prive, mut rx_prive) = broadcast::channel::<ChatEvent>(64);

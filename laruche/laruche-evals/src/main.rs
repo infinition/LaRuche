@@ -4,7 +4,7 @@
 //! tools) and judges each run with hard checks: terminal reason, mission mode, web
 //! effort, scout fan-out, pass count, forbidden "resignation" phrasing, produced
 //! files. Prints a markdown table, writes JSONL results, and diffs against a saved
-//! baseline — so every engine/prompt change is MEASURED, not vibed.
+//! baseline - so every engine/prompt change is MEASURED, not vibed.
 //!
 //! Usage (from the workspace root, with your provider reachable):
 //! ```text
@@ -55,7 +55,7 @@ const DEMISSIONS: &[&str] = &[
 struct Verifs {
     /// Expected terminal reason (accomplie | plafond | erreur | ...).
     fin_attendue: Option<String>,
-    /// Expected final mode (standard | exploration) — tests the mode-decision channels.
+    /// Expected final mode (standard | exploration) - tests the mode-decision channels.
     mode_attendu: Option<String>,
     /// Web-effort floor (searches + dispatched scouts).
     min_web: Option<usize>,
@@ -111,7 +111,7 @@ struct Resultat {
     duree_s: f64,
     /// Names of the checks that failed (empty when ok).
     echecs: Vec<String>,
-    /// The agent resigned (handed work back / asked permission) — reported always.
+    /// The agent resigned (handed work back / asked permission) - reported always.
     demission: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     juge: Option<serde_json::Value>,
@@ -337,7 +337,7 @@ async fn main() -> Result<()> {
     enregistrer_delegation(&registry, registry.clone(), sub_registry, config.clone());
 
     println!(
-        "## Evals — provider={} model={} · {} mission(s) × {repeat}\n",
+        "## Evals - provider={} model={} · {} mission(s) × {repeat}\n",
         config.provider,
         config.model,
         missions.len()
@@ -394,7 +394,7 @@ async fn main() -> Result<()> {
                 "  {} fin={} mode={} passes={} web={} deleg={} {:.0}s{}",
                 if res.ok { "✅" } else { "❌" },
                 res.fin, res.mode, res.passes, res.web, res.delegations, res.duree_s,
-                if res.echecs.is_empty() { String::new() } else { format!(" — {}", res.echecs.join(" · ")) }
+                if res.echecs.is_empty() { String::new() } else { format!(" - {}", res.echecs.join(" · ")) }
             );
             resultats.push(res);
         }
@@ -413,7 +413,7 @@ async fn main() -> Result<()> {
         );
     }
     let ok = resultats.iter().filter(|r| r.ok).count();
-    println!("\n**{ok}/{} pass** — démissions: {}", resultats.len(),
+    println!("\n**{ok}/{} pass** - démissions: {}", resultats.len(),
         resultats.iter().filter(|r| r.demission).count());
 
     // JSONL results (one line per run, machine-diffable).

@@ -2,7 +2,7 @@
 name = "laruche-memoire"
 version.workspace = true
 edition.workspace = true
-description = "Mémoire cognitive de LaRuche — trait MemoireCognitive + backends (sidecar paradigm, natif Rust)"
+description = "Mémoire cognitive de LaRuche - trait MemoireCognitive + backends (sidecar paradigm, natif Rust)"
 license.workspace = true
 
 [dependencies]

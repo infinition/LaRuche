@@ -26,7 +26,7 @@ impl Abeille for Delegate {
 
     fn description(&self) -> &str {
         "Delegate a sub-task to a fresh sub-agent with an isolated context. \
-         Use this for complex tasks that break into independent sub-tasks — especially \
+         Use this for complex tasks that break into independent sub-tasks - especially \
          RESEARCH: dispatch SEVERAL delegate calls in the SAME message (one per angle), \
          they run in PARALLEL and each returns a compact report."
     }

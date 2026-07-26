@@ -423,7 +423,7 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                                 if r.motif.is_empty() {
                                                     format!("• `{}`", r.pattern)
                                                 } else {
-                                                    format!("• `{}` — {}", r.pattern, r.motif)
+                                                    format!("• `{}` - {}", r.pattern, r.motif)
                                                 }
                                             })
                                             .collect::<Vec<_>>()
@@ -488,7 +488,7 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                 let _ = client.post(format!("{}/sendMessage", api))
                                     .json(&serde_json::json!({
                                         "chat_id": chat_id,
-                                        "text": "*LaRuche* — quick actions",
+                                        "text": "*LaRuche* - quick actions",
                                         "parse_mode": "Markdown",
                                         "reply_markup": clavier_menu(),
                                     }))

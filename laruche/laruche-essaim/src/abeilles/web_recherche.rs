@@ -43,7 +43,7 @@ pub fn termes_significatifs(query: &str) -> usize {
 }
 
 /// Trims a keyword-soup query down to its `max` most discriminating terms:
-/// operators (`site:`, quoted phrases) first — they are the most selective —
+/// operators (`site:`, quoted phrases) first - they are the most selective -
 /// then the remaining significant words in their original order.
 pub fn resserrer_requete(query: &str, max: usize) -> String {
     let mots: Vec<&str> = query.split_whitespace().collect();

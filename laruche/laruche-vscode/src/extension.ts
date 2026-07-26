@@ -871,7 +871,7 @@ async function handleChatAsk(
 
         webview.postMessage({ type: 'status', text: 'Agent working...' });
 
-        // Progress callback — forward all agent events to the webview
+        // Progress callback - forward all agent events to the webview
         const onProgress = (progressMsg: object) => {
             webview.postMessage(progressMsg);
         };

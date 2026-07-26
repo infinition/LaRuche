@@ -583,7 +583,7 @@ async fn main() -> Result<()> {
             Ok("sidecar") => Arc::new(laruche_memoire::SidecarBackend::loopback()),
             Ok("sqlite") => {
                 // Embedder ALWAYS wired (semantic recall by default): LARUCHE_EMBED_URL
-                // (Ollama `/api/embed` OR llama.cpp/OpenAI-compat `/v1/embeddings` —
+                // (Ollama `/api/embed` OR llama.cpp/OpenAI-compat `/v1/embeddings` -
                 // format auto-detected), falling back to the local Ollama default.
                 // HttpEmbedder opens a circuit breaker when the server is down, so a
                 // missing embedder costs ~nothing and recall degrades to FTS5.
@@ -954,7 +954,7 @@ async fn main() -> Result<()> {
 
     // Persist the state RIGHT AWAY: the shutdown save only runs on a clean exit
     // (Ctrl+C / tray Quit). Closing the console window kills the process without
-    // saving — a cookie secret generated this boot would then never be written,
+    // saving - a cookie secret generated this boot would then never be written,
     // and the NEXT boot would regenerate it, invalidating every session cookie
     // ("re-login on every launch"). Saving here makes the secret durable no
     // matter how the process dies.

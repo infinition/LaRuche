@@ -70,7 +70,7 @@ pub struct Reglages {
     /// freeze the whole butinage. `0` = no timeout. Overridable per tool via
     /// [`crate::outils::Outils::timeout_secs`].
     pub timeout_outil_secs: u64,
-    /// Timeout (seconds) on a single MODEL call — mirror of the per-tool bound. A
+    /// Timeout (seconds) on a single MODEL call - mirror of the per-tool bound. A
     /// stalled stream (backend swap, half-dead connection) must never freeze the
     /// butinage; expiry is classed transient (backoff, then give up). `0` = unbounded.
     /// Generous default: a local 12B on CPU legitimately takes minutes.

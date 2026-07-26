@@ -3,13 +3,13 @@
 //!
 //! Driven by the [`Jauge`]. Two compaction modes:
 //! - **LLM summary** (default, [`compacter_intelligent`]): dense summary preserving
-//!   discoveries, decisions, plan state and dead-ends — what a long research needs
+//!   discoveries, decisions, plan state and dead-ends - what a long research needs
 //!   to not re-explore. Falls back to extractive when the auxiliary call fails.
 //! - **Extractive** ([`compacter`]): deterministic, no LLM call (tools used +
 //!   latest observations). POC mode and fallback.
 //!
 //! When the gauge is critical and a memory is plugged in, [`consolider`] extracts
-//! durable facts to long-term memory and restarts on a fresh — but self-sufficient —
+//! durable facts to long-term memory and restarts on a fresh - but self-sufficient -
 //! context (mission + plan + facts + last turns).
 
 use crate::cap::jauge::{Besoin, Jauge};
@@ -45,7 +45,7 @@ Omit pleasantries and reasoning chatter. Output the summary only, no preamble.";
 
 /// Turn-boundary alignment for a split index: the kept tail must never START with
 /// observations whose emitting assistant (carrying the tool calls) falls in the
-/// summarized part — orphan tool_results force the adapter's text fallback.
+/// summarized part - orphan tool_results force the adapter's text fallback.
 fn aligner_sur_tour(historique: &[Message], mut split: usize) -> usize {
     while split + 1 < historique.len() && historique[split].role == Role::Observation {
         split += 1;
@@ -188,7 +188,7 @@ fn rendu_plan(it: &crate::itineraire::Itineraire) -> String {
 /// via an auxiliary LLM call, writes them to memory (`source`), then restarts on a fresh
 /// but SELF-SUFFICIENT context: mission (with its attachments), extracted facts inline,
 /// plan state, and the last few turns. Makes the mission *cumulative* without
-/// saturating the context — and without amnesia about where it stood.
+/// saturating the context - and without amnesia about where it stood.
 pub async fn consolider(
     carnet: &mut Carnet,
     fournisseur: &dyn Fournisseur,

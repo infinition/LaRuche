@@ -489,8 +489,8 @@ async fn anthropic_chat_stream(
     // input cost and latency.
     //
     // Native tool transcript: assistant `tool_calls` become `tool_use` content blocks;
-    // `role:"tool"` results become `tool_result` blocks grouped — with any adjacent
-    // user text and images — into a SINGLE user message (strict alternation, and
+    // `role:"tool"` results become `tool_result` blocks grouped - with any adjacent
+    // user text and images - into a SINGLE user message (strict alternation, and
     // parallel results must share one user turn). The generic layer guarantees
     // call/result pairing.
     let mut system_blocks: Vec<serde_json::Value> = Vec::new();

@@ -137,7 +137,7 @@ async fn interroger_candidat(
         "role": "user",
         "content": prompt
     })];
-    // MoA role effort: an ADVISOR is where thinking pays off — its job is to explore
+    // MoA role effort: an ADVISOR is where thinking pays off - its job is to explore
     // an angle in depth. It gets the main effort setting.
     let mut stream = crate::providers::provider_chat_stream_effort(
         provider,

@@ -230,7 +230,7 @@ pub async fn revue_et_refaire(
     // Détecte une « réponse » qui n'est PAS du travail : une erreur système/provider renvoyée
     // telle quelle (« Provider API error 500… », timeout réseau, builder reqwest…). La juger ou
     // la faire refaire ne sert à RIEN (observé : « redone 5x » contre un provider en panne).
-    // Conservateur : texte court uniquement — une vraie réponse qui CITE une erreur ne matche pas.
+    // Conservateur : texte court uniquement - une vraie réponse qui CITE une erreur ne matche pas.
     fn est_erreur_systeme(texte: &str) -> bool {
         let t = texte.trim();
         if t.is_empty() {
@@ -275,12 +275,12 @@ pub async fn revue_et_refaire(
 
     loop {
         // COURT-CIRCUIT : le brouillon est une erreur système, pas du travail. Inutile de payer
-        // un appel juge ou des redos contre un provider en panne — on signale et on sort.
+        // un appel juge ou des redos contre un provider en panne - on signale et on sort.
         // (Le plafond de rounds/budget reste intact : l'option « reine infinie » sert au testing.)
         if est_erreur_systeme(&answer) {
             tracing::warn!(extrait = %answer.chars().take(120).collect::<String>(), "reine: draft is a system error, skipping judge/redo");
             journal.push(
-                "LaReine: the draft is a SYSTEM/PROVIDER ERROR, not work — no redo will fix it; flagged for you".into(),
+                "LaReine: the draft is a SYSTEM/PROVIDER ERROR, not work - no redo will fix it; flagged for you".into(),
             );
             break;
         }
@@ -359,7 +359,7 @@ pub async fn revue_et_refaire(
                 .await
                 {
                     // Un rework qui revient en ERREUR SYSTÈME n'écrase pas le brouillon précédent
-                    // (sinon la boucle repartirait juger/refaire une erreur — gaspillage observé).
+                    // (sinon la boucle repartirait juger/refaire une erreur - gaspillage observé).
                     Ok(new_answer) if est_erreur_systeme(&new_answer) => {
                         tracing::warn!("reine rework came back as a system/provider error; keeping previous draft");
                         journal.push(
@@ -374,7 +374,7 @@ pub async fn revue_et_refaire(
                     }
                     // Cause VISIBLE (journal + logs) : le générique « could not be completed »
                     // masquait s'il s'agissait d'une réponse vide (fin de vol sans texte) ou
-                    // d'une vraie erreur moteur/provider — indiagnosticable a posteriori.
+                    // d'une vraie erreur moteur/provider - indiagnosticable a posteriori.
                     Ok(_) => {
                         tracing::warn!("reine rework returned an empty answer");
                         journal.push(

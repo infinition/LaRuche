@@ -157,7 +157,7 @@ pub fn delai_rate_limit(reset_at: Option<i64>, tentative: usize, now: i64) -> u6
 }
 
 /// Parses a `Retry-After` header ("42" seconds, absolute epoch, or an HTTP-date
-/// like "Wed, 21 Oct 2026 07:28:00 GMT" — used by some proxies/Cloudflare).
+/// like "Wed, 21 Oct 2026 07:28:00 GMT" - used by some proxies/Cloudflare).
 fn parser_retry_after(h: Option<&str>) -> Option<i64> {
     let s = h?.trim();
     if let Ok(secs) = s.parse::<i64>() {

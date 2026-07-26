@@ -4,8 +4,8 @@
 //! uses it to move from purely lexical recall to **semantic** recall.
 //!
 //! [`HttpEmbedder`] is the universal implementation: it auto-detects the endpoint
-//! format — Ollama (`/api/embed`) or OpenAI-compatible (`/v1/embeddings`, e.g. a
-//! llama.cpp `llama-server --embeddings`) — remembers what worked, and opens a
+//! format - Ollama (`/api/embed`) or OpenAI-compatible (`/v1/embeddings`, e.g. a
+//! llama.cpp `llama-server --embeddings`) - remembers what worked, and opens a
 //! CIRCUIT BREAKER when the server is down so a dead embedder costs one failed
 //! probe every few minutes instead of a timeout per memory operation.
 

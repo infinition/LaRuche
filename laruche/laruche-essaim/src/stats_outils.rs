@@ -1,10 +1,10 @@
-//! Tool-usage statistics per **(model, tool)** — phase 1 of the validated design.
+//! Tool-usage statistics per **(model, tool)** - phase 1 of the validated design.
 //!
 //! DOCTRINE (2026-07-02, same as the memory Hebbian bonus): usage signals
 //! **re-rank availability, never decide, never exhort**. Raw call frequency is
 //! NEVER a signal (positive feedback loop: monoculture, "calling ≠ calling well",
 //! broken prefix cache). Only *success rate* and *latency* are recorded, keyed by
-//! model — a tool gemma-12b keeps fumbling may be flawless for Claude.
+//! model - a tool gemma-12b keeps fumbling may be flawless for Claude.
 //!
 //! Phase 1 consumers:
 //! 1. dynamic tool selection ([`crate::contexte::schema_outils_pour_prompt`]):
@@ -50,7 +50,7 @@ impl StatOutil {
 /// lucky or unlucky call must not move rankings).
 const MIN_ESSAIS_SIGNAL: u64 = 3;
 /// Persist every N recorded calls (plus at load): cheap enough, crash-tolerant
-/// (losing a few counters is harmless — these are statistics, not state).
+/// (losing a few counters is harmless - these are statistics, not state).
 const PERSISTER_TOUS_LES: u32 = 20;
 
 #[derive(Default, Serialize, Deserialize)]
@@ -88,7 +88,7 @@ impl StatsOutils {
     }
 
     /// Records one executed call. Vigie blocks and permission denials never reach
-    /// the executor, so they are not counted — a block is not the tool's fault.
+    /// the executor, so they are not counted - a block is not the tool's fault.
     pub fn enregistrer(&self, modele: &str, outil: &str, ok: bool, ms: u64) {
         let mut g = self.etat.lock().unwrap();
         let s = g
@@ -131,7 +131,7 @@ impl StatsOutils {
         (s.appels >= MIN_ESSAIS_SIGNAL).then(|| s.taux_succes())
     }
 
-    /// Compact digest of the tools that STRUGGLE with this model — success rate
+    /// Compact digest of the tools that STRUGGLE with this model - success rate
     /// below 80% over at least 5 attempts, worst first, `n` max. `None` when
     /// nothing is noteworthy (the common case: the curateur then sees nothing).
     /// Consumed by the curateur (phase 2): stats re-rank its ATTENTION; the
@@ -219,15 +219,15 @@ mod tests {
     #[test]
     fn digest_ne_liste_que_les_outils_en_difficulte() {
         let s = store();
-        // Healthy tool: 10/10 — must not appear.
+        // Healthy tool: 10/10 - must not appear.
         for _ in 0..10 {
             s.enregistrer("gemma", "web_fetch", true, 50);
         }
-        // Struggling tool: 2/6 — must appear.
+        // Struggling tool: 2/6 - must appear.
         for i in 0..6 {
             s.enregistrer("gemma", "convert_pdf", i < 2, 200);
         }
-        // Too few attempts: 0/2 — must NOT appear (no signal yet).
+        // Too few attempts: 0/2 - must NOT appear (no signal yet).
         s.enregistrer("gemma", "rare_tool", false, 10);
         s.enregistrer("gemma", "rare_tool", false, 10);
         let d = s.digest_problemes("gemma", 8).expect("one struggling tool");

@@ -250,7 +250,7 @@ impl ActiveContextStats {
                 self.running = true;
             }
             // COMPACTION: the engine just shrank its working context. Without this the
-            // estimate only ever grew — the bar sat at 105% while the real context had
+            // estimate only ever grew - the bar sat at 105% while the real context had
             // just been halved. Scale the accumulated estimate by the message ratio;
             // the next provider `Usage` re-anchors it on the truth.
             ChatEvent::Compaction {

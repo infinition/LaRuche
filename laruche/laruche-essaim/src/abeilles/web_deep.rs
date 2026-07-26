@@ -3,7 +3,7 @@
 //! War-machine spec: the top pages are fetched CONCURRENTLY (wall-clock = slowest
 //! page, not the sum), each failed/JS-shell page falls back to r.jina.ai before
 //! being skipped, and every truncation is char-safe (the old byte-based
-//! `String::truncate` PANICKED on multi-byte characters — French accents).
+//! `String::truncate` PANICKED on multi-byte characters - French accents).
 
 use crate::abeille::{Abeille, ContextExecution, NiveauDanger, ResultatAbeille};
 use crate::abeilles::web_fetch::{extraire_lisible, fetch_via_jina, looks_like_js_shell};

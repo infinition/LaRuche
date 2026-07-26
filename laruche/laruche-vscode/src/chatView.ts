@@ -386,9 +386,9 @@ textarea#input {
     <div class="msg-container assistant">
         <div class="msg assistant">
             Bienvenue ! Je suis votre assistant LaRuche local.<br><br>
-            <strong>Chat</strong> — posez-moi une question.<br>
-            <strong>Agent</strong> — donnez-moi des instructions sur le fichier actif.<br>
-            <strong>📎</strong> — fichier actif · <strong>📁</strong> — importer un fichier.
+            <strong>Chat</strong> - posez-moi une question.<br>
+            <strong>Agent</strong> - donnez-moi des instructions sur le fichier actif.<br>
+            <strong>📎</strong> - fichier actif · <strong>📁</strong> - importer un fichier.
             <div class="meta"><span>LaRuche v0.2.0</span><span>Miel Protocol</span></div>
         </div>
     </div>
@@ -809,7 +809,7 @@ window.addEventListener('message', function (event) {
             // Show tool execution as a system message
             var icon = msg.success ? '✓' : '✗';
             var toolMsg = icon + ' ' + escHtml(msg.tool);
-            if (msg.preview) { toolMsg += ' — ' + escHtml(msg.preview).slice(0, 120); }
+            if (msg.preview) { toolMsg += ' - ' + escHtml(msg.preview).slice(0, 120); }
             addSystemMessage(toolMsg);
             break;
         case 'agentThinking':
@@ -864,7 +864,7 @@ function updateToolbar(nodes, activeUrl, activeModel) {
 }
 
 // ── Debug: confirm everything loaded ──────────────────────────────────────────
-_dbg.textContent = '✓ JS OK — buttons wired';
+_dbg.textContent = '✓ JS OK - buttons wired';
 _dbg.style.background = '#166534';
 setTimeout(function () { _dbg.style.display = 'none'; }, 5000);
 

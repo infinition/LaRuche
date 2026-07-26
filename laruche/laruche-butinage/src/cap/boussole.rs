@@ -39,8 +39,8 @@ pub struct ContexteCap {
     pub delegation_dispo: bool,
     /// Is the pre-landing SELF-CHECK still available? The loop arms it once per
     /// butinage (and disarms it for sub-agents, whose parent cross-checks anyway):
-    /// the first `mission_accomplie` of an exploration run — or a low-confidence one
-    /// anywhere — gets ONE bounded verification bounce instead of landing unchecked.
+    /// the first `mission_accomplie` of an exploration run - or a low-confidence one
+    /// anywhere - gets ONE bounded verification bounce instead of landing unchecked.
     pub verification_dispo: bool,
 }
 
@@ -114,7 +114,7 @@ const SEUIL_CONFIANCE_VERIF: f32 = 0.6;
 /// **The** continuation decision. Pure: `(contexte, issue) -> Decision`.
 pub fn cap(ctx: &ContexteCap, issue: Issue) -> Decision {
     match issue {
-        // Explicit termination: trust the dedicated tool — after ONE bounded
+        // Explicit termination: trust the dedicated tool - after ONE bounded
         // verification bounce when the check is armed and warranted (exploration
         // run, or a completion the model itself does not trust). The loop disarms
         // `verification_dispo` after the bounce: no verification loop possible.

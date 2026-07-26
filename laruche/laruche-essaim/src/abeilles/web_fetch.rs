@@ -298,7 +298,7 @@ async fn render_url_dom(url: &str, wait_seconds: u64) -> Result<String> {
 }
 
 /// Char-safe pagination window over the extracted text. Tells the model the total
-/// size and the exact `offset` for the next chunk — a long page is READ, not lost.
+/// size and the exact `offset` for the next chunk - a long page is READ, not lost.
 pub(crate) fn paginer(texte: &str, offset: usize, max_chars: usize) -> String {
     let total = texte.chars().count();
     if offset >= total && total > 0 {
@@ -426,7 +426,7 @@ fn rendu_liens(html: &str, base: &str) -> String {
     }
     let mut out = format!("\n\n## Links on this page ({})\n", liens.len());
     for (texte, url) in liens {
-        out.push_str(&format!("- {texte} — {url}\n"));
+        out.push_str(&format!("- {texte} - {url}\n"));
     }
     out
 }

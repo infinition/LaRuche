@@ -154,7 +154,7 @@ pub async fn ollama_chat_stream(
                             };
 
                             // Native tool_calls: recent Ollama streams them on INTERMEDIATE
-                            // chunks (done:false, empty content) — qwen3 notably — while the
+                            // chunks (done:false, empty content) - qwen3 notably - while the
                             // final done-chunk only carries usage. Reading them only on `done`
                             // dropped EVERY call (observed: qwen3 evals 0/8, "zero tool
                             // calls"). Parse on every chunk; the consumer accumulates.

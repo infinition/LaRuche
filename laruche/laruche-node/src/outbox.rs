@@ -3,13 +3,13 @@
 //!
 //! The window this closes is real: a mission can run for minutes (crons,
 //! watchers, long research), and everything between "the answer exists" and
-//! "the platform acknowledged it" was pure loss — the node restarts and the
+//! "the platform acknowledged it" was pure loss - the node restarts and the
 //! user never learns the task completed.
 //!
 //! Protocol: [`enregistrer`] BEFORE sending, [`confirmer`] once the platform
 //! accepted. Anything still pending at boot is replayed by [`rejouer`].
 //! At-least-once delivery: a crash between the send and the confirm re-sends a
-//! message once. That is the right trade-off here — a duplicate answer is a
+//! message once. That is the right trade-off here - a duplicate answer is a
 //! minor annoyance, a lost one is invisible and unrecoverable.
 
 use serde::{Deserialize, Serialize};

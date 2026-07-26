@@ -4,12 +4,12 @@
 //! subagent), adapted to LaRuche's doctrine: the **decision core is pure and
 //! tested** ([`decider`]), side effects (LLM judge, disk, popup) live outside.
 //!
-//! Gate order — each layer can only be reached if the previous one abstained:
+//! Gate order - each layer can only be reached if the previous one abstained:
 //! 1. **user deny rule** ([`Registre::regle_refus`]): fires FIRST, before any
 //!    bypass. This is the user's "never, not even in auto mode" floor, and its
 //!    `motif` is fed back to the model so it corrects instead of rephrasing;
 //! 2. **allowlist** (session or permanent, by *pattern class*): "approve this
-//!    kind of command once, the next ones pass" — the friction killer;
+//!    kind of command once, the next ones pass" - the friction killer;
 //! 3. **LLM judge** ([`juger`]): an auxiliary model rules APPROVE / DENY /
 //!    ESCALATE on the command itself;
 //! 4. **human** (approval popup), or the autonomous fallback.
@@ -79,20 +79,20 @@ pub struct ContexteApprobation<'a> {
     /// Is a human reachable (approval channel present)?
     pub humain_dispo: bool,
     /// No human available: allow on ESCALATE (LaRuche's historical autonomous
-    /// behavior — crons, scouts and watchers must keep running). When false,
+    /// behavior - crons, scouts and watchers must keep running). When false,
     /// an unresolved call is refused (fail-closed, opt-in via settings).
     pub autonome_permissif: bool,
 }
 
 /// **The** gate decision. Pure: `contexte -> décision`.
 pub fn decider(ctx: &ContexteApprobation) -> DecisionApprobation {
-    // 1. User deny rule: the hard floor. Never bypassable — that is its point.
+    // 1. User deny rule: the hard floor. Never bypassable - that is its point.
     //    The motive travels to the model so it changes approach instead of
     //    rewording the same forbidden call.
     if let Some((pattern, motif)) = ctx.regle_refus {
         let mut msg = format!(
             "BLOCKED: this call matches the deny rule `{pattern}` set by the user. \
-             It cannot be run — not even in autonomous mode. Do NOT retry it or \
+             It cannot be run - not even in autonomous mode. Do NOT retry it or \
              rephrase it."
         );
         if !motif.trim().is_empty() {
@@ -136,7 +136,7 @@ pub fn decider(ctx: &ContexteApprobation) -> DecisionApprobation {
 /// Pattern **class** of a call: what approving once approves next time.
 ///
 /// For a shell command it is the binary plus, for multi-command tools (git,
-/// cargo, npm...), its subcommand — approving `git push origin main` approves
+/// cargo, npm...), its subcommand - approving `git push origin main` approves
 /// `git push` generally, not every `git` call. For any other tool it is the
 /// tool name. Keys are lowercase and quote-stripped so `g""it` cannot forge a
 /// different class than `git`.

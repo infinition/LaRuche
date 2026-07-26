@@ -648,7 +648,7 @@ LaRuche.Chat = (function(){
         clearResponseTimeout(); removeTypingIndicator();
         addErrorMessage(data.message);
         // FINALISER le brouillon en cours avant de l'abandonner : sinon le texte déjà streamé
-        // reste brut à l'écran (markdown non rendu, pas de boutons) — observé sur erreur provider.
+        // reste brut à l'écran (markdown non rendu, pas de boutons) - observé sur erreur provider.
         if(currentAssistantMsg) finalizeMessage(currentAssistantMsg, '');
         currentAssistantMsg=null; currentAssistantRow=null;
         isStreaming=false;

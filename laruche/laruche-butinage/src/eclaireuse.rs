@@ -68,7 +68,7 @@ impl Role {
     }
 
     /// Minimal web calls before the exploration rail accepts an end. Only the scout
-    /// searches; kept low (3) so a focused angle concludes fast — the BREADTH comes
+    /// searches; kept low (3) so a focused angle concludes fast - the BREADTH comes
     /// from the parent dispatching several scouts, not from each scout going deep.
     fn min_web(self) -> usize {
         match self {
@@ -122,7 +122,7 @@ pub async fn depecher(
     source: Option<&dyn crate::nectar::Source>,
 ) -> Result<Rapport> {
     // The parent's system prompt may carry the deep-research protocol, which orders a
-    // `delegate` fan-out — but delegation is DISABLED in the child (single recursion
+    // `delegate` fan-out - but delegation is DISABLED in the child (single recursion
     // level). Left in place, every scout would waste its first passes hitting the
     // anti-recursion wall. Strip it, and state the boundary explicitly.
     let systeme_parent = reglages_parent
@@ -150,7 +150,7 @@ pub async fn depecher(
         rappel_initial: true, // scouts start WITH memory: past findings, known dead ends
         // A scout DISTILLS one angle; it must not hoard whole pages. Inheriting the
         // parent's 30k-char cap meant a SINGLE observation could take ~23% of a 33k
-        // window, so a dozen searches triggered back-to-back compactions — each one an
+        // window, so a dozen searches triggered back-to-back compactions - each one an
         // extra LLM call, on the sub-agent's already small budget (measured: 3
         // compactions in 3 minutes for one scout). Tighter caps keep it in one window.
         max_chars_observation: reglages_parent.max_chars_observation.min(8_000),
@@ -164,7 +164,7 @@ pub async fn depecher(
     };
 
     let mut carnet = Carnet::ouvrir(&mission, ordre.role.mode(), now);
-    // The source powers the scout's INITIAL recall (rappel_initial) — consolidation
+    // The source powers the scout's INITIAL recall (rappel_initial) - consolidation
     // stays off in practice (short bounded runs rarely hit the gauge threshold).
     // The parent's cancellation flag propagates: killing the run kills the children.
     let bilan = crate::cycle::butiner(

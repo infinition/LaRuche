@@ -1,4 +1,0 @@
-{"avis":"approve","brand":98,"confidence":95,"methodology":90,"mode":"auto","objective":95,"relevance":95,"revised":false,"rounds":0,"ts":"2026-07-19T20:15:06.312018100+00:00"}
-{"avis":"approve","brand":95,"confidence":95,"methodology":100,"mode":"auto","objective":100,"relevance":100,"revised":false,"rounds":0,"ts":"2026-07-19T20:15:35.372076+00:00"}
-{"avis":"escalate","brand":100,"confidence":95,"methodology":0,"mode":"auto","objective":0,"relevance":0,"revised":true,"rounds":5,"ts":"2026-07-20T11:37:41.866024800+00:00"}
-{"avis":"approve","brand":90,"confidence":90,"methodology":75,"mode":"auto","objective":95,"relevance":95,"revised":true,"rounds":2,"ts":"2026-07-20T11:47:00.455657900+00:00"}

@@ -1,4 +1,4 @@
-# Evals — la preuve que le moteur marche
+# Evals - la preuve que le moteur marche
 
 Rejoue un jeu de missions FIXE contre le vrai moteur butinage (vrai provider, vrais
 outils) et juge chaque run avec des checks durs. À lancer **avant/après tout changement**
@@ -21,10 +21,10 @@ Env : `RUCHE_PROVIDER`, `RUCHE_MODEL`, `RUCHE_API_KEY`, `RUCHE_API_BASE`, `OLLAM
 
 ## Ce qui est mesuré
 
-- `fin` (accomplie/plafond/erreur/…), `mode` final (standard/exploration — teste les
+- `fin` (accomplie/plafond/erreur/…), `mode` final (standard/exploration - teste les
   canaux de décision : mots-clés, `research_mode`), `passes`, effort web, **fan-out**
   (delegations), tokens, durée ;
-- **démission** : l'agent renvoie l'utilisateur chercher ou demande la permission —
+- **démission** : l'agent renvoie l'utilisateur chercher ou demande la permission -
   interdit en mission ;
 - checks par mission : `min_web`, `min_delegations`, `max_passes`, contenu
   obligatoire/interdit, fichier produit.
@@ -40,5 +40,5 @@ Env : `RUCHE_PROVIDER`, `RUCHE_MODEL`, `RUCHE_API_KEY`, `RUCHE_API_BASE`, `OLLAM
 
 Ajouter une entrée dans `missions.json`. Règles : une mission = un comportement à
 protéger (y compris les **contrôles négatifs** : une question triviale ne doit PAS
-déclencher l'exploration). Le jeu embarqué est parsé par un test unitaire — une typo
+déclencher l'exploration). Le jeu embarqué est parsé par un test unitaire - une typo
 casse le build, pas le run.

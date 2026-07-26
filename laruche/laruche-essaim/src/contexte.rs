@@ -314,7 +314,7 @@ pub fn schema_outils_pour_prompt(
         })
         .collect();
     // Stats (modèle, outil): reliability is a TIEBREAK between equally relevant
-    // tools — availability re-ranking only, never an exhortation in the prompt
+    // tools - availability re-ranking only, never an exhortation in the prompt
     // (doctrine: usage signals re-rank, never decide). Unknown (< 3 tries) = neutral.
     let stats = crate::stats_outils::globales();
     let fiab = |name: &str| -> i64 {
@@ -381,7 +381,7 @@ pub fn demande_recherche_longue(prompt: &str) -> bool {
     let p = prompt.to_lowercase();
     // Keyword FALLBACK only: the reliable channel is the model's own `research_mode`
     // declaration (intercepted by the butinage engine, cycle::analyser). Keep this list
-    // broad — a missed match means a 1-search "deep research" (observed: "recherche
+    // broad - a missed match means a 1-search "deep research" (observed: "recherche
     // approfondie" was absent and the agent concluded after a single query).
     [
         "ne t'arrete pas",

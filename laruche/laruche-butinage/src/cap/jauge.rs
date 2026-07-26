@@ -49,7 +49,7 @@ impl Jauge {
     /// `characters / 4` estimate, recalibrated by the factor learned from real usage.
     /// Counts the FULL request payload: system + per-message cost (text + serialized
     /// tool calls + multimodal pieces, via [`Message::cout_chars`]) + `extra_chars`
-    /// (tool schemas sent with every call — dozens of tools are far from free).
+    /// (tool schemas sent with every call - dozens of tools are far from free).
     pub fn estimer(&mut self, systeme: &str, historique: &[Message], extra_chars: usize) {
         let chars: usize =
             systeme.len() + extra_chars + historique.iter().map(|m| m.cout_chars()).sum::<usize>();

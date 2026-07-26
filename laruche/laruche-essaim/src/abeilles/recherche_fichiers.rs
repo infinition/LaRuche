@@ -3,7 +3,7 @@
 //!
 //! War-machine spec: build/VCS noise dirs are skipped (`target/`, `node_modules/`,
 //! `.git/`...), `*.rs`-style globs work, and `content` turns it into a grep that
-//! returns `path:line: text` matches — the single most useful primitive for an
+//! returns `path:line: text` matches - the single most useful primitive for an
 //! agent exploring a codebase.
 
 use crate::abeille::{Abeille, ContextExecution, NiveauDanger, ResultatAbeille};

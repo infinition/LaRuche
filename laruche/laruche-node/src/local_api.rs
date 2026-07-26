@@ -132,7 +132,7 @@ pub(crate) async fn api_onboarding(State(state): State<Arc<AppState>>) -> Json<s
     }));
     let _ = ec;
 
-    // 3. Embedding model (semantic memory)? REAL probe — this was a hardcoded
+    // 3. Embedding model (semantic memory)? REAL probe - this was a hardcoded
     // `done: false` stub. We ask for an actual vector through the same client the
     // memory uses (HttpEmbedder: Ollama `/api/embed` or llama.cpp `/v1/embeddings`,
     // format auto-detected), so the check reflects the truth whatever the backend.

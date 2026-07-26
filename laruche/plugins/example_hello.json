@@ -1,0 +1,23 @@
+{
+  "name": "example_hello",
+  "description": "Reference plugin. Echoes a greeting so you can see the plugin pipeline end to end: schema validation, slot substitution, execution, and the observation handed back to the agent. Copy this file to start your own.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "Who to greet."
+      },
+      "language": {
+        "type": "string",
+        "description": "Greeting language.",
+        "enum": ["fr", "en"],
+        "default": "fr"
+      }
+    },
+    "required": ["name"]
+  },
+  "command": "echo \"{{language}}: bonjour {{name}}\"",
+  "danger": "safe",
+  "timeout_secs": 10
+}

@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>LaRuche — your personal AI hive</title>
+<title>LaRuche - your personal AI hive</title>
 <meta name="description" content="An agentic AI node that lives on your machine. One Rust binary, fully local, genuinely yours.">
 <meta name="color-scheme" content="dark light">
-<meta property="og:title" content="LaRuche — your personal AI hive">
+<meta property="og:title" content="LaRuche - your personal AI hive">
 <meta property="og:description" content="An agentic AI node that lives on your machine. One Rust binary, fully local, genuinely yours.">
 <meta property="og:type" content="website">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 28 9v14L16 30 4 23V9z' fill='%23E2A03F'/%3E%3C/svg%3E">
 <style>
 /* ---------------------------------------------------------------
-   LaRuche — showcase
+   LaRuche - showcase
    No external requests. No CDN, no webfont, no analytics.
    The page keeps the same promise as the software it describes.
    --------------------------------------------------------------- */
@@ -31,7 +31,7 @@
   --queen-deep:  #2F5EA8;
   --smoke:       #7C7360;
 
-  /* Semantic tokens — components only ever read these. */
+  /* Semantic tokens - components only ever read these. */
   --bg:        var(--propolis);
   --surface:   var(--propolis-up);
   --text:      var(--wax);
@@ -301,7 +301,7 @@ footer { border-top: var(--rule); padding-block: 3rem 4rem; }
 cd LaRuche/laruche
 cargo run --release -p laruche-node   <span class="tok-c"># then open localhost:8419</span></pre>
           </div>
-          <p class="note">Works with llama.cpp and Ollama out of the box. Cloud keys work too — they are just not required.</p>
+          <p class="note">Works with llama.cpp and Ollama out of the box. Cloud keys work too - they are just not required.</p>
         </div>
       </div>
 
@@ -325,7 +325,7 @@ cargo run --release -p laruche-node   <span class="tok-c"># then open localhost:
         <div class="rail">Inspection<b>Colony</b></div>
         <div>
           <h2>An agent you run 24/7 needs more than a chat loop</h2>
-          <p>Plenty of projects give you tool calling. LaRuche's bet is that a node living on your machine needs an engine, a memory, a supervisor and reflexes — each one a first-class subsystem, each one auditable.</p>
+          <p>Plenty of projects give you tool calling. LaRuche's bet is that a node living on your machine needs an engine, a memory, a supervisor and reflexes - each one a first-class subsystem, each one auditable.</p>
         </div>
       </div>
 
@@ -343,7 +343,7 @@ cargo run --release -p laruche-node   <span class="tok-c"># then open localhost:
           <div class="fr-term">Mémoire</div>
           <div>
             <h3>Cognitive memory with git time travel</h3>
-            <p>Not a vector store bolted on: a map of nodes and facts over SQLite, hybrid recall fusing embeddings with full-text search, importance decay, and write-time supersede so an updated fact replaces the stale one instead of piling up beside it. Hebbian ranking reinforces only what was actually used in an answer. The whole map exports to markdown in its own git repo — <code>git log</code> is your agent's learning timeline.</p>
+            <p>Not a vector store bolted on: a map of nodes and facts over SQLite, hybrid recall fusing embeddings with full-text search, importance decay, and write-time supersede so an updated fact replaces the stale one instead of piling up beside it. Hebbian ranking reinforces only what was actually used in an answer. The whole map exports to markdown in its own git repo - <code>git log</code> is your agent's learning timeline.</p>
           </div>
           <div class="verdict">SQLite + FTS5</div>
         </div>
@@ -352,7 +352,7 @@ cargo run --release -p laruche-node   <span class="tok-c"># then open localhost:
           <div class="fr-term">LaReine</div>
           <div>
             <h3>A supervisor that can send the work back</h3>
-            <p>A judge reviews answers against an editable charter before you see them, and it has real leverage: it can order a fresh agentic run, it keeps the best-scoring draft so quality never regresses across retries, and it escalates when it is not confident. Its methodology score is grounded in which tools were actually called — not in what the answer claims.</p>
+            <p>A judge reviews answers against an editable charter before you see them, and it has real leverage: it can order a fresh agentic run, it keeps the best-scoring draft so quality never regresses across retries, and it escalates when it is not confident. Its methodology score is grounded in which tools were actually called - not in what the answer claims.</p>
           </div>
           <div class="verdict">Human seat</div>
         </div>
@@ -361,7 +361,7 @@ cargo run --release -p laruche-node   <span class="tok-c"># then open localhost:
           <div class="fr-term">Veille</div>
           <div>
             <h3>Reflexes that cost nothing at runtime</h3>
-            <p>Describe a rule in plain language and it compiles once into a deterministic predicate tree. Weekdays, time windows, file appeared or changed, service down for N minutes, log patterns, HTTP status — combined with and/or/not. The only rule that ever calls a model is an explicit check leaf, and only once the deterministic prefix has already passed.</p>
+            <p>Describe a rule in plain language and it compiles once into a deterministic predicate tree. Weekdays, time windows, file appeared or changed, service down for N minutes, log patterns, HTTP status - combined with and/or/not. The only rule that ever calls a model is an explicit check leaf, and only once the deterministic prefix has already passed.</p>
           </div>
           <div class="verdict">Compiled</div>
         </div>
@@ -385,7 +385,7 @@ cargo run --release -p laruche-node   <span class="tok-c"># then open localhost:
         <div class="rail">Field note<b>Watchers</b></div>
         <div>
           <h2>You say it once. It compiles.</h2>
-          <p>The sentence on the left becomes the tree on the right — evaluated on a timer, at effectively zero cost. No model is woken up until the deterministic part has already matched.</p>
+          <p>The sentence on the left becomes the tree on the right - evaluated on a timer, at effectively zero cost. No model is woken up until the deterministic part has already matched.</p>
         </div>
       </div>
 
@@ -393,7 +393,7 @@ cargo run --release -p laruche-node   <span class="tok-c"># then open localhost:
         <p class="said">“If it's Tuesday or Thursday and my local site has been down for 10 minutes, ping me on Telegram every 20 minutes.”</p>
         <div class="tree">
           <ul>
-            <li><span class="op">ALL</span> <span class="meta">— every branch must hold</span>
+            <li><span class="op">ALL</span> <span class="meta">- every branch must hold</span>
               <ul>
                 <li><span class="op">ANY</span>
                   <ul>
@@ -418,7 +418,7 @@ cargo run --release -p laruche-node   <span class="tok-c"># then open localhost:
         <div class="rail">Register<b>Vocabulary</b></div>
         <div>
           <h2>The hive speaks French</h2>
-          <p>The brand vocabulary is French and stays that way — it is the identity, and each term is precise about what the part actually does. The code and the documentation are English.</p>
+          <p>The brand vocabulary is French and stays that way - it is the identity, and each term is precise about what the part actually does. The code and the documentation are English.</p>
         </div>
       </div>
 
@@ -429,11 +429,11 @@ cargo run --release -p laruche-node   <span class="tok-c"># then open localhost:
           </thead>
           <tbody>
             <tr><th scope="row">butinage</th><td class="eng">foraging</td><td>The agentic loop: go out, gather, come back, decide.</td></tr>
-            <tr><th scope="row">essaim</th><td class="eng">swarm</td><td>The agent layer — providers, prompts, tools, supervision.</td></tr>
+            <tr><th scope="row">essaim</th><td class="eng">swarm</td><td>The agent layer - providers, prompts, tools, supervision.</td></tr>
             <tr><th scope="row">abeille</th><td class="eng">bee</td><td>A single tool the agent can call.</td></tr>
             <tr><th scope="row">éclaireuse</th><td class="eng">scout</td><td>A sub-agent dispatched in parallel for one research angle.</td></tr>
             <tr><th scope="row">récolte</th><td class="eng">harvest</td><td>One batch of tool calls, run in parallel when it is safe to.</td></tr>
-            <tr><th scope="row">carnet</th><td class="eng">notebook</td><td>The run checkpoint — survives a crash, resumes where it stopped.</td></tr>
+            <tr><th scope="row">carnet</th><td class="eng">notebook</td><td>The run checkpoint - survives a crash, resumes where it stopped.</td></tr>
             <tr><th scope="row">escale</th><td class="eng">layover</td><td>Compaction, when the context window fills up.</td></tr>
             <tr><th scope="row">vigie</th><td class="eng">lookout</td><td>The anti-loop sentinel watching for repeated dead ends.</td></tr>
             <tr><th scope="row">cap</th><td class="eng">bearing</td><td>The compass: continue, verify once more, or land.</td></tr>

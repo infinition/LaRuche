@@ -6,7 +6,7 @@
 //! fan-out, web-effort floor). This tool is the declaration channel:
 //!
 //! - **butinage engine**: the call is INTERCEPTED by `analyser` (cycle.rs) and never
-//!   reaches this abeille — it flips `Carnet.mode` to `Exploration` and injects the
+//!   reaches this abeille - it flips `Carnet.mode` to `Exploration` and injects the
 //!   deep-research protocol nudge. One-way escalation (a model cannot downgrade to
 //!   escape the exploration rails).
 //! - **legacy loop / direct call**: executing it is harmless (returns an ack), so the

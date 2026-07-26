@@ -51,7 +51,7 @@ pub struct Carnet {
     pub tokens_sortie_total: u64,
     /// **Findings ledger**: decisive facts (with sources) recorded via the `finding`
     /// tool. Machine-side and BOUNDED: unlike the transcript, it survives compaction
-    /// and truncation — the final synthesis leans on it, not on whatever the
+    /// and truncation - the final synthesis leans on it, not on whatever the
     /// compaction summary happened to keep. Rendered at the TAIL of the outbound
     /// context (prefix-cache friendly).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -102,7 +102,7 @@ impl Carnet {
             return;
         }
         let mut entree: String = match source.map(str::trim).filter(|s| !s.is_empty()) {
-            Some(s) => format!("{fait} — {s}"),
+            Some(s) => format!("{fait} - {s}"),
             None => fait.to_string(),
         };
         if entree.chars().count() > MAX_CHARS {
@@ -155,7 +155,7 @@ impl Carnet {
     ///   checkpoint that exists to survive crashes.
     /// - **Big multimodal pieces are externalized** to a sidecar directory (one file
     ///   per content hash, written once): without it a checkpoint re-serializes every
-    ///   base64 image on EVERY pass — megabytes of I/O per pass on a 100-pass run.
+    ///   base64 image on EVERY pass - megabytes of I/O per pass on a 100-pass run.
     pub fn sauver(&mut self, chemin: &Path, now: chrono::DateTime<chrono::Utc>) -> Result<()> {
         self.maj_le = now;
         if let Some(parent) = chemin.parent() {
