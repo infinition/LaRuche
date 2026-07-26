@@ -30,6 +30,7 @@ approbations.json
 Thumbs.db
 .idea/
 .vscode/
+.claude/
 *.log
 
 # Backups main.rs (réparation relais)
@@ -112,3 +113,13 @@ laruche/le-wm/
 laruche/eval_scratch/
 # Windows shortcuts dropped in the repo
 *.lnk
+
+# Docs et code de travail internes (archivés hors dépôt, jamais publiés)
+docs/_archive/
+_archive/
+laruche/_archive/
+laruche/.agents/
+
+# Scripts de patch jetables (contiennent des chemins machine)
+**/fix_*.py
+laruche/scripts/import_third-party_skills.py

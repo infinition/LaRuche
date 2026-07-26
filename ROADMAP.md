@@ -1,6 +1,6 @@
 # LaRuche - Roadmap
 
-> Reste-à-faire **récupéré des anciens docs de conception** (avant archivage dans `docs/_archive/`) + chantiers en cours. Source de vérité du travail restant. Coché = fait.
+> Reste-à-faire **récupéré des anciens docs de conception** + chantiers en cours. Source de vérité du travail restant. Coché = fait.
 
 ## 🔒 Audit sécurité & hygiène (2026-07-02) - PRIORITÉ ABSOLUE avant toute feature
 
@@ -18,12 +18,11 @@
 ### ✅ MAJEUR (CORRIGÉ, commit 9b1ccca)
 - [x] **marked + DOMPurify + highlight.js vendorisés** dans `templates/vendor/`, servis via `/vendor/:name` (`web::vendor_js`), thème hljs inline dans app.css, `sw.js` v2 cache les vendors. Fin des `<script>` CDN (offline réel, zéro dépendance externe au chargement).
 - [x] **Onboarding embeddings = vraie sonde** (déjà fait `0943092`) ; checks voix/Chrome vérifiés RÉELS (pas des stubs) ; "warning" STT/TTS/TLS = état honnête (services non lancés).
-- [x] **Config d'agents (hors projet) CORRIGÉ (2026-07-02, côté user)** : le launcher `.0xid/apps/claude-code.bat` écrasait `~/.claude/settings.json` avec `CLAUDE_CODE_SUBAGENT_MODEL=deepseek-v4-flash` pour les profils DeepSeek/Local. Fix : profils `CLAUDE_CONFIG_DIR` dédiés (`~/.claude-deepseek`, `~/.claude-local`) + `~/.claude` nettoyé (`env: {}`). Fan-out de sous-agents rétabli.
 
 ### 🟡 MINEUR / dette (non bloquant)
 - [x] **`main.rs` ingérable** (~3000 lignes). → **FAIT** (2026-07-02) : routeur + `auth_guard` extraits dans `router.rs`, état dans `state.rs`, jobs de fond dans `background.rs` (cf. item Split main.rs, section ⏸️ Reste).
 - [x] **Polling front cumulé CORRIGÉ (2026-07-02)** : helper central `LaRuche.Poll.every/stop` (core.js) - tick sauté onglet caché, rattrapage immédiat au retour. 14 pollings convertis ; les flux d'auth (codex, challenge login) restent en `setInterval` volontairement.
-- [ ] **Cage (sandbox shell dure) - MISE DE CÔTÉ volontairement (décision user 2026-07-02)** : trop contraignante pendant la phase de dev active. Le design cross-platform complet est prêt dans `docs/CAGE_DESIGN.md` (Job Object / rlimits+setsid / Landlock, dégradation honnête, LARUCHE_CAGE=off|on|strict) - à réactiver en phase de stabilisation. En attendant : gate d'approbation + timeout = les contrôles réels ; la blocklist de motifs reste un ralentisseur assumé.
+- [ ] **Cage (sandbox shell dure) - MISE DE CÔTÉ volontairement (décision user 2026-07-02)** : trop contraignante pendant la phase de dev active. Le design cross-platform complet est prêt (Job Object / rlimits+setsid / Landlock, dégradation honnête, LARUCHE_CAGE=off|on|strict) - à réactiver en phase de stabilisation. En attendant : gate d'approbation + timeout = les contrôles réels ; la blocklist de motifs reste un ralentisseur assumé.
 - [x] **Audit profond FAIT (2026-07-02)** : `execute_code.rs` sain (gate approbation, python -I, timeout 30s, caps, troncature char-safe ; fix : broken pipe stdin non fatal). `mcp_client.rs` : **timeout 60s par requête ajouté** (un serveur MCP muet au handshake bloquait le BOOT du node pour toujours) + reap du process (zombies Unix) + outil malformé loggué. Micro-crates : **aucun crate workspace mort** (`laruche-evals` harness binaire et `laruche-dashboard` porte-assets = voulus sans dépendants) ; `laruche-compaction` vs `escale` = doublon assumé, compaction ne sert que brain.rs+session.rs et mourra avec brain ; `laruche-events` (EventBus volatile) vs `feed_journal` (NDJSON persisté) = rôles distincts, pas un doublon.
 - [x] **`laruche-channels/` archivé (2026-07-02)** dans `laruche/_archive/` (confirmé user, canaux natifs Rust).
 - [x] **Duplication `log_activite` résorbée (2026-07-02)** : `log_activite_riche` (prompt/réponse/modèle) + les 5 constructions manuelles de `background.rs` passent par les helpers.
@@ -51,7 +50,7 @@
 - [x] **Mystère qwen3:8b RÉSOLU** (2026-07-02) : c'était l'intégration tools d'**Ollama**, pas le harness. Via `llamacpp` + gemma-4-e4b/12b, tool_calls natifs OK. Fix usage OpenAI-compat (`b01700a`) : chunk `include_usage` dédié qui était droppé (marche sur Anthropic/DeepSeek ; le `tokens=0` restant est spécifique au streaming llama.cpp).
 - [x] **Correctifs deep-research post-évals** (`a1b9b01`) : scouts bornés (Éclaireuse 12 passes/min_web 3, était 30/6) + **cap dur 4 scouts** (`MAX_DELEGATIONS`, le modèle en lançait 8-12) + protocole "4 angles MAX + vérification fraîche même si mémoire a la réponse" + mots-clés multilingues ES/IT/PT/DE + prompt `research_mode` "in any language".
 - [x] **Charte curateur durcie** (`d423ae9`) : ne capture plus les impasses de diagnostic ni les méta-skills sur les internes du système (les 2 chemins : PROMPT_CURATEUR + extracteur brain). Cause : skills-poubelle `diagnose_system_discrepancy`/`task_source_diagnoser` vues en attente.
-- [~] **Baseline d'évals NON figée** : le 12b local est trop lent+stochastique pour un run deep propre (timeouts, variance run à run) ; DeepSeek gratuit rate-limite sous le volume du fan-out. Le harness+moteur sont prouvés corrects (contrôles verts sur 3 backends, fan-out parfait de 8 scouts au run 2). → figer quand un backend fiable sera dispo. Détails : `COMPTE_RENDU.md`.
+- [~] **Baseline d'évals NON figée** : le 12b local est trop lent+stochastique pour un run deep propre (timeouts, variance run à run) ; DeepSeek gratuit rate-limite sous le volume du fan-out. Le harness+moteur sont prouvés corrects (contrôles verts sur 3 backends, fan-out parfait de 8 scouts au run 2). → figer quand un backend fiable sera dispo.
 - [x] **Check LLM de contradiction au write** (fait `656111a`) : trait `Arbitre`+`VerdictArbitre` (inversion de dépendance), bande d'ambiguïté 0.62-0.83 même domaine → `ArbitreLLM` (modèle aux, REPLACE/DISTINCT) → supersede ; échec = Distinct (jamais destructif), opt-out `LARUCHE_MEMOIRE_ARBITRE=0`. Test de régression déterministe.
 - [x] **dream→reine_queue (fait 2026-07-02)** : les suggestions `duplicate` du dream (6h + bouton manuel) deviennent des propositions `MemoireHygiene` dans la file LaReine - classe Critique (jamais auto-appliqué), approbation = dédup soft-delete réversible du nœud, garde anti-flood `deja_en_file` testée. Reste : `overloaded`/`orphan` sont consultatives (pas d'apply mécanique → mission agent, Tier 3).
 - [x] **Hebbien niveau 2 (fait 2026-07-02 soir)** : le rappel automatique ne pose plus de poids (`SearchOpts.sans_trace`, fraîcheur seule) ; après la réponse, `renforcer()` ne crédite que les items dont le contenu a réellement irrigué la réponse (recouvrement lexical déterministe testé). Les recherches délibérées (outil, scouts) gardent le niveau 1. Mesure par le juge des évals = raffinement possible plus tard.
@@ -169,7 +168,7 @@
 - [x] **Éval deep terminée** (l'autre session) → l'item « figer la baseline » (`--save-baseline`) est actionnable.
 
 ## ✅ Fait récemment
-- [x] **Rangement racine** : `README.md` à jour + archivage des docs/scripts/lanceurs (`docs/_archive/`, `_archive/`, `laruche/_archive/`) + `.gitignore` durci.
+- [x] **Rangement racine** : `README.md` à jour + archivage hors dépôt des docs/scripts/lanceurs internes + `.gitignore` durci.
 - [x] **Split `spa.html`** → `app.css` + `app.js` + routes node (`/app.css`, `/app.js`).
 - [x] **Split `app.js`** → 9 modules dans `templates/js/` (concat compile-time, un seul `/app.js` servi).
 - [x] **i18n UI FR/EN** : infra `LaRuche.i18n` (`t()` + toggle header + dico par module) + **760 chaînes migrées** (workflow 8 agents). Marque non traduite.
@@ -250,4 +249,4 @@ Suivis dans la liste de tâches du dépôt.
 - [ ] **Intégration matérielle NFC**
 
 ---
-*Historique complet de conception : `docs/_archive/` (LARUCHE_V2.md, MASTER_DEV.md, VISION_INNOVATION.md, ARCHI_BUTINAGE.md…).*
+*Les documents de conception initiaux sont conservés hors dépôt.*

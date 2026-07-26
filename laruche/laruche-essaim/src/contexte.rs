@@ -1639,10 +1639,10 @@ mod tests {
             "Generate images, video, and audio with ComfyUI"
         );
         // Without a dash: first sentence.
-        let plan = "Plan mode: write an actionable markdown plan to .third-party/plans/, no execution. Bite-sized tasks, exact paths, complete code.";
+        let plan = "Plan mode: write an actionable markdown plan to .laruche/plans/, no execution. Bite-sized tasks, exact paths, complete code.";
         assert_eq!(
             resumer_description(plan),
-            "Plan mode: write an actionable markdown plan to .third-party/plans/, no execution"
+            "Plan mode: write an actionable markdown plan to .laruche/plans/, no execution"
         );
         // Already short: unchanged.
         assert_eq!(
