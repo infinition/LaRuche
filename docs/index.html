@@ -1,0 +1,658 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LaRuche — your personal AI hive</title>
+<meta name="description" content="An agentic AI node that lives on your machine. One Rust binary, fully local, genuinely yours.">
+<meta name="color-scheme" content="dark light">
+<meta property="og:title" content="LaRuche — your personal AI hive">
+<meta property="og:description" content="An agentic AI node that lives on your machine. One Rust binary, fully local, genuinely yours.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 28 9v14L16 30 4 23V9z' fill='%23E2A03F'/%3E%3C/svg%3E">
+<style>
+/* ---------------------------------------------------------------
+   LaRuche — showcase
+   No external requests. No CDN, no webfont, no analytics.
+   The page keeps the same promise as the software it describes.
+   --------------------------------------------------------------- */
+
+:root {
+  /* Palette drawn from the apiary: propolis, wax, comb, smoke,
+     and the blue of the international queen-marking code. */
+  --propolis:    #17130C;
+  --propolis-up: #201A11;
+  --wax:         #F7F0E1;
+  --wax-up:      #EFE5CE;
+  --ink:         #17130C;
+  --comb:        #E2A03F;
+  --comb-deep:   #9A6B18;
+  --queen:       #4C7FD1;
+  --queen-deep:  #2F5EA8;
+  --smoke:       #7C7360;
+
+  /* Semantic tokens — components only ever read these. */
+  --bg:        var(--propolis);
+  --surface:   var(--propolis-up);
+  --text:      var(--wax);
+  --muted:     #A2977F;
+  --accent:    var(--comb);
+  --accent-ink:#17130C;
+  --cool:      #7DA6E8;
+  --line:      #33291B;
+  --line-soft: #241D13;
+
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  --serif: "Iowan Old Style", "Palatino Linotype", Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
+
+  --s--1: 0.8125rem;
+  --s-0:  1.0625rem;
+  --s-1:  1.3rem;
+  --s-2:  1.7rem;
+  --s-3:  2.3rem;
+  --s-4:  clamp(2.6rem, 7vw, 4.5rem);
+  --s-5:  clamp(3.2rem, 12vw, 7.5rem);
+
+  --measure: 63ch;
+  --gutter: clamp(1.25rem, 4vw, 3rem);
+  --rule: 1px solid var(--line);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: var(--wax);
+    --surface: var(--wax-up);
+    --text: var(--ink);
+    --muted: #6B6252;
+    --accent: var(--comb-deep);
+    --accent-ink: #FFF8E9;
+    --cool: var(--queen-deep);
+    --line: #DACDB0;
+    --line-soft: #E7DCC3;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: var(--propolis); --surface: var(--propolis-up); --text: var(--wax);
+  --muted: #A2977F; --accent: var(--comb); --accent-ink: #17130C;
+  --cool: #7DA6E8; --line: #33291B; --line-soft: #241D13;
+}
+:root[data-theme="light"] {
+  --bg: var(--wax); --surface: var(--wax-up); --text: var(--ink);
+  --muted: #6B6252; --accent: var(--comb-deep); --accent-ink: #FFF8E9;
+  --cool: var(--queen-deep); --line: #DACDB0; --line-soft: #E7DCC3;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--serif);
+  font-size: var(--s-0);
+  line-height: 1.62;
+  overflow-x: hidden;
+}
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--cool); outline-offset: 3px; border-radius: 2px; }
+
+/* ---- shared layout ------------------------------------------------ */
+.shell { max-width: 78rem; margin: 0 auto; padding-inline: var(--gutter); }
+
+/* The record-card grid: mono label rail on the left, prose on the right. */
+.record { display: grid; gap: 0.6rem clamp(1.5rem, 4vw, 3.5rem); grid-template-columns: 1fr; }
+@media (min-width: 56rem) { .record { grid-template-columns: 12rem minmax(0, 1fr); } }
+
+.rail {
+  font-family: var(--mono);
+  font-size: var(--s--1);
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding-top: 0.45rem;
+}
+.rail b { display: block; color: var(--accent); font-weight: 600; }
+
+h1, h2, h3 { text-wrap: balance; font-weight: 600; margin: 0; }
+h2 { font-family: var(--mono); font-size: var(--s-2); letter-spacing: -0.015em; }
+h3 { font-family: var(--mono); font-size: var(--s-1); letter-spacing: -0.01em; }
+p { margin: 0 0 1em; max-width: var(--measure); }
+p:last-child { margin-bottom: 0; }
+
+section { border-top: var(--rule); padding-block: clamp(3rem, 8vw, 6rem); }
+
+/* ---- masthead ----------------------------------------------------- */
+.masthead { padding-block: 1rem; border-bottom: var(--rule); position: sticky; top: 0; z-index: 20;
+  background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); }
+.masthead .shell { display: flex; align-items: center; gap: 1rem; justify-content: space-between; }
+.wordmark { display: flex; align-items: center; gap: 0.6rem; font-family: var(--mono); font-weight: 600;
+  letter-spacing: 0.02em; text-decoration: none; }
+.wordmark svg { display: block; }
+.mast-nav { display: flex; align-items: center; gap: clamp(0.75rem, 2vw, 1.75rem);
+  font-family: var(--mono); font-size: var(--s--1); letter-spacing: 0.06em; text-transform: uppercase; }
+.mast-nav a { color: var(--muted); text-decoration: none; }
+.mast-nav a:hover { color: var(--text); }
+@media (max-width: 46rem) { .mast-nav .opt { display: none; } }
+
+.theme-btn { font: inherit; font-family: var(--mono); font-size: var(--s--1); letter-spacing: 0.06em;
+  text-transform: uppercase; background: none; border: var(--rule); color: var(--muted);
+  padding: 0.3rem 0.6rem; cursor: pointer; }
+.theme-btn:hover { color: var(--text); border-color: var(--muted); }
+
+/* ---- hero --------------------------------------------------------- */
+.hero { padding-block: clamp(2.5rem, 7vw, 5rem) clamp(2rem, 5vw, 3.5rem); }
+.hero-grid { display: grid; gap: clamp(2rem, 5vw, 3.5rem); align-items: start; }
+@media (min-width: 62rem) { .hero-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); } }
+
+.eyebrow { font-family: var(--mono); font-size: var(--s--1); letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--accent); margin: 0 0 1.2rem; }
+.hero h1 {
+  font-family: var(--mono); font-size: var(--s-5); line-height: 0.88;
+  letter-spacing: -0.045em; margin: 0 0 1.4rem;
+}
+.hero h1 .fr { color: var(--accent); }
+.lede { font-size: var(--s-1); line-height: 1.5; max-width: 34ch; margin-bottom: 1.4rem; }
+.sub { color: var(--muted); max-width: 46ch; }
+
+/* ---- comb canvas -------------------------------------------------- */
+.comb-panel { border: var(--rule); background: var(--surface); }
+.comb-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;
+  padding: 0.7rem 1rem; border-bottom: var(--rule); font-family: var(--mono);
+  font-size: var(--s--1); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.comb-head .live { color: var(--cool); }
+#comb { display: block; width: 100%; height: auto; }
+.comb-legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  border-top: var(--rule); }
+.stage {
+  appearance: none; background: none; border: 0; border-right: var(--rule);
+  color: var(--muted); font-family: var(--mono); font-size: var(--s--1);
+  letter-spacing: 0.08em; text-transform: uppercase; text-align: left;
+  padding: 0.7rem 0.85rem; cursor: pointer; line-height: 1.3;
+}
+.stage:last-child { border-right: 0; }
+.stage em { display: block; font-style: normal; text-transform: none; letter-spacing: 0;
+  font-family: var(--serif); font-size: var(--s--1); color: var(--muted); opacity: 0.75; margin-top: 0.15rem; }
+.stage[aria-current="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.stage[aria-current="true"] em { color: var(--text); opacity: 1; }
+.stage:hover { color: var(--text); }
+
+/* ---- download ----------------------------------------------------- */
+.get { display: grid; gap: 1.25rem; margin-top: 2rem; }
+.dl-row { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+.dl {
+  display: inline-flex; align-items: center; gap: 0.55rem;
+  font-family: var(--mono); font-size: var(--s--1); letter-spacing: 0.06em;
+  text-transform: uppercase; text-decoration: none;
+  border: 1px solid var(--line); color: var(--muted);
+  padding: 0.62rem 0.95rem; transition: border-color .15s, color .15s, background .15s;
+}
+.dl:hover { color: var(--text); border-color: var(--muted); }
+.dl.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.dl.primary:hover { background: color-mix(in srgb, var(--accent) 86%, var(--text)); color: var(--accent-ink); }
+.dl svg { flex: none; }
+
+.cmd { border: var(--rule); background: var(--surface); }
+.cmd-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem;
+  padding: 0.5rem 0.85rem; border-bottom: var(--rule);
+  font-family: var(--mono); font-size: var(--s--1); letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--muted); }
+.copy { font: inherit; background: none; border: 0; color: var(--cool); cursor: pointer;
+  letter-spacing: 0.12em; text-transform: uppercase; padding: 0; }
+.cmd pre { margin: 0; padding: 0.85rem; overflow-x: auto; font-family: var(--mono);
+  font-size: var(--s--1); line-height: 1.7; }
+.cmd .tok-c { color: var(--muted); }
+.note { font-family: var(--mono); font-size: var(--s--1); color: var(--muted); letter-spacing: 0.02em; }
+
+/* ---- subsystems --------------------------------------------------- */
+.subs { display: grid; gap: 0; margin-top: 2.5rem; border-top: var(--rule); }
+.sub-row { display: grid; gap: 0.35rem clamp(1.5rem, 4vw, 3.5rem); padding-block: 1.6rem;
+  border-bottom: var(--rule); grid-template-columns: 1fr; align-items: start; }
+@media (min-width: 56rem) { .sub-row { grid-template-columns: 12rem minmax(0, 1fr) 9rem; } }
+.sub-row h3 { font-size: var(--s-1); }
+.sub-row .fr-term { font-family: var(--mono); font-size: var(--s--1); letter-spacing: 0.13em;
+  text-transform: uppercase; color: var(--accent); padding-top: 0.5rem; }
+.sub-row .verdict { font-family: var(--mono); font-size: var(--s--1); letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted); padding-top: 0.55rem; }
+.sub-row p { color: var(--muted); margin-top: 0.3rem; }
+
+/* ---- watcher tree ------------------------------------------------- */
+.rule-demo { display: grid; gap: 1.5rem; margin-top: 2.5rem; }
+@media (min-width: 62rem) { .rule-demo { grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: start; } }
+.said { border-left: 3px solid var(--accent); padding: 0.2rem 0 0.2rem 1.1rem;
+  font-size: var(--s-1); line-height: 1.5; }
+.tree { border: var(--rule); background: var(--surface); padding: 1rem 1.1rem; overflow-x: auto;
+  font-family: var(--mono); font-size: var(--s--1); line-height: 1.85; }
+.tree ul { list-style: none; margin: 0; padding-left: 1.15rem; border-left: 1px dashed var(--line); }
+.tree > ul { padding-left: 0; border-left: 0; }
+.tree li { position: relative; white-space: nowrap; }
+.op { color: var(--accent); }
+.leaf { color: var(--text); }
+.llm { color: var(--cool); }
+.tree .meta { color: var(--muted); white-space: normal; }
+
+/* ---- glossary ----------------------------------------------------- */
+.gloss-wrap { overflow-x: auto; margin-top: 2.5rem; border: var(--rule); }
+table { border-collapse: collapse; width: 100%; font-size: var(--s--1); }
+th, td { text-align: left; padding: 0.7rem 1rem; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+thead th { font-family: var(--mono); letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--muted); border-bottom: var(--rule); font-weight: 400; white-space: nowrap; }
+tbody th { font-family: var(--mono); color: var(--accent); font-weight: 600; white-space: nowrap; letter-spacing: 0.02em; }
+tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+td.eng { font-family: var(--mono); color: var(--muted); white-space: nowrap; }
+
+/* ---- footer ------------------------------------------------------- */
+footer { border-top: var(--rule); padding-block: 3rem 4rem; }
+.foot-grid { display: flex; flex-wrap: wrap; gap: 1.5rem 3rem; justify-content: space-between;
+  align-items: baseline; font-family: var(--mono); font-size: var(--s--1); color: var(--muted); }
+.foot-grid a { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--line); }
+.foot-grid a:hover { color: var(--text); border-color: var(--muted); }
+.offline-badge { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--cool); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="shell">
+    <a class="wordmark" href="#top">
+      <svg width="18" height="20" viewBox="0 0 32 36" aria-hidden="true"><path d="M16 1 30 9v18L16 35 2 27V9z" fill="none" stroke="currentColor" stroke-width="2.5"/></svg>
+      LaRuche
+    </a>
+    <nav class="mast-nav">
+      <a class="opt" href="#engine">Engine</a>
+      <a class="opt" href="#subsystems">Subsystems</a>
+      <a class="opt" href="#glossary">Glossary</a>
+      <a href="https://github.com/infinition/LaRuche">GitHub</a>
+      <button class="theme-btn" id="theme" type="button" aria-label="Switch colour theme">Theme</button>
+    </nav>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ============================= HERO ============================= -->
+  <div class="hero shell">
+    <div class="hero-grid">
+      <div>
+        <p class="eyebrow">Self-hosted agent node · Rust · MPL-2.0</p>
+        <h1>Your<br>personal<br><span class="fr">AI hive</span></h1>
+        <p class="lede">An agentic node that lives on your machine, remembers what matters, and keeps working while you sleep.</p>
+        <p class="sub">One binary. Your own models. A SQLite file you can read, diff and roll back. No cloud, no runtime to install, no subscription.</p>
+
+        <div class="get">
+          <div class="dl-row" id="dl-row">
+            <a class="dl primary" id="dl-main" href="https://github.com/infinition/LaRuche/releases/latest">
+              <svg width="13" height="14" viewBox="0 0 14 15" aria-hidden="true"><path d="M7 1v9m0 0 3.5-3.5M7 10 3.5 6.5M1 13h12" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+              <span id="dl-main-label">Download</span>
+            </a>
+            <a class="dl" href="https://github.com/infinition/LaRuche/releases/latest">All platforms</a>
+            <a class="dl" href="https://github.com/infinition/LaRuche">Source</a>
+          </div>
+
+          <div class="cmd">
+            <div class="cmd-head">
+              <span>Or build it yourself</span>
+              <button class="copy" id="copy" type="button">Copy</button>
+            </div>
+<pre id="cmd-text">git clone https://github.com/infinition/LaRuche
+cd LaRuche/laruche
+cargo run --release -p laruche-node   <span class="tok-c"># then open localhost:8419</span></pre>
+          </div>
+          <p class="note">Works with llama.cpp and Ollama out of the box. Cloud keys work too — they are just not required.</p>
+        </div>
+      </div>
+
+      <!-- Live comb: the butinage cycle, one cell at a time. -->
+      <div class="comb-panel" id="engine">
+        <div class="comb-head">
+          <span>The butinage engine</span>
+          <button class="copy live" id="comb-state" type="button" aria-label="Pause or resume the animation">running</button>
+        </div>
+        <canvas id="comb" width="720" height="470" role="img"
+          aria-label="Animated honeycomb tracing one pass of the agent loop: mission, compass, plan, parallel harvest, notebook, compaction."></canvas>
+        <div class="comb-legend" id="legend"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================== SUBSYSTEMS ========================== -->
+  <section id="subsystems">
+    <div class="shell">
+      <div class="record">
+        <div class="rail">Inspection<b>Colony</b></div>
+        <div>
+          <h2>An agent you run 24/7 needs more than a chat loop</h2>
+          <p>Plenty of projects give you tool calling. LaRuche's bet is that a node living on your machine needs an engine, a memory, a supervisor and reflexes — each one a first-class subsystem, each one auditable.</p>
+        </div>
+      </div>
+
+      <div class="subs">
+        <div class="sub-row">
+          <div class="fr-term">Butinage</div>
+          <div>
+            <h3>A ReAct loop hardened for imperfect models</h3>
+            <p>Native tool calling per provider with tolerant text fallbacks, client-side schema validation, an anti-loop sentinel, per-tool timeouts, token budgets, cooperative cancellation, live steering mid-run, and parallel scouts for deep research. An evals harness replays fixed missions against the real engine, so regressions get caught rather than guessed at.</p>
+          </div>
+          <div class="verdict">109 tests</div>
+        </div>
+
+        <div class="sub-row">
+          <div class="fr-term">Mémoire</div>
+          <div>
+            <h3>Cognitive memory with git time travel</h3>
+            <p>Not a vector store bolted on: a map of nodes and facts over SQLite, hybrid recall fusing embeddings with full-text search, importance decay, and write-time supersede so an updated fact replaces the stale one instead of piling up beside it. Hebbian ranking reinforces only what was actually used in an answer. The whole map exports to markdown in its own git repo — <code>git log</code> is your agent's learning timeline.</p>
+          </div>
+          <div class="verdict">SQLite + FTS5</div>
+        </div>
+
+        <div class="sub-row">
+          <div class="fr-term">LaReine</div>
+          <div>
+            <h3>A supervisor that can send the work back</h3>
+            <p>A judge reviews answers against an editable charter before you see them, and it has real leverage: it can order a fresh agentic run, it keeps the best-scoring draft so quality never regresses across retries, and it escalates when it is not confident. Its methodology score is grounded in which tools were actually called — not in what the answer claims.</p>
+          </div>
+          <div class="verdict">Human seat</div>
+        </div>
+
+        <div class="sub-row">
+          <div class="fr-term">Veille</div>
+          <div>
+            <h3>Reflexes that cost nothing at runtime</h3>
+            <p>Describe a rule in plain language and it compiles once into a deterministic predicate tree. Weekdays, time windows, file appeared or changed, service down for N minutes, log patterns, HTTP status — combined with and/or/not. The only rule that ever calls a model is an explicit check leaf, and only once the deterministic prefix has already passed.</p>
+          </div>
+          <div class="verdict">Compiled</div>
+        </div>
+
+        <div class="sub-row">
+          <div class="fr-term">Coffre</div>
+          <div>
+            <h3>A security model that assumes the model will slip</h3>
+            <p>Loopback by default, strict CORS, an auth guard on every mutating route, sanitized rendering, and sensitive tools behind a human approval gate. The vault gives the model names, never values: you write a key reference in chat, substitution happens at execution time, and if a tool output echoes a secret back it is masked before it can reach the context or the session file.</p>
+          </div>
+          <div class="verdict">Loopback</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================== RULE DEMO =========================== -->
+  <section>
+    <div class="shell">
+      <div class="record">
+        <div class="rail">Field note<b>Watchers</b></div>
+        <div>
+          <h2>You say it once. It compiles.</h2>
+          <p>The sentence on the left becomes the tree on the right — evaluated on a timer, at effectively zero cost. No model is woken up until the deterministic part has already matched.</p>
+        </div>
+      </div>
+
+      <div class="rule-demo">
+        <p class="said">“If it's Tuesday or Thursday and my local site has been down for 10 minutes, ping me on Telegram every 20 minutes.”</p>
+        <div class="tree">
+          <ul>
+            <li><span class="op">ALL</span> <span class="meta">— every branch must hold</span>
+              <ul>
+                <li><span class="op">ANY</span>
+                  <ul>
+                    <li><span class="leaf">weekday == tue</span></li>
+                    <li><span class="leaf">weekday == thu</span></li>
+                  </ul>
+                </li>
+                <li><span class="leaf">service.down_for &gt;= 10m</span></li>
+              </ul>
+            </li>
+            <li><span class="meta">then</span> <span class="leaf">notify telegram</span> <span class="meta">· cooldown 20m</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================== GLOSSARY =========================== -->
+  <section id="glossary">
+    <div class="shell">
+      <div class="record">
+        <div class="rail">Register<b>Vocabulary</b></div>
+        <div>
+          <h2>The hive speaks French</h2>
+          <p>The brand vocabulary is French and stays that way — it is the identity, and each term is precise about what the part actually does. The code and the documentation are English.</p>
+        </div>
+      </div>
+
+      <div class="gloss-wrap">
+        <table>
+          <thead>
+            <tr><th scope="col">Term</th><th scope="col">Literally</th><th scope="col">In the system</th></tr>
+          </thead>
+          <tbody>
+            <tr><th scope="row">butinage</th><td class="eng">foraging</td><td>The agentic loop: go out, gather, come back, decide.</td></tr>
+            <tr><th scope="row">essaim</th><td class="eng">swarm</td><td>The agent layer — providers, prompts, tools, supervision.</td></tr>
+            <tr><th scope="row">abeille</th><td class="eng">bee</td><td>A single tool the agent can call.</td></tr>
+            <tr><th scope="row">éclaireuse</th><td class="eng">scout</td><td>A sub-agent dispatched in parallel for one research angle.</td></tr>
+            <tr><th scope="row">récolte</th><td class="eng">harvest</td><td>One batch of tool calls, run in parallel when it is safe to.</td></tr>
+            <tr><th scope="row">carnet</th><td class="eng">notebook</td><td>The run checkpoint — survives a crash, resumes where it stopped.</td></tr>
+            <tr><th scope="row">escale</th><td class="eng">layover</td><td>Compaction, when the context window fills up.</td></tr>
+            <tr><th scope="row">vigie</th><td class="eng">lookout</td><td>The anti-loop sentinel watching for repeated dead ends.</td></tr>
+            <tr><th scope="row">cap</th><td class="eng">bearing</td><td>The compass: continue, verify once more, or land.</td></tr>
+            <tr><th scope="row">LaReine</th><td class="eng">the queen</td><td>The supervisor that reviews the work before you see it.</td></tr>
+            <tr><th scope="row">miel</th><td class="eng">honey</td><td>What hives trade on the mesh: skills and memory facts.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ CLOSE ============================= -->
+  <section>
+    <div class="shell">
+      <div class="record">
+        <div class="rail">Status<b>Beta</b></div>
+        <div>
+          <h2>Moving fast, used daily by its author</h2>
+          <p>340+ tests across the workspace run green on every change. The roadmap in the repository is the single source of truth for what is done and what is next. Issues and pull requests are welcome.</p>
+          <div class="dl-row" style="margin-top:1.6rem">
+            <a class="dl primary" href="https://github.com/infinition/LaRuche/releases/latest">Get LaRuche</a>
+            <a class="dl" href="https://github.com/infinition/LaRuche/blob/main/ROADMAP.md">Read the roadmap</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="shell foot-grid">
+    <span>LaRuche · MPL-2.0 · <a href="https://github.com/infinition/LaRuche">github.com/infinition/LaRuche</a></span>
+    <span class="offline-badge">
+      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+      This page made zero network requests
+    </span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- theme toggle ---------------------------------------- */
+  var root = document.documentElement;
+  var btn = document.getElementById("theme");
+  btn.addEventListener("click", function () {
+    var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    var current = root.getAttribute("data-theme") || (dark ? "dark" : "light");
+    root.setAttribute("data-theme", current === "dark" ? "light" : "dark");
+    draw();
+  });
+
+  /* ---------- per-OS download ------------------------------------- */
+  var BASE = "https://github.com/infinition/LaRuche/releases/latest/download/";
+  var ua = navigator.userAgent;
+  var target = null;
+  if (/Windows/i.test(ua)) target = { file: "laruche-windows-x86_64.zip", label: "Download for Windows" };
+  else if (/Mac OS X|Macintosh/i.test(ua)) {
+    var arm = /ARM|Apple/i.test(navigator.platform || "") || navigator.maxTouchPoints > 1;
+    target = { file: arm ? "laruche-macos-arm64.tar.gz" : "laruche-macos-x86_64.tar.gz", label: "Download for macOS" };
+  } else if (/Linux|X11/i.test(ua)) target = { file: "laruche-linux-x86_64.tar.gz", label: "Download for Linux" };
+  if (target) {
+    var a = document.getElementById("dl-main");
+    a.href = BASE + target.file;
+    document.getElementById("dl-main-label").textContent = target.label;
+  }
+
+  /* ---------- copy the build command ------------------------------ */
+  var copyBtn = document.getElementById("copy");
+  copyBtn.addEventListener("click", function () {
+    var text = document.getElementById("cmd-text").textContent.replace(/\s+# then open.*$/m, "");
+    navigator.clipboard.writeText(text.trim()).then(function () {
+      copyBtn.textContent = "Copied";
+      setTimeout(function () { copyBtn.textContent = "Copy"; }, 1600);
+    }, function () {
+      copyBtn.textContent = "Select it";
+      setTimeout(function () { copyBtn.textContent = "Copy"; }, 1600);
+    });
+  });
+
+  /* ---------- the comb -------------------------------------------- */
+  /* One pass of the loop, drawn as cells lighting across a comb.
+     Stage 3 lights several cells at once: that is the parallel harvest. */
+  /* Cell index = column * ROWS + row, on the 9x5 comb built below. */
+  var STAGES = [
+    { key: "mission",    fr: "Mission",     en: "what you asked",     cells: [2] },
+    { key: "cap",        fr: "Cap",         en: "continue or land?",  cells: [12] },
+    { key: "itineraire", fr: "Itinéraire",  en: "the plan",           cells: [16] },
+    { key: "recolte",    fr: "Récolte",     en: "tools, in parallel", cells: [25, 26, 27, 28] },
+    { key: "carnet",     fr: "Carnet",      en: "observations kept",  cells: [32] },
+    { key: "escale",     fr: "Escale",      en: "compaction",         cells: [42] }
+  ];
+
+  var canvas = document.getElementById("comb");
+  var ctx = canvas.getContext("2d");
+  var legend = document.getElementById("legend");
+  var stateEl = document.getElementById("comb-state");
+
+  /* Flat-top hexagons. Horizontal step is 1.5R, vertical step is sqrt(3)R,
+     odd columns dropped by half a step so the cells interlock.
+     Sized to sit inside the 720x470 canvas with even margins. */
+  var COLS = 9, ROWS = 5, R = 44;
+  var STEP_X = R * 1.5, STEP_Y = R * Math.sqrt(3);
+  var ORIGIN_X = (canvas.width - (COLS - 1) * STEP_X) / 2;
+  var ORIGIN_Y = 58;
+  var cells = [];
+  for (var c = 0; c < COLS; c++) {
+    for (var r = 0; r < ROWS; r++) {
+      cells.push({
+        x: ORIGIN_X + c * STEP_X,
+        y: ORIGIN_Y + r * STEP_Y + (c % 2 ? STEP_Y / 2 : 0),
+        glow: 0
+      });
+    }
+  }
+
+  var active = 0, paused = false, reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  STAGES.forEach(function (s, i) {
+    var b = document.createElement("button");
+    b.className = "stage";
+    b.type = "button";
+    b.innerHTML = s.fr + "<em>" + s.en + "</em>";
+    b.addEventListener("click", function () {
+      active = i; paused = true; stateEl.textContent = "paused";
+      applyStage(); draw();
+    });
+    legend.appendChild(b);
+    s.el = b;
+  });
+
+  stateEl.addEventListener("click", function () {
+    if (reduced) return;
+    paused = !paused;
+    stateEl.textContent = paused ? "paused" : "running";
+  });
+
+  function token(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function hexPath(cx, cy, rad) {
+    ctx.beginPath();
+    for (var i = 0; i < 6; i++) {
+      var ang = Math.PI / 180 * (60 * i);
+      var px = cx + rad * Math.cos(ang);
+      var py = cy + rad * Math.sin(ang);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  }
+
+  function applyStage() {
+    STAGES.forEach(function (s, i) { s.el.setAttribute("aria-current", i === active ? "true" : "false"); });
+    var lit = STAGES[active].cells;
+    cells.forEach(function (cell, i) {
+      if (lit.indexOf(i) !== -1) cell.glow = 1;
+    });
+  }
+
+  function draw() {
+    var line = token("--line"), accent = token("--accent"), cool = token("--cool"), surface = token("--surface");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = surface;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    cells.forEach(function (cell) {
+      hexPath(cell.x, cell.y, R - 3);
+      if (cell.glow > 0.01) {
+        ctx.globalAlpha = cell.glow * 0.9;
+        ctx.fillStyle = accent;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = cell.glow > 0.35 ? accent : line;
+      ctx.stroke();
+    });
+
+    /* The path travelled so far, in queen blue. */
+    ctx.strokeStyle = cool;
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath();
+    for (var i = 0; i <= active; i++) {
+      var idx = STAGES[i].cells[0];
+      var p = cells[idx];
+      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  function tick() {
+    var changed = false;
+    cells.forEach(function (cell) {
+      if (cell.glow > 0) { cell.glow *= 0.965; changed = true; }
+      if (cell.glow < 0.01) cell.glow = 0;
+    });
+    if (changed) draw();
+    requestAnimationFrame(tick);
+  }
+
+  applyStage();
+  draw();
+
+  if (!reduced) {
+    requestAnimationFrame(tick);
+    setInterval(function () {
+      if (paused) return;
+      active = (active + 1) % STAGES.length;
+      applyStage();
+      draw();
+    }, 1500);
+  } else {
+    stateEl.textContent = "static";
+  }
+})();
+</script>
+</body>
+</html>

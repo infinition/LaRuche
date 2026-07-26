@@ -1,2 +1,5 @@
 [toolchain]
-channel = "stable-x86_64-pc-windows-msvc"
+# Host-agnostic: resolves to the runner's own stable toolchain.
+# Pinning a host triple here (e.g. stable-x86_64-pc-windows-msvc) breaks
+# every non-Windows build, CI included.
+channel = "stable"
