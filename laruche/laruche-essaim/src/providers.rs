@@ -50,6 +50,39 @@ pub fn convertir_tools_openai(tools: &[serde_json::Value]) -> Vec<serde_json::Va
     }).collect()
 }
 
+/// Re-encode a JSON document so every character is ASCII, escaping the rest as `\uXXXX`.
+///
+/// serde_json emits real UTF-8, which is valid JSON and normally fine. It stopped
+/// being fine against one gateway that counts our BYTES as characters: it read a
+/// body of 83250 bytes / 83145 chars and reported "EOF while parsing a string at
+/// column 83250", the byte figure. Reading multi-byte UTF-8 one byte at a time
+/// walks off the end of the document, inside a string, every time. Deterministic,
+/// which is why three retries failed identically.
+///
+/// With `\uXXXX` escapes there is no multi-byte character left on the wire: bytes
+/// and characters coincide and no consumer can mis-frame them. The document is
+/// strictly equivalent (JSON escapes are part of the spec) and only grows by the
+/// few accented characters a prompt carries. Non-ASCII only ever appears INSIDE
+/// string literals in serde_json output, so escaping it can never touch structure.
+fn json_ascii(brut: &str) -> String {
+    if brut.is_ascii() {
+        return brut.to_string();
+    }
+    let mut out = String::with_capacity(brut.len() + 16);
+    let mut tampon = [0u16; 2];
+    for c in brut.chars() {
+        if c.is_ascii() {
+            out.push(c);
+        } else {
+            // Chars beyond the BMP need their surrogate pair, as JSON requires.
+            for unite in c.encode_utf16(&mut tampon) {
+                out.push_str(&format!("\\u{unite:04x}"));
+            }
+        }
+    }
+    out
+}
+
 /// Append what we actually sent to a provider error, so a parse complaint can be read.
 ///
 /// Turns "EOF while parsing a string at line 1 column 106091" into something
@@ -67,6 +100,25 @@ fn diagnostiquer_corps(
         corps_brut.chars().count(),
         messages.len()
     )];
+
+    // THE decisive check. serde_json cannot emit invalid JSON, so if our own body
+    // parses here while the provider refuses it, the fault is not in what we built.
+    // Cheap (sub-millisecond on ~80 KB) and it ends an entire class of speculation.
+    match serde_json::from_str::<serde_json::Value>(corps_brut) {
+        Ok(_) => notes.push("OUR body re-parses locally as valid JSON".into()),
+        Err(e) => notes.push(format!("OUR OWN body is invalid JSON: {e} <-- our bug")),
+    }
+
+    // On a parse complaint, keep the exact bytes so they can be inspected offline.
+    if erreur.to_lowercase().contains("parse the request body") {
+        let chemin = std::env::temp_dir().join(format!(
+            "laruche-corps-refuse-{}.json",
+            chrono::Utc::now().format("%Y%m%d-%H%M%S")
+        ));
+        if std::fs::write(&chemin, corps_brut).is_ok() {
+            notes.push(format!("body dumped to {}", chemin.display()));
+        }
+    }
 
     // "... at line 1 column 106091" -> compare with where our body ends.
     if let Some(reste) = erreur.rsplit("column ").next() {
@@ -343,15 +395,89 @@ async fn openai_chat_stream(
     if is_local_base_url(base) {
         for (k, v) in mesh_headers("/v1/chat/completions") { req = req.header(k, v); }
     }
-    // Serialize ONCE, so the bytes we measure are the bytes we send.
-    let corps_brut = serde_json::to_string(&body)?;
+    // Serialize ONCE, so the bytes we measure are the bytes we send, and ship it
+    // pure ASCII so no consumer can confuse our bytes with our characters.
+    let mut corps_brut = json_ascii(&serde_json::to_string(&body)?);
+
+    // BYTE guard, which the token gauge cannot provide. Some gateways refuse a
+    // request body past a size of their own: observed rejections clustered at
+    // columns 81733, 81736, 81813 and 82233, all just under 80 KiB, on bodies our
+    // own parser accepts. The gauge showed 9% of a 128k window at the time, because
+    // it counts tokens while the wall is counted in bytes.
+    //
+    // Tools are trimmed first, never messages: dropping the tail of a
+    // relevance-ordered tool list costs a capability the model probably was not
+    // going to use, whereas dropping a message loses work already done. If trimming
+    // is not enough the request goes out as is, and the provider decides.
+    const LIMITE_CORPS: usize = 76_800;
+    if corps_brut.len() > LIMITE_CORPS {
+        if let Some(liste) = body.get("tools").and_then(|t| t.as_array()).cloned() {
+            let mut gardes = liste.len();
+            while gardes > 4 && corps_brut.len() > LIMITE_CORPS {
+                gardes = gardes.saturating_sub(2).max(4);
+                let mut essai = body.clone();
+                essai["tools"] = serde_json::json!(liste[..gardes]);
+                corps_brut = json_ascii(&serde_json::to_string(&essai)?);
+            }
+            tracing::warn!(
+                target: "provider",
+                octets = corps_brut.len(),
+                outils_gardes = gardes,
+                outils_initiaux = liste.len(),
+                "request body over the byte guard: tool list trimmed"
+            );
+        }
+    }
+    debug_assert!(
+        serde_json::from_str::<serde_json::Value>(&corps_brut).is_ok(),
+        "the escaped body must stay valid JSON"
+    );
     tracing::debug!(
         target: "provider",
         octets = corps_brut.len(),
+        caracteres = corps_brut.chars().count(),
         messages = openai_messages.len(),
         "openai-compatible request body"
     );
     let mut response = req.body(corps_brut.clone()).send().await?;
+
+    // Thinking mode on some OpenAI-compatible backends (deepseek) demands that the
+    // `reasoning_content` it streamed be handed BACK on the next call. We accumulate
+    // it but never replay it, because the engine's transcript has no slot for it, so
+    // the second turn of any thinking conversation died on
+    // "The reasoning_content in the thinking mode must be passed back to the API".
+    // Rather than lose the feature everywhere it works statelessly (OpenAI o-series),
+    // drop the flag and retry once: the turn completes without thinking instead of
+    // failing. Replaying the reasoning is the real fix and needs a transcript change.
+    if response.status().as_u16() == 400 && body.get("reasoning_effort").is_some() {
+        let apercu = response.text().await.unwrap_or_default();
+        if apercu.contains("reasoning_content") {
+            tracing::warn!(
+                target: "provider",
+                "thinking mode requires replaying reasoning_content, which we cannot do yet: retrying without reasoning_effort"
+            );
+            let mut sans_pensee = body.clone();
+            sans_pensee.as_object_mut().map(|o| o.remove("reasoning_effort"));
+            let corps_sans = json_ascii(&serde_json::to_string(&sans_pensee)?);
+            let mut rejeu = client
+                .post(&url)
+                .header("Authorization", format!("Bearer {}", bearer))
+                .header("Content-Type", "application/json");
+            if is_local_base_url(base) {
+                for (k, v) in mesh_headers("/v1/chat/completions") {
+                    rejeu = rejeu.header(k, v);
+                }
+            }
+            response = rejeu.body(corps_sans).send().await?;
+        } else {
+            return Err(ProviderError {
+                status: 400,
+                body: diagnostiquer_corps(&apercu, &corps_brut, &openai_messages),
+                retry_after: None,
+            }
+            .into());
+        }
+    }
 
     tracing::info!(target: "provider", url = %url, model = %model, status = %response.status(), "openai-compatible request sent");
     if !response.status().is_success() {
@@ -636,8 +762,14 @@ async fn anthropic_chat_stream(
         }
     }
     flush_user(&mut convo, &mut user_blocks);
-    if let Some(last) = system_blocks.last_mut() {
-        last["cache_control"] = serde_json::json!({"type": "ephemeral"});
+    // Breakpoint on the FIRST block, not the last. Anthropic caches the prefix up to
+    // and INCLUDING the marked block, and the first block is the big stable system
+    // prompt. Marking the last one used to be equivalent, but the engine now appends
+    // a volatile system message (clock, recalled memory) at the tail of the context:
+    // it arrives here as the final block, so marking "last" would pin the cache to
+    // content that changes every minute and defeat caching entirely.
+    if let Some(first) = system_blocks.first_mut() {
+        first["cache_control"] = serde_json::json!({"type": "ephemeral"});
     }
 
     let mut body = serde_json::json!({
@@ -993,6 +1125,41 @@ mod tests {
     /// yield nothing, otherwise the same ids are emitted again, the consumer
     /// appends them, and the next request carries `tool_calls: [X, X]` which the
     /// API rejects with `Duplicate value for 'tool_call_id'`.
+    /// The wire must carry no multi-byte character.
+    ///
+    /// A gateway counted our bytes as characters: 83250 bytes / 83145 chars came
+    /// back as "EOF while parsing a string at column 83250", the byte figure. Once
+    /// every non-ASCII character travels escaped, bytes and characters coincide and
+    /// the mis-framing cannot happen.
+    #[test]
+    fn le_corps_part_en_ascii_pur_et_reste_du_json_equivalent() {
+        let doc = serde_json::json!({
+            "messages": [
+                { "role": "user", "content": "Résumé d'une clé été à Cannes 🐝" },
+                { "role": "assistant", "content": "Voilà, c'est prêt." }
+            ]
+        });
+        let brut = serde_json::to_string(&doc).unwrap();
+        assert!(!brut.is_ascii(), "the fixture must actually contain accents");
+
+        let ascii = json_ascii(&brut);
+        assert!(ascii.is_ascii(), "no multi-byte character may remain");
+        assert_eq!(
+            ascii.len(),
+            ascii.chars().count(),
+            "bytes and chars must coincide"
+        );
+
+        // Escaping changes the encoding, never the meaning.
+        let relu: serde_json::Value = serde_json::from_str(&ascii).unwrap();
+        assert_eq!(relu, doc);
+        assert_eq!(relu["messages"][0]["content"], "Résumé d'une clé été à Cannes 🐝");
+
+        // An already-ASCII document is returned untouched.
+        let simple = "{\"a\":\"b\"}";
+        assert_eq!(json_ascii(simple), simple);
+    }
+
     #[test]
     fn finaliser_tool_calls_ne_reemet_pas_les_memes_ids() {
         let mut acc: std::collections::HashMap<u32, (String, String, String)> =
