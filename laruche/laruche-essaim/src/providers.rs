@@ -53,21 +53,27 @@ pub fn convertir_tools_openai(tools: &[serde_json::Value]) -> Vec<serde_json::Va
 /// Finalize the streaming tool-call accumulator into an ordered list. The accumulator is
 /// keyed by the streaming `index`, so we sort by that (NOT by the provider-random `id`),
 /// which preserves the model's intended order of parallel tool calls.
+///
+/// DRAINING on purpose. A stream can reach a finalization point more than once: OpenAI-compatible
+/// providers send a chunk carrying `finish_reason`, then the `data: [DONE]` sentinel, and both
+/// call sites finalize. Leaving the accumulator populated made the second pass re-emit the SAME
+/// ids; the consumer appends them and the next request carries `tool_calls: [X, X]`, which the
+/// API rejects with `Duplicate value for 'tool_call_id'` (seen on deepseek-v4-flash).
 fn finaliser_tool_calls(
-    acc: &std::collections::HashMap<u32, (String, String, String)>,
+    acc: &mut std::collections::HashMap<u32, (String, String, String)>,
 ) -> Option<Vec<ToolCall>> {
     if acc.is_empty() {
         return None;
     }
     let mut calls: Vec<(u32, ToolCall)> = acc
-        .iter()
+        .drain()
         .map(|(idx, (id, name, args_str))| {
             (
-                *idx,
+                idx,
                 ToolCall {
-                    id: id.clone(),
-                    name: name.clone(),
-                    args: serde_json::from_str(args_str).unwrap_or(serde_json::Value::Null),
+                    id,
+                    name,
+                    args: serde_json::from_str(&args_str).unwrap_or(serde_json::Value::Null),
                 },
             )
         })
@@ -356,7 +362,7 @@ async fn openai_chat_stream(
                                     }
                                 }
                                 // Finalize the accumulated tool_calls (ordered by index).
-                                let tool_calls = finaliser_tool_calls(&tool_call_acc);
+                                let tool_calls = finaliser_tool_calls(&mut tool_call_acc);
                                 let _ = tx.send(OllamaChunk {
                                     text: String::new(), done: true,
                                     finish_reason: Some("stop".to_string()),
@@ -440,7 +446,7 @@ async fn openai_chat_stream(
 
                             if !text.is_empty() || done {
                                 // Send the accumulated tool_calls only on the final chunk
-                                let tool_calls = if done { finaliser_tool_calls(&tool_call_acc) } else { None };
+                                let tool_calls = if done { finaliser_tool_calls(&mut tool_call_acc) } else { None };
 
                                 let chunk = OllamaChunk {
                                     text, done, finish_reason,
@@ -913,5 +919,37 @@ mod tests {
         assert_eq!(body["store"], false);
         assert_eq!(body["stream"], true);
         assert_eq!(body["model"], "gpt-5.6-luna");
+    }
+
+    /// Regression: a stream reaches finalization twice (a chunk carrying
+    /// `finish_reason`, then the `data: [DONE]` sentinel). The second pass must
+    /// yield nothing, otherwise the same ids are emitted again, the consumer
+    /// appends them, and the next request carries `tool_calls: [X, X]` which the
+    /// API rejects with `Duplicate value for 'tool_call_id'`.
+    #[test]
+    fn finaliser_tool_calls_ne_reemet_pas_les_memes_ids() {
+        let mut acc: std::collections::HashMap<u32, (String, String, String)> =
+            std::collections::HashMap::new();
+        acc.insert(
+            1,
+            ("call_01_b".into(), "file_read".into(), r#"{"path":"a"}"#.into()),
+        );
+        acc.insert(
+            0,
+            ("call_00_a".into(), "web_deep_search".into(), r#"{"q":"x"}"#.into()),
+        );
+
+        let premier = finaliser_tool_calls(&mut acc).expect("first pass yields the calls");
+        assert_eq!(premier.len(), 2);
+        // Ordered by streaming index, not by id.
+        assert_eq!(premier[0].id, "call_00_a");
+        assert_eq!(premier[0].name, "web_deep_search");
+        assert_eq!(premier[0].args["q"], "x");
+        assert_eq!(premier[1].id, "call_01_b");
+
+        assert!(
+            finaliser_tool_calls(&mut acc).is_none(),
+            "the accumulator must be drained, a second finalization emits nothing"
+        );
     }
 }

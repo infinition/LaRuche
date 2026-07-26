@@ -136,7 +136,16 @@ impl but::Fournisseur for FournisseurPont {
             if let Some(tcs) = chunk.tool_calls.clone() {
                 // ACCUMULATE: Ollama may stream one tool call per intermediate chunk
                 // (qwen3); overwriting kept only the last one.
-                natifs.get_or_insert_with(Vec::new).extend(tcs);
+                // De-duplicate by id: a provider that reaches finalization twice would
+                // otherwise have us declare `tool_calls: [X, X]`, which OpenAI-compatible
+                // APIs reject with `Duplicate value for 'tool_call_id'`. Two genuinely
+                // parallel calls never share an id, so nothing legitimate is dropped.
+                let acc = natifs.get_or_insert_with(Vec::new);
+                for tc in tcs {
+                    if tc.id.is_empty() || !acc.iter().any(|prev| prev.id == tc.id) {
+                        acc.push(tc);
+                    }
+                }
             }
             if !chunk.text.is_empty() {
                 texte.push_str(&chunk.text);
