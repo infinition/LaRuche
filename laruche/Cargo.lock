@@ -2030,6 +2030,7 @@ dependencies = [
  "laruche-kanban",
  "laruche-memoire",
  "laruche-permissions",
+ "laruche-skills",
  "lazy_static",
  "miel-protocol",
  "pdf-extract",

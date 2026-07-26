@@ -207,7 +207,15 @@ pub fn enregistrer_jobs(
     tracing::info!("JobQueue abeilles registered (submit_job, check_job_status)");
 }
 
-pub(crate) fn skill_node_id(name: &str) -> String {
+/// Canonical node id for a skill name.
+///
+/// HYPHENS ARE PRESERVED. The disk sync indexes a skill under its folder name
+/// verbatim (`skills/watcher-architecte` -> `capacities.skills.watcher-architecte`),
+/// so mangling `-` into `_` here made `skill_view("watcher-architecte")` look up a
+/// node that does not exist, for 40 of the 73 skills shipped. The symptom was
+/// silent: the tool answered "No active OKF document found", the agent assumed the
+/// skill was missing, and improvised. Whatever the writer stores is the truth.
+pub fn skill_node_id(name: &str) -> String {
     let trimmed = name.trim();
     if trimmed.starts_with("capacities.skills.") {
         return trimmed.to_string();
@@ -216,20 +224,27 @@ pub(crate) fn skill_node_id(name: &str) -> String {
     if let Some(rest) = trimmed.strip_prefix("tools.skills.") {
         return format!("capacities.skills.{rest}");
     }
-    let mut slug = trimmed
-        .to_lowercase()
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-        .collect::<String>();
-    while slug.contains("__") {
-        slug = slug.replace("__", "_");
+    // Slug computed by laruche-skills, the crate that also WRITES skills, so the
+    // reader and the writer can no longer disagree.
+    laruche_skills::skill_node_id(trimmed)
+}
+
+/// Node ids to try, in order, when READING a skill by name.
+///
+/// Belt and braces on top of `skill_node_id`: rows written before the hyphen fix
+/// (and any skill a human names with the other separator) still resolve, without
+/// migrating a single row. `-` and `_` are interchangeable at lookup time.
+pub fn skill_node_id_candidates(name: &str) -> Vec<String> {
+    let base = skill_node_id(name);
+    // The "capacities.skills." prefix holds only letters and dots, so swapping
+    // separators can never damage it: only the slug changes.
+    let mut out = vec![base.clone()];
+    for variante in [base.replace('-', "_"), base.replace('_', "-")] {
+        if !out.contains(&variante) {
+            out.push(variante);
+        }
     }
-    let slug = slug.trim_matches('_');
-    if slug.is_empty() {
-        "capacities.skills".to_string()
-    } else {
-        format!("capacities.skills.{slug}")
-    }
+    out
 }
 
 pub struct SkillList {
@@ -348,29 +363,89 @@ impl Abeille for SkillView {
         let name = args["name"]
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("'name' is required"))?;
-        let node_id = skill_node_id(name);
-        let node = match self.mem.read_node(&node_id).await {
-            Ok(node) => node,
-            Err(e) => {
-                return Ok(ResultatAbeille::err(format!(
-                    "Failed to read skill: {e}"
-                )))
-            }
-        };
-        let Some(items) = node["items"].as_array() else {
-            return Ok(ResultatAbeille::err(format!(
-                "Skill not found: {node_id}"
-            )));
-        };
-        for item in items.iter().rev() {
-            if let Some(content) = item["content"].as_str() {
-                if content.contains("type: skill") {
-                    return Ok(ResultatAbeille::ok(content.to_string()));
+
+        // Try every spelling of the slug before giving up: the writer and the
+        // reader disagreed on `-` vs `_` for a long time, and rows from both eras
+        // coexist in the same database.
+        let candidats = skill_node_id_candidates(name);
+        let mut derniere_erreur: Option<String> = None;
+        for node_id in &candidats {
+            let node = match self.mem.read_node(node_id).await {
+                Ok(node) => node,
+                Err(e) => {
+                    derniere_erreur = Some(e.to_string());
+                    continue;
+                }
+            };
+            let Some(items) = node["items"].as_array() else {
+                continue;
+            };
+            for item in items.iter().rev() {
+                if let Some(content) = item["content"].as_str() {
+                    if content.contains("type: skill") {
+                        return Ok(ResultatAbeille::ok(content.to_string()));
+                    }
                 }
             }
         }
+        if let Some(e) = derniere_erreur {
+            return Ok(ResultatAbeille::err(format!("Failed to read skill: {e}")));
+        }
         Ok(ResultatAbeille::err(format!(
-            "No active OKF document found in {node_id}"
+            "No skill named '{name}'. Tried {}. Use skill_list to see what exists.",
+            candidats.join(", ")
         )))
+    }
+}
+
+#[cfg(test)]
+mod slug_tests {
+    use super::*;
+
+    /// A hyphen in a skill folder must survive the round trip. Mangling it into
+    /// `_` made `skill_view("watcher-architecte")` read a node that nothing ever
+    /// wrote, for 40 of the 73 shipped skills. The tool then reported the skill
+    /// missing and the agent improvised a watcher that could never fire.
+    #[test]
+    fn le_tiret_survit_a_la_normalisation() {
+        assert_eq!(
+            skill_node_id("watcher-architecte"),
+            "capacities.skills.watcher-architecte"
+        );
+        // The writer of record agrees, which is the whole point.
+        assert_eq!(
+            skill_node_id("watcher-architecte"),
+            laruche_skills::skill_node_id("watcher-architecte")
+        );
+    }
+
+    #[test]
+    fn un_node_id_complet_passe_tel_quel() {
+        assert_eq!(
+            skill_node_id("capacities.skills.watcher-architecte"),
+            "capacities.skills.watcher-architecte"
+        );
+        assert_eq!(
+            skill_node_id("tools.skills.legacy-name"),
+            "capacities.skills.legacy-name"
+        );
+    }
+
+    /// Rows written before the fix used `_`. Both spellings must resolve, so no
+    /// database migration is needed.
+    #[test]
+    fn les_deux_orthographes_sont_essayees() {
+        let c = skill_node_id_candidates("watcher-architecte");
+        assert!(c.contains(&"capacities.skills.watcher-architecte".to_string()));
+        assert!(c.contains(&"capacities.skills.watcher_architecte".to_string()));
+
+        let c2 = skill_node_id_candidates("watcher_architecte");
+        assert!(c2.contains(&"capacities.skills.watcher_architecte".to_string()));
+        assert!(c2.contains(&"capacities.skills.watcher-architecte".to_string()));
+
+        // The prefix itself is never touched by the separator swap.
+        for id in skill_node_id_candidates("a_b-c") {
+            assert!(id.starts_with("capacities.skills."), "prefix damaged: {id}");
+        }
     }
 }

@@ -11,6 +11,9 @@ laruche-permissions.workspace = true
 laruche-compaction.workspace = true
 laruche-kanban = { path = "../laruche-kanban" }
 laruche-butinage = { path = "../laruche-butinage" }
+# Single source of truth for skill slugs. Three copies of skill_node_id had
+# drifted apart, and the disagreement over `-` vs `_` made 40 skills unreadable.
+laruche-skills = { path = "../laruche-skills" }
 tokio.workspace = true
 serde.workspace = true
 serde_json.workspace = true

@@ -8,6 +8,40 @@ use laruche_essaim::abeille::{Abeille, NiveauDanger, ResultatAbeille};
 use laruche_essaim::cron::ScheduledTask;
 use laruche_essaim::ContextExecution;
 
+/// Everything needed to write a rule tree, returned INLINE when one is rejected.
+///
+/// It used to say "read the watcher-architecte skill". That is the correct advice
+/// only when the skill is readable, and pointing at documentation instead of
+/// stating the contract cost a model six failed attempts and produced a watcher
+/// that could never fire. An error should carry its own fix.
+const AIDE_REGLES: &str = r#"Shape of `regles`: ONE object tagged by `op`, nesting through `regles` arrays.
+
+  {"op":"et","regles":[
+     {"op":"apparu"},
+     {"op":"contient","motif":"ERROR"},
+     {"op":"heure_entre","de":"08:00","a":"23:56"}
+  ]}
+
+Combinators: et{regles:[...]}, ou{regles:[...]}, non{regle:{...}}
+Time:        jour_semaine{jours:["mar","jeu"]}, heure_entre{de:"08:00",a:"22:00"}, plage_date{du:"2026-01-01",au:"2026-12-31"}
+File:        apparu, supprime, modifie, contenu_change, contient{motif:"..."}, taille_depasse_mo{mo:10}
+Service:     est_down, down_depuis_min{minutes:10}, retour_en_ligne, status_http{codes:[500,503]}
+Semantic:    llm_check{question:"..."}  (the ONLY op that costs an LLM call, and only after the deterministic prefix passed)
+
+Each op needs the matching watcher_type, otherwise it is false at every poll:
+  watcher_type="log"  -> reading NEW LINES of a growing file. Required for contient / contenu_change.
+  watcher_type="file" -> lifecycle of a path: apparu, supprime, modifie, taille_depasse_mo. Carries NO text.
+  watcher_type="url"  -> reachability and page text: est_down, down_depuis_min, retour_en_ligne, status_http, contient.
+
+So "tell me when a line of app.log contains ERROR" is a LOG watcher:
+  watcher_type="log", target="C:\\...\\app.log",
+  regles={"op":"et","regles":[{"op":"contient","motif":"ERROR"},{"op":"heure_entre","de":"08:00","a":"23:56"}]}
+
+Three traps:
+- `heure_entre` bounds are STRINGS and its end is EXCLUSIVE. "23:00" stops at 22:59; write "23:56" to cover 23:55.
+- the child array of et/ou is named `regles`, not `clauses` nor `conditions`.
+- `apparu` means "the file appeared", not "a new line appeared". On a log watcher, new lines are what `contient` reads."#;
+
 /// Agent tool: send a direct message to ANOTHER LaRuche instance (or its user) over
 /// the mesh, by its `laruche` ID. Reuses the local /api/mesh/send endpoint (peer resolution +
 /// inter-instance POST). Outbound: approval required.
@@ -560,11 +594,22 @@ impl Abeille for AbeilleWatcherCreate {
         let regles = match args.get("regles") {
             None | Some(Value::Null) => None,
             Some(v) => match serde_json::from_value::<laruche_watchers::Regle>(v.clone()) {
-                Ok(r) => Some(r),
+                // Deserializing is not enough: a tree can be well-formed and still
+                // never be true (unreadable time window, empty pattern...). Catch it
+                // here, while a human is still in the loop.
+                Ok(r) => match r.valider() {
+                    Ok(()) => Some(r),
+                    Err(why) => {
+                        return Ok(ResultatAbeille::err(format!(
+                            "Rule accepted by the parser but it can never fire: {why}.\n\n{}",
+                            AIDE_REGLES
+                        )))
+                    }
+                },
                 Err(e) => {
                     return Ok(ResultatAbeille::err(format!(
-                        "Invalid 'regles' tree: {e}. Read the watcher-architecte skill \
-                         (skill_view) for the op list and examples."
+                        "Invalid 'regles' tree: {e}.\n\n{}",
+                        AIDE_REGLES
                     )))
                 }
             },
@@ -576,6 +621,18 @@ impl Abeille for AbeilleWatcherCreate {
             "log" => laruche_watchers::WatcherType::Log,
             _ => laruche_watchers::WatcherType::File,
         };
+
+        // Cross-check the tree against the target type. A leaf can be valid on its
+        // own and still be dead here: `contient` on a `file` watcher never sees a
+        // line, because file observations carry no text.
+        if let Some(r) = &regles {
+            if let Err(why) = r.valider_pour(watcher_type) {
+                return Ok(ResultatAbeille::err(format!(
+                    "Rule incompatible with watcher_type=\"{w_type_str}\": {why}.\n\n{}",
+                    AIDE_REGLES
+                )));
+            }
+        }
 
         // Hard target validation: an invalid target silently watches NOTHING
         // forever (a relative path resolves against the SERVER's working dir,

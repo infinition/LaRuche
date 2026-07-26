@@ -9,7 +9,7 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum WatcherType {
     File,
@@ -271,6 +271,184 @@ impl Regle {
         }
     }
 
+    /// Reject a tree that would deserialize cleanly yet never behave as written.
+    ///
+    /// Every leaf here degrades to a silent false rather than to an error at
+    /// evaluation time, which is the right call at runtime (fail closed) and the
+    /// wrong one at creation time: the user is told the watcher is armed while
+    /// it can never fire. Real case: `heure_entre {de:"8", a:"23"}` was accepted,
+    /// failed to parse at every poll, and turned an ERROR alert into a no-op for
+    /// a whole night. Validation belongs where a human can still react.
+    pub fn valider(&self) -> Result<(), String> {
+        match self {
+            Regle::Et { regles } | Regle::Ou { regles } => {
+                let nom = if matches!(self, Regle::Et { .. }) { "et" } else { "ou" };
+                if regles.is_empty() {
+                    return Err(format!("`{nom}` needs at least one sub-rule in `regles`"));
+                }
+                for r in regles {
+                    r.valider()?;
+                }
+                Ok(())
+            }
+            Regle::Non { regle } => regle.valider(),
+            Regle::JourSemaine { jours } => {
+                if jours.is_empty() {
+                    return Err("`jour_semaine` needs at least one day in `jours`".into());
+                }
+                let inconnus: Vec<&str> = jours
+                    .iter()
+                    .filter(|j| normaliser_jour(j) == "??")
+                    .map(|j| j.as_str())
+                    .collect();
+                if !inconnus.is_empty() {
+                    return Err(format!(
+                        "unknown day(s) {:?} in `jour_semaine`: use mon..sun or lun..dim (full names work too)",
+                        inconnus
+                    ));
+                }
+                Ok(())
+            }
+            Regle::HeureEntre { de, a } => {
+                let bad: Vec<&str> = [de.as_str(), a.as_str()]
+                    .into_iter()
+                    .filter(|v| parse_hhmm(v).is_none())
+                    .collect();
+                if !bad.is_empty() {
+                    return Err(format!(
+                        "`heure_entre` cannot read {:?}: expected \"HH:MM\" (\"22:00\"), a bare hour (\"22\") or \"8h30\". \
+                         An unreadable window makes the whole rule false at EVERY hour",
+                        bad
+                    ));
+                }
+                if parse_hhmm(de) == parse_hhmm(a) {
+                    return Err(format!(
+                        "`heure_entre` window {de}-{a} is empty (start equals end), so the rule is never true. \
+                         The end bound is EXCLUSIVE: to cover up to 23:55 write a=\"23:56\", and for a whole day drop this rule"
+                    ));
+                }
+                Ok(())
+            }
+            Regle::PlageDate { du, au } => {
+                let ok = |d: &str| chrono::NaiveDate::parse_from_str(d.trim(), "%Y-%m-%d").is_ok();
+                if !ok(du) || !ok(au) {
+                    return Err(format!(
+                        "`plage_date` expects \"YYYY-MM-DD\", got du={du:?} au={au:?}"
+                    ));
+                }
+                if du.trim() > au.trim() {
+                    return Err(format!("`plage_date` starts after it ends ({du} > {au})"));
+                }
+                Ok(())
+            }
+            Regle::Contient { motif } => {
+                if motif.trim().is_empty() {
+                    return Err("`contient` needs a non-empty `motif`".into());
+                }
+                Ok(())
+            }
+            Regle::DownDepuisMin { minutes } => {
+                if *minutes == 0 {
+                    return Err("`down_depuis_min` needs `minutes` greater than 0".into());
+                }
+                Ok(())
+            }
+            Regle::TailleDepasseMo { mo } => {
+                if !(*mo > 0.0) {
+                    return Err("`taille_depasse_mo` needs `mo` greater than 0".into());
+                }
+                Ok(())
+            }
+            Regle::StatusHttp { codes } => {
+                if codes.is_empty() {
+                    return Err("`status_http` needs at least one code in `codes`".into());
+                }
+                Ok(())
+            }
+            Regle::LlmCheck { question } => {
+                if question.trim().is_empty() {
+                    return Err("`llm_check` needs a non-empty `question`".into());
+                }
+                Ok(())
+            }
+            Regle::Apparu
+            | Regle::Supprime
+            | Regle::Modifie
+            | Regle::ContenuChange
+            | Regle::EstDown
+            | Regle::RetourEnLigne => Ok(()),
+        }
+    }
+
+    /// Reject leaves that the chosen watcher type can never satisfy.
+    ///
+    /// `valider` alone is not enough, because a rule can be perfectly well formed
+    /// and still be dead on this target. A `file` watcher builds its observation
+    /// with an EMPTY `nouveau_contenu`, so `contient` is false at every poll: the
+    /// real case was "watch release.log and ping me if a line contains ERROR",
+    /// created as `file`, which needed `log` to ever see a line.
+    pub fn valider_pour(&self, wtype: WatcherType) -> Result<(), String> {
+        let exige = |ok: bool, quoi: &str, veut: &str| -> Result<(), String> {
+            if ok {
+                Ok(())
+            } else {
+                Err(format!(
+                    "`{quoi}` cannot be true on a {wtype:?} watcher: it needs a {veut} one. \
+                     Set watcher_type accordingly, or drop that leaf"
+                ))
+            }
+        };
+        match self {
+            Regle::Et { regles } | Regle::Ou { regles } => {
+                for r in regles {
+                    r.valider_pour(wtype)?;
+                }
+                Ok(())
+            }
+            Regle::Non { regle } => regle.valider_pour(wtype),
+
+            // Need fresh text: only log and url observations carry any.
+            Regle::Contient { .. } => exige(
+                matches!(wtype, WatcherType::Log | WatcherType::Url),
+                "contient",
+                "log or url",
+            ),
+            Regle::ContenuChange => exige(
+                matches!(wtype, WatcherType::Log | WatcherType::Url),
+                "contenu_change",
+                "log or url",
+            ),
+
+            // File lifecycle and size: only the file watcher reports them.
+            Regle::Apparu => exige(matches!(wtype, WatcherType::File), "apparu", "file"),
+            Regle::Supprime => exige(matches!(wtype, WatcherType::File), "supprime", "file"),
+            Regle::Modifie => exige(matches!(wtype, WatcherType::File), "modifie", "file"),
+            Regle::TailleDepasseMo { .. } => exige(
+                matches!(wtype, WatcherType::File),
+                "taille_depasse_mo",
+                "file",
+            ),
+
+            // Reachability: only the url watcher probes it.
+            Regle::EstDown => exige(matches!(wtype, WatcherType::Url), "est_down", "url"),
+            Regle::DownDepuisMin { .. } => {
+                exige(matches!(wtype, WatcherType::Url), "down_depuis_min", "url")
+            }
+            Regle::RetourEnLigne => {
+                exige(matches!(wtype, WatcherType::Url), "retour_en_ligne", "url")
+            }
+            Regle::StatusHttp { .. } => {
+                exige(matches!(wtype, WatcherType::Url), "status_http", "url")
+            }
+
+            // Time, dates and the semantic leaf apply to every type.
+            Regle::JourSemaine { .. }
+            | Regle::HeureEntre { .. }
+            | Regle::PlageDate { .. }
+            | Regle::LlmCheck { .. } => Ok(()),
+        }
+    }
+
     /// Compact human summary for the UI bubble ("ET(jour∈[mar,jeu], down≥10min)").
     pub fn resume(&self) -> String {
         match self {
@@ -338,10 +516,25 @@ fn normaliser_jour(j: &str) -> &'static str {
     }
 }
 
+/// Parse a local time of day into minutes since midnight.
+///
+/// Tolerant on input because the writer is usually a model: "22:00" is the
+/// canonical form, but "22" (bare hour), "8h" and "8h30" all parse too. That
+/// tolerance is not cosmetic. A window that fails to parse makes `HeureEntre`
+/// evaluate false at every hour, which silently turns the whole watcher off:
+/// a rule tree written as `{de:"8", a:"23"}` used to never fire, at any time,
+/// while reporting itself as active.
 fn parse_hhmm(s: &str) -> Option<u32> {
-    let (h, m) = s.trim().split_once(':')?;
+    let s = s.trim();
+    if s.is_empty() {
+        return None;
+    }
+    let (h, m) = match s.split_once([':', 'h', 'H']) {
+        Some((h, m)) => (h.trim(), m.trim()),
+        None => (s, ""),
+    };
     let h: u32 = h.parse().ok()?;
-    let m: u32 = m.parse().ok()?;
+    let m: u32 = if m.is_empty() { 0 } else { m.parse().ok()? };
     if h > 23 || m > 59 {
         return None;
     }
@@ -1128,6 +1321,121 @@ mod tests {
             r.evaluer(&obs(Evenement::Rien), &a_local("tue", "10:00")),
             Verdict::Faux
         );
+    }
+
+    /// The exact tree an agent produced for "ping me on Telegram if a line
+    /// contains ERROR, but not at night". It parsed, it was stored, it was shown
+    /// as active, and it could never fire: "8" has no colon, the window failed to
+    /// parse, and an unreadable window is false at every hour.
+    #[test]
+    fn heure_entre_heure_nue_ne_tue_plus_la_regle() {
+        let regle = Regle::Et {
+            regles: vec![
+                Regle::Apparu,
+                Regle::Contient { motif: "ERROR".into() },
+                Regle::HeureEntre { de: "8".into(), a: "23".into() },
+            ],
+        };
+        assert!(regle.valider().is_ok(), "a bare hour must be accepted");
+
+        let mut o = obs(Evenement::Apparu);
+        o.nouveau_contenu = "boom ERROR boom".into();
+        assert_eq!(regle.evaluer(&o, &a_local("tue", "10:00")), Verdict::Vrai);
+        assert_eq!(regle.evaluer(&o, &a_local("tue", "23:30")), Verdict::Faux);
+        assert_eq!(regle.evaluer(&o, &a_local("tue", "03:00")), Verdict::Faux);
+    }
+
+    /// Second half of the same real failure: even with a readable window, that
+    /// tree was created as a `file` watcher, whose observation carries no text,
+    /// so `contient` could never be true either.
+    #[test]
+    fn contient_sur_un_watcher_fichier_est_refuse() {
+        let regle = Regle::Et {
+            regles: vec![
+                Regle::Apparu,
+                Regle::Contient { motif: "ERROR".into() },
+                Regle::HeureEntre { de: "08:00".into(), a: "23:56".into() },
+            ],
+        };
+        let err = regle
+            .valider_pour(WatcherType::File)
+            .expect_err("contient on a file watcher must be rejected");
+        assert!(err.contains("contient"), "the message must name the guilty leaf: {err}");
+        assert!(err.contains("log"), "and point at the right type: {err}");
+
+        // The same intent, written correctly, passes.
+        let bonne = Regle::Et {
+            regles: vec![
+                Regle::Contient { motif: "ERROR".into() },
+                Regle::HeureEntre { de: "08:00".into(), a: "23:56".into() },
+            ],
+        };
+        assert!(bonne.valider_pour(WatcherType::Log).is_ok());
+        // And a file lifecycle leaf has no meaning on a log watcher.
+        assert!(Regle::Apparu.valider_pour(WatcherType::Log).is_err());
+        assert!(Regle::EstDown.valider_pour(WatcherType::File).is_err());
+        assert!(Regle::StatusHttp { codes: vec![500] }
+            .valider_pour(WatcherType::Url)
+            .is_ok());
+    }
+
+    #[test]
+    fn parse_hhmm_tolere_les_formes_humaines() {
+        assert_eq!(parse_hhmm("22:00"), Some(22 * 60));
+        assert_eq!(parse_hhmm("8"), Some(8 * 60));
+        assert_eq!(parse_hhmm(" 8h "), Some(8 * 60));
+        assert_eq!(parse_hhmm("8h30"), Some(8 * 60 + 30));
+        assert_eq!(parse_hhmm("23:56"), Some(23 * 60 + 56));
+        assert_eq!(parse_hhmm(""), None);
+        assert_eq!(parse_hhmm("24:00"), None);
+        assert_eq!(parse_hhmm("8:60"), None);
+        assert_eq!(parse_hhmm("midi"), None);
+    }
+
+    #[test]
+    fn valider_refuse_les_arbres_qui_ne_declenchent_jamais() {
+        // Unreadable window.
+        assert!(Regle::HeureEntre { de: "midi".into(), a: "18:00".into() }
+            .valider()
+            .is_err());
+        // Empty window: start equals end.
+        assert!(Regle::HeureEntre { de: "08:00".into(), a: "8".into() }
+            .valider()
+            .is_err());
+        // Empty combinator.
+        assert!(Regle::Et { regles: vec![] }.valider().is_err());
+        // Typo in a day name, which used to match nothing in silence.
+        assert!(Regle::JourSemaine { jours: vec!["mardi".into(), "jeudy".into()] }
+            .valider()
+            .is_err());
+        assert!(Regle::JourSemaine { jours: vec!["mardi".into(), "thu".into()] }
+            .valider()
+            .is_ok());
+        // Empty pattern, zero threshold, empty question.
+        assert!(Regle::Contient { motif: "  ".into() }.valider().is_err());
+        assert!(Regle::DownDepuisMin { minutes: 0 }.valider().is_err());
+        assert!(Regle::TailleDepasseMo { mo: 0.0 }.valider().is_err());
+        assert!(Regle::StatusHttp { codes: vec![] }.valider().is_err());
+        assert!(Regle::LlmCheck { question: "".into() }.valider().is_err());
+        // A bad leaf deep in the tree must surface.
+        assert!(Regle::Et {
+            regles: vec![Regle::Apparu, Regle::Non {
+                regle: Box::new(Regle::Contient { motif: "".into() })
+            }],
+        }
+        .valider()
+        .is_err());
+    }
+
+    /// The end bound is exclusive, which is exactly what the agent got wrong when
+    /// it claimed a="23" would cover 23:55.
+    #[test]
+    fn heure_entre_borne_haute_exclusive() {
+        let r = Regle::HeureEntre { de: "08:00".into(), a: "23:00".into() };
+        assert_eq!(r.evaluer(&obs(Evenement::Rien), &a_local("tue", "22:59")), Verdict::Vrai);
+        assert_eq!(r.evaluer(&obs(Evenement::Rien), &a_local("tue", "23:00")), Verdict::Faux);
+        let large = Regle::HeureEntre { de: "08:00".into(), a: "23:56".into() };
+        assert_eq!(large.evaluer(&obs(Evenement::Rien), &a_local("tue", "23:55")), Verdict::Vrai);
     }
 
     #[test]

@@ -481,23 +481,10 @@ fn trajectoire_merite_skill(user: &str, reponse: &str, n_outils: usize) -> bool 
     n_outils >= 2 && user.trim().len() >= 12 && reponse.trim().len() >= 120
 }
 
-fn skill_node_id(name: &str) -> String {
-    let mut slug = name
-        .trim()
-        .to_lowercase()
-        .chars()
-        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
-        .collect::<String>();
-    while slug.contains("__") {
-        slug = slug.replace("__", "_");
-    }
-    let slug = slug.trim_matches('_');
-    if slug.is_empty() {
-        "capacities.skills".to_string()
-    } else {
-        format!("capacities.skills.{slug}")
-    }
-}
+/// Was a private third copy that mangled `-` into `_`, so a skill the curator
+/// created landed on a different node than the one the disk sync and the reader
+/// used. Now the same function as everywhere else.
+use crate::abeilles::skill_node_id;
 
 #[cfg(test)]
 mod apprentissage_tests {
