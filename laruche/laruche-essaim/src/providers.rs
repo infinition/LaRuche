@@ -50,6 +50,52 @@ pub fn convertir_tools_openai(tools: &[serde_json::Value]) -> Vec<serde_json::Va
     }).collect()
 }
 
+/// Append what we actually sent to a provider error, so a parse complaint can be read.
+///
+/// Turns "EOF while parsing a string at line 1 column 106091" into something
+/// decidable: if that column equals the end of our body, they received a truncated
+/// upload; if it falls inside, the payload itself is the problem. When the provider
+/// names the offending message (`messages[14].content`), its size is reported too.
+fn diagnostiquer_corps(
+    erreur: &str,
+    corps_brut: &str,
+    messages: &[serde_json::Value],
+) -> String {
+    let mut notes = vec![format!(
+        "we sent {} bytes / {} chars, {} messages",
+        corps_brut.len(),
+        corps_brut.chars().count(),
+        messages.len()
+    )];
+
+    // "... at line 1 column 106091" -> compare with where our body ends.
+    if let Some(reste) = erreur.rsplit("column ").next() {
+        let chiffres: String = reste.chars().take_while(char::is_ascii_digit).collect();
+        if let Ok(colonne) = chiffres.parse::<usize>() {
+            let fin = corps_brut.chars().count();
+            let verdict = if colonne >= fin.saturating_sub(2) {
+                "their parser stopped AT THE END of our body: truncated upload"
+            } else {
+                "their parser stopped INSIDE our body: payload issue, not transport"
+            };
+            notes.push(format!("column {colonne} vs our end {fin}: {verdict}"));
+        }
+    }
+
+    // "messages[14].content" -> how big is ours?
+    if let Some(reste) = erreur.split("messages[").nth(1) {
+        let idx: String = reste.chars().take_while(char::is_ascii_digit).collect();
+        if let Ok(i) = idx.parse::<usize>() {
+            if let Some(m) = messages.get(i) {
+                let taille = m["content"].as_str().map(str::len).unwrap_or(0);
+                notes.push(format!("our messages[{i}].content is {taille} bytes"));
+            }
+        }
+    }
+
+    format!("{erreur} [{}]", notes.join(" | "))
+}
+
 /// Finalize the streaming tool-call accumulator into an ordered list. The accumulator is
 /// keyed by the streaming `index`, so we sort by that (NOT by the provider-random `id`),
 /// which preserves the model's intended order of parallel tool calls.
@@ -297,14 +343,35 @@ async fn openai_chat_stream(
     if is_local_base_url(base) {
         for (k, v) in mesh_headers("/v1/chat/completions") { req = req.header(k, v); }
     }
-    let mut response = req.json(&body).send().await?;
+    // Serialize ONCE, so the bytes we measure are the bytes we send.
+    let corps_brut = serde_json::to_string(&body)?;
+    tracing::debug!(
+        target: "provider",
+        octets = corps_brut.len(),
+        messages = openai_messages.len(),
+        "openai-compatible request body"
+    );
+    let mut response = req.body(corps_brut.clone()).send().await?;
 
     tracing::info!(target: "provider", url = %url, model = %model, status = %response.status(), "openai-compatible request sent");
     if !response.status().is_success() {
         let status = response.status();
         let body_text = response.text().await.unwrap_or_default();
-        tracing::warn!(target: "provider", status = status.as_u16(), body = %body_text.chars().take(300).collect::<String>(), "openai-compatible request failed");
-        return Err(ProviderError { status: status.as_u16(), body: body_text, retry_after: None }.into());
+        // Carry the SIZE of what we sent into the error. When a provider answers
+        // "failed to parse the request body ... at column N", the only question that
+        // matters is whether N is where our body ENDS (they received a truncated
+        // upload) or somewhere in the middle (we really did send something they
+        // dislike). Without this number the two are indistinguishable, and guessing
+        // between them wasted a full debugging round.
+        let diagnostic = diagnostiquer_corps(&body_text, &corps_brut, &openai_messages);
+        tracing::warn!(
+            target: "provider",
+            status = status.as_u16(),
+            octets_envoyes = corps_brut.len(),
+            body = %body_text.chars().take(300).collect::<String>(),
+            "openai-compatible request failed"
+        );
+        return Err(ProviderError { status: status.as_u16(), body: diagnostic, retry_after: None }.into());
     }
 
     let (tx, rx) = tokio::sync::mpsc::channel::<OllamaChunk>(64);

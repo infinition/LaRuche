@@ -319,27 +319,40 @@ impl Abeille for FileRead {
                 total
             )));
         }
+        // TOTAL budget, not just a per-line one. The line cap guards against a single
+        // minified line, and the 1500-line auto-range against huge files, but an
+        // ordinary source slipped between the two: `laruche-node/src/main.rs`, 1290
+        // lines and 52 KB, came back whole as ~62 KB in ONE observation, more than
+        // half of the request body the provider then refused. `web_fetch` has
+        // paginated for a while; reading a file had no reason to behave differently.
+        const BUDGET_CHARS: usize = 24_000;
+
         let end = (start + count).min(total);
         let mut out = String::new();
+        let mut coupe_a: Option<usize> = None;
         for (i, line) in lines[start..end].iter().enumerate() {
+            let numero = start + i + 1;
+            if out.chars().count() >= BUDGET_CHARS {
+                coupe_a = Some(numero);
+                break;
+            }
             // A single minified/generated line can weigh 500k chars and blow up the
             // context: cap per line (the model can re-read via a narrower range).
             if line.chars().count() > 2000 {
                 let tronquee: String = line.chars().take(2000).collect();
                 out.push_str(&format!(
-                    "{:>6}\t{tronquee} …[line truncated: {} chars]\n",
-                    start + i + 1,
+                    "{numero:>6}\t{tronquee} …[line truncated: {} chars]\n",
                     line.chars().count()
                 ));
             } else {
-                out.push_str(&format!("{:>6}\t{}\n", start + i + 1, line));
+                out.push_str(&format!("{numero:>6}\t{line}\n"));
             }
         }
-        if end < total {
+        let reprise = coupe_a.unwrap_or(end + 1);
+        if coupe_a.is_some() || end < total {
             out.push_str(&format!(
-                "\n... ({} lines remaining - use offset={} to read more)",
-                total - end,
-                end + 1
+                "\n... ({} lines remaining - use offset={reprise} to read more)",
+                total + 1 - reprise
             ));
         }
         Ok(ResultatAbeille::ok(out))
@@ -586,5 +599,47 @@ fn lister_trie(dir: &Path, depth: usize, max_depth: usize, out: &mut Vec<String>
     }
     for (name, taille) in &fichiers {
         out.push(format!("{indent}[FILE] {name} ({})", taille_humaine(*taille)));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A normal source file must not swallow the context on its own.
+    ///
+    /// `laruche-node/src/main.rs` (1290 lines, 52 KB) sat between the two existing
+    /// guards: under the 1500-line auto-range, and with no line long enough to hit
+    /// the per-line cap. It came back whole, ~62 KB once numbered, which was more
+    /// than half of the request body the provider then refused to parse.
+    #[tokio::test]
+    async fn file_read_plafonne_la_sortie_totale_et_dit_ou_reprendre() {
+        let dir = std::env::temp_dir().join(format!("laruche_read_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let chemin = dir.join("gros.rs");
+        // 1200 lines of ~75 chars: under every previous guard, ~90 KB in total.
+        let contenu: String = (0..1200)
+            .map(|i| format!("// {i} {}\n", "x".repeat(70)))
+            .collect();
+        std::fs::write(&chemin, &contenu).unwrap();
+
+        let res = FileRead
+            .executer(
+                serde_json::json!({ "path": chemin.to_string_lossy() }),
+                &ContextExecution::default(),
+            )
+            .await
+            .unwrap();
+
+        assert!(
+            res.output.chars().count() < 30_000,
+            "one read must not flood the context: {} chars",
+            res.output.chars().count()
+        );
+        assert!(
+            res.output.contains("lines remaining - use offset="),
+            "the model must be told how to continue"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
