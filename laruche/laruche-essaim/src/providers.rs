@@ -108,6 +108,72 @@ fn json_ascii(brut: &str) -> String {
     out
 }
 
+/// Bring a request body under a BYTE budget, which the token gauge cannot enforce.
+///
+/// The gauge reasons in tokens against the model's window. The wall we keep hitting
+/// is counted in bytes and sits far earlier: a refused body of 114497 bytes read as
+/// 15% of a 128k window, so no compaction ever triggered. Two levers, in order of
+/// how little they cost:
+///
+/// 1. the tool list, trimmed from the tail. It is ordered by relevance, so what goes
+///    is what the model was least likely to reach for.
+/// 2. the fattest tool results, largest first, keeping head and tail. One web page or
+///    file read routinely lands 16 to 24 KB, and a handful of them IS the body.
+///    Losing the middle of one page beats losing the turn, and the marker tells the
+///    model what happened so it can re-read a narrower range.
+///
+/// Messages are never dropped: that would destroy work already done.
+fn reduire_sous_budget(body: &serde_json::Value, limite: usize) -> Result<serde_json::Value> {
+    let mut reduit = body.clone();
+    let taille = |v: &serde_json::Value| -> usize {
+        serde_json::to_string(v).map(|s| json_ascii(&s).len()).unwrap_or(0)
+    };
+
+    if let Some(liste) = body.get("tools").and_then(|t| t.as_array()).cloned() {
+        let mut gardes = liste.len();
+        while gardes > 4 && taille(&reduit) > limite {
+            gardes = gardes.saturating_sub(2).max(4);
+            reduit["tools"] = serde_json::json!(liste[..gardes]);
+        }
+    }
+
+    if taille(&reduit) > limite {
+        let mut par_taille: Vec<(usize, usize)> = reduit["messages"]
+            .as_array()
+            .map(|ms| {
+                ms.iter()
+                    .enumerate()
+                    .filter(|(_, m)| m["role"] == "tool")
+                    .map(|(i, m)| (i, m["content"].as_str().map(str::len).unwrap_or(0)))
+                    .collect()
+            })
+            .unwrap_or_default();
+        par_taille.sort_by(|a, b| b.1.cmp(&a.1));
+
+        const GARDE: usize = 1_500;
+        for (idx, _) in par_taille {
+            if taille(&reduit) <= limite {
+                break;
+            }
+            let Some(texte) = reduit["messages"][idx]["content"].as_str().map(str::to_string) else {
+                continue;
+            };
+            let total = texte.chars().count();
+            if total <= GARDE * 2 + 500 {
+                continue; // nothing worth cutting here
+            }
+            let chars: Vec<char> = texte.chars().collect();
+            let tete: String = chars[..GARDE].iter().collect();
+            let queue: String = chars[chars.len() - GARDE..].iter().collect();
+            reduit["messages"][idx]["content"] = serde_json::json!(format!(
+                "{tete}\n\n[... {} chars cut to fit the request budget - re-read a narrower range if you need the middle ...]\n\n{queue}",
+                total - GARDE * 2
+            ));
+        }
+    }
+    Ok(reduit)
+}
+
 /// Append what we actually sent to a provider error, so a parse complaint can be read.
 ///
 /// Turns "EOF while parsing a string at line 1 column 106091" into something
@@ -436,22 +502,16 @@ async fn openai_chat_stream(
     // is not enough the request goes out as is, and the provider decides.
     const LIMITE_CORPS: usize = 76_800;
     if corps_brut.len() > LIMITE_CORPS {
-        if let Some(liste) = body.get("tools").and_then(|t| t.as_array()).cloned() {
-            let mut gardes = liste.len();
-            while gardes > 4 && corps_brut.len() > LIMITE_CORPS {
-                gardes = gardes.saturating_sub(2).max(4);
-                let mut essai = body.clone();
-                essai["tools"] = serde_json::json!(liste[..gardes]);
-                corps_brut = json_ascii(&serde_json::to_string(&essai)?);
-            }
-            tracing::warn!(
-                target: "provider",
-                octets = corps_brut.len(),
-                outils_gardes = gardes,
-                outils_initiaux = liste.len(),
-                "request body over the byte guard: tool list trimmed"
-            );
-        }
+        let avant = corps_brut.len();
+        body = reduire_sous_budget(&body, LIMITE_CORPS)?;
+        corps_brut = json_ascii(&serde_json::to_string(&body)?);
+        tracing::warn!(
+            target: "provider",
+            avant,
+            apres = corps_brut.len(),
+            limite = LIMITE_CORPS,
+            "request body over the byte guard: trimmed"
+        );
     }
     debug_assert!(
         serde_json::from_str::<serde_json::Value>(&corps_brut).is_ok(),
@@ -1150,6 +1210,48 @@ mod tests {
     /// yield nothing, otherwise the same ids are emitted again, the consumer
     /// appends them, and the next request carries `tool_calls: [X, X]` which the
     /// API rejects with `Duplicate value for 'tool_call_id'`.
+    /// A conversation of fat tool results must still fit on the wire.
+    ///
+    /// The real body that kept being refused was 114497 bytes for 16 messages: one
+    /// observation of 23898 chars, two of 16099, one of 14101. The token gauge read
+    /// 15% of a 128k window and never triggered a compaction, because the wall is
+    /// counted in bytes and it sits far earlier.
+    #[test]
+    fn le_budget_en_octets_rabote_les_grosses_observations() {
+        // Mirrors the shape of the refused body.
+        let gros = |n: usize| "x".repeat(n);
+        let messages = serde_json::json!([
+            { "role": "system", "content": gros(21_000) },
+            { "role": "user", "content": "explain the architecture" },
+            { "role": "tool", "content": gros(23_898) },
+            { "role": "tool", "content": gros(16_099) },
+            { "role": "tool", "content": gros(16_099) },
+            { "role": "tool", "content": gros(14_101) },
+        ]);
+        let mut body = serde_json::json!({ "model": "m", "messages": messages });
+        let outils: Vec<serde_json::Value> = (0..20)
+            .map(|i| serde_json::json!({ "name": format!("t{i}"), "description": gros(500) }))
+            .collect();
+        body["tools"] = serde_json::json!(outils);
+
+        let brut = json_ascii(&serde_json::to_string(&body).unwrap());
+        assert!(brut.len() > 76_800, "the fixture must exceed the guard: {}", brut.len());
+
+        let apres = reduire_sous_budget(&body, 76_800).unwrap();
+        let corps = json_ascii(&serde_json::to_string(&apres).unwrap());
+        assert!(
+            corps.len() <= 76_800,
+            "the guard must bring the body under budget, got {}",
+            corps.len()
+        );
+        // The exchange survives: every message is still there, in order.
+        assert_eq!(apres["messages"].as_array().unwrap().len(), 6);
+        assert_eq!(apres["messages"][1]["content"], "explain the architecture");
+        // And a truncated observation says so.
+        let recolte = apres["messages"][2]["content"].as_str().unwrap();
+        assert!(recolte.contains("cut to fit the request budget"), "the cut must be announced");
+    }
+
     /// The wire must carry no multi-byte character.
     ///
     /// A gateway counted our bytes as characters: 83250 bytes / 83145 chars came
