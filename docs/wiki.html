@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LaRuche Wiki</title>
+<meta name="description" content="Documentation for LaRuche: installation, the butinage engine, cognitive memory, watchers, voice, MCP and the full configuration reference.">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%230f0f10'/%3E%3Cg fill='none' stroke='%23f59e0b' stroke-width='14' stroke-linejoin='round'%3E%3Cpolygon points='256,150 312,182 312,246 256,278 200,246 200,182'/%3E%3Cpolygon points='186,270 242,302 242,366 186,398 130,366 130,302'/%3E%3Cpolygon points='326,270 382,302 382,366 326,398 270,366 270,302'/%3E%3C/g%3E%3Cg fill='%23f59e0b'%3E%3Ccircle cx='256' cy='214' r='13'/%3E%3Ccircle cx='186' cy='334' r='13'/%3E%3Ccircle cx='326' cy='334' r='13'/%3E%3C/g%3E%3C/svg%3E">
+<style>
+/* ===================================================================
+   LaRuche Wiki. Same tokens as the dashboard (app.css) and the landing
+   page. The whole corpus is embedded at build time by
+   scripts/build_wiki.py, so this file makes no request of any kind.
+   =================================================================== */
+:root {
+  --amber:#f59e0b; --amber-light:#fbbf24; --amber-dim:#b45309; --amber-glow:rgba(245,158,11,0.15);
+  --bg:#09090b; --bg-card:rgba(24,24,27,.85); --bg-panel:#111113; --bg-input:rgba(39,39,42,.6);
+  --bg-hover:rgba(245,158,11,0.08);
+  --border:#2a2a2e; --border-light:#3a3a3e;
+  --text:#fafafa; --text-dim:#a1a1aa; --text-muted:#52525b;
+  --green:#22c55e; --blue:#3b82f6; --purple:#a855f7; --cyan:#06b6d4;
+  --radius:8px;
+  --font:'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono:'Cascadia Code','JetBrains Mono','Fira Code', ui-monospace, Consolas, monospace;
+  --transition-fast:0.15s ease;
+  --side:274px;
+}
+*,*::before,*::after { box-sizing:border-box; }
+html { -webkit-text-size-adjust:100%; scroll-behavior:smooth; }
+body { margin:0; font-family:var(--font); background:var(--bg); color:var(--text);
+  font-size:15px; line-height:1.7; }
+a { color:var(--amber); text-decoration:none; }
+a:hover { text-decoration:underline; }
+:focus-visible { outline:2px solid var(--amber); outline-offset:3px; border-radius:4px; }
+::selection { background:var(--amber-glow); }
+::-webkit-scrollbar { width:6px; height:6px; }
+::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+::-webkit-scrollbar-thumb:hover { background:var(--border-light); }
+
+/* ── Top bar, same as the landing page ─────────────────────────────── */
+.topbar { position:sticky; top:0; z-index:60; border-bottom:1px solid var(--border);
+  background:rgba(9,9,11,.86); backdrop-filter:blur(10px); }
+.topbar .inner { display:flex; align-items:center; gap:14px; height:56px; padding-inline:clamp(14px,3vw,24px); }
+.brand { display:flex; align-items:center; gap:10px; font-weight:650; color:var(--text); }
+.brand:hover { text-decoration:none; }
+.brand svg { display:block; border-radius:7px; }
+.brand .tag { font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--amber); border:1px solid var(--border); border-radius:5px; padding:2px 7px; }
+.spacer { flex:1; }
+.topbar .lnk { padding:6px 12px; border:1px solid var(--border); border-radius:var(--radius);
+  font-size:13px; color:var(--text-dim); transition:border-color var(--transition-fast), color var(--transition-fast); }
+.topbar .lnk:hover { border-color:var(--amber-dim); color:var(--amber); text-decoration:none; }
+.burger { display:none; background:none; border:1px solid var(--border); border-radius:var(--radius);
+  color:var(--text-dim); padding:6px 10px; cursor:pointer; font:inherit; font-size:13px; }
+
+/* ── Honeycomb loader, verbatim from app.css ───────────────────────── */
+@keyframes pulse-hex { 0%,100% { opacity:.2; transform:scale(.8); } 50% { opacity:1; transform:scale(1.1); } }
+.honeycomb-loader { display:flex; align-items:center; justify-content:center; position:relative; flex-shrink:0; }
+.honeycomb-loader .hexagon { background:var(--amber);
+  clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+  position:absolute; animation:pulse-hex 1.5s infinite ease-in-out; }
+.honeycomb-loader.hc-sm { width:30px; height:30px; }
+.honeycomb-loader.hc-sm .hexagon { width:8px; height:9px; }
+.hc-sm .hx1{top:3px;left:11px;animation-delay:0s} .hc-sm .hx2{top:8px;left:4px;animation-delay:.2s}
+.hc-sm .hx3{top:8px;left:18px;animation-delay:.4s} .hc-sm .hx4{top:13px;left:11px;animation-delay:.6s}
+.hc-sm .hx5{top:18px;left:4px;animation-delay:.8s} .hc-sm .hx6{top:18px;left:18px;animation-delay:1s}
+.hc-sm .hx7{top:23px;left:11px;animation-delay:1.2s}
+
+/* ── Shell ─────────────────────────────────────────────────────────── */
+.wrap { display:grid; grid-template-columns:var(--side) minmax(0,1fr); align-items:start; }
+@media (max-width:900px) { .wrap { grid-template-columns:minmax(0,1fr); } }
+
+aside { position:sticky; top:56px; height:calc(100vh - 56px); overflow-y:auto;
+  border-right:1px solid var(--border); background:var(--bg-panel); padding:18px 0 40px; }
+@media (max-width:900px) {
+  aside { position:fixed; top:56px; left:0; width:min(320px,86vw); z-index:55;
+    transform:translateX(-102%); transition:transform .2s ease; box-shadow:0 0 60px rgba(0,0,0,.6); }
+  aside.open { transform:none; }
+  .burger { display:inline-block; }
+}
+.search { padding:0 16px 14px; }
+.search input { width:100%; padding:8px 11px; border:1px solid var(--border); border-radius:var(--radius);
+  background:var(--bg-input); color:var(--text); font:inherit; font-size:13px; }
+.search input::placeholder { color:var(--text-muted); }
+.search input:focus { outline:none; border-color:var(--amber-dim); }
+.nav-sec { margin-bottom:18px; }
+.nav-sec h4 { margin:0 16px 6px; font-family:var(--mono); font-size:10.5px; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--text-muted); font-weight:500; }
+.nav-sec a { display:block; padding:6px 16px 6px 16px; font-size:13.5px; color:var(--text-dim);
+  border-left:2px solid transparent; transition:background var(--transition-fast), color var(--transition-fast); }
+.nav-sec a:hover { background:var(--bg-hover); color:var(--text); text-decoration:none; }
+.nav-sec a.on { color:var(--amber); border-left-color:var(--amber); background:var(--bg-hover); font-weight:600; }
+.nav-empty { padding:6px 16px; font-size:13px; color:var(--text-muted); }
+
+main { min-width:0; padding:34px clamp(18px,4vw,56px) 90px; max-width:900px; }
+.crumb { font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--text-muted); margin-bottom:14px; }
+.crumb b { color:var(--amber); font-weight:600; }
+
+/* ── Rendered markdown ─────────────────────────────────────────────── */
+.doc h1 { font-size:clamp(27px,4vw,38px); line-height:1.15; letter-spacing:-.02em; margin:0 0 20px; }
+.doc h2 { font-size:23px; letter-spacing:-.01em; margin:44px 0 12px; padding-bottom:8px;
+  border-bottom:1px solid var(--border); scroll-margin-top:76px; }
+.doc h3 { font-size:17px; margin:30px 0 10px; color:var(--text); scroll-margin-top:76px; }
+.doc h4 { font-size:15px; margin:22px 0 8px; color:var(--text-dim); scroll-margin-top:76px; }
+.doc p { margin:0 0 15px; color:var(--text-dim); max-width:74ch; }
+.doc ul, .doc ol { margin:0 0 15px; padding-left:22px; color:var(--text-dim); max-width:74ch; }
+.doc li { margin-bottom:5px; }
+.doc li > ul, .doc li > ol { margin:5px 0 0; }
+.doc strong { color:var(--text); font-weight:650; }
+.doc code { font-family:var(--mono); font-size:.87em; background:var(--bg-input);
+  border:1px solid var(--border); border-radius:5px; padding:1px 5px; color:var(--amber-light); }
+.doc pre { margin:0 0 18px; padding:14px 16px; background:var(--bg-panel); border:1px solid var(--border);
+  border-radius:var(--radius); overflow-x:auto; }
+.doc pre code { background:none; border:0; padding:0; color:var(--text-dim); font-size:12.8px; line-height:1.7; }
+.doc blockquote { margin:0 0 18px; padding:12px 16px; border-left:3px solid var(--amber-dim);
+  background:var(--bg-card); border-radius:0 var(--radius) var(--radius) 0; color:var(--text-dim); }
+.doc blockquote p:last-child { margin-bottom:0; }
+.doc hr { border:0; border-top:1px solid var(--border); margin:32px 0; }
+.doc .tw { overflow-x:auto; margin:0 0 20px; border:1px solid var(--border); border-radius:var(--radius); }
+.doc table { border-collapse:collapse; width:100%; font-size:13.5px; }
+.doc th, .doc td { text-align:left; padding:9px 14px; border-bottom:1px solid var(--border); vertical-align:top; }
+.doc thead th { font-family:var(--mono); font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--text-muted); font-weight:400; white-space:nowrap; }
+.doc tbody td { color:var(--text-dim); }
+.doc tbody tr:last-child td { border-bottom:0; }
+.doc a.dead { color:var(--text-muted); cursor:not-allowed; text-decoration:line-through; }
+
+.pager { display:flex; gap:12px; justify-content:space-between; margin-top:54px;
+  padding-top:22px; border-top:1px solid var(--border); font-size:13.5px; }
+.pager a { display:inline-flex; flex-direction:column; gap:2px; padding:10px 14px;
+  border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card);
+  color:var(--text); max-width:47%; }
+.pager a:hover { border-color:var(--amber-dim); text-decoration:none; }
+.pager span { font-family:var(--mono); font-size:10.5px; letter-spacing:.13em; text-transform:uppercase; color:var(--text-muted); }
+.pager .next { margin-left:auto; text-align:right; }
+
+.scrim { display:none; }
+@media (max-width:900px) {
+  .scrim.on { display:block; position:fixed; inset:56px 0 0; background:rgba(0,0,0,.55); z-index:54; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,*::before,*::after { animation:none !important; transition-duration:.001ms !important; }
+  html { scroll-behavior:auto; }
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="inner">
+    <button class="burger" id="burger" type="button" aria-label="Open the navigation">Menu</button>
+    <a class="brand" href="index.html">
+      <svg width="26" height="26" viewBox="0 0 512 512" aria-hidden="true">
+        <rect width="512" height="512" rx="96" fill="#0f0f10"/>
+        <g fill="none" stroke="#f59e0b" stroke-width="14" stroke-linejoin="round">
+          <polygon points="256,150 312,182 312,246 256,278 200,246 200,182"/>
+          <polygon points="186,270 242,302 242,366 186,398 130,366 130,302"/>
+          <polygon points="326,270 382,302 382,366 326,398 270,366 270,302"/>
+        </g>
+        <g fill="#f59e0b"><circle cx="256" cy="214" r="13"/><circle cx="186" cy="334" r="13"/><circle cx="326" cy="334" r="13"/></g>
+      </svg>
+      LaRuche <span class="tag">Wiki</span>
+    </a>
+    <span class="spacer"></span>
+    <div class="honeycomb-loader hc-sm" aria-hidden="true">
+      <div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div>
+      <div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div>
+      <div class="hexagon hx7"></div>
+    </div>
+    <a class="lnk" href="index.html">Home</a>
+    <a class="lnk" href="https://github.com/infinition/LaRuche">GitHub</a>
+  </div>
+</header>
+
+<div class="wrap">
+  <aside id="side">
+    <div class="search">
+      <input id="q" type="search" placeholder="Filter pages and text" autocomplete="off" aria-label="Filter the wiki">
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <main>
+    <div class="crumb" id="crumb"></div>
+    <article class="doc" id="doc"></article>
+    <div class="pager" id="pager"></div>
+  </main>
+</div>
+<div class="scrim" id="scrim"></div>
+
+<script>
+/* WIKI-DATA:BEGIN */
+var WIKI = {"sections":[{"label":"Overview","pages":[{"slug":"Home","title":"LaRuche Wiki"},{"slug":"FAQ","title":"FAQ"},{"slug":"Security","title":"Security"}]},{"label":"Getting started","pages":[{"slug":"Installation","title":"Installation"},{"slug":"Quick-Start","title":"Quick Start"},{"slug":"Local-Models","title":"Local Models"}]},{"label":"Concepts","pages":[{"slug":"Architecture","title":"Architecture"},{"slug":"Butinage-Engine","title":"The Butinage Engine"},{"slug":"Cognitive-Memory","title":"Cognitive Memory"},{"slug":"LaReine","title":"LaReine"},{"slug":"Watchers","title":"Watchers"},{"slug":"Automation","title":"Automation"},{"slug":"Skills-and-Curator","title":"Skills and the Curator"}]},{"label":"Guides","pages":[{"slug":"Voice","title":"Voice"},{"slug":"Telegram","title":"Telegram"},{"slug":"MCP","title":"MCP"},{"slug":"Secrets","title":"Secrets"}]},{"label":"Reference","pages":[{"slug":"Configuration","title":"Configuration"},{"slug":"Tools","title":"Tools"},{"slug":"Brand-Glossary","title":"Brand Glossary"}]}],"pages":{"FAQ":"# FAQ\n\n## Does it need the cloud?\n\nNo. With llama.cpp or Ollama plus the optional local embedding model, everything runs\non your machine: the engine, the memory, voice, watchers, Telegram excepted (Telegram\nis, by nature, a cloud service). Cloud model providers are supported but never required.\n\n## What hardware do I need?\n\nThe node itself is a lightweight Rust binary; the real cost is your model server. A\n7B/8B model on 8 to 12 GB of VRAM is enough for chat, watchers, and Telegram. Bigger\nmodels make longer agentic missions noticeably better. See\n[Local Models](Local-Models).\n\n## How is this different from third-party agent or third-party?\n\nDifferent bets. Those projects are strong at what they do; LaRuche invests in\nsubsystems that matter when an agent runs 24/7 on your own hardware:\n\n- **One Rust binary**, no Node or Python runtime for the core, low idle footprint.\n- **A cognitive memory** with decay, supersede, hebbian ranking, and git time travel,\n  not a chat log with embeddings.\n- **A built-in supervisor** (LaReine) that judges answers against a charter, can force\n  redos, and routes self-modifications through a proposal queue.\n- **Watchers with compiled rules** that cost zero tokens until their deterministic\n  conditions pass.\n- **A two-way secrets firewall**: names in, values substituted at execution, exact\n  values masked in outputs.\n\n## Which models work best?\n\nAnything with decent instruction following. The engine's schema validation and tolerant\nparsing were built precisely so mid-size local models can do real tool work. Native\nAnthropic and OpenAI-compatible tool calling are both supported.\n\n## Can I read what the agent knows?\n\nYes, all of it. `memoire.db` is plain SQLite, the Memory tab offers full CRUD, and the\nOKF export in `memoire-okf/` is markdown under git. `git log` in that folder is your\nagent's learning history.\n\n## Can I undo something it learned?\n\nYes. Facts are superseded rather than destroyed, the dream pass only ever proposes\ncleanups, and the git time travel lets you restore any earlier state of any part of the\nmap: checkout the file from the snapshot you want and re-import it.\n\n## Does the curator slow down my chats?\n\nNo. It is single-flight, has a cooldown, and yields whenever a chat or agent run is\nactive. Your live conversation always has priority on the model.\n\n## Is my API key safe if I use a cloud provider?\n\nThe key lives in the encrypted vault and is substituted into requests at execution\ntime. The model, the context, and the session files only ever see `@@KEY_NAME` or\n`[SECRET:KEY_NAME]`. See [Secrets](Secrets).\n\n## What is the license?\n\nMPL-2.0. Use it, modify it, embed it; changes to MPL-licensed files must stay open.\n\n## Why the French names?\n\nBecause it is a hive and hives deserve poetry. The [Brand Glossary](Brand-Glossary)\ntranslates everything.\n","Home":"# LaRuche Wiki\n\nWelcome to the hive. LaRuche is a self-hosted AI agent node written in Rust: one binary,\nfully local, with a real agent engine, a cognitive memory, a built-in supervisor, and\nevent reflexes.\n\n## Getting started\n\n- [Installation](Installation) - build from source, Windows launcher, Docker\n- [Quick Start](Quick-Start) - first boot, onboarding, first conversations\n- [Local Models](Local-Models) - llama.cpp, Ollama, cloud providers, embeddings\n\n## Concepts\n\n- [Architecture](Architecture) - the workspace, the crates, how a request flows\n- [Butinage Engine](Butinage-Engine) - the ReAct loop and its safety rails\n- [Cognitive Memory](Cognitive-Memory) - recall, decay, supersede, hebbian ranking, git time travel\n- [LaReine](LaReine) - the built-in supervisor, redo loop, proposal queue, scorecards\n- [Watchers](Watchers) - event reflexes with compiled rules\n- [Skills and the Curator](Skills-and-Curator) - the skill library and how it grows itself\n- [Automation](Automation) - crons, missions, kanban\n\n## Guides\n\n- [Telegram](Telegram) - connect the bot, commands, voice messages\n- [Voice](Voice) - local TTS and STT, wake word, call mode\n- [Secrets](Secrets) - the vault, substitution, output masking\n- [MCP](MCP) - LaRuche as an MCP client and as an MCP server\n\n## Reference\n\n- [Configuration](Configuration) - every environment variable and setting\n- [Tools](Tools) - the built-in abeilles by category\n- [Brand Glossary](Brand-Glossary) - what the French words mean\n- [Security](Security) - the threat model and the defaults\n- [FAQ](FAQ) - common questions\n\n## Where things live\n\n| Thing | Location |\n|---|---|\n| Web UI | http://localhost:8419 |\n| Memory database | `memoire.db` (SQLite, next to the binary) |\n| Memory time-travel repo | `memoire-okf/` (dedicated git repository) |\n| Skills | markdown files, editable from the UI or on disk |\n| Roadmap | `ROADMAP.md` in the repository |\n","Security":"# Security\n\nLaRuche's security model starts from an honest premise: the model will eventually do\nsomething wrong. A confused local model, a prompt injection in a fetched page, a\nhallucinated command. The defenses are structural, not prompt-based.\n\n## Network posture\n\n- **Loopback by default.** The node binds `127.0.0.1`; other machines cannot reach it\n  unless you set `LARUCHE_BIND_LAN` explicitly.\n- **Strict CORS** on the API.\n- **Auth guard** on every mutating route.\n- **Mesh is opt-in.** The Miel protocol announces nothing until you enable it, and\n  federation carries provenance tags.\n- **HTTPS available** (`LARUCHE_HTTPS` self-signed, or bring your own certificate) for\n  LAN access, required by browsers for the microphone.\n\n## Execution posture\n\n- **Approval gates.** Shell, Python, destructive file operations, and other sensitive\n  abeilles require a human click in a popup before running. The permission engine\n  (`laruche-permissions`) decides what is gated.\n- **Server-side validation.** Tool arguments are validated against JSON Schemas before\n  execution; watcher targets are validated for existence and well-formedness on the\n  server, not trusted from the model.\n- **Timeouts and budgets** bound what any single run can consume.\n\n## Data posture\n\n- **Secrets never enter the context.** Names in, values substituted at execution time,\n  and exact values masked to `[SECRET:NAME]` in every tool output before it returns to\n  the loop. See [Secrets](Secrets).\n- **Sanitized rendering.** Chat output is sanitized with a vendored DOMPurify before it\n  touches the DOM, so a malicious page quoted by the agent cannot script your dashboard.\n- **No CDN.** All web assets ship inside the binary; the UI makes no third-party\n  requests.\n- **Local by default.** With a local model, no conversation content leaves the machine\n  at all. With cloud providers, only what you send them leaves, and your keys stay in\n  the vault.\n\n## Self-modification posture\n\nThe agent can improve itself, under review: skill proposals and memory changes can\nroute through the [LaReine](LaReine) proposal queue, pull-request style, and the\nmemory's git time travel ([Cognitive Memory](Cognitive-Memory)) makes any accepted\nchange auditable and reversible after the fact.\n\n## Reporting\n\nFound something? Please open a private security advisory on GitHub rather than a\npublic issue.\n","Architecture":"# Architecture\n\nLaRuche is a Rust workspace compiled into a single process. The web dashboard, the API,\nthe channel bots, the MCP server, and every background job run inside one binary.\n\n## Crates\n\n| Crate | Role |\n|---|---|\n| `laruche-node` | axum HTTP server: API routes, web UI, channel bots, MCP server, background jobs (curator, dream, OKF git snapshots, watchers scheduler) |\n| `laruche-essaim` | Agent layer: the tool registry (abeilles), providers, prompt assembly, working-set recall, curator, LaReine judge and live loop |\n| `laruche-butinage` | The pure ReAct core: engine loop, compass (planning), gauge (token budget), sentinel (anti-loop), escale (compaction), eclaireuses (sub-agents). No IO, heavily tested. |\n| `laruche-memoire` | The cognitive map: SQLite + FTS5 + embeddings, decay, supersede, hebbian ranking, dream pass, OKF markdown export/import |\n| `laruche-watchers` | Event watchers and the compiled rules DSL |\n| `miel-protocol` | Mesh: mDNS discovery, node manifests, federation |\n| `laruche-dashboard` | Web SPA in vanilla JS, compiled into the binary, works offline |\n| `laruche-evals` | Evals harness: fixed missions replayed against the real engine, scored baselines |\n| `laruche-cli` | Terminal TUI with five views and a slash palette |\n| `laruche-skills` | Skill store: markdown skills, dynamic selection by intent |\n| `laruche-kanban` | Kanban board backing the missions |\n| `laruche-permissions` | The permission engine behind the approval gates |\n| `laruche-voix` | Voice: TTS/STT orchestration, streaming, wake word |\n\n## Design rules\n\n- **The core is pure.** `laruche-butinage` has no IO. Every engine behavior (anti-loop,\n  budget, compaction triggering, sub-agent fan-out) is testable without a model or a\n  network. The evals harness then validates the assembled system against real models.\n- **One process, plain storage.** SQLite for memory, markdown for skills and exports,\n  JSONL for journals. Everything on disk is human-readable.\n- **Live configuration.** Providers, models, context sizes, the curator, LaReine,\n  channels: all editable at runtime through Settings, no restart.\n- **The UI is embedded.** No CDN, no external assets, the dashboard works with the\n  network cable unplugged.\n\n## How a chat message flows\n\n1. The message arrives through a channel (web UI, Telegram, TUI, voice, MCP).\n2. `laruche-essaim` assembles the context: system prompts from memory (`system.*`\n   entries), the working set recalled from the cognitive map, the dynamically selected\n   tools and skills for this intent.\n3. `laruche-butinage` runs the ReAct loop: the model reasons, calls tools, the sentinel\n   watches for loops, the gauge watches the budget, the escale compacts if needed.\n4. Tool calls execute through the abeille registry, behind approval gates for the\n   sensitive ones, with secrets substituted in and masked out.\n5. If LaReine is on, the draft answer is judged against the charter; it may be sent\n   back for a redo before you ever see it.\n6. Memories actually used in the answer get hebbian reinforcement; the session is\n   persisted; the curator may later mine the finished conversation for a new skill.\n\n## Background jobs\n\nAll spawned by `laruche-node` at startup, all polite about resources:\n\n- **Watchers scheduler**: evaluates compiled rules on their intervals.\n- **Curator**: reviews finished conversations, proposes skills. Single-flight, cooldown,\n  yields whenever a chat or agent run is active.\n- **Dream pass**: memory consolidation proposals.\n- **OKF git snapshots**: periodic memory export committed to `memoire-okf/`.\n- **Mesh announcer**: mDNS presence, when enabled.\n","Automation":"# Automation\n\nThe automation hub gathers everything the hive does on its own: crons, missions, the\nkanban, and [watchers](Watchers). The agent creates all of them through its own tools,\nfrom a plain-language request, with your approval.\n\n## Crons\n\nScheduled prompts. \"Every morning at 9, check these three pages and summarize what\nchanged\" becomes a cron whose payload is an agentic run. Each cron can target a\nspecific channel, so the morning digest lands on Telegram while a weekly report stays\nin the web feed.\n\nTelegram users can inspect and prune from the phone: `/crons`, `/delcron <name|all>`.\n\n## Missions\n\nLong-running goals that survive across days: \"research topic X in depth, iterate daily,\nkeep your notes in memory.\" A mission holds its own state and channel, gets scheduled\nwork, accumulates findings in the cognitive map, and reports on its channel.\n\nA finished mission stops occupying the scheduler; its cron disappears with it.\n\n## Kanban\n\nThe board behind the missions: tasks move through columns, each task can carry its own\nchannel for reporting. Useful both as the agent's own work queue and as a shared\nsurface where you drop tasks for the hive.\n\n## Watchers\n\nEvent-driven rather than time-driven; see [Watchers](Watchers) for the compiled rules\nDSL.\n\n## How they compose\n\nThe four primitives combine naturally:\n\n- A **watcher** notices the release file appeared, and hands it to the agent.\n- The agent run files a summary in **memory** and adds a follow-up task to the\n  **kanban**.\n- A **cron** picks up the board every morning and sends the digest to Telegram.\n\nNone of this requires you to write configuration. Describe the loop you want; the agent\nassembles it from its own primitives and shows you what it built.\n","Butinage-Engine":"# The Butinage Engine\n\nButinage is French for what bees do: foraging, flower to flower. It is LaRuche's name\nfor the agentic loop, and the engine is the part of the system that took the most\nhardening, because it has to work with local models that misformat, repeat themselves,\nand run out of context.\n\n## The loop\n\nA ReAct cycle: the model reasons, decides on tool calls, the engine executes them and\nfeeds results back, until the model produces a final answer or a limit is hit. Parallel\ntool calls in a single pass are supported and encouraged in the prompt.\n\n## The rails\n\nEvery rail exists because a real failure demanded it:\n\n- **Compass (boussole)**: lightweight planning state that keeps long missions oriented,\n  so the model does not forget the goal at step 14.\n- **Gauge (jauge)**: token accounting per run. Budgets for the run, for sub-agents, for\n  tool outputs. When the context approaches the provider's limit, the gauge triggers\n  the escale.\n- **Sentinel (vigie)**: anti-loop detection. A model calling the same tool with the same\n  arguments again, or oscillating between two states, gets interrupted with a corrective\n  nudge instead of burning the budget.\n- **Escale**: LLM-driven compaction. The conversation so far is summarized and the run\n  continues on the summary. Long missions survive small contexts.\n- **Schema validation**: every tool call is validated against the tool's JSON Schema\n  client-side, before execution. Invalid arguments come back to the model as a\n  corrective message it can fix, not as a crash.\n- **Tolerant parsing**: native tool calling when the provider supports it, text-format\n  fallbacks when the model emits tool calls as prose or malformed JSON.\n- **Per-tool timeouts** and **cooperative cancellation**: a stuck fetch does not stick\n  the run, and the stop button actually stops things.\n\n## Live steering\n\nYou can talk to a run in progress. A steering message is injected into the loop at the\nnext pass boundary: \"actually, focus on the second option\" redirects the mission without\nkilling it. Runs survive a page refresh; the web UI reattaches to the live run.\n\n## Eclaireuses (scouts)\n\nFor research fan-out, the engine spawns parallel sub-agents, each with its own budget\nslice and a narrowed mission, each able to recall from memory. Their reports are merged\nback into the parent run. This is how \"research everything about X\" becomes ten focused\nreads instead of one shallow one.\n\n## Evals\n\n`laruche-evals` replays fixed missions against the real assembled engine and scores the\noutcomes. It exists so that engine changes are measured, not vibed. Baselines live with\nthe repo; regressions in tool-call success, loop rate, or budget burn show up as numbers.\n","Cognitive-Memory":"# Cognitive Memory\n\nLaRuche's memory is not a vector store bolted onto a chat log. It is a cognitive map:\nnamed nodes (topics) holding items (facts), stored in SQLite, recalled by hybrid search,\ncurated over time, and versioned in git.\n\n## Recall\n\nSearch fuses two signals:\n\n- **Semantic**: embeddings (default `nomic-embed-text` via Ollama) for meaning-level\n  matches.\n- **Full-text**: SQLite FTS5 for exact terms, names, paths, error strings.\n\nThe working set assembled before each agent run pulls the most relevant facts into\ncontext automatically. Tools also expose explicit recall to the model.\n\n## What keeps the map clean\n\nMemory that only grows becomes noise. Several mechanisms push back:\n\n- **Importance decay**: facts lose weight over time unless something reinforces them.\n- **Write-time supersede**: writing a fact that contradicts or updates an existing one\n  replaces it instead of piling up next to it. The old fact is superseded, not silently\n  destroyed.\n- **LLM arbiter**: contradictions in the ambiguity band (similar but not clearly the\n  same fact) are settled by a small model call, never destructively.\n- **Dream pass**: a periodic consolidation job that surfaces duplicates and merge\n  candidates as proposals you approve or reject. It never deletes on its own.\n\n## Hebbian ranking\n\n\"Neurons that fire together wire together\", applied honestly:\n\n- **Level 1**: recalled facts gain a small amount of weight (access count).\n- **Level 2**: the working-set recall is trace-free; after the answer is produced, only\n  the facts whose content actually shows up in the answer get reinforced. Mere\n  co-occurrence in the context no longer inflates a fact's rank. Recalled noise stays\n  noise.\n\n## Git time travel\n\nOn a schedule (`LARUCHE_OKF_GIT_SECS`, default 30 minutes, `0` disables), the whole map\nis exported as plain markdown (the OKF format) into `memoire-okf/`, a dedicated git\nrepository with its own history, independent from the code repo. Snapshots that change\nnothing produce no commit.\n\nWhat this buys you:\n\n```bash\ncd memoire-okf\ngit log --oneline          # the agent's learning timeline\ngit diff HEAD~5 --stat     # what it learned in the last 5 snapshots\ngit show <sha> -- projets/laruche.md   # a fact's history\n```\n\nRollback is a checkout plus re-import: restore a file from an earlier snapshot and\nimport it back. Surgical, auditable, and it uses tools you already know.\n\n## Hot-editable system prompts\n\nThe agent's own system prompts live in memory as `system.*` entries (identity, behavior,\nplanning, curator, consolidation). Edit them in the Memory tab and the change applies to\nthe next run. Restore-to-default is one click.\n\n## Inspecting everything\n\n`memoire.db` is a normal SQLite file. The Memory tab in the dashboard offers full CRUD\nwith previews of proposed entries. Nothing about what the agent knows is opaque.\n","LaReine":"# LaReine\n\nLaReine (\"the queen\") is LaRuche's built-in supervisor: a judge that reviews the agent's\nanswers before you see them, with the authority to send the agent back to work.\n\n## Why a supervisor\n\nAgents fail in a specific way: they produce confident answers built on skipped work.\nThe tool call that was never made, the page that was never fetched, the \"I checked and\neverything is fine\" that checked nothing. A judge that only reads the final answer\ncannot catch this. LaReine can, because it sees the run, not just the prose.\n\n## How judging works\n\n1. The agent produces a draft answer.\n2. LaReine scores it against **the charter**, an editable document describing what a\n   good answer looks like (grounding, methodology, completeness, tone).\n3. The **methodology score is grounded in facts**: LaReine sees which tools were\n   actually called during the run. An answer claiming research that never happened\n   scores accordingly.\n4. Based on the verdict, LaReine either releases the answer, escalates to you with its\n   concerns, or sends the agent back.\n\n## The redo loop\n\nA redo is a fresh agentic run with LaReine's critique injected, not a rephrase of the\nsame text. Two guards keep this honest:\n\n- **Best-draft anti-regression**: LaRuche keeps the best-scoring draft across retries.\n  If redo number 2 is worse than redo number 1, you get redo number 1. Quality never\n  goes backward because the judge asked for more.\n- **Budget**: `LARUCHE_REINE_BUDGET_SECS` caps the total time spent on judging and\n  redoing, so supervision never turns a quick question into a ten-minute wait.\n\n## The proposal queue\n\nSelf-modification goes through review. When the agent (or the curator, or the dream\npass) wants to change its own equipment: a new skill, a memory edit, a deletion, the\nchange can be routed into a durable proposal queue instead of applying silently.\n\nIt works like a pull request: the proposal shows the full content, you approve or\nreject, and the queue survives restarts. The agent proposes, you dispose.\n\n## Scorecards\n\nEvery verdict is appended to a JSONL scorecard journal and surfaced in the dashboard\n(`/api/reine/scorecards`): scores over time, redo rates, escalations. You can literally\nwatch answer quality as a time series, and see whether a model change or a charter edit\nmade things better.\n\n## Configuration\n\nEverything is in **Settings > LaReine**: on/off, the charter text, thresholds, the\nbudget. The charter is yours to write; the defaults are a starting point, not a rule.\n","Skills-and-Curator":"# Skills and the Curator\n\n## Skills\n\nA skill is a markdown file: instructions, examples, and conventions for a category of\ntask. Skills live on disk, are editable from the UI or any editor, and are selected\ndynamically: the working-set assembly matches the user's intent against the skill\ncatalog and injects only the relevant ones, so the context stays lean.\n\nBuilt-in skills cover things like watcher creation (`watcher-architecte`) and mission\nplanning; your own skills teach the agent your conventions: how you like reports\nformatted, how your homelab is laid out, what \"deploy\" means in your world.\n\n## The curator\n\nThe curator (curateur) is the background component that grows the skill library from\nexperience. After a conversation ends, it can review the transcript and ask: did the\nagent figure out something reusable here? If yes, it drafts a skill, verifies it, and\nproposes it.\n\n### Verified, not vibed\n\nA curator skill proposal is not a summary of the chat. The draft is checked for\nconcrete, reusable instructions, and proposals can be routed through the\n[LaReine](LaReine) proposal queue so you review the full content before anything joins\nthe library. The agent proposes, you dispose.\n\n### Polite by construction\n\nThe curator shares your local model with your live conversations, so it is engineered\nto never get in the way:\n\n- **Single-flight**: at most one curator pass at a time.\n- **Cooldown**: a minimum delay between passes (default 10 minutes,\n  `LARUCHE_CURATEUR_COOLDOWN_SECS`).\n- **Yields to you**: if any chat or agent run is active, the curator waits. Your\n  conversation never lags because the hive is studying its notes.\n\n## Editing and versioning\n\nSkills are plain markdown, so they diff, they version, and they travel. The\n[Miel mesh](Architecture#background-jobs) can federate skills between your nodes with\nprovenance tags, opt-in.\n","Watchers":"# Watchers\n\nWatchers are LaRuche's event reflexes: standing conditions that trigger actions when\nsomething happens on your machine or on your network. The design goal was ruthless:\nwatching must cost nothing while nothing is happening.\n\n## Compiled rules, not polling prompts\n\nYou describe the watcher in plain language:\n\n> \"If it is Tuesday or Thursday and my local site has been down for 10 minutes, send me\n> a Telegram message every 20 minutes until it comes back.\"\n\nThe agent (through its `watcher-architecte` skill) compiles that once into a\ndeterministic predicate tree. At runtime the scheduler evaluates the tree; no model is\ninvolved unless the tree explicitly asks for one.\n\n## The rules DSL\n\nRules compose with `et` (and), `ou` (or), `non` (not) over these leaves:\n\n| Rule | Fires when |\n|---|---|\n| `jour_semaine` | The weekday is in the given set |\n| `heure_entre` | The current time is inside a window (night-silence, office hours) |\n| `plage_date` | The date is inside a range |\n| `apparu` / `supprime` / `modifie` | A file or folder appeared, was deleted, changed |\n| `contenu_change` | Watched content differs from the last check |\n| `contient` | A file or page contains a pattern (log ERROR lines) |\n| `taille_depasse_mo` | A file exceeds N megabytes |\n| `est_down` / `down_depuis_min` / `retour_en_ligne` | A service is down, down for N minutes, back up |\n| `status_http` | An HTTP check returns a given status |\n| `llm_check` | An explicit LLM judgment, described in text |\n\nEvaluation returns one of three verdicts: true, false, or \"needs LLM\". The `llm_check`\nleaf is the only path to a model call, and it only runs after the deterministic prefix\nhas already passed. A watcher with a weekday guard costs zero tokens six days a week by\nconstruction.\n\n## State-aware leaves\n\nThe down/up leaves carry memory between evaluations: `down_depuis_min` tracks how long\na target has been failing, `retour_en_ligne` fires exactly once on recovery. Combined\nwith a repeat interval, \"nag me every 20 minutes while it is down, tell me once when it\nis back\" is a single watcher.\n\n## The UI: the schema is the form\n\nEach watcher card renders the compiled rule tree as a pipeline diagram: condition\nbubbles, and/or branches, the action at the end. Collapsed, a card is a one-line\nsummary. Expanded, every value in the diagram is editable in place. What you see is\nexactly what runs.\n\n## Guardrails\n\nLearned the hard way, enforced server-side:\n\n- **Target validation**: file targets must be absolute existing paths, HTTP targets must\n  be well-formed URLs. The agent cannot create a watcher on a relative path that will\n  never match.\n- **Deduplication**: creating a watcher identical to an existing one is rejected, so a\n  confused model cannot pile up six copies.\n- **Interval floors**: no accidental every-second hammering of your own services.\n\n## Actions\n\nA triggered watcher can notify any connected channel (Telegram, web feed), or hand the\nevent to the agent for a full agentic reaction (\"when the report lands, summarize it\nand file the summary in memory\").\n","Installation":"# Installation\n\nLaRuche is a single Rust binary. There is no Node, no Python, no runtime to install for\nthe core (the optional voice sidecars use Python, see [Voice](Voice)).\n\n## Prerequisites\n\n- [Rust](https://rustup.rs/) stable, to build from source\n- `git`, used for cloning and for the memory time-travel feature\n- A model server (see [Local Models](Local-Models)):\n  - [llama.cpp](https://github.com/ggerganov/llama.cpp) in server mode, or\n  - [Ollama](https://ollama.com), or\n  - any OpenAI-compatible or Anthropic API endpoint\n- Optional but recommended for semantic memory recall:\n\n```bash\nollama pull nomic-embed-text\n```\n\n## From source (Linux, macOS, Windows)\n\n```bash\ngit clone https://github.com/infinition/laruche\ncd laruche/laruche\ncargo run --release -p laruche-node\n```\n\nThen open http://localhost:8419.\n\nThe first build takes a few minutes; after that, incremental builds are fast. The web\ndashboard is compiled into the binary, so there is no separate frontend build step and\nthe UI works offline.\n\n## Windows launcher\n\n`lancer_butinage.bat` at the repository root builds the node, starts it, waits for the\nserver to answer, and opens the browser. It is the recommended entry point on Windows.\n\n## Docker\n\n```bash\ncd laruche\ndocker compose up\n```\n\nThe compose file builds the binary in a multi-stage image and exposes port 8419.\n\n## Data on disk\n\nLaRuche keeps its state next to the binary, in plain inspectable formats:\n\n| File / folder | Content |\n|---|---|\n| `memoire.db` | The cognitive memory (SQLite, readable with any SQLite tool) |\n| `memoire-okf/` | Periodic markdown exports of the memory, versioned in their own git repo |\n| session files | Chat history per session |\n| skills | Markdown skill files |\n\nBack up `memoire.db` and you have backed up the agent's brain.\n\n## Updating\n\n```bash\ngit pull\ncargo run --release -p laruche-node\n```\n\nThe SQLite schema migrates automatically on startup.\n\n## Next step\n\nContinue with the [Quick Start](Quick-Start).\n","Local-Models":"# Local Models\n\nLaRuche is designed local-first, and specifically for the reality of local models: they\nare slower, they misformat tool calls, and they have small contexts. The engine is built\naround those constraints instead of pretending they do not exist.\n\n## Supported providers\n\n| Provider | Notes |\n|---|---|\n| llama.cpp (server mode) | The reference local setup. OpenAI-compatible endpoint. |\n| Ollama | Works out of the box, also used for embeddings. |\n| Any OpenAI-compatible API | LM Studio, vLLM, TGI, OpenRouter, DeepSeek, etc. |\n| Anthropic API | Native support for the Anthropic message format and tool calling. |\n\nProviders are configured in **Settings > Providers**, live, no restart. You can define\nseveral and assign a different model per channel: a big cloud model for deep missions,\na small local one for Telegram quick replies, for example.\n\n## Tool calling with imperfect models\n\nThe engine uses native tool calling when the provider supports it, and falls back to\ntolerant text parsing when the model emits tool calls as text. Every tool call is\nvalidated client-side against the tool's JSON Schema before execution; invalid arguments\nare returned to the model as a corrective message it can act on, instead of crashing the\nrun. See [Butinage Engine](Butinage-Engine).\n\nIn practice this means 7B-class models can drive real multi-step tool work.\n\n## Embeddings\n\nSemantic memory recall needs an embedding model:\n\n```bash\nollama pull nomic-embed-text\n```\n\nConfiguration:\n\n| Variable | Default |\n|---|---|\n| `LARUCHE_EMBED_URL` | the local Ollama endpoint |\n| `LARUCHE_EMBED_MODEL` | `nomic-embed-text` |\n\nWithout embeddings, memory recall falls back to full-text search only. Everything still\nworks; recall is just less clever about synonyms and phrasing.\n\n## Context size\n\nSet the context window per provider in Settings so the gauge (the engine's token\naccountant) can budget correctly. When a run approaches the limit, the engine performs\nan escale: an LLM-driven compaction that summarizes the conversation so far and\ncontinues with the summary. Long missions survive small contexts this way.\n\n## Practical picks\n\n- **Small and fast (8 to 12 GB VRAM)**: a 7B/8B instruct model in llama.cpp. Good for\n  chat, Telegram, watchers with `llm_check` leaves.\n- **Balanced (16 to 24 GB)**: a 12B to 32B model. Comfortable for real agentic missions.\n- **Hybrid**: local model as default plus a cloud key for the heavy channels. The\n  secrets vault keeps the key out of the model's sight ([Secrets](Secrets)).\n","Quick-Start":"# Quick Start\n\nYou have built and started the node ([Installation](Installation)) and the UI is open\nat http://localhost:8419. Here is the first hour.\n\n## First boot\n\nThe onboarding checklist walks you through the essentials:\n\n1. **Model provider**: point LaRuche at your llama.cpp server, Ollama, or a cloud\n   endpoint. The check probes the endpoint for real; a green checkmark means a model\n   actually answered.\n2. **Embeddings**: optional, enables semantic memory recall. `nomic-embed-text` via\n   Ollama is the default expectation.\n3. **Voice**: optional, can be set up later from Settings.\n\nEverything in onboarding can be changed later, live, in **Settings**. Nothing requires\na restart.\n\n## First conversation\n\nJust talk. The agent has its tools from the first message: web search and fetch, file\naccess, shell and Python behind approval gates, memory, scheduling.\n\nSome things to try:\n\n> \"What can you do?\"\n\n> \"Search the web for the latest release of X and summarize the changelog.\"\n\n> \"Remember that my home server is at 192.168.1.40 and runs the staging site.\"\n\n> \"Every morning at 9, check these three pages and tell me what changed.\"\n\n> \"Watch the folder `deploys/` and tell me when a file named release.zip appears.\"\n\nThe last two create a cron and a watcher through the agent's own tools. You will see\nthe approval popup for anything sensitive; nothing destructive happens without you.\n\n## The dashboard\n\n- **Chat**: sessions persist, agent runs survive a page refresh, live steering lets you\n  redirect a run in progress.\n- **Memory**: browse and edit the cognitive map directly, including the `system.*`\n  entries that are the agent's hot-editable system prompts.\n- **Automation**: crons, watchers, missions, kanban, all in one hub.\n- **Settings**: providers and per-channel models, context sizes, the curator, LaReine,\n  secrets, MCP servers, channels, voice. All live.\n\n## Where to go next\n\n- Connect [Telegram](Telegram) so the hive reaches your phone.\n- Read about the [Cognitive Memory](Cognitive-Memory) to understand what the agent\n  remembers and why.\n- Turn on [LaReine](LaReine) to get supervised, reviewed answers.\n- Build your first real [watcher](Watchers).\n","MCP":"# MCP\n\nLaRuche sits on both sides of the Model Context Protocol: it consumes external MCP\nservers as extra tools, and it exposes itself as an MCP server so other agents can use\nthe hive.\n\n## LaRuche as an MCP client\n\nAdd servers in **Settings > MCP**. Their tools join the abeille registry and become\navailable to the agent alongside the built-ins, subject to the same approval gates and\nthe same secrets masking on outputs.\n\nDynamic tool selection applies too: MCP tools are matched against the conversation's\nintent like any other tool, so connecting a large server does not flood every context.\n\n## LaRuche as an MCP server\n\nThe node exposes an MCP endpoint at `POST /mcp`. Any MCP-capable client (Claude Code,\nan IDE, another agent framework) can connect and use the hive's capabilities:\n\n- query the cognitive memory,\n- trigger agentic runs,\n- reach the tools you choose to expose.\n\nThis turns LaRuche into infrastructure: a persistent memory and automation node that\nyour other AI tooling talks to.\n\n## A concrete pattern\n\nRun LaRuche 24/7 on a homelab box. Connect your laptop's coding agent to it over MCP.\nThe coding agent now has a durable, searchable memory that survives its own sessions,\nplus scheduled jobs and watchers on a machine that never sleeps, without giving up its\nown workflow.\n","Secrets":"# Secrets\n\nThe secrets vault exists for one reason: your API keys, tokens, and passwords should\nnever enter a model's context. Not the local model's, not a cloud model's, not the\nsession file's. LaRuche enforces this in both directions.\n\n## Storing a secret\n\n**Settings > Secrets**: give it a name (`TAVILY_KEY`, `HOMELAB_SSH_PASS`), paste the\nvalue once. Values are encrypted at rest and never displayed again.\n\n## Using a secret: `@@NAME`\n\nReference a secret by name anywhere: in chat, in a cron payload, in a watcher action,\nin a tool argument. Autocomplete for `@@` works across the UI.\n\n> \"Call the staging API with the header `Authorization: Bearer @@STAGING_TOKEN` and\n> tell me the status.\"\n\nThe model sees the literal text `@@STAGING_TOKEN` and passes it along in its tool call.\nSubstitution happens at execution time, inside the tool runner, after the model has\nalready committed its arguments. The value exists only in the actual HTTP request or\nshell command.\n\n## The way back is guarded too\n\nSubstitution alone is not enough: a tool's output can echo the secret (a debug page\nprinting headers, `env` in a shell, an error message quoting the request). LaRuche\nmasks tool outputs before they return to the loop: any exact occurrence of a stored\nsecret value becomes `[SECRET:NAME]`.\n\nSo even in the worst case, the model's context and the session file contain the\nplaceholder, never the value.\n\n## What this enables\n\n- Give a **local** model the ability to use your paid cloud APIs without ever holding\n  the keys.\n- Let the agent run authenticated shell commands while keeping credentials out of chat\n  history.\n- Share a screen or a session export without scrubbing it first.\n\n## Limits worth knowing\n\nMasking matches exact values. A tool that re-encodes a secret (base64, URL-encoding)\nbefore printing it would slip past the filter. Treat the vault as a strong seatbelt,\nnot diplomatic immunity: prefer scoped, revocable tokens where the service offers them.\n","Telegram":"# Telegram\n\nTelegram is LaRuche's most mature remote channel: full agent runs from your phone,\npersistent per-channel memory, voice messages in both directions, and notifications\nfrom crons and watchers.\n\n## Setup\n\n1. Create a bot with [@BotFather](https://t.me/BotFather) and copy the token.\n2. In **Settings > Channels**, paste the token and enable Telegram. No restart needed.\n3. Message your bot. The first chat can be bound as home with `/sethome`, so crons and\n   watchers know where to notify you.\n\nStore the token as a secret (see [Secrets](Secrets)) rather than pasting it into chats.\n\n## What works\n\n- **Full agentic runs**: the same engine as the web UI, tools included. Ask for\n  research, file checks, scheduled jobs, from the phone.\n- **Per-channel memory**: the Telegram channel has its own persistent conversation\n  identity, distinct from your web sessions.\n- **Voice both ways**: send a voice message, it is transcribed locally (Whisper) and\n  answered; the answer can come back as synthesized speech (see [Voice](Voice)).\n- **Notifications**: crons and watchers deliver to your home chat, respecting\n  night-silence windows if the watcher's rules include one.\n- **Per-channel model**: assign a smaller, faster model to Telegram in Settings if you\n  want snappier phone replies.\n\n## Commands\n\n| Command | Effect |\n|---|---|\n| `/help` | List commands |\n| `/status` | Node status |\n| `/crons` | List scheduled jobs |\n| `/delcron <name|all>` | Remove a cron |\n| `/sethome` | Bind this chat as the notification home |\n| `/clear` | Clear the channel conversation |\n\n## Discord and Slack\n\nBoth are wired in the channels layer with the same per-channel memory model. Telegram\nis the reference implementation and the most battle-tested.\n","Voice":"# Voice\n\nLaRuche speaks and listens, locally. No cloud speech APIs are involved: Whisper handles\ntranscription and Kokoro handles synthesis, both running on your machine through small\nPython sidecars managed by the node.\n\n## What it feels like\n\n- **Streamed speech**: the reply starts being spoken at the first complete sentence,\n  while the model is still generating the rest. No wait-for-the-full-answer pause.\n- **Call mode**: a full-screen call UI in the web app for hands-free back-and-forth.\n- **Barge-in**: interrupt the hive mid-sentence by speaking; it stops and listens.\n- **Wake word**: hands-free activation when enabled.\n- **Telegram voice notes**: send one, get transcribed and answered; replies can come\n  back as audio.\n\n## Backends\n\n| Component | Default | Alternative |\n|---|---|---|\n| TTS | Kokoro (fast, good quality, multilingual) | Voicebox backend with a cloned voice |\n| STT | Whisper | |\n\nThe cloned-voice backend lets the Reine speak with a voice you provide. Backend choice,\nvoice, speed, and wake word are all in **Settings > Voice** and persist across restarts.\n\n## Setup\n\n1. Open **Settings > Voice** and enable the components you want. The node manages the\n   Python sidecars; the status indicators probe them for real.\n2. Test from the microphone button in chat or the call screen.\n\n## Microphone from another device\n\nBrowsers only expose the microphone on secure origins. On `localhost` you are fine; to\ntalk to the hive from your phone or another machine on the LAN, enable HTTPS:\n\n| Variable | Effect |\n|---|---|\n| `LARUCHE_HTTPS` | Serve with a self-signed certificate |\n| `LARUCHE_TLS_CERT` / `LARUCHE_TLS_KEY` | Use your own certificate instead |\n| `LARUCHE_BIND_LAN` | Required to expose the node beyond loopback at all |\n\nAccept the self-signed certificate once on the device and the call screen works from\nanywhere in the house.\n","Brand-Glossary":"# Brand Glossary\n\nThe hive speaks French. The brand vocabulary is part of LaRuche's identity and stays\nFrench in the code, the UI, and the docs; everything else is English. Here is the\ndecoder ring.\n\n| Term | Literal meaning | In LaRuche |\n|---|---|---|\n| **LaRuche** | the hive | The project and the node itself |\n| **butinage** | bees foraging | The agentic ReAct loop, the engine |\n| **butiner** | to forage | To run an agentic mission |\n| **essaim** | swarm | The agent layer (crate `laruche-essaim`) |\n| **abeille** | bee | A tool the agent can call |\n| **éclaireuse** | scout bee | A parallel sub-agent for research fan-out |\n| **escale** | stopover | Context compaction mid-run |\n| **boussole** | compass | The engine's planning state |\n| **jauge** | gauge | The token budget accountant |\n| **vigie** | lookout | The anti-loop sentinel, also the watchers UI |\n| **curateur** | curator | The background component that grows the skill library |\n| **LaReine** | the queen | The built-in supervisor and judge |\n| **Miel** | honey | The mesh protocol between nodes |\n| **nectar** / **Source** | nectar / source | Memory content and its store |\n\nTwo naming rules for contributors: identifiers that carry brand vocabulary keep it\n(`butiner()`, `AbeilleRegistry`), and no em dashes anywhere in the codebase or docs.\n","Configuration":"# Configuration\n\nTwo layers: environment variables set at launch (the launcher-level knobs), and the\nSettings UI for everything else, editable live with no restart.\n\n## Environment variables\n\n### Core\n\n| Variable | Default | Purpose |\n|---|---|---|\n| `LARUCHE_PORT` | `8419` | Web UI and API port |\n| `LARUCHE_MEMOIRE_BACKEND` | `sqlite` | Memory backend: `sqlite`, `native`, `sidecar` |\n| `LARUCHE_BIND_LAN` | off | Bind beyond loopback. Off means the node is unreachable from other machines. |\n\n### TLS\n\n| Variable | Default | Purpose |\n|---|---|---|\n| `LARUCHE_HTTPS` | off | Serve HTTPS with a self-signed certificate (needed for the microphone from other devices) |\n| `LARUCHE_TLS_CERT` / `LARUCHE_TLS_KEY` | none | Use your own certificate and key |\n\n### Memory\n\n| Variable | Default | Purpose |\n|---|---|---|\n| `LARUCHE_EMBED_URL` | local Ollama | Embedding endpoint for semantic recall |\n| `LARUCHE_EMBED_MODEL` | `nomic-embed-text` | Embedding model |\n| `LARUCHE_OKF_GIT_SECS` | `1800` | Interval for git time-travel snapshots of the memory, `0` disables |\n\n### Web search\n\n| Variable | Default | Purpose |\n|---|---|---|\n| `LARUCHE_TAVILY_KEY` | none | Tavily API key |\n| `LARUCHE_BRAVE_KEY` | none | Brave Search API key |\n| `LARUCHE_SEARXNG_URL` | none | A SearXNG instance |\n\nWith none set, the search tools fall back to free scrapers. A key improves reliability.\n\n### Background components\n\n| Variable | Default | Purpose |\n|---|---|---|\n| `LARUCHE_CURATEUR_COOLDOWN_SECS` | `600` | Minimum delay between curator passes |\n| `LARUCHE_REINE_BUDGET_SECS` | set in Settings | Time cap for LaReine judging and redo loops |\n\n## Settings UI\n\nAll live, no restart:\n\n- **General**: generation parameters (max passes, temperature, max tokens, dynamic tool\n  limit), context and compaction thresholds, curator toggle.\n- **Providers**: model endpoints, context sizes, per-channel model assignment.\n- **LaReine**: on/off, the charter, thresholds, budget, the proposal queue.\n- **Secrets**: the vault ([Secrets](Secrets)).\n- **MCP**: external servers ([MCP](MCP)).\n- **Channels**: Telegram, Discord, Slack tokens and options.\n- **Voice**: backends, voice, wake word ([Voice](Voice)).\n\n## System prompts\n\nThe agent's system prompts are memory entries (`system.*`): identity, behavior,\nplanning, curator, consolidation. Edit them in the Memory tab; restore-to-default is\none click. See [Cognitive Memory](Cognitive-Memory).\n","Tools":"# Tools\n\nTools are called **abeilles** (bees) in the hive. Around 90 are built in, plus whatever\nyou add through [MCP](MCP). The agent does not see all of them at once: dynamic\nselection matches the conversation's intent against the registry and injects only the\nrelevant ones, keeping the context lean for small models.\n\nSensitive tools sit behind approval gates ([Security](Security)); every tool's output\npasses through the secrets mask ([Secrets](Secrets)).\n\n## Web\n\n- Search across providers (Tavily, Brave, SearXNG, free scrapers as fallback)\n- Fetch with pagination for long pages and PDF text extraction\n- Parallel deep search: fan out sub-agent scouts over a research question\n\n## Files\n\n- Read, write, edit, search, list, within the workspace\n- Sensitive paths and destructive writes go through approval\n\n## Execution\n\n- Shell commands (approval-gated)\n- Python execution (approval-gated)\n\n## Memory\n\n- Recall (semantic + full-text), write, update, supersede\n- Node and item CRUD, importance management\n\n## Scheduling and automation\n\n- Create, list, delete crons\n- Create and manage missions and kanban tasks\n- Create watchers through the compiled rules DSL, with server-side target validation\n\n## Communication\n\n- Send messages to channels (Telegram, feed)\n- Voice synthesis for spoken replies\n\n## Sub-agents\n\n- Spawn eclaireuses (scout sub-agents) with their own budget slice and mission\n\n## Skills\n\n- Consult and propose skills (proposals can route through the LaReine queue)\n\n## MCP\n\n- Every tool exposed by servers connected in Settings > MCP\n\nThe authoritative list is in the app itself: the Capabilities tab shows every\nregistered abeille with its schema, and the same registry backs the MCP server\nendpoint.\n"}};
+/* WIKI-DATA:END */
+</script>
+
+<script>
+(function () {
+  "use strict";
+
+  var doc = document.getElementById("doc");
+  var nav = document.getElementById("nav");
+  var crumb = document.getElementById("crumb");
+  var pager = document.getElementById("pager");
+  var side = document.getElementById("side");
+  var scrim = document.getElementById("scrim");
+
+  // Flat reading order, used for the previous/next pager.
+  var FLAT = [];
+  WIKI.sections.forEach(function (s) {
+    s.pages.forEach(function (p) { FLAT.push({ slug: p.slug, title: p.title, section: s.label }); });
+  });
+  var KNOWN = {};
+  FLAT.forEach(function (p, i) { KNOWN[p.slug] = i; });
+
+  /* ── Markdown, limited on purpose to what wiki/ actually uses:
+        headings, lists, tables, fenced code, blockquotes, bold,
+        inline code, links. Everything is escaped before formatting. ── */
+
+  function esc(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function anchorId(t) {
+    return t.toLowerCase().replace(/`/g, "").replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "-");
+  }
+
+  function inline(s) {
+    var codes = [];
+    s = s.replace(/`([^`]+)`/g, function (_, c) {
+      codes.push(c); return "\u0000C" + (codes.length - 1) + "\u0000";
+    });
+    s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    s = s.replace(/\[([^\]]*)\]\(([^)]+)\)/g, function (_, txt, href) {
+      if (/^(https?:|mailto:)/i.test(href)) {
+        return '<a href="' + href + '" target="_blank" rel="noopener">' + txt + "</a>";
+      }
+      if (href.charAt(0) === "#") return '<a href="' + href + '">' + txt + "</a>";
+      var bits = href.split("#");
+      var page = bits[0];
+      if (!Object.prototype.hasOwnProperty.call(KNOWN, page)) {
+        // Keep the label visible rather than offering a link that leads nowhere.
+        return '<a class="dead" title="This page does not exist yet">' + txt + "</a>";
+      }
+      return '<a href="#/' + page + (bits[1] ? "#" + bits[1] : "") + '">' + txt + "</a>";
+    });
+    return s.replace(/\u0000C(\d+)\u0000/g, function (_, i) { return "<code>" + codes[i] + "</code>"; });
+  }
+
+  function listItems(lines, start) {
+    var items = [], i = start;
+    var ordered = /^\s*\d+\.\s/.test(lines[start]);
+    while (i < lines.length) {
+      var l = lines[i];
+      if (!l.trim()) {
+        if (i + 1 < lines.length && /^\s*(?:[-*]|\d+\.)\s/.test(lines[i + 1])) { i++; continue; }
+        break;
+      }
+      var m = l.match(/^(\s*)(?:[-*]|\d+\.)\s+(.*)$/);
+      if (m) { items.push({ indent: m[1].length, text: m[2] }); i++; continue; }
+      if (items.length && /^\s+\S/.test(l)) {           // wrapped continuation line
+        items[items.length - 1].text += " " + l.trim(); i++; continue;
+      }
+      break;
+    }
+    return { items: items, next: i, ordered: ordered };
+  }
+
+  function renderItems(items, ordered) {
+    if (!items.length) return "";
+    var min = items.reduce(function (a, x) { return Math.min(a, x.indent); }, Infinity);
+    var html = ordered ? "<ol>" : "<ul>";
+    var k = 0;
+    while (k < items.length) {
+      var body = inline(esc(items[k].text));
+      k++;
+      var kids = [];
+      while (k < items.length && items[k].indent > min) { kids.push(items[k]); k++; }
+      html += "<li>" + body + (kids.length ? renderItems(kids, false) : "") + "</li>";
+    }
+    return html + (ordered ? "</ol>" : "</ul>");
+  }
+
+  function tableAt(lines, start) {
+    var rows = [], i = start;
+    while (i < lines.length && /^\s*\|/.test(lines[i])) { rows.push(lines[i]); i++; }
+    if (rows.length < 2 || !/^[\s|:\-]+$/.test(rows[1])) return null;
+    var cut = function (r) {
+      return r.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(function (c) { return c.trim(); });
+    };
+    var html = '<div class="tw"><table><thead><tr>';
+    cut(rows[0]).forEach(function (h) { html += "<th>" + inline(esc(h)) + "</th>"; });
+    html += "</tr></thead><tbody>";
+    for (var r = 2; r < rows.length; r++) {
+      html += "<tr>";
+      cut(rows[r]).forEach(function (c) { html += "<td>" + inline(esc(c)) + "</td>"; });
+      html += "</tr>";
+    }
+    return { html: html + "</tbody></table></div>", next: i };
+  }
+
+  function render(md) {
+    var fences = [];
+    md = md.replace(/```([\w-]*)\r?\n([\s\S]*?)```/g, function (_, lang, code) {
+      fences.push(code.replace(/\n$/, "")); return "\u0000F" + (fences.length - 1) + "\u0000";
+    });
+
+    var lines = md.split(/\r?\n/), out = [], i = 0;
+    while (i < lines.length) {
+      var line = lines[i];
+
+      if (!line.trim()) { i++; continue; }
+
+      var f = line.match(/^\u0000F(\d+)\u0000$/);
+      if (f) { out.push("<pre><code>" + esc(fences[+f[1]]) + "</code></pre>"); i++; continue; }
+
+      var h = line.match(/^(#{1,6})\s+(.*)$/);
+      if (h) {
+        var lvl = h[1].length, txt = h[2].replace(/\s+#+\s*$/, "");
+        out.push("<h" + lvl + ' id="' + anchorId(txt) + '">' + inline(esc(txt)) + "</h" + lvl + ">");
+        i++; continue;
+      }
+
+      if (/^\s*---+\s*$/.test(line)) { out.push("<hr>"); i++; continue; }
+
+      if (/^\s*\|/.test(line)) {
+        var t = tableAt(lines, i);
+        if (t) { out.push(t.html); i = t.next; continue; }
+      }
+
+      if (/^\s*(?:[-*]|\d+\.)\s/.test(line)) {
+        var l = listItems(lines, i);
+        out.push(renderItems(l.items, l.ordered));
+        i = l.next; continue;
+      }
+
+      if (/^\s*>/.test(line)) {
+        var buf = [];
+        while (i < lines.length && /^\s*>/.test(lines[i])) {
+          buf.push(lines[i].replace(/^\s*>\s?/, "")); i++;
+        }
+        out.push("<blockquote>" + render(buf.join("\n")) + "</blockquote>");
+        continue;
+      }
+
+      var para = [];
+      while (i < lines.length && lines[i].trim()
+             && !/^(#{1,6})\s/.test(lines[i]) && !/^\s*\|/.test(lines[i])
+             && !/^\s*(?:[-*]|\d+\.)\s/.test(lines[i]) && !/^\s*>/.test(lines[i])
+             && !/^\u0000F\d+\u0000$/.test(lines[i]) && !/^\s*---+\s*$/.test(lines[i])) {
+        para.push(lines[i]); i++;
+      }
+      if (para.length) out.push("<p>" + inline(esc(para.join(" "))) + "</p>");
+    }
+    return out.join("\n");
+  }
+
+  /* ── Navigation ──────────────────────────────────────────────────── */
+
+  function buildNav(filter) {
+    var f = (filter || "").trim().toLowerCase();
+    nav.innerHTML = "";
+    var shown = 0;
+    WIKI.sections.forEach(function (s) {
+      var hits = s.pages.filter(function (p) {
+        if (!f) return true;
+        return p.title.toLowerCase().indexOf(f) >= 0
+            || p.slug.toLowerCase().indexOf(f) >= 0
+            || (WIKI.pages[p.slug] || "").toLowerCase().indexOf(f) >= 0;
+      });
+      if (!hits.length) return;
+      shown += hits.length;
+      var box = document.createElement("div");
+      box.className = "nav-sec";
+      var h = document.createElement("h4");
+      h.textContent = s.label;
+      box.appendChild(h);
+      hits.forEach(function (p) {
+        var a = document.createElement("a");
+        a.href = "#/" + p.slug;
+        a.textContent = p.title;
+        a.dataset.slug = p.slug;
+        box.appendChild(a);
+      });
+      nav.appendChild(box);
+    });
+    if (!shown) {
+      var e = document.createElement("div");
+      e.className = "nav-empty";
+      e.textContent = "Nothing matches that.";
+      nav.appendChild(e);
+    }
+    markActive(currentSlug);
+  }
+
+  function markActive(slug) {
+    Array.prototype.forEach.call(nav.querySelectorAll("a"), function (a) {
+      a.classList.toggle("on", a.dataset.slug === slug);
+    });
+  }
+
+  /* ── Routing ─────────────────────────────────────────────────────── */
+
+  var currentSlug = "";
+
+  function show(slug, anchor) {
+    if (!Object.prototype.hasOwnProperty.call(WIKI.pages, slug)) slug = FLAT.length ? FLAT[0].slug : "";
+    currentSlug = slug;
+    var meta = FLAT[KNOWN[slug]] || { title: slug, section: "" };
+
+    document.title = meta.title + " · LaRuche Wiki";
+    crumb.innerHTML = meta.section ? esc(meta.section) + " / <b>" + esc(meta.title) + "</b>" : "<b>" + esc(meta.title) + "</b>";
+    doc.innerHTML = render(WIKI.pages[slug] || "");
+
+    var i = KNOWN[slug], prev = FLAT[i - 1], next = FLAT[i + 1];
+    pager.innerHTML = "";
+    if (prev) {
+      pager.insertAdjacentHTML("beforeend",
+        '<a href="#/' + prev.slug + '"><span>Previous</span>' + esc(prev.title) + "</a>");
+    }
+    if (next) {
+      pager.insertAdjacentHTML("beforeend",
+        '<a class="next" href="#/' + next.slug + '"><span>Next</span>' + esc(next.title) + "</a>");
+    }
+
+    markActive(slug);
+    side.classList.remove("open");
+    scrim.classList.remove("on");
+
+    if (anchor) {
+      var el = document.getElementById(anchor);
+      if (el) { el.scrollIntoView(); return; }
+    }
+    window.scrollTo(0, 0);
+  }
+
+  function route() {
+    var h = location.hash.replace(/^#\/?/, "");
+    var bits = h.split("#");
+    show(decodeURIComponent(bits[0] || "") || (FLAT.length ? FLAT[0].slug : ""), bits[1] || "");
+  }
+
+  document.getElementById("q").addEventListener("input", function (e) { buildNav(e.target.value); });
+  document.getElementById("burger").addEventListener("click", function () {
+    var open = side.classList.toggle("open");
+    scrim.classList.toggle("on", open);
+  });
+  scrim.addEventListener("click", function () {
+    side.classList.remove("open"); scrim.classList.remove("on");
+  });
+  window.addEventListener("hashchange", route);
+
+  buildNav("");
+  route();
+})();
+</script>
+</body>
+</html>

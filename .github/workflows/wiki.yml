@@ -1,0 +1,43 @@
+name: Wiki
+
+# docs/wiki.html embeds the whole wiki/ folder, so it goes stale the moment a
+# page is edited. This regenerates and commits it.
+#
+# The trigger is restricted to wiki/** and to the generator itself, so the
+# commit this job pushes (which only ever touches docs/wiki.html) cannot
+# retrigger the workflow.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "wiki/**"
+      - "scripts/build_wiki.py"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Rebuild docs/wiki.html
+        run: python scripts/build_wiki.py
+
+      - name: Commit if it changed
+        run: |
+          if git diff --quiet -- docs/wiki.html; then
+            echo "docs/wiki.html already up to date"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/wiki.html
+          git commit -m "docs(wiki): regenerate from wiki/ [skip ci]"
+          git push
