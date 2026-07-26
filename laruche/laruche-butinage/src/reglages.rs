@@ -55,7 +55,18 @@ pub struct Reglages {
     /// Number of recent turns kept intact during a compaction.
     pub garder_recents: usize,
     /// System prompt (stable tier). In English (best practice).
+    ///
+    /// MUST stay byte-identical from one pass to the next. Everything volatile
+    /// (clock, recalled memory) belongs in `contexte_volatil`: concatenating it
+    /// here rewrites the prefix on every call and no provider can reuse a single
+    /// cached token.
     pub systeme: String,
+    /// Volatile tier: rendered as the LAST message of the outgoing context, never
+    /// stored in the carnet. Two reasons for the tail position. It keeps `systeme`
+    /// stable, so the prefix cache stays warm. And it puts the clock where a small
+    /// model actually reads it: buried mid-prompt, the date was ignored and models
+    /// fell back on their training-time prior.
+    pub contexte_volatil: Option<String>,
     /// Override of the memory consolidation prompt (escale). `None` = code default.
     /// Lets the user edit it via `system.prompt_extraction` (memory mirror).
     pub prompt_extraction: Option<String>,
@@ -106,6 +117,7 @@ impl Default for Reglages {
             context_max_tokens: 128_000,
             garder_recents: 12,
             systeme: String::new(),
+            contexte_volatil: None,
             prompt_extraction: None,
             profil: ProfilModele::default(),
             chemin_carnet: None,

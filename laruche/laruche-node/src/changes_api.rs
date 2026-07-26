@@ -5,8 +5,63 @@ use axum::extract::State;
 use axum::response::Json;
 use std::sync::Arc;
 
+/// Delete `capacities.skills.*` nodes that hold NO skill document.
+///
+/// These are empty shells: the writer and the reader disagreed on `-` versus `_`
+/// for a long time, so the same skill was created twice and one of the two copies
+/// never received a body. The base carried 88 children for 73 folders. Listing a
+/// name that `skill_view` cannot open is worse than not listing it, and the
+/// self-improvement loop keeps piling them up if nothing ever sweeps.
+///
+/// Deliberately CONSERVATIVE: only a node whose every active item lacks
+/// `type: skill` is removed. A skill living only in memory (created by the curator,
+/// never written to disk) has a document, so it is never touched.
+async fn reconcilier_skills_orphelines(memoire: &Arc<dyn laruche_memoire::MemoireCognitive>) {
+    let Ok(racine) = memoire.read_node("capacities.skills").await else {
+        return;
+    };
+    let Some(enfants) = racine["children"].as_array() else {
+        return;
+    };
+    let ids: Vec<String> = enfants
+        .iter()
+        .filter_map(|e| e.get("id").or_else(|| e.get("node_id")))
+        .filter_map(|v| v.as_str())
+        .map(str::to_string)
+        .collect();
+
+    let mut supprimes = 0usize;
+    for id in ids {
+        let Ok(node) = memoire.read_node(&id).await else {
+            continue;
+        };
+        let a_document = node["items"]
+            .as_array()
+            .map(|items| {
+                items
+                    .iter()
+                    .any(|it| it["content"].as_str().is_some_and(|c| c.contains("type: skill")))
+            })
+            .unwrap_or(false);
+        if a_document {
+            continue;
+        }
+        // delete_node reparents to `orphans.*`, so remove that residue too.
+        if memoire.delete_node(&id).await.is_ok() {
+            let suffixe = id.rsplit('.').next().unwrap_or_default();
+            let _ = memoire.delete_node(&format!("orphans.{suffixe}")).await;
+            supprimes += 1;
+        }
+    }
+    if supprimes > 0 {
+        tracing::info!(count = supprimes, "empty skill nodes swept from the catalog");
+    }
+}
+
 /// Phase 1 - DISK -> SQL sync: scans `skills/*/SKILL.md` and upserts each skill into
-/// `capacities.skills.<slug>` (single item). Additive (does not delete SQL-only skills).
+/// `capacities.skills.<slug>` (single item), using the SAME id function as the reader.
+/// Additive for content (an SQL-only skill is never dropped); it does sweep nodes left
+/// without any document, which are shells rather than skills.
 pub(crate) async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::MemoireCognitive>) {
     let dir = std::path::Path::new("skills");
     let Ok(rd) = std::fs::read_dir(dir) else {
@@ -28,7 +83,10 @@ pub(crate) async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::M
         let Some(slug) = p.file_name().and_then(|x| x.to_str()).filter(|s| !s.is_empty()) else {
             continue;
         };
-        let node_id = format!("capacities.skills.{slug}");
+        // Same function as the READER (`skill_view`). Formatting this id by hand is
+        // exactly how the two drifted: the folder name went in verbatim while the
+        // reader normalised it, and 40 of the 73 shipped skills became unreachable.
+        let node_id = laruche_skills::skill_node_id(slug);
         let existing = memoire.read_node(&node_id).await.ok();
         // INCREMENTAL: skip when the SQL copy already matches the disk file. The
         // unconditional delete+rewrite re-embedded every skill at every boot and
@@ -66,6 +124,7 @@ pub(crate) async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::M
     if n > 0 {
         tracing::info!(count = n, "skills synchronized from disk (SKILL.md -> SQL)");
     }
+    reconcilier_skills_orphelines(memoire).await;
     // Targeted purge of META-SKILLS from other agent frameworks (third-party/Claude Code/Codex...),
     // wrongly imported: they describe ANOTHER agent, not LaRuche. Explicit DENYLIST: definitely
     // NOT a disk diff "delete everything not on disk" (that would destroy skills
@@ -80,7 +139,7 @@ pub(crate) async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::M
     ];
     let mut purges = 0usize;
     for slug in META_SKILLS_A_PURGER {
-        let node_id = format!("capacities.skills.{slug}");
+        let node_id = laruche_skills::skill_node_id(slug);
         if memoire.read_node(&node_id).await.is_err() {
             continue; // absent -> nothing to do
         }

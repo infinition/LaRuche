@@ -143,9 +143,14 @@ pub(crate) async fn ws_chat_connection(
             Some(t) if !t.trim().is_empty() => t.to_string(),
             _ => continue,
         };
-        let mut user_text_for_agent =
+        // No capability reminder appended here any more. The Behavior section of the
+        // system prompt already states it, and cron_create / watcher_create /
+        // mission_create / session_search are listed with their signatures. Stapling
+        // it to EVERY message cost ~35 tokens a turn, and it was stored verbatim:
+        // episodes were named `test_system_you_can` and their content carried the
+        // marker, which then came back through recall, several times per prompt.
+        let user_text_for_agent =
             inject_no_think(&user_text, incoming["no_think"].as_bool().unwrap_or(false));
-        user_text_for_agent = format!("{}\n\n[SYSTEM] You can schedule (cron_create), watch (watcher_create), run long missions (mission_list/mission_create) and search your past conversations (session_search) yourself.", user_text_for_agent);
 
         // Get or create session
         let session_id = incoming["session_id"]

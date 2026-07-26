@@ -491,6 +491,13 @@ pub async fn boucle_react_memoire(
 /// broadly then keep the most relevant memories **under a character budget** (~ tokens).
 /// The prompt stays stable and small; info is *retrieved* on demand, not accumulated.
 /// Foundation: to be enriched (activation/atlas, "recent" + "active node" sources, real token budget).
+/// True when a node's one-liner is the auto-generated filler rather than a real
+/// summary. Both spellings exist in the wild (the generator changed language).
+fn one_liner_generique(one: &str) -> bool {
+    let l = one.trim().to_lowercase();
+    l.starts_with("subnode of") || l.starts_with("sous-noeud de") || l.starts_with("sous-nœud de")
+}
+
 async fn assembler_working_set(
     memoire: &Arc<dyn MemoireCognitive>,
     prompt: &str,
@@ -540,7 +547,10 @@ async fn assembler_working_set(
                     .trim();
                 // A bullet with an EMPTY one-liner is pure noise (the name alone, e.g. `decisions.2`, says nothing).
                 // The node's real content is injected via its items below - skip the bullet.
-                if one.is_empty() {
+                // Auto-generated placeholders say exactly as much as an empty string
+                // ("episodes.2026_07_21.test - Subnode of episodes.2026_07_21"): nine such
+                // bullets were costing ~200 tokens per turn for zero information.
+                if one.is_empty() || one_liner_generique(one) {
                     continue;
                 }
                 let l = format!("• {id} - {one}");
@@ -1061,8 +1071,19 @@ fn outils_forces_par_intention(registry: &AbeilleRegistry, prompt: &str) -> Vec<
 
 /// Readable local timestamp for prompt injection (e.g. "21/06/2026 14:32").
 /// Neutral format (no day/month names -> avoids English in a FR prompt).
+/// Clock line for the volatile tier, in English like the rest of the prompt.
+///
+/// `27/07/2026 00:29` alone was routinely ignored: it is ambiguous (day/month or
+/// month/day depending on what the model saw at training time), it carries no
+/// timezone, and above all no WEEKDAY, which rules like `jour_semaine` need. The
+/// spelled-out weekday plus the ISO form together are what small models honour.
 fn horodatage_local() -> String {
-    chrono::Local::now().format("%d/%m/%Y %H:%M").to_string()
+    let now = chrono::Local::now();
+    format!(
+        "{} ({})",
+        now.format("%A %-d %B %Y, %H:%M local time"),
+        now.format("%Y-%m-%dT%H:%M:%S%:z")
+    )
 }
 
 /// Separate the OKF frontmatter (`--- ... ---`) from the body and read the `enabled` flag

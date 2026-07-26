@@ -21,6 +21,7 @@ pub fn build_system_prompt(
     custom_instructions: Option<&str>,
 ) -> String {
     let mut prompt = String::new();
+    let mut jalons: Vec<(&str, usize)> = Vec::new();
     // 1) Identity (editable) or hardcoded default.
     match identity_override {
         Some(o) if !o.trim().is_empty() => {
@@ -29,9 +30,12 @@ pub fn build_system_prompt(
         }
         _ => prompt.push_str(&section_identite_stable()),
     }
+    jalons.push(("identity", prompt.len()));
     // 2) LOCKED protocol + generated tools + capability index.
     prompt.push_str(&section_outils(tools_schema));
+    jalons.push(("tools", prompt.len()));
     push_capability_index(&mut prompt, capability_index);
+    jalons.push(("catalog+skills", prompt.len()));
     match planning_override {
         Some(o) if !o.trim().is_empty() => {
             prompt.push_str(o.trim());
@@ -39,6 +43,7 @@ pub fn build_system_prompt(
         }
         _ => prompt.push_str(section_planification()),
     }
+    jalons.push(("planning", prompt.len()));
     // 3) Behavior (editable) or hardcoded default.
     match behavior_override {
         Some(o) if !o.trim().is_empty() => {
@@ -47,12 +52,14 @@ pub fn build_system_prompt(
         }
         _ => prompt.push_str(&section_comportement()),
     }
+    jalons.push(("behavior", prompt.len()));
     // 4) Additional instructions (SOUL).
     if let Some(instructions) = custom_instructions {
         prompt.push_str(&section_contexte_dynamique(instructions));
     }
     // 5) Secrets: expose the NAMES (never the values). The LLM references them via `${NAME}`
     //    in shell commands/scripts; the node substitutes the real value at execution time.
+    jalons.push(("soul+profile", prompt.len()));
     let noms = crate::secrets::noms();
     if !noms.is_empty() {
         prompt.push_str(&format!(
@@ -66,7 +73,36 @@ pub fn build_system_prompt(
             noms.join(", ")
         ));
     }
+    jalons.push(("secrets", prompt.len()));
+    mesurer(&prompt, &jalons);
     prompt
+}
+
+/// Log what each section of the system prompt actually costs, once per build.
+///
+/// Without this, every budget decision is a guess. It is how a hint worth ~150
+/// tokens got filtered out to "save context" while the six failed tool calls that
+/// followed cost fifteen passes. Chars are converted with the usual ~4 chars per
+/// token rule: precision does not matter here, orders of magnitude do.
+fn mesurer(prompt: &str, jalons: &[(&str, usize)]) {
+    if !tracing::enabled!(tracing::Level::DEBUG) {
+        return;
+    }
+    let mut detail: Vec<String> = Vec::new();
+    let mut precedent = 0usize;
+    for (nom, fin) in jalons {
+        let taille = fin.saturating_sub(precedent);
+        precedent = *fin;
+        if taille > 0 {
+            detail.push(format!("{nom}={}t", taille / 4));
+        }
+    }
+    tracing::debug!(
+        total_chars = prompt.len(),
+        total_tokens_approx = prompt.len() / 4,
+        sections = %detail.join(" "),
+        "system prompt budget"
+    );
 }
 
 /// Compact capability catalog (names per family): the LLM knows what EXISTS beyond the
@@ -95,10 +131,8 @@ pub fn section_identite_stable() -> String {
          language of these instructions.\n\n\
          ## Environment\n\
          - Operating system: {os_info}\n\
-         - You MUST always use your tools (<tool_call>) to act. NEVER simulate an action.\n\
-         - If asked to create a file, use the file_write tool.\n\
-         - If asked to run a command, use shell_exec.\n\
-         - Never invent the result of an action. Always call the matching tool.\n\n"
+         - Act through tools. Never describe, summarise or invent an action you did not \
+         actually perform: emit the call and wait for its result.\n\n"
     )
 }
 
@@ -132,25 +166,77 @@ fn type_court(spec: &serde_json::Value) -> String {
 
 /// Parameter hint kept ONLY if it carries a FORMAT/EXAMPLE (cron, ISO8601, default,
 /// `{{}}` slot, etc.). Descriptions redundant with name+type ("The URL to fetch") are dropped.
+/// Format hint for one parameter, kept in the compact signature.
+///
+/// The rule is STRUCTURAL, not a guess about the wording. It used to emit a hint
+/// only when the description contained a digit, "ex:", "ISO" or "défaut". The
+/// description of `watcher_create.regles` (a whole rule-tree grammar) contains
+/// none of those, so it was silently dropped and the model saw `regles?: object`
+/// with no guidance at all: six failed attempts and a watcher that could never
+/// fire. A parameter shaped like an object or an array can NEVER be guessed from
+/// its name, so its documentation always travels.
 fn hint_param(spec: &serde_json::Value) -> Option<String> {
     let d = spec
         .get("description")
         .and_then(|v| v.as_str())
         .map(str::trim)
         .filter(|s| !s.is_empty())?;
-    let porteur = d.chars().any(|c| c.is_ascii_digit())
-        || d.contains("ex:")
-        || d.contains("ex ")
-        || d.contains("ISO")
-        || d.contains("{{")
-        || d.contains("['")
-        || d.contains("défaut")
-        || d.contains("defaut");
-    if !porteur {
-        return None;
+
+    let compose = matches!(
+        spec.get("type").and_then(|v| v.as_str()),
+        Some("object") | Some("array")
+    );
+    if !compose {
+        // Scalars: a name plus a type usually says it all. Keep the hint only when
+        // it carries something unguessable (a default, an example, a format).
+        let utile = d.chars().any(|c| c.is_ascii_digit())
+            || d.contains("ex:")
+            || d.contains("e.g.")
+            || d.contains("ISO")
+            || d.contains("{{")
+            || d.contains("['")
+            || d.contains("default")
+            || d.contains("défaut")
+            || d.contains("defaut");
+        if !utile {
+            return None;
+        }
     }
+
+    // Composite parameters get room for their shape; scalars stay tight. Cutting at
+    // a word boundary with an ellipsis matters as much as the budget: the old
+    // `chars().take(60)` produced "(default: 900 for url, 0 o", which reads as a
+    // complete sentence and hides the fact that anything was removed.
+    // One worked example is worth more than any amount of prose to a small model:
+    // it can copy a shape it has seen, it cannot invent one it has only read about.
+    // Declare it as `"example"` in the JSON Schema of the parameter.
+    let exemple = spec.get("example").map(|e| match e.as_str() {
+        Some(s) => s.to_string(),
+        None => serde_json::to_string(e).unwrap_or_default(),
+    });
+
+    let budget = if compose { 240 } else { 80 };
     let one = d.split_whitespace().collect::<Vec<_>>().join(" ");
-    Some(one.chars().take(60).collect())
+    let avec_exemple = |texte: String| -> Option<String> {
+        Some(match &exemple {
+            Some(ex) if !ex.trim().is_empty() => format!("{texte} e.g. {ex}"),
+            _ => texte,
+        })
+    };
+    if one.chars().count() <= budget {
+        return avec_exemple(one);
+    }
+    let mut coupe = String::new();
+    for mot in one.split(' ') {
+        if coupe.chars().count() + mot.chars().count() + 1 > budget - 1 {
+            break;
+        }
+        if !coupe.is_empty() {
+            coupe.push(' ');
+        }
+        coupe.push_str(mot);
+    }
+    avec_exemple(format!("{coupe}…"))
 }
 
 /// Renders tools as compact SIGNATURES (TypeScript style) instead of verbose JSON:
@@ -224,17 +310,15 @@ fn section_outils(tools_schema: &serde_json::Value) -> String {
          ```\n\
          <tool_call>{{\"name\": \"tool_name\", \"arguments\": {{\"param1\": \"value1\"}}}}</tool_call>\n\
          ```\n\n\
-         STRICT rules:\n\
-         - Default: ONE tool per message. EXCEPTION - independent READ-ONLY calls (several \
-         web searches/reads) or several `delegate` scouts MAY be emitted in the SAME message, \
-         each in its own complete <tool_call>...</tool_call> block: they run in parallel.\n\
-         - NEVER combine a mutating tool (write, shell, delete) with other calls: emit it alone.\n\
-         - After writing the last </tool_call> tag, you MUST stop your reply immediately.\n\
-         - You will receive the tool results in the next message, then you can call another tool or answer.\n\
+         Rules:\n\
+         - ONE tool per message, with one exception: independent READ-ONLY calls (several \
+         web searches/reads) or several `delegate` scouts may share a message, each in its \
+         own complete <tool_call>...</tool_call> block, and they run in parallel.\n\
+         - A mutating tool (write, shell, delete) always travels alone.\n\
+         - Stop your reply immediately after the last </tool_call> tag. Results arrive in the \
+         next message; then call another tool or answer.\n\
          - If you don't need a tool, answer directly without a <tool_call> tag.\n\
-         - NEVER simulate a tool result. ALWAYS call it.\n\
-         - When you download, create, modify or move a file/folder, verify its existence afterward with a tool.\n\
-         - For shell_exec on Windows, use cmd.exe or PowerShell commands, NOT bash.\n\n"
+         - After downloading, creating, modifying or moving a file, verify it with a tool.\n\n"
     )
 }
 
@@ -256,10 +340,10 @@ pub fn section_planification() -> &'static str {
 }
 
 pub fn section_comportement() -> &'static str {
+    // The language rule lives in the opening line and is repeated once at the very
+    // tail of the context (volatile tier), where recency makes it stick. A third
+    // copy here taught the model that instructions are repeated and can be skimmed.
     "## Behavior\n\n\
-     - LANGUAGE: ALWAYS reply in the SAME language as the user's message (French in -> French out, etc.). \
-     These instructions are written in English, but your replies must be in the user's language, NOT English. \
-     This rule overrides everything else.\n\
      - Be concise and useful.\n\
      - If you don't know something, say so honestly.\n\
      - For complex tasks, break them into steps, show your plan, and use the available tools.\n\
@@ -352,5 +436,40 @@ mod tests {
             sigs.len() / 4,
             100.0 * (1.0 - sigs.len() as f64 / json.len() as f64)
         );
+    }
+
+    /// The rule-tree grammar of `watcher_create.regles` contains no digit, no "ex:",
+    /// no "ISO": the old wording-based heuristic dropped it and the model saw
+    /// `regles?: object` with nothing else. A composite parameter always keeps its
+    /// documentation.
+    #[test]
+    fn hint_param_garde_toujours_les_parametres_composites() {
+        let regles = serde_json::json!({
+            "type": "object",
+            "description": "COMPILED condition tree: deterministic predicates. Ops: et/ou/non, jour_semaine{jours}, heure_entre{de,a}, apparu, contient{motif}."
+        });
+        let h = hint_param(&regles).expect("an object parameter always keeps its hint");
+        assert!(h.contains("heure_entre"), "the grammar must survive: {h}");
+
+        // A scalar whose description teaches nothing stays out, as before.
+        let trivial = serde_json::json!({ "type": "string", "description": "The path to read." });
+        assert!(hint_param(&trivial).is_none());
+        // A scalar carrying a default is worth keeping.
+        let avec_defaut =
+            serde_json::json!({ "type": "integer", "description": "Max items (default 8)" });
+        assert!(hint_param(&avec_defaut).is_some());
+    }
+
+    /// `chars().take(60)` produced "(default: 900 for url, 0 o", which reads like a
+    /// finished sentence and hides that anything was cut.
+    #[test]
+    fn hint_param_coupe_au_mot_et_signale_la_coupe() {
+        let spec = serde_json::json!({
+            "type": "string",
+            "description": format!("default {}", "word ".repeat(80))
+        });
+        let h = hint_param(&spec).unwrap();
+        assert!(h.ends_with('…'), "a truncated hint must say so: {h}");
+        assert!(h.ends_with("word…") || h.ends_with(" …"), "cut on a word boundary: {h}");
     }
 }

@@ -546,6 +546,11 @@ fn assembler(carnet: &Carnet, reglages: &Reglages) -> Vec<Message> {
             lignes.join("\n")
         )));
     }
+    // Volatile tier LAST: the clock is the final thing the model reads before it
+    // answers, which is the only position where small models reliably honour it.
+    if let Some(vol) = reglages.contexte_volatil.as_deref().filter(|s| !s.trim().is_empty()) {
+        v.push(Message::systeme(vol.to_string()));
+    }
     v
 }
 

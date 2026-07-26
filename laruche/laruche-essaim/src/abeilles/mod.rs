@@ -448,4 +448,42 @@ mod slug_tests {
             assert!(id.starts_with("capacities.skills."), "prefix damaged: {id}");
         }
     }
+
+    /// INTEGRATION GUARD. Walks the real `skills/` directory and checks that every
+    /// folder the disk sync will write is a node id the reader will actually look
+    /// for. This is the test that would have caught the whole cascade: 40 skills
+    /// written under `watcher-architecte` and read under `watcher_architecte`, with
+    /// `skill_view` answering "not found" and the agent improvising.
+    ///
+    /// Never compress something whose decompression path is not tested.
+    #[test]
+    fn chaque_dossier_de_skill_est_atteignable_par_le_lecteur() {
+        let racine = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("skills");
+        let Ok(entrees) = std::fs::read_dir(&racine) else {
+            return; // no skills/ in this checkout: nothing to guard
+        };
+        let mut verifies = 0usize;
+        for e in entrees.flatten() {
+            if !e.path().is_dir() {
+                continue;
+            }
+            if !e.path().join("SKILL.md").exists() {
+                continue;
+            }
+            let dossier = e.file_name().to_string_lossy().to_string();
+            // What sync_skills_disk_to_sql writes.
+            let ecrit = laruche_skills::skill_node_id(&dossier);
+            // What skill_view will try.
+            let cherches = skill_node_id_candidates(&dossier);
+            assert!(
+                cherches.contains(&ecrit),
+                "skill `{dossier}` is written as `{ecrit}` but the reader only tries {cherches:?}"
+            );
+            verifies += 1;
+        }
+        assert!(verifies > 0, "no skill checked: the guard would be vacuous");
+    }
 }
