@@ -472,4 +472,47 @@ mod tests {
         assert!(h.ends_with('…'), "a truncated hint must say so: {h}");
         assert!(h.ends_with("word…") || h.ends_with(" …"), "cut on a word boundary: {h}");
     }
+
+    /// GUARD: everything we put in `tools` must round-trip as valid JSON.
+    ///
+    /// deepseek rejected two requests with parse errors pointing INSIDE our payload
+    /// ("tools[16]...properties.?: key must be a string"). serde_json cannot emit a
+    /// non-string key, so either the body was corrupted in transit or one of our
+    /// schemas is not what we think. This pins our side down: if it ever fails, the
+    /// fault is ours; if it passes, the wire is to blame.
+    #[test]
+    fn les_schemas_doutils_produisent_du_json_valide() {
+        let registre = crate::abeille::AbeilleRegistry::new();
+        crate::abeilles::enregistrer_abeilles_builtin(&registre);
+        let schema = registre.schema_complet();
+        let outils = schema.as_array().expect("the registry yields an array");
+        assert!(outils.len() > 10, "guard would be vacuous: {} tools", outils.len());
+
+        let openai = crate::providers::convertir_tools_openai(outils);
+        let brut = serde_json::to_string(&openai).expect("serialization must succeed");
+        let relu: serde_json::Value =
+            serde_json::from_str(&brut).expect("what we send must parse back");
+        assert_eq!(relu, serde_json::Value::Array(openai.clone()));
+
+        // Every property key must be a real string, at every depth.
+        fn verifier(v: &serde_json::Value, chemin: &str) {
+            match v {
+                serde_json::Value::Object(map) => {
+                    for (k, sous) in map {
+                        assert!(!k.is_empty(), "empty key at {chemin}");
+                        verifier(sous, &format!("{chemin}.{k}"));
+                    }
+                }
+                serde_json::Value::Array(items) => {
+                    for (i, sous) in items.iter().enumerate() {
+                        verifier(sous, &format!("{chemin}[{i}]"));
+                    }
+                }
+                _ => {}
+            }
+        }
+        for (i, outil) in openai.iter().enumerate() {
+            verifier(outil, &format!("tools[{i}]"));
+        }
+    }
 }

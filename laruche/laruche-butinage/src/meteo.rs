@@ -54,6 +54,33 @@ impl ClasseErreur {
                     ClasseErreur::ReloginRequis
                 }
             }
+            400 => {
+                // A 400 usually means WE built the request wrong, and sending it again
+                // reproduces it exactly: fatal is right.
+                //
+                // One family is different: the provider says it could not PARSE the body
+                // we sent. We know what we emit is valid JSON, because serde_json cannot
+                // produce a non-string key or an unterminated value, and a test pins the
+                // whole tools payload down (`les_schemas_doutils_produisent_du_json_valide`).
+                // So a parse failure means the bytes did not arrive intact. Observed twice
+                // on the same setup, at two different offsets of two different requests:
+                // "EOF while parsing a string at line 1 column 102271" and
+                // "properties.?: key must be a string at line 1 column 81736". A corrupted
+                // upload is transport, not logic: the identical call succeeds on retry.
+                //
+                // SEMANTIC 400s stay fatal (duplicate tool_call_id, unknown model, bad
+                // field): those reproduce exactly and retrying only wastes attempts.
+                let c = corps.to_lowercase();
+                let corps_illisible = c.contains("failed to parse the request body")
+                    || c.contains("eof while parsing")
+                    || c.contains("unexpected end of")
+                    || c.contains("key must be a string");
+                if corps_illisible {
+                    ClasseErreur::Transitoire
+                } else {
+                    ClasseErreur::Fatal
+                }
+            }
             500 | 502 | 503 | 504 | 408 | 522 | 524 => ClasseErreur::Transitoire,
             // 0 = transport error (no HTTP response) -> transient.
             0 => ClasseErreur::Transitoire,
@@ -210,6 +237,31 @@ mod tests {
     fn classe_5xx_et_transport_sont_transitoires() {
         assert_eq!(ClasseErreur::classer(503, None, ""), ClasseErreur::Transitoire);
         assert_eq!(ClasseErreur::classer(0, None, ""), ClasseErreur::Transitoire);
+    }
+
+    /// Real case: a ~100 KB request whose body reached deepseek truncated. Nothing
+    /// was wrong with what we serialized (serde_json plus reqwest cannot emit
+    /// unterminated JSON), so retrying the identical call succeeds. Classifying it
+    /// Fatal killed the turn with "no fallback available".
+    #[test]
+    #[test]
+    fn un_400_de_corps_tronque_est_transitoire() {
+        let corps = "Failed to parse the request body as JSON: messages[21].content:                      EOF while parsing a string at line 1 column 102271";
+        assert_eq!(ClasseErreur::classer(400, None, corps), ClasseErreur::Transitoire);
+        assert_eq!(
+            ClasseErreur::classer(400, None, "unexpected end of input"),
+            ClasseErreur::Transitoire
+        );
+        // Second real case, same setup, different offset: the corruption landed mid-body.
+        let cle = "Failed to parse the request body as JSON:                    tools[16].function.parameters.properties.steps.items.properties.?:                    key must be a string at line 1 column 81736";
+        assert_eq!(ClasseErreur::classer(400, None, cle), ClasseErreur::Transitoire);
+        // A 400 that is genuinely OUR fault must stay fatal: retrying reproduces it.
+        let logique = "Duplicate value for 'tool_call_id' of call_00_abc in message[2]";
+        assert_eq!(ClasseErreur::classer(400, None, logique), ClasseErreur::Fatal);
+        assert_eq!(
+            ClasseErreur::classer(400, None, "invalid model name"),
+            ClasseErreur::Fatal
+        );
     }
 
     #[test]
