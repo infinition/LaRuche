@@ -426,7 +426,9 @@ fn rendu_liens(html: &str, base: &str) -> String {
     }
     let mut out = format!("\n\n## Links on this page ({})\n", liens.len());
     for (texte, url) in liens {
-        out.push_str(&format!("- {texte} - {url}\n"));
+        // Pipe, not a dash: link texts very often contain their own dashes,
+        // and the model has to tell the label from the URL at a glance.
+        out.push_str(&format!("- {texte} | {url}\n"));
     }
     out
 }
