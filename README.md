@@ -14,8 +14,8 @@ your LAN. No cloud required, no runtime to install, no subscription.
 ![Windows](https://img.shields.io/badge/Windows-0078D6?style=flat&logo=windows&logoColor=white)
 ![Linux](https://img.shields.io/badge/Linux-FCC624?style=flat&logo=linux&logoColor=black)
 ![macOS](https://img.shields.io/badge/macOS-000000?style=flat&logo=apple&logoColor=white)
-[![CI](https://github.com/infinition/laruche/actions/workflows/ci.yml/badge.svg)](https://github.com/infinition/laruche/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/infinition/laruche?style=flat)](https://github.com/infinition/laruche/releases)
+[![CI](https://github.com/infinition/LaRuche/actions/workflows/ci.yml/badge.svg)](https://github.com/infinition/LaRuche/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/infinition/LaRuche?style=flat)](https://github.com/infinition/LaRuche/releases)
 
 [Quick start](#quick-start) · [Features](#what-makes-laruche-different) · [Architecture](#architecture) · [Wiki](../../wiki) · [Roadmap](ROADMAP.md)
 
@@ -143,8 +143,8 @@ through small Python sidecars, with a cloned-voice backend option.
 ### Run
 
 ```bash
-git clone https://github.com/infinition/laruche
-cd laruche/laruche
+git clone https://github.com/infinition/LaRuche
+cd LaRuche/laruche
 cargo run --release -p laruche-node
 ```
 

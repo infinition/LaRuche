@@ -1,11 +1,20 @@
 name: CI
 on: [push, pull_request]
+
+# The Cargo workspace lives in laruche/, not at the repository root.
+defaults:
+  run:
+    working-directory: laruche
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
+    defaults:
+      run:
+        working-directory: laruche
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -14,6 +23,9 @@ jobs:
 
   clippy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: laruche
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
