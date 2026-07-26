@@ -140,6 +140,56 @@ main { min-width:0; padding:34px clamp(18px,4vw,56px) 90px; max-width:900px; }
 @media (max-width:900px) {
   .scrim.on { display:block; position:fixed; inset:56px 0 0; background:rgba(0,0,0,.55); z-index:54; }
 }
+
+/* ── Full-text search: modal, results, match highlighting ──────────── */
+.search-trigger { width:100%; display:flex; align-items:center; gap:8px; padding:8px 11px;
+  border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-input);
+  color:var(--text-muted); font:inherit; font-size:13px; cursor:pointer; text-align:left;
+  transition:border-color var(--transition-fast), color var(--transition-fast); }
+.search-trigger:hover { border-color:var(--amber-dim); color:var(--text-dim); }
+.search-trigger .kbd { margin-left:auto; font-family:var(--mono); font-size:10.5px;
+  border:1px solid var(--border); border-radius:4px; padding:1px 5px; color:var(--text-muted); }
+
+#search-modal { position:fixed; inset:0; z-index:200; display:none; }
+#search-modal.open { display:block; }
+#search-modal .veil { position:absolute; inset:0; background:rgba(0,0,0,.66); backdrop-filter:blur(3px); }
+#search-modal .panel { position:relative; margin:min(12vh,90px) auto 0; width:min(680px,92vw);
+  background:var(--bg-panel); border:1px solid var(--border-light); border-radius:12px;
+  box-shadow:0 30px 80px rgba(0,0,0,.6); overflow:hidden; }
+#modal-search-input { width:100%; padding:16px 18px; border:0; border-bottom:1px solid var(--border);
+  background:transparent; color:var(--text); font:inherit; font-size:16px; }
+#modal-search-input:focus { outline:none; }
+#modal-search-input::placeholder { color:var(--text-muted); }
+#modal-search-results { max-height:min(56vh,460px); overflow-y:auto; }
+.search-result-item { display:block; width:100%; padding:11px 18px; border:0; border-left:2px solid transparent;
+  background:none; text-align:left; font:inherit; color:var(--text-dim); cursor:pointer;
+  border-bottom:1px solid var(--border); }
+.search-result-item:last-child { border-bottom:0; }
+.search-result-item .where { font-family:var(--mono); font-size:10.5px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--text-muted); margin-bottom:3px; }
+.search-result-item .where b { color:var(--amber); font-weight:600; }
+.search-result-item .line { font-size:13.5px; line-height:1.55; color:var(--text-dim);
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.search-result-item mark { background:rgba(34,197,94,.22); color:var(--text); border-radius:3px; padding:0 2px; }
+.search-result-item:hover, .search-result-item.active { background:var(--bg-hover); border-left-color:var(--amber); }
+.search-result-item.active .line { color:var(--text); }
+.search-foot { display:flex; gap:16px; align-items:center; padding:9px 18px; border-top:1px solid var(--border);
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-muted); }
+.search-foot .count { margin-left:auto; }
+.search-empty { padding:26px 18px; color:var(--text-muted); font-size:14px; text-align:center; }
+
+@keyframes highlight-pulse { 0%,100% { background:rgba(34,197,94,.20); } 50% { background:rgba(34,197,94,.42); } }
+mark.search-match { background:rgba(34,197,94,.20); color:inherit; border-radius:4px; padding:0 2px;
+  animation:highlight-pulse 1.5s ease-in-out; }
+mark.search-match.current { background:rgba(34,197,94,.45); box-shadow:0 0 0 2px rgba(34,197,94,.35); }
+
+#clear-highlight-btn { position:fixed; right:22px; bottom:22px; z-index:70;
+  display:inline-flex; align-items:center; gap:8px; padding:9px 15px;
+  border:1px solid var(--border-light); border-radius:999px; background:var(--bg-panel);
+  color:var(--text-dim); font:inherit; font-size:13px; cursor:pointer;
+  box-shadow:0 10px 30px rgba(0,0,0,.5); transition:opacity .3s, transform .3s; }
+#clear-highlight-btn:hover { border-color:var(--amber-dim); color:var(--amber); }
+#clear-highlight-btn.hidden { opacity:0; transform:translateY(10px); pointer-events:none; }
 @media (prefers-reduced-motion: reduce) {
   *,*::before,*::after { animation:none !important; transition-duration:.001ms !important; }
   html { scroll-behavior:auto; }
@@ -177,7 +227,11 @@ main { min-width:0; padding:34px clamp(18px,4vw,56px) 90px; max-width:900px; }
 <div class="wrap">
   <aside id="side">
     <div class="search">
-      <input id="q" type="search" placeholder="Filter pages and text" autocomplete="off" aria-label="Filter the wiki">
+      <button class="search-trigger" id="open-search" type="button">
+        <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true"><circle cx="6" cy="6" r="4.4" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M9.4 9.4 13 13" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        Search the wiki
+        <span class="kbd">Ctrl K</span>
+      </button>
     </div>
     <nav id="nav"></nav>
   </aside>
@@ -188,6 +242,24 @@ main { min-width:0; padding:34px clamp(18px,4vw,56px) 90px; max-width:900px; }
   </main>
 </div>
 <div class="scrim" id="scrim"></div>
+
+<button id="clear-highlight-btn" class="hidden" type="button">
+  <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+  Clear highlights
+</button>
+
+<div id="search-modal" role="dialog" aria-modal="true" aria-label="Search the wiki">
+  <div class="veil" data-close></div>
+  <div class="panel">
+    <input id="modal-search-input" type="search" autocomplete="off" spellcheck="false"
+           placeholder="Search every page, then jump to the line">
+    <div id="modal-search-results"></div>
+    <div class="search-foot">
+      <span>Enter to open</span><span>Up and down to move</span><span>Esc to close</span>
+      <span class="count" id="search-count"></span>
+    </div>
+  </div>
+</div>
 
 <script>
 /* WIKI-DATA:BEGIN */
@@ -409,9 +481,11 @@ var WIKI = {"sections":[{"label":"Overview","pages":[{"slug":"Home","title":"LaR
     currentSlug = slug;
     var meta = FLAT[KNOWN[slug]] || { title: slug, section: "" };
 
-    document.title = meta.title + " · LaRuche Wiki";
+    document.title = /LaRuche Wiki/i.test(meta.title) ? meta.title : meta.title + " · LaRuche Wiki";
     crumb.innerHTML = meta.section ? esc(meta.section) + " / <b>" + esc(meta.title) + "</b>" : "<b>" + esc(meta.title) + "</b>";
     doc.innerHTML = render(WIKI.pages[slug] || "");
+    // Re-rendering wiped any previous marks, so the clear button must go with them.
+    clearBtn.classList.add("hidden");
 
     var i = KNOWN[slug], prev = FLAT[i - 1], next = FLAT[i + 1];
     pager.innerHTML = "";
@@ -428,6 +502,14 @@ var WIKI = {"sections":[{"label":"Overview","pages":[{"slug":"Home","title":"LaR
     side.classList.remove("open");
     scrim.classList.remove("on");
 
+    // A search result asked for this page: highlight its term and land on the
+    // exact occurrence that was clicked, not merely on the page.
+    if (pending) {
+      var want = pending; pending = null;
+      applyHighlight(want.q, want.ordinal);
+      return;
+    }
+
     if (anchor) {
       var el = document.getElementById(anchor);
       if (el) { el.scrollIntoView(); return; }
@@ -441,7 +523,229 @@ var WIKI = {"sections":[{"label":"Overview","pages":[{"slug":"Home","title":"LaR
     show(decodeURIComponent(bits[0] || "") || (FLAT.length ? FLAT[0].slug : ""), bits[1] || "");
   }
 
-  document.getElementById("q").addEventListener("input", function (e) { buildNav(e.target.value); });
+  /* ── Full-text search ───────────────────────────────────────────────
+     Same surface as the AcidWiki search it replaces: #search-modal,
+     #modal-search-input, #modal-search-results, .search-result-item.active,
+     mark.search-match, #clear-highlight-btn.
+
+     The index is built from the RENDERED text nodes of every page rather
+     than from the markdown source, and the highlighter walks the live DOM
+     with the exact same traversal. That is what makes "jump to the line"
+     land on the right occurrence: a result's ordinal is the same number on
+     both sides. Indexing the source instead would drift as soon as a line
+     contains syntax that renders away, such as backticks or link targets.
+     ── */
+
+  var BLOCKISH = " P LI H1 H2 H3 H4 H5 H6 TD TH PRE BLOCKQUOTE UL OL TABLE THEAD TBODY TR DIV ";
+  var UNIT_SEL = "p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote";
+
+  // Text nodes that belong to this block: its own, plus those inside inline
+  // children, but never those of a nested block (they are visited separately).
+  function ownTextNodes(el) {
+    var out = [];
+    for (var n = el.firstChild; n; n = n.nextSibling) {
+      if (n.nodeType === 3) { out.push(n); continue; }
+      if (n.nodeType !== 1 || BLOCKISH.indexOf(" " + n.nodeName + " ") >= 0) continue;
+      var w = document.createTreeWalker(n, NodeFilter.SHOW_TEXT, null), t;
+      while ((t = w.nextNode())) out.push(t);
+    }
+    return out;
+  }
+
+  function collect(root) {
+    var chunks = [], owners = [], units = [];
+    Array.prototype.forEach.call(root.querySelectorAll(UNIT_SEL), function (el) {
+      var kids = ownTextNodes(el);
+      if (!kids.length) return;
+      var joined = kids.map(function (n) { return n.nodeValue; }).join("").replace(/\s+/g, " ").trim();
+      if (!joined) return;
+      var ui = units.push(joined) - 1;
+      kids.forEach(function (n) { chunks.push(n.nodeValue); owners.push(ui); });
+    });
+    return { chunks: chunks, owners: owners, units: units };
+  }
+
+  var INDEX = [];
+  (function buildSearchIndex() {
+    var tmp = document.createElement("div");
+    FLAT.forEach(function (p) {
+      tmp.innerHTML = render(WIKI.pages[p.slug] || "");
+      var c = collect(tmp);
+      INDEX.push({
+        slug: p.slug, title: p.title, titleLower: p.title.toLowerCase(),
+        section: p.section, chunks: c.chunks, owners: c.owners, units: c.units
+      });
+    });
+    tmp.innerHTML = "";
+  })();
+
+  var LIMIT = 40, PER_PAGE = 4;
+
+  function performSearch(query) {
+    var out = [], q = query.trim().toLowerCase();
+    if (q.length < 2) return out;
+    INDEX.forEach(function (p) {
+      var ordinal = 0, kept = 0;
+      for (var i = 0; i < p.chunks.length; i++) {
+        var low = p.chunks[i].toLowerCase(), pos = low.indexOf(q);
+        while (pos >= 0) {
+          if (kept < PER_PAGE && out.length < LIMIT) {
+            out.push({ slug: p.slug, title: p.title, section: p.section,
+                       ordinal: ordinal, unit: p.units[p.owners[i]] });
+            kept++;
+          }
+          ordinal++;
+          pos = low.indexOf(q, pos + q.length);
+        }
+      }
+      // A page whose title matches but whose body does not still belongs here.
+      if (!kept && p.titleLower.indexOf(q) >= 0 && out.length < LIMIT) {
+        out.push({ slug: p.slug, title: p.title, section: p.section,
+                   ordinal: -1, unit: p.units[0] || "" });
+      }
+    });
+    return out;
+  }
+
+  // Escaped snippet, trimmed around the first hit, every hit wrapped.
+  function snippet(unit, query) {
+    var q = query.trim(), ql = q.toLowerCase(), low = unit.toLowerCase();
+    var first = low.indexOf(ql);
+    var start = first > 70 ? first - 60 : 0;
+    var raw = unit.slice(start, start + 340);
+    var lowr = raw.toLowerCase(), html = start ? "… " : "", last = 0;
+    var p = ql ? lowr.indexOf(ql) : -1;
+    while (p >= 0) {
+      html += esc(raw.slice(last, p)) + "<mark>" + esc(raw.substr(p, q.length)) + "</mark>";
+      last = p + q.length;
+      p = lowr.indexOf(ql, last);
+    }
+    return html + esc(raw.slice(last));
+  }
+
+  var modal = document.getElementById("search-modal");
+  var input = document.getElementById("modal-search-input");
+  var list = document.getElementById("modal-search-results");
+  var countEl = document.getElementById("search-count");
+  var clearBtn = document.getElementById("clear-highlight-btn");
+  var results = [], active = -1, pending = null;
+
+  function renderResults() {
+    list.innerHTML = "";
+    if (!results.length) {
+      list.innerHTML = '<div class="search-empty">' +
+        (input.value.trim().length < 2 ? "Type at least two characters." : "Nothing matches that.") + "</div>";
+      countEl.textContent = "";
+      return;
+    }
+    results.forEach(function (r, i) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "search-result-item" + (i === active ? " active" : "");
+      b.innerHTML = '<div class="where">' + (r.section ? esc(r.section) + " / " : "") +
+                    "<b>" + esc(r.title) + "</b></div>" +
+                    '<div class="line">' + snippet(r.unit, input.value) + "</div>";
+      b.addEventListener("click", function () { goTo(r); });
+      list.appendChild(b);
+    });
+    countEl.textContent = results.length + (results.length === LIMIT ? "+ hits" : " hits");
+  }
+
+  function setActive(i) {
+    if (!results.length) return;
+    active = (i + results.length) % results.length;
+    var items = list.querySelectorAll(".search-result-item");
+    Array.prototype.forEach.call(items, function (el, k) { el.classList.toggle("active", k === active); });
+    if (items[active]) items[active].scrollIntoView({ block: "nearest" });
+  }
+
+  function goTo(r) {
+    closeSearch();
+    pending = { q: input.value.trim(), ordinal: r.ordinal };
+    if (r.slug === currentSlug) { show(r.slug, ""); }
+    else if (location.hash === "#/" + r.slug) { route(); }
+    else { location.hash = "#/" + r.slug; }
+  }
+
+  function clearHighlights() {
+    Array.prototype.forEach.call(doc.querySelectorAll("mark.search-match"), function (m) {
+      var t = document.createTextNode(m.textContent);
+      m.parentNode.replaceChild(t, m);
+    });
+    doc.normalize();
+    clearBtn.classList.add("hidden");
+  }
+
+  function applyHighlight(query, ordinal) {
+    clearHighlights();
+    var q = (query || "").trim();
+    if (!q) { window.scrollTo(0, 0); return; }
+    var ql = q.toLowerCase(), seen = 0, target = null;
+
+    Array.prototype.forEach.call(doc.querySelectorAll(UNIT_SEL), function (el) {
+      ownTextNodes(el).forEach(function (node) {
+        var txt = node.nodeValue, low = txt.toLowerCase(), pos = low.indexOf(ql);
+        if (pos < 0) return;
+        var frag = document.createDocumentFragment(), last = 0;
+        while (pos >= 0) {
+          if (pos > last) frag.appendChild(document.createTextNode(txt.slice(last, pos)));
+          var m = document.createElement("mark");
+          m.className = "search-match";
+          m.textContent = txt.substr(pos, q.length);
+          if (seen === ordinal) { m.classList.add("current"); target = m; }
+          seen++;
+          frag.appendChild(m);
+          last = pos + q.length;
+          pos = low.indexOf(ql, last);
+        }
+        if (last < txt.length) frag.appendChild(document.createTextNode(txt.slice(last)));
+        node.parentNode.replaceChild(frag, node);
+      });
+    });
+
+    if (!seen) { window.scrollTo(0, 0); return; }
+    clearBtn.classList.remove("hidden");
+    if (!target) target = doc.querySelector("mark.search-match");
+    if (target) target.scrollIntoView({ block: "center" });
+    else window.scrollTo(0, 0);
+  }
+
+  function openSearch() {
+    modal.classList.add("open");
+    input.value = "";
+    results = []; active = -1;
+    renderResults();
+    input.focus();
+  }
+  function closeSearch() { modal.classList.remove("open"); }
+
+  input.addEventListener("input", function () {
+    results = performSearch(input.value);
+    active = results.length ? 0 : -1;
+    renderResults();
+  });
+
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive(active + 1); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive(active - 1); }
+    else if (e.key === "Enter") { e.preventDefault(); if (results[active]) goTo(results[active]); }
+    else if (e.key === "Escape") { closeSearch(); }
+  });
+
+  document.getElementById("open-search").addEventListener("click", openSearch);
+  Array.prototype.forEach.call(modal.querySelectorAll("[data-close]"), function (el) {
+    el.addEventListener("click", closeSearch);
+  });
+  clearBtn.addEventListener("click", clearHighlights);
+
+  document.addEventListener("keydown", function (e) {
+    var tag = (e.target && e.target.tagName) || "";
+    var typing = tag === "INPUT" || tag === "TEXTAREA" || (e.target && e.target.isContentEditable);
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); openSearch(); return; }
+    if (e.key === "/" && !typing) { e.preventDefault(); openSearch(); return; }
+    if (e.key === "Escape" && modal.classList.contains("open")) closeSearch();
+  });
+
   document.getElementById("burger").addEventListener("click", function () {
     var open = side.classList.toggle("open");
     scrim.classList.toggle("on", open);
