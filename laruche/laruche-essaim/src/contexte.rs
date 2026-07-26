@@ -1212,49 +1212,56 @@ async fn construire_index_skills(
     query: &str,
     dynamic: bool,
 ) -> Option<String> {
-    let pack = memoire
-        .search(
-            "capacities.skills type: skill",
-            SearchOpts {
-                depth: Some(2),
-                limit: Some(200),
-                sans_trace: false,
-            },
-        )
-        .await
-        .ok()?;
-    let items = pack.raw["items"].as_array()?;
+    // ENUMERATE the node tree, never `search()`. Both branches of the search
+    // deliberately exclude `capacities.%` (they are system projections with their
+    // own injection channel, and their long bodies used to drown real facts in
+    // recall). Building the catalog on top of that search meant asking a channel
+    // to return exactly what it is designed to filter out: it always answered
+    // nothing, the section vanished from the prompt, and the model could not know
+    // a single one of its 73 skills existed. `skill_list` reads the tree, so do we.
+    let racine = memoire.read_node("capacities.skills").await.ok()?;
+    let enfants = racine["children"].as_array()?;
+
     let mut lignes: Vec<(String, String)> = Vec::new();
     let mut vus: HashSet<String> = HashSet::new();
-    for it in items {
-        let node_id = it
-            .get("node_id")
-            .or_else(|| it.get("node"))
+    for enfant in enfants {
+        let Some(node_id) = enfant
+            .get("id")
+            .or_else(|| enfant.get("node_id"))
             .and_then(|v| v.as_str())
-            .unwrap_or("");
-        if !node_id.starts_with("capacities.skills.") {
+        else {
             continue;
-        }
-        let content = it
-            .get("content")
-            .or_else(|| it.get("text"))
-            .and_then(|v| v.as_str())
-            .unwrap_or("");
-        if !content.contains("type: skill") {
-            continue;
-        }
+        };
         // Displayed name = SLUG (node_id suffix): the identifier that `skill_view(name)` resolves.
         // (The frontmatter name may differ, e.g. `arxiv-search` vs node `arxiv_search`.)
-        let name = node_id.trim_start_matches("capacities.skills.").to_string();
+        let Some(name) = node_id.strip_prefix("capacities.skills.").map(str::to_string) else {
+            continue;
+        };
         if name.is_empty() || name.contains('.') {
             continue; // direct skills only
         }
         if !vus.insert(name.clone()) {
             continue;
         }
-        let desc = resumer_description(
-            &yaml_frontmatter_field(content, "description").unwrap_or_default(),
-        );
+        // The child entry carries no description, so read the skill document itself.
+        // Local SQLite reads, and the result lives in the stable prefix.
+        let Ok(node) = memoire.read_node(node_id).await else {
+            continue;
+        };
+        let Some(doc) = node["items"].as_array().and_then(|items| {
+            items.iter().rev().find_map(|it| {
+                let c = it["content"].as_str()?;
+                c.contains("type: skill").then_some(c)
+            })
+        }) else {
+            // Node without a skill document: an empty shell left behind by the old
+            // `-` vs `_` mismatch. Advertising a name that `skill_view` cannot open
+            // is worse than not advertising it.
+            continue;
+        };
+        let desc = yaml_frontmatter_field(doc, "description")
+            .map(|d| resumer_description(&d))
+            .unwrap_or_default();
         lignes.push((name, desc));
     }
     if lignes.is_empty() {
