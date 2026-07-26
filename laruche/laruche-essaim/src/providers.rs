@@ -50,6 +50,31 @@ pub fn convertir_tools_openai(tools: &[serde_json::Value]) -> Vec<serde_json::Va
     }).collect()
 }
 
+/// Shared HTTP client for OpenAI-compatible backends, pinned to HTTP/1.1.
+///
+/// Large request bodies were being cut in flight. The dumps settle what we emit:
+/// valid JSON, pure ASCII, surrogate pairs balanced, correctly terminated. Yet the
+/// provider's parser kept stopping at, or a few kilobytes short of, the end of the
+/// body, at a point that MOVED between attempts (111677 of 111677, then 81733 of
+/// 86010). A payload defect is deterministic; a moving cut is transport. Truncated
+/// large POSTs under HTTP/2 flow control is a known failure mode, and reqwest
+/// negotiates h2 by default over ALPN.
+///
+/// Also reused instead of rebuilt per call: the previous code created a fresh
+/// client for every request, paying a TLS handshake each time.
+///
+/// Set `LARUCHE_HTTP2=1` to negotiate h2 again, to compare.
+fn client_openai() -> &'static reqwest::Client {
+    static CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    CLIENT.get_or_init(|| {
+        let h2 = std::env::var("LARUCHE_HTTP2").map(|v| v == "1").unwrap_or(false);
+        let b = reqwest::Client::builder().timeout(std::time::Duration::from_secs(600));
+        if h2 { b } else { b.http1_only() }
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new())
+    })
+}
+
 /// Re-encode a JSON document so every character is ASCII, escaping the rest as `\uXXXX`.
 ///
 /// serde_json emits real UTF-8, which is valid JSON and normally fine. It stopped
@@ -388,7 +413,7 @@ async fn openai_chat_stream(
         }
     }
 
-    let client = reqwest::Client::new();
+    let client = client_openai();
     let mut req = client.post(&url)
         .header("Authorization", format!("Bearer {}", bearer))
         .header("Content-Type", "application/json");
