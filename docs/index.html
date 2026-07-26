@@ -5,395 +5,471 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>LaRuche - your personal AI hive</title>
 <meta name="description" content="An agentic AI node that lives on your machine. One Rust binary, fully local, genuinely yours.">
-<meta name="color-scheme" content="dark light">
+<meta name="color-scheme" content="dark">
 <meta property="og:title" content="LaRuche - your personal AI hive">
 <meta property="og:description" content="An agentic AI node that lives on your machine. One Rust binary, fully local, genuinely yours.">
 <meta property="og:type" content="website">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 28 9v14L16 30 4 23V9z' fill='%23E2A03F'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%230f0f10'/%3E%3Cg fill='none' stroke='%23f59e0b' stroke-width='14' stroke-linejoin='round'%3E%3Cpolygon points='256,150 312,182 312,246 256,278 200,246 200,182'/%3E%3Cpolygon points='186,270 242,302 242,366 186,398 130,366 130,302'/%3E%3Cpolygon points='326,270 382,302 382,366 326,398 270,366 270,302'/%3E%3C/g%3E%3Cg fill='%23f59e0b'%3E%3Ccircle cx='256' cy='214' r='13'/%3E%3Ccircle cx='186' cy='334' r='13'/%3E%3Ccircle cx='326' cy='334' r='13'/%3E%3C/g%3E%3C/svg%3E">
 <style>
-/* ---------------------------------------------------------------
+/* ===================================================================
    LaRuche - showcase
-   No external requests. No CDN, no webfont, no analytics.
-   The page keeps the same promise as the software it describes.
-   --------------------------------------------------------------- */
+   Design tokens, honeycomb loader and CSS bee are lifted verbatim from
+   laruche-dashboard/src/templates/app.css so the page and the product
+   are the same object. Dark only, like the app itself.
+   No external request: no CDN, no webfont, no analytics.
+   =================================================================== */
 
 :root {
-  /* Palette drawn from the apiary: propolis, wax, comb, smoke,
-     and the blue of the international queen-marking code. */
-  --propolis:    #17130C;
-  --propolis-up: #201A11;
-  --wax:         #F7F0E1;
-  --wax-up:      #EFE5CE;
-  --ink:         #17130C;
-  --comb:        #E2A03F;
-  --comb-deep:   #9A6B18;
-  --queen:       #4C7FD1;
-  --queen-deep:  #2F5EA8;
-  --smoke:       #7C7360;
-
-  /* Semantic tokens - components only ever read these. */
-  --bg:        var(--propolis);
-  --surface:   var(--propolis-up);
-  --text:      var(--wax);
-  --muted:     #A2977F;
-  --accent:    var(--comb);
-  --accent-ink:#17130C;
-  --cool:      #7DA6E8;
-  --line:      #33291B;
-  --line-soft: #241D13;
-
-  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Segoe UI Mono", "Roboto Mono", Menlo, Consolas, monospace;
-  --serif: "Iowan Old Style", "Palatino Linotype", Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, serif;
-
-  --s--1: 0.8125rem;
-  --s-0:  1.0625rem;
-  --s-1:  1.3rem;
-  --s-2:  1.7rem;
-  --s-3:  2.3rem;
-  --s-4:  clamp(2.6rem, 7vw, 4.5rem);
-  --s-5:  clamp(3.2rem, 12vw, 7.5rem);
-
-  --measure: 63ch;
-  --gutter: clamp(1.25rem, 4vw, 3rem);
-  --rule: 1px solid var(--line);
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    --bg: var(--wax);
-    --surface: var(--wax-up);
-    --text: var(--ink);
-    --muted: #6B6252;
-    --accent: var(--comb-deep);
-    --accent-ink: #FFF8E9;
-    --cool: var(--queen-deep);
-    --line: #DACDB0;
-    --line-soft: #E7DCC3;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: var(--propolis); --surface: var(--propolis-up); --text: var(--wax);
-  --muted: #A2977F; --accent: var(--comb); --accent-ink: #17130C;
-  --cool: #7DA6E8; --line: #33291B; --line-soft: #241D13;
-}
-:root[data-theme="light"] {
-  --bg: var(--wax); --surface: var(--wax-up); --text: var(--ink);
-  --muted: #6B6252; --accent: var(--comb-deep); --accent-ink: #FFF8E9;
-  --cool: var(--queen-deep); --line: #DACDB0; --line-soft: #E7DCC3;
+  --amber: #f59e0b;
+  --amber-light: #fbbf24;
+  --amber-dim: #b45309;
+  --amber-glow: rgba(245,158,11,0.15);
+  --bg: #09090b;
+  --bg-card: rgba(24,24,27,.85);
+  --bg-panel: #111113;
+  --bg-input: rgba(39,39,42,.6);
+  --bg-hover: rgba(245,158,11,0.08);
+  --border: #2a2a2e;
+  --border-light: #3a3a3e;
+  --text: #fafafa;
+  --text-dim: #a1a1aa;
+  --text-muted: #52525b;
+  --green: #22c55e;
+  --red: #ef4444;
+  --blue: #3b82f6;
+  --purple: #a855f7;
+  --cyan: #06b6d4;
+  --radius: 8px;
+  --radius-msg: 16px;
+  --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono: 'Cascadia Code', 'JetBrains Mono', 'Fira Code', ui-monospace, Consolas, monospace;
+  --transition-fast: 0.15s ease;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
-html { -webkit-text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
 body {
   margin: 0;
+  font-family: var(--font);
   background: var(--bg);
   color: var(--text);
-  font-family: var(--serif);
-  font-size: var(--s-0);
-  line-height: 1.62;
+  font-size: 15px;
+  line-height: 1.65;
   overflow-x: hidden;
 }
 a { color: inherit; }
-:focus-visible { outline: 2px solid var(--cool); outline-offset: 3px; border-radius: 2px; }
+:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; border-radius: 4px; }
+::selection { background: var(--amber-glow); }
 
-/* ---- shared layout ------------------------------------------------ */
-.shell { max-width: 78rem; margin: 0 auto; padding-inline: var(--gutter); }
+.shell { max-width: 1200px; margin: 0 auto; padding-inline: clamp(16px, 4vw, 40px); }
 
-/* The record-card grid: mono label rail on the left, prose on the right. */
-.record { display: grid; gap: 0.6rem clamp(1.5rem, 4vw, 3.5rem); grid-template-columns: 1fr; }
-@media (min-width: 56rem) { .record { grid-template-columns: 12rem minmax(0, 1fr); } }
-
-.rail {
-  font-family: var(--mono);
-  font-size: var(--s--1);
-  letter-spacing: 0.13em;
-  text-transform: uppercase;
-  color: var(--muted);
-  padding-top: 0.45rem;
-}
-.rail b { display: block; color: var(--accent); font-weight: 600; }
-
-h1, h2, h3 { text-wrap: balance; font-weight: 600; margin: 0; }
-h2 { font-family: var(--mono); font-size: var(--s-2); letter-spacing: -0.015em; }
-h3 { font-family: var(--mono); font-size: var(--s-1); letter-spacing: -0.01em; }
-p { margin: 0 0 1em; max-width: var(--measure); }
+h1, h2, h3 { margin: 0; font-weight: 650; text-wrap: balance; letter-spacing: -0.02em; }
+p { margin: 0 0 1em; }
 p:last-child { margin-bottom: 0; }
 
-section { border-top: var(--rule); padding-block: clamp(3rem, 8vw, 6rem); }
-
-/* ---- masthead ----------------------------------------------------- */
-.masthead { padding-block: 1rem; border-bottom: var(--rule); position: sticky; top: 0; z-index: 20;
-  background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); }
-.masthead .shell { display: flex; align-items: center; gap: 1rem; justify-content: space-between; }
-.wordmark { display: flex; align-items: center; gap: 0.6rem; font-family: var(--mono); font-weight: 600;
-  letter-spacing: 0.02em; text-decoration: none; }
-.wordmark svg { display: block; }
-.mast-nav { display: flex; align-items: center; gap: clamp(0.75rem, 2vw, 1.75rem);
-  font-family: var(--mono); font-size: var(--s--1); letter-spacing: 0.06em; text-transform: uppercase; }
-.mast-nav a { color: var(--muted); text-decoration: none; }
-.mast-nav a:hover { color: var(--text); }
-@media (max-width: 46rem) { .mast-nav .opt { display: none; } }
-
-.theme-btn { font: inherit; font-family: var(--mono); font-size: var(--s--1); letter-spacing: 0.06em;
-  text-transform: uppercase; background: none; border: var(--rule); color: var(--muted);
-  padding: 0.3rem 0.6rem; cursor: pointer; }
-.theme-btn:hover { color: var(--text); border-color: var(--muted); }
-
-/* ---- hero --------------------------------------------------------- */
-.hero { padding-block: clamp(2.5rem, 7vw, 5rem) clamp(2rem, 5vw, 3.5rem); }
-.hero-grid { display: grid; gap: clamp(2rem, 5vw, 3.5rem); align-items: start; }
-@media (min-width: 62rem) { .hero-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); } }
-
-.eyebrow { font-family: var(--mono); font-size: var(--s--1); letter-spacing: 0.2em;
-  text-transform: uppercase; color: var(--accent); margin: 0 0 1.2rem; }
-.hero h1 {
-  font-family: var(--mono); font-size: var(--s-5); line-height: 0.88;
-  letter-spacing: -0.045em; margin: 0 0 1.4rem;
+/* ── Ambient glow, the app's amber bleeding through the panel ───────── */
+.glow-wrap { position: relative; }
+.glow-wrap::before {
+  content: ''; position: absolute; inset: -20% -10% auto -10%; height: 620px;
+  background: radial-gradient(60% 60% at 50% 0%, rgba(245,158,11,0.10), transparent 70%);
+  pointer-events: none; z-index: 0;
 }
-.hero h1 .fr { color: var(--accent); }
-.lede { font-size: var(--s-1); line-height: 1.5; max-width: 34ch; margin-bottom: 1.4rem; }
-.sub { color: var(--muted); max-width: 46ch; }
+.glow-wrap > * { position: relative; z-index: 1; }
 
-/* ---- comb canvas -------------------------------------------------- */
-.comb-panel { border: var(--rule); background: var(--surface); }
-.comb-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem;
-  padding: 0.7rem 1rem; border-bottom: var(--rule); font-family: var(--mono);
-  font-size: var(--s--1); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
-.comb-head .live { color: var(--cool); }
-#comb { display: block; width: 100%; height: auto; }
-.comb-legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
-  border-top: var(--rule); }
-.stage {
-  appearance: none; background: none; border: 0; border-right: var(--rule);
-  color: var(--muted); font-family: var(--mono); font-size: var(--s--1);
-  letter-spacing: 0.08em; text-transform: uppercase; text-align: left;
-  padding: 0.7rem 0.85rem; cursor: pointer; line-height: 1.3;
+/* ── Top bar, mirrors the app shell ─────────────────────────────────── */
+.topbar {
+  position: sticky; top: 0; z-index: 50;
+  border-bottom: 1px solid var(--border);
+  background: rgba(9,9,11,.82); backdrop-filter: blur(10px);
 }
-.stage:last-child { border-right: 0; }
-.stage em { display: block; font-style: normal; text-transform: none; letter-spacing: 0;
-  font-family: var(--serif); font-size: var(--s--1); color: var(--muted); opacity: 0.75; margin-top: 0.15rem; }
-.stage[aria-current="true"] { color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, transparent); }
-.stage[aria-current="true"] em { color: var(--text); opacity: 1; }
-.stage:hover { color: var(--text); }
-
-/* ---- download ----------------------------------------------------- */
-.get { display: grid; gap: 1.25rem; margin-top: 2rem; }
-.dl-row { display: flex; flex-wrap: wrap; gap: 0.6rem; }
-.dl {
-  display: inline-flex; align-items: center; gap: 0.55rem;
-  font-family: var(--mono); font-size: var(--s--1); letter-spacing: 0.06em;
-  text-transform: uppercase; text-decoration: none;
-  border: 1px solid var(--line); color: var(--muted);
-  padding: 0.62rem 0.95rem; transition: border-color .15s, color .15s, background .15s;
+.topbar .shell { display: flex; align-items: center; gap: 16px; height: 56px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 650; }
+.brand svg { display: block; border-radius: 7px; }
+.tabs { display: flex; align-items: center; gap: 4px; margin-left: 12px; flex: 1; }
+.tabs a {
+  padding: 6px 12px; border-radius: var(--radius); text-decoration: none;
+  color: var(--text-dim); font-size: 13px; font-weight: 500;
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
-.dl:hover { color: var(--text); border-color: var(--muted); }
-.dl.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
-.dl.primary:hover { background: color-mix(in srgb, var(--accent) 86%, var(--text)); color: var(--accent-ink); }
-.dl svg { flex: none; }
+.tabs a:hover { background: var(--bg-hover); color: var(--amber); }
+@media (max-width: 800px) { .tabs { display: none; } }
+.topbar .ghost {
+  padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+  text-decoration: none; font-size: 13px; color: var(--text-dim);
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+.topbar .ghost:hover { border-color: var(--amber-dim); color: var(--amber); }
 
-.cmd { border: var(--rule); background: var(--surface); }
-.cmd-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem;
-  padding: 0.5rem 0.85rem; border-bottom: var(--rule);
-  font-family: var(--mono); font-size: var(--s--1); letter-spacing: 0.12em;
-  text-transform: uppercase; color: var(--muted); }
-.copy { font: inherit; background: none; border: 0; color: var(--cool); cursor: pointer;
-  letter-spacing: 0.12em; text-transform: uppercase; padding: 0; }
-.cmd pre { margin: 0; padding: 0.85rem; overflow-x: auto; font-family: var(--mono);
-  font-size: var(--s--1); line-height: 1.7; }
-.cmd .tok-c { color: var(--muted); }
-.note { font-family: var(--mono); font-size: var(--s--1); color: var(--muted); letter-spacing: 0.02em; }
+/* ── Honeycomb loader, verbatim from app.css ─────────────────────────── */
+@keyframes pulse-hex { 0%, 100% { opacity: 0.2; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.1); } }
+.honeycomb-loader { display:flex; align-items:center; justify-content:center; position:relative; flex-shrink:0; }
+.honeycomb-loader .hexagon {
+  background: var(--amber);
+  clip-path: polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);
+  position: absolute; animation: pulse-hex 1.5s infinite ease-in-out;
+}
+.honeycomb-loader.hc-sm { width:30px; height:30px; }
+.honeycomb-loader.hc-sm .hexagon { width:8px; height:9px; }
+.hc-sm .hx1{top:3px;left:11px;animation-delay:0s} .hc-sm .hx2{top:8px;left:4px;animation-delay:.2s}
+.hc-sm .hx3{top:8px;left:18px;animation-delay:.4s} .hc-sm .hx4{top:13px;left:11px;animation-delay:.6s}
+.hc-sm .hx5{top:18px;left:4px;animation-delay:.8s} .hc-sm .hx6{top:18px;left:18px;animation-delay:1s}
+.hc-sm .hx7{top:23px;left:11px;animation-delay:1.2s}
 
-/* ---- subsystems --------------------------------------------------- */
-.subs { display: grid; gap: 0; margin-top: 2.5rem; border-top: var(--rule); }
-.sub-row { display: grid; gap: 0.35rem clamp(1.5rem, 4vw, 3.5rem); padding-block: 1.6rem;
-  border-bottom: var(--rule); grid-template-columns: 1fr; align-items: start; }
-@media (min-width: 56rem) { .sub-row { grid-template-columns: 12rem minmax(0, 1fr) 9rem; } }
-.sub-row h3 { font-size: var(--s-1); }
-.sub-row .fr-term { font-family: var(--mono); font-size: var(--s--1); letter-spacing: 0.13em;
-  text-transform: uppercase; color: var(--accent); padding-top: 0.5rem; }
-.sub-row .verdict { font-family: var(--mono); font-size: var(--s--1); letter-spacing: 0.08em;
-  text-transform: uppercase; color: var(--muted); padding-top: 0.55rem; }
-.sub-row p { color: var(--muted); margin-top: 0.3rem; }
+/* ── CSS bee avatar, verbatim from app.css ──────────────────────────── */
+.bee { width:51px; height:33px; position:relative; animation:bee-float .8s infinite;
+  transform:translate(-50%,-50%); left:50%; top:50%; }
+@keyframes bee-float { 0%,100%{top:46%} 50%{top:50%} }
+.bee--wings { width:15px; height:15px; background:#fff; opacity:.8; position:absolute;
+  top:-6px; left:9px; z-index:99; border-radius:50%; animation:bee-fly-lw .15s infinite; }
+.bee--wings::before { content:''; position:absolute; width:15px; height:15px; background:#fff;
+  opacity:.8; border-radius:50%; top:1px; left:17px; animation:bee-fly-rw .15s infinite; }
+@keyframes bee-fly-lw { 0%,100%{top:-6px;left:9px} 25%{top:-9px} 50%{top:-12px;left:11px} 75%{top:-9px} }
+@keyframes bee-fly-rw { 0%,100%{top:1px;left:17px} 25%{top:-1px} 50%{left:14px;top:-2px} 75%{top:-1px} }
+.bee--body { position:absolute; top:0; }
+.bee--body span { position:absolute; border-radius:50%; width:15px; height:15px; background:#000; }
+.bee--body span:first-child::after { content:''; position:absolute; left:5px; border-radius:50%;
+  width:15px; height:15px; background:#eab308; }
+.bee--body span:last-child { left:9px; }
+.bee--body span:last-child::after { content:''; position:absolute; left:6px; border-radius:50%;
+  width:15px; height:15px; background:#eab308; }
+.bee--head { width:32px; height:32px; background:#000; border-radius:50%; position:relative;
+  margin-left:20px; top:-1px; z-index:99; }
+.bee--head-eyes { background:#fff; width:5px; height:3px; position:absolute; top:8px; left:12px;
+  border-bottom-left-radius:100%; border-bottom-right-radius:100%; animation:bee-blink 2s infinite; }
+.bee--head-eyes::before { content:''; position:absolute; top:0; left:8px; width:5px; height:3px;
+  background:#fff; border-bottom-left-radius:100%; border-bottom-right-radius:100%; }
+@keyframes bee-blink { 0%,5%,7%,100%{height:3px} 6%{height:0} }
+.bee--head-antennas { width:3px; height:8px; background:#000; position:absolute; left:3px; top:-4px;
+  border-radius:30px; transform:rotate(-50deg); animation:bee-la .3s infinite; }
+.bee--head-antennas::before { content:''; position:absolute; left:5px; top:1px; width:3px; height:10px;
+  background:#000; border-radius:30px; transform:rotate(-180deg); animation:bee-ra .5s infinite; }
+@keyframes bee-la { 0%,100%{transform:rotate(-50deg);left:3px} 25%{transform:rotate(-35deg);left:5px}
+  50%{transform:rotate(-15deg);left:5px} 75%{transform:rotate(-35deg);left:4px} }
+@keyframes bee-ra { 0%,100%{transform:rotate(-170deg);left:5px} 25%{transform:rotate(-168deg);left:5px}
+  50%{transform:rotate(-165deg);left:4px} 75%{transform:rotate(-168deg);left:5px} }
 
-/* ---- watcher tree ------------------------------------------------- */
-.rule-demo { display: grid; gap: 1.5rem; margin-top: 2.5rem; }
-@media (min-width: 62rem) { .rule-demo { grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: start; } }
-.said { border-left: 3px solid var(--accent); padding: 0.2rem 0 0.2rem 1.1rem;
-  font-size: var(--s-1); line-height: 1.5; }
-.tree { border: var(--rule); background: var(--surface); padding: 1rem 1.1rem; overflow-x: auto;
-  font-family: var(--mono); font-size: var(--s--1); line-height: 1.85; }
-.tree ul { list-style: none; margin: 0; padding-left: 1.15rem; border-left: 1px dashed var(--line); }
+/* ── Hero ───────────────────────────────────────────────────────────── */
+.hero { padding-block: clamp(48px, 8vw, 92px) clamp(40px, 6vw, 72px); }
+.hero-grid { display: grid; gap: clamp(36px, 5vw, 56px); align-items: center; }
+@media (min-width: 1000px) { .hero-grid { grid-template-columns: minmax(0,1fr) minmax(0,1.08fr); } }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 12px 5px 8px; border: 1px solid var(--border); border-radius: 999px;
+  background: var(--bg-card); font-size: 12px; color: var(--text-dim); margin-bottom: 22px;
+}
+.pill b { color: var(--amber); font-weight: 600; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+
+.hero h1 { font-size: clamp(38px, 6.2vw, 66px); line-height: 1.04; margin-bottom: 20px; }
+.hero h1 span { color: var(--amber); }
+.hero .lede { font-size: clamp(16px, 2vw, 19px); color: var(--text-dim); max-width: 46ch; margin-bottom: 14px; }
+.hero .sub { color: var(--text-muted); max-width: 48ch; font-size: 15px; }
+
+.cta { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 9px;
+  padding: 11px 20px; border-radius: var(--radius); border: 1px solid var(--border);
+  text-decoration: none; font-size: 14px; font-weight: 550; color: var(--text-dim);
+  background: var(--bg-card); cursor: pointer; font-family: inherit;
+  transition: border-color var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+}
+.btn:hover { border-color: var(--border-light); color: var(--text); }
+.btn--primary {
+  background: var(--amber); border-color: var(--amber); color: #09090b; font-weight: 650;
+  box-shadow: 0 0 28px rgba(245,158,11,.22);
+}
+.btn--primary:hover { background: var(--amber-light); border-color: var(--amber-light); color: #09090b; }
+.btn svg { flex: none; }
+
+.cmd { margin-top: 22px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-panel); overflow: hidden; }
+.cmd-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted);
+}
+.cmd-copy { background: none; border: 0; color: var(--amber); font: inherit; font-size: 11px;
+  letter-spacing: .1em; text-transform: uppercase; cursor: pointer; padding: 0; }
+.cmd pre { margin: 0; padding: 14px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.75; color: var(--text-dim); }
+.cmd .c { color: var(--text-muted); }
+.hint { margin-top: 12px; font-size: 13px; color: var(--text-muted); }
+
+/* ── App mock, the real chat surface ────────────────────────────────── */
+.app {
+  border: 1px solid var(--border); border-radius: 12px; background: var(--bg-panel);
+  overflow: hidden; box-shadow: 0 24px 70px rgba(0,0,0,.55);
+}
+.app-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.app-bar .name { font-size: 13px; font-weight: 600; }
+.app-tabs { display: flex; gap: 2px; margin-left: auto; font-size: 11px; color: var(--text-muted); }
+.app-tabs span { padding: 4px 9px; border-radius: 6px; }
+.app-tabs span.on { color: var(--amber); background: var(--bg-hover); }
+@media (max-width: 560px) { .app-tabs span:not(.on) { display: none; } }
+
+.thread { padding: 18px 16px; display: flex; flex-direction: column; gap: 16px; min-height: 320px; }
+.row { display: flex; gap: 10px; align-items: flex-start; }
+.row.me { justify-content: flex-end; }
+.bubble {
+  padding: 11px 15px; border-radius: var(--radius-msg); font-size: 13.5px; line-height: 1.6; max-width: 84%;
+}
+.bubble.me { background: var(--amber); color: #09090b; font-weight: 500; border-bottom-right-radius: 5px; }
+.bubble.it { background: var(--bg-input); border: 1px solid var(--border); border-bottom-left-radius: 5px; }
+.av { width: 52px; height: 40px; flex: none; position: relative; }
+
+.tool {
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--bg-card); font-family: var(--mono); font-size: 11.5px; color: var(--text-dim);
+}
+.tool .ok { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 7px var(--green); flex: none; }
+.tool b { color: var(--amber); font-weight: 600; }
+.tool .t { margin-left: auto; color: var(--text-muted); }
+
+.plan { border-left: 2px solid var(--amber-dim); padding-left: 12px; display: grid; gap: 5px; font-size: 12.5px; color: var(--text-dim); }
+.plan i { font-style: normal; color: var(--green); margin-right: 6px; }
+.plan .now { color: var(--text); }
+.plan .now i { color: var(--amber); }
+
+.app-foot { border-top: 1px solid var(--border); padding: 9px 14px; display: flex; align-items: center; gap: 12px; font-size: 11px; color: var(--text-muted); }
+.gauge { flex: 1; height: 3px; background: var(--border); border-radius: 3px; overflow: hidden; max-width: 190px; }
+.gauge span { display: block; height: 100%; width: 34%; background: var(--amber); border-radius: 3px; }
+.app-foot .model { margin-left: auto; color: var(--amber); font-family: var(--mono); }
+
+/* ── Sections ───────────────────────────────────────────────────────── */
+section { padding-block: clamp(52px, 8vw, 92px); border-top: 1px solid var(--border); }
+.sec-head { max-width: 62ch; margin-bottom: 40px; }
+.kicker { font-family: var(--mono); font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--amber); margin-bottom: 12px; }
+.sec-head h2 { font-size: clamp(25px, 3.6vw, 36px); margin-bottom: 14px; }
+.sec-head p { color: var(--text-dim); }
+
+.cards { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); }
+.card {
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-card);
+  padding: 22px; transition: border-color var(--transition-fast), transform var(--transition-fast);
+}
+.card:hover { border-color: var(--amber-dim); transform: translateY(-2px); }
+.card .ic { width: 34px; height: 34px; display: grid; place-items: center; border-radius: var(--radius);
+  background: var(--bg-hover); margin-bottom: 14px; }
+.card h3 { font-size: 16px; margin-bottom: 4px; }
+.card .fr { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--amber); margin-bottom: 10px; }
+.card p { font-size: 13.5px; color: var(--text-dim); margin: 0; }
+
+/* ── Watcher rule ───────────────────────────────────────────────────── */
+.rule { display: grid; gap: 18px; }
+@media (min-width: 900px) { .rule { grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: start; } }
+.said { border: 1px solid var(--border); border-left: 3px solid var(--amber); border-radius: var(--radius);
+  background: var(--bg-card); padding: 18px 20px; font-size: 16px; line-height: 1.55; color: var(--text); }
+.tree { border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-panel);
+  padding: 18px 20px; overflow-x: auto; font-family: var(--mono); font-size: 12.5px; line-height: 1.95; }
+.tree ul { list-style: none; margin: 0; padding-left: 18px; border-left: 1px dashed var(--border-light); }
 .tree > ul { padding-left: 0; border-left: 0; }
-.tree li { position: relative; white-space: nowrap; }
-.op { color: var(--accent); }
-.leaf { color: var(--text); }
-.llm { color: var(--cool); }
-.tree .meta { color: var(--muted); white-space: normal; }
+.tree li { white-space: nowrap; }
+.tree .op { color: var(--amber); font-weight: 600; }
+.tree .leaf { color: var(--text); }
+.tree .act { color: var(--green); }
+.tree .cm { color: var(--text-muted); }
 
-/* ---- glossary ----------------------------------------------------- */
-.gloss-wrap { overflow-x: auto; margin-top: 2.5rem; border: var(--rule); }
-table { border-collapse: collapse; width: 100%; font-size: var(--s--1); }
-th, td { text-align: left; padding: 0.7rem 1rem; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
-thead th { font-family: var(--mono); letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--muted); border-bottom: var(--rule); font-weight: 400; white-space: nowrap; }
-tbody th { font-family: var(--mono); color: var(--accent); font-weight: 600; white-space: nowrap; letter-spacing: 0.02em; }
+/* ── Glossary ───────────────────────────────────────────────────────── */
+.tbl-wrap { border: 1px solid var(--border); border-radius: var(--radius); overflow-x: auto; background: var(--bg-card); }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; padding: 11px 18px; border-bottom: 1px solid var(--border); vertical-align: top; }
+thead th { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text-muted); font-weight: 400; white-space: nowrap; }
+tbody th { font-family: var(--mono); color: var(--amber); font-weight: 600; white-space: nowrap; }
+tbody td.en { font-family: var(--mono); color: var(--text-muted); white-space: nowrap; }
+tbody td:last-child { color: var(--text-dim); }
 tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
-td.eng { font-family: var(--mono); color: var(--muted); white-space: nowrap; }
 
-/* ---- footer ------------------------------------------------------- */
-footer { border-top: var(--rule); padding-block: 3rem 4rem; }
-.foot-grid { display: flex; flex-wrap: wrap; gap: 1.5rem 3rem; justify-content: space-between;
-  align-items: baseline; font-family: var(--mono); font-size: var(--s--1); color: var(--muted); }
-.foot-grid a { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--line); }
-.foot-grid a:hover { color: var(--text); border-color: var(--muted); }
-.offline-badge { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--cool); }
+/* ── Footer ─────────────────────────────────────────────────────────── */
+footer { border-top: 1px solid var(--border); padding-block: 40px 56px; }
+.foot { display: flex; flex-wrap: wrap; gap: 16px 32px; justify-content: space-between; align-items: center;
+  font-size: 13px; color: var(--text-muted); }
+.foot a { color: var(--text-dim); text-decoration: none; }
+.foot a:hover { color: var(--amber); }
+.foot .offline { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11.5px; }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  *, *::before, *::after { animation: none !important; transition-duration: .001ms !important; }
+  html { scroll-behavior: auto; }
 }
 </style>
 </head>
 <body>
 
-<header class="masthead">
+<header class="topbar">
   <div class="shell">
-    <a class="wordmark" href="#top">
-      <svg width="18" height="20" viewBox="0 0 32 36" aria-hidden="true"><path d="M16 1 30 9v18L16 35 2 27V9z" fill="none" stroke="currentColor" stroke-width="2.5"/></svg>
+    <a class="brand" href="#top">
+      <svg width="26" height="26" viewBox="0 0 512 512" aria-hidden="true">
+        <rect width="512" height="512" rx="96" fill="#0f0f10"/>
+        <g fill="none" stroke="#f59e0b" stroke-width="14" stroke-linejoin="round">
+          <polygon points="256,150 312,182 312,246 256,278 200,246 200,182"/>
+          <polygon points="186,270 242,302 242,366 186,398 130,366 130,302"/>
+          <polygon points="326,270 382,302 382,366 326,398 270,366 270,302"/>
+        </g>
+        <g fill="#f59e0b">
+          <circle cx="256" cy="214" r="13"/><circle cx="186" cy="334" r="13"/><circle cx="326" cy="334" r="13"/>
+        </g>
+      </svg>
       LaRuche
     </a>
-    <nav class="mast-nav">
-      <a class="opt" href="#engine">Engine</a>
-      <a class="opt" href="#subsystems">Subsystems</a>
-      <a class="opt" href="#glossary">Glossary</a>
-      <a href="https://github.com/infinition/LaRuche">GitHub</a>
-      <button class="theme-btn" id="theme" type="button" aria-label="Switch colour theme">Theme</button>
+    <nav class="tabs">
+      <a href="#engine">Engine</a>
+      <a href="#memory">Memory</a>
+      <a href="#watchers">Watchers</a>
+      <a href="#glossary">Glossary</a>
     </nav>
+    <a class="ghost" href="https://github.com/infinition/LaRuche">GitHub</a>
   </div>
 </header>
 
 <main id="top">
 
-  <!-- ============================= HERO ============================= -->
-  <div class="hero shell">
-    <div class="hero-grid">
-      <div>
-        <p class="eyebrow">Self-hosted agent node · Rust · MPL-2.0</p>
-        <h1>Your<br>personal<br><span class="fr">AI hive</span></h1>
-        <p class="lede">An agentic node that lives on your machine, remembers what matters, and keeps working while you sleep.</p>
-        <p class="sub">One binary. Your own models. A SQLite file you can read, diff and roll back. No cloud, no runtime to install, no subscription.</p>
+  <!-- ======================== HERO ======================== -->
+  <div class="glow-wrap">
+    <div class="hero shell">
+      <div class="hero-grid">
+        <div>
+          <span class="pill"><span class="dot"></span> Rust · MPL-2.0 · <b>runs on your machine</b></span>
+          <h1>Your personal<br><span>AI hive</span></h1>
+          <p class="lede">An agentic node that lives on your machine, remembers what matters, and keeps working while you sleep.</p>
+          <p class="sub">One binary. Your own models. A SQLite file you can read, diff and roll back. No cloud, no runtime to install, no subscription.</p>
 
-        <div class="get">
-          <div class="dl-row" id="dl-row">
-            <a class="dl primary" id="dl-main" href="https://github.com/infinition/LaRuche/releases/latest">
-              <svg width="13" height="14" viewBox="0 0 14 15" aria-hidden="true"><path d="M7 1v9m0 0 3.5-3.5M7 10 3.5 6.5M1 13h12" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
-              <span id="dl-main-label">Download</span>
+          <div class="cta">
+            <a class="btn btn--primary" id="dl" href="https://github.com/infinition/LaRuche/releases/latest">
+              <svg width="14" height="15" viewBox="0 0 14 15" aria-hidden="true"><path d="M7 1v9m0 0 3.5-3.5M7 10 3.5 6.5M1 13h12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span id="dl-label">Download</span>
             </a>
-            <a class="dl" href="https://github.com/infinition/LaRuche/releases/latest">All platforms</a>
-            <a class="dl" href="https://github.com/infinition/LaRuche">Source</a>
+            <a class="btn" href="https://github.com/infinition/LaRuche/releases/latest">All platforms</a>
+            <a class="btn" href="https://github.com/infinition/LaRuche">Source</a>
           </div>
 
           <div class="cmd">
-            <div class="cmd-head">
-              <span>Or build it yourself</span>
-              <button class="copy" id="copy" type="button">Copy</button>
-            </div>
-<pre id="cmd-text">git clone https://github.com/infinition/LaRuche
+            <div class="cmd-bar"><span>Or build from source</span><button class="cmd-copy" id="copy" type="button">Copy</button></div>
+<pre id="cmd">git clone https://github.com/infinition/LaRuche
 cd LaRuche/laruche
-cargo run --release -p laruche-node   <span class="tok-c"># then open localhost:8419</span></pre>
+cargo run --release -p laruche-node   <span class="c"># then open localhost:8419</span></pre>
           </div>
-          <p class="note">Works with llama.cpp and Ollama out of the box. Cloud keys work too - they are just not required.</p>
+          <p class="hint">Works with llama.cpp and Ollama out of the box. Cloud keys work too, they are just not required.</p>
         </div>
-      </div>
 
-      <!-- Live comb: the butinage cycle, one cell at a time. -->
-      <div class="comb-panel" id="engine">
-        <div class="comb-head">
-          <span>The butinage engine</span>
-          <button class="copy live" id="comb-state" type="button" aria-label="Pause or resume the animation">running</button>
+        <!-- The product's own chat surface. -->
+        <div class="app">
+          <div class="app-bar">
+            <div class="honeycomb-loader hc-sm" aria-hidden="true">
+              <div class="hexagon hx1"></div><div class="hexagon hx2"></div><div class="hexagon hx3"></div>
+              <div class="hexagon hx4"></div><div class="hexagon hx5"></div><div class="hexagon hx6"></div>
+              <div class="hexagon hx7"></div>
+            </div>
+            <span class="name">LaRuche</span>
+            <div class="app-tabs">
+              <span class="on">CHAT</span><span>MÉMOIRE</span><span>MISSIONS</span><span>CAPACITÉS</span>
+            </div>
+          </div>
+
+          <div class="thread">
+            <div class="row me">
+              <div class="bubble me">Watch release.log and ping me on Telegram if a line contains ERROR, but not at night.</div>
+            </div>
+
+            <div class="row">
+              <div class="av" aria-hidden="true">
+                <div class="bee">
+                  <div class="bee--wings"></div>
+                  <div class="bee--body"><span></span><span></span></div>
+                  <div class="bee--head"><div class="bee--head-eyes"></div><div class="bee--head-antennas"></div></div>
+                </div>
+              </div>
+              <div class="bubble it">On it. I will compile that into a rule so it costs nothing to evaluate, and keep quiet between 10pm and 8am.</div>
+            </div>
+
+            <div class="tool"><span class="ok"></span><b>watcher_create</b> · release.log · quiet hours 22:00-08:00<span class="t">0.4s</span></div>
+
+            <div class="plan">
+              <div><i>✓</i> Read the log path and confirm it exists</div>
+              <div><i>✓</i> Compile the condition into a predicate tree</div>
+              <div class="now"><i>▸</i> Register the watcher and arm it</div>
+            </div>
+          </div>
+
+          <div class="app-foot">
+            <span>4.3k / 128k</span>
+            <span class="gauge"><span></span></span>
+            <span class="model">qwen3:8b</span>
+          </div>
         </div>
-        <canvas id="comb" width="720" height="470" role="img"
-          aria-label="Animated honeycomb tracing one pass of the agent loop: mission, compass, plan, parallel harvest, notebook, compaction."></canvas>
-        <div class="comb-legend" id="legend"></div>
       </div>
     </div>
   </div>
 
-  <!-- ========================== SUBSYSTEMS ========================== -->
-  <section id="subsystems">
+  <!-- ======================== SUBSYSTEMS ======================== -->
+  <section id="engine">
     <div class="shell">
-      <div class="record">
-        <div class="rail">Inspection<b>Colony</b></div>
-        <div>
-          <h2>An agent you run 24/7 needs more than a chat loop</h2>
-          <p>Plenty of projects give you tool calling. LaRuche's bet is that a node living on your machine needs an engine, a memory, a supervisor and reflexes - each one a first-class subsystem, each one auditable.</p>
-        </div>
+      <div class="sec-head">
+        <div class="kicker">Subsystems</div>
+        <h2>An agent you run 24/7 needs more than a chat loop</h2>
+        <p>Plenty of projects give you tool calling. LaRuche's bet is that a node living on your machine needs an engine, a memory, a supervisor and reflexes. Each one is a first-class subsystem, and each one is auditable.</p>
       </div>
 
-      <div class="subs">
-        <div class="sub-row">
-          <div class="fr-term">Butinage</div>
-          <div>
-            <h3>A ReAct loop hardened for imperfect models</h3>
-            <p>Native tool calling per provider with tolerant text fallbacks, client-side schema validation, an anti-loop sentinel, per-tool timeouts, token budgets, cooperative cancellation, live steering mid-run, and parallel scouts for deep research. An evals harness replays fixed missions against the real engine, so regressions get caught rather than guessed at.</p>
-          </div>
-          <div class="verdict">109 tests</div>
+      <div class="cards">
+        <div class="card">
+          <div class="ic"><svg width="17" height="17" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 1.5 15.5 5v8L9 16.5 2.5 13V5z" fill="none" stroke="#f59e0b" stroke-width="1.6" stroke-linejoin="round"/><circle cx="9" cy="9" r="2" fill="#f59e0b"/></svg></div>
+          <div class="fr">Butinage</div>
+          <h3>A ReAct loop hardened for imperfect models</h3>
+          <p>Native tool calling per provider with tolerant text fallbacks, client-side schema validation, an anti-loop sentinel, per-tool timeouts, token budgets, cooperative cancellation, live steering mid-run, and parallel scouts for deep research. An evals harness replays fixed missions against the real engine, so regressions get caught rather than guessed at.</p>
         </div>
 
-        <div class="sub-row">
-          <div class="fr-term">Mémoire</div>
-          <div>
-            <h3>Cognitive memory with git time travel</h3>
-            <p>Not a vector store bolted on: a map of nodes and facts over SQLite, hybrid recall fusing embeddings with full-text search, importance decay, and write-time supersede so an updated fact replaces the stale one instead of piling up beside it. Hebbian ranking reinforces only what was actually used in an answer. The whole map exports to markdown in its own git repo - <code>git log</code> is your agent's learning timeline.</p>
-          </div>
-          <div class="verdict">SQLite + FTS5</div>
+        <div class="card" id="memory">
+          <div class="ic"><svg width="17" height="17" viewBox="0 0 18 18" aria-hidden="true"><circle cx="4" cy="4" r="2.2" fill="none" stroke="#a855f7" stroke-width="1.5"/><circle cx="14" cy="7" r="2.2" fill="none" stroke="#a855f7" stroke-width="1.5"/><circle cx="7" cy="14" r="2.2" fill="none" stroke="#a855f7" stroke-width="1.5"/><path d="M6 5.2 12 6.4M5.4 6 6.4 12" stroke="#a855f7" stroke-width="1.3"/></svg></div>
+          <div class="fr">Mémoire</div>
+          <h3>Cognitive memory with git time travel</h3>
+          <p>A map of nodes and facts over SQLite, hybrid recall fusing embeddings with full-text search, importance decay, and write-time supersede so an updated fact replaces the stale one instead of piling up beside it. Hebbian ranking reinforces only what was actually used in an answer. The whole map exports to markdown in its own git repository, so <code>git log</code> is your agent's learning timeline.</p>
         </div>
 
-        <div class="sub-row">
-          <div class="fr-term">LaReine</div>
-          <div>
-            <h3>A supervisor that can send the work back</h3>
-            <p>A judge reviews answers against an editable charter before you see them, and it has real leverage: it can order a fresh agentic run, it keeps the best-scoring draft so quality never regresses across retries, and it escalates when it is not confident. Its methodology score is grounded in which tools were actually called - not in what the answer claims.</p>
-          </div>
-          <div class="verdict">Human seat</div>
+        <div class="card">
+          <div class="ic"><svg width="17" height="17" viewBox="0 0 18 18" aria-hidden="true"><path d="M2.5 6 5 12h8l2.5-6-3.2 2L9 4 5.7 8z" fill="none" stroke="#fbbf24" stroke-width="1.5" stroke-linejoin="round"/><path d="M5 14.5h8" stroke="#fbbf24" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          <div class="fr">LaReine</div>
+          <h3>A supervisor that can send the work back</h3>
+          <p>A judge reviews answers against an editable charter before you see them, and it has real leverage: it can order a fresh agentic run, it keeps the best-scoring draft so quality never regresses across retries, and it escalates when it is not confident. Its methodology score is grounded in which tools were actually called, not in what the answer claims.</p>
         </div>
 
-        <div class="sub-row">
-          <div class="fr-term">Veille</div>
-          <div>
-            <h3>Reflexes that cost nothing at runtime</h3>
-            <p>Describe a rule in plain language and it compiles once into a deterministic predicate tree. Weekdays, time windows, file appeared or changed, service down for N minutes, log patterns, HTTP status - combined with and/or/not. The only rule that ever calls a model is an explicit check leaf, and only once the deterministic prefix has already passed.</p>
-          </div>
-          <div class="verdict">Compiled</div>
+        <div class="card">
+          <div class="ic"><svg width="17" height="17" viewBox="0 0 18 18" aria-hidden="true"><path d="M1.5 9S4 4 9 4s7.5 5 7.5 5-2.5 5-7.5 5-7.5-5-7.5-5z" fill="none" stroke="#60a5fa" stroke-width="1.5"/><circle cx="9" cy="9" r="2.2" fill="#60a5fa"/></svg></div>
+          <div class="fr">Veille</div>
+          <h3>Reflexes that cost nothing at runtime</h3>
+          <p>Describe a rule in plain language and it compiles once into a deterministic predicate tree. Weekdays, time windows, file appeared or changed, service down for N minutes, log patterns, HTTP status, combined with and, or and not. The only rule that ever calls a model is an explicit check leaf, and only once the deterministic prefix has already passed.</p>
         </div>
 
-        <div class="sub-row">
-          <div class="fr-term">Coffre</div>
-          <div>
-            <h3>A security model that assumes the model will slip</h3>
-            <p>Loopback by default, strict CORS, an auth guard on every mutating route, sanitized rendering, and sensitive tools behind a human approval gate. The vault gives the model names, never values: you write a key reference in chat, substitution happens at execution time, and if a tool output echoes a secret back it is masked before it can reach the context or the session file.</p>
-          </div>
-          <div class="verdict">Loopback</div>
+        <div class="card">
+          <div class="ic"><svg width="17" height="17" viewBox="0 0 18 18" aria-hidden="true"><rect x="3" y="7.5" width="12" height="8" rx="2" fill="none" stroke="#22c55e" stroke-width="1.5"/><path d="M6 7.5V5a3 3 0 0 1 6 0v2.5" fill="none" stroke="#22c55e" stroke-width="1.5"/><circle cx="9" cy="11.5" r="1.2" fill="#22c55e"/></svg></div>
+          <div class="fr">Coffre</div>
+          <h3>A security model that assumes the model will slip</h3>
+          <p>Loopback by default, strict CORS, an auth guard on every mutating route, sanitized rendering, and sensitive tools behind a human approval gate. The vault gives the model names, never values: you write a key reference in chat, substitution happens at execution time, and if a tool output echoes a secret back it is masked before it can reach the context or the session file.</p>
+        </div>
+
+        <div class="card">
+          <div class="ic"><svg width="17" height="17" viewBox="0 0 18 18" aria-hidden="true"><circle cx="4" cy="9" r="2" fill="#06b6d4"/><circle cx="14" cy="4.5" r="2" fill="none" stroke="#06b6d4" stroke-width="1.5"/><circle cx="14" cy="13.5" r="2" fill="none" stroke="#06b6d4" stroke-width="1.5"/><path d="M5.8 8 12.2 5.2M5.8 10l6.4 2.8" stroke="#06b6d4" stroke-width="1.4"/></svg></div>
+          <div class="fr">Miel</div>
+          <h3>Several hives, one swarm</h3>
+          <p>Hives on the same network discover each other over mDNS, announce what they can do, and federate skills and memory facts with provenance tags. Opt-in and signed. Your desktop hive and your homelab hive stop being two separate assistants.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ========================== RULE DEMO =========================== -->
-  <section>
+  <!-- ======================== WATCHERS ======================== -->
+  <section id="watchers">
     <div class="shell">
-      <div class="record">
-        <div class="rail">Field note<b>Watchers</b></div>
-        <div>
-          <h2>You say it once. It compiles.</h2>
-          <p>The sentence on the left becomes the tree on the right - evaluated on a timer, at effectively zero cost. No model is woken up until the deterministic part has already matched.</p>
-        </div>
+      <div class="sec-head">
+        <div class="kicker">Watchers</div>
+        <h2>You say it once. It compiles.</h2>
+        <p>The sentence becomes the tree, evaluated on a timer at effectively zero cost. No model is woken up until the deterministic part has already matched.</p>
       </div>
 
-      <div class="rule-demo">
+      <div class="rule">
         <p class="said">“If it's Tuesday or Thursday and my local site has been down for 10 minutes, ping me on Telegram every 20 minutes.”</p>
         <div class="tree">
           <ul>
-            <li><span class="op">ALL</span> <span class="meta">- every branch must hold</span>
+            <li><span class="op">ALL</span> <span class="cm">every branch must hold</span>
               <ul>
                 <li><span class="op">ANY</span>
                   <ul>
@@ -404,70 +480,64 @@ cargo run --release -p laruche-node   <span class="tok-c"># then open localhost:
                 <li><span class="leaf">service.down_for &gt;= 10m</span></li>
               </ul>
             </li>
-            <li><span class="meta">then</span> <span class="leaf">notify telegram</span> <span class="meta">· cooldown 20m</span></li>
+            <li><span class="cm">then</span> <span class="act">notify telegram</span> <span class="cm">cooldown 20m</span></li>
           </ul>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- =========================== GLOSSARY =========================== -->
+  <!-- ======================== GLOSSARY ======================== -->
   <section id="glossary">
     <div class="shell">
-      <div class="record">
-        <div class="rail">Register<b>Vocabulary</b></div>
-        <div>
-          <h2>The hive speaks French</h2>
-          <p>The brand vocabulary is French and stays that way - it is the identity, and each term is precise about what the part actually does. The code and the documentation are English.</p>
-        </div>
+      <div class="sec-head">
+        <div class="kicker">Vocabulary</div>
+        <h2>The hive speaks French</h2>
+        <p>The brand vocabulary is French and stays that way. It is the identity, and each term is precise about what the part actually does. The code and the documentation are English.</p>
       </div>
 
-      <div class="gloss-wrap">
+      <div class="tbl-wrap">
         <table>
-          <thead>
-            <tr><th scope="col">Term</th><th scope="col">Literally</th><th scope="col">In the system</th></tr>
-          </thead>
+          <thead><tr><th scope="col">Term</th><th scope="col">Literally</th><th scope="col">In the system</th></tr></thead>
           <tbody>
-            <tr><th scope="row">butinage</th><td class="eng">foraging</td><td>The agentic loop: go out, gather, come back, decide.</td></tr>
-            <tr><th scope="row">essaim</th><td class="eng">swarm</td><td>The agent layer - providers, prompts, tools, supervision.</td></tr>
-            <tr><th scope="row">abeille</th><td class="eng">bee</td><td>A single tool the agent can call.</td></tr>
-            <tr><th scope="row">éclaireuse</th><td class="eng">scout</td><td>A sub-agent dispatched in parallel for one research angle.</td></tr>
-            <tr><th scope="row">récolte</th><td class="eng">harvest</td><td>One batch of tool calls, run in parallel when it is safe to.</td></tr>
-            <tr><th scope="row">carnet</th><td class="eng">notebook</td><td>The run checkpoint - survives a crash, resumes where it stopped.</td></tr>
-            <tr><th scope="row">escale</th><td class="eng">layover</td><td>Compaction, when the context window fills up.</td></tr>
-            <tr><th scope="row">vigie</th><td class="eng">lookout</td><td>The anti-loop sentinel watching for repeated dead ends.</td></tr>
-            <tr><th scope="row">cap</th><td class="eng">bearing</td><td>The compass: continue, verify once more, or land.</td></tr>
-            <tr><th scope="row">LaReine</th><td class="eng">the queen</td><td>The supervisor that reviews the work before you see it.</td></tr>
-            <tr><th scope="row">miel</th><td class="eng">honey</td><td>What hives trade on the mesh: skills and memory facts.</td></tr>
+            <tr><th scope="row">butinage</th><td class="en">foraging</td><td>The agentic loop: go out, gather, come back, decide.</td></tr>
+            <tr><th scope="row">essaim</th><td class="en">swarm</td><td>The agent layer: providers, prompts, tools, supervision.</td></tr>
+            <tr><th scope="row">abeille</th><td class="en">bee</td><td>A single tool the agent can call.</td></tr>
+            <tr><th scope="row">éclaireuse</th><td class="en">scout</td><td>A sub-agent dispatched in parallel for one research angle.</td></tr>
+            <tr><th scope="row">récolte</th><td class="en">harvest</td><td>One batch of tool calls, run in parallel when it is safe to.</td></tr>
+            <tr><th scope="row">carnet</th><td class="en">notebook</td><td>The run checkpoint. Survives a crash, resumes where it stopped.</td></tr>
+            <tr><th scope="row">escale</th><td class="en">layover</td><td>Compaction, when the context window fills up.</td></tr>
+            <tr><th scope="row">vigie</th><td class="en">lookout</td><td>The anti-loop sentinel watching for repeated dead ends.</td></tr>
+            <tr><th scope="row">cap</th><td class="en">bearing</td><td>The compass: continue, verify once more, or land.</td></tr>
+            <tr><th scope="row">LaReine</th><td class="en">the queen</td><td>The supervisor that reviews the work before you see it.</td></tr>
+            <tr><th scope="row">miel</th><td class="en">honey</td><td>What hives trade on the mesh: skills and memory facts.</td></tr>
           </tbody>
         </table>
       </div>
     </div>
   </section>
 
-  <!-- ============================ CLOSE ============================= -->
+  <!-- ======================== CLOSE ======================== -->
   <section>
     <div class="shell">
-      <div class="record">
-        <div class="rail">Status<b>Beta</b></div>
-        <div>
-          <h2>Moving fast, used daily by its author</h2>
-          <p>340+ tests across the workspace run green on every change. The roadmap in the repository is the single source of truth for what is done and what is next. Issues and pull requests are welcome.</p>
-          <div class="dl-row" style="margin-top:1.6rem">
-            <a class="dl primary" href="https://github.com/infinition/LaRuche/releases/latest">Get LaRuche</a>
-            <a class="dl" href="https://github.com/infinition/LaRuche/blob/main/ROADMAP.md">Read the roadmap</a>
-          </div>
-        </div>
+      <div class="sec-head" style="margin-bottom:26px">
+        <div class="kicker">Status</div>
+        <h2>Beta, moving fast, used daily by its author</h2>
+        <p>340+ tests across the workspace run green on every change. The roadmap in the repository is the single source of truth for what is done and what is next. Issues and pull requests are welcome.</p>
+      </div>
+      <div class="cta" style="margin-top:0">
+        <a class="btn btn--primary" href="https://github.com/infinition/LaRuche/releases/latest">Get LaRuche</a>
+        <a class="btn" href="https://github.com/infinition/LaRuche/blob/main/ROADMAP.md">Read the roadmap</a>
       </div>
     </div>
   </section>
 </main>
 
 <footer>
-  <div class="shell foot-grid">
+  <div class="shell foot">
     <span>LaRuche · MPL-2.0 · <a href="https://github.com/infinition/LaRuche">github.com/infinition/LaRuche</a></span>
-    <span class="offline-badge">
-      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+    <span class="offline">
+      <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="none" stroke="#22c55e" stroke-width="1.6"/></svg>
       This page made zero network requests
     </span>
   </div>
@@ -477,181 +547,30 @@ cargo run --release -p laruche-node   <span class="tok-c"># then open localhost:
 (function () {
   "use strict";
 
-  /* ---------- theme toggle ---------------------------------------- */
-  var root = document.documentElement;
-  var btn = document.getElementById("theme");
-  btn.addEventListener("click", function () {
-    var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    var current = root.getAttribute("data-theme") || (dark ? "dark" : "light");
-    root.setAttribute("data-theme", current === "dark" ? "light" : "dark");
-    draw();
-  });
-
-  /* ---------- per-OS download ------------------------------------- */
+  // Per-OS download, pointing at the release assets the workflow publishes.
   var BASE = "https://github.com/infinition/LaRuche/releases/latest/download/";
-  var ua = navigator.userAgent;
-  var target = null;
-  if (/Windows/i.test(ua)) target = { file: "laruche-windows-x86_64.zip", label: "Download for Windows" };
+  var ua = navigator.userAgent, t = null;
+  if (/Windows/i.test(ua)) t = { f: "laruche-windows-x86_64.zip", l: "Download for Windows" };
   else if (/Mac OS X|Macintosh/i.test(ua)) {
     var arm = /ARM|Apple/i.test(navigator.platform || "") || navigator.maxTouchPoints > 1;
-    target = { file: arm ? "laruche-macos-arm64.tar.gz" : "laruche-macos-x86_64.tar.gz", label: "Download for macOS" };
-  } else if (/Linux|X11/i.test(ua)) target = { file: "laruche-linux-x86_64.tar.gz", label: "Download for Linux" };
-  if (target) {
-    var a = document.getElementById("dl-main");
-    a.href = BASE + target.file;
-    document.getElementById("dl-main-label").textContent = target.label;
+    t = { f: arm ? "laruche-macos-arm64.tar.gz" : "laruche-macos-x86_64.tar.gz", l: "Download for macOS" };
+  } else if (/Linux|X11/i.test(ua)) t = { f: "laruche-linux-x86_64.tar.gz", l: "Download for Linux" };
+  if (t) {
+    document.getElementById("dl").href = BASE + t.f;
+    document.getElementById("dl-label").textContent = t.l;
   }
 
-  /* ---------- copy the build command ------------------------------ */
-  var copyBtn = document.getElementById("copy");
-  copyBtn.addEventListener("click", function () {
-    var text = document.getElementById("cmd-text").textContent.replace(/\s+# then open.*$/m, "");
-    navigator.clipboard.writeText(text.trim()).then(function () {
-      copyBtn.textContent = "Copied";
-      setTimeout(function () { copyBtn.textContent = "Copy"; }, 1600);
+  var btn = document.getElementById("copy");
+  btn.addEventListener("click", function () {
+    var txt = document.getElementById("cmd").textContent.replace(/\s+# then open.*$/m, "").trim();
+    navigator.clipboard.writeText(txt).then(function () {
+      btn.textContent = "Copied";
+      setTimeout(function () { btn.textContent = "Copy"; }, 1600);
     }, function () {
-      copyBtn.textContent = "Select it";
-      setTimeout(function () { copyBtn.textContent = "Copy"; }, 1600);
+      btn.textContent = "Select it";
+      setTimeout(function () { btn.textContent = "Copy"; }, 1600);
     });
   });
-
-  /* ---------- the comb -------------------------------------------- */
-  /* One pass of the loop, drawn as cells lighting across a comb.
-     Stage 3 lights several cells at once: that is the parallel harvest. */
-  /* Cell index = column * ROWS + row, on the 9x5 comb built below. */
-  var STAGES = [
-    { key: "mission",    fr: "Mission",     en: "what you asked",     cells: [2] },
-    { key: "cap",        fr: "Cap",         en: "continue or land?",  cells: [12] },
-    { key: "itineraire", fr: "Itinéraire",  en: "the plan",           cells: [16] },
-    { key: "recolte",    fr: "Récolte",     en: "tools, in parallel", cells: [25, 26, 27, 28] },
-    { key: "carnet",     fr: "Carnet",      en: "observations kept",  cells: [32] },
-    { key: "escale",     fr: "Escale",      en: "compaction",         cells: [42] }
-  ];
-
-  var canvas = document.getElementById("comb");
-  var ctx = canvas.getContext("2d");
-  var legend = document.getElementById("legend");
-  var stateEl = document.getElementById("comb-state");
-
-  /* Flat-top hexagons. Horizontal step is 1.5R, vertical step is sqrt(3)R,
-     odd columns dropped by half a step so the cells interlock.
-     Sized to sit inside the 720x470 canvas with even margins. */
-  var COLS = 9, ROWS = 5, R = 44;
-  var STEP_X = R * 1.5, STEP_Y = R * Math.sqrt(3);
-  var ORIGIN_X = (canvas.width - (COLS - 1) * STEP_X) / 2;
-  var ORIGIN_Y = 58;
-  var cells = [];
-  for (var c = 0; c < COLS; c++) {
-    for (var r = 0; r < ROWS; r++) {
-      cells.push({
-        x: ORIGIN_X + c * STEP_X,
-        y: ORIGIN_Y + r * STEP_Y + (c % 2 ? STEP_Y / 2 : 0),
-        glow: 0
-      });
-    }
-  }
-
-  var active = 0, paused = false, reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  STAGES.forEach(function (s, i) {
-    var b = document.createElement("button");
-    b.className = "stage";
-    b.type = "button";
-    b.innerHTML = s.fr + "<em>" + s.en + "</em>";
-    b.addEventListener("click", function () {
-      active = i; paused = true; stateEl.textContent = "paused";
-      applyStage(); draw();
-    });
-    legend.appendChild(b);
-    s.el = b;
-  });
-
-  stateEl.addEventListener("click", function () {
-    if (reduced) return;
-    paused = !paused;
-    stateEl.textContent = paused ? "paused" : "running";
-  });
-
-  function token(name) {
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  }
-
-  function hexPath(cx, cy, rad) {
-    ctx.beginPath();
-    for (var i = 0; i < 6; i++) {
-      var ang = Math.PI / 180 * (60 * i);
-      var px = cx + rad * Math.cos(ang);
-      var py = cy + rad * Math.sin(ang);
-      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-  }
-
-  function applyStage() {
-    STAGES.forEach(function (s, i) { s.el.setAttribute("aria-current", i === active ? "true" : "false"); });
-    var lit = STAGES[active].cells;
-    cells.forEach(function (cell, i) {
-      if (lit.indexOf(i) !== -1) cell.glow = 1;
-    });
-  }
-
-  function draw() {
-    var line = token("--line"), accent = token("--accent"), cool = token("--cool"), surface = token("--surface");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = surface;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    cells.forEach(function (cell) {
-      hexPath(cell.x, cell.y, R - 3);
-      if (cell.glow > 0.01) {
-        ctx.globalAlpha = cell.glow * 0.9;
-        ctx.fillStyle = accent;
-        ctx.fill();
-        ctx.globalAlpha = 1;
-      }
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = cell.glow > 0.35 ? accent : line;
-      ctx.stroke();
-    });
-
-    /* The path travelled so far, in queen blue. */
-    ctx.strokeStyle = cool;
-    ctx.lineWidth = 1.5;
-    ctx.globalAlpha = 0.55;
-    ctx.beginPath();
-    for (var i = 0; i <= active; i++) {
-      var idx = STAGES[i].cells[0];
-      var p = cells[idx];
-      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
-    }
-    ctx.stroke();
-    ctx.globalAlpha = 1;
-  }
-
-  function tick() {
-    var changed = false;
-    cells.forEach(function (cell) {
-      if (cell.glow > 0) { cell.glow *= 0.965; changed = true; }
-      if (cell.glow < 0.01) cell.glow = 0;
-    });
-    if (changed) draw();
-    requestAnimationFrame(tick);
-  }
-
-  applyStage();
-  draw();
-
-  if (!reduced) {
-    requestAnimationFrame(tick);
-    setInterval(function () {
-      if (paused) return;
-      active = (active + 1) % STAGES.length;
-      applyStage();
-      draw();
-    }, 1500);
-  } else {
-    stateEl.textContent = "static";
-  }
 })();
 </script>
 </body>
