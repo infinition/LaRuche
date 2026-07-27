@@ -499,7 +499,10 @@ LaRuche.Chat = (function(){
         // The agent left a reaction on the user's message. It lands under THEIR
         // bubble, mirroring the reaction the user can leave on one of ours.
         if(statusMessage.indexOf('__agent_reaction__|')===0){
-          var _ar=statusMessage.slice('__agent_reaction__|'.length).trim();
+          // Payload is `key|emoji`: the key is for channels that map it to their own
+          // emoji, the display emoji is the last field and is what we show here.
+          var _arp=statusMessage.slice('__agent_reaction__|'.length).split('|');
+          var _ar=(_arp[_arp.length-1]||'').trim();
           var _urows=container.querySelectorAll('.message-row.user');
           var _utarget=_urows.length?_urows[_urows.length-1]:null;
           if(_utarget && _ar){

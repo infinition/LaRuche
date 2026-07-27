@@ -314,6 +314,8 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                             }
 
                             let chat_id = update["message"]["chat"]["id"].as_i64().unwrap_or(0);
+                            // Needed to react to THIS message rather than the last one.
+                            let msg_id_entrant = update["message"]["message_id"].as_i64();
                             let user = update["message"]["from"]["first_name"]
                                 .as_str()
                                 .unwrap_or("?");
@@ -896,6 +898,44 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                 }
                             });
 
+                            // The agent's emote is stripped from the answer before it
+                            // leaves the engine, and announced on the event bus. We
+                            // listen on the same bus the web chat listens to, rather
+                            // than parsing the answer again here: one extraction, one
+                            // source of truth, and the marker can never reach Telegram
+                            // as visible text.
+                            // Own handles: the answer task takes ownership of client/api.
+                            let (react_client, react_api) = (client.clone(), api.clone());
+                            let reaction_captee: Arc<std::sync::Mutex<Option<String>>> =
+                                Arc::new(std::sync::Mutex::new(None));
+                            {
+                                let capte = reaction_captee.clone();
+                                let mut bus = tx.subscribe();
+                                tokio::spawn(async move {
+                                    while let Ok(ev) = bus.recv().await {
+                                        match ev {
+                                            laruche_essaim::ChatEvent::Status { message }
+                                                if message.starts_with("__agent_reaction__|") =>
+                                            {
+                                                // Payload is `key|emoji`; the key is what
+                                                // maps onto Telegram's own allowed emoji.
+                                                if let Some(cle) = message
+                                                    .split('|')
+                                                    .nth(1)
+                                                    .map(str::to_string)
+                                                {
+                                                    *capte.lock().unwrap() = Some(cle);
+                                                }
+                                            }
+                                            // Terminal frame: the answer is done, so is
+                                            // any reaction that came with it.
+                                            laruche_essaim::ChatEvent::Done { .. } => break,
+                                            _ => {}
+                                        }
+                                    }
+                                });
+                            }
+
                             tokio::spawn(async move {
                                 let result = boucle_react_memoire_multimodal(
                                     &text_clone,
@@ -949,6 +989,53 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                     response =
                                         "✅ Done. No additional text response."
                                             .to_string();
+                                }
+
+                                // Put the agent's reaction on the user's message, before
+                                // the answer: on Telegram the emoji lands on the message
+                                // it is about, so it should already be there when the
+                                // reply arrives.
+                                //
+                                // Bots may set exactly ONE reaction, and only from
+                                // Telegram's closed list, which is why we send the
+                                // mapped `emoji_telegram` and never our display emoji.
+                                // Best effort: a failure here must never cost the answer.
+                                // Cloned into a binding FIRST: holding the guard across
+                                // the await below makes the whole future non-Send.
+                                let cle_reaction = reaction_captee.lock().unwrap().clone();
+                                if let (Some(cle), Some(mid)) = (cle_reaction, msg_id_entrant) {
+                                    if let Some(r) = laruche_essaim::reactions::trouver(&cle) {
+                                        let rep = react_client
+                                            .post(format!("{}/setMessageReaction", react_api))
+                                            .json(&serde_json::json!({
+                                                "chat_id": chat_id,
+                                                "message_id": mid,
+                                                "reaction": [{
+                                                    "type": "emoji",
+                                                    "emoji": r.emoji_telegram,
+                                                }],
+                                            }))
+                                            .send()
+                                            .await;
+                                        // Telegram answers 400 for an emoji outside its
+                                        // list, and the call is fire-and-forget, so log
+                                        // it or the mapping breaks in silence.
+                                        match rep {
+                                            Ok(v) if !v.status().is_success() => {
+                                                tracing::warn!(
+                                                    target: "telegram",
+                                                    status = %v.status(),
+                                                    emoji = %r.emoji_telegram,
+                                                    "setMessageReaction refused"
+                                                );
+                                            }
+                                            Err(e) => tracing::warn!(
+                                                target: "telegram", error = %e,
+                                                "setMessageReaction failed"
+                                            ),
+                                            _ => {}
+                                        }
+                                    }
                                 }
 
                                 let chunks: Vec<String> = response

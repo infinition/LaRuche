@@ -282,6 +282,43 @@ pub fn consigne_prompt() -> String {
     )
 }
 
+/// Is the user asking, in this message, for the agent to react?
+///
+/// The instruction lives in the system prompt, thousands of tokens before the model
+/// starts writing, and observed live that is not enough: deepseek recited the emote
+/// codes correctly, noticed `/sad` was not one of them, and still answered in prose
+/// instead of emitting a line. It knew; recency beat knowledge.
+pub fn demande_de_reaction(prompt: &str) -> bool {
+    let p = prompt.to_lowercase();
+    // The verb, in the two languages this runs in, plus a bare emote the user typed to
+    // show what they want.
+    ["reagis", "réagis", "reagir", "réagir", "reaction", "réaction", "react", "emote"]
+        .iter()
+        .any(|m| p.contains(m))
+        || REACTIONS.iter().any(|r| p.contains(&format!("/{}", r.cle)))
+}
+
+/// The nudge injected into the volatile tail tier when [`demande_de_reaction`] fires.
+///
+/// The tail is the last thing the model reads before answering, which is the only place
+/// an instruction reliably beats six thousand tokens of prompt.
+pub fn rappel_volatil() -> String {
+    let cles: Vec<&str> = REACTIONS.iter().map(|r| r.cle).collect();
+    format!(
+        "## The user is asking you to react\n\
+         Your reply MUST start with a line holding nothing but the emote, then your \
+         answer. Emit it, do not describe it, do not explain which ones exist, do not \
+         promise to do it next time.\n\
+         Available: {}\n\
+         Anything else, including {MARQUEUR}sad, does not exist: pick the closest one \
+         from that list rather than saying so.",
+        cles.iter()
+            .map(|c| format!("{MARQUEUR}{c}"))
+            .collect::<Vec<_>>()
+            .join(" ")
+    )
+}
+
 /// Strip the agent's reaction marker from an answer.
 ///
 /// Returns the cleaned text and the key, when a VALID one was found. Deliberately
@@ -393,6 +430,27 @@ mod tests_agent {
         // The failure observed live: asked to react, it answered that it would react.
         assert!(c.contains("when the user asks you to react"), "{c}");
         assert!(c.contains("is NOT reacting"), "{c}");
+    }
+
+    #[test]
+    fn une_demande_explicite_declenche_le_rappel_en_queue() {
+        // The messages that failed live, verbatim.
+        assert!(demande_de_reaction("reagis va y"));
+        assert!(demande_de_reaction("Tu reagis pas a mon message ?"));
+        assert!(demande_de_reaction("essaie le /love"));
+        assert!(demande_de_reaction("ecris /sad et /love ?"));
+        assert!(demande_de_reaction("pas de reaction comme ca ?"));
+        // An ordinary message costs nothing: no nudge, no tokens.
+        assert!(!demande_de_reaction("explique-moi l'architecture du projet"));
+        assert!(!demande_de_reaction("allume la lumiere du bureau"));
+
+        let r = rappel_volatil();
+        assert!(r.contains("MUST start with a line"), "{r}");
+        assert!(r.contains("/up") && r.contains("/confused"), "{r}");
+        // The exact failure to forbid: promising instead of doing.
+        assert!(r.contains("do not promise to do it next time"), "{r}");
+        // And the exact thing it got stuck on: an emote we do not have.
+        assert!(r.contains("/sad"), "{r}");
     }
 
     #[test]

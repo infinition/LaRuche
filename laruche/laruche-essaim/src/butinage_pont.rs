@@ -1946,6 +1946,21 @@ pub async fn executer_avec_bilan(
         .map(memoire_reference)
         .filter(|s| !s.trim().is_empty());
 
+    // The user asked for an emote in this very message. The instruction sits thousands
+    // of tokens back in the system prompt and that loses to recency: the model recited
+    // the codes correctly and still answered in prose. Repeating it at the tail is the
+    // only placement that reliably wins, and it costs nothing on every other turn.
+    let contexte_volatil = if config.reactions_agent
+        && crate::reactions::demande_de_reaction(prompt_utilisateur)
+    {
+        Some(match contexte_volatil {
+            Some(v) => format!("{v}\n\n{}", crate::reactions::rappel_volatil()),
+            None => crate::reactions::rappel_volatil(),
+        })
+    } else {
+        contexte_volatil
+    };
+
     // A reaction the user left on the last answer steers THIS turn. Only the latest
     // one: an older reaction was already acted on, and re-injecting it would keep
     // correcting a message that has since been superseded. Costs nothing when there
@@ -2103,8 +2118,11 @@ pub async fn executer_avec_bilan(
         if let Some(cle) = cle {
             if let Some(r) = crate::reactions::trouver(&cle) {
                 bilan.texte = propre;
+                // KEY then display emoji. The web chat shows the emoji; a channel such
+                // as Telegram needs the key, because it has to send its OWN emoji for
+                // that reaction from a closed list that does not contain all of ours.
                 let _ = tx.send(ChatEvent::Status {
-                    message: format!("__agent_reaction__|{}", r.emoji),
+                    message: format!("__agent_reaction__|{}|{}", r.cle, r.emoji),
                 });
             }
         }

@@ -520,12 +520,21 @@ pub(crate) async fn api_set_reaction(
         .get("index")
         .and_then(|v| v.as_i64())
         .ok_or(StatusCode::BAD_REQUEST)?;
-    let reaction = body.get("reaction").and_then(|v| v.as_str()).unwrap_or("");
-    // Never store a key we cannot turn into an instruction: an unknown one would sit
-    // in the session for good and render as a blank chip in the UI.
-    if !reaction.is_empty() && !laruche_essaim::reactions::est_connue(reaction) {
-        return Err(StatusCode::BAD_REQUEST);
-    }
+    let brut = body.get("reaction").and_then(|v| v.as_str()).unwrap_or("");
+    // A key, or the emoji itself. Accepting the emoji lets any client, and any future
+    // channel, post what the user actually picked without first learning our key names;
+    // it lands on one of the six intents through the same fan-in.
+    let reaction = if brut.is_empty() || laruche_essaim::reactions::est_connue(brut) {
+        brut.to_string()
+    } else {
+        match laruche_essaim::reactions::intention_pour_emoji(brut) {
+            Some(r) => r.cle.to_string(),
+            // Never store something we cannot turn into an instruction: it would sit in
+            // the session for good and render as a blank chip.
+            None => return Err(StatusCode::BAD_REQUEST),
+        }
+    };
+    let reaction = reaction.as_str();
 
     let mut sessions = state.essaim_sessions.write().await;
     let session = sessions.get_mut(&uuid).ok_or(StatusCode::NOT_FOUND)?;
