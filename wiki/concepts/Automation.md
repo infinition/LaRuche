@@ -29,8 +29,25 @@ surface where you drop tasks for the hive.
 
 ## Watchers
 
-Event-driven rather than time-driven; see [Watchers](Watchers) for the compiled rules
-DSL.
+Event-driven rather than time-driven. See [Watchers](Watchers) for the rules, the four
+observable types, and what a watcher can do when it fires.
+
+### Cron or watcher?
+
+This is the one choice worth getting right, because the costs are not comparable.
+
+A cron wakes a full agentic run at every tick, whether anything changed or not. A
+watcher evaluates a compiled rule tree, which costs nothing, and only involves a model
+if the tree explicitly asks for one or if its action is `agent`.
+
+So: **if you are asking "has X happened yet", it is a watcher, not a cron**, even when
+what you observe needs a command to answer. Watching a lamp, a service or a disk
+through a `command` watcher costs nothing per check; the same thing scheduled as a cron
+costs a model turn every single time.
+
+Reach for a cron when the work itself is the point and its timing is arbitrary: a
+morning digest, a weekly report, a nightly cleanup. Reach for a watcher when a
+condition decides.
 
 ## How they compose
 
