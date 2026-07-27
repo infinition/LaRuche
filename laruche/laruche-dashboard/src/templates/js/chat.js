@@ -503,7 +503,13 @@ LaRuche.Chat = (function(){
           // emoji, the display emoji is the last field and is what we show here.
           var _arp=statusMessage.slice('__agent_reaction__|'.length).split('|');
           var _ar=(_arp[_arp.length-1]||'').trim();
-          var _urows=container.querySelectorAll('.message-row.user');
+          // Looked up here rather than through a `container` variable: that name is
+          // declared inside several OTHER functions, never in this one, so reading it
+          // threw a ReferenceError and killed the whole status handler silently. The
+          // emote reached Telegram, which listens on the bus directly, and never the
+          // web chat, which goes through here.
+          var _cont=document.getElementById('chatContainer');
+          var _urows=_cont?_cont.querySelectorAll('.message-row.user'):[];
           var _utarget=_urows.length?_urows[_urows.length-1]:null;
           if(_utarget && _ar){
             var _uw=_utarget.querySelector('.message-wrapper')||_utarget;
