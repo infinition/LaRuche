@@ -4,147 +4,126 @@ name: maps
 description: Geocode an address, find places nearby, or compute a route.
 ---
 
-# Maps Skill
+# Maps
 
-Location intelligence using free, open data sources. 8 commands, 46 POI
-categories, zero dependencies (Python stdlib only), no API key required.
+Turn a place name into coordinates, coordinates into an address, and either into what is
+around it or how to get from one to the other. Everything runs against free open data:
+no API key, no account, no Python package to install.
 
-Data sources: OpenStreetMap/Nominatim, Overpass API, OSRM, TimeAPI.io.
+One bundled script does all of it and answers in JSON on stdout, so you read fields
+rather than parse prose.
 
 ## Prerequisites
 
-Python 3.8+ (stdlib only - no pip installs needed).
+Python 3.8 or later, standard library only. Nothing to install.
+
+The script lives inside this skill folder, and skills sit under `skills/` relative to the
+node's working directory. Resolve it once, to an ABSOLUTE path, and reuse it:
 
 ```bash
-MAPS=~/.laruche/skills/maps/scripts/maps_client.py
+python skills/maps/scripts/maps_client.py search "Statue of Liberty"
 ```
 
-## Commands
+Verify before anything else. Success is JSON containing latitude near `40.689` and
+longitude near `-74.044`. An empty answer or a traceback means the path is wrong: find
+the real one with `file_search` on `maps_client.py` rather than guessing another prefix.
 
-### search - Geocode a place name
+## The eight commands
+
+| Command | Answers | Needs |
+|---|---|---|
+| `search "<place>"` | where is this | a name or a full address |
+| `reverse <lat> <lon>` | what is here | coordinates |
+| `nearby` | what is around this | coordinates OR `--near "<place>"` |
+| `distance "<a>" --to "<b>"` | how far, how long | two places |
+| `directions "<a>" --to "<b>"` | how do I get there | two places |
+| `timezone <lat> <lon>` | what time is it there | coordinates |
+| `area "<place>"` | how big is it | a name |
+| `bbox <s> <w> <n> <e> <category>` | what is inside this rectangle | four coordinates |
 
 ```bash
-python3 $MAPS search "Eiffel Tower"
-python3 $MAPS search "1600 Pennsylvania Ave, Washington DC"
+python skills/maps/scripts/maps_client.py search "1600 Pennsylvania Ave, Washington DC"
+python skills/maps/scripts/maps_client.py reverse 48.8584 2.2945
+python skills/maps/scripts/maps_client.py nearby 48.8584 2.2945 restaurant --limit 10
+python skills/maps/scripts/maps_client.py nearby --near "90210" --category pharmacy
+python skills/maps/scripts/maps_client.py distance "Paris" --to "Lyon" --mode driving
+python skills/maps/scripts/maps_client.py directions "Big Ben" --to "Tower Bridge" --mode walking
+python skills/maps/scripts/maps_client.py timezone 35.6762 139.6503
+python skills/maps/scripts/maps_client.py area "Manhattan, New York"
 ```
 
-Returns: lat, lon, display name, type, bounding box, importance score.
-
-### reverse - Coordinates to address
+`--mode` is `driving` (default), `walking` or `cycling`. `--radius` is metres, `--limit`
+caps the result count. `--category` repeats to merge several searches into one query:
 
 ```bash
-python3 $MAPS reverse 48.8584 2.2945
+python skills/maps/scripts/maps_client.py nearby --near "downtown austin" \
+  --category restaurant --category bar --limit 10
 ```
 
-Returns: full address breakdown (street, city, state, country, postcode).
+The 46 categories: restaurant, cafe, bar, hospital, pharmacy, hotel, guest_house,
+camp_site, supermarket, atm, gas_station, parking, museum, park, school, university,
+bank, police, fire_station, library, airport, train_station, bus_stop, church, mosque,
+synagogue, dentist, doctor, cinema, theatre, gym, swimming_pool, post_office,
+convenience_store, bakery, bookshop, laundry, car_wash, car_rental, bicycle_rental,
+taxi, veterinary, zoo, playground, stadium, nightclub.
 
-### nearby - Find places by category
+## What a `nearby` result carries
+
+`name`, `address`, `lat`, `lon`, `distance_m`, a `maps_url` the user can tap, a
+`directions_url` from the search point, and, when OpenStreetMap has them, `cuisine`,
+`hours`, `phone` and `website`.
+
+Present them as a numbered list with the name, the distance and the link. The distance is
+what the user actually decides on, so lead with it, not with the address.
+
+## Procedure for a location pin
+
+When the user shares coordinates, do not geocode anything. Pass them straight through:
 
 ```bash
-# By coordinates (e.g. from a location pin)
-python3 $MAPS nearby 48.8584 2.2945 restaurant --limit 10
-python3 $MAPS nearby 40.7128 -74.0060 hospital --radius 2000
-
-# By address/city/zip/landmark - --near auto-geocodes
-python3 $MAPS nearby --near "Times Square, New York" --category cafe
-python3 $MAPS nearby --near "90210" --category pharmacy
-
-# Multiple categories merged into one query
-python3 $MAPS nearby --near "downtown austin" --category restaurant --category bar --limit 10
+python skills/maps/scripts/maps_client.py nearby 36.17 -115.14 cafe --radius 1500
 ```
 
-46 categories: restaurant, cafe, bar, hospital, pharmacy, hotel, guest_house,
-camp_site, supermarket, atm, gas_station, parking, museum, park, school,
-university, bank, police, fire_station, library, airport, train_station,
-bus_stop, church, mosque, synagogue, dentist, doctor, cinema, theatre, gym,
-swimming_pool, post_office, convenience_store, bakery, bookshop, laundry,
-car_wash, car_rental, bicycle_rental, taxi, veterinary, zoo, playground,
-stadium, nightclub.
+For "is it open now", read the `hours` field. When it is missing, say it is unknown and
+offer to check: OpenStreetMap hours are contributed by volunteers and go stale silently.
+Never state that a place is open on the strength of an OSM `hours` string alone.
 
-Each result includes: `name`, `address`, `lat`/`lon`, `distance_m`,
-`maps_url` (clickable Google Maps link), `directions_url` (Google Maps
-directions from the search point), and promoted tags when available:
-`cuisine`, `hours` (opening_hours), `phone`, `website`.
+## Traps
 
-### distance - Travel distance and time
+- **`nearby` needs coordinates OR `--near`, never both and never neither.** With neither
+  it has no centre and cannot search.
+- **`distance` and `directions` take the destination with `--to`**, not as a second
+  positional argument. `distance "Paris" "Lyon"` does not do what it looks like.
+- **A postcode alone is ambiguous worldwide.** `90210` resolves in the United States;
+  a bare `75001` may not resolve where you expect. Add the city or the country.
+- **Straight-line distance is not road distance.** The output gives both. Quote the road
+  one unless the user asked how far apart they are as the crow flies.
+- **OSRM coverage is strongest in Europe and North America.** A route across a region it
+  models poorly returns something plausible and wrong. Sanity-check the duration.
+- **Nominatim allows one request per second** and the script paces itself. Do not
+  parallelise calls to it: the ban is on the IP, and it outlives the session.
+- **The script identifies itself in its user agent**, which Nominatim's terms require.
+  Leave `USER_AGENT` alone; a generic or absent one gets the whole machine blocked.
 
-```bash
-python3 $MAPS distance "Paris" --to "Lyon"
-python3 $MAPS distance "New York" --to "Boston" --mode driving
-python3 $MAPS distance "Big Ben" --to "Tower Bridge" --mode walking
-```
+## Failure modes
 
-Modes: `driving` (default), `walking`, `cycling`. Returns road distance,
-duration, and straight-line distance for comparison.
+**`nearby` returns `All Overpass mirrors failed`.** Both public Overpass servers timed
+out, which happens at peak hours. It is one JSON error object, not a crash. Wait and
+retry once, or answer from `search` and `reverse`, which use Nominatim and are unaffected.
+Do not present the outage as "there are no cafes there".
 
-### directions - Turn-by-turn navigation
+**`search` returns nothing for a place that exists.** The query is too specific or too
+local. Drop the building number, or add the city and country: OpenStreetMap matches on
+the name it holds, not on the name a user would say.
 
-```bash
-python3 $MAPS directions "Eiffel Tower" --to "Louvre Museum" --mode walking
-python3 $MAPS directions "JFK Airport" --to "Times Square" --mode driving
-```
+**Coordinates come back for the wrong continent.** Latitude and longitude were passed in
+the wrong order, or a sign was dropped. Longitude is second and is negative west of
+Greenwich.
 
-Returns numbered steps with instruction, distance, duration, road name, and
-maneuver type (turn, depart, arrive, etc.).
+**Accented place names print as mojibake.** The script forces UTF-8 on stdout, so this
+means something downstream re-encoded the output. Read the JSON directly rather than
+piping it through another tool.
 
-### timezone - Timezone for coordinates
-
-```bash
-python3 $MAPS timezone 48.8584 2.2945
-python3 $MAPS timezone 35.6762 139.6503
-```
-
-Returns timezone name, UTC offset, and current local time.
-
-### area - Bounding box and area for a place
-
-```bash
-python3 $MAPS area "Manhattan, New York"
-python3 $MAPS area "London"
-```
-
-Returns bounding box coordinates, width/height in km, and approximate area.
-Useful as input for the `bbox` command.
-
-### bbox - Search within a bounding box
-
-```bash
-python3 $MAPS bbox 40.75 -74.00 40.77 -73.98 restaurant --limit 20
-```
-
-Finds POIs within a geographic rectangle. Run `area` first to get bounding box
-coordinates for a named place.
-
-## Working With Location Pins
-
-When a user shares a location (latitude/longitude), pass coordinates directly
-to `nearby`:
-
-```bash
-python3 $MAPS nearby 36.17 -115.14 cafe --radius 1500
-```
-
-Present results as a numbered list with names, distances, and `maps_url` so
-the user gets a tap-to-open link. For "open now?" questions, check the `hours`
-field; if missing or unclear, verify with `web_search` since OSM hours are
-community-maintained and may be stale.
-
-## Pitfalls
-
-- Nominatim ToS: max 1 req/s - handled automatically by the script
-- `nearby` requires lat/lon OR `--near "<address>"` - not both, not neither
-- `distance` and `directions` use `--to` for destination (not positional arg)
-- OSRM routing coverage is best for Europe and North America
-- Overpass API can be slow at peak hours; script auto-falls back between mirrors
-  (overpass-api.de → overpass.kumi.systems)
-- Zip code alone may be ambiguous globally - include country/state when needed
-
-## Verification
-
-```bash
-python3 $MAPS search "Statue of Liberty"
-# Expected: lat ~40.689, lon ~-74.044
-
-python3 $MAPS nearby --near "Times Square" --category restaurant --limit 3
-# Expected: list of restaurants within ~500m of Times Square
-```
+**A traceback instead of JSON.** The Python on PATH is older than 3.8, or the path to the
+script is wrong. Check with `python --version`, then locate the script rather than
+retrying the same command.

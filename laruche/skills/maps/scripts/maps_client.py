@@ -24,6 +24,13 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+# ensure_ascii=False below writes accented place names as real characters. On Windows
+# stdout defaults to the ANSI code page, which turns "Ile-de-France" into mojibake and
+# raises UnicodeEncodeError outside Latin-1. Force UTF-8 before any output.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -185,6 +192,8 @@ def http_get(url, params=None, retries=MAX_RETRIES, silent=False):
             else:
                 if silent:
                     raise RuntimeError(last_error)
+                if silent:
+                    raise RuntimeError(last_error)
                 error_exit(last_error)
         except urllib.error.URLError as exc:
             last_error = f"URL error: {exc.reason}"
@@ -232,7 +241,7 @@ def http_get_text(url, params=None, retries=MAX_RETRIES, silent=False):
     error_exit(msg)
 
 
-def http_post(url, data_str, retries=MAX_RETRIES):
+def http_post(url, data_str, retries=MAX_RETRIES, silent=False):
     """
     Perform an HTTP POST with a plain-text body (for Overpass QL).
     Returns parsed JSON.
@@ -266,6 +275,8 @@ def http_post(url, data_str, retries=MAX_RETRIES):
             last_error = f"JSON parse error: {exc}"
             time.sleep(RETRY_DELAY * attempt)
 
+    if silent:
+        raise RuntimeError(f"POST failed after {retries} attempts: {last_error}")
     error_exit(f"POST failed after {retries} attempts. Last error: {last_error}")
 
 
@@ -280,11 +291,7 @@ def overpass_query(query):
     last_error = None
     for url in OVERPASS_URLS:
         try:
-            return http_post(url, post_data, retries=1)
-        except SystemExit:
-            # error_exit inside http_post, so keep trying the next mirror.
-            last_error = f"mirror {url} exhausted retries"
-            continue
+            return http_post(url, post_data, retries=1, silent=True)
         except Exception as exc:
             last_error = f"{url}: {exc}"
             continue
