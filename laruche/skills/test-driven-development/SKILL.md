@@ -4,210 +4,189 @@ name: test-driven-development
 description: Write the failing test first, then the code that makes it pass.
 ---
 
-# Test-Driven Development (TDD)
+# Test-driven development
 
-## Core Principle
+One rule, and everything else follows from it: **you do not write production code until a
+test is failing for the right reason.**
 
-Write the test first. Watch it fail. Write minimal code to pass.
+Not "you write tests". Everyone writes tests. The order is the whole technique, because a
+test written after the code can only confirm what the code already does. It never asks
+whether that was the right thing to build.
 
-**If you didn't watch the test fail, you don't know if it tests the right thing.**
+## Why the order is not a formality
 
-**Violating the letter of the rules is violating the spirit of the rules.**
+A test you never saw fail is not a test, it is an assertion of faith. It might be passing
+because the behaviour works. It might be passing because it asserts nothing, because the
+fixture is wrong, because it exercises a mock instead of the code, or because you compared
+the return of a function that yields `None` against `None`.
 
-## When to Use
+You cannot tell those apart by reading it. You can only tell by watching it fail, then
+watching that specific failure disappear.
 
-**Always:** new features, bug fixes, refactoring, behavior changes.
+That is the entire argument. Everything below is bookkeeping around it.
 
-**Exceptions (ask the user first):** throwaway prototypes, generated code, configuration files.
+## When this applies
 
-Thinking "skip TDD just this once"? Stop. That's rationalization.
+Every behaviour change: a feature, a bug fix, a refactor that alters semantics.
 
-## The Iron Law
+It does not apply to a throwaway experiment, to generated code, or to configuration. For
+an experiment use the `spike` skill, and throw the result away rather than retrofitting
+tests onto it.
 
-```
-NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST
-```
+If you catch yourself reasoning "this one is too simple to need a test", notice what that
+sentence actually is. It is never a conclusion about the code, it is a preference about
+the next ten minutes.
 
-Wrote code before the test? Delete it. Start over. No exceptions - don't keep it as "reference," don't "adapt" it while writing tests. Delete means delete.
+## The cycle
 
-## Red-Green-Refactor Cycle
+### Red: write one failing test
 
-### RED - Write Failing Test
+One behaviour. Name it after the behaviour, not the function:
+`retries_three_times_before_giving_up`, not `test_retry`. If the name needs an "and", you
+are testing two things; split it.
 
-Write one minimal test showing what should happen.
-
-**Good:**
-```python
-def test_retries_failed_operations_3_times():
-    attempts = 0
-    def operation():
-        nonlocal attempts
-        attempts += 1
-        if attempts < 3:
-            raise Exception('fail')
-        return 'success'
-
-    result = retry_operation(operation)
-
-    assert result == 'success'
-    assert attempts == 3
-```
-Clear name, tests real behavior, one thing.
-
-**Bad:**
-```python
-def test_retry_works():
-    mock = MagicMock()
-    mock.side_effect = [Exception(), Exception(), 'success']
-    result = retry_operation(mock)
-    assert result == 'success'  # Vague name, tests mock not real code
-```
-
-Requirements:
-- One behavior per test
-- Descriptive name ("and" in name? Split it)
-- Real code, not mocks (unless truly unavoidable)
-- Name describes behavior, not implementation
-
-### Verify RED - Watch It Fail (MANDATORY)
-
-```bash
-pytest tests/test_feature.py::test_specific_behavior -v
-```
-
-Confirm:
-- Test fails (not errors from typos)
-- Failure message is expected
-- Fails because the feature is missing
-
-**Test passes immediately?** You're testing existing behavior. Fix the test.
-**Test errors?** Fix the error, re-run until it fails correctly.
-
-### GREEN - Minimal Code
-
-Write the simplest code to pass the test. Nothing more.
-
-Cheating is OK in GREEN: hardcode return values, copy-paste, duplicate code, skip edge cases. Fix it in REFACTOR. Don't add features or refactor other code.
-
-### Verify GREEN - Watch It Pass (MANDATORY)
-
-```bash
-# Run the specific test
-pytest tests/test_feature.py::test_specific_behavior -v
-
-# Run ALL tests - check for regressions
-pytest tests/ -q
-```
-
-**Test fails?** Fix the code, not the test.
-**Other tests fail?** Fix regressions now.
-
-### REFACTOR - Clean Up
-
-After green only: remove duplication, improve names, extract helpers, simplify expressions. Keep tests green throughout. Don't add behavior.
-
-**If tests fail during refactor:** undo immediately. Take smaller steps.
-
-### Repeat
-
-Next failing test for next behavior. One cycle at a time.
-
-## Avoid Horizontal Slices
-
-Do **not** write all tests first then all implementation. That produces brittle tests designed before the implementation taught you what behavior and interface actually matter.
-
-```text
-WRONG:  RED: test1, test2, test3 → GREEN: impl1, impl2, impl3
-RIGHT:  RED→GREEN: test1→impl1 / test2→impl2 / test3→impl3
-```
-
-Use vertical tracer bullets: one end-to-end behavior slice per cycle. Proves the path works, teaches you the interface, keeps each next test grounded.
-
-## LaRuche Integration
-
-Run tests at each step via `shell_exec`:
+Test the real code. A test that exercises a mock verifies that the mocking library works,
+which was not in doubt.
 
 ```python
-# RED - verify failure
-shell_exec("pytest tests/test_feature.py::test_name -v")
+def test_retries_three_times_before_giving_up():
+    attempts = []
 
-# GREEN - verify pass
-shell_exec("pytest tests/test_feature.py::test_name -v")
+    def flaky():
+        attempts.append(1)
+        if len(attempts) < 3:
+            raise ConnectionError("boom")
+        return "ok"
 
-# Full suite - verify no regressions
-shell_exec("pytest tests/ -q")
+    assert retry(flaky) == "ok"
+    assert len(attempts) == 3
 ```
 
-When dispatching subagents for implementation, include in their goal:
+### Watch it fail, and read the failure
 
 ```
-Follow TDD strictly:
-1. Write failing test FIRST
-2. Run test - confirm it fails for the right reason
-3. Write minimal code to pass
-4. Run test - confirm it passes
-5. Run full suite - fix any regressions
-6. Refactor if needed, keep green
-
-Test command: pytest tests/ -q
+shell_exec(command="pytest tests/test_retry.py::test_retries_three_times_before_giving_up -v")
 ```
 
-**Bug found?** Write a failing test reproducing it first. Follow the TDD cycle. The test proves the fix and prevents regression. Never fix bugs without a test.
+This step is not ceremony. You are checking three things:
 
-## Common Rationalizations
+- it FAILS, rather than erroring on an import or a typo;
+- it fails for the RIGHT reason, naming the behaviour that is missing;
+- the message would tell a stranger what is wrong.
 
-| Excuse | Reality |
-|--------|---------|
-| "Too simple to test" | Simple code breaks. Test takes 30 seconds. |
-| "I'll test after" | Tests-after pass immediately - prove nothing. |
-| "Tests after same goals" | Tests-after = "what does this do?" Tests-first = "what should this do?" |
-| "Already manually tested" | Ad-hoc ≠ systematic. No record, can't re-run. |
-| "Deleting X hours is wasteful" | Sunk cost. Unverified code is technical debt. |
-| "Keep as reference" | You'll adapt it. That's testing after. Delete means delete. |
-| "Need to explore first" | Fine. Throw away exploration, start with TDD. |
-| "Hard to test" | Listen: hard to test = hard to use. Simplify the design. |
-| "TDD will slow me down" | TDD faster than debugging in production. |
-| "Existing code has no tests" | Add tests for every line you touch. |
+**If it passes immediately, something is wrong.** Either the behaviour already exists, in
+which case there is nothing to build, or the test asserts nothing. Read it again before
+writing a line of production code.
 
-## Red Flags - STOP and Start Over
+### Green: the smallest thing that passes
 
-- Code written before test
-- Test passes immediately on first run
-- Can't explain why the test failed
-- Tests added "later"
-- Rationalizing "just this once"
-- "Keep as reference" or "adapt existing code"
+Cheating is allowed here, and is often correct. Return the constant. Duplicate the block.
+Ignore the edge case. The goal of this step is a passing test, not good code.
 
-**Any of these → delete code, restart with TDD.**
+Resist writing the general solution now. The NEXT failing test is what tells you what the
+general solution actually needs to be, and it is rarely what you would have guessed.
 
-## Verification Checklist
-
-Before marking work complete:
-
-- [ ] Every new function/method has a test
-- [ ] Watched each test fail before implementing
-- [ ] Each test failed for expected reason (feature missing, not typo)
-- [ ] Wrote minimal code to pass each test
-- [ ] All tests pass, output pristine
-- [ ] Tests use real code (mocks only if unavoidable)
-- [ ] Edge cases and errors covered
-
-Can't check all boxes? You skipped TDD. Start over.
-
-## When Stuck
-
-| Problem | Solution |
-|---------|----------|
-| Don't know how to test | Write the wished-for API. Write the assertion first. Ask the user. |
-| Test too complicated | Design too complicated. Simplify the interface. |
-| Must mock everything | Code too coupled. Use dependency injection. |
-| Test setup huge | Extract helpers. Still complex? Simplify the design. |
-
-## Final Rule
+### Watch it pass, and watch nothing else break
 
 ```
-Production code → test exists and failed first
-Otherwise → not TDD
+shell_exec(command="pytest tests/test_retry.py::test_retries_three_times_before_giving_up -v")
+shell_exec(command="pytest -q")
 ```
 
-No exceptions without the user's explicit permission.
+The second command is the one people skip. A green test beside three newly red ones is not
+progress. Fix the regressions now, while you still know exactly which change caused them.
+
+If the new test still fails, fix the CODE. Editing the test until it passes converts a real
+failure into a permanent lie.
+
+### Refactor, only on green
+
+Now remove the duplication, fix the names, extract the helper. Run the suite after each
+step. If a refactor turns anything red, undo it immediately and take a smaller step: you
+have just learned the change was not behaviour-preserving.
+
+Do not add behaviour here. New behaviour needs a new failing test.
+
+### Then do it again
+
+One behaviour per cycle, end to end. Not all the tests, then all the code: that produces
+tests designed against an interface nobody has used yet, brittle in the specific way that
+makes people stop trusting the suite.
+
+```
+wrong:  test1 test2 test3, then code1 code2 code3
+right:  test1 -> code1, test2 -> code2, test3 -> code3
+```
+
+## Fixing a bug
+
+The bug IS the missing test. Before touching the fix:
+
+1. Write a test that reproduces the bug, and that fails.
+2. Watch it fail with exactly the symptom the user reported. If it fails differently, you
+   have not reproduced their bug, and the fix will be for a different one.
+3. Fix it. Watch the test go green.
+
+The test now proves two things at once: that the bug was real, and that it will be caught
+if it returns. Both are lost if you fix first and test afterwards.
+
+For a bug you cannot yet reproduce, use `systematic-debugging` to find it, then come back
+here to fix it.
+
+## Delegating implementation
+
+When you hand work to another agent with `delegate` or `spawn_specialist`, the discipline
+does not travel by itself. Put it in the brief, with the exact command:
+
+```
+Follow TDD strictly. For each behaviour:
+1. write the failing test first
+2. run it, confirm it fails for the right reason
+3. write the minimum code to pass
+4. run it again, then run the whole suite
+5. refactor only while green
+Test command: pytest -q
+Do not report success while any test is red.
+```
+
+Then verify what comes back. A delegate reporting "all tests pass" is a claim, not a fact.
+Run the suite yourself.
+
+## Traps
+
+- **Writing the test after the code, then reordering the commits.** The test still only
+  describes what was built. The order counts when it is lived, not when it is staged.
+- **Keeping the code you wrote first "as a reference".** You will adapt it, which is
+  testing afterwards with extra steps. Delete it.
+- **Mocking the thing under test.** If the only way to test it is to replace most of it,
+  the design is telling you something. Hard to test means hard to use.
+- **A test that can never fail.** Break the production code on purpose once in a while. A
+  test that stays green through that is decoration.
+- **Enormous setup.** Twenty lines of fixture for a three-line assertion is a design
+  problem surfacing as a testing problem.
+- **Running only the new test.** The suite is the regression net. Run it.
+
+## Failure modes
+
+**The test passes on its very first run.** Either the behaviour exists already, or the
+test asserts nothing meaningful. Break the production code deliberately; if the test stays
+green, rewrite it.
+
+**The test errors instead of failing.** An import, a typo, a missing fixture. That is not
+Red yet. Fix the error and re-run until you get a real assertion failure.
+
+**One green test, three regressions.** The implementation changed shared behaviour. Fix
+them before continuing: the cause is exactly one change old.
+
+**You cannot see how to test it.** Write the call you WISH existed, and the assertion you
+want from it, then make that run. The interface you invent while writing the test is
+usually better than the one you would have derived from the implementation. If it is still
+impossible, the coupling is the real problem.
+
+**The existing code has no tests at all.** Do not stop to retrofit a suite. Add tests for
+what you touch, as you touch it. Coverage then grows along the paths people actually
+change, which is where it is worth having.
+
+**The user explicitly asks you to skip it.** Then skip it. Say plainly what is not
+covered, and move on. This skill is a default, not a veto over the person whose repository
+it is.
