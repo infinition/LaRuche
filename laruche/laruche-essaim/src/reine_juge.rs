@@ -23,6 +23,13 @@ pub struct DemandeJugement<'a> {
     /// draft), so the Reine judges with awareness of what came before. Empty when
     /// the context window is 0 or there is no prior history.
     pub contexte: &'a str,
+    /// The corrections she ALREADY gave on this draft, oldest first, one per line.
+    ///
+    /// Every judge call is a fresh LLM call with no memory of the previous rounds, so
+    /// she contradicted herself across a rework: round 2 demanded the file listing,
+    /// round 3 faulted the answer for listing files. She also re-raised points the
+    /// worker had just addressed. Empty on the first round.
+    pub revues_precedentes: &'a str,
     /// Live workshop introspection: which tools the worker HAD available and which
     /// it actually called for this draft (with failures). This is what makes the
     /// METHODOLOGY score real: a draft claiming verification without a single tool
@@ -57,7 +64,12 @@ fn tier_libelle(tier: Tier) -> &'static str {
 /// told to answer with the strict JSON of [`FORMAT_REPONSE`] and nothing else.
 pub fn construire_prompt(d: &DemandeJugement) -> String {
     let objectif = if d.objectif.trim().is_empty() {
-        "(not explicitly stated; infer it from the request)"
+        // Never actually supplied for a chat answer, so this text IS the north star the
+        // judge reads. Inviting it to "infer the real goal" made it grade drafts against
+        // an ambition the user never expressed, which is a machine for manufacturing
+        // dissatisfaction on an answer that was perfectly on scope.
+        "not stated separately: the request below IS the objective. Do not invent a broader \
+         goal the user did not ask for, and do not mark the draft down for failing to reach one."
     } else {
         d.objectif
     };
@@ -67,6 +79,20 @@ pub fn construire_prompt(d: &DemandeJugement) -> String {
         format!(
             "Recent conversation (for context, oldest first):\n{}\n\n",
             d.contexte.trim()
+        )
+    };
+    // What she already asked for. Without it every round starts blind, and she can
+    // fault the worker for doing exactly what she demanded one round earlier.
+    let revues_bloc = if d.revues_precedentes.trim().is_empty() {
+        String::new()
+    } else {
+        format!(
+            "You ALREADY sent this draft back, with the correction(s) below, oldest first:\n{}\n\
+             Judge the NEW draft against them. A point it has now addressed must NOT be raised \
+             again. A point it still misses means your wording was not actionable: rewrite it \
+             concretely, or escalate. Never repeat the same correction a third time, and never \
+             contradict what you asked for above.\n\n",
+            d.revues_precedentes.trim()
         )
     };
     let atelier_bloc = if d.atelier.trim().is_empty() {
@@ -86,6 +112,7 @@ pub fn construire_prompt(d: &DemandeJugement) -> String {
          User objective (north star):\n{objectif}\n\n\
          {contexte_bloc}\
          {atelier_bloc}\
+         {revues_bloc}\
          Original request:\n{requete}\n\n\
          Draft to judge:\n{brouillon}\n\n\
          ---\n\
@@ -104,6 +131,7 @@ pub fn construire_prompt(d: &DemandeJugement) -> String {
         objectif = objectif.trim(),
         contexte_bloc = contexte_bloc,
         atelier_bloc = atelier_bloc,
+        revues_bloc = revues_bloc,
         requete = d.requete.trim(),
         brouillon = d.brouillon.trim(),
         format = FORMAT_REPONSE,
@@ -349,7 +377,36 @@ mod tests {
             charte: "CHARTER: judge relevance and methodology.",
             contexte: "",
             atelier: "",
+            revues_precedentes: "",
         }
+    }
+
+    #[test]
+    fn les_tours_precedents_sont_rappeles_au_juge() {
+        // She contradicted herself across a rework because every judge call is a fresh
+        // LLM call: round 2 demanded the file listing, round 3 faulted the listing.
+        let mut d = demande("some draft");
+        d.revues_precedentes = "round 1: run file_list on each crate directory";
+        let p = construire_prompt(&d);
+        assert!(p.contains("ALREADY sent this draft back"), "{p}");
+        assert!(p.contains("run file_list on each crate directory"));
+        assert!(p.contains("must NOT be raised again"));
+        assert!(p.contains("never contradict what you asked for above"));
+
+        // First round: not a word about it, the block costs nothing.
+        assert!(!construire_prompt(&demande("d")).contains("ALREADY sent this draft back"));
+    }
+
+    #[test]
+    fn le_juge_ne_doit_pas_inventer_un_objectif() {
+        // The objective is never supplied for a chat answer, so the placeholder IS what
+        // the judge reads. Telling it to infer the "real goal" had it grading drafts
+        // against an ambition the user never expressed.
+        let mut d = demande("draft");
+        d.objectif = "";
+        let p = construire_prompt(&d);
+        assert!(p.contains("Do not invent a broader goal"), "{p}");
+        assert!(!p.contains("infer it from the request"));
     }
 
     #[test]
@@ -419,7 +476,9 @@ mod tests {
         let mut d = demande("4");
         d.objectif = "   ";
         let p = construire_prompt(&d);
-        assert!(p.contains("infer it from the request"));
+        // The hint used to invite the judge to infer the "real goal"; it now pins the
+        // objective to the request itself. See `le_juge_ne_doit_pas_inventer_un_objectif`.
+        assert!(p.contains("the request below IS the objective"));
     }
 
     #[test]

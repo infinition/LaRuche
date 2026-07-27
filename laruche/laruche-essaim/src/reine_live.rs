@@ -84,6 +84,7 @@ pub async fn juger_avec(
     charte: &str,
     contexte: &str,
     atelier: &str,
+    revues_precedentes: &str,
 ) -> Option<Scorecard> {
     let demande = DemandeJugement {
         tier: Tier::Reponse,
@@ -93,6 +94,7 @@ pub async fn juger_avec(
         charte,
         contexte,
         atelier,
+        revues_precedentes,
     };
     let invite = construire_prompt(&demande);
     let messages = vec![serde_json::json!({ "role": "user", "content": invite })];
@@ -291,6 +293,9 @@ pub async fn revue_et_refaire(
     // run, because the only stop conditions were the time budget and the round cap.
     // A rework that does not move the score twice in a row is not going to move it a
     // third time; the judge is talking to a worker that cannot hear her.
+    // Corrections already handed to the worker, so each judge call stops starting
+    // blind: a fresh LLM call has no memory of what she asked one round earlier.
+    let mut corrections_donnees: Vec<String> = Vec::new();
     let mut sans_progres: u8 = 0;
     let mut derniers_scores: Option<u8> = None;
     const STAGNATION_MAX: u8 = 2;
@@ -324,6 +329,8 @@ pub async fn revue_et_refaire(
             charte,
             &contexte,
             &atelier,
+            &corrections_donnees.join("
+"),
         )
         .await
         {
@@ -372,6 +379,7 @@ pub async fn revue_et_refaire(
                     break;
                 }
                 journal.push(format!("LaReine round {tour}: {}", instruction.trim()));
+                corrections_donnees.push(format!("round {tour}: {}", instruction.trim()));
                 // Tell the UI she is sending it back, then stream the rework live.
                 let _ = tx.send(ChatEvent::Status {
                     message: format!("__reine_rework_start__|{}", instruction.trim()),
@@ -827,6 +835,8 @@ pub async fn juger_a_la_demande(
         charte,
         &contexte,
         &atelier,
+        // A hand-made call is always a first look: there is no earlier round of hers.
+        "",
     )
     .await
 }
