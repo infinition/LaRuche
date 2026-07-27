@@ -1597,6 +1597,22 @@ fn protocole_texte_pour(config: &EssaimConfig) -> bool {
     )
 }
 
+/// May a `system` message travel at the TAIL of the outgoing context?
+///
+/// No for llama.cpp and Ollama: the chat templates they serve commonly assert that
+/// the system message comes first, and the server refuses the request outright with
+/// "System message must be at the beginning". Those backends get the same tail text
+/// merged into the last user turn, which keeps both the position and the recency.
+///
+/// Deliberately its own function rather than the negation of `protocole_texte_pour`:
+/// the two happen to agree today, they answer different questions.
+fn systeme_en_queue_pour(config: &EssaimConfig) -> bool {
+    matches!(
+        config.provider.as_str(),
+        "openai" | "miel" | "anthropic" | "codex"
+    )
+}
+
 fn profil_pour(config: &EssaimConfig) -> but::ProfilModele {
     match config.provider.as_str() {
         "anthropic" | "codex" => but::ProfilModele::NatifOutils,
@@ -1801,6 +1817,7 @@ pub async fn executer_avec_bilan(
         chemin_carnet: chemin_carnet.clone(),
         systeme,
         contexte_volatil,
+        systeme_en_queue_permis: systeme_en_queue_pour(config),
         prompt_extraction,
         profil: profil_pour(config),
         supervision: supervision_depuis(&config.reine),

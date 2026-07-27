@@ -535,21 +535,42 @@ fn assembler(carnet: &Carnet, reglages: &Reglages) -> Vec<Message> {
         v.push(Message::systeme(reglages.systeme.clone()));
     }
     v.extend(carnet.historique.iter().cloned());
+
+    // Everything below belongs at the TAIL, where the model reads it last. HOW it
+    // travels depends on the backend: a chat template served by llama.cpp or Ollama
+    // commonly asserts that the system message comes FIRST, and a trailing one makes
+    // the server refuse the whole request ("System message must be at the beginning").
+    // So a strict backend receives the same text merged into the last user turn:
+    // same position, same recency, no role the template can object to.
+    let mut queue: Vec<String> = Vec::new();
     if !carnet.decouvertes.is_empty() {
         let lignes: Vec<String> =
             carnet.decouvertes.iter().map(|d| format!("- {d}")).collect();
-        v.push(Message::systeme(format!(
+        queue.push(format!(
             "## Findings ledger ({} recorded)\nDecisive facts recorded this mission via the \
              `finding` tool. This ledger SURVIVES context compaction - your final synthesis \
              must build on it:\n{}",
             carnet.decouvertes.len(),
             lignes.join("\n")
-        )));
+        ));
     }
-    // Volatile tier LAST: the clock is the final thing the model reads before it
-    // answers, which is the only position where small models reliably honour it.
     if let Some(vol) = reglages.contexte_volatil.as_deref().filter(|s| !s.trim().is_empty()) {
-        v.push(Message::systeme(vol.to_string()));
+        queue.push(vol.to_string());
+    }
+    if queue.is_empty() {
+        return v;
+    }
+    let bloc = queue.join("\n\n");
+
+    if reglages.systeme_en_queue_permis {
+        v.push(Message::systeme(bloc));
+    } else if let Some(dernier) = v.iter_mut().rev().find(|m| m.role == Role::Utilisateur) {
+        dernier.contenu = format!("{}\n\n{bloc}", dernier.contenu);
+    } else {
+        // No user turn to carry it: better in the system prompt than lost.
+        if let Some(premier) = v.first_mut() {
+            premier.contenu = format!("{}\n\n{bloc}", premier.contenu);
+        }
     }
     v
 }
@@ -829,6 +850,48 @@ fn bloc_outil_non_ferme(t: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+
+    /// A strict chat template refuses a trailing `system` message.
+    ///
+    /// llama.cpp and Ollama serve templates that literally
+    /// `raise_exception('System message must be at the beginning')`. Putting the
+    /// volatile tier at the tail as a system message made the local server refuse
+    /// the whole request with HTTP 400, on the very first turn.
+    #[test]
+    fn le_bloc_volatil_evite_le_role_systeme_en_queue_si_interdit() {
+        let mut carnet = Carnet::ouvrir("explique l architecture", ModeMission::Standard, chrono::Utc::now());
+        carnet.historique = vec![Message::utilisateur("explique l architecture")];
+
+        let base = Reglages {
+            systeme: "SYS".into(),
+            contexte_volatil: Some("## Now
+It is Sunday.".into()),
+            ..Reglages::default()
+        };
+
+        // Permissive backend: the tail message is kept as `system`.
+        let permis = assembler(&carnet, &base);
+        assert_eq!(permis.last().unwrap().role, Role::Systeme);
+        assert!(permis.last().unwrap().contenu.contains("It is Sunday"));
+
+        // Strict backend: no system message after the first one, ever.
+        let strict = Reglages { systeme_en_queue_permis: false, ..base };
+        let out = assembler(&carnet, &strict);
+        let positions: Vec<usize> = out
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| m.role == Role::Systeme)
+            .map(|(i, _)| i)
+            .collect();
+        assert_eq!(positions, vec![0], "the only system message must be the first");
+        // The clock still travels, merged into the last user turn.
+        let dernier_user = out.iter().rev().find(|m| m.role == Role::Utilisateur).unwrap();
+        assert!(
+            dernier_user.contenu.contains("It is Sunday"),
+            "the volatile tier must survive: {}",
+            dernier_user.contenu
+        );
+    }
     use super::*;
     use crate::carnet::ModeMission;
     use crate::evenement::Silencieux;

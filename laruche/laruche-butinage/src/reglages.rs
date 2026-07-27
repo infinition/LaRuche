@@ -67,6 +67,14 @@ pub struct Reglages {
     /// model actually reads it: buried mid-prompt, the date was ignored and models
     /// fell back on their training-time prior.
     pub contexte_volatil: Option<String>,
+    /// May a `system` message travel at the TAIL of the context?
+    ///
+    /// False for backends whose chat template asserts the system message comes
+    /// first: llama.cpp and Ollama serve templates that literally
+    /// `raise_exception('System message must be at the beginning')`, and the server
+    /// then refuses the request outright. Those backends receive the same tail text
+    /// merged into the last user turn instead.
+    pub systeme_en_queue_permis: bool,
     /// Override of the memory consolidation prompt (escale). `None` = code default.
     /// Lets the user edit it via `system.prompt_extraction` (memory mirror).
     pub prompt_extraction: Option<String>,
@@ -118,6 +126,7 @@ impl Default for Reglages {
             garder_recents: 12,
             systeme: String::new(),
             contexte_volatil: None,
+            systeme_en_queue_permis: true,
             prompt_extraction: None,
             profil: ProfilModele::default(),
             chemin_carnet: None,
