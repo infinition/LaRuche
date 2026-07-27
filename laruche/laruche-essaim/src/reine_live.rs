@@ -352,10 +352,27 @@ pub async fn revue_et_refaire(
                 let _ = tx.send(ChatEvent::Status {
                     message: format!("__reine_rework_start__|{}", instruction.trim()),
                 });
+                // The scope has to be spelled out. With "redo the work properly, use your
+                // tools if needed" and nothing else, an instruction like "replace all em
+                // dashes per brand standards" was read as an order to go and EDIT THE
+                // SOURCE FILES: the agent started patching cycle.rs during a question that
+                // only asked it to explain the architecture. She judges an ANSWER, so her
+                // instruction can only ever be about the answer.
                 let consigne = format!(
-                    "[Your supervisor LaReine reviewed your previous answer and sends you back to redo \
-                     the work properly. Apply this in good faith; if part is clearly wrong, keep what \
-                     was already right. Use your tools if needed, and reply in the user's language.]\n\n{}",
+                    "[Your supervisor LaReine reviewed your previous ANSWER and is sending it back.\n\
+                     \n\
+                     SCOPE: her instruction below is about the TEXT YOU ARE ABOUT TO WRITE for the \
+                     user. It is NEVER an order to change anything on disk. Removing em dashes, \
+                     sourcing a claim, changing the structure: all of that concerns your answer. Do \
+                     NOT create, edit, patch or delete any file, and do not run any mutating command \
+                     to satisfy it. If it seems to ask you to modify the project, you have \
+                     misread it: apply it to your answer instead.\n\
+                     \n\
+                     KEEP what was already right, do not start from nothing. Read-only tools are \
+                     encouraged: when she asks you to ground a claim, go and READ the file or the \
+                     page rather than asserting again. Answer the user's original request, in their \
+                     language.]\n\n\
+                     Her instruction: {}",
                     instruction.trim()
                 );
                 match boucle_react_memoire_multimodal(

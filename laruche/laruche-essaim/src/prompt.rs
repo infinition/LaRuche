@@ -134,6 +134,13 @@ pub fn section_identite_stable() -> String {
         "Linux (use bash/sh commands)"
     };
 
+    // The working directory, stated once. Without it a model that needed a project path
+    // invented one (observed live: `D:\laruche`), then reached for a whole-drive scan to
+    // find what it had just made up. One line here removes both failures.
+    let cwd = std::env::current_dir()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| "unknown".to_string());
+
     format!(
         "You are an intelligent, helpful AI assistant powered by LaRuche. \
          You can reason step by step and use tools to accomplish tasks. \
@@ -141,6 +148,8 @@ pub fn section_identite_stable() -> String {
          language of these instructions.\n\n\
          ## Environment\n\
          - Operating system: {os_info}\n\
+         - Working directory: {cwd}. Relative paths resolve HERE. Never guess a project \
+         path and never scan a whole drive to find one.\n\
          - Act through tools. Never describe, summarise or invent an action you did not \
          actually perform: emit the call and wait for its result.\n\n"
     )

@@ -103,6 +103,20 @@ impl Abeille for ShellExec {
             }
         }
 
+        // Whole-drive enumeration: refused with a way FORWARD rather than a flat no,
+        // because the agent that reaches for it has usually lost its bearings and needs
+        // to be pointed at its working directory, not merely stopped.
+        if scan_disque_entier(command) {
+            return Ok(ResultatAbeille::err(
+                "Refused: this enumerates an entire drive. It takes minutes and almost never \
+                 finds what you are after. Your working directory is given in the Environment \
+                 section of your instructions: start from there. To locate a file, use \
+                 file_search scoped to a folder; to find an installed program, run its own \
+                 version command. Never hunt across the disk."
+                    .to_string(),
+            ));
+        }
+
         // Check for secrets/credentials in command
         for pattern in SECRET_PATTERNS {
             if cmd_lower.contains(pattern) {
@@ -276,5 +290,64 @@ mod tests {
         let command = powershell_command("Write-Output 'déjà prêt'");
         assert!(command.contains("[Console]::OutputEncoding"));
         assert!(command.ends_with("Write-Output 'déjà prêt'"));
+    }
+}
+
+/// Is this command about to enumerate an ENTIRE drive or filesystem root?
+///
+/// Not destructive, so it does not belong in `BLOCKED_PATTERNS`, but it hangs the agent
+/// for minutes and almost never finds what it was after. Observed live: an agent that
+/// had lost its working directory answered with
+/// `Get-ChildItem -Path C:\ -Recurse -Filter "Cargo.toml"` and stalled the whole turn.
+///
+/// Deliberately narrow: recursion ALONE is fine and common (`-Recurse` inside a project
+/// folder is normal). It takes recursion PLUS a root that is a bare drive or `/`.
+pub(crate) fn scan_disque_entier(commande: &str) -> bool {
+    let c = commande.to_lowercase();
+    // `find / -name ...` and friends: the root is glued to the verb.
+    if c.contains("find / ") || c.contains("find / -") {
+        return true;
+    }
+    let recursif = c.contains("-recurse")
+        || c.contains("-recursive")
+        || c.contains(" /s ")
+        || c.trim_end().ends_with(" /s")
+        || c.contains(" -r ");
+    if !recursif {
+        return false;
+    }
+    // A token that IS a root, rather than a path that merely starts at one.
+    c.split(|ch: char| ch.is_whitespace() || ch == '"' || ch == '\'')
+        .map(|t| t.trim_end_matches(','))
+        .any(|t| {
+            matches!(t, "/" | "c:" | "c:\\" | "c:/" | "d:" | "d:\\" | "d:/")
+                || t == "$env:systemdrive"
+                || t == "%systemdrive%"
+        })
+}
+
+#[cfg(test)]
+mod tests_scan {
+    use super::scan_disque_entier;
+
+    #[test]
+    fn un_balayage_de_disque_entier_est_reconnu() {
+        // The exact shape observed in production.
+        assert!(scan_disque_entier(
+            r#"Get-ChildItem -Path C:\ -Directory -Recurse -Filter "Cargo.toml""#
+        ));
+        assert!(scan_disque_entier(r"dir /s C:\"));
+        assert!(scan_disque_entier("find / -name Cargo.toml"));
+        assert!(scan_disque_entier(r"Get-ChildItem -Recurse -Path 'C:'"));
+    }
+
+    #[test]
+    fn une_recursion_normale_dans_un_dossier_passe() {
+        // Recursion is ordinary work and must not be refused: only a ROOT is the problem.
+        assert!(!scan_disque_entier(r"Get-ChildItem -Path C:\DEV\laruche -Recurse"));
+        assert!(!scan_disque_entier("ls -R ./src"));
+        assert!(!scan_disque_entier("find ./src -name '*.rs'"));
+        assert!(!scan_disque_entier("dir /s src"));
+        assert!(!scan_disque_entier("cargo test"));
     }
 }
