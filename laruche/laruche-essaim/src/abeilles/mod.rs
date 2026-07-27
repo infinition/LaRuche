@@ -327,6 +327,75 @@ impl Abeille for SkillList {
     }
 }
 
+/// Is `nom` reachable as an executable on PATH? Pure filesystem, no process spawn.
+fn sur_le_path(nom: &str) -> bool {
+    let Some(path) = std::env::var_os("PATH") else {
+        return false;
+    };
+    // Windows resolves a bare name through PATHEXT; the usual suspects are enough.
+    let suffixes: &[&str] = if cfg!(windows) {
+        &["", ".exe", ".cmd", ".bat", ".ps1"]
+    } else {
+        &[""]
+    };
+    std::env::split_paths(&path).any(|dir| {
+        suffixes
+            .iter()
+            .any(|s| dir.join(format!("{nom}{s}")).is_file())
+    })
+}
+
+/// Report on the `prerequisites.commands` a skill declares, appended to its body.
+///
+/// Eleven of the shipped skills declare their prerequisites and NOTHING read them:
+/// pure decoration. The cost of that gap, observed: asked to turn on a light, the
+/// agent ran `openhue get room`, got exit 1, and spent five commands hunting the
+/// binary across the disk, never once considering that a tool absent from PATH is
+/// an installation to perform rather than a mystery to solve. The skill knew all
+/// along, in its own frontmatter.
+fn etat_prerequis(contenu: &str) -> String {
+    let Some(bloc) = contenu.split("prerequisites:").nth(1) else {
+        return String::new();
+    };
+    let Some(ligne) = bloc.lines().find(|l| l.trim_start().starts_with("commands:")) else {
+        return String::new();
+    };
+    let noms: Vec<String> = ligne
+        .split_once('[')
+        .and_then(|(_, r)| r.split_once(']'))
+        .map(|(inner, _)| {
+            inner
+                .split(',')
+                .map(|s| s.trim().trim_matches(['"', '\'']).to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    if noms.is_empty() {
+        return String::new();
+    }
+
+    let manquants: Vec<&String> = noms.iter().filter(|n| !sur_le_path(n)).collect();
+    if manquants.is_empty() {
+        return format!(
+            "\n\n---\n## Prerequisites check\nAll declared commands are on PATH: {}.\n",
+            noms.join(", ")
+        );
+    }
+    format!(
+        "\n\n---\n## Prerequisites check\nNOT ON PATH: {}.\n\
+         This skill cannot work until they are installed. Do it NOW with the Install \
+         section above, then verify, then carry on with the task. Do not go looking for \
+         the binary elsewhere: absent from PATH means absent. A leftover config file \
+         proves nothing, it outlives the program it configured.\n",
+        manquants
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    )
+}
+
 pub struct SkillView {
     pub mem: Arc<dyn MemoireCognitive>,
 }
@@ -383,7 +452,10 @@ impl Abeille for SkillView {
             for item in items.iter().rev() {
                 if let Some(content) = item["content"].as_str() {
                     if content.contains("type: skill") {
-                        return Ok(ResultatAbeille::ok(content.to_string()));
+                        return Ok(ResultatAbeille::ok(format!(
+                            "{content}{}",
+                            etat_prerequis(content)
+                        )));
                     }
                 }
             }
@@ -401,6 +473,44 @@ impl Abeille for SkillView {
 #[cfg(test)]
 mod slug_tests {
     use super::*;
+
+    /// A skill that declares its prerequisites must say when they are missing.
+    ///
+    /// Asked to turn on a light, the agent ran the CLI, got exit 1, then spent five
+    /// commands hunting the binary across the disk. The skill declared
+    /// `prerequisites: commands: [openhue]` in its own frontmatter and nothing read
+    /// it: eleven of the shipped skills carry that field, purely decorative.
+    #[test]
+    fn les_prerequis_declares_sont_verifies() {
+        let skill = "---
+type: skill
+name: openhue
+prerequisites:
+  commands: [openhue_absent_xyz]
+---
+# body";
+        let rapport = etat_prerequis(skill);
+        assert!(rapport.contains("NOT ON PATH"), "a missing command must be flagged: {rapport}");
+        assert!(rapport.contains("openhue_absent_xyz"));
+        assert!(rapport.contains("Install"), "and point at the fix");
+
+        // A command that certainly exists is reported as satisfied.
+        let present = if cfg!(windows) { "cmd" } else { "sh" };
+        let ok = format!("---
+type: skill
+prerequisites:
+  commands: [{present}]
+---
+# body");
+        assert!(etat_prerequis(&ok).contains("All declared commands are on PATH"));
+
+        // A skill without the field stays untouched: no noise added.
+        assert_eq!(etat_prerequis("---
+type: skill
+name: x
+---
+# body"), "");
+    }
 
     /// A hyphen in a skill folder must survive the round trip. Mangling it into
     /// `_` made `skill_view("watcher-architecte")` read a node that nothing ever

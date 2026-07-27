@@ -45,7 +45,7 @@ curl -sL https://github.com/openhue/openhue-cli/releases/latest/download/openhue
 brew install openhue/cli/openhue-cli
 ```
 
-Verify before anything else: `openhue --version`. If the command is not found, it is
+Verify before anything else: `openhue version` (note: `--version` flag doesn't exist on recent versions, use the `version` subcommand instead). If the command is not found, it is
 NOT installed, whatever `~/.openhue/config.yaml` contains: the config file survives
 the binary and is not proof of an install.
 

@@ -12,7 +12,7 @@
 /// - `custom_instructions` (`system.soul` node): additional instruction layer.
 /// - Locked (never editable): tool list + `<tool_call>` format + `<plan>` format.
 ///   Editing these formats would break tool-calling, so they stay in code.
-pub fn build_system_prompt(
+pub fn build_system_prompt(
     tools_schema: &serde_json::Value,
     protocole_texte: bool,
     identity_override: Option<&str>,
@@ -381,6 +381,10 @@ pub fn section_comportement() -> &'static str {
      Use `clarify` ONLY when truly blocked on information ONLY the user has.\n\
      - A failed access (403, paywall, captcha, empty result) is an OBSTACLE, not a conclusion: retry via web archives \
      (web.archive.org), search-engine caches, mirrors and alternate sources before abandoning that angle.\n\
+     - A MISSING TOOL is an install to perform, not a mystery to investigate. `command not found` after one \
+     check means it is not installed: install it (the skill's Install section, a package manager, the official \
+     release), verify, then carry on. Never hunt a binary across the disk, and never hand the install back to \
+     the user. A leftover config file is not proof of an install: it outlives the program it configured.\n\
      - If the user asks for a thorough/deep/exhaustive research IN ANY LANGUAGE (e.g. FR 'approfondie', ES 'exhaustiva/investigación', \
      IT 'approfondita', DE 'gründlich', PT 'aprofundada') - or a quick lookup proves insufficient - call `research_mode` \
      FIRST: it activates the deep-research protocol (parallel `delegate` scouts, at most 4, no premature conclusions).\n\n\
