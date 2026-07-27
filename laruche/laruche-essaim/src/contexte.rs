@@ -146,7 +146,7 @@ fn tool_score(
 /// Return the tool schema to inject for this user prompt.
 /// COMPACT index of all capabilities (names by family) for the stable prompt tier:
 /// the LLM knows what EXISTS even beyond the tools injected this turn, and can reach anything via
-/// `tool_call`. Inspired by third-party's skill index. Stable within the session -> cacheable.
+/// `tool_call`. Stable within the session -> cacheable.
 pub fn build_capability_index(registry: &AbeilleRegistry, exclude: &HashSet<&str>) -> String {
     let schema = registry.schema_complet();
     let Some(tools) = schema.as_array() else {
@@ -427,7 +427,7 @@ pub fn demande_recherche_longue(prompt: &str) -> bool {
     .any(|m| p.contains(m))
 }
 
-/// The main ReAct loop - inspired by third-party's agent architecture.
+/// The main ReAct loop.
 ///
 /// Flow:
 /// 1. Build system prompt with tools schema
@@ -461,8 +461,8 @@ pub async fn boucle_react(
 ///   relevant to the user's intent and inject them into the system
 ///   instructions. The agent "remembers" without being told to call a tool.
 /// - **Post-curation**: after the response, an auxiliary call extracts durable facts
-///   and writes them to memory (best-effort, silent on failure - third-party
-///   `background_review` style).
+///   and writes them to memory (best-effort, silent on failure -
+///   background-review style).
 ///
 /// Backend-agnostic: `SidecarBackend` (paradigm) or `NativeBackend` (Rust), same.
 pub async fn boucle_react_memoire(
@@ -757,7 +757,7 @@ pub async fn boucle_react_memoire_multimodal(
     cfg.skills_index = construire_index_skills(&memoire, prompt_utilisateur, dyn_skills).await;
 
     // Pre-retrieval -> trailing EPHEMERAL context (NOT in the system prompt:
-    // keeps the prefix stable -> hot prefix cache, third-party trick).
+    // keeps the prefix stable -> hot prefix cache).
     // Lever 1 (first slice): BUDGETED working set instead of a fixed top-N.
     let mut rappels_du_tour: Vec<(String, String)> = Vec::new();
     let ephemeral = match assembler_working_set(&memoire, prompt_utilisateur, 2400).await {
@@ -1194,7 +1194,7 @@ fn skill_pertinent_lexical(query: &str, name: &str, content: &str) -> bool {
 }
 
 /// Reduce a skill description to a short, readable summary for the index:
-/// 1) third-party pattern `Summary - details` -> keep the summary (before the separator);
+/// 1) pattern `Summary - details` -> keep the summary (before the separator);
 /// 2) otherwise, the first sentence if it fits;
 /// 3) soft cap ~80 chars, cut at the word boundary (never mid-word), `…` if truncated.
 pub(crate) fn resumer_description(desc: &str) -> String {
@@ -1226,7 +1226,7 @@ pub(crate) fn resumer_description(desc: &str) -> String {
 /// COMPACT index of ALL available skills (`name - description`), always injected in the
 /// stable prefix. Without it, imported skills are invisible to the model (it only sees one
 /// via fuzzy recall). The full body stays on demand via `skill_view(name)` - progressive
-/// disclosure third-party-style. Built in ONE `search` (query-independent: all skills
+/// disclosure. Built in ONE `search` (query-independent: all skills
 /// contain `type: skill`).
 async fn construire_index_skills(
     memoire: &Arc<dyn MemoireCognitive>,
@@ -1388,10 +1388,10 @@ fn formater_et_signaler_skills(
     if skills.is_empty() {
         return ephemeral;
     }
-    // Per-skill budget: imported third-party skills can weigh 10-20 KB. Injecting the full
-    // body would drown the working set (seen in prod: `third-party agent` ~15 KB on a
+    // Per-skill budget: imported skills can weigh 10-20 KB. Injecting the full
+    // body would drown the working set (seen in prod: a ~15 KB CLI reference skill on a
     // "world models" query). Cap at ~1600 chars + a skill_view pointer for detail (progressive
-    // disclosure third-party-style: the LLM reads the summary and calls skill_view if it needs everything).
+    // disclosure: the LLM reads the summary and calls skill_view if it needs everything).
     const BUDGET_SKILL: usize = 1600;
     let mut bloc = String::from("# Learned skills applicable to this task\n\n");
     for (name, body) in skills {
@@ -1595,10 +1595,10 @@ pub async fn boucle_react_multimodal(
     .await
 }
 
-/// The main ReAct loop - inspired by third-party's agent architecture.
+/// The main ReAct loop.
 /// Supports multimodal, approval, and a **trailing ephemeral context**
 /// (memory) injected AFTER the history: the system prompt (prefix) stays stable
-/// -> hot upstream prefix cache (third-party `system_prompt.py` trick).
+/// -> hot upstream prefix cache.
 pub async fn boucle_react_multimodal_ext(
     prompt_utilisateur: &str,
     session: &mut Session,
@@ -1719,7 +1719,7 @@ mod tests {
 
     #[test]
     fn resumer_description_garde_le_resume_avant_tiret() {
-        // third-party pattern "Summary - details": keep the summary.
+        // Pattern "Summary - details": keep the summary.
         let comfyui = "Generate images, video, and audio with ComfyUI - install, launch, manage nodes/models, run workflows with parameter injection. Uses the official API.";
         assert_eq!(
             resumer_description(comfyui),

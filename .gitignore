@@ -122,4 +122,4 @@ laruche/.agents/
 
 # Scripts de patch jetables (contiennent des chemins machine)
 **/fix_*.py
-laruche/scripts/import_third-party_skills.py
+laruche/scripts/import_*_skills.py

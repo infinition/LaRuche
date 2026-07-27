@@ -166,7 +166,7 @@ pub(crate) async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::M
         tracing::info!(count = n, "skills synchronized from disk (SKILL.md -> SQL)");
     }
     reconcilier_skills_orphelines(memoire, &sur_disque).await;
-    // Targeted purge of META-SKILLS from other agent frameworks (third-party/Claude Code/Codex...),
+    // Targeted purge of META-SKILLS from other agent frameworks (CLI docs of third-party agents),
     // wrongly imported: they describe ANOTHER agent, not LaRuche. Explicit DENYLIST: definitely
     // NOT a disk diff "delete everything not on disk" (that would destroy skills
     // created by the agent, like arxiv_search). Hard-delete:
@@ -178,8 +178,6 @@ pub(crate) async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::M
     // wrong one, so the superseded copy goes. The seeding block is gone from main.rs;
     // this line clears what earlier boots already wrote.
     const META_SKILLS_A_PURGER: &[&str] = &[
-        "third-party agent",
-        "third-party agent-skill-authoring",
         "claude-code",
         "codex",
         "opencode",
