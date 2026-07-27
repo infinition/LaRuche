@@ -134,6 +134,19 @@ pub async fn juger_avec(
     }
 }
 
+/// Opening of the rework brief handed to the worker, and the way to RECOGNISE one.
+///
+/// A rework is not a user mission. Its brief was being written into cognitive memory as
+/// an episode title, so `Mission: [Your supervisor LaReine reviewed your previous
+/// ANSWER...` came back on later turns as a past mission the agent had supposedly run.
+/// Same leak as the `[SYSTEM]` paragraph before it: internal text re-entering as memory.
+pub const PREFIXE_REVUE: &str = "[Your supervisor LaReine reviewed";
+
+/// Is this prompt a rework brief rather than something the user asked?
+pub fn est_consigne_revue(prompt: &str) -> bool {
+    prompt.trim_start().starts_with(PREFIXE_REVUE)
+}
+
 /// Format a one-line verdict from a scorecard (advisory: the judge's own avis).
 fn ligne_verdict(card: &Scorecard) -> String {
     let scores = format!(

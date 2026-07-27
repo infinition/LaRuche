@@ -152,3 +152,24 @@ mod tests_outils {
         assert!(txt.contains("file_read"), "{txt}");
     }
 }
+
+#[cfg(test)]
+mod tests_fuite_revue {
+    use crate::reine_live::est_consigne_revue;
+
+    #[test]
+    fn une_consigne_de_revue_nest_pas_une_mission_utilisateur() {
+        // Recalled verbatim in a live prompt as a past mission the agent had run:
+        // "Mission: [Your supervisor LaReine reviewed your previous ANSWER and is
+        // sending it back. SCOPE: ..."
+        assert!(est_consigne_revue(
+            "[Your supervisor LaReine reviewed your previous ANSWER and is sending it back.\nSCOPE: ..."
+        ));
+        assert!(est_consigne_revue(
+            "  [Your supervisor LaReine reviewed your previous answer and sends you back"
+        ));
+        // A real question, even one that mentions her, still gets its episode.
+        assert!(!est_consigne_revue("Explique-moi l'architecture du projet"));
+        assert!(!est_consigne_revue("pourquoi LaReine reviewed ma reponse ?"));
+    }
+}

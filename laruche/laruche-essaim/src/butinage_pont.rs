@@ -2216,7 +2216,13 @@ pub async fn executer_avec_bilan(
     // An episode with no result text says nothing that the session id does not already
     // say, and it came back through recall turn after turn as `| result:` followed by
     // nothing. Store an episode only when there is something to remember.
-    if bilan.passes >= 3 && !bilan.texte.trim().is_empty() {
+    // A LaReine rework is not a user mission. Its brief was landing in memory as an
+    // episode title, so `Mission: [Your supervisor LaReine reviewed your previous
+    // ANSWER...` came back on later turns as a past mission the agent had supposedly
+    // run. The original turn writes its own episode with the real question; this one
+    // would only duplicate it, wearing internal text as its title.
+    let revue = crate::reine_live::est_consigne_revue(prompt_utilisateur);
+    if bilan.passes >= 3 && !bilan.texte.trim().is_empty() && !revue {
         if let Some(m) = memoire {
             let date = chrono::Utc::now().format("%Y_%m_%d");
             // Drop any injected marker before it reaches the slug AND the content:

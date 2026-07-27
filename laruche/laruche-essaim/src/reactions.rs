@@ -136,14 +136,34 @@ pub const MARQUEUR: &str = ">>";
 /// The instruction added to the prompt when `reactions_agent` is on. Nothing is added
 /// when it is off, which is the default: this costs budget on every single turn.
 pub fn consigne_prompt() -> String {
-    let cles: Vec<&str> = REACTIONS.iter().map(|r| r.cle).collect();
+    let cles: Vec<String> = REACTIONS
+        .iter()
+        .map(|r| format!("{} = {}", r.cle, r.emoji))
+        .collect();
+    // Every line here exists because the first version failed in a specific way. It
+    // described the format with a `<key>` placeholder and no example, said "optional"
+    // and "no reaction is the normal case", and never covered the one case that matters
+    // in practice. Asked point blank to react, the agent answered "tu veux que je te
+    // fasse une réaction emoji ?" and never emitted a marker: it was obeying, and
+    // talking ABOUT the reaction is not reacting.
     format!(
-        "## Reacting to the user (optional)\n\
-         You may leave ONE emoji reaction on the user's message. Write `{MARQUEUR}<key>` \
-         on its OWN LINE, as the very first or very last line of your reply, and nothing \
-         else on that line. Keys: {}. It is removed before display, so never mention it \
-         and never put it inside a sentence, a code block or a tool call. Use it only \
-         when it genuinely adds something; no reaction is the normal case.",
+        "## Reacting to the user\n\
+         You may add ONE emoji reaction to the user's message. It is a line holding \
+         nothing but `{MARQUEUR}` and a key, as the FIRST or the LAST line of your reply.\n\
+         \n\
+         Keys: {}\n\
+         \n\
+         A complete reply, exactly like this:\n\
+         {MARQUEUR}haha\n\
+         Bien vu, je n'y avais pas pense.\n\
+         \n\
+         The line is stripped before display, so it is the reaction: never mention it, \
+         never explain it, never announce that you are about to react, and never put it \
+         inside a sentence, a code block or a tool call. Writing \"I react with a thumbs \
+         up\" is NOT reacting.\n\
+         \n\
+         Use it sparingly, only when it adds something. The exception: when the user asks \
+         you to react, emit the marker, do not reply that you will.",
         cles.join(", ")
     )
 }
@@ -242,6 +262,22 @@ mod tests_agent {
         // The second one stays in the text: it is evidence of a model guessing, and
         // hiding it would make that invisible.
         assert!(t.contains(">>down"), "{t}");
+    }
+
+    #[test]
+    fn la_consigne_montre_un_exemple_et_couvre_la_demande_explicite() {
+        let c = consigne_prompt();
+        // A `<key>` placeholder with no example got copied literally or ignored. The
+        // marker must appear ready to paste.
+        assert!(c.contains(">>haha"), "no usable example:
+{c}");
+        assert!(!c.contains("<key>"), "placeholder syntax invites a literal copy:
+{c}");
+        // The keys carry their emoji, so the model knows what it is choosing.
+        assert!(c.contains("down = "));
+        // The failure observed live: asked to react, it answered that it would react.
+        assert!(c.contains("when the user asks you to react"), "{c}");
+        assert!(c.contains("is NOT reacting"), "{c}");
     }
 
     #[test]
