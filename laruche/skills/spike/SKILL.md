@@ -6,164 +6,167 @@ description: Throwaway experiments to validate feasibility before building.
 
 # Spike
 
-Use when the user wants to **feel out an idea** before committing to a real build - validating feasibility, comparing approaches, or surfacing unknowns. Spikes are disposable by design. Throw them away once they've paid their debt.
+A spike answers one question: **can this actually be done here, with these tools, on this
+machine?** It answers it by building the smallest thing that would fail if the answer were
+no. Then it gets thrown away.
 
-Trigger: "let me try this", "I want to see if X works", "spike this out", "before I commit to Y", "quick prototype of Z", "is this even possible?", "compare A vs B".
+The output of a spike is not code. It is a verdict, with evidence. Code that survives a
+spike is a bonus, and usually a mistake.
 
-## When NOT to use
+Reach for this when the user is circling an idea rather than asking for it: "would this
+even work", "I want to see if", "before I commit to", "is it possible to", "A or B?".
 
-- The answer is knowable from docs or reading code - just research, don't build.
-- The work is on the production path - use the `plan` skill instead.
-- The idea is already validated - jump straight to implementation.
+## When not to spike
 
-## Core loop
+- **The answer is already written down.** Documentation, a changelog, an issue thread. A
+  spike that reproduces a documented limitation cost an hour to learn a sentence. Use
+  `web-research` first, always.
+- **The decision is already made.** If the user asked for the feature, build the feature.
+  A spike here is procrastination with a directory structure.
+- **It is going into production.** The moment code has to survive, this is not a spike.
+  Write a plan, with the `plan` skill.
+- **There is nothing to observe.** If you cannot state what result would make the answer
+  "no", you do not have a question yet. Sharpen it before writing anything.
 
-```
-decompose  →  research  →  build  →  verdict
-   ↑__________________________________________↓
-                  iterate on findings
-```
+## The shape of a good question
 
-### 1. Decompose
+One spike, one falsifiable question, with the failing condition stated up front.
 
-Break the idea into **2-5 independent feasibility questions**. Present as a table with Given/When/Then framing:
+Weak: "try websockets".
+Strong: "with 200 concurrent connections, does the server deliver a token within 100ms?
+If the median exceeds 250ms, the approach is dead."
 
-| # | Spike | Validates (Given/When/Then) | Risk |
-|---|-------|----------------------------|------|
-| 001 | websocket-streaming | Given a WS connection, when LLM streams tokens, then client receives chunks < 100ms | High |
-| 002a | pdf-parse-pdfjs | Given a multi-page PDF, when parsed with pdfjs, then structured text is extractable | Medium |
-| 002b | pdf-parse-camelot | Given a multi-page PDF, when parsed with camelot, then structured text is extractable | Medium |
+Write the threshold BEFORE you build. Deciding what counts as success after seeing the
+number is how every approach passes.
 
-**Spike types:**
-- **standard** - one approach, one question
-- **comparison** - same question, different approaches (shared number, letter suffix `a`/`b`/`c`)
+## Procedure
 
-**Order by risk.** The spike most likely to kill the idea runs first.
+1. **Split the idea into two to five independent questions**, ordered by what would kill
+   the idea fastest. The riskiest one runs first: if it fails, the rest never need to be
+   built. Present them as a table and let the user reorder or drop.
 
-**Skip decomposition** only if the user already knows exactly what to spike - take it as a single spike.
+   | # | Question | Fails if | Risk |
+   |---|---|---|---|
+   | 001 | Can we stream tokens over a websocket? | median chunk latency over 250ms | high |
+   | 002a | Can pdfjs pull tables out of this PDF? | tables arrive as loose text | medium |
+   | 002b | Can camelot do it? | same | medium |
 
-### 2. Align (multi-spike only)
+   Two spikes answering the SAME question with different tools share a number and take a
+   letter. That is what makes them comparable later.
 
-Present the table. Ask: "Build all in this order, or adjust?" Let the user drop, reorder, or re-frame before writing any code.
+2. **Look before you build.** Two or three searches, ten minutes: which libraries exist,
+   which are maintained, which have already hit this wall. Skip this only for pure logic
+   with no dependency. State which approach you picked, and why, in one line.
 
-### 3. Research (per spike, before building)
+   ```
+   web_search(query="python websocket streaming backpressure 2026")
+   web_fetch(url="https://websockets.readthedocs.io/en/stable/faq/index.html")
+   shell_exec(command="pip show websockets")
+   ```
 
-Research enough to pick the right approach, then build.
+   `web_fetch` takes ONE `url`, as a string.
 
-1. **Brief it.** 2-3 sentences: what this spike is, why it matters, key risk.
-2. **Surface competing approaches** if there's real choice:
+3. **Build the smallest observable thing.** One directory per spike, standalone, under
+   `spikes/NNN-short-name/` at the repository root.
 
-   | Approach | Tool/Library | Pros | Cons | Status |
-   |----------|-------------|------|------|--------|
-   | ... | ... | ... | ... | maintained / abandoned / beta |
+   ```
+   shell_exec(command="mkdir -p spikes/001-websocket-streaming")
+   file_write(path="C:/dev/project/spikes/001-websocket-streaming/main.py", content="...")
+   shell_exec(command="cd spikes/001-websocket-streaming && python main.py")
+   ```
 
-3. **Pick one.** State why. If 2+ are credible, build quick variants within the spike.
-4. **Skip research** for pure logic with no external dependencies.
+   Pass ABSOLUTE paths to `file_write`: a relative one resolves against the server's
+   working directory, not the project.
 
-LaRuche tools for research. `web_fetch` takes ONE `url` as a string, and every path is
-absolute, because a relative one resolves against the server's working directory:
+   Prefer, in order: a CLI that prints an observable result, a single HTML page, a
+   one-endpoint server, a test with a recognisable assertion. The user should be able to
+   run it and see the answer themselves.
 
-```
-web_search(query="python websocket streaming libraries 2026")
-web_fetch(url="https://websockets.readthedocs.io/...")
-shell_exec(command="pip show websockets")
-file_read(path="C:/dev/project/spikes/001-websocket-streaming/README.md")
-```
+   Hardcode everything. No config system, no container, no environment files, no build
+   pipeline. Every minute spent on scaffolding is a minute not spent on the question.
 
-### 4. Build
+4. **Push past the happy path.** One successful run is not evidence. Feed it the empty
+   input, the huge input, the malformed one, the concurrent one. A spike that only proves
+   the demo works has proved nothing about the idea.
 
-One directory per spike. Keep it standalone.
+5. **Write the verdict** into the spike's `README.md`, and stop.
 
-```
-spikes/
-├── 001-websocket-streaming/
-│   ├── README.md
-│   └── main.py
-├── 002a-pdf-parse-pdfjs/
-│   ├── README.md
-│   └── parse.js
-└── 002b-pdf-parse-camelot/
-    ├── README.md
-    └── parse.py
-```
-
-**Bias toward something the user can interact with.** Default choices, in order:
-
-1. A runnable CLI that takes input and prints observable output
-2. A minimal HTML page demonstrating the behavior
-3. A small web server with one endpoint
-4. A unit test exercising the question with recognizable assertions
-
-**Depth over speed.** Never declare "it works" after one happy-path run. Test edge cases. Follow surprising findings.
-
-**Avoid** (unless the spike specifically requires it): complex package management, build tools/bundlers, Docker, env files, config systems. Hardcode everything - it's a spike.
-
-**Typical tool sequence for one spike:**
-
-```
-shell_exec("mkdir -p spikes/001-websocket-streaming")
-file_write("spikes/001-websocket-streaming/README.md", "# 001: websocket-streaming\n\n...")
-file_write("spikes/001-websocket-streaming/main.py", "...")
-shell_exec("cd spikes/001-websocket-streaming && python3 main.py")
-# Observe output, iterate.
-```
-
-**Parallel comparison spikes (002a / 002b):** run them sequentially (a then b). For non-trivial parallel workloads, use `execute_code` to run both scripts and capture outputs side by side, or build them in separate `shell_exec` calls and compare results.
-
-### 5. Verdict
-
-Each spike's `README.md` closes with:
+## The verdict
 
 ```markdown
 ## Verdict: VALIDATED | PARTIAL | INVALIDATED
 
+**Question:** <the one question, as asked>
+**Threshold:** <what would have made this a no>
+**Measured:** <the number or behaviour actually observed>
+
 ### What worked
-- ...
-
-### What didn't
-- ...
-
-### Surprises
-- ...
-
-### Recommendation for the real build
-- ...
+### What did not
+### What surprised us
+### What this means for the real build
 ```
 
-- **VALIDATED** - core question answered yes, with evidence.
-- **PARTIAL** - works under constraints X, Y, Z - document them.
-- **INVALIDATED** - doesn't work, for this reason. This is a successful spike.
+- **VALIDATED**, the threshold was met, with a number to point at.
+- **PARTIAL**, it works inside constraints. Name them: this version, this size, this
+  platform. A PARTIAL with unnamed constraints is a VALIDATED that will hurt later.
+- **INVALIDATED**, it does not work, and here is why. **This is a successful spike.** It
+  cost an afternoon instead of a sprint. Report it as a win, not an apology.
 
-## Comparison spikes
+## Comparing two approaches
 
-When two approaches answer the same question (002a / 002b), build them back to back, then do a head-to-head:
+When 002a and 002b answer the same question, build both, then set them side by side on
+the dimensions that will actually drive the decision. Not features: consequences.
 
 ```markdown
-## Head-to-head: pdfjs vs camelot
+| | pdfjs (002a) | camelot (002b) |
+|---|---|---|
+| Tables extracted correctly | 9 of 10 | 6 of 10 |
+| Setup | one npm install | pip plus ghostscript |
+| 100-page document | 3s | 18s |
+| Rotated text | no | yes |
 
-| Dimension | pdfjs (002a) | camelot (002b) |
-|-----------|--------------|----------------|
-| Extraction quality | 9/10 structured | 7/10 table-only |
-| Setup complexity | npm install, 1 line | pip + ghostscript |
-| Perf on 100-page PDF | 3s | 18s |
-| Handles rotated text | no | yes |
-
-**Winner:** pdfjs for our use case.
+**Pick pdfjs**, unless rotated text turns out to be common, which we have not measured.
 ```
 
-## Frontier mode (what to spike next)
+Name the winner, and name what would change the answer. A comparison with no
+recommendation hands the decision back to the user with more information and no help.
 
-If spikes already exist and the user asks "what should I spike next?", walk the existing directories and look for:
+## What to spike next
 
-- **Integration risks** - two validated spikes that touch the same resource but were tested independently
-- **Data handoffs** - spike A's output was assumed compatible with spike B's input; never proven
-- **Gaps in the vision** - capabilities assumed but unproven
-- **Alternative angles** - different approaches for PARTIAL or INVALIDATED spikes
+When spikes already exist and the user asks what is missing, walk `spikes/` and look for
+what nobody has tested:
 
-Propose 2-4 candidates as Given/When/Then. Let the user pick.
+- **Seams.** Two validated spikes that touch the same file, port or database, but were
+  never run together.
+- **Handoffs.** Spike A's output was assumed to fit spike B's input. Assumed, not shown.
+- **The unexamined assumption.** Something the whole idea rests on that no spike names.
+- **The second angle** on anything PARTIAL or INVALIDATED.
 
-## Output conventions
+Propose two to four, as falsifiable questions with thresholds, and let the user pick.
 
-- Create `spikes/` in the repo root (one dir per spike: `NNN-descriptive-name/`)
-- `README.md` per spike captures question, approach, results, verdict
-- Keep the code throwaway - a spike that takes 2 days to "clean up for production" was a bad spike
+## Traps
+
+- **The spike that becomes the product.** Someone will want to keep it. A spike that takes
+  two days to clean up was not a spike, it was a rushed first draft. Say so plainly.
+- **Declaring victory on one run.** See step 4.
+- **Moving the threshold.** If the number came in at 400ms against a 250ms bar, the answer
+  is INVALIDATED, not "close enough with tuning". Tuning is another spike.
+- **Spiking the easy question.** The comfortable spike is rarely the risky one. Order by
+  what kills the idea, not by what you already know how to build.
+- **Leaving `spikes/` in the commit.** Ask before committing throwaway code. Most
+  repositories want it ignored.
+
+## Failure modes
+
+**The spike will not run at all, for reasons unrelated to the question.** That is
+environment, not evidence. Fix it, or record it as blocked, but do not write INVALIDATED:
+nothing was tested.
+
+**The result is ambiguous.** The question was compound. Split it and spike the halves.
+
+**Every approach fails the same way.** That is a finding about the problem, not about the
+tools. Report it: the constraint is probably somewhere you have not looked yet.
+
+**The user keeps asking for one more spike.** Three spikes on one subject with no decision
+means the decision is not technical. Name the choice that is actually open, and hand it
+back.
