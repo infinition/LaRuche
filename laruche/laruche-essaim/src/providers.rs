@@ -1216,9 +1216,32 @@ fn normalize_base_url(url: &str) -> String {
     }
 }
 
-fn is_local_base_url(url: &str) -> bool {
+pub fn is_local_base_url(url: &str) -> bool {
     let u = url.to_lowercase();
-    u.contains("localhost") || u.contains("127.0.0.1") || u.contains("::1") || u.contains(".local")
+    if u.contains("localhost") || u.contains("127.0.0.1") || u.contains("::1") || u.contains(".local")
+    {
+        return true;
+    }
+    // Private ranges too: a llama.cpp served from another machine on the LAN has the
+    // same strict chat template and the same absence of gateway quirks as one served
+    // from this one. Only the address distinguishes a self-hosted model from a cloud
+    // API, since both are declared `provider: "openai"`.
+    let hote = u
+        .split("//")
+        .nth(1)
+        .unwrap_or(&u)
+        .split('/')
+        .next()
+        .unwrap_or_default();
+    hote.starts_with("192.168.")
+        || hote.starts_with("10.")
+        || hote.starts_with("0.0.0.0")
+        || (hote.starts_with("172.")
+            && hote
+                .split('.')
+                .nth(1)
+                .and_then(|o| o.parse::<u8>().ok())
+                .is_some_and(|o| (16..=31).contains(&o)))
 }
 
 #[cfg(test)]
@@ -1334,6 +1357,38 @@ mod tests {
         // And a truncated observation says so.
         let recolte = apres["messages"][2]["content"].as_str().unwrap();
         assert!(recolte.contains("cut to fit the request budget"), "the cut must be announced");
+    }
+
+    /// A self-hosted model is recognised by its ADDRESS, never by its provider name.
+    ///
+    /// llama.cpp, Ollama and LM Studio all speak the OpenAI API, so a local profile is
+    /// routinely declared `provider: "openai"`. The real configuration that broke:
+    /// name "llama.cpp Local (:8001)", provider "openai", base_url
+    /// "http://127.0.0.1:8001". Treated as a cloud backend, it received a trailing
+    /// system message and refused the request outright.
+    #[test]
+    fn une_adresse_locale_est_reconnue_quel_que_soit_le_nom_du_provider() {
+        for local in [
+            "http://127.0.0.1:8001",
+            "http://localhost:11434",
+            "http://192.168.1.40:8080",
+            "http://10.0.0.5:8001",
+            "http://172.16.4.2:8001",
+            "http://172.31.255.1:8001",
+            "http://0.0.0.0:8001",
+            "http://mon-pc.local:8001",
+        ] {
+            assert!(is_local_base_url(local), "must be local: {local}");
+        }
+        for distant in [
+            "https://api.deepseek.com",
+            "https://api.z.ai/api/paas/v4/chat/completions",
+            "https://api.openai.com",
+            "http://172.32.0.1:8001",
+            "http://11.0.0.1:8001",
+        ] {
+            assert!(!is_local_base_url(distant), "must be remote: {distant}");
+        }
     }
 
     /// The wire must carry no multi-byte character.

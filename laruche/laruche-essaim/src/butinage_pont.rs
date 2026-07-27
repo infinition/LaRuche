@@ -1614,10 +1614,11 @@ fn supervision_depuis(reine: &crate::brain::ReineConfig) -> Option<but::cap::rei
 /// may ignore the native channel entirely, and the rail is what saves the turn.
 /// Parsing `<tool_call>` from the output is never disabled, here or anywhere.
 fn protocole_texte_pour(config: &EssaimConfig) -> bool {
-    !matches!(
-        config.provider.as_str(),
-        "openai" | "miel" | "anthropic" | "codex"
-    )
+    backend_local(config)
+        || !matches!(
+            config.provider.as_str(),
+            "openai" | "miel" | "anthropic" | "codex"
+        )
 }
 
 /// May a `system` message travel at the TAIL of the outgoing context?
@@ -1630,10 +1631,34 @@ fn protocole_texte_pour(config: &EssaimConfig) -> bool {
 /// Deliberately its own function rather than the negation of `protocole_texte_pour`:
 /// the two happen to agree today, they answer different questions.
 fn systeme_en_queue_pour(config: &EssaimConfig) -> bool {
-    matches!(
-        config.provider.as_str(),
-        "openai" | "miel" | "anthropic" | "codex"
-    )
+    !backend_local(config)
+        && matches!(
+            config.provider.as_str(),
+            "openai" | "miel" | "anthropic" | "codex"
+        )
+}
+
+/// Is the model served from THIS machine?
+///
+/// The provider NAME is not the signal. llama.cpp, Ollama and LM Studio all expose
+/// an OpenAI-compatible API, so a local profile is routinely declared as
+/// `provider: "openai"` with `base_url: http://127.0.0.1:8001` - which is exactly
+/// how a local server ended up being treated as a cloud one, receiving a trailing
+/// system message and refusing the request outright:
+/// "raise_exception('System message must be at the beginning')".
+///
+/// The address is the truth. A local endpoint means a chat template we do not
+/// control, a small model that may need the text rail, and none of the gateway
+/// quirks the cloud backends need.
+fn backend_local(config: &EssaimConfig) -> bool {
+    config
+        .api_base
+        .as_deref()
+        .is_some_and(crate::providers::is_local_base_url)
+        || matches!(
+            config.provider.as_str(),
+            "ollama" | "llamacpp" | "llama.cpp" | "llama-server"
+        )
 }
 
 fn profil_pour(config: &EssaimConfig) -> but::ProfilModele {
