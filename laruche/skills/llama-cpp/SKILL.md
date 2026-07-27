@@ -4,171 +4,221 @@ name: llama-cpp
 description: Run a GGUF model locally with llama.cpp, and find one on the HF Hub.
 ---
 
-# llama.cpp + GGUF
+# llama.cpp and GGUF
 
-Use this skill for local GGUF inference, quant selection, or Hugging Face repo discovery for llama.cpp.
+Run a model on this machine: no account, no per-token cost, nothing leaving the disk.
+llama.cpp does the running; GGUF is the single-file format it reads; the quantisation
+level is the dial that trades quality for memory.
 
-## When to use
+Two jobs live here. Finding the right file on the Hub, which is mostly a research task,
+and running it, which is mostly an arithmetic one about how much memory the user has.
 
-- Run local models on CPU, Apple Silicon, CUDA, ROCm, or Intel GPUs
-- Find the right GGUF for a specific Hugging Face repo
-- Build a `llama-server` or `llama-cli` command from the Hub
-- Search the Hub for models that support llama.cpp
-- Enumerate available `.gguf` files and sizes for a repo
-- Decide between Q4/Q5/Q6/IQ variants for the user's RAM or VRAM
+## Finding the file
 
-## Model Discovery workflow
+The Hub's web pages are the map, but **the tree API is the territory.** A model card can
+list quants that were renamed, split or never uploaded. Confirm against the API before
+handing anyone a command.
 
-Prefer URL workflows before falling back to Python or custom scripts. Use `web_fetch` for all URL steps.
+1. **Find candidate repositories**, with `web_fetch`:
 
-1. **Search candidate repos** via `web_fetch`:
-   - `https://huggingface.co/models?apps=llama.cpp&sort=trending`
-   - Add `search=<term>` for a model family
-   - Add `num_parameters=min:0,max:24B` when the user has size constraints
+   ```
+   https://huggingface.co/models?apps=llama.cpp&sort=trending
+   https://huggingface.co/models?search=<term>&apps=llama.cpp&sort=trending
+   https://huggingface.co/models?search=<term>&apps=llama.cpp&num_parameters=min:0,max:24B&sort=trending
+   ```
 
-2. **Open the repo local-app view**:
-   - `https://huggingface.co/<repo>?local-app=llama.cpp`
-   - If the snippet is text-visible, copy the exact `llama-server` / `llama-cli` command and recommended quant as shown.
-   - Extract the `Hardware compatibility` section - prefer its exact quant labels (e.g., `UD-Q4_K_M`, `IQ4_NL_XL`) over generic tables.
+   `apps=llama.cpp` is the filter that matters: it excludes everything with no GGUF.
 
-3. **Query the tree API** to confirm what actually exists:
-   - `https://huggingface.co/api/models/<repo>/tree/main?recursive=true`
-   - Keep entries where `type` is `file` and `path` ends with `.gguf`.
-   - Use `path` and `size` as the source of truth for filenames and byte sizes.
-   - Separate quantized checkpoints from `mmproj-*.gguf` projector files and `BF16/` shard files.
+2. **Open the repository's local-app view**, which carries the maintainer's own command:
 
-4. **Reconstruct the command** if the local-app snippet is not visible:
-   - Shorthand: `llama-server -hf <repo>:<QUANT>`
-   - Exact file: `llama-server --hf-repo <repo> --hf-file <filename.gguf>`
+   ```
+   https://huggingface.co/<repo>?local-app=llama.cpp
+   ```
 
-5. Only suggest conversion from Transformers weights if the repo exposes no GGUF files.
+   If the snippet is readable, take the command and the recommended quant verbatim. The
+   `Hardware compatibility` block is better than any general table here, because it was
+   written against these specific files.
 
-## Install llama.cpp
+3. **Confirm against the tree API**, which lists what actually exists:
 
-Run via `shell_exec`:
+   ```
+   https://huggingface.co/api/models/<repo>/tree/main?recursive=true
+   ```
+
+   It returns a JSON array; keep entries whose `type` is `file` and whose `path` ends in
+   `.gguf`. `path` and `size` are the truth for filenames and bytes.
+
+   Three kinds of file show up together and must not be confused:
+
+   - the quantised checkpoints, which is what you want;
+   - `mmproj-*.gguf`, the vision projector for a multimodal model, which is loaded
+     ALONGSIDE the main file and is useless alone;
+   - shards such as `BF16/` or `*-00001-of-0000N.gguf`, an unquantised model split across
+     files.
+
+4. **Build the command.** Shorthand when the quant tag is standard, exact file when the
+   repository names things its own way:
+
+   ```bash
+   llama-server -hf bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M
+   llama-server --hf-repo <repo> --hf-file <exact-name-from-the-tree-api.gguf> -c 4096
+   ```
+
+5. Suggest converting from Transformers weights only when the repository publishes no
+   GGUF at all. It is a long job and someone has usually already done it: search for
+   `<model name> GGUF` first.
+
+**Report the label exactly as the repository writes it.** `UD-Q4_K_M` and `IQ4_NL_XL` are
+real, specific names. Normalising one to `Q4_K_M` produces a command that downloads
+nothing.
+
+## Install
 
 ```bash
-# macOS / Linux
-brew install llama.cpp
+brew install llama.cpp      # macOS, Linux
+winget install llama.cpp    # Windows
+```
 
-# Windows
-winget install llama.cpp
+From source, when you need a specific backend compiled in:
 
-# Build from source (all platforms)
+```bash
 git clone https://github.com/ggml-org/llama.cpp
 cd llama.cpp
 cmake -B build
 cmake --build build --config Release
 ```
 
-## Run from the Hub
+Verify with `llama-cli --version` before anything else. A missing binary and a failed
+model load produce different errors, and confusing them costs an hour.
+
+## The arithmetic that decides everything
+
+Before recommending a quant, work out what fits. Roughly:
+
+- **The file size is the floor**, not the total. Add context on top.
+- **Context costs memory too**, and it grows with `-c`. A large context window on a small
+  machine is what turns a working setup into an out-of-memory crash halfway through a
+  conversation.
+- **Leave headroom.** A model whose file is 90% of available RAM will swap, and a swapping
+  model is slower than the CPU-only path it was supposed to beat.
+
+Then pick:
+
+| Situation | Quant |
+|---|---|
+| General chat, the default worth starting from | `Q4_K_M` |
+| Code or anything technical, if memory allows | `Q5_K_M`, `Q6_K` |
+| It must fit, quality second | `Q3_K_M`, or an `IQ` variant |
+| Memory is not a constraint | `Q8_0` |
+
+`IQ` quants are smaller at equal quality but need more compute to unpack, so on a slow CPU
+they can be the wrong trade. Below `Q3` the model degrades in ways that look like
+stupidity rather than compression.
+
+If the local-app view named a quant for the user's hardware, prefer it over this table.
+
+## Serving
 
 ```bash
-# Shorthand (quant tag)
-llama-cli -hf bartowski/Llama-3.2-3B-Instruct-GGUF:Q8_0
-llama-server -hf bartowski/Llama-3.2-3B-Instruct-GGUF:Q8_0
-
-# Exact file (when tree API shows custom naming)
-llama-server \
-    --hf-repo microsoft/Phi-3-mini-4k-instruct-gguf \
-    --hf-file Phi-3-mini-4k-instruct-q4.gguf \
-    -c 4096
+llama-server -hf <repo>:<QUANT> -c 4096 --port 8080
 ```
 
-## Verify the server
+It exposes an OpenAI-compatible API, which is what lets existing clients talk to it
+unchanged:
 
 ```bash
-curl http://localhost:8080/v1/chat/completions \
+curl -s http://localhost:8080/v1/chat/completions \
   -H "Content-Type: application/json" \
-  -d '{"messages":[{"role":"user","content":"Write a limerick about Python exceptions"}]}'
+  -d '{"messages":[{"role":"user","content":"say hello"}]}'
 ```
 
-If the server isn't responding: check the port with `llama-server --port 8080`, and confirm the model loaded without OOM by inspecting stderr output.
+A JSON reply with a `choices` array means the model is loaded and serving. Anything else,
+read stderr: llama-server reports the load there, including the layer count it offloaded
+and the memory it took.
 
-## Python bindings (llama-cpp-python)
-
-Install via `shell_exec`:
+## Python bindings
 
 ```bash
 pip install llama-cpp-python
-# CUDA:  CMAKE_ARGS="-DGGML_CUDA=on" pip install llama-cpp-python --force-reinstall --no-cache-dir
-# Metal: CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python --force-reinstall --no-cache-dir
+
+CMAKE_ARGS="-DGGML_CUDA=on"  pip install llama-cpp-python --force-reinstall --no-cache-dir
+CMAKE_ARGS="-DGGML_METAL=on" pip install llama-cpp-python --force-reinstall --no-cache-dir
 ```
 
-Use with `execute_code`:
+The plain install is CPU-only. GPU support is compiled in, so switching backends means
+reinstalling with `--force-reinstall --no-cache-dir`: without those flags pip serves the
+cached CPU wheel and the GPU is silently never used.
 
 ```python
 from llama_cpp import Llama
 
-# Basic generation
-llm = Llama(model_path="./model-q4_k_m.gguf", n_ctx=4096, n_gpu_layers=35, n_threads=8)
-out = llm("What is machine learning?", max_tokens=256, temperature=0.7)
-print(out["choices"][0]["text"])
+llm = Llama(model_path="C:/models/model-q4_k_m.gguf",
+            n_ctx=4096, n_gpu_layers=35, n_threads=8)
 
-# Chat completion
-llm2 = Llama(model_path="./model-q4_k_m.gguf", n_ctx=4096, n_gpu_layers=35, chat_format="llama-3")
-resp = llm2.create_chat_completion(
-    messages=[
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": "What is Python?"},
-    ],
+reply = llm.create_chat_completion(
+    messages=[{"role": "user", "content": "what is a GGUF file"}],
     max_tokens=256,
 )
-print(resp["choices"][0]["message"]["content"])
+print(reply["choices"][0]["message"]["content"])
 
-# Streaming
-for chunk in llm("Explain quantum computing:", max_tokens=256, stream=True):
+for chunk in llm("explain quantisation:", max_tokens=256, stream=True):
     print(chunk["choices"][0]["text"], end="", flush=True)
 
-# Embeddings
-llm3 = Llama(model_path="./model-q4_k_m.gguf", embedding=True, n_gpu_layers=35)
-vec = llm3.embed("This is a test sentence.")
-print(f"Embedding dimension: {len(vec)}")
-
-# Load directly from Hub
-llm4 = Llama.from_pretrained(
-    repo_id="bartowski/Llama-3.2-3B-Instruct-GGUF",
-    filename="*Q4_K_M.gguf",
-    n_gpu_layers=35,
-)
+hub = Llama.from_pretrained(repo_id="bartowski/Llama-3.2-3B-Instruct-GGUF",
+                            filename="*Q4_K_M.gguf", n_gpu_layers=35)
 ```
 
-**Common failure**: `llama_cpp` raises `ValueError: Model file not found` - verify the path or the `filename` glob pattern against the tree API output.
+`n_gpu_layers` is how many transformer layers move to the GPU. `0` is CPU-only, `-1` is
+all of them, and a number too high for the available VRAM fails at load rather than
+falling back.
 
-## Choosing a quant
-
-- Prefer the exact quant HF marks as compatible for the user's hardware.
-- General chat: `Q4_K_M`
-- Code / technical: `Q5_K_M` or `Q6_K` if memory allows
-- Tight RAM: `Q3_K_M` or `IQ` variants - only if the user prioritizes fit over quality
-- Multimodal repos: mention `mmproj-*.gguf` separately - it is the vision projector, not the main model
-- Do not normalize repo-native labels: if HF says `UD-Q4_K_M`, report `UD-Q4_K_M`
-
-## Output format for discovery requests
+## Reporting a discovery
 
 ```text
 Repo: <repo>
-Recommended quant from HF: <label> (<size>)
-llama-server: <command>
-Other GGUFs:
-- <filename> - <size> [projector?]
-Source URLs:
-- <local-app URL>
-- <tree API URL>
+Recommended: <label exactly as published> (<size>)
+Command: llama-server -hf <repo>:<label> -c 4096
+Also available:
+  <filename>  <size>
+  mmproj-<...>.gguf  <size>   (vision projector, load with the main model)
+Sources:
+  https://huggingface.co/<repo>?local-app=llama.cpp
+  https://huggingface.co/api/models/<repo>/tree/main?recursive=true
 ```
 
-## Key URLs
+Give the sizes. "Q4_K_M is recommended" is not actionable; "Q4_K_M, 2.0 GB" is.
 
-```text
-https://huggingface.co/models?apps=llama.cpp&sort=trending
-https://huggingface.co/models?search=<term>&apps=llama.cpp&sort=trending
-https://huggingface.co/models?search=<term>&apps=llama.cpp&num_parameters=min:0,max:24B&sort=trending
-https://huggingface.co/<repo>?local-app=llama.cpp
-https://huggingface.co/api/models/<repo>/tree/main?recursive=true
-```
+## Traps
 
-## External references
+- **A quant on the model card that does not exist as a file.** Cards go stale. The tree
+  API does not.
+- **Downloading before checking the size.** These are gigabytes on someone's connection
+  and disk. State the number first.
+- **`mmproj-*.gguf` treated as the model.** It is the vision half and produces nothing
+  alone.
+- **Normalising a repository's own quant label.** It is part of the filename.
+- **Reinstalling llama-cpp-python without `--no-cache-dir`.** pip serves the cached
+  CPU build and the GPU flags are silently ignored.
+- **Raising `-c` to the model's maximum by reflex.** Context is memory. A 128k window on a
+  laptop is an out-of-memory error waiting for a long conversation.
 
-- GitHub: https://github.com/ggml-org/llama.cpp
-- HF GGUF + llama.cpp docs: https://huggingface.co/docs/hub/gguf-llamacpp
-- HF Local Apps docs: https://huggingface.co/docs/hub/main/local-apps
+## Failure modes
+
+**`llama-server: command not found`.** Not installed, or not on PATH after a source build:
+the binaries land in `build/bin/`.
+
+**The model loads, then the process dies.** Out of memory. Lower `-c` first, since it is
+free to change, then drop to a smaller quant.
+
+**Generation is far slower than expected, and the GPU is idle.** `n_gpu_layers` is 0, or
+the wheel is the CPU build. Read llama-server's stderr: it prints how many layers were
+offloaded.
+
+**`ValueError: Model file not found`.** The path or the `filename` glob matches nothing.
+Check it against the tree API output rather than guessing at the pattern.
+
+**The download stops partway, repeatedly.** Large files over an unstable connection. Fetch
+it with `curl -C -` to resume, and point `--hf-file` at the local path instead.
+
+**Output is fluent but wrong in a way a smaller model would not be.** The quant is too
+aggressive for the task. Move up one level before concluding the model is unsuitable.

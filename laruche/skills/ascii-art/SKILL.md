@@ -4,189 +4,177 @@ name: ascii-art
 description: Render text or an image as ASCII art for terminal-friendly output.
 ---
 
-# ASCII Art Skill
+# ASCII art
 
-Multiple tools for ASCII art needs. All local CLI or free REST APIs - no API keys required.
+Text that has to survive a terminal, a log file, a commit message or a plain-text channel,
+where an image cannot go. A banner for a CLI, a QR code somebody can scan off the screen,
+a picture reduced to characters.
 
-## Decision Flow
+Everything here is a local CLI or a keyless HTTP endpoint. Nothing needs an account.
 
-1. **Text banner** → pyfiglet (local, 571 fonts) or asciified API (no install, 250+ fonts)
-2. **Message in character art** → cowsay
-3. **Decorative border/frame** → boxes (pipeable from pyfiglet/asciified)
-4. **Subject art** (cat, dragon, rocket…) → ascii.co.uk via curl + Python parse
-5. **Image → ASCII** → ascii-image-converter (PNG/JPEG/GIF/WEBP/URL) or jp2a (JPEG only)
-6. **QR code** → qrenco.de via curl
-7. **Weather/moon art** → wttr.in via curl
-8. **Custom/creative** → LLM generation with Unicode palette
-9. **Tool missing** → install it or fall back to next option
+## Pick by what you were asked for
 
----
+| You want | Use |
+|---|---|
+| A text banner | `pyfiglet` locally, or the asciified endpoint with no install |
+| A character saying something | `cowsay` |
+| A frame around existing output | `boxes`, piped |
+| Coloured terminal text | `toilet` |
+| An image turned into characters | `ascii-image-converter`, or `jp2a` for JPEG |
+| A QR code | `qrenco.de` |
+| Weather or a moon phase | `wttr.in` |
+| Something no tool covers | draw it yourself, palette at the end |
 
-## Tool 1: pyfiglet (local, 571 fonts)
+## Banners
+
+Locally, which is fastest and works offline:
 
 ```bash
-pip install pyfiglet --break-system-packages -q
-python3 -m pyfiglet "YOUR TEXT" -f slant
-python3 -m pyfiglet "TEXT" -f doom -w 80    # set width
-python3 -m pyfiglet --list_fonts             # list all fonts
+pip install pyfiglet
+python -m pyfiglet "LARUCHE" -f slant
+python -m pyfiglet "LARUCHE" -f doom -w 80
+python -m pyfiglet --list_fonts | head -40
 ```
 
-| Style | Font | Best for |
-|-------|------|----------|
-| Clean & modern | `slant` | Project names, headers |
-| Bold & blocky | `doom` | Titles, logos |
-| Big & readable | `big` | Banners |
-| Classic banner | `banner3` | Wide displays |
-| Compact | `small` | Subtitles |
-| Cyberpunk | `cyberlarge` | Tech themes |
-| 3D effect | `3-d` | Splash screens |
-
-**Tips:** Short text (1-8 chars) → `doom`/`block`; long text → `small`/`mini`.
-
----
-
-## Tool 2: asciified API (remote, no install)
+Without installing anything:
 
 ```bash
-curl -s "https://asciified.thelicato.io/api/v2/ascii?text=Hello+World"
-curl -s "https://asciified.thelicato.io/api/v2/ascii?text=Hello&font=Slant"
-curl -s "https://asciified.thelicato.io/api/v2/ascii?text=Hello&font=Star+Wars"
-curl -s "https://asciified.thelicato.io/api/v2/fonts"   # list all fonts (JSON array)
+curl -s "https://asciified.thelicato.io/api/v2/ascii?text=LaRuche&font=Slant"
+curl -s "https://asciified.thelicato.io/api/v2/fonts"
 ```
 
-URL-encode spaces as `+`. Font names are case-sensitive. Response is plain text.
+Spaces become `+` in the query string. Font names are case sensitive: `Slant` works,
+`slant` does not. The response is plain text and **arrives without a trailing newline**,
+so the next thing you print lands on the same line. Add one.
 
----
+Choosing a font is mostly about length. Short and punchy takes a heavy face; anything long
+needs a narrow one, or it wraps and becomes unreadable:
 
-## Tool 3: cowsay
+| Text | Font |
+|---|---|
+| 1 to 8 characters | `doom`, `block`, `3-d` |
+| a normal word | `slant`, `big` |
+| a phrase | `small`, `mini` |
+
+Check the width before showing it. Terminal art over 80 columns wraps, and wrapped ASCII
+art is just noise.
+
+## Frames, characters, colour
 
 ```bash
-sudo apt install cowsay -y   # Debian/Ubuntu | brew install cowsay (macOS)
-
-cowsay "Hello World"
-cowsay -f tux "Linux rules"   # Tux; -f dragon, -f tux, -f sheep…
-cowthink "Hmm..."             # thought bubble
-cowsay -l                     # list 50+ characters
-cowsay -e "OO" -T "U " "Msg" # custom eyes + tongue
+cowsay "the build is green"
+cowsay -f tux "hello"
+cowthink "hmm"
+cowsay -l                     # every available character
 ```
 
-Eye modifiers: `-b` (borg), `-d` (dead), `-g` (greedy), `-s` (stoned).
-
----
-
-## Tool 4: boxes (70+ border designs)
-
 ```bash
-sudo apt install boxes -y   # brew install boxes (macOS)
-
-echo "Hello" | boxes                     # default
-echo "Hello" | boxes -d stone
-echo "Hello" | boxes -d parchment
-echo "Hello" | boxes -d cat
-echo "Hello" | boxes -d c-cmt           # C-style comment block
-echo "Hello" | boxes -a c              # center text
-boxes -l                               # list all designs
+echo "release 2.4.1" | boxes -d stone
+echo "note" | boxes -d c-cmt          # a C comment block
+boxes -l                              # every design
 ```
 
-Combine with pyfiglet or asciified:
+They compose, which is the point:
 
 ```bash
-python3 -m pyfiglet "LARUCHE" -f slant | boxes -d stone
-curl -s "https://asciified.thelicato.io/api/v2/ascii?text=LARUCHE&font=Slant" | boxes -d stone
+python -m pyfiglet "LARUCHE" -f slant | boxes -d stone
 ```
 
----
-
-## Tool 5: TOIlet (colored text art)
-
-ANSI color effects. Works in terminals; may not render in plain text contexts.
+`toilet` adds ANSI colour:
 
 ```bash
-sudo apt install toilet toilet-fonts -y   # brew install toilet (macOS)
-
-toilet "Hello World"
-toilet -f bigmono12 "Hello"
-toilet --gay "Rainbow!"       # rainbow
-toilet --metal "Metal!"       # metallic
-toilet -F border "Bordered"
-toilet -F border --gay "Fancy!"
-toilet -F list                # list all filters
+toilet -f bigmono12 --metal "LARUCHE"
+toilet -F border "framed"
 ```
 
-Filters: `crop`, `gay`, `metal`, `flip`, `flop`, `180`, `left`, `right`, `border`
+**Colour is escape codes, not characters.** In a terminal it looks good; in a file, a commit
+message or a chat message it becomes `\x1b[35m` litter. Use `toilet` only when the
+destination is a terminal, and `pyfiglet` everywhere else.
 
----
+On Debian and Ubuntu these come from `apt install cowsay boxes toilet`, on macOS from
+`brew install cowsay boxes toilet`. All three need root to install. If you do not have it,
+the asciified endpoint covers banners and there is no local substitute for the others: say
+so rather than trying to install for ten minutes.
 
-## Tool 6: Image to ASCII
-
-**Option A: ascii-image-converter** (recommended - PNG/JPEG/GIF/WEBP/URLs)
+## Images
 
 ```bash
-sudo snap install ascii-image-converter
-# OR: go install github.com/TheZoraiz/ascii-image-converter@latest
-
 ascii-image-converter image.png
-ascii-image-converter image.png -C               # color
-ascii-image-converter image.png -d 60,30         # set dimensions
-ascii-image-converter image.png -b               # braille chars
-ascii-image-converter https://url/image.jpg      # direct URL
-ascii-image-converter image.png --save-txt out   # save as text
+ascii-image-converter image.png -C            # colour
+ascii-image-converter image.png -d 60,30      # columns,rows
+ascii-image-converter image.png -b            # braille, much finer
+ascii-image-converter https://example.com/photo.jpg
 ```
 
-**Option B: jp2a** (lightweight, JPEG only)
+Install with `go install github.com/TheZoraiz/ascii-image-converter@latest`, or
+`snap install ascii-image-converter`. For JPEG only, `jp2a --width=80 image.jpg` is
+smaller and usually already packaged.
+
+Set the width explicitly, always. The default guesses from the terminal, and the terminal
+it guesses is not the one the user is reading in.
+
+Photographs convert badly. High contrast with a clear silhouette (a logo, an icon, a
+diagram) survives; a group photo becomes grey mush. Look at the result before sending it,
+and if it is unreadable say so instead of shipping it.
+
+## QR codes and weather
 
 ```bash
-sudo apt install jp2a -y
-jp2a --width=80 image.jpg
-jp2a --colors image.jpg
+curl -s "https://qrenco.de/https://example.com"
+curl -s "https://wttr.in/London"
+curl -s "https://wttr.in/Moon"
 ```
 
----
+A QR code needs its aspect ratio to survive. Anything that reflows lines, or renders in a
+proportional font, breaks it. Send it inside a fenced code block, and tell the user it must
+be viewed in a monospace font to scan.
 
-## Tool 7: Pre-Made Art - ascii.co.uk
+For an actual weather answer rather than the picture, use the `weather_forecast` skill.
 
-URL pattern: `https://ascii.co.uk/art/{subject}` - e.g. `cat`, `dragon`, `rocket`, `skull`, `robot`. Preserve artist signatures.
+## Drawing it yourself
 
-```bash
-curl -s 'https://ascii.co.uk/art/cat' -o /tmp/ascii_art.html
+When nothing above fits, compose it from a palette. Keep every line the same visual width,
+because misalignment is the only thing a reader notices.
+
+```
+box drawing   ╔ ╗ ╚ ╝ ║ ═ ╠ ╣ ╦ ╩ ╬ ┌ ┐ └ ┘ │ ─ ├ ┤ ┬ ┴ ┼ ╭ ╮ ╰ ╯
+blocks        ░ ▒ ▓ █ ▄ ▀ ▌ ▐ ▖ ▗ ▘ ▝ ▚ ▞
+shapes        ◆ ◇ ● ○ ◉ ■ □ ▲ △ ▼ ▽ ★ ☆ ◀ ▶ ⬡ ⬢
 ```
 
-```python
-import re, html
-with open('/tmp/ascii_art.html') as f:
-    text = f.read()
-arts = re.findall(r'<pre[^>]*>(.*?)</pre>', text, re.DOTALL)
-for art in arts:
-    clean = re.sub(r'<[^>]+>', '', art)
-    clean = html.unescape(clean).strip()
-    if len(clean) > 30:
-        print(clean)
-        print('\n---\n')
-```
+Sixty columns maximum, fifteen lines for a banner and twenty-five for a scene. Monospace
+is assumed by every character above: in a proportional font the alignment collapses
+entirely.
 
-**GitHub Octocat (bonus):** `curl -s https://api.github.com/octocat`
+## Traps
 
----
+- **ANSI colour outside a terminal.** See above. This is the most common way this output
+  gets ruined.
+- **Width.** Over 80 columns it wraps. Check before sending.
+- **Wide characters.** Box-drawing and block characters are single-width, but emoji and
+  CJK are double-width and will not line up with them. Do not mix.
+- **Fenced code blocks are mandatory.** Outside one, markdown renderers eat the spacing
+  and collapse the art.
+- **Fonts are case sensitive** in the asciified API.
+- **Credit stays on the art.** Pre-made ASCII art often carries the artist's initials in a
+  corner. Keep them.
 
-## Tool 8: Fun ASCII via curl
+## Failure modes
 
-```bash
-curl -s "qrenco.de/https://example.com"   # QR code
-curl -s "wttr.in/London"                  # weather with ASCII graphics
-curl -s "wttr.in/Moon"                    # moon phase
-curl -s "v2.wttr.in/London"              # detailed weather
-```
+**`pyfiglet: No module named`.** Not installed. `pip install pyfiglet`, or fall back to the
+asciified endpoint, which needs nothing.
 
----
+**`cowsay: command not found` and no root.** No local fallback exists. Say so; do not spend
+the turn attempting installs that will not work.
 
-## Tool 9: LLM-Generated Custom Art (Fallback)
+**The banner is wrapped and unreadable.** The font is too wide for the text. Move down the
+font table, or shorten the text.
 
-Use when no tool fits. Character palette:
+**The asciified endpoint returns an empty body.** The font name is wrong, or wrongly cased.
+List the fonts and copy one exactly.
 
-**Box Drawing:** `╔ ╗ ╚ ╝ ║ ═ ╠ ╣ ╦ ╩ ╬ ┌ ┐ └ ┘ │ ─ ├ ┤ ┬ ┴ ┼ ╭ ╮ ╰ ╯`
+**The image came out as grey mush.** Too little contrast for the medium. Try `-b` for
+braille, raise the dimensions, or tell the user this image will not reduce to characters.
 
-**Block Elements:** `░ ▒ ▓ █ ▄ ▀ ▌ ▐ ▖ ▗ ▘ ▝ ▚ ▞`
-
-**Geometric & Symbols:** `◆ ◇ ◈ ● ○ ◉ ■ □ ▲ △ ▼ ▽ ★ ☆ ✦ ✧ ◀ ▶ ◁ ▷ ⬡ ⬢ ⌂`
-
-Constraints: max 60 chars wide (terminal-safe), max 15 lines for banners / 25 for scenes. Monospace only.
+**It looked right in the terminal and broken in the chat.** Colour codes, or no code fence.
+Re-render without `toilet` and wrap it in a fence.
