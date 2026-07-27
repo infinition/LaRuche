@@ -32,6 +32,11 @@ Each op needs the matching watcher_type, otherwise it is false at every poll:
   watcher_type="log"  -> reading NEW LINES of a growing file. Required for contient / contenu_change.
   watcher_type="file" -> lifecycle of a path: apparu, supprime, modifie, taille_depasse_mo. Carries NO text.
   watcher_type="url"  -> reachability and page text: est_down, down_depuis_min, retour_en_ligne, status_http, contient.
+  watcher_type="command" -> runs `target` as a shell command each poll and observes its OUTPUT and
+                            exit code: contient, contenu_change, code_retour. This is how you watch
+                            anything that is not a file, a log or a page: a lamp, a service, a
+                            container, free disk space. Prefer it to a cron: a cron wakes a whole
+                            model turn every tick, these rules cost nothing.
 
 So "tell me when a line of app.log contains ERROR" is a LOG watcher:
   watcher_type="log", target="C:\\...\\app.log",
@@ -559,7 +564,7 @@ impl Abeille for AbeilleWatcherCreate {
             "type": "object",
             "properties": {
                 "name": { "type": "string" },
-                "watcher_type": { "type": "string", "description": "'file', 'url', or 'log'" },
+                "watcher_type": { "type": "string", "description": "'file', 'url', 'log', or 'command' (runs target as a shell command and watches its output)" },
                 "target": { "type": "string", "description": "File path or URL to watch" },
                 "condition": { "type": "string", "description": "LEGACY natural-language condition (LLM gate at every event). PREFER 'regles' below: deterministic, free at runtime. For 'log': plain substring the new lines must contain." },
                 "regles": { "type": "object", "description": "COMPILED condition tree (preferred): deterministic predicates evaluated at every poll for free. Ops: et/ou/non, jour_semaine{jours:[mar,jeu]}, heure_entre{de,a}, plage_date{du,au}, apparu, supprime, modifie, contenu_change, est_down, down_depuis_min{minutes}, retour_en_ligne, contient{motif}, taille_depasse_mo{mo}, status_http{codes}, llm_check{question} (the ONLY op that costs an LLM call, after the deterministic prefix passed). A state rule (down_depuis_min) re-fires every cooldown while true. Each op needs the matching watcher_type: contient and contenu_change need log or url, apparu/supprime/modifie/taille_depasse_mo need file, est_down/down_depuis_min/retour_en_ligne/status_http need url.", "example": {"op":"et","regles":[{"op":"contient","motif":"ERROR"},{"op":"heure_entre","de":"08:00","a":"23:56"}]} },
@@ -1042,6 +1047,16 @@ fn valider_cible_watcher(
                 return Err(format!(
                     "URL target must start with http:// or https:// (got '{cible}')."
                 ));
+            }
+            Ok(())
+        }
+        // The target IS the command, so there is no path or URL to check. Safety is
+        // enforced where it runs, in the watcher crate, which refuses a destructive
+        // command outright: a rule that only lives here would be bypassed by a watcher
+        // created any other way.
+        laruche_watchers::WatcherType::Commande => {
+            if cible.trim().is_empty() {
+                return Err("A command watcher needs a command in 'target'.".to_string());
             }
             Ok(())
         }

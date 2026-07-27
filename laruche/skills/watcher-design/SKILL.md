@@ -26,6 +26,7 @@ That field wakes a model on every single event. The `regles` tree costs nothing.
 | `log` | new lines appended to a growing file | `contient`, `contenu_change` |
 | `file` | the lifecycle of a path. Carries NO text. | `apparu`, `supprime`, `modifie`, `taille_depasse_mo` |
 | `url` | reachability and page text | `est_down`, `down_depuis_min`, `retour_en_ligne`, `status_http`, `contient`, `contenu_change` |
+| `command` | the OUTPUT and exit code of a shell command, re-run at every poll | `contient`, `contenu_change`, `code_retour` |
 
 "Tell me when a line of app.log contains ERROR" is a **log** watcher. Written as `file`,
 `contient` reads an observation that carries no text, so it is false forever and the
@@ -61,6 +62,7 @@ Deterministic leaves, evaluated at every poll at zero cost:
 | `contient` | `motif: "ERROR"` | fresh content contains it, case-insensitive |
 | `taille_depasse_mo` | `mo: 100` | the watched file reached that size |
 | `status_http` | `codes: [500, 503]` | the last status is one of them |
+| `code_retour` | `codes: [0]` | the command exited with one of them |
 
 One semantic leaf, the only one that costs a model call, and only after the
 deterministic part already passed:
@@ -93,6 +95,29 @@ they want to be REMINDED.
    threshold is zero. Fix and retry.
 6. Restate the compiled tree to the user in one readable line, so they can confirm the
    logic you inferred.
+
+## Watching something that is not a file, a page or a log
+
+A lamp, a service, a container, free disk space: none of those is a file or a URL, and
+they all answer to a CLI. That is the `command` watcher. `target` IS the command, it is
+re-run at every poll, and the rules read its output and its exit code.
+
+```json
+{"watcher_type":"command","target":"openhue get light \"Hue Play Bureau fab\"",
+ "regles":{"op":"contient","motif":"[on]"}}
+```
+
+**Reach for this before a cron.** A cron wakes a whole model turn at every tick to look
+at something that did not change; a rule tree evaluates for free. The only reason to
+schedule a prompt instead is when the ANSWER itself needs a model, not the detection.
+
+The first poll only records a baseline and never fires: otherwise a lamp that was
+already on would notify you the moment you asked to be told when it comes on.
+
+Default interval is 60s and default cooldown 900s, because running a process is heavier
+than reading a file and because a state that stays true would otherwise notify every
+minute. Destructive commands are refused outright: a watcher runs unattended, forever,
+so what is merely risky by hand is a standing hazard here.
 
 ## Removing one, and checking a file by hand
 

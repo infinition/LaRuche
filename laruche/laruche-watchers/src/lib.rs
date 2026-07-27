@@ -15,6 +15,13 @@ pub enum WatcherType {
     File,
     Url,
     Log,
+    /// A COMMAND whose output is the observation.
+    ///
+    /// The other three cover what a file, a page or a log says. Everything else,
+    /// a lamp, a service, a container, free disk space, is only reachable through a
+    /// CLI, and without this the agent falls back to a cron: a cron wakes a whole
+    /// model turn at every tick, where a rule tree costs nothing.
+    Commande,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,7 +70,8 @@ impl Watcher {
     pub fn interval_effectif(&self) -> u64 {
         self.interval_secs
             .unwrap_or(match self.watcher_type {
-                WatcherType::Url => 60,
+                // Running a process is heavier than a stat: poll it like a URL.
+                WatcherType::Url | WatcherType::Commande => 60,
                 _ => 10,
             })
             .max(5)
@@ -73,7 +81,8 @@ impl Watcher {
     /// spam runs and notifications); file/log transitions fire freely by default.
     pub fn cooldown_effectif(&self) -> u64 {
         self.cooldown_secs.unwrap_or(match self.watcher_type {
-            WatcherType::Url => 900,
+            // A state that stays true (a lamp left on) must not notify every minute.
+            WatcherType::Url | WatcherType::Commande => 900,
             _ => 0,
         })
     }
@@ -116,6 +125,8 @@ pub struct Observation {
     pub taille_octets: Option<u64>,
     /// Last observed HTTP status (url watchers).
     pub status_http: Option<u16>,
+    /// Exit code of the command (command watchers).
+    pub code_retour: Option<i32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -167,6 +178,9 @@ pub enum Regle {
     Contient { motif: String },
     TailleDepasseMo { mo: f64 },
     StatusHttp { codes: Vec<u16> },
+    /// Exit code of a watched command. `0` means it succeeded, anything else is a
+    /// failure, which is how you watch a service rather than its output text.
+    CodeRetour { codes: Vec<i32> },
     /// Semantic leaf: the only rule that costs an LLM call, asked AFTER the
     /// deterministic prefix passed.
     LlmCheck { question: String },
@@ -267,6 +281,9 @@ impl Regle {
             Regle::StatusHttp { codes } => bool_verdict(
                 obs.status_http.map(|s| codes.contains(&s)).unwrap_or(false),
             ),
+            Regle::CodeRetour { codes } => bool_verdict(
+                obs.code_retour.map(|c| codes.contains(&c)).unwrap_or(false),
+            ),
             Regle::LlmCheck { question } => BesoinLlm(question.clone()),
         }
     }
@@ -365,6 +382,12 @@ impl Regle {
                 }
                 Ok(())
             }
+            Regle::CodeRetour { codes } => {
+                if codes.is_empty() {
+                    return Err("`code_retour` needs at least one code in `codes`".into());
+                }
+                Ok(())
+            }
             Regle::LlmCheck { question } => {
                 if question.trim().is_empty() {
                     return Err("`llm_check` needs a non-empty `question`".into());
@@ -407,16 +430,28 @@ impl Regle {
             }
             Regle::Non { regle } => regle.valider_pour(wtype),
 
-            // Need fresh text: only log and url observations carry any.
+            // Need fresh text: a log, a page, or a command's output.
             Regle::Contient { .. } => exige(
-                matches!(wtype, WatcherType::Log | WatcherType::Url),
+                matches!(
+                    wtype,
+                    WatcherType::Log | WatcherType::Url | WatcherType::Commande
+                ),
                 "contient",
-                "log or url",
+                "log, url or command",
             ),
             Regle::ContenuChange => exige(
-                matches!(wtype, WatcherType::Log | WatcherType::Url),
+                matches!(
+                    wtype,
+                    WatcherType::Log | WatcherType::Url | WatcherType::Commande
+                ),
                 "contenu_change",
-                "log or url",
+                "log, url or command",
+            ),
+            // The exit code exists only where a process ran.
+            Regle::CodeRetour { .. } => exige(
+                matches!(wtype, WatcherType::Commande),
+                "code_retour",
+                "command",
             ),
 
             // File lifecycle and size: only the file watcher reports them.
@@ -477,7 +512,11 @@ impl Regle {
                 "http∈[{}]",
                 codes.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(",")
             ),
-            Regle::LlmCheck { question } => format!("🧠« {question} »"),
+
+            Regle::CodeRetour { codes } => format!(
+                "exit∈[{}]",
+                codes.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(",")
+            ),            Regle::LlmCheck { question } => format!("🧠« {question} »"),
         }
     }
 }
@@ -1135,8 +1174,172 @@ async fn evaluate_watcher(
                 },
             ))
         }
+        WatcherType::Commande => {
+            // A command is the only way to observe a lamp, a service, a container or
+            // free disk space. The shape mirrors the log branch: `last_state` holds a
+            // fingerprint of the previous output, so `contenu_change` works, and the
+            // output itself feeds `contient`.
+            if let Some(motif) = commande_refusee(&watcher.target) {
+                return Err(anyhow::anyhow!(
+                    "command refused for safety (forbidden pattern '{motif}')"
+                ));
+            }
+
+            let sortie = tokio::time::timeout(
+                std::time::Duration::from_secs(TIMEOUT_COMMANDE_SECS),
+                executer_commande(&watcher.target),
+            )
+            .await;
+
+            // A timeout is an observation, not an error: a command that stopped
+            // answering is exactly the kind of change someone wants to be told about.
+            let (texte, code) = match sortie {
+                Ok(Ok(v)) => v,
+                Ok(Err(e)) => (format!("error: {e}"), None),
+                Err(_) => (
+                    format!("error: command timed out after {TIMEOUT_COMMANDE_SECS}s"),
+                    None,
+                ),
+            };
+
+            let mut texte = normaliser_sortie(&texte);
+            if texte.len() > 20_000 {
+                let mut debut = texte.len() - 20_000;
+                while !texte.is_char_boundary(debut) {
+                    debut += 1;
+                }
+                texte = texte[debut..].to_string();
+            }
+
+            let empreinte = empreinte_sortie(&texte, code);
+            let change = watcher.last_state.as_deref() != Some(empreinte.as_str());
+            // First poll establishes the baseline. Firing on it would notify about a
+            // lamp that was already on before anyone asked to be told.
+            let premier_passage = watcher.last_state.is_none();
+
+            // Legacy `condition` semantics, kept for watchers with no rule tree.
+            let triggered = if watcher.condition.trim().is_empty() {
+                change && !premier_passage
+            } else {
+                texte.contains(&watcher.condition)
+            };
+            let desc = if watcher.condition.trim().is_empty() {
+                format!(
+                    "command output changed (exit {}): {}",
+                    code.map(|c| c.to_string()).unwrap_or_else(|| "?".into()),
+                    texte.chars().take(300).collect::<String>()
+                )
+            } else {
+                format!(
+                    "command output contains '{}': {}",
+                    watcher.condition,
+                    texte.chars().take(300).collect::<String>()
+                )
+            };
+
+            Ok((
+                triggered,
+                Some(empreinte),
+                desc,
+                Observation {
+                    evenement: if change && !premier_passage {
+                        Evenement::ContenuChange
+                    } else {
+                        Evenement::Rien
+                    },
+                    nouveau_contenu: texte,
+                    code_retour: code,
+                    ..Default::default()
+                },
+            ))
+        }
     }
 }
+
+/// A watched command must answer fast. Past this it is not a state check any more,
+/// and the poll loop would pile up processes.
+const TIMEOUT_COMMANDE_SECS: u64 = 20;
+
+/// Patterns refused in a watched command.
+///
+/// Mirrors the `shell_exec` blocklist rather than importing it: this crate does not
+/// depend on the tool registry, and a watcher is worse than a one-off call anyway. It
+/// runs unattended, every minute, forever, so what is merely risky by hand becomes a
+/// standing hazard here. Returns the offending pattern, for an error the user can act on.
+fn commande_refusee(commande: &str) -> Option<&'static str> {
+    const INTERDITS: &[&str] = &[
+        "rm -rf /",
+        "rm -rf ~",
+        "rm -rf .",
+        "mkfs",
+        "dd if=",
+        ":(){",
+        "shutdown",
+        "reboot",
+        "format ",
+        "del /s /q c:\\",
+        "rd /s /q c:\\",
+        // A watcher must observe, not write. These are the ones that turn a poll loop
+        // into a repeated mutation.
+        "remove-item -recurse",
+        "> /dev/sda",
+    ];
+    let c = commande.to_lowercase();
+    INTERDITS.iter().find(|p| c.contains(**p)).copied()
+}
+
+/// Run the command through the platform shell and return `(output, exit code)`.
+///
+/// stderr is merged into stdout: a watcher on a service wants the error text as much as
+/// the normal output, and splitting them would only make the rules harder to write.
+async fn executer_commande(commande: &str) -> Result<(String, Option<i32>)> {
+    let sortie = if cfg!(windows) {
+        tokio::process::Command::new("powershell")
+            .args(["-NoProfile", "-NonInteractive", "-Command", commande])
+            .output()
+            .await?
+    } else {
+        tokio::process::Command::new("sh")
+            .args(["-c", commande])
+            .output()
+            .await?
+    };
+    let mut texte = String::from_utf8_lossy(&sortie.stdout).to_string();
+    let err = String::from_utf8_lossy(&sortie.stderr);
+    if !err.trim().is_empty() {
+        if !texte.is_empty() {
+            texte.push('\n');
+        }
+        texte.push_str(&err);
+    }
+    Ok((texte, sortie.status.code()))
+}
+
+/// Fingerprint of an output, stored in `last_state` so `contenu_change` can compare.
+///
+/// A hash, not the text: `last_state` is persisted on every poll and a command can
+/// print thousands of lines. The exit code is part of it, so a command that starts
+/// failing while printing the same thing still counts as a change.
+fn empreinte_sortie(texte: &str, code: Option<i32>) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    texte.hash(&mut h);
+    code.hash(&mut h);
+    format!("{:x}", h.finish())
+}
+
+/// Collapse whitespace so a command that pads its output differently between two runs
+/// does not read as a change.
+fn normaliser_sortie(texte: &str) -> String {
+    texte
+        .lines()
+        .map(str::trim_end)
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_string()
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -1520,5 +1723,58 @@ mod tests {
         assert_eq!(w.interval_effectif(), 5);
         w.cooldown_secs = Some(1200);
         assert_eq!(w.cooldown_effectif(), 1200);
+    }
+}
+
+#[cfg(test)]
+mod tests_commande {
+    use super::*;
+
+    #[test]
+    fn une_commande_destructrice_est_refusee() {
+        // A watcher runs unattended, every minute, forever. What is merely risky by
+        // hand is a standing hazard here, so the guard is stricter than a one-off call.
+        assert!(commande_refusee("rm -rf / --no-preserve-root").is_some());
+        assert!(commande_refusee("Remove-Item -Recurse C:\\").is_some());
+        assert!(commande_refusee("shutdown /s /t 0").is_some());
+        // What people actually watch must go through untouched.
+        assert!(commande_refusee("openhue get light \"Hue Play Bureau fab\"").is_none());
+        assert!(commande_refusee("docker ps --filter status=running").is_none());
+        assert!(commande_refusee("git status --porcelain").is_none());
+    }
+
+    #[test]
+    fn lempreinte_change_avec_la_sortie_et_avec_le_code() {
+        let a = empreinte_sortie("light on", Some(0));
+        assert_eq!(a, empreinte_sortie("light on", Some(0)));
+        assert_ne!(a, empreinte_sortie("light off", Some(0)));
+        // Same text, different exit code: a command that starts failing while printing
+        // the same thing is still a change worth firing on.
+        assert_ne!(a, empreinte_sortie("light on", Some(1)));
+    }
+
+    #[test]
+    fn la_sortie_est_normalisee_pour_ne_pas_faussement_changer() {
+        assert_eq!(normaliser_sortie("  a  \n b   \n"), "a\n b");
+        assert_eq!(normaliser_sortie("x   "), normaliser_sortie("x"));
+    }
+
+    #[test]
+    fn les_regles_texte_sont_permises_sur_une_commande_et_code_retour_reserve() {
+        // The point of the type: `contient` on a command's output.
+        assert!(Regle::Contient { motif: "[on]".into() }
+            .valider_pour(WatcherType::Commande)
+            .is_ok());
+        assert!(Regle::ContenuChange.valider_pour(WatcherType::Commande).is_ok());
+        assert!(Regle::CodeRetour { codes: vec![0] }
+            .valider_pour(WatcherType::Commande)
+            .is_ok());
+        // An exit code exists nowhere else, and a file carries no text.
+        assert!(Regle::CodeRetour { codes: vec![0] }
+            .valider_pour(WatcherType::Url)
+            .is_err());
+        assert!(Regle::Apparu.valider_pour(WatcherType::Commande).is_err());
+        // An empty list can never match: refuse it at creation, like status_http.
+        assert!(Regle::CodeRetour { codes: vec![] }.valider().is_err());
     }
 }
