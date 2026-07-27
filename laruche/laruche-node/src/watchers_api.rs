@@ -58,6 +58,7 @@ pub(crate) async fn api_create_watcher(
     let watcher_type = match w_type_str {
         "url" => laruche_watchers::WatcherType::Url,
         "log" => laruche_watchers::WatcherType::Log,
+        "command" | "commande" => laruche_watchers::WatcherType::Commande,
         _ => laruche_watchers::WatcherType::File,
     };
 
@@ -130,6 +131,7 @@ pub(crate) async fn api_update_watcher(
     let watcher_type = body.get("watcher_type").and_then(|v| v.as_str()).map(|s| match s {
         "url" => laruche_watchers::WatcherType::Url,
         "log" => laruche_watchers::WatcherType::Log,
+        "command" | "commande" => laruche_watchers::WatcherType::Commande,
         _ => laruche_watchers::WatcherType::File,
     });
     let s = |k: &str| body.get(k).and_then(|v| v.as_str()).map(|v| v.to_string());

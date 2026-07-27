@@ -394,6 +394,7 @@ LaRuche.i18n.add({
   'settings.watcherTypeFile':    {fr:'Fichier',          en:'File'},
   'settings.watcherTypeUrl':     {fr:'URL',              en:'URL'},
   'settings.watcherTypeLog':     {fr:'Motif de log',     en:'Log Pattern'},
+  'settings.watcherTypeCommand': {fr:'Commande',        en:'Command'},
   'settings.watcherTargetField': {fr:'Cible (Path/URL)', en:'Target (Path/URL)'},
   'settings.watcherCondField':   {fr:'Condition (optionnel)', en:'Condition (optional)'},
   'settings.targetLabel':        {fr:'Cible',            en:'Target'},
@@ -1652,7 +1653,7 @@ LaRuche.Settings = (function(){
       '<div id="newWatcherForm" style="display:none" class="settings-card">'+
       '<div style="font-weight:600;margin-bottom:8px">'+LaRuche.i18n.t('settings.newWatcherTitle')+'</div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.nameLabel')+'</label><input id="nwName" class="form-input"></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherTypeLabel')+'</label><select id="nwType" class="form-input"><option value="file">'+LaRuche.i18n.t('settings.watcherTypeFile')+'</option><option value="url">'+LaRuche.i18n.t('settings.watcherTypeUrl')+'</option><option value="log">'+LaRuche.i18n.t('settings.watcherTypeLog')+'</option></select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherTypeLabel')+'</label><select id="nwType" class="form-input"><option value="file">'+LaRuche.i18n.t('settings.watcherTypeFile')+'</option><option value="url">'+LaRuche.i18n.t('settings.watcherTypeUrl')+'</option><option value="log">'+LaRuche.i18n.t('settings.watcherTypeLog')+'</option>'+'<option value="command">'+LaRuche.i18n.t('settings.watcherTypeCommand')+'</option>'+'</select></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherTargetField')+'</label><input id="nwTarget" class="form-input"></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherCondField')+'</label><input id="nwCondition" class="form-input"></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.promptLabel')+'</label><input id="nwPrompt" class="form-input"></div>'+
@@ -1729,7 +1730,7 @@ LaRuche.Settings = (function(){
     if(!open) return '<div class="wcard">'+head+'</div>';
     var id=w.id;
     function opt(v,label,cur){ return '<option value="'+v+'"'+(cur===v?' selected':'')+'>'+label+'</option>'; }
-    var typeSel=opt('file',t('settings.watcherTypeFile'),w.watcher_type)+opt('url',t('settings.watcherTypeUrl'),w.watcher_type)+opt('log',t('settings.watcherTypeLog'),w.watcher_type);
+    var typeSel=opt('file',t('settings.watcherTypeFile'),w.watcher_type)+opt('url',t('settings.watcherTypeUrl'),w.watcher_type)+opt('log',t('settings.watcherTypeLog'),w.watcher_type)+opt('command',t('settings.watcherTypeCommand'),w.watcher_type);
     var profOpts='<option value="">'+t('settings.parDefault')+'</option>';
     Object.keys(profiles).forEach(function(k){ profOpts+='<option value="'+esc(k)+'"'+((w.profile_id===k)?' selected':'')+'>'+esc(profiles[k].name||k)+'</option>'; });
     var modOpts='<option value="">'+t('settings.parDefault')+'</option>';

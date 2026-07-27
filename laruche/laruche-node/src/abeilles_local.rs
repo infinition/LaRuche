@@ -646,7 +646,18 @@ impl Abeille for AbeilleWatcherCreate {
         let watcher_type = match w_type_str {
             "url" => laruche_watchers::WatcherType::Url,
             "log" => laruche_watchers::WatcherType::Log,
-            _ => laruche_watchers::WatcherType::File,
+            "command" | "commande" => laruche_watchers::WatcherType::Commande,
+            "file" => laruche_watchers::WatcherType::File,
+            // NOT a silent fallback to File. It used to be, and adding the `command`
+            // type without adding it here turned every command watcher into a file
+            // one: the text rules were then rejected with "cannot be true on a File
+            // watcher", which reads as a bug in the rules rather than a bad type, and
+            // an agent spent six attempts chasing it.
+            autre => {
+                return Ok(ResultatAbeille::err(format!(
+                    "Unknown watcher_type '{autre}'. Use 'file', 'url', 'log' or                      'command'."
+                )))
+            }
         };
 
         // Cross-check the tree against the target type. A leaf can be valid on its
@@ -1161,5 +1172,45 @@ mod watcher_garde_tests {
         // URLs must be http(s).
         assert!(valider_cible_watcher(&T::Url, "localhost:8080").is_err());
         assert!(valider_cible_watcher(&T::Url, "http://127.0.0.1:8080").is_ok());
+    }
+}
+
+#[cfg(test)]
+mod tests_type_watcher {
+    /// Every string the tool accepts must map to a distinct type.
+    ///
+    /// The `command` type existed in the engine, in the rules, in the tool schema and
+    /// in the documentation, and the ONE line that turns "command" into
+    /// `WatcherType::Commande` was missing. The catch-all sent it to `File`, so text
+    /// rules were rejected with "cannot be true on a File watcher": an error about the
+    /// rules for a fault in the type, which is the hardest kind to diagnose from the
+    /// outside. An agent burned six attempts on it before working around the feature.
+    fn resoudre(s: &str) -> Option<laruche_watchers::WatcherType> {
+        match s {
+            "url" => Some(laruche_watchers::WatcherType::Url),
+            "log" => Some(laruche_watchers::WatcherType::Log),
+            "command" | "commande" => Some(laruche_watchers::WatcherType::Commande),
+            "file" => Some(laruche_watchers::WatcherType::File),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn les_quatre_types_sont_atteignables_par_leur_nom() {
+        use laruche_watchers::WatcherType::*;
+        assert_eq!(resoudre("file"), Some(File));
+        assert_eq!(resoudre("url"), Some(Url));
+        assert_eq!(resoudre("log"), Some(Log));
+        assert_eq!(resoudre("command"), Some(Commande));
+        assert_eq!(resoudre("commande"), Some(Commande));
+    }
+
+    #[test]
+    fn un_type_inconnu_nest_pas_silencieusement_un_fichier() {
+        // The whole point: a typo must be reported, not turned into a watcher that
+        // observes the wrong thing and blames the rules for it.
+        assert_eq!(resoudre("commmand"), None);
+        assert_eq!(resoudre("shell"), None);
+        assert_eq!(resoudre(""), None);
     }
 }
