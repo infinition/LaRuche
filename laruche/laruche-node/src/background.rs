@@ -537,6 +537,53 @@ pub(crate) fn spawn_watchers_checker(state: &Arc<AppState>) {
                     }
                 }
 
+                // Two of the three actions never touch a model. A fire used to cost a
+                // full agentic mission whatever the job was: a whole turn, paid and
+                // slow, to write "the file is gone", which it could also get wrong.
+                match &d.action {
+                    laruche_watchers::Action::Notifier => {
+                        let livr = match &w_channel {
+                            Some(c) => Some(c.clone()),
+                            None => watcher_state.essaim_config.read().await.home_channel.clone(),
+                        };
+                        if let Some(ch) = livr {
+                            missions_api::livrer_telegram(&ch, &format!("🔔 {context}")).await;
+                        }
+                        log_activite_riche(
+                            &watcher_state, "info", "watcher",
+                            format!("Watcher notified: {}", preview_text(&context, 60)),
+                            None, Some(preview_text(&context, 500)), None, None,
+                        )
+                        .await;
+                        continue;
+                    }
+                    laruche_watchers::Action::Commande { commande } => {
+                        // A watcher that ACTS: the lamp came on after midnight, turn it
+                        // off. Same platform split as the command watcher, and the same
+                        // refusal list, which lives in the watcher crate.
+                        let sortie = executer_action_commande(commande).await;
+                        let livr = match &w_channel {
+                            Some(c) => Some(c.clone()),
+                            None => watcher_state.essaim_config.read().await.home_channel.clone(),
+                        };
+                        if let Some(ch) = livr {
+                            missions_api::livrer_telegram(
+                                &ch,
+                                &format!("⚙️ {context}\n\n{}", preview_text(&sortie, 500)),
+                            )
+                            .await;
+                        }
+                        log_activite_riche(
+                            &watcher_state, "info", "watcher",
+                            format!("Watcher action: {}", preview_text(commande, 60)),
+                            Some(commande.clone()), Some(preview_text(&sortie, 2000)), None, None,
+                        )
+                        .await;
+                        continue;
+                    }
+                    laruche_watchers::Action::Agent => {}
+                }
+
                 info!(watcher_id = %watcher_id, "Executing watcher task");
                 let _ = watcher_state.events.write().await.emit(
                     laruche_events::EventKind::WatcherFired,
@@ -1113,5 +1160,56 @@ pub(crate) async fn autostart_channels(state: &Arc<AppState>) {
                 }
             }
         }
+    }
+}
+
+/// Run a watcher's action command and return its combined output.
+///
+/// Cross-platform on purpose: PowerShell on Windows, `sh` elsewhere, the same split the
+/// command watcher uses. A watcher that acts is the point of the feature, so it must
+/// behave identically on the three systems rather than being a Windows-only trick.
+///
+/// Bounded: an action that hangs would block the dispatcher for every other watcher.
+async fn executer_action_commande(commande: &str) -> String {
+    const TIMEOUT_ACTION_SECS: u64 = 30;
+    // The refusal list lives in the watcher crate, so an action created through any
+    // path gets the same guard. An action mutates by design, which is exactly why it
+    // must not be looser than an observation.
+    if let Some(motif) = laruche_watchers::commande_refusee_publique(commande) {
+        return format!("refused for safety (forbidden pattern '{motif}')");
+    }
+    let futur = async {
+        let sortie = if cfg!(windows) {
+            tokio::process::Command::new("powershell")
+                .args(["-NoProfile", "-NonInteractive", "-Command", commande])
+                .output()
+                .await
+        } else {
+            tokio::process::Command::new("sh")
+                .args(["-c", commande])
+                .output()
+                .await
+        };
+        match sortie {
+            Ok(o) => {
+                let mut t = String::from_utf8_lossy(&o.stdout).to_string();
+                let e = String::from_utf8_lossy(&o.stderr);
+                if !e.trim().is_empty() {
+                    if !t.is_empty() {
+                        t.push('\n');
+                    }
+                    t.push_str(&e);
+                }
+                if t.trim().is_empty() {
+                    t = format!("done (exit {})", o.status.code().unwrap_or(-1));
+                }
+                t
+            }
+            Err(e) => format!("failed: {e}"),
+        }
+    };
+    match tokio::time::timeout(std::time::Duration::from_secs(TIMEOUT_ACTION_SECS), futur).await {
+        Ok(t) => t,
+        Err(_) => format!("timed out after {TIMEOUT_ACTION_SECS}s"),
     }
 }

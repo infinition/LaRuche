@@ -27,6 +27,11 @@ Time:        jour_semaine{jours:["mar","jeu"]}, heure_entre{de:"08:00",a:"22:00"
 File:        apparu, supprime, modifie, contenu_change, contient{motif:"..."}, taille_depasse_mo{mo:10}
 Service:     est_down, down_depuis_min{minutes:10}, retour_en_ligne, status_http{codes:[500,503]}
 Semantic:    llm_check{question:"..."}  (the ONLY op that costs an LLM call, and only after the deterministic prefix passed)
+Command:     contient, contenu_change, code_retour{codes:[0]}
+Correlation: watcher{nom:"other-watcher-name", depuis_min:10}  -> TRUE while THAT watcher holds a true verdict.
+             This is how you diagnose instead of just alerting: one signal rarely means anything, two together do.
+             "site-down for 5 min AND host-answers-ping" = the application is broken, not the network.
+             An unknown watcher name is simply false, never an error.
 
 Each op needs the matching watcher_type, otherwise it is false at every poll:
   watcher_type="log"  -> reading NEW LINES of a growing file. Required for contient / contenu_change.
@@ -565,6 +570,7 @@ impl Abeille for AbeilleWatcherCreate {
             "properties": {
                 "name": { "type": "string" },
                 "watcher_type": { "type": "string", "description": "'file', 'url', 'log', or 'command' (runs target as a shell command and watches its output)" },
+                "action": { "type": "object", "description": "What to do when it fires. {\"type\":\"agent\"} (default) reasons and writes a message, costing a full model turn. {\"type\":\"notifier\"} sends the observation as-is: free, instant, cannot invent anything, and the right choice whenever the job is just to tell you. {\"type\":\"commande\",\"commande\":\"...\"} RUNS a command, which is how a watcher acts instead of reporting (the lamp came on after midnight, turn it off)." },
                 "target": { "type": "string", "description": "File path or URL to watch" },
                 "condition": { "type": "string", "description": "LEGACY natural-language condition (LLM gate at every event). PREFER 'regles' below: deterministic, free at runtime. For 'log': plain substring the new lines must contain." },
                 "regles": { "type": "object", "description": "COMPILED condition tree (preferred): deterministic predicates evaluated at every poll for free. Ops: et/ou/non, jour_semaine{jours:[mar,jeu]}, heure_entre{de,a}, plage_date{du,au}, apparu, supprime, modifie, contenu_change, est_down, down_depuis_min{minutes}, retour_en_ligne, contient{motif}, taille_depasse_mo{mo}, status_http{codes}, llm_check{question} (the ONLY op that costs an LLM call, after the deterministic prefix passed). A state rule (down_depuis_min) re-fires every cooldown while true. Each op needs the matching watcher_type: contient and contenu_change need log or url, apparu/supprime/modifie/taille_depasse_mo need file, est_down/down_depuis_min/retour_en_ligne/status_http need url.", "example": {"op":"et","regles":[{"op":"contient","motif":"ERROR"},{"op":"heure_entre","de":"08:00","a":"23:56"}]} },
@@ -596,6 +602,20 @@ impl Abeille for AbeilleWatcherCreate {
         };
         let target = args["target"].as_str().unwrap_or("").to_string();
         let condition = args["condition"].as_str().unwrap_or("").to_string();
+        // An unparseable action is refused rather than silently downgraded to the
+        // expensive default: someone who asked for a free notification must not
+        // discover months later that every fire was costing a model turn.
+        let action = match args.get("action") {
+            None | Some(serde_json::Value::Null) => laruche_watchers::Action::default(),
+            Some(v) => match serde_json::from_value::<laruche_watchers::Action>(v.clone()) {
+                Ok(a) => a,
+                Err(e) => {
+                    return Ok(ResultatAbeille::err(format!(
+                        "Invalid `action`: {e}. Use {{\"type\":\"agent\"}},                          {{\"type\":\"notifier\"}}, or                          {{\"type\":\"commande\",\"commande\":\"...\"}}."
+                    )))
+                }
+            },
+        };
         let regles = match args.get("regles") {
             None | Some(Value::Null) => None,
             Some(v) => match serde_json::from_value::<laruche_watchers::Regle>(v.clone()) {
@@ -677,6 +697,10 @@ impl Abeille for AbeilleWatcherCreate {
             .map(|s| s.to_string());
         let log_name = name.clone();
         let watcher = laruche_watchers::Watcher {
+            action,
+        dernier_verdict: None,
+        verdict_depuis: None,
+        lignes_vues: None,
             id: Uuid::new_v4(),
             name,
             watcher_type,

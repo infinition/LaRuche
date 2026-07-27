@@ -119,6 +119,49 @@ than reading a file and because a state that stays true would otherwise notify e
 minute. Destructive commands are refused outright: a watcher runs unattended, forever,
 so what is merely risky by hand is a standing hazard here.
 
+## What it DOES when it fires
+
+Three behaviours, and the default is the expensive one. Choose deliberately.
+
+| `action` | Cost | Use when |
+|---|---|---|
+| `{"type":"agent"}` (default) | a full model turn | the message has to be reasoned about, or something must be worked out |
+| `{"type":"notifier"}` | nothing | the job is just to tell the user. The observation IS the message |
+| `{"type":"commande","commande":"..."}` | nothing | the watcher must ACT: the lamp came on after midnight, turn it off |
+
+`notifier` is right far more often than the default. "Tell me when the file is gone"
+needs no thinking: the sentence is known in advance, and a model asked to write it can
+also get it wrong.
+
+`commande` is what turns monitoring into automation. It runs through PowerShell on
+Windows and `sh` elsewhere, it is bounded by a timeout, and it goes through the same
+refusal list as a watched command, which is stricter here because an action mutates by
+design.
+
+## Correlating two watchers
+
+One signal rarely means anything. Two together diagnose.
+
+```json
+{"op":"et","regles":[
+  {"op":"watcher","nom":"site-down","depuis_min":5},
+  {"op":"watcher","nom":"hote-repond"}]}
+```
+
+That says: the site has been down for five minutes AND the host still answers. The
+application is broken, not the network. Alerting on the first leaf alone would wake
+someone for a cut cable.
+
+`watcher` reads another watcher's published verdict, so it is valid on every
+`watcher_type`: it looks at that one's conclusion, not at this one's observation.
+
+Two rules that matter. An unknown name is FALSE, never an error, so a correlation whose
+peer was deleted degrades quietly instead of breaking the tree on every poll. And the
+verdicts are read from a SNAPSHOT taken before the round, not live, so the result never
+depends on the order watchers happen to be polled in. The cost is one tick of latency
+on a correlation, which is the right trade: an alert a minute late is fine, an alert
+that fires at random is not.
+
 ## Removing one, and checking a file by hand
 
 `watcher_delete` with `id` removes a watcher. Get the id from `watcher_list`; there is no

@@ -54,6 +54,10 @@ pub(crate) async fn api_create_watcher(
     };
 
     let watcher = laruche_watchers::Watcher {
+        dernier_verdict: None,
+        verdict_depuis: None,
+        action: laruche_watchers::Action::default(),
+        lignes_vues: None,
         id: Uuid::new_v4(),
         name,
         watcher_type,

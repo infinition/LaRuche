@@ -56,6 +56,22 @@ pub struct Watcher {
     /// each time with the current state and datetime in hand).
     #[serde(default)]
     pub sustained: bool,
+    /// What happens when it fires: reason about it, say it, or do it. See [`Action`].
+    #[serde(default)]
+    pub action: Action,
+    /// Last verdict of its rule tree, PUBLISHED so other watchers can correlate on it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dernier_verdict: Option<bool>,
+    /// Since when that verdict has held, so `depuis_min` can be answered.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verdict_depuis: Option<chrono::DateTime<chrono::Utc>>,
+    /// Line fingerprints of the previous poll, for the `nouvelle_ligne` rule.
+    ///
+    /// Compared against the PREVIOUS poll only, not against all of history: for an
+    /// arrival detector, a device that leaves and comes back IS a new arrival, and
+    /// keeping every line ever seen would grow without bound.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lignes_vues: Option<Vec<u64>>,
     /// Compiled condition (deterministic predicate tree, see [`Regle`]). When set
     /// it REPLACES the transition+condition logic: the tree is evaluated at every
     /// poll for free, fires on Vrai (cooldown-gated), and only `llm_check` leaves
@@ -93,6 +109,8 @@ impl Watcher {
 /// gate call must approve the event before launching `prompt`.
 #[derive(Debug, Clone)]
 pub struct Declenchement {
+    /// What to do about it: reason, say, or act. See [`Action`].
+    pub action: Action,
     pub id: Uuid,
     pub name: String,
     pub prompt: String,
@@ -155,6 +173,40 @@ pub enum Verdict {
 /// The compiled condition tree. Serialized as JSON with an `op` tag, e.g.:
 /// `{"op":"et","regles":[{"op":"jour_semaine","jours":["mar","jeu"]},
 ///                        {"op":"down_depuis_min","minutes":10}]}`
+/// What a watcher DOES when it fires.
+///
+/// Until now there was one behaviour: run a whole agentic mission to write a sentence.
+/// That is right when the answer needs thinking, and wasteful the rest of the time: a
+/// full model turn, paid and slow, to say "the file is gone", which it can also get
+/// wrong. Splitting the three cases is what turns a notifier into an automation.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Action {
+    /// Run the agentic mission with `prompt`. The historical behaviour, and still the
+    /// right one when the message has to be reasoned about.
+    #[default]
+    Agent,
+    /// Send the observation as-is. Free, instant, cannot invent anything.
+    Notifier,
+    /// Run a command. This is what makes a watcher act rather than report: the lamp
+    /// came on after midnight, turn it off. Same blocklist as a watched command, and
+    /// stricter, because this one mutates by design.
+    Commande { commande: String },
+}
+
+/// The state a watcher publishes at every poll, so OTHER watchers can read it.
+///
+/// Correlation is the whole point: a single signal rarely means anything, two signals
+/// together diagnose. "The site is down AND the host answers ping" is the application,
+/// not the network. Without a published state each watcher is an island.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EtatWatcher {
+    /// Verdict of its rule tree at the last poll.
+    pub vrai: bool,
+    /// Since when it has held that value, so `depuis_min` can be answered.
+    pub depuis: chrono::DateTime<chrono::Utc>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Regle {
@@ -181,19 +233,37 @@ pub enum Regle {
     /// Exit code of a watched command. `0` means it succeeded, anything else is a
     /// failure, which is how you watch a service rather than its output text.
     CodeRetour { codes: Vec<i32> },
+    /// TRUE when ANOTHER watcher currently holds a true verdict.
+    ///
+    /// `depuis_min` additionally requires it to have held that value for that long,
+    /// which is how you express "down for ten minutes" about a watcher rather than a
+    /// target. Referring to an unknown watcher is FALSE, never an error: a correlation
+    /// whose peer was deleted must degrade quietly, not break the tree.
+    Watcher { nom: String, #[serde(default)] depuis_min: Option<u64> },
     /// Semantic leaf: the only rule that costs an LLM call, asked AFTER the
     /// deterministic prefix passed.
     LlmCheck { question: String },
 }
 
 impl Regle {
+    /// Evaluate with no knowledge of other watchers. Correlation leaves read false.
     pub fn evaluer(&self, obs: &Observation, maintenant: &chrono::DateTime<chrono::Local>) -> Verdict {
+        self.evaluer_avec(obs, maintenant, &std::collections::HashMap::new())
+    }
+
+    /// Evaluate, with the published state of every other watcher in hand.
+    pub fn evaluer_avec(
+        &self,
+        obs: &Observation,
+        maintenant: &chrono::DateTime<chrono::Local>,
+        etats: &std::collections::HashMap<String, EtatWatcher>,
+    ) -> Verdict {
         use Verdict::*;
         match self {
             Regle::Et { regles } => {
                 let mut questions: Vec<String> = Vec::new();
                 for r in regles {
-                    match r.evaluer(obs, maintenant) {
+                    match r.evaluer_avec(obs, maintenant, etats) {
                         Faux => return Faux,
                         Vrai => {}
                         BesoinLlm(q) => questions.push(q),
@@ -208,7 +278,7 @@ impl Regle {
             Regle::Ou { regles } => {
                 let mut questions: Vec<String> = Vec::new();
                 for r in regles {
-                    match r.evaluer(obs, maintenant) {
+                    match r.evaluer_avec(obs, maintenant, etats) {
                         Vrai => return Vrai,
                         Faux => {}
                         BesoinLlm(q) => questions.push(q),
@@ -220,7 +290,7 @@ impl Regle {
                     BesoinLlm(questions.join(" OR "))
                 }
             }
-            Regle::Non { regle } => match regle.evaluer(obs, maintenant) {
+            Regle::Non { regle } => match regle.evaluer_avec(obs, maintenant, etats) {
                 Vrai => Faux,
                 Faux => Vrai,
                 BesoinLlm(q) => BesoinLlm(format!("NOT ({q})")),
@@ -283,6 +353,20 @@ impl Regle {
             ),
             Regle::CodeRetour { codes } => bool_verdict(
                 obs.code_retour.map(|c| codes.contains(&c)).unwrap_or(false),
+            ),
+            // An unknown peer is FALSE, never an error: a correlation whose watcher was
+            // deleted must degrade quietly rather than break the whole tree.
+            Regle::Watcher { nom, depuis_min } => bool_verdict(
+                etats
+                    .get(nom)
+                    .map(|e| {
+                        e.vrai
+                            && depuis_min.is_none_or(|m| {
+                                (maintenant.with_timezone(&chrono::Utc) - e.depuis).num_minutes()
+                                    >= m as i64
+                            })
+                    })
+                    .unwrap_or(false),
             ),
             Regle::LlmCheck { question } => BesoinLlm(question.clone()),
         }
@@ -388,6 +472,12 @@ impl Regle {
                 }
                 Ok(())
             }
+            Regle::Watcher { nom, .. } => {
+                if nom.trim().is_empty() {
+                    return Err("`watcher` needs the name of another watcher in `nom`".into());
+                }
+                Ok(())
+            }
             Regle::LlmCheck { question } => {
                 if question.trim().is_empty() {
                     return Err("`llm_check` needs a non-empty `question`".into());
@@ -453,6 +543,9 @@ impl Regle {
                 "code_retour",
                 "command",
             ),
+            // Reads another watcher's verdict, not this one's observation, so it is
+            // valid on every type.
+            Regle::Watcher { .. } => Ok(()),
 
             // File lifecycle and size: only the file watcher reports them.
             Regle::Apparu => exige(matches!(wtype, WatcherType::File), "apparu", "file"),
@@ -516,7 +609,11 @@ impl Regle {
             Regle::CodeRetour { codes } => format!(
                 "exit∈[{}]",
                 codes.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(",")
-            ),            Regle::LlmCheck { question } => format!("🧠« {question} »"),
+            ),
+            Regle::Watcher { nom, depuis_min } => match depuis_min {
+                Some(m) => format!("watcher[{nom}]≥{m}min"),
+                None => format!("watcher[{nom}]"),
+            },            Regle::LlmCheck { question } => format!("🧠« {question} »"),
         }
     }
 }
@@ -708,9 +805,30 @@ impl WatchersRegistry {
 
     pub async fn check_triggered_watchers(&mut self) -> Vec<Declenchement> {
         let now = Utc::now();
+        // Snapshot of every verdict, taken BEFORE this round and handed to each rule
+        // tree. A snapshot, not a live read, so the result does not depend on the order
+        // the map happens to iterate in: with live reads, "A and B" would mean
+        // "B as of now" or "B as of last minute" depending on which came first, and the
+        // same configuration would behave differently between two runs.
+        //
+        // The cost is one tick of latency on a correlation, which is the right trade:
+        // an alert that fires a minute late is fine, one that fires at random is not.
+        let etats: std::collections::HashMap<String, EtatWatcher> = self
+            .watchers
+            .values()
+            .filter_map(|w| {
+                w.verdict_depuis.map(|depuis| {
+                    (
+                        w.name.clone(),
+                        EtatWatcher { vrai: w.dernier_verdict.unwrap_or(false), depuis },
+                    )
+                })
+            })
+            .collect();
         let mut triggered = Vec::new();
         let mut needs_save = false;
         let mut updates = Vec::new();
+        let mut verdicts: Vec<(Uuid, bool)> = Vec::new();
         let mut polled: Vec<Uuid> = Vec::new();
 
         for watcher in self.watchers.values() {
@@ -738,6 +856,20 @@ impl WatchersRegistry {
                     let baseline = watcher.last_state.is_some();
                     let mut feu = false;
                     let mut question_llm: Option<String> = None;
+                    // The verdict PUBLISHED to other watchers, computed on every poll
+                    // regardless of cooldown or baseline. Those two gate whether this
+                    // watcher NOTIFIES; they must not gate what it reports about the
+                    // world, or a peer correlating on it would read "false" simply
+                    // because this one had already notified recently.
+                    let mut verdict_publie = false;
+                    if let Some(regles) = &watcher.regles {
+                        verdict_publie = matches!(
+                            regles.evaluer_avec(&obs, &chrono::Local::now(), &etats),
+                            Verdict::Vrai | Verdict::BesoinLlm(_)
+                        );
+                    } else {
+                        verdict_publie = transition;
+                    }
                     if let Some(regles) = &watcher.regles {
                         // Compiled rules: evaluated mechanically at every poll,
                         // free. A state rule (down_depuis_min...) stays true while
@@ -745,7 +877,7 @@ impl WatchersRegistry {
                         // naturally (built-in sustained). Only llm_check leaves
                         // that survive the deterministic prefix cost an LLM call.
                         if pret && baseline {
-                            match regles.evaluer(&obs, &chrono::Local::now()) {
+                            match regles.evaluer_avec(&obs, &chrono::Local::now(), &etats) {
                                 Verdict::Vrai => feu = true,
                                 Verdict::BesoinLlm(q) => {
                                     feu = true;
@@ -770,6 +902,7 @@ impl WatchersRegistry {
                             .map(|r| format!(" [rules: {}]", r.resume()))
                             .unwrap_or_default();
                         triggered.push(Declenchement {
+                            action: watcher.action.clone(),
                             id: watcher.id,
                             name: watcher.name.clone(),
                             prompt: watcher.prompt.clone(),
@@ -789,6 +922,7 @@ impl WatchersRegistry {
                             question_llm,
                         });
                     }
+                    verdicts.push((watcher.id, verdict_publie));
                     if new_state != watcher.last_state {
                         updates.push((watcher.id, new_state));
                     }
@@ -810,6 +944,21 @@ impl WatchersRegistry {
             if let Some(w) = self.watchers.get_mut(&id) {
                 w.last_state = new_state;
                 needs_save = true;
+            }
+        }
+        // Published verdicts. `verdict_depuis` only moves when the value CHANGES,
+        // which is what makes `depuis_min` mean "has held this for N minutes" rather
+        // than "was polled N minutes ago".
+        for (id, vrai) in verdicts {
+            if let Some(w) = self.watchers.get_mut(&id) {
+                if w.dernier_verdict != Some(vrai) {
+                    w.dernier_verdict = Some(vrai);
+                    w.verdict_depuis = Some(now);
+                    needs_save = true;
+                } else if w.verdict_depuis.is_none() {
+                    w.verdict_depuis = Some(now);
+                    needs_save = true;
+                }
             }
         }
         for id in polled {
@@ -1266,6 +1415,12 @@ const TIMEOUT_COMMANDE_SECS: u64 = 20;
 /// depend on the tool registry, and a watcher is worse than a one-off call anyway. It
 /// runs unattended, every minute, forever, so what is merely risky by hand becomes a
 /// standing hazard here. Returns the offending pattern, for an error the user can act on.
+/// Public face of [`commande_refusee`], so an ACTION command created anywhere gets
+/// the same guard as a watched one. One list, one place.
+pub fn commande_refusee_publique(commande: &str) -> Option<&'static str> {
+    commande_refusee(commande)
+}
+
 fn commande_refusee(commande: &str) -> Option<&'static str> {
     const INTERDITS: &[&str] = &[
         "rm -rf /",
@@ -1355,6 +1510,10 @@ mod tests {
         let target = file.path().to_str().unwrap().to_string();
 
         let watcher = Watcher {
+            dernier_verdict: None,
+            verdict_depuis: None,
+            action: Action::default(),
+            lignes_vues: None,
             id: Uuid::new_v4(),
             name: "test".into(),
             watcher_type: WatcherType::File,
@@ -1695,6 +1854,10 @@ mod tests {
     #[test]
     fn intervalles_et_cooldowns_par_defaut() {
         let mut w = Watcher {
+            dernier_verdict: None,
+            verdict_depuis: None,
+            action: Action::default(),
+            lignes_vues: None,
             id: Uuid::new_v4(),
             name: "t".into(),
             watcher_type: WatcherType::Url,
@@ -1776,5 +1939,98 @@ mod tests_commande {
         assert!(Regle::Apparu.valider_pour(WatcherType::Commande).is_err());
         // An empty list can never match: refuse it at creation, like status_http.
         assert!(Regle::CodeRetour { codes: vec![] }.valider().is_err());
+    }
+}
+
+#[cfg(test)]
+mod tests_correlation {
+    use super::*;
+    use std::collections::HashMap;
+
+    fn etats(paires: &[(&str, bool, i64)]) -> HashMap<String, EtatWatcher> {
+        paires
+            .iter()
+            .map(|(nom, vrai, depuis_min)| {
+                (
+                    nom.to_string(),
+                    EtatWatcher {
+                        vrai: *vrai,
+                        depuis: chrono::Utc::now() - chrono::Duration::minutes(*depuis_min),
+                    },
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn une_regle_lit_letat_dun_autre_watcher() {
+        let obs = Observation::default();
+        let now = chrono::Local::now();
+        let r = Regle::Watcher { nom: "site-down".into(), depuis_min: None };
+
+        assert_eq!(r.evaluer_avec(&obs, &now, &etats(&[("site-down", true, 0)])), Verdict::Vrai);
+        assert_eq!(r.evaluer_avec(&obs, &now, &etats(&[("site-down", false, 0)])), Verdict::Faux);
+    }
+
+    #[test]
+    fn un_watcher_inconnu_est_faux_et_ne_casse_rien() {
+        // A correlation whose peer was deleted must degrade quietly. Raising here would
+        // take down a tree that is otherwise perfectly valid, on every poll, forever.
+        let r = Regle::Watcher { nom: "supprime-hier".into(), depuis_min: None };
+        assert_eq!(
+            r.evaluer_avec(&Observation::default(), &chrono::Local::now(), &HashMap::new()),
+            Verdict::Faux
+        );
+    }
+
+    #[test]
+    fn depuis_min_exige_une_duree_dans_letat() {
+        let obs = Observation::default();
+        let now = chrono::Local::now();
+        let r = Regle::Watcher { nom: "site-down".into(), depuis_min: Some(10) };
+
+        // True, but only for two minutes: not yet.
+        assert_eq!(r.evaluer_avec(&obs, &now, &etats(&[("site-down", true, 2)])), Verdict::Faux);
+        // True for twenty.
+        assert_eq!(r.evaluer_avec(&obs, &now, &etats(&[("site-down", true, 20)])), Verdict::Vrai);
+        // A long-standing FALSE is still false, the duration never rescues it.
+        assert_eq!(r.evaluer_avec(&obs, &now, &etats(&[("site-down", false, 99)])), Verdict::Faux);
+    }
+
+    #[test]
+    fn le_diagnostic_a_deux_signaux_fonctionne() {
+        // The reason correlation exists: one signal rarely means anything, two
+        // together diagnose. Site down AND host reachable = the application, not
+        // the network.
+        let regle = Regle::Et {
+            regles: vec![
+                Regle::Watcher { nom: "site-down".into(), depuis_min: Some(5) },
+                Regle::Watcher { nom: "hote-repond".into(), depuis_min: None },
+            ],
+        };
+        let obs = Observation::default();
+        let now = chrono::Local::now();
+
+        assert_eq!(
+            regle.evaluer_avec(&obs, &now, &etats(&[("site-down", true, 9), ("hote-repond", true, 1)])),
+            Verdict::Vrai,
+            "site down for 9 min while the host answers: the app is the problem"
+        );
+        // The host is down too: this is the network, and this rule must stay silent.
+        assert_eq!(
+            regle.evaluer_avec(&obs, &now, &etats(&[("site-down", true, 9), ("hote-repond", false, 9)])),
+            Verdict::Faux
+        );
+    }
+
+    #[test]
+    fn une_correlation_est_valide_sur_nimporte_quel_type() {
+        // It reads another verdict, not this watcher's observation, so no type gates it.
+        let r = Regle::Watcher { nom: "x".into(), depuis_min: None };
+        for t in [WatcherType::File, WatcherType::Url, WatcherType::Log, WatcherType::Commande] {
+            assert!(r.valider_pour(t).is_ok(), "{t:?}");
+        }
+        // But a nameless peer can never match: refuse it at creation.
+        assert!(Regle::Watcher { nom: "  ".into(), depuis_min: None }.valider().is_err());
     }
 }
