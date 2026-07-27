@@ -12,8 +12,9 @@
 /// - `custom_instructions` (`system.soul` node): additional instruction layer.
 /// - Locked (never editable): tool list + `<tool_call>` format + `<plan>` format.
 ///   Editing these formats would break tool-calling, so they stay in code.
-pub fn build_system_prompt(
+pub fn build_system_prompt(
     tools_schema: &serde_json::Value,
+    protocole_texte: bool,
     identity_override: Option<&str>,
     behavior_override: Option<&str>,
     planning_override: Option<&str>,
@@ -32,7 +33,7 @@ pub fn build_system_prompt(
     }
     jalons.push(("identity", prompt.len()));
     // 2) LOCKED protocol + generated tools + capability index.
-    prompt.push_str(&section_outils(tools_schema));
+    prompt.push_str(&section_outils(tools_schema, protocole_texte));
     jalons.push(("tools", prompt.len()));
     push_capability_index(&mut prompt, capability_index);
     jalons.push(("catalog+skills", prompt.len()));
@@ -294,12 +295,36 @@ fn signatures_outils(tools: &[serde_json::Value]) -> String {
     out
 }
 
-fn section_outils(tools_schema: &serde_json::Value) -> String {
+/// Tool section. `protocole_texte` renders the `<tool_call>` XML convention.
+///
+/// It must be OFF for a backend that carries tool calls natively. Sending both a
+/// native `tools` array AND an instruction to emit XML gives the model two
+/// contradictory protocols, and a confused model falls back on whatever template it
+/// memorised at training time: deepseek started emitting Anthropic's placeholder
+/// syntax verbatim, calling a tool literally named `$TOOL_NAME` with an argument
+/// named `$PARAMETER_NAME`, until the sentinel stopped the loop.
+///
+/// Parsing `<tool_call>` from the text stays enabled everywhere regardless: we stop
+/// ASKING for it, we do not stop ACCEPTING it, so the fallback still catches a model
+/// that emits it spontaneously.
+fn section_outils(tools_schema: &serde_json::Value, protocole_texte: bool) -> String {
     let tools = match tools_schema.as_array() {
         Some(a) if !a.is_empty() => a,
         _ => return String::new(),
     };
     let sigs = signatures_outils(tools);
+    if !protocole_texte {
+        return format!(
+            "## Available tools\n\n\
+             Signatures (TypeScript style). `?` = optional parameter; `a|b` = allowed values; \
+             `{{…}}` = format hint.\n\n\
+             ```\n{sigs}```\n\n\
+             Call them through your native tool-calling channel. Emit ONE tool call per \
+             message, except for independent read-only calls or several `delegate` scouts, \
+             which may share a message and run in parallel. A mutating call (write, shell, \
+             delete) always travels alone. After a call, stop and wait for its result.\n\n"
+        );
+    }
     format!(
         "## Available tools\n\n\
          Signatures (TypeScript style). `?` = optional parameter; `a|b` = allowed values; \
@@ -387,7 +412,7 @@ mod tests {
     #[test]
     fn prompt_place_sections_stables_avant_outils_et_custom() {
         let tools = serde_json::json!([{"name":"file_read","description":"read","parameters":{}}]);
-        let prompt = build_system_prompt(&tools, None, None, None, None, Some("custom volatile"));
+        let prompt = build_system_prompt(&tools, true, None, None, None, None, Some("custom volatile"));
 
         let env = prompt.find("## Environment").unwrap();
         let outils = prompt.find("## Available tools").unwrap();
@@ -435,6 +460,35 @@ mod tests {
             sigs.len(),
             sigs.len() / 4,
             100.0 * (1.0 - sigs.len() as f64 / json.len() as f64)
+        );
+    }
+
+    /// A native backend must not be taught a second, conflicting call protocol.
+    ///
+    /// Sending a `tools` array AND "emit this XML block" gave deepseek two
+    /// contradictory formats. It fell back on a template memorised at training time
+    /// and called a tool literally named `$TOOL_NAME` with `$PARAMETER_NAME`, in a
+    /// loop, until the sentinel killed the turn.
+    #[test]
+    fn le_protocole_texte_disparait_pour_les_backends_natifs() {
+        let tools = serde_json::json!([
+            { "name": "file_read", "description": "Read a file",
+              "parameters": { "type": "object", "properties": { "path": { "type": "string" } } } }
+        ]);
+
+        let natif = section_outils(&tools, false);
+        assert!(natif.contains("file_read"), "signatures stay");
+        assert!(
+            !natif.contains("tool_call"),
+            "a native backend must never be shown the XML convention"
+        );
+        assert!(natif.contains("native tool-calling channel"));
+
+        let texte = section_outils(&tools, true);
+        assert!(texte.contains("file_read"));
+        assert!(
+            texte.contains("<tool_call>"),
+            "the text rail must survive for local models"
         );
     }
 

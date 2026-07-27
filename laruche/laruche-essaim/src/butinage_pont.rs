@@ -1579,6 +1579,24 @@ fn supervision_depuis(reine: &crate::brain::ReineConfig) -> Option<but::cap::rei
     })
 }
 
+/// Should the system prompt teach the `<tool_call>` XML convention?
+///
+/// Only for backends where we cannot rely on a native tool-calling channel. Giving
+/// a native model BOTH a `tools` array and an instruction to emit XML hands it two
+/// contradictory protocols: deepseek got confused and started emitting Anthropic's
+/// placeholder template verbatim, calling a tool literally named `$TOOL_NAME`, over
+/// and over, until the sentinel stopped the loop.
+///
+/// Local backends keep the text rail: a small model served by Ollama or llama.cpp
+/// may ignore the native channel entirely, and the rail is what saves the turn.
+/// Parsing `<tool_call>` from the output is never disabled, here or anywhere.
+fn protocole_texte_pour(config: &EssaimConfig) -> bool {
+    !matches!(
+        config.provider.as_str(),
+        "openai" | "miel" | "anthropic" | "codex"
+    )
+}
+
 fn profil_pour(config: &EssaimConfig) -> but::ProfilModele {
     match config.provider.as_str() {
         "anthropic" | "codex" => but::ProfilModele::NatifOutils,
@@ -1734,6 +1752,7 @@ pub async fn executer_avec_bilan(
     }
     let mut systeme = build_system_prompt(
         &tool_schema,
+        protocole_texte_pour(config),
         config.system_prompt_override.as_deref(),
         config.behavior_override.as_deref(),
         config.planning_override.as_deref(),
@@ -2092,6 +2111,7 @@ pub async fn reprendre_carnet(
     }
     let mut systeme = build_system_prompt(
         &tool_schema,
+        protocole_texte_pour(config),
         config.system_prompt_override.as_deref(),
         config.behavior_override.as_deref(),
         config.planning_override.as_deref(),
