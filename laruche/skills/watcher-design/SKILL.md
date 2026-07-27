@@ -24,7 +24,7 @@ That field wakes a model on every single event. The `regles` tree costs nothing.
 | watcher_type | What it observes | Ops it can satisfy |
 |---|---|---|
 | `log` | new lines appended to a growing file | `contient`, `contenu_change` |
-| `file` | the lifecycle of a path. Carries NO text. | `apparu`, `supprime`, `modifie`, `taille_depasse_mo` |
+| `file` | the lifecycle AND presence of a path. Carries NO text. | `apparu`, `supprime`, `modifie`, `existe`, `absent`, `taille_depasse_mo` |
 | `url` | reachability and page text | `est_down`, `down_depuis_min`, `retour_en_ligne`, `status_http`, `contient`, `contenu_change` |
 | `command` | the OUTPUT and exit code of a shell command, re-run at every poll | `contient`, `contenu_change`, `code_retour` |
 
@@ -55,6 +55,7 @@ Deterministic leaves, evaluated at every poll at zero cost:
 | `heure_entre` | `de: "08:00", a: "22:00"` (overnight windows work) | local time is inside, end excluded |
 | `plage_date` | `du: "2026-07-01", au: "2026-07-31"` | local date is inside, both included |
 | `apparu` / `supprime` / `modifie` | none | the watched FILE appeared, was deleted, changed |
+| `existe` / `absent` | none | the path IS there right now, or is not |
 | `contenu_change` | none | the page text or the log gained content |
 | `est_down` | none | the URL is unreachable or answers 5xx |
 | `down_depuis_min` | `minutes: 10` | it has been down for at least that long |
@@ -148,6 +149,7 @@ Three behaviours, and the default is the expensive one. Choose deliberately.
 | `{"type":"agent"}` (default) | a full model turn | the message has to be reasoned about, or something must be worked out |
 | `{"type":"notifier"}` | nothing | the job is just to tell the user. The observation IS the message |
 | `{"type":"commande","commande":"..."}` | nothing | the watcher must ACT: the lamp came on after midnight, turn it off |
+| `{"type":"aucune"}` | nothing | it is a pure SENSOR, existing only so another watcher can correlate on it |
 
 `notifier` is right far more often than the default. "Tell me when the file is gone"
 needs no thinking: the sentence is known in advance, and a model asked to write it can
@@ -157,6 +159,32 @@ also get it wrong.
 Windows and `sh` elsewhere, it is bounded by a timeout, and it goes through the same
 refusal list as a watched command, which is stricter here because an action mutates by
 design.
+
+## Transition or state, the distinction that decides what you can combine
+
+`apparu`, `supprime`, `modifie`, `retour_en_ligne` are TRANSITIONS: true on the single
+poll where the thing happened, false again immediately after. `existe`, `absent`,
+`est_down`, `contient` are STATES: true for as long as the situation lasts.
+
+A transition can never mean "it is there". So this is wrong:
+
+```json
+{"op":"et","regles":[{"op":"apparu"},{"op":"watcher","nom":"lumiere-allumee"}]}
+```
+
+The file side is true for one poll only, so the two halves would essentially never be
+true together. Use the state:
+
+```json
+{"op":"et","regles":[{"op":"existe"},{"op":"watcher","nom":"lumiere-allumee"}]}
+```
+
+**Rule of thumb: inside an `et`, use states. Alone, a transition is usually what you
+want**, because "tell me when the file appears" should fire once, not every minute.
+
+`absent` is how you catch what did NOT happen: no backup file this morning, an export
+that never landed. Combine it with `heure_entre`. No transition can express that,
+because nothing happened to observe.
 
 ## Correlating two watchers
 
@@ -174,6 +202,30 @@ someone for a cut cable.
 
 `watcher` reads another watcher's published verdict, so it is valid on every
 `watcher_type`: it looks at that one's conclusion, not at this one's observation.
+
+**Give the upstream watchers `{"type":"aucune"}`.** They exist to publish a verdict.
+Without it each of them alerts on its own, so "the site is down" and "the host answers"
+both reach the user alongside the single conclusion they actually asked for.
+
+A worked example, "tell me if test.txt is on the desktop AND the office light is on":
+
+```json
+{"name":"lumiere-bureau","watcher_type":"command",
+ "target":"openhue get light \"Bureau\"",
+ "regles":{"op":"contient","motif":"[on]"},
+ "action":{"type":"aucune"}}
+```
+
+```json
+{"name":"alerte-bureau","watcher_type":"file",
+ "target":"C:\\Users\\me\\Desktop\\test.txt",
+ "regles":{"op":"et","regles":[
+   {"op":"existe"},
+   {"op":"watcher","nom":"lumiere-bureau"}]},
+ "action":{"type":"notifier"}}
+```
+
+The sensor says nothing, the alert concludes. No script, no model call, and no cron.
 
 Two rules that matter. An unknown name is FALSE, never an error, so a correlation whose
 peer was deleted degrades quietly instead of breaking the tree on every poll. And the

@@ -16,6 +16,11 @@ between turns or how a five minute task gets wrapped in ceremony.
 | kanban | across sessions | the user tracks work items over days |
 | mission | across sessions, repeatedly | an objective needs many iterations, possibly on a schedule |
 
+None of these is the right answer when a CONDITION decides rather than you. "Warn me
+when X happens", "if Y is true, do Z": that is a watcher, see `watcher-design`, and its
+rules cost nothing while nothing happens. A mission on a schedule that keeps checking
+whether something occurred is the expensive way to write a watcher.
+
 ## Todo
 
 `todo` takes `action`, plus `text` to add and `id` to target an existing entry.
