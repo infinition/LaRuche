@@ -143,11 +143,45 @@ fn extraire_json(s: &str) -> Option<&str> {
     None
 }
 
-fn score(v: &serde_json::Value, cle: &str) -> u8 {
+/// Absent is NOT zero.
+///
+/// A judge reply whose VERDICT line parsed but whose score lines did not used to
+/// produce 0 relevance, 0 methodology, 0 objective, with 95 confidence. "Your answer
+/// is worth nothing" then drove an escalation and five rework rounds against a draft
+/// nobody had actually faulted. It happened twice in nine recorded scorecards.
+///
+/// So a score we could not read is a score we do not HAVE. The three substantive axes
+/// must carry at least one real number, otherwise the reply is unusable and the caller
+/// stops rather than inventing a verdict. The axes we are missing take the mean of the
+/// ones we read: a neutral stand-in, never the worst possible value.
+fn completer(
+    pertinence: Option<u8>,
+    methodologie: Option<u8>,
+    objectif: Option<u8>,
+    marque: Option<u8>,
+    confiance: Option<u8>,
+) -> Option<(u8, u8, u8, u8, u8)> {
+    let substantiels = [pertinence, methodologie, objectif];
+    if substantiels.iter().all(Option::is_none) {
+        return None;
+    }
+    let lus: Vec<u8> = substantiels.iter().flatten().copied().collect();
+    let moyenne = (lus.iter().map(|v| *v as u32).sum::<u32>() / lus.len() as u32) as u8;
+    Some((
+        pertinence.unwrap_or(moyenne),
+        methodologie.unwrap_or(moyenne),
+        objectif.unwrap_or(moyenne),
+        marque.unwrap_or(moyenne),
+        // Confidence steers the Hybride escalation, so an unread one must not read as
+        // certainty about a judgement we could barely parse.
+        confiance.unwrap_or(moyenne.min(60)),
+    ))
+}
+
+fn score_opt(v: &serde_json::Value, cle: &str) -> Option<u8> {
     v.get(cle)
         .and_then(|x| x.as_u64())
-        .unwrap_or(0)
-        .min(100) as u8
+        .map(|n| n.min(100) as u8)
 }
 
 fn avis_depuis(s: &str) -> Avis {
@@ -213,21 +247,18 @@ fn parser_lignes(s: &str) -> Option<Scorecard> {
             })
         })
     };
-    let num = |keys: &[&str]| -> u8 { get(keys).map(|v| nombre_borne(&v)).unwrap_or(0) };
+    let num = |keys: &[&str]| -> Option<u8> { get(keys).map(|v| nombre_borne(&v)) };
 
     let verdict = get(&["verdict", "avis"]).unwrap_or_default();
-    let pertinence = num(&["relevance", "pertinence"]);
-    let has_signal = !verdict.is_empty()
-        || champs
-            .keys()
-            .any(|k| k.starts_with("relevance") || k.starts_with("pertinence"));
-    if !has_signal {
-        return None;
-    }
-    let methodologie = num(&["methodology", "methodologie", "method"]);
-    let objectif = num(&["objective", "objectif"]);
-    let conformite_marque = num(&["brand", "conformite_marque", "brand_compliance"]);
-    let confiance = num(&["confidence", "confiance"]);
+    // A verdict ALONE is not a scorecard. Accepting one filled the three axes with
+    // zeros and shipped that as a judgement; see `completer`.
+    let (pertinence, methodologie, objectif, conformite_marque, confiance) = completer(
+        num(&["relevance", "pertinence"]),
+        num(&["methodology", "methodologie", "method"]),
+        num(&["objective", "objectif"]),
+        num(&["brand", "conformite_marque", "brand_compliance"]),
+        num(&["confidence", "confiance"]),
+    )?;
     // Verdict: explicit when the model gave one; inferred from the scores when it
     // omitted the line. Inference avoids forcing a rework on a clearly strong draft
     // just because a small model forgot the VERDICT line (the conservative default of
@@ -271,12 +302,20 @@ pub fn parser_scorecard(reponse: &str) -> Result<Scorecard, String> {
         serde_json::from_str(brut).map_err(|e| format!("invalid judge JSON: {e}"))?;
 
     let avis = avis_depuis(v.get("avis").and_then(|x| x.as_str()).unwrap_or(""));
+    let (pertinence, methodologie, objectif, conformite_marque, confiance) = completer(
+        score_opt(&v, "pertinence"),
+        score_opt(&v, "methodologie"),
+        score_opt(&v, "objectif"),
+        score_opt(&v, "conformite_marque"),
+        score_opt(&v, "confiance"),
+    )
+    .ok_or("judge JSON carries no readable score on relevance, methodology or objective")?;
     Ok(Scorecard {
-        pertinence: score(&v, "pertinence"),
-        methodologie: score(&v, "methodologie"),
-        objectif: score(&v, "objectif"),
-        conformite_marque: score(&v, "conformite_marque"),
-        confiance: score(&v, "confiance"),
+        pertinence,
+        methodologie,
+        objectif,
+        conformite_marque,
+        confiance,
         avis,
         instruction: v
             .get("instruction")
@@ -400,8 +439,10 @@ mod tests {
         assert_eq!(c.pertinence, 40);
         assert_eq!(c.avis, Avis::Reviser);
         assert_eq!(c.instruction, "lead with the answer");
-        // Missing scores default to 0.
-        assert_eq!(c.methodologie, 0);
+        // A missing axis takes the mean of the ones we DID read, never zero: reporting
+        // 0 methodology for an axis the judge never mentioned is a fabricated verdict,
+        // and it cost five rework rounds twice in the recorded scorecards.
+        assert_eq!(c.methodologie, 40);
     }
 
     #[test]
@@ -412,15 +453,59 @@ mod tests {
 
     #[test]
     fn unknown_verdict_defaults_to_revise() {
-        let r = r#"{"avis":"maybe"}"#;
+        let r = r#"{"pertinence":70,"avis":"maybe"}"#;
         assert_eq!(parser_scorecard(r).unwrap().avis, Avis::Reviser);
     }
 
     #[test]
     fn braces_inside_strings_do_not_break_extraction() {
-        let r = r#"{"raison":"use {placeholder} syntax","avis":"approuver"}"#;
+        let r = r#"{"pertinence":90,"raison":"use {placeholder} syntax","avis":"approuver"}"#;
         let c = parser_scorecard(r).unwrap();
         assert_eq!(c.raison, "use {placeholder} syntax");
+        assert_eq!(c.avis, Avis::Approuver);
+    }
+
+    #[test]
+    fn un_verdict_seul_nest_pas_une_scorecard() {
+        // The exact shape recorded twice in evals/reine-scorecards.jsonl: relevance 0,
+        // methodology 0, objective 0, high confidence, verdict escalate. No judge ever
+        // said the answer was worth nothing; the scores simply had not parsed, and the
+        // zeros then drove five rework rounds.
+        assert!(parser_scorecard(r#"{"avis":"escalader"}"#).is_err());
+        assert!(parser_scorecard("VERDICT: escalate").is_err());
+        assert!(parser_scorecard("VERDICT: escalate
+REASON: unclear").is_err());
+    }
+
+    #[test]
+    fn un_axe_absent_prend_la_moyenne_des_axes_lus() {
+        let c = parser_scorecard("RELEVANCE: 90
+OBJECTIVE: 70
+VERDICT: approve").unwrap();
+        assert_eq!(c.pertinence, 90);
+        assert_eq!(c.objectif, 70);
+        assert_eq!(c.methodologie, 80, "an unread axis must not read as zero");
+        assert_eq!(c.conformite_marque, 80);
+        // Confidence we never read must not present itself as certainty: it gates the
+        // Hybride escalation.
+        assert!(c.confiance <= 60, "confiance = {}", c.confiance);
+    }
+
+    #[test]
+    fn une_scorecard_complete_nest_pas_touchee() {
+        let c = parser_scorecard(
+            "RELEVANCE: 95
+METHODOLOGY: 90
+OBJECTIVE: 95
+BRAND: 98
+CONFIDENCE: 95
+VERDICT: approve",
+        )
+        .unwrap();
+        assert_eq!(
+            (c.pertinence, c.methodologie, c.objectif, c.conformite_marque, c.confiance),
+            (95, 90, 95, 98, 95)
+        );
         assert_eq!(c.avis, Avis::Approuver);
     }
 
