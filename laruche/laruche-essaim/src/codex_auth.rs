@@ -1,4 +1,4 @@
-//! ChatGPT Codex subscription authentication (OAuth), replicated from third-party.
+//! ChatGPT Codex subscription authentication (OAuth).
 //!
 //! Lets you use the ChatGPT subscription quota (Plus/Pro) instead of a billed
 //! API key. The flow is the OpenAI *device code*:
@@ -22,7 +22,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
-// --- Constants (identical to third-party / codex-rs) -----------------------------
+// --- Constants (identical to codex-rs) --------------------------------------
 
 pub const CODEX_OAUTH_CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
 pub const CODEX_OAUTH_ISSUER: &str = "https://auth.openai.com";

@@ -1,6 +1,6 @@
 //! Forge: **SELF-IMPROVEMENT** tools: the agent creates/edits its own **skill scripts**,
-//! its **plugins** (forged tools) and its **MCP servers**. Inspired by third-party' `skill_manage`,
-//! but granular (simple schemas, reliable even on a small model). The skills (OKF docs)
+//! its **plugins** (forged tools) and its **MCP servers**. Granular by design
+//! (simple schemas, reliable even on a small model). The skills (OKF docs)
 //! live in the cognitive map and are managed by the `skill_*` abeilles in `memoire.rs`.
 
 use crate::abeille::{

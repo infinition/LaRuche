@@ -14,7 +14,7 @@ pub fn assembler_prompt_skills(base_prompt: &str, skills: &[(String, String)]) -
     let mut out = String::new();
     out.push_str("# Skills activated for this task\n\n");
     for (name, body) in skills {
-        // third-party-style hint: explicitly surface the tools/plugins declared useful
+        // Hint: explicitly surface the tools/plugins declared useful
         // for this skill (frontmatter `tools:`/`allowed-tools:`), even when the frontmatter
         // is stripped from the body, so the model knows WHICH tools to prefer for this skill.
         let outils = extraire_outils_skill(body);

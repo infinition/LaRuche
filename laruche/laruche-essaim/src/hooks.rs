@@ -1,4 +1,4 @@
-//! **User hooks** (Claude Code / third-party style): Gap D.
+//! **User hooks** (Claude Code style): Gap D.
 //!
 //! The user defines shell commands in `hooks.json` to run AROUND tool calls:
 //! `pre_tool` (before) and `post_tool` (after). A `pre_tool` hook that fails (exit

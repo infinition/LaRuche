@@ -1,5 +1,5 @@
-//! The **Vigie**: pure monitoring of sterile loops (inspired by the best of
-//! third-party: a side-effect-free controller).
+//! The **Vigie**: pure monitoring of sterile loops (a side-effect-free
+//! controller).
 //!
 //! The Vigie *observes* tool calls and returns a [`Signal`]. It touches nothing:
 //! the loop decides what to do with the signal (inject advice, stop cleanly).

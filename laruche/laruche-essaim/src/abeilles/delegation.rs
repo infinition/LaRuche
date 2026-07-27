@@ -1,6 +1,6 @@
 //! Sub-agent delegation: allows the main agent to spawn sub-tasks.
 //!
-//! Inspired by third-party's multi-agent routing. The main agent can delegate
+//! Multi-agent routing. The main agent can delegate
 //! a sub-task to a fresh agent context that runs independently and returns
 //! a result. This enables complex task decomposition.
 

@@ -1151,7 +1151,7 @@ const CURATEUR_OUTILS: &[&str] = &[
 ];
 
 /// The curateur's **rock-solid framing prompt** ("mega skill" to follow to the letter).
-/// Inspired by third-party' background-review, extended to TOOLS/plugins + verification.
+// Background review, extended to TOOLS/plugins + verification.
 const PROMPT_CURATEUR: &str = r#"You are the CURATEUR of the ruche's capability library - a background reviewer that runs AFTER a mission. The main conversation is untouched by you.
 
 ## Be CONSERVATIVE - the DEFAULT outcome is "Nothing to save."

@@ -13,7 +13,7 @@ The node itself is a lightweight Rust binary; the real cost is your model server
 models make longer agentic missions noticeably better. See
 [Local Models](Local-Models).
 
-## How is this different from third-party agent or third-party?
+## How is this different from other agent frameworks?
 
 Different bets. Those projects are strong at what they do; LaRuche invests in
 subsystems that matter when an agent runs 24/7 on your own hardware:

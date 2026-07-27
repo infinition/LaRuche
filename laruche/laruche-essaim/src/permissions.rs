@@ -124,7 +124,7 @@ pub fn decision_permission(
 }
 
 /// Injection guard: scans the arguments of a mutating action tool for
-/// injection/exfiltration patterns (third-party `threat_patterns`). Returns
+/// injection/exfiltration patterns (`threat_patterns`). Returns
 /// `Some(reason)` if the call should be blocked, `None` otherwise.
 /// Read-only tools are not blocked (false positives too costly).
 pub fn garde_injection(name: &str, args: &serde_json::Value) -> Option<String> {

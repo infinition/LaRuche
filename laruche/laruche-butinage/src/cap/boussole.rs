@@ -138,7 +138,7 @@ pub fn cap(ctx: &ContexteCap, issue: Issue) -> Decision {
             }
         }
 
-        // Text only. STATE OF THE ART (third-party/third-party/Claude Code): a response with no
+        // Text only. STATE OF THE ART for ReAct loops: a response with no
         // tool call = END OF TURN, yield control. A multi-step task continues *because
         // there are tool calls*, never because of an "unfinished plan".
         // Only a few BOUNDED rails (weak models) may relaunch.

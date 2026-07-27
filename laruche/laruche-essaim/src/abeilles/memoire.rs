@@ -838,7 +838,7 @@ impl Abeille for MemoireConsolidate {
     }
 }
 
-// ───────────────────────── SKILLS (self-improvement, third-party-style) ─────────────────────────
+// ───────────────────────────── SKILLS (self-improvement) ───────────────────────────────────
 
 fn str_array(v: &serde_json::Value) -> Vec<String> {
     v.as_array()
@@ -847,7 +847,7 @@ fn str_array(v: &serde_json::Value) -> Vec<String> {
 }
 
 /// Sync SQL -> disk: writes the skill's `SKILL.md` under `skills/<slug>/` (flat-file,
-/// compatible with agentskills.io / third-party: editable, versionable, re-importable).
+/// compatible with agentskills.io: editable, versionable, re-importable).
 pub(crate) fn ecrire_skill_md(node_id: &str, content: &str) {
     let slug = node_id.strip_prefix("capacities.skills.").unwrap_or(node_id);
     if slug.is_empty() {

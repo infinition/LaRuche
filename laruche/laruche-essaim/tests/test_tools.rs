@@ -181,7 +181,7 @@ async fn test_file_write_and_read() {
     let args = serde_json::json!({"path": path_str});
     let result = read_tool.executer(args, &default_ctx()).await.unwrap();
     assert!(result.success, "FileRead failed: {:?}", result.error);
-    // file_read now returns the content with line numbers (third-party-style boost).
+    // file_read now returns the content with line numbers (readability boost).
     assert!(
         result.output.contains("Hello, LaRuche!"),
         "FileRead output = {:?}",

@@ -1194,7 +1194,7 @@ LaRuche.Settings = (function(){
     };
   }
 
-  // ── Cron timeline (ported from third-party PR #47944, in vanilla JS) ──────
+  // ── Cron timeline (vanilla JS) ────────────────────────────────────────
   var _tlSpanH = 24;            // window: 24 / 48 / 168 h
   var _tlFromMs = 0;           // left edge
   var _tlJobs = [];

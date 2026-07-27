@@ -1,8 +1,7 @@
 //! **Smart approvals**: the layered gate before a sensitive tool call runs.
 //!
-//! Design taken from third-party' `tools/approval.py` (itself after Codex's guardian
-//! subagent), adapted to LaRuche's doctrine: the **decision core is pure and
-//! tested** ([`decider`]), side effects (LLM judge, disk, popup) live outside.
+//! LaRuche's doctrine: the **decision core is pure and tested** ([`decider`]),
+//! side effects (LLM judge, disk, popup) live outside.
 //!
 //! Gate order - each layer can only be reached if the previous one abstained:
 //! 1. **user deny rule** ([`Registre::regle_refus`]): fires FIRST, before any

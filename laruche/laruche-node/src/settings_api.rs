@@ -253,7 +253,7 @@ pub(crate) async fn api_secrets_delete(
 }
 
 /// POST /mcp - **MCP server** (JSON-RPC, "Streamable HTTP" transport). Exposes LaRuche's abeilles
-/// as MCP tools -> any MCP client (Claude Code, Cursor, third-party...)
+/// as MCP tools -> any MCP client (Claude Code, Cursor...)
 /// can drive LaRuche. Opt-in security: if `LARUCHE_MCP_TOKEN` is set, requires the matching
 /// `X-LaRuche-MCP-Token` header (otherwise open - local POC usage).
 pub(crate) async fn api_mcp_server(

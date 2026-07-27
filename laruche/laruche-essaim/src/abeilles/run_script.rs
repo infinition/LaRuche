@@ -1,4 +1,4 @@
-//! run_script: tool pipeline in ONE turn (inspired by third-party RPC scripts).
+//! run_script: tool pipeline in ONE turn (RPC-style scripting).
 //!
 //! The model provides a list of steps `[{tool, args}]`; they run sequentially
 //! through the registry, **without going back to the LLM** between steps. Step N output
@@ -14,7 +14,7 @@ pub struct RunScript {
     pub registry: Arc<AbeilleRegistry>,
 }
 
-/// `tool_search`: progressive disclosure (inspired by third-party `tool_search`): searches a
+/// `tool_search`: progressive disclosure: searches a
 /// tool by keyword among ALL registered ones, not just those injected this turn.
 /// FR/EN tolerant (substring search on name+description). Read-only.
 pub struct ToolSearch {
@@ -81,7 +81,7 @@ impl Abeille for ToolSearch {
 }
 
 /// `tool_call`: executes ANY registered tool by name, even if not injected
-/// this turn (inspired by third-party `tool_call` bridge). Preserves validation: refuses
+/// this turn (tool_call bridge). Preserves validation: refuses
 /// non-`Safe` tools (to be called directly) and recursion.
 pub struct ToolCall {
     pub registry: Arc<AbeilleRegistry>,

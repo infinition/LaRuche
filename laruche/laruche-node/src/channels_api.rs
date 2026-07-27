@@ -517,7 +517,7 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                 continue;
                             }
 
-                            // /help: command list (third-party style).
+                            // /help: command list.
                             if text == "/help" || text == "/commands" {
                                 let aide = "*LaRuche - commands*\n\
                                     *Status & info*\n\

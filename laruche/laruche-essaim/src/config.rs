@@ -94,7 +94,7 @@ pub struct EssaimConfig {
     #[serde(default = "default_tool_selection_limit")]
     pub tool_selection_limit: usize,
     /// Stable, query-INDEPENDENT toolset (profile) -> identical prefix from one turn to the next,
-    /// so the prefix cache is reusable (third-party trick). Combine with `dynamic_tool_selection`.
+    /// so the prefix cache is reusable. Combine with `dynamic_tool_selection`.
     #[serde(default)]
     pub stable_toolset: bool,
     /// Lever 2 - tools deemed relevant for THIS turn (semantically retrieved from the
