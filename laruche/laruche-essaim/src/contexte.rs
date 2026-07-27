@@ -1626,15 +1626,35 @@ pub async fn boucle_react_multimodal_ext(
 pub(crate) fn yaml_frontmatter_field(markdown: &str, key: &str) -> Option<String> {
     let rest = markdown.trim_start().strip_prefix("---")?;
     let end = rest.find("\n---")?;
-    for line in rest[..end].lines() {
+    let mut lignes = rest[..end].lines().peekable();
+    while let Some(line) = lignes.next() {
         // Ignore lines without `:` (the 1st line after `---` is empty). Do NOT `?` here: it
         // made ALL parsing fail at the empty line -> name/description always None.
         let Some((k, v)) = line.split_once(':') else {
             continue;
         };
-        if k.trim() == key {
-            return Some(v.trim().trim_matches('"').trim_matches('\'').to_string());
+        if k.trim() != key {
+            continue;
         }
+        let v = v.trim();
+        // YAML BLOCK SCALAR: the value lives on the following indented lines, and the
+        // marker alone is not it. Returning it verbatim published a literal ">-" as the
+        // description of every skill written that way, i.e. the whole prompt catalog.
+        if matches!(v, ">" | ">-" | ">+" | "|" | "|-" | "|+") {
+            let plie = v.starts_with('>');
+            let mut morceaux: Vec<String> = Vec::new();
+            while let Some(suite) = lignes.peek() {
+                // The block ends at the first line that is blank or not indented.
+                if suite.trim().is_empty() || !suite.starts_with([' ', '\t']) {
+                    break;
+                }
+                morceaux.push(suite.trim().to_string());
+                lignes.next();
+            }
+            // Folded (`>`) joins with spaces, literal (`|`) keeps the line breaks.
+            return Some(morceaux.join(if plie { " " } else { "\n" }));
+        }
+        return Some(v.trim_matches('"').trim_matches('\'').to_string());
     }
     None
 }
@@ -1642,6 +1662,36 @@ pub(crate) fn yaml_frontmatter_field(markdown: &str, key: &str) -> Option<String
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn yaml_frontmatter_deplie_les_scalaires_de_bloc() {
+        // Regression: `description: >-` returned the MARKER, so every skill written
+        // that way published a literal ">-" as its description in the prompt catalog.
+        let md = "---\ntype: skill\nname: cognitive-memory\ndescription: >-\n  Store and \
+                  curate lasting facts.\nprerequisites:\n  commands: [jq]\n---\n\n# Body";
+        assert_eq!(
+            yaml_frontmatter_field(md, "description").as_deref(),
+            Some("Store and curate lasting facts.")
+        );
+        // The block must stop at the next unindented key, not swallow it.
+        assert_eq!(
+            yaml_frontmatter_field(md, "name").as_deref(),
+            Some("cognitive-memory")
+        );
+
+        // Folded over several lines joins with spaces; literal keeps the breaks.
+        let plie = "---\ndescription: >-\n  one\n  two\n---\n";
+        assert_eq!(yaml_frontmatter_field(plie, "description").as_deref(), Some("one two"));
+        let litteral = "---\ndescription: |\n  one\n  two\n---\n";
+        assert_eq!(yaml_frontmatter_field(litteral, "description").as_deref(), Some("one\ntwo"));
+
+        // Inline form keeps working, quotes stripped.
+        let inline = "---\ndescription: \"Plain one liner\"\n---\n";
+        assert_eq!(
+            yaml_frontmatter_field(inline, "description").as_deref(),
+            Some("Plain one liner")
+        );
+    }
 
     #[test]
     fn yaml_frontmatter_lit_apres_ligne_vide() {

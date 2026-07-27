@@ -5,18 +5,55 @@ use axum::extract::State;
 use axum::response::Json;
 use std::sync::Arc;
 
-/// Delete `capacities.skills.*` nodes that hold NO skill document.
+/// True when this node came FROM the disk (every item carries `source: skill-file`)
+/// and its folder is gone.
 ///
-/// These are empty shells: the writer and the reader disagreed on `-` versus `_`
-/// for a long time, so the same skill was created twice and one of the two copies
-/// never received a body. The base carried 88 children for 73 folders. Listing a
-/// name that `skill_view` cannot open is worse than not listing it, and the
-/// self-improvement loop keeps piling them up if nothing ever sweeps.
+/// Deleting or renaming a `skills/<name>/` folder used to leave its copy in SQL
+/// forever: the cut of 45 skills and six renames left 51 ghosts in the catalog, each
+/// still costing its description in the prompt on every single turn, and several
+/// shadowing the skill that replaced them.
 ///
-/// Deliberately CONSERVATIVE: only a node whose every active item lacks
-/// `type: skill` is removed. A skill living only in memory (created by the curator,
-/// never written to disk) has a document, so it is never touched.
-async fn reconcilier_skills_orphelines(memoire: &Arc<dyn laruche_memoire::MemoireCognitive>) {
+/// Provenance is what makes this safe. A skill the agent forged with `skill_create`
+/// exists only in SQL and carries another source, so it is never touched. A backend
+/// that does not expose `source` at all reports `false` here and sweeps nothing,
+/// which is the right way to fail.
+fn supprimee_du_disque(
+    node: &serde_json::Value,
+    id: &str,
+    sur_disque: &std::collections::HashSet<String>,
+) -> bool {
+    if sur_disque.is_empty() || sur_disque.contains(id) {
+        return false;
+    }
+    node["items"]
+        .as_array()
+        .filter(|items| !items.is_empty())
+        .is_some_and(|items| {
+            items.iter().all(|it| it["source"].as_str() == Some("skill-file"))
+        })
+}
+
+/// Sweep the `capacities.skills.*` catalog of what is no longer a real skill.
+///
+/// TWO rules, both conservative:
+///
+/// 1. A node holding NO skill document is an empty shell. The writer and the reader
+///    disagreed on `-` versus `_` for a long time, so the same skill was created
+///    twice and one copy never received a body: 88 children for 73 folders. Listing
+///    a name that `skill_view` cannot open is worse than not listing it.
+/// 2. A node that CAME from the disk whose folder is gone, see
+///    [`supprimee_du_disque`]. Without this, deleting or renaming a skill folder
+///    left its copy in the catalog forever.
+///
+/// A skill living only in memory, forged by the agent or the curator, matches
+/// neither rule and is never touched.
+///
+/// `sur_disque` = node ids for the `skills/*/SKILL.md` folders seen in this scan.
+/// Empty means "no disk scan happened", and then nothing is swept on that basis.
+async fn reconcilier_skills_orphelines(
+    memoire: &Arc<dyn laruche_memoire::MemoireCognitive>,
+    sur_disque: &std::collections::HashSet<String>,
+) {
     let Ok(racine) = memoire.read_node("capacities.skills").await else {
         return;
     };
@@ -43,7 +80,7 @@ async fn reconcilier_skills_orphelines(memoire: &Arc<dyn laruche_memoire::Memoir
                     .any(|it| it["content"].as_str().is_some_and(|c| c.contains("type: skill")))
             })
             .unwrap_or(false);
-        if a_document {
+        if a_document && !supprimee_du_disque(&node, &id, sur_disque) {
             continue;
         }
         // delete_node reparents to `orphans.*`, so remove that residue too.
@@ -68,6 +105,7 @@ pub(crate) async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::M
         return;
     };
     let mut n = 0usize;
+    let mut sur_disque: std::collections::HashSet<String> = std::collections::HashSet::new();
     for e in rd.flatten() {
         let p = e.path();
         if !p.is_dir() {
@@ -87,6 +125,9 @@ pub(crate) async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::M
         // exactly how the two drifted: the folder name went in verbatim while the
         // reader normalised it, and 40 of the 73 shipped skills became unreachable.
         let node_id = laruche_skills::skill_node_id(slug);
+        // Recorded BEFORE the incremental skip below: an unchanged skill is still on
+        // disk, and the sweep needs the full picture, not just what we rewrote.
+        sur_disque.insert(node_id.clone());
         let existing = memoire.read_node(&node_id).await.ok();
         // INCREMENTAL: skip when the SQL copy already matches the disk file. The
         // unconditional delete+rewrite re-embedded every skill at every boot and
@@ -124,7 +165,7 @@ pub(crate) async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::M
     if n > 0 {
         tracing::info!(count = n, "skills synchronized from disk (SKILL.md -> SQL)");
     }
-    reconcilier_skills_orphelines(memoire).await;
+    reconcilier_skills_orphelines(memoire, &sur_disque).await;
     // Targeted purge of META-SKILLS from other agent frameworks (third-party/Claude Code/Codex...),
     // wrongly imported: they describe ANOTHER agent, not LaRuche. Explicit DENYLIST: definitely
     // NOT a disk diff "delete everything not on disk" (that would destroy skills
@@ -290,4 +331,66 @@ pub(crate) async fn api_state_version(State(state): State<Arc<AppState>>) -> Jso
         })
         .unwrap_or(0);
     Json(serde_json::json!({ "version": v }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::supprimee_du_disque;
+    use serde_json::json;
+    use std::collections::HashSet;
+
+    fn disque(ids: &[&str]) -> HashSet<String> {
+        ids.iter().map(|s| (*s).to_string()).collect()
+    }
+
+    #[test]
+    fn balaye_une_skill_retiree_du_disque_et_epargne_celles_forgees() {
+        let venue_du_disque =
+            json!({"items": [{"content": "type: skill", "source": "skill-file"}]});
+        let forgee_par_lagent =
+            json!({"items": [{"content": "type: skill", "source": "skill_create"}]});
+        let present = disque(&["capacities.skills.openhue"]);
+
+        // Its folder is gone and it came from disk: it is a ghost, sweep it.
+        assert!(supprimee_du_disque(
+            &venue_du_disque,
+            "capacities.skills.airtable",
+            &present
+        ));
+        // Still on disk: untouched.
+        assert!(!supprimee_du_disque(
+            &venue_du_disque,
+            "capacities.skills.openhue",
+            &present
+        ));
+        // Forged by the agent, lives only in SQL: never swept, whatever the disk says.
+        assert!(!supprimee_du_disque(
+            &forgee_par_lagent,
+            "capacities.skills.airtable",
+            &present
+        ));
+    }
+
+    #[test]
+    fn sans_scan_disque_ou_sans_provenance_on_ne_supprime_rien() {
+        let venue_du_disque =
+            json!({"items": [{"content": "type: skill", "source": "skill-file"}]});
+        // No disk scan happened: sweeping on that basis would erase the whole catalog.
+        assert!(!supprimee_du_disque(&venue_du_disque, "capacities.skills.x", &disque(&[])));
+
+        // A backend that does not expose `source` must sweep nothing, not guess.
+        let sans_source = json!({"items": [{"content": "type: skill"}]});
+        assert!(!supprimee_du_disque(
+            &sans_source,
+            "capacities.skills.x",
+            &disque(&["capacities.skills.y"])
+        ));
+        // Neither must an empty node reach the disk rule (the shell sweep owns it).
+        let vide = json!({"items": []});
+        assert!(!supprimee_du_disque(
+            &vide,
+            "capacities.skills.x",
+            &disque(&["capacities.skills.y"])
+        ));
+    }
 }

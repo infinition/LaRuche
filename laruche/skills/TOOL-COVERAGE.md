@@ -30,7 +30,8 @@ that is neither covered nor declared below.
 | `git_*` | `local-git` |
 | `watcher_*`, `file_watch` | `watcher-design` |
 | `lsp` | `codebase-inspection` |
-| `research_mode`, `session_search`, `web_*`, `read_extract` | `deep_research_synthesis` |
+| `web_*`, `read_extract`, `browser_*`, `image_search` | `web-research` |
+| `research_mode`, `session_search` | `deep_research_synthesis` |
 | `file_*`, `shell_exec`, `execute_code` | the procedure skills that use them |
 
 ## Deliberately without a skill
@@ -45,7 +46,6 @@ in a procedure would add a page to read and nothing to know.
 | `clarify` | Asks the user a question. The judgement is WHEN to ask, which belongs in the agent's charter, not in a procedure. |
 | `calendar_add` | `title` and `date` as `YYYY-MM-DD`, optional `time` as `HH:MM`. The schema carries the formats. |
 | `calendar_list` | Optional date filter. Read-only. |
-| `image_search` | Searches Wikimedia Commons and displays results. The rule that matters, never fabricate an image URL, is already in the schema. |
 | `media_present` | Displays a file below the response. Accepts http(s) URLs and local paths inside the working directory. |
 | `mesh_send` | Sends a message to another LaRuche instance. Outbound, requires approval, so the user is the gate rather than a written procedure. |
 | `finding` | Records a finding during a mission. One call, one payload. |

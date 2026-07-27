@@ -1,0 +1,92 @@
+---
+type: skill
+name: web-research
+description: >-
+  Answer a factual question from the web, with sources, when a single search is not enough.
+---
+
+# Web research
+
+The everyday case: the user asks something you cannot answer from what you know, and the
+answer must be TRUE today. Two or three well-chosen calls, a cross-check, an answer with
+its sources.
+
+For a multi-pass cited report on a broad subject, use `deep_research_synthesis` instead
+and call `research_mode` first. This skill is the fast, correct lookup.
+
+## Choose the right tool, it decides everything
+
+| Tool | Returns | Use when |
+|---|---|---|
+| `web_search` | titles, URLs, snippets | you need to SEE what exists and pick |
+| `web_deep_search` | snippets AND the full text of the top results | you want the answer, not a list |
+| `web_fetch` | the clean text of ONE page | you already know the page that holds it |
+| `read_extract` | structured extraction from a page | the page is dense and you want fields |
+| `browser_navigate` | a real rendered browser | the content needs JavaScript or a session |
+
+`web_deep_search` is the default for a real question. `web_search` alone returns snippets,
+and a snippet is an advertisement for a page, not evidence from it. Answering from
+snippets is the most common way to be confidently wrong.
+
+## Procedure
+
+1. **Anchor the question in time.** Read the authoritative date at the end of your
+   context. For anything current, put the year in the query. Your training prior is old
+   and will quietly answer with a stale fact.
+2. **Query like a document, not like a person.** Search engines match the words that
+   appear on the target page. `laruche release notes 2026` beats `what is new in
+   LaRuche this year`. Two or three distinct phrasings beat one repeated.
+3. **Run the searches in PARALLEL.** They are read-only, so several calls travel in the
+   same message. One angle per call. Sequential searching is the slowest possible way to
+   do this.
+4. **Open the pages that matter** with `web_fetch`. A long page is paginated: the output
+   tells you the total size and the `offset` for the next chunk. If the answer is not in
+   the first chunk, read on, do not guess.
+5. **Record every decisive fact with `finding`, the moment you learn it**, with its URL.
+   The findings ledger survives context compaction. A fact you did not record can be gone
+   before you write the final answer.
+6. **Cross-check anything that matters.** Two independent sources, not two pages copying
+   the same press release. A number, a date, a price or a claim about a person needs a
+   second source. If the sources disagree, say so instead of picking one.
+7. **Answer with the sources**, and state plainly what you could not establish.
+
+## Prefer the primary source
+
+Official documentation, the project repository, the standards body, the company's own
+announcement. A blog summarising a release is one telephone game away from the truth and
+is usually months behind. When a page cites a source, go and read that source.
+
+## Traps
+
+- **The snippet trap.** Deciding from search snippets alone. Open the page.
+- **The stale answer.** Answering from memory on a question that has a current answer.
+  Anything with "latest", "current", "now", "this year" or a price in it must be searched.
+- **The single source.** One page saying something is a claim, not a fact.
+- **Content farms and AI slop.** A page with no author, no date, and text that restates
+  the question is worthless. Prefer a dated page with a named author.
+- **The paginated page.** Reading the first 12000 characters and concluding the answer is
+  absent. Check the size hint and continue with `offset`.
+- **Fabricating a URL.** Never write a link you have not fetched. If you need an image,
+  use `image_search`; do not invent image URLs.
+
+## Failure modes
+
+**403, paywall, captcha, or an empty result.** An obstacle, never a conclusion. In order:
+try `web_fetch` with `render: true`, then the Wayback Machine
+(`https://web.archive.org/web/2026/<url>`), then a search-engine cache, then a mirror,
+then another source entirely. Only after all of those do you report the angle as blocked.
+
+**The search returns nothing useful.** The query is phrased as a question, or uses your
+vocabulary rather than the page's. Rewrite it with the words that would literally appear
+on the page you want. Try the domain's own terminology.
+
+**Every result is the same article, syndicated.** You found a press release. Search for
+the primary source it is based on: the paper, the filing, the repository, the official
+post.
+
+**The page loads but is empty.** It is JavaScript-rendered. `web_fetch` with
+`render: true`, and if that still fails, `browser_navigate`.
+
+**You cannot establish the fact.** Say so, name what you tried, and give the closest
+thing you did establish. A clear "I could not confirm this" is a correct answer. An
+invented one is not.
