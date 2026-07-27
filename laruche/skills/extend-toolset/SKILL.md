@@ -84,6 +84,12 @@ plugins/
 Manifest and body travel together, so `plugin_delete` removes both at once. Never put a
 plugin's script anywhere else.
 
+The layout inside the folder is flat: a plugin is a manifest and the thing it runs, so
+there is no `scripts/` level to create, unlike a skill which also carries references and
+templates. A plugin that genuinely grows several files may organise them in subfolders of
+its own, `{{plugin_dir}}/lib/parse.py` and so on, and nothing has to be declared for that
+to work. Do not add the level for a single file.
+
 `plugin_create` requires `name`, `description` and `command`.
 
 - `command` is a shell template with `{{slots}}`, for example

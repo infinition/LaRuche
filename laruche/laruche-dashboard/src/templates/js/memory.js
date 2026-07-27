@@ -307,6 +307,11 @@ LaRuche.Memory = (function(){
   var lastNodeSig = '';
   function loadNode(id, silent) {
     id = String(id || '').trim(); if(!id) return;
+    // The virtual root has no row. read_node does not fail on a missing id, it returns a
+    // SYNTHESISED node, which mergeNodes then adds to the tree: @memory ended up listed
+    // as its own child. Guarded here rather than at the click, because the periodic
+    // refresh reloads the selected node on its own.
+    if(id === VNODE){ current = VNODE; currentNode = null; renderDoc(); return; }
     fetch(LaRuche.API.base+'/api/memory/node/'+encodeURIComponent(id)).then(function(r){return r.json();}).then(function(data){
       if(data.status === 'error' || data.error) { if(!silent) LaRuche.Toast.show(data.error || LaRuche.i18n.t('memory.nodeUnavailable'), 'err'); return; }
       var node = data.node || data;
@@ -475,7 +480,8 @@ LaRuche.Memory = (function(){
     // SYSTEM group at the top (system + capacities), visually separated from the rest.
     var isSys = function(k){ return k==='system' || k==='capacities' || k==='tools'; };
     var sysKeys = Object.keys(root.children).filter(isSys).sort(rootOrder);
-    var otherKeys = Object.keys(root.children).filter(function(k){ return !isSys(k); }).sort();
+    // VNODE is filtered out: it is the container being built here, never a branch of it.
+    var otherKeys = Object.keys(root.children).filter(function(k){ return !isSys(k) && k !== VNODE; }).sort();
     var html = '';
     if(sysKeys.length){
       html += '<div class="mem2-sysgroup">'+
@@ -504,8 +510,6 @@ LaRuche.Memory = (function(){
           expanded[id] = !expanded[id];
           renderTree();
         }
-        // No document to fetch for the virtual root: select it and describe its scope.
-        if(row.dataset.node === VNODE){ current = VNODE; currentNode = null; renderDoc(); return; }
         loadNode(row.dataset.node);
       };
       wireRowDnd(row);
@@ -706,7 +710,7 @@ LaRuche.Memory = (function(){
     var racines = {};
     Object.keys(nodes).forEach(function(id){
       var seg = id.split('.')[0];
-      if(!isSys(seg)) racines[seg] = (racines[seg] || 0) + 1;
+      if(!isSys(seg) && seg !== VNODE) racines[seg] = (racines[seg] || 0) + 1;
     });
     var noms = Object.keys(racines).sort();
     el.innerHTML = '<div class="mem2-nodedates">'+esc(LaRuche.i18n.t('memory.virtualNodeTitle'))+' · '+VNODE+'</div>'+
