@@ -83,7 +83,6 @@ pub(crate) async fn api_plugin_delete(
 
 /// Roots the browser may touch. Anything outside them is refused.
 const RACINES: [&str; 2] = ["plugins", "mcp"];
-// Anti-traversal guard: every path is confined to plugins/.
 
 /// Resolves a browser path, which starts with one of `RACINES`, rejecting any escape
 /// (`..`, absolute). A path with no recognised root is refused rather than guessed at:
@@ -107,11 +106,18 @@ fn plugin_safe_path(rel: &str) -> Option<std::path::PathBuf> {
     Some(std::path::PathBuf::from(rel))
 }
 
-/// GET /api/plugins/files: flat tree of plugins/ and mcp/ (recursive, bounded depth).
-pub(crate) async fn api_plugin_files() -> Json<serde_json::Value> {
+/// Flat listing of `racines` resolved under `socle`, sorted so a path always follows
+/// its parent, which is what makes the tree readable once the client indents by depth.
+///
+/// Every entry carries its root ("plugins/x", "mcp/y"): one browser serves both, and a
+/// write comes back naming the root it belongs to. The roots themselves are pushed here
+/// rather than by the recursion, which only emits a folder when it DESCENDS into one:
+/// the directory it is handed never appeared, so mcp/computer_use.py showed up
+/// parentless at the top and the plugin folders sat where the roots should have been.
+fn lister_fichiers(socle: &std::path::Path, racines: &[&str]) -> Vec<serde_json::Value> {
     fn walk(
         dir: &std::path::Path,
-        base: &std::path::Path,
+        socle: &std::path::Path,
         depth: usize,
         out: &mut Vec<serde_json::Value>,
     ) {
@@ -122,7 +128,7 @@ pub(crate) async fn api_plugin_files() -> Json<serde_json::Value> {
         for e in rd.flatten() {
             let p = e.path();
             let rel = p
-                .strip_prefix(base)
+                .strip_prefix(socle)
                 .unwrap_or(&p)
                 .to_string_lossy()
                 .replace('\\', "/");
@@ -131,23 +137,29 @@ pub(crate) async fn api_plugin_files() -> Json<serde_json::Value> {
                     continue;
                 }
                 out.push(serde_json::json!({ "path": rel, "dir": true }));
-                walk(&p, base, depth + 1, out);
+                walk(&p, socle, depth + 1, out);
             } else {
                 let size = e.metadata().map(|m| m.len()).unwrap_or(0);
                 out.push(serde_json::json!({ "path": rel, "dir": false, "size": size }));
             }
         }
     }
-    // Paths are emitted root-first ("plugins/x", "mcp/y") so one browser can serve both
-    // and every write comes back naming the root it belongs to.
+
     let mut out = Vec::new();
-    for racine in RACINES {
-        let base = std::path::Path::new(racine);
-        if base.exists() {
-            walk(base, std::path::Path::new(""), 0, &mut out);
+    for racine in racines {
+        let dossier = socle.join(racine);
+        if dossier.exists() {
+            out.push(serde_json::json!({ "path": *racine, "dir": true }));
+            walk(&dossier, socle, 0, &mut out);
         }
     }
     out.sort_by(|a, b| a["path"].as_str().cmp(&b["path"].as_str()));
+    out
+}
+
+/// GET /api/plugins/files: flat tree of plugins/ and mcp/ (recursive, bounded depth).
+pub(crate) async fn api_plugin_files() -> Json<serde_json::Value> {
+    let out = lister_fichiers(std::path::Path::new(""), &RACINES);
     Json(serde_json::json!({ "files": out }))
 }
 
@@ -205,3 +217,68 @@ pub(crate) async fn api_plugin_file_delete(
     Ok(Json(serde_json::json!({ "status": "ok", "path": path })))
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::{lister_fichiers, plugin_safe_path};
+
+    fn chemins(v: &[serde_json::Value]) -> Vec<String> {
+        v.iter()
+            .map(|e| {
+                format!(
+                    "{}{}",
+                    e["path"].as_str().unwrap_or(""),
+                    if e["dir"].as_bool().unwrap_or(false) { "/" } else { "" }
+                )
+            })
+            .collect()
+    }
+
+    #[test]
+    fn les_racines_apparaissent_et_chaque_chemin_suit_son_parent() {
+        let socle = std::env::temp_dir().join(format!("laruche-listing-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&socle);
+        std::fs::create_dir_all(socle.join("plugins").join("example_hello")).unwrap();
+        std::fs::write(socle.join("plugins/example_hello/plugin.json"), "{}").unwrap();
+        std::fs::write(socle.join("plugins/example_hello/run.py"), "x").unwrap();
+        std::fs::create_dir_all(socle.join("mcp")).unwrap();
+        std::fs::write(socle.join("mcp/computer_use.py"), "y").unwrap();
+
+        let listing = chemins(&lister_fichiers(&socle, &["plugins", "mcp"]));
+
+        assert_eq!(
+            listing,
+            vec![
+                "mcp/",
+                "mcp/computer_use.py",
+                "plugins/",
+                "plugins/example_hello/",
+                "plugins/example_hello/plugin.json",
+                "plugins/example_hello/run.py",
+            ]
+        );
+        let _ = std::fs::remove_dir_all(&socle);
+    }
+
+    #[test]
+    fn une_racine_absente_n_apparait_pas() {
+        let socle = std::env::temp_dir().join(format!("laruche-vide-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&socle);
+        std::fs::create_dir_all(socle.join("plugins")).unwrap();
+
+        let listing = chemins(&lister_fichiers(&socle, &["plugins", "mcp"]));
+
+        assert_eq!(listing, vec!["plugins/"]);
+        let _ = std::fs::remove_dir_all(&socle);
+    }
+
+    #[test]
+    fn un_chemin_sans_racine_connue_est_refuse() {
+        assert!(plugin_safe_path("plugins/example_hello/run.py").is_some());
+        assert!(plugin_safe_path("mcp/computer_use.py").is_some());
+        // No root, escape attempt, or a root that is not whitelisted.
+        assert!(plugin_safe_path("run.py").is_none());
+        assert!(plugin_safe_path("../secrets.enc").is_none());
+        assert!(plugin_safe_path("users/admin.json").is_none());
+    }
+}
