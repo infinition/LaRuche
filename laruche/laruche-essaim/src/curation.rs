@@ -51,7 +51,7 @@ pub(crate) async fn curer_memoire(
         JSON array of the DURABLE facts to memorize (stable preferences, decisions, \
         persistent info about the user or projects). Each element: \
         {\"node_id\":\"<prefixe>.<nom>\",\"content\":\"...\",\"confidence\":0.0-1.0,\"source\":\"...\"} \
-        where <prefixe> is people, projects or decisions (e.g. people.fabien, projects.laruche, \
+        where <prefixe> is people, projects or decisions (e.g. people.alex, projects.laruche, \
         decisions.archi). The node_id must contain NEITHER a space NOR the character '|', \
         and NEVER uses 'x' as a name (those are examples). \
         'confidence': your certainty level (1.0 = certain, 0.5 = guess). \

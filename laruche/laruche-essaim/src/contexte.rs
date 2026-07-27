@@ -1519,7 +1519,9 @@ mod apprentissage_tests {
         let rappeles = vec![
             (
                 "itm_1".to_string(),
-                "Fabien utilise une carte graphique RTX 5080 avec 16 Go de VRAM".to_string(),
+                // The GPU model has to stay: the match is on shared tokens with the
+                // answer below, and stripping it makes the item look unused.
+                "Alex utilise une carte graphique RTX 5080 avec 16 Go de VRAM".to_string(),
             ),
             (
                 "itm_2".to_string(),

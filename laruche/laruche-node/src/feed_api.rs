@@ -8,7 +8,10 @@ use std::sync::Arc;
 /// Actor of a memory mutation based on its `src` (source/reason). UI -> User, otherwise LaRuche.
 pub(crate) fn feed_actor(src: &str) -> &'static str {
     let s = src.trim().to_lowercase();
-    if s.starts_with("ui") || s == "user" || s == "fabien" || s == "admin" {
+    // No hardcoded first name here. One used to be, a special case for a single
+    // person shipped in a public binary, and it never did anything the checks around
+    // it did not already cover.
+    if s.starts_with("ui") || s == "user" || s == "admin" {
         "User"
     } else {
         "LaRuche"

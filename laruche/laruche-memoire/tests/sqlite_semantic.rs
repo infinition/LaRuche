@@ -51,7 +51,7 @@ async fn recall_semantique_sans_mot_commun() {
 
     backend
         .write(MemoryItem::new(
-            "people.fabien",
+            "people.alex",
             "Il code en tongs en écoutant du jazz.",
         ))
         .await
@@ -280,7 +280,7 @@ async fn recall_exclut_les_projections_skills_systeme() {
         .await
         .unwrap();
     backend
-        .write(MemoryItem::new("people.fabien", "Il code en tongs en ecoutant du jazz"))
+        .write(MemoryItem::new("people.alex", "Il code en tongs en ecoutant du jazz"))
         .await
         .unwrap();
     let pack = backend.search("comment je code habituellement", SearchOpts::default()).await.unwrap();

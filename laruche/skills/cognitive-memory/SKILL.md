@@ -55,7 +55,7 @@ Rules that prevent an unusable map:
    - One fact per call. "Uses Rust, lives in Lyon, hates em dashes" is three writes,
      because they will be corrected, moved and deleted independently.
    - Write it so it survives without the conversation. "He agreed" is worthless in a
-     month. "Fabien chose MPL-2.0 for LaRuche on 2026-07-26, to keep the core copyleft
+     month. "The user chose MPL-2.0 for LaRuche on 2026-07-26, to keep the core copyleft
      while allowing proprietary integrations" is not.
    - **Absolute dates only.** Never "yesterday", "next week", "in two days". Resolve
      against the current date before writing.

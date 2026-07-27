@@ -32,7 +32,7 @@ pub use sqlite::SqliteBackend;
 /// Mirrors the paradigm schema (`memory_write` / `memory_propose_write`).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MemoryItem {
-    /// Dotted node identifier, e.g. `projects.laruche`, `decisions.archi`, `people.fabien`.
+    /// Dotted node identifier, e.g. `projects.laruche`, `decisions.archi`, `people.alex`.
     pub node_id: String,
     /// The fact/text to memorize.
     pub content: String,
@@ -336,11 +336,11 @@ mod tests {
     fn memory_item_round_trips_with_empty_tags() {
         // A curateur item with no tags must survive serialize -> deserialize, otherwise
         // approving a queued proposal fails ("missing field tags").
-        let item = MemoryItem::new("people.fabien", "User's name is Fabien");
+        let item = MemoryItem::new("people.alex", "User's name is Alex");
         let json = serde_json::to_string(&item).unwrap();
         assert!(!json.contains("tags")); // empty tags is omitted
         let back: MemoryItem = serde_json::from_str(&json).unwrap();
-        assert_eq!(back.node_id, "people.fabien");
+        assert_eq!(back.node_id, "people.alex");
         assert!(back.tags.is_empty());
     }
 }

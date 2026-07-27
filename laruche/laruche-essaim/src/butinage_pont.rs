@@ -2597,7 +2597,7 @@ mod tests_rappel {
 
     #[test]
     fn une_ligne_sans_metadonnees_traverse_intacte() {
-        let ctx = "- Fabien habite a Cannes";
-        assert!(memoire_reference(ctx).contains("- Fabien habite a Cannes"));
+        let ctx = "- Alex habite a Lyon";
+        assert!(memoire_reference(ctx).contains("- Alex habite a Lyon"));
     }
 }

@@ -793,7 +793,7 @@ impl Abeille for MemoireGrep {
 }
 
 /// `memory_consolidate`: merges/deduplicates a node's items into a minimal,
-/// synthetic set (e.g. `people.fabien` full of notes -> 1-2 items summarizing everything). Safe: the
+/// synthetic set (e.g. `people.alex` full of notes -> 1-2 items summarizing everything). Safe: the
 /// old items are soft-deleted (recoverable). For tidying/cleaning up memory.
 pub struct MemoireConsolidate {
     pub mem: Arc<dyn MemoireCognitive>,

@@ -43,12 +43,12 @@ async fn main() -> anyhow::Result<()> {
     // ─── 1) Deterministic proof of the memory layer ───────────────────────────
     println!("════════ 1. Memory round-trip (deterministic, no LLM) ════════");
     mem.write(
-        MemoryItem::new("people.fabien", "Préfère le langage Rust pour ses projets.")
+        MemoryItem::new("people.alex", "Préfère le langage Rust pour ses projets.")
             .with_source("test direct"),
     )
     .await?;
     let pack = mem
-        .search("quel langage préfère fabien", SearchOpts::default())
+        .search("quel langage préfère alex", SearchOpts::default())
         .await?;
     println!("search → {}", pack.to_prompt_text());
     println!("backend health → {}\n", mem.health().await?);

@@ -161,7 +161,7 @@ const PROMPT_EXTRACTION: &str = "You are a memory consolidator. From the agent c
 the DURABLE facts about the WORLD, the MISSION and the USER worth remembering across sessions: discoveries, \
 decisions, stable user preferences, key results, useful URLs. Output STRICT JSON only, an array of objects: \
 [{\"node_id\":\"<domain>.<subject>\",\"content\":\"<concise fact>\"}]. Use snake_case dotted node_ids \
-(e.g. research.dungeon_siege, decisions.archi, people.fabien). \
+(e.g. research.dungeon_siege, decisions.archi, people.alex). \
 DO NOT memorize the agent's OWN capabilities, tool names, or anything already in its system prompt - that is \
 NOT a durable fact. NEVER use the reserved domains `system.*` or `capacities.*` (system-managed). \
 If nothing durable, output []. No prose, JSON only.";
