@@ -8,6 +8,7 @@ LaRuche.i18n.add({
   'memory.memoryUnavailableError':{fr:'Memoire indisponible: ', en:'Memory unavailable: '},
   'memory.statsLabel':            {fr:' items · ', en:' items · '},
   'memory.statsNodes':            {fr:' noeuds', en:' nodes'},
+  'memory.statsPending':          {fr:'en attente', en:'pending'},
   'memory.searchError':           {fr:'Recherche: ', en:'Search: '},
   'memory.nodeUnavailable':       {fr:'Noeud indisponible', en:'Node unavailable'},
   'memory.readNodeError':         {fr:'Lecture noeud: ', en:'Read node: '},
@@ -267,9 +268,17 @@ LaRuche.Memory = (function(){
     fetch(LaRuche.API.base+'/api/memory/stats').then(function(r){return r.json();}).then(function(d){
       var el = document.getElementById('mem2Stats'); if(!el) return;
       if(d.error) { el.textContent = '--'; return; }
-      var items = d.items != null ? d.items : (d.item_count != null ? d.item_count : '?');
+      // The backend sends `items_active` / `items_proposed`; neither `items` nor
+      // `item_count` has ever existed, so the header showed a literal "?" while the
+      // node count worked, which read as memory being broken rather than a key typo.
+      var items = d.items_active != null ? d.items_active
+                : (d.items != null ? d.items
+                : (d.item_count != null ? d.item_count : '?'));
       var nn = d.nodes != null ? d.nodes : (d.node_count != null ? d.node_count : Object.keys(nodes).length);
-      el.textContent = items+LaRuche.i18n.t('memory.statsLabel')+nn+LaRuche.i18n.t('memory.statsNodes');
+      var txt = items+LaRuche.i18n.t('memory.statsLabel')+nn+LaRuche.i18n.t('memory.statsNodes');
+      // Pending items are the ones needing an action, so they belong in the header.
+      if(d.items_proposed) txt += ' · '+d.items_proposed+' '+LaRuche.i18n.t('memory.statsPending');
+      el.textContent = txt;
     }).catch(function(){});
   }
 
