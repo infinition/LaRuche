@@ -1,17 +1,8 @@
 ---
 type: skill
 name: humanizer
-description: "Strip AI writing patterns; add real voice to prose."
-version: 2.5.2
-author: Siqi Chen (@blader, https://github.com/blader/humanizer)
-license: MIT
-platforms: [linux, macos, windows]
-tools: [file_read, file_write]
-metadata:
-  laruche:
-    tags: [writing, editing, humanize, anti-ai-slop, voice, prose, text]
-    category: creative
-    homepage: https://github.com/blader/humanizer
+description: >-
+  Strip AI writing patterns; add real voice to prose.
 ---
 
 # Humanizer: Remove AI Writing Patterns

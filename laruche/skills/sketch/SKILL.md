@@ -1,15 +1,8 @@
 ---
 type: skill
 name: sketch
-description: "Throwaway HTML mockups: 2-3 design variants to compare."
-version: 1.1.0
-license: MIT
-platforms: [linux, macos, windows]
-tools: [shell_exec, file_write, file_read, browser_navigate, browser_screenshot]
-metadata:
-  laruche:
-    tags: [sketch, mockup, design, ui, prototype, html, variants, exploration, wireframe, comparison]
-    related_skills: [spike]
+description: >-
+  Throwaway HTML mockups: 2-3 design variants to compare.
 ---
 
 # Sketch

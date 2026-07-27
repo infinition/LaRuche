@@ -1,14 +1,8 @@
 ---
 type: skill
 name: github-repo-management
-description: "Clone, create, fork, release repos via gh/curl."
-version: 1.2.0
-license: MIT
-platforms: [linux, macos, windows]
-tools: [shell_exec]
-metadata:
-  laruche:
-    tags: [GitHub, Repositories, Git, Releases, Secrets, Actions]
+description: >-
+  Clone, create, fork, release repos via gh/curl.
 ---
 
 # GitHub Repository Management

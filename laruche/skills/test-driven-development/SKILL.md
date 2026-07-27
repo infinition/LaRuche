@@ -1,15 +1,8 @@
 ---
 type: skill
 name: test-driven-development
-description: "TDD: RED-GREEN-REFACTOR cycle, test-first enforcement."
-version: 1.2.0
-license: MIT
-platforms: [linux, macos, windows]
-tools: [shell_exec]
-metadata:
-  laruche:
-    tags: [testing, tdd, development, quality, red-green-refactor]
-    related_skills: [systematic-debugging, plan]
+description: >-
+  TDD: RED-GREEN-REFACTOR cycle, test-first enforcement.
 ---
 
 # Test-Driven Development (TDD)

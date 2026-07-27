@@ -1,15 +1,8 @@
 ---
 type: skill
 name: plan
-description: "Write an actionable markdown plan (no execution): bite-sized tasks, exact paths, full code."
-version: 2.0.0
-license: MIT
-platforms: [linux, macos, windows]
-tools: [file_read, file_list, file_write, shell_exec]
-metadata:
-  laruche:
-    tags: [planning, plan-mode, implementation, workflow, design]
-    related_skills: [subagent-driven-development, test-driven-development, requesting-code-review]
+description: >-
+  Write an actionable markdown plan (no execution): bite-sized tasks, exact paths, full code.
 ---
 
 # Plan Mode

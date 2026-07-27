@@ -226,7 +226,7 @@ pub async fn butiner(
             jauge.chars_par_token(),
         );
 
-        let messages = assembler(carnet, reglages);
+        let messages = assembler(carnet, reglages, outils.nouvelles_capacites().as_deref());
         let reponse =
             match appeler_modele(fournisseur, &messages, &schemas, reglages, emet, annulation).await
             {
@@ -529,7 +529,7 @@ fn tronquer_historique(
 /// findings ledger at the TAIL (outbound only, never persisted in the history -
 /// and tail position keeps the cached prefix stable while staying maximally fresh
 /// in the model's attention).
-fn assembler(carnet: &Carnet, reglages: &Reglages) -> Vec<Message> {
+fn assembler(carnet: &Carnet, reglages: &Reglages, nouveautes: Option<&str>) -> Vec<Message> {
     let mut v = Vec::with_capacity(carnet.historique.len() + 2);
     if !reglages.systeme.is_empty() {
         v.push(Message::systeme(reglages.systeme.clone()));
@@ -556,6 +556,15 @@ fn assembler(carnet: &Carnet, reglages: &Reglages) -> Vec<Message> {
     }
     if let Some(vol) = reglages.contexte_volatil.as_deref().filter(|s| !s.trim().is_empty()) {
         queue.push(vol.to_string());
+    }
+    if let Some(neuf) = nouveautes.filter(|s| !s.trim().is_empty()) {
+        queue.push(format!(
+            "## Capabilities you created this mission\nThese exist and are CALLABLE right \
+             now. They are absent from the tool list and the skill catalog above, which are \
+             frozen at mission start: that absence is expected and is NOT a failure. Do not \
+             create them a second time. Reach a tool with `tool_call`, a skill with \
+             `skill_view`.\n{neuf}"
+        ));
     }
     if queue.is_empty() {
         return v;
@@ -874,13 +883,13 @@ It is Sunday.".into()),
         };
 
         // Permissive backend: the tail message is kept as `system`.
-        let permis = assembler(&carnet, &base);
+        let permis = assembler(&carnet, &base, None);
         assert_eq!(permis.last().unwrap().role, Role::Systeme);
         assert!(permis.last().unwrap().contenu.contains("It is Sunday"));
 
         // Strict backend: no system message after the first one, ever.
         let strict = Reglages { systeme_en_queue_permis: false, ..base };
-        let out = assembler(&carnet, &strict);
+        let out = assembler(&carnet, &strict, None);
         let positions: Vec<usize> = out
             .iter()
             .enumerate()
@@ -1331,12 +1340,43 @@ It is Sunday.".into()),
             let sortant = assembler(
                 &carnet,
                 &Reglages { systeme_en_queue_permis: permis, ..Reglages::default() },
+                None,
             );
             assert!(
                 sortant.last().unwrap().contenu.contains("Findings ledger"),
                 "the ledger must close the context (systeme_en_queue_permis={permis})"
             );
         }
+    }
+
+    #[test]
+    fn les_capacites_forgees_ferment_le_contexte_sur_les_deux_transports() {
+        let mut carnet = Carnet::ouvrir("m", ModeMission::Standard, t0());
+        carnet.historique.push(Message::utilisateur("fabrique un outil"));
+        // A capability created mid-mission is callable but absent from the frozen
+        // catalogs. It rides in the volatile tail tier, whose transport depends on
+        // the backend, so assert the intent on both rather than one shape.
+        for permis in [true, false] {
+            let sortant = assembler(
+                &carnet,
+                &Reglages { systeme_en_queue_permis: permis, ..Reglages::default() },
+                Some("- tool `meteo_ville`: registered and callable via tool_call"),
+            );
+            let fin = &sortant.last().unwrap().contenu;
+            assert!(
+                fin.contains("meteo_ville"),
+                "a forged capability must close the context (systeme_en_queue_permis={permis})"
+            );
+            assert!(
+                fin.contains("NOT a failure"),
+                "the model must be told the absence from its tool list is expected"
+            );
+        }
+        // Nothing forged: not a single wasted token, and the tail stays untouched.
+        let vide = assembler(&carnet, &Reglages::default(), None);
+        assert!(!vide.last().unwrap().contenu.contains("Capabilities you created"));
+        let blanc = assembler(&carnet, &Reglages::default(), Some("   "));
+        assert!(!blanc.last().unwrap().contenu.contains("Capabilities you created"));
     }
 
     #[test]

@@ -1,15 +1,8 @@
 ---
 type: skill
 name: github-issues
-description: "Create, search, triage, label, assign GitHub issues via gh or REST."
-version: 1.2.0
-license: MIT
-platforms: [linux, macos, windows]
-tools: [shell_exec]
-metadata:
-  laruche:
-    tags: [GitHub, Issues, Project-Management, Bug-Tracking, Triage]
-    related_skills: [github-auth, github-pr-workflow]
+description: >-
+  Create, search, triage, label, assign GitHub issues via gh or REST.
 ---
 
 # GitHub Issues Management

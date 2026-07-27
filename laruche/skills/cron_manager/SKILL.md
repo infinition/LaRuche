@@ -1,8 +1,8 @@
 ---
 type: skill
 name: cron_manager
-description: Create, update, delete, list, and run cron tasks.
-tools: [cron_create, cron_delete, cron_list]
+description: >-
+  Create, update, delete, list, and run cron tasks.
 ---
 
 # cron_manager

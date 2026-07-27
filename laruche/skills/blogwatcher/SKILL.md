@@ -1,16 +1,8 @@
 ---
 type: skill
 name: blogwatcher
-description: "Track RSS/Atom feeds and blogs via blogwatcher-cli."
-version: 2.0.0
-author: JulienTant (fork of Hyaxia/blogwatcher)
-license: MIT
-platforms: [linux, macos, windows]
-tools: [shell_exec]
-metadata:
-  laruche:
-    tags: [RSS, Blogs, Feed-Reader, Monitoring]
-    homepage: https://github.com/JulienTant/blogwatcher-cli
+description: >-
+  Track RSS/Atom feeds and blogs via blogwatcher-cli.
 prerequisites:
   commands: [blogwatcher-cli]
 ---

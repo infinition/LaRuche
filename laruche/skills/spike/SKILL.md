@@ -1,15 +1,8 @@
 ---
 type: skill
 name: spike
-description: "Throwaway experiments to validate feasibility before building."
-version: 1.0.0
-license: MIT
-platforms: [linux, macos, windows]
-tools: [web_search, web_fetch, shell_exec, file_write, file_read, execute_code]
-metadata:
-  laruche:
-    tags: [spike, prototype, experiment, feasibility, throwaway, exploration, research, planning, mvp, proof-of-concept]
-    related_skills: [sketch, plan]
+description: >-
+  Throwaway experiments to validate feasibility before building.
 ---
 
 # Spike

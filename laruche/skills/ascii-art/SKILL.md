@@ -1,17 +1,8 @@
 ---
 type: skill
 name: ascii-art
-description: "ASCII art: banners, cowsay, boxes, image-to-ASCII, QR, weather."
-version: 4.1.0
-author: 0xbyt4
-license: MIT
-dependencies: []
-platforms: [linux, macos, windows]
-tools: [shell_exec, execute_code, web_fetch]
-metadata:
-  laruche:
-    tags: [ASCII, Art, Banners, Creative, Unicode, Text-Art, pyfiglet, figlet, cowsay, boxes]
-
+description: >-
+  ASCII art: banners, cowsay, boxes, image-to-ASCII, QR, weather.
 ---
 
 # ASCII Art Skill

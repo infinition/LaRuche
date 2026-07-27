@@ -1,15 +1,8 @@
 ---
 type: skill
 name: simplify-code
-description: "3-agent parallel cleanup: reuse, quality, efficiency."
-version: 1.0.0
-license: MIT
-platforms: [linux, macos, windows]
-tools: [shell_exec, file_read, file_edit, git_diff, git_status]
-metadata:
-  laruche:
-    tags: [code-review, cleanup, refactor, delegation, subagent, parallel, simplify]
-    related_skills: [requesting-code-review, test-driven-development, plan]
+description: >-
+  3-agent parallel cleanup: reuse, quality, efficiency.
 ---
 
 # Simplify Code - Parallel Review & Cleanup

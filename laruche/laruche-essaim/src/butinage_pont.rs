@@ -470,6 +470,16 @@ struct OutilsPont<'a> {
     /// main agent; `Some("Eclaireuse#2")` for a scout, so the transcript says WHO ran
     /// what during a parallel fan-out instead of piling up anonymous calls.
     agent: Option<String>,
+    /// Registry snapshot taken when `schemas()` is captured, i.e. at mission start.
+    /// `nouvelles_capacites` diffs the LIVE registry against it to report what the
+    /// agent forged since. The registry is the only truthful source here: a plugin
+    /// written to disk but never `reload_plugins`-ed is not callable, and announcing
+    /// it as available would send the model at a tool that does not answer.
+    outils_initiaux: std::sync::OnceLock<std::collections::BTreeSet<String>>,
+    /// Skills created this mission. They land in cognitive memory immediately, but the
+    /// prompt catalog is assembled once at mission start, so they would stay invisible
+    /// until the next one.
+    skills_creees: std::sync::Mutex<std::collections::BTreeSet<String>>,
 }
 
 /// Max scouts dispatched per mission (fan-out breadth ceiling).
@@ -577,6 +587,8 @@ impl OutilsPont<'_> {
             // Every tool this scout runs is STAMPED with its identity: during a
             // parallel fan-out the transcript says who searched what.
             agent: Some(identite.clone()),
+            outils_initiaux: std::sync::OnceLock::new(),
+            skills_creees: std::sync::Mutex::new(std::collections::BTreeSet::new()),
         };
         let emet = EmetteurPont {
             tx: self.tx.clone(),
@@ -839,6 +851,18 @@ impl but::Outils for OutilsPont<'_> {
         if crate::hooks::non_vide() {
             crate::hooks::run_post(&appel.nom, &appel.args).await;
         }
+
+        // A skill forged mid-mission is stored at once but joins the prompt catalog only
+        // at the next mission. Record it so `nouvelles_capacites` can carry it in the
+        // volatile tier, otherwise the model has no trace of it fifteen turns later and
+        // creates it again. New TOOLS need no bookkeeping: the registry diff sees them.
+        if res.ok && appel.nom == "skill_create" {
+            if let Some(nom) = appel.args.get("name").and_then(|v| v.as_str()) {
+                if let Ok(mut deja) = self.skills_creees.lock() {
+                    deja.insert(nom.to_string());
+                }
+            }
+        }
         res
     }
 
@@ -890,6 +914,11 @@ impl but::Outils for OutilsPont<'_> {
         // text, which overflowed the context (n_ctx). We reuse the SAME selection as
         // `## Outils disponibles` (relevant_tools / limit / stable). `schema_outils_pour_prompt`
         // already applies the `disabled_tools` filter; we re-filter for safety.
+        // Baseline for `nouvelles_capacites`. `schemas()` is called exactly once, right
+        // before the loop starts, which is precisely the instant we want to freeze.
+        let _ = self
+            .outils_initiaux
+            .set(self.registry.noms().into_iter().collect());
         let selection = schema_outils_pour_prompt(self.registry, self.config, "");
         match selection {
             serde_json::Value::Array(a) => a
@@ -903,6 +932,32 @@ impl but::Outils for OutilsPont<'_> {
                 .collect(),
             _ => Vec::new(),
         }
+    }
+
+    fn nouvelles_capacites(&self) -> Option<String> {
+        let mut lignes: Vec<String> = Vec::new();
+        if let Some(avant) = self.outils_initiaux.get() {
+            let mut neufs: Vec<String> = self
+                .registry
+                .noms()
+                .into_iter()
+                .filter(|n| !avant.contains(n) && !self.disabled.iter().any(|d| d == n))
+                .collect();
+            neufs.sort();
+            lignes.extend(
+                neufs
+                    .into_iter()
+                    .map(|n| format!("- tool `{n}`: registered and callable via tool_call")),
+            );
+        }
+        if let Ok(skills) = self.skills_creees.lock() {
+            lignes.extend(
+                skills
+                    .iter()
+                    .map(|s| format!("- skill `{s}`: stored, read it with skill_view")),
+            );
+        }
+        (!lignes.is_empty()).then(|| lignes.join("\n"))
     }
 }
 
@@ -1939,6 +1994,8 @@ pub async fn executer_avec_bilan(
         memoire: memoire.clone(),
         delegations: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         agent: None, // main agent: tool events stay unattributed
+        outils_initiaux: std::sync::OnceLock::new(),
+        skills_creees: std::sync::Mutex::new(std::collections::BTreeSet::new()),
     };
     let emet = EmetteurPont::parent(tx.clone());
 
@@ -2227,6 +2284,8 @@ pub async fn reprendre_carnet(
         memoire: memoire.clone(),
         delegations: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         agent: None, // main agent: tool events stay unattributed
+        outils_initiaux: std::sync::OnceLock::new(),
+        skills_creees: std::sync::Mutex::new(std::collections::BTreeSet::new()),
     };
     let emet = EmetteurPont::parent(tx.clone());
     let source_pont = memoire.as_ref().map(|m| SourcePont::nouveau(m.clone()));

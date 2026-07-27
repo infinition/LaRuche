@@ -1,18 +1,8 @@
 ---
 type: skill
 name: maps
-description: "Geocode, POIs, routes, timezones via OpenStreetMap/OSRM."
-version: 1.2.0
-author: Mibayy
-license: MIT
-platforms: [linux, macos, windows]
-tools: [shell_exec, web_search]
-scripts: [scripts/maps_client.py]
-metadata:
-  laruche:
-    tags: [maps, geocoding, places, routing, distance, directions, nearby, location, openstreetmap, nominatim, overpass, osrm]
-    category: productivity
-    supersedes: [find-nearby]
+description: >-
+  Geocode, POIs, routes, timezones via OpenStreetMap/OSRM.
 ---
 
 # Maps Skill

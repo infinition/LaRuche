@@ -1,16 +1,8 @@
 ---
 type: skill
 name: requesting-code-review
-description: "Pre-commit: security scan, quality gates, subagent review, auto-fix."
-version: 2.0.0
-author: adapted from obra/superpowers + MorAlekss
-license: MIT
-platforms: [linux, macos, windows]
-tools: [shell_exec, git_diff, git_status, git_commit, memory_write]
-metadata:
-  laruche:
-    tags: [code-review, security, verification, quality, pre-commit, auto-fix]
-    related_skills: [subagent-driven-development, plan, test-driven-development]
+description: >-
+  Pre-commit: security scan, quality gates, subagent review, auto-fix.
 ---
 
 # Pre-Commit Code Verification

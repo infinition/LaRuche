@@ -43,21 +43,24 @@ OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ## Individually attributed skills
 
-Some skills carry their own `author` in frontmatter and may be governed by other terms.
-They are listed here so the claim can be verified rather than assumed:
+None currently ship. The one skill that carried a separate author, `architecture-diagram`
+by Cocoon AI, was removed from the release rather than redistributed under unverified
+terms.
 
-- `architecture-diagram` — author: Cocoon AI (hello@cocoon-ai.com)
-
-If you add a skill from a third party, add it here with its author and license, or do
-not ship it.
+If you add a skill from a third party, add it here with its author and its license, or
+do not ship it.
 
 ---
 
 ## Conventions for skills written for LaRuche
 
-A skill authored here declares `author` and `license` in its frontmatter, uses only
-LaRuche tool names, and references no OTHER agent's runtime. The imported set carried
-`THIRD_PARTY_HOME`, `~/.third-party` and a `third-party agent/1.0` user-agent; all of it now points at
-LaRuche's own paths. That was never a licensing matter, it was a correctness one:
-those references resolved to directories that do not exist in a LaRuche install, so
-the scripts failed for reasons no one could read.
+Provenance lives in this file, not in frontmatter. Skill frontmatter carries only what
+the runtime reads (`type`, `name`, `description`, `prerequisites`, `enabled`); see
+`AUTHORING.md`. An `author` or `license` line inside a SKILL.md is invisible to the
+runtime and to anyone auditing licensing, which is exactly the wrong place for it.
+
+A skill authored here uses only LaRuche tool names and references no OTHER agent's
+runtime. The imported set carried `THIRD_PARTY_HOME`, `~/.third-party` and a `third-party agent/1.0`
+user-agent; all of it now points at LaRuche's own paths. That was never a licensing
+matter, it was a correctness one: those references resolved to directories that do not
+exist in a LaRuche install, so the scripts failed for reasons no one could read.

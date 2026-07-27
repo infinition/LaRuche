@@ -1,0 +1,131 @@
+# Writing a LaRuche skill
+
+A skill is a PROCEDURE: how to accomplish a kind of task, step by step, with the exact
+commands and the traps. It orchestrates tools; it is not a tool itself.
+
+The reader is not you. Assume a small local model, 8B or so, that will not infer, will
+not improvise, and will take any ambiguity as permission to guess. Every sentence here
+exists because a model got it wrong.
+
+---
+
+## Frontmatter
+
+Only four fields change what the agent does. Set them, and do not invent others.
+
+```yaml
+---
+type: skill                 # REQUIRED. Without it the disk sync ignores the file entirely.
+name: watcher-design    # REQUIRED. Must equal the folder name, exactly.
+description: >-             # REQUIRED. See the rule below. This is what the model reads.
+  Turn a monitoring wish in plain language into a deterministic watcher rule tree.
+prerequisites:              # OPTIONAL. Checked against PATH when the skill is opened.
+  commands: [openhue, jq]   # A missing one is reported, with an order to install it.
+---
+```
+
+`enabled: false` also works: the skill stays on disk and disappears from the catalog.
+
+`name` is in English, lowercase, hyphenated, and describes the ACTION: `cognitive-memory`,
+`local-git`, `watcher-design`. It is a handle the model matches against an intent, so a
+French or abbreviated name costs recall for no benefit. Only the brand vocabulary stays
+French, and only where it names a LaRuche concept: `lareine-charter`.
+
+Nothing else is read at runtime. `version`, `author`, `license`, `platforms`, `tags`,
+`allowed-tools`, `when_to_use`, `arguments` exist in some older files and in the Rust
+struct; no code consumes them today. Do not fill fields that do nothing: it teaches
+whoever reads the file that metadata here is decorative, and the next real field gets
+ignored too.
+
+Third-party origin, when there is one, goes in `NOTICE.md`, not in frontmatter.
+
+---
+
+## The description is the only thing most models will ever read
+
+Every skill's description sits in the system prompt, all of them, on every single turn.
+The body is fetched on demand with `skill_view(name)`. So the description does one job:
+**make the model reach for this skill at the right moment, and not at the wrong one.**
+
+Rules, in order of how often they are broken:
+
+1. **Describe the TRIGGER, not the technology.** The model is matching an intent, not
+   shopping for a library.
+   - No: `ASCII art: banners, cowsay, boxes, image-to-ASCII, QR, weather.`
+   - Yes: `Render text or an image as ASCII art for terminal-friendly output.`
+2. **One sentence. Under 100 characters.** It is multiplied by the number of skills, on
+   every turn.
+3. **Start with a verb.** "Turn", "Read", "Compile", "Deploy". A noun phrase reads like
+   a category label and matches nothing.
+4. **No two descriptions may overlap.** If a reader cannot tell two skills apart from
+   their descriptions alone, merge them. Four near-identical research skills made the
+   model hesitate, then pick wrong.
+5. **Name the artefact produced**, when there is one: a report, a diagram, a patch.
+
+---
+
+## The body
+
+Structure, in this order:
+
+```markdown
+# <Title>
+
+One paragraph: what this achieves and when to use it. No history, no marketing.
+
+## Prerequisites
+
+Exact install commands, per OS if they differ. Then the verification command and what
+its success looks like. A skill that assumes its tool is installed will loop.
+
+## Procedure
+
+Numbered steps. Each step: one command, and how to check it worked.
+
+## Traps
+
+The things that cost someone an hour. Wrong flag, silent failure, misleading success.
+
+## Failure modes
+
+Symptom, cause, fix. Written so the model can act on it without asking the user.
+```
+
+Rules for the body:
+
+- **Exact commands, ready to run.** Not "install the CLI" but the line to paste.
+- **Verify after every step that changes something.** Created a file, check it exists.
+  Installed a binary, run its version command. The agent must never assume.
+- **Say what success looks like.** "Prints the bridge IP" beats "should work".
+- **A failed command is a state to handle**, not a dead end. Say what to do next.
+- **Never reference another agent's runtime.** No `THIRD_PARTY_HOME`, no `~/.third-party`, no
+  foreign user-agent. Those paths do not exist here and the failure is unreadable.
+- **Use LaRuche tool names**: `shell_exec`, `file_read`, `file_write`, `file_edit`,
+  `web_fetch`, `web_deep_search`, `memory_write`.
+- **English throughout**, including comments in bundled scripts. The brand vocabulary
+  (butinage, essaim, abeille, éclaireuse, escale, carnet, vigie, cap, LaReine, miel)
+  stays French, it is the identity.
+- **No em dash anywhere.** Use a comma, a colon, or two sentences.
+
+---
+
+## Bundled scripts
+
+`skills/<name>/scripts/` holds anything too long to inline. A script must exit non-zero
+on failure, print what it did on success, and never depend on a path outside the skill
+folder and the user's home.
+
+Writing a script is expected, not exceptional. When no built-in tool does the job, the
+agent writes one, tests it, and either bundles it here or registers it as a plugin so it
+becomes callable by name. The `skill-forge` skill documents that loop; keep this file and
+that one in agreement.
+
+---
+
+## Before you ship one
+
+- The description alone tells a stranger when to use it.
+- No other skill answers the same need.
+- Every command has been run, on this machine.
+- Every declared prerequisite is really required, and really named as on PATH.
+- A model that follows the steps literally, without thinking, succeeds.

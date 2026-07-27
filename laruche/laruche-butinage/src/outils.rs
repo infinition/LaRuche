@@ -72,4 +72,19 @@ pub trait Outils: Send + Sync {
     fn schemas(&self) -> Vec<serde_json::Value> {
         Vec::new()
     }
+
+    /// Capabilities that appeared AFTER the mission started, as a ready-to-read block.
+    ///
+    /// [`Self::schemas`] is captured once before the loop, because the prompt and the
+    /// native tool set must stay byte-identical for the provider's cached prefix to
+    /// hold. A plugin the agent forges at turn 5 is therefore callable (the registry
+    /// behind it is live) but absent from every list it can see, which reads as a
+    /// failure and gets it created again.
+    ///
+    /// The adapter reports the difference here and the loop carries it in the VOLATILE
+    /// tail tier: last thing the model reads, and behind the cached prefix, so it costs
+    /// nothing to keep fresh. `None` when nothing new appeared.
+    fn nouvelles_capacites(&self) -> Option<String> {
+        None
+    }
 }

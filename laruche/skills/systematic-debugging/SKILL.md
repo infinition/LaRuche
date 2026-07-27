@@ -1,15 +1,8 @@
 ---
 type: skill
 name: systematic-debugging
-description: "4-phase root-cause debugging: reproduce, analyze, hypothesize, fix."
-version: 1.3.0
-license: MIT
-platforms: [linux, macos, windows]
-tools: [shell_exec, file_read, file_search, web_search, read_extract, git_diff, git_status]
-metadata:
-  laruche:
-    tags: [debugging, troubleshooting, problem-solving, root-cause, investigation]
-    related_skills: [plan]
+description: >-
+  4-phase root-cause debugging: reproduce, analyze, hypothesize, fix.
 ---
 
 # Systematic Debugging

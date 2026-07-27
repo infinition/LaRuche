@@ -1,15 +1,8 @@
 ---
 type: skill
 name: github-pr-workflow
-description: "GitHub PR lifecycle: branch, commit, open, CI, merge."
-version: 1.2.0
-license: MIT
-platforms: [linux, macos, windows]
-tools: [shell_exec, file_read, file_write, git_commit, git_diff, git_status]
-metadata:
-  laruche:
-    tags: [GitHub, Pull-Requests, CI/CD, Git, Automation, Merge]
-    related_skills: [github-auth, github-code-review]
+description: >-
+  GitHub PR lifecycle: branch, commit, open, CI, merge.
 ---
 
 # GitHub Pull Request Workflow

@@ -1,13 +1,31 @@
 ---
 type: skill
 name: deep_research_synthesis
-description: Multi-pass web/academic research → cited structured report.
-tools: [web_search, web_deep_search, web_fetch, read_extract, file_write, memory_write]
+description: >-
+  Research a question across web and academic sources and produce a cited report.
 ---
 
-# Deep Research & Synthesis
+# Deep research and synthesis
 
-Multi-pass research across web and academic sources (arXiv, PDFs), with adversarial cross-check, producing a cited report saved to file and memory.
+Multi-pass research across web and academic sources (arXiv, PDFs), with adversarial
+cross-check, producing a cited report saved to file and memory.
+
+## 0. Declare the mission first
+
+`research_mode` with `mode` set, and a short `reason`. Call it BEFORE the first search,
+as soon as the user asks for something thorough, deep or exhaustive, or as soon as you
+realise a single lookup will not be enough. It activates the long-running research
+behaviour: budgets, pacing, and the right expectations about how many passes are allowed.
+
+Declaring it late is the usual mistake. Three shallow searches happen first, the answer
+is thin, and the mode is switched on when the work is nearly over.
+
+Then check what you already know before spending anything:
+
+- `memory_search` on the subject: this may have been researched before.
+- `session_search` with `query` runs a full-text search across PAST sessions and returns
+  matching excerpts. Use it when the user says "we looked at this already" or when the
+  subject feels familiar. It is far cheaper than repeating the research.
 
 ## 1. Scope Definition
 

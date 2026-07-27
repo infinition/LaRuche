@@ -1,22 +1,31 @@
 ---
 type: skill
 name: codebase-inspection
-description: "LOC, language breakdown, and code/comment ratios via pygount."
-version: 1.1.0
-license: MIT
-platforms: [linux, macos, windows]
-tools: [shell_exec, execute_code, file_write]
-metadata:
-  laruche:
-    tags: [LOC, Code Analysis, pygount, Codebase, Metrics, Repository]
-    related_skills: [github-repo-management]
+description: >-
+  Measure a codebase: lines of code, language mix, comment ratio, and symbol lookups.
 prerequisites:
   commands: [pygount]
 ---
 
-# Codebase Inspection with pygount
+# Codebase inspection
 
 Analyze repositories for lines of code, language breakdown, file counts, and code-vs-comment ratios using `pygount`. Run all commands via `shell_exec`.
+
+## Reading code, not just counting it
+
+Counting tells you the shape of a repository. To understand a specific symbol, use `lsp`,
+which asks the real language server instead of guessing from text.
+
+`lsp` requires all four arguments: `operation`, `file`, `line` and `character`. There is
+no default position, and an approximate one returns an answer about the wrong symbol.
+
+- `goToDefinition`: where this symbol is actually defined.
+- `findReferences`: every call site, which is what you need before changing a signature.
+- `hover`: the resolved type and documentation.
+
+Locate the symbol first with `file_search` or `grep`, take the exact line and column from
+that result, then call `lsp`. Supported servers are rust-analyzer and
+typescript-language-server; on a project in another language, fall back to text search.
 
 ## Install
 

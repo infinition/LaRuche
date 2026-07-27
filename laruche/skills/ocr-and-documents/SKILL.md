@@ -1,18 +1,8 @@
 ---
 type: skill
 name: ocr-and-documents
-description: "Extract text from PDFs/scans: pymupdf (fast) or marker-pdf (OCR)."
-version: 2.3.0
-license: MIT
-platforms: [linux, macos, windows]
-tools: [web_fetch, web_search, execute_code, shell_exec, file_write]
-scripts:
-  - scripts/extract_pymupdf.py
-  - scripts/extract_marker.py
-metadata:
-  laruche:
-    tags: [PDF, Documents, Research, Arxiv, Text-Extraction, OCR]
-    related_skills: [powerpoint]
+description: >-
+  Extract text from PDFs/scans: pymupdf (fast) or marker-pdf (OCR).
 ---
 
 # PDF & Document Extraction

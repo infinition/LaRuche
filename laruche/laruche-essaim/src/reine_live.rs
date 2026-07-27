@@ -48,7 +48,9 @@ pub struct Revision {
 
 /// The full LaReine charter, embedded at compile time so the engine is
 /// self-contained. This is the judging rubric.
-const CHARTE_SKILL: &str = include_str!("../../skills/lareine-charte/SKILL.md");
+// Compiled in: renaming this skill folder breaks the build rather than silently
+// shipping a Queen with no charter. Keep the path in step with `skills/`.
+const CHARTE_SKILL: &str = include_str!("../../skills/lareine-charter/SKILL.md");
 
 /// Default LaReine rubric (the charter body, frontmatter stripped), re-exported
 /// for the memory UI (editable node `system.prompt_reine`, hot-reloaded). The

@@ -1,18 +1,8 @@
 ---
 type: skill
 name: arxiv
-description: "Search arXiv + Semantic Scholar: papers, citations, BibTeX, via curl."
-version: 1.0.0
-author: LaRuche
-license: MIT
-platforms: [linux, macos, windows]
-tools: [shell_exec, read_extract, web_fetch]
-scripts:
-  - scripts/search_arxiv.py
-metadata:
-  laruche:
-    tags: [Research, Arxiv, Papers, Academic, Science, API]
-    related_skills: [ocr-and-documents]
+description: >-
+  Search arXiv + Semantic Scholar: papers, citations, BibTeX, via curl.
 ---
 
 # arXiv Research

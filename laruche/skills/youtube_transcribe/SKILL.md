@@ -1,13 +1,8 @@
 ---
 type: skill
-name: youtube-transcribe
-description: "Fetch raw YouTube transcript (text or JSON) via youtube-transcript-api."
-platforms: [linux, macos, windows]
-tools: [shell_exec]
-scripts: []
-dependencies:
-  python: ">=3.9"
-  uv_packages: [youtube-transcript-api]
+name: youtube_transcribe
+description: >-
+  Fetch raw YouTube transcript (text or JSON) via youtube-transcript-api.
 ---
 
 # YouTube Transcribe

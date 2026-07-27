@@ -1,19 +1,8 @@
 ---
 type: skill
 name: obsidian
-title: Obsidian Vault
-version: "1.1.0"
-license: MIT
-description: Read, search, create, and edit Obsidian vault notes.
-platforms: [linux, macos, windows]
-tools: [file_read, file_write, file_list, file_edit, file_search, shell_exec]
-scripts: []
-dependencies: []
-metadata:
-  laruche:
-    category: productivity
-    tags: [obsidian, notes, markdown, wikilinks]
-    homepage: https://obsidian.md
+description: >-
+  Read, search, create, and edit Obsidian vault notes.
 ---
 
 # Obsidian Vault

@@ -1,16 +1,8 @@
 ---
 type: skill
 name: github-auth
-description: "GitHub auth: HTTPS PAT, SSH keys, gh CLI login."
-version: 1.2.0
-license: MIT
-platforms: [linux, macos, windows]
-tools: [shell_exec]
-scripts: [scripts/gh-env.sh]
-metadata:
-  laruche:
-    tags: [GitHub, Authentication, Git, gh-cli, SSH, Setup]
-    related_skills: [github-pr-workflow, github-code-review, github-issues, github-repo-management]
+description: >-
+  GitHub auth: HTTPS PAT, SSH keys, gh CLI login.
 ---
 
 # GitHub Authentication Setup

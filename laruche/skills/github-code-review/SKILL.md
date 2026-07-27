@@ -1,15 +1,8 @@
 ---
 type: skill
 name: github-code-review
-description: "Review PRs: diffs, inline comments via gh or REST."
-version: 1.2.0
-license: MIT
-platforms: [linux, macos, windows]
-tools: [shell_exec, file_read, file_list]
-metadata:
-  laruche:
-    tags: [GitHub, Code-Review, Pull-Requests, Git, Quality]
-    related_skills: [github-auth, github-pr-workflow]
+description: >-
+  Review PRs: diffs, inline comments via gh or REST.
 ---
 
 # GitHub Code Review

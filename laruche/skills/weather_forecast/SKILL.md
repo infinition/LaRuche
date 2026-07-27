@@ -1,8 +1,8 @@
 ---
 type: skill
-name: weather-forecast
-description: Fetch and summarize weather forecast for any city via web search + extraction.
-tools: [web_search, web_fetch, read_extract]
+name: weather_forecast
+description: >-
+  Fetch and summarize weather forecast for any city via web search + extraction.
 ---
 
 # Weather Forecast
