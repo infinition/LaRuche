@@ -63,6 +63,7 @@ Deterministic leaves, evaluated at every poll at zero cost:
 | `taille_depasse_mo` | `mo: 100` | the watched file reached that size |
 | `status_http` | `codes: [500, 503]` | the last status is one of them |
 | `code_retour` | `codes: [0]` | the command exited with one of them |
+| `nouvelle_ligne` | `motif: "aa:bb"` (optional) | a line appeared that was NOT in the previous poll |
 
 One semantic leaf, the only one that costs a model call, and only after the
 deterministic part already passed:
@@ -118,6 +119,25 @@ Default interval is 60s and default cooldown 900s, because running a process is 
 than reading a file and because a state that stays true would otherwise notify every
 minute. Destructive commands are refused outright: a watcher runs unattended, forever,
 so what is merely risky by hand is a standing hazard here.
+
+## Detecting an ARRIVAL, not just a change
+
+`contenu_change` fires when the output differs, which includes something LEAVING. For
+any list-shaped output, a device list, running containers, changed files, what is
+wanted is the arrival.
+
+```json
+{"watcher_type":"command","target":"arp -a",
+ "regles":{"op":"nouvelle_ligne"}}
+```
+
+Someone connects to the network, you are told. Someone leaves, you are not. The first
+poll only records a baseline and announces nothing, otherwise every device already
+present would be reported as an arrival the moment the watcher is created.
+
+Lines are compared against the PREVIOUS poll, not against all of history. A phone that
+left and came back really is someone arriving again, and remembering every line ever
+seen would grow without bound on a chatty command.
 
 ## What it DOES when it fires
 

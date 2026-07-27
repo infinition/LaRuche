@@ -27,7 +27,9 @@ Time:        jour_semaine{jours:["mar","jeu"]}, heure_entre{de:"08:00",a:"22:00"
 File:        apparu, supprime, modifie, contenu_change, contient{motif:"..."}, taille_depasse_mo{mo:10}
 Service:     est_down, down_depuis_min{minutes:10}, retour_en_ligne, status_http{codes:[500,503]}
 Semantic:    llm_check{question:"..."}  (the ONLY op that costs an LLM call, and only after the deterministic prefix passed)
-Command:     contient, contenu_change, code_retour{codes:[0]}
+Command:     contient, contenu_change, code_retour{codes:[0]}, nouvelle_ligne{motif:"..."}
+             nouvelle_ligne fires only on a line ABSENT from the previous poll: an arrival, not a departure.
+             That is how you detect a device joining the network (target="arp -a") without also firing when one leaves.
 Correlation: watcher{nom:"other-watcher-name", depuis_min:10}  -> TRUE while THAT watcher holds a true verdict.
              This is how you diagnose instead of just alerting: one signal rarely means anything, two together do.
              "site-down for 5 min AND host-answers-ping" = the application is broken, not the network.
@@ -714,6 +716,7 @@ impl Abeille for AbeilleWatcherCreate {
             .map(|s| s.to_string());
         let log_name = name.clone();
         let watcher = laruche_watchers::Watcher {
+        echecs_consecutifs: 0,
             action,
         dernier_verdict: None,
         verdict_depuis: None,

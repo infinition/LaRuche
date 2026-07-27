@@ -62,6 +62,7 @@ pub(crate) async fn api_create_watcher(
     };
 
     let watcher = laruche_watchers::Watcher {
+        echecs_consecutifs: 0,
         dernier_verdict: None,
         verdict_depuis: None,
         action: laruche_watchers::Action::default(),

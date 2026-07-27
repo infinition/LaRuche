@@ -65,6 +65,14 @@ pub struct Watcher {
     /// Since when that verdict has held, so `depuis_min` can be answered.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verdict_depuis: Option<chrono::DateTime<chrono::Utc>>,
+    /// Consecutive evaluation FAILURES, driving the poll backoff.
+    ///
+    /// A target that has been unreachable for three days was re-probed every minute
+    /// forever, thousands of pointless calls and a log full of the same error. The
+    /// interval now doubles per failure up to a ceiling, and snaps back to normal on
+    /// the first success, so a real recovery is still noticed quickly.
+    #[serde(default)]
+    pub echecs_consecutifs: u32,
     /// Line fingerprints of the previous poll, for the `nouvelle_ligne` rule.
     ///
     /// Compared against the PREVIOUS poll only, not against all of history: for an
@@ -83,7 +91,22 @@ pub struct Watcher {
 
 impl Watcher {
     /// Effective poll interval (floored at 5s so a typo cannot hammer a target).
+    /// Poll interval with the failure backoff applied.
+    ///
+    /// Doubles per consecutive failure, capped at 16x and at one hour: past that a
+    /// watcher would look asleep, and a target that comes back deserves to be seen the
+    /// same day. Any success resets the counter, so the penalty never outlives the
+    /// outage that caused it.
     pub fn interval_effectif(&self) -> u64 {
+        let base = self.interval_de_base();
+        if self.echecs_consecutifs == 0 {
+            return base;
+        }
+        let facteur = 1u64 << self.echecs_consecutifs.min(4);
+        base.saturating_mul(facteur).min(3600)
+    }
+
+    fn interval_de_base(&self) -> u64 {
         self.interval_secs
             .unwrap_or(match self.watcher_type {
                 // Running a process is heavier than a stat: poll it like a URL.
@@ -145,6 +168,15 @@ pub struct Observation {
     pub status_http: Option<u16>,
     /// Exit code of the command (command watchers).
     pub code_retour: Option<i32>,
+    /// Lines present in this poll that were ABSENT from the previous one.
+    ///
+    /// `contenu_change` fires when the output differs, which includes something
+    /// LEAVING. For any list-shaped output, a device list, running containers,
+    /// changed files, what is wanted is the arrival, not the difference.
+    pub nouvelles_lignes: Vec<String>,
+    /// Fingerprints of every line of this poll, carried back so the registry can
+    /// store them for the next comparison.
+    pub lignes_courantes: Vec<u64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -233,6 +265,9 @@ pub enum Regle {
     /// Exit code of a watched command. `0` means it succeeded, anything else is a
     /// failure, which is how you watch a service rather than its output text.
     CodeRetour { codes: Vec<i32> },
+    /// TRUE when a line appeared that was not in the previous poll.
+    /// `motif` narrows it to arrivals that also contain that text.
+    NouvelleLigne { #[serde(default)] motif: Option<String> },
     /// TRUE when ANOTHER watcher currently holds a true verdict.
     ///
     /// `depuis_min` additionally requires it to have held that value for that long,
@@ -354,6 +389,15 @@ impl Regle {
             Regle::CodeRetour { codes } => bool_verdict(
                 obs.code_retour.map(|c| codes.contains(&c)).unwrap_or(false),
             ),
+            Regle::NouvelleLigne { motif } => bool_verdict(match motif {
+                Some(m) => {
+                    let m = m.to_lowercase();
+                    obs.nouvelles_lignes
+                        .iter()
+                        .any(|l| l.to_lowercase().contains(&m))
+                }
+                None => !obs.nouvelles_lignes.is_empty(),
+            }),
             // An unknown peer is FALSE, never an error: a correlation whose watcher was
             // deleted must degrade quietly rather than break the whole tree.
             Regle::Watcher { nom, depuis_min } => bool_verdict(
@@ -472,6 +516,13 @@ impl Regle {
                 }
                 Ok(())
             }
+            Regle::NouvelleLigne { motif } => {
+                if motif.as_ref().is_some_and(|m| m.trim().is_empty()) {
+                    return Err("`nouvelle_ligne` with an empty `motif` matches nothing;                                 drop the field to fire on any new line"
+                        .into());
+                }
+                Ok(())
+            }
             Regle::Watcher { nom, .. } => {
                 if nom.trim().is_empty() {
                     return Err("`watcher` needs the name of another watcher in `nom`".into());
@@ -535,6 +586,15 @@ impl Regle {
                     WatcherType::Log | WatcherType::Url | WatcherType::Commande
                 ),
                 "contenu_change",
+                "log, url or command",
+            ),
+            // Needs lines, so the same three types that carry text.
+            Regle::NouvelleLigne { .. } => exige(
+                matches!(
+                    wtype,
+                    WatcherType::Log | WatcherType::Url | WatcherType::Commande
+                ),
+                "nouvelle_ligne",
                 "log, url or command",
             ),
             // The exit code exists only where a process ran.
@@ -633,6 +693,10 @@ impl Regle {
                 "exit∈[{}]",
                 codes.iter().map(|c| c.to_string()).collect::<Vec<_>>().join(",")
             ),
+            Regle::NouvelleLigne { motif } => match motif {
+                Some(m) => format!("nouvelle_ligne~{m}"),
+                None => "nouvelle_ligne".to_string(),
+            },
             Regle::Watcher { nom, depuis_min } => match depuis_min {
                 Some(m) => format!("watcher[{nom}]≥{m}min"),
                 None => format!("watcher[{nom}]"),
@@ -907,24 +971,46 @@ impl WatchersRegistry {
         let mut needs_save = false;
         let mut updates = Vec::new();
         let mut verdicts: Vec<(Uuid, bool)> = Vec::new();
+        let mut lignes: Vec<(Uuid, Vec<u64>)> = Vec::new();
+        let mut echecs: Vec<(Uuid, u32)> = Vec::new();
         let mut polled: Vec<Uuid> = Vec::new();
 
-        for watcher in self.watchers.values() {
-            if !watcher.active {
-                continue;
-            }
-            // Per-watcher interval on top of the dispatcher tick.
-            let du = self
-                .derniers_polls
-                .get(&watcher.id)
-                .map(|t| (now - *t).num_seconds())
-                .unwrap_or(i64::MAX);
-            if du < watcher.interval_effectif() as i64 {
-                continue;
-            }
-            polled.push(watcher.id);
+        // Which watchers are DUE this tick.
+        let a_sonder: Vec<&Watcher> = self
+            .watchers
+            .values()
+            .filter(|w| {
+                if !w.active {
+                    return false;
+                }
+                // Per-watcher interval on top of the dispatcher tick.
+                let du = self
+                    .derniers_polls
+                    .get(&w.id)
+                    .map(|t| (now - *t).num_seconds())
+                    .unwrap_or(i64::MAX);
+                du >= w.interval_effectif() as i64
+            })
+            .collect();
 
-            match evaluate_watcher(watcher, now).await {
+        // Observed in PARALLEL. They were probed one after another, so a single URL
+        // watcher on a slow host held every other one for the length of its timeout:
+        // with a handful of network watchers, a cycle could take longer than the
+        // interval that asked for it. The observations are independent by nature, only
+        // the state updates that follow have to stay ordered.
+        let observations = futures_util::future::join_all(
+            a_sonder.iter().map(|w| async move { (w.id, evaluate_watcher(w, now).await) }),
+        )
+        .await;
+        let mut par_id: std::collections::HashMap<Uuid, _> = observations.into_iter().collect();
+
+        for watcher in a_sonder {
+            polled.push(watcher.id);
+            // Taken by value: the arms below consume the observation.
+            let Some(resultat) = par_id.remove(&watcher.id) else {
+                continue;
+            };
+            match resultat {
                 Ok((transition, new_state, desc, obs)) => {
                     // Fire cooldown, anchored on the last actual fire.
                     let pret = watcher
@@ -1000,13 +1086,26 @@ impl WatchersRegistry {
                             question_llm,
                         });
                     }
+                    if !obs.lignes_courantes.is_empty()
+                        || watcher.lignes_vues.is_some()
+                    {
+                        lignes.push((watcher.id, obs.lignes_courantes.clone()));
+                    }
+                    if watcher.echecs_consecutifs != 0 {
+                        echecs.push((watcher.id, 0));
+                    }
                     verdicts.push((watcher.id, verdict_publie));
                     if new_state != watcher.last_state {
                         updates.push((watcher.id, new_state));
                     }
                 }
                 Err(e) => {
-                    tracing::error!("Error evaluating watcher {}: {}", watcher.name, e);
+                    // Count it, and log only the first few: the whole problem with a
+                    // long outage was a log full of the same line every minute.
+                    if watcher.echecs_consecutifs < 3 {
+                        tracing::error!("Error evaluating watcher {}: {}", watcher.name, e);
+                    }
+                    echecs.push((watcher.id, watcher.echecs_consecutifs.saturating_add(1)));
                 }
             }
         }
@@ -1022,6 +1121,20 @@ impl WatchersRegistry {
             if let Some(w) = self.watchers.get_mut(&id) {
                 w.last_state = new_state;
                 needs_save = true;
+            }
+        }
+        for (id, n) in echecs {
+            if let Some(w) = self.watchers.get_mut(&id) {
+                w.echecs_consecutifs = n;
+                needs_save = true;
+            }
+        }
+        for (id, vues) in lignes {
+            if let Some(w) = self.watchers.get_mut(&id) {
+                if w.lignes_vues.as_ref() != Some(&vues) {
+                    w.lignes_vues = Some(vues);
+                    needs_save = true;
+                }
             }
         }
         // Published verdicts. `verdict_depuis` only moves when the value CHANGES,
@@ -1438,6 +1551,11 @@ async fn evaluate_watcher(
                 texte = texte[debut..].to_string();
             }
 
+            // Lines absent from the PREVIOUS poll. Compared against the previous poll
+            // only, not against all of history: for an arrival detector, a device that
+            // leaves and comes back IS a new arrival, and keeping every line ever seen
+            // would grow without bound on a chatty command.
+            let (nouvelles_lignes, lignes_courantes) = lignes_neuves(&texte, &watcher.lignes_vues);
             let empreinte = empreinte_sortie(&texte, code);
             let change = watcher.last_state.as_deref() != Some(empreinte.as_str());
             // First poll establishes the baseline. Firing on it would notify about a
@@ -1476,6 +1594,8 @@ async fn evaluate_watcher(
                     },
                     nouveau_contenu: texte,
                     code_retour: code,
+                    nouvelles_lignes,
+                    lignes_courantes,
                     ..Default::default()
                 },
             ))
@@ -1561,6 +1681,35 @@ fn empreinte_sortie(texte: &str, code: Option<i32>) -> String {
     format!("{:x}", h.finish())
 }
 
+/// Lines of `texte` absent from `precedentes`, plus the fingerprints of all of them.
+///
+/// Hashes rather than the lines themselves: this is persisted on every poll, and a
+/// command listing a hundred devices would otherwise write its whole output back to
+/// disk every minute. The first poll reports NO new line, only the baseline: otherwise
+/// every device already on the network would be announced as an arrival the moment the
+/// watcher is created.
+fn lignes_neuves(texte: &str, precedentes: &Option<Vec<u64>>) -> (Vec<String>, Vec<u64>) {
+    use std::hash::{Hash, Hasher};
+    let empreinte = |l: &str| {
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        l.trim().hash(&mut h);
+        h.finish()
+    };
+    let lignes: Vec<&str> = texte.lines().filter(|l| !l.trim().is_empty()).collect();
+    let courantes: Vec<u64> = lignes.iter().map(|l| empreinte(l)).collect();
+    let Some(avant) = precedentes else {
+        return (Vec::new(), courantes);
+    };
+    let connues: std::collections::HashSet<u64> = avant.iter().copied().collect();
+    let neuves = lignes
+        .iter()
+        .zip(courantes.iter())
+        .filter(|(_, h)| !connues.contains(h))
+        .map(|(l, _)| l.trim().to_string())
+        .collect();
+    (neuves, courantes)
+}
+
 /// Collapse whitespace so a command that pads its output differently between two runs
 /// does not read as a change.
 fn normaliser_sortie(texte: &str) -> String {
@@ -1588,6 +1737,7 @@ mod tests {
         let target = file.path().to_str().unwrap().to_string();
 
         let watcher = Watcher {
+            echecs_consecutifs: 0,
             dernier_verdict: None,
             verdict_depuis: None,
             action: Action::default(),
@@ -1932,6 +2082,7 @@ mod tests {
     #[test]
     fn intervalles_et_cooldowns_par_defaut() {
         let mut w = Watcher {
+            echecs_consecutifs: 0,
             dernier_verdict: None,
             verdict_depuis: None,
             action: Action::default(),
@@ -2121,6 +2272,7 @@ mod tests_cycle {
         let mut r = WatchersRegistry::new(std::path::Path::new("watchers-test.json"));
         for (nom, regles) in paires {
             let mut w = Watcher {
+            echecs_consecutifs: 0,
                 dernier_verdict: None,
                 verdict_depuis: None,
                 action: Action::default(),
@@ -2209,5 +2361,141 @@ mod tests_cycle {
         let mut noms = regle.watchers_references();
         noms.sort();
         assert_eq!(noms, vec!["maintenance", "reseau"], "nested and negated edges count too");
+    }
+}
+
+#[cfg(test)]
+mod tests_nouvelle_ligne {
+    use super::*;
+
+    #[test]
+    fn le_premier_passage_nannonce_aucune_arrivee() {
+        // Otherwise every device already on the network is announced as an arrival the
+        // moment the watcher is created, which is the opposite of what was asked.
+        let (neuves, courantes) = lignes_neuves("192.168.1.10\n192.168.1.20", &None);
+        assert!(neuves.is_empty(), "baseline poll must announce nothing");
+        assert_eq!(courantes.len(), 2, "but it must record what it saw");
+    }
+
+    #[test]
+    fn seule_une_arrivee_compte_pas_un_depart() {
+        // The whole reason this rule exists: `contenu_change` cannot tell the two apart.
+        let (_, base) = lignes_neuves("a\nb", &None);
+        let base = Some(base);
+
+        let (neuves, _) = lignes_neuves("a\nb\nc", &base);
+        assert_eq!(neuves, vec!["c"], "c arrived");
+
+        let (neuves, _) = lignes_neuves("a", &base);
+        assert!(neuves.is_empty(), "b left: that is not an arrival");
+
+        let (neuves, _) = lignes_neuves("b\na", &base);
+        assert!(neuves.is_empty(), "same set in another order is not an arrival");
+    }
+
+    #[test]
+    fn un_retour_apres_un_depart_est_une_nouvelle_arrivee() {
+        // Compared against the PREVIOUS poll only. A phone that left and came back
+        // really is someone arriving again, and keeping all history would grow forever.
+        let (_, sans_b) = lignes_neuves("a", &None);
+        let (neuves, _) = lignes_neuves("a\nb", &Some(sans_b));
+        assert_eq!(neuves, vec!["b"]);
+    }
+
+    #[test]
+    fn la_regle_lit_larrivee_et_le_motif_la_restreint() {
+        let obs = Observation {
+            nouvelles_lignes: vec!["192.168.1.55 aa:bb:cc dynamic".into()],
+            ..Default::default()
+        };
+        let now = chrono::Local::now();
+        assert_eq!(Regle::NouvelleLigne { motif: None }.evaluer(&obs, &now), Verdict::Vrai);
+        assert_eq!(
+            Regle::NouvelleLigne { motif: Some("aa:bb".into()) }.evaluer(&obs, &now),
+            Verdict::Vrai
+        );
+        assert_eq!(
+            Regle::NouvelleLigne { motif: Some("ff:ff".into()) }.evaluer(&obs, &now),
+            Verdict::Faux
+        );
+        // Nothing arrived: silent, whatever the pattern.
+        assert_eq!(
+            Regle::NouvelleLigne { motif: None }.evaluer(&Observation::default(), &now),
+            Verdict::Faux
+        );
+    }
+
+    #[test]
+    fn un_motif_vide_est_refuse_a_la_creation() {
+        // It would match nothing and the watcher would look active while never firing.
+        assert!(Regle::NouvelleLigne { motif: Some("  ".into()) }.valider().is_err());
+        assert!(Regle::NouvelleLigne { motif: None }.valider().is_ok());
+        // Needs text, so not on a file watcher.
+        assert!(Regle::NouvelleLigne { motif: None }.valider_pour(WatcherType::File).is_err());
+        assert!(Regle::NouvelleLigne { motif: None }.valider_pour(WatcherType::Commande).is_ok());
+    }
+}
+
+#[cfg(test)]
+mod tests_recul {
+    use super::*;
+
+    fn w_avec(echecs: u32, interval: Option<u64>) -> Watcher {
+        Watcher {
+            echecs_consecutifs: echecs,
+            dernier_verdict: None,
+            verdict_depuis: None,
+            action: Action::default(),
+            lignes_vues: None,
+            id: Uuid::new_v4(),
+            name: "w".into(),
+            profile_id: None,
+            model: None,
+            watcher_type: WatcherType::Url,
+            target: "https://example.com".into(),
+            condition: String::new(),
+            prompt: "p".into(),
+            channel: None,
+            active: true,
+            created_at: Utc::now(),
+            last_run: None,
+            run_count: 0,
+            last_state: None,
+            interval_secs: interval,
+            cooldown_secs: None,
+            sustained: false,
+            regles: None,
+        }
+    }
+
+    #[test]
+    fn sans_echec_lintervalle_ne_bouge_pas() {
+        assert_eq!(w_avec(0, Some(30)).interval_effectif(), 30);
+    }
+
+    #[test]
+    fn lintervalle_double_par_echec_puis_plafonne() {
+        assert_eq!(w_avec(1, Some(60)).interval_effectif(), 120);
+        assert_eq!(w_avec(2, Some(60)).interval_effectif(), 240);
+        assert_eq!(w_avec(4, Some(60)).interval_effectif(), 960);
+        // Past 16x the factor stops growing: a watcher must not look asleep, and a
+        // target that comes back deserves to be seen the same day.
+        assert_eq!(w_avec(50, Some(60)).interval_effectif(), 960);
+    }
+
+    #[test]
+    fn le_plafond_horaire_prime_sur_le_facteur() {
+        // 1800s doubled four times would be 8 hours. One hour is the ceiling.
+        assert_eq!(w_avec(4, Some(1800)).interval_effectif(), 3600);
+    }
+
+    #[test]
+    fn un_seul_succes_efface_toute_la_penalite() {
+        // The penalty must never outlive the outage that caused it: a site back up is
+        // watched at its normal rhythm on the very next poll, not gradually.
+        let mut w = w_avec(4, Some(60));
+        assert_eq!(w.interval_effectif(), 960);
+        w.echecs_consecutifs = 0;
+        assert_eq!(w.interval_effectif(), 60);
     }
 }
