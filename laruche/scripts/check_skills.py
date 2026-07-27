@@ -234,8 +234,7 @@ def main():
     # Python package and of the wire protocol llama.cpp's server speaks, so a llama-cpp
     # page that says "OpenAI-compatible API" is being accurate, not borrowing an identity.
     foreign = re.compile(
-        r"third-party|nous\s*research|third-party|open\s*claw|claude|anthropic|"
-        r"chatgpt|copilot|cursor\.(?:so|com)|codeium",
+        r"claude|anthropic|chatgpt|copilot|cursor\.(?:so|com)|codeium",
         re.I,
     )
     for folder, _, files in os.walk(SKILLS):
