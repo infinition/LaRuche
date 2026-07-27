@@ -313,6 +313,8 @@ LaRuche.Chat = (function(){
           currentAssistantMsg._rawBuf = ''; currentAssistantMsg._inToolTag = false;
         }
         currentAssistantMsg._rawBuf += data.text;
+        // Untouched copy for the 👁 button: _rawBuf is rewritten by the guard below.
+        currentAssistantRow._rawAll = (currentAssistantRow._rawAll || '') + data.text;
         // Swallow a LEADING reaction marker while it streams. The server strips it
         // from the stored answer, but on a first line it would otherwise sit on
         // screen for the whole response before the final render removed it.
@@ -893,6 +895,49 @@ LaRuche.Chat = (function(){
     btn.onclick=function(){ showPromptPreview(row._promptDebug); };
     bubble.appendChild(btn);
   }
+  /* 👁 on an ANSWER: the raw text the model emitted, before anything was stripped.
+   *
+   * The user asked for it while hunting a reaction that never appeared, and it is the
+   * right instrument: the answer on screen has had its emote line removed, so "did the
+   * model emit it and we ate it, or did it never emit one?" is otherwise unanswerable
+   * from the UI. `_rawAll` accumulates every token untouched, unlike `_rawBuf` which
+   * the streaming guard rewrites. */
+  function attachRawEye(row){
+    if(!row) return;
+    var bubble=row.querySelector('.message'); if(!bubble) return;
+    if(bubble.querySelector('.raw-eye')) return;
+    var raw=(row._rawAll||'').trim();
+    // Nothing was hidden: no button, so its presence means something to look at.
+    if(!raw || raw===bubble.textContent.trim()) return;
+    var btn=document.createElement('button'); btn.className='raw-eye';
+    btn.title=LaRuche.i18n.t('chat.rawAnswer');
+    btn.innerHTML='&#128065;';
+    btn.style.cssText='background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:13px;opacity:.45;margin-top:4px;float:right';
+    btn.onmouseenter=function(){btn.style.opacity='1';}; btn.onmouseleave=function(){btn.style.opacity='.45';};
+    btn.onclick=function(){ showRawAnswer(raw, bubble.textContent.trim()); };
+    bubble.appendChild(btn);
+  }
+  function showRawAnswer(raw, shown){
+    var ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px';
+    ov.onclick=function(e){ if(e.target===ov) ov.remove(); };
+    var box=document.createElement('div');
+    box.style.cssText='background:var(--bg-card);border:1px solid var(--border);border-radius:10px;max-width:900px;width:100%;max-height:80vh;overflow:auto;padding:16px';
+    var h=document.createElement('div');
+    h.style.cssText='font-weight:600;margin-bottom:8px';
+    h.textContent=LaRuche.i18n.t('chat.rawAnswer');
+    var pre=document.createElement('pre');
+    pre.style.cssText='white-space:pre-wrap;word-break:break-word;font:11px/1.6 var(--mono,monospace);margin:0';
+    pre.textContent=raw;
+    box.appendChild(h); box.appendChild(pre);
+    if(shown && shown!==raw){
+      var d=document.createElement('div');
+      d.style.cssText='margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--text-muted)';
+      d.textContent=LaRuche.i18n.t('chat.rawStripped');
+      box.appendChild(d);
+    }
+    ov.appendChild(box); document.body.appendChild(ov);
+  }
   function showPromptPreview(data){
     if(!data) return; var msgs=data.payload||[];
     var ov=document.createElement('div');
@@ -1357,6 +1402,8 @@ LaRuche.Chat = (function(){
     var copyBtn2 = document.createElement('button'); copyBtn2.className='msg-action-btn'; copyBtn2.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> '+LaRuche.i18n.t('chat.copier');
     copyBtn2.onclick=function(){navigator.clipboard.writeText(text).then(function(){copyBtn2.classList.add('copied');copyBtn2.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="20 6 9 17 4 12"></polyline></svg> '+LaRuche.i18n.t('chat.copie');setTimeout(function(){copyBtn2.classList.remove('copied');copyBtn2.innerHTML='<svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg> '+LaRuche.i18n.t('chat.copier');},2000);});}; actions.appendChild(copyBtn2);
     el.appendChild(actions);
+    // 👁 only when the displayed answer differs from what the model actually emitted.
+    attachRawEye(el.closest('.message-row'));
     // Enrich the timestamp shown when the message details are expanded.
     var row = el.closest('.message-row');
     if(row) {

@@ -1003,6 +1003,14 @@
     "en": "Reasoning",
     "fr": "Raisonnement"
   },
+  "chat.rawAnswer": {
+    "en": "Raw model output",
+    "fr": "Sortie brute du modele"
+  },
+  "chat.rawStripped": {
+    "en": "The displayed answer differs: an emote line or an internal tag was removed before display.",
+    "fr": "La reponse affichee differe : une ligne d'emote ou une balise interne a ete retiree avant affichage."
+  },
   "chat.reasoningLabel": {
     "en": "💭 reasoning",
     "fr": "💭 raisonnement"

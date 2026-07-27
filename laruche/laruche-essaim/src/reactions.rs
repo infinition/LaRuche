@@ -14,8 +14,15 @@
 pub struct Reaction {
     /// Stable key, what the API and the session file store.
     pub cle: &'static str,
-    /// What the user sees and clicks.
+    /// What the user sees and clicks in the web chat.
     pub emoji: &'static str,
+    /// The emoji Telegram accepts for THIS reaction, which is not always ours.
+    ///
+    /// The Bot API only takes reactions from a closed list of 72, and three of our six
+    /// are absent from it: no U+1F602, no U+1F62E, no U+1F615. `love` is the subtle one,
+    /// the list carries U+2764 WITHOUT the variation selector, so the emoji we display
+    /// is not byte-identical to the one Telegram wants.
+    pub emoji_telegram: &'static str,
     /// What the model is told to do. Behavioural, never emotional.
     pub consigne: &'static str,
 }
@@ -26,6 +33,7 @@ pub const REACTIONS: &[Reaction] = &[
     Reaction {
         cle: "up",
         emoji: "👍",
+        emoji_telegram: "👍",
         consigne: "The user APPROVED it. Keep the same format, depth and tone for what \
                    follows. Do not restate it, do not re-explain what was already accepted, \
                    and do not thank them for the reaction.",
@@ -33,6 +41,7 @@ pub const REACTIONS: &[Reaction] = &[
     Reaction {
         cle: "down",
         emoji: "👎",
+        emoji_telegram: "👎",
         consigne: "The user REJECTED it. Do NOT apologise and do NOT rephrase the same \
                    answer: the approach itself was wrong, not the wording. Question the \
                    assumption you built it on, try a different method, and verify with a \
@@ -42,18 +51,24 @@ pub const REACTIONS: &[Reaction] = &[
     Reaction {
         cle: "love",
         emoji: "❤️",
+        // U+2764 alone: with the variation selector Telegram rejects it.
+        emoji_telegram: "❤",
         consigne: "The user found it excellent. That level of depth and that format are the \
                    target for the rest of this conversation.",
     },
     Reaction {
         cle: "haha",
         emoji: "😂",
+        // U+1F602 is not on the list; U+1F923 is its closest sibling.
+        emoji_telegram: "🤣",
         consigne: "The tone landed. Stay light, but do not force a joke into the next \
                    answer: the content still comes first.",
     },
     Reaction {
         cle: "wow",
         emoji: "😮",
+        // U+1F62E is not on the list; U+1F92F carries the same surprise.
+        emoji_telegram: "🤯",
         consigne: "Something in it was unexpected for the user. Make sure that point was \
                    actually established rather than plausible, and expand on it instead of \
                    moving on.",
@@ -61,6 +76,8 @@ pub const REACTIONS: &[Reaction] = &[
     Reaction {
         cle: "confused",
         emoji: "😕",
+        // U+1F615 is not on the list; U+1F914 is the readable stand-in.
+        emoji_telegram: "🤔",
         consigne: "The user did NOT understand it. Re-explain the SAME content differently: \
                    shorter, concrete, one worked example. Do not add new material, and do \
                    not simply repeat it in the same words.",
@@ -70,6 +87,33 @@ pub const REACTIONS: &[Reaction] = &[
 /// Look a reaction up by key.
 pub fn trouver(cle: &str) -> Option<&'static Reaction> {
     REACTIONS.iter().find(|r| r.cle == cle)
+}
+
+/// Which of our six intents an INBOUND emoji expresses.
+///
+/// Telegram lets the user pick from 72 emoji, so anything can arrive. Writing 72
+/// separate instructions would be the wrong shape: most are near-synonyms, only ONE is
+/// ever injected per turn, and each extra text is another thing to keep true. What
+/// actually matters to the next answer is the INTENT, and there are six of those.
+///
+/// So this is a fan-in: many emoji, few behaviours. Anything unmapped returns None and
+/// steers nothing, which is the honest outcome for 🍌 rather than a made-up reading.
+pub fn intention_pour_emoji(emoji: &str) -> Option<&'static Reaction> {
+    // Compare on the base codepoints: Telegram sends U+2764 bare where a client may
+    // send U+2764 U+FE0F, and the two must not be different reactions.
+    let nu: String = emoji.chars().filter(|c| *c != '\u{FE0F}').collect();
+    let cle = match nu.as_str() {
+        "👍" | "👌" | "🤝" | "💯" | "🆒" | "✍" | "🏆" => "up",
+        "👎" | "🤬" | "🤮" | "💩" | "🖕" | "😡" | "💔" | "😢" | "😭" | "💊" => "down",
+        "❤" | "🥰" | "😍" | "😘" | "💘" | "💋" | "❤‍🔥" | "🤗" | "🙏" | "🌚" | "😇" => "love",
+        "😁" | "🤣" | "🤡" | "😈" | "🤪" | "🙈" | "🙉" | "🙊" | "💅" | "🗿" | "🥴" | "🍌"
+        | "🍓" | "🍾" | "🌭" | "🐳" | "🦄" | "🎃" | "👻" | "👾" | "🎅" | "🎄" | "☃" | "😎"
+        | "🤓" | "👨‍💻" | "🕊" => "haha",
+        "🔥" | "👏" | "🤯" | "😱" | "🎉" | "🤩" | "⚡" | "👀" | "😨" | "🫡" => "wow",
+        "🤔" | "🤨" | "😐" | "🤷" | "🤷‍♂" | "🤷‍♀" | "🥱" | "😴" => "confused",
+        _ => return None,
+    };
+    trouver(cle)
 }
 
 /// Is this key one we defined? Guards the API against a client sending anything.
@@ -119,6 +163,66 @@ mod tests {
         assert!(bloc.contains("Do NOT apologise"));
         assert!(bloc.contains("do NOT rephrase"));
         assert!(bloc.contains("different method"));
+    }
+
+    #[test]
+    fn chaque_reaction_porte_un_emoji_que_telegram_accepte() {
+        // The Bot API takes reactions only from a closed list of 72, and rejects the
+        // rest with a silent 400 on a fire-and-forget call. Three of our six are absent
+        // from it, so the mapping is not decoration: without it, half the palette fails
+        // quietly on Telegram.
+        for r in REACTIONS {
+            assert!(!r.emoji_telegram.is_empty(), "no Telegram emoji for {}", r.cle);
+            // U+FE0F is the trap. Telegram lists U+2764 bare, and the variation selector
+            // makes the string a different one that the API refuses.
+            assert!(
+                !r.emoji_telegram.contains('\u{FE0F}'),
+                "{} carries a variation selector, Telegram will refuse it",
+                r.cle
+            );
+        }
+        let tg = |cle: &str| trouver(cle).unwrap().emoji_telegram;
+        // Allowed as-is, and identical to what the web chat shows.
+        assert_eq!(tg("up"), "\u{1F44D}");
+        assert_eq!(tg("down"), "\u{1F44E}");
+        // Absent from the list, so they MUST differ from our display emoji.
+        for cle in ["love", "haha", "wow", "confused"] {
+            let r = trouver(cle).unwrap();
+            assert_ne!(
+                r.emoji, r.emoji_telegram,
+                "{cle} is not on the Telegram list, it needs a substitute"
+            );
+        }
+        assert_eq!(tg("love"), "\u{2764}");
+        assert_eq!(tg("haha"), "\u{1F923}");
+        assert_eq!(tg("wow"), "\u{1F92F}");
+        assert_eq!(tg("confused"), "\u{1F914}");
+    }
+
+    #[test]
+    fn les_emojis_entrants_retombent_sur_une_intention() {
+        let cle = |e: &str| intention_pour_emoji(e).map(|r| r.cle);
+        // Our own six, whatever their exact codepoints on the wire.
+        assert_eq!(cle("👍"), Some("up"));
+        assert_eq!(cle("👎"), Some("down"));
+        assert_eq!(cle("🤔"), Some("confused"));
+        // The variation selector must not create a second, unknown reaction: Telegram
+        // sends U+2764 bare where a web client sends U+2764 U+FE0F.
+        assert_eq!(cle("❤"), Some("love"));
+        assert_eq!(cle("❤️"), Some("love"));
+        // Emoji we never show but the user can still pick in Telegram.
+        assert_eq!(cle("🔥"), Some("wow"));
+        assert_eq!(cle("🤣"), Some("haha"));
+        assert_eq!(cle("💩"), Some("down"));
+        assert_eq!(cle("🙏"), Some("love"));
+        // Something with no defensible reading steers nothing rather than being
+        // assigned an invented meaning.
+        assert_eq!(cle("🧱"), None);
+        // And every intent it returns is one we can actually act on.
+        for e in ["👍", "👎", "❤", "🤣", "🔥", "🤔"] {
+            let r = intention_pour_emoji(e).unwrap();
+            assert!(bloc_volatil(r.cle).is_some(), "{e} maps to an unusable key");
+        }
     }
 
     #[test]
