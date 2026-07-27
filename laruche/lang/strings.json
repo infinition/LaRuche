@@ -5134,5 +5134,17 @@
   "toast.saved": {
     "en": "Saved",
     "fr": "Enregistré"
+  },
+  "watchers.graphHint": {
+    "en": "An arrow means the target reads that watcher's verdict. A green border is a verdict currently true.",
+    "fr": "Une fleche signifie que la cible lit le verdict de ce watcher. Une bordure verte indique un verdict actuellement vrai."
+  },
+  "watchers.graphInactive": {
+    "en": "inactive",
+    "fr": "inactif"
+  },
+  "watchers.graphTitle": {
+    "en": "Watcher correlations",
+    "fr": "Correlations entre watchers"
   }
 }

@@ -1647,7 +1647,8 @@ LaRuche.Settings = (function(){
     Object.keys(profiles).forEach(function(k){
         profOpts += '<option value="'+k+'">'+LaRuche.Utils.esc(profiles[k].name||k)+'</option>';
     });
-    el.innerHTML='<div style="margin-bottom:12px"><button class="settings-save-btn" onclick="document.getElementById(\'newWatcherForm\').style.display=\'block\'">'+LaRuche.i18n.t('settings.newWatcherBtn')+'</button></div>'+
+    el.innerHTML='<div id="watchersGraph"></div>'+
+      '<div style="margin-bottom:12px"><button class="settings-save-btn" onclick="document.getElementById(\'newWatcherForm\').style.display=\'block\'">'+LaRuche.i18n.t('settings.newWatcherBtn')+'</button></div>'+
       '<div id="newWatcherForm" style="display:none" class="settings-card">'+
       '<div style="font-weight:600;margin-bottom:8px">'+LaRuche.i18n.t('settings.newWatcherTitle')+'</div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.nameLabel')+'</label><input id="nwName" class="form-input"></div>'+
@@ -1668,6 +1669,11 @@ LaRuche.Settings = (function(){
         if(c) window.__fillChannels(c, w.channel||'', LaRuche.i18n.t('settings.watcherHomeChannel'));
       }
     });
+    // Correlation graph. It draws nothing unless a watcher reads another's verdict, so
+    // an ordinary setup sees exactly what it saw before.
+    if(window.LaRuche && LaRuche.WatchersGraph){
+      LaRuche.WatchersGraph.render(document.getElementById('watchersGraph'), watchers);
+    }
   }
 
   // Compact human summary of a compiled rules tree (mirror of Regle::resume()).

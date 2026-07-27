@@ -45,6 +45,8 @@ const APP_JS: &str = concat!(
     "\n",
     include_str!("../../laruche-dashboard/src/templates/js/lareine-appel.js"),
     "\n",
+    include_str!("../../laruche-dashboard/src/templates/js/watchers-graph.js"),
+    "\n",
     include_str!("../../laruche-dashboard/src/templates/js/boot.js"),
 );
 

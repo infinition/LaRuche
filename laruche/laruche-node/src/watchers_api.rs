@@ -24,6 +24,14 @@ pub(crate) async fn api_list_watchers(State(state): State<Arc<AppState>>) -> Jso
                 "run_count": w.run_count,
                 "profile_id": w.profile_id,
                 "model": w.model,
+                // The rule tree carries the correlation edges, so the UI can draw which
+                // watcher feeds which without a second endpoint. Without it the graph
+                // would have nodes and no links.
+                "regles": w.regles,
+                "action": w.action,
+                // Published verdict, so a node can be shown as currently true or not.
+                "verdict": w.dernier_verdict,
+                "verdict_depuis": w.verdict_depuis,
             })
         })
         .collect();

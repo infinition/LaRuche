@@ -577,6 +577,29 @@ impl Regle {
         }
     }
 
+    /// Every watcher NAME this tree correlates on, in order, duplicates included.
+    ///
+    /// The dependency graph is read from here: for the cycle check at creation, and for
+    /// the UI to draw which watcher feeds which.
+    pub fn watchers_references(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        self.collecter_references(&mut out);
+        out
+    }
+
+    fn collecter_references(&self, out: &mut Vec<String>) {
+        match self {
+            Regle::Et { regles } | Regle::Ou { regles } => {
+                for r in regles {
+                    r.collecter_references(out);
+                }
+            }
+            Regle::Non { regle } => regle.collecter_references(out),
+            Regle::Watcher { nom, .. } => out.push(nom.clone()),
+            _ => {}
+        }
+    }
+
     /// Compact human summary for the UI bubble ("ET(jour∈[mar,jeu], down≥10min)").
     pub fn resume(&self) -> String {
         match self {
@@ -703,6 +726,61 @@ impl WatchersRegistry {
             }
         }
         registry
+    }
+
+    /// Would adding `nom` with `regles` close a correlation cycle? Returns the path.
+    ///
+    /// A cycle does not hang the poll loop, because verdicts are read from a snapshot
+    /// taken before the round. It is worse than that: it produces a result nobody can
+    /// reason about, where each watcher answers about the other as of last tick, and
+    /// the pair oscillates for reasons invisible from the configuration. Refusing it at
+    /// creation is the only moment where the user can still be told WHY.
+    ///
+    /// Depth-first over the existing graph, following names, which is what the rules
+    /// actually reference. Self-reference is the degenerate one-hop case and is caught
+    /// by the same walk.
+    pub fn cycle_correlation(&self, nom: &str, regles: &Regle) -> Option<Vec<String>> {
+        fn descendre(
+            reg: &WatchersRegistry,
+            courant: &str,
+            cible: &str,
+            chemin: &mut Vec<String>,
+            vus: &mut std::collections::HashSet<String>,
+        ) -> bool {
+            if courant.eq_ignore_ascii_case(cible) {
+                return true;
+            }
+            if !vus.insert(courant.to_lowercase()) {
+                return false;
+            }
+            let Some(w) = reg
+                .watchers
+                .values()
+                .find(|w| w.name.eq_ignore_ascii_case(courant))
+            else {
+                // Unknown name: no edge, and no error either. Consistent with a
+                // correlation on a deleted watcher simply reading false.
+                return false;
+            };
+            let Some(r) = &w.regles else { return false };
+            for suivant in r.watchers_references() {
+                chemin.push(suivant.clone());
+                if descendre(reg, &suivant, cible, chemin, vus) {
+                    return true;
+                }
+                chemin.pop();
+            }
+            false
+        }
+
+        for direct in regles.watchers_references() {
+            let mut chemin = vec![nom.to_string(), direct.clone()];
+            let mut vus = std::collections::HashSet::new();
+            if descendre(self, &direct, nom, &mut chemin, &mut vus) {
+                return Some(chemin);
+            }
+        }
+        None
     }
 
     pub fn add(&mut self, watcher: Watcher) -> Uuid {
@@ -2032,5 +2110,104 @@ mod tests_correlation {
         }
         // But a nameless peer can never match: refuse it at creation.
         assert!(Regle::Watcher { nom: "  ".into(), depuis_min: None }.valider().is_err());
+    }
+}
+
+#[cfg(test)]
+mod tests_cycle {
+    use super::*;
+
+    fn reg_avec(paires: &[(&str, Option<Regle>)]) -> WatchersRegistry {
+        let mut r = WatchersRegistry::new(std::path::Path::new("watchers-test.json"));
+        for (nom, regles) in paires {
+            let mut w = Watcher {
+                dernier_verdict: None,
+                verdict_depuis: None,
+                action: Action::default(),
+                lignes_vues: None,
+                id: Uuid::new_v4(),
+                name: nom.to_string(),
+                profile_id: None,
+                model: None,
+                watcher_type: WatcherType::Url,
+                target: "https://example.com".into(),
+                condition: String::new(),
+                prompt: "p".into(),
+                channel: None,
+                active: true,
+                created_at: Utc::now(),
+                last_run: None,
+                run_count: 0,
+                last_state: None,
+                interval_secs: None,
+                cooldown_secs: None,
+                sustained: false,
+                regles: regles.clone(),
+            };
+            w.regles = regles.clone();
+            r.watchers.insert(w.id, w);
+        }
+        r
+    }
+
+    fn correle(nom: &str) -> Regle {
+        Regle::Watcher { nom: nom.into(), depuis_min: None }
+    }
+
+    #[test]
+    fn une_correlation_droite_passe() {
+        // a -> b, and b correlates on nothing: no cycle.
+        let r = reg_avec(&[("b", None)]);
+        assert!(r.cycle_correlation("a", &correle("b")).is_none());
+    }
+
+    #[test]
+    fn lauto_reference_est_refusee() {
+        let r = reg_avec(&[]);
+        let chemin = r.cycle_correlation("a", &correle("a")).expect("self-reference is a cycle");
+        assert_eq!(chemin, vec!["a", "a"]);
+    }
+
+    #[test]
+    fn un_cycle_indirect_est_trouve_avec_son_chemin() {
+        // b depends on c, c depends on a. Adding a -> b closes a -> b -> c -> a.
+        let r = reg_avec(&[("b", Some(correle("c"))), ("c", Some(correle("a")))]);
+        let chemin = r.cycle_correlation("a", &correle("b")).expect("cycle a->b->c->a");
+        assert_eq!(chemin, vec!["a", "b", "c", "a"], "the path must be reportable to the user");
+    }
+
+    #[test]
+    fn un_pair_inconnu_nest_pas_un_cycle() {
+        // Consistent with evaluation, where an unknown watcher simply reads false.
+        let r = reg_avec(&[]);
+        assert!(r.cycle_correlation("a", &correle("jamais-cree")).is_none());
+    }
+
+    #[test]
+    fn un_graphe_en_losange_nest_pas_un_cycle() {
+        // a -> b and a -> c, both reaching d. Diamonds are legitimate: a watcher can
+        // depend on two others that share a source. Only a path back to `a` is a cycle,
+        // and the `vus` set is what stops the walk from re-exploring d forever.
+        let r = reg_avec(&[
+            ("b", Some(correle("d"))),
+            ("c", Some(correle("d"))),
+            ("d", None),
+        ]);
+        let regle = Regle::Et { regles: vec![correle("b"), correle("c")] };
+        assert!(r.cycle_correlation("a", &regle).is_none());
+    }
+
+    #[test]
+    fn les_dependances_sont_extraites_de_tout_larbre() {
+        let regle = Regle::Et {
+            regles: vec![
+                Regle::EstDown,
+                Regle::Non { regle: Box::new(correle("maintenance")) },
+                Regle::Ou { regles: vec![correle("reseau"), Regle::Apparu] },
+            ],
+        };
+        let mut noms = regle.watchers_references();
+        noms.sort();
+        assert_eq!(noms, vec!["maintenance", "reseau"], "nested and negated edges count too");
     }
 }

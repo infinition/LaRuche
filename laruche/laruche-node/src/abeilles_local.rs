@@ -659,6 +659,23 @@ impl Abeille for AbeilleWatcherCreate {
             }
         }
 
+        // A correlation cycle does not hang anything, verdicts are read from a
+        // snapshot, so it fails in the worse way instead: a pair that oscillates for
+        // reasons invisible from the configuration. Creation is the only moment where
+        // the user can still be told WHICH path closes the loop.
+        if let Some(r) = &regles {
+            let cycle = {
+                let reg = self.watcher_store.read().await;
+                reg.cycle_correlation(&name, r)
+            };
+            if let Some(chemin) = cycle {
+                return Ok(ResultatAbeille::err(format!(
+                    "This correlation closes a cycle: {}. A watcher cannot depend on                      itself, directly or through others. Drop one of those `watcher`                      leaves, or correlate on the underlying signal instead.",
+                    chemin.join(" -> ")
+                )));
+            }
+        }
+
         // Hard target validation: an invalid target silently watches NOTHING
         // forever (a relative path resolves against the SERVER's working dir,
         // not the user's). Reject with a corrective message so the model fixes
