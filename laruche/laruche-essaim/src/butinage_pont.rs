@@ -1945,6 +1945,23 @@ pub async fn executer_avec_bilan(
         .map(memoire_reference)
         .filter(|s| !s.trim().is_empty());
 
+    // A reaction the user left on the last answer steers THIS turn. Only the latest
+    // one: an older reaction was already acted on, and re-injecting it would keep
+    // correcting a message that has since been superseded. Costs nothing when there
+    // is none, which is why it belongs here rather than in the stable prompt.
+    let contexte_volatil = match session
+        .reaction_derniere_reponse()
+        .and_then(crate::reactions::bloc_volatil)
+    {
+        // LAST in the tail block, so it is the final thing the model reads before it
+        // answers. That position is the whole point of the volatile tier.
+        Some(bloc) => Some(match contexte_volatil {
+            Some(v) => format!("{v}\n\n{bloc}"),
+            None => bloc,
+        }),
+        None => contexte_volatil,
+    };
+
     let mode = if demande_recherche_longue(prompt_utilisateur) {
         but::ModeMission::Exploration
     } else {

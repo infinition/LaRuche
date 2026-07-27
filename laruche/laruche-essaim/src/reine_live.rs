@@ -187,14 +187,25 @@ fn construire_contexte(session: &Session, n: usize) -> String {
         tours.pop();
     }
     let start = tours.len().saturating_sub(n);
-    tours[start..]
-        .iter()
-        .map(|t| {
-            let body: String = t.1.trim().chars().take(800).collect();
-            format!("{}: {}", t.0, body)
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
+    let rendre = |t: &(&'static str, String)| {
+        let body: String = t.1.trim().chars().take(800).collect();
+        format!("{}: {}", t.0, body)
+    };
+    let mut lignes: Vec<String> = Vec::new();
+    // The OPENING request, when the window no longer reaches it. A conversation that
+    // ran past `n` turns loses the objective it started from, and the judge then
+    // reviews an answer against the last follow-up instead of against what was
+    // actually asked. One line, only when it would otherwise be missing.
+    if start > 0 {
+        if let Some(premier) = tours.iter().find(|t| t.0 == "User") {
+            lignes.push(format!("[opening request] {}", rendre(premier)));
+            if start > 1 {
+                lignes.push(format!("[... {} earlier turn(s) omitted ...]", start - 1));
+            }
+        }
+    }
+    lignes.extend(tours[start..].iter().map(rendre));
+    lignes.join("\n")
 }
 
 pub async fn revue_et_refaire(
@@ -456,14 +467,82 @@ pub async fn revue_et_refaire(
 /// what it actually called to produce the current draft (since the last user
 /// turn). This grounds the METHODOLOGY score in facts instead of the draft's own
 /// claims, and gives the Reine live knowledge of the ruche's real capabilities.
+/// Pull the most identifying argument out of a tool call: the query, the URL, the
+/// path, the sub-agent's task. It is what turns "web_deep_search was called" into
+/// "web_deep_search looked for X", which is the difference between a name and evidence.
+fn cle_appel(args: &serde_json::Value) -> Option<String> {
+    for champ in ["query", "url", "q", "path", "task", "prompt", "command", "motif"] {
+        if let Some(v) = args.get(champ).and_then(|v| v.as_str()) {
+            let v = v.trim();
+            if !v.is_empty() {
+                return Some(couper(v, 110));
+            }
+        }
+    }
+    None
+}
+
+/// Truncate on a word boundary, so an excerpt never ends mid-word.
+fn couper(texte: &str, max: usize) -> String {
+    if texte.chars().count() <= max {
+        return texte.to_string();
+    }
+    let t: String = texte.chars().take(max).collect();
+    match t.rfind(char::is_whitespace) {
+        Some(i) if i >= max * 3 / 4 => format!("{}...", t[..i].trim_end()),
+        _ => format!("{}...", t.trim_end()),
+    }
+}
+
+/// Distinct http(s) URLs appearing in a tool result, in order of appearance.
+///
+/// The single most decision-relevant fact for the judge is how many real sources the
+/// draft actually rests on. Counting them beats any adjective about "thorough research".
+fn urls_de(texte: &str, deja: &mut std::collections::BTreeSet<String>, out: &mut Vec<String>) {
+    const BORNES: [char; 7] = ['"', '\'', '<', '>', ')', ']', '`'];
+    let mut reste = texte;
+    while let Some(pos) = reste.find("http") {
+        let depart = &reste[pos..];
+        if !depart.starts_with("http://") && !depart.starts_with("https://") {
+            reste = &reste[pos + 4..];
+            continue;
+        }
+        let fin = depart
+            .find(|c: char| c.is_whitespace() || BORNES.contains(&c))
+            .unwrap_or(depart.len());
+        let url = depart[..fin].trim_end_matches(['.', ',', ';', ':']).to_string();
+        if url.len() > 12 && deja.insert(url.clone()) {
+            out.push(url);
+        }
+        reste = &depart[fin.max(8)..];
+    }
+}
+
+/// What the agent actually DID to produce this draft, with the evidence it collected.
+///
+/// This used to be a list of tool NAMES and nothing else: `12 tool call(s): delegate,
+/// delegate, web_deep_search, ...`. The charter asks the judge to require that every
+/// claim rest on a real search result, and she could not see a single one, so she sent
+/// perfectly grounded work back to be redone, turn after turn. The loop was structural,
+/// not a whim of the judging model.
+///
+/// She now gets the three things a reviewer actually needs: WHAT was searched (queries
+/// and URLs), WHAT came back (short extracts, and the scouts' own reports, which are
+/// syntheses and therefore the densest evidence available), and HOW MANY distinct
+/// sources the draft rests on. Everything is budgeted: this rides in the judge's prompt
+/// on every single review.
 fn construire_atelier(session: &Session, registry: &AbeilleRegistry) -> String {
     use crate::session::Message;
+    const BUDGET_PREUVES: usize = 2600;
+    const EXTRAIT_SCOUT: usize = 420;
+    const EXTRAIT_AUTRE: usize = 180;
+
     let mut noms = registry.noms();
     noms.sort();
     let total = noms.len();
     let mut liste = noms.join(", ");
-    if liste.len() > 600 {
-        liste.truncate(600);
+    if liste.len() > 400 {
+        liste.truncate(400);
         if let Some(p) = liste.rfind(", ") {
             liste.truncate(p);
         }
@@ -476,48 +555,112 @@ fn construire_atelier(session: &Session, registry: &AbeilleRegistry) -> String {
         .rposition(|m| matches!(m, Message::User(_) | Message::UserMultimodal { .. }))
         .map(|i| i + 1)
         .unwrap_or(0);
-    let mut trace: Vec<String> = Vec::new();
+
+    let mut compte: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    // Each call remembers its identifying argument, so the observation that follows can
+    // be attributed to the right one.
+    let mut appels: Vec<(String, Option<String>)> = Vec::new();
+    let mut preuves: Vec<String> = Vec::new();
+    let mut urls: Vec<String> = Vec::new();
+    let mut vues = std::collections::BTreeSet::new();
     let mut echecs = 0usize;
+    let mut total_appels = 0usize;
+    let mut budget = BUDGET_PREUVES;
+
     for m in &session.messages[dernier_user..] {
         match m {
-            Message::ToolCall { name, .. } => trace.push(name.clone()),
+            Message::ToolCall { name, args } => {
+                total_appels += 1;
+                *compte.entry(name.clone()).or_insert(0) += 1;
+                appels.push((name.clone(), cle_appel(args)));
+            }
             Message::Observation { tool, result, .. } => {
-                let ko = result.trim_start().to_lowercase().starts_with("error");
-                if ko {
+                let rate = result.trim_start().to_lowercase().starts_with("error");
+                if rate {
                     echecs += 1;
-                    if let Some(last) = trace.last_mut() {
-                        if last == tool {
-                            *last = format!("{tool} (FAILED)");
-                        }
-                    }
                 }
+                urls_de(result, &mut vues, &mut urls);
+                if budget == 0 {
+                    continue;
+                }
+                let cle = appels
+                    .iter()
+                    .rposition(|(n, _)| n == tool)
+                    .and_then(|i| appels[i].1.clone());
+                // A scout returns a synthesis rather than raw data: densest evidence
+                // per character, so it gets the larger share.
+                let taille = if tool == "delegate" || tool == "spawn_specialist" {
+                    EXTRAIT_SCOUT
+                } else {
+                    EXTRAIT_AUTRE
+                };
+                let corps = couper(
+                    &result.split_whitespace().collect::<Vec<_>>().join(" "),
+                    taille,
+                );
+                let marque = if rate { " FAILED" } else { "" };
+                let ligne = match cle {
+                    Some(k) => format!("- {tool}{marque} [{k}] -> {corps}"),
+                    None => format!("- {tool}{marque} -> {corps}"),
+                };
+                budget = budget.saturating_sub(ligne.len().min(budget));
+                preuves.push(ligne);
             }
             _ => {}
         }
     }
-    let trace_txt = if trace.is_empty() {
-        "No tool was called to produce this draft.".to_string()
-    } else {
-        let mut suite = trace.join(", ");
-        if suite.len() > 400 {
-            suite.truncate(400);
-            if let Some(p) = suite.rfind(", ") {
-                suite.truncate(p);
+
+    if total_appels == 0 {
+        return format!(
+            "Tools available ({total}): {liste}\nTrace for this draft: NO tool was called. \
+             Every factual claim in it is unverified by construction."
+        );
+    }
+
+    let resume: Vec<String> = compte
+        .iter()
+        .map(|(n, c)| {
+            if *c > 1 {
+                format!("{n} x{c}")
+            } else {
+                n.clone()
             }
-            suite.push_str(", ...");
-        }
-        format!(
-            "{} tool call(s): {}{}",
-            trace.len(),
-            suite,
-            if echecs > 0 {
-                format!(" ({echecs} failed)")
+        })
+        .collect();
+
+    let mut sortie = format!(
+        "Tools available ({total}): {liste}\nTrace for this draft: {total_appels} call(s): \
+         {}{}\nDistinct sources actually fetched or returned: {}",
+        resume.join(", "),
+        if echecs > 0 {
+            format!(" ({echecs} failed)")
+        } else {
+            String::new()
+        },
+        urls.len()
+    );
+    if !urls.is_empty() {
+        let apercu: Vec<&str> = urls.iter().take(12).map(String::as_str).collect();
+        let reste = urls.len() - apercu.len();
+        sortie.push_str(&format!(
+            "\nSources: {}{}",
+            apercu.join(" | "),
+            if reste > 0 {
+                format!(" (+{reste} more)")
             } else {
                 String::new()
             }
-        )
-    };
-    format!("Tools available ({total}): {liste}\nTrace for this draft: {trace_txt}")
+        ));
+    }
+    if !preuves.is_empty() {
+        sortie.push_str(
+            "\nWhat the tools actually returned. Judge grounding against THIS evidence, not \
+             against your own knowledge, and do not ask for a search that already appears \
+             here:\n",
+        );
+        sortie.push_str(&preuves.join("\n"));
+    }
+    sortie
 }
 
 /// Top-level memory domains of the ruche, one compact line for the judge. The
@@ -583,4 +726,102 @@ fn journaliser_scorecard(card: &Scorecard, mode: &str, rounds: u8, revised: bool
         use std::io::Write;
         let _ = writeln!(f, "{ligne}");
     }
+}
+
+
+/// A one-shot judgement the USER asked for, from the chat, outside any automatic mode.
+///
+/// Deliberately judge-only: it never rewrites the answer. The automatic path
+/// ([`revue_et_refaire`]) sends the worker back to redo the work, which is right when
+/// LaReine is on duty and watching every turn. Asked for by hand on a conversation
+/// already in front of the user, silently replacing the message they are reading is the
+/// wrong move: they want a verdict and a direction, and they decide what happens next.
+///
+/// The window is the caller's choice and is meant to be WIDER than the automatic one.
+/// Four turns is enough to grade the last answer; it is not enough to say where a long
+/// conversation went wrong, which is exactly why someone reaches for this button.
+pub async fn juger_a_la_demande(
+    juge: &ProviderCreds,
+    charte: &str,
+    session: &Session,
+    registry: &AbeilleRegistry,
+    memoire: Arc<dyn MemoireCognitive>,
+    fenetre: usize,
+) -> Option<Scorecard> {
+    use crate::session::Message;
+
+    // The answer under review and the request that produced it, read from the session
+    // itself: unlike the automatic path there is no draft in flight to be handed in.
+    let reponse = session.messages.iter().rev().find_map(|m| match m {
+        Message::Assistant(t) if !t.trim().is_empty() => Some(t.clone()),
+        _ => None,
+    })?;
+    let prompt = session
+        .messages
+        .iter()
+        .rev()
+        .find_map(|m| match m {
+            Message::User(t) => Some(t.clone()),
+            Message::UserMultimodal { text, .. } => Some(text.clone()),
+            _ => None,
+        })
+        .unwrap_or_default();
+
+    let contexte = construire_contexte(session, fenetre);
+    let mut atelier = construire_atelier(session, registry);
+    let etat = construire_etat_ruche(&memoire).await;
+    if !etat.is_empty() {
+        atelier.push('\n');
+        atelier.push_str(&etat);
+    }
+
+    juger_avec(
+        &juge.provider,
+        &juge.model,
+        &juge.api_key,
+        juge.api_base.as_deref(),
+        &juge.ollama_url,
+        &reponse,
+        &prompt,
+        charte,
+        &contexte,
+        &atelier,
+    )
+    .await
+}
+
+/// Render a scorecard for the UI: the verdict line, the scores, and the reasoning.
+pub fn verdict_json(card: &Scorecard) -> serde_json::Value {
+    serde_json::json!({
+        "verdict": ligne_verdict(card),
+        "avis": match card.avis {
+            Avis::Approuver => "approve",
+            Avis::Reviser => "revise",
+            Avis::Escalader => "escalate",
+        },
+        "scores": {
+            "pertinence": card.pertinence,
+            "methodologie": card.methodologie,
+            "objectif": card.objectif,
+            "conformite_marque": card.conformite_marque,
+            "confiance": card.confiance,
+        },
+        "instruction": card.instruction.trim(),
+        "raison": card.raison.trim(),
+        "analyse": card.analyse.trim(),
+    })
+}
+
+/// Test-only handles on the two builders that decide what the judge can see.
+#[cfg(test)]
+pub(crate) fn construire_atelier_pour_test(
+    session: &Session,
+    registry: &AbeilleRegistry,
+) -> String {
+    construire_atelier(session, registry)
+}
+
+#[cfg(test)]
+pub(crate) fn construire_contexte_pour_test(session: &Session, n: usize) -> String {
+    construire_contexte(session, n)
 }

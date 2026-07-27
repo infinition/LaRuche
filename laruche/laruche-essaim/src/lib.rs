@@ -38,12 +38,15 @@ pub mod mcp_client;
 pub mod orchestration;
 pub mod parsing;
 pub mod permissions;
+pub mod reactions;
 pub mod prompt;
 pub mod providers;
 pub mod rag;
 pub mod reine_file;
 pub mod reine_juge;
 pub mod reine_live;
+#[cfg(test)]
+mod reine_tests;
 pub mod reine_queue;
 pub mod session;
 pub mod stats_outils;

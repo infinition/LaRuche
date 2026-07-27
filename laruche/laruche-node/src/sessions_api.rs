@@ -106,6 +106,27 @@ fn display_user_text(text: &str) -> Option<String> {
 /// Converts the durable ReAct transcript to the clean presentation transcript.
 /// Internal tool and plan tags remain in storage for the agent, while the UI gets
 /// plain assistant text plus the latest structured plan for the left-hand workflow.
+/// Render the messages for the client, each carrying its REAL index in the session.
+///
+/// The client cannot derive it: `session_message_for_client` drops the internal
+/// messages (system, tool traces, debug), so the position in this array is not the
+/// position in `session.messages`. Reactions are keyed on the real index, and using
+/// the filtered one would attach them to the wrong message as soon as a single tool
+/// call happened.
+fn enumerer_pour_client(messages: &[laruche_essaim::Message]) -> Vec<serde_json::Value> {
+    messages
+        .iter()
+        .enumerate()
+        .filter_map(|(i, m)| {
+            let mut v = session_message_for_client(m)?;
+            if let Some(obj) = v.as_object_mut() {
+                obj.insert("index".into(), serde_json::json!(i));
+            }
+            Some(v)
+        })
+        .collect()
+}
+
 fn session_message_for_client(message: &laruche_essaim::Message) -> Option<serde_json::Value> {
     match message {
         laruche_essaim::Message::User(text) => {
@@ -286,11 +307,7 @@ pub(crate) async fn api_get_session_messages(
             Err(StatusCode::FORBIDDEN)
         }
         Some(session) => {
-            let messages: Vec<serde_json::Value> = session
-                .messages
-                .iter()
-                .filter_map(session_message_for_client)
-                .collect();
+            let messages: Vec<serde_json::Value> = enumerer_pour_client(&session.messages);
             Ok(Json(serde_json::json!({
                 "session_id": id,
                 "title": session.title,
@@ -302,11 +319,7 @@ pub(crate) async fn api_get_session_messages(
             drop(sessions);
             let path = std::path::Path::new("sessions").join(format!("{}.json", id));
             if let Ok(session) = Session::charger(&path) {
-                let messages: Vec<serde_json::Value> = session
-                    .messages
-                    .iter()
-                    .filter_map(session_message_for_client)
-                    .collect();
+                let messages: Vec<serde_json::Value> = enumerer_pour_client(&session.messages);
                 state.essaim_sessions.write().await.insert(uuid, session);
                 Ok(Json(
                     serde_json::json!({"session_id":id,"messages":messages}),
@@ -479,4 +492,90 @@ pub(crate) async fn api_fork_session(
         "id": forked_id.to_string(),
         "message": "Session forked successfully",
     })))
+}
+
+/// POST /api/sessions/:id/reaction - set or clear the user's reaction on one message.
+///
+/// Body: `{"index": 12, "reaction": "down"}`. An empty `reaction` clears it, which is
+/// what a second click on the same emoji means.
+///
+/// Chat only, by design. The reaction lands in the session and steers the next turn
+/// through the volatile tier; it never reaches the cognitive memory, an episode or an
+/// outbound channel. It is a steering signal, not a fact worth remembering.
+pub(crate) async fn api_set_reaction(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let caller = auth_user::extract_user_from_headers(&headers, &state.cookie_secret);
+    let uuid = Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
+
+    // A NEGATIVE index means "the answer I am looking at", i.e. the last assistant
+    // message. That is the common case and the client cannot express it otherwise: a
+    // message that just finished streaming has no index client-side yet, and making
+    // the UI wait for a round trip to learn it would put a delay on the one
+    // interaction that has to feel instant.
+    let index_demande = body
+        .get("index")
+        .and_then(|v| v.as_i64())
+        .ok_or(StatusCode::BAD_REQUEST)?;
+    let reaction = body.get("reaction").and_then(|v| v.as_str()).unwrap_or("");
+    // Never store a key we cannot turn into an instruction: an unknown one would sit
+    // in the session for good and render as a blank chip in the UI.
+    if !reaction.is_empty() && !laruche_essaim::reactions::est_connue(reaction) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+
+    let mut sessions = state.essaim_sessions.write().await;
+    let session = sessions.get_mut(&uuid).ok_or(StatusCode::NOT_FOUND)?;
+    if session.user_id.is_some() && session.user_id != caller {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let index = if index_demande < 0 {
+        session
+            .messages
+            .iter()
+            .rposition(|m| matches!(m, laruche_essaim::Message::Assistant(_)))
+            .ok_or(StatusCode::BAD_REQUEST)?
+    } else {
+        index_demande as usize
+    };
+    // Refuses an index that is not an assistant message: a stale client index must not
+    // create a phantom entry that later shifts onto another message.
+    if !session.definir_reaction(index, reaction) {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let _ = session.sauvegarder();
+
+    Ok(Json(serde_json::json!({
+        "ok": true,
+        "index": index,
+        "reaction": reaction,
+    })))
+}
+
+/// GET /api/sessions/:id/reactions - every reaction, so a reloaded chat restores them.
+pub(crate) async fn api_get_reactions(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let caller = auth_user::extract_user_from_headers(&headers, &state.cookie_secret);
+    let uuid = Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let sessions = state.essaim_sessions.read().await;
+    let session = sessions.get(&uuid).ok_or(StatusCode::NOT_FOUND)?;
+    if session.user_id.is_some() && session.user_id != caller {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    Ok(Json(serde_json::json!({ "reactions": session.reactions })))
+}
+
+/// GET /api/reactions/palette - the vocabulary, so the UI never hardcodes it.
+pub(crate) async fn api_reactions_palette() -> Json<serde_json::Value> {
+    let palette: Vec<serde_json::Value> = laruche_essaim::reactions::REACTIONS
+        .iter()
+        .map(|r| serde_json::json!({ "key": r.cle, "emoji": r.emoji }))
+        .collect();
+    Json(serde_json::json!({ "reactions": palette }))
 }

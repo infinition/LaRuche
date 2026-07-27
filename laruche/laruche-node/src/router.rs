@@ -155,6 +155,9 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/sessions", get(sessions_api::api_list_sessions))
         .route("/api/sessions/search", get(sessions_api::api_search_sessions))
         .route("/api/sessions/:id/messages", get(sessions_api::api_get_session_messages))
+        .route("/api/sessions/:id/reaction", post(sessions_api::api_set_reaction))
+        .route("/api/sessions/:id/reactions", get(sessions_api::api_get_reactions))
+        .route("/api/reactions/palette", get(sessions_api::api_reactions_palette))
         .route("/api/voice/status", get(status_api::api_voice_status))
         .route("/api/voice/tts", post(status_api::api_tts_proxy))
         .route("/api/webhook", post(local_api::api_webhook))
@@ -207,6 +210,7 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         )
         .route("/api/reine/proposals", get(reine_api::api_list_proposals))
         .route("/api/reine/scorecards", get(reine_api::api_reine_scorecards))
+        .route("/api/reine/appel", post(reine_api::api_reine_appel))
         .route(
             "/api/reine/proposals/apply-safe",
             post(reine_api::api_approve_safe),

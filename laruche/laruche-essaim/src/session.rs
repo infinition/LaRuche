@@ -75,6 +75,18 @@ pub struct Session {
     /// Optional session-specific working directory (for worktree isolation)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub working_dir: Option<PathBuf>,
+    /// Reactions the user left on assistant messages, keyed by message INDEX.
+    ///
+    /// A SIDE map rather than a field on `Message`: the variants are tuple-shaped and
+    /// already serialized in every session file on disk, so widening them would make
+    /// every existing session unreadable. Messages are append-only, so an index is a
+    /// stable handle.
+    ///
+    /// Chat only. Reactions never reach the cognitive memory, the episodes or an
+    /// outbound channel: they are a live steering signal for the next turn, not a fact
+    /// worth remembering.
+    #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub reactions: std::collections::HashMap<usize, String>,
     #[serde(skip)]
     file_path: Option<PathBuf>,
     #[serde(skip)]
@@ -162,9 +174,41 @@ impl Session {
             title: None,
             user_id: None,
             working_dir: None,
+            reactions: std::collections::HashMap::new(),
             file_path: None,
             event_tx: None,
         }
+    }
+
+    /// Set or clear the reaction on message `index`. An empty `emoji` removes it,
+    /// which is what a second click on the same reaction means.
+    ///
+    /// Returns false when the index does not point at an assistant message: only an
+    /// answer can be reacted to, and a stale index from a client must not create a
+    /// phantom entry that later shifts onto someone else's message.
+    pub fn definir_reaction(&mut self, index: usize, emoji: &str) -> bool {
+        if !matches!(self.messages.get(index), Some(Message::Assistant(_))) {
+            return false;
+        }
+        if emoji.is_empty() {
+            self.reactions.remove(&index);
+        } else {
+            self.reactions.insert(index, emoji.to_string());
+        }
+        true
+    }
+
+    /// The reaction on the LAST assistant message, if the user left one.
+    ///
+    /// This is the only one that steers the next turn. An older reaction has already
+    /// been acted on, and re-injecting it would keep apologising for a message that
+    /// has since been superseded.
+    pub fn reaction_derniere_reponse(&self) -> Option<&str> {
+        let index = self
+            .messages
+            .iter()
+            .rposition(|m| matches!(m, Message::Assistant(_)))?;
+        self.reactions.get(&index).map(String::as_str)
     }
 
     /// Create a new session with a persistence path.

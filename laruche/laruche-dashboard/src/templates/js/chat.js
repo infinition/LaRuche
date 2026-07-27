@@ -1801,6 +1801,10 @@ LaRuche.Chat = (function(){
         else if(msg.role==='assistant'&&((msg.text&&msg.text.trim())||historyMedia.length)){
           var restored=takeMediaDeclarations(msg.text||'');
           var result=addMessage('assistant','');
+          // Real session index, not the position in this filtered array: tool
+          // traces and internals are dropped from it, so the two diverge as soon
+          // as a single tool ran, and a reaction would land on another message.
+          if(typeof msg.index==='number') result.row.dataset.msgIndex=String(msg.index);
           var el=result.msgEl;
           if(restored.text&&typeof marked!=='undefined'){el.innerHTML=LaRuche.Utils.safeMarkdown(restored.text);el.classList.add('rendered');if(window.lrEnhanceCode)window.lrEnhanceCode(el);}
           else el.textContent=restored.text;
@@ -1842,6 +1846,13 @@ LaRuche.Chat = (function(){
       setFeedLive('idle');
       // Jump to the searched keyword (click from history), otherwise bottom of page.
       if(scrollTerm){ scrollToMessageTerm(scrollTerm); } else { scrollToBottom(); }
+      // Reactions the user left on this conversation, keyed by real index.
+      if(window.LaRuche && LaRuche.Reactions){
+        fetch('/api/sessions/'+id+'/reactions')
+          .then(function(r){return r.ok?r.json():null;})
+          .then(function(d){ if(d) LaRuche.Reactions.restore(d.reactions); })
+          .catch(function(){});
+      }
     }).catch(function(){});
     loadSessions(); closeSidebarMobile();
     // Re-attach to the live stream ONLY if the session is not already streamed by the main
@@ -2794,6 +2805,9 @@ LaRuche.Voice = (function(){
   }
 
   return {
+    // Exposed for the reactions and LaReine modules: both need the live session
+    // to address the right conversation, and neither should reach into chat.js.
+    getSessionId:function(){return sessionId;},
     init:init, speakText:speakText, stopAllTts:stopAllTts, feedStream:feedStream, finishStream:finishStream, toggleMic:toggleMic, toggleAutoTts:toggleAutoTts,
     openVoiceMode:openVoiceMode, closeVoiceMode:closeVoiceMode, voiceModeTap:voiceModeTap,
     toggleWakeWord:toggleWakeWord,

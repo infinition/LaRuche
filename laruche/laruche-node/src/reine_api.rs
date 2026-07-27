@@ -499,3 +499,93 @@ pub(crate) async fn api_approve_safe(
     let n = laruche_essaim::reine_queue::approuver_surs(&state.memoire).await;
     Ok(Json(serde_json::json!({ "status": "ok", "applied": n })))
 }
+
+/// Widened window for a hand-made call. The automatic review runs on every turn and
+/// four turns is enough to grade the last answer; someone pressing the button wants to
+/// know where a LONG conversation went wrong, and that needs more history. This is a
+/// deliberate one-off, so the extra tokens cost nothing that matters.
+const FENETRE_APPEL_MANUEL: usize = 12;
+
+/// POST /api/reine/appel - summon LaReine on the conversation as it stands.
+///
+/// Body: `{"session_id": "<uuid>"}`. Returns her verdict, scores and reasoning.
+///
+/// JUDGE ONLY: it never rewrites the message the user is looking at. It works with
+/// LaReine switched off, which is the point: the mode ships off, so without this the
+/// most distinctive part of the project is something most users never see once.
+pub(crate) async fn api_reine_appel(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, axum::http::StatusCode> {
+    use axum::http::StatusCode;
+    let caller = auth_user::extract_user_from_headers(&headers, &state.cookie_secret);
+    let session_id = body
+        .get("session_id")
+        .and_then(|v| v.as_str())
+        .and_then(|s| Uuid::parse_str(s).ok())
+        .ok_or(StatusCode::BAD_REQUEST)?;
+
+    let session = {
+        let sessions = state.essaim_sessions.read().await;
+        let s = sessions.get(&session_id).ok_or(StatusCode::NOT_FOUND)?;
+        if s.user_id.is_some() && s.user_id != caller {
+            return Err(StatusCode::FORBIDDEN);
+        }
+        s.clone()
+    };
+
+    let rs = charger_reine_settings();
+    // Her own judge profile when one is set, otherwise the active model. Same
+    // resolution as the automatic path: a manual call must not silently judge with a
+    // different brain than the one configured.
+    let (pid, model) = match rs.provider_profile.as_deref().filter(|s| !s.is_empty()) {
+        Some(pp) => {
+            let mut p = pp.split("|||");
+            (
+                p.next().unwrap_or("").to_string(),
+                p.next().unwrap_or("").to_string(),
+            )
+        }
+        None => {
+            let pr = state.profiles.read().await;
+            (
+                pr.active_model.profile_id.clone(),
+                pr.active_model.model.clone(),
+            )
+        }
+    };
+    let juge = resoudre_creds(&state, &pid, &model).await;
+
+    let charte = laruche_essaim::brain::charger_doc_systeme(&state.memoire, "system.prompt_reine")
+        .await
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| laruche_essaim::reine_live::prompt_reine_defaut().to_string());
+
+    tracing::info!(target: "reine", judge = %juge.model, "summoned by hand");
+
+    match laruche_essaim::reine_live::juger_a_la_demande(
+        &juge,
+        &charte,
+        &session,
+        &state.essaim_registry,
+        state.memoire.clone(),
+        FENETRE_APPEL_MANUEL,
+    )
+    .await
+    {
+        Some(card) => {
+            let mut out = laruche_essaim::reine_live::verdict_json(&card);
+            if let Some(o) = out.as_object_mut() {
+                o.insert("ok".into(), serde_json::json!(true));
+            }
+            Ok(Json(out))
+        }
+        // Nothing to judge (empty conversation), or the judge provider failed. Either
+        // way the UI must say so rather than show a blank crown.
+        None => Ok(Json(serde_json::json!({
+            "ok": false,
+            "error": "LaReine could not deliver a verdict (no answer to judge, or the judge provider failed)."
+        }))),
+    }
+}
