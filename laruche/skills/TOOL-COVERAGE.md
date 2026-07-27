@@ -10,6 +10,8 @@ a skill written only to fill a checklist costs tokens forever and teaches nothin
 
 ## Check it yourself
 
+From the repository root:
+
 ```bash
 python scripts/check_tool_coverage.py
 ```

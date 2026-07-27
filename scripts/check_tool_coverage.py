@@ -4,7 +4,7 @@
 Reads every `fn nom(&self) -> &str { "..." }` in the tool modules, cross-references the
 skill bodies, and checks the remainder against the table in skills/TOOL-COVERAGE.md.
 
-Usage: python scripts/check_tool_coverage.py   (run from the laruche/ directory)
+Usage: python scripts/check_tool_coverage.py   (runs from anywhere)
 Exit code 0 when every tool is accounted for, 1 otherwise.
 """
 
@@ -13,7 +13,9 @@ import os
 import re
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# scripts/ sits at the repository root, next to laruche/. Paths are derived from
+# __file__ rather than the working directory so the check runs from anywhere.
+ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "laruche")
 SOURCES = [
     os.path.join(ROOT, "laruche-essaim", "src", "abeilles"),
     os.path.join(ROOT, "laruche-node", "src"),

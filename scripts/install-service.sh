@@ -3,8 +3,10 @@
 # Usage: sudo ./install-service.sh [--uninstall]
 
 SERVICE_NAME="laruche"
-BINARY_PATH="$(cd "$(dirname "$0")/.." && pwd)/target/release/laruche-node"
-WORK_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+# The daemon reads its state from laruche/, so that is both the build root and the
+# service working directory. This script lives one level above it, in scripts/.
+WORK_DIR="$(cd "$(dirname "$0")/../laruche" && pwd)"
+BINARY_PATH="$WORK_DIR/target/release/laruche-node"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
 if [ "$1" = "--uninstall" ]; then

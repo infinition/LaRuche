@@ -103,7 +103,7 @@ instead of the trigger.
    model hesitate, then pick wrong.
 5. **Name the artefact produced**, when there is one: a report, a diagram, a patch.
 
-Check the whole set at once:
+Check the whole set at once, from the repository root:
 
 ```bash
 python scripts/check_skills.py

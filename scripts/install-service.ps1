@@ -9,8 +9,10 @@ param(
 $ServiceName = "LaRuche"
 $DisplayName = "LaRuche AI Agent"
 $Description = "LaRuche Essaim - Networked Edge AI Agent with Miel Protocol"
-$ExePath = Join-Path $PSScriptRoot "..\target\release\laruche-node.exe"
-$WorkDir = Split-Path $PSScriptRoot
+# The daemon reads its state from laruche/, so that is both the build root and the
+# service working directory. This script lives one level above it, in scripts/.
+$WorkDir = Join-Path (Split-Path $PSScriptRoot) "laruche"
+$ExePath = Join-Path $WorkDir "target\release\laruche-node.exe"
 
 if ($Uninstall) {
     Write-Host "Uninstalling $ServiceName service..."

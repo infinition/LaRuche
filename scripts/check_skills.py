@@ -17,7 +17,7 @@ Four checks, each of which caught a real defect in the shipped set:
 4. CROSS-REFS    a skill named in the prose exists on disk, and a bundled file
                  referenced by a relative path exists in the skill folder.
 
-Usage: python scripts/check_skills.py   (run from the laruche/ directory)
+Usage: python scripts/check_skills.py   (runs from anywhere)
 Exit code 0 when the library is clean, 1 otherwise.
 """
 
@@ -26,7 +26,10 @@ import os
 import re
 import sys
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# scripts/ sits at the repository root, next to laruche/. Paths are derived from
+# __file__ rather than the working directory so the linter runs from anywhere.
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+ROOT = os.path.join(REPO, "laruche")
 SKILLS = os.path.join(ROOT, "skills")
 SOURCES = [
     os.path.join(ROOT, "laruche-essaim", "src", "abeilles"),
@@ -123,7 +126,7 @@ def field(block, key):
 
 def main():
     if not os.path.isdir(SKILLS):
-        print("skills/ not found; run from the laruche/ directory", file=sys.stderr)
+        print("laruche/skills not found next to this script", file=sys.stderr)
         return 1
 
     schemas = tool_schemas()
@@ -217,11 +220,13 @@ def main():
                 problems.append("%s: refers to skill `%s`, which does not exist" % (where, ref))
 
         for rel in set(re.findall(r"(?<![\w/])((?:\.\./)?(?:scripts|templates|references)/[\w./-]+)", text)):
-            # A path is valid if it resolves inside the skill folder (a bundled file) or
-            # from the repository root (a shared script such as scripts/check_skills.py).
+            # A path is valid if it resolves inside the skill folder (a bundled file),
+            # under laruche/, or from the repository root, where the shared tooling
+            # lives (scripts/check_skills.py and friends).
             candidates = [
                 os.path.normpath(os.path.join(SKILLS, folder, rel)),
                 os.path.normpath(os.path.join(ROOT, rel)),
+                os.path.normpath(os.path.join(REPO, rel)),
             ]
             if not any(os.path.exists(candidate) for candidate in candidates):
                 problems.append("%s: references `%s`, which is not on disk" % (where, rel))
