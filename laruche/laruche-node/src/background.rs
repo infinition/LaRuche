@@ -1216,3 +1216,93 @@ async fn executer_action_commande(commande: &str) -> String {
         Err(_) => format!("timed out after {TIMEOUT_ACTION_SECS}s"),
     }
 }
+
+// ── Bin (`orphans.*`) ────────────────────────────────────────────────────────────────
+// `delete_node` never destroys: it relocates the subtree under
+// `orphans.<name>_<unix_ts>`. Nothing reads that bin back, so without a purge it grows
+// forever and clutters the tree. It empties itself after a delay instead.
+
+/// Deletion timestamp carried by a bin entry id (`orphans.<name>_<unix_ts>`).
+///
+/// The node's `created_at` cannot serve here: relocation keeps the ORIGINAL creation
+/// date, so a node created months ago and deleted today would look expired on the spot.
+/// The suffix is the only field that records WHEN the deletion happened.
+fn horodatage_corbeille(id: &str) -> Option<i64> {
+    let reste = id.strip_prefix("orphans.")?;
+    // Top-level entry only: a descendant goes with its parent.
+    if reste.contains('.') {
+        return None;
+    }
+    let (_, ts) = reste.rsplit_once('_')?;
+    ts.parse::<i64>().ok()
+}
+
+/// Background: empties the bin of everything deleted more than `LARUCHE_TRASH_TTL_SECS`
+/// ago (7 days by default, 0 disables). Checked every 6 h, first pass after 5 min.
+pub(crate) fn spawn_purge_corbeille(state: &Arc<AppState>) {
+    let ttl: i64 = std::env::var("LARUCHE_TRASH_TTL_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(7 * 24 * 3600);
+    if ttl <= 0 {
+        return;
+    }
+    let purge_state = state.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(300)).await;
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(6 * 3600));
+        loop {
+            interval.tick().await;
+            let maintenant = chrono::Utc::now().timestamp();
+            let Ok(noeuds) = purge_state.memoire.list_nodes().await else {
+                continue;
+            };
+            let perimes: Vec<String> = noeuds
+                .as_array()
+                .map(|a| a.as_slice())
+                .unwrap_or(&[])
+                .iter()
+                .filter_map(|n| n.get("id").or_else(|| n.get("node_id"))?.as_str())
+                .filter(|id| {
+                    horodatage_corbeille(id).is_some_and(|ts| maintenant - ts >= ttl)
+                })
+                .map(str::to_string)
+                .collect();
+            let mut vides = 0usize;
+            for id in &perimes {
+                // Targeting `orphans.*` takes the hard-delete branch: gone for good.
+                if purge_state.memoire.delete_node(id).await.is_ok() {
+                    vides += 1;
+                }
+            }
+            if vides > 0 {
+                info!(entries = vides, ttl_secs = ttl, "Bin purged");
+            }
+        }
+    });
+}
+
+#[cfg(test)]
+mod tests_corbeille {
+    use super::horodatage_corbeille;
+
+    #[test]
+    fn lit_l_horodatage_de_suppression_dans_l_identifiant() {
+        assert_eq!(horodatage_corbeille("orphans.projects_1753660800"), Some(1753660800));
+        // A name carrying underscores of its own: only the last chunk is the stamp.
+        assert_eq!(
+            horodatage_corbeille("orphans.mon_vieux_noeud_1753660800"),
+            Some(1753660800)
+        );
+    }
+
+    #[test]
+    fn ignore_ce_qui_n_est_pas_une_entree_de_corbeille() {
+        assert_eq!(horodatage_corbeille("orphans"), None);
+        assert_eq!(horodatage_corbeille("projects.alpha"), None);
+        // A descendant is removed with its parent, never on its own.
+        assert_eq!(horodatage_corbeille("orphans.projects_1753660800.sub"), None);
+        // Legacy entry with no stamp: left alone rather than purged on a guess.
+        assert_eq!(horodatage_corbeille("orphans.projects"), None);
+    }
+}

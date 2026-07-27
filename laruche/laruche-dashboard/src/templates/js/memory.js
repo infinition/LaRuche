@@ -117,6 +117,11 @@ LaRuche.i18n.add({
   'memory.segIdentity':           {fr:'Identite', en:'Identity'},
   'memory.segUser':               {fr:'Utilisateur', en:'User'},
   'memory.segMemory':             {fr:'Memoire', en:'Memory'},
+  'memory.segTrash':              {fr:'Corbeille', en:'Trash'},
+  'memory.trashGroupLabel':       {fr:'CORBEILLE', en:'TRASH'},
+  'memory.trashEmpty':            {fr:'Vider', en:'Empty'},
+  'memory.trashEmptyConfirm':     {fr:'Vider la corbeille ? Les noeuds supprimes qui s\'y trouvent seront effaces definitivement.', en:'Empty the trash? The deleted nodes it holds will be erased for good.'},
+  'memory.trashEmptied':          {fr:'Corbeille videe', en:'Trash emptied'},
   'memory.virtualNodeTitle':      {fr:'Memoire', en:'Memory'},
   'memory.virtualNodeIntro':      {fr:'Regroupe tout ce que LaRuche accumule, hors groupe SYSTEME. Ce noeud n\'existe pas en base : c\'est une poignee pour agir sur l\'ensemble d\'un coup.', en:'Groups everything LaRuche accumulates, outside the SYSTEM group. This node exists in no table: it is a handle for acting on all of it at once.'},
   'memory.virtualNodeScope':      {fr:'Consolider porte sur ces branches et tous leurs sous-noeuds.', en:'Consolidate applies to these branches and every node below them.'},
@@ -379,12 +384,17 @@ LaRuche.Memory = (function(){
     planning:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/><path d="M8 16l2 2 4-4"/></svg>',
     reine:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16"/><path d="M4 18l-1-9 5.5 4L12 5l3.5 8L21 9l-1 9z"/></svg>',
     user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
-    memoire:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>'
+    memoire:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>',
+    corbeille:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"/><path d="M10 11v6M14 11v6"/></svg>'
   };
+  // The bin: `delete_node` relocates here instead of destroying. Its own section at the
+  // bottom, out of the @memory node, since it is not memory but what was thrown away.
+  var CORBEILLE = 'orphans';
 
   // Icon of a tree node based on its id and whether it has children.
   function nodeIcon(id, hasKids){
     if(id === VNODE) return SVG.memoire;
+    if(id === CORBEILLE) return SVG.corbeille;
     if(id === 'system') return SVG.system;
     if(id === 'system.prompt') return SVG.prompt;
     if(id === 'system.behavior') return SVG.system;
@@ -456,9 +466,11 @@ LaRuche.Memory = (function(){
       (locked ? '<span class="mem2-lock" title="'+LaRuche.i18n.t('memory.managedBySystem')+'">'+SVG.lock+'</span>' : '')+
       (meta.count != null ? '<span class="mem2-count">'+meta.count+'</span>' : (kids?'<span class="mem2-count">'+kids+'</span>':''))+
       '<span class="node-actions">'+
-        '<button title="'+LaRuche.i18n.t('memory.addSubfolderTitle')+'" onclick="event.stopPropagation();LaRuche.Memory.createSubnode(\''+esc(c.id)+'\')">➕</button>'+
-        (!locked ? '<button title="'+LaRuche.i18n.t('memory.renameTitle')+'" onclick="event.stopPropagation();LaRuche.Memory.renameNode(\''+esc(c.id)+'\',\''+esc(c.seg)+'\')">✏️</button>'+
-        '<button title="'+LaRuche.i18n.t('memory.deleteTitle')+'" onclick="event.stopPropagation();LaRuche.Memory.deleteNode(\''+esc(c.id)+'\')">❌</button>' : '')+
+        (c.id !== CORBEILLE ? '<button title="'+LaRuche.i18n.t('memory.addSubfolderTitle')+'" onclick="event.stopPropagation();LaRuche.Memory.createSubnode(\''+esc(c.id)+'\')">➕</button>' : '')+
+        // Renaming the bin would break the id the server hardcodes; emptying it is the
+        // affordance, and it lives in the section header.
+        (!locked && c.id !== CORBEILLE ? '<button title="'+LaRuche.i18n.t('memory.renameTitle')+'" onclick="event.stopPropagation();LaRuche.Memory.renameNode(\''+esc(c.id)+'\',\''+esc(c.seg)+'\')">✏️</button>' : '')+
+        (!locked && c.id !== CORBEILLE ? '<button title="'+LaRuche.i18n.t('memory.deleteTitle')+'" onclick="event.stopPropagation();LaRuche.Memory.deleteNode(\''+esc(c.id)+'\')">❌</button>' : '')+
       '</span>'+
     '</div>';
     if(kids && open) html += treeHtml(c, depth+1);
@@ -481,7 +493,10 @@ LaRuche.Memory = (function(){
     var isSys = function(k){ return k==='system' || k==='capacities' || k==='tools'; };
     var sysKeys = Object.keys(root.children).filter(isSys).sort(rootOrder);
     // VNODE is filtered out: it is the container being built here, never a branch of it.
-    var otherKeys = Object.keys(root.children).filter(function(k){ return !isSys(k) && k !== VNODE; }).sort();
+    // The bin holds what was deleted, so it is not part of the memory either.
+    var otherKeys = Object.keys(root.children).filter(function(k){
+      return !isSys(k) && k !== VNODE && k !== CORBEILLE;
+    }).sort();
     var html = '';
     if(sysKeys.length){
       html += '<div class="mem2-sysgroup">'+
@@ -497,6 +512,18 @@ LaRuche.Memory = (function(){
       var enfants = {};
       otherKeys.forEach(function(k){ enfants[k] = root.children[k]; });
       html += rowHtml({ id:VNODE, seg:VNODE, children:enfants }, 0);
+    }
+    // The bin closes the tree, separated, with the button that empties it. Collapsed by
+    // default: it is a holding area, not something to read.
+    if(root.children[CORBEILLE]){
+      var nbCorbeille = Object.keys(root.children[CORBEILLE].children).length;
+      html += '<div class="mem2-sysgroup" style="margin-top:10px">'+
+        '<div class="mem2-grouplabel" style="display:flex;align-items:center;gap:6px">'+
+          '<span style="flex:1">'+esc(LaRuche.i18n.t('memory.trashGroupLabel'))+'</span>'+
+          (nbCorbeille ? '<button class="tl-btn" style="font-size:10px;padding:1px 6px;border-color:var(--red);color:var(--red)" onclick="event.stopPropagation();LaRuche.Memory.emptyTrash()">'+esc(LaRuche.i18n.t('memory.trashEmpty'))+'</button>' : '')+
+        '</div>'+
+        rowHtml(root.children[CORBEILLE], 0)+
+      '</div>';
     }
     el.innerHTML = html;
     el.classList.toggle('editmode', editMode);
@@ -661,6 +688,7 @@ LaRuche.Memory = (function(){
     user:'memory.segUser'
   };
   MEM2_SEG_LABEL_KEYS[VNODE] = 'memory.segMemory';
+  MEM2_SEG_LABEL_KEYS[CORBEILLE] = 'memory.segTrash';
   function mem2SegLabel(seg){ var k=MEM2_SEG_LABEL_KEYS[seg]; return k ? (k==='SOUL' ? 'SOUL' : LaRuche.i18n.t(k)) : seg; }
 
   function setCrumb() {
@@ -1242,6 +1270,27 @@ LaRuche.Memory = (function(){
     svg.querySelectorAll('.mem2-gnode').forEach(function(g){ g.addEventListener('click', function(){ loadNode(g.dataset.node); }); });
   }
 
+  // Empties the bin in one call. Targeting `orphans` takes the hard-delete branch
+  // server-side, so its whole subtree goes for good. The root reappears by itself on
+  // the next deletion.
+  function emptyTrash() {
+    if(!window.confirm(LaRuche.i18n.t('memory.trashEmptyConfirm'))) return;
+    fetch(LaRuche.API.base+'/api/memory/node/delete', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({node_id:CORBEILLE})
+    }).then(function(r){return r.json();}).then(function(d){
+      if(d.error) { LaRuche.Toast.show(d.error, 'err'); return; }
+      LaRuche.Toast.show(LaRuche.i18n.t('memory.trashEmptied'), 'ok');
+      if(current === CORBEILLE || (current||'').indexOf(CORBEILLE+'.') === 0){ current = null; currentNode = null; }
+      Object.keys(nodes).forEach(function(k){
+        if(k === CORBEILLE || k.indexOf(CORBEILLE+'.') === 0) delete nodes[k];
+      });
+      renderTree();
+      renderDoc();
+      loadTree(false);
+    }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.errorMsg')+e, 'err'); });
+  }
+
   function deleteNode(id) {
     if(!window.confirm(LaRuche.i18n.t('memory.deleteFolderConfirm')+id+LaRuche.i18n.t('memory.deleteFolderConfirm2'))) return;
     fetch(LaRuche.API.base+'/api/memory/node/delete', {
@@ -1405,6 +1454,7 @@ LaRuche.Memory = (function(){
     loadNode:loadNode, setView:setView,
     exportOkf:exportOkf, importOkf:importOkf, triggerDream:triggerDream,
     toggleAll:toggleAll, deleteNode:deleteNode, renameNode:renameNode,
+    emptyTrash:emptyTrash,
     createSubnode:createSubnode, moveItem:moveItem,
     toggleEditMode:toggleEditMode, createRoot:createRoot,
     toggleExact:toggleExact,

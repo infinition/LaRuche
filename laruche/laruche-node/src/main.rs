@@ -956,6 +956,7 @@ async fn main() -> Result<()> {
     purger_carnets_au_boot();
 
     background::spawn_periodic_dream(&state);
+    background::spawn_purge_corbeille(&state);
 
     background::spawn_ollama_heartbeat(&state);
 
