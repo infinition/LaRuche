@@ -130,8 +130,17 @@ mod tests {
     }
 }
 
-/// Prefix the agent uses to leave a reaction on the user's message.
-pub const MARQUEUR: &str = ">>";
+/// Prefix the agent uses to leave a reaction on the user's message: the game and chat
+/// emote convention, `/haha` on its own line.
+///
+/// NOT `>>`, which was the first choice and is Markdown: `>` opens a blockquote, so the
+/// moment a marker survived stripping for any reason it rendered as a quoted word in the
+/// chat. Seen live with deepseek, which had emitted the marker perfectly.
+///
+/// A marker has to be inert in Markdown, and this one also happens to be a convention
+/// every model has seen a million times, which is worth more than any amount of
+/// explaining. A bare `/word` line is never prose, so nothing legitimate collides.
+pub const MARQUEUR: &str = "/";
 
 /// The instruction added to the prompt when `reactions_agent` is on. Nothing is added
 /// when it is off, which is the default: this costs budget on every single turn.
@@ -148,22 +157,23 @@ pub fn consigne_prompt() -> String {
     // talking ABOUT the reaction is not reacting.
     format!(
         "## Reacting to the user\n\
-         You may add ONE emoji reaction to the user's message. It is a line holding \
-         nothing but `{MARQUEUR}` and a key, as the FIRST or the LAST line of your reply.\n\
+         You may add ONE emoji reaction to the user's message, the way an emote works in \
+         a game or a chat: a line holding nothing but a slash and a key, as the FIRST or \
+         the LAST line of your reply.\n\
          \n\
-         Keys: {}\n\
+         Emotes: {}\n\
          \n\
          A complete reply, exactly like this:\n\
          {MARQUEUR}haha\n\
          Bien vu, je n'y avais pas pense.\n\
          \n\
-         The line is stripped before display, so it is the reaction: never mention it, \
-         never explain it, never announce that you are about to react, and never put it \
-         inside a sentence, a code block or a tool call. Writing \"I react with a thumbs \
-         up\" is NOT reacting.\n\
+         That line is stripped before display and becomes the emoji under the user's \
+         message, so it IS the reaction: never mention it, never explain it, never \
+         announce that you are about to react, and never put it inside a sentence, a code \
+         block or a tool call. Writing \"I react with a thumbs up\" is NOT reacting.\n\
          \n\
          Use it sparingly, only when it adds something. The exception: when the user asks \
-         you to react, emit the marker, do not reply that you will.",
+         you to react, emit the emote, do not reply that you will.",
         cles.join(", ")
     )
 }
@@ -173,7 +183,7 @@ pub fn consigne_prompt() -> String {
 /// Returns the cleaned text and the key, when a VALID one was found. Deliberately
 /// strict, because everything here is a way for a marker to reach the user's screen:
 /// the line must be the first or the last, must hold nothing else, and must carry a
-/// key we defined. A `>>thumbup` in the middle of a paragraph is prose, not a
+/// key we defined. A `/thumbup` in the middle of a paragraph is prose, not a
 /// reaction, and is left exactly where the model put it.
 pub fn extraire_reaction(texte: &str) -> (String, Option<String>) {
     let lignes: Vec<&str> = texte.lines().collect();
@@ -183,7 +193,8 @@ pub fn extraire_reaction(texte: &str) -> (String, Option<String>) {
     let cle_de = |l: &str| -> Option<String> {
         let t = l.trim();
         let reste = t.strip_prefix(MARQUEUR)?.trim();
-        // One token only: `>>up` is a reaction, `>>up and here is why` is a sentence.
+        // One token only: `/up` is a reaction, `/up and here is why` is a sentence, and
+        // a sentence stays on screen where the model put it.
         if reste.is_empty() || reste.split_whitespace().count() != 1 {
             return None;
         }
@@ -216,16 +227,16 @@ mod tests_agent {
 
     #[test]
     fn un_marqueur_en_tete_ou_en_queue_est_retire_du_texte_affiche() {
-        let (t, c) = extraire_reaction(">>haha\nBien vu, c'est drole.");
+        let (t, c) = extraire_reaction("/haha\nBien vu, c'est drole.");
         assert_eq!(c.as_deref(), Some("haha"));
         assert_eq!(t, "Bien vu, c'est drole.");
 
-        let (t, c) = extraire_reaction("Voila le resultat.\n>>up");
+        let (t, c) = extraire_reaction("Voila le resultat.\n/up");
         assert_eq!(c.as_deref(), Some("up"));
         assert_eq!(t, "Voila le resultat.");
 
         // Trailing punctuation is a model being a model, not a different key.
-        let (_, c) = extraire_reaction(">>wow.\ntexte");
+        let (_, c) = extraire_reaction("/wow.\ntexte");
         assert_eq!(c.as_deref(), Some("wow"));
     }
 
@@ -233,13 +244,13 @@ mod tests_agent {
     fn un_marqueur_au_milieu_dune_phrase_reste_du_texte() {
         // The whole point of the strictness: this must reach the user untouched
         // rather than being silently eaten as a reaction.
-        let brut = "Le pouce >>up sert a valider.";
+        let brut = "Le pouce /up sert a valider.";
         let (t, c) = extraire_reaction(brut);
         assert_eq!(c, None);
         assert_eq!(t, brut);
 
         // A line that starts with the marker but says more is prose too.
-        let brut2 = ">>up and here is why it works";
+        let brut2 = "/up and here is why it works";
         let (t2, c2) = extraire_reaction(brut2);
         assert_eq!(c2, None);
         assert_eq!(t2, brut2);
@@ -249,7 +260,7 @@ mod tests_agent {
     fn une_cle_inventee_nest_jamais_retiree() {
         // A hallucinated key must stay visible: silently swallowing it would hide the
         // fact that the model is emitting markers we never defined.
-        let brut = ">>thumbsup\ntexte";
+        let brut = "/thumbsup\ntexte";
         let (t, c) = extraire_reaction(brut);
         assert_eq!(c, None);
         assert_eq!(t, brut);
@@ -257,11 +268,11 @@ mod tests_agent {
 
     #[test]
     fn un_seul_marqueur_est_honore() {
-        let (t, c) = extraire_reaction(">>up\nmilieu\n>>down");
+        let (t, c) = extraire_reaction("/up\nmilieu\n/down");
         assert_eq!(c.as_deref(), Some("up"));
         // The second one stays in the text: it is evidence of a model guessing, and
         // hiding it would make that invisible.
-        assert!(t.contains(">>down"), "{t}");
+        assert!(t.contains("/down"), "{t}");
     }
 
     #[test]
@@ -269,7 +280,7 @@ mod tests_agent {
         let c = consigne_prompt();
         // A `<key>` placeholder with no example got copied literally or ignored. The
         // marker must appear ready to paste.
-        assert!(c.contains(">>haha"), "no usable example:
+        assert!(c.contains("/haha"), "no usable example:
 {c}");
         assert!(!c.contains("<key>"), "placeholder syntax invites a literal copy:
 {c}");

@@ -317,8 +317,8 @@ LaRuche.Chat = (function(){
         // from the stored answer, but on a first line it would otherwise sit on
         // screen for the whole response before the final render removed it.
         if(currentAssistantMsg._reactionEaten!==true){
-          if(currentAssistantMsg._rawBuf.length<=24 && /^\s*>>[a-z]*$/i.test(currentAssistantMsg._rawBuf)) break;
-          var _mk=/^\s*>>[a-z]+[ \t]*\n/i;
+          if(currentAssistantMsg._rawBuf.length<=24 && /^\s*\/[a-z]*$/i.test(currentAssistantMsg._rawBuf)) break;
+          var _mk=/^\s*\/[a-z]+[ \t]*\n/i;
           if(_mk.test(currentAssistantMsg._rawBuf)){
             currentAssistantMsg._reactionEaten=true;
             currentAssistantMsg._rawBuf=currentAssistantMsg._rawBuf.replace(_mk,'');
