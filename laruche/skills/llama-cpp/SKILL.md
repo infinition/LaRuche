@@ -1,8 +1,7 @@
 ---
 type: skill
 name: llama-cpp
-description: >-
-  Local GGUF inference + HF Hub model discovery via llama.cpp.
+description: Run a GGUF model locally with llama.cpp, and find one on the HF Hub.
 ---
 
 # llama.cpp + GGUF

@@ -1,8 +1,7 @@
 ---
 type: skill
 name: long-running-work
-description: >-
-  Track multi-step work with todo, plan mode, the kanban board and long-running missions.
+description: Track multi-step work with todo, plan mode, kanban and missions.
 ---
 
 # Long-running work
@@ -34,30 +33,48 @@ progress that did not happen.
 
 ## Plan mode
 
-`plan_mode` with `titre` creates `plan.md`, where you write a detailed technical plan
-BEFORE changing anything.
+`plan_mode` with `titre` creates `plan.md` in the session's working directory, holding a
+skeleton with three headings: Context, Proposed Steps, Approval Required. You then fill
+it in BEFORE changing anything.
 
 Use it when the change is structural: many files, a migration, a deletion, anything the
 user would want to veto. Do not use it for a fix you were explicitly asked to make.
 
-1. `plan_mode` with a short descriptive `titre`.
-2. Write the plan into `plan.md`: what you will change, in what order, what could break,
-   what you will verify. Concrete file paths, not intentions.
+1. `plan_mode` with a short descriptive `titre`. The answer names the absolute path it
+   wrote; read that path rather than assuming where it landed.
+2. Fill in `plan.md` with `file_write` or `file_edit`: what you will change, in what
+   order, what could break, what you will verify. Concrete file paths, not intentions.
+   For what a good plan document contains, open the `plan` skill.
 3. Present it and wait for approval. Do not start while asking.
+
+**`plan_mode` overwrites `plan.md` without warning.** If one already exists from an
+earlier plan, read it first and move it aside; the tool does not ask and does not back up.
 
 ## Kanban
 
 The board is global and persists across sessions. It belongs to the user, not to a
 mission.
 
-- `kanban_list` shows every task and its status. Read it before adding, to avoid twins.
-- `kanban_create` with `title` and optional `description` adds one.
-- `kanban_next` with `id` and `result` advances a task to its next status.
-- `kanban_complete` with `id` and `result` closes it.
+- `kanban_list` takes no arguments and shows every task with its status and its UUID. Read
+  it before adding, to avoid twins, and to get the id you will need next.
+- `kanban_create` with `title` and optional `description` adds one. It answers with the
+  new task's UUID.
+- `kanban_next` takes NO arguments. It does not advance anything: it ANSWERS the question
+  "what should I do next", returning the first Ready task, or a task whose dependencies
+  are all completed. When nothing is actionable it says so.
+- `kanban_complete` with `id` and `result` closes a task. Completing a task automatically
+  unblocks the tasks that depended on it, which is what makes `kanban_next` useful on the
+  following call.
 
-`result` is required on both transitions and is not a formality: it is what the user
+`id` is the UUID printed by `kanban_list` or `kanban_create`. It is validated: a title, a
+position or a truncated id is rejected outright.
+
+`result` is required by `kanban_complete` and is not a formality: it is what the user
 reads later to know what actually happened. "Done" is useless. Say what changed and how
 it was verified.
+
+The normal loop is therefore `kanban_next`, do the work, `kanban_complete` with that
+task's id, `kanban_next` again.
 
 ## Missions
 
@@ -96,7 +113,10 @@ outcome, because it stops anyone from looking.
 - **Kanban is not todo.** Kanban outlives the session and is the user's board. Todo is
   scratch space for the current mission. Filling the user's board with your internal
   steps is noise they have to clean up.
-- **`kanban_next` and `kanban_complete` both require `result`.** A call without it fails.
+- **`kanban_next` does not advance a task.** It reads. Calling it in a loop without
+  calling `kanban_complete` returns the same task forever.
+- **`kanban_complete` requires `result`, and `id` must be the UUID.** A call with the
+  title instead of the id is rejected.
 - **A mission with a cadence runs on its own.** Creating one is a standing commitment,
   not a one-off request. Confirm the cadence with the user before creating it.
 - **Plan mode is not a way to avoid deciding.** If the user asked for a specific change,

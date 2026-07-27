@@ -1,8 +1,7 @@
 ---
 type: skill
 name: github-pr-workflow
-description: >-
-  GitHub PR lifecycle: branch, commit, open, CI, merge.
+description: Take a change from branch to merged pull request, CI included.
 ---
 
 # GitHub Pull Request Workflow

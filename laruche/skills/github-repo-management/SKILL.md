@@ -1,8 +1,7 @@
 ---
 type: skill
 name: github-repo-management
-description: >-
-  Clone, create, fork, release repos via gh/curl.
+description: Clone, create, fork or release a GitHub repository.
 ---
 
 # GitHub Repository Management

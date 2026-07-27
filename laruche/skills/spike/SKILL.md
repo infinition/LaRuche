@@ -1,8 +1,7 @@
 ---
 type: skill
 name: spike
-description: >-
-  Throwaway experiments to validate feasibility before building.
+description: Throwaway experiments to validate feasibility before building.
 ---
 
 # Spike
@@ -61,13 +60,14 @@ Research enough to pick the right approach, then build.
 3. **Pick one.** State why. If 2+ are credible, build quick variants within the spike.
 4. **Skip research** for pure logic with no external dependencies.
 
-LaRuche tools for research:
+LaRuche tools for research. `web_fetch` takes ONE `url` as a string, and every path is
+absolute, because a relative one resolves against the server's working directory:
 
 ```
-web_search("python websocket streaming libraries 2025")
-web_fetch(urls=["https://websockets.readthedocs.io/..."])
-shell_exec("pip show websockets | grep Version")
-file_read("path/to/cloned/README.md")
+web_search(query="python websocket streaming libraries 2026")
+web_fetch(url="https://websockets.readthedocs.io/...")
+shell_exec(command="pip show websockets")
+file_read(path="C:/dev/project/spikes/001-websocket-streaming/README.md")
 ```
 
 ### 4. Build

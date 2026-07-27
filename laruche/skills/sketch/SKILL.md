@@ -1,8 +1,7 @@
 ---
 type: skill
 name: sketch
-description: >-
-  Throwaway HTML mockups: 2-3 design variants to compare.
+description: Build throwaway HTML mockups so the user can compare design variants.
 ---
 
 # Sketch

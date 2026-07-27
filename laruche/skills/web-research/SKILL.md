@@ -1,8 +1,7 @@
 ---
 type: skill
 name: web-research
-description: >-
-  Answer a factual question from the web, with sources, when a single search is not enough.
+description: Answer a factual question from the web, with cross-checked sources.
 ---
 
 # Web research
@@ -16,17 +15,39 @@ and call `research_mode` first. This skill is the fast, correct lookup.
 
 ## Choose the right tool, it decides everything
 
-| Tool | Returns | Use when |
-|---|---|---|
-| `web_search` | titles, URLs, snippets | you need to SEE what exists and pick |
-| `web_deep_search` | snippets AND the full text of the top results | you want the answer, not a list |
-| `web_fetch` | the clean text of ONE page | you already know the page that holds it |
-| `read_extract` | structured extraction from a page | the page is dense and you want fields |
-| `browser_navigate` | a real rendered browser | the content needs JavaScript or a session |
+| Tool | Takes | Returns | Use when |
+|---|---|---|---|
+| `web_search` | `query`, `num_results` | titles, URLs, snippets | you need to SEE what exists and pick |
+| `web_deep_search` | `query`, `num_results` | snippets AND the full text of the top results | you want the answer, not a list |
+| `web_fetch` | `url` (ONE, a string) | the clean text of that page | you already know the page that holds it |
+| `browser_navigate` | `url`, `wait_seconds` | a real rendered browser | the content needs JavaScript or a session |
+| `image_search` | `query`, `limit` | real image URLs | you need an illustration, instead of inventing a link |
 
 `web_deep_search` is the default for a real question. `web_search` alone returns snippets,
 and a snippet is an advertisement for a page, not evidence from it. Answering from
 snippets is the most common way to be confidently wrong.
+
+`web_search` also takes `allowed_domains` and `blocked_domains`, both arrays. Use
+`allowed_domains` to pin a search to a primary source (`["docs.rust-lang.org"]`) and
+`blocked_domains` to cut a content farm that keeps winning the ranking.
+
+**`read_extract` is not a web tool.** It takes `path`, a LOCAL file, and reads PDF, `.txt`
+or `.md`. Passing it a URL returns "File not found". The web equivalent is `web_fetch`,
+which already extracts a PDF served over HTTP. `read_extract` is for the file you have
+downloaded to disk: see the paragraph below.
+
+## A PDF that `web_fetch` will not give you
+
+Some servers refuse a plain fetch of a PDF, or the document is behind a redirect chain.
+Download it, then read it from disk.
+
+```bash
+curl -sL "https://example.com/paper.pdf" -o "C:\\tmp\\paper.pdf"
+```
+
+Then `read_extract` with `path` set to `C:\tmp\paper.pdf`. It returns the text, and for a
+long document a head and tail excerpt rather than a truncation with no warning. Use an
+absolute path: a relative one resolves against the server's working directory, not yours.
 
 ## Procedure
 

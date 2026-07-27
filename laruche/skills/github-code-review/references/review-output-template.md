@@ -30,8 +30,11 @@ Use this as the structure for PR review summary comments. Copy and fill in the s
 - [aspect that was done well]
 
 ---
-*Reviewed by third-party agent*
+*Reviewed with LaRuche*
 ```
+
+Sign it or do not, but never sign it with the name of an agent that did not do the work.
+The line above ends up in a public pull request, under the user's account.
 
 ## Severity Guide
 

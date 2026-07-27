@@ -1,8 +1,7 @@
 ---
 type: skill
 name: test-driven-development
-description: >-
-  TDD: RED-GREEN-REFACTOR cycle, test-first enforcement.
+description: Write the failing test first, then the code that makes it pass.
 ---
 
 # Test-Driven Development (TDD)

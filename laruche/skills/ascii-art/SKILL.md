@@ -1,8 +1,7 @@
 ---
 type: skill
 name: ascii-art
-description: >-
-  ASCII art: banners, cowsay, boxes, image-to-ASCII, QR, weather.
+description: Render text or an image as ASCII art for terminal-friendly output.
 ---
 
 # ASCII Art Skill

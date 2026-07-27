@@ -1,8 +1,7 @@
 ---
 type: skill
 name: requesting-code-review
-description: >-
-  Pre-commit: security scan, quality gates, subagent review, auto-fix.
+description: Verify a change before committing: security, tests, independent review.
 ---
 
 # Pre-Commit Code Verification

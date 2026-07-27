@@ -308,7 +308,8 @@ fn split_frontmatter(markdown: &str) -> Result<(&str, &str)> {
 
 fn parse_frontmatter(frontmatter: &str) -> Result<BTreeMap<String, String>> {
     let mut out = BTreeMap::new();
-    for raw in frontmatter.lines() {
+    let mut lignes = frontmatter.lines().peekable();
+    while let Some(raw) = lignes.next() {
         let line = raw.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
@@ -316,7 +317,27 @@ fn parse_frontmatter(frontmatter: &str) -> Result<BTreeMap<String, String>> {
         let Some((key, value)) = line.split_once(':') else {
             return Err(anyhow!("invalid YAML line: {line}"));
         };
-        out.insert(key.trim().to_string(), unquote(value.trim()));
+        let value = value.trim();
+        // YAML BLOCK SCALAR (`>-`, `|`, ...): the value is on the following indented
+        // lines. Without this branch the marker line stored ">-" and the continuation
+        // line, having no colon, aborted the whole parse: every skill written that way
+        // was unreadable here while parsing fine in contexte.rs. Two parsers, one file
+        // format, opposite answers. Keep this in step with `yaml_frontmatter_field`.
+        if matches!(value, ">" | ">-" | ">+" | "|" | "|-" | "|+") {
+            let plie = value.starts_with('>');
+            let mut morceaux: Vec<String> = Vec::new();
+            while let Some(suite) = lignes.peek() {
+                if suite.trim().is_empty() || !suite.starts_with([' ', '\t']) {
+                    break;
+                }
+                morceaux.push(suite.trim().to_string());
+                lignes.next();
+            }
+            let joint = morceaux.join(if plie { " " } else { "\n" });
+            out.insert(key.trim().to_string(), joint);
+            continue;
+        }
+        out.insert(key.trim().to_string(), unquote(value));
     }
     Ok(out)
 }
@@ -473,5 +494,57 @@ fn unquote(value: &str) -> String {
             .replace("\\\\", "\\")
     } else {
         v.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests_frontmatter {
+    use super::*;
+
+    /// Regression: `description: >-` made `Skill::parse` return
+    /// `Err(invalid YAML line: ...)`, because the folded continuation line carries no
+    /// colon. Every skill written that way was silently dropped by the callers that
+    /// swallow the error, so the dashboard listed node labels instead of descriptions.
+    #[test]
+    fn block_scalar_description_is_folded_not_rejected() {
+        let md = "---\ntype: skill\nname: web-research\ndescription: >-\n  Answer a factual \
+                  question from the web,\n  with cross-checked sources.\n---\n\n# Body\n";
+        let skill = Skill::parse(md).expect("a folded description must parse");
+        assert_eq!(
+            skill.meta.description,
+            "Answer a factual question from the web, with cross-checked sources."
+        );
+    }
+
+    /// The form `skill_create` actually writes, and the form every shipped SKILL.md now
+    /// uses. It must keep working exactly as before.
+    #[test]
+    fn plain_description_is_unchanged() {
+        let md = "---\ntype: skill\nname: web-research\ndescription: Answer a factual \
+                  question from the web, with cross-checked sources.\n---\n\n# Body\n";
+        let skill = Skill::parse(md).expect("a plain description must parse");
+        assert_eq!(
+            skill.meta.description,
+            "Answer a factual question from the web, with cross-checked sources."
+        );
+    }
+
+    /// A literal block keeps its line breaks, a folded one joins with spaces.
+    #[test]
+    fn literal_block_keeps_line_breaks() {
+        let md = "---\ntype: skill\nname: x\ndescription: |\n  one\n  two\n---\n\n# Body\n";
+        let skill = Skill::parse(md).expect("a literal block must parse");
+        assert_eq!(skill.meta.description, "one\ntwo");
+    }
+
+    /// `prerequisites:` with an indented `commands:` child must not abort the parse of
+    /// the fields around it. Eleven shipped skills declare prerequisites this way.
+    #[test]
+    fn nested_prerequisites_do_not_break_the_parse() {
+        let md = "---\ntype: skill\nname: openhue\ndescription: Control lights.\n\
+                  prerequisites:\n  commands: [openhue, jq]\n---\n\n# Body\n";
+        let skill = Skill::parse(md).expect("nested prerequisites must not abort");
+        assert_eq!(skill.meta.name, "openhue");
+        assert_eq!(skill.meta.description, "Control lights.");
     }
 }

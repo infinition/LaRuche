@@ -1,8 +1,7 @@
 ---
 type: skill
 name: plan
-description: >-
-  Write an actionable markdown plan (no execution): bite-sized tasks, exact paths, full code.
+description: Write an actionable markdown implementation plan, without executing it.
 ---
 
 # Plan Mode

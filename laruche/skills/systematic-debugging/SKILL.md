@@ -1,8 +1,7 @@
 ---
 type: skill
 name: systematic-debugging
-description: >-
-  4-phase root-cause debugging: reproduce, analyze, hypothesize, fix.
+description: Find the root cause of a bug before writing any fix.
 ---
 
 # Systematic Debugging
@@ -39,7 +38,9 @@ shell_exec("tail -100 logs/app.log")
 shell_exec("grep -rn 'ErrorString' src/")
 ```
 
-Use `file_read` on relevant source files. Use `file_search` or `shell_exec` with `grep` to trace the error.
+Use `file_read` on relevant source files. To trace the error across the tree, use
+`file_search` (`path` and `pattern`, plus `content` to match inside files) or run grep
+through `shell_exec`.
 
 ### 2. Build a Tight Feedback Loop
 

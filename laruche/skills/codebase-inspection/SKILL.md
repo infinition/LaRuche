@@ -1,8 +1,7 @@
 ---
 type: skill
 name: codebase-inspection
-description: >-
-  Measure a codebase: lines of code, language mix, comment ratio, and symbol lookups.
+description: Measure a codebase: lines of code, language mix, and symbol lookups.
 prerequisites:
   commands: [pygount]
 ---

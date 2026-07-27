@@ -31,6 +31,12 @@ prerequisites:              # OPTIONAL. Checked against PATH when the skill is o
 French or abbreviated name costs recall for no benefit. Only the brand vocabulary stays
 French, and only where it names a LaRuche concept: `lareine-charter`.
 
+`skill_create` also accepts `tools` and `scripts`, two arrays, and writes them into the
+frontmatter as `tools: [a, b]` and `scripts: [scripts/x.py]`. They are documentation for
+a human reader: nothing dispatches on them, and a tool listed there is not granted, nor
+is one omitted denied. Fill them or leave them out, but never treat a missing `tools:` as
+a defect.
+
 Nothing else is read at runtime. `version`, `author`, `license`, `platforms`, `tags`,
 `allowed-tools`, `when_to_use`, `arguments` exist in some older files and in the Rust
 struct; no code consumes them today. Do not fill fields that do nothing: it teaches
@@ -38,6 +44,16 @@ whoever reads the file that metadata here is decorative, and the next real field
 ignored too.
 
 Third-party origin, when there is one, goes in `NOTICE.md`, not in frontmatter.
+
+**Renaming a skill folder orphans its memory node.** The disk watcher syncs
+`skills/<folder>/SKILL.md` into `capacities.skills.<folder>`, keyed on the folder name,
+and it never deletes the node the old name wrote. Rename the folder and the old node
+survives, still listed by `skill_list`, still injected in the catalog, forever pointing at
+a file nobody maintains. Pick the name once. If a rename is genuinely required, delete the
+old node with `memory_delete_node` on `capacities.skills.<old-folder>` in the same change,
+then confirm with `skill_list`. This is why four shipped skills still carry underscores
+(`cron_manager`, `weather_forecast`, `youtube_transcribe`, `deep_research_synthesis`):
+correcting them costs a ghost, so they stay until a migration handles both halves.
 
 ---
 
@@ -47,20 +63,43 @@ Every skill's description sits in the system prompt, all of them, on every singl
 The body is fetched on demand with `skill_view(name)`. So the description does one job:
 **make the model reach for this skill at the right moment, and not at the wrong one.**
 
-Rules, in order of how often they are broken:
+### The catalog TRUNCATES it, and does not tell you
+
+`resumer_description` in `laruche-essaim/src/contexte.rs` shortens every description
+before it reaches the prompt. Three cuts, in this order:
+
+1. everything from the first `" - "` (space, hyphen, space) is **dropped**;
+2. otherwise everything from the first `". "` is dropped, so only sentence one survives;
+3. whatever is left is cut at **80 characters**, on a word boundary, with an ellipsis.
+
+So `Answer a factual question from the web, with sources, when a single search is not
+enough.` reached the model as `Answer a factual question from the web, with sources, when
+a single search is…`, which reads as a condition with no consequence. Nine of the shipped
+descriptions were being amputated this way, one of them losing an entire capability.
+
+**Write to a hard budget of 80 characters, in one sentence, and never put `" - "` in a
+description.** Count them. If it does not fit, the description is describing the body
+instead of the trigger.
+
+### Rules, in order of how often they are broken
 
 1. **Describe the TRIGGER, not the technology.** The model is matching an intent, not
    shopping for a library.
    - No: `ASCII art: banners, cowsay, boxes, image-to-ASCII, QR, weather.`
    - Yes: `Render text or an image as ASCII art for terminal-friendly output.`
-2. **One sentence. Under 100 characters.** It is multiplied by the number of skills, on
-   every turn.
+2. **One sentence, 80 characters or fewer.** See above: past that it is cut mid-word.
 3. **Start with a verb.** "Turn", "Read", "Compile", "Deploy". A noun phrase reads like
    a category label and matches nothing.
 4. **No two descriptions may overlap.** If a reader cannot tell two skills apart from
    their descriptions alone, merge them. Four near-identical research skills made the
    model hesitate, then pick wrong.
 5. **Name the artefact produced**, when there is one: a report, a diagram, a patch.
+
+Check the whole set at once:
+
+```bash
+python scripts/check_skills.py
+```
 
 ---
 

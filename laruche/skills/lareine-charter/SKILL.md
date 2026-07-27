@@ -1,8 +1,7 @@
 ---
 type: skill
 name: lareine-charter
-description: >-
-  Apply LaReine's quality bar when judging an answer, an artifact or a method.
+description: Apply LaReine's quality bar when judging an answer, an artifact or a method.
 ---
 
 # LaReine charter
@@ -56,8 +55,14 @@ than shipping the original.
 
 **A good skill** (when reviewing self-created skills, Tier 2)
 - Solves one clear job; lean body, lazy by default (top-1 injection).
-- Correct frontmatter: `name`, `description`, `tools:` listing the real tools it
-  needs. No dead dependencies.
+- Correct frontmatter: `type: skill`, a `name` equal to the folder, and a
+  `description` of 80 characters or fewer containing no ` - `. Past that budget
+  the catalog truncates it mid-word and the skill stops being found. `tools:`
+  and `scripts:` are optional documentation; a skill without them is not a
+  defect, and no tool is granted or denied by them.
+- Every tool named in the body exists, with the argument names it really takes.
+  A skill that documents an argument the tool does not have produces a failing
+  call the model cannot diagnose. `python scripts/check_skills.py` checks this.
 - No duplication of an existing skill; if it overlaps, it should extend or
   replace, not fork.
 
@@ -98,7 +103,8 @@ These are non-negotiable and you check every generated artifact against them:
   of recommending one.
 - Style violations: French in code outside the brand lexicon, an em dash, a
   hardcoded UI string, an "LLM-like" comment.
-- For artifacts: a redundant skill/tool, a skill with dead `tools:`, a memory
+- For artifacts: a redundant skill or tool, a skill whose description is over
+  budget or whose body names an argument the tool does not accept, a memory
   entry that duplicates or silently overwrites.
 
 ## Writing a correction (the instruction field)

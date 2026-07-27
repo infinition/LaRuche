@@ -1,8 +1,7 @@
 ---
 type: skill
 name: maps
-description: >-
-  Geocode, POIs, routes, timezones via OpenStreetMap/OSRM.
+description: Geocode an address, find places nearby, or compute a route.
 ---
 
 # Maps Skill

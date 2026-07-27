@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# GitHub environment detection helper for third-party agent skills.
+# GitHub environment detection helper for the LaRuche github-* skills.
 #
-# Usage (via terminal tool):
-#   source skills/github/github-auth/scripts/gh-env.sh
+# Usage (via shell_exec):
+#   source skills/github-auth/scripts/gh-env.sh
 #
 # After sourcing, these variables are set:
 #   GH_AUTH_METHOD  - "gh", "curl", or "none"
@@ -23,8 +23,8 @@ if command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
     GH_USER=$(gh api user --jq '.login' 2>/dev/null)
 elif [ -n "$GITHUB_TOKEN" ]; then
     GH_AUTH_METHOD="curl"
-elif _third-party_env="${LARUCHE_HOME:-$HOME/.laruche}/.env"; [ -f "$_third-party_env" ] && grep -q "^GITHUB_TOKEN=" "$_third-party_env" 2>/dev/null; then
-    GITHUB_TOKEN=$(grep "^GITHUB_TOKEN=" "$_third-party_env" | head -1 | cut -d= -f2 | tr -d '\n\r')
+elif _laruche_env="${LARUCHE_HOME:-$HOME/.laruche}/.env"; [ -f "$_laruche_env" ] && grep -q "^GITHUB_TOKEN=" "$_laruche_env" 2>/dev/null; then
+    GITHUB_TOKEN=$(grep "^GITHUB_TOKEN=" "$_laruche_env" | head -1 | cut -d= -f2 | tr -d '\n\r')
     if [ -n "$GITHUB_TOKEN" ]; then
         GH_AUTH_METHOD="curl"
     fi
@@ -61,6 +61,10 @@ unset _remote_url
 echo "GitHub Auth: $GH_AUTH_METHOD"
 [ -n "$GH_USER" ]       && echo "User: $GH_USER"
 [ -n "$GH_OWNER_REPO" ] && echo "Repo: $GH_OWNER_REPO"
-[ "$GH_AUTH_METHOD" = "none" ] && echo "⚠ Not authenticated — see github-auth skill"
+[ "$GH_AUTH_METHOD" = "none" ] && echo "Not authenticated. Open the github-auth skill."
 
 export GH_AUTH_METHOD GITHUB_TOKEN GH_USER GH_OWNER GH_REPO GH_OWNER_REPO
+unset _laruche_env
+
+# Sourced, so it cannot signal with an exit code. The caller checks GH_AUTH_METHOD:
+# "none" means every gh and curl call below it will fail with a 401.

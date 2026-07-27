@@ -1,8 +1,7 @@
 ---
 type: skill
 name: github-code-review
-description: >-
-  Review PRs: diffs, inline comments via gh or REST.
+description: Review a pull request and leave inline comments on GitHub.
 ---
 
 # GitHub Code Review

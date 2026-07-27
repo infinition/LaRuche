@@ -1,8 +1,7 @@
 ---
 type: skill
 name: watcher-design
-description: >-
-  Turn a monitoring wish in plain language into a deterministic watcher rule tree.
+description: Turn a monitoring wish in plain language into a deterministic watcher rule tree.
 ---
 
 # Watcher architect

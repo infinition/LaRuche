@@ -1,8 +1,7 @@
 ---
 type: skill
 name: humanizer
-description: >-
-  Strip AI writing patterns; add real voice to prose.
+description: Strip AI writing patterns; add real voice to prose.
 ---
 
 # Humanizer: Remove AI Writing Patterns

@@ -1,8 +1,7 @@
 ---
 type: skill
 name: cognitive-memory
-description: >-
-  Store, retrieve and curate lasting facts in the cognitive memory map across conversations.
+description: Store, find and curate lasting facts in the cognitive memory map.
 ---
 
 # Cognitive memory
@@ -70,17 +69,19 @@ Rules that prevent an unusable map:
    call on any non-trivial request.
 2. If the subject is a known node, `memory_read_node` returns all of it, which is
    cheaper and more complete than repeated searching.
-3. `memory_grep` when you need a literal string, an exact path, a token, an id.
-   `memory_search` is semantic and can miss an exact match; `memory_grep` cannot.
-4. `memory_tree` on a node id shows the shape of a subtree, without contents. Use it to
-   find where something should live, not to read.
+3. `memory_grep` with `pattern` when you need a literal string, an exact path, a token, an
+   id. `memory_search` is semantic and can miss an exact match; `memory_grep` cannot.
+   Optional `limit` caps the result count.
+4. `memory_tree` takes NO arguments. It prints the shape of the whole map, node by node,
+   without contents. Use it to find where something should live, not to read. There is no
+   way to ask it for one subtree: read the output and pick.
 
 ## Procedure: curating the map
 
 Run this when memory feels noisy, or when the user asks you to tidy it.
 
-1. `memory_doctor`. Read-only. Reports counters, the heaviest nodes, duplicates and
-   overloads. It changes nothing, so it is always safe to call.
+1. `memory_doctor`, no arguments. Read-only. Reports counters, the heaviest nodes,
+   duplicates and overloads. It changes nothing, so it is always safe to call.
 2. For each overloaded node it names, `memory_consolidate` on that `node_id`. It merges
    the items into a minimal, lossless summary. Read the node afterwards with
    `memory_read_node` and confirm nothing important was flattened away.
@@ -99,11 +100,14 @@ Run this when memory feels noisy, or when the user asks you to tidy it.
 - `memory_delete_node` with `node_id`. Destructive: it takes the node and what it holds.
   Read it with `memory_read_node` first, and move anything worth keeping with
   `memory_move_item`. Never delete a node to "clean up" without reading it.
-- `memory_stats` shows volume: how many nodes, how many items, where the weight is. Use
-  it to decide whether curation is even needed before running a full `memory_doctor`.
-- `memory_mutations` with `node_id` shows the change history of a node: what was written,
-  updated or removed. This is how you answer "why does memory say this?" and how you spot
-  a fact that keeps being rewritten because two sources disagree.
+- `memory_stats` takes no arguments and shows volume: how many nodes, how many items,
+  where the weight is. Use it to decide whether curation is even needed before running a
+  full `memory_doctor`.
+- `memory_mutations` shows the recent change history of the whole map: what was written,
+  updated or removed, most recent first. Its only argument is `limit`; it cannot be
+  filtered to one node, so raise `limit` and read for the node you care about. This is how
+  you answer "why does memory say this?" and how you spot a fact that keeps being
+  rewritten because two sources disagree.
 
 ## Proposed items
 

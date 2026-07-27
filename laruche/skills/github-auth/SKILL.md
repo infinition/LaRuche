@@ -1,8 +1,7 @@
 ---
 type: skill
 name: github-auth
-description: >-
-  GitHub auth: HTTPS PAT, SSH keys, gh CLI login.
+description: Authenticate to GitHub with a token, an SSH key, or the gh CLI.
 ---
 
 # GitHub Authentication Setup

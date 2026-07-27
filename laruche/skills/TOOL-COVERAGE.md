@@ -30,7 +30,8 @@ that is neither covered nor declared below.
 | `git_*` | `local-git` |
 | `watcher_*`, `file_watch` | `watcher-design` |
 | `lsp` | `codebase-inspection` |
-| `web_*`, `read_extract`, `browser_*`, `image_search` | `web-research` |
+| `web_*`, `browser_*`, `image_search` | `web-research` |
+| `read_extract` | `ocr-and-documents`, and in `web-research` for the download-then-read case |
 | `research_mode`, `session_search` | `deep_research_synthesis` |
 | `file_*`, `shell_exec`, `execute_code` | the procedure skills that use them |
 

@@ -1,8 +1,7 @@
 ---
 type: skill
 name: skill-forge
-description: >-
-  Write a skill, or forge your own script tool, so a solved problem survives the session.
+description: Write a skill, or forge a script tool, so a solved problem survives.
 ---
 
 # Skill forge
@@ -26,16 +25,20 @@ does, why the description matters more than the body, and what a good body conta
 
 ## Creating
 
-`skill_create` takes `name`, `description` and `body`, all three required.
+`skill_create` requires `name`, `description` and `body`. It also accepts `tools` and
+`scripts`, two optional arrays, which it writes into the frontmatter as documentation.
+Nothing dispatches on them: a tool listed there is not granted, and one left out is not
+denied.
 
 1. `skill_list` first. If something close exists, `skill_patch` it instead. Two
    overlapping skills make the model hesitate and pick the wrong one.
 2. Choose `name`: lowercase, hyphens, no spaces. It becomes the folder name and the
    handle used by `skill_view`.
-3. Write `description`: one sentence, under 100 characters, starting with a verb, naming
-   the TRIGGER rather than the technology. This single line is injected into the system
-   prompt on every turn, for every skill. It is the whole reason the skill will ever be
-   opened.
+3. Write `description`: one sentence, **80 characters or fewer**, starting with a verb,
+   naming the TRIGGER rather than the technology. The catalog drops everything after a
+   ` - `, then everything after the first `. `, then cuts at 80 characters. Go over and
+   the model reads an amputated sentence. This single line is injected into the system
+   prompt on every turn, for every skill, and is the whole reason it will ever be opened.
 4. Write `body` as markdown following AUTHORING.md: what it achieves, prerequisites with
    exact install commands, a numbered procedure where each step says how to verify it
    worked, traps, failure modes.
@@ -135,7 +138,10 @@ from the catalog, not just from disk.
 - **Never reference another agent's runtime** in a body. Paths from other agents resolve
   to directories that do not exist here, and the failure is unreadable.
 - **A skill is a procedure, not a tool.** If what you want is a new capability rather
-  than a documented sequence, you want a plugin. See the extensions skill.
+  than a documented sequence, you want a plugin. See the `extend-toolset` skill.
+- **Never write `description: >-`.** The folded block scalar is legal YAML and the
+  dashboard's parser used to reject the whole file over it. Put the description on one
+  line, which is also what `skill_create` writes.
 
 ## Failure modes
 

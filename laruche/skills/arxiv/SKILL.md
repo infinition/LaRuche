@@ -1,8 +1,7 @@
 ---
 type: skill
 name: arxiv
-description: >-
-  Search arXiv + Semantic Scholar: papers, citations, BibTeX, via curl.
+description: Find academic papers on arXiv, with citation counts and BibTeX.
 ---
 
 # arXiv Research
@@ -15,8 +14,8 @@ Search and retrieve academic papers from arXiv via their free REST API. No API k
 |--------|---------|
 | Search (clean output) | `python scripts/search_arxiv.py "QUERY"` |
 | Get specific paper | `curl "https://export.arxiv.org/api/query?id_list=2402.03300"` |
-| Read abstract | `read_extract(urls=["https://arxiv.org/abs/2402.03300"])` |
-| Read full paper (PDF) | `read_extract(urls=["https://arxiv.org/pdf/2402.03300"])` |
+| Read abstract | `web_fetch(url="https://arxiv.org/abs/2402.03300")` |
+| Read full paper (PDF) | `web_fetch(url="https://arxiv.org/pdf/2402.03300")` |
 
 ## Helper Script
 
@@ -135,8 +134,8 @@ Useful fields: `title`, `authors`, `year`, `abstract`, `citationCount`, `influen
 
 1. **Discover**: `python scripts/search_arxiv.py "your topic" --sort date --max 10`
 2. **Assess impact**: `curl -s "https://api.semanticscholar.org/graph/v1/paper/arXiv:ID?fields=citationCount,influentialCitationCount"`
-3. **Read abstract**: `read_extract(urls=["https://arxiv.org/abs/ID"])`
-4. **Read full paper**: `read_extract(urls=["https://arxiv.org/pdf/ID"])`
+3. **Read abstract**: `web_fetch(url="https://arxiv.org/abs/ID")`
+4. **Read full paper**: `web_fetch(url="https://arxiv.org/pdf/ID")`
 5. **Find related work**: `curl -s "https://api.semanticscholar.org/graph/v1/paper/arXiv:ID/references?fields=title,citationCount&limit=20"`
 6. **Get recommendations**: POST to Semantic Scholar recommendations endpoint (see above)
 7. **Track authors**: `curl -s "https://api.semanticscholar.org/graph/v1/author/search?query=NAME"`
@@ -154,7 +153,9 @@ Useful fields: `title`, `authors`, `year`, `abstract`, `citationCount`, `influen
 - Semantic Scholar returns JSON - pipe through `python3 -m json.tool`.
 - arXiv IDs: old format (`hep-th/0601001`) vs new (`2402.03300`).
 - URL patterns: abstract → `arxiv.org/abs/{id}` | PDF → `arxiv.org/pdf/{id}` | HTML (when available) → `arxiv.org/html/{id}`.
-- For local PDF processing, see the `ocr-and-documents` skill.
+- `web_fetch` takes ONE `url`, as a string, and extracts a PDF served over HTTP by
+  itself. `read_extract` is NOT its remote counterpart: it takes `path`, a local file.
+  Download with `curl -o`, then `read_extract` that path. See `ocr-and-documents`.
 
 ## ID Versioning
 

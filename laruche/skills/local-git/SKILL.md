@@ -1,8 +1,7 @@
 ---
 type: skill
 name: local-git
-description: >-
-  Inspect and commit local git work, or branch into an isolated worktree for risky changes.
+description: Inspect and commit local git work, or branch into an isolated worktree.
 ---
 
 # Local git

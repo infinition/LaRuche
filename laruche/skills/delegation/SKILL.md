@@ -1,8 +1,7 @@
 ---
 type: skill
 name: delegation
-description: >-
-  Hand a sub-task to another agent, a specialist model, or a background job, and collect it.
+description: Hand a sub-task to another agent, a specialist model, or a background job.
 ---
 
 # Delegating

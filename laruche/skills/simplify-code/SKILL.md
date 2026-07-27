@@ -1,8 +1,7 @@
 ---
 type: skill
 name: simplify-code
-description: >-
-  3-agent parallel cleanup: reuse, quality, efficiency.
+description: Clean up a diff for reuse, simplicity and efficiency, then apply the fixes.
 ---
 
 # Simplify Code - Parallel Review & Cleanup

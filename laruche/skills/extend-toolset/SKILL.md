@@ -1,8 +1,7 @@
 ---
 type: skill
 name: extend-toolset
-description: >-
-  Extend the agent with a new plugin tool, an MCP server, or a chained multi-tool script.
+description: Add a plugin tool, connect an MCP server, or chain tools in one script.
 ---
 
 # Extending the toolset

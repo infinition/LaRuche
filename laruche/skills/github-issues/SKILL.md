@@ -1,8 +1,7 @@
 ---
 type: skill
 name: github-issues
-description: >-
-  Create, search, triage, label, assign GitHub issues via gh or REST.
+description: Create, search, triage and label GitHub issues.
 ---
 
 # GitHub Issues Management
