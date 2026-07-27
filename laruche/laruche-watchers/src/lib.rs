@@ -1055,15 +1055,13 @@ impl WatchersRegistry {
                     // watcher NOTIFIES; they must not gate what it reports about the
                     // world, or a peer correlating on it would read "false" simply
                     // because this one had already notified recently.
-                    let mut verdict_publie = false;
-                    if let Some(regles) = &watcher.regles {
-                        verdict_publie = matches!(
+                    let verdict_publie = match &watcher.regles {
+                        Some(regles) => matches!(
                             regles.evaluer_avec(&obs, &chrono::Local::now(), &etats),
                             Verdict::Vrai | Verdict::BesoinLlm(_)
-                        );
-                    } else {
-                        verdict_publie = transition;
-                    }
+                        ),
+                        None => transition,
+                    };
                     if let Some(regles) = &watcher.regles {
                         // Compiled rules: evaluated mechanically at every poll,
                         // free. A state rule (down_depuis_min...) stays true while

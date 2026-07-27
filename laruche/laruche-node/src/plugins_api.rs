@@ -75,11 +75,19 @@ pub(crate) async fn api_plugin_delete(
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
-// ─── File browser for the plugins/ folder ───────────────────────────────────────────
-// View/edit/delete/drop any file under plugins/, one folder per plugin.
+// ─── File browser for plugins/ and mcp/ ─────────────────────────────────────────────
+// View/edit/delete/drop any file under either root. plugins/ holds one folder per
+// plugin; mcp/ holds the scripts the MCP servers in mcp_servers.json launch. They are
+// browsed together because both are code the user maintains by hand, and an MCP script
+// parked in plugins/ was the only way to reach it from the interface.
+
+/// Roots the browser may touch. Anything outside them is refused.
+const RACINES: [&str; 2] = ["plugins", "mcp"];
 // Anti-traversal guard: every path is confined to plugins/.
 
-/// Resolves a relative path INSIDE plugins/, rejecting any escape (`..`, absolute).
+/// Resolves a browser path, which starts with one of `RACINES`, rejecting any escape
+/// (`..`, absolute). A path with no recognised root is refused rather than guessed at:
+/// silently defaulting to plugins/ would let `mcp/x.py` create a stray plugins/mcp/x.py.
 fn plugin_safe_path(rel: &str) -> Option<std::path::PathBuf> {
     let rel = rel.trim_start_matches(['/', '\\']);
     if rel.is_empty() {
@@ -92,10 +100,14 @@ fn plugin_safe_path(rel: &str) -> Option<std::path::PathBuf> {
             _ => return None, // ParentDir, RootDir, Prefix → refus
         }
     }
-    Some(std::path::Path::new("plugins").join(rel))
+    let racine = rel.split(['/', '\\']).next()?;
+    if !RACINES.contains(&racine) {
+        return None;
+    }
+    Some(std::path::PathBuf::from(rel))
 }
 
-/// GET /api/plugins/files: flat tree of plugins/ files (recursive, bounded depth).
+/// GET /api/plugins/files: flat tree of plugins/ and mcp/ (recursive, bounded depth).
 pub(crate) async fn api_plugin_files() -> Json<serde_json::Value> {
     fn walk(
         dir: &std::path::Path,
@@ -126,10 +138,14 @@ pub(crate) async fn api_plugin_files() -> Json<serde_json::Value> {
             }
         }
     }
-    let base = std::path::Path::new("plugins");
+    // Paths are emitted root-first ("plugins/x", "mcp/y") so one browser can serve both
+    // and every write comes back naming the root it belongs to.
     let mut out = Vec::new();
-    if base.exists() {
-        walk(base, base, 0, &mut out);
+    for racine in RACINES {
+        let base = std::path::Path::new(racine);
+        if base.exists() {
+            walk(base, std::path::Path::new(""), 0, &mut out);
+        }
     }
     out.sort_by(|a, b| a["path"].as_str().cmp(&b["path"].as_str()));
     Json(serde_json::json!({ "files": out }))

@@ -1,6 +1,5 @@
 ﻿use crate::abeille::{Abeille, ContextExecution, NiveauDanger, ResultatAbeille};
 use crate::brain::EssaimConfig;
-use crate::providers::provider_chat_stream;
 use anyhow::Result;
 use async_trait::async_trait;
 use futures_util::{future::join_all, StreamExt};

@@ -1,6 +1,6 @@
 {
   "name": "example_hello",
-  "description": "Reference plugin. Echoes a greeting so you can see the plugin pipeline end to end: schema validation, slot substitution, execution, and the observation handed back to the agent. Copy this file to start your own.",
+  "description": "Reference plugin. Greets someone so you can see the pipeline end to end: schema validation, slot substitution, script execution, and the observation handed back to the agent. Copy this folder to start your own.",
   "parameters": {
     "type": "object",
     "properties": {
@@ -17,7 +17,7 @@
     },
     "required": ["name"]
   },
-  "command": "echo \"{{language}}: bonjour {{name}}\"",
+  "command": "python \"{{plugin_dir}}/run.py\" \"{{name}}\" \"{{language}}\"",
   "danger": "safe",
   "timeout_secs": 10
 }

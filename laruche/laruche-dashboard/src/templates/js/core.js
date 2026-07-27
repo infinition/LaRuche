@@ -105,7 +105,7 @@ LaRuche.i18n = (function(){
 
 LaRuche.i18n.add({
   // PluginFiles
-  'core.pluginFilesTitle':   { fr:'📁 Fichiers du dossier <code>plugins/</code>', en:'📁 Files in <code>plugins/</code> folder' },
+  'core.pluginFilesTitle':   { fr:'📁 Fichiers de <code>plugins/</code> et <code>mcp/</code>', en:'📁 Files in <code>plugins/</code> and <code>mcp/</code>' },
   'core.newFile':            { fr:'+ Nouveau fichier',    en:'+ New file' },
   'core.folderEmpty':        { fr:'Dossier vide.',        en:'Empty folder.' },
   'core.fileHint':           { fr:"Sélectionne un fichier à gauche, ou glisse-dépose un script ici pour l'ajouter.", en:'Select a file on the left, or drag and drop a script here to add it.' },
@@ -113,7 +113,7 @@ LaRuche.i18n.add({
   'core.savedPlugins':       { fr:'Enregistré (plugins rechargés)', en:'Saved (plugins reloaded)' },
   'core.deleteFileConfirm':  { fr:'Supprimer plugins/{path} ?', en:'Delete plugins/{path}?' },
   'core.fileDeleted':        { fr:'Fichier supprimé.',    en:'File deleted.' },
-  'core.newFilePrompt':      { fr:'Nom du fichier (ex: scripts/mon_script.py) :', en:'File name (e.g. scripts/my_script.py):' },
+  'core.newFilePrompt':      { fr:'Chemin du fichier, racine comprise (ex: plugins/mon_outil/run.py) :', en:'File path, root included (e.g. plugins/my_tool/run.py):' },
   'core.invalidName':        { fr:'Nom invalide',         en:'Invalid name' },
   'core.fileAdded':          { fr:'Ajouté : {dest}',      en:'Added: {dest}' },
   'core.fileRejected':       { fr:'Refusé : {name}',      en:'Rejected: {name}' },
@@ -207,8 +207,12 @@ LaRuche.PluginFiles = (function(){
       var t=document.getElementById('pfTree'); if(!t) return;
       if(!files.length){ t.innerHTML='<div style="color:var(--text-dim);padding:8px">'+LaRuche.i18n.t('core.folderEmpty')+'</div>'; return; }
       t.innerHTML=files.map(function(f){
-        if(f.dir) return '<div style="padding:4px 6px;color:var(--text-dim);font-weight:600;margin-top:4px">📂 '+esc(f.path)+'</div>';
-        var indent = f.path.indexOf('/')>=0 ? 16 : 4;
+        // Indent by real depth, and show only the last segment: a flat "a/b/c.py" at a
+        // fixed offset hid where a script actually lived.
+        var prof = f.path.split('/').length - 1;
+        var nom = f.path.split('/').pop();
+        if(f.dir) return '<div style="padding:4px 6px;padding-left:'+(4+prof*14)+'px;color:var(--text-dim);font-weight:600;margin-top:4px">📂 '+esc(nom)+'</div>';
+        var indent = 4 + (prof*14) + 12;
         var kb = f.size!=null ? ' <span style="color:var(--text-dim);font-size:10px">'+Math.max(1,Math.round(f.size/1024))+'k</span>' : '';
         return '<div class="pf-file" data-path="'+esc(f.path)+'" style="padding:4px 6px;padding-left:'+indent+'px;border-radius:4px;cursor:pointer;display:flex;align-items:center;gap:5px"><span>📄</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(f.path.split('/').pop())+'</span>'+kb+'</div>';
       }).join('');
@@ -222,7 +226,7 @@ LaRuche.PluginFiles = (function(){
       var m=document.getElementById('pfMain'); if(!m) return;
       current=path;
       if(d.binary){ m.innerHTML='<div style="color:var(--text-dim);padding:20px">'+LaRuche.i18n.t('core.binaryFile',{size:d.size||'?'})+'</div>'; return; }
-      m.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><code style="flex:1;color:var(--amber)">plugins/'+esc(path)+'</code>'+
+      m.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><code style="flex:1;color:var(--amber)">'+esc(path)+'</code>'+
         '<button class="tl-btn" onclick="LaRuche.PluginFiles.save()">'+LaRuche.i18n.t('common.save')+'</button>'+
         '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.PluginFiles.del()">'+LaRuche.i18n.t('common.delete')+'</button></div>'+
         '<textarea id="pfEditor" spellcheck="false" style="flex:1;width:100%;font-family:var(--mono);font-size:12px;background:#16161a;border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px;resize:none">'+esc(d.content||'')+'</textarea>';
@@ -240,7 +244,7 @@ LaRuche.PluginFiles = (function(){
       .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('toast.deleted'),'ok'); current=null; document.getElementById('pfMain').innerHTML='<div id="pfHint" style="color:var(--text-dim);padding:20px;text-align:center">'+LaRuche.i18n.t('core.fileDeleted')+'</div>'; refresh(); } });
   }
   function newFile(){
-    var name=prompt(LaRuche.i18n.t('core.newFilePrompt'),''); if(!name) return;
+    var name=prompt(LaRuche.i18n.t('core.newFilePrompt'),'plugins/'); if(!name) return;
     fetch('/api/plugin-file/'+name.split('/').map(encodeURIComponent).join('/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:''})})
       .then(function(r){ if(r.ok){ refresh(); openFile(name); } else LaRuche.Toast.show(LaRuche.i18n.t('core.invalidName'),'err'); });
   }
@@ -249,7 +253,7 @@ LaRuche.PluginFiles = (function(){
     Array.prototype.forEach.call(files, function(file){
       var reader=new FileReader();
       reader.onload=function(){
-        var dest=file.name;
+        var dest='plugins/'+file.name;
         fetch('/api/plugin-file/'+dest.split('/').map(encodeURIComponent).join('/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:reader.result})})
           .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('core.fileAdded',{dest:dest}),'ok'); refresh(); } else LaRuche.Toast.show(LaRuche.i18n.t('core.fileRejected',{name:file.name}),'err'); });
       };

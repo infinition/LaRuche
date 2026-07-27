@@ -115,6 +115,7 @@ LaRuche.i18n.add({
   'memory.newSubfolderPrompt':    {fr:'Nom du nouveau sous-dossier:', en:'Name of the new subfolder:'},
   'memory.segSystem':             {fr:'Systeme', en:'System'},
   'memory.segIdentity':           {fr:'Identite', en:'Identity'},
+  'memory.segUser':               {fr:'Utilisateur', en:'User'},
   'memory.segBehavior':           {fr:'Comportement', en:'Behavior'},
   'memory.segCapacities':         {fr:'Capacites', en:'Capacities'},
   'memory.segTools':              {fr:'Outils', en:'Tools'},
@@ -355,7 +356,14 @@ LaRuche.Memory = (function(){
     system:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z"/></svg>',
     prompt:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M13 15h4"/></svg>',
     soul:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4z"/><path d="M18 16l.7 1.8L20.5 18.5l-1.8.7L18 21l-.7-1.8L15.5 18.5l1.8-.7z"/></svg>',
-    lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>'
+    lock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>',
+    // One icon per system prompt: they were all showing the generic folder, so the tree
+    // said nothing about which prompt did what.
+    curateur:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>',
+    consolidation:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16"/><path d="M12 3v5M9 6l3-3 3 3"/><path d="M12 21v-5M9 18l3 3 3-3"/></svg>',
+    planning:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/><path d="M8 16l2 2 4-4"/></svg>',
+    reine:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16"/><path d="M4 18l-1-9 5.5 4L12 5l3.5 8L21 9l-1 9z"/></svg>',
+    user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>'
   };
 
   // Icon of a tree node based on its id and whether it has children.
@@ -364,6 +372,11 @@ LaRuche.Memory = (function(){
     if(id === 'system.prompt') return SVG.prompt;
     if(id === 'system.behavior') return SVG.system;
     if(id === 'system.soul') return SVG.soul;
+    if(id === 'system.prompt_curateur') return SVG.curateur;
+    if(id === 'system.prompt_extraction') return SVG.consolidation;
+    if(id === 'system.prompt_planning') return SVG.planning;
+    if(id === 'system.prompt_reine') return SVG.reine;
+    if(id === 'system.user') return SVG.user;
     if(id === 'capacities.skills' || id.indexOf('capacities.skills.') === 0) return SVG.file;
     if(id === 'capacities' || id.indexOf('capacities.') === 0
        || id === 'tools' || id.indexOf('tools.') === 0) return SVG.tools;
@@ -605,7 +618,11 @@ LaRuche.Memory = (function(){
   // Readable label of an id segment (unifies display: "prompt" -> "Identite", etc.).
   var MEM2_SEG_LABEL_KEYS = {
     system:'memory.segSystem', prompt:'memory.segIdentity', behavior:'memory.segBehavior', soul:'SOUL',
-    capacities:'memory.segCapacities', tools:'memory.segTools', plugins:'memory.segPlugins', mcp:'memory.segMcp', skills:'memory.segSkills'
+    capacities:'memory.segCapacities', tools:'memory.segTools', plugins:'memory.segPlugins', mcp:'memory.segMcp', skills:'memory.segSkills',
+    // The editor already titled these properly; the tree was still showing the raw id.
+    prompt_curateur:'memory.titleCurateur', prompt_extraction:'memory.titleExtraction',
+    prompt_planning:'memory.titlePlanning', prompt_reine:'memory.titleReine',
+    user:'memory.segUser'
   };
   function mem2SegLabel(seg){ var k=MEM2_SEG_LABEL_KEYS[seg]; return k ? (k==='SOUL' ? 'SOUL' : LaRuche.i18n.t(k)) : seg; }
 

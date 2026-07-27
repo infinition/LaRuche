@@ -93,8 +93,6 @@ pub struct App {
     chat_view: ChatView,
     activity_log: Vec<String>,
     // Models list for sidebar picker
-    available_models: Vec<String>,
-    model_cursor: usize,
     // WebSocket streaming channel
     pub event_rx: Option<tokio::sync::mpsc::Receiver<TuiEvent>>,
     pub stream_task: Option<tokio::task::JoinHandle<()>>,
@@ -156,13 +154,6 @@ pub enum MissionsInputMode {
     CreateMission,
 }
 
-#[derive(PartialEq, Clone)]
-pub enum SidebarPanel {
-    Tools,
-    Models,
-    Sessions,
-    Plan,
-}
 
 #[derive(PartialEq, Clone)]
 pub enum ChatView {
@@ -298,8 +289,6 @@ impl App {
             autocomplete_suggestion: String::new(),
             chat_view: ChatView::Messages,
             activity_log: Vec::new(),
-            available_models: Vec::new(),
-            model_cursor: 0,
             event_rx: None,
             stream_task: None,
             streaming_response: String::new(),
@@ -397,7 +386,6 @@ impl App {
 struct TreeDrawItem {
     id: String,
     label: String,
-    one_liner: String,
     depth: usize,
     is_protected: bool,
 }
@@ -425,13 +413,11 @@ fn build_draw_tree(
         if matches {
             visited.insert(id.to_string());
             let label = n.get("label").and_then(|v| v.as_str()).unwrap_or(id).to_string();
-            let one_liner = n.get("one_liner").and_then(|v| v.as_str()).unwrap_or("").to_string();
             let is_protected = n.get("protected").and_then(|v| v.as_bool()).unwrap_or(false);
 
             out.push(TreeDrawItem {
                 id: id.to_string(),
                 label,
-                one_liner,
                 depth,
                 is_protected,
             });
@@ -2699,44 +2685,6 @@ async fn handle_input(app: &mut App, key: KeyCode) {
     }
 }
 
-/// Fetch models list from server.
-async fn fetch_tools_or_models(url: &str, what: &str) -> Vec<String> {
-    if url.is_empty() {
-        return vec![];
-    }
-    let endpoint = if what == "models" {
-        "/models"
-    } else {
-        "/api/tools"
-    };
-    reqwest::Client::new()
-        .get(format!("{}{}", url, endpoint))
-        .send()
-        .await
-        .ok()
-        .and_then(|r| {
-            tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(r.json::<serde_json::Value>())
-            })
-            .ok()
-        })
-        .and_then(|d| {
-            if what == "models" {
-                d["models"].as_array().map(|a| {
-                    a.iter()
-                        .filter_map(|m| m["name"].as_str().map(String::from))
-                        .collect()
-                })
-            } else {
-                d.as_array().map(|a| {
-                    a.iter()
-                        .filter_map(|t| t["name"].as_str().map(String::from))
-                        .collect()
-                })
-            }
-        })
-        .unwrap_or_default()
-}
 
 /// Autocomplete suggestions for slash commands.
 fn update_autocomplete(app: &mut App) {

@@ -32,7 +32,8 @@ Thumbs.db
 /mesh-secret.json
 /credentials.json
 /mcp_servers.json
-/laruche-node/mcp_servers.json
+# Scripts the MCP servers launch: the user's own code, like plugins/.
+/mcp/*
 
 # Runtime data and local user state
 /sessions/

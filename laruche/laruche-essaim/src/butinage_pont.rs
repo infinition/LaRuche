@@ -31,7 +31,7 @@ use crate::brain::{
     schema_outils_pour_prompt, ChatEvent, EssaimConfig,
 };
 use crate::prompt::build_system_prompt;
-use crate::providers::{provider_chat_stream, ProviderError};
+use crate::providers::ProviderError;
 use crate::session::Session;
 use anyhow::Result;
 use async_trait::async_trait;
