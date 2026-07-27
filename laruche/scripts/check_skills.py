@@ -226,14 +226,29 @@ def main():
             if not any(os.path.exists(candidate) for candidate in candidates):
                 problems.append("%s: references `%s`, which is not on disk" % (where, rel))
 
-    # An em dash anywhere in the library, bundled scripts included.
+    # An em dash, or the name of another agent, anywhere in the library, bundled scripts
+    # and templates included. A borrowed name in a review template ends up published in
+    # someone's pull request; a borrowed runtime path fails where nobody can read why.
+    # The ban is on another AGENT's identity: its name, its runtime, its signature. It is
+    # not on vendor names as such. `openai` is deliberately absent: it is the name of a
+    # Python package and of the wire protocol llama.cpp's server speaks, so a llama-cpp
+    # page that says "OpenAI-compatible API" is being accurate, not borrowing an identity.
+    foreign = re.compile(
+        r"third-party|nous\s*research|third-party|open\s*claw|claude|anthropic|"
+        r"chatgpt|copilot|cursor\.(?:so|com)|codeium",
+        re.I,
+    )
     for folder, _, files in os.walk(SKILLS):
         for name in files:
             target = os.path.join(folder, name)
+            shown = os.path.relpath(target, ROOT).replace("\\", "/")
             for number, line in enumerate(read(target).splitlines(), 1):
                 if "—" in line:
+                    problems.append("%s:%d: em dash" % (shown, number))
+                hit = foreign.search(line)
+                if hit:
                     problems.append(
-                        "%s:%d: em dash" % (os.path.relpath(target, ROOT).replace("\\", "/"), number)
+                        "%s:%d: names another agent or vendor (%r)" % (shown, number, hit.group(0))
                     )
 
     print("skills checked      : %d" % len(folders))

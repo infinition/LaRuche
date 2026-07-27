@@ -13,7 +13,7 @@ Identify and remove signs of AI-generated text to make writing sound natural and
 ## Triggers
 
 Load this skill when the user asks to:
-- "humanize", "de-AI", "de-slop", or "un-ChatGPT" a piece of text
+- "humanize", "de-AI", "de-slop", or "make this sound like a person wrote it"
 - rewrite something so it doesn't sound LLM-generated
 - edit a draft (blog post, essay, PR description, docs, email, resume bullet) to sound more natural
 - match their voice in something they're producing
@@ -206,7 +206,8 @@ LLMs use em dashes (-) more than humans. Most can be replaced with commas, perio
 
 ### 19. Curly Quotation Marks
 
-ChatGPT uses curly quotes ("...") instead of straight quotes ("..."). Use straight quotes.
+Generated text uses curly quotes ("...") where a keyboard produces straight ones ("...").
+Use straight quotes.
 
 ---
 

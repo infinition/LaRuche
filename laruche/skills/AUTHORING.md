@@ -15,16 +15,20 @@ Only four fields change what the agent does. Set them, and do not invent others.
 
 ```yaml
 ---
-type: skill                 # REQUIRED. Without it the disk sync ignores the file entirely.
-name: watcher-design    # REQUIRED. Must equal the folder name, exactly.
-description: >-             # REQUIRED. See the rule below. This is what the model reads.
-  Turn a monitoring wish in plain language into a deterministic watcher rule tree.
-prerequisites:              # OPTIONAL. Checked against PATH when the skill is opened.
-  commands: [openhue, jq]   # A missing one is reported, with an order to install it.
+type: skill               # REQUIRED. Without it the disk sync ignores the file entirely.
+name: watcher-design      # REQUIRED. Must equal the folder name, exactly.
+description: Turn a monitoring wish into a deterministic watcher rule tree.
+prerequisites:            # OPTIONAL. Checked against PATH when the skill is opened.
+  commands: [openhue, jq] # A missing one is reported, with an order to install it.
 ---
 ```
 
 `enabled: false` also works: the skill stays on disk and disappears from the catalog.
+
+**Write the description on ONE line, never as a block scalar.** `description: >-` with the
+text on the following line is legal YAML that one of the two parsers reading these files
+rejects outright, taking the whole skill with it. One line, plain, as shown above. It is
+also exactly what `skill_create` writes.
 
 `name` is in English, lowercase, hyphenated, and describes the ACTION: `cognitive-memory`,
 `local-git`, `watcher-design`. It is a handle the model matches against an intent, so a
@@ -43,7 +47,11 @@ struct; no code consumes them today. Do not fill fields that do nothing: it teac
 whoever reads the file that metadata here is decorative, and the next real field gets
 ignored too.
 
-Third-party origin, when there is one, goes in `NOTICE.md`, not in frontmatter.
+Every skill here is written for LaRuche, from LaRuche's own tools and paths. Do not
+import one from another agent's library: its tool names, its runtime paths and its
+voice all resolve to nothing here, and the failure is unreadable. If another project
+solved the same problem, read it, learn the facts, then write the procedure yourself
+against the tools in this registry.
 
 **Renaming a skill folder orphans its memory node.** The disk watcher syncs
 `skills/<folder>/SKILL.md` into `capacities.skills.<folder>`, keyed on the folder name,
@@ -137,8 +145,14 @@ Rules for the body:
   Installed a binary, run its version command. The agent must never assume.
 - **Say what success looks like.** "Prints the bridge IP" beats "should work".
 - **A failed command is a state to handle**, not a dead end. Say what to do next.
-- **Never reference another agent's runtime.** No `THIRD_PARTY_HOME`, no `~/.third-party`, no
-  foreign user-agent. Those paths do not exist here and the failure is unreadable.
+- **Never reference another agent's runtime.** No foreign home directory, no foreign
+  environment variable, no foreign user-agent string. Those paths resolve to nothing on a
+  LaRuche install, so the command fails for a reason no one reading the output can work
+  out. LaRuche's own: `skills/<name>/` for bundled files, `plugins/scripts/` for plugin
+  scripts, `LARUCHE_HOME` (defaulting to `~/.laruche`) for runtime state.
+- **Do not name another agent, anywhere.** Not in the body, not in a comment, not in a
+  template that ends up in a pull request, not in a user-agent header. `check_skills.py`
+  fails the build on it.
 - **Use LaRuche tool names**: `shell_exec`, `file_read`, `file_write`, `file_edit`,
   `web_fetch`, `web_deep_search`, `memory_write`.
 - **English throughout**, including comments in bundled scripts. The brand vocabulary

@@ -132,8 +132,10 @@ Give each reviewer these instructions:
   is noise. Drop findings that lack it.
 - **Apply ≠ rewrite.** Scope edits to what the diff touched plus the minimal
   surrounding change a fix requires. Do not refactor the whole module.
-- **Respect project conventions.** If the repo has CLAUDE.md, a linter config,
-  or AGENTS.md, inject those rules into reviewer prompts.
+- **Respect project conventions.** Before reviewing, look for the repository's own
+  rules: a linter or formatter config, an `AGENTS.md`, a `CONTRIBUTING.md`, an
+  `.editorconfig`. Put what you find into the reviewer prompts. A review that fights the
+  project's house style produces noise the user has to reject one item at a time.
 - **Dead-code tools lie.** `knip`, `ts-prune`, `depcheck` flag exports used
   dynamically. Always `grep -r` the symbol name before removing.
 - **Public contracts are RISKY.** Export names, API routes, DB columns, config
