@@ -67,8 +67,34 @@ async fn reconcilier_skills_orphelines(
         .map(str::to_string)
         .collect();
 
+    // Node ids that hold a PROPOSED item, which `read_node` never returns: it filters
+    // on `status='active'`.
+    //
+    // Without this the sweep destroyed exactly the skills waiting for the user. With
+    // `queue_gate` on, every skill the agent forges lands as a proposal, so it has no
+    // active item, so the shell rule below called it an empty node and deleted it, and
+    // `delete_node` reparented the proposal into `orphans.<slug>_<ts>`. Found 87 orphan
+    // nodes and a review queue full of skill markdown that way.
+    let en_attente: std::collections::HashSet<String> = memoire
+        .list_proposed(Some(200))
+        .await
+        .ok()
+        .and_then(|v| v.as_array().cloned())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|it| it.get("node_id").and_then(|v| v.as_str()))
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default();
+
     let mut supprimes = 0usize;
     for id in ids {
+        // A node whose document is merely awaiting review is not a shell.
+        if en_attente.contains(&id) {
+            continue;
+        }
         let Ok(node) = memoire.read_node(&id).await else {
             continue;
         };
@@ -145,25 +171,55 @@ pub(crate) async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::M
         if identique {
             continue;
         }
-        // Replace the existing item (skill = single item).
-        if let Some(node) = existing {
-            if let Some(items) = node.get("items").and_then(|i| i.as_array()) {
-                for it in items {
+        // Update IN PLACE when the node already holds exactly one item, which is the
+        // shape a skill always has.
+        //
+        // This used to delete then write. A delete here is a SOFT delete that nothing
+        // ever purges, so every edited skill left a tombstone at every boot: 11 792 of
+        // them, 94% of all the rows in the base, and 364 MB on disk. Updating keeps one
+        // row per skill forever.
+        let items_existants = existing
+            .as_ref()
+            .and_then(|n| n.get("items").and_then(|i| i.as_array()).cloned())
+            .unwrap_or_default();
+        let id_unique = (items_existants.len() == 1)
+            .then(|| items_existants[0].get("id").and_then(|x| x.as_str()))
+            .flatten()
+            .map(str::to_string);
+
+        match id_unique {
+            Some(id) => {
+                let _ = memoire.update_item(&id, &content).await;
+            }
+            None => {
+                // Zero items, or several: fall back to the old shape, which is also the
+                // only way to converge a node that somehow accumulated copies.
+                for it in &items_existants {
                     if let Some(id) = it.get("id").and_then(|x| x.as_str()) {
                         let _ = memoire.delete_item(id, Some("skill-file-sync")).await;
                     }
                 }
+                let _ = memoire
+                    .write(
+                        laruche_memoire::MemoryItem::new(node_id, content)
+                            .with_source("skill-file"),
+                    )
+                    .await;
             }
         }
-        let _ = memoire
-            .write(
-                laruche_memoire::MemoryItem::new(node_id, content).with_source("skill-file"),
-            )
-            .await;
         n += 1;
     }
     if n > 0 {
         tracing::info!(count = n, "skills synchronized from disk (SKILL.md -> SQL)");
+    }
+    // Clear what the old delete-and-rewrite sync left behind. Runs at every boot, and
+    // costs nothing once the base is clean: the first pass is the one that matters.
+    match memoire.purger_tombes_skills().await {
+        Ok(p) if p > 0 => {
+            tracing::info!(count = p, "skill-file tombstones purged, database compacted")
+        }
+        Err(e) => tracing::warn!(error = %e, "skill tombstone purge failed"),
+        _ => {}
     }
     reconcilier_skills_orphelines(memoire, &sur_disque).await;
     // Targeted purge of META-SKILLS from other agent frameworks (CLI docs of third-party agents),

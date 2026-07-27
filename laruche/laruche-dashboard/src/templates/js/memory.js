@@ -1242,7 +1242,22 @@ LaRuche.Memory = (function(){
     if(count) count.textContent = String(pend.length);
     list.innerHTML = pend.map(function(p){
       var rc = p.risk==='Critique'?'var(--red)':(p.risk==='Sensible'?'var(--amber)':'var(--green)');
-      var meta = [p.type, p.provenance].filter(Boolean).map(esc).join(' · ');
+      // When it was proposed. The backend has always sent `created_at`; not showing it
+      // left a queue where nothing could be told apart, and four near-identical entries
+      // could not be ordered or judged for staleness.
+      var age = '';
+      if(p.created_at){
+        var d0 = new Date(typeof p.created_at==='number' ? p.created_at*1000 : p.created_at);
+        if(!isNaN(d0)){
+          var mins = Math.round((Date.now()-d0.getTime())/60000);
+          age = mins < 1 ? LaRuche.i18n.t('memory.justNow')
+              : mins < 60 ? mins+' min'
+              : mins < 1440 ? Math.round(mins/60)+' h'
+              : d0.toLocaleDateString();
+          age += ' · ' + d0.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        }
+      }
+      var meta = [p.type, p.provenance, age].filter(Boolean).map(esc).join(' · ');
       // Full content on demand: nobody should approve a memory write from a
       // truncated one-liner. The preview toggles the complete proposed text.
       var aFull = p.full && p.full !== p.preview;

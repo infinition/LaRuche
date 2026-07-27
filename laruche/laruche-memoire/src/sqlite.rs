@@ -854,6 +854,20 @@ impl MemoireCognitive for SqliteBackend {
         )
     }
 
+    async fn purger_tombes_skills(&self) -> Result<u64> {
+        let conn = self.conn.lock().unwrap();
+        let n = conn.execute(
+            "DELETE FROM items WHERE status='deleted' AND source='skill-file'",
+            [],
+        )? as u64;
+        if n > 0 {
+            // The rows are gone but the file keeps its size until the pages are
+            // reclaimed, and the whole point here is the 364 MB on disk.
+            let _ = conn.execute_batch("VACUUM");
+        }
+        Ok(n)
+    }
+
     async fn list_proposed(&self, limit: Option<u8>) -> Result<Value> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(

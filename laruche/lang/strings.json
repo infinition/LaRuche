@@ -2187,6 +2187,10 @@
     "en": " items",
     "fr": " éléments"
   },
+  "memory.justNow": {
+    "en": "just now",
+    "fr": "a l'instant"
+  },
   "memory.loading": {
     "en": "Loading...",
     "fr": "Chargement..."

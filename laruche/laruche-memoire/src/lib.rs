@@ -265,6 +265,20 @@ pub trait MemoireCognitive: Send + Sync {
         Err(anyhow!("memory_list_proposed unsupported by this backend"))
     }
 
+    /// Hard-delete the tombstones left by the skill file sync, and reclaim the space.
+    ///
+    /// A soft delete is right for a fact: the user may want it back, and the mutation
+    /// log should show what happened. It is worthless for a skill file, whose previous
+    /// version is on disk and in git. The sync used to delete and rewrite on every boot,
+    /// which left 11 792 dead rows carrying full skill bodies, 94% of the base and
+    /// 364 MB. The sync no longer does that; this clears what it already wrote.
+    ///
+    /// Deliberately narrow: `source = 'skill-file'` and `status = 'deleted'` only. No
+    /// fact, no decision, no episode is ever touched.
+    async fn purger_tombes_skills(&self) -> Result<u64> {
+        Ok(0)
+    }
+
     async fn suggest_nodes(&self, _query: &str, _limit: Option<u8>) -> Result<Value> {
         Err(anyhow!("memory_suggest_nodes unsupported by this backend"))
     }
