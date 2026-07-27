@@ -476,10 +476,20 @@ struct OutilsPont<'a> {
     /// written to disk but never `reload_plugins`-ed is not callable, and announcing
     /// it as available would send the model at a tool that does not answer.
     outils_initiaux: std::sync::OnceLock<std::collections::BTreeSet<String>>,
+    /// Names whose SCHEMAS were injected this mission, a subset of the registry chosen
+    /// by the dynamic selection. Distinct from `outils_initiaux`: a tool can exist and
+    /// be callable while its signature was never sent, which is the case
+    /// `outils_recommandes` reports on.
+    outils_injectes: std::sync::OnceLock<std::collections::BTreeSet<String>>,
     /// Skills created this mission. They land in cognitive memory immediately, but the
     /// prompt catalog is assembled once at mission start, so they would stay invisible
     /// until the next one.
     skills_creees: std::sync::Mutex<std::collections::BTreeSet<String>>,
+    /// Tools a skill opened this mission declares in its `tools:` frontmatter, kept per
+    /// skill so the reminder can say which skill asked for them.
+    outils_recommandes: std::sync::Mutex<
+        std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
+    >,
 }
 
 /// Max scouts dispatched per mission (fan-out breadth ceiling).
@@ -589,6 +599,8 @@ impl OutilsPont<'_> {
             agent: Some(identite.clone()),
             outils_initiaux: std::sync::OnceLock::new(),
             skills_creees: std::sync::Mutex::new(std::collections::BTreeSet::new()),
+            outils_injectes: std::sync::OnceLock::new(),
+            outils_recommandes: std::sync::Mutex::new(std::collections::BTreeMap::new()),
         };
         let emet = EmetteurPont {
             tx: self.tx.clone(),
@@ -863,6 +875,30 @@ impl but::Outils for OutilsPont<'_> {
                 }
             }
         }
+
+        // A skill names the tools its procedure relies on. Those tools exist, but the
+        // turn's dynamic selection was computed from the user's message, before any
+        // skill was opened, so the ones it needs may have no schema in this context.
+        // Record them; `nouvelles_capacites` reports the missing ones in the volatile
+        // tier, which is re-read every pass and does not disturb the cached prefix.
+        if res.ok && appel.nom == "skill_view" {
+            let declares = crate::orchestration::extraire_outils_skill(&res.sortie);
+            if !declares.is_empty() {
+                let nom_skill = appel
+                    .args
+                    .get("name")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("?")
+                    .trim_start_matches("capacities.skills.")
+                    .to_string();
+                if let Ok(mut par_skill) = self.outils_recommandes.lock() {
+                    par_skill
+                        .entry(nom_skill)
+                        .or_default()
+                        .extend(declares.into_iter());
+                }
+            }
+        }
         res
     }
 
@@ -920,7 +956,7 @@ impl but::Outils for OutilsPont<'_> {
             .outils_initiaux
             .set(self.registry.noms().into_iter().collect());
         let selection = schema_outils_pour_prompt(self.registry, self.config, "");
-        match selection {
+        let retenus: Vec<serde_json::Value> = match selection {
             serde_json::Value::Array(a) => a
                 .into_iter()
                 .filter(|t| {
@@ -931,7 +967,16 @@ impl but::Outils for OutilsPont<'_> {
                 })
                 .collect(),
             _ => Vec::new(),
-        }
+        };
+        // Freeze what the model will actually SEE this mission, so a skill can be told
+        // apart from it: everything else it recommends has to go through tool_call.
+        let _ = self.outils_injectes.set(
+            retenus
+                .iter()
+                .filter_map(|t| t.get("name").and_then(|v| v.as_str()).map(String::from))
+                .collect(),
+        );
+        retenus
     }
 
     fn nouvelles_capacites(&self) -> Option<String> {
@@ -957,8 +1002,55 @@ impl but::Outils for OutilsPont<'_> {
                     .map(|s| format!("- skill `{s}`: stored, read it with skill_view")),
             );
         }
+        // Tools a skill asked for whose schema is absent this turn. Naming them beats
+        // leaving the model to discover through a failed call that a tool it was just
+        // told to use is not in its list.
+        if let (Ok(par_skill), Some(injectes)) =
+            (self.outils_recommandes.lock(), self.outils_injectes.get())
+        {
+            lignes.extend(rappel_outils_de_skill(
+                &par_skill,
+                injectes,
+                &self.registry.noms(),
+                &self.disabled,
+            ));
+        }
         (!lignes.is_empty()).then(|| lignes.join("\n"))
     }
+}
+
+/// One reminder line per skill whose declared tools have no schema this turn.
+///
+/// Three filters, and each removes a way of misleading the model: a tool already
+/// detailed needs no reminder, a name that matches nothing in the registry is prose
+/// the frontmatter parser swallowed, and a disabled tool must not be advertised as
+/// reachable. Nothing left to say means no line at all.
+fn rappel_outils_de_skill(
+    par_skill: &std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
+    injectes: &std::collections::BTreeSet<String>,
+    connus: &[String],
+    desactives: &[String],
+) -> Vec<String> {
+    let mut lignes = Vec::new();
+    for (skill, outils) in par_skill {
+        let manquants: Vec<String> = outils
+            .iter()
+            .filter(|n| {
+                !injectes.contains(*n)
+                    && connus.iter().any(|c| c == *n)
+                    && !desactives.iter().any(|d| d == *n)
+            })
+            .map(|n| format!("`{n}`"))
+            .collect();
+        if !manquants.is_empty() {
+            lignes.push(format!(
+                "- skill `{skill}` relies on {}: registered but not detailed this turn, \
+                 reach them with tool_call",
+                manquants.join(", ")
+            ));
+        }
+    }
+    lignes
 }
 
 /// Read-only tools (safe in parallel, watched for stagnation).
@@ -2087,6 +2179,8 @@ pub async fn executer_avec_bilan(
         agent: None, // main agent: tool events stay unattributed
         outils_initiaux: std::sync::OnceLock::new(),
         skills_creees: std::sync::Mutex::new(std::collections::BTreeSet::new()),
+        outils_injectes: std::sync::OnceLock::new(),
+        outils_recommandes: std::sync::Mutex::new(std::collections::BTreeMap::new()),
     };
     let emet = EmetteurPont::parent(tx.clone());
 
@@ -2403,6 +2497,8 @@ pub async fn reprendre_carnet(
         agent: None, // main agent: tool events stay unattributed
         outils_initiaux: std::sync::OnceLock::new(),
         skills_creees: std::sync::Mutex::new(std::collections::BTreeSet::new()),
+        outils_injectes: std::sync::OnceLock::new(),
+        outils_recommandes: std::sync::Mutex::new(std::collections::BTreeMap::new()),
     };
     let emet = EmetteurPont::parent(tx.clone());
     let source_pont = memoire.as_ref().map(|m| SourcePont::nouveau(m.clone()));
@@ -2599,5 +2695,78 @@ mod tests_rappel {
     fn une_ligne_sans_metadonnees_traverse_intacte() {
         let ctx = "- Alex habite a Lyon";
         assert!(memoire_reference(ctx).contains("- Alex habite a Lyon"));
+    }
+}
+
+#[cfg(test)]
+mod tests_outils_de_skill {
+    use super::rappel_outils_de_skill;
+    use std::collections::{BTreeMap, BTreeSet};
+
+    fn par_skill(skill: &str, outils: &[&str]) -> BTreeMap<String, BTreeSet<String>> {
+        let mut m = BTreeMap::new();
+        m.insert(
+            skill.to_string(),
+            outils.iter().map(|s| s.to_string()).collect(),
+        );
+        m
+    }
+
+    fn ensemble(noms: &[&str]) -> BTreeSet<String> {
+        noms.iter().map(|s| s.to_string()).collect()
+    }
+
+    fn noms(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn signale_l_outil_absent_du_tour_et_nomme_le_skill() {
+        let lignes = rappel_outils_de_skill(
+            &par_skill("watcher-design", &["watcher_create", "shell_exec"]),
+            &ensemble(&["shell_exec"]),
+            &noms(&["watcher_create", "shell_exec"]),
+            &[],
+        );
+        assert_eq!(lignes.len(), 1);
+        assert!(lignes[0].contains("watcher-design"), "{}", lignes[0]);
+        assert!(lignes[0].contains("`watcher_create`"), "{}", lignes[0]);
+        // Already detailed this turn: repeating it would be noise.
+        assert!(!lignes[0].contains("`shell_exec`"), "{}", lignes[0]);
+    }
+
+    #[test]
+    fn rien_a_dire_quand_tout_est_deja_injecte() {
+        let lignes = rappel_outils_de_skill(
+            &par_skill("maps", &["web_fetch"]),
+            &ensemble(&["web_fetch"]),
+            &noms(&["web_fetch"]),
+            &[],
+        );
+        assert!(lignes.is_empty());
+    }
+
+    #[test]
+    fn ignore_ce_qui_n_est_pas_un_outil_reel() {
+        // `tools:` is parsed off a line of the body, so prose can slip through. A name
+        // the registry does not know must never be announced as callable.
+        let lignes = rappel_outils_de_skill(
+            &par_skill("brouillon", &["voir plus bas", "outil_inexistant"]),
+            &ensemble(&[]),
+            &noms(&["web_fetch"]),
+            &[],
+        );
+        assert!(lignes.is_empty(), "{lignes:?}");
+    }
+
+    #[test]
+    fn n_annonce_pas_un_outil_desactive() {
+        let lignes = rappel_outils_de_skill(
+            &par_skill("openhue", &["shell_exec"]),
+            &ensemble(&[]),
+            &noms(&["shell_exec"]),
+            &noms(&["shell_exec"]),
+        );
+        assert!(lignes.is_empty(), "{lignes:?}");
     }
 }

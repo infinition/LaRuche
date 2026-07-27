@@ -149,7 +149,7 @@ LaRuche.i18n.add({
   'settings.skillActivated':     {fr:'activé',           en:'enabled'},
   'settings.skillDeactivated':   {fr:'désactivé',        en:'disabled'},
   'settings.skillToast':         {fr:'Skill ',           en:'Skill '},
-  'settings.skillToolsHint':     {fr:'Outils / plugins de ce skill (→ <code>tools:</code>) ', en:'Tools / plugins for this skill (→ <code>tools:</code>) '},
+  'settings.skillToolsHint':     {fr:'Outils / plugins recommandés par ce skill (→ <code>tools:</code>). Pas une permission : ceux qui manquent au tour sont rappelés à l\'agent. ', en:'Tools / plugins this skill recommends (→ <code>tools:</code>). Not a permission: the ones missing from the turn are pointed out to the agent. '},
   'settings.skillGroupTools':    {fr:'Outils',           en:'Tools'},
   'settings.skillGroupPlugins':  {fr:'Plugins',          en:'Plugins'},
   'settings.skillGroupOther':    {fr:'Autres',           en:'Other'},

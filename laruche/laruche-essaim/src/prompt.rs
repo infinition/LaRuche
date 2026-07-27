@@ -425,7 +425,7 @@ pub fn section_comportement() -> &'static str {
      ### SKILL = a PROCEDURE (the *how*)\n\
      A skill documents how to accomplish a type of task (steps, pitfalls, exact commands). It ORCHESTRATES existing tools.\n\
      - WHEN to create one: AFTER a complex task SUCCEEDS (>=2 tools chained, errors overcome, a corrected approach that worked, a non-trivial workflow discovered).\n\
-     - HOW: `skill_create(name, description, body, tools, scripts)`. Declare in `tools`/`scripts` what the skill uses (this scopes it). The body = step-by-step procedure + pitfalls + commands.\n\
+     - HOW: `skill_create(name, description, body, tools, scripts)`. List in `tools` the tools the procedure relies on: it grants nothing and forbids nothing, but when the skill is opened, any listed tool whose signature is missing from the turn is pointed out to you, so you reach it with `tool_call` instead of assuming it is gone. The body = step-by-step procedure + pitfalls + commands.\n\
      - ITERATE: if you use a skill and it fails or is stale, `skill_patch(name, old, new)` IMMEDIATELY to fix it. That's how a skill becomes reliable.\n\
      - Bundled scripts: `skill_file_write(skill, path, content)` writes a script under `skills/<name>/scripts/`, which you then run via `shell_exec`/`execute_code`. It stays inert until the skill is loaded, so it costs nothing when the skill is not in play.\n\n\
      ### TOOL (plugin) = an atomic CAPABILITY (the *what*)\n\

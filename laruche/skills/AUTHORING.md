@@ -35,11 +35,22 @@ also exactly what `skill_create` writes.
 French or abbreviated name costs recall for no benefit. Only the brand vocabulary stays
 French, and only where it names a LaRuche concept: `lareine-charter`.
 
-`skill_create` also accepts `tools` and `scripts`, two arrays, and writes them into the
-frontmatter as `tools: [a, b]` and `scripts: [scripts/x.py]`. They are documentation for
-a human reader: nothing dispatches on them, and a tool listed there is not granted, nor
-is one omitted denied. Fill them or leave them out, but never treat a missing `tools:` as
-a defect.
+`skill_create` also accepts `tools` and `scripts`, two arrays, written into the
+frontmatter as `tools: [a, b]` and `scripts: [scripts/x.py]`.
+
+`tools:` is a recommendation, never a permission. A tool listed there is not granted, one
+omitted is not denied, and the skill stays usable with neither. What it does buy you:
+
+- In a mission or a cron task, the list is surfaced above the skill body as the tools to
+  prefer.
+- In chat, opening the skill with `skill_view` compares the list against the tools whose
+  signatures were injected this turn. Any that are registered but absent are named in the
+  volatile tier, so the model knows to reach them with `tool_call` instead of concluding
+  they do not exist.
+
+That second point is the reason to fill it: the turn's tool selection is computed from
+the user's message, before any skill is opened, so a skill's own tools are often missing
+from it. Name only tools that really exist. An unknown name is dropped in silence.
 
 Nothing else is read at runtime. `version`, `author`, `license`, `platforms`, `tags`,
 `allowed-tools`, `when_to_use`, `arguments` exist in some older files and in the Rust

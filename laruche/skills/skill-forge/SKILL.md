@@ -26,9 +26,14 @@ does, why the description matters more than the body, and what a good body conta
 ## Creating
 
 `skill_create` requires `name`, `description` and `body`. It also accepts `tools` and
-`scripts`, two optional arrays, which it writes into the frontmatter as documentation.
-Nothing dispatches on them: a tool listed there is not granted, and one left out is not
-denied.
+`scripts`, two optional arrays written into the frontmatter.
+
+`tools` grants nothing and forbids nothing. It earns its place elsewhere: the tools whose
+signatures reach you on a given turn are picked from the user's message, before any skill
+is opened, so a skill's own tools are frequently absent. When the skill is opened, every
+listed tool that is registered but missing from the turn is named back to you, with the
+instruction to reach it through `tool_call`. Fill it with real tool names, and only real
+ones: anything the registry does not know is dropped without a word.
 
 1. `skill_list` first. If something close exists, `skill_patch` it instead. Two
    overlapping skills make the model hesitate and pick the wrong one.
