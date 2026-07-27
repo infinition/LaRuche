@@ -564,13 +564,16 @@ fn assembler(carnet: &Carnet, reglages: &Reglages) -> Vec<Message> {
 
     if reglages.systeme_en_queue_permis {
         v.push(Message::systeme(bloc));
-    } else if let Some(dernier) = v.iter_mut().rev().find(|m| m.role == Role::Utilisateur) {
+    } else if let Some(dernier) = v.iter_mut().rev().find(|m| m.role != Role::Systeme) {
+        // The LAST non-system message, whatever its role. Targeting the last USER
+        // turn instead looked natural and was wrong: an agentic context ends on
+        // observations, so the block landed mid-conversation and lost exactly the
+        // recency it exists for. Appending here introduces no new role for a strict
+        // template to reject, and keeps the tail position.
         dernier.contenu = format!("{}\n\n{bloc}", dernier.contenu);
-    } else {
-        // No user turn to carry it: better in the system prompt than lost.
-        if let Some(premier) = v.first_mut() {
-            premier.contenu = format!("{}\n\n{bloc}", premier.contenu);
-        }
+    } else if let Some(premier) = v.first_mut() {
+        // Nothing but system messages: better inside the prompt than lost.
+        premier.contenu = format!("{}\n\n{bloc}", premier.contenu);
     }
     v
 }
@@ -864,6 +867,7 @@ mod tests {
 
         let base = Reglages {
             systeme: "SYS".into(),
+            systeme_en_queue_permis: true,
             contexte_volatil: Some("## Now
 It is Sunday.".into()),
             ..Reglages::default()
@@ -1319,9 +1323,20 @@ It is Sunday.".into()),
         assert!(carnet.decouvertes[0].contains("https://ex.org"));
         // finding was intercepted: never executed as a tool
         assert!(!carnet.historique.iter().any(|m| m.outil.as_deref() == Some("finding")));
-        // the ledger is rendered at the tail of the outbound context
-        let sortant = assembler(&carnet, &Reglages::default());
-        assert!(sortant.last().unwrap().contenu.contains("Findings ledger"));
+        // The ledger reaches the model at the TAIL of the outbound context. The
+        // transport differs by backend (a trailing `system` message where templates
+        // accept one, merged into the last user turn where they do not), so assert
+        // the intent on both rather than one particular shape.
+        for permis in [true, false] {
+            let sortant = assembler(
+                &carnet,
+                &Reglages { systeme_en_queue_permis: permis, ..Reglages::default() },
+            );
+            assert!(
+                sortant.last().unwrap().contenu.contains("Findings ledger"),
+                "the ledger must close the context (systeme_en_queue_permis={permis})"
+            );
+        }
     }
 
     #[test]

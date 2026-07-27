@@ -126,7 +126,13 @@ impl Default for Reglages {
             garder_recents: 12,
             systeme: String::new(),
             contexte_volatil: None,
-            systeme_en_queue_permis: true,
+            // Defaults to the UNIVERSALLY safe transport. Merging the tail into the
+            // last user turn works on every backend; a trailing `system` message only
+            // works on some, and a caller that forgets to set this must degrade into
+            // "slightly less ideal placement", never into "the server refuses the
+            // request". A first version defaulted to true and broke every local
+            // backend through the two call sites that did not set it.
+            systeme_en_queue_permis: false,
             prompt_extraction: None,
             profil: ProfilModele::default(),
             chemin_carnet: None,

@@ -1418,6 +1418,7 @@ pub async fn lancer_curateur_arriere_plan(
         systeme,
         profil: profil_pour(&config),
         supervision: supervision_depuis(&config.reine),
+        systeme_en_queue_permis: systeme_en_queue_pour(&config),
         ..but::Reglages::default()
     };
     // LLM-facing review prompt prepended to the mission transcript.
@@ -2152,6 +2153,7 @@ pub async fn reprendre_carnet(
         prompt_extraction,
         profil: profil_pour(config),
         supervision: supervision_depuis(&config.reine),
+        systeme_en_queue_permis: systeme_en_queue_pour(config),
         rappel_initial: true, // resumed run: re-anchor on what memory already knows
         ..but::Reglages::default()
     };
