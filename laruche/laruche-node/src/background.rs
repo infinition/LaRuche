@@ -581,6 +581,9 @@ pub(crate) fn spawn_watchers_checker(state: &Arc<AppState>) {
                         .await;
                         continue;
                     }
+                    // A pure sensor. Its verdict was already published before we got
+                    // here, which is the only thing it exists for.
+                    laruche_watchers::Action::Aucune => continue,
                     laruche_watchers::Action::Agent => {}
                 }
 

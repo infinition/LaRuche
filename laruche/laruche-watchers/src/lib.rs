@@ -224,6 +224,13 @@ pub enum Action {
     /// came on after midnight, turn it off. Same blocklist as a watched command, and
     /// stricter, because this one mutates by design.
     Commande { commande: String },
+    /// Publish the verdict and say NOTHING.
+    ///
+    /// A pure sensor, existing only so other watchers can correlate on it. Without it
+    /// correlation is unusable in practice: every signal in a chain would also alert on
+    /// its own, so "the site is down" and "the host answers" would each wake you at
+    /// three in the morning alongside the one conclusion you actually asked for.
+    Aucune,
 }
 
 /// The state a watcher publishes at every poll, so OTHER watchers can read it.
@@ -254,6 +261,19 @@ pub enum Regle {
     Apparu,
     Supprime,
     Modifie,
+    /// The watched path EXISTS right now.
+    ///
+    /// `apparu` is a TRANSITION, true only on the poll where the file showed up, so it
+    /// cannot express a standing condition. "test.txt is there AND the light is on"
+    /// needs a state on both sides, and correlation is what made that gap visible.
+    Existe,
+    /// The watched path does NOT exist right now.
+    ///
+    /// The other half, and the one that catches an ABSENCE: the nightly backup that
+    /// wrote no file, the export that never landed. Combined with `heure_entre` it
+    /// covers the whole family of "something did not happen", which no transition rule
+    /// can express, because nothing happened to observe.
+    Absent,
     ContenuChange,
     EstDown,
     DownDepuisMin { minutes: u64 },
@@ -356,6 +376,10 @@ impl Regle {
                 }
             }
             Regle::Apparu => bool_verdict(obs.evenement == Evenement::Apparu),
+            // Presence was already observed: `taille_octets` is Some exactly when
+            // the metadata call succeeded. It only needed a rule to expose it.
+            Regle::Existe => bool_verdict(obs.taille_octets.is_some()),
+            Regle::Absent => bool_verdict(obs.taille_octets.is_none()),
             Regle::Supprime => bool_verdict(obs.evenement == Evenement::Supprime),
             Regle::Modifie => bool_verdict(obs.evenement == Evenement::Modifie),
             Regle::ContenuChange => bool_verdict(matches!(
@@ -538,6 +562,8 @@ impl Regle {
             Regle::Apparu
             | Regle::Supprime
             | Regle::Modifie
+            | Regle::Existe
+            | Regle::Absent
             | Regle::ContenuChange
             | Regle::EstDown
             | Regle::RetourEnLigne => Ok(()),
@@ -609,6 +635,8 @@ impl Regle {
 
             // File lifecycle and size: only the file watcher reports them.
             Regle::Apparu => exige(matches!(wtype, WatcherType::File), "apparu", "file"),
+            Regle::Existe => exige(matches!(wtype, WatcherType::File), "existe", "file"),
+            Regle::Absent => exige(matches!(wtype, WatcherType::File), "absent", "file"),
             Regle::Supprime => exige(matches!(wtype, WatcherType::File), "supprime", "file"),
             Regle::Modifie => exige(matches!(wtype, WatcherType::File), "modifie", "file"),
             Regle::TailleDepasseMo { .. } => exige(
@@ -676,6 +704,8 @@ impl Regle {
             Regle::HeureEntre { de, a } => format!("{de}-{a}"),
             Regle::PlageDate { du, au } => format!("{du}..{au}"),
             Regle::Apparu => "apparu".into(),
+            Regle::Existe => "existe".into(),
+            Regle::Absent => "absent".into(),
             Regle::Supprime => "supprimé".into(),
             Regle::Modifie => "modifié".into(),
             Regle::ContenuChange => "contenu≠".into(),
@@ -2497,5 +2527,88 @@ mod tests_recul {
         assert_eq!(w.interval_effectif(), 960);
         w.echecs_consecutifs = 0;
         assert_eq!(w.interval_effectif(), 60);
+    }
+}
+
+#[cfg(test)]
+mod tests_presence {
+    use super::*;
+
+    fn obs_present(present: bool) -> Observation {
+        Observation {
+            // The file branch fills this from the metadata call: Some exactly when the
+            // path exists, whatever its size.
+            taille_octets: present.then_some(0),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn existe_est_un_etat_pas_une_transition() {
+        let now = chrono::Local::now();
+        // `apparu` is true only on the poll where the file showed up, so it cannot hold
+        // a standing condition. That is exactly why `existe` had to be added.
+        assert_eq!(Regle::Apparu.evaluer(&obs_present(true), &now), Verdict::Faux);
+        assert_eq!(Regle::Existe.evaluer(&obs_present(true), &now), Verdict::Vrai);
+        assert_eq!(Regle::Existe.evaluer(&obs_present(false), &now), Verdict::Faux);
+    }
+
+    #[test]
+    fn absent_attrape_ce_qui_na_pas_eu_lieu() {
+        let now = chrono::Local::now();
+        assert_eq!(Regle::Absent.evaluer(&obs_present(false), &now), Verdict::Vrai);
+        assert_eq!(Regle::Absent.evaluer(&obs_present(true), &now), Verdict::Faux);
+    }
+
+    #[test]
+    fn un_fichier_vide_existe_quand_meme() {
+        // Size zero is a real file. Treating it as absent would silently break "the
+        // export landed" on an export that produced nothing.
+        let now = chrono::Local::now();
+        let obs = Observation { taille_octets: Some(0), ..Default::default() };
+        assert_eq!(Regle::Existe.evaluer(&obs, &now), Verdict::Vrai);
+    }
+
+    #[test]
+    fn ces_regles_nont_de_sens_que_sur_un_fichier() {
+        for r in [Regle::Existe, Regle::Absent] {
+            assert!(r.valider_pour(WatcherType::File).is_ok());
+            assert!(r.valider_pour(WatcherType::Url).is_err());
+            assert!(r.valider_pour(WatcherType::Commande).is_err());
+            assert!(r.valider().is_ok(), "nothing to misconfigure, they take no argument");
+        }
+    }
+
+    #[test]
+    fn la_demande_reelle_devient_exprimable() {
+        // "test.txt is present AND the office light is on". Two states, which is what
+        // was impossible before: the file side could only be a one-poll transition.
+        let regle = Regle::Et {
+            regles: vec![
+                Regle::Existe,
+                Regle::Watcher { nom: "lumiere-bureau".into(), depuis_min: None },
+            ],
+        };
+        assert!(regle.valider().is_ok());
+        assert!(regle.valider_pour(WatcherType::File).is_ok());
+
+        let now = chrono::Local::now();
+        let allumee: std::collections::HashMap<String, EtatWatcher> = [(
+            "lumiere-bureau".to_string(),
+            EtatWatcher { vrai: true, depuis: chrono::Utc::now() },
+        )]
+        .into_iter()
+        .collect();
+        assert_eq!(regle.evaluer_avec(&obs_present(true), &now, &allumee), Verdict::Vrai);
+        // File there, light off: silent.
+        let eteinte: std::collections::HashMap<String, EtatWatcher> = [(
+            "lumiere-bureau".to_string(),
+            EtatWatcher { vrai: false, depuis: chrono::Utc::now() },
+        )]
+        .into_iter()
+        .collect();
+        assert_eq!(regle.evaluer_avec(&obs_present(true), &now, &eteinte), Verdict::Faux);
+        // Light on, no file: silent too.
+        assert_eq!(regle.evaluer_avec(&obs_present(false), &now, &allumee), Verdict::Faux);
     }
 }

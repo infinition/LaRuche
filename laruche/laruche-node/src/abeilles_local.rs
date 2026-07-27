@@ -24,7 +24,11 @@ const AIDE_REGLES: &str = r#"Shape of `regles`: ONE object tagged by `op`, nesti
 
 Combinators: et{regles:[...]}, ou{regles:[...]}, non{regle:{...}}
 Time:        jour_semaine{jours:["mar","jeu"]}, heure_entre{de:"08:00",a:"22:00"}, plage_date{du:"2026-01-01",au:"2026-12-31"}
-File:        apparu, supprime, modifie, contenu_change, contient{motif:"..."}, taille_depasse_mo{mo:10}
+File:        apparu, supprime, modifie (TRANSITIONS, true only on the poll where it happens)
+             existe, absent (STATES, true for as long as it lasts). Use a STATE in a correlation:
+             apparu is false again at the very next poll, so it can never mean "the file is there".
+             absent + heure_entre is how you catch something that did NOT happen (a backup that never wrote).
+             contenu_change, contient{motif:"..."}, taille_depasse_mo{mo:10}
 Service:     est_down, down_depuis_min{minutes:10}, retour_en_ligne, status_http{codes:[500,503]}
 Semantic:    llm_check{question:"..."}  (the ONLY op that costs an LLM call, and only after the deterministic prefix passed)
 Command:     contient, contenu_change, code_retour{codes:[0]}, nouvelle_ligne{motif:"..."}
@@ -572,7 +576,7 @@ impl Abeille for AbeilleWatcherCreate {
             "properties": {
                 "name": { "type": "string" },
                 "watcher_type": { "type": "string", "description": "'file', 'url', 'log', or 'command' (runs target as a shell command and watches its output)" },
-                "action": { "type": "object", "description": "What to do when it fires. {\"type\":\"agent\"} (default) reasons and writes a message, costing a full model turn. {\"type\":\"notifier\"} sends the observation as-is: free, instant, cannot invent anything, and the right choice whenever the job is just to tell you. {\"type\":\"commande\",\"commande\":\"...\"} RUNS a command, which is how a watcher acts instead of reporting (the lamp came on after midnight, turn it off)." },
+                "action": { "type": "object", "description": "What to do when it fires. {\"type\":\"aucune\"} publishes the verdict and says NOTHING: a pure sensor, which is what the upstream watchers of a correlation should be, otherwise each of them alerts on its own alongside the conclusion. {\"type\":\"agent\"} (default) reasons and writes a message, costing a full model turn. {\"type\":\"notifier\"} sends the observation as-is: free, instant, cannot invent anything, and the right choice whenever the job is just to tell you. {\"type\":\"commande\",\"commande\":\"...\"} RUNS a command, which is how a watcher acts instead of reporting (the lamp came on after midnight, turn it off)." },
                 "target": { "type": "string", "description": "File path or URL to watch" },
                 "condition": { "type": "string", "description": "LEGACY natural-language condition (LLM gate at every event). PREFER 'regles' below: deterministic, free at runtime. For 'log': plain substring the new lines must contain." },
                 "regles": { "type": "object", "description": "COMPILED condition tree (preferred): deterministic predicates evaluated at every poll for free. Ops: et/ou/non, jour_semaine{jours:[mar,jeu]}, heure_entre{de,a}, plage_date{du,au}, apparu, supprime, modifie, contenu_change, est_down, down_depuis_min{minutes}, retour_en_ligne, contient{motif}, taille_depasse_mo{mo}, status_http{codes}, llm_check{question} (the ONLY op that costs an LLM call, after the deterministic prefix passed). A state rule (down_depuis_min) re-fires every cooldown while true. Each op needs the matching watcher_type: contient and contenu_change need log or url, apparu/supprime/modifie/taille_depasse_mo need file, est_down/down_depuis_min/retour_en_ligne/status_http need url.", "example": {"op":"et","regles":[{"op":"contient","motif":"ERROR"},{"op":"heure_entre","de":"08:00","a":"23:56"}]} },

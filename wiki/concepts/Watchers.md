@@ -30,7 +30,7 @@ predicate tree. At runtime the scheduler evaluates the tree. No model is involve
 
 | `watcher_type` | Observes | Rules it can satisfy |
 |---|---|---|
-| `file` | the lifecycle of a path. Carries NO text | `apparu`, `supprime`, `modifie`, `taille_depasse_mo` |
+| `file` | the lifecycle AND the presence of a path. Carries NO text | `apparu`, `supprime`, `modifie`, `existe`, `absent`, `taille_depasse_mo` |
 | `log` | new lines appended to a growing file | `contient`, `contenu_change`, `nouvelle_ligne` |
 | `url` | reachability and page text | `est_down`, `down_depuis_min`, `retour_en_ligne`, `status_http`, `contient`, `contenu_change` |
 | `command` | the output and exit code of a shell command | `contient`, `contenu_change`, `nouvelle_ligne`, `code_retour` |
@@ -55,6 +55,7 @@ One JSON object tagged by `op`, nesting through `regles` arrays. Combinators are
 | `heure_entre` | local time is inside a window, end excluded |
 | `plage_date` | the date is inside a range |
 | `apparu` / `supprime` / `modifie` | the watched file appeared, was deleted, changed |
+| `existe` / `absent` | the watched path is there right now, or is not |
 | `contenu_change` | the observed content differs from last time |
 | `nouvelle_ligne` | a line appeared that was NOT in the previous poll |
 | `contient` | fresh content contains a pattern |
@@ -89,12 +90,27 @@ Three behaviours, and the default is the expensive one. Choose deliberately.
 | `{"type":"agent"}` (default) | a full model turn | the answer has to be worked out |
 | `{"type":"notifier"}` | nothing | the job is just to tell you. The observation IS the message |
 | `{"type":"commande","commande":"..."}` | nothing | the watcher must ACT |
+| `{"type":"aucune"}` | nothing | it is a pure sensor, feeding a correlation |
 
 `notifier` is right far more often than the default. "Tell me when the file is gone"
 needs no thinking: the sentence is known in advance, and a model asked to write it can
 also get it wrong.
 
 `commande` is what turns monitoring into automation.
+
+### Transitions or states
+
+`apparu`, `supprime`, `modifie` are TRANSITIONS: true only on the poll where the thing
+happened, false again immediately after. `existe` and `absent` are STATES: true for as
+long as the situation lasts.
+
+The distinction decides what you can combine. "test.txt is present AND the light is on"
+needs a state on the file side, because a transition is false again at the very next
+poll and the two conditions would essentially never be true together.
+
+`absent` is also the one that catches what did NOT happen. Combined with `heure_entre`,
+"no backup file this morning" becomes a rule, where no transition can express it:
+nothing happened, so there was nothing to observe.
 
 ## Correlation
 
@@ -117,6 +133,10 @@ latency on a correlation, which beats an alert that fires differently between tw
 
 A watcher referenced but deleted reads as false, never as an error. A correlation whose
 peer is gone degrades quietly instead of breaking an otherwise valid tree forever.
+
+Give the upstream watchers `{"type":"aucune"}`. They exist to publish a verdict, and
+without it each of them also alerts on its own: "the site is down" and "the host
+answers" would both wake you alongside the single conclusion you actually asked for.
 
 The Watchers page draws the dependency graph whenever at least one correlation exists:
 sources on the left, conclusions on the right, a green border on a verdict currently
@@ -184,6 +204,29 @@ On Windows, the same idea with the command that fits:
  "regles":{"op":"non","regle":{"op":"contient","motif":"Up"}},
  "action":{"type":"commande","commande":"docker start api"}}
 ```
+
+**A light on AND a file present**
+
+Two watchers. The sensor publishes, the alert correlates.
+
+```json
+{"name":"lumiere-bureau","watcher_type":"command",
+ "target":"openhue get light \"Bureau\"",
+ "regles":{"op":"contient","motif":"[on]"},
+ "action":{"type":"aucune"}}
+```
+
+```json
+{"name":"alerte-bureau","watcher_type":"file",
+ "target":"C:\Users\me\Desktop\test.txt",
+ "regles":{"op":"et","regles":[
+   {"op":"existe"},
+   {"op":"watcher","nom":"lumiere-bureau"}]},
+ "action":{"type":"notifier"}}
+```
+
+Note `existe` rather than `apparu`: the file has to be a standing condition, not an
+event, or the two conditions would essentially never be true on the same poll.
 
 **Diagnosing rather than alerting**
 
