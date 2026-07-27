@@ -704,6 +704,7 @@ LaRuche.Settings = (function(){
       '<details class="settings-advanced" style="margin-top:6px;"><summary style="cursor:pointer;font-size:11px;color:var(--text-dim);user-select:none;">'+LaRuche.i18n.t('settings.advancedSection')+'</summary>'+
       '<div class="settings-row" style="padding:0;margin-top:6px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.dynToolsLimit')+'">'+LaRuche.i18n.t('settings.dynToolsLimitLabel')+'</span><input type="number" id="cfgToolLim" class="form-input" style="width:80px;padding:2px 6px;" value="'+(rt.tool_selection_limit||24)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.narrowCtxThreshold')+'">'+LaRuche.i18n.t('settings.narrowCtxLabel')+'</span><input type="number" id="cfgCtxThreshold" class="form-input" style="width:90px;padding:2px 6px;" value="'+(rt.dynamic_context_threshold||40000)+'"></div>'+
+      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.agentReactionsTitle')+'">'+LaRuche.i18n.t('settings.agentReactionsLabel')+'</span><input type="checkbox" id="cfgAgentReactions"'+(rt.reactions_agent?' checked':'')+'></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.mixtureModelsHint')+'">'+LaRuche.i18n.t('settings.mixtureModels')+'</span><input type="text" id="cfgProvFallback" class="form-input" style="width:180px;padding:2px 6px;" value="'+LaRuche.Utils.esc(provCfg.fallback_models||'')+'" placeholder="model-a, model-b"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.memoryReviewHint')+'">'+LaRuche.i18n.t('settings.memoryReviewModel')+'</span><input type="text" id="cfgProvReview" class="form-input" style="width:180px;padding:2px 6px;" value="'+LaRuche.Utils.esc(provCfg.review_model||'')+'" placeholder="'+LaRuche.i18n.t('settings.optional')+'"></div>'+
       '</details>'+
@@ -2539,7 +2540,9 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       temperature: parseFloat(document.getElementById('cfgTemp').value),
       max_tokens: parseInt(document.getElementById('cfgMaxTok').value,10),
       tool_selection_limit: parseInt(document.getElementById('cfgToolLim').value,10),
-      dynamic_context_threshold: parseInt(document.getElementById('cfgCtxThreshold').value,10)
+      dynamic_context_threshold: parseInt(document.getElementById('cfgCtxThreshold').value,10),
+      // Off by default: it spends prompt budget every turn, so it stays a choice.
+      reactions_agent: !!(document.getElementById('cfgAgentReactions')||{}).checked
     };
     var auxiliary = {
       fallback_models: document.getElementById('cfgProvFallback').value,

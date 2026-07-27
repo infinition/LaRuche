@@ -2055,33 +2055,49 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
    bubble. Everything is keyboard reachable, and every motion is dropped for
    users who asked for reduced motion. */
 
-.reaction-host { position:relative; display:flex; align-items:center; height:0; }
+/* One flex ROW holding the trigger and the chip as siblings, so they can never
+   overlap. Collapsed to zero height when there is no reaction: the trigger is
+   pulled up into the bubble's bottom margin, which keeps chat density unchanged
+   and avoids a layout shift when it appears on hover. */
+.reaction-host { position:relative; display:flex; align-items:center; gap:6px; height:0; }
+.reaction-host.has-chip { height:auto; margin-top:6px; }
 
 .reaction-trigger {
-  position:absolute; top:-14px; left:0;
-  width:26px; height:26px; padding:0;
+  position:absolute; left:0; top:-13px;
+  flex:none; width:26px; height:26px; padding:0;
   display:grid; place-items:center;
   font-size:13px; line-height:1;
   border:1px solid var(--border); border-radius:50%;
   background:var(--bg-card); color:var(--text);
   cursor:pointer;
-  opacity:0; transform:scale(.8) translateY(2px);
+  opacity:0; transform:scale(.8);
   transition:opacity .16s ease, transform .16s ease, border-color .16s ease;
   pointer-events:none;
+}
+/* Empty: absolute, so it costs no vertical space and floats under the bubble.
+   With a chip: back in the flow, as the chip's sibling, which is what stops the
+   two from sitting on top of each other. */
+.reaction-host.has-chip .reaction-trigger {
+  position:static; width:0; border-width:0; overflow:hidden;
+  transition:width .16s ease, opacity .16s ease, border-color .16s ease;
+}
+/* It widens next to the chip on hover instead of appearing on top of it. */
+.message-row.assistant:hover .reaction-host.has-chip .reaction-trigger,
+.message-row.assistant:focus-within .reaction-host.has-chip .reaction-trigger {
+  width:26px; border-width:1px;
 }
 /* Revealed on hover or keyboard focus anywhere in the row, and kept visible
    while the picker is open so it does not vanish under the cursor. */
 .message-row.assistant:hover .reaction-trigger,
 .message-row.assistant:focus-within .reaction-trigger,
-.message-row.assistant .reaction-trigger[aria-expanded="true"],
-.message-row.assistant .reaction-trigger[aria-pressed="true"] {
+.message-row.assistant .reaction-trigger[aria-expanded="true"] {
   opacity:.75; transform:none; pointer-events:auto;
 }
 .reaction-trigger:hover { opacity:1; border-color:var(--accent, #f5a623); }
 .reaction-trigger:focus-visible { outline:2px solid var(--accent, #f5a623); outline-offset:2px; opacity:1; }
 
 .reaction-picker {
-  position:absolute; bottom:16px; left:0; z-index:20;
+  position:absolute; bottom:20px; left:0; z-index:20;
   display:flex; gap:2px; padding:5px 7px;
   border:1px solid var(--border); border-radius:999px;
   background:var(--bg-card);
@@ -2109,8 +2125,7 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 .reaction-option:active { transform:scale(1.05); }
 
 .reaction-chip {
-  align-self:flex-start;
-  margin-top:5px; padding:2px 8px;
+  flex:none; padding:2px 8px;
   display:inline-flex; align-items:center;
   font-size:13px; line-height:1.5;
   border:1px solid var(--border); border-radius:999px;

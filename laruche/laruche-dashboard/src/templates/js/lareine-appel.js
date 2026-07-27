@@ -155,9 +155,15 @@
     avatar.appendChild(btn);
   }
 
+  /* LaReine's own rows are excluded. `reine-row` carries her verdicts and her
+   * failure notices, not an answer from LaRuche: reacting to a verdict steers
+   * nothing, and offering to summon her on top of her own output is nonsense.
+   * `reine-rework-row` IS a real answer (LaRuche redoing the work at her request),
+   * so it keeps its controls. */
   function isAssistantRow(el){
     return el && el.classList && el.classList.contains('message-row')
         && el.classList.contains('assistant')
+        && !el.classList.contains('reine-row')
         && !el.classList.contains('assistant-intermediate')
         && !el.classList.contains('tool-row');
   }

@@ -3123,6 +3123,14 @@
     "en": "Add Provider",
     "fr": "Ajouter un provider"
   },
+  "settings.agentReactionsLabel": {
+    "en": "Agent reactions",
+    "fr": "Réactions de l'agent"
+  },
+  "settings.agentReactionsTitle": {
+    "en": "Let LaRuche leave an emoji on your message. Off by default: it costs prompt budget on every turn.",
+    "fr": "Autoriser LaRuche à poser un emoji sur ton message. Désactivé par défaut : ça coûte du budget de prompt à chaque tour."
+  },
   "settings.allToolsDisabled": {
     "en": "All tools disabled",
     "fr": "Tous les outils désactivés"

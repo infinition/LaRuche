@@ -83,14 +83,22 @@
     });
   }
 
-  /* Draw the chosen reaction under the bubble, or remove the chip when cleared. */
+  /* Draw the chosen reaction under the bubble, or remove the chip when cleared.
+   *
+   * The chip lives INSIDE the reaction host, as a flex sibling of the trigger. It used
+   * to be dropped into the message wrapper while the trigger was absolutely positioned
+   * over the same spot, so a set reaction sat underneath the 🙂 button. Siblings in one
+   * flex row cannot overlap, whatever the message looks like. */
   function render(row, key){
     row.dataset.reaction = key || '';
-    var wrapper = row.querySelector('.message-wrapper') || row;
-    var chip = wrapper.querySelector('.reaction-chip');
+    ensureControls(row);
+    var host = row.querySelector('.reaction-host');
+    if(!host) return;
+    var chip = host.querySelector('.reaction-chip');
     if(!key){
       if(chip) chip.remove();
-      var tr0 = row.querySelector('.reaction-trigger');
+      host.classList.remove('has-chip');
+      var tr0 = host.querySelector('.reaction-trigger');
       if(tr0) tr0.setAttribute('aria-pressed','false');
       return;
     }
@@ -102,16 +110,16 @@
         ev.stopPropagation();
         send(row, row.dataset.reaction);   // clicking the chip clears it
       });
-      var ts = wrapper.querySelector('.msg-timestamp');
-      if(ts) wrapper.insertBefore(chip, ts); else wrapper.appendChild(chip);
+      host.appendChild(chip);
     }
+    host.classList.add('has-chip');
     chip.textContent = emojiFor(key) || key;
     chip.title = t('reactions.clear','Click to remove your reaction');
     chip.setAttribute('aria-label', t('reactions.clear','Click to remove your reaction'));
     chip.classList.remove('pop');
     void chip.offsetWidth;             // restart the animation on a re-pick
     chip.classList.add('pop');
-    var tr = row.querySelector('.reaction-trigger');
+    var tr = host.querySelector('.reaction-trigger');
     if(tr) tr.setAttribute('aria-pressed','true');
   }
 
@@ -189,9 +197,15 @@
     wrapper.appendChild(host);
   }
 
+  /* LaReine's own rows are excluded. `reine-row` carries her verdicts and her
+   * failure notices, not an answer from LaRuche: reacting to a verdict steers
+   * nothing, and offering to summon her on top of her own output is nonsense.
+   * `reine-rework-row` IS a real answer (LaRuche redoing the work at her request),
+   * so it keeps its controls. */
   function isAssistantRow(el){
     return el && el.classList && el.classList.contains('message-row')
         && el.classList.contains('assistant')
+        && !el.classList.contains('reine-row')
         && !el.classList.contains('assistant-intermediate')
         && !el.classList.contains('tool-row');
   }
