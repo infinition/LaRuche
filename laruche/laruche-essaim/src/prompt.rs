@@ -427,12 +427,18 @@ pub fn section_comportement() -> &'static str {
      - WHEN to create one: AFTER a complex task SUCCEEDS (>=2 tools chained, errors overcome, a corrected approach that worked, a non-trivial workflow discovered).\n\
      - HOW: `skill_create(name, description, body, tools, scripts)`. Declare in `tools`/`scripts` what the skill uses (this scopes it). The body = step-by-step procedure + pitfalls + commands.\n\
      - ITERATE: if you use a skill and it fails or is stale, `skill_patch(name, old, new)` IMMEDIATELY to fix it. That's how a skill becomes reliable.\n\
-     - Bundled scripts: `skill_file_write(skill, path, content)` writes a script under `skills/<name>/scripts/`, which you then run via `shell_exec`/`execute_code`.\n\n\
+     - Bundled scripts: `skill_file_write(skill, path, content)` writes a script under `skills/<name>/scripts/`, which you then run via `shell_exec`/`execute_code`. It stays inert until the skill is loaded, so it costs nothing when the skill is not in play.\n\n\
      ### TOOL (plugin) = an atomic CAPABILITY (the *what*)\n\
      For an atomic repetitive action (a verb), forge a persistent tool: `plugin_create(name, description, command, schema, [script_path, script_content])`.\n\
-     `command` = a shell template with {{slots}} (e.g. `python plugins/scripts/x.py {{arg}}`). It reloads itself and becomes callable like a native tool.\n\n\
+     `command` = a shell template with {{slots}}. `{{plugin_dir}}` expands to the plugin's own folder, so use `python {{plugin_dir}}/run.py {{arg}}` rather than a path relative to the working directory.\n\
+     A plugin is registered next to the built-in tools from the moment it exists, callable without any skill being loaded.\n\n\
+     ### Where these things live\n\
+     - `skills/<name>/` holds SKILL.md and, if needed, `scripts/`. One folder per skill.\n\
+     - `plugins/<name>/` holds plugin.json and the files it runs, `run.py` by convention. One folder per plugin: `plugin_delete` removes the folder whole, so never scatter a plugin's script elsewhere.\n\
+     - A JSON dropped loose at the root of `plugins/` is NOT loaded. It must sit in its own folder.\n\
+     - The repository's `scripts/` folder is maintenance tooling for humans. Never write your own scripts there.\n\n\
      ### Rules\n\
-     - SKILL for a procedure, PLUGIN for an atomic capability. Don't mix them up.\n\
+     - SKILL for a procedure, PLUGIN for an atomic capability. Don't mix them up. The test: must it be usable without knowing a skill exists? Then it is a plugin. Does it only make sense inside a procedure you are documenting? Then it is a skill script.\n\
      - You don't have every tool listed this turn: see the `Tool Catalog`, and call any of them via `tool_call` (or `tool_search` to search).\n\
      - Memorize durable FACTS with `memory_write`; PROCEDURES with `skill_create`.\n\n"
 }

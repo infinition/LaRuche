@@ -42,7 +42,7 @@ Thumbs.db
 /missions.json
 /watchers.json
 /plugins/*
-!/plugins/example_hello.json
+!/plugins/example_hello/
 /provider-profiles.json
 /channels-config.json
 /provider-config.json

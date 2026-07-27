@@ -8,10 +8,22 @@ use std::sync::Arc;
 
 // ======================== Plugins API ========================
 
+/// Manifest of a plugin: `plugins/<name>/plugin.json`. The name is a single path
+/// component, so a crafted one cannot climb out of plugins/.
+fn manifeste(name: &str) -> Option<std::path::PathBuf> {
+    if name.is_empty() || name.contains(['/', '\\', ':']) || name.contains("..") {
+        return None;
+    }
+    Some(laruche_essaim::abeilles::plugins::chemin_manifeste(
+        std::path::Path::new("plugins"),
+        name,
+    ))
+}
+
 pub(crate) async fn api_plugin_get(
     axum::extract::Path(name): axum::extract::Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let path = std::path::Path::new("plugins").join(format!("{}.json", name));
+    let path = manifeste(&name).ok_or(StatusCode::BAD_REQUEST)?;
     if !path.exists() {
         return Err(StatusCode::NOT_FOUND);
     }
@@ -27,8 +39,10 @@ pub(crate) async fn api_plugin_save(
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
     let content = body["content"].as_str().ok_or(StatusCode::BAD_REQUEST)?;
-    let path = std::path::Path::new("plugins").join(format!("{}.json", name));
-    tokio::fs::create_dir_all("plugins").await.ok();
+    let path = manifeste(&name).ok_or(StatusCode::BAD_REQUEST)?;
+    if let Some(dossier) = path.parent() {
+        tokio::fs::create_dir_all(dossier).await.ok();
+    }
     tokio::fs::write(&path, content)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -44,11 +58,14 @@ pub(crate) async fn api_plugin_delete(
     State(state): State<Arc<AppState>>,
     axum::extract::Path(name): axum::extract::Path<String>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
-    let path = std::path::Path::new("plugins").join(format!("{}.json", name));
-    if path.exists() {
-        tokio::fs::remove_file(&path)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // The folder is the plugin: manifest and scripts go together.
+    let path = manifeste(&name).ok_or(StatusCode::BAD_REQUEST)?;
+    if let Some(dossier) = path.parent() {
+        if dossier.is_dir() {
+            tokio::fs::remove_dir_all(dossier)
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        }
     }
 
     // Reload plugins
@@ -58,8 +75,8 @@ pub(crate) async fn api_plugin_delete(
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
-// ─── File browser for the plugins/ folder (+ scripts/) ──────────────────────────────
-// View/edit/delete/drop your own scripts (.py/.ps1/.sh/.json...) in addition to JSON.
+// ─── File browser for the plugins/ folder ───────────────────────────────────────────
+// View/edit/delete/drop any file under plugins/, one folder per plugin.
 // Anti-traversal guard: every path is confined to plugins/.
 
 /// Resolves a relative path INSIDE plugins/, rejecting any escape (`..`, absolute).

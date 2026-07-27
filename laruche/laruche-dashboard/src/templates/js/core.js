@@ -192,7 +192,9 @@ LaRuche.PluginFiles = (function(){
         '</div>'+
       '</div></div>';
     document.body.appendChild(ov);
-    // Drag and drop = upload into plugins/ (or plugins/scripts/ for .py/.sh/.ps1).
+    // Drag and drop = upload at the root of plugins/. A plugin is a folder, so a
+    // dropped script belongs to nothing yet: move it into plugins/<name>/ next to
+    // the plugin.json that runs it.
     var card=ov.firstChild;
     card.addEventListener('dragover', function(e){ e.preventDefault(); card.style.outline='2px dashed var(--amber)'; });
     card.addEventListener('dragleave', function(){ card.style.outline=''; });
@@ -247,8 +249,7 @@ LaRuche.PluginFiles = (function(){
     Array.prototype.forEach.call(files, function(file){
       var reader=new FileReader();
       reader.onload=function(){
-        var ext=(file.name.split('.').pop()||'').toLowerCase();
-        var dest=(['py','sh','ps1'].indexOf(ext)>=0 ? 'scripts/' : '')+file.name;
+        var dest=file.name;
         fetch('/api/plugin-file/'+dest.split('/').map(encodeURIComponent).join('/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content:reader.result})})
           .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('core.fileAdded',{dest:dest}),'ok'); refresh(); } else LaRuche.Toast.show(LaRuche.i18n.t('core.fileRejected',{name:file.name}),'err'); });
       };

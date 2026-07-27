@@ -148,8 +148,8 @@ Rules for the body:
 - **Never reference another agent's runtime.** No foreign home directory, no foreign
   environment variable, no foreign user-agent string. Those paths resolve to nothing on a
   LaRuche install, so the command fails for a reason no one reading the output can work
-  out. LaRuche's own: `skills/<name>/` for bundled files, `plugins/scripts/` for plugin
-  scripts, `LARUCHE_HOME` (defaulting to `~/.laruche`) for runtime state.
+  out. LaRuche's own: `skills/<name>/` for bundled files, `plugins/<name>/` for a plugin
+  and the scripts it runs, `LARUCHE_HOME` (defaulting to `~/.laruche`) for runtime state.
 - **Do not name another agent, anywhere.** Not in the body, not in a comment, not in a
   template that ends up in a pull request, not in a user-agent header. `check_skills.py`
   fails the build on it.

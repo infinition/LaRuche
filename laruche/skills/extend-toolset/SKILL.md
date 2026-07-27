@@ -71,14 +71,31 @@ from the list proves nothing and is expected.
 
 ## Creating a plugin
 
+A plugin is a folder. `plugin_create` writes `plugins/<name>/plugin.json`, and the script
+it runs sits beside it in the same folder:
+
+```
+plugins/
+  meteo/
+    plugin.json     the manifest: name, description, schema, command
+    run.py          the body the command runs
+```
+
+Manifest and body travel together, so `plugin_delete` removes both at once. Never put a
+plugin's script anywhere else.
+
 `plugin_create` requires `name`, `description` and `command`.
 
 - `command` is a shell template with `{{slots}}`, for example
-  `python plugins/scripts/meteo.py {{ville}}`.
+  `python "{{plugin_dir}}/run.py" {{ville}}`.
+- `{{plugin_dir}}` is filled in with the plugin's own folder. Use it for every path
+  inside the plugin, so the command works whatever directory the node was started from.
 - `schema` is a JSON Schema for the arguments. Every slot in the command must appear as a
   property. A slot with no matching property is never filled and the command runs
-  malformed.
+  malformed. `{{plugin_dir}}` is the exception: it is provided, never declared.
 - `script_path` plus `script_content` writes the backing script at the same time.
+  `script_path` is a bare file name such as `run.py`, not a path: it always lands in the
+  plugin's folder.
 
 Procedure:
 
@@ -116,8 +133,9 @@ Procedure:
   what is missing is knowing HOW to use it, write a skill. A plugin wrapping tools you
   already have adds a moving part and no capability.
 - **Relative paths in `command`.** They resolve against the server's working directory,
-  not the user's folder. Keep scripts under `plugins/scripts/` and reference them from
-  there.
+  not the user's folder. Use `{{plugin_dir}}` for anything inside the plugin.
+- **A JSON dropped loose at the root of `plugins/`.** It is not loaded. The node logs the
+  folder it should have gone into, and the tool simply never exists.
 
 ## Failure modes
 

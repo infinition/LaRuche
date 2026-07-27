@@ -87,12 +87,20 @@ something you will do once, stop here. Do not bundle or register it.
 
 **2. A script bundled in a skill.** Use `skill_file_write` with `path` under `scripts/`
 when the script IS the procedure: too long to inline, and only meaningful inside this
-skill. The skill body then says which script to run and with which arguments.
+skill. It lands in `skills/<name>/scripts/`, and the skill body then says which script to
+run and with which arguments. It stays inert until the skill is loaded, so it costs
+nothing on turns where the skill is not in play.
 
 **3. A registered tool.** When the capability is useful OUTSIDE this skill and you want
 to call it by name like any built-in, register it as a plugin with `plugin_create`, then
-`reload_plugins`. Full procedure in the extend-toolset skill. This is how a script you
-wrote today becomes a tool available on every future turn.
+`reload_plugins`. It lands in its own folder, `plugins/<name>/`, with the manifest and
+the script side by side, and it is callable from the moment it exists, with no skill
+loaded. Full procedure in the extend-toolset skill. This is how a script you wrote today
+becomes a tool available on every future turn.
+
+The test between 2 and 3: must it work without anyone knowing the skill exists? Then it
+is a plugin. Does it only make sense inside the procedure you are writing? Then it is a
+bundled script.
 
 Rules for anything you write, at every level:
 

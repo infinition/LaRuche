@@ -15,7 +15,7 @@ impl Abeille for ReloadPluginsTool {
     }
 
     fn description(&self) -> &str {
-        "Hot-reload the 'plugins/' and 'plugins/scripts/' directories. Call this immediately after creating or editing a plugin JSON file to make it available."
+        "Hot-reload the 'plugins/' directory, one folder per plugin. Call this immediately after creating or editing a plugins/<name>/plugin.json to make it available."
     }
 
     fn schema(&self) -> serde_json::Value {

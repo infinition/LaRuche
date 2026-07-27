@@ -200,18 +200,21 @@ impl Abeille for PluginCreate {
         "plugin_create"
     }
     fn description(&self) -> &str {
-        "Create a persistent tool (plugin) callable like any built-in. `command` = shell template \
-         with {{slots}} (e.g. 'python plugins/scripts/x.py {{arg}}'). `schema` = JSON Schema for \
-         the tool's arguments. Optional `script_path`+`script_content` to write the script inline. \
-         Hot-reloads automatically. For a PROCEDURE (not a tool), use skill_create."
+        "Create a persistent tool (plugin) callable like any built-in. Writes the folder \
+         plugins/<name>/, with plugin.json plus any script beside it. `command` = shell template \
+         with {{slots}}, where {{plugin_dir}} is the plugin's own folder (e.g. \
+         'python {{plugin_dir}}/run.py {{arg}}'). `schema` = JSON Schema for the tool's arguments. \
+         Optional `script_path`+`script_content` to write the script inline; script_path is a \
+         file name inside the plugin folder, not a path. Hot-reloads automatically. \
+         For a PROCEDURE (not a tool), use skill_create."
     }
     fn schema(&self) -> serde_json::Value {
         json!({"type":"object","properties":{
             "name":{"type":"string"},
             "description":{"type":"string"},
-            "command":{"type":"string","description":"shell template with {{slots}}"},
+            "command":{"type":"string","description":"shell template with {{slots}}; {{plugin_dir}} = the plugin folder"},
             "schema":{"type":"object","description":"JSON Schema for the tool's arguments"},
-            "script_path":{"type":"string","description":"optional: e.g. plugins/scripts/x.py"},
+            "script_path":{"type":"string","description":"optional: file name inside the plugin folder, e.g. run.py"},
             "script_content":{"type":"string","description":"optional: script source code"}
         },"required":["name","description","command"]})
     }
@@ -228,27 +231,38 @@ impl Abeille for PluginCreate {
             return Ok(ResultatAbeille::err("name required"));
         }
         let slug = slugify(name);
-        // Optional script (rejects ../).
-        if let (Some(sp), Some(sc)) = (args["script_path"].as_str(), args["script_content"].as_str()) {
-            if sp.contains("..") {
+        let racine = Path::new("plugins");
+        let dossier = crate::abeilles::plugins::dossier_plugin(racine, &slug);
+        if let Err(e) = std::fs::create_dir_all(&dossier) {
+            return Ok(ResultatAbeille::err(format!("Plugin folder failed: {e}")));
+        }
+
+        // The script lives beside its manifest. Only a bare file name is accepted:
+        // a path would let a plugin write outside its own folder.
+        if let (Some(sp), Some(sc)) = (args["script_path"].as_str(), args["script_content"].as_str())
+        {
+            let nom_fichier = Path::new(sp).file_name().map(|f| f.to_string_lossy().to_string());
+            let Some(nom_fichier) = nom_fichier else {
                 return Ok(ResultatAbeille::err("invalid script_path"));
+            };
+            if sp.contains("..") || nom_fichier != sp {
+                return Ok(ResultatAbeille::err(format!(
+                    "script_path must be a file name inside the plugin folder, not a path. \
+                     Use `{nom_fichier}`, it will be written to plugins/{slug}/{nom_fichier}."
+                )));
             }
-            let p = PathBuf::from(sp);
-            if let Some(parent) = p.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            if let Err(e) = std::fs::write(&p, sc) {
+            if let Err(e) = std::fs::write(dossier.join(&nom_fichier), sc) {
                 return Ok(ResultatAbeille::err(format!("Script write failed: {e}")));
             }
         }
+
         let def = json!({
             "name": name,
             "description": args["description"].as_str().unwrap_or(""),
             "parameters": args.get("schema").cloned().unwrap_or_else(|| json!({"type":"object","properties":{}})),
             "command": args["command"].as_str().unwrap_or(""),
         });
-        let _ = std::fs::create_dir_all("plugins");
-        let path = PathBuf::from("plugins").join(format!("{slug}.json"));
+        let path = crate::abeilles::plugins::chemin_manifeste(racine, &slug);
         if let Err(e) = std::fs::write(&path, serde_json::to_string_pretty(&def).unwrap_or_default()) {
             return Ok(ResultatAbeille::err(format!("Plugin write failed: {e}")));
         }
@@ -268,7 +282,7 @@ impl Abeille for PluginList {
         "plugin_list"
     }
     fn description(&self) -> &str {
-        "List all forged plugins present in plugins/*.json."
+        "List all forged plugins, one folder each under plugins/."
     }
     fn schema(&self) -> serde_json::Value {
         json!({"type":"object","properties":{}})
@@ -285,8 +299,8 @@ impl Abeille for PluginList {
         if let Ok(rd) = std::fs::read_dir("plugins") {
             for e in rd.flatten() {
                 let p = e.path();
-                if p.extension().map(|x| x == "json").unwrap_or(false) {
-                    if let Some(n) = p.file_stem() {
+                if p.is_dir() && p.join(crate::abeilles::plugins::MANIFESTE).exists() {
+                    if let Some(n) = p.file_name() {
                         out.push(n.to_string_lossy().to_string());
                     }
                 }
@@ -310,7 +324,8 @@ impl Abeille for PluginDelete {
         "plugin_delete"
     }
     fn description(&self) -> &str {
-        "Delete a plugin (plugins/<name>.json) and remove it from the registry."
+        "Delete a plugin: removes the whole plugins/<name>/ folder, manifest and scripts \
+         together, then drops it from the registry."
     }
     fn schema(&self) -> serde_json::Value {
         json!({"type":"object","properties":{"name":{"type":"string"}},"required":["name"]})
@@ -327,12 +342,24 @@ impl Abeille for PluginDelete {
         if slug.is_empty() {
             return Ok(ResultatAbeille::err("name required"));
         }
-        let path = PathBuf::from("plugins").join(format!("{slug}.json"));
-        let _ = std::fs::remove_file(&path);
+        // The folder is the plugin: removing it takes the manifest and the scripts
+        // it runs, which the flat layout used to leave behind.
+        let dossier = crate::abeilles::plugins::dossier_plugin(Path::new("plugins"), &slug);
+        if !dossier.is_dir() {
+            return Ok(ResultatAbeille::err(format!(
+                "No plugin `{slug}` (expected {}).",
+                dossier.display()
+            )));
+        }
+        if let Err(e) = std::fs::remove_dir_all(&dossier) {
+            return Ok(ResultatAbeille::err(format!("Delete failed: {e}")));
+        }
         // Clear custom plugins from the registry then reload the remaining ones.
         self.registry.supprimer_par_origine(ToolOrigin::Custom);
         crate::abeilles::charger_plugins(Path::new("plugins"), &self.registry);
-        Ok(ResultatAbeille::ok(format!("Plugin `{slug}` deleted.")))
+        Ok(ResultatAbeille::ok(format!(
+            "Plugin `{slug}` deleted with its folder."
+        )))
     }
 }
 
