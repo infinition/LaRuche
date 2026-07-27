@@ -1484,9 +1484,18 @@ async fn augmenter_ephemere_avec_skills(
     // catalog is always present, and the model pulls any other skill on demand via skill_view.
     // Eagerly injecting several bodies wasted context for little gain.
     let mut skills = recuperer_skills_pertinents(memoire, query, 1).await;
-    if intention_recherche(query) && !skills.iter().any(|(n, _)| n == "web_research") {
-        if let Some(body) = charger_skill_corps(memoire, "capacities.skills.web_research").await {
-            skills.insert(0, ("web_research".to_string(), body));
+    // The web-research skill, whichever separator its folder uses. The node id was
+    // hardcoded with an underscore, and `skill_node_id` PRESERVES hyphens: the day the
+    // folder was renamed `web-research`, the two stopped meeting and this injection
+    // silently became a no-op on every search. Candidates cover both spellings.
+    const SKILL_RECHERCHE: &str = "web-research";
+    let deja_la = |n: &str| n.replace('_', "-") == SKILL_RECHERCHE;
+    if intention_recherche(query) && !skills.iter().any(|(n, _)| deja_la(n)) {
+        for node in crate::abeilles::skill_node_id_candidates(SKILL_RECHERCHE) {
+            if let Some(body) = charger_skill_corps(memoire, &node).await {
+                skills.insert(0, (SKILL_RECHERCHE.to_string(), body));
+                break;
+            }
         }
     }
     formater_et_signaler_skills(&skills, ephemeral, tx)
