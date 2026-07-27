@@ -133,7 +133,8 @@ fn fuzzy_replace(
     let occurrences = fuzzy_occurrences(source, old);
     if occurrences.is_empty() {
         return Err(
-            "old_string not found, even after whitespace/quote normalization".to_string(),
+            "old_string not found, even after whitespace/quote normalization. If you              wanted to READ this file, the tool is file_read: file_edit only patches, it              never returns content."
+                .to_string(),
         );
     }
     if occurrences.len() > 1 && !replace_all {
@@ -411,6 +412,15 @@ impl Abeille for FileEdit {
             return Ok(ResultatAbeille::err("old_string is empty"));
         }
         let path = Path::new(path_str);
+        // A directory here means the model reached for the wrong tool. Left alone the OS
+        // answers "Access denied", which reads like a permission problem and sends it
+        // hunting for rights it already has, instead of at file_list.
+        if path.is_dir() {
+            return Ok(ResultatAbeille::err(format!(
+                "'{path_str}' is a DIRECTORY, not a file. file_edit patches one file. To see \
+                 what is inside, use file_list; to read a file, use file_read."
+            )));
+        }
         let timestamp_warning = match check_timestamp_lock(path) {
             Ok(warning) => warning,
             Err(e) => return Ok(ResultatAbeille::err(e.to_string())),
@@ -425,7 +435,7 @@ impl Abeille for FileEdit {
         };
         if count == 0 {
             return Ok(ResultatAbeille::err(
-                "old_string not found - copy the exact text (indentation included)",
+                "old_string not found - copy the exact text (indentation included). If you                  wanted to READ this file, the tool is file_read: file_edit only patches, it                  never returns content.",
             ));
         }
         if count > 1 && !replace_all {

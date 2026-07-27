@@ -120,3 +120,35 @@ mod tests {
         assert!(!ctx2.contains("[opening request]"), "{ctx2}");
     }
 }
+
+#[cfg(test)]
+mod tests_outils {
+    use crate::abeille::{Abeille, ContextExecution};
+    use crate::abeilles::fichiers::FileEdit;
+
+    /// The trace that started the six-round loop: the model wanted to READ a file and
+    /// emitted file_edit instead, eight times in a row. Neither error said which tool
+    /// it should have used, so nothing broke the cycle.
+    #[tokio::test]
+    async fn file_edit_oriente_vers_file_read_et_file_list() {
+        let ctx = ContextExecution::default();
+
+        // A directory. The OS answered "Access denied", which reads like a rights
+        // problem and sends the model hunting for permissions it already has.
+        let sur_dossier = FileEdit
+            .executer(
+                serde_json::json!({
+                    "path": ".",
+                    "old_string": "a",
+                    "new_string": "b"
+                }),
+                &ctx,
+            )
+            .await
+            .unwrap();
+        let txt = format!("{sur_dossier:?}");
+        assert!(txt.contains("DIRECTORY"), "{txt}");
+        assert!(txt.contains("file_list"), "{txt}");
+        assert!(txt.contains("file_read"), "{txt}");
+    }
+}

@@ -286,6 +286,15 @@ pub async fn revue_et_refaire(
             .unwrap_or(600),
     );
 
+    // Consecutive rounds that failed to improve the score. Observed live: a worker
+    // stuck calling the wrong tool was sent back SIX times, each round a full agentic
+    // run, because the only stop conditions were the time budget and the round cap.
+    // A rework that does not move the score twice in a row is not going to move it a
+    // third time; the judge is talking to a worker that cannot hear her.
+    let mut sans_progres: u8 = 0;
+    let mut derniers_scores: Option<u8> = None;
+    const STAGNATION_MAX: u8 = 2;
+
     loop {
         // COURT-CIRCUIT : le brouillon est une erreur système, pas du travail. Inutile de payer
         // un appel juge ou des redos contre un provider en panne - on signale et on sort.
@@ -329,9 +338,24 @@ pub async fn revue_et_refaire(
         if meilleur.1.is_empty() || score_courant >= meilleur.0 {
             meilleur = (score_courant, answer.clone());
         }
+        // Strictly better, or we are going nowhere.
+        if reine.regression(score_courant) || Some(score_courant) == derniers_scores {
+            sans_progres = sans_progres.saturating_add(1);
+        } else {
+            sans_progres = 0;
+        }
+        derniers_scores = Some(score_courant);
 
         match reine.juger(&card) {
             Action::Reviser { tour, instruction } => {
+                if sans_progres >= STAGNATION_MAX {
+                    answer = meilleur.1.clone();
+                    journal.push(format!(
+                        "LaReine: {STAGNATION_MAX} rounds without progress (score stuck at                          {score_courant}); keeping the best draft and stopping rather than                          sending the same work back again"
+                    ));
+                    carte_finale = Some(card.clone());
+                    break;
+                }
                 if debut.elapsed() >= budget {
                     if reine.regression(score_courant) {
                         answer = meilleur.1.clone();
