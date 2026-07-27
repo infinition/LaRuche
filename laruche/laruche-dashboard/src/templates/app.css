@@ -2210,3 +2210,16 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 @media (hover:none){
   .reine-call-btn { opacity:.75; transform:none; pointer-events:auto; }
 }
+
+/* The agent's own reaction, under the USER's bubble: the mirror of the reaction the
+   user can leave on an answer. Off by default, see `reactions_agent`. */
+.message-row.user .agent-reaction-chip,
+.message-row.steer .agent-reaction-chip {
+  margin-top:5px; margin-left:auto; padding:2px 8px;
+  display:inline-flex; align-items:center; width:fit-content;
+  font-size:13px; line-height:1.5;
+  border:1px solid var(--border); border-radius:999px;
+  background:var(--bg-card);
+}
+.agent-reaction-chip.pop { animation:reactionPop .34s cubic-bezier(.2,.9,.3,1.5); }
+@media (prefers-reduced-motion:reduce){ .agent-reaction-chip.pop { animation:none; } }

@@ -129,3 +129,127 @@ mod tests {
         assert!(est_connue("up"));
     }
 }
+
+/// Prefix the agent uses to leave a reaction on the user's message.
+pub const MARQUEUR: &str = ">>";
+
+/// The instruction added to the prompt when `reactions_agent` is on. Nothing is added
+/// when it is off, which is the default: this costs budget on every single turn.
+pub fn consigne_prompt() -> String {
+    let cles: Vec<&str> = REACTIONS.iter().map(|r| r.cle).collect();
+    format!(
+        "## Reacting to the user (optional)\n\
+         You may leave ONE emoji reaction on the user's message. Write `{MARQUEUR}<key>` \
+         on its OWN LINE, as the very first or very last line of your reply, and nothing \
+         else on that line. Keys: {}. It is removed before display, so never mention it \
+         and never put it inside a sentence, a code block or a tool call. Use it only \
+         when it genuinely adds something; no reaction is the normal case.",
+        cles.join(", ")
+    )
+}
+
+/// Strip the agent's reaction marker from an answer.
+///
+/// Returns the cleaned text and the key, when a VALID one was found. Deliberately
+/// strict, because everything here is a way for a marker to reach the user's screen:
+/// the line must be the first or the last, must hold nothing else, and must carry a
+/// key we defined. A `>>thumbup` in the middle of a paragraph is prose, not a
+/// reaction, and is left exactly where the model put it.
+pub fn extraire_reaction(texte: &str) -> (String, Option<String>) {
+    let lignes: Vec<&str> = texte.lines().collect();
+    if lignes.is_empty() {
+        return (texte.to_string(), None);
+    }
+    let cle_de = |l: &str| -> Option<String> {
+        let t = l.trim();
+        let reste = t.strip_prefix(MARQUEUR)?.trim();
+        // One token only: `>>up` is a reaction, `>>up and here is why` is a sentence.
+        if reste.is_empty() || reste.split_whitespace().count() != 1 {
+            return None;
+        }
+        let cle = reste.trim_end_matches(['.', ',', '!', ':', ';']).to_lowercase();
+        est_connue(&cle).then_some(cle)
+    };
+
+    let mut restantes = lignes.clone();
+    let mut trouvee = None;
+    // First line, then last. Only ONE is honoured: a model that stamped both is
+    // guessing rather than reacting.
+    if let Some(cle) = cle_de(restantes[0]) {
+        trouvee = Some(cle);
+        restantes.remove(0);
+    } else if restantes.len() > 1 {
+        if let Some(cle) = cle_de(restantes[restantes.len() - 1]) {
+            trouvee = Some(cle);
+            restantes.pop();
+        }
+    }
+    if trouvee.is_none() {
+        return (texte.to_string(), None);
+    }
+    (restantes.join("\n").trim().to_string(), trouvee)
+}
+
+#[cfg(test)]
+mod tests_agent {
+    use super::*;
+
+    #[test]
+    fn un_marqueur_en_tete_ou_en_queue_est_retire_du_texte_affiche() {
+        let (t, c) = extraire_reaction(">>haha\nBien vu, c'est drole.");
+        assert_eq!(c.as_deref(), Some("haha"));
+        assert_eq!(t, "Bien vu, c'est drole.");
+
+        let (t, c) = extraire_reaction("Voila le resultat.\n>>up");
+        assert_eq!(c.as_deref(), Some("up"));
+        assert_eq!(t, "Voila le resultat.");
+
+        // Trailing punctuation is a model being a model, not a different key.
+        let (_, c) = extraire_reaction(">>wow.\ntexte");
+        assert_eq!(c.as_deref(), Some("wow"));
+    }
+
+    #[test]
+    fn un_marqueur_au_milieu_dune_phrase_reste_du_texte() {
+        // The whole point of the strictness: this must reach the user untouched
+        // rather than being silently eaten as a reaction.
+        let brut = "Le pouce >>up sert a valider.";
+        let (t, c) = extraire_reaction(brut);
+        assert_eq!(c, None);
+        assert_eq!(t, brut);
+
+        // A line that starts with the marker but says more is prose too.
+        let brut2 = ">>up and here is why it works";
+        let (t2, c2) = extraire_reaction(brut2);
+        assert_eq!(c2, None);
+        assert_eq!(t2, brut2);
+    }
+
+    #[test]
+    fn une_cle_inventee_nest_jamais_retiree() {
+        // A hallucinated key must stay visible: silently swallowing it would hide the
+        // fact that the model is emitting markers we never defined.
+        let brut = ">>thumbsup\ntexte";
+        let (t, c) = extraire_reaction(brut);
+        assert_eq!(c, None);
+        assert_eq!(t, brut);
+    }
+
+    #[test]
+    fn un_seul_marqueur_est_honore() {
+        let (t, c) = extraire_reaction(">>up\nmilieu\n>>down");
+        assert_eq!(c.as_deref(), Some("up"));
+        // The second one stays in the text: it is evidence of a model guessing, and
+        // hiding it would make that invisible.
+        assert!(t.contains(">>down"), "{t}");
+    }
+
+    #[test]
+    fn un_texte_ordinaire_traverse_intact() {
+        let brut = "Reponse normale sans aucun marqueur.";
+        let (t, c) = extraire_reaction(brut);
+        assert_eq!(c, None);
+        assert_eq!(t, brut);
+        assert!(consigne_prompt().contains("confused"));
+    }
+}

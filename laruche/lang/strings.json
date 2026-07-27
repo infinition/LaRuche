@@ -351,6 +351,10 @@
     "en": "Zoom",
     "fr": "Zoom"
   },
+  "boot.starting": {
+    "en": "LaRuche is starting…",
+    "fr": "LaRuche démarre…"
+  },
   "capabilities.active": {
     "en": "● active",
     "fr": "● actif"
@@ -1294,6 +1298,10 @@
   "console.warnings": {
     "en": "Warnings",
     "fr": "Avertissements"
+  },
+  "console.zeroEntries": {
+    "en": "0 entries",
+    "fr": "0 entrées"
   },
   "core.agentFinishedToast": {
     "en": "Agent finished: {preview}",
@@ -2475,6 +2483,10 @@
     "en": "Planning Prompt",
     "fr": "Prompt Planification"
   },
+  "memory.titleReine": {
+    "en": "LaReine Prompt",
+    "fr": "Prompt LaReine"
+  },
   "memory.titleSoul": {
     "en": "SOUL: personality",
     "fr": "SOUL : personnalité"
@@ -2698,6 +2710,358 @@
   "nav.settings": {
     "en": "Settings",
     "fr": "Paramètres"
+  },
+  "reactions.clear": {
+    "en": "Click to remove your reaction",
+    "fr": "Cliquer pour retirer ta réaction"
+  },
+  "reactions.confused": {
+    "en": "I did not understand",
+    "fr": "Je n'ai pas compris"
+  },
+  "reactions.down": {
+    "en": "Wrong approach, change method",
+    "fr": "Mauvaise approche, change de méthode"
+  },
+  "reactions.failed": {
+    "en": "Reaction not saved",
+    "fr": "Réaction non enregistrée"
+  },
+  "reactions.fromAgent": {
+    "en": "LaRuche reacted to your message",
+    "fr": "LaRuche a réagi à ton message"
+  },
+  "reactions.haha": {
+    "en": "Funny",
+    "fr": "Drôle"
+  },
+  "reactions.love": {
+    "en": "Excellent",
+    "fr": "Excellent"
+  },
+  "reactions.react": {
+    "en": "React to this answer",
+    "fr": "Réagir à cette réponse"
+  },
+  "reactions.up": {
+    "en": "Good answer",
+    "fr": "Bonne réponse"
+  },
+  "reactions.wow": {
+    "en": "Surprising",
+    "fr": "Surprenant"
+  },
+  "reine.analysis": {
+    "en": "Her reasoning",
+    "fr": "Son raisonnement"
+  },
+  "reine.appelFailed": {
+    "en": "LaReine could not deliver a verdict.",
+    "fr": "LaReine n'a pas pu rendre de verdict."
+  },
+  "reine.applyInstruction": {
+    "en": "Send it back with this",
+    "fr": "Renvoyer au travail avec ça"
+  },
+  "reine.brand": {
+    "en": "Brand",
+    "fr": "Marque"
+  },
+  "reine.confidenceHint": {
+    "en": "In Hybrid mode, escalate to you below this confidence.",
+    "fr": "En mode Hybride, escalade vers vous en dessous de cette confiance."
+  },
+  "reine.confidenceThreshold": {
+    "en": "Escalation confidence threshold",
+    "fr": "Seuil de confiance d'escalade"
+  },
+  "reine.contextMessages": {
+    "en": "Context turns",
+    "fr": "Messages de contexte"
+  },
+  "reine.contextMessagesHint": {
+    "en": "How many earlier conversation turns LaReine sees when reviewing (0 = only the current request, up to 20). More context = better judgment on follow-up questions.",
+    "fr": "Combien de tours de conversation précédents LaReine voit lors de la revue (0 = seulement la requête courante, jusqu'à 20). Plus de contexte = meilleur jugement sur les questions de suivi."
+  },
+  "reine.crownTitle": {
+    "en": "LaReine: {mode}",
+    "fr": "LaReine : {mode}"
+  },
+  "reine.disableNotice": {
+    "en": "LaReine disabled. {n} proposals remain pending (Memory > Pending). New writes apply directly.",
+    "fr": "Reine désactivée. {n} propositions restent en attente (Mémoire > En attente). Les nouvelles écritures s'appliquent directement."
+  },
+  "reine.instruction": {
+    "en": "What she asks for:",
+    "fr": "Ce qu'elle demande :"
+  },
+  "reine.judgeDistinctHint": {
+    "en": "Tip: pick a judge DIFFERENT from the chat model. A model judging its own output approves itself too easily; a distinct judge (even a small one) catches more.",
+    "fr": "Conseil : choisis un juge DIFFERENT du modele de chat. Un modele qui juge sa propre production s’auto-approuve trop facilement ; un juge distinct (meme petit) attrape plus de choses."
+  },
+  "reine.label": {
+    "en": "LaReine",
+    "fr": "LaReine"
+  },
+  "reine.maxReviews": {
+    "en": "Max reworks",
+    "fr": "Re-runs max"
+  },
+  "reine.maxReviewsHint": {
+    "en": "0 = off, up to 10, or Unlimited (rework until the answer passes; handy for experimenting with a local model). Each rework sends the worker back to redo the work; she stops as soon as the answer passes.",
+    "fr": "0 = off, jusqu'à 10, ou Illimité (re-run jusqu'à ce que la réponse passe; pratique pour experimenter avec un modèle local). Chaque re-run renvoie l'abeille refaire le travail; elle s'arrête dès que la réponse passe."
+  },
+  "reine.method": {
+    "en": "Method",
+    "fr": "Méthode"
+  },
+  "reine.methodologyTrace": {
+    "en": "Methodology",
+    "fr": "Méthodologie"
+  },
+  "reine.modeAuto": {
+    "en": "Autonomous",
+    "fr": "Autonome"
+  },
+  "reine.modeHumaine": {
+    "en": "Human in the loop",
+    "fr": "Humaine"
+  },
+  "reine.modeHybride": {
+    "en": "Hybrid",
+    "fr": "Hybride"
+  },
+  "reine.modeLabel": {
+    "en": "Mode",
+    "fr": "Mode"
+  },
+  "reine.modeOff": {
+    "en": "Off",
+    "fr": "Off"
+  },
+  "reine.objective": {
+    "en": "Objective",
+    "fr": "Objectif"
+  },
+  "reine.providerHint": {
+    "en": "Model used to judge, can differ from the worker model.",
+    "fr": "Modèle utilisé pour juger, peut différer du modèle de travail."
+  },
+  "reine.providerLabel": {
+    "en": "LaReine provider",
+    "fr": "Provider LaReine"
+  },
+  "reine.providerSame": {
+    "en": "Same as worker model",
+    "fr": "Identique au modèle de travail"
+  },
+  "reine.queueApplySafe": {
+    "en": "Apply all safe",
+    "fr": "Tout appliquer (sûr)"
+  },
+  "reine.queueApplySafeHint": {
+    "en": "Approve every safe addition (new, non-colliding facts) at once.",
+    "fr": "Approuver d'un coup tous les ajouts sûrs (faits nouveaux, sans collision)."
+  },
+  "reine.queueApprove": {
+    "en": "Approve",
+    "fr": "Approuver"
+  },
+  "reine.queueEmpty": {
+    "en": "No pending proposals",
+    "fr": "Aucune proposition en attente"
+  },
+  "reine.queueGate": {
+    "en": "Queue memory changes for review",
+    "fr": "Mettre les changements mémoire en file pour revue"
+  },
+  "reine.queueGateHint": {
+    "en": "When on, agent memory writes wait for approval. Disabling keeps the backlog; new writes apply directly.",
+    "fr": "Activé, les écritures mémoire des agents attendent une validation. Désactiver garde le backlog ; les nouvelles écritures s'appliquent directement."
+  },
+  "reine.queueInMemory": {
+    "en": "Reviewed in the Memory tab",
+    "fr": "Gérées dans l'onglet Mémoire"
+  },
+  "reine.queueProvenance": {
+    "en": "Proposed by {who}",
+    "fr": "Proposé par {who}"
+  },
+  "reine.queueReject": {
+    "en": "Reject",
+    "fr": "Rejeter"
+  },
+  "reine.queueTitle": {
+    "en": "Pending proposals",
+    "fr": "Propositions en attente"
+  },
+  "reine.queueVoirTout": {
+    "en": "Click to show the full proposed content",
+    "fr": "Cliquer pour voir le contenu propose complet"
+  },
+  "reine.redoing": {
+    "en": "LaRuche is redoing the work",
+    "fr": "LaRuche refait le travail"
+  },
+  "reine.relevance": {
+    "en": "Relevance",
+    "fr": "Pertinence"
+  },
+  "reine.reviewing": {
+    "en": "LaReine is reviewing the answer",
+    "fr": "LaReine relit la réponse"
+  },
+  "reine.revised": {
+    "en": "Redone by LaRuche at LaReine's request",
+    "fr": "Refait par LaRuche sur demande de LaReine"
+  },
+  "reine.riskCritical": {
+    "en": "Critical",
+    "fr": "Critique"
+  },
+  "reine.riskSafe": {
+    "en": "Safe",
+    "fr": "Sûr"
+  },
+  "reine.riskSensitive": {
+    "en": "Sensitive",
+    "fr": "Sensible"
+  },
+  "reine.scoreAucune": {
+    "en": "No review recorded yet (the journal fills up as LaReine judges).",
+    "fr": "Aucune revue enregistree pour le moment (le journal se remplit au fil des jugements)."
+  },
+  "reine.scoreBrand": {
+    "en": "Brand compliance",
+    "fr": "Conformité marque"
+  },
+  "reine.scoreConfiance": {
+    "en": "Confidence",
+    "fr": "Confiance"
+  },
+  "reine.scoreMarque": {
+    "en": "Brand",
+    "fr": "Marque"
+  },
+  "reine.scoreMethod": {
+    "en": "Methodology",
+    "fr": "Méthodologie"
+  },
+  "reine.scoreMethodo": {
+    "en": "Methodology",
+    "fr": "Methodologie"
+  },
+  "reine.scoreObjectif": {
+    "en": "Objective",
+    "fr": "Objectif"
+  },
+  "reine.scoreObjective": {
+    "en": "Objective",
+    "fr": "Objectif"
+  },
+  "reine.scorePertinence": {
+    "en": "Relevance",
+    "fr": "Pertinence"
+  },
+  "reine.scoreRefaits": {
+    "en": "{n} redone",
+    "fr": "{n} refaits"
+  },
+  "reine.scoreRelevance": {
+    "en": "Relevance",
+    "fr": "Pertinence"
+  },
+  "reine.scoreRevues": {
+    "en": "reviews",
+    "fr": "revues"
+  },
+  "reine.scoreTitre": {
+    "en": "Scorecards - review history",
+    "fr": "Scorecards - historique des revues"
+  },
+  "reine.scoreTours": {
+    "en": "avg rework rounds: {n}",
+    "fr": "tours de revision moyens : {n}"
+  },
+  "reine.seeReasoning": {
+    "en": "Click to see LaReine's reasoning",
+    "fr": "Cliquer pour voir le raisonnement de LaReine"
+  },
+  "reine.sentBack": {
+    "en": "LaReine sent it back to redo",
+    "fr": "LaReine la renvoie bosser"
+  },
+  "reine.settingsDesc": {
+    "en": "An optional Queen that reviews answers and artifacts, and can steer the swarm.",
+    "fr": "Une Reine optionnelle qui relit les réponses et les artefacts, et peut orienter l'essaim."
+  },
+  "reine.settingsTitle": {
+    "en": "LaReine (supervisor)",
+    "fr": "LaReine (superviseur)"
+  },
+  "reine.statusApproved": {
+    "en": "Approved",
+    "fr": "Approuvé"
+  },
+  "reine.statusExpired": {
+    "en": "Expired",
+    "fr": "Périmé"
+  },
+  "reine.statusPending": {
+    "en": "Pending",
+    "fr": "En attente"
+  },
+  "reine.statusRejected": {
+    "en": "Rejected",
+    "fr": "Rejeté"
+  },
+  "reine.statusStale": {
+    "en": "Needs re-review",
+    "fr": "À re-revoir"
+  },
+  "reine.summon": {
+    "en": "Ask LaReine to review this",
+    "fr": "Demander à LaReine d'évaluer"
+  },
+  "reine.thinking": {
+    "en": "LaReine is reading the conversation...",
+    "fr": "LaReine lit la conversation..."
+  },
+  "reine.tier1": {
+    "en": "Review chat answers",
+    "fr": "Relire les réponses du chat"
+  },
+  "reine.tier2": {
+    "en": "Review self-created skills and tools",
+    "fr": "Relire les skills et tools auto-créés"
+  },
+  "reine.tier3": {
+    "en": "Supervision (anti-stall)",
+    "fr": "Supervision (anti-blocage)"
+  },
+  "reine.tier3Warn": {
+    "en": "LaReine watches a running task and, if it stops advancing its plan for several steps, nudges it back on track, then escalates to you if it stays stuck. Off by default.",
+    "fr": "LaReine surveille une tache en cours et, si elle cesse d'avancer son plan pendant plusieurs etapes, la recentre, puis t'escalade si elle reste bloquee. Desactive par defaut."
+  },
+  "reine.toggleTitle": {
+    "en": "LaReine supervision",
+    "fr": "Supervision LaReine"
+  },
+  "reine.unlimited": {
+    "en": "Unlimited",
+    "fr": "Illimité"
+  },
+  "reine.verdictApproved": {
+    "en": "Approved by LaReine",
+    "fr": "Approuvé par LaReine"
+  },
+  "reine.verdictEscalated": {
+    "en": "LaReine escalated to you",
+    "fr": "LaReine vous a transmis la décision"
+  },
+  "reine.verdictRevising": {
+    "en": "LaReine requested a revision (round {tour})",
+    "fr": "LaReine a demandé une révision (tour {tour})"
   },
   "settings.accessBtn": {
     "en": "🔐 Access",
@@ -4283,6 +4647,98 @@
     "en": "Webhooks",
     "fr": "Webhooks"
   },
+  "settings.wfAbsent": {
+    "en": "file absent",
+    "fr": "fichier absent"
+  },
+  "settings.wfAction": {
+    "en": "Action (prompt)",
+    "fr": "Action (prompt)"
+  },
+  "settings.wfCondHint": {
+    "en": "empty = fire on every change",
+    "fr": "vide = declenche a chaque changement"
+  },
+  "settings.wfCondition": {
+    "en": "Condition (LLM gate)",
+    "fr": "Condition (gate LLM)"
+  },
+  "settings.wfCooldown": {
+    "en": "Cooldown",
+    "fr": "Cooldown"
+  },
+  "settings.wfCooldownHint": {
+    "en": "min seconds between fires",
+    "fr": "secondes min entre deux tirs"
+  },
+  "settings.wfDeliver": {
+    "en": "Deliver",
+    "fr": "Livraison"
+  },
+  "settings.wfDown": {
+    "en": "DOWN",
+    "fr": "HORS LIGNE"
+  },
+  "settings.wfEvery": {
+    "en": "Every",
+    "fr": "Toutes les"
+  },
+  "settings.wfEveryHint": {
+    "en": "seconds (empty = default)",
+    "fr": "secondes (vide = defaut)"
+  },
+  "settings.wfLoop": {
+    "en": "back to observe (loop)",
+    "fr": "retour a l observation (boucle)"
+  },
+  "settings.wfName": {
+    "en": "Name",
+    "fr": "Nom"
+  },
+  "settings.wfNoBaseline": {
+    "en": "no observation yet",
+    "fr": "pas encore d observation"
+  },
+  "settings.wfObserve": {
+    "en": "Observe",
+    "fr": "Observer"
+  },
+  "settings.wfPattern": {
+    "en": "Pattern (substring)",
+    "fr": "Motif (sous-chaine)"
+  },
+  "settings.wfPause": {
+    "en": "Pause",
+    "fr": "Mettre en pause"
+  },
+  "settings.wfPresent": {
+    "en": "file present",
+    "fr": "fichier present"
+  },
+  "settings.wfRegles": {
+    "en": "Compiled rules",
+    "fr": "Regles compilees"
+  },
+  "settings.wfReglesHint": {
+    "en": "Deterministic tree, free at runtime; only llm_check costs a call. Empty = back to text condition.",
+    "fr": "Arbre deterministe, gratuit a l execution ; seul llm_check coute un appel. Vide = retour a la condition texte."
+  },
+  "settings.wfReglesInvalid": {
+    "en": "Invalid rules JSON",
+    "fr": "JSON de regles invalide"
+  },
+  "settings.wfResume": {
+    "en": "Resume",
+    "fr": "Reactiver"
+  },
+  "settings.wfSustained": {
+    "en": "keep firing while it lasts",
+    "fr": "re-declenche tant que ca dure"
+  },
+  "settings.wfUp": {
+    "en": "up",
+    "fr": "en ligne"
+  },
   "shell.askPlaceholder": {
     "en": "Ask LaRuche…",
     "fr": "Demander à LaRuche…"
@@ -4638,381 +5094,5 @@
   "toast.saved": {
     "en": "Saved",
     "fr": "Enregistré"
-  },
-  "console.zeroEntries": {
-    "en": "0 entries",
-    "fr": "0 entrées"
-  },
-  "reine.label": {
-    "en": "LaReine",
-    "fr": "LaReine"
-  },
-  "reine.toggleTitle": {
-    "en": "LaReine supervision",
-    "fr": "Supervision LaReine"
-  },
-  "reine.settingsTitle": {
-    "en": "LaReine (supervisor)",
-    "fr": "LaReine (superviseur)"
-  },
-  "reine.settingsDesc": {
-    "en": "An optional Queen that reviews answers and artifacts, and can steer the swarm.",
-    "fr": "Une Reine optionnelle qui relit les réponses et les artefacts, et peut orienter l'essaim."
-  },
-  "reine.modeLabel": {
-    "en": "Mode",
-    "fr": "Mode"
-  },
-  "reine.modeOff": {
-    "en": "Off",
-    "fr": "Off"
-  },
-  "reine.modeAuto": {
-    "en": "Autonomous",
-    "fr": "Autonome"
-  },
-  "reine.modeHybride": {
-    "en": "Hybrid",
-    "fr": "Hybride"
-  },
-  "reine.modeHumaine": {
-    "en": "Human in the loop",
-    "fr": "Humaine"
-  },
-  "reine.maxReviews": {
-    "en": "Max reworks",
-    "fr": "Re-runs max"
-  },
-  "reine.maxReviewsHint": {
-    "en": "0 = off, up to 10, or Unlimited (rework until the answer passes; handy for experimenting with a local model). Each rework sends the worker back to redo the work; she stops as soon as the answer passes.",
-    "fr": "0 = off, jusqu'à 10, ou Illimité (re-run jusqu'à ce que la réponse passe; pratique pour experimenter avec un modèle local). Chaque re-run renvoie l'abeille refaire le travail; elle s'arrête dès que la réponse passe."
-  },
-  "reine.unlimited": {
-    "en": "Unlimited",
-    "fr": "Illimité"
-  },
-  "reine.contextMessages": {
-    "en": "Context turns",
-    "fr": "Messages de contexte"
-  },
-  "reine.contextMessagesHint": {
-    "en": "How many earlier conversation turns LaReine sees when reviewing (0 = only the current request, up to 20). More context = better judgment on follow-up questions.",
-    "fr": "Combien de tours de conversation précédents LaReine voit lors de la revue (0 = seulement la requête courante, jusqu'à 20). Plus de contexte = meilleur jugement sur les questions de suivi."
-  },
-  "reine.providerLabel": {
-    "en": "LaReine provider",
-    "fr": "Provider LaReine"
-  },
-  "reine.providerHint": {
-    "en": "Model used to judge, can differ from the worker model.",
-    "fr": "Modèle utilisé pour juger, peut différer du modèle de travail."
-  },
-  "reine.confidenceThreshold": {
-    "en": "Escalation confidence threshold",
-    "fr": "Seuil de confiance d'escalade"
-  },
-  "reine.confidenceHint": {
-    "en": "In Hybrid mode, escalate to you below this confidence.",
-    "fr": "En mode Hybride, escalade vers vous en dessous de cette confiance."
-  },
-  "reine.tier1": {
-    "en": "Review chat answers",
-    "fr": "Relire les réponses du chat"
-  },
-  "reine.tier2": {
-    "en": "Review self-created skills and tools",
-    "fr": "Relire les skills et tools auto-créés"
-  },
-  "reine.tier3": {
-    "en": "Supervision (anti-stall)",
-    "fr": "Supervision (anti-blocage)"
-  },
-  "reine.tier3Warn": {
-    "en": "LaReine watches a running task and, if it stops advancing its plan for several steps, nudges it back on track, then escalates to you if it stays stuck. Off by default.",
-    "fr": "LaReine surveille une tache en cours et, si elle cesse d'avancer son plan pendant plusieurs etapes, la recentre, puis t'escalade si elle reste bloquee. Desactive par defaut."
-  },
-  "reine.verdictApproved": {
-    "en": "Approved by LaReine",
-    "fr": "Approuvé par LaReine"
-  },
-  "reine.verdictRevising": {
-    "en": "LaReine requested a revision (round {tour})",
-    "fr": "LaReine a demandé une révision (tour {tour})"
-  },
-  "reine.verdictEscalated": {
-    "en": "LaReine escalated to you",
-    "fr": "LaReine vous a transmis la décision"
-  },
-  "reine.scoreRelevance": {
-    "en": "Relevance",
-    "fr": "Pertinence"
-  },
-  "reine.scoreMethod": {
-    "en": "Methodology",
-    "fr": "Méthodologie"
-  },
-  "reine.scoreObjective": {
-    "en": "Objective",
-    "fr": "Objectif"
-  },
-  "reine.scoreBrand": {
-    "en": "Brand compliance",
-    "fr": "Conformité marque"
-  },
-  "reine.methodologyTrace": {
-    "en": "Methodology",
-    "fr": "Méthodologie"
-  },
-  "reine.queueTitle": {
-    "en": "Pending proposals",
-    "fr": "Propositions en attente"
-  },
-  "reine.queueGate": {
-    "en": "Queue memory changes for review",
-    "fr": "Mettre les changements mémoire en file pour revue"
-  },
-  "reine.queueGateHint": {
-    "en": "When on, agent memory writes wait for approval. Disabling keeps the backlog; new writes apply directly.",
-    "fr": "Activé, les écritures mémoire des agents attendent une validation. Désactiver garde le backlog ; les nouvelles écritures s'appliquent directement."
-  },
-  "reine.disableNotice": {
-    "en": "LaReine disabled. {n} proposals remain pending (Memory > Pending). New writes apply directly.",
-    "fr": "Reine désactivée. {n} propositions restent en attente (Mémoire > En attente). Les nouvelles écritures s'appliquent directement."
-  },
-  "reine.queueEmpty": {
-    "en": "No pending proposals",
-    "fr": "Aucune proposition en attente"
-  },
-  "reine.queueProvenance": {
-    "en": "Proposed by {who}",
-    "fr": "Proposé par {who}"
-  },
-  "reine.queueApprove": {
-    "en": "Approve",
-    "fr": "Approuver"
-  },
-  "reine.queueReject": {
-    "en": "Reject",
-    "fr": "Rejeter"
-  },
-  "reine.queueApplySafe": {
-    "en": "Apply all safe",
-    "fr": "Tout appliquer (sûr)"
-  },
-  "reine.queueApplySafeHint": {
-    "en": "Approve every safe addition (new, non-colliding facts) at once.",
-    "fr": "Approuver d'un coup tous les ajouts sûrs (faits nouveaux, sans collision)."
-  },
-  "reine.queueInMemory": {
-    "en": "Reviewed in the Memory tab",
-    "fr": "Gérées dans l'onglet Mémoire"
-  },
-  "reine.statusPending": {
-    "en": "Pending",
-    "fr": "En attente"
-  },
-  "reine.statusStale": {
-    "en": "Needs re-review",
-    "fr": "À re-revoir"
-  },
-  "reine.statusApproved": {
-    "en": "Approved",
-    "fr": "Approuvé"
-  },
-  "reine.statusRejected": {
-    "en": "Rejected",
-    "fr": "Rejeté"
-  },
-  "reine.statusExpired": {
-    "en": "Expired",
-    "fr": "Périmé"
-  },
-  "reine.riskSafe": {
-    "en": "Safe",
-    "fr": "Sûr"
-  },
-  "reine.riskSensitive": {
-    "en": "Sensitive",
-    "fr": "Sensible"
-  },
-  "reine.riskCritical": {
-    "en": "Critical",
-    "fr": "Critique"
-  },
-  "reine.providerSame": {
-    "en": "Same as worker model",
-    "fr": "Identique au modèle de travail"
-  },
-  "reine.crownTitle": {
-    "en": "LaReine: {mode}",
-    "fr": "LaReine : {mode}"
-  },
-  "memory.titleReine": {
-    "en": "LaReine Prompt",
-    "fr": "Prompt LaReine"
-  },
-  "reine.reviewing": {
-    "en": "LaReine is reviewing the answer",
-    "fr": "LaReine relit la réponse"
-  },
-  "reine.revised": {
-    "en": "Redone by LaRuche at LaReine's request",
-    "fr": "Refait par LaRuche sur demande de LaReine"
-  },
-  "reine.seeReasoning": {
-    "en": "Click to see LaReine's reasoning",
-    "fr": "Cliquer pour voir le raisonnement de LaReine"
-  },
-  "reine.sentBack": {
-    "en": "LaReine sent it back to redo",
-    "fr": "LaReine la renvoie bosser"
-  },
-  "reine.redoing": {
-    "en": "LaRuche is redoing the work",
-    "fr": "LaRuche refait le travail"
-  },
-  "boot.starting": {
-    "en": "LaRuche is starting…",
-    "fr": "LaRuche démarre…"
-  },
-  "reine.judgeDistinctHint": {
-    "en": "Tip: pick a judge DIFFERENT from the chat model. A model judging its own output approves itself too easily; a distinct judge (even a small one) catches more.",
-    "fr": "Conseil : choisis un juge DIFFERENT du modele de chat. Un modele qui juge sa propre production s’auto-approuve trop facilement ; un juge distinct (meme petit) attrape plus de choses."
-  },
-  "settings.wfName": {
-    "en": "Name",
-    "fr": "Nom"
-  },
-  "settings.wfObserve": {
-    "en": "Observe",
-    "fr": "Observer"
-  },
-  "settings.wfEvery": {
-    "en": "Every",
-    "fr": "Toutes les"
-  },
-  "settings.wfEveryHint": {
-    "en": "seconds (empty = default)",
-    "fr": "secondes (vide = defaut)"
-  },
-  "settings.wfCondition": {
-    "en": "Condition (LLM gate)",
-    "fr": "Condition (gate LLM)"
-  },
-  "settings.wfPattern": {
-    "en": "Pattern (substring)",
-    "fr": "Motif (sous-chaine)"
-  },
-  "settings.wfCondHint": {
-    "en": "empty = fire on every change",
-    "fr": "vide = declenche a chaque changement"
-  },
-  "settings.wfSustained": {
-    "en": "keep firing while it lasts",
-    "fr": "re-declenche tant que ca dure"
-  },
-  "settings.wfCooldown": {
-    "en": "Cooldown",
-    "fr": "Cooldown"
-  },
-  "settings.wfCooldownHint": {
-    "en": "min seconds between fires",
-    "fr": "secondes min entre deux tirs"
-  },
-  "settings.wfAction": {
-    "en": "Action (prompt)",
-    "fr": "Action (prompt)"
-  },
-  "settings.wfDeliver": {
-    "en": "Deliver",
-    "fr": "Livraison"
-  },
-  "settings.wfLoop": {
-    "en": "back to observe (loop)",
-    "fr": "retour a l observation (boucle)"
-  },
-  "settings.wfDown": {
-    "en": "DOWN",
-    "fr": "HORS LIGNE"
-  },
-  "settings.wfUp": {
-    "en": "up",
-    "fr": "en ligne"
-  },
-  "settings.wfPresent": {
-    "en": "file present",
-    "fr": "fichier present"
-  },
-  "settings.wfAbsent": {
-    "en": "file absent",
-    "fr": "fichier absent"
-  },
-  "settings.wfNoBaseline": {
-    "en": "no observation yet",
-    "fr": "pas encore d observation"
-  },
-  "settings.wfPause": {
-    "en": "Pause",
-    "fr": "Mettre en pause"
-  },
-  "settings.wfResume": {
-    "en": "Resume",
-    "fr": "Reactiver"
-  },
-  "settings.wfRegles": {
-    "en": "Compiled rules",
-    "fr": "Regles compilees"
-  },
-  "settings.wfReglesHint": {
-    "en": "Deterministic tree, free at runtime; only llm_check costs a call. Empty = back to text condition.",
-    "fr": "Arbre deterministe, gratuit a l execution ; seul llm_check coute un appel. Vide = retour a la condition texte."
-  },
-  "settings.wfReglesInvalid": {
-    "en": "Invalid rules JSON",
-    "fr": "JSON de regles invalide"
-  },
-  "reine.queueVoirTout": {
-    "en": "Click to show the full proposed content",
-    "fr": "Cliquer pour voir le contenu propose complet"
-  },
-  "reine.scoreTitre": {
-    "en": "Scorecards - review history",
-    "fr": "Scorecards - historique des revues"
-  },
-  "reine.scoreAucune": {
-    "en": "No review recorded yet (the journal fills up as LaReine judges).",
-    "fr": "Aucune revue enregistree pour le moment (le journal se remplit au fil des jugements)."
-  },
-  "reine.scoreRevues": {
-    "en": "reviews",
-    "fr": "revues"
-  },
-  "reine.scoreRefaits": {
-    "en": "{n} redone",
-    "fr": "{n} refaits"
-  },
-  "reine.scorePertinence": {
-    "en": "Relevance",
-    "fr": "Pertinence"
-  },
-  "reine.scoreMethodo": {
-    "en": "Methodology",
-    "fr": "Methodologie"
-  },
-  "reine.scoreObjectif": {
-    "en": "Objective",
-    "fr": "Objectif"
-  },
-  "reine.scoreMarque": {
-    "en": "Brand",
-    "fr": "Marque"
-  },
-  "reine.scoreConfiance": {
-    "en": "Confidence",
-    "fr": "Confiance"
-  },
-  "reine.scoreTours": {
-    "en": "avg rework rounds: {n}",
-    "fr": "tours de revision moyens : {n}"
   }
 }

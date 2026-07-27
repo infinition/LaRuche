@@ -164,6 +164,7 @@ pub(crate) async fn api_get_runtime_config(State(state): State<Arc<AppState>>) -
         "tool_selection_limit": ec.tool_selection_limit,
         "dynamic_tool_selection": ec.dynamic_tool_selection,
         "dynamic_context_threshold": ec.dynamic_context_threshold,
+        "reactions_agent": ec.reactions_agent,
     }))
 }
 
@@ -191,6 +192,12 @@ pub(crate) async fn api_set_runtime_config(
         }
         if let Some(v) = body["dynamic_tool_selection"].as_bool() {
             ec.dynamic_tool_selection = v;
+        }
+        // Off by default and meant to stay a deliberate choice: it spends prompt
+        // budget every turn, and a marker the model emits is one the model can
+        // misplace.
+        if let Some(v) = body["reactions_agent"].as_bool() {
+            ec.reactions_agent = v;
         }
         if let Some(v) = body["dynamic_context_threshold"].as_u64() {
             ec.dynamic_context_threshold = (v as u32).clamp(4_000, 1_000_000);

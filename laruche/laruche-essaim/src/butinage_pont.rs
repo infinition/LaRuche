@@ -1935,6 +1935,7 @@ pub async fn executer_avec_bilan(
         config.planning_override.as_deref(),
         Some(&index_capacites),
         config.custom_instructions.as_deref(),
+        config.reactions_agent,
     );
     // Volatile tier kept OUT of the system prompt. It used to be concatenated here,
     // which rewrote the prefix on every single call (the clock alone changes every
@@ -2089,6 +2090,25 @@ pub async fn executer_avec_bilan(
         None,
     )
     .await?;
+
+    // Agent reaction, only when the user enabled it. Stripped HERE, before the
+    // answer reaches the Done event, the session, the episode or a channel: the
+    // marker is a UI signal and must never end up in stored text or in an outbound
+    // message. `extraire_reaction` is strict on purpose, so anything that is not
+    // exactly a lone known key on the first or last line stays visible rather than
+    // being silently eaten.
+    let mut bilan = bilan;
+    if config.reactions_agent {
+        let (propre, cle) = crate::reactions::extraire_reaction(&bilan.texte);
+        if let Some(cle) = cle {
+            if let Some(r) = crate::reactions::trouver(&cle) {
+                bilan.texte = propre;
+                let _ = tx.send(ChatEvent::Status {
+                    message: format!("__agent_reaction__|{}", r.emoji),
+                });
+            }
+        }
+    }
 
     // Hebbian level 2: reinforce only the recalled items the final answer used.
     if let Some(src) = source_pont.as_ref() {
@@ -2311,6 +2331,7 @@ pub async fn reprendre_carnet(
         config.planning_override.as_deref(),
         Some(&index),
         config.custom_instructions.as_deref(),
+        config.reactions_agent,
     );
     // Resumed exploration mission: restore the deep-research protocol too.
     if carnet.mode == but::ModeMission::Exploration {

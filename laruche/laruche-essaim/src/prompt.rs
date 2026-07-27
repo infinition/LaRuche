@@ -20,6 +20,7 @@ pub fn build_system_prompt(
     planning_override: Option<&str>,
     capability_index: Option<&str>,
     custom_instructions: Option<&str>,
+    reactions_agent: bool,
 ) -> String {
     let mut prompt = String::new();
     let mut jalons: Vec<(&str, usize)> = Vec::new();
@@ -73,6 +74,14 @@ pub fn build_system_prompt(
              Secrets: {}\n\n",
             noms.join(", ")
         ));
+    }
+    // 6) Agent reactions, OFF unless the user turned them on: this is instruction
+    //    budget spent on every turn for something decorative, so it stays a choice.
+    if reactions_agent {
+        prompt.push_str(&crate::reactions::consigne_prompt());
+        prompt.push_str("
+
+");
     }
     jalons.push(("secrets", prompt.len()));
     mesurer(&prompt, &jalons);
@@ -416,7 +425,7 @@ mod tests {
     #[test]
     fn prompt_place_sections_stables_avant_outils_et_custom() {
         let tools = serde_json::json!([{"name":"file_read","description":"read","parameters":{}}]);
-        let prompt = build_system_prompt(&tools, true, None, None, None, None, Some("custom volatile"));
+        let prompt = build_system_prompt(&tools, true, None, None, None, None, Some("custom volatile"), false);
 
         let env = prompt.find("## Environment").unwrap();
         let outils = prompt.find("## Available tools").unwrap();

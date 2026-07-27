@@ -313,6 +313,20 @@ LaRuche.Chat = (function(){
           currentAssistantMsg._rawBuf = ''; currentAssistantMsg._inToolTag = false;
         }
         currentAssistantMsg._rawBuf += data.text;
+        // Swallow a LEADING reaction marker while it streams. The server strips it
+        // from the stored answer, but on a first line it would otherwise sit on
+        // screen for the whole response before the final render removed it.
+        if(currentAssistantMsg._reactionEaten!==true){
+          if(currentAssistantMsg._rawBuf.length<=24 && /^\s*>>[a-z]*$/i.test(currentAssistantMsg._rawBuf)) break;
+          var _mk=/^\s*>>[a-z]+[ \t]*\n/i;
+          if(_mk.test(currentAssistantMsg._rawBuf)){
+            currentAssistantMsg._reactionEaten=true;
+            currentAssistantMsg._rawBuf=currentAssistantMsg._rawBuf.replace(_mk,'');
+            currentAssistantMsg.textContent='';
+            streamToken(currentAssistantMsg, currentAssistantMsg._rawBuf);
+            break;
+          }
+        }
         streamToken(currentAssistantMsg, data.text);
         break;
       
@@ -477,6 +491,24 @@ LaRuche.Chat = (function(){
             tc.innerHTML='<span class="reine-crown">👑</span><span>'+LaRuche.i18n.t('reine.reviewing')+'</span><span class="reine-dots"><i></i><i></i><i></i></span>';
             rHost.appendChild(tc); _reineThinkingEl=tc;
             updateAssistantAvatars();
+          }
+          break;
+        }
+        // The agent left a reaction on the user's message. It lands under THEIR
+        // bubble, mirroring the reaction the user can leave on one of ours.
+        if(statusMessage.indexOf('__agent_reaction__|')===0){
+          var _ar=statusMessage.slice('__agent_reaction__|'.length).trim();
+          var _urows=container.querySelectorAll('.message-row.user');
+          var _utarget=_urows.length?_urows[_urows.length-1]:null;
+          if(_utarget && _ar){
+            var _uw=_utarget.querySelector('.message-wrapper')||_utarget;
+            var _uold=_uw.querySelector('.agent-reaction-chip');
+            if(_uold) _uold.remove();
+            var _uchip=document.createElement('div');
+            _uchip.className='agent-reaction-chip pop';
+            _uchip.textContent=_ar;
+            _uchip.title=LaRuche.i18n.t('reactions.fromAgent');
+            _uw.appendChild(_uchip);
           }
           break;
         }

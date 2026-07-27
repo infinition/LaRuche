@@ -87,6 +87,15 @@ pub struct EssaimConfig {
     /// messages (cron/missions) when no origin channel is known. Persisted.
     #[serde(default)]
     pub home_channel: Option<String>,
+    /// Let the agent leave an emoji reaction on the user's message (`>>up`, `>>haha`...).
+    ///
+    /// OFF by default, and it should stay a choice. It spends instruction budget on
+    /// every turn for something decorative, and a marker syntax the model must emit
+    /// and we must strip is the class of bug that gave us a hallucinated `$TOOL_NAME`
+    /// and a `[SYSTEM]` paragraph leaking into an episode title. A small model will
+    /// put the marker mid-sentence sooner or later.
+    #[serde(default)]
+    pub reactions_agent: bool,
     /// Dynamically inject only the most relevant Abeilles into the prompt.
     #[serde(default)]
     pub dynamic_tool_selection: bool,
@@ -238,6 +247,7 @@ impl Default for EssaimConfig {
             reasoning_effort_aux: String::new(),
             origin_channel: None,
             home_channel: None,
+            reactions_agent: false,
             dynamic_tool_selection: false,
             tool_selection_limit: default_tool_selection_limit(),
             stable_toolset: false,
