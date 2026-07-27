@@ -150,25 +150,35 @@ fn reduire_sous_budget(body: &serde_json::Value, limite: usize) -> Result<serde_
             .unwrap_or_default();
         par_taille.sort_by(|a, b| b.1.cmp(&a.1));
 
-        const GARDE: usize = 1_500;
-        for (idx, _) in par_taille {
+        // ADAPTIVE, in successive passes. A fixed 1500-char keep only bites on very
+        // large observations, and the shape that actually breaks a research run is
+        // the opposite: no whale, a shoal. A refused body carried 23 tool results of
+        // roughly 3000 chars each, 73 KB in total, every single one just under the
+        // threshold, so nothing was ever cut. Each pass keeps less, until it fits.
+        for garde in [1_500usize, 800, 400, 200, 100] {
             if taille(&reduit) <= limite {
                 break;
             }
-            let Some(texte) = reduit["messages"][idx]["content"].as_str().map(str::to_string) else {
-                continue;
-            };
-            let total = texte.chars().count();
-            if total <= GARDE * 2 + 500 {
-                continue; // nothing worth cutting here
+            for (idx, _) in &par_taille {
+                if taille(&reduit) <= limite {
+                    break;
+                }
+                let Some(texte) = reduit["messages"][*idx]["content"].as_str().map(str::to_string)
+                else {
+                    continue;
+                };
+                let total = texte.chars().count();
+                if total <= garde * 2 + 200 {
+                    continue; // already at or below what this pass would keep
+                }
+                let chars: Vec<char> = texte.chars().collect();
+                let tete: String = chars[..garde].iter().collect();
+                let queue: String = chars[chars.len() - garde..].iter().collect();
+                reduit["messages"][*idx]["content"] = serde_json::json!(format!(
+                    "{tete}\n\n[... {} chars cut to fit the request budget - re-read a narrower range if you need the middle ...]\n\n{queue}",
+                    total - garde * 2
+                ));
             }
-            let chars: Vec<char> = texte.chars().collect();
-            let tete: String = chars[..GARDE].iter().collect();
-            let queue: String = chars[chars.len() - GARDE..].iter().collect();
-            reduit["messages"][idx]["content"] = serde_json::json!(format!(
-                "{tete}\n\n[... {} chars cut to fit the request budget - re-read a narrower range if you need the middle ...]\n\n{queue}",
-                total - GARDE * 2
-            ));
         }
     }
     Ok(reduit)
@@ -1210,6 +1220,33 @@ mod tests {
     /// yield nothing, otherwise the same ids are emitted again, the consumer
     /// appends them, and the next request carries `tool_calls: [X, X]` which the
     /// API rejects with `Duplicate value for 'tool_call_id'`.
+    /// The shape that actually breaks a research run: a SHOAL, not a whale.
+    ///
+    /// The refused body carried 38 messages, 23 of them tool results of roughly 3000
+    /// chars, 73 KB in total. Not one exceeded the fixed 3500-char threshold, so the
+    /// first version of the guard cut nothing at all and the request went out over
+    /// budget anyway.
+    #[test]
+    fn le_budget_rabote_aussi_un_banc_de_petites_observations() {
+        let mut messages = vec![
+            serde_json::json!({ "role": "system", "content": "x".repeat(20_889) }),
+            serde_json::json!({ "role": "user", "content": "jepa 2026" }),
+        ];
+        for _ in 0..23 {
+            messages.push(serde_json::json!({ "role": "tool", "content": "y".repeat(3_100) }));
+        }
+        let body = serde_json::json!({ "model": "m", "messages": messages, "tools": [] });
+
+        let avant = json_ascii(&serde_json::to_string(&body).unwrap()).len();
+        assert!(avant > 76_800, "the fixture must exceed the guard: {avant}");
+
+        let apres = reduire_sous_budget(&body, 76_800).unwrap();
+        let corps = json_ascii(&serde_json::to_string(&apres).unwrap()).len();
+        assert!(corps <= 76_800, "must fit, got {corps}");
+        assert_eq!(apres["messages"].as_array().unwrap().len(), 25, "no message dropped");
+        assert_eq!(apres["messages"][1]["content"], "jepa 2026", "the question is untouched");
+    }
+
     /// A conversation of fat tool results must still fit on the wire.
     ///
     /// The real body that kept being refused was 114497 bytes for 16 messages: one
