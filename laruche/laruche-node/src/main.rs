@@ -731,35 +731,11 @@ async fn main() -> Result<()> {
             .await;
     }
 
-    // Default "web_research" skill (search→evaluate→fetch→synthesize procedure): seeded
-    // once if absent, so web research goes beyond the snippets.
-    {
-        // Version marker: re-seed once if the old version (v1) is in place.
-        let present = memoire
-            .read_node("capacities.skills.web_research")
-            .await
-            .ok()
-            .and_then(|n| {
-                n.get("items").and_then(|i| i.as_array()).map(|a| {
-                    a.iter().any(|it| {
-                        it.get("content")
-                            .and_then(|c| c.as_str())
-                            .map(|c| c.contains("web_research-v2"))
-                            .unwrap_or(false)
-                    })
-                })
-            })
-            .unwrap_or(false);
-        if !present {
-            let skill = "---\ntype: skill\nname: web_research\nversion: web_research-v2\ndescription: Deep multi-step web research (search, evaluate, FETCH the pages, synthesize with sources)\n---\n\n# Deep web research\n\n## When to use it\nAny request for up-to-date, factual or detailed info from the web (news, papers, docs, comparisons, scores, prices...).\n\n## Procedure (DO NOT loop on searching)\n1. ONE broad search: `web_deep_search` with a precise query.\n2. SPOT in the results the reliable and NON-blocked URLs (arxiv.org, blogs, official docs). Ignore domains that return 400/403/Forbidden.\n3. GO DEEPER: `web_fetch` on 1 to 3 of these URLs to read the FULL PAGE: that is where the detail is, not in the snippets.\n4. If a key piece of info is missing: ONE DIFFERENT refined search (never the same query), then re-fetch.\n5. SYNTHESIZE while citing the source URLs. Flag uncertainties/contradictions.\n\n## Strict rules\n- At most ~2 web_deep_search; beyond that, move to `web_fetch` on precise URLs.\n- NEVER re-run a query nearly identical to the previous one.\n- A page returns 400/403/Forbidden -> drop it, do not insist on it.\n- Always `web_fetch` at least one primary source (arxiv, official site) before concluding.\n- Memorize (memory_write) a useful durable fact if relevant.\n";
-            let _ = memoire
-                .write(
-                    laruche_memoire::MemoryItem::new("capacities.skills.web_research", skill)
-                        .with_source("seed"),
-                )
-                .await;
-        }
-    }
+    // No web-research skill is seeded here any more. It lives on disk as
+    // `skills/web-research/`, synced by `sync_skills_disk_to_sql`. Seeding a second
+    // copy under `web_research` put TWO overlapping entries in the prompt catalog,
+    // which is exactly what makes a model hesitate and pick the wrong one.
+
     info!(t_ms = boot_t0.elapsed().as_millis() as u64, "boot: map nodes + seed done");
 
     // Index the tool registry into the map (capacities.*) RIGHT FROM startup, incrementally,

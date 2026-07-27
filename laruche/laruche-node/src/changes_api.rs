@@ -169,14 +169,21 @@ pub(crate) async fn sync_skills_disk_to_sql(memoire: &Arc<dyn laruche_memoire::M
     // Targeted purge of META-SKILLS from other agent frameworks (third-party/Claude Code/Codex...),
     // wrongly imported: they describe ANOTHER agent, not LaRuche. Explicit DENYLIST: definitely
     // NOT a disk diff "delete everything not on disk" (that would destroy skills
-    // created by the agent or seeded in code, like arxiv_search / web_research). Hard-delete:
+    // created by the agent, like arxiv_search). Hard-delete:
     // delete_node reparents to `orphans.*`, so we also delete the resulting orphan.
+    //
+    // `web_research` is on the list for a different reason: it used to be seeded in
+    // code at boot, and the disk skill `web-research` now covers it. Two entries with
+    // overlapping descriptions is precisely what makes a model hesitate and pick the
+    // wrong one, so the superseded copy goes. The seeding block is gone from main.rs;
+    // this line clears what earlier boots already wrote.
     const META_SKILLS_A_PURGER: &[&str] = &[
         "third-party agent",
         "third-party agent-skill-authoring",
         "claude-code",
         "codex",
         "opencode",
+        "web_research",
     ];
     let mut purges = 0usize;
     for slug in META_SKILLS_A_PURGER {
