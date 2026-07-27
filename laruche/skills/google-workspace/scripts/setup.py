@@ -31,17 +31,17 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Ensure sibling modules (_THIRD_PARTY_HOME) are importable when run standalone.
+# Ensure sibling modules (_laruche_home) are importable when run standalone.
 _SCRIPTS_DIR = str(Path(__file__).resolve().parent)
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
-from _THIRD_PARTY_HOME import display_THIRD_PARTY_HOME, get_THIRD_PARTY_HOME
+from _laruche_home import display_laruche_home, get_laruche_home
 
-THIRD_PARTY_HOME = get_THIRD_PARTY_HOME()
-TOKEN_PATH = THIRD_PARTY_HOME / "google_token.json"
-CLIENT_SECRET_PATH = THIRD_PARTY_HOME / "google_client_secret.json"
-PENDING_AUTH_PATH = THIRD_PARTY_HOME / "google_oauth_pending.json"
+LARUCHE_HOME = get_laruche_home()
+TOKEN_PATH = LARUCHE_HOME / "google_token.json"
+CLIENT_SECRET_PATH = LARUCHE_HOME / "google_client_secret.json"
+PENDING_AUTH_PATH = LARUCHE_HOME / "google_oauth_pending.json"
 
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
@@ -413,7 +413,7 @@ def exchange_auth_code(code: str):
     TOKEN_PATH.write_text(json.dumps(token_payload, indent=2))
     PENDING_AUTH_PATH.unlink(missing_ok=True)
     print(f"OK: Authenticated. Token saved to {TOKEN_PATH}")
-    print(f"Profile-scoped token location: {display_THIRD_PARTY_HOME()}/google_token.json")
+    print(f"Profile-scoped token location: {display_laruche_home()}/google_token.json")
 
 
 def revoke():

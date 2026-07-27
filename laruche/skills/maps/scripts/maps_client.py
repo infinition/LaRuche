@@ -28,7 +28,7 @@ import urllib.request
 # Constants
 # ---------------------------------------------------------------------------
 
-USER_AGENT = "third-party agent/1.0 (contact: contact@example.invalid)"
+USER_AGENT = "LaRuche/1.0 (contact: contact@example.invalid)"
 DATA_SOURCE = "OpenStreetMap/Nominatim"
 
 NOMINATIM_SEARCH  = "https://nominatim.openstreetmap.org/search"

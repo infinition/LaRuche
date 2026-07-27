@@ -137,7 +137,7 @@ actual = str(n.width) + 'x' + str(n.height)
 
 ### Config location
 
-`$THIRD_PARTY_HOME/config.yaml` (defaults to `~/.third-party/config.yaml` when `THIRD_PARTY_HOME` is unset)
+`$LARUCHE_HOME/config.yaml` (defaults to `~/.laruche/config.yaml` when `LARUCHE_HOME` is unset)
 
 ### MCP entry format
 

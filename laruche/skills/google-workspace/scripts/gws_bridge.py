@@ -10,16 +10,16 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Ensure sibling modules (_THIRD_PARTY_HOME) are importable when run standalone.
+# Ensure sibling modules (_laruche_home) are importable when run standalone.
 _SCRIPTS_DIR = str(Path(__file__).resolve().parent)
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
-from _THIRD_PARTY_HOME import get_THIRD_PARTY_HOME
+from _laruche_home import get_laruche_home
 
 
 def get_token_path() -> Path:
-    return get_THIRD_PARTY_HOME() / "google_token.json"
+    return get_laruche_home() / "google_token.json"
 
 
 def _normalize_authorized_user_payload(payload: dict) -> dict:

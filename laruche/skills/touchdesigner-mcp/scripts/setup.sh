@@ -8,8 +8,8 @@ OK="${GREEN}✔${NC}"; FAIL="${RED}✘${NC}"; WARN="${YELLOW}⚠${NC}"
 
 TWOZERO_URL="https://www.404zero.com/pisang/twozero.tox"
 TOX_PATH="$HOME/Downloads/twozero.tox"
-THIRD_PARTY_HOME_DIR="${THIRD_PARTY_HOME:-$HOME/.third-party}"
-third-party_CFG="${THIRD_PARTY_HOME_DIR}/config.yaml"
+LARUCHE_HOME_DIR="${LARUCHE_HOME:-$HOME/.laruche}"
+third-party_CFG="${LARUCHE_HOME_DIR}/config.yaml"
 MCP_PORT=40404
 MCP_ENDPOINT="http://localhost:${MCP_PORT}/mcp"
 

@@ -31,16 +31,16 @@ from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
 from pathlib import Path
 
-# Ensure sibling modules (_THIRD_PARTY_HOME) are importable when run standalone.
+# Ensure sibling modules (_laruche_home) are importable when run standalone.
 _SCRIPTS_DIR = str(Path(__file__).resolve().parent)
 if _SCRIPTS_DIR not in sys.path:
     sys.path.insert(0, _SCRIPTS_DIR)
 
-from _THIRD_PARTY_HOME import get_THIRD_PARTY_HOME
+from _laruche_home import get_laruche_home
 
-THIRD_PARTY_HOME = get_THIRD_PARTY_HOME()
-TOKEN_PATH = THIRD_PARTY_HOME / "google_token.json"
-CLIENT_SECRET_PATH = THIRD_PARTY_HOME / "google_client_secret.json"
+LARUCHE_HOME = get_laruche_home()
+TOKEN_PATH = LARUCHE_HOME / "google_token.json"
+CLIENT_SECRET_PATH = LARUCHE_HOME / "google_client_secret.json"
 
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
