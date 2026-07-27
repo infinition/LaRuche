@@ -59,11 +59,11 @@ LaRuche.i18n.add({
   'settings.visRestricted':      {fr:'🐝 Restreint',     en:'🐝 Restricted'},
   'settings.enableAll':          {fr:'Tout Activer',     en:'Enable All'},
   'settings.disableAll':         {fr:'Tout Désactiver',  en:'Disable All'},
-  'settings.toolsEmpty':         {fr:'Aucune abeille configurée', en:'No tools configured'},
-  'settings.toolsConfigErr':     {fr:'Erreur configuration Abeilles', en:'Tools configuration error'},
-  'settings.allToolsEnabled':    {fr:'Toutes les abeilles activées', en:'All tools enabled'},
-  'settings.allToolsDisabled':   {fr:'Toutes les abeilles désactivées', en:'All tools disabled'},
-  'settings.toolsErr':           {fr:'Erreur Abeilles: ', en:'Tools error: '},
+  'settings.toolsEmpty':         {fr:'Aucun outil configuré', en:'No tools configured'},
+  'settings.toolsConfigErr':     {fr:'Erreur de configuration des outils', en:'Tools configuration error'},
+  'settings.allToolsEnabled':    {fr:'Tous les outils activés', en:'All tools enabled'},
+  'settings.allToolsDisabled':   {fr:'Tous les outils désactivés', en:'All tools disabled'},
+  'settings.toolsErr':           {fr:'Erreur outils: ', en:'Tools error: '},
   'settings.meshCodeConfigured': {fr:'(configuré)',      en:'(configured)'},
   'settings.meshCodeUnconfigured':{fr:'(non configuré, auth par IP LAN)', en:'(not configured, auth by LAN IP)'},
   'settings.meshCodeHint':       {fr:'Secret partagé entre tes ruches (comme un mot de passe WiFi). Mets le <b>même</b> code sur toutes tes ruches : il authentifie les échanges du mesh (fin des « rejected » / flapping) et servira de base au chiffrement.', en:'Shared secret between your nodes (like a WiFi password). Set the <b>same</b> code on all nodes: it authenticates mesh exchanges (no more "rejected" / flapping) and will be used for encryption.'},
@@ -149,7 +149,10 @@ LaRuche.i18n.add({
   'settings.skillActivated':     {fr:'activé',           en:'enabled'},
   'settings.skillDeactivated':   {fr:'désactivé',        en:'disabled'},
   'settings.skillToast':         {fr:'Skill ',           en:'Skill '},
-  'settings.skillToolsHint':     {fr:'Abeilles / plugins de ce skill (→ <code>tools:</code>) ', en:'Tools / plugins for this skill (→ <code>tools:</code>) '},
+  'settings.skillToolsHint':     {fr:'Outils / plugins de ce skill (→ <code>tools:</code>) ', en:'Tools / plugins for this skill (→ <code>tools:</code>) '},
+  'settings.skillGroupTools':    {fr:'Outils',           en:'Tools'},
+  'settings.skillGroupPlugins':  {fr:'Plugins',          en:'Plugins'},
+  'settings.skillGroupOther':    {fr:'Autres',           en:'Other'},
   'settings.skillToolsFilter':   {fr:'filtrer…',         en:'filter…'},
   'settings.skillToolsClear':    {fr:'Vider',            en:'Clear'},
   'settings.skillToolsLoading':  {fr:'Chargement…',     en:'Loading…'},
@@ -2064,17 +2067,17 @@ LaRuche.Settings = (function(){
     var plugins = [];
     try{ plugins=await fetch('/api/plugins').then(function(r){return r.json();}); }catch(e){}
     var pluginNames = (plugins||[]).map(function(p){return p.name||p;});
-    // Unified model: {name, group, desc}. group = Plugins | Abeilles | Autres.
+    // Unified model: {name, group, desc}. group is a key, translated at render time.
     var items = [];
     var seen = {};
     (tools||[]).forEach(function(t){
       var n=t.name||t; if(seen[n])return; seen[n]=1;
-      items.push({name:n, group:(pluginNames.indexOf(n)>=0?'Plugins':'Abeilles'), desc:(t.description||'')});
+      items.push({name:n, group:(pluginNames.indexOf(n)>=0?'plugins':'tools'), desc:(t.description||'')});
     });
-    pluginNames.forEach(function(n){ if(!seen[n]){ seen[n]=1; items.push({name:n, group:'Plugins', desc:''}); } });
+    pluginNames.forEach(function(n){ if(!seen[n]){ seen[n]=1; items.push({name:n, group:'plugins', desc:''}); } });
     var m = content.match(/^\s*(?:allowed-)?tools:\s*\[([^\]]*)\]/m);
     var current = m ? m[1].split(',').map(function(s){return s.trim().replace(/['"]/g,'');}).filter(Boolean) : [];
-    current.forEach(function(n){ if(!seen[n]){ seen[n]=1; items.push({name:n, group:'Autres', desc:LaRuche.i18n.t('settings.skillToolsRef')}); } });
+    current.forEach(function(n){ if(!seen[n]){ seen[n]=1; items.push({name:n, group:'other', desc:LaRuche.i18n.t('settings.skillToolsRef')}); } });
     window._skItems = items;
     window._skChecked = {}; current.forEach(function(n){ window._skChecked[n]=1; });
     renderSkillTools();
@@ -2092,13 +2095,14 @@ LaRuche.Settings = (function(){
         (it.desc?'<span style="font-size:10px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">'+LaRuche.Utils.esc(it.desc)+'</span>':'')+
       '</label>';
     }
-    var groups=['Abeilles','Plugins','Autres']; var html='';
+    var groups=['tools','plugins','other']; var html='';
+    var etiquette={tools:'settings.skillGroupTools',plugins:'settings.skillGroupPlugins',other:'settings.skillGroupOther'};
     groups.forEach(function(g){
       var list=items.filter(function(it){return it.group===g && (!f || it.name.toLowerCase().indexOf(f)>=0);});
       if(!list.length) return;
       // selected first, then alpha
       list.sort(function(a,b){ var ca=checked[a.name]?0:1, cb=checked[b.name]?0:1; return ca-cb || a.name.localeCompare(b.name); });
-      html+='<div style="font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);padding:6px 7px 2px">'+g+' ('+list.filter(function(i){return checked[i.name];}).length+'/'+list.length+')</div>';
+      html+='<div style="font-size:9px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim);padding:6px 7px 2px">'+LaRuche.Utils.esc(LaRuche.i18n.t(etiquette[g]))+' ('+list.filter(function(i){return checked[i.name];}).length+'/'+list.length+')</div>';
       html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px">'+list.map(row).join('')+'</div>';
     });
     box.innerHTML = html || '<span style="color:var(--text-dim);font-size:11px;padding:6px;display:block">'+LaRuche.i18n.t('settings.skillToolsNone')+'</span>';

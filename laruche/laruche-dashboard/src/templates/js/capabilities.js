@@ -25,7 +25,7 @@ LaRuche.i18n.add({
   'capabilities.disableAll':    { fr:'Tout desactiver',   en:'Disable all' },
   'capabilities.searchPlaceholder': { fr:'Rechercher (nom ou description)...', en:'Search (name or description)...' },
   'capabilities.capacities':    { fr:'capacite(s)',       en:'capability(-ies)' },
-  'capabilities.nativeImmutable': { fr:' - abeilles natives = immuables', en:' - native tools are immutable' },
+  'capabilities.nativeImmutable': { fr:' - outils natifs = immuables', en:' - native tools are immutable' },
   'capabilities.emptyFilter':   { fr:'Aucune capacite (filtre ou famille vide).', en:'No capability found (filter or empty family).' },
   'capabilities.mcpFormUnavailable': { fr:'Formulaire MCP indisponible', en:'MCP form unavailable' },
   'capabilities.editingMcp':    { fr:' - modifiez puis cliquez sur le bouton', en:' - edit then click the button' },

@@ -140,7 +140,7 @@ pub(crate) async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde
 
     // Abeilles count
     checks.push(serde_json::json!({
-        "name": "Abeilles (Tools)",
+        "name": "Tools",
         "status": "ok",
         "detail": format!("{} tools registered", state.essaim_registry.noms().len()),
     }));
