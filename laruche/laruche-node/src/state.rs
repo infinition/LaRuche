@@ -110,6 +110,10 @@ pub(crate) struct PersistentState {
     /// "Home" channel (/sethome): default destination for proactive messages.
     #[serde(default)]
     pub(crate) home_channel: Option<String>,
+    /// May the agent leave an emoji reaction on the user's message? A toggle the user
+    /// flips in Settings, so it has to survive a restart like every other one.
+    #[serde(default)]
+    pub(crate) reactions_agent: Option<bool>,
     /// Dynamic tool selection (inject only relevant schemas: lighter prompt
     /// for small-context models). Survives restart.
     #[serde(default)]
@@ -492,6 +496,7 @@ pub(crate) async fn save_persistent_state(state: &Arc<AppState>) {
         context_max_tokens: Some(state.essaim_config.read().await.context_max_tokens),
         curateur_actif: Some(state.essaim_config.read().await.curateur_actif),
         dynamic_tool_selection: Some(state.essaim_config.read().await.dynamic_tool_selection),
+        reactions_agent: Some(state.essaim_config.read().await.reactions_agent),
         max_iterations: Some(state.essaim_config.read().await.max_iterations),
         temperature: Some(state.essaim_config.read().await.temperature),
         max_tokens: Some(state.essaim_config.read().await.max_tokens),

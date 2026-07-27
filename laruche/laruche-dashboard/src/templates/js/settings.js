@@ -629,7 +629,31 @@ LaRuche.Settings = (function(){
   // Shared data fetch for the General/Generation/Voice/LaReine sections. These used to
   // be one monolithic "general" tab; the fetch is kept whole so each split section gets
   // the same data shape (gj = error-tolerant fetch). Returns a normalized bag.
-  async function _loadGeneralData() {
+  /* Six sections all call this, and it fetches TEN endpoints every time. Two of them
+   * probe services over the network (`/api/doctor` reaches for Ollama, `/api/voice/status`
+   * for STT and TTS), so with any of those down every tab switch waited on a timeout.
+   * A short cache makes moving between tabs instant, which is what the panel should feel
+   * like; 15 seconds is long enough to cover browsing the sections and short enough that
+   * a value changed elsewhere shows up on the next visit. `_invalidateGeneral` drops it
+   * after a save, so what you just wrote is never read back from a stale copy. */
+  var _generalCache = null, _generalAt = 0, _generalInflight = null;
+  var GENERAL_TTL_MS = 15000;
+  function _invalidateGeneral(){ _generalCache = null; _generalInflight = null; }
+
+  async function _loadGeneralData(force) {
+    var now = Date.now();
+    if(!force && _generalCache && (now - _generalAt) < GENERAL_TTL_MS) return _generalCache;
+    // Sections rendered back to back must share ONE round of requests rather than
+    // firing ten more each while the first is still in flight.
+    if(!force && _generalInflight) return _generalInflight;
+    _generalInflight = _loadGeneralDataFresh().then(function(d){
+      _generalCache = d; _generalAt = Date.now(); _generalInflight = null;
+      return d;
+    }).catch(function(e){ _generalInflight = null; throw e; });
+    return _generalInflight;
+  }
+
+  async function _loadGeneralDataFresh() {
     function gj(u){ return fetch(u).then(function(r){return r.json();}).catch(function(){return {};}); }
     var _r = await Promise.all([
       gj('/api/doctor'), gj('/api/voice/status'), gj('/api/config/provider'),
@@ -2548,6 +2572,8 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       fallback_models: document.getElementById('cfgProvFallback').value,
       review_model: document.getElementById('cfgProvReview').value
     };
+    // What was just written must never be read back from the cache.
+    _invalidateGeneral();
     Promise.all([
       fetch(LaRuche.API.base+'/api/config/runtime',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),
       fetch(LaRuche.API.base+'/api/config/provider',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(auxiliary)})

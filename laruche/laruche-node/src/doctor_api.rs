@@ -9,11 +9,16 @@ use std::sync::Arc;
 pub(crate) async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let mut checks = Vec::new();
 
-    // Check Ollama connectivity
+    // Check Ollama connectivity.
+    //
+    // 1.5s, not 5. This endpoint is called by EVERY Settings section, so with Ollama
+    // absent (a DeepSeek or llama.cpp setup) the whole panel waited five seconds per
+    // tab. A reachable Ollama answers /api/tags in milliseconds on loopback and well
+    // under a second on a LAN; past that it is down for our purposes.
     let ec = state.essaim_config.read().await;
     let ollama_ok = reqwest::Client::new()
         .get(format!("{}/api/tags", ec.ollama_url))
-        .timeout(std::time::Duration::from_secs(5))
+        .timeout(std::time::Duration::from_millis(1500))
         .send()
         .await
         .map(|r| r.status().is_success())

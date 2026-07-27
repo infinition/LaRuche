@@ -526,6 +526,9 @@ async fn main() -> Result<()> {
     if let Some(c) = persistent.curateur_actif {
         essaim_config.curateur_actif = c;
     }
+    if let Some(v) = persistent.reactions_agent {
+        essaim_config.reactions_agent = v;
+    }
     if let Some(d) = persistent.dynamic_tool_selection {
         essaim_config.dynamic_tool_selection = d;
     }

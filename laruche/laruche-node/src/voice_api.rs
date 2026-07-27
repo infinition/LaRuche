@@ -51,11 +51,15 @@ pub(crate) async fn resolve_voice_urls(state: &Arc<AppState>) -> (String, String
     (stt_url, tts_url)
 }
 
-/// True if the voice service answers 2xx on GET /health within 3 seconds.
+/// True if the voice service answers 2xx on GET /health quickly.
+///
+/// 1s. A health check on a local service is either immediate or the service is not
+/// there; three seconds only bought a longer wait, twice over (STT then TTS), on every
+/// Settings tab.
 pub(crate) async fn voice_service_up(base_url: &str) -> bool {
     reqwest::Client::new()
         .get(format!("{}/health", base_url))
-        .timeout(std::time::Duration::from_secs(3))
+        .timeout(std::time::Duration::from_millis(1000))
         .send()
         .await
         .map(|r| r.status().is_success())
