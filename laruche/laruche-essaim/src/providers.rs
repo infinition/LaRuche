@@ -138,17 +138,35 @@ fn reduire_sous_budget(body: &serde_json::Value, limite: usize) -> Result<serde_
     }
 
     if taille(&reduit) > limite {
+        // EVERY message is a candidate except the system prompt and the first user
+        // turn, which carries the mission itself. Restricting this to `role == "tool"`
+        // left the real offenders untouched: an observation that failed native
+        // correlation comes back as a `user` message, and the curator sends the whole
+        // mission transcript as ONE user message (measured: 109 KB, the largest body
+        // of the run). Trimming what we can see beats refusing to look.
+        let premier_user = reduit["messages"]
+            .as_array()
+            .and_then(|ms| ms.iter().position(|m| m["role"] == "user"));
         let mut par_taille: Vec<(usize, usize)> = reduit["messages"]
             .as_array()
             .map(|ms| {
                 ms.iter()
                     .enumerate()
-                    .filter(|(_, m)| m["role"] == "tool")
+                    .filter(|(i, m)| m["role"] != "system" && Some(*i) != premier_user)
                     .map(|(i, m)| (i, m["content"].as_str().map(str::len).unwrap_or(0)))
                     .collect()
             })
             .unwrap_or_default();
         par_taille.sort_by(|a, b| b.1.cmp(&a.1));
+
+        // If the mission turn is itself the whole payload (curator review, scout
+        // briefing), it has to give ground too: it is that or the call fails.
+        if par_taille.is_empty() {
+            if let Some(i) = premier_user {
+                let n = reduit["messages"][i]["content"].as_str().map(str::len).unwrap_or(0);
+                par_taille.push((i, n));
+            }
+        }
 
         // ADAPTIVE, in successive passes. A fixed 1500-char keep only bites on very
         // large observations, and the shape that actually breaks a research run is
@@ -1220,6 +1238,35 @@ mod tests {
     /// yield nothing, otherwise the same ids are emitted again, the consumer
     /// appends them, and the next request carries `tool_calls: [X, X]` which the
     /// API rejects with `Duplicate value for 'tool_call_id'`.
+    /// The curator sends the whole mission transcript as ONE user message.
+    ///
+    /// Measured at 109301 chars, in a body of two messages. A trimmer that only
+    /// looked at `role == "tool"` never even saw it, and the request went out at
+    /// 114 KB. When the mission turn IS the payload, it has to give ground too.
+    #[test]
+    fn le_budget_rabote_meme_un_unique_message_utilisateur_geant() {
+        let body = serde_json::json!({
+            "model": "m",
+            "messages": [
+                { "role": "system", "content": "x".repeat(4_951) },
+                { "role": "user", "content": "y".repeat(109_301) }
+            ]
+        });
+        let avant = json_ascii(&serde_json::to_string(&body).unwrap()).len();
+        assert!(avant > 76_800, "fixture must exceed the guard: {avant}");
+
+        let apres = reduire_sous_budget(&body, 76_800).unwrap();
+        let corps = json_ascii(&serde_json::to_string(&apres).unwrap()).len();
+        assert!(corps <= 76_800, "must fit, got {corps}");
+        assert_eq!(apres["messages"].as_array().unwrap().len(), 2, "no message dropped");
+        assert!(
+            apres["messages"][1]["content"].as_str().unwrap().contains("cut to fit"),
+            "the cut must be announced"
+        );
+        // The system prompt is never touched.
+        assert_eq!(apres["messages"][0]["content"].as_str().unwrap().len(), 4_951);
+    }
+
     /// The shape that actually breaks a research run: a SHOAL, not a whale.
     ///
     /// The refused body carried 38 messages, 23 of them tool results of roughly 3000

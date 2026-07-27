@@ -1421,6 +1421,28 @@ pub async fn lancer_curateur_arriere_plan(
         systeme_en_queue_permis: systeme_en_queue_pour(&config),
         ..but::Reglages::default()
     };
+    // BOUNDED transcript. It used to travel whole, and a deep-research mission
+    // produced a single 109 KB user message: the largest request of the run, larger
+    // than the mission that generated it, and enough on its own to be refused by the
+    // provider. The curator looks for what was LEARNED, so the opening (what was
+    // asked, how it started) and the closing (what worked, what failed) carry almost
+    // all the signal; the middle is page after page of fetched content.
+    const BUDGET_TRANSCRIPT: usize = 40_000;
+    let transcript = {
+        let total = transcript.chars().count();
+        if total <= BUDGET_TRANSCRIPT {
+            transcript
+        } else {
+            let garde = BUDGET_TRANSCRIPT / 2;
+            let chars: Vec<char> = transcript.chars().collect();
+            let tete: String = chars[..garde].iter().collect();
+            let queue: String = chars[chars.len() - garde..].iter().collect();
+            format!(
+                "{tete}\n\n[... {} chars of transcript elided (middle of the run) ...]\n\n{queue}",
+                total - garde * 2
+            )
+        }
+    };
     // LLM-facing review prompt prepended to the mission transcript.
     let mut revue = format!(
         "Review the mission transcript below and update the capability library if warranted \
