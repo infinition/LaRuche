@@ -6,205 +6,219 @@ description: Build throwaway HTML mockups so the user can compare design variant
 
 # Sketch
 
-Use when the user wants to **explore a design direction before committing** - disposable HTML mockups to compare side-by-side. Goal: 2-3 interactive variants, not shippable code.
+Design arguments are unwinnable in prose. "Cleaner", "more modern", "less busy" mean
+different things to everybody in the room. Build two or three real screens instead, put
+them side by side, and the argument settles itself in ten seconds.
 
-Trigger phrases: "sketch this screen", "show me what X could look like", "compare layout A vs B", "give me 2-3 takes on this UI", "mockup this before I build".
+The output is disposable HTML the user can click, not a component you would ship. If a
+sketch is good enough to keep, that is the signal to rebuild it properly, not to promote
+it.
 
-## When NOT to use
+Reach for this on "show me what this could look like", "sketch this screen", "a couple of
+takes on the layout", "before I build it". Do not use it when the design is already
+decided, when the user asked for the production component, or when what they want is a
+diagram.
 
-- User wants a production component → build it properly
-- Design is already locked → just build it
-- User wants a diagram → use a diagramming approach instead
+## 1. Learn three things first
 
-## Core flow
+Ask one question at a time, and reflect the answer back before the next. Skip whatever
+the user already gave you.
 
-```
-intake → variants → visual check → head-to-head → pick winner (or iterate)
-```
+1. **The feel.** Adjectives, a mood, a product they admire. "Calm, editorial, like a
+   reading app" tells you something; "minimal" tells you nothing, because everyone means
+   a different thing by it.
+2. **References.** Which products already feel that way to them.
+3. **The one action.** What is the single most important thing someone does on this
+   screen. Every variant has to serve that well, or the comparison is meaningless.
 
----
+## 2. Take genuinely different positions
 
-## 1. Intake (skip if user already gave you enough)
+Two or three variants. Never one, because one is a proposal rather than a choice, and the
+user ends up critiquing instead of choosing. Rarely four: past three, nobody can hold the
+differences in mind.
 
-Ask one question at a time - three things needed:
+Each variant commits to a different STANCE, not a different accent colour. Pick one axis
+and go to the ends of it:
 
-1. **Feel.** "What should this feel like? Adjectives, emotions, a vibe." (*"calm, editorial, like Linear"* beats *"minimal"*)
-2. **References.** "What apps, sites, or products capture that feel?"
-3. **Core action.** "What's the single most important thing a user does on this screen?" (variants must all serve this well)
+| Axis | Ends |
+|---|---|
+| Density | compact, airy, ultra-dense |
+| Emphasis | content first, action first, tool first |
+| Aesthetic | editorial, utilitarian, playful |
+| Layout | one column, sidebar, split pane |
 
-Reflect each answer briefly before the next question. If user gave all three upfront, skip straight to variants.
+Three variants that differ only in shade are one variant with a colour picker. If you
+cannot say in a sentence what each one BELIEVES, they are not different enough.
 
----
-
-## 2. Variants (2-3, never 1, rarely 4+)
-
-Produce 2-3 variants in one go - each a **complete standalone HTML file**. Don't describe variants; build them.
-
-Each variant must take a **different design stance**, not just different colors. Pick one axis:
-
-- **Density:** compact vs. airy vs. ultra-dense
-- **Emphasis:** content-first vs. action-first vs. tool-first
-- **Aesthetic:** editorial vs. utilitarian vs. playful
-- **Layout:** single-column vs. sidebar vs. split-pane
-
-**Variant naming:** describe the stance, not the number.
+Name them for the stance, and number the round:
 
 ```
 sketches/
-├── 001-calm-editorial/
-│   ├── index.html
-│   └── README.md
-├── 001-utilitarian-dense/
-│   ├── index.html
-│   └── README.md
-└── 001-playful-split/
-    ├── index.html
-    └── README.md
+  001-calm-editorial/index.html + README.md
+  001-utilitarian-dense/index.html + README.md
+  001-playful-split/index.html + README.md
 ```
 
----
+## 3. Build them, do not describe them
 
-## 3. Build real HTML
+One self-contained HTML file per variant. Inline `<style>`, no build step, no bundler, no
+framework unless it arrives from a CDN in one line.
 
-Each variant is a **single self-contained HTML file**:
+- **Real content.** Actual names, actual sentences, plausible numbers. Lorem ipsum hides
+  exactly the problems a sketch exists to reveal: the heading that wraps, the label that
+  overflows, the empty state nobody designed.
+- **Interactive enough to judge**, which means: the primary action visibly does something,
+  one real state transition (open, filter, toggle), and hover states on things that are
+  clickable. More than that is engineering a thing you are about to throw away. Less than
+  that is a picture.
 
-- Inline `<style>` - no build step, no external CSS
-- System fonts or one Google Font via `<link>`
-- Tailwind via CDN is fine: `<script src="https://cdn.tailwindcss.com"></script>`
-- Realistic fake content (actual sentences and names, not Lorem ipsum)
-- **Interactive**: hovers real, at least one state transition (open/close, filter, toggle)
-
-**Default CSS reset + system font stack:**
+A reasonable starting point:
 
 ```html
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-                 "Helvetica Neue", Arial, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
-    color: #1a1a1a;
-    background: #fafafa;
-    line-height: 1.5;
+    color: #1a1a1a; background: #fafafa; line-height: 1.5;
   }
 </style>
 ```
 
-**Tool sequence per variant:**
+Write them with `file_write`, using ABSOLUTE paths:
 
 ```
-shell_exec("mkdir -p sketches/001-calm-editorial")
-file_write("sketches/001-calm-editorial/index.html", "<!doctype html>...")
-file_write("sketches/001-calm-editorial/README.md", "## Variant: Calm editorial\n...")
-browser_navigate("file:///absolute/path/to/sketches/001-calm-editorial/index.html")
-browser_screenshot()
+shell_exec(command="mkdir -p sketches/001-calm-editorial")
+file_write(path="C:/dev/project/sketches/001-calm-editorial/index.html", content="<!doctype html>...")
+file_write(path="C:/dev/project/sketches/001-calm-editorial/README.md", content="## Variant: calm editorial\n...")
 ```
 
-Inspect the screenshot. Fix layout bugs (collapsed flex containers, failed font imports, overlapping text) before moving on. Repeat for each variant.
+## 4. Look at it before you show it
 
-**Opening locally (fallback if no browser tool):**
-- macOS: `shell_exec("open sketches/001-calm-editorial/index.html")`
-- Linux: `shell_exec("xdg-open sketches/001-calm-editorial/index.html")`
-- Windows: `shell_exec("start sketches/001-calm-editorial/index.html")`
+**This is the step everyone skips, and it is the one that matters.** You cannot tell
+whether a layout works by reading the HTML you just wrote.
 
----
+```
+browser_screenshot(url="file:///C:/dev/project/sketches/001-calm-editorial/index.html",
+                   output_path="C:/dev/project/sketches/001-calm-editorial/shot.png")
+```
 
-## 4. Variant README
+Then read the image back with `file_read` and actually look at it.
 
-Each `README.md` answers:
+**`browser_screenshot` accepts `file://`. `browser_navigate` does not.** The two tools
+differ: `browser_navigate` validates the scheme and refuses anything that is not `http://`
+or `https://`, so a `file://` URL comes back as `URL must start with http:// or https://`.
+Only `browser_screenshot` passes the URL straight through to the browser.
+
+If you need `browser_navigate`, serve the folder first:
+
+```
+shell_exec(command="cd sketches && python -m http.server 8765 &")
+browser_navigate(url="http://localhost:8765/001-calm-editorial/index.html")
+```
+
+Fix what the screenshot shows before moving to the next variant: collapsed flex
+containers, text over text, a font that never loaded, a card that escaped its grid. Repeat
+per variant.
+
+## 5. One README per variant
 
 ```markdown
-## Variant: {stance name}
+## Variant: calm editorial
 
-### Design stance
-One sentence on the principle driving this variant.
+### The stance
+One sentence on the principle this variant commits to.
 
-### Key choices
-- Layout: ...
-- Typography: ...
-- Color: ...
-- Interaction: ...
+### Choices
+- Layout, typography, colour, interaction
 
 ### Trade-offs
-- Strong at: ...
-- Weak at: ...
+- Strong at:
+- Weak at:
 
 ### Best for
-- The kind of user or use case this variant actually serves
+- The user or situation this genuinely serves
 ```
 
----
+The trade-off section is the point. A variant with no weaknesses has not committed to
+anything.
 
-## 5. Head-to-head
-
-After all variants are built, present a comparison table - **opinionate**, don't just list:
+## 6. Head to head, with an opinion
 
 ```markdown
-## Three takes on the home screen
+| | Calm editorial | Utilitarian dense | Playful split |
+|---|---|---|---|
+| Density | low | high | medium |
+| Primary action visible | low | high | medium |
+| Scannability | high | medium | low |
+| Feel | calm, trusted | sharp, tool-like | inviting |
 
-| Dimension | Calm editorial | Utilitarian dense | Playful split |
-|-----------|----------------|-------------------|---------------|
-| Density   | Low            | High              | Medium        |
-| Primary action visibility | Low | High | Medium |
-| Scan-ability | High | Medium | Low |
-| Feel | Calm, trusted | Sharp, tool-like | Inviting, energetic |
-
-**My take:** Utilitarian dense for power users, calm editorial for content-forward audiences.
-Playful split is weakest - tries to do both and commits to neither.
+**Recommendation:** utilitarian dense, if these are daily power users. Calm editorial if
+most visits are first visits. Playful split is the weakest of the three: it reaches for
+both and commits to neither.
 ```
 
-Let the user pick a winner, ask for a hybrid, or request another round.
+**Say which one you would pick and why.** A neutral table hands the decision back with
+more to read and no help. The user can overrule a recommendation; they cannot overrule an
+absence of one.
 
----
+Then let them choose, ask for a hybrid, or send you round again.
 
-## Interactivity threshold
-
-A sketch is interactive enough when the user can:
-
-1. Click a primary action → something visible happens (state change, modal, toast, nav)
-2. See one meaningful state transition (filter a list, toggle a mode, open/close a panel)
-3. Hover recognizable affordances (buttons, rows, tabs)
-
-More than that is over-engineering a throwaway. Less than that is a screenshot.
-
----
-
-## Theming (when the project has a visual identity)
-
-Put shared tokens in `sketches/themes/tokens.css` and `@import` in each variant:
+## Shared tokens, when the project has an identity
 
 ```css
+/* sketches/themes/tokens.css */
 :root {
-  --color-bg: #fafafa;
-  --color-fg: #1a1a1a;
-  --color-accent: #0066ff;
-  --color-muted: #666;
+  --bg: #fafafa;
+  --fg: #1a1a1a;
+  --accent: #0066ff;
+  --muted: #666;
   --radius: 8px;
-  --font-display: "Inter", sans-serif;
-  --font-body: -apple-system, BlinkMacSystemFont, sans-serif;
 }
 ```
 
-Three colors and one font is enough for a throwaway sketch.
+Three colours and one font are enough for something disposable. A full design system in a
+throwaway sketch is time spent on the wrong artefact.
 
----
+## What to sketch next
 
-## What to sketch next (frontier mode)
+When sketches exist and the user asks what is missing:
 
-If sketches already exist and the user asks "what should I sketch next?":
+- **States nobody drew.** Empty, loading, error, one item, two hundred items. The happy
+  path is the easy fifth of the work.
+- **Screens referenced but never explored.**
+- **Viewports.** It held at one width. Mobile? Ultrawide?
+- **Consistency.** Two winning variants from different rounds made independent choices
+  that have never been put in the same screen.
 
-- **Consistency gaps** - winning variants made independent choices not yet composed
-- **Unsketched screens** - referenced but never explored
-- **State coverage** - happy path done, but not empty / loading / error / overflow
-- **Responsive gaps** - validated at one viewport; does it hold at mobile / ultrawide?
-- **Interaction patterns** - static layouts exist; transitions, drag, scroll behavior don't
+Propose two to four, named, and let the user pick.
 
-Propose 2-4 named candidates. Let the user pick.
+## Traps
 
----
+- **Lorem ipsum.** It makes every layout look fine. Use real sentences.
+- **Three variants of one idea.** See section 2.
+- **Showing without looking.** A broken screenshot shown to the user costs their trust in
+  the whole round.
+- **Polishing.** A sketch is done when the decision can be made, not when it is pretty.
+- **Committing `sketches/`** without asking. Most repositories want it ignored.
+- **Relative paths in `file_write`.** They land in the server's working directory, not the
+  project.
 
-## Output summary
+## Failure modes
 
-- Create `sketches/` in the repo root (or `.planning/sketches/` if project uses that convention)
-- One subdir per variant: `NNN-stance-name/index.html` + `README.md`
-- Keep variants disposable - a sketch worth preserving should be promoted to real project code
+**The screenshot is blank or white.** The page needs JavaScript that has not run, or the
+path is wrong. Confirm the file exists with `file_read` first; a typo in an absolute path
+renders as an empty page rather than an error.
+
+**`browser_navigate` refuses the URL.** It was a `file://` path. See section 4: use
+`browser_screenshot`, or serve the directory over HTTP.
+
+**The CDN did not load.** The machine is offline or filtered. Fall back to plain CSS;
+every variant here should survive without a network anyway.
+
+**The user likes parts of two variants.** That is the sketch working. Build the hybrid as
+a new numbered round rather than editing either original: the comparison is the record of
+how the decision was reached.
+
+**The user cannot choose.** The variants are too close, or none serves the one action from
+step 1. Go back to that answer and build something that takes a real position against it.
