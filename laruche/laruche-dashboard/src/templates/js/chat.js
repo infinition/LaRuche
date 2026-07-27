@@ -509,6 +509,14 @@ LaRuche.Chat = (function(){
             _uchip.textContent=_ar;
             _uchip.title=LaRuche.i18n.t('reactions.fromAgent');
             _uw.appendChild(_uchip);
+            // Also logged in the Feed: the chip is easy to miss under a long message,
+            // and the Feed is where the turn is read back afterwards.
+            var _um=_utarget.querySelector('.message');
+            var _uex=(_um?_um.textContent:'').trim().replace(/\s+/g,' ').slice(0,60);
+            addActivity('status',
+              LaRuche.i18n.t('reactions.feedAgent')+' '+_ar,
+              _uex?('"'+_uex+(_uex.length>=60?'...':'')+'"'):'',
+              false);
           }
           break;
         }
@@ -2840,6 +2848,8 @@ LaRuche.Voice = (function(){
     // Exposed for the reactions and LaReine modules: both need the live session
     // to address the right conversation, and neither should reach into chat.js.
     getSessionId:function(){return sessionId;},
+    // Lets those modules write into the Feed without owning its internals.
+    logActivity:function(kind,title,body){ try{ addActivity(kind||'status',title,body||'',false); }catch(e){} },
     init:init, speakText:speakText, stopAllTts:stopAllTts, feedStream:feedStream, finishStream:finishStream, toggleMic:toggleMic, toggleAutoTts:toggleAutoTts,
     openVoiceMode:openVoiceMode, closeVoiceMode:closeVoiceMode, voiceModeTap:voiceModeTap,
     toggleWakeWord:toggleWakeWord,

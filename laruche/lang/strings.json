@@ -2727,6 +2727,18 @@
     "en": "Reaction not saved",
     "fr": "Réaction non enregistrée"
   },
+  "reactions.feedAgent": {
+    "en": "LaRuche reacted to your message with",
+    "fr": "LaRuche a réagi à ton message avec"
+  },
+  "reactions.feedCleared": {
+    "en": "Reaction removed",
+    "fr": "Réaction retirée"
+  },
+  "reactions.feedUser": {
+    "en": "You reacted",
+    "fr": "Tu as réagi"
+  },
   "reactions.fromAgent": {
     "en": "LaRuche reacted to your message",
     "fr": "LaRuche a réagi à ton message"
@@ -2986,6 +2998,14 @@
   "reine.seeReasoning": {
     "en": "Click to see LaReine's reasoning",
     "fr": "Cliquer pour voir le raisonnement de LaReine"
+  },
+  "reine.sendBack": {
+    "en": "Send LaRuche back to work",
+    "fr": "Renvoyer LaRuche au travail"
+  },
+  "reine.sendingBack": {
+    "en": "LaRuche is redoing the work...",
+    "fr": "LaRuche refait le travail..."
   },
   "reine.sentBack": {
     "en": "LaReine sent it back to redo",

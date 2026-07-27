@@ -66,6 +66,17 @@
     var previous = row.dataset.reaction || '';
     var next = (previous === key) ? '' : key;   // second click on the same one clears it
     render(row, next);
+    // Logged in the Feed too, so the turn reads back with the correction visible: a
+    // thumbs-down is the reason the next answer changed course, and without this the
+    // Feed shows the change with no cause.
+    if(window.LaRuche && LaRuche.Chat && LaRuche.Chat.logActivity){
+      var bubble = row.querySelector('.message');
+      var excerpt = (bubble ? bubble.textContent : '').trim().replace(/\s+/g,' ').slice(0,60);
+      LaRuche.Chat.logActivity('status',
+        next ? (t('reactions.feedUser','You reacted')+' '+(emojiFor(next)||next))
+             : t('reactions.feedCleared','Reaction removed'),
+        excerpt ? '"'+excerpt+(excerpt.length>=60?'...':'')+'"' : '');
+    }
     if(!id){ return; }
     var raw = row.dataset.msgIndex;
     var index = (raw === undefined || raw === '') ? -1 : parseInt(raw, 10);

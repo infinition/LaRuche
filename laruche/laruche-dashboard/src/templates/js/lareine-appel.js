@@ -76,12 +76,16 @@
              +   scoreBar(t('reine.brand','Brand'), s.conformite_marque)
              + '</div>';
 
-    // Her corrective instruction is the actionable part: offer to hand it straight to
-    // the agent rather than making the user retype it.
+    // Her corrective instruction is the actionable part. When she asks for a revision,
+    // the button actually SENDS THE WORK BACK: a fresh agentic run with her instruction,
+    // streamed into the chat. That is the whole point of summoning her; a verdict you
+    // then have to act on by hand is only half the feature.
     if(data.instruction){
       html += '<div class="reine-appel-instruction"><strong>'+esc(t('reine.instruction','What she asks for'))+'</strong> '
-            + esc(data.instruction)+'</div>'
-            + '<button type="button" class="reine-appel-apply">'+esc(t('reine.applyInstruction','Send it back with this'))+'</button>';
+            + esc(data.instruction)+'</div>';
+    }
+    if(data.avis === 'revise' || data.avis === 'escalate'){
+      html += '<button type="button" class="reine-appel-apply">'+esc(t('reine.sendBack','Send LaRuche back to work'))+'</button>';
     }
     if(data.analyse){
       html += '<details class="reine-appel-analyse"><summary>'+esc(t('reine.analysis','Her reasoning'))+'</summary>'
@@ -92,12 +96,24 @@
     var apply = card.querySelector('.reine-appel-apply');
     if(apply){
       apply.addEventListener('click', function(){
-        var input = document.getElementById('messageInput') || document.querySelector('.chat-input textarea');
-        if(input){
-          input.value = data.instruction;
-          input.focus();
-          try { input.dispatchEvent(new Event('input', {bubbles:true})); } catch(e){}
-        }
+        var id = sessionId();
+        if(!id) return;
+        apply.disabled = true;
+        apply.textContent = t('reine.sendingBack','LaRuche is redoing the work...');
+        fetch('/api/reine/renvoyer', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ session_id: id })
+        }).then(function(r){
+          if(!r.ok) throw new Error('http '+r.status);
+          // From here the verdict and the fresh run stream in over the chat channel,
+          // exactly as they do with LaReine on duty. This card has done its job.
+          card.classList.add('handed-over');
+        }).catch(function(){
+          apply.disabled = false;
+          apply.textContent = t('reine.sendBack','Send LaRuche back to work');
+          if(window.LaRuche && LaRuche.Toast) LaRuche.Toast.show(t('reine.appelFailed','LaReine could not deliver a verdict.'),'err');
+        });
       });
     }
     host.appendChild(card);

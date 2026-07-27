@@ -217,13 +217,29 @@ pub(crate) async fn revue_complete(
     reponse: &str,
     tx: tokio::sync::broadcast::Sender<laruche_essaim::ChatEvent>,
 ) {
+    revue_complete_avec(state, session_id, prompt, reponse, tx, charger_reine_settings()).await
+}
+
+/// Same, with the settings supplied by the caller instead of read from disk.
+///
+/// The summon button needs this: LaReine ships switched off, and `active_for_responses`
+/// would refuse the very review the user just asked for by hand. The manual path passes
+/// a forced copy rather than reaching around the gate, so one place still decides what
+/// "active" means.
+pub(crate) async fn revue_complete_avec(
+    state: &AppState,
+    session_id: uuid::Uuid,
+    prompt: &str,
+    reponse: &str,
+    tx: tokio::sync::broadcast::Sender<laruche_essaim::ChatEvent>,
+    rs: ReineSettings,
+) {
     let fin = |tx: &tokio::sync::broadcast::Sender<laruche_essaim::ChatEvent>| {
         let _ = tx.send(laruche_essaim::ChatEvent::Status {
             message: "__reine_end__".to_string(),
         });
     };
 
-    let rs = charger_reine_settings();
     if !rs.active_for_responses() || reponse.trim().is_empty() {
         fin(&tx);
         return;
@@ -588,4 +604,84 @@ pub(crate) async fn api_reine_appel(
             "error": "LaReine could not deliver a verdict (no answer to judge, or the judge provider failed)."
         }))),
     }
+}
+
+/// POST /api/reine/renvoyer - summon LaReine AND let her send the work back.
+///
+/// Body: `{"session_id": "<uuid>"}`. Returns as soon as the review starts; the verdict
+/// and, if she asks for one, the fresh agentic run both stream into the chat over the
+/// session's existing channel, exactly as they would with her on duty.
+///
+/// `/api/reine/appel` stays the read-only sibling: a verdict and nothing else. This one
+/// is the "back to work" button, and it is separate precisely because redoing the work
+/// spends tokens and replaces the answer on screen: that has to be an explicit click,
+/// never a side effect of asking for an opinion.
+pub(crate) async fn api_reine_renvoyer(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let caller = auth_user::extract_user_from_headers(&headers, &state.cookie_secret);
+    let session_id = body
+        .get("session_id")
+        .and_then(|v| v.as_str())
+        .and_then(|s| uuid::Uuid::parse_str(s).ok())
+        .ok_or(StatusCode::BAD_REQUEST)?;
+
+    // The session's own event channel: without it the rework would run invisibly and
+    // land as a message nobody saw being produced.
+    let (prompt, reponse, tx) = {
+        let sessions = state.essaim_sessions.read().await;
+        let s = sessions.get(&session_id).ok_or(StatusCode::NOT_FOUND)?;
+        if s.user_id.is_some() && s.user_id != caller {
+            return Err(StatusCode::FORBIDDEN);
+        }
+        let reponse = s
+            .messages
+            .iter()
+            .rev()
+            .find_map(|m| match m {
+                laruche_essaim::Message::Assistant(t) if !t.trim().is_empty() => Some(t.clone()),
+                _ => None,
+            })
+            .ok_or(StatusCode::BAD_REQUEST)?;
+        let prompt = s
+            .messages
+            .iter()
+            .rev()
+            .find_map(|m| match m {
+                laruche_essaim::Message::User(t) => Some(t.clone()),
+                laruche_essaim::Message::UserMultimodal { text, .. } => Some(text.clone()),
+                _ => None,
+            })
+            .unwrap_or_default();
+        let tx = s.event_tx.clone().ok_or(StatusCode::CONFLICT)?;
+        (prompt, reponse, tx)
+    };
+
+    // Forced settings. She ships off, and `active_for_responses` would otherwise refuse
+    // the review the user just asked for. Tier 1 on, at least one round so a revision
+    // can actually happen, and the wider window because a hand-made call is about a
+    // whole conversation rather than the last turn. Everything else, including her
+    // judge profile, stays as configured: a manual call must not judge with a different
+    // brain than the automatic one.
+    let mut rs = charger_reine_settings();
+    if rs.mode == "off" {
+        rs.mode = "auto".into();
+    }
+    rs.tier_reponse = true;
+    rs.max_revues = rs.max_revues.max(1);
+    rs.contexte_messages = rs.contexte_messages.max(FENETRE_APPEL_MANUEL as u8);
+    rs.assainir();
+
+    tracing::info!(target: "reine", max_revues = rs.max_revues, "summoned by hand, rework allowed");
+
+    // Detached: the rework is a full agentic run and can take minutes. Holding the HTTP
+    // request open for it would time out in the browser while the work still streams.
+    let state2 = state.clone();
+    tokio::spawn(async move {
+        revue_complete_avec(&state2, session_id, &prompt, &reponse, tx, rs).await;
+    });
+
+    Ok(Json(serde_json::json!({ "ok": true, "started": true })))
 }

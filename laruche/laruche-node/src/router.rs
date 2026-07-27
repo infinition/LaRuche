@@ -211,6 +211,7 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/reine/proposals", get(reine_api::api_list_proposals))
         .route("/api/reine/scorecards", get(reine_api::api_reine_scorecards))
         .route("/api/reine/appel", post(reine_api::api_reine_appel))
+        .route("/api/reine/renvoyer", post(reine_api::api_reine_renvoyer))
         .route(
             "/api/reine/proposals/apply-safe",
             post(reine_api::api_approve_safe),
