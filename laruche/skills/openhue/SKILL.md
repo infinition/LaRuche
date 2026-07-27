@@ -21,16 +21,53 @@ Control Philips Hue lights and scenes via a Hue Bridge from the terminal.
 
 ## Install
 
+Releases ship ARCHIVES, not bare binaries. The asset names are
+`openhue_<OS>_<arch>.<ext>`, e.g. `openhue_Windows_x86_64.zip`,
+`openhue_Linux_x86_64.tar.gz`, `openhue_Darwin_all.tar.gz`. A URL built as
+`openhue-linux-amd64` does not exist and returns 404.
+
+```powershell
+# Windows: download, extract, put on PATH
+$dst = "$env:LOCALAPPDATA\Programs\openhue"
+New-Item -ItemType Directory -Force $dst | Out-Null
+$url = "https://github.com/openhue/openhue-cli/releases/latest/download/openhue_Windows_x86_64.zip"
+Invoke-WebRequest $url -OutFile "$env:TEMP\openhue.zip"
+Expand-Archive "$env:TEMP\openhue.zip" -DestinationPath $dst -Force
+[Environment]::SetEnvironmentVariable("Path", "$env:Path;$dst", "User")
+```
+
 ```bash
-# Linux (pre-built binary)
-curl -sL https://github.com/openhue/openhue-cli/releases/latest/download/openhue-linux-amd64 \
-  -o ~/.local/bin/openhue && chmod +x ~/.local/bin/openhue
+# Linux
+curl -sL https://github.com/openhue/openhue-cli/releases/latest/download/openhue_Linux_x86_64.tar.gz \
+  | tar -xz -C ~/.local/bin openhue
 
 # macOS
 brew install openhue/cli/openhue-cli
 ```
 
-First run: press the button on your Hue Bridge to pair. The bridge must be on the same local network.
+Verify before anything else: `openhue --version`. If the command is not found, it is
+NOT installed, whatever `~/.openhue/config.yaml` contains: the config file survives
+the binary and is not proof of an install.
+
+First run: press the button on your Hue Bridge to pair. The bridge must be on the same
+local network.
+
+### Configuration
+
+OpenHue stores its configuration in `~/.openhue/config.yaml`:
+
+```yaml
+bridge: <BRIDGE_IP>
+key: <API_KEY_GENERATED_AT_PAIRING>
+```
+
+- The **API key** is generated automatically when you press the bridge button during
+  pairing. There is nothing to create by hand.
+- It stays valid until the bridge changes or is factory reset.
+- To re-pair from scratch, delete `~/.openhue/config.yaml` and run the setup again.
+- **Never print that file's contents.** The key grants control of every light to
+  anyone who can reach the bridge on the LAN. To check the pairing, run
+  `openhue get light` and look at whether it answers, not at the key.
 
 ## Discovery
 
