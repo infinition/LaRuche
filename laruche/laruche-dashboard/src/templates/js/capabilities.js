@@ -27,8 +27,6 @@ LaRuche.i18n.add({
   'capabilities.capacities':    { fr:'capacite(s)',       en:'capability(-ies)' },
   'capabilities.nativeImmutable': { fr:' - outils natifs = immuables', en:' - native tools are immutable' },
   'capabilities.emptyFilter':   { fr:'Aucune capacite (filtre ou famille vide).', en:'No capability found (filter or empty family).' },
-  'capabilities.mcpFormUnavailable': { fr:'Formulaire MCP indisponible', en:'MCP form unavailable' },
-  'capabilities.editingMcp':    { fr:' - modifiez puis cliquez sur le bouton', en:' - edit then click the button' },
   'capabilities.nameAndCmdRequired': { fr:'Nom et commande requis', en:'Name and command required' },
   'capabilities.mcpSaved':      { fr:'Serveur MCP enregistre', en:'MCP server saved' },
   'capabilities.mcpSaveFailed': { fr:'Echec enregistrement MCP', en:'Failed to save MCP' },
@@ -65,9 +63,16 @@ LaRuche.i18n.add({
   'capabilities.messagePlaceholder': { fr:'Message…',    en:'Message…' },
   'capabilities.send':          { fr:'Envoyer',           en:'Send' },
   'capabilities.youPrefix':     { fr:'Vous: ',            en:'You: ' },
-  'capabilities.editingOf':     { fr:'Edition de ',       en:'Editing ' },
   'capabilities.statusOn':      { fr:'ON',                en:'ON' },
   'capabilities.statusOff':     { fr:'OFF',               en:'OFF' },
+  'capabilities.mcpAddTitle':   { fr:'Ajouter un serveur MCP', en:'Add an MCP server' },
+  'capabilities.mcpEditTitle':  { fr:'Modifier le serveur MCP', en:'Edit MCP server' },
+  'capabilities.mcpModalSub':   { fr:'Le serveur est lance par LaRuche. La modification prend effet aussitot.', en:'LaRuche launches the server. Changes take effect at once.' },
+  'capabilities.mcpNameFixed':  { fr:'Le nom identifie le serveur, il ne se modifie pas ici.', en:'The name identifies the server and cannot be changed here.' },
+  'capabilities.mcpArgsHint':   { fr:'Separes par des espaces.', en:'Space separated.' },
+  'capabilities.mcpEnabledLabel':{ fr:'Serveur actif',     en:'Server enabled' },
+  'capabilities.mcpEnabled':    { fr:'active',             en:'enabled' },
+  'capabilities.mcpDisabled':   { fr:'desactive',          en:'disabled' },
   'capabilities.essaim':        { fr:'Essaim',            en:'Essaim' },
   'capabilities.typeTool':      { fr:'Tool',              en:'Tool' },
   'capabilities.typeSkill':     { fr:'Skill',             en:'Skill' },
@@ -133,7 +138,8 @@ LaRuche.Capabilities = (function(){
         rows.push({
           family:'mcp', name:k, origin:'custom',
           desc:((s.command||'')+' '+((s.args||[]).join(' '))).trim(),
-          enabled:true, raw:s, mcpName:k
+          // Absent in a file written before the field existed: enabled unless said otherwise.
+          enabled:(s.enabled !== false), raw:s, mcpName:k
         });
       });
     } catch(e){}
@@ -192,7 +198,8 @@ LaRuche.Capabilities = (function(){
           'if('+confirme('capabilities.confirmDelete')+'){LaRuche.Settings.deleteSkill(\''+nom+'\');setTimeout(LaRuche.Capabilities.refresh,300)}', true);
     }
     if(r.family==='mcp'){
-      return bouton(LaRuche.i18n.t('capabilities.edit'), 'LaRuche.Capabilities.editMcp('+i+')')+' '+
+      return interrupteur(r.name, r.enabled, 'LaRuche.Capabilities.toggleMcp('+i+',this.checked)')+' '+
+        bouton(LaRuche.i18n.t('capabilities.edit'), 'LaRuche.Capabilities.editMcp('+i+')')+' '+
         bouton(LaRuche.i18n.t('capabilities.remove'),
           'LaRuche.Settings.deleteMcpServer(\''+LaRuche.Utils.esc(r.mcpName)+'\');setTimeout(LaRuche.Capabilities.refresh,600)', true);
     }
@@ -232,11 +239,10 @@ LaRuche.Capabilities = (function(){
     // MCP add bar (visible on All + MCP)
     var mcpAdd = '';
     if(currentFamily==='all' || currentFamily==='mcp'){
-      mcpAdd = '<div style="border:1px solid var(--border);border-radius:6px;padding:10px;background:var(--bg-panel);margin-bottom:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:end">'+
-        '<div style="flex:1;min-width:120px"><label class="form-label">'+LaRuche.i18n.t('capabilities.mcpServerName')+'</label><input id="capMcpName" class="form-input" placeholder="'+LaRuche.i18n.t('capabilities.mcpNamePlaceholder')+'"></div>'+
-        '<div style="flex:1;min-width:120px"><label class="form-label">'+LaRuche.i18n.t('capabilities.command')+'</label><input id="capMcpCmd" class="form-input" placeholder="'+LaRuche.i18n.t('capabilities.mcpCmdPlaceholder')+'"></div>'+
-        '<div style="flex:2;min-width:160px"><label class="form-label">'+LaRuche.i18n.t('capabilities.arguments')+'</label><input id="capMcpArgs" class="form-input" placeholder="'+LaRuche.i18n.t('capabilities.mcpArgsPlaceholder')+'"></div>'+
-        '<button class="settings-save-btn" onclick="LaRuche.Capabilities.addMcp()">'+LaRuche.i18n.t('capabilities.addMcpServer')+'</button>'+
+      // A three-field form parked above the table for a rare action, and Edit filled it
+      // from a distance. One button, one dialog, same one for add and edit.
+      mcpAdd = '<div style="margin-bottom:12px">'+
+        '<button class="tl-btn" onclick="LaRuche.Capabilities.addMcp()">'+LaRuche.i18n.t('capabilities.addMcpServer')+'</button>'+
         '</div>';
     }
 
@@ -307,32 +313,108 @@ LaRuche.Capabilities = (function(){
     }
   }
 
-  function editMcp(i){
-    var rows = window._capRows || [];
-    var r = rows[i]; if(!r || r.family!=='mcp') return;
-    var s = r.raw || {};
-    var nameEl=document.getElementById('capMcpName'), cmdEl=document.getElementById('capMcpCmd'), argsEl=document.getElementById('capMcpArgs');
-    if(!nameEl||!cmdEl||!argsEl){ LaRuche.Toast.show(LaRuche.i18n.t('capabilities.mcpFormUnavailable'),'err'); return; }
-    nameEl.value = r.mcpName || r.name || '';
-    cmdEl.value = s.command || '';
-    argsEl.value = (s.args || []).join(' ');
-    nameEl.focus();
-    try{ nameEl.scrollIntoView({behavior:'smooth', block:'center'}); }catch(e){}
-    LaRuche.Toast.show(LaRuche.i18n.t('capabilities.editingOf')+(r.mcpName||r.name)+LaRuche.i18n.t('capabilities.editingMcp'),'ok');
+  // Writes an MCP server. Omitting `enabled` makes the server keep its current state,
+  // so editing a command never switches a disabled server back on.
+  function enregistrerMcp(nom, commande, args, actif){
+    var corps = { command:commande, args:(args ? args.split(/\s+/).filter(Boolean) : []) };
+    if(actif != null) corps.enabled = actif;
+    return fetch('/api/mcp/servers/'+encodeURIComponent(nom), {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(corps)
+    });
   }
 
-  function addMcp(){
-    var n=(document.getElementById('capMcpName')||{}).value, c=(document.getElementById('capMcpCmd')||{}).value, a=(document.getElementById('capMcpArgs')||{}).value;
-    n=(n||'').trim(); c=(c||'').trim(); a=(a||'').trim();
-    if(!n||!c){ LaRuche.Toast.show(LaRuche.i18n.t('capabilities.nameAndCmdRequired'),'err'); return; }
-    fetch('/api/mcp/servers/'+encodeURIComponent(n),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({command:c,args:(a?a.split(' '):[])})})
-      .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('capabilities.mcpSaved'),'ok'); var ne=document.getElementById('capMcpName'),ce=document.getElementById('capMcpCmd'),ae=document.getElementById('capMcpArgs'); if(ne)ne.value=''; if(ce)ce.value=''; if(ae)ae.value=''; render(); } else LaRuche.Toast.show(LaRuche.i18n.t('capabilities.mcpSaveFailed'),'err'); });
+  function toggleMcp(i, actif){
+    var r = (window._capRows || [])[i];
+    if(!r || r.family!=='mcp') return;
+    var s = r.raw || {};
+    enregistrerMcp(r.mcpName || r.name, s.command || '', (s.args || []).join(' '), actif)
+      .then(function(rep){
+        if(!rep.ok){ LaRuche.Toast.show(LaRuche.i18n.t('capabilities.mcpSaveFailed'),'err'); return; }
+        // The server also reloads the MCP registry, so the change is live, not pending.
+        LaRuche.Toast.show((r.mcpName||r.name)+' '+LaRuche.i18n.t(actif?'capabilities.mcpEnabled':'capabilities.mcpDisabled'),'ok');
+        refresh();
+      });
   }
+
+  var _mcpEchap = null;
+  function fermerMcpModal(){
+    var ov = document.getElementById('capMcpModal');
+    if(ov) ov.remove();
+    if(_mcpEchap){ document.removeEventListener('keydown', _mcpEchap); _mcpEchap = null; }
+  }
+
+  // One dialog for adding and for editing. The name is the server's identity, so it is
+  // read-only once the server exists: changing it would create a second one rather than
+  // rename the first.
+  function ouvrirMcpModal(r){
+    fermerMcpModal();
+    var edition = !!r;
+    var s = (r && r.raw) || {};
+    var nom = edition ? (r.mcpName || r.name) : '';
+    var actif = edition ? (s.enabled !== false) : true;
+    var esc = LaRuche.Utils.esc;
+
+    var ov = document.createElement('div');
+    ov.id = 'capMcpModal';
+    ov.className = 'lr-modal-ov';
+    ov.innerHTML = '<div class="lr-modal" role="dialog" aria-modal="true">'+
+      '<h3>'+esc(LaRuche.i18n.t(edition?'capabilities.mcpEditTitle':'capabilities.mcpAddTitle'))+'</h3>'+
+      '<p class="lr-modal-sub">'+esc(LaRuche.i18n.t('capabilities.mcpModalSub'))+'</p>'+
+      '<label for="mcpMName">'+esc(LaRuche.i18n.t('capabilities.mcpServerName'))+'</label>'+
+      '<input type="text" id="mcpMName" value="'+esc(nom)+'" '+(edition?'readonly':'placeholder="'+esc(LaRuche.i18n.t('capabilities.mcpNamePlaceholder'))+'"')+'>'+
+      (edition ? '<div class="lr-modal-hint">'+esc(LaRuche.i18n.t('capabilities.mcpNameFixed'))+'</div>' : '')+
+      '<label for="mcpMCmd">'+esc(LaRuche.i18n.t('capabilities.command'))+'</label>'+
+      '<input type="text" id="mcpMCmd" value="'+esc(s.command||'')+'" placeholder="'+esc(LaRuche.i18n.t('capabilities.mcpCmdPlaceholder'))+'">'+
+      '<label for="mcpMArgs">'+esc(LaRuche.i18n.t('capabilities.arguments'))+'</label>'+
+      '<input type="text" id="mcpMArgs" value="'+esc((s.args||[]).join(' '))+'" placeholder="'+esc(LaRuche.i18n.t('capabilities.mcpArgsPlaceholder'))+'">'+
+      '<div class="lr-modal-hint">'+esc(LaRuche.i18n.t('capabilities.mcpArgsHint'))+'</div>'+
+      '<div class="lr-modal-row">'+
+        '<label class="lr-switch" style="margin:0"><input type="checkbox" id="mcpMEnabled" '+(actif?'checked':'')+'><span class="lr-slider"></span></label>'+
+        '<span>'+esc(LaRuche.i18n.t('capabilities.mcpEnabledLabel'))+'</span>'+
+      '</div>'+
+      '<div class="lr-modal-actions">'+
+        '<button class="tl-btn" onclick="LaRuche.Capabilities.closeMcpModal()">'+esc(LaRuche.i18n.t('common.cancel'))+'</button>'+
+        '<button class="tl-btn tl-btn--active" onclick="LaRuche.Capabilities.saveMcpModal()">'+esc(LaRuche.i18n.t('common.save'))+'</button>'+
+      '</div></div>';
+    document.body.appendChild(ov);
+    // Click outside closes, Escape too: same reflexes as everywhere else in the app.
+    // Escape is watched on the document, not the overlay: bound to the overlay it only
+    // fires while focus happens to be inside it.
+    ov.addEventListener('click', function(e){ if(e.target === ov) fermerMcpModal(); });
+    _mcpEchap = function(e){ if(e.key === 'Escape') fermerMcpModal(); };
+    document.addEventListener('keydown', _mcpEchap);
+    var premier = document.getElementById(edition ? 'mcpMCmd' : 'mcpMName');
+    if(premier) premier.focus();
+  }
+
+  function saveMcpModal(){
+    var n = (document.getElementById('mcpMName')||{}).value || '';
+    var c = (document.getElementById('mcpMCmd')||{}).value || '';
+    var a = (document.getElementById('mcpMArgs')||{}).value || '';
+    var actif = !!(document.getElementById('mcpMEnabled')||{}).checked;
+    n = n.trim(); c = c.trim();
+    if(!n || !c){ LaRuche.Toast.show(LaRuche.i18n.t('capabilities.nameAndCmdRequired'),'err'); return; }
+    enregistrerMcp(n, c, a.trim(), actif).then(function(rep){
+      if(!rep.ok){ LaRuche.Toast.show(LaRuche.i18n.t('capabilities.mcpSaveFailed'),'err'); return; }
+      LaRuche.Toast.show(LaRuche.i18n.t('capabilities.mcpSaved'),'ok');
+      fermerMcpModal();
+      render();
+    });
+  }
+
+  function editMcp(i){
+    var r = (window._capRows || [])[i];
+    if(!r || r.family!=='mcp') return;
+    ouvrirMcpModal(r);
+  }
+
+  function addMcp(){ ouvrirMcpModal(null); }
 
   // .lr-switch lives in app.css.
   function ensureSwitchStyle(){}
 
-  return { init:init, enter:enter, leave:leave, current:function(){return current;}, refresh:refresh, addMcp:addMcp, viewRaw:viewRaw, onSearch:onSearch, toggleAll:toggleAll, editMcp:editMcp };
+  return { init:init, enter:enter, leave:leave, current:function(){return current;}, refresh:refresh, addMcp:addMcp, viewRaw:viewRaw, onSearch:onSearch, toggleAll:toggleAll, editMcp:editMcp,
+    toggleMcp:toggleMcp, saveMcpModal:saveMcpModal, closeMcpModal:fermerMcpModal };
 })();
 
 /* ── Register all page modules ── */

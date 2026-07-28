@@ -49,22 +49,37 @@ pub(crate) async fn api_mcp_save_server(
         }
     };
 
+    // An absent `enabled` preserves the current state: editing a command must not
+    // silently switch a disabled server back on. A brand new server starts enabled.
+    let enabled = body["enabled"].as_bool().unwrap_or_else(|| {
+        servers
+            .mcp_servers
+            .get(&name)
+            .map(|s| s.enabled)
+            .unwrap_or(true)
+    });
+
     servers.mcp_servers.insert(
         name.clone(),
-        laruche_essaim::mcp_client::McpServerConfig { command, args },
+        laruche_essaim::mcp_client::McpServerConfig {
+            command,
+            args,
+            enabled,
+        },
     );
 
     if let Ok(json) = serde_json::to_string_pretty(&servers) {
         let _ = std::fs::write(path, json);
     }
 
-    // Reload all MCP tools
+    // Reload all MCP tools. Dropping the Mcp origin first is what makes a toggle take
+    // effect at once: a server turned off is skipped on reload, so its tools are gone.
     state
         .essaim_registry
         .supprimer_par_origine(laruche_essaim::abeille::ToolOrigin::Mcp);
     let _ = laruche_essaim::mcp_client::charger_mcp_servers(path, &state.essaim_registry).await;
 
-    axum::Json(serde_json::json!({ "status": "ok", "name": name }))
+    axum::Json(serde_json::json!({ "status": "ok", "name": name, "enabled": enabled }))
 }
 
 /// DELETE /api/mcp/servers/:name

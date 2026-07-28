@@ -254,6 +254,15 @@ use crate::abeilles::mcp_tool::McpAbeille;
 pub struct McpServerConfig {
     pub command: String,
     pub args: Vec<String>,
+    /// A disabled server is configured but never started, so its tools stay out of the
+    /// registry. Absent from a file written before this field existed, which is why it
+    /// defaults to enabled: an upgrade must not silently switch a server off.
+    #[serde(default = "actif_par_defaut")]
+    pub enabled: bool,
+}
+
+fn actif_par_defaut() -> bool {
+    true
 }
 
 #[derive(Serialize, Deserialize)]
@@ -286,6 +295,10 @@ pub async fn charger_mcp_servers(
     };
 
     for (name, config) in servers.mcp_servers {
+        if !config.enabled {
+            tracing::info!(server = %name, "MCP server disabled, not started");
+            continue;
+        }
         tracing::info!(
             "Starting MCP server '{}': {} {:?}",
             name,

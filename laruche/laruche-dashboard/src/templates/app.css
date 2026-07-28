@@ -2268,3 +2268,23 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 .lr-switch input:checked + .lr-slider { background:var(--amber); }
 .lr-switch input:checked + .lr-slider:before { transform:translateX(16px); background:#fff; }
 .lr-switch input:focus-visible + .lr-slider { outline:2px solid var(--amber); outline-offset:2px; }
+
+/* ── Reusable modal (.lr-modal) ────────────────────────────────────────────
+ * Every module was building its own overlay with an inline cssText, four of
+ * them with four sets of values. One definition, so a dialog looks the same
+ * wherever it is opened from. */
+.lr-modal-ov { position:fixed; inset:0; z-index:5000; background:rgba(0,0,0,.62); display:flex; align-items:center; justify-content:center; padding:18px; }
+.lr-modal { width:min(520px,100%); max-height:88vh; overflow:auto; padding:18px 20px;
+  background:var(--bg-card); border:1px solid var(--border); border-radius:12px;
+  box-shadow:0 18px 48px rgba(0,0,0,.55); }
+.lr-modal h3 { margin:0 0 4px; font-size:14px; font-weight:600; color:var(--amber); }
+.lr-modal .lr-modal-sub { font-size:11px; color:var(--text-muted); margin:0 0 12px; }
+.lr-modal label { display:block; font-size:11px; color:var(--text-dim); margin:12px 0 4px; }
+.lr-modal input[type=text] { width:100%; box-sizing:border-box; padding:7px 9px;
+  background:#16161a; border:1px solid var(--border); border-radius:6px;
+  color:var(--text); font-size:12px; font-family:var(--mono); }
+.lr-modal input[type=text]:focus { outline:none; border-color:var(--amber); }
+.lr-modal input[readonly] { color:var(--text-dim); background:#121216; cursor:not-allowed; }
+.lr-modal .lr-modal-hint { font-size:10px; color:var(--text-muted); margin-top:4px; }
+.lr-modal .lr-modal-row { display:flex; align-items:center; gap:8px; margin-top:14px; font-size:12px; color:var(--text-dim); }
+.lr-modal .lr-modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:18px; }
