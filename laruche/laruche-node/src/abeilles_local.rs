@@ -156,6 +156,12 @@ impl Abeille for AbeilleCronCreate {
             }
         };
         let cron_expr = args["cron_expr"].as_str().map(|s| s.to_string());
+        // Same guard as mission_create: an unparseable expression is a task that never fires.
+        if let Some(c) = &cron_expr {
+            if let Err(e) = laruche_essaim::cron::valider_cron(c) {
+                return Ok(ResultatAbeille::err(e));
+            }
+        }
         let fire_at = args["fire_at"].as_str().and_then(|s| {
             chrono::DateTime::parse_from_rfc3339(s)
                 .ok()
@@ -413,8 +419,12 @@ impl Abeille for AbeilleMissionCreate {
 
     fn description(&self) -> &str {
         "Create a long-running mission. `objective` = what to accomplish across iterations; \
-         `cadence` = optional cron expression (e.g. '0 9 * * *') for automatic iterations, \
-         omit it for a manual mission; `channel` = optional delivery channel for reports."
+         `cadence` = cron expression (e.g. '0 9 * * *' = every day at 09:00) for automatic \
+         iterations; `channel` = optional delivery channel for reports. \
+         SET `cadence` WHENEVER THE USER EXPRESSED A RHYTHM (\"every day\", \"each morning\", \
+         \"weekly\", \"at 9\"): without it the mission NEVER runs on its own, never appears in \
+         the timeline, and sits waiting for someone to launch it by hand. Omit it only for \
+         a genuinely one-off mission."
     }
 
     fn schema(&self) -> Value {
@@ -422,7 +432,7 @@ impl Abeille for AbeilleMissionCreate {
             "type": "object",
             "properties": {
                 "objective": { "type": "string", "description": "Mission objective" },
-                "cadence": { "type": "string", "description": "Cron expression for automatic iterations (optional)" },
+                "cadence": { "type": "string", "description": "Cron expression, e.g. '0 9 * * *' for every day at 09:00. Required whenever the user asked for something recurring; omitting it makes the mission manual-only and invisible in the timeline." },
                 "channel": { "type": "string", "description": "Delivery channel, e.g. telegram:123 (optional)" }
             },
             "required": ["objective"]
@@ -447,6 +457,14 @@ impl Abeille for AbeilleMissionCreate {
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .map(String::from);
+        // Refused at the door rather than stored and never fired. A cadence the scheduler
+        // cannot parse produces a mission that shows a schedule, sits in the timeline and
+        // runs exactly never — the failure is invisible until someone notices weeks later.
+        if let Some(c) = &cadence {
+            if let Err(e) = laruche_essaim::cron::valider_cron(c) {
+                return Ok(ResultatAbeille::err(e));
+            }
+        }
         let channel = args["channel"]
             .as_str()
             .map(str::trim)
@@ -1216,5 +1234,122 @@ mod tests_type_watcher {
         assert_eq!(resoudre("commmand"), None);
         assert_eq!(resoudre("shell"), None);
         assert_eq!(resoudre(""), None);
+    }
+}
+
+/// The node, published by `main` right after `AppState` is built.
+///
+/// The registry is assembled before `AppState` exists, so a tool that needs the whole
+/// node cannot receive it as a field like the single-store tools above do.
+pub static ETAT_NOEUD: std::sync::OnceLock<Arc<crate::AppState>> = std::sync::OnceLock::new();
+
+/// Fire a scheduled thing NOW, without waiting for its cadence.
+///
+/// The agent could create crons, missions and watchers but never trigger one: it had to
+/// tell the user "it will run at 9" and wait, even when the point was to see it work.
+/// Runs through the same code path as the scheduler and the UI button, so a forced run
+/// is indistinguishable from a natural one.
+pub struct AbeilleForcerLancement;
+
+#[async_trait]
+impl Abeille for AbeilleForcerLancement {
+    fn nom(&self) -> &str {
+        "run_now"
+    }
+
+    fn niveau_danger(&self) -> NiveauDanger {
+        // It runs a full agent turn with the target's own config: same weight as creating one.
+        NiveauDanger::NeedsApproval
+    }
+
+    fn description(&self) -> &str {
+        "Run a scheduled item IMMEDIATELY instead of waiting for its cadence. \
+         `kind` = 'cron' | 'mission'. `target` = the cron NAME (or id), or the mission SLUG \
+         (or objective). Use it to test something you just created, or when the user asks \
+         for it now. Returns as soon as the run starts: it continues in the background and \
+         reports through its own channel."
+    }
+
+    fn schema(&self) -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "kind": { "type": "string", "enum": ["cron", "mission"], "description": "What to fire" },
+                "target": { "type": "string", "description": "Cron name/id, or mission slug/objective" }
+            },
+            "required": ["kind", "target"]
+        })
+    }
+
+    async fn executer(
+        &self,
+        args: Value,
+        _ctx: &laruche_essaim::ContextExecution,
+    ) -> anyhow::Result<ResultatAbeille> {
+        let kind = args["kind"].as_str().unwrap_or("").trim().to_lowercase();
+        let cible = args["target"].as_str().unwrap_or("").trim().to_string();
+        if cible.is_empty() {
+            return Ok(ResultatAbeille::err("Parameter 'target' is required.".to_string()));
+        }
+        let Some(state) = ETAT_NOEUD.get().cloned() else {
+            return Ok(ResultatAbeille::err(
+                "The node is not ready yet; retry in a moment.".to_string(),
+            ));
+        };
+
+        match kind.as_str() {
+            "cron" => {
+                // By id when it parses, otherwise by name: the agent knows the name it
+                // gave, rarely the uuid.
+                let tache = {
+                    let cron = state.essaim_cron.read().await;
+                    uuid::Uuid::parse_str(&cible)
+                        .ok()
+                        .and_then(|u| cron.get(&u))
+                        .or_else(|| {
+                            cron.list()
+                                .into_iter()
+                                .find(|t| t.name.eq_ignore_ascii_case(&cible))
+                                .cloned()
+                        })
+                };
+                let Some(tache) = tache else {
+                    return Ok(ResultatAbeille::err(format!(
+                        "No cron named '{cible}'. Use cron_list to see the exact names."
+                    )));
+                };
+                let nom = tache.name.clone();
+                crate::missions_api::lancer_tache_cron(state, tache);
+                Ok(ResultatAbeille::ok(format!(
+                    "Cron '{nom}' started now. It runs in the background."
+                )))
+            }
+            "mission" => {
+                let mission = {
+                    let store = state.missions.read().await;
+                    store.get(&cible).or_else(|| {
+                        store
+                            .list()
+                            .into_iter()
+                            .find(|m| m.objective.to_lowercase().contains(&cible.to_lowercase()))
+                    })
+                };
+                let Some(mission) = mission else {
+                    return Ok(ResultatAbeille::err(format!(
+                        "No mission matching '{cible}'. Use mission_list to see the slugs."
+                    )));
+                };
+                let slug = mission.slug.clone();
+                tokio::spawn(async move {
+                    crate::missions_api::lancer_iteration_mission(state, mission).await;
+                });
+                Ok(ResultatAbeille::ok(format!(
+                    "Mission '{slug}': one iteration started now. It runs in the background."
+                )))
+            }
+            other => Ok(ResultatAbeille::err(format!(
+                "Unknown kind '{other}'. Use 'cron' or 'mission'."
+            ))),
+        }
     }
 }

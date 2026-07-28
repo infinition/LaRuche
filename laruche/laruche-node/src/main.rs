@@ -491,6 +491,7 @@ async fn main() -> Result<()> {
     essaim_registry.enregistrer(Box::new(abeilles_local::AbeilleMissionCreate {
         missions: missions_arc.clone(),
     }));
+    essaim_registry.enregistrer(Box::new(abeilles_local::AbeilleForcerLancement));
     essaim_registry.enregistrer(Box::new(abeilles_local::AbeilleMissionDelete {
         missions: missions_arc.clone(),
     }));
@@ -1001,6 +1002,13 @@ async fn main() -> Result<()> {
         travaux: Arc::new(std::sync::RwLock::new(HashMap::new())),
         mcp_verrou: Arc::new(std::sync::Mutex::new(Default::default())),
     });
+
+    // Published once, right after construction. The tool registry is built long before
+    // AppState exists (line ~467), so a tool that needs the whole node — `run_now` has to
+    // reach the cron store, the mission store and the agent loop — cannot hold it as a
+    // field. One Arc for the process lifetime; nothing to reclaim on a daemon that exits
+    // with the process.
+    let _ = crate::abeilles_local::ETAT_NOEUD.set(state.clone());
 
     // Persist the state RIGHT AWAY: the shutdown save only runs on a clean exit
     // (Ctrl+C / tray Quit). Closing the console window kills the process without

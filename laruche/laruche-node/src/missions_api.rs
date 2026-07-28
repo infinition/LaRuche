@@ -747,26 +747,11 @@ pub(crate) async fn api_decompose_mission(
     Json(serde_json::json!({"status": "ok", "slug": slug, "tasks_created": n}))
 }
 
-pub(crate) async fn api_run_cron(
-    State(state): State<Arc<AppState>>,
-    headers: axum::http::HeaderMap,
-    axum::extract::Path(id): axum::extract::Path<String>,
-) -> Json<serde_json::Value> {
-    if !auth_user::require_admin(&state, &headers).await {
-        return Json(serde_json::json!({"error": "unauthorized (admin required)"}));
-    }
-    let uuid = match Uuid::parse_str(&id) {
-        Ok(u) => u,
-        Err(_) => return Json(serde_json::json!({"error": "bad id"})),
-    };
-    let task = {
-        let cron = state.essaim_cron.read().await;
-        cron.get(&uuid)
-    };
-    let Some(task) = task else {
-        return Json(serde_json::json!({"error": "not found"}));
-    };
-    let run_state = state.clone();
+/// Run one cron task NOW, exactly as the scheduler would.
+///
+/// Extracted so the HTTP endpoint and the `run_now` tool share ONE implementation:
+/// a second copy is how `/mcp` and `/api/mcp` silently drifted apart.
+pub(crate) fn lancer_tache_cron(run_state: Arc<AppState>, task: laruche_essaim::cron::ScheduledTask) {
     tokio::spawn(async move {
         let mut cfg = run_state.essaim_config.read().await.clone();
         if let Some(p) = task.provider.clone() {
@@ -786,7 +771,7 @@ pub(crate) async fn api_run_cron(
                         .rev()
                         .find_map(|it| it["content"].as_str().filter(|c| c.contains("type: skill")))
                     {
-                        skills_charges.push((skill_name.clone(), body.to_string()));
+                        skills_charges.push((skill_name.to_string(), body.to_string()));
                     }
                 }
             }
@@ -809,6 +794,29 @@ pub(crate) async fn api_run_cron(
         )
         .await;
     });
+}
+
+pub(crate) async fn api_run_cron(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Json<serde_json::Value> {
+    if !auth_user::require_admin(&state, &headers).await {
+        return Json(serde_json::json!({"error": "unauthorized (admin required)"}));
+    }
+    let uuid = match Uuid::parse_str(&id) {
+        Ok(u) => u,
+        Err(_) => return Json(serde_json::json!({"error": "bad id"})),
+    };
+    let task = {
+        let cron = state.essaim_cron.read().await;
+        cron.get(&uuid)
+    };
+    let Some(task) = task else {
+        return Json(serde_json::json!({"error": "not found"}));
+    };
+    let run_state = state.clone();
+    lancer_tache_cron(state.clone(), task);
     Json(serde_json::json!({"status": "started"}))
 }
 

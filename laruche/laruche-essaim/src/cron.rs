@@ -324,3 +324,63 @@ mod tests {
         assert_eq!(task.model_override(), None);
     }
 }
+
+/// Reject a cadence the scheduler cannot fire, and say what a valid one looks like.
+///
+/// `should_fire_cron` silently returns false on anything that is not five
+/// whitespace-separated fields. A model that writes "every evening at 20:00" therefore
+/// creates a job that LOOKS scheduled — it shows a cadence in the UI, it sits in the
+/// timeline — and never runs once. Observed twice in a row on real use. Validating at the
+/// door turns an invisible no-op into an error the model can act on.
+pub fn valider_cron(expr: &str) -> Result<(), String> {
+    let champs: Vec<&str> = expr.split_whitespace().collect();
+    if champs.len() != 5 {
+        return Err(format!(
+            "'{expr}' is not a cron expression ({} field(s), 5 required: minute hour day month weekday). \
+             Write it in cron: '0 20 * * *' = every day at 20:00, '0 9 * * *' = every day at 09:00, \
+             '0 10 1 * *' = the 1st of each month at 10:00, '*/15 * * * *' = every 15 minutes.",
+            champs.len()
+        ));
+    }
+    // Each field: a number, a range, a list, a step, or '*'. Anything else never matches.
+    for (i, champ) in champs.iter().enumerate() {
+        let nom = ["minute", "hour", "day", "month", "weekday"][i];
+        let propre = champ
+            .chars()
+            .all(|c| c.is_ascii_digit() || matches!(c, '*' | ',' | '-' | '/'));
+        if !propre {
+            return Err(format!(
+                "Field {} ({nom}) is '{champ}', which a cron expression cannot contain. \
+                 Use digits, '*', or the ',' '-' '/' operators.",
+                i + 1
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests_validation {
+    use super::*;
+
+    #[test]
+    fn une_phrase_en_langage_naturel_est_refusee_avec_un_exemple() {
+        // Exactly what an agent produced, and what silently never fired.
+        let e = valider_cron("every evening at 20:00").unwrap_err();
+        assert!(e.contains("4 field(s)"), "{e}");
+        assert!(e.contains("0 20 * * *"), "l'erreur doit montrer la forme correcte: {e}");
+    }
+
+    #[test]
+    fn les_expressions_reelles_passent() {
+        for ok in ["0 9 * * *", "0 20 * * *", "0 10 1 * *", "*/15 * * * *", "30 8 * * 1-5"] {
+            assert!(valider_cron(ok).is_ok(), "refuse a tort: {ok}");
+        }
+    }
+
+    #[test]
+    fn cinq_champs_mais_du_texte_reste_refuse() {
+        // The trap the field count alone would miss.
+        assert!(valider_cron("every day at huit heures").is_err());
+    }
+}
