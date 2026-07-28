@@ -31,8 +31,11 @@ async fn auth_guard(
             | axum::http::Method::PATCH
     );
     let path = req.uri().path().to_string();
+    // `/mcp` is named without the /api prefix, so it fell outside the guard entirely: an
+    // unauthenticated POST could list and CALL the whole tool registry, shell_exec and
+    // file_write included. It is a mutating surface like any other and is guarded here.
     let exempte = !mutating
-        || !path.starts_with("/api/")
+        || (!path.starts_with("/api/") && path != "/mcp")
         || path.starts_with("/api/auth/")
         || path.starts_with("/api/internal/sync");
     if exempte {

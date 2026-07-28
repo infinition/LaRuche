@@ -56,6 +56,12 @@ pub struct EssaimConfig {
     /// driven from Settings; env fallback `RUCHE_CURATEUR=1`. Off by default (anti-bloat).
     #[serde(default)]
     pub curateur_actif: bool,
+    /// Does LaRuche expose its OWN tools as an MCP server, so an external client can drive
+    /// it? Off by default: that surface hands the whole registry to whoever reaches the
+    /// port, shell_exec and file_write included, and it is not needed in order to USE
+    /// other MCP servers.
+    #[serde(default)]
+    pub mcp_server_actif: bool,
     /// **Smart approvals**: an auxiliary LLM judges a flagged call before bothering
     /// the human (approve / deny / escalate), and approving once approves the whole
     /// PATTERN CLASS for the session. On by default: it removes most popups while
@@ -241,6 +247,8 @@ impl Default for EssaimConfig {
             disabled_tools: Vec::new(),
             disabled_skills: Vec::new(),
             curateur_actif: false,
+            // Off unless the user turns it on: exposing the registry is a decision.
+            mcp_server_actif: false,
             smart_approvals: true,
             approbation_stricte: false,
             reasoning_effort: String::new(),

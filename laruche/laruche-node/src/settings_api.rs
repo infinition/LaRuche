@@ -182,6 +182,8 @@ pub(crate) async fn api_get_curateur_config(State(state): State<Arc<AppState>>) 
         "env_forced": env_force,
         // co-located toggle: dynamic tool selection (lightweight prompt / small models)
         "dynamic_tools": ec.dynamic_tool_selection,
+        // Exposing LaRuche's own tools to an external MCP client. Off by default.
+        "mcp_server": ec.mcp_server_actif,
     }))
 }
 
@@ -200,6 +202,9 @@ pub(crate) async fn api_set_curateur_config(
         }
         if let Some(v) = body["dynamic_tools"].as_bool() {
             ec.dynamic_tool_selection = v;
+        }
+        if let Some(v) = body["mcp_server"].as_bool() {
+            ec.mcp_server_actif = v;
         }
     }
     save_persistent_state(&state).await;

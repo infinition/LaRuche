@@ -188,6 +188,15 @@ pub async fn api_mcp_handler(
     State(state): State<Arc<super::AppState>>,
     Json(req): Json<JsonRpcRequest>,
 ) -> Json<JsonRpcResponse> {
+    // The server surface is opt-in. Handing the whole registry to an external client is a
+    // deliberate choice, not something a fresh install should do on its own.
+    if !state.essaim_config.read().await.mcp_server_actif {
+        return Json(JsonRpcResponse::error(
+            req.id,
+            -32601,
+            "MCP server disabled: enable it in Settings",
+        ));
+    }
     let response = handle_mcp_request(&state.essaim_registry, req).await;
     Json(response)
 }

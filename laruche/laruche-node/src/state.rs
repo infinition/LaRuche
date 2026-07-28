@@ -107,6 +107,10 @@ pub(crate) struct PersistentState {
     /// Curateur (auto-skills/tools) enabled from Settings: survives restart.
     #[serde(default)]
     pub(crate) curateur_actif: Option<bool>,
+    /// MCP server surface, off unless the user turned it on. Absent from a file written
+    /// before this field, which reads as off: an upgrade never opens a door by itself.
+    #[serde(default)]
+    pub(crate) mcp_server_actif: Option<bool>,
     /// "Home" channel (/sethome): default destination for proactive messages.
     #[serde(default)]
     pub(crate) home_channel: Option<String>,
@@ -495,6 +499,7 @@ pub(crate) async fn save_persistent_state(state: &Arc<AppState>) {
         compaction_threshold: Some(state.essaim_config.read().await.compaction_threshold),
         context_max_tokens: Some(state.essaim_config.read().await.context_max_tokens),
         curateur_actif: Some(state.essaim_config.read().await.curateur_actif),
+        mcp_server_actif: Some(state.essaim_config.read().await.mcp_server_actif),
         dynamic_tool_selection: Some(state.essaim_config.read().await.dynamic_tool_selection),
         reactions_agent: Some(state.essaim_config.read().await.reactions_agent),
         max_iterations: Some(state.essaim_config.read().await.max_iterations),
