@@ -55,6 +55,11 @@ Thumbs.db
 
 # Runtime output of LaReine's judge (regenerated on every run)
 /evals/reine-scorecards.jsonl
+# Jeu d'entrainement des revues LaReine : contient le TEXTE INTEGRAL des demandes
+# et des reponses. Desactive par defaut, mais le fichier apparait des qu'on l'active
+# et n'a rien a faire dans un depot public.
+/evals/reine-dataset.jsonl
+/evals/results/
 
 # Temp / local scratch files
 *.tmp
