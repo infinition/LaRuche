@@ -36,6 +36,15 @@ pub fn node_id_valide(node_id: &str) -> bool {
     if id.is_empty() || id.contains('|') || id.contains(' ') || !id.contains('.') {
         return false;
     }
+    // Reserved branches: `system.*` holds the editable prompt sections and
+    // `capacities.*`/`tools.*` mirror the registry, all rewritten from elsewhere. The
+    // memory_write tool already refuses them (`noeud_reserve`); the curator wrote
+    // straight to the store and went around that door, which is how three notes about
+    // cron_create ended up sitting in the system root.
+    let racine = id.split('.').next().unwrap_or("");
+    if matches!(racine, "system" | "capacities" | "tools" | "orphans") {
+        return false;
+    }
     let last = id.rsplit('.').next().unwrap_or("");
     !last.is_empty() && last != "x"
 }
@@ -512,5 +521,39 @@ mod apprentissage_tests {
         ));
         // 2 tools but trivial response -> no.
         assert!(!trajectoire_merite_skill("ok", "court", 2));
+    }
+}
+
+#[cfg(test)]
+mod tests_node_id {
+    use super::node_id_valide;
+
+    #[test]
+    fn accepte_les_branches_ou_le_curateur_a_le_droit_d_ecrire() {
+        for id in ["people.fabien", "projects.laruche", "decisions.archi", "episodes.2026.mission"] {
+            assert!(node_id_valide(id), "{id} devrait etre accepte");
+        }
+    }
+
+    #[test]
+    fn refuse_les_branches_reservees() {
+        // Rewritten from elsewhere: the prompt sections and the registry mirrors.
+        for id in ["system.notes", "system.prompt", "capacities.tools.x2", "tools.web_fetch", "orphans.vieux_1"] {
+            assert!(!node_id_valide(id), "{id} devrait etre refuse");
+        }
+    }
+
+    #[test]
+    fn refuse_les_placeholders_et_les_racines_nues() {
+        for id in ["", "system", "people", "people.x", "people alex", "a|b.c"] {
+            assert!(!node_id_valide(id), "{id:?} devrait etre refuse");
+        }
+    }
+
+    #[test]
+    fn un_prefixe_qui_ressemble_a_une_racine_reservee_reste_valide() {
+        // Segment comparison, not string prefix.
+        assert!(node_id_valide("systemes.reseau"));
+        assert!(node_id_valide("toolsmith.notes"));
     }
 }

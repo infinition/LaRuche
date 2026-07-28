@@ -666,6 +666,29 @@ async fn main() -> Result<()> {
         Err(e) => tracing::warn!(error = %e, "skills migration skipped (backend without support)"),
     }
     let _ = memoire.supprimer_sous_arbre("tools").await; // purge the remaining legacy projection
+
+    // `system` is a CONTAINER of prompt sections, never a place to store notes. The
+    // curator used to write straight to the store, around the memory_write guard, and
+    // left facts about cron_create sitting on the root. Nothing reads them (only
+    // system.prompt, .behavior, .soul, .user and the prompt_* are loaded), the interface
+    // locks the node so they cannot even be removed by hand, and a memory search can
+    // hand them back as if they were a souvenir. Swept here; the curator is now barred
+    // from reserved branches (`node_id_valide`), so this stays a one-off.
+    if let Ok(node) = memoire.read_node("system").await {
+        let ids: Vec<String> = node["items"]
+            .as_array()
+            .map(|a| a.as_slice())
+            .unwrap_or(&[])
+            .iter()
+            .filter_map(|it| it["id"].as_str().map(str::to_string))
+            .collect();
+        for id in &ids {
+            let _ = memoire.delete_item(id, Some("system root holds no items")).await;
+        }
+        if !ids.is_empty() {
+            info!(items = ids.len(), "boot: swept items parked on the system root");
+        }
+    }
     info!(t_ms = boot_t0.elapsed().as_millis() as u64, "boot: legacy tools migration done");
 
     // Map nodes (virtual .md files). Created empty if absent (idempotent).
