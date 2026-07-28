@@ -79,6 +79,7 @@ pub(crate) async fn api_delete_blueprint(Path(id): Path<String>) -> Json<serde_j
 /// Body = slot values: `{ "<slot>": "<value>", ... }` (or `{slots:{...}}`).
 pub(crate) async fn instancier_blueprint(
     State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
     Path(id): Path<String>,
     Json(body): Json<serde_json::Value>,
 ) -> Result<Json<serde_json::Value>, StatusCode> {
@@ -98,6 +99,7 @@ pub(crate) async fn instancier_blueprint(
         }
     }
     let (name, cron_expr, prompt) = laruche_essaim::blueprints::instancier(&bp, &valeurs);
+    let extras = laruche_essaim::blueprints::instancier_extras(&bp, &valeurs);
     // Routing and model come from the body, never from the slots: a blueprint templates
     // WHAT runs and WHEN, not where the answer goes nor which model answers. Hardcoded to
     // None, an instantiated task always landed on the activity log with the default
@@ -109,27 +111,101 @@ pub(crate) async fn instancier_blueprint(
             .filter(|s| !s.is_empty())
             .map(str::to_string)
     };
-    let task = ScheduledTask {
-        id: Uuid::new_v4(),
-        name,
-        prompt,
-        cron_expr: Some(cron_expr),
-        fire_at: None,
-        channel: champ("channel"),
-        provider: champ("provider"),
-        model: champ("model"),
-        profile_id: champ("profile_id"),
-        skills: vec![],
-        enabled: true,
-        created_at: chrono::Utc::now(),
-        last_run: None,
-        run_count: 0,
-    };
-    let cron_id = {
-        let mut cron = state.essaim_cron.write().await;
-        cron.add(task)
-    };
-    Ok(Json(
-        serde_json::json!({ "status": "ok", "cron_id": cron_id }),
-    ))
+    // The blueprint says WHICH kind of thing it is; the same slots then feed a scheduled
+    // task, a watcher or a piece of research. Before, everything became a cron task,
+    // which is why watching a page or opening an investigation had no starting point.
+    use laruche_essaim::blueprints::Cible;
+    match bp.cible {
+        Cible::Cron => {
+            let task = ScheduledTask {
+                id: Uuid::new_v4(),
+                name,
+                prompt,
+                cron_expr: Some(cron_expr),
+                fire_at: None,
+                channel: champ("channel"),
+                provider: champ("provider"),
+                model: champ("model"),
+                profile_id: champ("profile_id"),
+                skills: vec![],
+                enabled: true,
+                created_at: chrono::Utc::now(),
+                last_run: None,
+                run_count: 0,
+            };
+            let cron_id = {
+                let mut cron = state.essaim_cron.write().await;
+                cron.add(task)
+            };
+            Ok(Json(
+                serde_json::json!({ "status": "ok", "cible": "cron", "cron_id": cron_id }),
+            ))
+        }
+        Cible::Watcher => {
+            let lire = |cle: &str| extras.get(cle).cloned().unwrap_or_default();
+            let watcher_type = match lire("watcher_type").as_str() {
+                "url" => laruche_watchers::WatcherType::Url,
+                "log" => laruche_watchers::WatcherType::Log,
+                "command" | "commande" => laruche_watchers::WatcherType::Commande,
+                _ => laruche_watchers::WatcherType::File,
+            };
+            let watcher = laruche_watchers::Watcher {
+                id: Uuid::new_v4(),
+                name,
+                watcher_type,
+                target: lire("target"),
+                condition: lire("condition"),
+                prompt,
+                channel: champ("channel"),
+                model: champ("model"),
+                profile_id: champ("profile_id"),
+                active: true,
+                created_at: chrono::Utc::now(),
+                last_run: None,
+                run_count: 0,
+                last_state: None,
+                lignes_vues: None,
+                action: laruche_watchers::Action::default(),
+                echecs_consecutifs: 0,
+                dernier_verdict: None,
+                verdict_depuis: None,
+                // Left at their defaults: the watcher machinery fills them on the first
+                // poll, and a blueprint has no business fixing a polling interval.
+                interval_secs: None,
+                cooldown_secs: None,
+                sustained: false,
+                regles: None,
+            };
+            let id = watcher.id;
+            state.watchers.write().await.add(watcher);
+            Ok(Json(
+                serde_json::json!({ "status": "ok", "cible": "watcher", "watcher_id": id }),
+            ))
+        }
+        Cible::Recherche => {
+            // The prompt IS the objective; the schedule, empty by default, becomes the
+            // optional cadence, so the same blueprint serves a one-off and a recurring one.
+            let cadence = (!cron_expr.trim().is_empty()).then_some(cron_expr);
+            let corps = serde_json::json!({
+                "objective": prompt,
+                "slug": name,
+                "cadence": cadence,
+                "channel": champ("channel"),
+                "provider": champ("provider"),
+                "model": champ("model"),
+                "profile_id": champ("profile_id"),
+            });
+            // Creating a mission demands admin rights: the caller's headers travel with
+            // the call rather than being forged here.
+            let reponse = crate::missions_api::api_create_mission(
+                State(state.clone()),
+                headers.clone(),
+                axum::extract::Json(corps),
+            )
+            .await;
+            Ok(Json(serde_json::json!({
+                "status": "ok", "cible": "recherche", "mission": reponse.0
+            })))
+        }
+    }
 }

@@ -292,6 +292,11 @@ LaRuche.i18n.add({
   'settings.cronUpdated':        {fr:'Tache mise a jour', en:'Task updated'},
   'settings.cronNamePromptRequired': {fr:'Nom et prompt requis', en:'Name and prompt required'},
   'settings.cronListTitle':      {fr:'Taches planifiees', en:'Scheduled tasks'},
+  'settings.bpKindCron':         {fr:'Cron', en:'Cron'},
+  'settings.bpKindWatcher':      {fr:'Watcher', en:'Watcher'},
+  'settings.bpKindRecherche':    {fr:'Recherche', en:'Research'},
+  'settings.bpCreateWatcher':    {fr:'Creer le watcher', en:'Create watcher'},
+  'settings.bpCreateRecherche':  {fr:'Lancer la recherche', en:'Start research'},
   'settings.bpInstanciated':     {fr:'Blueprint instancié avec succès', en:'Blueprint instantiated successfully'},
   'settings.bpInstanciateError': {fr:'Erreur d\'instanciation', en:'Instantiation error'},
   'settings.bpDeleteSlotBtn':    {fr:'Supprimer cette variable', en:'Delete this variable'},
@@ -2954,7 +2959,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
         return '<div class="settings-card" style="margin-bottom:12px;cursor:pointer;" onclick="LaRuche.Settings.openBlueprintForm('+idx+')">' +
           '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
             '<div style="flex:1">' +
-              '<div class="settings-card-title">'+LaRuche.Utils.esc(b.title||b.id)+'</div>' +
+              '<div class="settings-card-title">'+LaRuche.Utils.esc(b.title||b.id)+' '+bpBadgeCible(b.cible)+'</div>' +
               '<div style="font-size:12px;color:var(--text-dim);margin-top:4px;">'+LaRuche.Utils.esc(b.description||'')+'</div>' +
             '</div>' +
             '<button onclick="event.stopPropagation();LaRuche.Settings.deleteBlueprint('+idx+')" title="'+LaRuche.i18n.t('settings.bpDeleteBtn')+'" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;flex:0 0 auto">'+LaRuche.i18n.t('settings.bpDeleteBtn')+'</button>' +
@@ -2964,11 +2969,28 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
               return '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.Utils.esc(slot.label||slot.name)+'</label><input id="bpInput_'+idx+'_'+slot.name+'" class="form-input" placeholder="'+LaRuche.Utils.esc(slot.placeholder||slot.default||'')+'" value="'+LaRuche.Utils.esc(slot.default||'')+'"></div>';
             }).join('') +
             bpRoutageHtml(idx) +
-            '<button class="settings-save-btn" style="margin-top:8px" onclick="LaRuche.Settings.instanciateBlueprint('+idx+')">'+LaRuche.i18n.t('settings.bpInstanciateBtn')+'</button>' +
+            '<button class="settings-save-btn" style="margin-top:8px" onclick="LaRuche.Settings.instanciateBlueprint('+idx+')">'+bpLibelleInstancier(b.cible)+'</button>' +
           '</div>' +
         '</div>';
       }).join('');
     el.innerHTML = head + creationSlot + cards;
+  }
+
+  // What the blueprint builds, shown on its card: the six of them looked alike while
+  // three now create very different things.
+  function bpBadgeCible(cible){
+    var c = cible || 'cron';
+    var couleurs = { cron:'var(--amber)', watcher:'var(--cyan)', recherche:'var(--purple)' };
+    var libelles = { cron:'settings.bpKindCron', watcher:'settings.bpKindWatcher', recherche:'settings.bpKindRecherche' };
+    var col = couleurs[c] || 'var(--text-dim)';
+    return '<span style="font-size:9px;text-transform:uppercase;letter-spacing:.4px;border:1px solid '+col+
+      ';color:'+col+';border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:middle">'+
+      LaRuche.Utils.esc(LaRuche.i18n.t(libelles[c] || libelles.cron))+'</span>';
+  }
+  function bpLibelleInstancier(cible){
+    return LaRuche.i18n.t(cible === 'watcher' ? 'settings.bpCreateWatcher'
+      : cible === 'recherche' ? 'settings.bpCreateRecherche'
+      : 'settings.bpInstanciateBtn');
   }
 
   // Routing fields of an instantiation. A blueprint templates WHAT runs and WHEN, never
