@@ -86,12 +86,13 @@ struct McpToolInfo {
 /// Handle a JSON-RPC request and dispatch to the appropriate MCP method.
 pub async fn handle_mcp_request(
     registry: &AbeilleRegistry,
+    desactives: &[String],
     req: JsonRpcRequest,
 ) -> JsonRpcResponse {
     match req.method.as_str() {
         "initialize" => handle_initialize(req.id),
-        "tools/list" => handle_tools_list(registry, req.id),
-        "tools/call" => handle_tools_call(registry, req.id, req.params).await,
+        "tools/list" => handle_tools_list(registry, desactives, req.id),
+        "tools/call" => handle_tools_call(registry, desactives, req.id, req.params).await,
         "notifications/initialized" => {
             // Client acknowledgment, no response needed for notifications,
             // but since we may receive it via HTTP, return empty success
@@ -119,10 +120,24 @@ fn handle_initialize(id: Option<serde_json::Value>) -> JsonRpcResponse {
     )
 }
 
-fn handle_tools_list(registry: &AbeilleRegistry, id: Option<serde_json::Value>) -> JsonRpcResponse {
+/// A tool the user switched off in Settings > Tools is off EVERYWHERE.
+///
+/// MCP used to serve the whole registry and never consult `disabled_tools`, so a tool
+/// deliberately disabled for the chat stayed listed and callable by any authorised
+/// external client — including the shell. One switch, one meaning.
+fn est_desactive(desactives: &[String], nom: &str) -> bool {
+    desactives.iter().any(|t| t == nom)
+}
+
+fn handle_tools_list(
+    registry: &AbeilleRegistry,
+    desactives: &[String],
+    id: Option<serde_json::Value>,
+) -> JsonRpcResponse {
     let tools: Vec<McpToolInfo> = registry
         .noms()
         .into_iter()
+        .filter(|name| !est_desactive(desactives, name))
         .filter_map(|name| {
             let abeille = registry.get(&name)?;
             Some(McpToolInfo {
@@ -138,6 +153,7 @@ fn handle_tools_list(registry: &AbeilleRegistry, id: Option<serde_json::Value>) 
 
 async fn handle_tools_call(
     registry: &AbeilleRegistry,
+    desactives: &[String],
     id: Option<serde_json::Value>,
     params: serde_json::Value,
 ) -> JsonRpcResponse {
@@ -147,13 +163,25 @@ async fn handle_tools_call(
             return JsonRpcResponse::error(id, -32602, "Missing 'name' parameter");
         }
     };
+    // Hiding it from tools/list is not enough: a client that already knows the name, or
+    // cached an older listing, would still reach it.
+    if est_desactive(desactives, &name) {
+        return JsonRpcResponse::error(
+            id,
+            -32601,
+            format!("Tool '{name}' is disabled in this LaRuche (Settings > Tools)"),
+        );
+    }
 
     let arguments = params
         .get("arguments")
         .cloned()
         .unwrap_or(serde_json::json!({}));
 
-    let ctx = ContextExecution::default();
+    // Belt and braces with the check above: the guard in `executer` is the one nobody
+    // can route around, so the list travels with the call.
+    let mut ctx = ContextExecution::default();
+    ctx.disabled_tools = desactives.to_vec();
 
     match registry.executer(&name, arguments, &ctx).await {
         Ok(result) => {
@@ -223,7 +251,8 @@ pub async fn api_mcp_handler(
         }
         None => None,
     };
-    let response = handle_mcp_request(&state.essaim_registry, req).await;
+    let desactives = state.essaim_config.read().await.disabled_tools.clone();
+    let response = handle_mcp_request(&state.essaim_registry, &desactives, req).await;
     Json(response)
 }
 
@@ -232,7 +261,7 @@ pub async fn api_mcp_handler(
 /// Run the MCP server over stdio (for Claude Desktop integration).
 /// Reads JSON-RPC messages from stdin (one per line), writes responses to stdout.
 #[allow(dead_code)]
-pub async fn run_mcp_stdio(registry: Arc<AbeilleRegistry>) {
+pub async fn run_mcp_stdio(registry: Arc<AbeilleRegistry>, desactives: Vec<String>) {
     use std::io::{BufRead, BufReader};
 
     let stdin = BufReader::new(std::io::stdin());
@@ -269,7 +298,7 @@ pub async fn run_mcp_stdio(registry: Arc<AbeilleRegistry>) {
             }
         };
 
-        let response = handle_mcp_request(&registry, req).await;
+        let response = handle_mcp_request(&registry, &desactives, req).await;
         let json = serde_json::to_string(&response).unwrap_or_default();
         {
             let mut out = stdout.lock();
@@ -277,5 +306,39 @@ pub async fn run_mcp_stdio(registry: Arc<AbeilleRegistry>) {
             let _ = std::io::Write::write_all(&mut out, b"\n");
             let _ = std::io::Write::flush(&mut out);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A tool switched off in Settings > Tools must be off for MCP too. It used to be
+    /// listed AND callable by any authorised external client, the shell included: one
+    /// switch that meant two different things depending on the door you came through.
+    #[test]
+    fn un_outil_desactive_est_filtre_de_la_liste_et_refuse_a_lappel() {
+        let desactives = vec!["shell_exec".to_string(), "web_fetch".to_string()];
+
+        // tools/list hides them.
+        let registre = ["memory_read_node", "shell_exec", "web_fetch", "memory_write"];
+        let listes: Vec<&str> = registre
+            .iter()
+            .copied()
+            .filter(|n| !est_desactive(&desactives, n))
+            .collect();
+        assert_eq!(listes, vec!["memory_read_node", "memory_write"]);
+
+        // tools/call refuses them: hiding alone would not stop a client that already
+        // knows the name or cached an older listing.
+        assert!(est_desactive(&desactives, "shell_exec"));
+        assert!(!est_desactive(&desactives, "memory_write"));
+    }
+
+    /// Nothing disabled must not silently filter anything out.
+    #[test]
+    fn sans_outil_desactive_la_liste_est_complete() {
+        let aucun: Vec<String> = Vec::new();
+        assert!(!est_desactive(&aucun, "shell_exec"));
     }
 }

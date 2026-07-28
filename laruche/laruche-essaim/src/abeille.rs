@@ -135,6 +135,11 @@ pub struct ContextExecution {
     /// Originating channel of the request (`telegram:12345`, `discord:bob`, `web`...). Lets
     /// tools like `cron_create` route the recurring job back to where it was requested.
     pub channel: Option<String>,
+    /// Tools the user switched off. Enforced HERE, at the single point every execution
+    /// goes through, because filtering the schema only hides a tool from the model: an
+    /// agent that knows the name anyway (from `tool_call`, from `tool_search`, from its
+    /// own memory of an earlier turn) still ran it, and so did MCP.
+    pub disabled_tools: Vec<String>,
 }
 
 impl Default for ContextExecution {
@@ -142,6 +147,7 @@ impl Default for ContextExecution {
         Self {
             allowed_dirs: vec![],
             shell_allowlist: vec![],
+            disabled_tools: vec![],
             working_dir: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
             live_output: None,
             channel: None,
@@ -310,6 +316,12 @@ impl AbeilleRegistry {
         mut args: serde_json::Value,
         ctx: &ContextExecution,
     ) -> Result<ResultatAbeille> {
+        // Refused before it is even looked up: "off" has to mean off on every path.
+        if ctx.disabled_tools.iter().any(|t| t == nom) {
+            return Ok(ResultatAbeille::err(format!(
+                "Tool '{nom}' is disabled in this LaRuche (Settings > Tools). Use another tool."
+            )));
+        }
         let abeille = { self.abeilles.read().unwrap().get(nom).cloned() };
 
         if let Some(a) = abeille {

@@ -70,6 +70,14 @@ pub struct EssaimConfig {
     pub mcp_pare_feu_actif: bool,
     #[serde(default)]
     pub mcp_ip_autorisees: Vec<String>,
+    /// Require `x-laruche-mcp-token` on the MCP surfaces. Off = loopback is trusted,
+    /// which means any local process can call the tools, `shell_exec` included.
+    #[serde(default)]
+    pub mcp_token_actif: bool,
+    /// The expected token. Generated in the UI, never shown in a log or an error: a
+    /// refusal says "bad token", never which one was expected.
+    #[serde(default)]
+    pub mcp_token: String,
     /// **Smart approvals**: an auxiliary LLM judges a flagged call before bothering
     /// the human (approve / deny / escalate), and approving once approves the whole
     /// PATTERN CLASS for the session. On by default: it removes most popups while
@@ -259,6 +267,8 @@ impl Default for EssaimConfig {
             mcp_server_actif: false,
             mcp_pare_feu_actif: false,
             mcp_ip_autorisees: Vec::new(),
+            mcp_token_actif: false,
+            mcp_token: String::new(),
             smart_approvals: true,
             approbation_stricte: false,
             reasoning_effort: String::new(),

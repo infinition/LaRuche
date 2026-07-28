@@ -303,61 +303,29 @@ pub(crate) async fn api_mcp_server(
         return err(-32000, refus.message());
     }
     crate::mcp_pare_feu::journaliser(&state, ip, "/mcp", method, outil.as_deref(), None, None).await;
-    let ok = |result: serde_json::Value| {
-        Json(serde_json::json!({"jsonrpc":"2.0","id":id,"result":result}))
+    // ONE implementation, shared with `/api/mcp`. This surface used to carry its own copy
+    // of initialize / tools/list / tools/call, and the two drifted exactly as the comment
+    // above feared: the `disabled_tools` filter was added to the shared dispatch, so
+    // `/api/mcp` honoured it while `/mcp` kept listing AND executing a tool the user had
+    // switched off. Delegating removes the possibility rather than fixing the symptom.
+    let jsonrpc = crate::mcp::JsonRpcRequest {
+        jsonrpc: "2.0".to_string(),
+        id: req.get("id").cloned(),
+        method: method.to_string(),
+        params: req["params"].clone(),
     };
-    match method {
-        "initialize" => ok(serde_json::json!({
-            "protocolVersion": "2024-11-05",
-            "capabilities": { "tools": {} },
-            "serverInfo": { "name": "laruche", "version": env!("CARGO_PKG_VERSION") }
-        })),
-        // Notifications (no response expected) -> return a valid empty envelope.
-        m if m.starts_with("notifications/") => Json(serde_json::json!({"jsonrpc":"2.0"})),
-        "tools/list" => {
-            let schema = state.essaim_registry.schema_complet();
-            let tools: Vec<serde_json::Value> = schema
-                .as_array()
-                .map(|arr| {
-                    arr.iter()
-                        .map(|t| {
-                            serde_json::json!({
-                                "name": t["name"],
-                                "description": t["description"],
-                                "inputSchema": t["parameters"],
-                            })
-                        })
-                        .collect()
-                })
-                .unwrap_or_default();
-            ok(serde_json::json!({ "tools": tools }))
+    let desactives = state.essaim_config.read().await.disabled_tools.clone();
+    // The work indicator, which the shared dispatch does not own: an outside client
+    // running shell_exec on this machine is exactly what it exists to show.
+    let _garde = match (method, jsonrpc.params["name"].as_str()) {
+        ("tools/call", Some(nom)) => {
+            let cfg = state.essaim_config.read().await.clone();
+            Some(ouvrir_travail(&state, "mcp", nom, &cfg, ip.map(|a| a.to_string())))
         }
-        "tools/call" => {
-            let name = req["params"]["name"].as_str().unwrap_or("").to_string();
-            let args = req["params"]["arguments"].clone();
-            let ctx = laruche_essaim::ContextExecution::default();
-            // In the status bar for the whole execution: an outside client running
-            // shell_exec on this machine is exactly what the indicator exists to show.
-            let _garde = {
-                let cfg = state.essaim_config.read().await.clone();
-                ouvrir_travail(
-                    &state,
-                    "mcp",
-                    &name,
-                    &cfg,
-                    ip.map(|a| a.to_string()),
-                )
-            };
-            let (text, is_err) = match state.essaim_registry.executer(&name, args, &ctx).await {
-                Ok(r) if r.success => (r.output, false),
-                Ok(r) => (r.error.unwrap_or(r.output), true),
-                Err(e) => (e.to_string(), true),
-            };
-            ok(serde_json::json!({
-                "content": [{ "type": "text", "text": text }],
-                "isError": is_err
-            }))
-        }
-        other => err(-32601, format!("Method not found: {other}")),
-    }
+        _ => None,
+    };
+    let reponse = crate::mcp::handle_mcp_request(&state.essaim_registry, &desactives, jsonrpc).await;
+    Json(serde_json::to_value(reponse).unwrap_or_else(
+        |_| serde_json::json!({"jsonrpc":"2.0","id":id,"error":{"code":-32603,"message":"internal error"}}),
+    ))
 }

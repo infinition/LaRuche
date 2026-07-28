@@ -17,6 +17,16 @@ use std::time::{Duration, Instant};
 /// Is `ip` allowed by `liste`? An empty list allows nothing: turning the firewall on
 /// without naming anyone means nobody, which is the safe reading of an empty allowlist and
 /// the one that makes the mistake visible immediately instead of silently.
+/// Compare two secrets without leaking their contents through timing. Overkill on a
+/// loopback service, cheap enough not to argue about.
+fn comparaison_constante(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
 pub(crate) fn ip_autorisee(ip: IpAddr, liste: &[String]) -> bool {
     liste.iter().any(|entree| correspond(ip, entree.trim()))
 }
@@ -124,12 +134,14 @@ pub(crate) async fn controler(
         }
     }
 
-    let (actif, pare_feu, autorisees) = {
+    let (actif, pare_feu, autorisees, token_actif, token_attendu) = {
         let ec = state.essaim_config.read().await;
         (
             ec.mcp_server_actif,
             ec.mcp_pare_feu_actif,
             ec.mcp_ip_autorisees.clone(),
+            ec.mcp_token_actif,
+            ec.mcp_token.clone(),
         )
     };
 
@@ -149,10 +161,23 @@ pub(crate) async fn controler(
     if pare_feu && !ip.map(|a| ip_autorisee(a, &autorisees)).unwrap_or(false) {
         return echec(Refus::HorsListe);
     }
-    // 4. Token, or loopback when no token is configured.
-    let attendu = std::env::var("LARUCHE_MCP_TOKEN").ok();
+    // 4. Token, or loopback when no token is required.
+    //
+    // Order: the UI setting wins, then the environment, then loopback trust. The env var
+    // stays supported so an existing deployment that set it keeps working, but the switch
+    // in Settings is what a user can actually see and change.
+    //
+    // Comparison is length-then-bytes over the whole string rather than `==` short-circuit
+    // semantics being relied on for secrecy; the token never appears in a refusal message.
+    let attendu = if token_actif && !token_attendu.trim().is_empty() {
+        Some(token_attendu)
+    } else {
+        std::env::var("LARUCHE_MCP_TOKEN").ok().filter(|t| !t.is_empty())
+    };
     let autorise = match &attendu {
-        Some(t) => jeton_recu == Some(t.as_str()),
+        Some(t) => jeton_recu.map(|r| comparaison_constante(r, t)).unwrap_or(false),
+        // No token required: only this machine may call, and `shell_exec` is on the
+        // other side of that decision.
         None => ip.map(|a| a.is_loopback()).unwrap_or(false),
     };
     if !autorise {

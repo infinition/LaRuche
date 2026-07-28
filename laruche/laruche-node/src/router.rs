@@ -31,11 +31,17 @@ async fn auth_guard(
             | axum::http::Method::PATCH
     );
     let path = req.uri().path().to_string();
-    // `/mcp` is named without the /api prefix, so it fell outside the guard entirely: an
-    // unauthenticated POST could list and CALL the whole tool registry, shell_exec and
-    // file_write included. It is a mutating surface like any other and is guarded here.
+    // The MCP surfaces are exempt from the SESSION-COOKIE guard because they have their
+    // own, stricter door: `mcp_pare_feu::controler` (opt-in switch, IP allowlist, token or
+    // loopback, ban on repeated refusals, and an audit line per call). Guarding them here
+    // too made the feature unusable rather than safer: an MCP client authenticates with
+    // `x-laruche-mcp-token`, never with a browser cookie, so every call was rejected before
+    // its own door was ever consulted. Both handlers call `controler` first thing; that
+    // invariant is what this exemption rests on.
+    let mcp = path == "/mcp" || path == "/api/mcp";
     let exempte = !mutating
-        || (!path.starts_with("/api/") && path != "/mcp")
+        || mcp
+        || !path.starts_with("/api/")
         || path.starts_with("/api/auth/")
         || path.starts_with("/api/internal/sync");
     if exempte {
@@ -213,6 +219,7 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         )
         .route("/api/reine/proposals", get(reine_api::api_list_proposals))
         .route("/api/reine/scorecards", get(reine_api::api_reine_scorecards))
+        .route("/api/reine/dataset", get(reine_api::api_reine_dataset))
         .route("/api/reine/appel", post(reine_api::api_reine_appel))
         .route("/api/reine/renvoyer", post(reine_api::api_reine_renvoyer))
         .route(
@@ -375,6 +382,10 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
             axum::routing::delete(auth_api::api_admin_delete_user),
         )
         .route("/api/admin/users/:id/role", post(auth_api::api_admin_set_role))
+        .route(
+            "/api/admin/users/:id/password",
+            post(auth_api::api_admin_set_password),
+        )
         .route("/api/auth/password", post(auth_api::api_auth_set_password))
         .route("/api/auth/account", post(auth_api::api_auth_update_account))
         .route("/api/auth/totp/setup", post(auth_api::api_totp_setup))
