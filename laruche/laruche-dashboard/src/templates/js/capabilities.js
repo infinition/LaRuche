@@ -108,6 +108,15 @@ LaRuche.Capabilities = (function(){
   function leave(){}
   function refresh(){ render(); }
 
+  // Open the page already filtered on one family. Settings sends the user here for MCP
+  // rather than carrying a second, poorer form of its own.
+  function showFamily(f){
+    currentFamily = f || 'all';
+    var bar = document.getElementById('capTabsBar');
+    if(bar) bar.querySelectorAll('.settings-tab-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.tab===currentFamily); });
+    render();
+  }
+
   function familyLabel(f){ return ({abeille:LaRuche.i18n.t('capabilities.typeTool'),skill:LaRuche.i18n.t('capabilities.typeSkill'),mcp:LaRuche.i18n.t('capabilities.typeMcp'),plugin:LaRuche.i18n.t('capabilities.typePlugin')})[f]||f; }
 
   async function gather(){
@@ -452,7 +461,7 @@ LaRuche.Capabilities = (function(){
   // .lr-switch lives in app.css.
   function ensureSwitchStyle(){}
 
-  return { init:init, enter:enter, leave:leave, current:function(){return current;}, refresh:refresh, addMcp:addMcp, viewRaw:viewRaw, onSearch:onSearch, toggleAll:toggleAll, editMcp:editMcp,
+  return { init:init, enter:enter, leave:leave, current:function(){return current;}, refresh:refresh, addMcp:addMcp, viewRaw:viewRaw, onSearch:onSearch, toggleAll:toggleAll, editMcp:editMcp, showFamily:showFamily,
     toggleMcp:toggleMcp, saveMcpModal:saveMcpModal, closeMcpModal:fermerMcpModal,
     majTransport:majTransport };
 })();

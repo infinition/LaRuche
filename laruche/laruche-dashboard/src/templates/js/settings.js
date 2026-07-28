@@ -124,13 +124,9 @@ LaRuche.i18n.add({
   'settings.secretSaveFailed':   {fr:'Échec (nom invalide ? A-Z/0-9/_ uniquement)', en:'Failed (invalid name? A-Z/0-9/_ only)'},
   'settings.secretDeleted':      {fr:'Secret supprimé', en:'Secret deleted'},
   'settings.mcpDesc':            {fr:'Configurez des serveurs MCP locaux. LaRuche les utilisera pour étendre ses capacités via les agents.', en:'Configure local MCP servers. LaRuche will use them to extend its capabilities via agents.'},
-  'settings.mcpArgsLabel':       {fr:'Arguments (séparés par un espace)', en:'Arguments (space-separated)'},
-  'settings.mcpAddBtn':          {fr:'Ajouter le serveur', en:'Add server'},
-  'settings.mcpAdded':           {fr:'Serveur MCP ajouté', en:'MCP server added'},
   'settings.mcpNone':            {fr:'Aucun serveur configuré.', en:'No servers configured.'},
   'settings.mcpDeleteConfirm':   {fr:'Supprimer ce serveur MCP ?', en:'Delete this MCP server?'},
   'settings.mcpDeleted':         {fr:'Serveur MCP supprimé', en:'MCP server deleted'},
-  'settings.mcpDeleteBtn':       {fr:'Suppr', en:'Del'},
   'settings.parDefault':         {fr:'(Par défaut)',      en:'(Default)'},
   'settings.notifyLabel':        {fr:'Activer Notifier proactif', en:'Enable proactive notifications'},
   'settings.notifyHint':         {fr:'Envoi proactif des events (AgentCompleted, WatcherFired) via Telegram (le premier Chat ID configuré est utilisé).', en:'Proactive delivery of events (AgentCompleted, WatcherFired) via Telegram (the first configured Chat ID is used).'},
@@ -385,12 +381,23 @@ LaRuche.i18n.add({
   'settings.meshCodeTitle':      {fr:'Code du mesh',     en:'Mesh code'},
   'settings.hostLabel':          {fr:'Hôte',             en:'Host'},
   'settings.cronCount':          {fr:'cron(s)',          en:'cron(s)'},
+  'settings.mcpManageHint':      {fr:"Les serveurs MCP s'ajoutent, se modifient et s'activent dans Capacites, qui gere aussi les serveurs distants.", en:'MCP servers are added, edited and enabled in Capabilities, which also handles remote servers.'},
+  'settings.mcpManageBtn':       {fr:'Gerer dans Capacites', en:'Manage in Capabilities'},
+  'settings.mcpLocal':           {fr:'local',  en:'local'},
+  'settings.mcpRemote':          {fr:'distant', en:'remote'},
+  'settings.mcpOn':              {fr:'actif',  en:'enabled'},
+  'settings.mcpOff':             {fr:'inactif', en:'disabled'},
+  'settings.tlTasks':            {fr:'Taches', en:'Tasks'},
+  'settings.tlAllHint':          {fr:'Afficher toutes les fiches', en:'Show every card'},
+  'settings.usageModelsTitle':   {fr:'Modeles par usage', en:'Models per usage'},
+  'settings.usageModelsHint':    {fr:"Ces trois-la font tourner un LLM sans passer par un canal. Laisse par defaut pour suivre le modele actif.", en:'These three run an LLM without going through a channel. Leave on default to follow the active model.'},
+  'settings.usageConsolidation': {fr:'Consolidation de la memoire', en:'Memory consolidation'},
+  'settings.usageConsolidationHint': {fr:'Fusionne les items en masse : un modele local bon marche suffit.', en:'Bulk item merging: a cheap local model is enough.'},
+  'settings.usageMemoryEnrich':  {fr:'@LaRuche dans la memoire', en:'@LaRuche in memory'},
+  'settings.usageMemoryEnrichHint': {fr:'Le sous-agent qui enrichit un noeud. A defaut, le modele de revue.', en:'The subagent that enriches a node. Falls back to the review model.'},
+  'settings.usageFeed':          {fr:'Demander a LaRuche (fil)', en:'Ask LaRuche (feed)'},
+  'settings.usageFeedHint':      {fr:'La session dediee du fil, separee du chat principal.', en:"The feed's own session, separate from the main chat."},
   'settings.mcpServersTitle':    {fr:'Serveurs MCP (Model Context Protocol)', en:'MCP Servers (Model Context Protocol)'},
-  'settings.mcpNameLabel':       {fr:'Nom du serveur',   en:'Server name'},
-  'settings.mcpNamePlaceholder': {fr:'ex: local-sqlite', en:'e.g.: local-sqlite'},
-  'settings.mcpCmdLabel':        {fr:'Commande',         en:'Command'},
-  'settings.mcpCmdPlaceholder':  {fr:'ex: node',         en:'e.g.: node'},
-  'settings.mcpArgsPlaceholder': {fr:'ex: src/index.js --db sqlite.db', en:'e.g.: src/index.js --db sqlite.db'},
   'settings.newTaskBtn':         {fr:'+ Nouvelle tâche', en:'+ New Task'},
   'settings.nameLabel':          {fr:'Nom',              en:'Name'},
   'settings.promptLabel':        {fr:'Prompt',           en:'Prompt'},
@@ -1278,7 +1285,13 @@ LaRuche.Settings = (function(){
       '.tl-mk.next{width:13px;height:13px;border-radius:2px;transform:translate(-50%,-50%) rotate(45deg);background:var(--amber);box-shadow:0 0 8px 1px var(--amber)}'+
       '.tl-mk.past{opacity:.4}.tl-mk.future{opacity:.65}.tl-mk.err{background:var(--red)!important}'+
       '.tl-row.paused{opacity:.45}'+
-      '.tl-detail{margin-top:12px;border:1px solid var(--amber);border-radius:8px;padding:12px;font-size:12px}';
+      '.tl-row{cursor:pointer}'+
+      '.tl-head-all{display:flex;align-items:center;padding:0 10px;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-dim);cursor:pointer}'+
+      '.tl-head-all:hover{color:var(--amber)}'+
+      // The read card used to be written straight into the container, which carries an id
+      // and no class, so only the edit form ever picked up this frame. Both share it now,
+      // and the read card repeats once per job when every card is asked for.
+      '.tl-card,.tl-detail{margin-top:12px;border:1px solid var(--amber);border-radius:8px;padding:12px;font-size:12px}';
     document.head.appendChild(s);
   }
   function tlMatches(expr, d){
@@ -1330,7 +1343,9 @@ LaRuche.Settings = (function(){
     for(var h=0;h<=_tlSpanH;h+=stepH){ var d=new Date(_tlFromMs+h*3600000);
       var lbl=_tlSpanH<=48?(('0'+d.getHours()).slice(-2)+'h'):((d.getDate())+'/'+(d.getMonth()+1));
       ticks+='<div class="tl-tick" style="left:'+(h*pxPerH)+'px">'+lbl+'</div>'; }
-    var gutter='<div class="tl-head"></div>', lanes='';
+    // The gutter head was an empty spacer. It is the natural place to ask for every card
+    // at once, so it is now labelled and clickable.
+    var gutter='<div class="tl-head tl-head-all" onclick="LaRuche.Settings.tlAll()" title="'+LaRuche.i18n.t('settings.tlAllHint')+'">'+LaRuche.i18n.t('settings.tlTasks')+'</div>', lanes='';
     _tlJobs.forEach(function(job,i){
       var paused=job.enabled===false;
       gutter+='<div class="tl-name'+(paused?' tl-row paused':'')+'" onclick="LaRuche.Settings.tlDetail('+i+')"><span class="n">'+LaRuche.Utils.esc(job.name||LaRuche.i18n.t('settings.tlNoName'))+'</span><span class="s">'+LaRuche.Utils.esc(job.cron_expr||job.fire_at||'')+'</span></div>';
@@ -1361,7 +1376,9 @@ LaRuche.Settings = (function(){
       row.addEventListener('pointermove',function(e){ if(!dragging)return; moved=e.clientX-startX; row.style.transform='translateX('+(moved*0.15)+'px)'; });
       row.addEventListener('pointerup',function(e){
         if(!dragging)return; dragging=false; row.style.cursor='grab'; row.style.transform='';
-        if(Math.abs(moved)<8) return; // simple click -> handled by the marker
+        // A plain click anywhere on the lane opens the card. It used to do nothing unless
+        // it landed exactly on a marker, so most of the row was dead surface.
+        if(Math.abs(moved)<8){ tlDetail(parseInt(row.getAttribute('data-i'))); return; }
         var job=_tlJobs[parseInt(row.getAttribute('data-i'))]; if(!job||!job.cron_expr){ LaRuche.Toast.show(LaRuche.i18n.t('settings.tlShiftUnsupported'),'warn'); return; }
         var p=job.cron_expr.trim().split(/\s+/); if(p.length<5||isNaN(parseInt(p[1]))){ LaRuche.Toast.show(LaRuche.i18n.t('settings.tlShiftFixed'),'warn'); return; }
         var dh=Math.round(moved/_tlPxPerH); if(dh===0)return;
@@ -1375,9 +1392,10 @@ LaRuche.Settings = (function(){
   function tlZoom(h){ _tlSpanH=h; var spanMs=h*3600000; _tlFromMs=Date.now()-0.28*spanMs; if(_tlHost)renderTimeline(_tlHost); }
   function tlRecenter(){ tlZoom(_tlSpanH); }
   function tlReload(){ if(_tlHost) loadCronTimeline(_tlHost); }
-  function tlDetail(i){
-    var job=_tlJobs[i]; if(!job)return; var d=document.getElementById('tlDetail'); if(!d)return;
-    d.innerHTML='<div style="font-weight:600;color:var(--amber);margin-bottom:6px">'+LaRuche.Utils.esc(job.name||LaRuche.i18n.t('settings.tlNoName'))+'</div>'+
+  // One card, so a single row and the whole list render exactly the same thing.
+  function tlCarte(i){
+    var job=_tlJobs[i]; if(!job)return '';
+    return '<div class="tl-card"><div style="font-weight:600;color:var(--amber);margin-bottom:6px">'+LaRuche.Utils.esc(job.name||LaRuche.i18n.t('settings.tlNoName'))+'</div>'+
       '<div>'+LaRuche.i18n.t('settings.tlPlanLabel')+'<code>'+LaRuche.Utils.esc(job.cron_expr||job.fire_at||'-')+'</code></div>'+
       '<div style="color:var(--text-dim)">'+LaRuche.i18n.t('settings.tlLastRun')+(job.last_run||LaRuche.i18n.t('settings.tlNever'))+LaRuche.i18n.t('settings.tlRuns')+(job.run_count||0)+(job.channel?(LaRuche.i18n.t('settings.tlChannel')+LaRuche.Utils.esc(job.channel)):'')+'</div>'+
       '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'+
@@ -1385,7 +1403,19 @@ LaRuche.Settings = (function(){
       '<button class="tl-btn" onclick="LaRuche.Settings.tlEdit('+i+')">'+LaRuche.i18n.t('settings.tlEdit')+'</button>'+
       '<button class="tl-btn" onclick="LaRuche.Settings.tlToggle('+i+')">'+(job.enabled===false?LaRuche.i18n.t('settings.tlResume'):LaRuche.i18n.t('settings.tlPause'))+'</button>'+
       '<button class="tl-btn" onclick="if(confirm(LaRuche.i18n.t(\'settings.tlDeleteConfirm\')))fetch(\'/api/cron/'+job.id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.tlReload&&LaRuche.Settings.tlReload();})">'+LaRuche.i18n.t('settings.tlDelete')+'</button>'+
-      '</div>';
+      '</div></div>';
+  }
+  function tlDetail(i){
+    var d=document.getElementById('tlDetail'); if(!d)return;
+    d.removeAttribute('data-all');
+    d.innerHTML=tlCarte(i);
+  }
+  // Every card at once, from the gutter head. Clicking again folds them back.
+  function tlAll(){
+    var d=document.getElementById('tlDetail'); if(!d)return;
+    if(d.getAttribute('data-all')==='1'){ d.innerHTML=''; d.removeAttribute('data-all'); return; }
+    d.innerHTML=_tlJobs.map(function(_,i){ return tlCarte(i); }).join('');
+    d.setAttribute('data-all','1');
   }
   function tlRun(i){ var job=_tlJobs[i]; if(!job)return; fetch('/api/cron/'+job.id+'/run',{method:'POST'}).then(function(r){return r.json();}).then(function(d){ LaRuche.Toast.show(d.status==='started'?LaRuche.i18n.t('settings.tlRunning'):LaRuche.i18n.t('settings.tlFailed'), d.status==='started'?'ok':'err'); }).catch(function(){LaRuche.Toast.show(LaRuche.i18n.t('settings.tlFailed'),'err');}); }
   function tlToggle(i){ var job=_tlJobs[i]; if(!job)return; fetch('/api/cron/'+job.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled: job.enabled===false})}).then(function(){tlReload();}); }
@@ -1501,21 +1531,28 @@ LaRuche.Settings = (function(){
       .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.secretDeleted'),'ok'); if(LaRuche.Secrets)LaRuche.Secrets.refresh(); refreshTab(); } });
   }
 
-  // Dedicated MCP tab (moved out of Providers).
+  // Dedicated MCP tab. It used to carry its own add form, a strictly poorer twin of the
+  // one in Capabilities: name, command and arguments only, no remote server, no editing,
+  // no enable switch. Two forms writing the same file taught the user that one of them
+  // was lying. This tab now shows the state and sends every action to the single source.
   function loadMcp(el){
     var html = '<div class="settings-card" style="margin-bottom:16px">';
     html += '  <div class="settings-card-title">'+LaRuche.i18n.t('settings.mcpServersTitle')+'</div>';
     html += '  <div style="color:var(--text-dim);font-size:12px;margin-bottom:12px">'+LaRuche.i18n.t('settings.mcpDesc')+'</div>';
     html += '  <div id="mcp-list" style="margin-bottom:12px"></div>';
-    html += '  <div style="border:1px solid var(--border);border-radius:6px;padding:8px;background:var(--bg-panel)">';
-    html += '     <div style="margin-bottom:8px"><label class="form-label">'+LaRuche.i18n.t('settings.mcpNameLabel')+'</label><input id="mcp-new-name" class="form-input" placeholder="'+LaRuche.i18n.t('settings.mcpNamePlaceholder')+'"></div>';
-    html += '     <div style="margin-bottom:8px"><label class="form-label">'+LaRuche.i18n.t('settings.mcpCmdLabel')+'</label><input id="mcp-new-cmd" class="form-input" placeholder="'+LaRuche.i18n.t('settings.mcpCmdPlaceholder')+'"></div>';
-    html += '     <div style="margin-bottom:8px"><label class="form-label">'+LaRuche.i18n.t('settings.mcpArgsLabel')+'</label><input id="mcp-new-args" class="form-input" placeholder="'+LaRuche.i18n.t('settings.mcpArgsPlaceholder')+'"></div>';
-    html += '     <button class="settings-save-btn" onclick="LaRuche.Settings.createMcpServer()">'+LaRuche.i18n.t('settings.mcpAddBtn')+'</button>';
+    html += '  <div style="border:1px solid var(--border);border-radius:6px;padding:10px;background:var(--bg-panel)">';
+    html += '     <div style="color:var(--text-dim);font-size:12px;margin-bottom:8px">'+LaRuche.i18n.t('settings.mcpManageHint')+'</div>';
+    html += '     <button class="form-btn" onclick="LaRuche.Settings.gotoMcpCapabilities()">'+LaRuche.i18n.t('settings.mcpManageBtn')+'</button>';
     html += '  </div>';
     html += '</div>';
     el.innerHTML = html;
     loadMcpServers();
+  }
+
+  // Jump to Capabilities, already filtered on MCP.
+  function gotoMcpCapabilities(){
+    LaRuche.Router.go('capabilities');
+    setTimeout(function(){ if(LaRuche.Capabilities) LaRuche.Capabilities.showFamily('mcp'); }, 60);
   }
 
   async function loadMcpServers() {
@@ -1527,32 +1564,17 @@ LaRuche.Settings = (function(){
       var html = '';
       for(var k in d.mcpServers) {
         var s = d.mcpServers[k];
-        html += '<div class="settings-row" style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(42,42,46,0.3)"><span class="settings-label" style="flex:1">'+LaRuche.Utils.esc(k)+' <span style="font-size:10px;color:var(--text-dim)">('+LaRuche.Utils.esc(s.command||'')+' '+LaRuche.Utils.esc(s.args?s.args.join(' '):'')+')</span></span><button onclick="LaRuche.Settings.deleteMcpServer(\''+encodeURIComponent(k)+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.mcpDeleteBtn')+'</button></div>';
+        // Read-only: a remote server is named by its endpoint, a local one by its command.
+        var detail = s.url ? s.url : ((s.command||'')+' '+(s.args?s.args.join(' '):'')).trim();
+        var actif = (s.enabled !== false);
+        html += '<div class="settings-row" style="margin-bottom:6px;padding-bottom:6px;border-bottom:1px solid rgba(42,42,46,0.3)">'+
+          '<span class="settings-label" style="flex:1">'+LaRuche.Utils.esc(k)+
+          ' <span style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t(s.url?'settings.mcpRemote':'settings.mcpLocal')+' - '+LaRuche.Utils.esc(detail)+'</span></span>'+
+          '<span style="font-size:10px;color:'+(actif?'var(--green)':'var(--text-dim)')+'">'+LaRuche.i18n.t(actif?'settings.mcpOn':'settings.mcpOff')+'</span></div>';
       }
       if(!html) html = '<div style="color:var(--text-dim);font-size:12px;padding:8px">'+LaRuche.i18n.t('settings.mcpNone')+'</div>';
       el.innerHTML = html;
     } catch(e) {}
-  }
-
-  function createMcpServer() {
-    var n = document.getElementById('mcp-new-name').value.trim();
-    var c = document.getElementById('mcp-new-cmd').value.trim();
-    var a = document.getElementById('mcp-new-args').value.trim();
-    if(!n || !c) return;
-    var args = a ? a.split(' ') : [];
-    fetch('/api/mcp/servers/'+encodeURIComponent(n), {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({command: c, args: args})
-    }).then(function(r){
-      if(r.ok) {
-         LaRuche.Toast.show(LaRuche.i18n.t('settings.mcpAdded'),'ok');
-         document.getElementById('mcp-new-name').value = '';
-         document.getElementById('mcp-new-cmd').value = '';
-         document.getElementById('mcp-new-args').value = '';
-         loadMcpServers();
-      }
-    });
   }
 
   function deleteMcpServer(n) {
@@ -2114,7 +2136,29 @@ LaRuche.Settings = (function(){
       });
       return '<select class="form-input" style="font-size:11px" onchange="LaRuche.Settings.setChannelModel(\''+channel+'\',this.value)">'+opts+'</select>';
     }
+    // Internal usages: same override map, same selector, but they are places where LaRuche
+    // thinks rather than places where it speaks, so they get their own card.
+    function usageRows(){
+      var libelles = {
+        'consolidation': LaRuche.i18n.t('settings.usageConsolidation'),
+        'memory-enrich': LaRuche.i18n.t('settings.usageMemoryEnrich'),
+        'feed':          LaRuche.i18n.t('settings.usageFeed')
+      };
+      var aides = {
+        'consolidation': LaRuche.i18n.t('settings.usageConsolidationHint'),
+        'memory-enrich': LaRuche.i18n.t('settings.usageMemoryEnrichHint'),
+        'feed':          LaRuche.i18n.t('settings.usageFeedHint')
+      };
+      return (chmodels.usages||[]).map(function(u){
+        return '<div class="form-group"><label class="form-label">'+LaRuche.Utils.esc(libelles[u]||u)+
+          '<span style="display:block;font-weight:normal;color:var(--text-dim);font-size:10px">'+LaRuche.Utils.esc(aides[u]||'')+'</span></label>'+
+          chModelSel(u)+'</div>';
+      }).join('');
+    }
     el.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">' +
+      '<div class="settings-card"><div class="card-title" style="color:var(--purple)">'+LaRuche.i18n.t('settings.usageModelsTitle')+'</div>' +
+        '<div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">'+LaRuche.i18n.t('settings.usageModelsHint')+'</div>' +
+        usageRows() + '</div>' +
       '<div class="settings-card"><div class="card-title" style="color:var(--amber)">'+LaRuche.i18n.t('settings.notificationsTitle')+'</div>' +
         '<div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">'+LaRuche.i18n.t('settings.notifyHint')+'</div>' +
         '<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="ch-notify-en" '+(notify.enabled?'checked':'')+'> <span>'+LaRuche.i18n.t('settings.notifyLabel')+'</span></label></div>' +
@@ -3186,7 +3230,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
   }
 
   return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder: reusable "human-friendly" component (missions + cron) ── */

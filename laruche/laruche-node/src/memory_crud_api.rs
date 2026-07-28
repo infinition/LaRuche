@@ -129,6 +129,8 @@ pub(crate) async fn api_memory_enrich(
             config.model = review_model.clone();
         }
     }
+    // An explicit choice for this usage wins over the review model, which is only a default.
+    apply_channel_model(&state, "memory-enrich", &mut config).await;
 
     let agent_id = uuid::Uuid::new_v4();
     let registry = state.essaim_registry.clone();
@@ -512,7 +514,10 @@ pub(crate) async fn api_memory_consolidate(
     State(state): State<Arc<AppState>>,
     axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Json<serde_json::Value> {
-    let config = state.essaim_config.read().await.clone();
+    // Consolidation is a bulk, low-stakes rewrite: it deserves its own model choice, so a
+    // cheap local one can grind through the memory while the chat keeps the good one.
+    let mut config = state.essaim_config.read().await.clone();
+    apply_channel_model(&state, "consolidation", &mut config).await;
     let node = q.get("node").map(|s| s.as_str()).filter(|s| !s.is_empty());
     let res = match node {
         Some(n) => {

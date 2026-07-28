@@ -58,7 +58,11 @@ pub(crate) async fn api_feed_ask(
         // Dedicated feed session (deterministic id) -> rolling context, separate from the main chat.
         let feed_id = Uuid::from_u128(0xFEED_0000_0000_0000_0000_0000_0000_0001);
         let sessions_dir = std::path::Path::new("sessions");
-        let model = st.essaim_config.read().await.model.clone();
+        // The Feed is its own usage, like a channel: it can run a different model from the
+        // web chat without either of them noticing.
+        let mut cfg = st.essaim_config.read().await.clone();
+        apply_channel_model(&st, "feed", &mut cfg).await;
+        let model = cfg.model.clone();
         let mut session = {
             let mut sessions = st.essaim_sessions.write().await;
             sessions
@@ -66,7 +70,6 @@ pub(crate) async fn api_feed_ask(
                 .unwrap_or_else(|| Session::new_with_id(feed_id, &model, sessions_dir))
         };
         let (tx, _rx) = tokio::sync::broadcast::channel::<laruche_essaim::ChatEvent>(256);
-        let cfg = st.essaim_config.read().await.clone();
         let result = boucle_react_memoire(
             &text,
             &mut session,

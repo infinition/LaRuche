@@ -22,6 +22,10 @@ pub(crate) async fn api_get_channel_models(State(state): State<Arc<AppState>>) -
         "active": { "profile_id": profiles.active_model.profile_id, "model": profiles.active_model.model },
         "options": options,
         "channels": ["telegram", "discord", "slack", "web"],
+        // Internal usages routed through the same override map. They are not channels a
+        // user talks on, but they each run an LLM, and each deserves its own choice: bulk
+        // consolidation can go to a cheap local model while the chat keeps the good one.
+        "usages": ["consolidation", "memory-enrich", "feed"],
     }))
 }
 
