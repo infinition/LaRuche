@@ -66,6 +66,12 @@ LaRuche.i18n.add({
   'capabilities.youPrefix':     { fr:'Vous: ',            en:'You: ' },
   'capabilities.statusOn':      { fr:'ON',                en:'ON' },
   'capabilities.statusOff':     { fr:'OFF',               en:'OFF' },
+  'capabilities.mcpLocal':      { fr:'Local (lance par LaRuche)', en:'Local (launched by LaRuche)' },
+  'capabilities.mcpRemote':     { fr:'Distant (deja en ligne)', en:'Remote (already running)' },
+  'capabilities.mcpUrl':        { fr:'Adresse du serveur', en:'Server endpoint' },
+  'capabilities.mcpUrlRequired':{ fr:'Adresse requise pour un serveur distant', en:'Endpoint required for a remote server' },
+  'capabilities.mcpRemoteHint': { fr:'LaRuche ne lance rien : elle interroge cette adresse en JSON-RPC.', en:'LaRuche launches nothing: it queries this endpoint over JSON-RPC.' },
+  'capabilities.mcpScriptHint': { fr:'Un script a toi se depose dans mcp/ via Fichiers & scripts, puis se pointe ici.', en:'Drop your own script in mcp/ through Files & scripts, then point the command at it.' },
   'capabilities.mcpAddTitle':   { fr:'Ajouter un serveur MCP', en:'Add an MCP server' },
   'capabilities.mcpEditTitle':  { fr:'Modifier le serveur MCP', en:'Edit MCP server' },
   'capabilities.mcpModalSub':   { fr:'Le serveur est lance par LaRuche. La modification prend effet aussitot.', en:'LaRuche launches the server. Changes take effect at once.' },
@@ -319,8 +325,12 @@ LaRuche.Capabilities = (function(){
 
   // Writes an MCP server. Omitting `enabled` makes the server keep its current state,
   // so editing a command never switches a disabled server back on.
-  function enregistrerMcp(nom, commande, args, actif){
-    var corps = { command:commande, args:(args ? args.split(/\s+/).filter(Boolean) : []) };
+  function enregistrerMcp(nom, commande, args, actif, url){
+    var corps = {
+      command: commande,
+      args: (args ? args.split(/\s+/).filter(Boolean) : []),
+      url: url || ''
+    };
     if(actif != null) corps.enabled = actif;
     return fetch('/api/mcp/servers/'+encodeURIComponent(nom), {
       method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(corps)
@@ -331,7 +341,7 @@ LaRuche.Capabilities = (function(){
     var r = (window._capRows || [])[i];
     if(!r || r.family!=='mcp') return;
     var s = r.raw || {};
-    enregistrerMcp(r.mcpName || r.name, s.command || '', (s.args || []).join(' '), actif)
+    enregistrerMcp(r.mcpName || r.name, s.command || '', (s.args || []).join(' '), actif, s.url || '')
       .then(function(rep){
         if(!rep.ok){ LaRuche.Toast.show(LaRuche.i18n.t('capabilities.mcpSaveFailed'),'err'); return; }
         // The server also reloads the MCP registry, so the change is live, not pending.
@@ -356,6 +366,7 @@ LaRuche.Capabilities = (function(){
     var s = (r && r.raw) || {};
     var nom = edition ? (r.mcpName || r.name) : '';
     var actif = edition ? (s.enabled !== false) : true;
+    var distant = !!(s.url && String(s.url).trim());
     var esc = LaRuche.Utils.esc;
 
     var ov = document.createElement('div');
@@ -367,11 +378,20 @@ LaRuche.Capabilities = (function(){
       '<label for="mcpMName">'+esc(LaRuche.i18n.t('capabilities.mcpServerName'))+'</label>'+
       '<input type="text" id="mcpMName" value="'+esc(nom)+'" '+(edition?'readonly':'placeholder="'+esc(LaRuche.i18n.t('capabilities.mcpNamePlaceholder'))+'"')+'>'+
       (edition ? '<div class="lr-modal-hint">'+esc(LaRuche.i18n.t('capabilities.mcpNameFixed'))+'</div>' : '')+
+      '<div class="lr-modal-row"><label style="margin:0"><input type="radio" name="mcpTransport" value="local"'+(distant?'':' checked')+' onchange="LaRuche.Capabilities.majTransport()"> '+esc(LaRuche.i18n.t('capabilities.mcpLocal'))+'</label>'+
+        '<label style="margin:0"><input type="radio" name="mcpTransport" value="remote"'+(distant?' checked':'')+' onchange="LaRuche.Capabilities.majTransport()"> '+esc(LaRuche.i18n.t('capabilities.mcpRemote'))+'</label></div>'+
+      '<div id="mcpBlocRemote" style="display:'+(distant?'':'none')+'">'+
+        '<label for="mcpMUrl">'+esc(LaRuche.i18n.t('capabilities.mcpUrl'))+'</label>'+
+        '<input type="text" id="mcpMUrl" value="'+esc(s.url||'')+'" placeholder="https://exemple.tld/mcp">'+
+        '<div class="lr-modal-hint">'+esc(LaRuche.i18n.t('capabilities.mcpRemoteHint'))+'</div>'+
+      '</div>'+
+      '<div id="mcpBlocLocal" style="display:'+(distant?'none':'')+'">'+
       '<label for="mcpMCmd">'+esc(LaRuche.i18n.t('capabilities.command'))+'</label>'+
       '<input type="text" id="mcpMCmd" value="'+esc(s.command||'')+'" placeholder="'+esc(LaRuche.i18n.t('capabilities.mcpCmdPlaceholder'))+'">'+
       '<label for="mcpMArgs">'+esc(LaRuche.i18n.t('capabilities.arguments'))+'</label>'+
       '<input type="text" id="mcpMArgs" value="'+esc((s.args||[]).join(' '))+'" placeholder="'+esc(LaRuche.i18n.t('capabilities.mcpArgsPlaceholder'))+'">'+
-      '<div class="lr-modal-hint">'+esc(LaRuche.i18n.t('capabilities.mcpArgsHint'))+'</div>'+
+      '<div class="lr-modal-hint">'+esc(LaRuche.i18n.t('capabilities.mcpArgsHint'))+' '+esc(LaRuche.i18n.t('capabilities.mcpScriptHint'))+'</div>'+
+      '</div>'+
       '<div class="lr-modal-row">'+
         '<label class="lr-switch" style="margin:0"><input type="checkbox" id="mcpMEnabled" '+(actif?'checked':'')+'><span class="lr-slider"></span></label>'+
         '<span>'+esc(LaRuche.i18n.t('capabilities.mcpEnabledLabel'))+'</span>'+
@@ -391,14 +411,29 @@ LaRuche.Capabilities = (function(){
     if(premier) premier.focus();
   }
 
+  // Local or remote: the two blocks are mutually exclusive, so the form never asks for a
+  // command AND an endpoint at the same time.
+  function majTransport(){
+    var distant = (document.querySelector('input[name="mcpTransport"]:checked')||{}).value === 'remote';
+    var bl = document.getElementById('mcpBlocLocal');
+    var br = document.getElementById('mcpBlocRemote');
+    if(bl) bl.style.display = distant ? 'none' : '';
+    if(br) br.style.display = distant ? '' : 'none';
+  }
+
   function saveMcpModal(){
     var n = (document.getElementById('mcpMName')||{}).value || '';
     var c = (document.getElementById('mcpMCmd')||{}).value || '';
     var a = (document.getElementById('mcpMArgs')||{}).value || '';
+    var u = (document.getElementById('mcpMUrl')||{}).value || '';
     var actif = !!(document.getElementById('mcpMEnabled')||{}).checked;
-    n = n.trim(); c = c.trim();
-    if(!n || !c){ LaRuche.Toast.show(LaRuche.i18n.t('capabilities.nameAndCmdRequired'),'err'); return; }
-    enregistrerMcp(n, c, a.trim(), actif).then(function(rep){
+    var distant = (document.querySelector('input[name="mcpTransport"]:checked')||{}).value === 'remote';
+    n = n.trim(); c = c.trim(); u = u.trim();
+    if(!n){ LaRuche.Toast.show(LaRuche.i18n.t('capabilities.nameAndCmdRequired'),'err'); return; }
+    if(distant && !u){ LaRuche.Toast.show(LaRuche.i18n.t('capabilities.mcpUrlRequired'),'err'); return; }
+    if(!distant && !c){ LaRuche.Toast.show(LaRuche.i18n.t('capabilities.nameAndCmdRequired'),'err'); return; }
+    // Only one of the two travels: a saved server is local or remote, never half of each.
+    enregistrerMcp(n, distant ? '' : c, distant ? '' : a.trim(), actif, distant ? u : '').then(function(rep){
       if(!rep.ok){ LaRuche.Toast.show(LaRuche.i18n.t('capabilities.mcpSaveFailed'),'err'); return; }
       LaRuche.Toast.show(LaRuche.i18n.t('capabilities.mcpSaved'),'ok');
       fermerMcpModal();
@@ -418,7 +453,8 @@ LaRuche.Capabilities = (function(){
   function ensureSwitchStyle(){}
 
   return { init:init, enter:enter, leave:leave, current:function(){return current;}, refresh:refresh, addMcp:addMcp, viewRaw:viewRaw, onSearch:onSearch, toggleAll:toggleAll, editMcp:editMcp,
-    toggleMcp:toggleMcp, saveMcpModal:saveMcpModal, closeMcpModal:fermerMcpModal };
+    toggleMcp:toggleMcp, saveMcpModal:saveMcpModal, closeMcpModal:fermerMcpModal,
+    majTransport:majTransport };
 })();
 
 /* ── Register all page modules ── */

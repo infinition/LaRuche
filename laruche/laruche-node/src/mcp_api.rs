@@ -64,6 +64,13 @@ pub(crate) async fn api_mcp_save_server(
         laruche_essaim::mcp_client::McpServerConfig {
             command,
             args,
+            // A url makes it a remote server: LaRuche talks to it without launching
+            // anything, and the command becomes meaningless.
+            url: body["url"]
+                .as_str()
+                .map(str::trim)
+                .filter(|u| !u.is_empty())
+                .map(str::to_string),
             enabled,
         },
     );

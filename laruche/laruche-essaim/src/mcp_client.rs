@@ -130,6 +130,51 @@ impl McpClient {
         Ok(client)
     }
 
+    /// Connects to a REMOTE MCP server over HTTP instead of launching a local process.
+    ///
+    /// The client only ever talks through its channel, so a second transport costs one
+    /// worker task: `list_tools`, `call_tool` and the handshake are untouched. Until now
+    /// the only way in was `Command::spawn`, which meant a server had to live on this
+    /// machine; a hosted one, or one running on another box, could not be used at all.
+    ///
+    /// Each request is one POST carrying the JSON-RPC body, the shape every MCP server
+    /// speaking HTTP accepts.
+    pub async fn start_http(url: &str) -> Result<Self> {
+        let (tx, mut rx) = mpsc::channel::<(Value, oneshot::Sender<Result<Value>>)>(32);
+        let url = url.to_string();
+        let http = reqwest::Client::builder()
+            .timeout(REQUEST_TIMEOUT)
+            .build()
+            .context("http client for remote MCP")?;
+
+        tokio::spawn(async move {
+            while let Some((req, reply)) = rx.recv().await {
+                let envoi = http.post(&url).json(&req).send().await;
+                let resultat = match envoi {
+                    Ok(rep) => match rep.json::<Value>().await {
+                        Ok(corps) => {
+                            if let Some(err) = corps.get("error") {
+                                Err(anyhow::anyhow!("MCP Error: {err}"))
+                            } else {
+                                Ok(corps.get("result").unwrap_or(&Value::Null).clone())
+                            }
+                        }
+                        Err(e) => Err(anyhow::anyhow!("invalid MCP response: {e}")),
+                    },
+                    Err(e) => Err(anyhow::anyhow!("remote MCP unreachable: {e}")),
+                };
+                let _ = reply.send(resultat);
+            }
+        });
+
+        let client = Self {
+            tx,
+            next_id: Arc::new(AtomicU64::new(1)),
+        };
+        client.initialize().await?;
+        Ok(client)
+    }
+
     pub async fn send_request(&self, method: &str, params: Value) -> Result<Value> {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let req = json!({
@@ -252,8 +297,15 @@ use crate::abeilles::mcp_tool::McpAbeille;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct McpServerConfig {
+    /// Command to launch, for a LOCAL server managed by LaRuche. Empty when `url` is set.
+    #[serde(default)]
     pub command: String,
+    #[serde(default)]
     pub args: Vec<String>,
+    /// Endpoint of a REMOTE server, which LaRuche talks to without launching anything.
+    /// Mutually exclusive with `command`: whichever is filled decides the transport.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
     /// A disabled server is configured but never started, so its tools stay out of the
     /// registry. Absent from a file written before this field existed, which is why it
     /// defaults to enabled: an upgrade must not silently switch a server off.
@@ -307,7 +359,12 @@ pub async fn charger_mcp_servers(
         );
 
         let args_ref: Vec<&str> = config.args.iter().map(|s| s.as_str()).collect();
-        match McpClient::start(&config.command, &args_ref).await {
+        // A url means a remote server: nothing to spawn, we just talk to it.
+        let ouverture = match config.url.as_deref().map(str::trim).filter(|u| !u.is_empty()) {
+            Some(url) => McpClient::start_http(url).await,
+            None => McpClient::start(&config.command, &args_ref).await,
+        };
+        match ouverture {
             Ok(client) => {
                 clients.insert(name.clone(), client.clone());
                 match client.list_tools().await {
