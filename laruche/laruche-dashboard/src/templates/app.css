@@ -1585,6 +1585,18 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
   transition:opacity var(--transition-fast);
 }
 .settings-save-btn:hover { opacity:.85; }
+/* `.form-btn` is used 27 times across the settings forms and had no rule at all: those
+ * buttons fell back to the browser default, grey and square, in the middle of the amber
+ * ones. Same look as .settings-save-btn, which is what they were meant to be. */
+.form-btn {
+  background:var(--amber); color:#000; border:none; border-radius:6px;
+  padding:6px 16px; cursor:pointer; font-size:12px; font-weight:600;
+  transition:opacity var(--transition-fast);
+}
+.form-btn:hover { opacity:.85; }
+.form-btn:active { transform:translateY(1px); }
+.form-btn:focus-visible { outline:2px solid var(--amber-light); outline-offset:2px; }
+.form-btn[disabled] { opacity:.45; cursor:not-allowed; transform:none; }
 .form-input {
   width:100%; background:var(--bg-input); border:1px solid var(--border); border-radius:4px;
   color:var(--text); padding:6px 10px; font-size:12px; outline:none;
@@ -2269,6 +2281,11 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 .tl-btn--danger { color:rgba(239,68,68,.75); border-color:rgba(239,68,68,.28); }
 .tl-btn--danger:hover { background:rgba(239,68,68,.12); border-color:var(--red); color:var(--red); }
 .tl-btn--active { background:rgba(245,158,11,.12); border-color:var(--amber); color:var(--amber); }
+.tl-btn--success { color:rgba(16,185,129,.85); border-color:rgba(16,185,129,.32); }
+.tl-btn--success:hover { background:rgba(16,185,129,.12); border-color:var(--green); color:var(--green); }
+/* Action row of a section: one place, one rhythm, instead of buttons scattered above and
+ * below the search field in three different styles. */
+.lr-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
 
 .lr-switch { position:relative; display:inline-block; width:34px; height:18px; flex:0 0 auto; vertical-align:middle; }
 .lr-switch input { display:none; }

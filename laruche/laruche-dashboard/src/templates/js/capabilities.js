@@ -236,16 +236,6 @@ LaRuche.Capabilities = (function(){
       b.textContent = base + (typeof c==='number' ? ' ('+c+')' : '');
     });
 
-    // MCP add bar (visible on All + MCP)
-    var mcpAdd = '';
-    if(currentFamily==='all' || currentFamily==='mcp'){
-      // A three-field form parked above the table for a rare action, and Edit filled it
-      // from a distance. One button, one dialog, same one for add and edit.
-      mcpAdd = '<div style="margin-bottom:12px">'+
-        '<button class="tl-btn" onclick="LaRuche.Capabilities.addMcp()">'+LaRuche.i18n.t('capabilities.addMcpServer')+'</button>'+
-        '</div>';
-    }
-
     var head = '<thead><tr>'+
       [LaRuche.i18n.t('capabilities.colName'),LaRuche.i18n.t('capabilities.colType'),LaRuche.i18n.t('capabilities.colOrigin'),LaRuche.i18n.t('capabilities.colDesc'),LaRuche.i18n.t('capabilities.colStatus'),LaRuche.i18n.t('capabilities.colActions')].map(function(h){
         return '<th style="text-align:left;padding:8px;color:var(--text-dim);border-bottom:1px solid var(--border);font-weight:600">'+h+'</th>';
@@ -267,19 +257,30 @@ LaRuche.Capabilities = (function(){
         '</tr>';
     }).join('');
 
-    var extraActions = '';
+    // One action row for the whole section. The buttons lived in three styles and two
+    // places: the MCP one above the search field, the others below it, one of them with
+    // an inline green override and two written entirely in inline CSS. Creating actions
+    // first, then the tools that act on the list.
+    var actions = [];
     if(currentFamily==='all' || currentFamily==='skill'){
-      extraActions += '<button class="settings-save-btn" onclick="LaRuche.Settings.newSkill()">'+LaRuche.i18n.t('capabilities.newSkill')+'</button>';
+      actions.push(['tl-btn tl-btn--active', 'LaRuche.Settings.newSkill()', LaRuche.i18n.t('capabilities.newSkill')]);
     }
     if(currentFamily==='all' || currentFamily==='plugin'){
-      extraActions += ' <button class="settings-save-btn" onclick="LaRuche.Settings.newPlugin()">'+LaRuche.i18n.t('capabilities.newPlugin')+'</button>';
-      extraActions += ' <button class="settings-save-btn" style="background:rgba(70,196,106,.15);color:var(--green);border:1px solid var(--green)" onclick="LaRuche.PluginFiles.open()">'+LaRuche.i18n.t('capabilities.filesScripts')+'</button>';
+      actions.push(['tl-btn tl-btn--active', 'LaRuche.Settings.newPlugin()', LaRuche.i18n.t('capabilities.newPlugin')]);
+    }
+    if(currentFamily==='all' || currentFamily==='mcp'){
+      actions.push(['tl-btn tl-btn--active', 'LaRuche.Capabilities.addMcp()', LaRuche.i18n.t('capabilities.addMcpServer')]);
+    }
+    if(currentFamily==='all' || currentFamily==='plugin'){
+      actions.push(['tl-btn', 'LaRuche.PluginFiles.open()', LaRuche.i18n.t('capabilities.filesScripts')]);
     }
     if(currentFamily==='all' || currentFamily==='abeille'){
-      extraActions = '<button onclick="LaRuche.Capabilities.toggleAll(true)" style="background:rgba(16,185,129,0.15);color:var(--green);border:1px solid var(--green);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600">'+LaRuche.i18n.t('capabilities.enableAll')+'</button>'+
-        '<button onclick="LaRuche.Capabilities.toggleAll(false)" style="background:rgba(239,68,68,0.15);color:var(--red);border:1px solid var(--red);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600">'+LaRuche.i18n.t('capabilities.disableAll')+'</button>'+
-        extraActions;
+      actions.push(['tl-btn tl-btn--success', 'LaRuche.Capabilities.toggleAll(true)', LaRuche.i18n.t('capabilities.enableAll')]);
+      actions.push(['tl-btn tl-btn--danger', 'LaRuche.Capabilities.toggleAll(false)', LaRuche.i18n.t('capabilities.disableAll')]);
     }
+    var extraActions = actions.map(function(a){
+      return '<button class="'+a[0]+'" onclick="'+a[1]+'">'+a[2]+'</button>';
+    }).join('');
 
     // Search field (magnifier, amber)
     var searchBar = '<div style="position:relative;margin-bottom:12px;max-width:360px">'+
@@ -289,10 +290,12 @@ LaRuche.Capabilities = (function(){
         'oninput="LaRuche.Capabilities.onSearch(this.value)" '+
         'style="width:100%;padding-left:30px;border-color:var(--amber)"></div>';
 
-    el.innerHTML = mcpAdd + searchBar +
-      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">'+
+    // Actions on top, then the search, then the count: what one CAN do before what one
+    // is looking at. The row is a single flex container, so the buttons keep one rhythm
+    // whatever the active family shows.
+    el.innerHTML = '<div class="lr-actions">'+extraActions+'</div>' + searchBar +
+      '<div style="margin-bottom:10px">'+
         '<span style="color:var(--text-dim);font-size:12px">'+filtered.length+' '+LaRuche.i18n.t('capabilities.capacities')+(currentFamily==='all'?LaRuche.i18n.t('capabilities.nativeImmutable'):'')+'</span>'+
-        '<div style="display:flex;gap:8px;flex-wrap:wrap">'+extraActions+'</div>'+
       '</div>'+
       (filtered.length ? '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">'+head+'<tbody>'+body+'</tbody></table></div>'
                        : '<div style="text-align:center;color:var(--text-muted);padding:30px">'+LaRuche.i18n.t('capabilities.emptyFilter')+'</div>');
