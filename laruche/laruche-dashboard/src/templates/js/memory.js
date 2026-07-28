@@ -133,6 +133,9 @@ LaRuche.i18n.add({
   'memory.notePlugins':           {fr:'Outils forges, par toi ou par l\'agent. C\'est ici que se cree un outil sur mesure : onglet Capacites, ou plugin_create pour l\'agent. La source est plugins/<nom>/plugin.json ; cette page n\'en est que le reflet.', en:'Forged tools, by you or by the agent. This is where a custom tool is made: Capabilities tab, or plugin_create for the agent. The source is plugins/<name>/plugin.json; this page only mirrors it.'},
   'memory.noteMcp':               {fr:'Outils exposes par un serveur MCP. Le serveur s\'ajoute, se regle et s\'active dans l\'onglet Capacites ; ses outils, eux, sont declares par le serveur lui-meme, pas par un fichier local.', en:'Tools exposed by an MCP server. The server is added, configured and switched on from the Capabilities tab; its tools are declared by the server itself, not by a local file.'},
   'memory.noteSkills':            {fr:'Procedures. Elles se creent dans l\'onglet Capacites ou avec skill_create, et vivent dans skills/<nom>/SKILL.md, synchronise dans les deux sens avec cette page. Le contenu de chaque skill reste editable ici.', en:'Procedures. Created from the Capabilities tab or with skill_create, they live in skills/<name>/SKILL.md, kept in step with this page in both directions. Each skill\'s content stays editable here.'},
+  'memory.skillNew':              {fr:'+ Nouveau skill', en:'+ New skill'},
+  'memory.skillResync':           {fr:'Relire le disque', en:'Re-read from disk'},
+  'memory.skillResynced':         {fr:'Skills relus depuis le disque', en:'Skills re-read from disk'},
   'memory.graphDepth':            {fr:'Profondeur', en:'Depth'},
   'memory.graphAllDepths':        {fr:'Tout', en:'All'},
   'memory.graphRecenter':         {fr:'Recentrer', en:'Recenter'},
@@ -518,7 +521,9 @@ LaRuche.Memory = (function(){
       '<span class="node-actions">'+
         // Add-a-subnode was the one action never gated by `locked`, so a projected tool
         // still offered to grow a child that the next reindex would not know about.
-        (!locked && c.id !== CORBEILLE ? '<button title="'+LaRuche.i18n.t('memory.addSubfolderTitle')+'" onclick="event.stopPropagation();LaRuche.Memory.createSubnode(\''+esc(c.id)+'\')">➕</button>' : '')+
+        // A skill has no children either: it is one SKILL.md, not a folder of nodes.
+        (!locked && c.id !== CORBEILLE && c.id.indexOf('capacities.skills.') !== 0
+          ? '<button title="'+LaRuche.i18n.t('memory.addSubfolderTitle')+'" onclick="event.stopPropagation();LaRuche.Memory.createSubnode(\''+esc(c.id)+'\')">➕</button>' : '')+
         // Renaming the bin would break the id the server hardcodes; emptying it is the
         // affordance, and it lives in the section header.
         (!locked && c.id !== CORBEILLE ? '<button title="'+LaRuche.i18n.t('memory.renameTitle')+'" onclick="event.stopPropagation();LaRuche.Memory.renameNode(\''+esc(c.id)+'\',\''+esc(c.seg)+'\')">✏️</button>' : '')+
@@ -867,6 +872,15 @@ LaRuche.Memory = (function(){
         : LaRuche.i18n.t('memory.systemProtectedNote')+
           (readOnly ? LaRuche.i18n.t('memory.readOnly') : LaRuche.i18n.t('memory.notReadOnly'));
       html += '<div class="mem2-protnote">'+SVG.lock+'<span>'+note+'</span></div>';
+      // The skills root is closed to loose items, not to skills. The two doors that
+      // belong here: create one through the validated editor, and re-read the folder
+      // when a SKILL.md was edited outside LaRuche.
+      if(nodeId === 'capacities.skills'){
+        html += '<div style="display:flex;gap:8px;margin:10px 0 4px">'+
+          '<button class="tl-btn tl-btn--active" onclick="LaRuche.Settings.newSkill()">'+LaRuche.i18n.t('memory.skillNew')+'</button>'+
+          '<button class="tl-btn" onclick="LaRuche.Memory.resyncSkills()">'+LaRuche.i18n.t('memory.skillResync')+'</button>'+
+        '</div>';
+      }
     }
     var children = currentNode.children || [];
     if(children.length){
@@ -1665,6 +1679,18 @@ LaRuche.Memory = (function(){
     };
   }
 
+  // Re-reads skills/*/SKILL.md into the map. The disk is the master but it is only read
+  // at boot, so a file edited outside LaRuche stayed invisible here until a restart.
+  function resyncSkills(){
+    fetch(LaRuche.API.base+'/api/skills/resync', {method:'POST'})
+      .then(function(r){return r.json();}).then(function(d){
+        if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
+        LaRuche.Toast.show(LaRuche.i18n.t('memory.skillResynced')+(d.skills!=null?' ('+d.skills+')':''),'ok');
+        loadTree(false);
+        if(current) loadNode(current);
+      }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.errorMsg')+e,'err'); });
+  }
+
   // Empties the bin in one call. Targeting `orphans` takes the hard-delete branch
   // server-side, so its whole subtree goes for good. The root reappears by itself on
   // the next deletion.
@@ -1849,7 +1875,7 @@ LaRuche.Memory = (function(){
     loadNode:loadNode, setView:setView,
     exportOkf:exportOkf, importOkf:importOkf, triggerDream:triggerDream,
     toggleAll:toggleAll, deleteNode:deleteNode, renameNode:renameNode,
-    emptyTrash:emptyTrash,
+    emptyTrash:emptyTrash, resyncSkills:resyncSkills,
     createSubnode:createSubnode, moveItem:moveItem,
     toggleEditMode:toggleEditMode, createRoot:createRoot,
     toggleExact:toggleExact,

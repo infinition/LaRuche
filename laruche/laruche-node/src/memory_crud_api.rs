@@ -215,7 +215,20 @@ pub(crate) async fn api_memory_update(
         .filter(|s| !s.is_empty())
         .ok_or(StatusCode::BAD_REQUEST)?;
     match state.memoire.update_item(item_id, content).await {
-        Ok(value) => Ok(Json(serde_json::json!({ "status": "ok", "result": value }))),
+        Ok(value) => {
+            // Editing a skill from the memory view has to reach `skills/<slug>/SKILL.md`
+            // as well. The disk is the master: the boot sync reads it back into SQL and
+            // overwrites what differs, so an edit that stopped at the database looked
+            // saved and was gone at the next start.
+            if let Some(node_id) = value
+                .get("node_id")
+                .and_then(|v| v.as_str())
+                .filter(|id| id.starts_with("capacities.skills."))
+            {
+                laruche_essaim::abeilles::memoire::ecrire_skill_md(node_id, content);
+            }
+            Ok(Json(serde_json::json!({ "status": "ok", "result": value })))
+        }
         Err(e) => Ok(Json(
             serde_json::json!({ "status": "error", "error": e.to_string() }),
         )),
@@ -249,6 +262,13 @@ pub(crate) async fn api_memory_node_delete(
         .map(str::trim)
         .filter(|s| !s.is_empty())
         .ok_or(StatusCode::BAD_REQUEST)?;
+    // Same rule as the skills API: the folder goes with the node, or the boot sync reads
+    // it back in and the deleted skill returns.
+    if let Some(slug) = node_id.strip_prefix("capacities.skills.") {
+        if !slug.is_empty() && !slug.contains(['/', '\\', ':', '.']) && !slug.contains("..") {
+            let _ = std::fs::remove_dir_all(std::path::Path::new("skills").join(slug));
+        }
+    }
     match state.memoire.delete_node(node_id).await {
         Ok(value) => Ok(Json(serde_json::json!({ "status": "ok", "result": value }))),
         Err(e) => Ok(Json(

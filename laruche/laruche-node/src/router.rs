@@ -305,6 +305,7 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
             get(skills_api::api_get_skill).delete(skills_api::api_delete_skill),
         )
         .route("/api/skills/:name/toggle", post(skills_api::api_toggle_skill))
+        .route("/api/skills/resync", post(skills_api::api_resync_skills))
         .route(
             "/api/watchers",
             get(watchers_api::api_list_watchers).post(watchers_api::api_create_watcher),

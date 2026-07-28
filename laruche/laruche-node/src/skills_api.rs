@@ -1,9 +1,25 @@
 //! Skill endpoints (list, get, upsert, toggle, delete agent skills) - split out of main.rs.
+//!
+//! A skill lives in TWO places: `skills/<slug>/SKILL.md` on disk and
+//! `capacities.skills.<slug>` in the cognitive map. The disk is the master, because the
+//! boot sync reads it into SQL and overwrites whatever differs. Every write here must
+//! therefore reach the file as well, or the change is silently reverted at the next
+//! start; deletions must remove the folder, or the skill comes back from the dead.
 
 use crate::*;
 use axum::extract::State;
 use axum::response::Json;
 use std::sync::Arc;
+
+/// Folder holding a skill on disk.
+fn dossier_skill(name: &str) -> Option<std::path::PathBuf> {
+    let slug = name.trim();
+    // Single path component: a crafted name must not climb out of skills/.
+    if slug.is_empty() || slug.contains(['/', '\\', ':']) || slug.contains("..") {
+        return None;
+    }
+    Some(std::path::Path::new("skills").join(slug))
+}
 
 pub(crate) async fn api_list_skills(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let disabled = state.essaim_config.read().await.disabled_skills.clone();
@@ -88,10 +104,14 @@ pub(crate) async fn api_upsert_skill(
     let node_id = laruche_skills::skill_node_id(&sk.meta.name);
     match state
         .memoire
-        .write(laruche_memoire::MemoryItem::new(node_id, content).with_source("skills-ui"))
+        .write(laruche_memoire::MemoryItem::new(node_id.clone(), content).with_source("skills-ui"))
         .await
     {
-        Ok(_) => Json(serde_json::json!({"status": "ok", "name": sk.meta.name})),
+        Ok(_) => {
+            // The file too, otherwise the boot sync reads the old text back over this one.
+            laruche_essaim::abeilles::memoire::ecrire_skill_md(&node_id, content);
+            Json(serde_json::json!({"status": "ok", "name": sk.meta.name}))
+        }
         Err(e) => Json(serde_json::json!({"error": format!("{e}")})),
     }
 }
@@ -130,10 +150,38 @@ pub(crate) async fn api_delete_skill(
     }
     let node_id = laruche_skills::skill_node_id(&name);
     let _ = state.memoire.delete_node(&node_id).await;
+    // The folder goes with it. Left behind, the boot sync reads it back in and the
+    // skill returns as if nothing had happened.
+    if let Some(dossier) = dossier_skill(&name) {
+        let _ = std::fs::remove_dir_all(&dossier);
+    }
     {
         let mut cfg = state.essaim_config.write().await;
         cfg.disabled_skills.retain(|d| d != &name);
     }
     save_persistent_state(&state).await;
     Json(serde_json::json!({"status": "ok"}))
+}
+
+/// POST /api/skills/resync - re-reads `skills/*/SKILL.md` into the cognitive map.
+///
+/// The disk is the master, but it is only read at boot. Editing a SKILL.md by hand, or
+/// pulling a batch of them from a repository, left the memory showing the old text until
+/// the next restart. This is that read, on demand.
+pub(crate) async fn api_resync_skills(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+) -> Json<serde_json::Value> {
+    if auth_user::extract_user_from_headers(&headers, &state.cookie_secret).is_none() {
+        return Json(serde_json::json!({"error": "unauthorized"}));
+    }
+    crate::changes_api::sync_skills_disk_to_sql(&state.memoire).await;
+    let total = state
+        .memoire
+        .read_node("capacities.skills")
+        .await
+        .ok()
+        .and_then(|n| n["children"].as_array().map(|a| a.len()))
+        .unwrap_or(0);
+    Json(serde_json::json!({ "status": "ok", "skills": total }))
 }
