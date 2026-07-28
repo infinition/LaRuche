@@ -490,6 +490,26 @@ pub(crate) async fn api_auth_set_model(
 // ======================== Admin: user management ========================
 
 /// GET /api/admin/users - list all accounts (admin only).
+/// The SUPER-ADMIN is the oldest account, and it is derived rather than stored: there is
+/// no flag anyone can flip, and no way to end up with zero of them. It exists so the
+/// instance always keeps one account that cannot be demoted, deleted or locked out by
+/// another admin — including one promoted by mistake.
+///
+/// Ties on `created_at` (two accounts made in the same instant) are broken by id so the
+/// answer is stable across restarts instead of depending on map iteration order.
+pub(crate) fn super_admin_id(
+    users: &std::collections::HashMap<Uuid, auth_user::User>,
+) -> Option<Uuid> {
+    users
+        .values()
+        .min_by(|a, b| {
+            a.created_at
+                .cmp(&b.created_at)
+                .then_with(|| a.id.cmp(&b.id))
+        })
+        .map(|u| u.id)
+}
+
 pub(crate) async fn api_admin_list_users(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -499,6 +519,7 @@ pub(crate) async fn api_admin_list_users(
     if !is_admin {
         return Err(StatusCode::FORBIDDEN);
     }
+    let super_id = super_admin_id(&users);
     let mut list: Vec<serde_json::Value> = users
         .values()
         .map(|u| {
@@ -509,6 +530,8 @@ pub(crate) async fn api_admin_list_users(
                 "has_password": u.password_hash.is_some(),
                 "created_at": u.created_at,
                 "is_self": Some(u.id) == uid,
+                "is_super": Some(u.id) == super_id,
+                "avatar": u.avatar,
             })
         })
         .collect();
@@ -517,6 +540,43 @@ pub(crate) async fn api_admin_list_users(
 }
 
 /// DELETE /api/admin/users/:id - delete an account (admin only; cannot delete yourself).
+/// POST /api/admin/users/:id/password - set an account's password WITHOUT knowing the
+/// current one. Reserved to the super-admin: an ordinary admin resetting another admin's
+/// password would be a silent takeover of that account.
+///
+/// The old password is never read, compared or returned; only a fresh hash is written,
+/// and only the new value is ever accepted from the caller.
+pub(crate) async fn api_admin_set_password(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    axum::extract::Path(id): axum::extract::Path<String>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let target = Uuid::parse_str(&id).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let password = body["password"].as_str().unwrap_or("");
+    if password.len() < 8 {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let mut users = state.users.write().await;
+    let (uid, is_admin) = auth_user::check_admin(&headers, &state.cookie_secret, &users);
+    if !is_admin || uid.is_none() || uid != super_admin_id(&users) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let user = users.get_mut(&target).ok_or(StatusCode::NOT_FOUND)?;
+    user.password_hash = Some(auth_user::hash_password(password));
+    let _ = auth_user::save_user(user, std::path::Path::new("users"));
+    drop(users);
+    crate::log_activite(
+        &state,
+        "warn",
+        "ADMIN",
+        format!("Super-admin reset the password of {target}"),
+        uid,
+    )
+    .await;
+    Ok(Json(serde_json::json!({ "status": "ok", "id": id })))
+}
+
 pub(crate) async fn api_admin_delete_user(
     State(state): State<Arc<AppState>>,
     headers: axum::http::HeaderMap,
@@ -530,6 +590,10 @@ pub(crate) async fn api_admin_delete_user(
     }
     if Some(target) == uid {
         return Err(StatusCode::BAD_REQUEST); // cannot delete yourself
+    }
+    // The founding account is not deletable: it is the last resort for getting back in.
+    if Some(target) == super_admin_id(&users) {
+        return Err(StatusCode::FORBIDDEN);
     }
     if users.remove(&target).is_none() {
         return Err(StatusCode::NOT_FOUND);
@@ -561,6 +625,11 @@ pub(crate) async fn api_admin_set_role(
     }
     if Some(target) == uid && role == auth_user::UserRole::User {
         return Err(StatusCode::BAD_REQUEST); // do not demote yourself (avoid lockout)
+    }
+    // The super-admin stays an admin. Otherwise a second admin could demote the founding
+    // account and take the instance over.
+    if Some(target) == super_admin_id(&users) && role == auth_user::UserRole::User {
+        return Err(StatusCode::FORBIDDEN);
     }
     let user = users.get_mut(&target).ok_or(StatusCode::NOT_FOUND)?;
     user.role = role;

@@ -142,6 +142,17 @@ pub(crate) async fn api_memory_enrich(
     );
     let context = Some(node_id.to_string());
 
+    // The Feed only ever showed the memory MUTATIONS ("added an item to episodes"), so an
+    // @LaRuche exchange was invisible as an exchange: the question never appeared and the
+    // answer looked like an anonymous write. Both sides are recorded here, like a chat turn.
+    laruche_essaim::feed_journal::record(
+        "User",
+        "memory",
+        "asked LaRuche about",
+        format!("{node_id}: {prompt}"),
+        chrono::Utc::now(),
+    );
+
     tokio::spawn(async move {
         // @LaRuche launched from a memory node: it works on the node, so the node is the
         // subject shown in the indicator.
@@ -172,6 +183,13 @@ pub(crate) async fn api_memory_enrich(
                         "api_memory_enrich",
                         serde_json::json!({ "agent_id": agent_id, "item_id": id, "status": "ok" }),
                     );
+                    laruche_essaim::feed_journal::record(
+                        "LaRuche",
+                        "memory",
+                        "answered about",
+                        format!("{node_id}: {}", result.summary),
+                        chrono::Utc::now(),
+                    );
                 }
             }
             Err(e) => {
@@ -183,6 +201,14 @@ pub(crate) async fn api_memory_enrich(
                         laruche_events::EventKind::AgentFinished,
                         "api_memory_enrich",
                         serde_json::json!({ "agent_id": agent_id, "item_id": id, "status": "error" }),
+                    );
+                    // A failed run left no trace anywhere: the item just span forever.
+                    laruche_essaim::feed_journal::record(
+                        "LaRuche",
+                        "memory",
+                        "failed on",
+                        format!("{node_id}: {e}"),
+                        chrono::Utc::now(),
                     );
                 }
             }

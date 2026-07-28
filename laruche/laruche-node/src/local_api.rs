@@ -108,29 +108,87 @@ fn local_media_mime(path: &std::path::Path) -> &'static str {
 pub(crate) async fn api_onboarding(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let mut steps = Vec::new();
 
-    // 1. Ollama installed?
+    // 1. The LLM backend that is ACTUALLY configured.
+    // This used to probe Ollama unconditionally, so anyone on a cloud provider or on
+    // llama.cpp collected two red crosses for software they do not need and cannot fix.
+    // A hosted provider is not probed at all: reaching it costs a billable request and
+    // proves little beyond the key being present.
     let ec = state.essaim_config.read().await;
-    let ollama_ok = reqwest::Client::new()
-        .get(format!("{}/api/tags", ec.ollama_url))
-        .timeout(std::time::Duration::from_secs(3))
-        .send()
-        .await
-        .map(|r| r.status().is_success())
-        .unwrap_or(false);
+    let modele = ec.model.clone();
+    let est_ollama = matches!(ec.provider.as_str(), "ollama" | "");
+    let (nom_backend, url_sonde, aide): (String, Option<String>, String) = match ec.provider.as_str()
+    {
+        "ollama" | "" => (
+            "Ollama".into(),
+            Some(format!("{}/api/tags", ec.ollama_url)),
+            "Install Ollama: https://ollama.com/download".into(),
+        ),
+        "llamacpp" | "llama.cpp" | "llama-server" => (
+            "llama.cpp".into(),
+            Some(format!(
+                "{}/v1/models",
+                ec.api_base.as_deref().unwrap_or("http://127.0.0.1:8001")
+            )),
+            "Start llama-server, then set its address in Settings > Providers.".into(),
+        ),
+        "lmstudio" | "lm-studio" => (
+            "LM Studio".into(),
+            Some(format!(
+                "{}/v1/models",
+                ec.api_base.as_deref().unwrap_or("http://127.0.0.1:1234")
+            )),
+            "Start the local server in LM Studio (Developer tab).".into(),
+        ),
+        "vllm" => (
+            "vLLM".into(),
+            Some(format!(
+                "{}/v1/models",
+                ec.api_base.as_deref().unwrap_or("http://127.0.0.1:8000")
+            )),
+            "Start vLLM with its OpenAI-compatible server.".into(),
+        ),
+        "anthropic" => ("Anthropic".into(), None, String::new()),
+        "codex" => ("ChatGPT Codex".into(), None, String::new()),
+        pair if pair.starts_with("peer:") => ("Swarm node".into(), None, String::new()),
+        autre => (
+            format!("{autre} (OpenAI-compatible)"),
+            ec.api_base.clone().map(|b| format!("{b}/v1/models")),
+            "Set the API address in Settings > Providers.".into(),
+        ),
+    };
+    drop(ec);
+
+    let backend_ok = match &url_sonde {
+        Some(url) => reqwest::Client::new()
+            .get(url)
+            .timeout(std::time::Duration::from_secs(3))
+            .send()
+            .await
+            .map(|r| r.status().is_success())
+            .unwrap_or(false),
+        // Hosted provider: configured is as far as we can tell without spending money.
+        None => true,
+    };
     steps.push(serde_json::json!({
-        "step": 1, "title": "Ollama",
-        "done": ollama_ok,
-        "instruction": if ollama_ok { "Ollama is connected." }
-            else { "Install Ollama: https://ollama.com/download" },
+        "step": 1, "title": format!("LLM backend — {nom_backend}"),
+        "done": backend_ok,
+        "instruction": match (&url_sonde, backend_ok) {
+            (Some(u), true)  => format!("Connected to {u}"),
+            (Some(u), false) => format!("Cannot reach {u}. {aide}"),
+            (None, _)        => format!("{nom_backend}: hosted provider, configured."),
+        },
     }));
 
     // 2. LLM model configured?
     steps.push(serde_json::json!({
         "step": 2, "title": "LLM Model",
-        "done": ollama_ok,
-        "instruction": format!("Current model: {}. For Gemma 4: ollama pull gemma4:e4b", ec.model),
+        "done": backend_ok,
+        "instruction": if est_ollama {
+            format!("Current model: {modele}. To install another: ollama pull <name>")
+        } else {
+            format!("Current model: {modele}, served by {nom_backend}.")
+        },
     }));
-    let _ = ec;
 
     // 3. Embedding model (semantic memory)? REAL probe - this was a hardcoded
     // `done: false` stub. We ask for an actual vector through the same client the
@@ -153,10 +211,13 @@ pub(crate) async fn api_onboarding(State(state): State<Arc<AppState>>) -> Json<s
     steps.push(serde_json::json!({
         "step": 3, "title": "Embeddings Model (RAG)",
         "done": embed_ok,
+        // Optional, not broken: say what is actually lost so nobody chases a red cross
+        // for a feature they may not want.
+        "optional": true,
         "instruction": if embed_ok {
             format!("Semantic memory active: {embed_model} @ {embed_url}")
         } else {
-            format!("Run lancer_embeddings.bat (auto-download), or: ollama pull {embed_model}")
+            format!("Optional. Without it LaRuche still works and still writes to memory, but recall is keyword-only: it cannot find a note worded differently from your question. Enable with lancer_embeddings.bat, or: ollama pull {embed_model}")
         },
     }));
 
@@ -172,8 +233,9 @@ pub(crate) async fn api_onboarding(State(state): State<Arc<AppState>>) -> Json<s
     steps.push(serde_json::json!({
         "step": 4, "title": "Voice services (STT/TTS)",
         "done": has_stt && has_tts,
+        "optional": true,
         "instruction": if has_stt && has_tts { format!("STT ({stt_url}) and TTS ({tts_url}) responding.") }
-            else { "Run: cd laruche-voix && python -m src.stt_service && python -m src.tts_service".to_string() },
+            else { "Optional. Only needed to talk to LaRuche out loud; typing works either way. Run: cd laruche-voix && python -m src.stt_service && python -m src.tts_service".to_string() },
     }));
 
     // 5. Chrome for browser tools?
@@ -185,17 +247,31 @@ pub(crate) async fn api_onboarding(State(state): State<Arc<AppState>>) -> Json<s
     steps.push(serde_json::json!({
         "step": 5, "title": "Chrome/Edge (browser tools)",
         "done": has_chrome,
-        "instruction": if has_chrome { "Chrome detected." } else { "Install Chrome for browser_navigate/screenshot." },
+        "optional": true,
+        "instruction": if has_chrome { "Chrome detected." } else { "Optional. Only the browser tools (navigate, screenshot) need it; everything else runs without." },
     }));
 
+    // Setup is COMPLETE once the required steps pass. Counting the optional ones kept the
+    // badge amber forever on a perfectly working install, which read as a permanent error.
+    let requis: Vec<_> = steps
+        .iter()
+        .filter(|s| !s["optional"].as_bool().unwrap_or(false))
+        .collect();
+    let requis_ok = requis
+        .iter()
+        .filter(|s| s["done"].as_bool().unwrap_or(false))
+        .count();
     let done_count = steps
         .iter()
         .filter(|s| s["done"].as_bool().unwrap_or(false))
         .count();
 
     Json(serde_json::json!({
-        "progress": format!("{}/{}", done_count, steps.len()),
-        "complete": done_count == steps.len(),
+        "progress": format!("{}/{}", requis_ok, requis.len()),
+        "complete": requis_ok == requis.len(),
+        // Kept so the panel can still say how many of the extras are on.
+        "optional_done": done_count - requis_ok,
+        "optional_total": steps.len() - requis.len(),
         "steps": steps,
     }))
 }

@@ -40,10 +40,10 @@ pub(crate) async fn api_start_channel(
 
     match channel {
         "telegram" => {
-            let token = config["telegram"]["bot_token"]
-                .as_str()
-                .unwrap_or("")
-                .to_string();
+            // May be a `${NAME}` vault reference rather than the literal token.
+            let token = laruche_essaim::secrets::substituer(
+                config["telegram"]["bot_token"].as_str().unwrap_or(""),
+            );
             let allowed = config["telegram"]["allowed_chats"]
                 .as_str()
                 .unwrap_or("")

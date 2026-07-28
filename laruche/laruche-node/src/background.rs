@@ -361,6 +361,15 @@ fn decoupe_canal(canal: &str) -> (&str, &str) {
 }
 
 /// First entry of a comma-separated allow list, used when the spec names no target.
+/// Read a channel token, resolving a vault reference.
+///
+/// A token may be stored literally, or as `${NAME}` pointing at a Secrets entry — the
+/// same two modes as a provider API key. Without this the reference would be sent to
+/// Telegram verbatim and the bot would simply fail to authenticate.
+fn jeton_canal(bloc: &serde_json::Value, champ: &str) -> String {
+    laruche_essaim::secrets::substituer(bloc[champ].as_str().unwrap_or(""))
+}
+
 fn premiere_cible(cfg: &serde_json::Value, cle: &str) -> String {
     cfg[cle]
         .as_str()
@@ -417,7 +426,7 @@ pub(crate) async fn livrer_message(canal: &str, texte: &str) {
     match nom {
         "telegram" => {
             let bloc = &cfg["telegram"];
-            let token = bloc["bot_token"].as_str().unwrap_or("");
+            let token = &jeton_canal(bloc, "bot_token");
             let chat = if cible.is_empty() {
                 premiere_cible(bloc, "allowed_chats")
             } else {
@@ -437,7 +446,7 @@ pub(crate) async fn livrer_message(canal: &str, texte: &str) {
         }
         "discord" => {
             let bloc = &cfg["discord"];
-            let token = bloc["bot_token"].as_str().unwrap_or("");
+            let token = &jeton_canal(bloc, "bot_token");
             let salon = if cible.is_empty() {
                 premiere_cible(bloc, "allowed_channels")
             } else {
@@ -458,7 +467,7 @@ pub(crate) async fn livrer_message(canal: &str, texte: &str) {
         }
         "slack" => {
             let bloc = &cfg["slack"];
-            let token = bloc["bot_token"].as_str().unwrap_or("");
+            let token = &jeton_canal(bloc, "bot_token");
             if token.is_empty() || cible.is_empty() {
                 // Slack has no allow list to fall back on: without an explicit channel
                 // there is nowhere to post, and guessing one would be worse than saying so.
@@ -1271,7 +1280,7 @@ pub(crate) fn spawn_event_notifier(state: &Arc<AppState>) {
                     laruche_events::EventKind::AgentFinished
                         | laruche_events::EventKind::WatcherFired
                 ) {
-                    let token = config["telegram"]["bot_token"].as_str().unwrap_or("");
+                    let token = &jeton_canal(&config["telegram"], "bot_token");
                     let chats_str = config["telegram"]["allowed_chats"].as_str().unwrap_or("");
                     let first_chat = chats_str.split(',').next().unwrap_or("").trim();
                     if !token.is_empty() && !first_chat.is_empty() {
@@ -1306,7 +1315,8 @@ pub(crate) async fn autostart_channels(state: &Arc<AppState>) {
         if config_path.exists() {
             if let Ok(content) = std::fs::read_to_string(config_path) {
                 if let Ok(channels_config) = serde_json::from_str::<serde_json::Value>(&content) {
-                    if let Some(tg_token) = channels_config["telegram"]["bot_token"].as_str() {
+                    let tg_resolu = jeton_canal(&channels_config["telegram"], "bot_token");
+                    if let Some(tg_token) = Some(tg_resolu.as_str()).filter(|t| !t.is_empty()) {
                         if !tg_token.is_empty()
                             && channels_config["telegram"]["enabled"]
                                 .as_bool()

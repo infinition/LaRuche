@@ -71,7 +71,9 @@ pub(crate) async fn api_slack_events(
                     let config_path = std::path::Path::new("channels-config.json");
                     if let Ok(content) = std::fs::read_to_string(config_path) {
                         if let Ok(config) = serde_json::from_str::<serde_json::Value>(&content) {
-                            let bot_token = config["slack"]["bot_token"].as_str().unwrap_or("");
+                            let bot_token = &laruche_essaim::secrets::substituer(
+                                config["slack"]["bot_token"].as_str().unwrap_or(""),
+                            );
                             if !bot_token.is_empty() {
                                 let http = reqwest::Client::new();
                                 let _ = http

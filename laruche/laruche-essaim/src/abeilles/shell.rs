@@ -63,7 +63,14 @@ impl Abeille for ShellExec {
          $env:USERPROFILE, Join-Path, New-Item, etc.); on Unix it runs in sh. \
          Use this for system tasks like checking disk space, listing processes, \
          running git, downloading files, etc. Long tasks may run up to 5 minutes. \
-         Dangerous commands are blocked."
+         Dangerous commands are blocked. \
+         When walking a project tree, EXCLUDE build and VCS directories (target, \
+         node_modules, .git, dist, build, .venv, __pycache__): they hold tens of \
+         thousands of generated files and dominate the walk. A recursive listing that \
+         includes a Rust target/ takes over a minute where the same listing without it \
+         takes under a second. To answer \"what changed recently\", prefer `git status` \
+         or `git log` when the directory is a repository: they already ignore what is \
+         generated, and they are instant."
     }
 
     fn schema(&self) -> serde_json::Value {
