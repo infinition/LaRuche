@@ -1,4 +1,19 @@
 LaRuche.i18n.add({
+  'chat.slashNew':      {fr:'Nouvelle conversation', en:'New conversation'},
+  'chat.slashHistory':  {fr:"Chercher dans l'historique", en:'Search the history'},
+  'chat.slashExport':   {fr:'Exporter la session en Markdown', en:'Export the session as Markdown'},
+  'chat.slashStop':     {fr:'Arreter la generation en cours', en:'Stop the running generation'},
+  'chat.slashMemory':   {fr:'Ouvrir la memoire', en:'Open memory'},
+  'chat.slashSkills':   {fr:'Capacites : skills', en:'Capabilities: skills'},
+  'chat.slashTools':    {fr:'Capacites : outils', en:'Capabilities: tools'},
+  'chat.slashPlugins':  {fr:'Capacites : plugins', en:'Capabilities: plugins'},
+  'chat.slashMcp':      {fr:'Capacites : serveurs MCP', en:'Capabilities: MCP servers'},
+  'chat.slashTimeline': {fr:'Frise des taches planifiees', en:'Scheduled tasks timeline'},
+  'chat.slashCron':     {fr:'Taches planifiees', en:'Scheduled tasks'},
+  'chat.slashWatchers': {fr:'Sentinelles', en:'Watchers'},
+  'chat.slashSettings': {fr:'Reglages', en:'Settings'},
+  'chat.slashFeed':     {fr:'Ouvrir le fil', en:'Open the feed'},
+  'chat.slashFailed':   {fr:'Commande impossible', en:'Command failed'},
   'chat.skillNe':               {fr:'✨ Skill né : ',           en:'✨ Skill created: '},
   'chat.fileLabel':             {fr:'(fichier)',               en:'(file)'},
   'chat.micTitle':              {fr:'Cliquer pour enregistrer / arrêter', en:'Click to record / stop'},
@@ -183,6 +198,117 @@ LaRuche.Chat = (function(){
   var lastSteerText = '';
   var staleRecoveryActive = false;
 
+  /* ── Slash commands ──────────────────────────────────────────────
+     A "/" typed at the start of an empty line opens a palette of things the app can
+     already do, so the shortcuts live where the hands are instead of behind three
+     clicks. Only the first token is a command: "/memory" navigates, but "a/b" or
+     "/tmp/x" in the middle of a sentence is left alone. */
+  var _slashBox = null, _slashSel = 0, _slashHits = [];
+
+  // Jump to a page, then to one of its tabs once it has rendered. Same 60ms hop the
+  // timeline already uses to reach the cron tab.
+  function allerOnglet(page, barre, tab){
+    LaRuche.Router.go(page);
+    if(!tab) return;
+    setTimeout(function(){
+      var b = document.querySelector('#'+barre+' [data-tab='+tab+']');
+      if(b) b.click();
+    }, 60);
+  }
+  function allerCapacite(famille){
+    LaRuche.Router.go('capabilities');
+    setTimeout(function(){ if(LaRuche.Capabilities && LaRuche.Capabilities.showFamily) LaRuche.Capabilities.showFamily(famille); }, 60);
+  }
+
+  function slashCmds(){
+    return [
+      {c:'/new',      k:'chat.slashNew',      f:function(){ newSession(); }},
+      {c:'/history',  k:'chat.slashHistory',  f:function(){ openHistory(); }},
+      {c:'/export',   k:'chat.slashExport',   f:function(){ exportSessionMd(); }},
+      {c:'/stop',     k:'chat.slashStop',     f:function(){ stopRun(); }},
+      {c:'/memory',   k:'chat.slashMemory',   f:function(){ LaRuche.Router.go('memory'); }},
+      {c:'/skills',   k:'chat.slashSkills',   f:function(){ allerCapacite('skill'); }},
+      {c:'/tools',    k:'chat.slashTools',    f:function(){ allerCapacite('abeille'); }},
+      {c:'/plugins',  k:'chat.slashPlugins',  f:function(){ allerCapacite('plugin'); }},
+      {c:'/mcp',      k:'chat.slashMcp',      f:function(){ allerCapacite('mcp'); }},
+      {c:'/timeline', k:'chat.slashTimeline', f:function(){ allerOnglet('automations','autoTabsBar','timeline'); }},
+      {c:'/cron',     k:'chat.slashCron',     f:function(){ allerOnglet('automations','autoTabsBar','cron'); }},
+      {c:'/watchers', k:'chat.slashWatchers', f:function(){ allerOnglet('automations','autoTabsBar','watchers'); }},
+      {c:'/settings', k:'chat.slashSettings', f:function(){ LaRuche.Router.go('settings'); }},
+      {c:'/feed',     k:'chat.slashFeed',     f:function(){ if(LaRuche.Feed && LaRuche.Feed.open) LaRuche.Feed.open(); }}
+    ];
+  }
+
+  function slashEnsureBox(){
+    if(_slashBox) return _slashBox;
+    _slashBox = document.createElement('div');
+    _slashBox.id = 'slashPalette';
+    _slashBox.style.cssText = 'position:fixed;z-index:9999;display:none;min-width:260px;max-width:min(420px,92vw);'+
+      'max-height:240px;overflow-y:auto;background:var(--bg-panel,#1c1c20);border:1px solid var(--border,#2a2a2e);'+
+      'border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.45);padding:4px;font-size:12px';
+    document.body.appendChild(_slashBox);
+    return _slashBox;
+  }
+  function slashClose(){ if(_slashBox) _slashBox.style.display='none'; _slashHits=[]; }
+  function slashOuvert(){ return !!_slashBox && _slashBox.style.display==='block'; }
+
+  function slashInput(){
+    var v = this.value;
+    // Only a leading "/" with no space yet: the command is the whole first token.
+    var m = /^\/([a-z]*)$/i.exec(v);
+    if(!m){ slashClose(); return; }
+    var q = m[1].toLowerCase();
+    _slashHits = slashCmds().filter(function(c){ return c.c.slice(1).indexOf(q)===0; });
+    if(!_slashHits.length){ slashClose(); return; }
+    _slashSel = 0;
+    slashRender(this);
+  }
+
+  function slashRender(input){
+    var b = slashEnsureBox();
+    b.innerHTML = _slashHits.map(function(c,i){
+      return '<div class="slash-item'+(i===_slashSel?' sel':'')+'" data-i="'+i+'" '+
+        'style="padding:6px 8px;border-radius:5px;cursor:pointer;display:flex;gap:10px;align-items:baseline;'+
+        (i===_slashSel?'background:rgba(255,176,32,.16)':'')+'">'+
+        '<span style="color:var(--amber,#ffb020);font-weight:600">'+c.c+'</span>'+
+        '<span style="color:var(--text-dim,#8a8a90)">'+LaRuche.Utils.esc(LaRuche.i18n.t(c.k))+'</span></div>';
+    }).join('');
+    b.style.display = 'block';
+    // Measured, then clamped on both axes, and flipped above the field when there is no
+    // room below: the palette must never open outside the window.
+    var r = input.getBoundingClientRect();
+    b.style.left='0px'; b.style.top='0px';
+    var bw=b.offsetWidth, bh=b.offsetHeight, marge=8;
+    var gauche=Math.max(marge, Math.min(r.left, window.innerWidth-bw-marge));
+    var haut=(r.top-bh-6 >= marge) ? (r.top-bh-6) : Math.min(r.bottom+6, window.innerHeight-bh-marge);
+    b.style.left=gauche+'px'; b.style.top=Math.max(marge,haut)+'px';
+    b.querySelectorAll('.slash-item').forEach(function(el){
+      el.addEventListener('mousedown', function(e){ e.preventDefault(); slashRun(parseInt(el.dataset.i), input); });
+    });
+  }
+
+  function slashRun(i, input){
+    var c = _slashHits[i]; if(!c) return;
+    input.value=''; input.style.height='auto';
+    slashClose();
+    try { c.f(); } catch(e){ LaRuche.Toast.show(LaRuche.i18n.t('chat.slashFailed'),'err'); }
+  }
+
+  function slashKeydown(e){
+    if(!slashOuvert()) return;
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+      e.preventDefault(); e.stopImmediatePropagation();
+      _slashSel = (_slashSel + (e.key==='ArrowDown'?1:-1) + _slashHits.length) % _slashHits.length;
+      slashRender(this);
+    } else if(e.key==='Enter'||e.key==='Tab'){
+      e.preventDefault(); e.stopImmediatePropagation();
+      slashRun(_slashSel, this);
+    } else if(e.key==='Escape'){
+      e.preventDefault(); e.stopImmediatePropagation();
+      slashClose();
+    }
+  }
+
   function init() {
     ensureFeedStyle();
     bindMessageDisclosure();
@@ -191,6 +317,10 @@ LaRuche.Chat = (function(){
       this.style.height = 'auto';
       this.style.height = Math.min(this.scrollHeight,120)+'px';
     });
+    // Slash palette first: while it is open it owns Enter, Tab, the arrows and Escape.
+    userInput.addEventListener('keydown', slashKeydown);
+    userInput.addEventListener('input', slashInput);
+    userInput.addEventListener('blur', function(){ setTimeout(slashClose, 120); });
     userInput.addEventListener('keydown', function(e){
       if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendMessage(); }
     });

@@ -321,6 +321,42 @@ pub(crate) async fn api_create_mission(
             .filter(|s| !s.trim().is_empty())
             .map(|s| s.to_string())
     };
+    // Give the research a real workspace before it runs. The iteration prompt already
+    // orders the agent to write under `missions.<slug>.findings`, `.questions` and
+    // `.synthese`, but nothing created them: the node appeared only if the model happened
+    // to call memory_write, so a mission could run and leave no visible trace in the tree.
+    // Created up front, the workspace is imposed rather than hoped for, and the user sees
+    // where the work is going from the moment the mission exists.
+    {
+        let racine = format!("missions.{slug}");
+        let _ = state
+            .memoire
+            .create_node(
+                &racine,
+                &objective,
+                Some("Research workspace: this mission capitalizes here"),
+                Some(0.8),
+                Some("mission"),
+            )
+            .await;
+        for (suffixe, label, resume) in [
+            ("findings", "Findings", "Lasting sourced facts, one per item"),
+            ("questions", "Open questions", "What is still unresolved"),
+            ("synthese", "Synthesis", "Readable overview of the case so far"),
+        ] {
+            let _ = state
+                .memoire
+                .create_node(
+                    &format!("{racine}.{suffixe}"),
+                    label,
+                    Some(resume),
+                    Some(0.7),
+                    Some("mission"),
+                )
+                .await;
+        }
+    }
+
     let m = missions::Mission {
         slug: slug.clone(),
         objective,

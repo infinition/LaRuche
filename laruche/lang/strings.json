@@ -4856,8 +4856,8 @@
     "fr": "File globale"
   },
   "shell.inputPlaceholder": {
-    "en": "Write your message...",
-    "fr": "Écris ton message..."
+    "en": "Write your message, or / for commands...",
+    "fr": "Écris ton message, ou / pour les commandes..."
   },
   "shell.labelGpu": {
     "en": "GPU",
