@@ -123,3 +123,4 @@ laruche/.agents/
 # Scripts de patch jetables (contiennent des chemins machine)
 **/fix_*.py
 scripts/import_*_skills.py
+.tmp-harness/
