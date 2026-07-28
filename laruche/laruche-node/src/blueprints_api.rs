@@ -98,16 +98,27 @@ pub(crate) async fn instancier_blueprint(
         }
     }
     let (name, cron_expr, prompt) = laruche_essaim::blueprints::instancier(&bp, &valeurs);
+    // Routing and model come from the body, never from the slots: a blueprint templates
+    // WHAT runs and WHEN, not where the answer goes nor which model answers. Hardcoded to
+    // None, an instantiated task always landed on the activity log with the default
+    // model, and three of the six fields of the manual form were unreachable this way.
+    let champ = |cle: &str| -> Option<String> {
+        body.get(cle)
+            .and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+    };
     let task = ScheduledTask {
         id: Uuid::new_v4(),
         name,
         prompt,
         cron_expr: Some(cron_expr),
         fire_at: None,
-        channel: None,
-        provider: None,
-        model: None,
-        profile_id: None,
+        channel: champ("channel"),
+        provider: champ("provider"),
+        model: champ("model"),
+        profile_id: champ("profile_id"),
         skills: vec![],
         enabled: true,
         created_at: chrono::Utc::now(),

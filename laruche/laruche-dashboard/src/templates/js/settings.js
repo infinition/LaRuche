@@ -289,6 +289,9 @@ LaRuche.i18n.add({
   'settings.bpDeleted':          {fr:'Blueprint supprimé', en:'Blueprint deleted'},
   'settings.bpDeleteRefused':    {fr:'Suppression refusée: ', en:'Deletion refused: '},
   'settings.bpDeleteRefusedFallback': {fr:'blueprint intégré ?', en:'built-in blueprint?'},
+  'settings.cronUpdated':        {fr:'Tache mise a jour', en:'Task updated'},
+  'settings.cronNamePromptRequired': {fr:'Nom et prompt requis', en:'Name and prompt required'},
+  'settings.cronListTitle':      {fr:'Taches planifiees', en:'Scheduled tasks'},
   'settings.bpInstanciated':     {fr:'Blueprint instancié avec succès', en:'Blueprint instantiated successfully'},
   'settings.bpInstanciateError': {fr:'Erreur d\'instanciation', en:'Instantiation error'},
   'settings.bpDeleteSlotBtn':    {fr:'Supprimer cette variable', en:'Delete this variable'},
@@ -1569,6 +1572,10 @@ LaRuche.Settings = (function(){
     var profilesResp={profiles:{}};try{profilesResp=await fetch('/api/profiles').then(function(r){return r.json();});}catch(e){}
     var profiles = profilesResp.profiles || {};
     window._lastProfiles = profiles;
+    // Kept for the inline editor, which prefills from the task it is opened on, and to
+    // reload the list after a save.
+    window._cronTasks = tasks;
+    window._cronHost = el;
     
     var profOpts = '<option value="">'+LaRuche.i18n.t('settings.defaultModel')+'</option>';
     Object.keys(profiles).forEach(function(k){
@@ -1584,18 +1591,135 @@ LaRuche.Settings = (function(){
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.providerLabel')+'</label><select id="ncProfileId" class="form-input" onchange="LaRuche.Settings.updateCronModelSelect()">'+profOpts+'</select></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.modelLabel')+'</label><select id="ncModel" class="form-input"><option value="">'+LaRuche.i18n.t('settings.providerDefault')+'</option></select></div>'+
       '<button class="settings-save-btn" onclick="LaRuche.Settings.createCron()">'+LaRuche.i18n.t('settings.createBtn')+'</button></div>'+
-      tasks.map(function(t){
-          var effProv = LaRuche.i18n.t('settings.watcherDefaut');
-          if(t.profile_id && profiles[t.profile_id]) effProv = profiles[t.profile_id].name;
-          else if(t.profile_id) effProv = t.profile_id;
-          else if(t.provider) effProv = t.provider + (t.model ? " / " + t.model : "");
-          else if(t.model) effProv = t.model;
-          if(t.profile_id && t.model) effProv += " (" + t.model + ")";
-          return '<div class="settings-card"><div class="settings-card-title">'+LaRuche.Utils.esc(t.name)+'</div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.scheduleLabel')+'</span><span class="settings-value">'+(t.cron_expr||t.fire_at||'-')+'</span></div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.runsLabel')+'</span><span class="settings-value">'+(t.run_count||0)+'</span></div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.channelLabelShort')+'</span><span class="settings-value">'+LaRuche.Utils.esc(t.channel||LaRuche.i18n.t('settings.channelNone'))+'</span></div><div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.providerModelLabel')+'</span><span class="settings-value">'+LaRuche.Utils.esc(effProv)+'</span></div><button onclick="LaRuche.Settings.deleteCronTask(\''+t.id+'\',this)" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 8px;cursor:pointer;font-size:10px;margin-top:6px">'+LaRuche.i18n.t('settings.deleteBtn')+'</button></div>';
-      }).join('');
+      (tasks.length
+        ? '<div style="margin:22px 0 10px;padding-top:16px;border-top:1px solid var(--border);">'+
+            '<span style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-dim)">'+
+            LaRuche.i18n.t('settings.cronListTitle')+' ('+tasks.length+')</span></div>'
+        : '')+
+      tasks.map(function(t){ return cronCarte(t, profiles); }).join('');
     // Human-friendly cron builder for the creation form.
     if(LaRuche.CronBuilder){ _ncCronBuilderId = LaRuche.CronBuilder.mount('ncCronBuilder', { value:'' }); }
   }
+  // Schedule in words, with the raw expression kept beside it in small type. A card that
+  // only showed `0 9 * * *` asked the reader to parse cron in their head.
+  function cronLisible(t){
+    var brut = t.cron_expr || t.fire_at || '';
+    if(!brut) return '<span class="settings-value">-</span>';
+    var mots = '';
+    if(t.cron_expr && LaRuche.Timeline && LaRuche.Timeline.humanCron){
+      try { mots = LaRuche.Timeline.humanCron(t.cron_expr) || ''; } catch(e){ mots = ''; }
+    }
+    if(!mots) return '<span class="settings-value">'+LaRuche.Utils.esc(brut)+'</span>';
+    return '<span class="settings-value">'+LaRuche.Utils.esc(mots)+
+      ' <code style="color:var(--text-muted);font-size:10px">'+LaRuche.Utils.esc(brut)+'</code></span>';
+  }
+
+  // Prompt preview: one line, truncated, the whole text on hover. It is the field that
+  // says what the task actually DOES, and the card did not show it at all.
+  function cronApercuPrompt(t){
+    var p = (t.prompt || '').trim();
+    if(!p) return '';
+    var coupe = p.length > 110 ? p.slice(0, 109) + '…' : p;
+    return '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.promptLabel')+'</span>'+
+      '<span class="settings-value" title="'+LaRuche.Utils.esc(p)+'" '+
+      'style="max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:help">'+
+      LaRuche.Utils.esc(coupe)+'</span></div>';
+  }
+
+  function cronProviderLisible(t, profiles){
+    var eff = LaRuche.i18n.t('settings.watcherDefaut');
+    if(t.profile_id && profiles[t.profile_id]) eff = profiles[t.profile_id].name;
+    else if(t.profile_id) eff = t.profile_id;
+    else if(t.provider) eff = t.provider + (t.model ? ' / ' + t.model : '');
+    else if(t.model) eff = t.model;
+    if(t.profile_id && t.model) eff += ' (' + t.model + ')';
+    return eff;
+  }
+
+  function cronCarte(t, profiles){
+    var esc = LaRuche.Utils.esc;
+    var ligne = function(label, valeur){
+      return '<div class="settings-row"><span class="settings-label">'+label+'</span>'+valeur+'</div>';
+    };
+    return '<div class="settings-card" data-cron="'+esc(t.id)+'">'+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">'+
+        '<div class="settings-card-title" style="flex:1">'+esc(t.name)+'</div>'+
+        '<div style="display:flex;gap:6px;flex:0 0 auto">'+
+          '<button class="tl-btn" onclick="LaRuche.Settings.editCronTask(\''+esc(t.id)+'\')">'+LaRuche.i18n.t('settings.editBtn')+'</button>'+
+          '<button class="tl-btn tl-btn--danger" onclick="LaRuche.Settings.deleteCronTask(\''+esc(t.id)+'\',this)">'+LaRuche.i18n.t('settings.deleteBtn')+'</button>'+
+        '</div>'+
+      '</div>'+
+      ligne(LaRuche.i18n.t('settings.scheduleLabel'), cronLisible(t))+
+      cronApercuPrompt(t)+
+      ligne(LaRuche.i18n.t('settings.runsLabel'), '<span class="settings-value">'+(t.run_count||0)+'</span>')+
+      ligne(LaRuche.i18n.t('settings.channelLabelShort'), '<span class="settings-value">'+esc(t.channel||LaRuche.i18n.t('settings.channelNone'))+'</span>')+
+      ligne(LaRuche.i18n.t('settings.providerModelLabel'), '<span class="settings-value">'+esc(cronProviderLisible(t, profiles))+'</span>')+
+      '<div class="cron-edit" style="display:none"></div>'+
+    '</div>';
+  }
+
+  // Inline editor, opened in the card itself: the same six fields as creation, prefilled.
+  // PUT /api/cron/:id already accepted them all; nothing in the interface reached it.
+  function editCronTask(id){
+    var carte = document.querySelector('[data-cron="'+id+'"]');
+    var zone = carte && carte.querySelector('.cron-edit');
+    if(!zone) return;
+    if(zone.style.display !== 'none'){ zone.style.display='none'; zone.innerHTML=''; return; }
+    var t = (window._cronTasks||[]).filter(function(x){ return String(x.id)===String(id); })[0];
+    if(!t) return;
+    var profiles = window._lastProfiles || {};
+    var esc = LaRuche.Utils.esc;
+    var profOpts = '<option value="">'+LaRuche.i18n.t('settings.defaultModel')+'</option>';
+    Object.keys(profiles).forEach(function(k){
+      profOpts += '<option value="'+esc(k)+'"'+(t.profile_id===k?' selected':'')+'>'+esc(profiles[k].name)+'</option>';
+    });
+    var canaux = [['', LaRuche.i18n.t('settings.cronChannelNone')], ['telegram','Telegram'], ['discord','Discord']];
+    var canalOpts = canaux.map(function(c){
+      return '<option value="'+c[0]+'"'+((t.channel||'')===c[0]?' selected':'')+'>'+esc(c[1])+'</option>';
+    }).join('');
+
+    zone.style.display='';
+    zone.innerHTML = '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.nameLabel')+'</label><input id="ecName_'+esc(id)+'" class="form-input" value="'+esc(t.name||'')+'"></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.promptLabel')+'</label><textarea id="ecPrompt_'+esc(id)+'" class="form-input" rows="3" style="resize:vertical">'+esc(t.prompt||'')+'</textarea></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpScheduleLabel')+'</label><div id="ecCron_'+esc(id)+'"></div></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherChannelLabel')+'</label><select id="ecChannel_'+esc(id)+'" class="form-input">'+canalOpts+'</select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.providerLabel')+'</label><select id="ecProfile_'+esc(id)+'" class="form-input">'+profOpts+'</select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.modelLabel')+'</label><input id="ecModel_'+esc(id)+'" class="form-input" placeholder="'+LaRuche.i18n.t('settings.providerDefault')+'" value="'+esc(t.model||'')+'"></div>'+
+      '<div style="display:flex;gap:8px">'+
+        '<button class="tl-btn tl-btn--active" onclick="LaRuche.Settings.saveCronTask(\''+esc(id)+'\')">'+LaRuche.i18n.t('common.save')+'</button>'+
+        '<button class="tl-btn" onclick="LaRuche.Settings.editCronTask(\''+esc(id)+'\')">'+LaRuche.i18n.t('common.cancel')+'</button>'+
+      '</div></div>';
+    if(LaRuche.CronBuilder){
+      zone._builderId = LaRuche.CronBuilder.mount('ecCron_'+id, { value: t.cron_expr || '' });
+    }
+  }
+
+  function saveCronTask(id){
+    var carte = document.querySelector('[data-cron="'+id+'"]');
+    var zone = carte && carte.querySelector('.cron-edit');
+    if(!zone) return;
+    var val = function(prefixe){ var e = document.getElementById(prefixe+'_'+id); return e ? e.value : ''; };
+    var expr = '';
+    if(LaRuche.CronBuilder && zone._builderId) expr = LaRuche.CronBuilder.getValue(zone._builderId) || '';
+    var corps = {
+      name: val('ecName').trim(),
+      prompt: val('ecPrompt').trim(),
+      cron_expr: expr,
+      channel: val('ecChannel'),
+      profile_id: val('ecProfile'),
+      model: val('ecModel').trim()
+    };
+    if(!corps.name || !corps.prompt){ LaRuche.Toast.show(LaRuche.i18n.t('settings.cronNamePromptRequired'),'err'); return; }
+    fetch('/api/cron/'+encodeURIComponent(id), {
+      method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(corps)
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if(d.error){ LaRuche.Toast.show(d.error,'err'); return; }
+      LaRuche.Toast.show(LaRuche.i18n.t('settings.cronUpdated'),'ok');
+      if(window._cronHost) loadCron(window._cronHost);
+    }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err'); });
+  }
+
   // OPTIMISTIC cron deletion: removes the card from the DOM as soon as the DELETE succeeds. Works
   // in any container (Cron page OR Missions hub), no more F5 (refreshTab
   // reloaded the wrong tab depending on context).
@@ -2810,6 +2934,14 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     async function loadBlueprints(el) {
     var bps=[];try{bps=await fetch('/api/blueprints').then(function(r){return r.json();});}catch(e){}
     window._blueprints = bps || [];
+    // The provider list of the instantiation form comes from here. Cached by the Cron tab
+    // only, opening Blueprints first would have offered nothing but the default.
+    if(!window._lastProfiles){
+      try{
+        var pr = await fetch('/api/profiles').then(function(r){return r.json();});
+        window._lastProfiles = (pr && pr.profiles) || {};
+      }catch(e){ window._lastProfiles = {}; }
+    }
     var head = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap">' +
       '<span style="color:var(--amber);font-size:12px;">'+LaRuche.i18n.t('settings.blueprintsHint')+'</span>' +
       '<button class="settings-save-btn" onclick="LaRuche.Settings.openNewBlueprintForm()">'+LaRuche.i18n.t('settings.newBlueprintBtn')+'</button>' +
@@ -2830,11 +2962,30 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
             (b.slots||[]).map(function(slot){
               return '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.Utils.esc(slot.label||slot.name)+'</label><input id="bpInput_'+idx+'_'+slot.name+'" class="form-input" placeholder="'+LaRuche.Utils.esc(slot.placeholder||slot.default||'')+'" value="'+LaRuche.Utils.esc(slot.default||'')+'"></div>';
             }).join('') +
+            bpRoutageHtml(idx) +
             '<button class="settings-save-btn" style="margin-top:8px" onclick="LaRuche.Settings.instanciateBlueprint('+idx+')">'+LaRuche.i18n.t('settings.bpInstanciateBtn')+'</button>' +
           '</div>' +
         '</div>';
       }).join('');
     el.innerHTML = head + creationSlot + cards;
+  }
+
+  // Routing fields of an instantiation. A blueprint templates WHAT runs and WHEN, never
+  // where the answer goes nor which model answers, so those three were absent from the
+  // form and the created task always landed on the activity log with the default model.
+  function bpRoutageHtml(idx){
+    var profiles = window._lastProfiles || {};
+    var esc = LaRuche.Utils.esc;
+    var profOpts = '<option value="">'+LaRuche.i18n.t('settings.defaultModel')+'</option>';
+    Object.keys(profiles).forEach(function(k){
+      profOpts += '<option value="'+esc(k)+'">'+esc(profiles[k].name)+'</option>';
+    });
+    return '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherChannelLabel')+'</label>'+
+        '<select id="bpChannel_'+idx+'" class="form-input"><option value="">'+LaRuche.i18n.t('settings.cronChannelNone')+'</option><option value="telegram">Telegram</option><option value="discord">Discord</option></select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.providerLabel')+'</label>'+
+        '<select id="bpProfile_'+idx+'" class="form-input">'+profOpts+'</select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.modelLabel')+'</label>'+
+        '<input id="bpModel_'+idx+'" class="form-input" placeholder="'+LaRuche.i18n.t('settings.providerDefault')+'"></div>';
   }
 
   // --- Custom blueprint creation form ---
@@ -2947,7 +3098,12 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
     fetch('/api/blueprints/'+encodeURIComponent(b.id)+'/instancier', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(slotsData)
+      body: JSON.stringify({
+        slots: slotsData,
+        channel: (document.getElementById('bpChannel_'+idx)||{}).value || '',
+        profile_id: (document.getElementById('bpProfile_'+idx)||{}).value || '',
+        model: (document.getElementById('bpModel_'+idx)||{}).value || ''
+      })
     }).then(function(res) {
       if(res.ok) {
         LaRuche.Toast.show(LaRuche.i18n.t('settings.bpInstanciated'), 'ok');
@@ -2968,7 +3124,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
   }
 
   return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, saveCronTask:saveCronTask, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder: reusable "human-friendly" component (missions + cron) ── */

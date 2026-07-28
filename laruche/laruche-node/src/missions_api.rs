@@ -842,6 +842,14 @@ pub(crate) async fn api_update_cron(
             .filter(|s| !s.is_empty())
             .map(|s| s.to_string());
     }
+    // Creation accepts a provider profile; without it here, editing a task could not keep
+    // or change the profile it runs on, only the raw provider/model pair.
+    if body.get("profile_id").is_some() {
+        task.profile_id = body["profile_id"]
+            .as_str()
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_string());
+    }
     if let Some(arr) = body["skills"].as_array() {
         task.skills = arr
             .iter()

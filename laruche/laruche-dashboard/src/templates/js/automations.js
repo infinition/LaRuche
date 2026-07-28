@@ -16,6 +16,7 @@ LaRuche.i18n.add({
   'automations.heureLabel':         {fr:'Heure', en:'Time'},
   'automations.cronExpr5':          {fr:'Expression cron (5 champs)', en:'Cron expression (5 fields)'},
   'automations.manuel':             {fr:'manuel', en:'manual'},
+  'automations.toutesLesHeuresA':   {fr:'toutes les {st}h a la minute {m}', en:'every {st}h at minute {m}'},
   'automations.toutesLesMin':       {fr:'toutes les {st} min', en:'every {st} min'},
   'automations.aLaMinute':          {fr:'a la minute {m} de chaque heure', en:'at minute {m} of every hour'},
   'automations.chaqueJourA':        {fr:'chaque jour a {t}', en:'every day at {t}'},
@@ -305,6 +306,15 @@ LaRuche.Timeline = (function(){
     var m=p[0], h=p[1], dom=p[2], mon=p[3], dow=p[4];
     function hhmm(){ var hh=parseInt(h,10), mm=parseInt(m,10); if(isNaN(hh)||isNaN(mm)) return null; return ('0'+hh).slice(-2)+'h'+('0'+mm).slice(-2); }
     if(m.indexOf('/')===0 || m.indexOf('*/')===0){ var st=m.split('/')[1]; return LaRuche.i18n.t('automations.toutesLesMin').replace('{st}',st); }
+    // Hour step, e.g. `0 */2 * * *`. Read before the daily case below, which matched on
+    // dom/dow/mon alone and announced "chaque jour" for something running twelve times a
+    // day. Harmless while the text was buried in a timeline, wrong on a card that now
+    // shows it as THE schedule.
+    if(h.indexOf('*/')===0){
+      var ph=h.split('/')[1];
+      var mn=parseInt(m,10);
+      return LaRuche.i18n.t('automations.toutesLesHeuresA', { st:ph, m:isNaN(mn)?'00':('0'+mn).slice(-2) });
+    }
     if(h==='*' && m!=='*'){ return LaRuche.i18n.t('automations.aLaMinute').replace('{m}',m); }
     if(dom==='*' && dow==='*' && mon==='*'){ var t=hhmm(); return t?LaRuche.i18n.t('automations.chaqueJourA').replace('{t}',t):LaRuche.i18n.t('automations.chaqueJourSans'); }
     if(dow!=='*' && dom==='*'){ var t2=hhmm(); var days=dow.split(',').map(function(x){var n=parseInt(x,10);return isNaN(n)?x:LaRuche._dowName(n);}).join(', '); return t2?LaRuche.i18n.t('automations.chaqueDayAt').replace('{days}',days).replace('{t}',t2):LaRuche.i18n.t('automations.chaqueDaySans').replace('{days}',days); }
