@@ -69,6 +69,27 @@ pub(crate) async fn api_channels_known(State(state): State<Arc<AppState>>) -> Js
     for w in state.watchers.read().await.list() {
         push(w.channel.clone());
     }
+
+    // Channels CONFIGURED in channels-config.json, on top of those already in use. Without
+    // them the list was empty on a fresh install: nothing referenced a channel yet, so the
+    // picker offered nothing, so no task could be given one. Slack stayed invisible this
+    // way even once configured, and `memory` never appeared at all.
+    if let Ok(contenu) = std::fs::read_to_string("channels-config.json") {
+        if let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&contenu) {
+            for nom in ["telegram", "discord", "slack"] {
+                let bloc = &cfg[nom];
+                // A block counts as configured when it exists and is not explicitly off.
+                let present = bloc.is_object() && bloc["enabled"].as_bool().unwrap_or(true);
+                if present {
+                    push(Some(nom.to_string()));
+                }
+            }
+        }
+    }
+    // Always offered: it needs no external service and no configuration, LaRuche writes
+    // the result into its own cognitive memory.
+    push(Some(crate::CANAL_MEMOIRE.to_string()));
+
     Json(serde_json::json!({
         "channels": set.into_iter().collect::<Vec<_>>(),
         "home": home,

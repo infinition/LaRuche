@@ -11,6 +11,11 @@
 //! 8. Exposes MCP server for external AI clients
 //! 9. Discord & Slack channel integrations
 
+/// Delivery channel that writes the result into the cognitive memory instead of sending it
+/// to an external service. The only one that needs no token and no configuration, which is
+/// why it is always offered in the pickers.
+pub(crate) const CANAL_MEMOIRE: &str = "memory";
+
 mod abeilles_local;
 mod arbitre_memoire;
 mod auth_user;

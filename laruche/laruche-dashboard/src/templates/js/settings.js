@@ -1587,7 +1587,7 @@ LaRuche.Settings = (function(){
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.nameLabel')+'</label><input id="ncName" class="form-input"></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.promptLabel')+'</label><input id="ncPrompt" class="form-input"></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpScheduleLabel')+'</label><div id="ncCronBuilder"></div></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherChannelLabel')+'</label><select id="ncChannel" class="form-input"><option value="">'+LaRuche.i18n.t('settings.cronChannelNone')+'</option><option value="telegram">Telegram</option><option value="discord">Discord</option></select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherChannelLabel')+'</label><select id="ncChannel" class="form-input"></select></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.providerLabel')+'</label><select id="ncProfileId" class="form-input" onchange="LaRuche.Settings.updateCronModelSelect()">'+profOpts+'</select></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.modelLabel')+'</label><select id="ncModel" class="form-input"><option value="">'+LaRuche.i18n.t('settings.providerDefault')+'</option></select></div>'+
       '<button class="settings-save-btn" onclick="LaRuche.Settings.createCron()">'+LaRuche.i18n.t('settings.createBtn')+'</button></div>'+
@@ -1599,6 +1599,9 @@ LaRuche.Settings = (function(){
       tasks.map(function(t){ return cronCarte(t, profiles); }).join('');
     // Human-friendly cron builder for the creation form.
     if(LaRuche.CronBuilder){ _ncCronBuilderId = LaRuche.CronBuilder.mount('ncCronBuilder', { value:'' }); }
+    // Real channels, like the four other forms: the hardcoded telegram|discord pair
+    // ignored Slack even once configured, and could not offer memory.
+    window.__fillChannels(document.getElementById('ncChannel'), '', LaRuche.i18n.t('settings.cronChannelNone'));
   }
   // Schedule in words, with the raw expression kept beside it in small type. A card that
   // only showed `0 9 * * *` asked the reader to parse cron in their head.
@@ -1673,23 +1676,21 @@ LaRuche.Settings = (function(){
     Object.keys(profiles).forEach(function(k){
       profOpts += '<option value="'+esc(k)+'"'+(t.profile_id===k?' selected':'')+'>'+esc(profiles[k].name)+'</option>';
     });
-    var canaux = [['', LaRuche.i18n.t('settings.cronChannelNone')], ['telegram','Telegram'], ['discord','Discord']];
-    var canalOpts = canaux.map(function(c){
-      return '<option value="'+c[0]+'"'+((t.channel||'')===c[0]?' selected':'')+'>'+esc(c[1])+'</option>';
-    }).join('');
 
     zone.style.display='';
     zone.innerHTML = '<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.nameLabel')+'</label><input id="ecName_'+esc(id)+'" class="form-input" value="'+esc(t.name||'')+'"></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.promptLabel')+'</label><textarea id="ecPrompt_'+esc(id)+'" class="form-input" rows="3" style="resize:vertical">'+esc(t.prompt||'')+'</textarea></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpScheduleLabel')+'</label><div id="ecCron_'+esc(id)+'"></div></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherChannelLabel')+'</label><select id="ecChannel_'+esc(id)+'" class="form-input">'+canalOpts+'</select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherChannelLabel')+'</label><select id="ecChannel_'+esc(id)+'" class="form-input"></select></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.providerLabel')+'</label><select id="ecProfile_'+esc(id)+'" class="form-input">'+profOpts+'</select></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.modelLabel')+'</label><input id="ecModel_'+esc(id)+'" class="form-input" placeholder="'+LaRuche.i18n.t('settings.providerDefault')+'" value="'+esc(t.model||'')+'"></div>'+
       '<div style="display:flex;gap:8px">'+
         '<button class="tl-btn tl-btn--active" onclick="LaRuche.Settings.saveCronTask(\''+esc(id)+'\')">'+LaRuche.i18n.t('common.save')+'</button>'+
         '<button class="tl-btn" onclick="LaRuche.Settings.editCronTask(\''+esc(id)+'\')">'+LaRuche.i18n.t('common.cancel')+'</button>'+
       '</div></div>';
+    // Same source as everywhere else, and it preselects the channel the task already has.
+    window.__fillChannels(document.getElementById('ecChannel_'+id), t.channel||'', LaRuche.i18n.t('settings.cronChannelNone'));
     if(LaRuche.CronBuilder){
       zone._builderId = LaRuche.CronBuilder.mount('ecCron_'+id, { value: t.cron_expr || '' });
     }
@@ -2981,7 +2982,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       profOpts += '<option value="'+esc(k)+'">'+esc(profiles[k].name)+'</option>';
     });
     return '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherChannelLabel')+'</label>'+
-        '<select id="bpChannel_'+idx+'" class="form-input"><option value="">'+LaRuche.i18n.t('settings.cronChannelNone')+'</option><option value="telegram">Telegram</option><option value="discord">Discord</option></select></div>'+
+        '<select id="bpChannel_'+idx+'" class="form-input"></select></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.providerLabel')+'</label>'+
         '<select id="bpProfile_'+idx+'" class="form-input">'+profOpts+'</select></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.modelLabel')+'</label>'+
