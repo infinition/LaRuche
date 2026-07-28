@@ -283,6 +283,19 @@ impl SqliteBackend {
         let _ = conn.execute("ALTER TABLE items ADD COLUMN confidence REAL", []);
         let _ = conn.execute("ALTER TABLE items ADD COLUMN access_count INTEGER DEFAULT 0", []);
         let _ = conn.execute("ALTER TABLE items ADD COLUMN accessed_at INTEGER", []);
+        // Repair: drop FTS rows whose item no longer exists. Past hard deletes left them
+        // behind, and because rowids get reused each orphan is a landmine that makes one
+        // future write fail with "constraint failed" — one write in two, on the base this
+        // was found on (372 FTS rows for 160 items). Cheap, idempotent, runs at open.
+        match conn.execute(
+            "DELETE FROM items_fts WHERE rowid NOT IN (SELECT id FROM items)",
+            [],
+        ) {
+            Ok(0) => {}
+            Ok(n) => tracing::info!("memory: {n} orphan FTS row(s) cleared"),
+            Err(e) => tracing::warn!("memory: could not clear orphan FTS rows: {e}"),
+        }
+
         Ok(Self {
             conn: Mutex::new(conn),
             embedder,
@@ -316,6 +329,12 @@ impl SqliteBackend {
         )?;
         let id = conn.last_insert_rowid();
         if status == "active" {
+            // `items.id` is INTEGER PRIMARY KEY WITHOUT autoincrement, so SQLite REUSES
+            // the rowids of deleted rows. Any stale FTS row left behind by a hard delete
+            // then collides with the new item and the whole write fails with a bare
+            // "constraint failed" — intermittently, depending on which rowid comes up.
+            // Clearing the slot first makes the insert idempotent whatever the history.
+            conn.execute("DELETE FROM items_fts WHERE rowid=?1", [id])?;
             conn.execute(
                 "INSERT INTO items_fts(rowid,content,node_id) VALUES(?1,?2,?3)",
                 rusqlite::params![id, item.content, item.node_id],
@@ -856,6 +875,13 @@ impl MemoireCognitive for SqliteBackend {
 
     async fn purger_tombes_skills(&self) -> Result<u64> {
         let conn = self.conn.lock().unwrap();
+        // FTS first, and by rowid: dropping the items first would leave nothing to join
+        // on, and an orphan FTS row poisons the rowid it sits on for the next insert.
+        conn.execute(
+            "DELETE FROM items_fts WHERE rowid IN \
+             (SELECT id FROM items WHERE status='deleted' AND source='skill-file')",
+            [],
+        )?;
         let n = conn.execute(
             "DELETE FROM items WHERE status='deleted' AND source='skill-file'",
             [],
