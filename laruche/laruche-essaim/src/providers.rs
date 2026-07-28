@@ -389,6 +389,17 @@ pub async fn provider_chat_stream_effort(
             let base = api_base.or(Some("http://127.0.0.1:8001"));
             openai_chat_stream(model, messages, temperature, max_tokens, api_key, base, tools, effort).await
         }
+        // LM Studio and vLLM both serve the OpenAI wire format, so they need no client of
+        // their own: only their usual port. Named here rather than left to the catch-all,
+        // which routes to Ollama and would have sent every request to the wrong server.
+        "lmstudio" | "lm-studio" => {
+            let base = api_base.or(Some("http://127.0.0.1:1234"));
+            openai_chat_stream(model, messages, temperature, max_tokens, api_key, base, tools, effort).await
+        }
+        "vllm" => {
+            let base = api_base.or(Some("http://127.0.0.1:8000"));
+            openai_chat_stream(model, messages, temperature, max_tokens, api_key, base, tools, effort).await
+        }
         "anthropic" => {
             anthropic_chat_stream(model, messages, temperature, max_tokens, api_key, api_base, tools, effort).await
         }

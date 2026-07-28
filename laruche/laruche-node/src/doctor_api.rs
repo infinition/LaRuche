@@ -16,19 +16,64 @@ pub(crate) async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde
     // tab. A reachable Ollama answers /api/tags in milliseconds on loopback and well
     // under a second on a LAN; past that it is down for our purposes.
     let ec = state.essaim_config.read().await;
-    let ollama_ok = reqwest::Client::new()
-        .get(format!("{}/api/tags", ec.ollama_url))
-        .timeout(std::time::Duration::from_millis(1500))
-        .send()
-        .await
-        .map(|r| r.status().is_success())
-        .unwrap_or(false);
-    checks.push(serde_json::json!({
-        "name": "Ollama",
-        "status": if ollama_ok { "ok" } else { "error" },
-        "detail": if ollama_ok { format!("Connected to {}", ec.ollama_url) }
-                  else { format!("Cannot reach {}", ec.ollama_url) },
-    }));
+
+    // Probe the provider ACTUALLY in use, not Ollama on principle. A perfectly healthy
+    // llama.cpp, LM Studio or DeepSeek setup was reported as an error because Ollama was
+    // absent, which made the panel say something false about a working install. Ollama is
+    // one option among several, not the standard.
+    let (nom_fournisseur, url_sonde) = match ec.provider.as_str() {
+        "ollama" | "" => ("Ollama", Some(format!("{}/api/tags", ec.ollama_url))),
+        "llamacpp" | "llama.cpp" | "llama-server" => (
+            "llama.cpp",
+            Some(format!(
+                "{}/v1/models",
+                ec.api_base.as_deref().unwrap_or("http://127.0.0.1:8001")
+            )),
+        ),
+        "lmstudio" | "lm-studio" => (
+            "LM Studio",
+            Some(format!(
+                "{}/v1/models",
+                ec.api_base.as_deref().unwrap_or("http://127.0.0.1:1234")
+            )),
+        ),
+        "vllm" => (
+            "vLLM",
+            Some(format!(
+                "{}/v1/models",
+                ec.api_base.as_deref().unwrap_or("http://127.0.0.1:8000")
+            )),
+        ),
+        // A hosted provider: reaching it costs a billable request and proves little more
+        // than the key being present, so it is reported as configured without a probe.
+        "anthropic" => ("Anthropic", None),
+        "codex" => ("ChatGPT Codex", None),
+        autre if autre.starts_with("peer:") => ("Swarm node", None),
+        _ => ("OpenAI-compatible", ec.api_base.clone().map(|b| format!("{b}/v1/models"))),
+    };
+
+    match url_sonde {
+        Some(url) => {
+            let joignable = reqwest::Client::new()
+                .get(&url)
+                .timeout(std::time::Duration::from_millis(1500))
+                .send()
+                .await
+                .map(|r| r.status().is_success())
+                .unwrap_or(false);
+            checks.push(serde_json::json!({
+                "name": nom_fournisseur,
+                "status": if joignable { "ok" } else { "error" },
+                "detail": if joignable { format!("Connected to {url}") }
+                          else { format!("Cannot reach {url}") },
+            }));
+        }
+        None => checks.push(serde_json::json!({
+            "name": nom_fournisseur,
+            "status": "ok",
+            "detail": "Remote provider, configured",
+        })),
+    }
 
     // Check model availability
     checks.push(serde_json::json!({

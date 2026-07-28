@@ -1059,7 +1059,12 @@ LaRuche.Settings = (function(){
   function renderProfileForm(container, editId, existing) {
     var p = existing || {};
     var provType = p.provider || 'ollama';
-    var defaultUrls = {ollama:'http://127.0.0.1:11434', openai:'https://api.openai.com', anthropic:'https://api.anthropic.com'};
+    // Named presets: llama.cpp, LM Studio and vLLM all speak the OpenAI wire format, so
+    // they need no client of their own, only their usual port. Listing them by name
+    // spares the user from guessing which entry to pick and which port to type.
+    var defaultUrls = {ollama:'http://127.0.0.1:11434', openai:'https://api.openai.com',
+      anthropic:'https://api.anthropic.com', llamacpp:'http://127.0.0.1:8001',
+      lmstudio:'http://127.0.0.1:1234', vllm:'http://127.0.0.1:8000'};
     container.style.display = 'block';
     container.innerHTML = '<div class="settings-card" style="margin-bottom:16px">'+
       '<div class="settings-card-title">'+(editId?LaRuche.i18n.t('settings.editProviderTitle'):LaRuche.i18n.t('settings.addProviderTitle'))+'</div>'+
@@ -1071,6 +1076,9 @@ LaRuche.Settings = (function(){
       '<select class="form-select" id="pfProvider" onchange="LaRuche.Settings.onProfileProviderChange()">'+
       '<option value="ollama"'+(provType==='ollama'?' selected':'')+'>Ollama</option>'+
       '<option value="openai"'+(provType==='openai'?' selected':'')+'>OpenAI-compatible</option>'+
+      '<option value="llamacpp"'+(provType==='llamacpp'?' selected':'')+'>llama.cpp (llama-server)</option>'+
+      '<option value="lmstudio"'+(provType==='lmstudio'?' selected':'')+'>LM Studio</option>'+
+      '<option value="vllm"'+(provType==='vllm'?' selected':'')+'>vLLM</option>'+
       '<option value="anthropic"'+(provType==='anthropic'?' selected':'')+'>Anthropic</option>'+
       '</select></div>'+
       '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.pfBaseUrlLabel')+'</label>'+
@@ -1088,8 +1096,11 @@ LaRuche.Settings = (function(){
   function onProfileProviderChange() {
     var prov = document.getElementById('pfProvider').value;
     var urlField = document.getElementById('pfBaseUrl');
-    var defaultUrls = {ollama:'http://127.0.0.1:11434', openai:'https://api.openai.com', anthropic:'https://api.anthropic.com'};
-    if(urlField && !urlField.value || urlField.value.indexOf('127.0.0.1') !== -1 || urlField.value.indexOf('api.openai.com') !== -1 || urlField.value.indexOf('api.anthropic.com') !== -1) {
+    var defaultUrls = {ollama:'http://127.0.0.1:11434', openai:'https://api.openai.com', anthropic:'https://api.anthropic.com', llamacpp:'http://127.0.0.1:8001', lmstudio:'http://127.0.0.1:1234', vllm:'http://127.0.0.1:8000'};
+    if(!urlField) return;
+    // Only overwrite a value that is itself a preset, so a port typed by hand survives.
+    var estPreset = Object.keys(defaultUrls).some(function(k){ return urlField.value === defaultUrls[k]; });
+    if(!urlField.value || estPreset) {
       urlField.value = defaultUrls[prov] || '';
     }
   }
@@ -4235,7 +4246,7 @@ LaRuche.Settings = (function(){
   function renderProfileForm(container, editId, existing) {
     var p = existing || {};
     var provType = p.provider || 'ollama';
-    var defaultUrls = {ollama:'http://127.0.0.1:11434', openai:'https://api.openai.com', anthropic:'https://api.anthropic.com'};
+    var defaultUrls = {ollama:'http://127.0.0.1:11434', openai:'https://api.openai.com', anthropic:'https://api.anthropic.com', llamacpp:'http://127.0.0.1:8001', lmstudio:'http://127.0.0.1:1234', vllm:'http://127.0.0.1:8000'};
     container.style.display = 'block';
     container.innerHTML = '<div class="settings-card" style="margin-bottom:16px">'+
       '<div class="settings-card-title">'+(editId?LaRuche.i18n.t('settings.editProviderTitle'):LaRuche.i18n.t('settings.addProviderTitle'))+'</div>'+
@@ -4264,7 +4275,7 @@ LaRuche.Settings = (function(){
   function onProfileProviderChange() {
     var prov = document.getElementById('pfProvider').value;
     var urlField = document.getElementById('pfBaseUrl');
-    var defaultUrls = {ollama:'http://127.0.0.1:11434', openai:'https://api.openai.com', anthropic:'https://api.anthropic.com'};
+    var defaultUrls = {ollama:'http://127.0.0.1:11434', openai:'https://api.openai.com', anthropic:'https://api.anthropic.com', llamacpp:'http://127.0.0.1:8001', lmstudio:'http://127.0.0.1:1234', vllm:'http://127.0.0.1:8000'};
     if(urlField && !urlField.value || urlField.value.indexOf('127.0.0.1') !== -1 || urlField.value.indexOf('api.openai.com') !== -1 || urlField.value.indexOf('api.anthropic.com') !== -1) {
       urlField.value = defaultUrls[prov] || '';
     }
