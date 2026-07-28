@@ -771,6 +771,7 @@ async fn main() -> Result<()> {
     // themselves as soon as each server is ready.
     {
         let registry_mcp = essaim_registry.clone();
+        let memoire_mcp = memoire.clone();
         tokio::spawn(async move {
             let (count, mcp_clients) =
                 charger_mcp_servers(std::path::Path::new("mcp_servers.json"), &registry_mcp)
@@ -788,6 +789,18 @@ async fn main() -> Result<()> {
             ));
             if count > 0 {
                 info!(tools = count, "MCP servers ready (background load)");
+                // Index them NOW. The startup pass above ran before this load, so the
+                // mcp family was empty, and the only other trigger was the first chat
+                // turn: no conversation after a boot meant capacities.mcp stayed empty
+                // while the server was running and its tools callable.
+                if let Err(e) = laruche_essaim::brain::indexer_abeilles_memoire(
+                    &registry_mcp,
+                    &memoire_mcp,
+                )
+                .await
+                {
+                    tracing::warn!(error = %e, "MCP tool indexing skipped");
+                }
             }
         });
     }

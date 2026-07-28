@@ -39,6 +39,7 @@ LaRuche.i18n.add({
   'memory.cognitiveCrumb':        {fr:'Memoire cognitive', en:'Cognitive memory'},
   'memory.systemProtectedNote':   {fr:'Noeud gere par le systeme. L\'agent ne peut pas le modifier', en:'Node managed by the system. The agent cannot modify it'},
   'memory.readOnly':              {fr:' (lecture seule).', en:' (read only).'},
+  'memory.projectionNote':        {fr:'Reflet du registre d\'outils, reecrit a chaque demarrage. Une modification faite ici serait perdue : la source est le code de l\'outil, son plugin.json ou le serveur MCP.', en:'Mirror of the tool registry, rewritten at every start. An edit made here would be lost: the source is the tool\'s code, its plugin.json or the MCP server.'},
   'memory.notReadOnly':           {fr:'.', en:'.'},
   'memory.noMemoriesInNode':      {fr:'Aucun souvenir dans ce noeud.', en:'No memories in this node.'},
   'memory.editBtn':               {fr:'Editer', en:'Edit'},
@@ -343,6 +344,17 @@ LaRuche.Memory = (function(){
   }
 
   /* ---- icon / protection helpers ---- */
+  // Branches that MIRROR the tool registry: their items are rewritten from the live
+  // registry at boot and on every reindex, so an edit made here is lost at the next
+  // start. Skills are deliberately excluded: capacities.skills.* is real content, kept
+  // in step with skills/<name>/SKILL.md in both directions.
+  function estProjection(id){
+    return id === 'capacities.tools' || id.indexOf('capacities.tools.') === 0
+        || id === 'capacities.plugins' || id.indexOf('capacities.plugins.') === 0
+        || id === 'capacities.mcp' || id.indexOf('capacities.mcp.') === 0
+        || id === 'tools' || id.indexOf('tools.') === 0;
+  }
+
   // True if the agent must not mutate this node (lock).
   function isProtected(id){
     // NB: we do NOT use `meta.protected` here. The backend sets this flag on system.*/
@@ -350,17 +362,16 @@ LaRuche.Memory = (function(){
     // the UI) is allowed to edit/delete them (the backend permits it). Only the ROOTS
     // (would break the tree) and the tool projections `tools.*` (auto-regenerated) stay locked.
     if(id === 'system' || id === 'capacities' || id === 'tools') return true;
-    if(id.indexOf('tools.') === 0) return true;
+    if(estProjection(id)) return true;
     // The virtual root is not a row anyone can reparent into or rename.
     if(id === VNODE) return true;
     return false;
   }
-  // Read-only ONLY for the auto-generated tool projections (`tools.*`,
-  // re-seeded at boot) and the roots. Everything else under `capacities.*` (skills, plugins,
-  // mcp, knowledge created by the LLM) is EDITABLE by the admin (you) here.
+  // Read-only for the roots and for every branch mirroring the registry. The rest of
+  // capacities.* (skills, and anything the LLM created) is editable by the admin here.
   function isReadOnly(id){
-    if(id === 'capacities' || id === 'tools') return true;
-    if(id.indexOf('tools.') === 0) return true;
+    if(id === 'capacities') return true;
+    if(estProjection(id)) return true;
     return false;
   }
   // system.prompt / system.soul: editable by the admin via the dedicated editor
@@ -385,7 +396,12 @@ LaRuche.Memory = (function(){
     reine:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16"/><path d="M4 18l-1-9 5.5 4L12 5l3.5 8L21 9l-1 9z"/></svg>',
     user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
     memoire:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/></svg>',
-    corbeille:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"/><path d="M10 11v6M14 11v6"/></svg>'
+    corbeille:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M6 6l1 14a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-14"/><path d="M10 11v6M14 11v6"/></svg>',
+    // The three capability families shared the wrench, so the tree said nothing about
+    // which was which. Plug for a plugin, socket for an MCP server, wrench for a
+    // built-in tool.
+    plugin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6"/><path d="M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v4"/></svg>',
+    mcp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></svg>'
   };
   // The bin: `delete_node` relocates here instead of destroying. Its own section at the
   // bottom, out of the @memory node, since it is not memory but what was thrown away.
@@ -405,6 +421,8 @@ LaRuche.Memory = (function(){
     if(id === 'system.prompt_reine') return SVG.reine;
     if(id === 'system.user') return SVG.user;
     if(id === 'capacities.skills' || id.indexOf('capacities.skills.') === 0) return SVG.file;
+    if(id === 'capacities.plugins' || id.indexOf('capacities.plugins.') === 0) return SVG.plugin;
+    if(id === 'capacities.mcp' || id.indexOf('capacities.mcp.') === 0) return SVG.mcp;
     if(id === 'capacities' || id.indexOf('capacities.') === 0
        || id === 'tools' || id.indexOf('tools.') === 0) return SVG.tools;
     return '<span style="color:var(--amber)">'+SVG.folder+'</span>';
@@ -770,9 +788,13 @@ LaRuche.Memory = (function(){
     }
     if(nd){ html += '<div class="mem2-nodedates">'+nd+'</div>'; }
     if(locked){
-      html += '<div class="mem2-protnote">'+SVG.lock+
-        '<span>'+LaRuche.i18n.t('memory.systemProtectedNote')+
-        (readOnly ? LaRuche.i18n.t('memory.readOnly') : LaRuche.i18n.t('memory.notReadOnly'))+'</span></div>';
+      // A projection deserves its own wording: it is not merely forbidden, an edit here
+      // is simply undone at the next reindex.
+      var note = estProjection(nodeId)
+        ? LaRuche.i18n.t('memory.projectionNote')
+        : LaRuche.i18n.t('memory.systemProtectedNote')+
+          (readOnly ? LaRuche.i18n.t('memory.readOnly') : LaRuche.i18n.t('memory.notReadOnly'));
+      html += '<div class="mem2-protnote">'+SVG.lock+'<span>'+note+'</span></div>';
     }
     var children = currentNode.children || [];
     if(children.length){

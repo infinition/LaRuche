@@ -874,10 +874,78 @@ fn famille_capacite(origin: &str) -> &'static str {
 /// routed by origin: builtin->`capacities.tools`, custom->`capacities.plugins`, mcp->`capacities.mcp`.
 /// Incremental: writes only the missing tools. Called at startup AND on the 1st chat turn
 /// (failsafe), so any new tool from the code surfaces in memory.
+/// Marker of the current projection format. An item written before the schema was
+/// fenced and indented does not contain it.
+const MARQUEUR_PROJECTION: &str = "```json";
+
+/// Rewrites, in place, the projected items still carrying the pre-fence format.
+///
+/// The projection is incremental: a tool already indexed is skipped, so a format change
+/// would only ever reach tools registered afterwards and the existing 88 would stay
+/// unreadable forever. Probed on one node first, so a database already up to date pays
+/// a single read and nothing else.
+async fn rafraichir_projections(
+    registry: &AbeilleRegistry,
+    memoire: &Arc<dyn MemoireCognitive>,
+) -> usize {
+    let schema = registry.schema_complet();
+    let Some(tools) = schema.as_array() else {
+        return 0;
+    };
+    let mut refaits = 0usize;
+    let mut sonde_faite = false;
+
+    for tool in tools {
+        let name = tool["name"].as_str().unwrap_or("");
+        if name.is_empty() {
+            continue;
+        }
+        let origin = tool["origin"].as_str().unwrap_or("builtin");
+        let node_id = format!("{}.{name}", famille_capacite(origin));
+        let Ok(node) = memoire.read_node(&node_id).await else {
+            continue;
+        };
+        let Some(items) = node["items"].as_array() else {
+            continue;
+        };
+        for item in items {
+            let (Some(item_id), Some(contenu)) = (
+                item["id"].as_str(),
+                item["content"].as_str(),
+            ) else {
+                continue;
+            };
+            if !contenu.starts_with("Tool `") || contenu.contains(MARQUEUR_PROJECTION) {
+                continue;
+            }
+            let description = tool["description"].as_str().unwrap_or("");
+            let neuf = format!(
+                "Tool `{name}` ({origin}): {description}\n\nSchema:\n\n```json\n{}\n```",
+                serde_json::to_string_pretty(tool).unwrap_or_default()
+            );
+            if memoire.update_item(item_id, &neuf).await.is_ok() {
+                refaits += 1;
+            }
+        }
+        // One node inspected and nothing to redo: the whole projection is current.
+        if !sonde_faite {
+            sonde_faite = true;
+            if refaits == 0 {
+                return 0;
+            }
+        }
+    }
+    if refaits > 0 {
+        tracing::info!(items = refaits, "Tool projections rewritten in the current format");
+    }
+    refaits
+}
+
 pub async fn indexer_abeilles_memoire(
     registry: &AbeilleRegistry,
     memoire: &Arc<dyn MemoireCognitive>,
 ) -> Result<()> {
+    rafraichir_projections(registry, memoire).await;
     // INCREMENTAL reconciliation: ids already indexed under the 3 tool families.
     let mut deja: std::collections::HashSet<String> = std::collections::HashSet::new();
     for parent in ["capacities.tools", "capacities.plugins", "capacities.mcp"] {
@@ -906,9 +974,13 @@ pub async fn indexer_abeilles_memoire(
             continue; // already indexed -> no duplicate
         }
         let description = tool["description"].as_str().unwrap_or("");
+        // Fenced and indented: the schema used to be one compact line glued to the
+        // description, so the memory view rendered it as a wall of prose and a reader
+        // could not tell an argument from a sentence. The fence also stops a `{` from
+        // being read as markdown.
         let content = format!(
-            "Tool `{name}` ({origin}): {description}\nSchema: {}",
-            serde_json::to_string(tool).unwrap_or_default()
+            "Tool `{name}` ({origin}): {description}\n\nSchema:\n\n```json\n{}\n```",
+            serde_json::to_string_pretty(tool).unwrap_or_default()
         );
         let _ = memoire
             .write(laruche_memoire::MemoryItem::new(node_id, content).with_source("tool-registry"))
