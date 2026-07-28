@@ -395,6 +395,7 @@ LaRuche.Timeline = (function(){
   var _viewMode = (function(){ try{ return localStorage.getItem('lr_tl_view')||'agenda'; }catch(e){ return 'agenda'; } })();
   var _ganttSpanH = 24;          // visible window in hours (24/48/168)
   var _ganttFromMs = null;       // left edge of the window
+  var _ganttFiltre = null;       // inventory filter (lane key); null = show everything
   var _lastData = null;          // cached gather() data (for fast re-render)
   var _hostEl = null;
 
@@ -437,6 +438,59 @@ LaRuche.Timeline = (function(){
     if(!ms) return '-';
     var d=new Date(ms);
     return d.toLocaleDateString('fr-FR',{weekday:'short',day:'numeric',month:'short'})+' '+('0'+d.getHours()).slice(-2)+'h'+('0'+d.getMinutes()).slice(-2);
+  }
+
+  /* Everything scheduled OR not, listed under the chart.
+   *
+   * The Gantt draws bars, so it can only show what carries a cron expression: an
+   * on-demand mission and a continuous watcher had no row anywhere in this view. They
+   * appear in Agenda mode and vanished here. Clicking a lane in the chart narrows this
+   * list to that single item; with nothing selected it shows everything. */
+  function inventaireHtml(data, filtre){
+    // Shaped exactly like what carteDetailHtml expects, so the inventory and a lane click
+    // render from the same fields.
+    var lignes = [];
+    (data.events||[]).forEach(function(e){
+      lignes.push({
+        cle: (e.kind||'') + ':' + (e.id||e.slug||e.name||''),
+        kind: e.kind, name: e.name, expr: e.expr || '',
+        human: e.expr ? (e.human||e.expr) : LaRuche.i18n.t('automations.aLaDemande'),
+        id: e.id, slug: e.slug, when: e.next || 0
+      });
+    });
+    (data.watchers||[]).forEach(function(w){
+      lignes.push({
+        cle: 'watcher:' + (w.id||w.name||''),
+        kind: 'watcher',
+        name: w.name || LaRuche.i18n.t('automations.watcherFallback'),
+        expr: '',
+        human: LaRuche.i18n.t('automations.surveillanceCont'),
+        id: w.id, when: 0
+      });
+    });
+    if(!lignes.length) return '';
+    var vues = filtre ? lignes.filter(function(l){ return l.cle === filtre; }) : lignes;
+    // The same card a lane click produces, so selecting one changes WHICH cards show,
+    // never how they look.
+    var corps = '<div class="tl-inv-cartes">' + vues.map(carteDetailHtml).join('') + '</div>';
+    var entete = '<div class="tl-inv-head"><span>' +
+      LaRuche.i18n.t('automations.inventaireTitre') + ' (' + vues.length + '/' + lignes.length + ')</span>' +
+      (filtre ? '<button class="tl-btn" id="tlInvTout">' + LaRuche.i18n.t('automations.inventaireTout') + '</button>' : '') +
+      '</div>';
+    return '<div class="tl-inventaire" id="tlInventaire">' + entete + corps + '</div>';
+  }
+
+  /* Narrow the inventory to one lane, or clear it. Re-rendered in place rather than
+   * redrawing the chart, so the time window and the scroll position stay put. */
+  function ganttFiltrer(cle){
+    _ganttFiltre = (cle && cle !== _ganttFiltre) ? cle : null;
+    var hote = document.getElementById('tlInventaire');
+    if(hote && _lastData) hote.outerHTML = inventaireHtml(_lastData, _ganttFiltre);
+    document.querySelectorAll('.gantt-row[data-cle]').forEach(function(r){
+      r.classList.toggle('gantt-row--actif', !!_ganttFiltre && r.dataset.cle === _ganttFiltre);
+    });
+    var tout = document.getElementById('tlInvTout');
+    if(tout) tout.onclick = function(){ ganttFiltrer(null); };
   }
 
   function renderGantt(el, data){
@@ -490,7 +544,7 @@ LaRuche.Timeline = (function(){
       });
       // Click on the WHOLE row (not just the dots) -> detail of the next occurrence.
       var firstT = occs.length ? occs[occs.length-1] : '';
-      rows += '<div class="gantt-row" style="cursor:pointer" onclick="LaRuche.Timeline.ganttLine('+li+','+(firstT||0)+')"><div class="gantt-gutter"><div class="gn">'+(ln.kind==='cron'?'⏰ ':'👑 ')+LaRuche.Utils.esc(ln.name)+'</div><div class="gs">'+LaRuche.Utils.esc(ln.sub)+'</div></div>'+
+      rows += '<div class="gantt-row" data-cle="'+LaRuche.Utils.esc((ln.kind||'')+':'+(ln.id||ln.slug||ln.name||''))+'" style="cursor:pointer"><div class="gantt-gutter"><div class="gn">'+(ln.kind==='cron'?'⏰ ':'👑 ')+LaRuche.Utils.esc(ln.name)+'</div><div class="gs">'+LaRuche.Utils.esc(ln.sub)+'</div></div>'+
         '<div class="gantt-lane" style="width:'+graphW+'px">'+ticks+nowLine+marks+'</div></div>';
     });
 
@@ -515,7 +569,24 @@ LaRuche.Timeline = (function(){
 
     el.innerHTML = toolbar +
       '<div class="gantt-scroll" id="tlGanttScroll"><div class="gantt-grid">'+head+rows+'</div></div>'+
-      '<div id="tlGanttDetail"></div>';
+      inventaireHtml(data, _ganttFiltre);
+    // No separate detail panel any more: the inventory below IS the detail. Keeping both
+    // meant a selected item was drawn twice, once filtered in the list and once here.
+    // Lane click narrows the inventory. Bound here rather than inline: the key can hold
+    // quotes, and building an onclick string around it is how this file got mangled once.
+    el.querySelectorAll('.gantt-row[data-cle]').forEach(function(r){
+      r.addEventListener('click', function(){ ganttFiltrer(r.dataset.cle); });
+      r.classList.toggle('gantt-row--actif', !!_ganttFiltre && r.dataset.cle === _ganttFiltre);
+    });
+    var _tout = el.querySelector('#tlInvTout');
+    if(_tout) _tout.onclick = function(){ ganttFiltrer(null); };
+    // Clicking anywhere that is not a lane clears the selection. Bound on the view itself
+    // rather than on document, so leaving the Timeline takes the handler with it.
+    el.addEventListener('click', function(ev){
+      if(_ganttFiltre && !ev.target.closest('.gantt-row[data-cle]') && !ev.target.closest('.gantt-detail')){
+        ganttFiltrer(null);
+      }
+    });
     // Wheel zoom: the wheel zooms the time window in/out (reuses ganttZoom).
     var scrollEl = el.querySelector('#tlGanttScroll');
     if(scrollEl){
@@ -531,10 +602,11 @@ LaRuche.Timeline = (function(){
     if(sc && now>=fromMs && now<=toMs){ sc.scrollLeft = Math.max(0, xOf(now) - sc.clientWidth*0.4); }
   }
 
-  function renderGanttDetail(m){
-    var host=document.getElementById('tlGanttDetail'); if(!host||!m) return;
+  /* The detail card, as HTML. Extracted so the inventory below the chart shows the SAME
+   * card a lane click produces, instead of a second, poorer rendering of the same thing. */
+  function carteDetailHtml(m){
+    if(!m) return '';
     var occHtml = m.when ? '<div style="color:var(--text-dim)">'+LaRuche.i18n.t('automations.occurrence')+'<b style="color:#fff">'+fmtFull(m.when)+'</b>'+(m.when<Date.now()?LaRuche.i18n.t('automations.passee'):LaRuche.i18n.t('automations.aVenir'))+'</div>' : '';
-    // Edit/delete from the detail (like the dedicated Cron tab).
     var actions = '';
     if(m.kind==='cron' && m.id){
       actions = '<div style="margin-top:8px;display:flex;gap:6px">'+
@@ -544,19 +616,24 @@ LaRuche.Timeline = (function(){
       actions = '<div style="margin-top:8px;display:flex;gap:6px">'+
         '<button class="tl-btn tl-btn--danger" onclick="LaRuche.Timeline.ganttDelete(\'mission\',\''+LaRuche.Utils.esc(m.slug)+'\')">'+LaRuche.i18n.t('automations.supprimerMission')+'</button></div>';
     }
-    host.innerHTML = '<div class="gantt-detail">'+
-      '<div class="gd-t">'+(m.kind==='cron'?'⏰ ':'👑 ')+LaRuche.Utils.esc(m.name)+'</div>'+
+    var ico = m.kind==='cron' ? '⏰ ' : (m.kind==='watcher' ? '👁 ' : '👑 ');
+    // An item with no expression is not broken, it is on demand: say so instead of "-".
+    var cadence = m.expr
+      ? LaRuche.i18n.t('automations.cadenceLabel')+LaRuche.Utils.esc(m.human)+' · <code style="color:var(--cyan)">'+LaRuche.Utils.esc(m.expr)+'</code>'
+      : '<span style="color:var(--amber)">'+LaRuche.Utils.esc(m.human||LaRuche.i18n.t('automations.aLaDemande'))+'</span>';
+    return '<div class="gantt-detail">'+
+      '<div class="gd-t">'+ico+LaRuche.Utils.esc(m.name||'')+'</div>'+
       occHtml+
-      '<div style="color:var(--text-dim)">'+LaRuche.i18n.t('automations.cadenceLabel')+LaRuche.Utils.esc(m.human)+' · <code style="color:var(--cyan)">'+LaRuche.Utils.esc(m.expr||'-')+'</code></div>'+
+      '<div style="color:var(--text-dim)">'+cadence+'</div>'+
       actions+
       '</div>';
   }
-  function ganttMark(li, t){ renderGanttDetail((window._tlGanttMarks||{})[li+'_'+t]); }
-  // Click on the whole row: task detail (occurrence if known).
-  function ganttLine(li, t){
-    var mk = t ? (window._tlGanttMarks||{})[li+'_'+t] : null;
+
+  /* A dot and its lane do the same thing: narrow the inventory to that item. The dot used
+   * to open a separate panel, which is what produced two cards for one selection. */
+  function ganttMark(li, t){
     var ln = (window._tlGanttLanes||{})[li];
-    renderGanttDetail(mk || (ln ? { name:ln.name, expr:ln.expr, human:ln.sub, kind:ln.kind, id:ln.id, slug:ln.slug, when:0 } : null));
+    if(ln) ganttFiltrer((ln.kind||'')+':'+(ln.id||ln.slug||ln.name||''));
   }
   function ganttDelete(kind, idOrSlug){
     if(!confirm(LaRuche.i18n.t('automations.supprimerConfirm'))) return;
@@ -626,7 +703,7 @@ LaRuche.Timeline = (function(){
   }
 
   return { render:render, reload:reload, nextCron:nextCron, humanCron:humanCron, occurrencesIn:occurrencesIn,
-    setView:setView, ganttZoom:ganttZoom, ganttRecenter:ganttRecenter, ganttMark:ganttMark, ganttLine:ganttLine, ganttDelete:ganttDelete };
+    setView:setView, ganttZoom:ganttZoom, ganttRecenter:ganttRecenter, ganttMark:ganttMark, ganttDelete:ganttDelete, ganttFiltrer:ganttFiltrer };
 })();
 
 /* ── Automations (Cron · Watchers · Kanban · Blueprints · Timeline) ── */

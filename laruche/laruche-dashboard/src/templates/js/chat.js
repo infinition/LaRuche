@@ -1994,7 +1994,14 @@ LaRuche.Chat = (function(){
       var historyMedia=[];
       data.messages.forEach(function(msg){
         if(Array.isArray(msg.plan)) updatePlan(msg.plan);
-        if(msg.role==='user'){startPlanMission(msg.text);addMessage('user',msg.text, msg.attachments); _feedBody=null; /* new turn -> new step */ }
+        if(msg.role==='user'){
+          startPlanMission(msg.text);
+          var uRes=addMessage('user',msg.text, msg.attachments);
+          // Real session index, like the assistant branch below: it is the handle
+          // restoreAgent uses to put LaRuche's reaction back on the right bubble.
+          if(uRes && uRes.row && typeof msg.index==='number') uRes.row.dataset.msgIndex=String(msg.index);
+          _feedBody=null; /* new turn -> new step */
+        }
         else if(msg.role==='thought'&&msg.kind==='plan'){
           // Persisted itinerary state: rebuild the plan widget (last one wins).
           try{ updatePlan(JSON.parse(msg.text||'[]')); }catch(e){}
@@ -2076,7 +2083,11 @@ LaRuche.Chat = (function(){
       if(window.LaRuche && LaRuche.Reactions){
         fetch('/api/sessions/'+id+'/reactions')
           .then(function(r){return r.ok?r.json():null;})
-          .then(function(d){ if(d) LaRuche.Reactions.restore(d.reactions); })
+          .then(function(d){
+            if(!d) return;
+            LaRuche.Reactions.restore(d.reactions);
+            if(LaRuche.Reactions.restoreAgent) LaRuche.Reactions.restoreAgent(d.reactions_agent);
+          })
           .catch(function(){});
       }
     }).catch(function(){});

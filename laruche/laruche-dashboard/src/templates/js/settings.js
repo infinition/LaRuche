@@ -34,7 +34,8 @@ LaRuche.i18n.add({
   'settings.curEnvForced':       {fr:'Forcé par RUCHE_CURATEUR=1 (variable d\'env).', en:'Forced by RUCHE_CURATEUR=1 (env variable).'},
   'settings.curDefault':         {fr:'En arrière-plan, conservateur (dédup auto). Off = ne crée rien.', en:'Background, conservative (auto-dedup). Off = creates nothing.'},
   'settings.system':             {fr:'System',           en:'System'},
-  'settings.showTransparency':   {fr:'Afficher la transparence (outils/mémoire)', en:'Show transparency (tools/memory)'},
+  'settings.showTransparency':   {fr:'Outils et mémoires dans le fil', en:'Tools and memories in the thread'},
+  'settings.showTransparencyHint': {fr:"Dans le fil du chat, montre les outils que l'agent a choisis et le nombre de mémoires utilisées. Affichage seulement — ça ne change rien au fonctionnement de LaRuche.", en:'In the chat thread, show which tools the agent picked and how many memories it used. Display only — it changes nothing to how LaRuche works.'},
   'settings.codexLoading':       {fr:'Chargement…',     en:'Loading…'},
   'settings.codexConnected':     {fr:'✓ Connecté',      en:'✓ Connected'},
   'settings.codexExpiring':      {fr:'Token expiré: refresh auto au prochain appel.', en:'Token expired: auto-refresh on next call.'},
@@ -127,7 +128,7 @@ LaRuche.i18n.add({
   'settings.mcpDeleted':         {fr:'Serveur MCP supprimé', en:'MCP server deleted'},
   'settings.parDefault':         {fr:'(Par défaut)',      en:'(Default)'},
   'settings.notifyLabel':        {fr:'Activer Notifier proactif', en:'Enable proactive notifications'},
-  'settings.notifyHint':         {fr:'Envoi proactif des events (AgentCompleted, WatcherFired) via Telegram (le premier Chat ID configuré est utilisé).', en:'Proactive delivery of events (AgentCompleted, WatcherFired) via Telegram (the first configured Chat ID is used).'},
+  'settings.notifyHint':         {fr:"LaRuche t'écrit sur Telegram d'elle-même, sans que tu aies rien demandé, dans deux cas : une tâche lancée en arrière-plan vient de se terminer, ou une sentinelle a détecté ce qu'elle surveillait. Le message part vers le premier Chat ID de la liste ci-dessus. Désactivé, rien ne part : tu retrouves ces événements dans le fil d'activité.", en:"LaRuche messages you on Telegram on its own, unprompted, in two cases: a task started in the background has just finished, or a watcher spotted what it was watching for. The message goes to the first Chat ID in the list above. Turned off, nothing is sent: you still find these events in the activity feed."},
   'settings.chAllowedChats':     {fr:'vide = tous',      en:'empty = all'},
   'settings.chTgLaunch':         {fr:'Lancer: python -m src.telegram', en:'Launch: python -m src.telegram'},
   'settings.chDcLaunch':         {fr:'Lancer: python -m src.discord_bot', en:'Launch: python -m src.discord_bot'},
@@ -686,18 +687,33 @@ LaRuche.Settings = (function(){
     return _generalInflight;
   }
 
+  function _gj(u){ return fetch(u).then(function(r){return r.json();}).catch(function(){return {};}); }
+
+  /* The ten endpoints are NOT equal. Eight read a local config file and answer instantly;
+   * `/api/doctor` and `/api/voice/status` PROBE THE NETWORK (Ollama, the provider, STT,
+   * TTS) with timeouts. Bundling them in one Promise.all made every section wait on the
+   * probes — including Generation and LaReine, which never look at that data. Split, so a
+   * tab waits only for what it actually renders. */
+  function _loadConfigs() {
+    return Promise.all([
+      _gj('/api/config/provider'), _gj('/api/context/stats'), _gj('/api/config/compaction'),
+      _gj('/api/config/curateur'), _gj('/api/config/runtime'), _gj('/api/config/reine'),
+      _gj('/api/config/channel-models'), _gj('/api/config/voice')
+    ]).then(function(r){
+      return {
+        provCfg:r[0], ctxStats:r[1], ctxCfg:r[2], curCfg:r[3],
+        rt:r[4]||{}, reineCfg:r[5]||{}, chmReine:r[6]||{options:[]}, voiceCfg:r[7]||{}
+      };
+    });
+  }
+  function _loadSondes() {
+    return Promise.all([_gj('/api/doctor'), _gj('/api/voice/status')])
+      .then(function(r){ return { doc:r[0], voice:r[1] }; });
+  }
+
   async function _loadGeneralDataFresh() {
-    function gj(u){ return fetch(u).then(function(r){return r.json();}).catch(function(){return {};}); }
-    var _r = await Promise.all([
-      gj('/api/doctor'), gj('/api/voice/status'), gj('/api/config/provider'),
-      gj('/api/context/stats'), gj('/api/config/compaction'), gj('/api/config/curateur'),
-      gj('/api/config/runtime'), gj('/api/config/reine'), gj('/api/config/channel-models'),
-      gj('/api/config/voice')
-    ]);
-    return {
-      doc:_r[0], voice:_r[1], provCfg:_r[2], ctxStats:_r[3], ctxCfg:_r[4], curCfg:_r[5],
-      rt:_r[6]||{}, reineCfg:_r[7]||{}, chmReine:_r[8]||{options:[]}, voiceCfg:_r[9]||{}
-    };
+    var r = await Promise.all([_loadConfigs(), _loadSondes()]);
+    return Object.assign({}, r[0], r[1]);
   }
 
   // ── Voice card (reused by the Voice section) ──────────────────────────
@@ -714,16 +730,64 @@ LaRuche.Settings = (function(){
       '<button class="form-btn" onclick="LaRuche.Settings.saveVoiceCfg()" style="margin-top:8px">'+LaRuche.i18n.t('settings.save')+'</button></div>';
   }
 
+  /* ── Render now, fill later ────────────────────────────────────────────────
+   * A section used to await EVERY endpoint before painting a single pixel, so a tab
+   * whose data comes from a network probe (/api/doctor reaches Ollama, the provider,
+   * STT, TTS...) stayed on "Loading…" for as long as the slowest timeout. The layout
+   * is drawn immediately and each slow card arrives in its own slot.
+   * `el.isConnected` is the guard: loadTab hands every load a fresh canvas and detaches
+   * the old one, so a late answer for a tab you already left writes nowhere. */
+  function _slot(id){
+    return '<div class="settings-slot" id="'+id+'"><span class="settings-spin"></span>'+
+           LaRuche.i18n.t('settings.loading')+'</div>';
+  }
+  function _fillSlot(el, id, promesse, rendu){
+    promesse.then(function(d){
+      if(!el.isConnected) return;              // tab changed while we waited
+      var slot = el.querySelector('#'+id);
+      if(slot) slot.outerHTML = rendu(d);
+    }).catch(function(){
+      if(!el.isConnected) return;
+      var slot = el.querySelector('#'+id);
+      if(slot) slot.innerHTML = '<span style="color:var(--text-muted)">'+LaRuche.i18n.t('settings.errorGeneric')+'</span>';
+    });
+  }
+
+  function _onboardingHtml(onboarding){
+    return (onboarding.steps||[]).map(function(s){
+      // An unmet OPTIONAL step is not a failure: amber circle, not a red cross. The
+      // instruction is shown in both states, because "why is this red" was the question
+      // people actually had, and the answer was only ever in the unmet branch.
+      var icon = s.done
+        ? '<span style="color:var(--green);margin-right:8px"><svg width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><polyline points="20 6 9 17 4 12"></polyline></svg></span>'
+        : (s.optional ? '<span style="color:var(--amber);margin-right:8px" title="'+LaRuche.i18n.t('settings.onbOptional')+'">&#x25CB;</span>'
+                      : '<span style="color:var(--red);margin-right:8px">&#x2717;</span>');
+      return '<div class="settings-row" style="align-items:flex-start"><span class="settings-label">'+icon+LaRuche.Utils.esc(s.title)+
+        (s.instruction ? '<span style="display:block;font-size:10px;color:var(--text-muted);font-weight:400;margin:1px 0 0 22px;line-height:1.4">'+LaRuche.Utils.esc(s.instruction)+'</span>' : '')+
+        '</span></div>';
+    }).join('') || '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.statusLabel')+'</span><span class="settings-value">'+LaRuche.i18n.t('settings.statusOkValue')+'</span></div>';
+  }
+
+  function _securiteHtml(doc){
+    return '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.protocol')+'</span><span class="settings-value">Miel v'+(doc.version||'0.2.0')+'</span></div>'+
+      ((doc.checks||[]).map(function(c){
+        // /api/doctor already explains every verdict in `detail` ("Cannot reach
+        // http://.../v1/models"). Showing only the word left "OpenAI-compatible / error"
+        // unreadable. And a warning is not a failure: it gets amber, not red.
+        var couleur = c.status==='ok' ? 'var(--green)' : (c.status==='warning' ? 'var(--amber)' : 'var(--red)');
+        return '<div class="settings-row" style="align-items:flex-start">'+
+          '<span class="settings-label">'+LaRuche.Utils.esc(c.name)+
+            (c.detail ? '<span style="display:block;font-size:10px;color:var(--text-muted);font-weight:400;margin-top:1px">'+LaRuche.Utils.esc(c.detail)+'</span>' : '')+
+          '</span>'+
+          '<span style="color:'+couleur+';white-space:nowrap">'+LaRuche.Utils.esc(c.status)+'</span></div>';
+      }).join('')||'<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.statusLabel')+'</span><span class="settings-value">'+LaRuche.i18n.t('settings.statusOkValue')+'</span></div>');
+  }
+
   // ── GENERAL section: language, transparency, security/system, onboarding ──
-  async function loadGeneral(el) {
-    var data = await _loadGeneralData();
-    var doc = data.doc;
+  // Nothing is awaited before painting. The language card needs no data at all, and the
+  // two probe-backed cards fill themselves in parallel.
+  function loadGeneral(el) {
     var curLang = (LaRuche.i18n && LaRuche.i18n.get) ? LaRuche.i18n.get() : 'fr';
-    var onboarding = await fetch(LaRuche.API.base+'/api/onboarding').then(function(r){return r.json();}).catch(function(){return {steps:[],progress:'0/0',complete:false};});
-    var onbSteps = (onboarding.steps||[]).map(function(s){
-      var icon = s.done ? '<span style="color:var(--green);margin-right:8px"><svg width="1.1em" height="1.1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle"><polyline points="20 6 9 17 4 12"></polyline></svg></span>' : '<span style="color:var(--red);margin-right:8px">&#x2717;</span>';
-      return '<div class="settings-row"><span class="settings-label">'+icon+LaRuche.Utils.esc(s.title)+'</span><span class="settings-value" style="font-size:10px">'+(s.done?'':LaRuche.Utils.esc(s.instruction||''))+'</span></div>';
-    }).join('');
     el.innerHTML = '<div class="settings-grid">'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.navGeneral')+'</div>'+
       '<div class="settings-card-desc">'+LaRuche.i18n.t('settings.languageHint')+'</div>'+
@@ -731,22 +795,68 @@ LaRuche.Settings = (function(){
         '<option value="fr"'+(curLang==='fr'?' selected':'')+'>Français</option>'+
         '<option value="en"'+(curLang==='en'?' selected':'')+'>English</option>'+
       '</select></div>'+
-      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.showTransparency')+'</span><label class="lr-switch"><input type="checkbox" id="cfgTransparence" onchange="window.localStorage.setItem(\'laruche_hide_transparency\', this.checked ? \'false\' : \'true\')" '+(window.localStorage.getItem('laruche_hide_transparency') !== 'true' ? 'checked' : '')+'><span class="lr-slider"></span></label></div></div>'+
+      '</div>'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.security')+'</div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.secretsTitle')+'</span><span class="settings-value">'+LaRuche.i18n.t('settings.secretsCount')+'</span></div>'+
-      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.protocol')+'</span><span class="settings-value">Miel v'+(doc.version||'0.2.0')+'</span></div>'+
-      ((doc.checks||[]).map(function(c){return '<div class="settings-row"><span class="settings-label">'+LaRuche.Utils.esc(c.name)+'</span><span style="color:'+(c.status==='ok'?'var(--green)':'var(--red)')+'">'+LaRuche.Utils.esc(c.status)+'</span></div>';}).join('')||'<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.statusLabel')+'</span><span class="settings-value">'+LaRuche.i18n.t('settings.statusOkValue')+'</span></div>')+
+      _slot('genSecurite')+
       '</div>'+
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.onboardingTitle')+
-        ' <span style="margin-left:8px;padding:1px 8px;border-radius:10px;font-size:10px;background:'+(onboarding.complete?'var(--green)':'var(--amber)')+';color:#000">'+LaRuche.Utils.esc(onboarding.progress||'')+'</span></div>'+
-      (onbSteps||'<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.statusLabel')+'</span><span class="settings-value">'+LaRuche.i18n.t('settings.statusOkValue')+'</span></div>')+
+        '<span id="genOnbProgress"></span></div>'+
+      _slot('genOnboarding')+
       '</div>'+
       '</div>';
+
+    _fillSlot(el, 'genSecurite', _loadSondes().then(function(d){ return d.doc||{}; }), _securiteHtml);
+    _fillSlot(el, 'genOnboarding',
+      fetch(LaRuche.API.base+'/api/onboarding').then(function(r){return r.json();}),
+      function(onb){
+        var pastille = el.querySelector('#genOnbProgress');
+        if(pastille) pastille.outerHTML = ' <span style="margin-left:8px;padding:1px 8px;border-radius:10px;font-size:10px;background:'+(onb.complete?'var(--green)':'var(--amber)')+';color:#000">'+LaRuche.Utils.esc(onb.progress||'')+'</span>';
+        return _onboardingHtml(onb);
+      });
+  }
+
+  /* ── CHAT section: what shows up in the thread ────────────────────────────
+   * Both settings govern the conversation surface, and both used to sit in sections
+   * about something else — transparency under General (a system panel) and agent
+   * reactions under Generation (model parameters), where nobody looked for them. */
+  async function loadChat(el) {
+    var transpOn = window.localStorage.getItem('laruche_hide_transparency') !== 'true';
+    el.innerHTML = '<div class="settings-grid">'+
+      '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.navChat')+'</div>'+
+      '<div class="settings-card-desc">'+LaRuche.i18n.t('settings.chatSectionHint')+'</div>'+
+      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.showTransparency')+'</span><label class="lr-switch"><input type="checkbox" id="cfgTransparence"'+(transpOn?' checked':'')+'><span class="lr-slider"></span></label></div>'+
+      '<div class="settings-card-desc">'+LaRuche.i18n.t('settings.showTransparencyHint')+'</div>'+
+      _slot('chatReactions')+
+      '</div></div>';
+    // Wired here rather than inline: this one is browser-local, it never touches the
+    // server, so it takes effect the moment it is clicked.
+    var tr = el.querySelector('#cfgTransparence');
+    if(tr) tr.onchange = function(){
+      window.localStorage.setItem('laruche_hide_transparency', this.checked ? 'false' : 'true');
+    };
+    // Server-side setting: paint the local one first, fill this in when it lands.
+    _fillSlot(el, 'chatReactions', _loadConfigs().then(function(d){ return d.rt||{}; }), function(rt){
+      return '<div class="settings-row" style="margin-top:6px"><span class="settings-label" title="'+LaRuche.Utils.esc(LaRuche.i18n.t('settings.agentReactionsTitle'))+'">'+LaRuche.i18n.t('settings.agentReactionsLabel')+'</span>'+
+        '<label class="lr-switch"><input type="checkbox" id="cfgAgentReactions"'+(rt.reactions_agent?' checked':'')+' onchange="LaRuche.Settings.saveChatCfg()"><span class="lr-slider"></span></label></div>'+
+        '<div class="settings-card-desc">'+LaRuche.i18n.t('settings.agentReactionsHint')+'</div>';
+    });
+  }
+  /* Saves ONLY `reactions_agent`. The runtime endpoint merges, so the generation
+   * parameters this form does not show are left exactly as they are. */
+  function saveChatCfg(){
+    var on = !!(document.getElementById('cfgAgentReactions')||{}).checked;
+    _invalidateGeneral();
+    fetch(LaRuche.API.base+'/api/config/runtime',{method:'POST',credentials:'include',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({reactions_agent:on})})
+      .then(function(r){ LaRuche.Toast.show(LaRuche.i18n.t(r.ok?'settings.save':'settings.errorGeneric'), r.ok?'ok':'err'); })
+      .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.errorGeneric'),'err'); });
   }
 
   // ── GENERATION section: generation params (+ advanced), context/compaction, curateur ──
   async function loadGeneration(el) {
-    var data = await _loadGeneralData();
+    // Config only: this section renders nothing that comes from a network probe.
+    var data = await _loadConfigs();
     var rt = data.rt, ctxCfg = data.ctxCfg, curCfg = data.curCfg, provCfg = data.provCfg || {};
     var codexRuntimeHint = provCfg.provider === 'codex'
       ? '<div class="provider-runtime-note">'+LaRuche.i18n.t('settings.codexRuntimeHint')+'</div>'
@@ -761,7 +871,6 @@ LaRuche.Settings = (function(){
       '<details class="settings-advanced" style="margin-top:6px;"><summary style="cursor:pointer;font-size:11px;color:var(--text-dim);user-select:none;">'+LaRuche.i18n.t('settings.advancedSection')+'</summary>'+
       '<div class="settings-row" style="padding:0;margin-top:6px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.dynToolsLimit')+'">'+LaRuche.i18n.t('settings.dynToolsLimitLabel')+'</span><input type="number" id="cfgToolLim" class="form-input" style="width:80px;padding:2px 6px;" value="'+(rt.tool_selection_limit||24)+'"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.narrowCtxThreshold')+'">'+LaRuche.i18n.t('settings.narrowCtxLabel')+'</span><input type="number" id="cfgCtxThreshold" class="form-input" style="width:90px;padding:2px 6px;" value="'+(rt.dynamic_context_threshold||40000)+'"></div>'+
-      '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.agentReactionsTitle')+'">'+LaRuche.i18n.t('settings.agentReactionsLabel')+'</span><input type="checkbox" id="cfgAgentReactions"'+(rt.reactions_agent?' checked':'')+'></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.mixtureModelsHint')+'">'+LaRuche.i18n.t('settings.mixtureModels')+'</span><input type="text" id="cfgProvFallback" class="form-input" style="width:180px;padding:2px 6px;" value="'+LaRuche.Utils.esc(provCfg.fallback_models||'')+'" placeholder="model-a, model-b"></div>'+
       '<div class="settings-row" style="padding:0;margin-top:4px;"><span class="settings-label" title="'+LaRuche.i18n.t('settings.memoryReviewHint')+'">'+LaRuche.i18n.t('settings.memoryReviewModel')+'</span><input type="text" id="cfgProvReview" class="form-input" style="width:180px;padding:2px 6px;" value="'+LaRuche.Utils.esc(provCfg.review_model||'')+'" placeholder="'+LaRuche.i18n.t('settings.optional')+'"></div>'+
       '</details>'+
@@ -780,13 +889,20 @@ LaRuche.Settings = (function(){
 
   // ── VOICE section ──────────────────────────────────────────────────────
   async function loadVoice(el) {
-    var data = await _loadGeneralData();
-    el.innerHTML = '<div class="settings-grid">'+_voiceCardHtml(data.voice, data.voiceCfg)+'</div>';
+    // The card needs `voice`, which is a live probe of the STT/TTS services. Paint from
+    // the config immediately and let the two status lines arrive on their own.
+    var data = await _loadConfigs();
+    el.innerHTML = '<div class="settings-grid">'+_voiceCardHtml({}, data.voiceCfg)+'</div>';
+    _loadSondes().then(function(p){
+      if(!el.isConnected) return;
+      el.innerHTML = '<div class="settings-grid">'+_voiceCardHtml(p.voice||{}, data.voiceCfg)+'</div>';
+    });
   }
 
   // ── LAREINE section (supervisor config) ────────────────────────────────
   async function loadReine(el) {
-    var data = await _loadGeneralData();
+    // Config only: this section renders nothing that comes from a network probe.
+    var data = await _loadConfigs();
     var reineCfg = data.reineCfg, chmReine = data.chmReine;
     var reineProvOpts = '<option value="">'+LaRuche.i18n.t('reine.providerSame')+'</option>';
     (chmReine.options||[]).forEach(function(o){
@@ -811,6 +927,15 @@ LaRuche.Settings = (function(){
       '<div class="settings-row" title="'+LaRuche.i18n.t('reine.contextMessagesHint')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.contextMessages')+'</span><input type="range" id="cfgReineCtx" min="0" max="20" value="'+(reineCfg.contexte_messages!=null?reineCfg.contexte_messages:4)+'" oninput="document.getElementById(\'cfgReineCtxVal\').textContent=this.value" style="width:100px"> <span id="cfgReineCtxVal" style="min-width:18px;text-align:right;color:var(--text-muted)">'+(reineCfg.contexte_messages!=null?reineCfg.contexte_messages:4)+'</span></div>'+
       '<div class="settings-row" title="'+LaRuche.i18n.t('reine.providerHint')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.providerLabel')+'</span><select id="cfgReineProvider" class="form-input" style="width:160px;padding:2px 6px;">'+reineProvOpts+'</select></div>'+
       '<div style="font-size:10px;color:var(--text-dim);margin:2px 0 6px">'+LaRuche.i18n.t('reine.judgeDistinctHint')+'</div>'+
+      // Every review already produces a request, a refused draft, an accepted one and a
+      // reason. Off by default because switching it on starts keeping the full text.
+      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('reine.dataset')+'</span><label class="lr-switch"><input type="checkbox" id="cfgReineDataset" '+(reineCfg.dataset?'checked':'')+'><span class="lr-slider"></span></label></div>'+
+      '<div class="settings-card-desc">'+LaRuche.i18n.t('reine.datasetHint')+'</div>'+
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 8px">'+
+        '<button class="tl-btn" onclick="LaRuche.Settings.reineDataset(\'dpo\')">'+LaRuche.i18n.t('reine.datasetDpo')+'</button>'+
+        '<button class="tl-btn" onclick="LaRuche.Settings.reineDataset(\'sft\')">'+LaRuche.i18n.t('reine.datasetSft')+'</button>'+
+        '<button class="tl-btn" onclick="LaRuche.Settings.reineDataset(\'judge\')">'+LaRuche.i18n.t('reine.datasetJudge')+'</button>'+
+      '</div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('reine.tier1')+'</span><label class="lr-switch"><input type="checkbox" id="cfgReineTier1" '+(reineCfg.tier_reponse?'checked':'')+'><span class="lr-slider"></span></label></div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('reine.tier2')+'</span><label class="lr-switch"><input type="checkbox" id="cfgReineTier2" '+(reineCfg.tier_artefacts?'checked':'')+'><span class="lr-slider"></span></label></div>'+
       '<div class="settings-row" title="'+LaRuche.i18n.t('reine.tier3Warn')+'"><span class="settings-label">'+LaRuche.i18n.t('reine.tier3')+'</span><label class="lr-switch"><input type="checkbox" id="cfgReineTier3" '+(reineCfg.tier_supervision?'checked':'')+'><span class="lr-slider"></span></label></div>'+
@@ -1100,14 +1225,29 @@ LaRuche.Settings = (function(){
       '</select></div>'+
       '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.pfBaseUrlLabel')+'</label>'+
       '<input class="form-input" id="pfBaseUrl" value="'+LaRuche.Utils.esc(p.base_url||defaultUrls[provType]||'')+'" placeholder="'+defaultUrls[provType]+'"></div>'+
+      /* Two ways to give the key. Typing it stores the secret inside the profile file;
+         picking one from the vault stores a `${NAME}` reference that secrets::substituer
+         expands at call time, so the value stays in one place and never sits in a second
+         file. An existing `${...}` value opens the form already in vault mode. */
       '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.pfApiKeyLabel')+'</label>'+
-      '<input class="form-input" id="pfApiKey" type="password" value="'+LaRuche.Utils.esc(p.api_key||'')+'" placeholder="'+LaRuche.i18n.t('settings.pfApiKeyPlaceholder')+'" autocomplete="off"></div>'+
+      '<div style="display:flex;gap:6px;margin-bottom:6px">'+
+        '<select class="form-input" id="pfKeyMode" style="flex:0 0 auto;width:auto;padding:4px 8px" onchange="LaRuche.Settings.secretPick()">'+
+          '<option value="manual"'+(_estRefSecret(p.api_key)?'':' selected')+'>'+LaRuche.i18n.t('settings.pfKeyModeManual')+'</option>'+
+          '<option value="vault"'+(_estRefSecret(p.api_key)?' selected':'')+'>'+LaRuche.i18n.t('settings.pfKeyModeVault')+'</option>'+
+        '</select>'+
+      '</div>'+
+      '<input class="form-input" id="pfApiKey" type="password" value="'+LaRuche.Utils.esc(p.api_key||'')+'" placeholder="'+LaRuche.i18n.t('settings.pfApiKeyPlaceholder')+'" autocomplete="off"'+(_estRefSecret(p.api_key)?' style="display:none"':'')+'>'+
+      '<select class="form-input" id="pfSecretRef" onchange="LaRuche.Settings.secretPickCreate()"'+(_estRefSecret(p.api_key)?'':' style="display:none"')+'></select>'+
+      '<div class="settings-card-desc" id="pfKeyHint" style="margin:4px 0 0">'+(_estRefSecret(p.api_key)?LaRuche.i18n.t('settings.pfKeyVaultHint'):'')+'</div></div>'+
       '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.pfModelsLabel')+'</label>'+
       '<input class="form-input" id="pfModels" value="'+LaRuche.Utils.esc((p.models||[]).join(', '))+'" placeholder="'+LaRuche.i18n.t('settings.pfModelsPlaceholder')+'"></div>'+
       '<div style="display:flex;gap:8px;margin-top:8px">'+
       '<button class="settings-save-btn" onclick="LaRuche.Settings.saveProfile()">'+LaRuche.i18n.t('settings.pfSave')+'</button>'+
       '<button style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:6px 16px;cursor:pointer" onclick="document.getElementById(\'profileFormContainer\').style.display=\'none\'">'+LaRuche.i18n.t('settings.pfCancel')+'</button>'+
       '</div></div>';
+    // Reopening a profile that already references the vault: fill the picker so the
+    // chosen entry shows up selected instead of an empty select.
+    if(_estRefSecret(p.api_key)) secretPick();
   }
 
   function onProfileProviderChange() {
@@ -1515,7 +1655,15 @@ LaRuche.Settings = (function(){
     var others=names.filter(function(n){return n.indexOf('WEBHOOK')!==0;});
     function card(list,title,hint){
       var rows = list.length ? list.map(function(n){
-        return '<div class="settings-row"><span class="settings-value" style="font-family:var(--mono,monospace)">'+LaRuche.Utils.esc(n)+' <span style="color:var(--text-dim);font-size:10px">= ••••••••</span></span><button onclick="LaRuche.Settings.secretDelete(\''+LaRuche.Utils.esc(n)+'\')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:1px 8px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.secretDeleteBtn')+'</button></div>';
+        // Rotating a key is the common case, deleting it is the rare one. Both are
+        // offered here so nobody has to retype the name in the form below and risk a
+        // typo creating a second, orphaned entry.
+        var arg = "'"+String(n).replace(/\\/g,'\\\\').replace(/'/g,"\\'")+"'";
+        return '<div class="settings-row"><span class="settings-value" style="font-family:var(--mono,monospace)">'+LaRuche.Utils.esc(n)+' <span style="color:var(--text-dim);font-size:10px">= ••••••••</span></span>'+
+          '<span style="display:flex;gap:5px">'+
+          '<button onclick="LaRuche.Settings.secretUpdate('+LaRuche.Utils.esc(arg)+')" style="background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:4px;padding:1px 8px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.secretUpdateBtn')+'</button>'+
+          '<button onclick="LaRuche.Settings.secretDelete('+LaRuche.Utils.esc(arg)+')" style="background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:1px 8px;cursor:pointer;font-size:10px">'+LaRuche.i18n.t('settings.secretDeleteBtn')+'</button>'+
+          '</span></div>';
       }).join('') : '<div style="color:var(--text-dim);font-size:11px">'+LaRuche.i18n.t('settings.secretNone')+'</div>';
       return '<div class="settings-card"><div class="settings-card-title">'+title+'</div><div style="color:var(--text-dim);font-size:11px;margin-bottom:8px">'+hint+'</div>'+rows+'</div>';
     }
@@ -1534,6 +1682,71 @@ LaRuche.Settings = (function(){
     if(!name||!value){ LaRuche.Toast.show(LaRuche.i18n.t('settings.secretNameRequired'),'warn'); return; }
     fetch(LaRuche.API.base+'/api/secrets',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,value:value})})
       .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.secretSaved'),'ok'); if(LaRuche.Secrets)LaRuche.Secrets.refresh(); refreshTab(); } else { LaRuche.Toast.show(LaRuche.i18n.t('settings.secretSaveFailed'),'err'); } });
+  }
+  // A key stored as `${NAME}` is a vault reference, not a literal secret.
+  function _estRefSecret(v){ return /^\$\{[^}]+\}$/.test(String(v||'')); }
+  function _nomRefSecret(v){ var m=/^\$\{([^}]+)\}$/.exec(String(v||'')); return m?m[1]:''; }
+
+  /* Switch the API-key field between typing a value and picking a vault entry. The
+   * select is filled from /api/secrets, which only ever returns NAMES, so no key value
+   * is sent to the browser to populate this. */
+  function secretPick(){
+    var mode = document.getElementById('pfKeyMode'), inp = document.getElementById('pfApiKey'),
+        sel = document.getElementById('pfSecretRef'), hint = document.getElementById('pfKeyHint');
+    if(!mode || !inp || !sel) return;
+    var coffre = mode.value === 'vault';
+    inp.style.display = coffre ? 'none' : '';
+    sel.style.display = coffre ? '' : 'none';
+    if(hint) hint.textContent = coffre ? LaRuche.i18n.t('settings.pfKeyVaultHint') : '';
+    if(!coffre){ if(_estRefSecret(inp.value)) inp.value = ''; return; }
+    var choisi = _nomRefSecret(inp.value);
+    fetch(LaRuche.API.base+'/api/secrets').then(function(r){return r.json();}).catch(function(){return {names:[]};})
+      .then(function(d){
+        var noms = (d.names||[]).filter(function(n){ return n.indexOf('WEBHOOK') !== 0; });
+        sel.innerHTML = '<option value="">'+LaRuche.i18n.t('settings.pfKeyPickPrompt')+'</option>'+
+          noms.map(function(n){ return '<option value="'+LaRuche.Utils.esc(n)+'"'+(n===choisi?' selected':'')+'>'+LaRuche.Utils.esc(n)+'</option>'; }).join('')+
+          '<option value="__new__">'+LaRuche.i18n.t('settings.pfKeyCreateNew')+'</option>';
+        secretPickCreate();
+      });
+  }
+  // Mirror the chosen name back into pfApiKey as `${NAME}`; saveProfile keeps reading a
+  // single field and needs no knowledge of the two modes.
+  function secretPickCreate(){
+    var sel = document.getElementById('pfSecretRef'), inp = document.getElementById('pfApiKey');
+    if(!sel || !inp) return;
+    if(sel.value === '__new__'){
+      var nom = (window.prompt(LaRuche.i18n.t('settings.pfKeyNewName'))||'').trim();
+      var val = nom ? (window.prompt(LaRuche.i18n.t('settings.pfKeyNewValue', {name:nom}))||'') : '';
+      if(!nom || !val){ sel.value = _nomRefSecret(inp.value); return; }
+      fetch(LaRuche.API.base+'/api/secrets',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:nom,value:val})})
+        .then(function(r){
+          if(!r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.secretSaveFailed'),'err'); return; }
+          LaRuche.Toast.show(LaRuche.i18n.t('settings.secretSaved'),'ok');
+          if(LaRuche.Secrets) LaRuche.Secrets.refresh();
+          inp.value = '${'+nom+'}';
+          secretPick();                      // reload the list with the new entry selected
+        });
+      return;
+    }
+    inp.value = sel.value ? ('${'+sel.value+'}') : '';
+  }
+
+  /* Rotate a key: the name is carried over and locked, only the value is asked for. The
+   * old value is never sent to the browser in the first place (the list only ever gets
+   * names), so there is nothing to hide here — and POST /api/secrets is already an
+   * upsert, so replacing needs no new endpoint. */
+  function secretUpdate(name){
+    var n = document.getElementById('secName'), v = document.getElementById('secVal');
+    if(!n || !v) return;
+    n.value = name; n.readOnly = true; n.style.opacity = '.6';
+    v.value = ''; v.placeholder = LaRuche.i18n.t('settings.secretNewValuePlaceholder');
+    var carte = n.closest('.settings-card');
+    if(carte){
+      var titre = carte.querySelector('.settings-card-title');
+      if(titre) titre.textContent = LaRuche.i18n.t('settings.secretRotating', {name:name});
+      carte.scrollIntoView({block:'center', behavior:'smooth'});
+    }
+    v.focus();
   }
   function secretDelete(name){
     fetch(LaRuche.API.base+'/api/secrets/'+encodeURIComponent(name),{method:'DELETE',credentials:'include'})
@@ -1600,7 +1813,59 @@ LaRuche.Settings = (function(){
       }).join('');
     }
     h += '</div>';
+    // "An external client will be able to call EVERY tool, shell included" is a warning
+    // nobody can act on without knowing WHICH tools. Switched on, the exact surface is
+    // spelled out: every name, what it does, and how dangerous it is.
+    if(cfg.mcp_server) h += '<div id="mcpExposes" style="margin-top:14px">'+_slot('mcpExposesSlot')+'</div>';
     corps.innerHTML = h;
+    if(cfg.mcp_server){
+      _fillSlot(corps, 'mcpExposesSlot',
+        fetch(LaRuche.API.base+'/api/tools',{credentials:'include'}).then(function(r){return r.json();}),
+        _mcpExposesHtml);
+    }
+  }
+
+  var _DANGER_RANG = { danger:0, dangereux:0, high:0, moderate:1, modere:1, medium:1, safe:2, sur:2 };
+  function _mcpExposesHtml(d){
+    var outils = (d && (d.tools||d)) || [];
+    if(!outils.length) return '<div style="color:var(--text-dim);font-size:11px">'+LaRuche.i18n.t('settings.mcpExposedNone')+'</div>';
+    // Most dangerous first: the shell is what matters on this list, not an alphabet.
+    outils = outils.slice().sort(function(a,b){
+      var ra = _DANGER_RANG[String(a.danger||'safe').toLowerCase()];
+      var rb = _DANGER_RANG[String(b.danger||'safe').toLowerCase()];
+      if(ra === undefined) ra = 1; if(rb === undefined) rb = 1;
+      return ra - rb || String(a.name||'').localeCompare(String(b.name||''));
+    });
+    // MCP now honours disabled_tools, so what is off in Settings > Tools is off here too:
+    // the card must list what is REACHABLE, not the whole registry.
+    var coupes = outils.filter(function(t){ return t.enabled === false; }).length;
+    outils = outils.filter(function(t){ return t.enabled !== false; });
+    if(!outils.length) return '<div style="color:var(--text-dim);font-size:11px">'+LaRuche.i18n.t('settings.mcpExposedNone')+'</div>';
+    var lignes = outils.map(function(t){
+      var dg = String(t.danger||'safe').toLowerCase();
+      var rang = _DANGER_RANG[dg]; if(rang === undefined) rang = 1;
+      var coul = rang===0 ? 'var(--red)' : (rang===1 ? 'var(--amber)' : 'var(--text-dim)');
+      return '<div class="mcp-outil">'+
+        '<span class="mcp-outil-nom">'+LaRuche.Utils.esc(t.name||'')+'</span>'+
+        '<span class="mcp-outil-danger" style="color:'+coul+';border-color:'+coul+'">'+LaRuche.Utils.esc(dg)+'</span>'+
+        '<span class="mcp-outil-desc">'+LaRuche.Utils.esc(t.description||'')+'</span>'+
+        '</div>';
+    }).join('');
+    return '<div class="settings-label" style="margin-bottom:4px">'+LaRuche.i18n.t('settings.mcpExposedTitle', {n:outils.length})+'</div>'+
+      '<div class="settings-card-desc">'+LaRuche.i18n.t('settings.mcpExposedDesc')+'</div>'+
+      (coupes ? '<div class="settings-card-desc">'+LaRuche.i18n.t('settings.mcpExposedOffInfo', {n:coupes})+'</div>' : '')+
+      '<div class="mcp-outils">'+lignes+'</div>';
+  }
+
+  // Download the captured reviews reshaped for training. The browser does the saving:
+  // the endpoint sets Content-Disposition, so no blob juggling here.
+  function reineDataset(format){
+    var a = document.createElement('a');
+    a.href = LaRuche.API.base+'/api/reine/dataset?format='+encodeURIComponent(format);
+    a.download = ''; a.style.display = 'none';
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ a.remove(); }, 0);
+    LaRuche.Toast.show(LaRuche.i18n.t('reine.datasetExporting', {format:format}), 'ok');
   }
 
   function saveMcpPorte(){
@@ -2200,9 +2465,57 @@ LaRuche.Settings = (function(){
     }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('settings.credErr')+e, 'err'); });
   }
 
+  /* A channel token is a secret exactly like a provider API key, and it was sitting in
+   * plain sight in the form (and in plaintext in channels-config.json). Same two modes:
+   * type it, or point at a vault entry. Picking one stores `${NAME}`, which the node
+   * resolves at send time via secrets::substituer. */
+  function _champJeton(id, libelle, valeur, exemple){
+    var ref = _estRefSecret(valeur);
+    return '<div class="form-group"><label class="form-label">'+LaRuche.Utils.esc(libelle)+'</label>'+
+      '<select class="form-input" id="'+id+'-mode" style="width:auto;padding:4px 8px;margin-bottom:6px" data-jeton="'+id+'">'+
+        '<option value="manual"'+(ref?'':' selected')+'>'+LaRuche.i18n.t('settings.pfKeyModeManual')+'</option>'+
+        '<option value="vault"'+(ref?' selected':'')+'>'+LaRuche.i18n.t('settings.pfKeyModeVault')+'</option>'+
+      '</select>'+
+      '<input class="form-input" type="password" id="'+id+'" value="'+LaRuche.Utils.esc(valeur)+'" placeholder="'+LaRuche.Utils.esc(exemple)+'" autocomplete="off"'+(ref?' style="display:none"':'')+'>'+
+      '<select class="form-input" id="'+id+'-ref"'+(ref?'':' style="display:none"')+'></select></div>';
+  }
+  // Wired after render for every token field on the page.
+  function _brancherJetons(el){
+    el.querySelectorAll('[data-jeton]').forEach(function(sel){
+      var id = sel.dataset.jeton;
+      var maj = function(){ _basculeJeton(id); };
+      sel.onchange = maj;
+      var r = el.querySelector('#'+id+'-ref');
+      if(r) r.onchange = function(){
+        var inp = el.querySelector('#'+id);
+        if(inp) inp.value = r.value ? ('${'+r.value+'}') : '';
+      };
+      if(sel.value === 'vault') maj();
+    });
+  }
+  function _basculeJeton(id){
+    var sel = document.getElementById(id+'-mode'), inp = document.getElementById(id),
+        ref = document.getElementById(id+'-ref');
+    if(!sel || !inp || !ref) return;
+    var coffre = sel.value === 'vault';
+    inp.style.display = coffre ? 'none' : '';
+    ref.style.display = coffre ? '' : 'none';
+    if(!coffre){ if(_estRefSecret(inp.value)) inp.value = ''; return; }
+    var choisi = _nomRefSecret(inp.value);
+    fetch(LaRuche.API.base+'/api/secrets').then(function(r){return r.json();}).catch(function(){return {names:[]};})
+      .then(function(d){
+        ref.innerHTML = '<option value="">'+LaRuche.i18n.t('settings.pfKeyPickPrompt')+'</option>'+
+          (d.names||[]).map(function(n){ return '<option value="'+LaRuche.Utils.esc(n)+'"'+(n===choisi?' selected':'')+'>'+LaRuche.Utils.esc(n)+'</option>'; }).join('');
+        if(!choisi) inp.value = '';
+      });
+  }
+
   async function loadChannels(el) {
-    var config = await fetch(LaRuche.API.base+'/api/config/channels').then(function(r){return r.json();}).catch(function(){return {};});
-    var notify = await fetch(LaRuche.API.base+'/api/config/notify').then(function(r){return r.json();}).catch(function(){return {};});
+    // Three independent endpoints: one round trip, not three in a row.
+    var _ch = await Promise.all([
+      _gj('/api/config/channels'), _gj('/api/config/notify')
+    ]);
+    var config = _ch[0], notify = _ch[1];
     var tg = config.telegram || {};
     var dc = config.discord || {};
     var sl = config.slack || {};
@@ -2244,16 +2557,16 @@ LaRuche.Settings = (function(){
         '<div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">'+LaRuche.i18n.t('settings.notifyHint')+'</div>' +
         '<label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="ch-notify-en" '+(notify.enabled?'checked':'')+'> <span>'+LaRuche.i18n.t('settings.notifyLabel')+'</span></label></div>' +
       '<div class="settings-card"><div class="card-title" style="color:var(--blue)">Telegram</div>' +
-        '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.botTokenLabel')+'</label><input class="form-input" id="ch-tg-token" value="'+LaRuche.Utils.esc(tg.bot_token||'')+'" placeholder="7123456789:AAH..."></div>' +
+        _champJeton('ch-tg-token', LaRuche.i18n.t('settings.botTokenLabel'), tg.bot_token||'', '7123456789:AAH...') +
         '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.tgAllowedChats')+'</label><input class="form-input" id="ch-tg-chats" value="'+LaRuche.Utils.esc(tg.allowed_chats||'')+'" placeholder="'+LaRuche.i18n.t('settings.chAllowedChats')+'"></div>' +
         '<div style="font-size:10px;color:var(--text-muted);margin-top:4px">'+LaRuche.i18n.t('settings.chTgLaunch')+'</div></div>' +
       '<div class="settings-card"><div class="card-title" style="color:var(--purple)">Discord</div>' +
-        '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.botTokenLabel')+'</label><input class="form-input" id="ch-dc-token" value="'+LaRuche.Utils.esc(dc.bot_token||'')+'" placeholder="MTIxxx..."></div>' +
+        _champJeton('ch-dc-token', LaRuche.i18n.t('settings.botTokenLabel'), dc.bot_token||'', 'MTIxxx...') +
         '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.dcAllowedChannels')+'</label><input class="form-input" id="ch-dc-channels" value="'+LaRuche.Utils.esc(dc.allowed_channels||'')+'" placeholder="'+LaRuche.i18n.t('settings.chAllowedChats')+'"></div>' +
         '<div style="font-size:10px;color:var(--text-muted);margin-top:4px">'+LaRuche.i18n.t('settings.chDcLaunch')+'</div></div>' +
       '<div class="settings-card"><div class="card-title" style="color:var(--green)">Slack</div>' +
-        '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.slBotToken')+'</label><input class="form-input" id="ch-sl-bot" value="'+LaRuche.Utils.esc(sl.bot_token||'')+'" placeholder="xoxb-..."></div>' +
-        '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.slAppToken')+'</label><input class="form-input" id="ch-sl-app" value="'+LaRuche.Utils.esc(sl.app_token||'')+'" placeholder="xapp-..."></div>' +
+        _champJeton('ch-sl-bot', LaRuche.i18n.t('settings.slBotToken'), sl.bot_token||'', 'xoxb-...') +
+        _champJeton('ch-sl-app', LaRuche.i18n.t('settings.slAppToken'), sl.app_token||'', 'xapp-...') +
         '<div style="font-size:10px;color:var(--text-muted);margin-top:4px">'+LaRuche.i18n.t('settings.chSlLaunch')+'</div></div>' +
       '<div class="settings-card" style="opacity:0.5;border-style:dashed"><div class="card-title" style="color:#25D366">WhatsApp</div>' +
         '<div style="color:var(--text-muted);font-size:12px;padding:12px 0">'+LaRuche.i18n.t('settings.comingSoon')+'</div></div>' +
@@ -2275,6 +2588,8 @@ LaRuche.Settings = (function(){
       '<button class="form-btn" style="background:var(--green)" onclick="LaRuche.Settings.startChannel(\'telegram\')" id="ch-tg-start">'+LaRuche.i18n.t('settings.startTelegram')+'</button>' +
       '<button class="form-btn" style="background:var(--red);color:#fff" onclick="LaRuche.Settings.stopChannel(\'telegram\')" id="ch-tg-stop" style="display:none">'+LaRuche.i18n.t('settings.stopTelegram')+'</button>' +
     '</div>';
+    // Every token field gets its mode switch and its vault picker.
+    _brancherJetons(el);
     // Check running status
     fetch(LaRuche.API.base+'/api/channels/status').then(function(r){return r.json();}).then(function(d){
       var running = d.running || [];
@@ -2785,14 +3100,32 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       var host = document.getElementById('adminUserList'); if(!host) return;
       var users = d.users||[];
       if(!users.length){ host.innerHTML = '<div style="color:var(--text-dim);font-size:11px">'+LaRuche.i18n.t('settings.adminNoUsers')+'</div>'; return; }
+      // Whoever is looking is the super-admin only if their own row says so.
+      var jeSuisSuper = users.some(function(u){ return u.is_self && u.is_super; });
       host.innerHTML = users.map(function(u){
         var isAdmin = u.role==='admin';
         var safeName = (u.display_name||'').replace(/[\\']/g,'');
-        var roleBadge = '<span style="font-size:9px;padding:1px 6px;border-radius:4px;border:1px solid '+(isAdmin?'var(--amber)':'var(--border)')+';color:'+(isAdmin?'var(--amber)':'var(--text-dim)')+'">'+(isAdmin?'admin':'user')+'</span>';
-        var pw = u.has_password ? '' : ' <span style="font-size:9px;color:var(--red)">'+LaRuche.i18n.t('settings.adminNoPw')+'</span>';
-        var roleBtn = u.is_self ? '' : '<button class="form-btn" style="font-size:10px;padding:2px 6px" onclick="LaRuche.Settings.adminSetRole(\''+u.id+'\',\''+(isAdmin?'user':'admin')+'\')">'+(isAdmin?LaRuche.i18n.t('settings.adminDemote'):LaRuche.i18n.t('settings.adminPromote'))+'</button>';
-        var delBtn = u.is_self ? '<span style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.adminYou')+'</span>' : '<button class="form-btn" style="font-size:10px;padding:2px 6px;color:var(--red);border-color:var(--red)" onclick="LaRuche.Settings.adminDeleteUser(\''+u.id+'\',\''+safeName+'\')">'+LaRuche.i18n.t('settings.tlDelete')+'</button>';
-        return '<div class="settings-row"><span class="settings-label" style="flex:1">'+LaRuche.Utils.esc(u.display_name)+' '+roleBadge+pw+'</span><span style="display:flex;gap:6px;align-items:center">'+roleBtn+delBtn+'</span></div>';
+        // Photo when there is one, coloured initial otherwise: the list is scanned by
+        // face far faster than by name.
+        var initiale = LaRuche.Utils.esc((u.display_name||'?').charAt(0).toUpperCase());
+        var vignette = u.avatar
+          ? '<img src="'+LaRuche.Utils.esc(u.avatar)+'" alt="" class="admin-av">'
+          : '<span class="admin-av admin-av-txt'+(u.is_super?' admin-av-super':'')+'">'+initiale+'</span>';
+        var badges = '<span class="admin-badge'+(isAdmin?' admin-badge-on':'')+'">'+(isAdmin?'admin':'user')+'</span>'+
+          (u.is_super ? '<span class="admin-badge admin-badge-super" title="'+LaRuche.i18n.t('settings.adminSuperHint')+'">'+LaRuche.i18n.t('settings.adminSuper')+'</span>' : '')+
+          (u.has_password ? '' : '<span class="admin-badge admin-badge-warn">'+LaRuche.i18n.t('settings.adminNoPw')+'</span>');
+        // The super-admin is neither demotable nor deletable: those buttons are simply
+        // absent rather than present-and-rejected.
+        var roleBtn = (u.is_self || u.is_super) ? '' : '<button class="form-btn" style="font-size:10px;padding:2px 6px" onclick="LaRuche.Settings.adminSetRole(\''+u.id+'\',\''+(isAdmin?'user':'admin')+'\')">'+(isAdmin?LaRuche.i18n.t('settings.adminDemote'):LaRuche.i18n.t('settings.adminPromote'))+'</button>';
+        var pwBtn = jeSuisSuper ? '<button class="form-btn" style="font-size:10px;padding:2px 6px" onclick="LaRuche.Settings.adminSetPassword(\''+u.id+'\',\''+safeName+'\')">'+LaRuche.i18n.t('settings.adminSetPw')+'</button>' : '';
+        var delBtn = u.is_super
+          ? ''
+          : (u.is_self ? '<span style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.adminYou')+'</span>'
+                       : '<button class="form-btn" style="font-size:10px;padding:2px 6px;color:var(--red);border-color:var(--red)" onclick="LaRuche.Settings.adminDeleteUser(\''+u.id+'\',\''+safeName+'\')">'+LaRuche.i18n.t('settings.tlDelete')+'</button>');
+        return '<div class="admin-user'+(u.is_self?' admin-user-self':'')+'">'+vignette+
+          '<span class="admin-user-id"><span class="admin-user-name">'+LaRuche.Utils.esc(u.display_name)+'</span>'+
+          '<span class="admin-user-badges">'+badges+'</span></span>'+
+          '<span style="display:flex;gap:6px;align-items:center;flex-shrink:0">'+roleBtn+pwBtn+delBtn+'</span></div>';
       }).join('');
     }).catch(function(){ var host=document.getElementById('adminUserList'); if(host) host.innerHTML='<div style="color:var(--red);font-size:11px">'+LaRuche.i18n.t('settings.adminLoadError')+'</div>'; });
   }
@@ -2802,6 +3135,25 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.adminDeleted'),'ok'); loadAdmin(document.getElementById('settingsContent')); }
       else LaRuche.Toast.show(LaRuche.i18n.t('settings.saveFailed'),'err');
     });
+  }
+  /* Super-admin only. The current password is never asked for, never shown and never
+   * sent: the endpoint takes the new value alone and writes a fresh hash. */
+  function adminSetPassword(id, name){
+    var pw = window.prompt(LaRuche.i18n.t('settings.adminSetPwPrompt', {name:name}));
+    if(pw === null) return;                                  // cancelled
+    pw = String(pw);
+    if(pw.length < 8){ LaRuche.Toast.show(LaRuche.i18n.t('settings.adminPwTooShort'),'warn'); return; }
+    if(window.prompt(LaRuche.i18n.t('settings.adminSetPwConfirm')) !== pw){
+      LaRuche.Toast.show(LaRuche.i18n.t('settings.adminPwMismatch'),'warn'); return;
+    }
+    fetch('/api/admin/users/'+encodeURIComponent(id)+'/password',{
+      method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({password:pw})
+    }).then(function(r){
+      if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('settings.adminPwChanged',{name:name}),'ok'); loadAdmin(document.getElementById('settingsContent')); }
+      else if(r.status===403) LaRuche.Toast.show(LaRuche.i18n.t('settings.adminPwForbidden'),'err');
+      else LaRuche.Toast.show(LaRuche.i18n.t('settings.saveFailed'),'err');
+    }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.saveFailed'),'err'); });
   }
   function adminSetRole(id, role){
     fetch('/api/admin/users/'+encodeURIComponent(id)+'/role',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:role})}).then(function(r){
@@ -2860,9 +3212,10 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       max_tokens: parseInt(document.getElementById('cfgMaxTok').value,10),
       tool_selection_limit: parseInt(document.getElementById('cfgToolLim').value,10),
       dynamic_context_threshold: parseInt(document.getElementById('cfgCtxThreshold').value,10),
-      // Off by default: it spends prompt budget every turn, so it stays a choice.
-      reactions_agent: !!(document.getElementById('cfgAgentReactions')||{}).checked
     };
+    // `reactions_agent` deliberately ABSENT: its control now lives in the Chat section.
+    // Sending `false` because the checkbox is not on screen would turn the feature off
+    // every time this form is saved.
     var auxiliary = {
       fallback_models: document.getElementById('cfgProvFallback').value,
       review_model: document.getElementById('cfgProvReview').value
@@ -2877,6 +3230,12 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       .catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err'); });
   }
 
+  function toggleCurateur(on) {
+    fetch(LaRuche.API.base+'/api/config/curateur',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:!!on})})
+      .then(function(r){return r.json();})
+      .then(function(d){ if(d && d.status==='ok') LaRuche.Toast.show('Curateur '+(on?LaRuche.i18n.t('settings.curateEnabled'):LaRuche.i18n.t('settings.curateDisabled')),'ok'); else LaRuche.Toast.show(LaRuche.i18n.t('settings.curateFailed'),'err'); })
+      .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.curateFailed'),'err'); });
+  }
   function toggleDynamicTools(on) {
     fetch(LaRuche.API.base+'/api/config/curateur',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({dynamic_tools:!!on})})
       .then(function(r){return r.json();})
@@ -2906,7 +3265,8 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       tier_artefacts: !!document.getElementById('cfgReineTier2').checked,
       tier_supervision: !!document.getElementById('cfgReineTier3').checked,
       queue_gate: !!document.getElementById('cfgReineQueue').checked,
-      contexte_messages: parseInt(document.getElementById('cfgReineCtx').value,10)
+      contexte_messages: parseInt(document.getElementById('cfgReineCtx').value,10),
+      dataset: !!(document.getElementById('cfgReineDataset')||{}).checked
     };
     fetch(LaRuche.API.base+'/api/config/reine',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
       .then(function(r){ if(r.ok) LaRuche.Toast.show(LaRuche.i18n.t('settings.save'),'ok'); else LaRuche.Toast.show(LaRuche.i18n.t('settings.errorGeneric'),'err'); })
@@ -3295,8 +3655,8 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.codexError'),'err'); });
   }
 
-  return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+  return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, adminSetPassword:adminSetPassword, saveChatCfg:saveChatCfg, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab,
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, reineDataset: reineDataset, secretUpdate: secretUpdate, secretPick: secretPick, secretPickCreate: secretPickCreate, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder: reusable "human-friendly" component (missions + cron) ── */

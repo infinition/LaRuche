@@ -1173,15 +1173,28 @@ LaRuche.Header = (function(){
    * MEASURED instead: as soon as the tabs no longer fit on one line the whole nav
    * drops its labels in one step, exactly what the small-screen layout already did.
    */
+  /* Three states, each entered only when the previous one stops fitting: labels, then
+   * icons alone, then handed over to the bottom mobile tabs.
+   *
+   * The third one exists because the width that matters is the HEADER's, not the
+   * window's. Anchoring the feed adds `padding-right:360px` to the body, so the header
+   * loses 360px while the viewport stays wide: the 768px media query never fires, and the
+   * nav kept overflowing into the right-hand controls instead of stepping aside. */
   function fitNav(){
     var nav = document.getElementById('headerNav');
     if(!nav) return;
-    // Under 768px the bottom mobile tabs take over and the nav is hidden: nothing to measure.
-    if(!nav.offsetParent && nav.offsetWidth === 0) return;
-    // Measure with the labels ON, otherwise the nav could never grow back.
+    var body = document.body;
+    // Measure from the widest state, otherwise none of them could ever be undone.
+    body.classList.remove('nav-en-bas');
     nav.classList.remove('nav-compact');
+    // Below the CSS breakpoint the bottom tabs already own the navigation.
+    if(!nav.offsetParent && nav.offsetWidth === 0) return;
+    var deborde = function(){ return nav.scrollWidth > nav.clientWidth + 1; };
     // The links are flex-shrink:0, so any shortfall shows up as real overflow.
-    if(nav.scrollWidth > nav.clientWidth + 1) nav.classList.add('nav-compact');
+    if(!deborde()) return;
+    nav.classList.add('nav-compact');
+    // Still too wide with icons only: there is nothing left to shave off up here.
+    if(deborde()) body.classList.add('nav-en-bas');
   }
   function initNavFit(){
     var nav = document.getElementById('headerNav');

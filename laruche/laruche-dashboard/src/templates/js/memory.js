@@ -48,7 +48,10 @@ LaRuche.i18n.add({
   'memory.agentRunningTitle':     {fr:'Agent en cours...', en:'Agent running...'},
   'memory.agentDoneTitle':        {fr:'Terminé', en:'Done'},
   'memory.noId':                  {fr:'(sans id)', en:'(no id)'},
-  'memory.newMemoryPlaceholder':  {fr:'Nouveau souvenir (markdown, [[liens]] supportes)...', en:'New memory (markdown, [[links]] supported)...'},
+  'memory.newMemoryPlaceholder':  {fr:"Nouveau souvenir (markdown, [[liens]] supportes)…  —  ou commence par @LaRuche pour lui demander d'enrichir ce noeud elle-meme.", en:'New memory (markdown, [[links]] supported)…  —  or start with @LaRuche to ask her to enrich this node herself.'},
+  'memory.askLaRuche':            {fr:'Demander a LaRuche', en:'Ask LaRuche'},
+  'memory.askLaRucheHint':        {fr:'lui demander d’enrichir ce noeud', en:'ask her to enrich this node'},
+  'memory.agentStalledTitle':     {fr:'Sans reponse depuis 10 min : la mission a echoue ou LaRuche a redemarre. Tu peux supprimer cet item.', en:'No answer for 10 min: the run failed or LaRuche restarted. You can delete this item.'},
   'memory.addToNode':             {fr:'Ajouter a ', en:'Add to '},
   'memory.loading':               {fr:'Chargement...', en:'Loading...'},
   'memory.titleSoul':             {fr:'SOUL : personnalite', en:'SOUL: personality'},
@@ -925,10 +928,21 @@ LaRuche.Memory = (function(){
         }
         var isAgentCall = it.source === 'agent-call';
         var isAgentRunning = isAgentCall && content.indexOf('**LaRuche summary:**') === -1 && content.indexOf('**LaRuche error:**') === -1;
+        // "Running" was inferred ONLY from the missing summary, with no way out: when the
+        // enrichment failed (a write error, a dead provider, a restart mid-run) the item
+        // span forever AND its actions stayed hidden, so it could not even be deleted.
+        // Past this delay it is treated as stalled: the spinner becomes a warning and the
+        // buttons come back.
+        var AGENT_EXPIRE_MS = 10 * 60 * 1000;
+        var neLe = Number(it.created_at) > 0 ? Number(it.created_at) * 1000 : 0;
+        var enPanne = isAgentRunning && neLe > 0 && (Date.now() - neLe) > AGENT_EXPIRE_MS;
         var agentStatusIcon = '';
-        if (isAgentRunning) {
+        if (isAgentRunning && !enPanne) {
           agentStatusIcon = '<span class="agent-spinner" title="'+LaRuche.i18n.t('memory.agentRunningTitle')+'" style="margin-left:6px; display:inline-block; width:10px; height:10px; border:2px solid var(--amber); border-right-color:transparent; border-radius:50%; animation:spin 1s linear infinite;"></span>';
           acts = ''; // Hide actions while running
+        } else if (enPanne) {
+          // Actions deliberately KEPT: recovering means being able to delete it.
+          agentStatusIcon = '<span title="'+esc(LaRuche.i18n.t('memory.agentStalledTitle'))+'" style="margin-left:6px; color:var(--red); font-weight:bold;">⚠</span>';
         } else if (isAgentCall) {
           agentStatusIcon = '<span title="'+LaRuche.i18n.t('memory.agentDoneTitle')+'" style="margin-left:6px; color:var(--green); font-weight:bold;">✓</span>';
         }
@@ -949,7 +963,8 @@ LaRuche.Memory = (function(){
     // add block (except search, protected node or read-only)
     if(!isSearch && nodeId && !locked){
       html += '<div class="mem2-add">'+
-        '<textarea id="mem2AddText" placeholder="'+LaRuche.i18n.t('memory.newMemoryPlaceholder')+'"></textarea>'+
+        '<textarea id="mem2AddText" placeholder="'+esc(LaRuche.i18n.t('memory.newMemoryPlaceholder'))+'"></textarea>'+
+        '<div class="mem2-add-suggest" id="mem2AddSuggest" style="display:none"></div>'+
         '<div style="margin-top:8px"><button class="mem2-btn-primary" id="mem2AddBtn">'+LaRuche.i18n.t('memory.addToNode')+esc(nodeId)+'</button></div>'+
       '</div>';
     }
@@ -971,13 +986,39 @@ LaRuche.Memory = (function(){
     if(addBtn) addBtn.onclick = function(){ addItem(nodeId); };
     var ta = document.getElementById('mem2AddText');
     if(ta) {
-      ta.oninput = function() {
+      /* Three things react to what is typed: the box highlight, the SUBMIT BUTTON (a
+       * call to LaRuche is not "add to episodes", and reading "Add" while asking her a
+       * question is exactly what made the feature invisible), and a click-to-complete
+       * suggestion so nobody has to know the exact spelling of the handle. */
+      var majSaisie = function() {
+        var v = ta.value, appel = v.trim().toLowerCase().indexOf('@laruche') === 0;
         var w = document.querySelector('.mem2-add');
-        if (w) {
-          if (this.value.trim().toLowerCase().startsWith('@laruche')) w.classList.add('is-agent-call');
-          else w.classList.remove('is-agent-call');
+        if (w) w.classList.toggle('is-agent-call', appel);
+        if (addBtn) {
+          addBtn.textContent = appel
+            ? LaRuche.i18n.t('memory.askLaRuche')
+            : LaRuche.i18n.t('memory.addToNode') + nodeId;
+          addBtn.classList.toggle('is-ask', appel);
+        }
+        // A lone "@" that has not become "@laruche" yet: offer it.
+        var sug = document.getElementById('mem2AddSuggest');
+        if (sug) {
+          var propose = /(^|\s)@[a-z]*$/i.test(v) && !appel;
+          sug.style.display = propose ? '' : 'none';
         }
       };
+      ta.oninput = majSaisie;
+      var sug = document.getElementById('mem2AddSuggest');
+      if (sug) {
+        sug.innerHTML = '<button type="button" class="mem2-suggest-item">@LaRuche <span>'+
+          esc(LaRuche.i18n.t('memory.askLaRucheHint'))+'</span></button>';
+        sug.querySelector('.mem2-suggest-item').onclick = function(){
+          ta.value = ta.value.replace(/(^|\s)@[a-z]*$/i, '$1@LaRuche ');
+          ta.focus();
+          majSaisie();
+        };
+      }
+      majSaisie();
     }
   }
 

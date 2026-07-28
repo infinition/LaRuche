@@ -356,6 +356,12 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
      one step, rather than growing a second line inside the header. */
   white-space:nowrap; flex-shrink:0;
 }
+/* Handed over to the bottom tabs: the header is too narrow even for the icons. Measured,
+   so it also covers the case where the WINDOW is wide but the header is not — anchoring
+   the feed takes 360px off the body without touching the viewport. */
+body.nav-en-bas .header-nav { display:none; }
+body.nav-en-bas .mobile-tabs { display:flex; }
+
 /* Icon-only: set by the measured fit, whatever the viewport width or the language. */
 .header-nav.nav-compact a .tab-text { display:none; }
 .header-nav.nav-compact a { padding:6px 10px; }
@@ -1532,6 +1538,19 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .settings-value { color:var(--text); font-family:var(--mono); font-size:11px; }
 /* One-line description under a card title (optional). */
 .settings-card-desc { color:var(--text-dim); font-size:11px; margin:-4px 0 8px; line-height:1.4; }
+/* Placeholder for a card whose data comes from a network probe: the tab is readable at
+   once and this fills in when the answer lands. */
+.settings-slot {
+  display:flex; align-items:center; gap:7px;
+  padding:8px 0; font-size:11px; color:var(--text-muted);
+}
+.settings-spin {
+  width:11px; height:11px; flex-shrink:0; border-radius:50%;
+  border:1.5px solid var(--border); border-top-color:var(--amber);
+  animation:settingsSpin .7s linear infinite;
+}
+@keyframes settingsSpin { to { transform:rotate(360deg); } }
+@media (prefers-reduced-motion:reduce) { .settings-spin { animation-duration:2.4s; } }
 
 /* ── Watcher cards: collapsed synthesis + expanded pipeline (the diagram IS the form) ── */
 .wcard { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:0; margin-bottom:10px; overflow:hidden; }
@@ -1936,13 +1955,58 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 }
 .feed-drawer-head .fd-btn:hover { color:var(--amber); border-color:rgba(245,158,11,0.4); }
 .feed-drawer-head .fd-btn.active { color:var(--amber); border-color:var(--amber); background:rgba(245,158,11,0.12); }
+/* Next up: the five soonest occurrences on a snap track. One at a time keeps the header
+   the same height it always was, while what is coming after stays one flick away. */
 .feed-next {
-  margin:10px 12px 4px; padding:9px 11px; border-radius:9px;
+  position:relative;
+  margin:10px 12px 4px; border-radius:9px;
   background:rgba(245,158,11,0.07); border:1px solid rgba(245,158,11,0.18);
   font-size:12px; color:var(--text-dim); line-height:1.45;
 }
 .feed-next strong { color:var(--amber); }
 .feed-next .fn-sub { color:var(--text-muted); font-size:11px; }
+
+.fn-piste {
+  display:flex; overflow-x:auto; scroll-snap-type:x mandatory;
+  scrollbar-width:none; -ms-overflow-style:none;
+  border-radius:9px;
+}
+.fn-piste::-webkit-scrollbar { display:none; }
+.fn-carte {
+  flex:0 0 100%; scroll-snap-align:start;
+  display:flex; align-items:flex-start; gap:9px;
+  padding:9px 11px; min-width:0;
+  animation:fnEntree .32s cubic-bezier(.22,.61,.36,1) both;
+}
+@keyframes fnEntree { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+.fn-carte:nth-child(2){animation-delay:.04s} .fn-carte:nth-child(3){animation-delay:.08s}
+.fn-carte:nth-child(4){animation-delay:.12s} .fn-carte:nth-child(5){animation-delay:.16s}
+
+/* The rank says how far ahead you are looking: NEXT, then +1, +2… */
+.fn-rang {
+  flex-shrink:0; font-family:var(--mono); font-size:9px; letter-spacing:.09em;
+  padding:2px 6px; border-radius:4px; line-height:1.6;
+  border:1px solid var(--border); color:var(--text-muted);
+}
+.fn-carte--prochain .fn-rang { border-color:var(--amber); color:var(--bg); background:var(--amber); font-weight:700; }
+.fn-corps { min-width:0; flex:1; }
+.fn-nom { color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fn-quand { font-size:11px; }
+
+.fn-retour {
+  position:absolute; top:50%; left:4px; transform:translateY(-50%);
+  width:22px; height:22px; border-radius:50%; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--bg-card); border:1px solid var(--amber); color:var(--amber);
+  font-size:12px; line-height:1; padding:0;
+  animation:fnEntree .2s both;
+}
+.fn-retour:hover { background:var(--amber); color:var(--bg); }
+.fn-retour[hidden] { display:none; }
+@media (prefers-reduced-motion:reduce) {
+  .fn-carte, .fn-retour { animation:none; }
+  .fn-piste { scroll-behavior:auto; }
+}
 /* Filters: folded away by default. Seven chips wrap over three lines and eat the top of
    the feed, for a control most sessions never touch. One line summarises the state,
    a click unfolds the chips. */
@@ -1990,6 +2054,14 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 .ff-chip:hover { border-color:rgba(245,158,11,0.4); color:var(--text-dim); }
 .ff-chip.active { color:var(--amber); border-color:var(--amber); background:rgba(245,158,11,0.14); }
 .ff-chip:not(.active) { opacity:.6; }
+/* The sweep control: chip-shaped so it sits in the row, dashed and pushed to the end so
+   it never reads as a twelfth filter. */
+.ff-chip.ff-bascule {
+  margin-left:auto; font-family:var(--mono); font-size:10px; letter-spacing:.3px;
+  text-transform:uppercase; border-style:dashed; opacity:1;
+  color:var(--text-dim); background:transparent;
+}
+.ff-chip.ff-bascule:hover { color:var(--amber); border-color:var(--amber); background:rgba(245,158,11,0.10); }
 .feed-list { flex:1; overflow-y:auto; padding:6px 8px 16px; }
 .feed-row {
   display:flex; flex-direction:column; gap:3px;
@@ -2406,3 +2478,68 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 .lr-modal .lr-modal-hint { font-size:10px; color:var(--text-muted); margin-top:4px; }
 .lr-modal .lr-modal-row { display:flex; align-items:center; gap:8px; margin-top:14px; font-size:12px; color:var(--text-dim); }
 .lr-modal .lr-modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:18px; }
+
+/* ── Admin: account list ────────────────────────────────────────────────────
+   A row per account, led by its photo. Scanning faces is faster than reading a
+   column of names, and the founding account has to be identifiable at a glance. */
+.admin-user {
+  display:flex; align-items:center; gap:10px;
+  padding:8px 10px; border-radius:8px;
+  background:rgba(255,255,255,0.02); border:1px solid transparent;
+  transition:background .15s, border-color .15s;
+}
+.admin-user:hover { background:rgba(255,255,255,0.04); }
+.admin-user-self { border-color:rgba(245,158,11,0.28); }
+.admin-av {
+  width:34px; height:34px; border-radius:50%; flex-shrink:0;
+  object-fit:cover; display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid var(--border);
+}
+.admin-av-txt { background:var(--amber); color:var(--bg); font-weight:700; font-size:14px; border-color:transparent; }
+.admin-av-super { box-shadow:0 0 0 2px var(--bg), 0 0 0 3px var(--amber); }
+.admin-user-id { display:flex; flex-direction:column; gap:3px; flex:1; min-width:0; }
+.admin-user-name { font-size:13px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.admin-user-badges { display:flex; flex-wrap:wrap; gap:4px; }
+.admin-badge {
+  font-size:9px; padding:1px 6px; border-radius:4px; line-height:1.6;
+  border:1px solid var(--border); color:var(--text-dim);
+}
+.admin-badge-on { border-color:var(--amber); color:var(--amber); }
+.admin-badge-super { border-color:var(--amber); color:var(--bg); background:var(--amber); font-weight:700; }
+.admin-badge-warn { border-color:var(--red); color:var(--red); }
+
+/* ── MCP: the tools an external client can actually reach ── */
+.mcp-outils { display:flex; flex-direction:column; gap:3px; margin-top:6px; max-height:280px; overflow-y:auto; }
+.mcp-outil { display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; padding:3px 6px; border-radius:5px; background:rgba(255,255,255,0.02); }
+.mcp-outil-nom { font-family:var(--mono,monospace); font-size:11px; color:var(--text); }
+.mcp-outil-danger { font-size:9px; padding:0 5px; border-radius:4px; border:1px solid currentColor; line-height:1.6; text-transform:uppercase; }
+.mcp-outil-desc { flex:1 1 100%; font-size:10px; color:var(--text-muted); line-height:1.35; }
+.mcp-avert { margin-top:6px; padding:6px 8px; border-radius:6px; font-size:11px; line-height:1.4;
+  background:rgba(239,68,68,0.10); border:1px solid rgba(239,68,68,0.35); color:var(--red); }
+
+/* ── Memory: calling LaRuche from the add box ── */
+.mem2-add-suggest { margin-top:4px; }
+.mem2-suggest-item {
+  display:inline-flex; align-items:baseline; gap:6px; cursor:pointer;
+  background:rgba(245,158,11,0.10); border:1px solid rgba(245,158,11,0.35);
+  color:var(--amber); border-radius:999px; padding:2px 10px;
+  font-size:11px; font-weight:600; font-family:var(--mono,monospace);
+}
+.mem2-suggest-item:hover { background:rgba(245,158,11,0.20); }
+.mem2-suggest-item span { font-weight:400; font-family:inherit; color:var(--text-muted); }
+/* The submit button says what it will actually do. */
+.mem2-btn-primary.is-ask { background:var(--amber); color:var(--bg); }
+
+/* ── Timeline / Gantt: the full inventory under the chart ──
+   The chart can only draw what has a cron expression, so on-demand missions and
+   continuous watchers were invisible in Gantt mode. They are listed here. */
+.tl-inventaire { margin-top:10px; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+.tl-inv-head {
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:6px 10px; background:rgba(255,255,255,0.03);
+  font-size:11px; text-transform:uppercase; letter-spacing:.4px; color:var(--text-muted);
+}
+/* One detail card per item, the same the chart shows when a lane is clicked. */
+.tl-inv-cartes { display:flex; flex-direction:column; gap:8px; padding:10px; }
+.tl-inv-cartes .gantt-detail { margin:0; }
+.gantt-row--actif { outline:1px solid var(--amber); outline-offset:-1px; }

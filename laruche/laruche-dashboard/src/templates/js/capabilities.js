@@ -34,6 +34,8 @@ LaRuche.i18n.add({
   'capabilities.showChats':     { fr:'Afficher Chats',    en:'Show Chats' },
   'capabilities.now':           { fr:'maintenant',        en:'now' },
   'capabilities.noScheduled':   { fr:'Aucune action programmée', en:'No scheduled action' },
+  'capabilities.nextBadge':     { fr:'PROCHAIN',          en:'NEXT' },
+  'capabilities.backToNext':    { fr:'Revenir au prochain événement', en:'Back to the next event' },
   'capabilities.cronNoName':    { fr:'(cron sans nom)',   en:'(unnamed cron)' },
   'capabilities.missionNoName': { fr:'(mission)',         en:'(mission)' },
   'capabilities.nextAction':    { fr:'&#x23F0; Prochaine : ', en:'&#x23F0; Next: ' },
@@ -47,6 +49,8 @@ LaRuche.i18n.add({
   'capabilities.you':           { fr:'Vous',              en:'You' },
   'capabilities.noMatchFilter': { fr:'Aucun événement ne correspond aux filtres actifs.', en:'No event matches the active filters.' },
   'capabilities.filtersAll':    { fr:'tout',               en:'all' },
+  'capabilities.filtersNone':   { fr:'aucun',              en:'none' },
+  'capabilities.filtersEvery':  { fr:'tout',               en:'all' },
   'capabilities.noActivity':    { fr:'Aucune activité pour le moment.', en:'No activity yet.' },
   'capabilities.laruchemusing': { fr:'LaRuche réfléchit', en:'LaRuche is thinking' },
   'capabilities.laruchemusingEllipsis': { fr:'LaRuche réfléchit…', en:'LaRuche is thinking…' },
@@ -617,6 +621,25 @@ LaRuche.Feed = (function(){
     applyFiltersOpen();
   }
 
+  // Eleven chips is a lot to switch off one by one. A single control does the sweep, and
+  // flips meaning once everything is off so the same button brings them all back.
+  // Anything still on means the sweep clears; nothing on means it restores everything.
+  // One rule, read by both the label and the action, so they can never disagree.
+  function balayageVide(){
+    return Object.keys(DEFAULT_FILTERS).some(function(k){ return filters[k] !== false; });
+  }
+  function applyBasculeUI(){
+    var b = document.getElementById('feedFiltersBascule'); if(!b) return;
+    b.textContent = LaRuche.i18n.t(balayageVide() ? 'capabilities.filtersNone' : 'capabilities.filtersEvery');
+  }
+  function basculerTous(){
+    var vider = balayageVide();
+    Object.keys(DEFAULT_FILTERS).forEach(function(k){ filters[k] = !vider; });
+    saveFilters();
+    applyFilterUI();
+    reRender();
+  }
+
   function passFilter(ev){
     var kind = kindOf(ev);
     if(KINDS_CANAUX[kind]) kind = 'canaux';
@@ -658,21 +681,60 @@ LaRuche.Feed = (function(){
     try{ crons = await fetch('/api/cron').then(function(r){return r.json();}); }catch(e){}
     try{ missions = await fetch('/api/missions').then(function(r){return r.json();}); }catch(e){}
     var now = Date.now();
-    var best = null;
+    // Several occurrences per source, not just the soonest: a daily cron would otherwise
+    // fill all five slots by itself and hide everything else. Four each is enough to
+    // survive the merge and cheap to compute (nextCron walks minutes, capped at a year).
+    var PAR_SOURCE = 4, A_MONTRER = 5;
+    var ech = [];
+    function recolter(expr, nom, genre){
+      if(!expr) return;
+      var t = now;
+      for(var i=0; i<PAR_SOURCE; i++){
+        var nx = TL.nextCron(expr, t);
+        if(nx == null) return;               // unparseable cadence: nothing to show
+        ech.push({ when:nx, name:nom, human:TL.humanCron(expr), kind:genre });
+        t = nx + 60000;                      // step past it to get the following one
+      }
+    }
     (crons||[]).forEach(function(c){
       if(c.enabled===false) return;
-      var nx = TL.nextCron(c.cron_expr, now);
-      if(nx!=null && (!best || nx<best.next)) best = { next:nx, name:c.name||LaRuche.i18n.t('capabilities.cronNoName'), human:TL.humanCron(c.cron_expr) };
+      recolter(c.cron_expr, c.name||LaRuche.i18n.t('capabilities.cronNoName'), 'cron');
     });
     (missions||[]).forEach(function(mi){
-      var cad = mi.cadence || mi.cron_expr || mi.schedule || '';
-      if(!cad) return;
-      var nx = TL.nextCron(cad, now);
-      if(nx!=null && (!best || nx<best.next)) best = { next:nx, name:mi.objective||mi.title||mi.slug||LaRuche.i18n.t('capabilities.missionNoName'), human:TL.humanCron(cad) };
+      recolter(mi.cadence || mi.cron_expr || mi.schedule || '',
+               mi.objective||mi.title||mi.slug||LaRuche.i18n.t('capabilities.missionNoName'), 'mission');
     });
-    if(!best){ el.innerHTML = LaRuche.i18n.t('capabilities.noScheduled'); return; }
-    el.innerHTML = LaRuche.i18n.t('capabilities.nextAction')+'<strong>'+esc(best.name)+'</strong> '+LaRuche.i18n.t('capabilities.inDelta')+esc(humanDelta(best.next-now))+
-      ' <span class="fn-sub">('+esc(best.human||'')+')</span>';
+    if(!ech.length){ el.innerHTML = LaRuche.i18n.t('capabilities.noScheduled'); return; }
+    ech.sort(function(a,b){ return a.when - b.when; });
+    ech = ech.slice(0, A_MONTRER);
+
+    var ico = { cron:'⏰', mission:'👑' };
+    el.innerHTML =
+      '<div class="fn-piste" id="feedNextPiste">' +
+        ech.map(function(e, i){
+          return '<article class="fn-carte'+(i===0?' fn-carte--prochain':'')+'">'+
+            '<div class="fn-rang">'+(i===0 ? LaRuche.i18n.t('capabilities.nextBadge') : '+'+i)+'</div>'+
+            '<div class="fn-corps">'+
+              '<div class="fn-nom">'+(ico[e.kind]||'•')+' '+esc(e.name)+'</div>'+
+              '<div class="fn-quand"><strong>'+esc(humanDelta(e.when-now))+'</strong>'+
+                '<span class="fn-sub"> · '+esc(e.human||'')+'</span></div>'+
+            '</div></article>';
+        }).join('') +
+      '</div>' +
+      '<button class="fn-retour" id="feedNextRetour" hidden aria-label="'+
+        esc(LaRuche.i18n.t('capabilities.backToNext'))+'" title="'+
+        esc(LaRuche.i18n.t('capabilities.backToNext'))+'">&#x2190;</button>';
+
+    // The return control only exists once you have scrolled away from the first card:
+    // a button that does nothing is worse than no button.
+    var piste = document.getElementById('feedNextPiste');
+    var retour = document.getElementById('feedNextRetour');
+    if(piste && retour){
+      var majRetour = function(){ retour.hidden = piste.scrollLeft < 12; };
+      piste.addEventListener('scroll', majRetour, { passive:true });
+      retour.onclick = function(){ piste.scrollTo({ left:0, behavior:'smooth' }); };
+      majRetour();
+    }
   }
 
   // ── Event list ─────────────────────────────────────
@@ -821,11 +883,12 @@ LaRuche.Feed = (function(){
   function applyFilterUI(){
     var bar = document.getElementById('feedFilters');
     if(!bar) return;
-    bar.querySelectorAll('.ff-chip').forEach(function(c){
+    bar.querySelectorAll('.ff-chip[data-filter]').forEach(function(c){
       var f = c.dataset.filter;
       c.classList.toggle('active', !!filters[f]);
     });
     applyFiltersSummary();
+    applyBasculeUI();
   }
   function reRender(){
     lastSig = '';                 // force re-render despite the anti-flicker
@@ -841,6 +904,14 @@ LaRuche.Feed = (function(){
     // docked mode: push the content (only when anchored AND open)
     document.body.classList.toggle('feed-docked', anchored && open);
     if(LaRuche.Mesh) LaRuche.Mesh.repositionWindows();
+    /* Docking takes 360px off the header while the WINDOW keeps its width, so no media
+     * query fires and the header tabs have to be re-measured. The ResizeObserver would
+     * catch it, but the padding change is animated: this call settles the nav at once,
+     * and again at the end of the transition. fitNav is idempotent. */
+    if(LaRuche.Header && LaRuche.Header.fitNav){
+      LaRuche.Header.fitNav();
+      setTimeout(LaRuche.Header.fitNav, 300);
+    }
   }
 
   function openDrawer(){
@@ -882,9 +953,12 @@ LaRuche.Feed = (function(){
     applyFilterUI();
     var head = document.getElementById('feedFiltersHead');
     if(head) head.onclick = toggleFilters;
+    var bascule = document.getElementById('feedFiltersBascule');
+    if(bascule) bascule.onclick = basculerTous;
     var bar = document.getElementById('feedFilters');
     if(bar){
-      bar.querySelectorAll('.ff-chip').forEach(function(c){
+      // [data-filter] only: the sweep button shares the chip look but is not a filter.
+      bar.querySelectorAll('.ff-chip[data-filter]').forEach(function(c){
         c.onclick = function(){
           var f = c.dataset.filter;
           filters[f] = !filters[f];

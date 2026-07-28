@@ -427,13 +427,16 @@ pub async fn juger(
         serde_json::json!({ "role": "system", "content": PROMPT_JUGE }),
         serde_json::json!({ "role": "user", "content": user }),
     ];
+    // Bound to a local: the future built here is awaited below, so a temporary would be
+    // dropped while still borrowed.
+    let cle = crate::secrets::substituer(&config.api_key);
     let appel = crate::providers::provider_chat_stream(
         &config.provider,
         config.aux_model.as_deref().unwrap_or(&config.model),
         &messages,
         0.0,
         16,
-        &config.api_key,
+        &cle,
         config.api_base.as_deref(),
         &config.ollama_url,
         None,

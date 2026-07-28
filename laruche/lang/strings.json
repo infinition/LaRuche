@@ -183,6 +183,14 @@
     "en": "hours",
     "fr": "heures"
   },
+  "automations.inventaireTitre": {
+    "en": "All items",
+    "fr": "Tout ce qui existe"
+  },
+  "automations.inventaireTout": {
+    "en": "Show all",
+    "fr": "Tout afficher"
+  },
   "automations.jamais": {
     "en": "never",
     "fr": "jamais"
@@ -367,6 +375,10 @@
     "en": "Arguments",
     "fr": "Arguments"
   },
+  "capabilities.backToNext": {
+    "en": "Back to the next event",
+    "fr": "Revenir au prochain événement"
+  },
   "capabilities.capacities": {
     "en": "capability(-ies)",
     "fr": "capacité(s)"
@@ -458,6 +470,14 @@
   "capabilities.filtersAll": {
     "en": "all",
     "fr": "tout"
+  },
+  "capabilities.filtersEvery": {
+    "en": "all",
+    "fr": "tout"
+  },
+  "capabilities.filtersNone": {
+    "en": "none",
+    "fr": "aucun"
   },
   "capabilities.hideChats": {
     "en": "Hide Chats",
@@ -566,6 +586,10 @@
   "capabilities.nextAction": {
     "en": "&#x23F0; Next: ",
     "fr": "&#x23F0; Prochaine : "
+  },
+  "capabilities.nextBadge": {
+    "en": "NEXT",
+    "fr": "PROCHAIN"
   },
   "capabilities.noActivity": {
     "en": "No activity yet.",
@@ -2007,9 +2031,21 @@
     "en": "Agent running...",
     "fr": "Agent en cours..."
   },
+  "memory.agentStalledTitle": {
+    "en": "No answer for 10 min: the run failed or LaRuche restarted. You can delete this item.",
+    "fr": "Sans réponse depuis 10 min : la mission a échoué ou LaRuche a redémarré. Tu peux supprimer cet item."
+  },
   "memory.alreadyDefault": {
     "en": "Already at default (no item)",
     "fr": "Déjà au défaut (aucun item)"
+  },
+  "memory.askLaRuche": {
+    "en": "Ask LaRuche",
+    "fr": "Demander à LaRuche"
+  },
+  "memory.askLaRucheHint": {
+    "en": "ask her to enrich this node",
+    "fr": "lui demander d’enrichir ce nœud"
   },
   "memory.bySourceLaRuche": {
     "en": "by LaRuche",
@@ -2260,8 +2296,8 @@
     "fr": "Déplacer vers node_id"
   },
   "memory.newMemoryPlaceholder": {
-    "en": "New memory (markdown, [[links]] supported)...",
-    "fr": "Nouveau souvenir (markdown, [[liens]] supportés)..."
+    "en": "New memory (markdown, [[links]] supported)…  —  or start with @LaRuche to ask her to enrich this node herself.",
+    "fr": "Nouveau souvenir (markdown, [[liens]] supportés)…  —  ou commence par @LaRuche pour lui demander d'enrichir ce nœud elle-même."
   },
   "memory.newRootPrompt": {
     "en": "Name of the new root folder:",
@@ -2815,6 +2851,30 @@
     "en": "LaReine: {mode}",
     "fr": "LaReine : {mode}"
   },
+  "reine.dataset": {
+    "en": "Collect reviews as training data",
+    "fr": "Collecter les revues comme données d'entraînement"
+  },
+  "reine.datasetDpo": {
+    "en": "Export DPO pairs",
+    "fr": "Exporter paires DPO"
+  },
+  "reine.datasetExporting": {
+    "en": "Exporting {format}…",
+    "fr": "Export {format}…"
+  },
+  "reine.datasetHint": {
+    "en": "Off by default. Each review already produces a request, the draft LaReine refused, the one she accepted and her reasoning — a preference pair for free. Turning this on keeps the FULL TEXT of those exchanges on disk (secrets masked). Note: training a model on judgements from a model of the same level amplifies its biases; this pays off when LaReine runs on a stronger model than the target.",
+    "fr": "Désactivé par défaut. Chaque revue produit déjà une demande, le brouillon refusé par LaReine, celui qu'elle a accepté et son raisonnement — une paire de préférence gratuite. Activer conserve le TEXTE COMPLET de ces échanges sur disque (secrets masqués). À savoir : entraîner un modèle sur les jugements d'un modèle de même niveau amplifie ses biais ; ça paie quand LaReine tourne sur un modèle plus fort que la cible."
+  },
+  "reine.datasetJudge": {
+    "en": "Export judge (distillation)",
+    "fr": "Exporter juge (distillation)"
+  },
+  "reine.datasetSft": {
+    "en": "Export SFT",
+    "fr": "Exporter SFT"
+  },
   "reine.disableNotice": {
     "en": "LaReine disabled. {n} proposals remain pending (Memory > Pending). New writes apply directly.",
     "fr": "Reine désactivée. {n} propositions restent en attente (Mémoire > En attente). Les nouvelles écritures s'appliquent directement."
@@ -3159,6 +3219,46 @@
     "en": "Add Provider",
     "fr": "Ajouter un provider"
   },
+  "settings.adminPwChanged": {
+    "en": "Password changed for {name}",
+    "fr": "Mot de passe changé pour {name}"
+  },
+  "settings.adminPwForbidden": {
+    "en": "Only the super-admin can reset a password.",
+    "fr": "Seul le super-admin peut réinitialiser un mot de passe."
+  },
+  "settings.adminPwMismatch": {
+    "en": "The two entries differ",
+    "fr": "Les deux saisies diffèrent"
+  },
+  "settings.adminPwTooShort": {
+    "en": "At least 8 characters",
+    "fr": "8 caractères minimum"
+  },
+  "settings.adminSetPw": {
+    "en": "Password",
+    "fr": "Mot de passe"
+  },
+  "settings.adminSetPwConfirm": {
+    "en": "Type it again to confirm",
+    "fr": "Retape-le pour confirmer"
+  },
+  "settings.adminSetPwPrompt": {
+    "en": "New password for {name} (min. 8 characters). The current one is neither needed nor shown.",
+    "fr": "Nouveau mot de passe pour {name} (8 caractères min.). L'actuel n'est ni demandé ni affiché."
+  },
+  "settings.adminSuper": {
+    "en": "super-admin",
+    "fr": "super-admin"
+  },
+  "settings.adminSuperHint": {
+    "en": "Founding account: cannot be demoted or deleted, and is the only one able to reset passwords.",
+    "fr": "Compte fondateur : ne peut être ni rétrogradé ni supprimé, et seul à pouvoir réinitialiser les mots de passe."
+  },
+  "settings.agentReactionsHint": {
+    "en": "LaRuche may leave an emoji on your message, the way you can on hers. Costs a little prompt budget each turn.",
+    "fr": "LaRuche peut laisser un emoji sur ton message, comme tu peux le faire sur les siens. Coûte un peu de budget de prompt à chaque tour."
+  },
   "settings.agentReactionsLabel": {
     "en": "Agent reactions",
     "fr": "Réactions de l'agent"
@@ -3354,6 +3454,10 @@
   "settings.channelsSaved": {
     "en": "Channels config saved",
     "fr": "Config des canaux sauvegardée"
+  },
+  "settings.chatSectionHint": {
+    "en": "What shows up in the conversation. Nothing here changes how LaRuche thinks or answers.",
+    "fr": "Ce qui apparaît dans la conversation. Rien ici ne change la façon dont LaRuche réfléchit ou répond."
   },
   "settings.codexConnectInstr": {
     "en": "To connect:",
@@ -3879,6 +3983,22 @@
     "en": "Configure local MCP servers. LaRuche will use them to extend its capabilities via agents.",
     "fr": "Configurez des serveurs MCP locaux. LaRuche les utilisera pour étendre ses capacités via les agents."
   },
+  "settings.mcpExposedDesc": {
+    "en": "Exactly what an authorised external client can call, most dangerous first.",
+    "fr": "Exactement ce qu'un client externe autorisé peut appeler, le plus dangereux en premier."
+  },
+  "settings.mcpExposedNone": {
+    "en": "No tool registered.",
+    "fr": "Aucun outil enregistré."
+  },
+  "settings.mcpExposedOffInfo": {
+    "en": "{n} tool(s) switched off in Settings > Tools are excluded: what is off there is off here too.",
+    "fr": "{n} outil(s) désactivé(s) dans Réglages > Outils sont exclus : ce qui est coupé là-bas l'est aussi ici."
+  },
+  "settings.mcpExposedTitle": {
+    "en": "Tools reachable over MCP ({n})",
+    "fr": "Outils joignables via MCP ({n})"
+  },
   "settings.mcpNameLabel": {
     "en": "Server name",
     "fr": "Nom du serveur"
@@ -3959,6 +4079,10 @@
     "en": "Below this n_ctx, tools AND skill catalog switch to dynamic selection (semantic DB)",
     "fr": "Sous ce n_ctx, outils ET catalogue de skills passent en sélection dynamique (DB sémantique)"
   },
+  "settings.navChat": {
+    "en": "Chat",
+    "fr": "Chat"
+  },
   "settings.newBlueprintBtn": {
     "en": "+ New blueprint",
     "fr": "+ Nouveau blueprint"
@@ -4015,6 +4139,10 @@
     "en": "Enable proactive notifications",
     "fr": "Activer Notifier proactif"
   },
+  "settings.onbOptional": {
+    "en": "Optional — LaRuche works without it",
+    "fr": "Optionnel — LaRuche fonctionne sans"
+  },
   "settings.optional": {
     "en": "optional",
     "fr": "optionnel"
@@ -4050,6 +4178,34 @@
   "settings.pfIdReadonly": {
     "en": " (read-only)",
     "fr": " (lecture seule)"
+  },
+  "settings.pfKeyCreateNew": {
+    "en": "+ New entry…",
+    "fr": "+ Nouvelle entrée…"
+  },
+  "settings.pfKeyModeManual": {
+    "en": "Type the key",
+    "fr": "Saisir la clé"
+  },
+  "settings.pfKeyModeVault": {
+    "en": "Pick from the vault",
+    "fr": "Choisir dans le coffre"
+  },
+  "settings.pfKeyNewName": {
+    "en": "Name of the new vault entry (e.g. OPENAI_KEY)",
+    "fr": "Nom de la nouvelle entrée du coffre (ex. OPENAI_KEY)"
+  },
+  "settings.pfKeyNewValue": {
+    "en": "Value for {name}",
+    "fr": "Valeur pour {name}"
+  },
+  "settings.pfKeyPickPrompt": {
+    "en": "— pick an entry —",
+    "fr": "— choisir une entrée —"
+  },
+  "settings.pfKeyVaultHint": {
+    "en": "The profile stores a ${NAME} reference, not the key itself. Change the value once in Secrets and every profile using it follows.",
+    "fr": "Le profil enregistre une référence ${NOM}, pas la clé. Change la valeur une fois dans Secrets et tous les profils qui l'utilisent suivent."
   },
   "settings.pfModelsLabel": {
     "en": "Models (comma-separated, auto-detected for Ollama)",
@@ -4211,9 +4367,17 @@
     "en": "Name and value required",
     "fr": "Nom et valeur requis"
   },
+  "settings.secretNewValuePlaceholder": {
+    "en": "New value (the old one is never shown)",
+    "fr": "Nouvelle valeur (l'ancienne n'est jamais affichée)"
+  },
   "settings.secretNone": {
     "en": "None.",
     "fr": "Aucun."
+  },
+  "settings.secretRotating": {
+    "en": "Replace the value of {name}",
+    "fr": "Remplacer la valeur de {name}"
   },
   "settings.secretSave": {
     "en": "Save",
@@ -4226,6 +4390,10 @@
   "settings.secretSaved": {
     "en": "Secret saved",
     "fr": "Secret enregistré"
+  },
+  "settings.secretUpdateBtn": {
+    "en": "Update",
+    "fr": "Mettre à jour"
   },
   "settings.secretValLabel": {
     "en": "Value (never shown again)",
@@ -4274,6 +4442,10 @@
   "settings.showTransparency": {
     "en": "Show transparency (tools/memory)",
     "fr": "Afficher la transparence (outils/mémoire)"
+  },
+  "settings.showTransparencyHint": {
+    "en": "In the chat thread, show which tools the agent picked and how many memories it used. Display only — it changes nothing to how LaRuche works.",
+    "fr": "Dans le fil du chat, montre les outils que l'agent a choisis et le nombre de mémoires utilisées. Affichage seulement — ça ne change rien au fonctionnement de LaRuche."
   },
   "settings.skillActivated": {
     "en": "enabled",
@@ -5022,6 +5194,10 @@
   "shell.tipCwd": {
     "en": "Show/Hide the working directory",
     "fr": "Afficher/Masquer le répertoire de travail"
+  },
+  "shell.tipFilterToggleAll": {
+    "en": "Select / deselect every filter",
+    "fr": "Tout sélectionner / tout désélectionner"
   },
   "shell.tipFilters": {
     "en": "Show / hide the filters",
