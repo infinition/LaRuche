@@ -424,30 +424,12 @@ pub(crate) async fn lancer_iteration_mission(state: Arc<AppState>, mission: miss
 
 /// Minimal text-message delivery to a Telegram channel (`telegram:<chat_id>`).
 /// No-op if the channel is not Telegram or the bot is not configured.
+/// Delivers a message on a channel. Kept under its old name because six call sites use
+/// it, but it no longer knows only Telegram: it forwards to the shared sender, which
+/// handles Discord and Slack as well. It also no longer requires an explicit chat id,
+/// falling back to the first entry of the allow list like the rest of the delivery path.
 pub(crate) async fn livrer_telegram(channel: &str, text: &str) {
-    if !channel.starts_with("telegram") {
-        return; // other channels: to extend (discord/slack) later
-    }
-    let chat_id = channel.strip_prefix("telegram:").unwrap_or("").trim();
-    if chat_id.is_empty() {
-        return;
-    }
-    let Ok(content) = std::fs::read_to_string(std::path::Path::new("channels-config.json")) else {
-        return;
-    };
-    let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&content) else {
-        return;
-    };
-    let token = cfg["telegram"]["bot_token"].as_str().unwrap_or("");
-    if token.is_empty() {
-        return;
-    }
-    let client = reqwest::Client::new();
-    let _ = client
-        .post(format!("https://api.telegram.org/bot{}/sendMessage", token))
-        .json(&serde_json::json!({ "chat_id": chat_id, "text": text }))
-        .send()
-        .await;
+    crate::background::livrer_message(channel, text).await;
 }
 
 /// GET /api/butinage/carnets - lists UNFINISHED butinage notebooks (resumable).

@@ -352,6 +352,130 @@ pub(crate) async fn livrer_en_memoire(
     }
 }
 
+/// Reads a channel spec `nom` or `nom:cible`, e.g. `telegram`, `discord:123`, `slack:#veille`.
+fn decoupe_canal(canal: &str) -> (&str, &str) {
+    match canal.split_once(':') {
+        Some((nom, cible)) => (nom, cible.trim()),
+        None => (canal, ""),
+    }
+}
+
+/// First entry of a comma-separated allow list, used when the spec names no target.
+fn premiere_cible(cfg: &serde_json::Value, cle: &str) -> String {
+    cfg[cle]
+        .as_str()
+        .unwrap_or("")
+        .split(',')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_string()
+}
+
+/// Delivers the outcome of a scheduled run on the requested channel.
+///
+/// Delivery used to be a single `starts_with("telegram")` branch written inline in the
+/// cron loop: a task set to Discord ran, produced its answer, and dropped it. The picker
+/// offered a channel the server could not honour, and Slack was not even offered although
+/// it was configured. One function now knows the four, and it is called from one place so
+/// watchers and research can reuse it.
+pub(crate) async fn livrer_resultat(
+    state: &Arc<AppState>,
+    canal: &str,
+    origine: &str,
+    titre: &str,
+    resultat: Result<&str, String>,
+) {
+    if canal == crate::CANAL_MEMOIRE {
+        livrer_en_memoire(state, origine, titre, resultat).await;
+        return;
+    }
+    let texte = match &resultat {
+        Ok(r) => format!("**{titre}**\n\n{r}"),
+        Err(e) => format!("**{titre}** a echoue\n\n{e}"),
+    };
+    livrer_message(canal, &texte).await;
+}
+
+/// Sends a ready-made message on a chat channel.
+///
+/// Split out of [`livrer_resultat`] so the watchers, the kanban and the missions reach the
+/// same three services: all six of their call sites went through a helper that returned
+/// early for anything other than Telegram, with a comment promising the rest for later.
+pub(crate) async fn livrer_message(canal: &str, texte: &str) {
+    let (nom, cible) = decoupe_canal(canal);
+    let Ok(contenu) = std::fs::read_to_string("channels-config.json") else {
+        warn!(channel = canal, "no channels-config.json: nothing delivered");
+        return;
+    };
+    let Ok(cfg) = serde_json::from_str::<serde_json::Value>(&contenu) else {
+        warn!("channels-config.json unreadable: nothing delivered");
+        return;
+    };
+    let client = reqwest::Client::new();
+
+    match nom {
+        "telegram" => {
+            let bloc = &cfg["telegram"];
+            let token = bloc["bot_token"].as_str().unwrap_or("");
+            let chat = if cible.is_empty() {
+                premiere_cible(bloc, "allowed_chats")
+            } else {
+                cible.to_string()
+            };
+            if token.is_empty() || chat.is_empty() {
+                warn!("telegram not configured: nothing delivered");
+                return;
+            }
+            let _ = client
+                .post(format!("https://api.telegram.org/bot{token}/sendMessage"))
+                .json(&serde_json::json!({
+                    "chat_id": chat, "text": texte, "parse_mode": "Markdown"
+                }))
+                .send()
+                .await;
+        }
+        "discord" => {
+            let bloc = &cfg["discord"];
+            let token = bloc["bot_token"].as_str().unwrap_or("");
+            let salon = if cible.is_empty() {
+                premiere_cible(bloc, "allowed_channels")
+            } else {
+                cible.to_string()
+            };
+            if token.is_empty() || salon.is_empty() {
+                warn!("discord not configured: nothing delivered");
+                return;
+            }
+            let _ = client
+                .post(format!(
+                    "https://discord.com/api/v10/channels/{salon}/messages"
+                ))
+                .header("Authorization", format!("Bot {token}"))
+                .json(&serde_json::json!({ "content": texte }))
+                .send()
+                .await;
+        }
+        "slack" => {
+            let bloc = &cfg["slack"];
+            let token = bloc["bot_token"].as_str().unwrap_or("");
+            if token.is_empty() || cible.is_empty() {
+                // Slack has no allow list to fall back on: without an explicit channel
+                // there is nowhere to post, and guessing one would be worse than saying so.
+                warn!("slack: no target channel, nothing delivered");
+                return;
+            }
+            let _ = client
+                .post("https://slack.com/api/chat.postMessage")
+                .header("Authorization", format!("Bearer {token}"))
+                .json(&serde_json::json!({ "channel": cible, "text": texte }))
+                .send()
+                .await;
+        }
+        autre => warn!(channel = autre, "unknown delivery channel"),
+    }
+}
+
 pub(crate) fn spawn_cron_checker(state: &Arc<AppState>) {
     let cron_state = state.clone();
     tokio::spawn(async move {
@@ -479,55 +603,22 @@ pub(crate) fn spawn_cron_checker(state: &Arc<AppState>) {
                 // (otherwise a channel-less test cron spams Telegram). A cron created FROM Telegram
                 // already captures ctx.channel=telegram → "notify me" works; a cron created
                 // in the UI without a channel stays silent (feed/UI only).
+                // One place that knows how to deliver, instead of a single branch for
+                // Telegram and silence for everything the picker offered.
                 let delivery_channel = channel.filter(|s| !s.is_empty());
                 if let Some(ch) = delivery_channel {
-                    if ch == crate::CANAL_MEMOIRE {
-                        livrer_en_memoire(
-                            &cron_state,
-                            "cron",
-                            &preview_text(&prompt, 60),
-                            match &result {
-                                Ok(r) => Ok(r.as_str()),
-                                Err(e) => Err(e.to_string()),
-                            },
-                        )
-                        .await;
-                    } else if ch.starts_with("telegram") {
-                        let chat_id = ch.strip_prefix("telegram:").unwrap_or("").trim();
-                        let config_path = std::path::Path::new("channels-config.json");
-                        if let Ok(content) = std::fs::read_to_string(config_path) {
-                            if let Ok(config) = serde_json::from_str::<serde_json::Value>(&content)
-                            {
-                                let token = config["telegram"]["bot_token"].as_str().unwrap_or("");
-                                let target_chat = if chat_id.is_empty() {
-                                    let chats_str =
-                                        config["telegram"]["allowed_chats"].as_str().unwrap_or("");
-                                    chats_str.split(',').next().unwrap_or("").trim()
-                                } else {
-                                    chat_id
-                                };
-                                if !token.is_empty() && !target_chat.is_empty() {
-                                    let msg = match &result {
-                                        Ok(r) => format!("🤖 *Cron Task*\n\n{}", r),
-                                        Err(e) => format!("❌ *Cron Failed*\n\n{}", e),
-                                    };
-                                    let client = reqwest::Client::new();
-                                    let _ = client
-                                        .post(&format!(
-                                            "https://api.telegram.org/bot{}/sendMessage",
-                                            token
-                                        ))
-                                        .json(&serde_json::json!({
-                                            "chat_id": target_chat,
-                                            "text": msg,
-                                            "parse_mode": "Markdown"
-                                        }))
-                                        .send()
-                                        .await;
-                                }
-                            }
-                        }
-                    }
+                    livrer_resultat(
+                        &cron_state,
+                        &ch,
+                        "cron",
+                        &preview_text(&prompt, 60),
+                        match &result {
+                            Ok(r) => Ok(r.as_str()),
+                            Err(e) => Err(e.to_string()),
+                        },
+                    )
+                    .await;
+                    let _ = &prompt;
                 } else {
                     log_activite_riche(
                         &cron_state,
@@ -1358,5 +1449,28 @@ mod tests_corbeille {
         assert_eq!(horodatage_corbeille("orphans.projects_1753660800.sub"), None);
         // Legacy entry with no stamp: left alone rather than purged on a guess.
         assert_eq!(horodatage_corbeille("orphans.projects"), None);
+    }
+}
+
+#[cfg(test)]
+mod tests_livraison {
+    use super::{decoupe_canal, premiere_cible};
+
+    #[test]
+    fn lit_le_canal_et_sa_cible() {
+        assert_eq!(decoupe_canal("telegram"), ("telegram", ""));
+        assert_eq!(decoupe_canal("telegram:12345"), ("telegram", "12345"));
+        assert_eq!(decoupe_canal("discord:987"), ("discord", "987"));
+        // Slack channel names carry a #, which must survive intact.
+        assert_eq!(decoupe_canal("slack:#veille"), ("slack", "#veille"));
+        assert_eq!(decoupe_canal("memory"), ("memory", ""));
+    }
+
+    #[test]
+    fn prend_la_premiere_cible_autorisee() {
+        let cfg = serde_json::json!({ "allowed_chats": " 111 , 222 ,333 " });
+        assert_eq!(premiere_cible(&cfg, "allowed_chats"), "111");
+        let vide = serde_json::json!({});
+        assert_eq!(premiere_cible(&vide, "allowed_chats"), "");
     }
 }

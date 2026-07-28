@@ -1599,9 +1599,12 @@ LaRuche.Memory = (function(){
     });
     svg.innerHTML = html;
 
+    // NB: no click listener on the <g>. Hovering redraws the whole svg, so the node that
+    // was pressed is destroyed before the button comes back up: the browser retargets the
+    // event to the <svg> and never fires a click at all. The press is resolved by hit test
+    // in grapheGestes instead, which asks the CURRENT tree and is therefore never stale.
     svg.querySelectorAll('.mem2-gnode').forEach(function(g){
       var id = g.dataset.node;
-      g.addEventListener('click', function(){ ouvrirDepuisGraphe(id); });
       g.addEventListener('mouseenter', function(){ GRAPHE.survole = id; grapheDessiner(); });
       g.addEventListener('mouseleave', function(){ GRAPHE.survole = null; grapheDessiner(); });
     });
@@ -1673,10 +1676,35 @@ LaRuche.Memory = (function(){
       grapheDessiner();
     }, { passive:false });
 
+    // Which node sits under a pointer position, asked of the CURRENT tree. Deliberately
+    // not ev.target: the hover redraw swaps the whole svg content, so by the time an event
+    // is dispatched the pressed <g> is gone and the browser reports the <svg> instead.
+    function noeudSous(ev){
+      var el = document.elementFromPoint(ev.clientX, ev.clientY);
+      var g = (el && el.closest) ? el.closest('.mem2-gnode') : null;
+      return g ? g.dataset.node : null;
+    }
+
     var glisse = null;
+    var presse = null;   // node the press started on, plus where it started
+    function debutPresse(ev){
+      presse = { id:noeudSous(ev), x:ev.clientX, y:ev.clientY };
+    }
+    // Open only if the press did not travel and comes back up on the same node: a drag is
+    // a pan, and a release somewhere else is a change of mind.
+    function finPresse(ev){
+      var p = presse; presse = null;
+      if(!p || !p.id) return;
+      if(Math.abs(ev.clientX - p.x) > 4 || Math.abs(ev.clientY - p.y) > 4) return;
+      if(noeudSous(ev) !== p.id) return;
+      ouvrirDepuisGraphe(p.id);
+    }
+
     svg.addEventListener('pointerdown', function(ev){
       glisse = { x:ev.clientX, y:ev.clientY, v:Object.assign({}, GRAPHE.vue) };
-      svg.setPointerCapture(ev.pointerId);
+      debutPresse(ev);
+      // Throws when the id is not an active pointer; the drag and the press must survive it.
+      try { svg.setPointerCapture(ev.pointerId); } catch(e){}
       svg.style.cursor = 'grabbing';
     });
     svg.addEventListener('pointermove', function(ev){
@@ -1686,9 +1714,13 @@ LaRuche.Memory = (function(){
       GRAPHE.vue.y = glisse.v.y - (ev.clientY - glisse.y) / r.height * glisse.v.h;
       grapheDessiner();
     });
-    function fin(){ glisse = null; svg.style.cursor = ''; }
+    function fin(ev){ finPresse(ev); glisse = null; svg.style.cursor = ''; }
     svg.addEventListener('pointerup', fin);
-    svg.addEventListener('pointercancel', fin);
+    svg.addEventListener('pointercancel', function(){ presse = null; glisse = null; svg.style.cursor = ''; });
+    // Mouse fallback for anything that emits no pointer events. finPresse clears `presse`,
+    // so whichever pair fires first wins and the second pass is a no-op.
+    svg.addEventListener('mousedown', debutPresse);
+    svg.addEventListener('mouseup', finPresse);
 
     // A panel that changes shape, on a window resize or when the sidebar folds, must not
     // leave the drawing stretched. Redraw only: grapheDessiner corrects the aspect around
