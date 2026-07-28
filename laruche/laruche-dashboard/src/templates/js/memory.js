@@ -129,6 +129,14 @@ LaRuche.i18n.add({
   'memory.trashEmptied':          {fr:'Corbeille videe', en:'Trash emptied'},
   'memory.trashIntro':            {fr:'Les noeuds supprimes atterrissent ici avant d\'etre effaces. Ils partent seuls au bout de sept jours ; le bouton ci-dessous ne fait qu\'accelerer.', en:'Deleted nodes land here before being erased. They go on their own after seven days; the button below only speeds that up.'},
   'memory.trashEmptyState':       {fr:'Corbeille vide.', en:'The trash is empty.'},
+  'memory.noteTools':             {fr:'Outils natifs, compiles dans LaRuche. Ni modifiables ni supprimables : leur source est le code. Pour ajouter un outil a toi, forge un plugin depuis l\'onglet Capacites.', en:'Built-in tools, compiled into LaRuche. Neither editable nor removable: their source is the code. To add a tool of your own, forge a plugin from the Capabilities tab.'},
+  'memory.notePlugins':           {fr:'Outils forges, par toi ou par l\'agent. C\'est ici que se cree un outil sur mesure : onglet Capacites, ou plugin_create pour l\'agent. La source est plugins/<nom>/plugin.json ; cette page n\'en est que le reflet.', en:'Forged tools, by you or by the agent. This is where a custom tool is made: Capabilities tab, or plugin_create for the agent. The source is plugins/<name>/plugin.json; this page only mirrors it.'},
+  'memory.noteMcp':               {fr:'Outils exposes par un serveur MCP. Le serveur s\'ajoute, se regle et s\'active dans l\'onglet Capacites ; ses outils, eux, sont declares par le serveur lui-meme, pas par un fichier local.', en:'Tools exposed by an MCP server. The server is added, configured and switched on from the Capabilities tab; its tools are declared by the server itself, not by a local file.'},
+  'memory.noteSkills':            {fr:'Procedures. Elles se creent dans l\'onglet Capacites ou avec skill_create, et vivent dans skills/<nom>/SKILL.md, synchronise dans les deux sens avec cette page. Le contenu de chaque skill reste editable ici.', en:'Procedures. Created from the Capabilities tab or with skill_create, they live in skills/<name>/SKILL.md, kept in step with this page in both directions. Each skill\'s content stays editable here.'},
+  'memory.graphDepth':            {fr:'Profondeur', en:'Depth'},
+  'memory.graphAllDepths':        {fr:'Tout', en:'All'},
+  'memory.graphRecenter':         {fr:'Recentrer', en:'Recenter'},
+  'memory.graphHint':             {fr:'Molette pour zoomer, glisser pour deplacer, survol pour isoler une branche.', en:'Wheel to zoom, drag to pan, hover to isolate a branch.'},
   'memory.virtualNodeTitle':      {fr:'Memoire', en:'Memory'},
   'memory.virtualNodeIntro':      {fr:'Regroupe tout ce que LaRuche accumule, hors groupe SYSTEME. Ce noeud n\'existe pas en base : c\'est une poignee pour agir sur l\'ensemble d\'un coup.', en:'Groups everything LaRuche accumulates, outside the SYSTEM group. This node exists in no table: it is a handle for acting on all of it at once.'},
   'memory.virtualNodeScope':      {fr:'Consolider porte sur ces branches et tous leurs sous-noeuds.', en:'Consolidate applies to these branches and every node below them.'},
@@ -846,10 +854,16 @@ LaRuche.Memory = (function(){
     }
     if(nd){ html += '<div class="mem2-nodedates">'+nd+'</div>'; }
     if(locked){
-      // A projection deserves its own wording: it is not merely forbidden, an edit here
-      // is simply undone at the next reindex.
-      var note = estProjection(nodeId)
-        ? LaRuche.i18n.t('memory.projectionNote')
+      // Each family says where its content really comes from and where to add to it,
+      // rather than a single "read only" that leaves the reader looking for the door.
+      var cle = ({
+        'capacities.tools':'memory.noteTools',
+        'capacities.plugins':'memory.notePlugins',
+        'capacities.mcp':'memory.noteMcp',
+        'capacities.skills':'memory.noteSkills'
+      })[nodeId] || (estProjection(nodeId) ? 'memory.projectionNote' : null);
+      var note = cle
+        ? LaRuche.i18n.t(cle)
         : LaRuche.i18n.t('memory.systemProtectedNote')+
           (readOnly ? LaRuche.i18n.t('memory.readOnly') : LaRuche.i18n.t('memory.notReadOnly'));
       html += '<div class="mem2-protnote">'+SVG.lock+'<span>'+note+'</span></div>';
@@ -1330,41 +1344,325 @@ LaRuche.Memory = (function(){
     }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.consolidationResult')+e,'err'); });
   }
 
-  /* ---- graph view (bonus A4) ---- */
-  function hexPoints(cx, cy, r){
-    var pts=[]; for(var i=0;i<6;i++){ var a=Math.PI/180*(60*i-30); pts.push((cx+r*Math.cos(a)).toFixed(1)+','+(cy+r*Math.sin(a)).toFixed(1)); }
+  /* ---- graph view: radial tree ------------------------------------------------
+   * The cognitive memory is a TREE, not a graph: ids are dotted paths with exactly one
+   * parent, three levels deep, and cross-references between items are rare. A
+   * force-directed layout, Obsidian style, answers a problem this data does not have and
+   * turns a hierarchy into an unstable hairball.
+   *
+   * So: the centre holds the map, roots sit on the first ring, depth becomes radius, and
+   * each branch owns an angular sector sized by how many leaves it carries. Position
+   * therefore MEANS something, which the previous grid of hexagons could not claim: it
+   * placed nodes by alphabetical index and drew the parent links across the whole canvas.
+   */
+  var GRAPHE = {
+    vue: null,      // current viewBox {x,y,w,h}
+    noeuds: [],     // laid out nodes {id, x, y, depth, feuilles}
+    liens: [],      // {a, b} parent -> child
+    survole: null,  // id under the cursor: its lineage stays lit, the rest dims
+    // Opens at depth 2: legible on sight. Deeper, 87 sibling tools cannot all carry a
+    // readable label at once, whatever the layout; the filter and the zoom are there
+    // for that, and a big branch already shows as a bigger hexagon.
+    profMax: 2      // depth filter
+  };
+  var GRAPHE_R0 = 150;   // radius of the first ring
+  var GRAPHE_DR = 200;   // radius added per level
+  var GRAPHE_VUE0 = { x:-700, y:-520, w:1400, h:1040 };
+
+  function grapheHexa(cx, cy, r){
+    var pts = [];
+    for(var i=0;i<6;i++){
+      var a = Math.PI/180*(60*i-30);
+      pts.push((cx+r*Math.cos(a)).toFixed(1)+','+(cy+r*Math.sin(a)).toFixed(1));
+    }
     return pts.join(' ');
   }
   function shortLabel(s){ s=String(s||''); return s.length>16 ? s.slice(0,15)+'…' : s; }
 
+  // Arborescence built from the dotted ids, plus the leaf count of every subtree: it is
+  // what the angular sectors are shared out on, so a branch of 87 tools is not squeezed
+  // into the same wedge as a branch of one.
+  function grapheArbre(){
+    var enfants = {}, racines = [];
+    var ids = Object.keys(nodes).filter(function(id){
+      // The bin is not part of the map being drawn.
+      return id !== CORBEILLE && id.indexOf(CORBEILLE+'.') !== 0;
+    });
+    ids.forEach(function(id){
+      var coupe = id.lastIndexOf('.');
+      var parent = coupe > 0 ? id.slice(0, coupe) : null;
+      if(parent && ids.indexOf(parent) >= 0){
+        (enfants[parent] = enfants[parent] || []).push(id);
+      } else {
+        racines.push(id);
+      }
+    });
+    Object.keys(enfants).forEach(function(p){ enfants[p].sort(); });
+    racines.sort();
+    var feuilles = {};
+    function compter(id){
+      var fils = enfants[id] || [];
+      if(!fils.length){ feuilles[id] = 1; return 1; }
+      var n = 0;
+      fils.forEach(function(f){ n += compter(f); });
+      feuilles[id] = n;
+      return n;
+    }
+    racines.forEach(compter);
+    return { enfants:enfants, racines:racines, feuilles:feuilles };
+  }
+
+  // Weight of a branch in the angular share-out. The square root DAMPENS it: shared out
+  // in raw proportion, `capacities` and its 127 leaves took 339 of the 360 degrees and
+  // left 21 for the eight system nodes, which crushed them into an unreadable sliver.
+  // Dampened, a big branch still gets more room without starving its neighbour.
+  function graphePoids(n){ return Math.sqrt(n || 1); }
+
+  // Places every node: angle from the sector it inherits, radius from its depth.
+  function grapheDisposer(){
+    var arbre = grapheArbre();
+    var noeuds = [], liens = [];
+    var total = arbre.racines.reduce(function(n, r){ return n + graphePoids(arbre.feuilles[r]); }, 0) || 1;
+
+    function poser(id, a0, a1, depth){
+      var angle = (a0 + a1) / 2;
+      var rayon = GRAPHE_R0 + (depth - 1) * GRAPHE_DR;
+      noeuds.push({
+        id: id, depth: depth, feuilles: arbre.feuilles[id] || 1,
+        x: Math.cos(angle) * rayon, y: Math.sin(angle) * rayon
+      });
+      var fils = arbre.enfants[id] || [];
+      if(!fils.length) return;
+      var somme = fils.reduce(function(n, f){ return n + graphePoids(arbre.feuilles[f]); }, 0) || 1;
+      var a = a0;
+      fils.forEach(function(f){
+        var part = (a1 - a0) * (graphePoids(arbre.feuilles[f]) / somme);
+        liens.push({ a:id, b:f });
+        poser(f, a, a + part, depth + 1);
+        a += part;
+      });
+    }
+    var a = -Math.PI / 2; // start at the top, so the first branch reads first
+    arbre.racines.forEach(function(r){
+      var part = 2 * Math.PI * (graphePoids(arbre.feuilles[r]) / total);
+      poser(r, a, a + part, 1);
+      a += part;
+    });
+    GRAPHE.noeuds = noeuds;
+    GRAPHE.liens = liens;
+  }
+
+  // Ancestors and descendants of a node: what stays lit on hover.
+  function grapheLignee(id){
+    var vivants = {};
+    if(!id) return vivants;
+    vivants[id] = true;
+    var p = id;
+    while(p.indexOf('.') > 0){ p = p.slice(0, p.lastIndexOf('.')); vivants[p] = true; }
+    GRAPHE.noeuds.forEach(function(n){ if(n.id.indexOf(id+'.') === 0) vivants[n.id] = true; });
+    return vivants;
+  }
+
+  function grapheProfMax(){
+    return GRAPHE.noeuds.reduce(function(m, n){ return Math.max(m, n.depth); }, 1);
+  }
+
+  // Frames the view on what is actually drawn. A fixed viewBox looked right only in a
+  // panel of the same proportions as itself: in a tall narrow one the tree shrank into a
+  // corner of a mostly empty box. Recomputed on open, on a depth change and on recenter.
+  function grapheAjuster(){
+    var svg = document.getElementById('mem2Graph');
+    var vus = GRAPHE.noeuds.filter(function(n){ return n.depth <= GRAPHE.profMax; });
+    if(!vus.length){ GRAPHE.vue = Object.assign({}, GRAPHE_VUE0); return; }
+    var x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    vus.forEach(function(n){
+      if(n.x < x0) x0 = n.x; if(n.x > x1) x1 = n.x;
+      if(n.y < y0) y0 = n.y; if(n.y > y1) y1 = n.y;
+    });
+    // Margin for the hexagons and the labels hanging under them.
+    var marge = 90;
+    x0 -= marge; y0 -= marge; x1 += marge; y1 += marge;
+    var w = Math.max(320, x1 - x0), h = Math.max(240, y1 - y0);
+    var cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    // Widen whichever axis the panel needs, so nothing is cropped whatever its shape.
+    var rect = svg ? svg.getBoundingClientRect() : null;
+    var ratio = (rect && rect.width > 0 && rect.height > 0) ? (rect.height / rect.width) : (h / w);
+    if(h / w > ratio) w = h / ratio; else h = w * ratio;
+    GRAPHE.vue = { x: cx - w / 2, y: cy - h / 2, w: w, h: h };
+    // Reference width for the zoom scale: node and label sizes are relative to the
+    // framing chosen here, so they open at a sane size in a panel of any shape.
+    GRAPHE.vueBase = w;
+  }
+
   function renderGraph() {
     var svg = document.getElementById('mem2Graph'); if(!svg) return;
-    var ids = Object.keys(nodes);
-    if(!ids.length){ svg.innerHTML='<text x="500" y="350" text-anchor="middle" fill="var(--text-muted)" font-size="16">'+LaRuche.i18n.t('memory.noNodes')+'</text>'; return; }
-    var cols = Math.max(3, Math.ceil(Math.sqrt(ids.length)));
-    var gapX=170, gapY=140, r=52, startX=120, startY=90;
-    var html = '<defs><filter id="mem2Glow"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>';
-    // parent->child links
-    var pos = {};
-    ids.forEach(function(id, idx){
-      var row=Math.floor(idx/cols), col=idx%cols;
-      pos[id] = { x:startX+col*gapX+(row%2?gapX/2:0), y:startY+row*gapY };
+    if(!Object.keys(nodes).length){
+      svg.setAttribute('viewBox', '0 0 1000 700');
+      svg.innerHTML = '<text x="500" y="350" text-anchor="middle" fill="var(--text-muted)" font-size="16">'+LaRuche.i18n.t('memory.noNodes')+'</text>';
+      return;
+    }
+    grapheDisposer();
+    grapheAjuster();
+    grapheDessiner();
+    grapheBarre();
+  }
+
+  function grapheDessiner(){
+    var svg = document.getElementById('mem2Graph'); if(!svg) return;
+    var esc = LaRuche.Utils.esc;
+    var v = GRAPHE.vue;
+    // Keep the viewBox proportional to the element. Otherwise preserveAspectRatio
+    // letterboxes, and the pointer maths below, which assumes the box maps onto the rect,
+    // drifts: the zoom would not settle on the point under the cursor.
+    var rect = svg.getBoundingClientRect();
+    if(rect.width > 0 && rect.height > 0){
+      var cy = v.y + v.h / 2;
+      v.h = v.w * (rect.height / rect.width);
+      v.y = cy - v.h / 2;
+    }
+    svg.setAttribute('viewBox', v.x+' '+v.y+' '+v.w+' '+v.h);
+
+    var visible = {};
+    GRAPHE.noeuds.forEach(function(n){ if(n.depth <= GRAPHE.profMax) visible[n.id] = n; });
+    var lignee = grapheLignee(GRAPHE.survole);
+    var focus = !!GRAPHE.survole;
+    function vif(id){ return !focus || lignee[id]; }
+
+    // Zoom drives the sizes so a node stays legible whatever the scale.
+    var k = v.w / (GRAPHE.vueBase || GRAPHE_VUE0.w);
+    var rayonBase = 13 * Math.max(0.55, Math.min(1.9, k));
+    var police = 12 * Math.max(0.6, Math.min(1.8, k));
+
+    var html = '';
+    // Links first, so a node is never covered by a line.
+    GRAPHE.liens.forEach(function(l){
+      var a = visible[l.a], b = visible[l.b];
+      if(!a || !b) return;
+      var actif = vif(l.a) && vif(l.b);
+      // A quadratic curve bent towards the centre: it reads as a branch, and two
+      // sibling links no longer overlap into a single straight line.
+      var mx = (a.x + b.x) / 2 * 0.72, my = (a.y + b.y) / 2 * 0.72;
+      html += '<path d="M'+a.x.toFixed(1)+','+a.y.toFixed(1)+' Q'+mx.toFixed(1)+','+my.toFixed(1)+' '+b.x.toFixed(1)+','+b.y.toFixed(1)+'" '+
+        'fill="none" stroke="'+(actif ? 'var(--amber)' : 'var(--border-light)')+'" '+
+        'stroke-width="'+(actif ? 1.6 : 0.9)+'" opacity="'+(actif ? 0.55 : 0.16)+'"/>';
     });
-    ids.forEach(function(id){
-      var p = id.indexOf('.')>=0 ? id.slice(0,id.lastIndexOf('.')) : null;
-      if(p && pos[p]) html += '<line x1="'+pos[p].x+'" y1="'+pos[p].y+'" x2="'+pos[id].x+'" y2="'+pos[id].y+'" stroke="var(--border-light)" stroke-width="1"/>';
-    });
-    ids.forEach(function(id){
-      var x=pos[id].x, y=pos[id].y, isActive=current===id;
-      var fill=isActive?'rgba(245,158,11,.42)':'rgba(24,24,27,.9)';
-      var stroke=isActive?'var(--amber)':'var(--border-light)';
-      html += '<g class="mem2-gnode" data-node="'+esc(id)+'" style="cursor:pointer">'+
-        '<polygon points="'+hexPoints(x,y,r)+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+(isActive?3:1.5)+'"'+(isActive?' filter="url(#mem2Glow)"':'')+'></polygon>'+
-        '<text x="'+x+'" y="'+(y+4)+'" text-anchor="middle" fill="var(--text)" font-size="12" font-weight="700">'+esc(shortLabel(id.split('.').pop()))+'</text>'+
+
+    Object.keys(visible).forEach(function(id){
+      var n = visible[id];
+      var actif = vif(id);
+      var courant = current === id;
+      // A branch carrying many leaves gets a bigger dot: the eye finds the mass.
+      var r = rayonBase * (1 + Math.min(0.9, Math.log(1 + n.feuilles) / 6));
+      var remplissage = courant ? 'rgba(245,158,11,.42)' : 'rgba(24,24,27,.92)';
+      var trait = courant ? 'var(--amber)' : (actif ? 'var(--amber-light)' : 'var(--border-light)');
+      // Labels: always at the first two levels, deeper only for the hovered lineage,
+      // otherwise 142 names overlap into an unreadable smear.
+      var etiquette = (n.depth <= 2 || (focus && lignee[id]) || courant);
+      var seg = id.split('.').pop();
+      html += '<g class="mem2-gnode" data-node="'+esc(id)+'" style="cursor:pointer" opacity="'+(actif ? 1 : 0.25)+'">'+
+        '<polygon points="'+grapheHexa(n.x, n.y, r)+'" fill="'+remplissage+'" stroke="'+trait+'" stroke-width="'+(courant ? 2.4 : 1.3)+'"></polygon>'+
+        (etiquette
+          ? '<text x="'+n.x.toFixed(1)+'" y="'+(n.y + r + police).toFixed(1)+'" text-anchor="middle" '+
+            'fill="'+(courant ? 'var(--amber)' : 'var(--text)')+'" font-size="'+police.toFixed(1)+'" '+
+            'font-weight="'+(n.depth <= 1 ? 700 : 500)+'" style="pointer-events:none">'+esc(shortLabel(mem2SegLabel(seg)))+'</text>'
+          : '')+
+        '<title>'+esc(id)+(n.feuilles > 1 ? ' · '+n.feuilles : '')+'</title>'+
       '</g>';
     });
     svg.innerHTML = html;
-    svg.querySelectorAll('.mem2-gnode').forEach(function(g){ g.addEventListener('click', function(){ loadNode(g.dataset.node); }); });
+
+    svg.querySelectorAll('.mem2-gnode').forEach(function(g){
+      var id = g.dataset.node;
+      g.addEventListener('click', function(){ loadNode(id); });
+      g.addEventListener('mouseenter', function(){ GRAPHE.survole = id; grapheDessiner(); });
+      g.addEventListener('mouseleave', function(){ GRAPHE.survole = null; grapheDessiner(); });
+    });
+    grapheGestes(svg);
+  }
+
+  // Wheel to zoom on the cursor, drag to pan. Bound once: the handlers live on the
+  // element and grapheDessiner replaces only its children.
+  function grapheGestes(svg){
+    if(svg._gestesLies) return;
+    svg._gestesLies = true;
+    svg.style.touchAction = 'none';
+
+    function versSvg(ev){
+      var r = svg.getBoundingClientRect();
+      var v = GRAPHE.vue;
+      return {
+        x: v.x + (ev.clientX - r.left) / r.width * v.w,
+        y: v.y + (ev.clientY - r.top) / r.height * v.h
+      };
+    }
+    svg.addEventListener('wheel', function(ev){
+      ev.preventDefault();
+      var v = GRAPHE.vue; if(!v) return;
+      var p = versSvg(ev);
+      var f = ev.deltaY > 0 ? 1.12 : 1 / 1.12;
+      var w = Math.max(260, Math.min(6000, v.w * f));
+      var h = w * (v.h / v.w);
+      // Keep the point under the cursor fixed, which is what makes a zoom feel right.
+      v.x = p.x - (p.x - v.x) * (w / v.w);
+      v.y = p.y - (p.y - v.y) * (h / v.h);
+      v.w = w; v.h = h;
+      grapheDessiner();
+    }, { passive:false });
+
+    var glisse = null;
+    svg.addEventListener('pointerdown', function(ev){
+      glisse = { x:ev.clientX, y:ev.clientY, v:Object.assign({}, GRAPHE.vue) };
+      svg.setPointerCapture(ev.pointerId);
+      svg.style.cursor = 'grabbing';
+    });
+    svg.addEventListener('pointermove', function(ev){
+      if(!glisse) return;
+      var r = svg.getBoundingClientRect();
+      GRAPHE.vue.x = glisse.v.x - (ev.clientX - glisse.x) / r.width * glisse.v.w;
+      GRAPHE.vue.y = glisse.v.y - (ev.clientY - glisse.y) / r.height * glisse.v.h;
+      grapheDessiner();
+    });
+    function fin(){ glisse = null; svg.style.cursor = ''; }
+    svg.addEventListener('pointerup', fin);
+    svg.addEventListener('pointercancel', fin);
+
+    // A panel that changes shape, on a window resize or when the sidebar folds, must not
+    // leave the drawing stretched. Redraw only: grapheDessiner corrects the aspect around
+    // the current centre, so the zoom and the pan the user chose survive.
+    if(window.ResizeObserver){
+      new ResizeObserver(function(){
+        if(view === 'graph') grapheDessiner();
+      }).observe(svg);
+    }
+  }
+
+  // Depth filter and reset, injected above the canvas.
+  function grapheBarre(){
+    var wrap = document.getElementById('mem2GraphWrap'); if(!wrap) return;
+    var barre = document.getElementById('mem2GraphBar');
+    if(!barre){
+      barre = document.createElement('div');
+      barre.id = 'mem2GraphBar';
+      barre.className = 'mem2-graphbar';
+      wrap.insertBefore(barre, wrap.firstChild);
+    }
+    var max = grapheProfMax();
+    var boutons = '';
+    for(var d = 1; d <= max; d++){
+      boutons += '<button class="tl-btn'+(GRAPHE.profMax === d ? ' tl-btn--active' : '')+'" data-prof="'+d+'">'+d+'</button>';
+    }
+    boutons += '<button class="tl-btn'+(GRAPHE.profMax >= max ? ' tl-btn--active' : '')+'" data-prof="9">'+LaRuche.i18n.t('memory.graphAllDepths')+'</button>';
+    barre.innerHTML = '<span class="mem2-graphbar-label">'+LaRuche.i18n.t('memory.graphDepth')+'</span>'+boutons+
+      '<button class="tl-btn" data-recentrer="1">'+LaRuche.i18n.t('memory.graphRecenter')+'</button>'+
+      '<span class="mem2-graphbar-hint">'+LaRuche.i18n.t('memory.graphHint')+'</span>';
+    barre.querySelectorAll('[data-prof]').forEach(function(b){
+      b.onclick = function(){ GRAPHE.profMax = parseInt(b.dataset.prof, 10); grapheAjuster(); grapheDessiner(); grapheBarre(); };
+    });
+    barre.querySelector('[data-recentrer]').onclick = function(){
+      GRAPHE.survole = null;
+      grapheAjuster();  // back to the content, not to an arbitrary frame
+      grapheDessiner();
+    };
   }
 
   // Empties the bin in one call. Targeting `orphans` takes the hard-delete branch
