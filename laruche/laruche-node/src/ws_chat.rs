@@ -44,15 +44,55 @@ pub(crate) async fn ws_chat_connection(
     // while a run is running (the user switched conversations and wrote again). We let
     // the current run continue detached and treat this message as a new run.
     let mut pending_text: Option<String> = None;
+    // Idle relay. Between two turns the socket used to wait on the client and nothing
+    // else, so anything the server pushed in the meantime was broadcast to zero
+    // receivers and silently dropped: this is why "Send LaRuche back to work" answered
+    // 200, did the work, saved the rewritten answer, and showed absolutely nothing until
+    // a reload. The last session's channel stays subscribed here, so a push that arrives
+    // between turns still reaches the browser.
+    let mut veille: Option<(Uuid, broadcast::Receiver<laruche_essaim::ChatEvent>)> = None;
     loop {
         let text = if let Some(p) = pending_text.take() {
             p
         } else {
-            match receiver.next().await {
-                Some(Ok(ws::Message::Text(t))) => t.to_string(),
-                Some(Ok(ws::Message::Close(_))) | None => break,
-                Some(Ok(_)) => continue,
-                Some(Err(_)) => break,
+            let mut recu: Option<String> = None;
+            while recu.is_none() {
+                match &mut veille {
+                    Some((sid, rx_veille)) => {
+                        let sid = *sid;
+                        tokio::select! {
+                            client = receiver.next() => match client {
+                                Some(Ok(ws::Message::Text(t))) => recu = Some(t.to_string()),
+                                Some(Ok(ws::Message::Close(_))) | None => return,
+                                Some(Ok(_)) => {}
+                                Some(Err(_)) => return,
+                            },
+                            ev = rx_veille.recv() => match ev {
+                                Ok(event) => {
+                                    update_active_context_stats(&state, sid, &event).await;
+                                    let json = event_json_avec_session(&event, sid);
+                                    if sender.send(ws::Message::Text(json.into())).await.is_err() {
+                                        return;
+                                    }
+                                }
+                                // Lagged: the client missed a burst but the channel is
+                                // still good, so keep relaying instead of going deaf.
+                                Err(broadcast::error::RecvError::Lagged(_)) => {}
+                                Err(broadcast::error::RecvError::Closed) => { veille = None; }
+                            },
+                        }
+                    }
+                    None => match receiver.next().await {
+                        Some(Ok(ws::Message::Text(t))) => recu = Some(t.to_string()),
+                        Some(Ok(ws::Message::Close(_))) | None => return,
+                        Some(Ok(_)) => {}
+                        Some(Err(_)) => return,
+                    },
+                }
+            }
+            match recu {
+                Some(t) => t,
+                None => return,
             }
         };
 
@@ -720,6 +760,10 @@ pub(crate) async fn ws_chat_connection(
                 }
             }
         }
+
+        // Stay tuned to this session until the next turn: LaReine sending the work back,
+        // or any other background push, has somewhere to arrive.
+        veille = Some((session_id, tx.subscribe()));
 
         // let _ = react_handle.await; (Detached to allow background running without blocking WS cleanup)
     }

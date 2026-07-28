@@ -70,6 +70,7 @@ pub(crate) async fn api_feed_ask(
                 .unwrap_or_else(|| Session::new_with_id(feed_id, &model, sessions_dir))
         };
         let (tx, _rx) = tokio::sync::broadcast::channel::<laruche_essaim::ChatEvent>(256);
+        let _garde = ouvrir_travail(&st, "feed", "ask", &cfg, Some("feed".to_string()));
         let result = boucle_react_memoire(
             &text,
             &mut session,
@@ -220,13 +221,22 @@ pub(crate) async fn api_feed(
             let ms = chrono::DateTime::parse_from_rfc3339(&e.timestamp)
                 .map(|d| d.timestamp_millis())
                 .unwrap_or(0);
-            // a) User message (only for chat exchanges).
-            if e.tag == "agent" {
+            // An exchange is an exchange whatever carried it. The tag used to have to be
+            // exactly "agent", so a whole Telegram or Discord conversation lost its user
+            // half and kept only a bare reply. The kind follows the tag, so the Feed can
+            // filter a channel apart from the web chat.
+            let est_echange = matches!(
+                e.tag.as_str(),
+                "agent" | "telegram" | "discord" | "slack" | "whatsapp" | "voice"
+            );
+            let genre = if e.tag == "agent" { "agent" } else { e.tag.as_str() };
+            // a) User message (only for conversational exchanges).
+            if est_echange {
                 if let Some(prompt) = e.full_prompt.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
                     let clean = prompt.split("\n\n[SYSTEM]").next().unwrap_or(prompt).trim();
                     if !clean.is_empty() {
                         events.push(serde_json::json!({
-                            "ts": ms, "actor": "User", "kind": "agent",
+                            "ts": ms, "actor": "User", "kind": genre,
                             "action": "asked", "object": preview_text(clean, 160),
                             "full": clean, "ref": serde_json::Value::Null, "tag": e.tag
                         }));
@@ -239,7 +249,7 @@ pub(crate) async fn api_feed(
             let resp = nettoyer_reponse_feed(brut);
             if !resp.is_empty() {
                 events.push(serde_json::json!({
-                    "ts": ms + 1, "actor": "LaRuche", "kind": "agent",
+                    "ts": ms + 1, "actor": "LaRuche", "kind": if est_echange { genre } else { "agent" },
                     "action": "replied", "object": preview_text(&resp, 160),
                     "full": resp, "ref": serde_json::Value::Null, "tag": e.tag
                 }));
@@ -282,6 +292,22 @@ pub(crate) async fn api_feed(
                 events.push(serde_json::json!({
                     "ts": lr.timestamp(), "actor": "LaRuche", "kind": "watcher",
                     "action": "triggered the watcher", "object": w.name, "ref": serde_json::Value::Null
+                }));
+            }
+        }
+    }
+
+    // 5b) Kanban tasks that have run. They were the one scheduled family missing from the
+    //     Feed entirely: a task could be picked up, run and completed without a trace.
+    {
+        let board = state.kanban_board.read().await;
+        for t in board.list() {
+            if let Some(fin) = t.completed_at {
+                let ts = fin.timestamp();
+                events.push(serde_json::json!({
+                    "ts": ts, "actor": "LaRuche", "kind": "kanban",
+                    "action": "finished the kanban task", "object": t.title,
+                    "ref": serde_json::Value::Null
                 }));
             }
         }

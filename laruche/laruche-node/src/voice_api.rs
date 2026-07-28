@@ -139,6 +139,8 @@ pub(crate) async fn ws_audio_connection(socket: ws::WebSocket, state: Arc<AppSta
                 let mut session = Session::new_with_path(&audio_config.model, sessions_dir);
                 let (tx, _rx) = broadcast::channel::<ChatEvent>(64);
 
+                // Spoken turn: the actor is LaRuche, the channel is the voice.
+                let _garde = ouvrir_travail(&state, "laruche", "voix", &audio_config, Some("voice".to_string()));
                 let agent_result = boucle_react_memoire(
                     &transcript,
                     &mut session,

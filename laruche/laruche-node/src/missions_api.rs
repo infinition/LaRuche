@@ -131,6 +131,7 @@ pub(crate) async fn api_spawn_subagent(
     let context_clone = payload.context.clone();
 
     tokio::spawn(async move {
+        let _garde = ouvrir_travail(&state_clone, "sous-agent", &task_clone, &config, None);
         tracing::info!(agent_id = %agent_id, task = %task_clone, "Subagent spawned via API");
         let _ = state_clone.events.write().await.emit(
             laruche_events::EventKind::AgentStarted,
@@ -796,6 +797,8 @@ pub(crate) async fn api_run_cron(
         let mut session = Session::new_with_path(&cfg.model, sessions_dir);
         let (tx, mut rx) = broadcast::channel::<ChatEvent>(64);
         tokio::spawn(async move { while rx.recv().await.is_ok() {} });
+        // A cron fired by hand from the UI: same actor as the scheduled one.
+        let _garde = ouvrir_travail(&run_state, "cron", &task.name, &cfg, task.channel.clone());
         let _ = boucle_react_memoire(
             &prompt,
             &mut session,

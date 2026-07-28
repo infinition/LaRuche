@@ -4827,9 +4827,17 @@
     "en": "Agent",
     "fr": "Agent"
   },
+  "shell.feedChannels": {
+    "en": "Channels",
+    "fr": "Canaux"
+  },
   "shell.feedCron": {
     "en": "Cron",
     "fr": "Cron"
+  },
+  "shell.feedKanban": {
+    "en": "Kanban",
+    "fr": "Kanban"
   },
   "shell.feedMemory": {
     "en": "Memory",
@@ -4838,6 +4846,10 @@
   "shell.feedMission": {
     "en": "Mission",
     "fr": "Mission"
+  },
+  "shell.feedReine": {
+    "en": "LaReine",
+    "fr": "LaReine"
   },
   "shell.feedUser": {
     "en": "User",
@@ -4983,6 +4995,10 @@
     "en": "Change model",
     "fr": "Changer de modèle"
   },
+  "shell.tipChannelChats": {
+    "en": "Telegram / Discord / Slack conversations",
+    "fr": "Conversations Telegram / Discord / Slack"
+  },
   "shell.tipClose": {
     "en": "Close",
     "fr": "Fermer"
@@ -5014,6 +5030,10 @@
   "shell.tipHistorySearch": {
     "en": "History & search",
     "fr": "Historique & recherche"
+  },
+  "shell.tipKanbanDone": {
+    "en": "Kanban tasks finished",
+    "fr": "Taches kanban terminees"
   },
   "shell.tipLarucheActions": {
     "en": "LaRuche actions",
@@ -5062,6 +5082,10 @@
   "shell.tipRam": {
     "en": "Local RAM usage",
     "fr": "Utilisation RAM locale"
+  },
+  "shell.tipReineVerdicts": {
+    "en": "LaReine verdicts",
+    "fr": "Verdicts de LaReine"
   },
   "shell.tipSend": {
     "en": "Send to LaRuche",

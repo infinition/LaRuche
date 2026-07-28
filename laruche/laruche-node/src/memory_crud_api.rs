@@ -143,6 +143,9 @@ pub(crate) async fn api_memory_enrich(
     let context = Some(node_id.to_string());
 
     tokio::spawn(async move {
+        // @LaRuche launched from a memory node: it works on the node, so the node is the
+        // subject shown in the indicator.
+        let _garde = ouvrir_travail(&state_clone, "memoire", &node_id, &config, None);
         tracing::info!(agent_id = %agent_id, task = %task, "Subagent spawned for memory enrichment");
         let _ = state_clone.events.write().await.emit(
             laruche_events::EventKind::AgentStarted,

@@ -287,6 +287,24 @@ pub(crate) async fn revue_complete_avec(
 
     tracing::info!(target: "reine", judge = %juge.model, max_revues = rs.max_revues, "review + rework");
 
+    // The judging AND any rework it triggers show in the status bar: a rework is a full
+    // agentic run that can take minutes, and it used to happen with no sign of life.
+    let _garde = GardeTravail::nouveau(
+        &state.travaux,
+        Travail {
+            acteur: "lareine".to_string(),
+            sujet: "review".to_string(),
+            fournisseur: if juge.provider.is_empty() {
+                "ollama".to_string()
+            } else {
+                juge.provider.clone()
+            },
+            modele: juge.model.clone(),
+            canal: Some("web".to_string()),
+            depuis: chrono::Utc::now().to_rfc3339(),
+        },
+    );
+
     let rev = laruche_essaim::reine_live::revue_et_refaire(
         &juge,
         &charte,
@@ -330,6 +348,22 @@ pub(crate) async fn revue_complete_avec(
             }
             let _ = s.sauvegarder();
         }
+    }
+
+    // Into the Feed: her verdicts happened entirely off the record, so a rework could
+    // rewrite an answer with nothing anywhere saying who decided it or why.
+    if !rev.resume.is_empty() {
+        laruche_essaim::feed_journal::record(
+            "LaReine",
+            "reine",
+            if rev.revised {
+                "reviewed and had the work redone"
+            } else {
+                "reviewed and approved"
+            },
+            preview_text(&rev.resume, 160),
+            chrono::Utc::now(),
+        );
     }
 
     fin(&tx);

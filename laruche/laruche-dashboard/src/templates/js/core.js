@@ -71,6 +71,12 @@ LaRuche.i18n = (function(){
     'sb.actorWatcher':   { fr:'Sentinelle', en:'Watcher' },
     'sb.actorKanban':    { fr:'Kanban',     en:'Kanban' },
     'sb.actorLareine':   { fr:'LaReine',    en:'LaReine' },
+    'sb.actorMemoire':   { fr:'Memoire',    en:'Memory' },
+    'sb.actorFeed':      { fr:'Fil',        en:'Feed' },
+    'sb.actorSousAgent': { fr:'Sous-agent', en:'Subagent' },
+    'sb.actorTelegram':  { fr:'Telegram',   en:'Telegram' },
+    'sb.actorDiscord':   { fr:'Discord',    en:'Discord' },
+    'sb.actorSlack':     { fr:'Slack',      en:'Slack' },
     'sb.jobsRunning':    { fr:'en cours',   en:'running' },
     'nav.capabilities': { fr:'Capacités',   en:'Capabilities' },
     'nav.dashboard':    { fr:'Dashboard',   en:'Dashboard' },
@@ -1089,13 +1095,19 @@ LaRuche.Header = (function(){
      /api/travaux lists what is running right now. Nothing running means nothing shown:
      the indicator appears only when there is work, so a quiet hive stays quiet. */
   var ACTEURS = {
-    laruche:   {icone:'🐝', k:'sb.actorLaruche'},
-    curateur:  {icone:'🧹', k:'sb.actorCurateur'},
-    recherche: {icone:'🔍', k:'sb.actorRecherche'},
-    cron:      {icone:'⏱',       k:'sb.actorCron'},
-    watcher:   {icone:'👁', k:'sb.actorWatcher'},
-    kanban:    {icone:'📋', k:'sb.actorKanban'},
-    lareine:   {icone:'👑', k:'sb.actorLareine'}
+    laruche:     {icone:'🐝', k:'sb.actorLaruche'},
+    curateur:    {icone:'🧹', k:'sb.actorCurateur'},
+    recherche:   {icone:'🔍', k:'sb.actorRecherche'},
+    cron:        {icone:'⏱',  k:'sb.actorCron'},
+    watcher:     {icone:'👁',  k:'sb.actorWatcher'},
+    kanban:      {icone:'📋', k:'sb.actorKanban'},
+    lareine:     {icone:'👑', k:'sb.actorLareine'},
+    memoire:     {icone:'🧠', k:'sb.actorMemoire'},
+    feed:        {icone:'📰', k:'sb.actorFeed'},
+    'sous-agent':{icone:'🐜', k:'sb.actorSousAgent'},
+    telegram:    {icone:'✈',  k:'sb.actorTelegram'},
+    discord:     {icone:'💬', k:'sb.actorDiscord'},
+    slack:       {icone:'💼', k:'sb.actorSlack'}
   };
   function nomActeur(a){ var d=ACTEURS[a]; return d ? LaRuche.i18n.t(d.k) : a; }
 

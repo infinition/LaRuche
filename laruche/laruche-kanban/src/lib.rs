@@ -40,6 +40,11 @@ pub struct KanbanTask {
     pub scheduled_at: Option<DateTime<Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<String>,
+    /// When the task finished. `created_at` alone could not place a completed task on a
+    /// timeline: a task created Monday and finished Friday landed on Monday. Defaulted so
+    /// boards written before this field still load.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completed_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -146,6 +151,7 @@ impl KanbanBoard {
             created_at: Utc::now(),
             scheduled_at: None,
             result: None,
+            completed_at: None,
         };
 
         self.tasks.insert(task.id, task.clone());
@@ -231,6 +237,7 @@ impl KanbanBoard {
     pub fn complete(&mut self, id: Uuid, result: String) -> bool {
         if let Some(task) = self.tasks.get_mut(&id) {
             task.result = Some(result);
+            task.completed_at = Some(Utc::now());
             self.save(); // save the result first so change_status picks it up or we can just call change_status
         }
         self.change_status(id, TaskStatus::Done)

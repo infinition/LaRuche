@@ -579,3 +579,72 @@ pub(crate) async fn save_persistent_state(state: &Arc<AppState>) {
         warn!(error = %e, "Failed to rename state file");
     }
 }
+
+#[cfg(test)]
+mod tests_travaux {
+    use super::*;
+
+    fn travail(acteur: &str) -> Travail {
+        Travail {
+            acteur: acteur.to_string(),
+            sujet: "t".into(),
+            fournisseur: "ollama".into(),
+            modele: "m".into(),
+            canal: None,
+            depuis: "now".into(),
+        }
+    }
+
+    /// Several jobs at once is the normal case, not the edge case: a cron can fire while
+    /// a watcher triggers and the user is mid-conversation. Each guard must own exactly
+    /// its own entry.
+    #[test]
+    fn plusieurs_travaux_coexistent_et_se_retirent_un_a_un() {
+        let travaux: Arc<std::sync::RwLock<HashMap<Uuid, Travail>>> = Default::default();
+        let g_chat = GardeTravail::nouveau(&travaux, travail("laruche"));
+        let g_cron = GardeTravail::nouveau(&travaux, travail("cron"));
+        let g_watch = GardeTravail::nouveau(&travaux, travail("watcher"));
+        assert_eq!(travaux.read().unwrap().len(), 3);
+
+        drop(g_cron);
+        let restants: Vec<String> = travaux
+            .read()
+            .unwrap()
+            .values()
+            .map(|t| t.acteur.clone())
+            .collect();
+        assert_eq!(restants.len(), 2);
+        assert!(!restants.contains(&"cron".to_string()));
+        assert!(restants.contains(&"laruche".to_string()));
+        assert!(restants.contains(&"watcher".to_string()));
+
+        drop(g_chat);
+        drop(g_watch);
+        assert!(travaux.read().unwrap().is_empty());
+    }
+
+    /// Two jobs from the SAME actor are two jobs: two crons can overlap, and the second
+    /// must not be mistaken for the first.
+    #[test]
+    fn deux_travaux_du_meme_acteur_restent_distincts() {
+        let travaux: Arc<std::sync::RwLock<HashMap<Uuid, Travail>>> = Default::default();
+        let a = GardeTravail::nouveau(&travaux, travail("cron"));
+        let _b = GardeTravail::nouveau(&travaux, travail("cron"));
+        assert_eq!(travaux.read().unwrap().len(), 2);
+        drop(a);
+        assert_eq!(travaux.read().unwrap().len(), 1);
+    }
+
+    /// A panicking job must not leave the indicator lit forever.
+    #[test]
+    fn une_panique_libere_quand_meme_l_entree() {
+        let travaux: Arc<std::sync::RwLock<HashMap<Uuid, Travail>>> = Default::default();
+        let t2 = travaux.clone();
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+            let _garde = GardeTravail::nouveau(&t2, travail("cron"));
+            assert_eq!(t2.read().unwrap().len(), 1);
+            panic!("boom");
+        }));
+        assert!(travaux.read().unwrap().is_empty());
+    }
+}

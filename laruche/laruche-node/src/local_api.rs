@@ -390,6 +390,8 @@ pub(crate) async fn api_webhook(
 
     let (tx, mut rx) = broadcast::channel::<ChatEvent>(256);
 
+    // The REST chat route, used by clients that do not hold a WebSocket open.
+    let _garde = ouvrir_travail(&state, "laruche", "chat", &config, Some("web".to_string()));
     let result = boucle_react_memoire(
         &prompt_for_agent,
         &mut session,

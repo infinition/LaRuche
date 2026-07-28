@@ -937,6 +937,14 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                             }
 
                             tokio::spawn(async move {
+                                // Telegram: same visibility as any other actor.
+                                let _garde = ouvrir_travail(
+                                    &state_clone,
+                                    "telegram",
+                                    &user_clone,
+                                    &config,
+                                    config.origin_channel.clone(),
+                                );
                                 let result = boucle_react_memoire_multimodal(
                                     &text_clone,
                                     &mut session,
@@ -953,6 +961,27 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                 oublier_courtier(chat_id);
                                 let _ = typing_stop.send(true);
                                 let _ = typing_task.await;
+
+                                // Telegram runs its own loop rather than run_agent_query, so
+                                // it needs its own log entry to reach the Feed.
+                                {
+                                    let mut activity = state_clone.activity_log.write().await;
+                                    if activity.len() >= ACTIVITY_LOG_LIMIT {
+                                        activity.pop_front();
+                                    }
+                                    activity.push_back(ActivityLogEntry {
+                                        timestamp: chrono::Utc::now().to_rfc3339(),
+                                        level: if result.is_ok() { "info" } else { "error" }.into(),
+                                        tag: "telegram".into(),
+                                        message: format!("telegram: {}", preview_text(&text_clone, 60)),
+                                        full_prompt: Some(text_clone.clone()),
+                                        full_response: result.as_ref().ok().map(|r| preview_text(r, 4000)),
+                                        model_used: Some(config.model.clone()),
+                                        tokens_generated: None,
+                                        latency_ms: None,
+                                        user_id: None,
+                                    });
+                                }
 
                                 let mut response = match result {
                                     Ok(r) => {
@@ -1413,6 +1442,8 @@ pub(crate) async fn run_agent_query(
     // Per-channel model override (Settings > Channels).
     apply_channel_model(state, channel, &mut config).await;
 
+    // Discord, Slack and anything else routed through here: the actor IS the channel.
+    let _garde = ouvrir_travail(state, channel, user_key, &config, config.origin_channel.clone());
     let result = boucle_react_memoire(
         text,
         &mut session,
@@ -1422,6 +1453,29 @@ pub(crate) async fn run_agent_query(
         state.memoire.clone(),
     )
     .await;
+
+    // Into the activity log, tagged with the channel. Nothing said on Telegram, Discord or
+    // Slack used to reach the Feed at all: whole conversations happened and the Feed showed
+    // an empty afternoon. Tagging with the channel (rather than "agent") also lets the Feed
+    // filter them apart from the web chat.
+    {
+        let mut activity = state.activity_log.write().await;
+        if activity.len() >= ACTIVITY_LOG_LIMIT {
+            activity.pop_front();
+        }
+        activity.push_back(ActivityLogEntry {
+            timestamp: chrono::Utc::now().to_rfc3339(),
+            level: if result.is_ok() { "info" } else { "error" }.into(),
+            tag: channel.to_string(),
+            message: format!("{channel}: {}", preview_text(text, 60)),
+            full_prompt: Some(text.to_string()),
+            full_response: result.as_ref().ok().map(|r| preview_text(r, 4000)),
+            model_used: Some(config.model.clone()),
+            tokens_generated: None,
+            latency_ms: None,
+            user_id: None,
+        });
+    }
 
     // Persist the session (the agent already added the current turn + its responses) → the
     // next message from the same (channel, user) reloads it with the full history.
