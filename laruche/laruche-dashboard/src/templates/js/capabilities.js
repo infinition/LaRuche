@@ -159,29 +159,48 @@ LaRuche.Capabilities = (function(){
     LaRuche.Utils.openMediaModal('text', JSON.stringify(r.raw, null, 2));
   }
 
+  // One switch for the four families. Tools and plugins used to carry a bare checkbox
+  // with an ON/OFF word beside it, skills a slider: same state, two controls, so a row
+  // read differently depending on what it held.
+  function interrupteur(nom, actif, appel){
+    var titre = actif ? LaRuche.i18n.t('capabilities.statusOn') : LaRuche.i18n.t('capabilities.statusOff');
+    return '<label class="lr-switch" title="'+LaRuche.Utils.esc(titre)+'">'+
+      '<input type="checkbox" '+(actif?'checked':'')+' aria-label="'+LaRuche.Utils.esc(nom)+'" onchange="'+appel+';setTimeout(LaRuche.Capabilities.refresh,300)">'+
+      '<span class="lr-slider"></span></label>';
+  }
+
+  function bouton(libelle, appel, danger){
+    return '<button class="tl-btn'+(danger?' tl-btn--danger':'')+'" onclick="'+appel+'">'+libelle+'</button>';
+  }
+
   function rowActions(r, i){
+    var nom = LaRuche.Utils.esc(r.name);
+    var basculeOutil = 'LaRuche.Settings.toggleTool(\''+nom+'\',this.checked)';
+    var confirme = function(cle){
+      return 'confirm(LaRuche.i18n.t(\''+cle+'\')+\' '+nom+' ?\')';
+    };
     if(r.family==='abeille'){
-      var tog = '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:'+(r.enabled?'var(--green)':'var(--red)')+'"><input type="checkbox" '+(r.enabled?'checked':'')+' onchange="LaRuche.Settings.toggleTool(\''+LaRuche.Utils.esc(r.name)+'\',this.checked);setTimeout(LaRuche.Capabilities.refresh,300)">'+(r.enabled?LaRuche.i18n.t('capabilities.statusOn'):LaRuche.i18n.t('capabilities.statusOff'))+'</label>';
-      var view = '<button class="tl-btn" onclick="LaRuche.Capabilities.viewRaw('+i+')">'+LaRuche.i18n.t('capabilities.view')+'</button>';
-      var del = r.immutable ? '' : '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(LaRuche.i18n.t(\'capabilities.confirmDelete\')+\' '+LaRuche.Utils.esc(r.name)+' ?\')){fetch(\'/api/tools/\'+encodeURIComponent(\''+LaRuche.Utils.esc(r.name)+'\'),{method:\'DELETE\'}).then(LaRuche.Capabilities.refresh)}">'+LaRuche.i18n.t('capabilities.delete')+'</button>';
-      return tog+' '+view+' '+del;
+      return interrupteur(r.name, r.enabled, basculeOutil)+' '+
+        bouton(LaRuche.i18n.t('capabilities.view'), 'LaRuche.Capabilities.viewRaw('+i+')')+' '+
+        (r.immutable ? '' : bouton(LaRuche.i18n.t('capabilities.delete'),
+          'if('+confirme('capabilities.confirmDelete')+'){fetch(\'/api/tools/\'+encodeURIComponent(\''+nom+'\'),{method:\'DELETE\'}).then(LaRuche.Capabilities.refresh)}', true));
     }
     if(r.family==='skill'){
-      var tog2 = '<label class="lr-switch"><input type="checkbox" '+(r.enabled?'checked':'')+' onchange="LaRuche.Settings.toggleSkill(\''+LaRuche.Utils.esc(r.name)+'\');setTimeout(LaRuche.Capabilities.refresh,300)"><span class="lr-slider"></span></label>';
-      var edit = '<button class="tl-btn" onclick="LaRuche.Settings.viewSkill(\''+LaRuche.Utils.esc(r.name)+'\')">'+LaRuche.i18n.t('capabilities.edit')+'</button>';
-      var del2 = '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(LaRuche.i18n.t(\'capabilities.confirmDelete\')+\' '+LaRuche.Utils.esc(r.name)+' ?\')){LaRuche.Settings.deleteSkill(\''+LaRuche.Utils.esc(r.name)+'\');setTimeout(LaRuche.Capabilities.refresh,300)}">'+LaRuche.i18n.t('capabilities.delete')+'</button>';
-      return tog2+' '+edit+' '+del2;
+      return interrupteur(r.name, r.enabled, 'LaRuche.Settings.toggleSkill(\''+nom+'\')')+' '+
+        bouton(LaRuche.i18n.t('capabilities.edit'), 'LaRuche.Settings.viewSkill(\''+nom+'\')')+' '+
+        bouton(LaRuche.i18n.t('capabilities.delete'),
+          'if('+confirme('capabilities.confirmDelete')+'){LaRuche.Settings.deleteSkill(\''+nom+'\');setTimeout(LaRuche.Capabilities.refresh,300)}', true);
     }
     if(r.family==='mcp'){
-      var editMcp = '<button class="tl-btn" onclick="LaRuche.Capabilities.editMcp('+i+')">'+LaRuche.i18n.t('capabilities.edit')+'</button>';
-      var delMcp = '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.Settings.deleteMcpServer(\''+LaRuche.Utils.esc(r.mcpName)+'\');setTimeout(LaRuche.Capabilities.refresh,600)">'+LaRuche.i18n.t('capabilities.remove')+'</button>';
-      return editMcp+' '+delMcp;
+      return bouton(LaRuche.i18n.t('capabilities.edit'), 'LaRuche.Capabilities.editMcp('+i+')')+' '+
+        bouton(LaRuche.i18n.t('capabilities.remove'),
+          'LaRuche.Settings.deleteMcpServer(\''+LaRuche.Utils.esc(r.mcpName)+'\');setTimeout(LaRuche.Capabilities.refresh,600)', true);
     }
     if(r.family==='plugin'){
-      var togP = '<label style="display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-size:10px;color:'+(r.enabled?'var(--green)':'var(--red)')+'"><input type="checkbox" '+(r.enabled?'checked':'')+' onchange="LaRuche.Settings.toggleTool(\''+LaRuche.Utils.esc(r.name)+'\',this.checked);setTimeout(LaRuche.Capabilities.refresh,300)">'+(r.enabled?LaRuche.i18n.t('capabilities.statusOn'):LaRuche.i18n.t('capabilities.statusOff'))+'</label>';
-      var editP = '<button class="tl-btn" onclick="LaRuche.Settings.viewPlugin(\''+LaRuche.Utils.esc(r.name)+'\')">'+LaRuche.i18n.t('capabilities.edit')+'</button>';
-      var delP = '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(LaRuche.i18n.t(\'capabilities.confirmPlugin\')+\' '+LaRuche.Utils.esc(r.name)+' ?\')){LaRuche.Settings.deletePlugin(\''+LaRuche.Utils.esc(r.name)+'\');setTimeout(LaRuche.Capabilities.refresh,300)}">'+LaRuche.i18n.t('capabilities.delete')+'</button>';
-      return togP+' '+editP+' '+delP;
+      return interrupteur(r.name, r.enabled, basculeOutil)+' '+
+        bouton(LaRuche.i18n.t('capabilities.edit'), 'LaRuche.Settings.viewPlugin(\''+nom+'\')')+' '+
+        bouton(LaRuche.i18n.t('capabilities.delete'),
+          'if('+confirme('capabilities.confirmPlugin')+'){LaRuche.Settings.deletePlugin(\''+nom+'\');setTimeout(LaRuche.Capabilities.refresh,300)}', true);
     }
     return '<span style="color:var(--text-dim);font-size:10px">-</span>';
   }
@@ -310,15 +329,8 @@ LaRuche.Capabilities = (function(){
       .then(function(r){ if(r.ok){ LaRuche.Toast.show(LaRuche.i18n.t('capabilities.mcpSaved'),'ok'); var ne=document.getElementById('capMcpName'),ce=document.getElementById('capMcpCmd'),ae=document.getElementById('capMcpArgs'); if(ne)ne.value=''; if(ce)ce.value=''; if(ae)ae.value=''; render(); } else LaRuche.Toast.show(LaRuche.i18n.t('capabilities.mcpSaveFailed'),'err'); });
   }
 
-  function ensureSwitchStyle(){
-    if(document.getElementById('lr-switch-style')) return;
-    var st=document.createElement('style'); st.id='lr-switch-style';
-    st.textContent='.lr-switch{position:relative;display:inline-block;width:38px;height:20px;flex:0 0 auto;vertical-align:middle}.lr-switch input{display:none}'+
-      '.lr-slider{position:absolute;inset:0;background:#444;border-radius:20px;transition:.2s;cursor:pointer}'+
-      '.lr-slider:before{content:"";position:absolute;height:14px;width:14px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s}'+
-      '.lr-switch input:checked+.lr-slider{background:var(--amber)}.lr-switch input:checked+.lr-slider:before{transform:translateX(18px)}';
-    document.head.appendChild(st);
-  }
+  // .lr-switch lives in app.css.
+  function ensureSwitchStyle(){}
 
   return { init:init, enter:enter, leave:leave, current:function(){return current;}, refresh:refresh, addMcp:addMcp, viewRaw:viewRaw, onSearch:onSearch, toggleAll:toggleAll, editMcp:editMcp };
 })();

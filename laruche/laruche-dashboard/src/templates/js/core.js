@@ -228,7 +228,7 @@ LaRuche.PluginFiles = (function(){
       if(d.binary){ m.innerHTML='<div style="color:var(--text-dim);padding:20px">'+LaRuche.i18n.t('core.binaryFile',{size:d.size||'?'})+'</div>'; return; }
       m.innerHTML='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><code style="flex:1;color:var(--amber)">'+esc(path)+'</code>'+
         '<button class="tl-btn" onclick="LaRuche.PluginFiles.save()">'+LaRuche.i18n.t('common.save')+'</button>'+
-        '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.PluginFiles.del()">'+LaRuche.i18n.t('common.delete')+'</button></div>'+
+        '<button class="tl-btn tl-btn--danger" onclick="LaRuche.PluginFiles.del()">'+LaRuche.i18n.t('common.delete')+'</button></div>'+
         '<textarea id="pfEditor" spellcheck="false" style="flex:1;width:100%;font-family:var(--mono);font-size:12px;background:#16161a;border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px;resize:none">'+esc(d.content||'')+'</textarea>';
     });
   }
@@ -1374,6 +1374,23 @@ LaRuche.WS = (function(){
   }
 
   return { connect:connect, send:send, isOpen:isOpen, close:close, reattach:reattach, detach:detach };
+})();
+
+/* ── User menu ────────────────────────────────────────────────────────────
+ * The badge toggles the dropdown inline; nothing closed it, so it stayed open
+ * over the page until clicked again. A click anywhere outside the badge closes
+ * it, Escape too. Bubbling phase, so the badge's own onclick runs first and the
+ * menu is not reopened and closed in the same event. */
+(function(){
+  function fermer(){
+    var d = document.getElementById('userDropdown');
+    if(d) d.classList.remove('show');
+  }
+  document.addEventListener('click', function(e){
+    if(e.target.closest && e.target.closest('#userBadge')) return;
+    fermer();
+  });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') fermer(); });
 })();
 
 /* ── Chat Module ──────────────────────────────────────────────── */

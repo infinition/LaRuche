@@ -991,8 +991,6 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .reconnect-spinner { width:12px; height:12px; border:2px solid var(--amber); border-top-color:transparent; border-radius:50%; animation:spin .8s linear infinite; }
 
 /* Sidebar toggle */
-.sidebar-toggle { display:inline-flex; background:none; border:none; color:var(--text-dim); font-size:22px; cursor:pointer; padding:4px 8px; border-radius:4px; transition:color var(--transition-fast); min-width:40px; min-height:40px; align-items:center; justify-content:center; }
-.sidebar-toggle:hover { color:var(--amber); }
 .sidebar-close { display:none; background:none; border:none; color:var(--text-dim); font-size:28px; cursor:pointer; align-items:center; justify-content:center; position:absolute; top:6px; right:6px; width:36px; height:36px; z-index:50; }
 .sidebar-close:hover { color:var(--amber); }
 .sidebar-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:19; backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px); }
@@ -1649,7 +1647,6 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
   :root { --sidebar-width:300px; }
   .header-nav { display:none; }
   .mobile-tabs { display:flex; }
-  .sidebar-toggle { display: none !important; }
   .sidebar-close { display:flex; }
   .chat-sidebar {
     position:fixed; left:0; top:0; bottom:28px; z-index:120;
@@ -1662,7 +1659,6 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 
   .header { padding:8px 12px; padding-left:calc(12px + var(--safe-left)); padding-right:calc(12px + var(--safe-right)); }
   .header-brand { font-size:14px; }
-  .sidebar-toggle { display: none !important; }
   .header-right { gap:6px; font-size:11px; }
   .chat-container { padding:12px; padding-left:calc(12px + var(--safe-left)); padding-right:calc(12px + var(--safe-right)); gap:10px; }
   .message-row { max-width:92%; }
@@ -1739,7 +1735,7 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 /* Touch targets minimum 44px */
 @media (pointer:coarse) {
   .session-item, .suggested-prompt { min-height:44px; }
-  .mic-btn, .send-btn, .input-action-btn, .sidebar-toggle, .sidebar-close { min-height:44px; min-width:44px; }
+  .mic-btn, .send-btn, .input-action-btn, .sidebar-close { min-height:44px; min-width:44px; }
   .header-nav a { padding:8px 12px; }
 }
 /* Fix iOS keyboard pushing content: use dvh */
@@ -2238,3 +2234,37 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 }
 .agent-reaction-chip.pop { animation:reactionPop .34s cubic-bezier(.2,.9,.3,1.5); }
 @media (prefers-reduced-motion:reduce){ .agent-reaction-chip.pop { animation:none; } }
+
+/* ── Compact action button (.tl-btn) and switch (.lr-switch) ───────────────
+ * Both used to be injected at runtime, .tl-btn from two different modules and
+ * .lr-switch from a third, so a row's appearance depended on which page had
+ * been opened first. Single definition here, variants instead of the inline
+ * `style="border-color:var(--red)"` that every destructive button carried. */
+.tl-btn {
+  display:inline-flex; align-items:center; gap:5px;
+  background:rgba(255,255,255,.035);
+  border:1px solid var(--border);
+  color:var(--text-dim);
+  border-radius:6px; padding:4px 10px;
+  font-size:11px; font-weight:500; line-height:1.55;
+  cursor:pointer; white-space:nowrap;
+  transition:background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+}
+.tl-btn:hover { background:rgba(245,158,11,.10); border-color:var(--amber); color:var(--amber); }
+.tl-btn:active { transform:translateY(1px); }
+.tl-btn:focus-visible { outline:2px solid var(--amber); outline-offset:1px; }
+.tl-btn[disabled] { opacity:.45; cursor:not-allowed; transform:none; }
+.tl-btn[disabled]:hover { background:rgba(255,255,255,.035); border-color:var(--border); color:var(--text-dim); }
+/* Destructive: readable at rest, unmistakable under the cursor. Shouting in red
+ * on every row turned Del into background noise. */
+.tl-btn--danger { color:rgba(239,68,68,.75); border-color:rgba(239,68,68,.28); }
+.tl-btn--danger:hover { background:rgba(239,68,68,.12); border-color:var(--red); color:var(--red); }
+.tl-btn--active { background:rgba(245,158,11,.12); border-color:var(--amber); color:var(--amber); }
+
+.lr-switch { position:relative; display:inline-block; width:34px; height:18px; flex:0 0 auto; vertical-align:middle; }
+.lr-switch input { display:none; }
+.lr-slider { position:absolute; inset:0; background:#3a3a40; border-radius:999px; cursor:pointer; transition:background var(--transition-fast); }
+.lr-slider:before { content:""; position:absolute; height:12px; width:12px; left:3px; top:3px; background:#c9c9cf; border-radius:50%; transition:transform var(--transition-fast), background var(--transition-fast); }
+.lr-switch input:checked + .lr-slider { background:var(--amber); }
+.lr-switch input:checked + .lr-slider:before { transform:translateX(16px); background:#fff; }
+.lr-switch input:focus-visible + .lr-slider { outline:2px solid var(--amber); outline-offset:2px; }

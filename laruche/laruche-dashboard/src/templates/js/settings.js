@@ -1238,7 +1238,6 @@ LaRuche.Settings = (function(){
       '.tl-seg{display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden}'+
       '.tl-seg button{background:none;border:none;color:var(--text-dim);padding:4px 12px;cursor:pointer;font-size:11px}'+
       '.tl-seg button.on{background:var(--amber);color:#000;font-weight:600}'+
-      '.tl-btn{background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:4px 12px;cursor:pointer;font-size:11px}'+
       '.tl-wrap{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:rgba(20,20,24,.5)}'+
       '.tl-gutter{flex:0 0 130px;border-right:1px solid var(--border);background:rgba(30,30,34,.7);position:sticky;left:0;z-index:2}'+
       '.tl-scroll{flex:1;overflow-x:auto;overflow-y:hidden;touch-action:pan-x pan-y;position:relative}'+
@@ -1773,7 +1772,7 @@ LaRuche.Settings = (function(){
       '<span class="wcard-state" title="'+esc(w.last_state||'')+'">'+esc(etat.txt)+'</span>'+
       '<button class="form-btn" onclick="LaRuche.Settings.saveWatcherEdit(\''+id+'\')">'+t('settings.watcherSave')+'</button>'+
       '<button class="tl-btn" onclick="LaRuche.Settings.toggleWatcherActive(\''+id+'\','+(w.active===false?'true':'false')+')">'+(w.active===false?t('settings.wfResume'):t('settings.wfPause'))+'</button>'+
-      '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="fetch(\'/api/watchers/'+id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.rechargerWatchers()})">'+t('settings.deleteWatcherBtn')+'</button>'+
+      '<button class="tl-btn tl-btn--danger" onclick="fetch(\'/api/watchers/'+id+'\',{method:\'DELETE\'}).then(function(){LaRuche.Settings.rechargerWatchers()})">'+t('settings.deleteWatcherBtn')+'</button>'+
       '</div>';
     return '<div class="wcard open">'+head+flow+foot+'</div>';
   }
@@ -2018,7 +2017,7 @@ LaRuche.Settings = (function(){
         '<div style="font-size:11px;color:var(--text-dim);margin:6px 0;min-height:28px">'+LaRuche.Utils.esc(s.description||'')+'</div>'+
         '<div style="display:flex;gap:6px">'+
         '<button class="tl-btn" onclick="LaRuche.Settings.viewSkill(\''+LaRuche.Utils.esc(s.name)+'\')">'+LaRuche.i18n.t('settings.skillViewEdit')+'</button>'+
-        '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="if(confirm(LaRuche.i18n.t(\'settings.confirmDeleteSkill\',{name:LaRuche.Utils.esc(s.name)})))LaRuche.Settings.deleteSkill(\''+LaRuche.Utils.esc(s.name)+'\')">'+LaRuche.i18n.t('settings.skillDelBtn')+'</button>'+
+        '<button class="tl-btn tl-btn--danger" onclick="if(confirm(LaRuche.i18n.t(\'settings.confirmDeleteSkill\',{name:LaRuche.Utils.esc(s.name)})))LaRuche.Settings.deleteSkill(\''+LaRuche.Utils.esc(s.name)+'\')">'+LaRuche.i18n.t('settings.skillDelBtn')+'</button>'+
         '</div></div>';
     });
     html+='</div>';

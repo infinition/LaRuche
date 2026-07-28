@@ -375,12 +375,8 @@ LaRuche.Timeline = (function(){
       (rows||'<div style="color:var(--text-dim);font-size:11px;padding:4px 0">'+LaRuche.i18n.t('automations.rienDePrevu')+'</div>')+'</div>';
   }
 
-  function ensureBtnStyle(){
-    if(document.getElementById('lr-tlbtn-style')) return;
-    var s=document.createElement('style'); s.id='lr-tlbtn-style';
-    s.textContent='.tl-btn{background:none;border:1px solid var(--border);color:var(--text-dim);border-radius:6px;padding:4px 12px;cursor:pointer;font-size:11px}.tl-btn:hover{border-color:var(--amber);color:var(--amber)}';
-    document.head.appendChild(s);
-  }
+  // .tl-btn lives in app.css: one definition, not one per module.
+  function ensureBtnStyle(){}
 
   // ── Shared state (display mode + Gantt window) ──
   var _viewMode = (function(){ try{ return localStorage.getItem('lr_tl_view')||'agenda'; }catch(e){ return 'agenda'; } })();
@@ -495,7 +491,7 @@ LaRuche.Timeline = (function(){
         '</div></div></div>';
     }
 
-    var zoomBtn = function(h,lbl){ return '<button class="tl-btn"'+(_ganttSpanH===h?' style="border-color:var(--amber);color:var(--amber)"':'')+' onclick="LaRuche.Timeline.ganttZoom('+h+')">'+lbl+'</button>'; };
+    var zoomBtn = function(h,lbl){ return '<button class="tl-btn'+(_ganttSpanH===h?' tl-btn--active':'')+'" onclick="LaRuche.Timeline.ganttZoom('+h+')">'+lbl+'</button>'; };
     var toolbar = '<div class="gantt-toolbar">'+
       viewToggleHtml()+
       '<span style="margin-left:8px;color:var(--text-dim);font-size:11px">'+LaRuche.i18n.t('automations.zoomLabel')+'</span>'+
@@ -530,10 +526,10 @@ LaRuche.Timeline = (function(){
     if(m.kind==='cron' && m.id){
       actions = '<div style="margin-top:8px;display:flex;gap:6px">'+
         '<button class="tl-btn" onclick="LaRuche.Router.go(\'automations\');setTimeout(function(){var b=document.querySelector(\'#autoTabsBar [data-tab=cron]\');if(b)b.click();},60)">'+LaRuche.i18n.t('automations.editerOngletCron')+'</button>'+
-        '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.Timeline.ganttDelete(\'cron\',\''+LaRuche.Utils.esc(m.id)+'\')">'+LaRuche.i18n.t('automations.supprimer')+'</button></div>';
+        '<button class="tl-btn tl-btn--danger" onclick="LaRuche.Timeline.ganttDelete(\'cron\',\''+LaRuche.Utils.esc(m.id)+'\')">'+LaRuche.i18n.t('automations.supprimer')+'</button></div>';
     } else if(m.kind==='mission' && m.slug){
       actions = '<div style="margin-top:8px;display:flex;gap:6px">'+
-        '<button class="tl-btn" style="border-color:var(--red);color:var(--red)" onclick="LaRuche.Timeline.ganttDelete(\'mission\',\''+LaRuche.Utils.esc(m.slug)+'\')">'+LaRuche.i18n.t('automations.supprimerMission')+'</button></div>';
+        '<button class="tl-btn tl-btn--danger" onclick="LaRuche.Timeline.ganttDelete(\'mission\',\''+LaRuche.Utils.esc(m.slug)+'\')">'+LaRuche.i18n.t('automations.supprimerMission')+'</button></div>';
     }
     host.innerHTML = '<div class="gantt-detail">'+
       '<div class="gd-t">'+(m.kind==='cron'?'⏰ ':'👑 ')+LaRuche.Utils.esc(m.name)+'</div>'+
