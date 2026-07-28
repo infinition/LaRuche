@@ -455,6 +455,10 @@
     "en": "📁 Files &amp; scripts",
     "fr": "📁 Fichiers &amp; scripts"
   },
+  "capabilities.filtersAll": {
+    "en": "all",
+    "fr": "tout"
+  },
   "capabilities.hideChats": {
     "en": "Hide Chats",
     "fr": "Masquer Chats"
@@ -4998,6 +5002,10 @@
   "shell.tipCwd": {
     "en": "Show/Hide the working directory",
     "fr": "Afficher/Masquer le répertoire de travail"
+  },
+  "shell.tipFilters": {
+    "en": "Show / hide the filters",
+    "fr": "Afficher / masquer les filtres"
   },
   "shell.tipGpu": {
     "en": "GPU utilization",

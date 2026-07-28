@@ -22,6 +22,8 @@
   })();
   // Translate the whole static shell (spa.html) via data-i18n attributes.
   LaRuche.i18n.applyStatic();
+  // The tab labels just changed length: re-measure whether they still fit on one line.
+  if(LaRuche.Header.fitNav) LaRuche.Header.fitNav();
   LaRuche.Voice.init();
   LaRuche.Feed.init();
   if(LaRuche.Secrets && LaRuche.Secrets.init) LaRuche.Secrets.init();

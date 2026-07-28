@@ -1074,6 +1074,39 @@ LaRuche.Header = (function(){
     }, 20000);
     LaRuche.Poll.every(fetchContextStats, 1500);
     fetchContextStats();
+    initNavFit();
+  }
+
+  /* ── Header tabs: labels, then icons, never a second line ──────────────
+   * A hard breakpoint cannot know how wide "Tableau de bord" is in the active
+   * language, so at ~1150px the labels were still on and the nav wrapped. The fit is
+   * MEASURED instead: as soon as the tabs no longer fit on one line the whole nav
+   * drops its labels in one step, exactly what the small-screen layout already did.
+   */
+  function fitNav(){
+    var nav = document.getElementById('headerNav');
+    if(!nav) return;
+    // Under 768px the bottom mobile tabs take over and the nav is hidden: nothing to measure.
+    if(!nav.offsetParent && nav.offsetWidth === 0) return;
+    // Measure with the labels ON, otherwise the nav could never grow back.
+    nav.classList.remove('nav-compact');
+    // The links are flex-shrink:0, so any shortfall shows up as real overflow.
+    if(nav.scrollWidth > nav.clientWidth + 1) nav.classList.add('nav-compact');
+  }
+  function initNavFit(){
+    var nav = document.getElementById('headerNav');
+    if(!nav) return;
+    fitNav();
+    if(window.ResizeObserver){
+      // Observing the header covers the cases a window resize misses (a sidebar
+      // folding, the zoom changing, a pill appearing on the right).
+      var ro = new ResizeObserver(function(){ fitNav(); });
+      ro.observe(nav.parentNode || nav);
+    } else {
+      window.addEventListener('resize', fitNav);
+    }
+    // The language toggle and the badges change the label widths after boot.
+    window.addEventListener('hashchange', fitNav);
   }
 
   async function fetchContextStats(){
@@ -1279,7 +1312,7 @@ LaRuche.Header = (function(){
     }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('core.errorPrefix',{msg:e}), 'err'); });
   }
 
-  return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, changeModel:changeModel, getModel:getModel, getProfileId:getProfileId, setModel:setModel, loadModels:loadModels, changePermissionMode:changePermissionMode, loadPermissionMode:loadPermissionMode };
+  return { init:init, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, changeModel:changeModel, getModel:getModel, getProfileId:getProfileId, setModel:setModel, loadModels:loadModels, changePermissionMode:changePermissionMode, loadPermissionMode:loadPermissionMode, fitNav:fitNav };
 })();
 
 /* ── WS (Chat WebSocket) ──────────────────────────────────────── */

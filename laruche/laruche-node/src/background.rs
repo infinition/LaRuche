@@ -309,6 +309,49 @@ pub(crate) fn spawn_ollama_heartbeat(state: &Arc<AppState>) {
 }
 
 // Background: Cron task checker (every 30 seconds)
+/// Writes the outcome of a scheduled run into the cognitive memory.
+///
+/// The `memory` delivery channel: instead of pushing the answer to a chat service, the
+/// run leaves a trace where LaRuche will find it again. It is the only channel needing no
+/// token and no configuration, and the only one whose result the agent can later recall
+/// on its own, which is what a recurring watch is usually for.
+///
+/// Lands under `episodes.<date>.<slug>`, the convention the engine already uses for a
+/// mission's episodes, so a scheduled run and a conversation write to the same place.
+pub(crate) async fn livrer_en_memoire(
+    state: &Arc<AppState>,
+    origine: &str,
+    titre: &str,
+    resultat: Result<&str, String>,
+) {
+    let date = chrono::Local::now().format("%Y-%m-%d");
+    let slug: String = titre
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '_' })
+        .collect::<String>()
+        .trim_matches('_')
+        .split('_')
+        .filter(|s| !s.is_empty())
+        .take(6)
+        .collect::<Vec<_>>()
+        .join("_");
+    let slug = if slug.is_empty() { origine.to_string() } else { slug };
+    let node_id = format!("episodes.{date}.{slug}");
+
+    let contenu = match resultat {
+        Ok(r) => format!("**{titre}** ({origine})\n\n{r}"),
+        Err(e) => format!("**{titre}** ({origine}) a echoue\n\n{e}"),
+    };
+    if let Err(e) = state
+        .memoire
+        .write(laruche_memoire::MemoryItem::new(node_id, contenu).with_source(origine))
+        .await
+    {
+        warn!(error = %e, "memory delivery failed");
+    }
+}
+
 pub(crate) fn spawn_cron_checker(state: &Arc<AppState>) {
     let cron_state = state.clone();
     tokio::spawn(async move {
@@ -438,7 +481,18 @@ pub(crate) fn spawn_cron_checker(state: &Arc<AppState>) {
                 // in the UI without a channel stays silent (feed/UI only).
                 let delivery_channel = channel.filter(|s| !s.is_empty());
                 if let Some(ch) = delivery_channel {
-                    if ch.starts_with("telegram") {
+                    if ch == crate::CANAL_MEMOIRE {
+                        livrer_en_memoire(
+                            &cron_state,
+                            "cron",
+                            &preview_text(&prompt, 60),
+                            match &result {
+                                Ok(r) => Ok(r.as_str()),
+                                Err(e) => Err(e.to_string()),
+                            },
+                        )
+                        .await;
+                    } else if ch.starts_with("telegram") {
                         let chat_id = ch.strip_prefix("telegram:").unwrap_or("").trim();
                         let config_path = std::path::Path::new("channels-config.json");
                         if let Ok(content) = std::fs::read_to_string(config_path) {

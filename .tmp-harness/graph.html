@@ -1,0 +1,61 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>body{background:#111;color:#ddd;font:12px monospace;padding:12px}
+svg{width:600px;height:340px;border:1px solid #444;display:block}
+pre{color:#0f0;white-space:pre-wrap}</style></head>
+<body>
+<h3 style="color:#f59e0b">reproduction fidele de grapheDessiner + grapheGestes</h3>
+<svg id="g1" viewBox="-300 -170 600 340" preserveAspectRatio="xMidYMid meet"></svg>
+<pre id="log"></pre>
+<script>
+var LOG=[]; function log(s){LOG.push(s);document.getElementById('log').textContent=LOG.join('\n');}
+var NODES=[{id:'memoire',x:-120,y:-40},{id:'memoire.projets',x:20,y:20},{id:'system.prompt',x:150,y:-60}];
+var survole=null, redraws=0, clicksOnG=0;
+var svg=document.getElementById('g1');
+
+function hexa(cx,cy,r){var p=[];for(var i=0;i<6;i++){var a=Math.PI/180*(60*i-30);p.push((cx+r*Math.cos(a)).toFixed(1)+','+(cy+r*Math.sin(a)).toFixed(1));}return p.join(' ');}
+
+function dessiner(){
+  redraws++;
+  var html='';
+  NODES.forEach(function(n){
+    var actif = !survole || survole===n.id;
+    html+='<g class="mem2-gnode" data-node="'+n.id+'" style="cursor:pointer" opacity="'+(actif?1:0.25)+'">'+
+      '<polygon points="'+hexa(n.x,n.y,26)+'" fill="rgba(24,24,27,.92)" stroke="#f59e0b" stroke-width="1.3"></polygon>'+
+      '<text x="'+n.x+'" y="'+(n.y+40)+'" text-anchor="middle" fill="#eee" font-size="12" style="pointer-events:none">'+n.id+'</text>'+
+      '<title>'+n.id+'</title></g>';
+  });
+  svg.innerHTML=html;
+  svg.querySelectorAll('.mem2-gnode').forEach(function(g){
+    var id=g.dataset.node;
+    g.addEventListener('click', function(){ clicksOnG++; log('  >>> CLICK sur <g> '+id+' (total '+clicksOnG+')'); });
+    g.addEventListener('mouseenter', function(){ survole=id; dessiner(); });
+    g.addEventListener('mouseleave', function(){ survole=null; dessiner(); });
+  });
+  gestes(svg);
+}
+
+function gestes(svg){
+  if(svg._lies) return; svg._lies=true;
+  svg.style.touchAction='none';
+  var glisse=null;
+  svg.addEventListener('pointerdown', function(ev){
+    glisse={x:ev.clientX,y:ev.clientY};
+    svg.setPointerCapture(ev.pointerId);
+    var g=ev.target.closest?ev.target.closest('.mem2-gnode'):null;
+    log('pointerdown -> target='+ev.target.tagName+' closest(g)='+(g?g.dataset.node:'null'));
+  });
+  svg.addEventListener('pointermove', function(ev){ if(!glisse) return; dessiner(); });
+  function fin(){ glisse=null; }
+  svg.addEventListener('pointerup', function(ev){ log('pointerup   -> target='+ev.target.tagName); fin(); });
+  svg.addEventListener('pointercancel', fin);
+  // observers to see where mouse events actually land
+  svg.addEventListener('mousedown', function(ev){ log('mousedown   -> target='+ev.target.tagName+' cls='+(ev.target.getAttribute&&ev.target.getAttribute('class'))); });
+  svg.addEventListener('mouseup',   function(ev){ log('mouseup     -> target='+ev.target.tagName+' cls='+(ev.target.getAttribute&&ev.target.getAttribute('class'))); });
+  svg.addEventListener('click',     function(ev){ log('click(svg)  -> target='+ev.target.tagName+' cls='+(ev.target.getAttribute&&ev.target.getAttribute('class'))); });
+}
+dessiner();
+window.__stats=function(){return {redraws:redraws, clicksOnG:clicksOnG};};
+window.__reset=function(){LOG=[];clicksOnG=0;document.getElementById('log').textContent='';};
+</script>
+</body></html>

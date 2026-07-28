@@ -136,6 +136,8 @@ LaRuche.i18n.add({
   'memory.skillNew':              {fr:'+ Nouveau skill', en:'+ New skill'},
   'memory.skillResync':           {fr:'Relire le disque', en:'Re-read from disk'},
   'memory.skillResynced':         {fr:'Skills relus depuis le disque', en:'Skills re-read from disk'},
+  'memory.badgeProposals':        {fr:'{p} proposition(s) en attente', en:'{p} proposal(s) pending'},
+  'memory.badgeMixed':            {fr:'{p} proposition(s) en attente, {l} livraison(s) non lue(s)', en:'{p} proposal(s) pending, {l} unread delivery(-ies)'},
   'memory.graphDepth':            {fr:'Profondeur', en:'Depth'},
   'memory.graphAllDepths':        {fr:'Tout', en:'All'},
   'memory.graphRecenter':         {fr:'Recentrer', en:'Recenter'},
@@ -241,6 +243,7 @@ LaRuche.Memory = (function(){
   function enter() {
     setView('tree');
     if(!loaded) loadTree(); else renderTree();
+    marquerMemoireVue();  // seen: the deliveries stop counting, the proposals do not
     refreshProposals();
     if(!memPollTimer) memPollTimer = LaRuche.Poll.every(function(){
       var input = document.getElementById('mem2Search');
@@ -599,6 +602,8 @@ LaRuche.Memory = (function(){
       wireRowDnd(row);
     });
     wireRootDnd(el);
+    // A jump from the graph may land before the tree holds the row: every render retries.
+    if(cibleArbre) revelerDansArbre();
   }
 
   /* ---- drag & drop: items to nodes + reparent nodes (edit mode) ---- */
@@ -1596,11 +1601,47 @@ LaRuche.Memory = (function(){
 
     svg.querySelectorAll('.mem2-gnode').forEach(function(g){
       var id = g.dataset.node;
-      g.addEventListener('click', function(){ loadNode(id); });
+      g.addEventListener('click', function(){ ouvrirDepuisGraphe(id); });
       g.addEventListener('mouseenter', function(){ GRAPHE.survole = id; grapheDessiner(); });
       g.addEventListener('mouseleave', function(){ GRAPHE.survole = null; grapheDessiner(); });
     });
     grapheGestes(svg);
+  }
+
+  /* A click in the graph is a NAVIGATION, not a preview: the graph is where you find a
+   * node, the document is where you read it. So it hands over to the document view, opens
+   * the whole lineage in the tree down to the node, and scrolls its row into sight. */
+  function ouvrirDepuisGraphe(id){
+    if(!id) return;
+    var parts = id.split('.'), acc = '';
+    for(var i = 0; i < parts.length - 1; i++){
+      acc = acc ? acc + '.' + parts[i] : parts[i];
+      expanded[acc] = true;
+    }
+    // The node itself opens too: arriving on a branch, you want to see what it holds.
+    expanded[id] = true;
+    // Everything outside SYSTEM hangs under the virtual root, which has to be open for
+    // the row to exist at all.
+    if(parts[0] !== 'system' && parts[0] !== 'capacities' && parts[0] !== 'tools') expanded[VNODE] = true;
+    setView('tree');
+    cibleArbre = id;
+    renderTree();       // reveals straight away, without waiting for the node fetch
+    loadNode(id);
+  }
+
+  // Row to bring into sight after the next tree render, consumed once.
+  var cibleArbre = null;
+  function revelerDansArbre(){
+    if(!cibleArbre) return;
+    var el = document.getElementById('mem2Tree'); if(!el) return;
+    var sel = '.mem2-row[data-node="' + String(cibleArbre).replace(/"/g, '\\"') + '"]';
+    var row = el.querySelector(sel);
+    if(!row) return;              // not in the tree yet: a later render will catch it
+    cibleArbre = null;
+    row.scrollIntoView({ block:'center', behavior:'smooth' });
+    // A brief pulse: after a jump from the graph, the eye needs to be told where it landed.
+    row.classList.add('mem2-row--arrivee');
+    setTimeout(function(){ row.classList.remove('mem2-row--arrivee'); }, 1500);
   }
 
   // Wheel to zoom on the cursor, drag to pan. Bound once: the handlers live on the
@@ -1792,12 +1833,51 @@ LaRuche.Memory = (function(){
       });
   }
 
+  // Sources that write to memory WITHOUT anyone watching: a scheduled run delivered on
+  // the `memory` channel. They are the other reason the tab deserves a badge, next to the
+  // proposals waiting for a decision.
+  var SOURCES_LIVRAISON = ['cron', 'watcher', 'mission'];
+  var _vusJusqua = (function(){
+    try { return parseInt(localStorage.getItem('lr_mem_vu') || '0', 10) || 0; }
+    catch(e){ return 0; }
+  })();
+
+  // Deliveries newer than the last visit to the Memory tab. Read off the mutation log,
+  // which already records source and timestamp: no extra endpoint, no server-side state.
+  function compterLivraisons(){
+    return fetch(LaRuche.API.base+'/api/memory/mutations?limit=50')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        return ((d && d.mutations) || []).filter(function(m){
+          return m.op === 'write' && (m.ts||0) > _vusJusqua &&
+                 SOURCES_LIVRAISON.indexOf(m.src) >= 0;
+        }).length;
+      })
+      .catch(function(){ return 0; });
+  }
+
   function updateProposalsBadge(n) {
-    var badges = document.querySelectorAll('.nav-badge-memory');
-    for (var i=0;i<badges.length;i++){
-      badges[i].textContent = n>99 ? '99+' : String(n);
-      badges[i].style.display = n>0 ? '' : 'none';
-    }
+    // One badge, two reasons: what awaits a decision, and what arrived on its own. Both
+    // mean "memory has something for you", and a second badge on the same tab would say
+    // less, not more.
+    compterLivraisons().then(function(livrees){
+      var total = n + livrees;
+      var badges = document.querySelectorAll('.nav-badge-memory');
+      for (var i=0;i<badges.length;i++){
+        badges[i].textContent = total>99 ? '99+' : String(total);
+        badges[i].style.display = total>0 ? '' : 'none';
+        badges[i].title = livrees
+          ? LaRuche.i18n.t('memory.badgeMixed', { p:n, l:livrees })
+          : LaRuche.i18n.t('memory.badgeProposals', { p:n });
+      }
+    });
+  }
+
+  // Opening the tab marks the deliveries as seen; the proposals keep their own count
+  // until they are decided.
+  function marquerMemoireVue(){
+    _vusJusqua = Math.floor(Date.now()/1000);
+    try { localStorage.setItem('lr_mem_vu', String(_vusJusqua)); } catch(e){}
   }
 
   function renderProposalsPanel(pend) {

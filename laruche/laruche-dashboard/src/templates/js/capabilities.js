@@ -46,6 +46,7 @@ LaRuche.i18n.add({
   'capabilities.kindDm':        { fr:'DM',                en:'DM' },
   'capabilities.you':           { fr:'Vous',              en:'You' },
   'capabilities.noMatchFilter': { fr:'Aucun événement ne correspond aux filtres actifs.', en:'No event matches the active filters.' },
+  'capabilities.filtersAll':    { fr:'tout',               en:'all' },
   'capabilities.noActivity':    { fr:'Aucune activité pour le moment.', en:'No activity yet.' },
   'capabilities.laruchemusing': { fr:'LaRuche réfléchit', en:'LaRuche is thinking' },
   'capabilities.laruchemusingEllipsis': { fr:'LaRuche réfléchit…', en:'LaRuche is thinking…' },
@@ -543,6 +544,31 @@ LaRuche.Feed = (function(){
   }
   function saveFilters(){ try{ localStorage.setItem('lr_feed_filters', JSON.stringify(filters)); }catch(e){} }
 
+  // Folded state of the filter drawer, remembered like the filters themselves.
+  var filtersOpen = false;
+  function loadFiltersOpen(){ try{ filtersOpen = localStorage.getItem('lr_feed_filters_open')==='1'; }catch(e){} }
+  function saveFiltersOpen(){ try{ localStorage.setItem('lr_feed_filters_open', filtersOpen ? '1' : '0'); }catch(e){} }
+  function applyFiltersOpen(){
+    var bar = document.getElementById('feedFilters'); if(!bar) return;
+    bar.classList.toggle('collapsed', !filtersOpen);
+    var head = document.getElementById('feedFiltersHead');
+    if(head) head.setAttribute('aria-expanded', filtersOpen ? 'true' : 'false');
+  }
+  // Folded, the recap is the only thing that says whether anything is being hidden.
+  function applyFiltersSummary(){
+    var el = document.getElementById('feedFiltersSummary'); if(!el) return;
+    var keys = Object.keys(DEFAULT_FILTERS);
+    var on = keys.filter(function(k){ return filters[k] !== false; }).length;
+    var partial = on < keys.length;
+    el.textContent = partial ? (on+' / '+keys.length) : LaRuche.i18n.t('capabilities.filtersAll');
+    el.classList.toggle('partial', partial);
+  }
+  function toggleFilters(){
+    filtersOpen = !filtersOpen;
+    saveFiltersOpen();
+    applyFiltersOpen();
+  }
+
   function passFilter(ev){
     var kind = kindOf(ev);
     if(filters[kind]===false) return false; // unknown kinds (dm) pass by default
@@ -746,6 +772,7 @@ LaRuche.Feed = (function(){
       var f = c.dataset.filter;
       c.classList.toggle('active', !!filters[f]);
     });
+    applyFiltersSummary();
   }
   function reRender(){
     lastSig = '';                 // force re-render despite the anti-flicker
@@ -796,8 +823,12 @@ LaRuche.Feed = (function(){
   function init(){
     try{ anchored = localStorage.getItem('lr_feed_anchored')==='1'; }catch(e){}
     loadFilters();
+    loadFiltersOpen();
     applyAnchorUI();
+    applyFiltersOpen();
     applyFilterUI();
+    var head = document.getElementById('feedFiltersHead');
+    if(head) head.onclick = toggleFilters;
     var bar = document.getElementById('feedFilters');
     if(bar){
       bar.querySelectorAll('.ff-chip').forEach(function(c){

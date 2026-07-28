@@ -127,7 +127,7 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
   backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
   flex-shrink:0; z-index:100;
 }
-.header-left { display:flex; align-items:center; gap:10px; }
+.header-left { display:flex; align-items:center; gap:10px; flex-shrink:0; }
 /* Honeycomb loader logo (header) */
 .honeycomb-loader { display:flex; align-items:center; justify-content:center; position:relative; cursor:pointer; flex-shrink:0; transition:transform .2s; }
 .honeycomb-loader:hover { transform:scale(1.1); }
@@ -143,14 +143,25 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 /* STATIC variant (LaRuche avatar in the Feed): no animation, no hover-scale. */
 .honeycomb-loader.hc-static .hexagon { animation:none !important; }
 /* Avatars and type badge in the Feed. */
-.feed-av { width:20px; height:20px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; }
-.feed-av-user { background:var(--amber); color:var(--bg); border-radius:50%; font-size:10px; font-weight:700; }
-.feed-av-laruche { position:relative; overflow:hidden; }
-.feed-av-laruche .honeycomb-loader.hc-sm { transform:scale(.62); transform-origin:top left; pointer-events:none; }
-.feed-av-laruche .honeycomb-loader.hc-sm:hover { transform:scale(.62); }
+.feed-av { width:30px; height:30px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; }
+.feed-av-user { background:var(--amber); color:var(--bg); border-radius:50%; font-size:14px; font-weight:700; }
+/* LaRuche wears the same round bubble as the user: the honeycomb is CENTRED and scaled
+   to fit inside it, instead of being pinned top-left where the circle cropped it. */
+.feed-av-laruche {
+  position:relative; overflow:hidden; border-radius:50%;
+  background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.30);
+}
+.feed-av-laruche .honeycomb-loader.hc-sm,
+.feed-av-laruche .honeycomb-loader.hc-sm:hover {
+  position:absolute; left:50%; top:50%;
+  /* The seven hexagons sit 2.5px below the loader's own centre; the extra offset puts
+     the DRAWING, not the box, in the middle of the bubble. */
+  transform:translate(-50%, calc(-50% - 1.9px)) scale(.75);
+  transform-origin:center; pointer-events:none;
+}
 .feed-kind-badge { font-size:8.5px; letter-spacing:.3px; text-transform:uppercase; padding:0 5px; border-radius:6px; border:1px solid currentColor; opacity:.85; line-height:1.5; }
 .kb-memory{color:#a78bfa} .kb-agent{color:var(--amber)} .kb-cron{color:#f59e0b} .kb-mission{color:#34d399} .kb-watcher{color:#60a5fa} .kb-dm{color:#a855f7}
-.feed-av-peer { background:#a855f7; color:#fff; border-radius:50%; font-size:10px; font-weight:700; }
+.feed-av-peer { background:#a855f7; color:#fff; border-radius:50%; font-size:14px; font-weight:700; }
 .feed-expandable { cursor:pointer; }
 .feed-more { color:var(--amber); font-size:10px; opacity:.8; }
 /* Conversation dot: empty (reserves space) unless new = amber dot. */
@@ -301,18 +312,29 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .pill-swarm.active { display:flex; }
 .pill .dot { width:5px; height:5px; border-radius:50%; background:currentColor; animation:pulse 2s infinite; }
 
+/* CSS fallback if the measured switch below never runs (no JS yet at first paint). */
 @media (max-width: 1150px) {
   .header-nav a .tab-text { display: none; }
   .header-nav a { padding: 6px 10px; }
+  .header-nav a .tab-icon { margin-right: 0; }
 }
 .mobile-tabs a .tab-text { display: none; }
-.header-nav { display:flex; gap:0; }
+/* min-width:0 lets the nav shrink below its content instead of shoving the header
+   apart, which is what makes the overflow measurable in LaRuche.Header (core.js). */
+.header-nav { display:flex; gap:0; min-width:0; }
 .header-nav a {
   display:flex; align-items:center; justify-content:center;
   padding:6px 14px; font-size:12px; font-weight:600; color:var(--text-muted);
   text-decoration:none; border-bottom:2px solid transparent;
   transition:all var(--transition-fast); text-transform:uppercase; letter-spacing:.5px;
+  /* A tab label NEVER wraps: when the labels stop fitting the nav goes icon-only in
+     one step, rather than growing a second line inside the header. */
+  white-space:nowrap; flex-shrink:0;
 }
+/* Icon-only: set by the measured fit, whatever the viewport width or the language. */
+.header-nav.nav-compact a .tab-text { display:none; }
+.header-nav.nav-compact a { padding:6px 10px; }
+.header-nav.nav-compact a .tab-icon { margin-right:0; }
 .header-nav a:hover { color:var(--text); }
 .header-nav a.active { color:var(--amber); border-bottom-color:var(--amber); }
 
@@ -350,7 +372,7 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .mem-prop-meta { color:var(--text-muted); font-size:9px; margin-top:2px; text-transform:uppercase; letter-spacing:.4px; }
 .mem-prop-actions { display:flex; gap:4px; flex-shrink:0; }
 
-.header-right { display:flex; align-items:center; gap:12px; font-size:12px; color:var(--text-dim); }
+.header-right { display:flex; align-items:center; gap:12px; font-size:12px; color:var(--text-dim); flex-shrink:0; }
 .model-select {
   background:var(--bg-input); border:1px solid var(--border); border-radius:6px;
   color:var(--text); font-size:12px; padding:4px 8px; outline:none;
@@ -649,7 +671,8 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
   display:flex; align-items:center; justify-content:center;
   font-size:14px; flex-shrink:0; margin-top:2px;
 }
-.avatar.user-avatar { background:var(--amber); color:var(--bg); font-weight:700; font-size:13px; }
+/* The user's thumbnail is often a photo: it reads at 150% of the base avatar box. */
+.avatar.user-avatar { width:72px; height:72px; background:var(--amber); color:var(--bg); font-weight:700; font-size:20px; }
 .avatar.assistant-avatar { background:transparent; border:none; overflow:visible; width:52px; height:48px; }
 
 /* ── CSS Bee Avatar (faithful SCSS→CSS conversion, 1vw≈3px, eyes +20%) ── */
@@ -1267,6 +1290,12 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .mem2-tree.editmode { outline: 1px dashed var(--amber-dim); outline-offset: -3px; border-radius:6px; }
 .mem2-tree.editmode.drag-over-root { background: rgba(245,158,11,0.07); outline: 1px dashed var(--amber); }
 .mem2-row.active { background:var(--amber-glow); color:var(--amber); }
+/* Landing from the graph: a short pulse says where the jump put you in the tree. */
+.mem2-row--arrivee { animation:mem2Arrivee 1.5s ease-out; }
+@keyframes mem2Arrivee {
+  0%, 45% { box-shadow:0 0 0 1px var(--amber), 0 0 10px rgba(245,158,11,.45); }
+  100%    { box-shadow:0 0 0 0 transparent; }
+}
 .mem2-caret { width:12px; flex-shrink:0; color:var(--text-muted); font-size:9px; text-align:center; transition:transform .12s; }
 .mem2-icon { width:14px; height:14px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; color:var(--text-muted); opacity:.85; }
 .mem2-row.active .mem2-icon { color:var(--amber); opacity:1; }
@@ -1687,6 +1716,7 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
   .message.assistant pre { font-size:11px; padding:6px 8px; max-width:100%; overflow-x:auto; }
   .avatar { width:28px; height:28px; font-size:12px; }
   .avatar.assistant-avatar { width:36px; height:36px; }
+  .avatar.user-avatar { width:42px; height:42px; font-size:16px; }
   .input-area { padding:8px 10px; padding-left:calc(10px + var(--safe-left)); padding-right:calc(10px + var(--safe-right)); gap:6px; }
   /* 16px minimum prevents iOS auto-zoom on focus */
   .input-area textarea { font-size:16px; padding:10px 12px; min-height:44px; max-height:100px; }
@@ -1733,6 +1763,7 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
   .message { padding:8px 12px; font-size:13px; }
   .avatar { width:24px; height:24px; }
   .avatar.assistant-avatar { width:32px; height:32px; }
+  .avatar.user-avatar { width:36px; height:36px; font-size:14px; }
   .send-btn span { display:none; }
   .send-btn { min-width:44px; padding:0 10px; }
   /* .upload-btn { display:none; } */
@@ -1887,11 +1918,44 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 }
 .feed-next strong { color:var(--amber); }
 .feed-next .fn-sub { color:var(--text-muted); font-size:11px; }
+/* Filters: folded away by default. Seven chips wrap over three lines and eat the top of
+   the feed, for a control most sessions never touch. One line summarises the state,
+   a click unfolds the chips. */
 .feed-filters {
-  display:flex; flex-wrap:wrap; gap:6px; align-items:center;
-  padding:6px 12px 4px; border-bottom:1px solid var(--border);
+  padding:4px 12px; border-bottom:1px solid var(--border);
 }
-.feed-filters .ff-label { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.4px; margin-right:2px; }
+.feed-filters .ff-head {
+  display:flex; align-items:center; gap:6px; width:100%;
+  background:none; border:0; padding:4px 0; cursor:pointer;
+  color:var(--text-muted); font:inherit; text-align:left;
+  transition:color .15s;
+}
+.feed-filters .ff-head:hover { color:var(--amber); }
+.feed-filters .ff-head:focus-visible { outline:1px solid var(--amber); outline-offset:2px; border-radius:4px; }
+.feed-filters .ff-caret { flex-shrink:0; transition:transform .22s cubic-bezier(.22,.61,.36,1); }
+.feed-filters:not(.collapsed) .ff-caret { transform:rotate(90deg); }
+.feed-filters .ff-label { font-size:10px; color:inherit; text-transform:uppercase; letter-spacing:.4px; }
+/* Right-aligned recap: "all" when nothing is filtered out, "3 / 7" when it is. */
+.feed-filters .ff-summary {
+  margin-left:auto; font-size:10px; font-family:var(--mono); letter-spacing:.3px;
+  color:var(--text-dim); padding:1px 7px; border-radius:999px;
+  border:1px solid var(--border); background:rgba(255,255,255,0.03);
+  transition:color .15s, border-color .15s, background .15s;
+}
+.feed-filters .ff-summary.partial { color:var(--amber); border-color:rgba(245,158,11,0.45); background:rgba(245,158,11,0.12); }
+.feed-filters .ff-body {
+  display:flex; flex-wrap:wrap; gap:6px; align-items:center;
+  padding:6px 0 4px;
+  max-height:220px; opacity:1;
+  transition:max-height .24s cubic-bezier(.22,.61,.36,1), opacity .18s ease, padding .24s;
+}
+.feed-filters.collapsed .ff-body {
+  max-height:0; opacity:0; padding-top:0; padding-bottom:0;
+  overflow:hidden; pointer-events:none;
+}
+@media (prefers-reduced-motion:reduce) {
+  .feed-filters .ff-body, .feed-filters .ff-caret { transition:none; }
+}
 .ff-chip {
   font-size:11px; font-weight:600; cursor:pointer; user-select:none;
   padding:2px 9px; border-radius:999px; line-height:1.5;
@@ -1923,6 +1987,9 @@ html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
 .feed-actor {
   font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.4px;
   padding:1px 6px; border-radius:5px; white-space:nowrap;
+  /* The bigger avatar leaves less room on this line: a long display name is cut
+     rather than pushing the badge and the time out of the drawer. */
+  min-width:0; overflow:hidden; text-overflow:ellipsis;
 }
 /* Clearly distinct actors: Me (solid blue) · LaRuche/my agent (solid amber) · another ruche (purple). */
 .feed-actor.actor-user { background:#3b82f6; color:#fff; border:1px solid #3b82f6; font-weight:700; }
