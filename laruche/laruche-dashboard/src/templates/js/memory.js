@@ -129,10 +129,10 @@ LaRuche.i18n.add({
   'memory.trashEmptied':          {fr:'Corbeille videe', en:'Trash emptied'},
   'memory.trashIntro':            {fr:'Les noeuds supprimes atterrissent ici avant d\'etre effaces. Ils partent seuls au bout de sept jours ; le bouton ci-dessous ne fait qu\'accelerer.', en:'Deleted nodes land here before being erased. They go on their own after seven days; the button below only speeds that up.'},
   'memory.trashEmptyState':       {fr:'Corbeille vide.', en:'The trash is empty.'},
-  'memory.noteTools':             {fr:'Outils natifs, compiles dans LaRuche. Ni modifiables ni supprimables : leur source est le code. Pour ajouter un outil a toi, forge un plugin depuis l\'onglet Capacites.', en:'Built-in tools, compiled into LaRuche. Neither editable nor removable: their source is the code. To add a tool of your own, forge a plugin from the Capabilities tab.'},
-  'memory.notePlugins':           {fr:'Outils forges, par toi ou par l\'agent. C\'est ici que se cree un outil sur mesure : onglet Capacites, ou plugin_create pour l\'agent. La source est plugins/<nom>/plugin.json ; cette page n\'en est que le reflet.', en:'Forged tools, by you or by the agent. This is where a custom tool is made: Capabilities tab, or plugin_create for the agent. The source is plugins/<name>/plugin.json; this page only mirrors it.'},
-  'memory.noteMcp':               {fr:'Outils exposes par un serveur MCP. Le serveur s\'ajoute, se regle et s\'active dans l\'onglet Capacites ; ses outils, eux, sont declares par le serveur lui-meme, pas par un fichier local.', en:'Tools exposed by an MCP server. The server is added, configured and switched on from the Capabilities tab; its tools are declared by the server itself, not by a local file.'},
-  'memory.noteSkills':            {fr:'Procedures. Elles se creent dans l\'onglet Capacites ou avec skill_create, et vivent dans skills/<nom>/SKILL.md, synchronise dans les deux sens avec cette page. Le contenu de chaque skill reste editable ici.', en:'Procedures. Created from the Capabilities tab or with skill_create, they live in skills/<name>/SKILL.md, kept in step with this page in both directions. Each skill\'s content stays editable here.'},
+  'memory.noteTools':              {fr:"Outils natifs, compiles dans LaRuche. Leur nom, leur description et leur schema viennent du code de l'outil lui-meme, d'ou le fait qu'ils ne se modifient pas ici. Pour ajouter un outil a toi, forge un plugin depuis l'onglet Capacites : aucun Rust a ecrire.", en:"Built-in tools, compiled into LaRuche. Their name, description and schema come from the tool's own code, which is why they cannot be edited here. To add a tool of your own, forge a plugin from the Capabilities tab: no Rust to write."},
+  'memory.notePlugins':            {fr:"Outils forges, par toi ou par l'agent. La description et le schema affiches sont ceux que TU as ecrits dans plugins/<nom>/plugin.json ; cette page n'en est que le reflet. Creation et edition dans l'onglet Capacites, ou plugin_create pour l'agent.", en:"Forged tools, by you or by the agent. The description and schema shown are the ones YOU wrote in plugins/<name>/plugin.json; this page only mirrors them. Created and edited from the Capabilities tab, or with plugin_create for the agent."},
+  'memory.noteMcp':                {fr:"Outils exposes par un serveur MCP. Le serveur s'ajoute, se modifie et s'active dans l'onglet Capacites. La description et le schema ne sont ecrits nulle part chez nous : le serveur les declare lui-meme au demarrage, donc brancher un nouveau serveur ne demande de toucher a aucun code.", en:"Tools exposed by an MCP server. The server is added, edited and switched on from the Capabilities tab. Their description and schema are written nowhere on our side: the server declares them itself at startup, so plugging in a new server means touching no code at all."},
+  'memory.noteSkills':            {fr:"Procedures. Contrairement aux trois familles voisines, ce n'est pas un reflet mais la source : editer un skill ici reecrit son skills/<nom>/SKILL.md, et le supprimer efface son dossier. Cree et modifie donc librement ; seule cette racine refuse les notes en vrac. Relis le disque si tu as edite un fichier hors de LaRuche.", en:"Procedures. Unlike the three families beside it, this is not a mirror but the source: editing a skill here rewrites its skills/<name>/SKILL.md, and deleting one removes its folder. So create and edit freely; only this root refuses loose notes. Re-read from disk after editing a file outside LaRuche."},
   'memory.skillNew':              {fr:'+ Nouveau skill', en:'+ New skill'},
   'memory.skillResync':           {fr:'Relire le disque', en:'Re-read from disk'},
   'memory.skillResynced':         {fr:'Skills relus depuis le disque', en:'Skills re-read from disk'},
@@ -861,12 +861,21 @@ LaRuche.Memory = (function(){
     if(locked){
       // Each family says where its content really comes from and where to add to it,
       // rather than a single "read only" that leaves the reader looking for the door.
-      var cle = ({
-        'capacities.tools':'memory.noteTools',
-        'capacities.plugins':'memory.notePlugins',
-        'capacities.mcp':'memory.noteMcp',
-        'capacities.skills':'memory.noteSkills'
-      })[nodeId] || (estProjection(nodeId) ? 'memory.projectionNote' : null);
+      // Matched on the branch, not on the exact id: the question "where does this
+      // description come from, and where do I add one" is asked on a TOOL, not on the
+      // root above it, and that is exactly where the generic note said nothing useful.
+      var familles = [
+        ['capacities.tools', 'memory.noteTools'],
+        ['capacities.plugins', 'memory.notePlugins'],
+        ['capacities.mcp', 'memory.noteMcp'],
+        ['capacities.skills', 'memory.noteSkills']
+      ];
+      var cle = null;
+      for(var fi = 0; fi < familles.length; fi++){
+        var racine = familles[fi][0];
+        if(nodeId === racine || nodeId.indexOf(racine+'.') === 0){ cle = familles[fi][1]; break; }
+      }
+      if(!cle && estProjection(nodeId)) cle = 'memory.projectionNote';
       var note = cle
         ? LaRuche.i18n.t(cle)
         : LaRuche.i18n.t('memory.systemProtectedNote')+
