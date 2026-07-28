@@ -1284,6 +1284,9 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .mem2-syseditor { display:flex; flex-direction:column; gap:12px; }
 .mem2-syseditor-head { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .mem2-syseditor-head h3 { font-size:15px; color:var(--amber-light); font-weight:700; margin:0; display:flex; align-items:center; gap:8px; }
+/* The inline icon carries no width/height, so without this it falls back to the SVG
+ * default of 300x150: some shapes then read as oversized, others as missing entirely. */
+.mem2-syseditor-head h3 svg { width:24px; height:24px; flex:0 0 auto; }
 .mem2-syseditor textarea { width:100%; min-height:320px; background:var(--bg-input); border:1px solid var(--amber); color:var(--text); border-radius:8px; padding:14px; font-family:var(--mono); font-size:13px; line-height:1.55; resize:vertical; outline:none; }
 .mem2-syseditor textarea:focus { border-color:var(--amber-light); }
 .mem2-syseditor-acts { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }

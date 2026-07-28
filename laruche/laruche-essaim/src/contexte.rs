@@ -729,25 +729,15 @@ pub async fn boucle_react_memoire_multimodal(
     }
     // User profile (locked node `system.user`): editable by the user ONLY (via their
     // profile), never by the agent (memory_write guard). Injected into context so LaRuche
-    // "knows" the user. Single item, read directly (no frontmatter dependency).
-    if let Ok(node) = memoire.read_node("system.user").await {
-        if let Some(fiche) = node
-            .get("items")
-            .and_then(|i| i.as_array())
-            .and_then(|a| {
-                a.iter()
-                    .rev()
-                    .find_map(|it| it.get("content").and_then(|c| c.as_str()))
-            })
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-        {
-            let bloc = format!("## About the user (profile they provided)\n{fiche}");
-            cfg.custom_instructions = Some(match cfg.custom_instructions.take() {
-                Some(s) => format!("{s}\n\n{bloc}"),
-                None => bloc,
-            });
-        }
+    // "knows" the user. Read through the same door as the SOUL, so `enabled: false` in
+    // its frontmatter switches the injection off. A profile without frontmatter, which is
+    // every profile written before this, counts as enabled.
+    if let Some(fiche) = charger_doc_systeme(&memoire, "system.user").await {
+        let bloc = format!("## About the user (profile they provided)\n{fiche}");
+        cfg.custom_instructions = Some(match cfg.custom_instructions.take() {
+            Some(s) => format!("{s}\n\n{bloc}"),
+            None => bloc,
+        });
     }
     // Index of available skills (always present -> the model knows its full repertoire).
     // DYNAMIC skill catalog when the context is narrow (same condition as dynamic tool

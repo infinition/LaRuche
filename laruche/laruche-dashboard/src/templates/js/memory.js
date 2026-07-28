@@ -65,6 +65,10 @@ LaRuche.i18n.add({
   'memory.defaultNote':           {fr:'Defaut du code (pre-rempli) : c\'est ce texte qui est utilise tant que tu n\'enregistres pas. Edite-le pour le personnaliser ; il sera applique au prochain message, sans redemarrage.', en:'Code default (pre-filled): this is the text used as long as you do not save. Edit it to customize; it will be applied on the next message, without restart.'},
   'memory.soulPlaceholder':       {fr:'Personnalite (format OKF avec frontmatter)...', en:'Personality (OKF format with frontmatter)...'},
   'memory.sectionPlaceholder':    {fr:'Texte de la section...', en:'Section text...'},
+  'memory.userPlaceholder':       {fr:'Ce que LaRuche doit savoir de vous (prenom, ville, contexte, preferences)...', en:'What LaRuche should know about you (name, city, context, preferences)...'},
+  'memory.profileSaved':          {fr:'Profil enregistre', en:'Profile saved'},
+  'memory.clearProfileConfirm':   {fr:'Effacer le profil ? LaRuche ne saura plus rien de vous.', en:'Clear the profile? LaRuche will know nothing about you.'},
+  'memory.clearBtn':              {fr:'Effacer', en:'Clear'},
   'memory.saveBtn':               {fr:'Enregistrer', en:'Save'},
   'memory.restoreDefaultBtn':     {fr:'Restaurer le defaut', en:'Restore default'},
   'memory.systemFormatNote':      {fr:'Le format des appels d\'outils et des plans reste gere par le systeme et n\'est pas editable ici.', en:'The format of tool calls and plans remains managed by the system and is not editable here.'},
@@ -376,7 +380,12 @@ LaRuche.Memory = (function(){
   }
   // system.prompt / system.soul: editable by the admin via the dedicated editor
   function isSystemEditor(id){
-    return id === 'system.prompt' || id === 'system.behavior' || id === 'system.soul' || id === 'system.prompt_curateur' || id === 'system.prompt_extraction' || id === 'system.prompt_planning' || id === 'system.prompt_reine';
+    // system.user joins them: it was rendering as a plain node, so the profile had no
+    // title, no icon and no way to switch its injection off, unlike the SOUL beside it.
+    return id === 'system.prompt' || id === 'system.behavior' || id === 'system.soul'
+        || id === 'system.prompt_curateur' || id === 'system.prompt_extraction'
+        || id === 'system.prompt_planning' || id === 'system.prompt_reine'
+        || id === 'system.user';
   }
 
   // inline SVG (inherit currentColor)
@@ -401,7 +410,10 @@ LaRuche.Memory = (function(){
     // which was which. Plug for a plugin, socket for an MCP server, wrench for a
     // built-in tool.
     plugin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6"/><path d="M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v4"/></svg>',
-    mcp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></svg>'
+    mcp:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></svg>',
+    // Behavior shared the root's gear, so two rows of the same branch looked alike.
+    // A compass: the rules that keep a heading.
+    comportement:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>'
   };
   // The bin: `delete_node` relocates here instead of destroying. Its own section at the
   // bottom, out of the @memory node, since it is not memory but what was thrown away.
@@ -413,7 +425,7 @@ LaRuche.Memory = (function(){
     if(id === CORBEILLE) return SVG.corbeille;
     if(id === 'system') return SVG.system;
     if(id === 'system.prompt') return SVG.prompt;
-    if(id === 'system.behavior') return SVG.system;
+    if(id === 'system.behavior') return SVG.comportement;
     if(id === 'system.soul') return SVG.soul;
     if(id === 'system.prompt_curateur') return SVG.curateur;
     if(id === 'system.prompt_extraction') return SVG.consolidation;
@@ -898,17 +910,32 @@ LaRuche.Memory = (function(){
     return { enabled:enabled, hasFm:true, body:m[2], fm:fm };
   }
 
-  // Rebuild the SOUL content with frontmatter from enabled + body.
-  function buildSoul(enabled, body){
-    return '---\ntype: soul\nenabled: '+(enabled?'true':'false')+'\n---\n'+(body || '');
+  // Rebuild a switchable system document: frontmatter from enabled + body. The `type`
+  // is a parameter because the SOUL is no longer the only node carrying the flag.
+  function buildSoul(enabled, body, type){
+    return '---\ntype: '+(type || 'soul')+'\nenabled: '+(enabled?'true':'false')+'\n---\n'+(body || '');
   }
+
+  // System nodes whose injection can be switched off from the panel. Both are read
+  // through charger_doc_systeme server-side, which honours `enabled: false`.
+  var SYS_BASCULABLES = { 'system.soul':'soul', 'system.user':'profile' };
+
+  // Title of a system node, shared by the tree and the editor so the two never diverge.
+  var SYS_TITRES = {
+    'system.soul':'memory.titleSoul', 'system.behavior':'memory.titleBehavior',
+    'system.prompt_curateur':'memory.titleCurateur', 'system.prompt_extraction':'memory.titleExtraction',
+    'system.prompt_planning':'memory.titlePlanning', 'system.prompt_reine':'memory.titleReine',
+    'system.user':'memory.segUser', 'system.prompt':'memory.titleIdentity'
+  };
 
   var _sysDefaults = null; // cache of default texts (hard-coded)
   function renderSystemEditor(el, nodeId){
     var isSoul = (nodeId === 'system.soul');
+    var typeBascule = SYS_BASCULABLES[nodeId] || null;  // null = no on/off switch
+    var sansDefaut = !!typeBascule;                     // nothing to pre-fill from code
     // Load the hard-coded defaults once to PRE-FILL identity/behavior (the user
     // sees and edits the full prompt, instead of an empty field).
-    if(!isSoul && !_sysDefaults){
+    if(!sansDefaut && !_sysDefaults){
       el.innerHTML = '<div class="mem2-empty">'+LaRuche.i18n.t('memory.loading')+'</div>';
       fetch(LaRuche.API.base+'/api/system/prompt-defaults').then(function(r){return r.json();})
         .then(function(d){ _sysDefaults = d || {}; renderSystemEditor(el, nodeId); })
@@ -921,13 +948,15 @@ LaRuche.Memory = (function(){
     var rawContent = last ? (last.content || last.text || '') : '';
     var hasOverride = !!rawContent;
     var taValue = rawContent, soulEnabled = false;
-    if(isSoul){
-      if(!rawContent){ taValue = SOUL_TEMPLATE; soulEnabled = false; }
-      else {
-        var parsed = parseSoul(rawContent);
-        soulEnabled = parsed.enabled;
+    if(typeBascule){
+      if(!rawContent){
+        // The SOUL has a template to start from; a profile starts on a blank page.
+        taValue = isSoul ? SOUL_TEMPLATE : buildSoul(true, '', typeBascule);
+      } else {
         taValue = rawContent; // keep the frontmatter visible/editable
       }
+      // Read the state off the text shown, never guessed beside it.
+      soulEnabled = parseSoul(taValue).enabled;
     } else if(!rawContent){
       // Empty in DB → pre-fill with the code default (it is THIS text that is used).
       taValue = (nodeId === 'system.behavior') ? (_sysDefaults.behavior || '')
@@ -937,26 +966,23 @@ LaRuche.Memory = (function(){
               : (nodeId === 'system.prompt_reine') ? (_sysDefaults.prompt_reine || '')
               : (_sysDefaults.identity || '');
     }
-    var title = isSoul ? LaRuche.i18n.t('memory.titleSoul')
-              : (nodeId === 'system.behavior' ? LaRuche.i18n.t('memory.titleBehavior')
-              : (nodeId === 'system.prompt_curateur' ? LaRuche.i18n.t('memory.titleCurateur')
-              : (nodeId === 'system.prompt_extraction' ? LaRuche.i18n.t('memory.titleExtraction')
-              : (nodeId === 'system.prompt_planning' ? LaRuche.i18n.t('memory.titlePlanning')
-              : (nodeId === 'system.prompt_reine' ? LaRuche.i18n.t('memory.titleReine') : LaRuche.i18n.t('memory.titleIdentity'))))));
-    var icon = isSoul ? SVG.soul : (nodeId === 'system.behavior' ? SVG.system : SVG.prompt);
+    // Title and icon come from the SAME source as the tree: the panel showed a terminal
+    // for LaReine and for every prompt alike, whatever the tree displayed beside them.
+    var title = LaRuche.i18n.t(SYS_TITRES[nodeId] || 'memory.titleIdentity');
+    var icon = nodeIcon(nodeId, false);
     var html = '<div class="mem2-syseditor">'+
       '<div class="mem2-syseditor-head">'+
         '<h3>'+icon+esc(title)+'</h3>'+
-        (isSoul ? '<label class="mem2-toggle"><input type="checkbox" id="mem2SoulToggle"'+(soulEnabled?' checked':'')+'><span class="mem2-toggle-track"></span><span>'+(soulEnabled?LaRuche.i18n.t('memory.soulEnabled'):LaRuche.i18n.t('memory.soulDisabled'))+'</span></label>' : '')+
+        (typeBascule ? '<label class="mem2-toggle"><input type="checkbox" id="mem2SoulToggle"'+(soulEnabled?' checked':'')+'><span class="mem2-toggle-track"></span><span>'+(soulEnabled?LaRuche.i18n.t('memory.soulEnabled'):LaRuche.i18n.t('memory.soulDisabled'))+'</span></label>' : '')+
       '</div>'+
       '<div class="mem2-protnote">'+SVG.lock+'<span>'+LaRuche.i18n.t('memory.systemProtectedAdmin')+'</span></div>'+
-      (isSoul ? '' : '<div class="mem2-nodedates">'+(hasOverride
+      (typeBascule ? '' : '<div class="mem2-nodedates">'+(hasOverride
           ? LaRuche.i18n.t('memory.customizedNote')
           : LaRuche.i18n.t('memory.defaultNote'))+'</div>')+
-      '<textarea id="mem2SysText" spellcheck="false" placeholder="'+(isSoul?LaRuche.i18n.t('memory.soulPlaceholder'):LaRuche.i18n.t('memory.sectionPlaceholder'))+'">'+esc(taValue)+'</textarea>'+
+      '<textarea id="mem2SysText" spellcheck="false" placeholder="'+(isSoul?LaRuche.i18n.t('memory.soulPlaceholder'):(nodeId==='system.user'?LaRuche.i18n.t('memory.userPlaceholder'):LaRuche.i18n.t('memory.sectionPlaceholder')))+'">'+esc(taValue)+'</textarea>'+
       '<div class="mem2-syseditor-acts">'+
         '<button class="mem2-btn-primary" id="mem2SysSave">'+LaRuche.i18n.t('memory.saveBtn')+'</button>'+
-        '<button class="mem2-btn-ghost" id="mem2SysRestore">'+LaRuche.i18n.t('memory.restoreDefaultBtn')+'</button>'+
+        '<button class="mem2-btn-ghost" id="mem2SysRestore">'+LaRuche.i18n.t(nodeId==='system.user'?'memory.clearBtn':'memory.restoreDefaultBtn')+'</button>'+
       '</div>'+
       '<div class="mem2-syseditor-note">'+LaRuche.i18n.t('memory.systemFormatNote')+'</div>'+
     '</div>';
@@ -965,22 +991,22 @@ LaRuche.Memory = (function(){
     var ta = document.getElementById('mem2SysText');
     var toggle = document.getElementById('mem2SoulToggle');
 
-    if(isSoul && toggle){
+    if(typeBascule && toggle){
       var lbl = toggle.parentNode.querySelector('span:last-child');
       toggle.onchange = function(){
         if(lbl) lbl.textContent = toggle.checked ? LaRuche.i18n.t('memory.soulEnabled') : LaRuche.i18n.t('memory.soulDisabled');
         // sync the frontmatter in the textarea (keep the body)
         var p = parseSoul(ta.value);
-        ta.value = buildSoul(toggle.checked, p.body);
+        ta.value = buildSoul(toggle.checked, p.body, typeBascule);
       };
     }
 
     document.getElementById('mem2SysSave').onclick = function(){
       var content = ta.value;
-      if(isSoul){
+      if(typeBascule){
         // ensure a frontmatter consistent with the toggle
         var p = parseSoul(content);
-        content = buildSoul(toggle ? toggle.checked : p.enabled, p.body);
+        content = buildSoul(toggle ? toggle.checked : p.enabled, p.body, typeBascule);
       } else {
         content = content.trim();
         if(!content){ LaRuche.Toast.show(LaRuche.i18n.t('memory.contentRequired'),'warn'); return; }
@@ -992,13 +1018,16 @@ LaRuche.Memory = (function(){
         .then(function(){ return postJson('/api/memory/write', {node_id:nodeId, content:content, source:'ui-admin'}); })
         .then(function(d){
           if(d.status==='error' || d.error){ LaRuche.Toast.show(d.error||LaRuche.i18n.t('memory.writeImpossible'),'err'); return; }
-          LaRuche.Toast.show(isSoul ? LaRuche.i18n.t('memory.soulSaved') : LaRuche.i18n.t('memory.sectionSaved'),'ok');
+          LaRuche.Toast.show(isSoul ? LaRuche.i18n.t('memory.soulSaved')
+            : (nodeId==='system.user' ? LaRuche.i18n.t('memory.profileSaved') : LaRuche.i18n.t('memory.sectionSaved')),'ok');
           loadNode(nodeId); loadStats();
         }).catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('memory.writeError')+e,'err'); });
     };
 
     document.getElementById('mem2SysRestore').onclick = function(){
-      if(!window.confirm(isSoul ? LaRuche.i18n.t('memory.restoreConfirmSoul') : LaRuche.i18n.t('memory.restoreConfirmPrompt'))) return;
+      var demande = isSoul ? 'memory.restoreConfirmSoul'
+        : (nodeId==='system.user' ? 'memory.clearProfileConfirm' : 'memory.restoreConfirmPrompt');
+      if(!window.confirm(LaRuche.i18n.t(demande))) return;
       var ids = items.map(function(it){ return it.id; }).filter(Boolean);
       if(!ids.length){ LaRuche.Toast.show(LaRuche.i18n.t('memory.alreadyDefault'),'ok'); loadNode(nodeId); return; }
       Promise.all(ids.map(function(id){ return postJson('/api/memory/delete', {item_id:id, reason:'ui-admin-restore'}); }))
