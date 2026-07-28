@@ -424,6 +424,15 @@ pub(crate) async fn ws_chat_connection(
                 laruche_essaim::reine_queue::definir_gate(rs.queue_gate);
             }
 
+            // LaRuche answering a person: the only actor the user can already see, but the
+            // indicator names its model and channel like every other.
+            let _garde = ouvrir_travail(
+                &state_clone,
+                "laruche",
+                "chat",
+                &config,
+                config.origin_channel.clone().or(Some("web".to_string())),
+            );
             let result = boucle_react_memoire_multimodal(
                 &user_text_clone,
                 &mut session,
@@ -503,9 +512,14 @@ pub(crate) async fn ws_chat_connection(
                 let cfg = config.clone();
                 let txc = tx_clone.clone();
                 let mem = Some(state_clone.memoire.clone());
+                let cur_state = state_clone.clone();
                 tokio::spawn(async move {
+                    // The curateur reviews the finished exchange on its own time. Declared
+                    // here rather than inside the essaim crate, which knows nothing of the
+                    // node's state; the guard covers the whole pass either way.
+                    let _garde = ouvrir_travail(&cur_state, "curateur", "review", &cfg, None);
                     laruche_essaim::butinage_pont::lancer_curateur_arriere_plan(
-                        msgs, reg, cfg, txc, mem,
+                        msgs, reg, cfg.clone(), txc, mem,
                     )
                     .await;
                 });

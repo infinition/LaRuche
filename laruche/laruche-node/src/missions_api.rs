@@ -424,6 +424,9 @@ pub(crate) async fn lancer_iteration_mission(state: Arc<AppState>, mission: miss
         let mut session = Session::new_with_path(&cfg.model, sessions_dir);
         let (tx, mut rx) = broadcast::channel::<ChatEvent>(64);
         tokio::spawn(async move { while rx.recv().await.is_ok() {} });
+        // Held across the iteration AND the LaReine review below, so the indicator does
+        // not blink off between the two halves of the same piece of work.
+        let _garde = ouvrir_travail(&run_state, "recherche", &slug, &cfg, channel.clone());
         let result = boucle_react_memoire(
             &prompt,
             &mut session,

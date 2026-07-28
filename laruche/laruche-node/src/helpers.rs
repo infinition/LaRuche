@@ -119,6 +119,33 @@ pub(crate) async fn apply_channel_model(state: &AppState, channel: &str, config:
     }
 }
 
+/// Declare a job as running and keep it visible until the returned guard is dropped.
+/// The provider and model come from the config the job actually runs on, not the global
+/// one, so a cron on a cheap local model does not claim to be using the chat's model.
+pub(crate) fn ouvrir_travail(
+    state: &AppState,
+    acteur: &str,
+    sujet: &str,
+    config: &EssaimConfig,
+    canal: Option<String>,
+) -> GardeTravail {
+    GardeTravail::nouveau(
+        &state.travaux,
+        Travail {
+            acteur: acteur.to_string(),
+            sujet: sujet.to_string(),
+            fournisseur: if config.provider.is_empty() {
+                "ollama".to_string()
+            } else {
+                config.provider.clone()
+            },
+            modele: config.model.clone(),
+            canal,
+            depuis: chrono::Utc::now().to_rfc3339(),
+        },
+    )
+}
+
 pub(crate) fn preview_text(input: &str, max_chars: usize) -> String {
     let flat = input.replace(['\n', '\r'], " ");
     let truncated: String = flat.chars().take(max_chars).collect();

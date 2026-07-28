@@ -381,6 +381,54 @@ pub(crate) struct AppState {
     pub(crate) credentials_path: PathBuf,
     /// Last activity timestamp to trigger Dream mode
     pub(crate) last_activity: RwLock<std::time::Instant>,
+    /// What LaRuche is doing RIGHT NOW, one entry per running job. The activity log is a
+    /// history and answers "what happened"; this answers "what is happening", which is the
+    /// only thing a live indicator can show. A std lock, not a tokio one: writes are two
+    /// map operations with no await in between, and the guard needs to clean up on Drop,
+    /// which cannot await.
+    pub(crate) travaux: Arc<std::sync::RwLock<HashMap<Uuid, Travail>>>,
+}
+
+/// One job in flight: who is working, with which model, toward which channel.
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct Travail {
+    /// "curateur", "recherche", "cron", "watcher", "lareine" or "laruche".
+    pub(crate) acteur: String,
+    /// What it is about: a mission slug, a cron name, a watcher name.
+    pub(crate) sujet: String,
+    pub(crate) fournisseur: String,
+    pub(crate) modele: String,
+    /// Where the result is headed, when it is headed anywhere.
+    pub(crate) canal: Option<String>,
+    pub(crate) depuis: String,
+}
+
+/// Removes its entry when dropped, including on panic or early return, so the indicator
+/// cannot be left showing work that already finished.
+pub(crate) struct GardeTravail {
+    id: Uuid,
+    travaux: Arc<std::sync::RwLock<HashMap<Uuid, Travail>>>,
+}
+
+impl GardeTravail {
+    pub(crate) fn nouveau(
+        travaux: &Arc<std::sync::RwLock<HashMap<Uuid, Travail>>>,
+        travail: Travail,
+    ) -> Self {
+        let id = Uuid::new_v4();
+        if let Ok(mut m) = travaux.write() {
+            m.insert(id, travail);
+        }
+        Self { id, travaux: travaux.clone() }
+    }
+}
+
+impl Drop for GardeTravail {
+    fn drop(&mut self) {
+        if let Ok(mut m) = self.travaux.write() {
+            m.remove(&self.id);
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

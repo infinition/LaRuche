@@ -518,6 +518,7 @@ pub(crate) async fn api_memory_consolidate(
     // cheap local one can grind through the memory while the chat keeps the good one.
     let mut config = state.essaim_config.read().await.clone();
     apply_channel_model(&state, "consolidation", &mut config).await;
+    let _garde = ouvrir_travail(&state, "curateur", "consolidation", &config, None);
     let node = q.get("node").map(|s| s.as_str()).filter(|s| !s.is_empty());
     let res = match node {
         Some(n) => {

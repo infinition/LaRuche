@@ -375,6 +375,25 @@ pub(crate) async fn revue_mission(
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| laruche_essaim::reine_live::prompt_reine_defaut().to_string());
 
+    // LaReine judges on her own model, which is often not the one that produced the answer:
+    // the indicator must name hers while she is the one working.
+    // Registered from the judge's own credentials rather than the run config: they carry
+    // provider and model directly, and are the pair actually being billed here.
+    let _garde = GardeTravail::nouveau(
+        &state.travaux,
+        Travail {
+            acteur: "lareine".to_string(),
+            sujet: "review".to_string(),
+            fournisseur: if juge.provider.is_empty() {
+                "ollama".to_string()
+            } else {
+                juge.provider.clone()
+            },
+            modele: juge.model.clone(),
+            canal: config.origin_channel.clone(),
+            depuis: chrono::Utc::now().to_rfc3339(),
+        },
+    );
     let rev = laruche_essaim::reine_live::revue_et_refaire(
         &juge,
         &charte,

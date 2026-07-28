@@ -487,6 +487,7 @@ pub(crate) fn spawn_cron_checker(state: &Arc<AppState>) {
                 let due = cron.check_due_tasks();
                 due.into_iter()
                     .map(|(id, prompt)| {
+                        let mut nom = String::new();
                         let mut channel = None;
                         let mut provider = None;
                         let mut model = None;
@@ -494,6 +495,7 @@ pub(crate) fn spawn_cron_checker(state: &Arc<AppState>) {
                         let mut skills = Vec::new();
                         for t in cron.list() {
                             if t.id == id {
+                                nom = t.name.clone();
                                 channel = t.channel.clone();
                                 provider = t.provider.clone();
                                 model = t.model.clone();
@@ -502,11 +504,11 @@ pub(crate) fn spawn_cron_checker(state: &Arc<AppState>) {
                                 break;
                             }
                         }
-                        (id, prompt, channel, provider, model, profile_id, skills)
+                        (id, nom, prompt, channel, provider, model, profile_id, skills)
                     })
                     .collect::<Vec<_>>()
             };
-            for (task_id, prompt, channel, provider, model, profile_id, skills) in due_tasks {
+            for (task_id, nom, prompt, channel, provider, model, profile_id, skills) in due_tasks {
                 info!(task_id = %task_id, "Executing scheduled task");
                 let _ = cron_state.events.write().await.emit(
                     laruche_events::EventKind::AgentStarted,
@@ -580,6 +582,14 @@ pub(crate) fn spawn_cron_checker(state: &Arc<AppState>) {
                     &skills_charges,
                 );
 
+                // Visible in the status bar for as long as the run lasts.
+                let _garde = ouvrir_travail(
+                    &cron_state,
+                    "cron",
+                    if nom.is_empty() { "scheduled task" } else { &nom },
+                    &cron_config,
+                    channel.clone(),
+                );
                 let result = boucle_react_memoire(
                     &prompt,
                     &mut session,
@@ -651,13 +661,13 @@ pub(crate) fn spawn_watchers_checker(state: &Arc<AppState>) {
             for d in triggered {
                 let (watcher_id, prompt, context) = (d.id, d.prompt, d.contexte);
                 let current_model = get_llm_default(&watcher_state).await;
-                let (w_profile, w_model, w_channel) = {
+                let (w_profile, w_model, w_channel, w_name) = {
                     let reg = watcher_state.watchers.read().await;
                     reg.list()
                         .into_iter()
                         .find(|w| w.id == watcher_id)
-                        .map(|w| (w.profile_id.clone(), w.model.clone(), w.channel.clone()))
-                        .unwrap_or((None, None, None))
+                        .map(|w| (w.profile_id.clone(), w.model.clone(), w.channel.clone(), w.name.clone()))
+                        .unwrap_or((None, None, None, String::new()))
                 };
                 let mut config = watcher_state.essaim_config.read().await.clone();
                 if let Some(pid) = w_profile {
@@ -743,6 +753,13 @@ pub(crate) fn spawn_watchers_checker(state: &Arc<AppState>) {
                 let (tx, _rx) = broadcast::channel::<ChatEvent>(64);
 
                 let full_prompt = format!("[CONTEXT: {}]\n\n{}", context, prompt);
+                let _garde = ouvrir_travail(
+                    &watcher_state,
+                    "watcher",
+                    if w_name.is_empty() { "watcher" } else { &w_name },
+                    &config,
+                    w_channel.clone(),
+                );
                 let result = boucle_react_memoire(
                     &full_prompt,
                     &mut session,
@@ -996,6 +1013,13 @@ pub(crate) fn spawn_kanban_dispatcher(state: &Arc<AppState>) {
                 let prompt = format!(
                     "[KANBAN TASK: {}]\n{}",
                     kanban_task.title, kanban_task.description
+                );
+                let _garde = ouvrir_travail(
+                    &kanban_state,
+                    "kanban",
+                    &kanban_task.title,
+                    &config,
+                    None,
                 );
                 let result = boucle_react_memoire(
                     &prompt,

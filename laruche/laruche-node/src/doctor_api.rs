@@ -5,6 +5,18 @@ use axum::extract::State;
 use axum::response::Json;
 use std::sync::Arc;
 
+/// GET /api/travaux - what LaRuche is doing right now, one entry per running job. Polled
+/// by the status-bar indicator, so it stays cheap: a read lock and a serialization, no
+/// network call and no disk.
+pub(crate) async fn api_travaux(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let travaux: Vec<Travail> = state
+        .travaux
+        .read()
+        .map(|m| m.values().cloned().collect())
+        .unwrap_or_default();
+    Json(serde_json::json!({ "travaux": travaux }))
+}
+
 /// GET /api/doctor - system health check and configuration validation.
 pub(crate) async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let mut checks = Vec::new();

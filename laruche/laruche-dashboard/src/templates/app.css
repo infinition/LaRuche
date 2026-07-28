@@ -69,6 +69,31 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .status-bar .sb-model-drop div { padding:6px 12px; font-size:12px; cursor:pointer; color:var(--text); transition:background .12s; }
 .status-bar .sb-model-drop div:hover { background:rgba(245,158,11,0.12); color:var(--amber); }
 .status-bar .sb-model-drop div.active { color:var(--amber); font-weight:600; background:rgba(245,158,11,0.08); }
+
+/* ── Live activity indicator ──────────────────────────────────────────────
+   Sits at the far right of the status bar and stays hidden while nothing runs, so a
+   quiet hive looks quiet. One bee per running job, drifting on its own offset phase so
+   two bees never beat in lockstep; the amber trail is the honey. Hovering opens the
+   detail: who works, on which model, toward which channel. */
+.status-bar .sb-ruche { position:relative; margin-left:auto; display:flex; align-items:center; gap:6px; cursor:default; }
+.status-bar .sb-ruche-bees { display:inline-flex; align-items:center; gap:2px; line-height:1; }
+.status-bar .sb-ruche-bee { font-size:11px; line-height:1; display:inline-block; animation:sb-butine 2.6s ease-in-out infinite; }
+.status-bar .sb-ruche-txt { color:var(--amber); font-size:10px; font-weight:500; letter-spacing:.02em; white-space:nowrap; max-width:22ch; overflow:hidden; text-overflow:ellipsis; }
+.status-bar .sb-ruche-drop { left:auto; right:0; min-width:230px; padding:6px 0; }
+.status-bar .sb-ruche:hover .sb-ruche-drop { display:block; }
+.status-bar .sb-ruche-drop .l { padding:5px 12px; font-size:11px; color:var(--text); cursor:default; }
+.status-bar .sb-ruche-drop .l:hover { background:none; color:var(--text); }
+.status-bar .sb-ruche-drop .l b { color:var(--amber); font-weight:600; }
+.status-bar .sb-ruche-drop .l span { color:var(--text-dim); }
+@keyframes sb-butine {
+  0%,100% { transform:translate(0,0) rotate(0deg); }
+  25%     { transform:translate(2px,-3px) rotate(9deg); }
+  50%     { transform:translate(-1px,-1px) rotate(-6deg); }
+  75%     { transform:translate(3px,-2px) rotate(4deg); }
+}
+@media (prefers-reduced-motion:reduce) {
+  .status-bar .sb-ruche-bee { animation:none; }
+}
 @media (max-width:600px) {
   body.feed-docked { padding-right: 0; } /* full-width drawer: no offset */
   body.feed-docked .status-bar { margin-right:0; } /* no offset, so no compensation */

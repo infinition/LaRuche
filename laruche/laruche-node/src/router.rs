@@ -289,6 +289,7 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
             axum::routing::delete(knowledge_api::api_delete_knowledge).put(knowledge_api::api_update_knowledge),
         )
         .route("/api/doctor", get(doctor_api::api_doctor))
+        .route("/api/travaux", get(doctor_api::api_travaux))
         .route("/api/sessions/:id/export", get(sessions_api::api_export_session))
         .route("/api/sessions/:id/fork", post(sessions_api::api_fork_session))
         .route(

@@ -64,6 +64,14 @@ LaRuche.i18n = (function(){
     'nav.chat':         { fr:'Chat',        en:'Chat' },
     'nav.memory':       { fr:'Mémoire',     en:'Memory' },
     'nav.missions':     { fr:'Missions',    en:'Missions' },
+    'sb.actorLaruche':   { fr:'LaRuche',    en:'LaRuche' },
+    'sb.actorCurateur':  { fr:'Curateur',   en:'Curator' },
+    'sb.actorRecherche': { fr:'Recherche',  en:'Research' },
+    'sb.actorCron':      { fr:'Tache planifiee', en:'Scheduled task' },
+    'sb.actorWatcher':   { fr:'Sentinelle', en:'Watcher' },
+    'sb.actorKanban':    { fr:'Kanban',     en:'Kanban' },
+    'sb.actorLareine':   { fr:'LaReine',    en:'LaReine' },
+    'sb.jobsRunning':    { fr:'en cours',   en:'running' },
     'nav.capabilities': { fr:'Capacités',   en:'Capabilities' },
     'nav.dashboard':    { fr:'Dashboard',   en:'Dashboard' },
     'nav.settings':     { fr:'Settings',    en:'Settings' },
@@ -1077,9 +1085,60 @@ LaRuche.Header = (function(){
   var currentProfileId = '';
   var lastModelChangeAt = 0;
 
+  /* ── Live activity ────────────────────────────────────────────────
+     /api/travaux lists what is running right now. Nothing running means nothing shown:
+     the indicator appears only when there is work, so a quiet hive stays quiet. */
+  var ACTEURS = {
+    laruche:   {icone:'🐝', k:'sb.actorLaruche'},
+    curateur:  {icone:'🧹', k:'sb.actorCurateur'},
+    recherche: {icone:'🔍', k:'sb.actorRecherche'},
+    cron:      {icone:'⏱',       k:'sb.actorCron'},
+    watcher:   {icone:'👁', k:'sb.actorWatcher'},
+    kanban:    {icone:'📋', k:'sb.actorKanban'},
+    lareine:   {icone:'👑', k:'sb.actorLareine'}
+  };
+  function nomActeur(a){ var d=ACTEURS[a]; return d ? LaRuche.i18n.t(d.k) : a; }
+
+  function rendreTravaux(travaux){
+    var wrap=document.getElementById('sbRuche');
+    var bees=document.getElementById('sbRucheBees');
+    var txt=document.getElementById('sbRucheTxt');
+    var drop=document.getElementById('sbRucheDrop');
+    if(!wrap||!bees||!txt||!drop) return;
+    if(!travaux || !travaux.length){ wrap.style.display='none'; return; }
+    wrap.style.display='flex';
+    // One bee per job, capped at four so a burst does not push the bar around. Each gets
+    // its own delay so they drift out of step, like real ones.
+    var n=Math.min(travaux.length,4), abeilles='';
+    for(var i=0;i<n;i++){
+      abeilles+='<span class="sb-ruche-bee" style="animation-delay:'+(i*0.42).toFixed(2)+'s">'+
+        (ACTEURS[travaux[i].acteur]||ACTEURS.laruche).icone+'</span>';
+    }
+    bees.innerHTML=abeilles;
+    txt.textContent = travaux.length===1
+      ? nomActeur(travaux[0].acteur)
+      : travaux.length+' '+LaRuche.i18n.t('sb.jobsRunning');
+    drop.innerHTML = travaux.map(function(t){
+      var vers = t.canal ? (' → '+LaRuche.Utils.esc(t.canal)) : '';
+      return '<div class="l"><b>'+LaRuche.Utils.esc(nomActeur(t.acteur))+'</b> '+
+        '<span>'+LaRuche.Utils.esc(t.sujet||'')+'</span><br>'+
+        '<span>'+LaRuche.Utils.esc(t.fournisseur||'')+' / '+LaRuche.Utils.esc(t.modele||'')+vers+'</span></div>';
+    }).join('');
+  }
+
+  function sondeTravaux(){
+    fetch(LaRuche.API.base+'/api/travaux',{credentials:'include'})
+      .then(function(r){ return r.ok ? r.json() : {travaux:[]}; })
+      .then(function(d){ rendreTravaux(d.travaux||[]); })
+      .catch(function(){ rendreTravaux([]); });
+  }
+
   function init() {
     loadModels();
     loadPermissionMode();
+    sondeTravaux();
+    // 3s: fast enough that a short job still shows, slow enough to stay free.
+    LaRuche.Poll.every(sondeTravaux, 3000);
     // Refresh the model list in the background (without F5): a closed local provider
     // (llama.cpp/ollama) disappears, and reappears as soon as it comes back. Avoid re-rendering
     // while the user has the menu open.

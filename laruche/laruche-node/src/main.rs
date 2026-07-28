@@ -985,6 +985,7 @@ async fn main() -> Result<()> {
         credential_pool: credential_pool.clone(),
         credentials_path,
         last_activity: RwLock::new(std::time::Instant::now()),
+        travaux: Arc::new(std::sync::RwLock::new(HashMap::new())),
     });
 
     // Persist the state RIGHT AWAY: the shutdown save only runs on a clean exit
