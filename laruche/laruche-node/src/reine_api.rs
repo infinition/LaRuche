@@ -42,6 +42,11 @@ pub(crate) struct ReineSettings {
     /// capped at [`PLAFOND_CONTEXTE`]). Gives her awareness of prior questions.
     #[serde(default = "defaut_contexte_messages")]
     pub contexte_messages: u8,
+    /// Record each review as a training sample in `evals/reine-dataset.jsonl`.
+    /// OFF by default: it persists the full text of requests and answers, which the
+    /// scorecard never did, so it has to be a deliberate choice.
+    #[serde(default)]
+    pub dataset: bool,
 }
 
 fn defaut_contexte_messages() -> u8 {
@@ -60,6 +65,8 @@ impl Default for ReineSettings {
             queue_gate: false,
             provider_profile: None,
             contexte_messages: defaut_contexte_messages(),
+            // Capturing full request/answer text is never a default.
+            dataset: false,
         }
     }
 }
@@ -493,6 +500,94 @@ pub(crate) async fn api_list_proposals() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "proposals": items, "pending": pending }))
 }
 
+/// GET /api/reine/dataset?format=sft|dpo|judge — convert the captured reviews into a
+/// ready-to-train JSONL, downloaded as a file.
+///
+/// One capture, three shapes, because they train different things:
+///   * `sft`   — `{messages:[user, assistant]}`, the accepted answer only.
+///   * `dpo`   — `{prompt, chosen, rejected}`, ONLY from reviews that actually produced a
+///     revision. A record where nothing was sent back has no rejected side, and inventing
+///     one (pairing an answer against itself) would teach the model noise.
+///   * `judge` — `{messages:[user(request+draft), assistant(verdict+critique)]}`, to
+///     distil LaReine's judgement into a smaller reviewer.
+///
+/// Values are already masked at capture time; nothing is unmasked here.
+pub(crate) async fn api_reine_dataset(
+    headers: HeaderMap,
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+    State(state): State<Arc<AppState>>,
+) -> Result<axum::response::Response, StatusCode> {
+    // The file holds the full text of every reviewed exchange: admin only.
+    let users = state.users.read().await;
+    let (_, is_admin) = auth_user::check_admin(&headers, &state.cookie_secret, &users);
+    drop(users);
+    if !is_admin {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let format = q.get("format").map(String::as_str).unwrap_or("dpo");
+    let brut = std::fs::read_to_string("evals/reine-dataset.jsonl").unwrap_or_default();
+    let mut out = String::new();
+    let mut n = 0usize;
+    for v in brut.lines().filter_map(|l| {
+        serde_json::from_str::<serde_json::Value>(l).ok()
+    }) {
+        let prompt = v["prompt"].as_str().unwrap_or("");
+        let chosen = v["chosen"].as_str().unwrap_or("");
+        let rejected = v["rejected"].as_str().unwrap_or("");
+        if prompt.is_empty() || chosen.is_empty() {
+            continue;
+        }
+        let ligne = match format {
+            "sft" => serde_json::json!({
+                "messages": [
+                    {"role": "user", "content": prompt},
+                    {"role": "assistant", "content": chosen},
+                ]
+            }),
+            "judge" => {
+                let critique = v["critique"]
+                    .as_array()
+                    .map(|a| {
+                        a.iter()
+                            .filter_map(|c| c.as_str())
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    })
+                    .unwrap_or_default();
+                let verdict = v["avis"].as_str().unwrap_or("");
+                if critique.trim().is_empty() && v["reasoning"].as_str().unwrap_or("").is_empty() {
+                    continue;
+                }
+                serde_json::json!({
+                    "messages": [
+                        {"role": "user", "content": format!("Request:\n{prompt}\n\nDraft answer:\n{}", if rejected.is_empty() { chosen } else { rejected })},
+                        {"role": "assistant", "content": format!("verdict: {verdict}\nscores: {}\n{}\n{critique}", v["scores"], v["reasoning"].as_str().unwrap_or(""))},
+                    ]
+                })
+            }
+            // Default: preference pairs. Skip anything that is not a genuine pair.
+            _ => {
+                if !v["paire_preference"].as_bool().unwrap_or(false) {
+                    continue;
+                }
+                serde_json::json!({ "prompt": prompt, "chosen": chosen, "rejected": rejected })
+            }
+        };
+        out.push_str(&ligne.to_string());
+        out.push('\n');
+        n += 1;
+    }
+    let nom = format!("laruche-{format}-{n}.jsonl");
+    Ok(axum::response::Response::builder()
+        .header("Content-Type", "application/x-ndjson")
+        .header(
+            "Content-Disposition",
+            format!("attachment; filename=\"{nom}\""),
+        )
+        .body(axum::body::Body::from(out))
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?)
+}
+
 /// GET /api/reine/scorecards - aggregate view of the review journal
 /// (`evals/reine-scorecards.jsonl`): totals per verdict, average scores, and the
 /// most recent entries. This is the Scorecard dashboard's data.
@@ -643,19 +738,22 @@ pub(crate) async fn api_reine_appel(
     )
     .await
     {
-        Some(card) => {
+        Ok(card) => {
             let mut out = laruche_essaim::reine_live::verdict_json(&card);
             if let Some(o) = out.as_object_mut() {
                 o.insert("ok".into(), serde_json::json!(true));
             }
             Ok(Json(out))
         }
-        // Nothing to judge (empty conversation), or the judge provider failed. Either
-        // way the UI must say so rather than show a blank crown.
-        None => Ok(Json(serde_json::json!({
-            "ok": false,
-            "error": "LaReine could not deliver a verdict (no answer to judge, or the judge provider failed)."
-        }))),
+        // The three causes need different fixes, so the message names the one that hit
+        // instead of listing them all and leaving the user to guess.
+        Err(raison) => {
+            tracing::warn!(target: "reine", judge = %juge.model, reason = %raison, "manual call: no verdict");
+            Ok(Json(serde_json::json!({
+                "ok": false,
+                "error": format!("LaReine could not deliver a verdict: {raison}")
+            })))
+        }
     }
 }
 

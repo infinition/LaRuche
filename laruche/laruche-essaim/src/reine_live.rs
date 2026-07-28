@@ -73,7 +73,12 @@ pub fn prompt_reine_defaut() -> &'static str {
 /// provider or parse error. Provider/model/credentials are explicit so the caller
 /// (the node) can point the judge at LaReine's own provider.
 #[allow(clippy::too_many_arguments)]
-pub async fn juger_avec(
+/// Says WHY it failed. The automatic path only needs to know there is no verdict; a
+/// hand-made call is a user waiting in front of the screen, and the three causes call for
+/// completely different fixes: write something first, check the provider, or pick a model
+/// able to follow the scorecard format.
+#[allow(clippy::too_many_arguments)]
+pub async fn juger_avec_raison(
     provider: &str,
     model: &str,
     api_key: &str,
@@ -85,7 +90,7 @@ pub async fn juger_avec(
     contexte: &str,
     atelier: &str,
     revues_precedentes: &str,
-) -> Option<Scorecard> {
+) -> Result<Scorecard, String> {
     let demande = DemandeJugement {
         tier: Tier::Reponse,
         objectif: "",
@@ -104,7 +109,9 @@ pub async fn juger_avec(
         model,
         &messages,
         0.2, // low temperature: judging wants determinism
-        1024,
+        // Room for a model that preambles before complying. The scorecard itself is ~80
+        // tokens; the rest is headroom so a chatty judge still reaches the end of it.
+        2048,
         api_key,
         api_base,
         ollama_url,
@@ -115,7 +122,7 @@ pub async fn juger_avec(
         Ok(s) => s,
         Err(e) => {
             tracing::warn!(target: "reine", provider = %provider, model = %model, error = %e, "judge: provider call failed");
-            return None;
+            return Err(format!("the judge provider ({provider}/{model}) refused the call: {e}"));
         }
     };
 
@@ -125,13 +132,41 @@ pub async fn juger_avec(
     }
     let apercu: String = brut.chars().take(220).collect();
     tracing::info!(target: "reine", model = %model, len = brut.len(), preview = %apercu, "judge: raw output");
-    match parser_scorecard(&brut) {
-        Ok(c) => Some(c),
-        Err(e) => {
-            tracing::warn!(target: "reine", error = %e, "judge: output not parseable as scorecard");
-            None
-        }
+    if brut.trim().is_empty() {
+        return Err(format!(
+            "the judge ({provider}/{model}) answered nothing"
+        ));
     }
+    parser_scorecard(&brut).map_err(|e| {
+        tracing::warn!(target: "reine", error = %e, "judge: output not parseable as scorecard");
+        // The preview matters: it is the only way to see that the model wrote prose, or
+        // wrapped its JSON in a code fence, rather than the expected scorecard.
+        format!("{model} answered but not as a scorecard ({e}). It replied: {apercu}")
+    })
+}
+
+/// Best-effort twin used by the automatic path, where a failed review must never break
+/// a turn: any cause collapses to None.
+#[allow(clippy::too_many_arguments)]
+pub async fn juger_avec(
+    provider: &str,
+    model: &str,
+    api_key: &str,
+    api_base: Option<&str>,
+    ollama_url: &str,
+    reponse: &str,
+    prompt: &str,
+    charte: &str,
+    contexte: &str,
+    atelier: &str,
+    revues_precedentes: &str,
+) -> Option<Scorecard> {
+    juger_avec_raison(
+        provider, model, api_key, api_base, ollama_url, reponse, prompt, charte, contexte,
+        atelier, revues_precedentes,
+    )
+    .await
+    .ok()
 }
 
 /// Opening of the rework brief handed to the worker, and the way to RECOGNISE one.
@@ -513,6 +548,20 @@ pub async fn revue_et_refaire(
     // future eval dashboard aggregates; without it every verdict evaporated.
     if let Some(c) = &carte_finale {
         journaliser_scorecard(c, mode, rounds, revised);
+        // Opt-in, and a no-op when off. Kept next to the scorecard because this is the
+        // only moment where the request, the refused draft, the accepted one and her
+        // reasoning all still exist together.
+        journaliser_dataset(
+            c,
+            mode,
+            rounds,
+            revised,
+            user_prompt,
+            answer_initial,
+            &answer,
+            &corrections_donnees,
+            &analyse,
+        );
     }
 
     Revision {
@@ -761,6 +810,85 @@ async fn construire_etat_ruche(memoire: &Arc<dyn MemoireCognitive>) -> String {
     format!("Memory domains of the ruche: {liste}")
 }
 
+/// Is training-data capture switched on? OFF unless explicitly enabled.
+///
+/// Read from disk at write time rather than plumbed through the call chain: this is
+/// best-effort journalling like the scorecard beside it, and the setting is owned by the
+/// node, which writes the same file.
+fn dataset_actif() -> bool {
+    std::fs::read_to_string("laruche-reine.json")
+        .ok()
+        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+        .and_then(|v| v.get("dataset").and_then(|b| b.as_bool()))
+        .unwrap_or(false)
+}
+
+/// Append ONE rich record per completed review to `evals/reine-dataset.jsonl`.
+///
+/// The scorecard beside this keeps only numbers, which measures LaReine but trains
+/// nothing. A review that sent work back has already produced, for free, the three
+/// things a training set is built from:
+///
+///   * `prompt` + `chosen`             -> supervised fine-tuning
+///   * `prompt` + `rejected` + `chosen` -> a preference pair (DPO/ORPO), the real prize:
+///     same request, the draft she refused and the one she accepted, plus why
+///   * `prompt` + `rejected` -> `critique` -> distilling her judgement into a smaller
+///     judge model, so reviewing stops costing a large model every turn
+///
+/// EVERY text field goes through `secrets::masquer` first. Without that, one `env` dump
+/// or verbose curl in a draft puts an API key in a file whose whole purpose is to be
+/// copied around and fed to a trainer. A leak here is a leak everywhere, forever.
+#[allow(clippy::too_many_arguments)]
+fn journaliser_dataset(
+    card: &Scorecard,
+    mode: &str,
+    rounds: u8,
+    revised: bool,
+    requete: &str,
+    rejete: &str,
+    retenu: &str,
+    consignes: &[String],
+    raisonnement: &str,
+) {
+    if !dataset_actif() {
+        return;
+    }
+    let m = |s: &str| crate::secrets::masquer(s);
+    let ligne = serde_json::json!({
+        "ts": chrono::Utc::now().to_rfc3339(),
+        "mode": mode,
+        "rounds": rounds,
+        // A record without a rejected draft is SFT-only: no preference pair to build.
+        "paire_preference": revised && !rejete.trim().is_empty() && rejete.trim() != retenu.trim(),
+        "prompt": m(requete),
+        "rejected": m(rejete),
+        "chosen": m(retenu),
+        "critique": consignes.iter().map(|c| m(c)).collect::<Vec<_>>(),
+        "reasoning": m(raisonnement),
+        "scores": {
+            "relevance": card.pertinence,
+            "methodology": card.methodologie,
+            "objective": card.objectif,
+            "brand": card.conformite_marque,
+            "confidence": card.confiance,
+        },
+        "avis": match card.avis {
+            Avis::Approuver => "approve",
+            Avis::Reviser => "revise",
+            Avis::Escalader => "escalate",
+        },
+    });
+    let _ = std::fs::create_dir_all("evals");
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("evals/reine-dataset.jsonl")
+    {
+        use std::io::Write;
+        let _ = writeln!(f, "{ligne}");
+    }
+}
+
 /// Append the review outcome to `evals/reine-scorecards.jsonl` (best-effort).
 fn journaliser_scorecard(card: &Scorecard, mode: &str, rounds: u8, revised: bool) {
     let ligne = serde_json::json!({
@@ -809,15 +937,23 @@ pub async fn juger_a_la_demande(
     registry: &AbeilleRegistry,
     memoire: Arc<dyn MemoireCognitive>,
     fenetre: usize,
-) -> Option<Scorecard> {
+) -> Result<Scorecard, String> {
     use crate::session::Message;
 
     // The answer under review and the request that produced it, read from the session
     // itself: unlike the automatic path there is no draft in flight to be handed in.
-    let reponse = session.messages.iter().rev().find_map(|m| match m {
-        Message::Assistant(t) if !t.trim().is_empty() => Some(t.clone()),
-        _ => None,
-    })?;
+    // Three different failures used to collapse into one unactionable sentence. Each one
+    // now says what it is, because the fix differs completely: write something first,
+    // check the provider, or use a model that can follow the scorecard format.
+    let reponse = session
+        .messages
+        .iter()
+        .rev()
+        .find_map(|m| match m {
+            Message::Assistant(t) if !t.trim().is_empty() => Some(t.clone()),
+            _ => None,
+        })
+        .ok_or("no answer to judge in this conversation yet")?;
     let prompt = session
         .messages
         .iter()
@@ -837,7 +973,7 @@ pub async fn juger_a_la_demande(
         atelier.push_str(&etat);
     }
 
-    juger_avec(
+    juger_avec_raison(
         &juge.provider,
         &juge.model,
         &juge.api_key,

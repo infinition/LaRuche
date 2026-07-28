@@ -40,15 +40,21 @@ pub struct DemandeJugement<'a> {
 /// Line-based shape the judge must return (one `KEY: value` per line). Far more
 /// reliable for small local models than nested JSON. Kept here so the prompt and
 /// the parser never drift apart.
-const FORMAT_REPONSE: &str = "ANALYSIS: <your reasoning in 1-2 sentences, before scoring>\n\
-RELEVANCE: <0-100>\n\
+/// SCORES FIRST, prose LAST. A reasoning model that preambles (deepseek-v4-flash was
+/// observed writing "We need to assess the draft..." until it hit the token ceiling
+/// mid-word) produced a reply with no scorecard in it at all. With the verdict up front,
+/// a truncated answer still yields a usable judgement and only loses the commentary.
+/// It also parses more safely: a multi-sentence ANALYSIS can no longer swallow the keys
+/// that used to follow it.
+const FORMAT_REPONSE: &str = "RELEVANCE: <0-100>\n\
 METHODOLOGY: <0-100>\n\
 OBJECTIVE: <0-100>\n\
 BRAND: <0-100>\n\
 CONFIDENCE: <0-100>\n\
 VERDICT: approve | revise | escalate\n\
 INSTRUCTION: <corrective instruction, only when VERDICT is revise>\n\
-REASON: <one short line>";
+REASON: <one short line>\n\
+ANALYSIS: <your reasoning in 1-2 sentences>";
 
 fn tier_libelle(tier: Tier) -> &'static str {
     match tier {
@@ -116,16 +122,16 @@ pub fn construire_prompt(d: &DemandeJugement) -> String {
          Original request:\n{requete}\n\n\
          Draft to judge:\n{brouillon}\n\n\
          ---\n\
-         Assess the draft against the charter. Reason briefly in the ANALYSIS line, then \
-         score. Approve readily when it is good; a revision that does not measurably improve \
+         Assess the draft against the charter. Score FIRST, then explain yourself in the \
+         ANALYSIS line at the end - do not think out loud before the scores. Approve readily when it is good; a revision that does not measurably improve \
          the draft is worse than shipping the original. When you revise, the instruction must \
          be specific and executable, naming what is wrong and what to do.\n\n\
          Reply with EXACTLY these lines, one \"KEY: value\" per line, and nothing else (no \
          extra prose, no JSON, no markdown):\n{format}\n\n\
          Example:\n\
-         ANALYSIS: Clear and on-scope; tone is warm which is fine; claims are grounded.\n\
          RELEVANCE: 85\nMETHODOLOGY: 80\nOBJECTIVE: 82\nBRAND: 90\nCONFIDENCE: 88\n\
-         VERDICT: approve\nINSTRUCTION: \nREASON: Clear, on-scope, grounded.",
+         VERDICT: approve\nINSTRUCTION: \nREASON: Clear, on-scope, grounded.\n\
+         ANALYSIS: Clear and on-scope; tone is warm which is fine; claims are grounded.",
         charte = d.charte.trim(),
         cible = tier_libelle(d.tier),
         objectif = objectif.trim(),
