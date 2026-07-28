@@ -62,6 +62,14 @@ pub struct EssaimConfig {
     /// other MCP servers.
     #[serde(default)]
     pub mcp_server_actif: bool,
+    /// IP allowlist for the MCP server surface. Off by default so turning the server on
+    /// keeps the behaviour it had; once on, an address that is not on the list is refused
+    /// before any tool is looked up, and the refusal is audited. Entries are plain
+    /// addresses (`192.168.1.10`, `::1`) or CIDR blocks (`192.168.1.0/24`).
+    #[serde(default)]
+    pub mcp_pare_feu_actif: bool,
+    #[serde(default)]
+    pub mcp_ip_autorisees: Vec<String>,
     /// **Smart approvals**: an auxiliary LLM judges a flagged call before bothering
     /// the human (approve / deny / escalate), and approving once approves the whole
     /// PATTERN CLASS for the session. On by default: it removes most popups while
@@ -249,6 +257,8 @@ impl Default for EssaimConfig {
             curateur_actif: false,
             // Off unless the user turns it on: exposing the registry is a decision.
             mcp_server_actif: false,
+            mcp_pare_feu_actif: false,
+            mcp_ip_autorisees: Vec::new(),
             smart_approvals: true,
             approbation_stricte: false,
             reasoning_effort: String::new(),

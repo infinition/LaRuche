@@ -58,6 +58,7 @@ mod tools_api;
 mod openai_api;
 mod swarm_api;
 mod mcp_api;
+mod mcp_pare_feu;
 mod status_api;
 mod blueprints_api;
 mod reine_api;
@@ -531,6 +532,18 @@ async fn main() -> Result<()> {
     if let Some(c) = persistent.curateur_actif {
         essaim_config.curateur_actif = c;
     }
+    // Written on every save but never read back, so the MCP switch and its firewall reset
+    // to off at each restart and the user's choice vanished without a word. Failing closed
+    // is the right default; forgetting a setting is not the same thing.
+    if let Some(v) = persistent.mcp_server_actif {
+        essaim_config.mcp_server_actif = v;
+    }
+    if let Some(v) = persistent.mcp_pare_feu_actif {
+        essaim_config.mcp_pare_feu_actif = v;
+    }
+    if let Some(v) = persistent.mcp_ip_autorisees.clone() {
+        essaim_config.mcp_ip_autorisees = v;
+    }
     if let Some(v) = persistent.reactions_agent {
         essaim_config.reactions_agent = v;
     }
@@ -986,6 +999,7 @@ async fn main() -> Result<()> {
         credentials_path,
         last_activity: RwLock::new(std::time::Instant::now()),
         travaux: Arc::new(std::sync::RwLock::new(HashMap::new())),
+        mcp_verrou: Arc::new(std::sync::Mutex::new(Default::default())),
     });
 
     // Persist the state RIGHT AWAY: the shutdown save only runs on a clean exit

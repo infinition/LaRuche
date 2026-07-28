@@ -4839,6 +4839,10 @@
     "en": "Kanban",
     "fr": "Kanban"
   },
+  "shell.feedMcp": {
+    "en": "MCP",
+    "fr": "MCP"
+  },
   "shell.feedMemory": {
     "en": "Memory",
     "fr": "Mémoire"
@@ -5038,6 +5042,10 @@
   "shell.tipLarucheActions": {
     "en": "LaRuche actions",
     "fr": "Actions LaRuche"
+  },
+  "shell.tipMcpCalls": {
+    "en": "MCP calls from external clients",
+    "fr": "Appels MCP de clients externes"
   },
   "shell.tipMemEvents": {
     "en": "Memory events",

@@ -111,6 +111,11 @@ pub(crate) struct PersistentState {
     /// before this field, which reads as off: an upgrade never opens a door by itself.
     #[serde(default)]
     pub(crate) mcp_server_actif: Option<bool>,
+    /// IP allowlist for that surface, and whether it is enforced.
+    #[serde(default)]
+    pub(crate) mcp_pare_feu_actif: Option<bool>,
+    #[serde(default)]
+    pub(crate) mcp_ip_autorisees: Option<Vec<String>>,
     /// "Home" channel (/sethome): default destination for proactive messages.
     #[serde(default)]
     pub(crate) home_channel: Option<String>,
@@ -387,6 +392,10 @@ pub(crate) struct AppState {
     /// map operations with no await in between, and the guard needs to clean up on Drop,
     /// which cannot await.
     pub(crate) travaux: Arc<std::sync::RwLock<HashMap<Uuid, Travail>>>,
+    /// Refusal tracker for the MCP surface (allowlist misses, bad tokens). A std mutex:
+    /// every use is a handful of map operations with no await, on the cheapest possible
+    /// path, since the whole point of a ban is that it costs nothing to serve.
+    pub(crate) mcp_verrou: Arc<std::sync::Mutex<crate::mcp_pare_feu::Verrou>>,
 }
 
 /// One job in flight: who is working, with which model, toward which channel.
@@ -548,6 +557,8 @@ pub(crate) async fn save_persistent_state(state: &Arc<AppState>) {
         context_max_tokens: Some(state.essaim_config.read().await.context_max_tokens),
         curateur_actif: Some(state.essaim_config.read().await.curateur_actif),
         mcp_server_actif: Some(state.essaim_config.read().await.mcp_server_actif),
+        mcp_pare_feu_actif: Some(state.essaim_config.read().await.mcp_pare_feu_actif),
+        mcp_ip_autorisees: Some(state.essaim_config.read().await.mcp_ip_autorisees.clone()),
         dynamic_tool_selection: Some(state.essaim_config.read().await.dynamic_tool_selection),
         reactions_agent: Some(state.essaim_config.read().await.reactions_agent),
         max_iterations: Some(state.essaim_config.read().await.max_iterations),

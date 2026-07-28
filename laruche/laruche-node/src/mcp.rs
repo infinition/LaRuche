@@ -186,17 +186,43 @@ async fn handle_tools_call(
 /// Axum handler for POST /api/mcp: accepts JSON-RPC requests.
 pub async fn api_mcp_handler(
     State(state): State<Arc<super::AppState>>,
+    headers: axum::http::HeaderMap,
+    connect_info: Option<axum::extract::ConnectInfo<std::net::SocketAddr>>,
     Json(req): Json<JsonRpcRequest>,
 ) -> Json<JsonRpcResponse> {
-    // The server surface is opt-in. Handing the whole registry to an external client is a
-    // deliberate choice, not something a fresh install should do on its own.
-    if !state.essaim_config.read().await.mcp_server_actif {
-        return Json(JsonRpcResponse::error(
-            req.id,
-            -32601,
-            "MCP server disabled: enable it in Settings",
-        ));
+    // Same door as `/mcp`: opt-in server, IP allowlist, token, ban on repeated refusals.
+    // This surface used to check only the on/off switch, so it accepted calls from any
+    // address with no token at all while its twin demanded one.
+    let ip = connect_info.as_ref().map(|ci| ci.0.ip());
+    let jeton = headers
+        .get("x-laruche-mcp-token")
+        .and_then(|v| v.to_str().ok());
+    let outil = req.params["name"].as_str().map(|s| s.to_string());
+    let methode = req.method.clone();
+    if let Err(refus) = crate::mcp_pare_feu::controler(&state, ip, jeton).await {
+        crate::mcp_pare_feu::journaliser(
+            &state, ip, "/api/mcp", &methode, outil.as_deref(), Some(&refus), None,
+        )
+        .await;
+        return Json(JsonRpcResponse::error(req.id, -32601, refus.message()));
     }
+    crate::mcp_pare_feu::journaliser(
+        &state, ip, "/api/mcp", &methode, outil.as_deref(), None, None,
+    )
+    .await;
+    let _garde = match &outil {
+        Some(nom) => {
+            let cfg = state.essaim_config.read().await.clone();
+            Some(crate::ouvrir_travail(
+                &state,
+                "mcp",
+                nom,
+                &cfg,
+                ip.map(|a| a.to_string()),
+            ))
+        }
+        None => None,
+    };
     let response = handle_mcp_request(&state.essaim_registry, req).await;
     Json(response)
 }

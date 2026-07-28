@@ -29,8 +29,6 @@ LaRuche.i18n.add({
   'settings.autoSkillCreate':    {fr:'Auto-création de skills/outils vérifiés', en:'Auto-creation of verified skills/tools'},
   'settings.mcpServerToggle':    {fr:'Serveur MCP (exposer mes outils)', en:'MCP server (expose my tools)'},
   'settings.mcpServerHint':      {fr:' un client externe pourra appeler TOUS les outils, shell compris', en:' an external client will be able to call EVERY tool, shell included'},
-  'settings.mcpServerOn':        {fr:'Serveur MCP active', en:'MCP server enabled'},
-  'settings.mcpServerOff':       {fr:'Serveur MCP desactive', en:'MCP server disabled'},
   'settings.dynToolsSelect':     {fr:'Sélection dynamique des outils ', en:'Dynamic tool selection '},
   'settings.dynToolsHint':       {fr:'(prompt léger, recommandé pour petits modèles / llama.cpp)', en:'(light prompt, recommended for small models / llama.cpp)'},
   'settings.curEnvForced':       {fr:'Forcé par RUCHE_CURATEUR=1 (variable d\'env).', en:'Forced by RUCHE_CURATEUR=1 (env variable).'},
@@ -397,6 +395,18 @@ LaRuche.i18n.add({
   'settings.usageMemoryEnrichHint': {fr:'Le sous-agent qui enrichit un noeud. A defaut, le modele de revue.', en:'The subagent that enriches a node. Falls back to the review model.'},
   'settings.usageFeed':          {fr:'Demander a LaRuche (fil)', en:'Ask LaRuche (feed)'},
   'settings.usageFeedHint':      {fr:'La session dediee du fil, separee du chat principal.', en:"The feed's own session, separate from the main chat."},
+  'settings.mcpDoorSaved':       {fr:'Porte MCP enregistree', en:'MCP door saved'},
+  'settings.mcpDoorTitle':       {fr:'LaRuche comme serveur MCP', en:'LaRuche as an MCP server'},
+  'settings.mcpDoorHint':        {fr:"Cette surface execute tout le registre d'outils, shell compris. Ferme par defaut.", en:'This surface executes the whole tool registry, shell included. Closed by default.'},
+  'settings.mcpFirewall':        {fr:'Pare-feu par IP', en:'IP firewall'},
+  'settings.mcpFirewallHint':    {fr:'Une adresse absente de la liste est refusee avant tout appel d outil.', en:'An address not on the list is refused before any tool is looked up.'},
+  'settings.mcpAllowlist':       {fr:'Adresses autorisees', en:'Allowed addresses'},
+  'settings.mcpAllowlistHint':   {fr:"Une par ligne. Adresse simple (192.168.1.10) ou bloc CIDR (192.168.1.0/24). Le mot localhost couvre 127.0.0.1 et ::1. Liste vide = personne.", en:'One per line. Plain address (192.168.1.10) or CIDR block (192.168.1.0/24). The word localhost covers 127.0.0.1 and ::1. Empty list means nobody.'},
+  'settings.mcpBans':            {fr:'Adresses bannies', en:'Banned addresses'},
+  'settings.mcpBansNone':        {fr:'Aucune. Cinq refus en une minute bannissent une adresse, et la duree double a chaque recidive.', en:'None. Five refusals in a minute ban an address, and the wait doubles on each repeat.'},
+  'settings.mcpBanLeft':         {fr:'encore', en:'another'},
+  'settings.mcpUnban':           {fr:'Liberer', en:'Lift'},
+  'settings.mcpUnbanned':        {fr:'Ban leve', en:'Ban lifted'},
   'settings.mcpServersTitle':    {fr:'Serveurs MCP (Model Context Protocol)', en:'MCP Servers (Model Context Protocol)'},
   'settings.newTaskBtn':         {fr:'+ Nouvelle tâche', en:'+ New Task'},
   'settings.nameLabel':          {fr:'Nom',              en:'Name'},
@@ -764,7 +774,6 @@ LaRuche.Settings = (function(){
       '<div class="settings-card"><div class="settings-card-title">'+LaRuche.i18n.t('settings.curateur')+'</div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.autoSkillCreate')+'</span><label class="lr-switch"><input type="checkbox" id="cfgCurateur" '+(curCfg.enabled?'checked':'')+' '+(curCfg.env_forced?'disabled':'')+' onchange="LaRuche.Settings.toggleCurateur(this.checked)"><span class="lr-slider"></span></label></div>'+
       '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.dynToolsSelect')+'<span style="color:var(--text-dim);font-size:10px">'+LaRuche.i18n.t('settings.dynToolsHint')+'</span></span><label class="lr-switch"><input type="checkbox" id="cfgDynTools" '+(curCfg.dynamic_tools?'checked':'')+' onchange="LaRuche.Settings.toggleDynamicTools(this.checked)"><span class="lr-slider"></span></label></div>'+
-      '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.mcpServerToggle')+'<span style="color:var(--text-dim);font-size:10px">'+LaRuche.i18n.t('settings.mcpServerHint')+'</span></span><label class="lr-switch"><input type="checkbox" id="cfgMcpServer" '+(curCfg.mcp_server?'checked':'')+' onchange="LaRuche.Settings.toggleMcpServer(this.checked)"><span class="lr-slider"></span></label></div>'+
       '<div style="font-size:10px;color:var(--text-dim);margin-top:6px">'+(curCfg.env_forced?LaRuche.i18n.t('settings.curEnvForced'):LaRuche.i18n.t('settings.curDefault'))+'</div></div>'+
       '</div>';
   }
@@ -1545,8 +1554,80 @@ LaRuche.Settings = (function(){
     html += '     <button class="form-btn" onclick="LaRuche.Settings.gotoMcpCapabilities()">'+LaRuche.i18n.t('settings.mcpManageBtn')+'</button>';
     html += '  </div>';
     html += '</div>';
+    // The other direction: LaRuche AS a server. That surface executes the whole registry,
+    // shell included, so its door gets its own card rather than a line in a list.
+    html += '<div class="settings-card" id="mcp-porte"><div class="settings-card-title">'+LaRuche.i18n.t('settings.mcpDoorTitle')+'</div>'+
+      '<div style="color:var(--text-dim);font-size:12px;margin-bottom:12px">'+LaRuche.i18n.t('settings.mcpDoorHint')+'</div>'+
+      '<div id="mcp-porte-corps">'+LaRuche.i18n.t('settings.loading')+'</div></div>';
     el.innerHTML = html;
     loadMcpServers();
+    loadMcpPorte();
+  }
+
+  // The door: server switch, IP allowlist, and who is currently banned.
+  async function loadMcpPorte(){
+    var corps = document.getElementById('mcp-porte-corps'); if(!corps) return;
+    var cfg = await fetch(LaRuche.API.base+'/api/config/curateur',{credentials:'include'})
+      .then(function(r){return r.json();}).catch(function(){return {};});
+    var bans = await fetch(LaRuche.API.base+'/api/mcp/bans',{credentials:'include'})
+      .then(function(r){return r.json();}).catch(function(){return {bans:[]};});
+    var liste = (cfg.mcp_allowlist||[]).join('\n');
+    var h = '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.mcpServerToggle')+
+      '<span style="display:block;color:var(--text-dim);font-size:10px">'+LaRuche.i18n.t('settings.mcpServerHint')+'</span></span>'+
+      '<label class="lr-switch"><input type="checkbox" id="mcpPorteOn" '+(cfg.mcp_server?'checked':'')+
+      ' onchange="LaRuche.Settings.saveMcpPorte()"><span class="lr-slider"></span></label></div>';
+    h += '<div class="settings-row"><span class="settings-label">'+LaRuche.i18n.t('settings.mcpFirewall')+
+      '<span style="display:block;color:var(--text-dim);font-size:10px">'+LaRuche.i18n.t('settings.mcpFirewallHint')+'</span></span>'+
+      '<label class="lr-switch"><input type="checkbox" id="mcpPareFeuOn" '+(cfg.mcp_firewall?'checked':'')+
+      ' onchange="LaRuche.Settings.saveMcpPorte()"><span class="lr-slider"></span></label></div>';
+    h += '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.mcpAllowlist')+
+      '<span style="display:block;font-weight:normal;color:var(--text-dim);font-size:10px">'+LaRuche.i18n.t('settings.mcpAllowlistHint')+'</span></label>'+
+      '<textarea class="form-input" id="mcpAllowlist" rows="4" spellcheck="false" placeholder="127.0.0.1&#10;192.168.1.0/24">'+
+      LaRuche.Utils.esc(liste)+'</textarea>'+
+      '<button class="form-btn" style="margin-top:8px" onclick="LaRuche.Settings.saveMcpPorte()">'+LaRuche.i18n.t('settings.save')+'</button></div>';
+    // Refused calls get an address banned; showing who, and letting it be lifted, is what
+    // keeps the protection from turning into a mystery when it catches your own machine.
+    h += '<div style="margin-top:14px"><div class="settings-label" style="margin-bottom:6px">'+LaRuche.i18n.t('settings.mcpBans')+'</div>';
+    if(!(bans.bans||[]).length){
+      h += '<div style="color:var(--text-dim);font-size:12px">'+LaRuche.i18n.t('settings.mcpBansNone')+'</div>';
+    } else {
+      h += (bans.bans||[]).map(function(b){
+        return '<div class="settings-row" style="padding:4px 0"><span class="settings-label" style="flex:1">'+
+          LaRuche.Utils.esc(b.ip)+' <span style="color:var(--text-dim);font-size:10px">'+
+          LaRuche.i18n.t('settings.mcpBanLeft')+' '+Math.ceil(b.reste_s/60)+' min</span></span>'+
+          '<button class="tl-btn" onclick="LaRuche.Settings.mcpUnban(\''+LaRuche.Utils.esc(b.ip)+'\')">'+
+          LaRuche.i18n.t('settings.mcpUnban')+'</button></div>';
+      }).join('');
+    }
+    h += '</div>';
+    corps.innerHTML = h;
+  }
+
+  function saveMcpPorte(){
+    var on = document.getElementById('mcpPorteOn');
+    var pf = document.getElementById('mcpPareFeuOn');
+    var ta = document.getElementById('mcpAllowlist');
+    fetch(LaRuche.API.base+'/api/config/curateur',{
+      method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        mcp_server: !!(on && on.checked),
+        mcp_firewall: !!(pf && pf.checked),
+        mcp_allowlist: ta ? ta.value.split(/[\n,;]+/).map(function(s){return s.trim();}).filter(Boolean) : []
+      })
+    }).then(function(r){return r.json();})
+      .then(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.mcpDoorSaved'),'ok'); loadMcpPorte(); })
+      .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon'),'err'); });
+  }
+
+  function mcpUnban(ip){
+    fetch(LaRuche.API.base+'/api/mcp/bans',{
+      method:'POST', credentials:'include', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ip:ip})
+    }).then(function(r){return r.json();})
+      .then(function(d){
+        LaRuche.Toast.show(d.ok?LaRuche.i18n.t('settings.mcpUnbanned'):LaRuche.i18n.t('settings.errorColon'), d.ok?'ok':'err');
+        loadMcpPorte();
+      });
   }
 
   // Jump to Capabilities, already filtered on MCP.
@@ -2796,21 +2877,6 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
       .catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err'); });
   }
 
-  // Exposing LaRuche's own tools to an outside MCP client: a door, so it is opened by
-  // hand and never by default.
-  function toggleMcpServer(on) {
-    fetch(LaRuche.API.base+'/api/config/curateur',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({mcp_server:!!on})})
-      .then(function(r){return r.json();})
-      .then(function(){ LaRuche.Toast.show(LaRuche.i18n.t(on?'settings.mcpServerOn':'settings.mcpServerOff'),'ok'); })
-      .catch(function(e){ LaRuche.Toast.show(LaRuche.i18n.t('settings.errorColon')+e,'err'); });
-  }
-
-  function toggleCurateur(on) {
-    fetch(LaRuche.API.base+'/api/config/curateur',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:!!on})})
-      .then(function(r){return r.json();})
-      .then(function(d){ if(d && d.status==='ok') LaRuche.Toast.show('Curateur '+(on?LaRuche.i18n.t('settings.curateEnabled'):LaRuche.i18n.t('settings.curateDisabled')),'ok'); else LaRuche.Toast.show(LaRuche.i18n.t('settings.curateFailed'),'err'); })
-      .catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.curateFailed'),'err'); });
-  }
   function toggleDynamicTools(on) {
     fetch(LaRuche.API.base+'/api/config/curateur',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({dynamic_tools:!!on})})
       .then(function(r){return r.json();})
@@ -3230,7 +3296,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
   }
 
   return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, loadMcpPorte: loadMcpPorte, saveMcpPorte: saveMcpPorte, mcpUnban: mcpUnban, gotoMcpCapabilities: gotoMcpCapabilities, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlAll:tlAll, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder: reusable "human-friendly" component (missions + cron) ── */

@@ -77,6 +77,7 @@ LaRuche.i18n = (function(){
     'sb.actorTelegram':  { fr:'Telegram',   en:'Telegram' },
     'sb.actorDiscord':   { fr:'Discord',    en:'Discord' },
     'sb.actorSlack':     { fr:'Slack',      en:'Slack' },
+    'sb.actorMcp':       { fr:'Client MCP',  en:'MCP client' },
     'sb.jobsRunning':    { fr:'en cours',   en:'running' },
     'nav.capabilities': { fr:'Capacités',   en:'Capabilities' },
     'nav.dashboard':    { fr:'Dashboard',   en:'Dashboard' },
@@ -1107,7 +1108,8 @@ LaRuche.Header = (function(){
     'sous-agent':{icone:'🐜', k:'sb.actorSousAgent'},
     telegram:    {icone:'✈',  k:'sb.actorTelegram'},
     discord:     {icone:'💬', k:'sb.actorDiscord'},
-    slack:       {icone:'💼', k:'sb.actorSlack'}
+    slack:       {icone:'💼', k:'sb.actorSlack'},
+    mcp:         {icone:'🔌', k:'sb.actorMcp'}
   };
   function nomActeur(a){ var d=ACTEURS[a]; return d ? LaRuche.i18n.t(d.k) : a; }
 

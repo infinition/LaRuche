@@ -580,8 +580,8 @@ LaRuche.Feed = (function(){
   var lastEvents = [];               // last loaded events (for client-side re-render)
   // `canaux` covers telegram/discord/slack in one chip: three toggles for three channels
   // would be noise, and they are the same thing seen from three doors.
-  var DEFAULT_FILTERS = { memory:true, agent:true, cron:true, mission:true, watcher:true, kanban:true, reine:true, canaux:true, user:true, laruche:true };
-  var filters = { memory:true, agent:true, cron:true, mission:true, watcher:true, kanban:true, reine:true, canaux:true, user:true, laruche:true };
+  var DEFAULT_FILTERS = { memory:true, agent:true, cron:true, mission:true, watcher:true, kanban:true, reine:true, canaux:true, mcp:true, user:true, laruche:true };
+  var filters = { memory:true, agent:true, cron:true, mission:true, watcher:true, kanban:true, reine:true, canaux:true, mcp:true, user:true, laruche:true };
   var KINDS_CANAUX = { telegram:1, discord:1, slack:1, whatsapp:1, voice:1 };
 
   function loadFilters(){
@@ -681,7 +681,7 @@ LaRuche.Feed = (function(){
   function kindLabel(k){ var key = KIND_LABEL[k]; return key ? LaRuche.i18n.t('capabilities.'+key) : (k||''); }
   // Whitelist: anything unlisted falls back to "memory", so a new kind added server-side
   // silently landed in the memory bucket and answered to the wrong filter chip.
-  var KINDS_CONNUS = {agent:1, cron:1, mission:1, watcher:1, dm:1, kanban:1, reine:1,
+  var KINDS_CONNUS = {agent:1, cron:1, mission:1, watcher:1, dm:1, kanban:1, reine:1, mcp:1,
                       telegram:1, discord:1, slack:1, whatsapp:1, voice:1};
   function kindOf(ev){
     var k = ev && ev.kind;

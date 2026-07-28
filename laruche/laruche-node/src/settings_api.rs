@@ -184,6 +184,8 @@ pub(crate) async fn api_get_curateur_config(State(state): State<Arc<AppState>>) 
         "dynamic_tools": ec.dynamic_tool_selection,
         // Exposing LaRuche's own tools to an external MCP client. Off by default.
         "mcp_server": ec.mcp_server_actif,
+        "mcp_firewall": ec.mcp_pare_feu_actif,
+        "mcp_allowlist": ec.mcp_ip_autorisees,
     }))
 }
 
@@ -205,6 +207,20 @@ pub(crate) async fn api_set_curateur_config(
         }
         if let Some(v) = body["mcp_server"].as_bool() {
             ec.mcp_server_actif = v;
+        }
+        if let Some(v) = body["mcp_firewall"].as_bool() {
+            ec.mcp_pare_feu_actif = v;
+        }
+        if let Some(v) = body["mcp_allowlist"].as_array() {
+            // Kept as written, minus blanks: an entry that does not parse is ignored at
+            // match time, never treated as a wildcard, so a typo narrows rather than opens.
+            ec.mcp_ip_autorisees = v
+                .iter()
+                .filter_map(|x| x.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect();
         }
     }
     save_persistent_state(&state).await;
@@ -272,21 +288,21 @@ pub(crate) async fn api_mcp_server(
     let err = |code: i64, msg: String| {
         Json(serde_json::json!({"jsonrpc":"2.0","id":id,"error":{"code":code,"message":msg}}))
     };
-    // Security: this executes tools (incl. shell/file). A configured LARUCHE_MCP_TOKEN is
-    // required for non-local callers; when no token is set, only loopback callers are allowed
-    // (local POC), so a remote host cannot drive tool execution by default.
-    {
-        let token = std::env::var("LARUCHE_MCP_TOKEN").ok();
-        let got = headers.get("x-laruche-mcp-token").and_then(|v| v.to_str().ok());
-        let is_local = connect_info.as_ref().map(|ci| ci.0.ip().is_loopback()).unwrap_or(false);
-        let authed = match &token {
-            Some(t) => got == Some(t.as_str()),
-            None => is_local,
-        };
-        if !authed {
-            return err(-32000, "Unauthorized (set LARUCHE_MCP_TOKEN, or call from localhost)".into());
-        }
+    // Security: this executes tools (incl. shell/file). The whole door policy lives in
+    // `mcp_pare_feu::controler` so this surface and `/api/mcp` cannot drift apart. They
+    // had: this one ignored the Settings switch entirely, so turning the MCP server off
+    // still left the full registry reachable from loopback.
+    let ip = connect_info.as_ref().map(|ci| ci.0.ip());
+    let jeton = headers.get("x-laruche-mcp-token").and_then(|v| v.to_str().ok());
+    let outil = req["params"]["name"].as_str().map(|s| s.to_string());
+    if let Err(refus) = crate::mcp_pare_feu::controler(&state, ip, jeton).await {
+        crate::mcp_pare_feu::journaliser(
+            &state, ip, "/mcp", method, outil.as_deref(), Some(&refus), None,
+        )
+        .await;
+        return err(-32000, refus.message());
     }
+    crate::mcp_pare_feu::journaliser(&state, ip, "/mcp", method, outil.as_deref(), None, None).await;
     let ok = |result: serde_json::Value| {
         Json(serde_json::json!({"jsonrpc":"2.0","id":id,"result":result}))
     };
@@ -320,6 +336,18 @@ pub(crate) async fn api_mcp_server(
             let name = req["params"]["name"].as_str().unwrap_or("").to_string();
             let args = req["params"]["arguments"].clone();
             let ctx = laruche_essaim::ContextExecution::default();
+            // In the status bar for the whole execution: an outside client running
+            // shell_exec on this machine is exactly what the indicator exists to show.
+            let _garde = {
+                let cfg = state.essaim_config.read().await.clone();
+                ouvrir_travail(
+                    &state,
+                    "mcp",
+                    &name,
+                    &cfg,
+                    ip.map(|a| a.to_string()),
+                )
+            };
             let (text, is_err) = match state.essaim_registry.executer(&name, args, &ctx).await {
                 Ok(r) if r.success => (r.output, false),
                 Ok(r) => (r.error.unwrap_or(r.output), true),

@@ -290,6 +290,10 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         )
         .route("/api/doctor", get(doctor_api::api_doctor))
         .route("/api/travaux", get(doctor_api::api_travaux))
+        .route(
+            "/api/mcp/bans",
+            get(doctor_api::api_mcp_bans).post(doctor_api::api_mcp_unban),
+        )
         .route("/api/sessions/:id/export", get(sessions_api::api_export_session))
         .route("/api/sessions/:id/fork", post(sessions_api::api_fork_session))
         .route(

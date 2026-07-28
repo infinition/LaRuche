@@ -17,6 +17,52 @@ pub(crate) async fn api_travaux(State(state): State<Arc<AppState>>) -> Json<serd
     Json(serde_json::json!({ "travaux": travaux }))
 }
 
+/// GET /api/mcp/bans - addresses currently serving a ban on the MCP surface.
+/// POST with {"ip":"..."} lifts one, for when the banned client is your own machine.
+pub(crate) async fn api_mcp_bans(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    let maintenant = std::time::Instant::now();
+    let bans: Vec<serde_json::Value> = state
+        .mcp_verrou
+        .lock()
+        .map(|v| {
+            v.bannies(maintenant)
+                .into_iter()
+                .map(|(ip, reste)| serde_json::json!({ "ip": ip.to_string(), "reste_s": reste }))
+                .collect()
+        })
+        .unwrap_or_default();
+    Json(serde_json::json!({ "bans": bans }))
+}
+
+/// POST /api/mcp/bans {ip} - lift a ban by hand. Admin only: unbanning is a security
+/// decision, not a convenience.
+pub(crate) async fn api_mcp_unban(
+    State(state): State<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    if !auth_user::require_admin(&state, &headers).await {
+        return Json(serde_json::json!({"ok": false, "error": "admin required"}));
+    }
+    let Some(ip) = body["ip"].as_str().and_then(|s| s.parse().ok()) else {
+        return Json(serde_json::json!({"ok": false, "error": "ip required"}));
+    };
+    let leve = state
+        .mcp_verrou
+        .lock()
+        .map(|mut v| v.liberer(ip))
+        .unwrap_or(false);
+    log_activite(
+        &state,
+        "warn",
+        "mcp",
+        format!("MCP ban lifted by hand for {ip}"),
+        None,
+    )
+    .await;
+    Json(serde_json::json!({ "ok": leve }))
+}
+
 /// GET /api/doctor - system health check and configuration validation.
 pub(crate) async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let mut checks = Vec::new();
