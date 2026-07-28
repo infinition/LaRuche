@@ -243,6 +243,8 @@ mod tests {
             TrustCircle::Family,
         );
 
+        assert_eq!(pending.device_name, "Jean's MacBook Pro");
+        assert_eq!(pending.requested_circle, TrustCircle::Family);
         assert_eq!(auth.list_pending().len(), 1);
 
         // Physical button press

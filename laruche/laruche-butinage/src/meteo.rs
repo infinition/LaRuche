@@ -244,7 +244,6 @@ mod tests {
     /// unterminated JSON), so retrying the identical call succeeds. Classifying it
     /// Fatal killed the turn with "no fallback available".
     #[test]
-    #[test]
     fn un_400_de_corps_tronque_est_transitoire() {
         let corps = "Failed to parse the request body as JSON: messages[21].content:                      EOF while parsing a string at line 1 column 102271";
         assert_eq!(ClasseErreur::classer(400, None, corps), ClasseErreur::Transitoire);

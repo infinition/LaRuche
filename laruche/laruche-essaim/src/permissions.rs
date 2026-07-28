@@ -171,72 +171,7 @@ pub fn timeout_for_tool(name: &str) -> std::time::Duration {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::abeille::{Abeille, ResultatAbeille};
-    use anyhow::Result;
-    use async_trait::async_trait;
     use laruche_permissions::{PermissionMode, PermissionRule, RuleSource};
-
-    struct LimitedTool;
-
-    #[async_trait]
-    impl Abeille for LimitedTool {
-        fn nom(&self) -> &str {
-            "limited"
-        }
-
-        fn description(&self) -> &str {
-            "limited tool"
-        }
-
-        fn schema(&self) -> serde_json::Value {
-            serde_json::json!({})
-        }
-
-        fn niveau_danger(&self) -> NiveauDanger {
-            NiveauDanger::Safe
-        }
-
-        fn max_result_size(&self) -> Option<usize> {
-            Some(5)
-        }
-
-        async fn executer(
-            &self,
-            _args: serde_json::Value,
-            _ctx: &ContextExecution,
-        ) -> Result<ResultatAbeille> {
-            Ok(ResultatAbeille::ok("abcdef"))
-        }
-    }
-
-    struct FailingTool;
-
-    #[async_trait]
-    impl Abeille for FailingTool {
-        fn nom(&self) -> &str {
-            "failing_tool"
-        }
-
-        fn description(&self) -> &str {
-            "failing tool"
-        }
-
-        fn schema(&self) -> serde_json::Value {
-            serde_json::json!({})
-        }
-
-        fn niveau_danger(&self) -> NiveauDanger {
-            NiveauDanger::Safe
-        }
-
-        async fn executer(
-            &self,
-            _args: serde_json::Value,
-            _ctx: &ContextExecution,
-        ) -> Result<ResultatAbeille> {
-            Err(anyhow::anyhow!("internal boom"))
-        }
-    }
 
     #[test]
     fn garde_injection_bloque_exfil_et_laisse_passer_lecture() {

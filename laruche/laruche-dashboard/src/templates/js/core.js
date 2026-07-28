@@ -285,8 +285,25 @@ LaRuche.Secrets = (function(){
     var b=ensureBox();
     b.innerHTML = '<div style="padding:3px 10px;color:var(--text-dim);font-size:9px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid var(--border)">'+LaRuche.i18n.t('core.secretsHeader')+'</div>'+
       items.map(function(n,i){ return '<div class="sac-item" data-i="'+i+'" style="padding:6px 10px;cursor:pointer;color:var(--amber);'+(i===0?'background:rgba(245,158,11,.2)':'')+'">@@'+LaRuche.Utils.esc(n)+'</div>'; }).join('');
+    // Placed against the REAL size of the panel, measured after it is filled, and clamped
+    // on both axes. It used to clamp only horizontally, against a width guessed at 200px,
+    // and never vertically: opened from a field near the bottom of the window, it hung
+    // below the fold and its entries could not be reached.
     var r=el.getBoundingClientRect();
-    b.style.left=Math.min(r.left, window.innerWidth-200)+'px'; b.style.top=(r.bottom+2)+'px'; b.style.display='block';
+    b.style.display='block';
+    b.style.left='0px'; b.style.top='0px';           // measure unconstrained
+    var bw=b.offsetWidth, bh=b.offsetHeight;
+    var marge=8;
+    var gauche=Math.max(marge, Math.min(r.left, window.innerWidth - bw - marge));
+    // Below the field by default; above it when the space underneath is too short and the
+    // space overhead is better.
+    var dessous=window.innerHeight - r.bottom - marge;
+    var dessus=r.top - marge;
+    var haut=(bh > dessous && dessus > dessous) ? Math.max(marge, r.top - bh - 2) : r.bottom + 2;
+    haut=Math.max(marge, Math.min(haut, window.innerHeight - bh - marge));
+    // Never taller than what is actually left on screen: the list scrolls instead.
+    b.style.maxHeight=Math.max(120, Math.min(220, Math.max(dessous, dessus)))+'px';
+    b.style.left=gauche+'px'; b.style.top=haut+'px';
     Array.prototype.forEach.call(b.querySelectorAll('.sac-item'), function(it){ it.onmousedown=function(e){ e.preventDefault(); choose(parseInt(it.dataset.i)); }; });
   }
   function choose(i){

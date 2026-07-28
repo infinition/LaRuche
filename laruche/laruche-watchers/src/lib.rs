@@ -1878,16 +1878,19 @@ mod tests {
 
     fn a_local(jour: &str, hhmm: &str) -> chrono::DateTime<chrono::Local> {
         // Known anchors: 2026-07-02 is a Thursday.
-        use chrono::TimeZone;
         let base = match jour {
             "thu" => "2026-07-02",
             "tue" => "2026-06-30",
             "sat" => "2026-07-04",
             _ => "2026-07-01", // wed
         };
-        chrono::Local
-            .datetime_from_str(&format!("{base} {hhmm}:00"), "%Y-%m-%d %H:%M:%S")
-            .unwrap()
+        chrono::NaiveDateTime::parse_from_str(
+            &format!("{base} {hhmm}:00"),
+            "%Y-%m-%d %H:%M:%S",
+        )
+        .unwrap()
+        .and_local_timezone(chrono::Local)
+        .unwrap()
     }
 
     #[test]
