@@ -78,7 +78,9 @@ LaRuche.i18n.add({
   'automations.monitorsSuffix':     {fr:' monitor(s)', en:' monitor(s)'},
   'automations.nowBtn':             {fr:'Maintenant', en:'Now'},
   'automations.providerLabel':      {fr:'Fournisseur', en:'Provider'},
-  'automations.missionsTitle':      {fr:'Missions', en:'Missions'},
+  // Panel title of the Research tab. It said "Missions", the very name of the section
+  // above it, so the same word labelled two different levels.
+  'automations.missionsTitle':      {fr:'Recherches', en:'Research'},
   'automations.dowMonday':          {fr:'Lundi', en:'Monday'},
   'automations.dowTuesday':         {fr:'Mardi', en:'Tuesday'},
   'automations.dowWednesday':       {fr:'Mercredi', en:'Wednesday'},
@@ -628,8 +630,10 @@ LaRuche.Timeline = (function(){
 
 /* ── Automations (Cron · Watchers · Kanban · Blueprints · Timeline) ── */
 LaRuche.Automations = (function(){
-  var currentTab = 'brief';
-  // Brief = where you "task" LaRuche (create/track research missions).
+  // Timeline opens the section: it is the only view showing crons, research and watchers
+  // on one axis, so it answers "what is running" before the tabs that create one kind.
+  var currentTab = 'timeline';
+  // Research (formerly "Brief") = where you task LaRuche with a long investigation.
   // Shared helper: populate a <select> with the REAL channels (/api/channels/known).
   // `current` = value to preselect; `emptyLabel` = label of the empty option.
   window.__fillChannels = function(sel, current, emptyLabel){

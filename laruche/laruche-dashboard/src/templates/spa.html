@@ -453,11 +453,14 @@
   <div class="page" id="page-automations">
     <div class="settings-page-layout">
       <div class="settings-tabs-bar" id="autoTabsBar">
-        <button class="settings-tab-btn active" data-tab="brief" data-i18n="shell.tabBrief">Brief</button>
-        <button class="settings-tab-btn" data-tab="timeline" data-i18n="shell.tabTimeline">Timeline</button>
+        <!-- Timeline first: it is the only view that shows everything at once, crons,
+             research and watchers on one axis, so it answers "what is running" before
+             any of the tabs that create one kind of thing. -->
+        <button class="settings-tab-btn active" data-tab="timeline" data-i18n="shell.tabTimeline">Timeline</button>
+        <button class="settings-tab-btn" data-tab="kanban" data-i18n="shell.tabKanban">Kanban</button>
+        <button class="settings-tab-btn" data-tab="brief" data-i18n="shell.tabBrief">Research</button>
         <button class="settings-tab-btn" data-tab="cron" data-i18n="automations.badgeCron">Cron</button>
         <button class="settings-tab-btn" data-tab="watchers" data-i18n="shell.tabWatchers">Watchers</button>
-        <button class="settings-tab-btn" data-tab="kanban" data-i18n="shell.tabKanban">Kanban</button>
         <button class="settings-tab-btn" data-tab="blueprints" data-i18n="shell.tabBlueprints">Blueprints</button>
       </div>
       <div class="settings-content" id="autoContent"></div>
