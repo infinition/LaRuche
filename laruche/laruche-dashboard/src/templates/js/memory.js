@@ -377,6 +377,10 @@ LaRuche.Memory = (function(){
     if(id === VNODE) return true;
     // The bin holds what was thrown away: nothing to add, rename or reparent into.
     if(id === CORBEILLE || id.indexOf(CORBEILLE+'.') === 0) return true;
+    // The skills root is a container like the three families beside it: the content
+    // lives in capacities.skills.<name>, which stays fully editable. Only the root is
+    // closed, so a loose note cannot be dropped among the skills.
+    if(id === 'capacities.skills') return true;
     return false;
   }
   // Read-only for the roots and for every branch mirroring the registry. The rest of
@@ -504,7 +508,9 @@ LaRuche.Memory = (function(){
       (locked ? '<span class="mem2-lock" title="'+LaRuche.i18n.t('memory.managedBySystem')+'">'+SVG.lock+'</span>' : '')+
       (meta.count != null ? '<span class="mem2-count">'+meta.count+'</span>' : (kids?'<span class="mem2-count">'+kids+'</span>':''))+
       '<span class="node-actions">'+
-        (c.id !== CORBEILLE ? '<button title="'+LaRuche.i18n.t('memory.addSubfolderTitle')+'" onclick="event.stopPropagation();LaRuche.Memory.createSubnode(\''+esc(c.id)+'\')">➕</button>' : '')+
+        // Add-a-subnode was the one action never gated by `locked`, so a projected tool
+        // still offered to grow a child that the next reindex would not know about.
+        (!locked && c.id !== CORBEILLE ? '<button title="'+LaRuche.i18n.t('memory.addSubfolderTitle')+'" onclick="event.stopPropagation();LaRuche.Memory.createSubnode(\''+esc(c.id)+'\')">➕</button>' : '')+
         // Renaming the bin would break the id the server hardcodes; emptying it is the
         // affordance, and it lives in the section header.
         (!locked && c.id !== CORBEILLE ? '<button title="'+LaRuche.i18n.t('memory.renameTitle')+'" onclick="event.stopPropagation();LaRuche.Memory.renameNode(\''+esc(c.id)+'\',\''+esc(c.seg)+'\')">✏️</button>' : '')+

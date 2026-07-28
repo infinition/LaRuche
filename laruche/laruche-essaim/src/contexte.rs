@@ -1019,18 +1019,14 @@ pub async fn indexer_abeilles_memoire(
     }
 
     if ajoutes > 0 {
-        let _ = memoire
-            .write(
-                laruche_memoire::MemoryItem::new(
-                    "capacities.tools",
-                    format!(
-                        "LaRuche capabilities index: {} tool(s) ({ajoutes} added this startup).",
-                        tools.len()
-                    ),
-                )
-                .with_source("tool-registry"),
-            )
-            .await;
+        // A LOG, not a memory. It used to be written as an item on the capacities.tools
+        // root, one per startup, piling up forever in a node a search can hand back as
+        // if it were a souvenir. It says nothing the tool nodes do not already say.
+        tracing::info!(
+            total = tools.len(),
+            added = ajoutes,
+            "Capability index updated"
+        );
     }
     Ok(())
 }
