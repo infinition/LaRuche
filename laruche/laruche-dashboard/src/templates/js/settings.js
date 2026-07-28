@@ -1593,7 +1593,7 @@ LaRuche.Settings = (function(){
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.promptLabel')+'</label><input id="ncPrompt" class="form-input"></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.bpScheduleLabel')+'</label><div id="ncCronBuilder"></div></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.watcherChannelLabel')+'</label><select id="ncChannel" class="form-input"></select></div>'+
-      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.providerLabel')+'</label><select id="ncProfileId" class="form-input" onchange="LaRuche.Settings.updateCronModelSelect()">'+profOpts+'</select></div>'+
+      '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.providerLabel')+'</label><select id="ncProfileId" class="form-input" onchange="LaRuche.Settings.updateCronModelSelect()"></select></div>'+
       '<div style="margin-bottom:8px"><label style="font-size:10px;color:var(--text-dim)">'+LaRuche.i18n.t('settings.modelLabel')+'</label><select id="ncModel" class="form-input"><option value="">'+LaRuche.i18n.t('settings.providerDefault')+'</option></select></div>'+
       '<button class="settings-save-btn" onclick="LaRuche.Settings.createCron()">'+LaRuche.i18n.t('settings.createBtn')+'</button></div>'+
       (tasks.length
@@ -1607,6 +1607,9 @@ LaRuche.Settings = (function(){
     // Real channels, like the four other forms: the hardcoded telegram|discord pair
     // ignored Slack even once configured, and could not offer memory.
     window.__fillChannels(document.getElementById('ncChannel'), '', LaRuche.i18n.t('settings.cronChannelNone'));
+    // Providers: the local profiles AND the swarm nodes, which held models nothing
+    // outside the chat could reach.
+    window.__fillProviders(document.getElementById('ncProfileId'), '', profiles);
   }
   // Schedule in words, with the raw expression kept beside it in small type. A card that
   // only showed `0 9 * * *` asked the reader to parse cron in their head.
@@ -1696,6 +1699,9 @@ LaRuche.Settings = (function(){
       '</div></div>';
     // Same source as everywhere else, and it preselects the channel the task already has.
     window.__fillChannels(document.getElementById('ecChannel_'+id), t.channel||'', LaRuche.i18n.t('settings.cronChannelNone'));
+    // A task can already run on a swarm node: its provider is preselected, then its models.
+    window.__fillProviders(document.getElementById('ecProfile_'+id), t.profile_id || t.provider || '', profiles)
+      .then(function(){ window.__fillModels(t.profile_id || t.provider || '', document.getElementById('ecModelSel_'+id), t.model||'', profiles); });
     if(LaRuche.CronBuilder){
       zone._builderId = LaRuche.CronBuilder.mount('ecCron_'+id, { value: t.cron_expr || '' });
     }
@@ -1713,8 +1719,11 @@ LaRuche.Settings = (function(){
       prompt: val('ecPrompt').trim(),
       cron_expr: expr,
       channel: val('ecChannel'),
-      profile_id: val('ecProfile'),
-      model: val('ecModel').trim()
+      // A swarm node is a provider, not a profile: sending it as profile_id would look
+      // up a profile that does not exist and silently fall back to the default.
+      profile_id: val('ecProfile').indexOf('peer:') === 0 ? '' : val('ecProfile'),
+      provider: val('ecProfile').indexOf('peer:') === 0 ? val('ecProfile') : '',
+      model: val('ecModelSel')
     };
     if(!corps.name || !corps.prompt){ LaRuche.Toast.show(LaRuche.i18n.t('settings.cronNamePromptRequired'),'err'); return; }
     fetch('/api/cron/'+encodeURIComponent(id), {
@@ -1738,18 +1747,20 @@ LaRuche.Settings = (function(){
     }).catch(function(){ LaRuche.Toast.show(LaRuche.i18n.t('settings.cronDeleteFailed'),'err'); });
   }
   
+  // One helper for both kinds of provider: a local profile lists its models, a swarm node
+  // lists the ones it actually holds.
   function updateCronModelSelect() {
       var profSel = document.getElementById('ncProfileId');
       var modSel = document.getElementById('ncModel');
       if(!profSel || !modSel) return;
-      var pid = profSel.value;
-      modSel.innerHTML = '<option value="">'+LaRuche.i18n.t('settings.providerDefault')+'</option>';
-      if(pid && window._lastProfiles && window._lastProfiles[pid]) {
-          var models = window._lastProfiles[pid].models || [];
-          models.forEach(function(m) {
-              modSel.innerHTML += '<option value="'+LaRuche.Utils.esc(m)+'">'+LaRuche.Utils.esc(m)+'</option>';
-          });
-      }
+      window.__fillModels(profSel.value, modSel, '', window._lastProfiles);
+  }
+  // Same, for the editor opened inside a task card.
+  function majModelesEdition(id) {
+    var profSel = document.getElementById('ecProfile_'+id);
+    var modSel = document.getElementById('ecModelSel_'+id);
+    if(!profSel || !modSel) return;
+    window.__fillModels(profSel.value, modSel, '', window._lastProfiles);
   }
   function createCron() {
     var name=document.getElementById('ncName').value;
@@ -1760,7 +1771,10 @@ LaRuche.Settings = (function(){
     var model=document.getElementById('ncModel').value;
     
     var payload = {name:name,prompt:prompt,cron_expr:cron,channel:channel||null};
-    if(profile_id) payload.profile_id = profile_id;
+    // A swarm node is a provider, not a profile: sent as profile_id it would resolve to
+    // nothing and the task would silently run on the default model instead.
+    if(profile_id.indexOf('peer:') === 0) payload.provider = profile_id;
+    else if(profile_id) payload.profile_id = profile_id;
     if(model) payload.model = model;
     
     fetch('/api/cron',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(function(){loadTab('cron');LaRuche.Toast.show(LaRuche.i18n.t('settings.cronTaskCreated'),'ok');});
@@ -3147,7 +3161,7 @@ var ch = document.getElementById('kanban-channel')?document.getElementById('kanb
   }
 
   return { init:init, loadAdmin:loadAdmin, adminDeleteUser:adminDeleteUser, adminSetRole:adminSetRole, loadProfile:loadProfile, profileSaveName:profileSaveName, profileRemoveAvatar:profileRemoveAvatar, profileSavePassword:profileSavePassword, profileSaveFiche:profileSaveFiche, totpStart:totpStart, totpEnable:totpEnable, totpDisable:totpDisable, openBlueprintForm:openBlueprintForm, instanciateBlueprint:instanciateBlueprint, openNewBlueprintForm:openNewBlueprintForm, saveNewBlueprint:saveNewBlueprint, addBlueprintSlotRow:addBlueprintSlotRow, deleteBlueprint:deleteBlueprint, enter:enter, leave:leave, createCron:createCron, deleteCronTask:deleteCronTask, createWatcher:createWatcher, editWatcher:editWatcher, saveWatcherEdit:saveWatcherEdit, updateWatcherEditModelSelect:updateWatcherEditModelSelect, toggleWatcherCard:toggleWatcherCard, toggleWatcherActive:toggleWatcherActive, updateWatcherCardModelSelect:updateWatcherCardModelSelect, rechargerWatchers:rechargerWatchers, refreshTab:refreshTab,
-    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, saveCronTask:saveCronTask, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
+    loadCron:loadCron, loadWatchers:loadWatchers, loadKanban:loadKanban, loadBlueprints:loadBlueprints, loadCronTimeline:loadCronTimeline, saveChannels:saveChannels, setChannelModel:setChannelModel, saveContextCfg:saveContextCfg, saveRuntimeCfg:saveRuntimeCfg, saveReineCfg:saveReineCfg, reineToggleUnlim:reineToggleUnlim, renderReineProposals:renderReineProposals, reineApprove:reineApprove, reineReject:reineReject, reineApplySafe:reineApplySafe, toggleCurateur:toggleCurateur, toggleDynamicTools:toggleDynamicTools, saveVoiceCfg:saveVoiceCfg, addKnowledge:addKnowledge, exportOkf:exportOkf, importOkf:importOkf, deleteKnowledge:deleteKnowledge, editKnowledge:editKnowledge, saveKnowledgeEdit:saveKnowledgeEdit, startChannel:startChannel, stopChannel:stopChannel, showProfileForm:showProfileForm, editProfile:editProfile, deleteProfile:deleteProfile, testProfile:testProfile, saveProfile:saveProfile, onProfileProviderChange:onProfileProviderChange, startCodexLogin:startCodexLogin, logoutCodex:logoutCodex, toggleTool:toggleTool, toggleAllTools:toggleAllTools, loadSkills:loadSkills, toggleSkill:toggleSkill, deleteSkill:deleteSkill, newSkill:newSkill, viewSkill:viewSkill, saveSkill:saveSkill, applySkillTools:applySkillTools, toggleSkillTool:toggleSkillTool, filterSkillTools:filterSkillTools, clearSkillTools:clearSkillTools, newPlugin:newPlugin, viewPlugin:viewPlugin, savePlugin:savePlugin, deletePlugin:deletePlugin, createKanbanTask:createKanbanTask, setKanbanDefaultChannel:setKanbanDefaultChannel, loadSecrets: loadSecrets, secretSet: secretSet, secretDelete: secretDelete, loadMcp: loadMcp, loadMcpServers: loadMcpServers, createMcpServer: createMcpServer, deleteMcpServer: deleteMcpServer, updateKanbanModelSelect: updateKanbanModelSelect, updateKanbanEditModelSelect: updateKanbanEditModelSelect, updateWatcherModelSelect: updateWatcherModelSelect, editCronTask:editCronTask, saveCronTask:saveCronTask, majModelesEdition:majModelesEdition, deleteKanbanTask:deleteKanbanTask, editKanbanTask:editKanbanTask, saveKanbanEdit:saveKanbanEdit, toggleKanbanResult:toggleKanbanResult, setKanbanView:setKanbanView, kanbanDragStart:kanbanDragStart, kanbanDragOver:kanbanDragOver, kanbanDrop:kanbanDrop, addCredential:addCredential, deleteCredential:deleteCredential, updateCronModelSelect:updateCronModelSelect, updateCronEditModelSelect:updateCronEditModelSelect, toggleVisibility:toggleVisibility, openAccess:openAccess, tlZoom:tlZoom, tlRecenter:tlRecenter, tlDetail:tlDetail, tlReload:tlReload, tlRun:tlRun, tlEdit:tlEdit, tlSaveEdit:tlSaveEdit, tlToggle:tlToggle };
 })();
 
 /* ── CronBuilder: reusable "human-friendly" component (missions + cron) ── */

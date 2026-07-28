@@ -78,6 +78,7 @@ LaRuche.i18n.add({
   'automations.monitorsSuffix':     {fr:' monitor(s)', en:' monitor(s)'},
   'automations.nowBtn':             {fr:'Maintenant', en:'Now'},
   'automations.providerLabel':      {fr:'Fournisseur', en:'Provider'},
+  'automations.swarmGroup':         {fr:'Autres noeuds du swarm', en:'Other swarm nodes'},
   // Panel title of the Research tab. It said "Missions", the very name of the section
   // above it, so the same word labelled two different levels.
   'automations.missionsTitle':      {fr:'Recherches', en:'Research'},
@@ -653,6 +654,78 @@ LaRuche.Automations = (function(){
         sel.value = current;
       }
     }).catch(function(){});
+  };
+
+  // Models held by the OTHER nodes of the swarm, grouped by node. /swarm/models already
+  // aggregates them; nothing but the chat used it, so a scheduled task could only ever run
+  // on this machine even with a better GPU two rooms away.
+  window.__swarmPeers = function(){
+    if(window.__peersCache) return Promise.resolve(window.__peersCache);
+    return fetch(LaRuche.API.base+'/swarm/models').then(function(r){return r.json();})
+      .then(function(d){
+        var parNoeud = {};
+        ((d && d.models) || []).forEach(function(m){
+          if(m.is_local) return;                       // local models come from the profiles
+          if(m.capability && m.capability !== 'llm') return;  // a voice node answers no prompt
+          var cle = m.host;
+          if(!parNoeud[cle]) parNoeud[cle] = { host:m.host, name:m.node_name||m.host, models:[] };
+          parNoeud[cle].models.push(m.name);
+        });
+        window.__peersCache = Object.keys(parNoeud).map(function(k){ return parNoeud[k]; });
+        return window.__peersCache;
+      }).catch(function(){ return []; });
+  };
+
+  // Provider picker: the default, the local profiles, then one entry per swarm node. A
+  // peer is stored as `peer:<host>:<port>`, which the provider layer resolves to that
+  // node's OpenAI-compatible endpoint, with a fall back to local if it does not answer.
+  window.__fillProviders = function(sel, current, profiles){
+    if(!sel) return Promise.resolve();
+    var esc = LaRuche.Utils.esc;
+    profiles = profiles || window._lastProfiles || {};
+    var html = '<option value="">'+LaRuche.i18n.t('automations.defautModele')+'</option>';
+    Object.keys(profiles).forEach(function(k){
+      html += '<option value="'+esc(k)+'">'+esc(profiles[k].name)+'</option>';
+    });
+    return window.__swarmPeers().then(function(pairs){
+      if(pairs.length){
+        html += '<optgroup label="'+esc(LaRuche.i18n.t('automations.swarmGroup'))+'">';
+        pairs.forEach(function(p){
+          var val = 'peer:'+p.host+':8419';
+          html += '<option value="'+esc(val)+'">'+esc(p.name)+' ('+p.models.length+')</option>';
+        });
+        html += '</optgroup>';
+      }
+      sel.innerHTML = html;
+      if(current) sel.value = current;
+      return pairs;
+    });
+  };
+
+  // Model picker, driven by whatever the provider picker holds: a profile lists its own
+  // models, a swarm node lists the ones it actually has.
+  window.__fillModels = function(providerVal, sel, current, profiles){
+    if(!sel) return Promise.resolve();
+    var esc = LaRuche.Utils.esc;
+    profiles = profiles || window._lastProfiles || {};
+    sel.innerHTML = '<option value="">'+LaRuche.i18n.t('automations.defautModele')+'</option>';
+    var fini = function(){ if(current) sel.value = current; };
+    if(providerVal && providerVal.indexOf('peer:') === 0){
+      var host = providerVal.split(':')[1];
+      return window.__swarmPeers().then(function(pairs){
+        var p = pairs.filter(function(x){ return x.host === host; })[0];
+        (p ? p.models : []).forEach(function(m){
+          sel.innerHTML += '<option value="'+esc(m)+'">'+esc(m)+'</option>';
+        });
+        fini();
+      });
+    }
+    var prof = profiles[providerVal];
+    (prof && prof.models ? prof.models : []).forEach(function(m){
+      sel.innerHTML += '<option value="'+esc(m)+'">'+esc(m)+'</option>';
+    });
+    fini();
+    return Promise.resolve();
   };
 
   // Render the missions layout in the hub, then delegate to the Missions module (same IDs).

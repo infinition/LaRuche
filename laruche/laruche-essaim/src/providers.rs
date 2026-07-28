@@ -358,6 +358,27 @@ pub async fn provider_chat_stream_effort(
     tools: Option<&[serde_json::Value]>,
     effort: Effort<'_>,
 ) -> Result<Pin<Box<dyn Stream<Item = OllamaChunk> + Send>>> {
+    // A model held by another node of the swarm, written `peer:<host>:<port>`. Every
+    // LaRuche exposes /v1/chat/completions, so a peer is reachable as an OpenAI-compatible
+    // endpoint and needs no protocol of its own.
+    //
+    // If it does not answer, the call falls back to the LOCAL provider rather than
+    // failing: a peer is a machine that can be asleep, unplugged or rebooting, and a
+    // scheduled task must not die because the box next door went off.
+    if let Some(reste) = provider.strip_prefix("peer:") {
+        let base = format!("http://{reste}/v1");
+        match openai_chat_stream(
+            model, messages, temperature, max_tokens, "", Some(&base), tools, effort,
+        )
+        .await
+        {
+            Ok(flux) => return Ok(flux),
+            Err(e) => {
+                tracing::warn!(peer = reste, error = %e, "swarm peer unreachable, falling back to local");
+                return ollama_chat_stream(ollama_url, model, messages, temperature, max_tokens, tools).await;
+            }
+        }
+    }
     match provider {
         "openai" | "miel" => {
             openai_chat_stream(model, messages, temperature, max_tokens, api_key, api_base, tools, effort).await
