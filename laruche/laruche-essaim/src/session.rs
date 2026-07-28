@@ -87,6 +87,14 @@ pub struct Session {
     /// worth remembering.
     #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
     pub reactions: std::collections::HashMap<usize, String>,
+    /// The agent's OWN reaction on a USER message, keyed by that message's index.
+    ///
+    /// Separate from `reactions` (the user reacting to an answer) because the two live on
+    /// opposite sides of the conversation and are restored onto different rows. It used to
+    /// exist only as a transient `__agent_reaction__` event, so every reload — and every
+    /// restart — dropped the emoji off the user's bubble for good.
+    #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    pub reactions_agent: std::collections::HashMap<usize, String>,
     #[serde(skip)]
     file_path: Option<PathBuf>,
     #[serde(skip)]
@@ -175,6 +183,7 @@ impl Session {
             user_id: None,
             working_dir: None,
             reactions: std::collections::HashMap::new(),
+            reactions_agent: std::collections::HashMap::new(),
             file_path: None,
             event_tx: None,
         }
@@ -194,6 +203,26 @@ impl Session {
             self.reactions.remove(&index);
         } else {
             self.reactions.insert(index, emoji.to_string());
+        }
+        true
+    }
+
+    /// Record the agent's reaction on the LAST user message.
+    ///
+    /// Anchored to the message index rather than appended to the text: the marker must
+    /// never enter stored content, an episode or an outbound channel.
+    pub fn definir_reaction_agent(&mut self, emoji: &str) -> bool {
+        let Some(index) = self
+            .messages
+            .iter()
+            .rposition(|m| matches!(m, Message::User(_) | Message::UserMultimodal { .. }))
+        else {
+            return false;
+        };
+        if emoji.is_empty() {
+            self.reactions_agent.remove(&index);
+        } else {
+            self.reactions_agent.insert(index, emoji.to_string());
         }
         true
     }

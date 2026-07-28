@@ -690,6 +690,9 @@ impl but::Outils for OutilsPont<'_> {
         }
         // Origin channel: tools (cron_create) know where the request came from.
         ctx.channel = self.config.origin_channel.clone();
+        // Carried to the execution guard: hiding a disabled tool from the schema is not
+        // enough, since the agent can still name it through `tool_call` or `tool_search`.
+        ctx.disabled_tools = self.config.disabled_tools.clone();
 
         // Anti-injection/exfiltration guard (threat_patterns) on action tools.
         if let Some(reason) = garde_injection(&appel.nom, &appel.args) {
@@ -1970,6 +1973,39 @@ impl Drop for GardeRun {
     }
 }
 
+/// Strip a trailing/leading reaction marker from an answer, announce it, and remember it.
+///
+/// Shared because it was inlined in `executer_avec_bilan` only: the RESUME path
+/// (`reprendre_carnet`, used after LaRuche is restarted mid-run) never stripped anything,
+/// so a `/wow` the model emitted survived into the stored message and came back as raw
+/// text in the conversation the next time it was opened.
+///
+/// The marker is a UI signal: it must leave the text before the answer reaches the Done
+/// event, the session, the episode or an outbound channel.
+fn depouiller_reaction(
+    texte: &mut String,
+    session: Option<&mut Session>,
+    tx: &broadcast::Sender<ChatEvent>,
+) {
+    let (propre, cle) = crate::reactions::extraire_reaction(texte);
+    let Some(cle) = cle else { return };
+    let Some(r) = crate::reactions::trouver(&cle) else {
+        return;
+    };
+    *texte = propre;
+    // Persisted so the emoji survives a reload; without this it lived only in the
+    // event and vanished from the user's bubble on every refresh.
+    if let Some(s) = session {
+        s.definir_reaction_agent(r.emoji);
+    }
+    // KEY then display emoji. The web chat shows the emoji; a channel such as Telegram
+    // needs the key, because it sends its OWN emoji for that reaction from a closed list
+    // that does not contain all of ours.
+    let _ = tx.send(ChatEvent::Status {
+        message: format!("__agent_reaction__|{}|{}", r.cle, r.emoji),
+    });
+}
+
 pub async fn executer_avec_bilan(
     prompt_utilisateur: &str,
     session: &mut Session,
@@ -2208,18 +2244,7 @@ pub async fn executer_avec_bilan(
     // being silently eaten.
     let mut bilan = bilan;
     if config.reactions_agent {
-        let (propre, cle) = crate::reactions::extraire_reaction(&bilan.texte);
-        if let Some(cle) = cle {
-            if let Some(r) = crate::reactions::trouver(&cle) {
-                bilan.texte = propre;
-                // KEY then display emoji. The web chat shows the emoji; a channel such
-                // as Telegram needs the key, because it has to send its OWN emoji for
-                // that reaction from a closed list that does not contain all of ours.
-                let _ = tx.send(ChatEvent::Status {
-                    message: format!("__agent_reaction__|{}|{}", r.cle, r.emoji),
-                });
-            }
-        }
+        depouiller_reaction(&mut bilan.texte, Some(session), tx);
     }
 
     // Hebbian level 2: reinforce only the recalled items the final answer used.
@@ -2511,6 +2536,13 @@ pub async fn reprendre_carnet(
     }
     if bilan.est_succes() {
         let _ = std::fs::remove_file(chemin);
+    }
+    // Same treatment as the normal path. No session here (the caller owns it), so the
+    // marker is stripped and announced but not persisted: at minimum it stops leaking
+    // into the stored answer.
+    let mut bilan = bilan;
+    if config.reactions_agent {
+        depouiller_reaction(&mut bilan.texte, None, tx);
     }
     let _ = tx.send(ChatEvent::Done {
         full_response: bilan.texte.clone(),

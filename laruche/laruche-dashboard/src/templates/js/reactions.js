@@ -259,8 +259,30 @@
     });
   }
 
+  /* The agent's reaction on a USER bubble. Mirrors `restore` on the other side of the
+   * conversation: same chip the live `__agent_reaction__` event draws, so a reloaded
+   * conversation looks exactly like the one you were just reading. */
+  function restoreAgent(map){
+    if(!map) return;
+    var container = document.getElementById('chatContainer')
+                 || document.querySelector('.chat-container');
+    if(!container) return;
+    Object.keys(map).forEach(function(index){
+      var row = container.querySelector('.message-row.user[data-msg-index="'+index+'"]');
+      if(!row) return;
+      var wrap = row.querySelector('.message-wrapper') || row;
+      var old = wrap.querySelector('.agent-reaction-chip');
+      if(old) old.remove();
+      var chip = document.createElement('div');
+      chip.className = 'agent-reaction-chip';   // no `pop`: this is a restore, not an arrival
+      chip.textContent = map[index];
+      chip.title = t('reactions.fromAgent', 'Reaction from LaRuche');
+      wrap.appendChild(chip);
+    });
+  }
+
   window.LaRuche = window.LaRuche || {};
-  window.LaRuche.Reactions = { init: init, restore: restore, render: render };
+  window.LaRuche.Reactions = { init: init, restore: restore, render: render, restoreAgent: restoreAgent };
 
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();

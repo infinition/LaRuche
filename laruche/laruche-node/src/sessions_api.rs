@@ -577,7 +577,13 @@ pub(crate) async fn api_get_reactions(
     if session.user_id.is_some() && session.user_id != caller {
         return Err(StatusCode::FORBIDDEN);
     }
-    Ok(Json(serde_json::json!({ "reactions": session.reactions })))
+    Ok(Json(serde_json::json!({
+        "reactions": session.reactions,
+        // The agent's reactions on the USER's messages, restored onto the other side of
+        // the conversation. They used to be a fire-and-forget event, so they were gone
+        // the moment the page reloaded.
+        "reactions_agent": session.reactions_agent,
+    })))
 }
 
 /// GET /api/reactions/palette - the vocabulary, so the UI never hardcodes it.
