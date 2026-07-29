@@ -370,3 +370,24 @@ pub fn cookie_secret_from_base64(b64: &str) -> Option<[u8; 32]> {
     arr.copy_from_slice(&bytes);
     Some(arr)
 }
+
+/// Render a URL as a QR code drawn with block characters, for a terminal.
+///
+/// The SVG twin above serves the web UI; this one exists because the first thing a fresh
+/// install shows is a console, and the fastest way onto a phone is pointing its camera at
+/// the screen. Dense1x2 packs two QR rows per text line, which keeps the code small enough
+/// to fit an ordinary 80-column window.
+pub fn qr_terminal(url: &str) -> Option<String> {
+    use qrcode::render::unicode;
+    use qrcode::{EcLevel, QrCode};
+    // Low correction: the shortest code for a LAN URL, so it stays readable in a
+    // small window. A screen is a clean scanning surface, unlike print.
+    let code = QrCode::with_error_correction_level(url.as_bytes(), EcLevel::L).ok()?;
+    Some(
+        code.render::<unicode::Dense1x2>()
+            .dark_color(unicode::Dense1x2::Light)
+            .light_color(unicode::Dense1x2::Dark)
+            .quiet_zone(true)
+            .build(),
+    )
+}

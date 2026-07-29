@@ -815,7 +815,6 @@ pub(crate) async fn api_run_cron(
     let Some(task) = task else {
         return Json(serde_json::json!({"error": "not found"}));
     };
-    let run_state = state.clone();
     lancer_tache_cron(state.clone(), task);
     Json(serde_json::json!({"status": "started"}))
 }
