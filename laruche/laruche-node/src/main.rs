@@ -109,8 +109,54 @@ use std::collections::VecDeque;
 // injection live in `web.rs` (handlers: web::spa_page / app_css / app_js / lang_file).
 
 
-/// Best-effort local LAN IP (for the cert SAN list), via a UDP connect trick. No packet
-/// is actually sent; the OS just picks the outbound interface address.
+/// What a fresh install sees first.
+///
+/// The node used to start into a console and say nothing usable: the web interface
+/// existed, on a port nobody had been told about, and there was no way onto a phone at
+/// all. Three things fix that, in the order someone actually needs them: a link they can
+/// click, a browser that opens by itself, and a QR code for the device that is not this
+/// machine.
+///
+/// Best-effort throughout. A headless server has no browser to open and no terminal to
+/// draw in; none of that is a reason to fail a boot.
+fn accueil_demarrage(scheme: &str, port: u16) {
+    let local = format!("{scheme}://localhost:{port}");
+    println!();
+    println!("  LaRuche est prete.");
+    println!();
+    println!("    Sur cette machine : {local}");
+
+    // The LAN address is what a phone needs; localhost means nothing to it.
+    let lan = detect_local_ip().map(|ip| format!("{scheme}://{ip}:{port}"));
+    if let Some(url) = &lan {
+        println!("    Depuis le reseau  : {url}");
+    }
+
+    // QR of the LAN address when there is one: scanning a `localhost` code from a phone
+    // would open the phone's own web server, which is a confusing kind of nothing.
+    if let Some(qr) = lan.as_deref().and_then(auth_user::qr_terminal) {
+        println!();
+        println!("    Scanner pour ouvrir sur un telephone :");
+        for ligne in qr.lines() {
+            println!("    {ligne}");
+        }
+    }
+    println!();
+
+    // Opt-out rather than opt-in: someone running a daemon knows to set it, someone
+    // installing for the first time should not have to.
+    if std::env::var("LARUCHE_NO_BROWSER").is_ok() {
+        return;
+    }
+    if let Err(e) = open::that_detached(&local) {
+        tracing::debug!(error = %e, "could not open a browser (headless?)");
+        println!("    (Ouvre le lien ci-dessus dans ton navigateur.)");
+        println!();
+    }
+}
+
+/// Best-effort local LAN IP (for the cert SAN list and the phone QR), via a UDP connect
+/// trick. No packet is actually sent; the OS just picks the outbound interface address.
 fn detect_local_ip() -> Option<String> {
     let sock = std::net::UdpSocket::bind("0.0.0.0:0").ok()?;
     sock.connect("8.8.8.8:80").ok()?;
@@ -1093,6 +1139,7 @@ async fn main() -> Result<()> {
         );
     }
     info!("LaRuche ready → {scheme}://localhost:{}", config.api_port);
+    accueil_demarrage(scheme, config.api_port);
 
     // Sync essaim config from active profile at startup
     profiles_api::sync_essaim_from_profiles(&state).await;
