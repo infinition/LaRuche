@@ -2633,8 +2633,10 @@ dependencies = [
 name = "laruche-bureau"
 version = "0.2.0"
 dependencies = [
+ "miel-protocol",
  "tauri",
  "tauri-build",
+ "tokio",
 ]
 
 [[package]]

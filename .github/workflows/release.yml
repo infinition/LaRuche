@@ -143,8 +143,16 @@ jobs:
         with:
           tool: tauri-cli
 
-      - name: Bundle desktop app
-        run: cargo tauri build --config laruche-bureau/tauri.conf.json
+      # Deux variantes. Complete: le noeud voyage dedans, elle marche seule sur une
+      # machine neuve. Client: 2 Mo, aucun noeud, elle cherche les ruches du reseau
+      # en mDNS et laisse choisir - pour une machine qui n'a pas vocation a heberger.
+      - name: Bundle desktop app (complete)
+        working-directory: laruche/laruche-bureau
+        run: cargo tauri build
+
+      - name: Bundle desktop app (client)
+        working-directory: laruche/laruche-bureau
+        run: cargo tauri build --config tauri.client.conf.json
 
       - uses: actions/upload-artifact@v4
         with:

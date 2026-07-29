@@ -8,23 +8,34 @@
 //! Aucun IPC Tauri n'est utilise: la page ne connait pas `window.__TAURI__` et n'en a
 //! pas besoin. Tout ce qu'elle fait (fichiers, mDNS, memoire) passe deja par le noeud.
 //!
-//! Au demarrage:
-//!   1. si un noeud repond deja, on s'y raccroche - lancer l'app ne doit pas doubler
-//!      un service deja en marche, ni se battre pour le port;
-//!   2. sinon on demarre `laruche-node` a cote de nous, et on l'arrete en partant.
+//! Au demarrage, dans l'ordre:
+//!   1. `LARUCHE_URL` est prioritaire: on vise cette ruche, ou qu'elle soit;
+//!   2. sinon, si un noeud repond deja en local, on s'y raccroche - lancer l'app ne
+//!      doit pas doubler un service en marche, ni se battre pour le port;
+//!   3. sinon on demarre `laruche-node` s'il voyage avec nous, et on l'arrete en
+//!      partant - mais seulement si c'est nous qui l'avons lance;
+//!   4. sinon on cherche les ruches du reseau en mDNS et on laisse choisir.
+//!
+//! L'etape 4 est ce qui rend possible une coque SANS noeud: 1,8 Mo au lieu de 9,7,
+//! qui se connecte a la ruche de la maison. C'est aussi, exactement, le chemin
+//! qu'empruntera une application mobile.
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod decouverte;
 
 use std::net::{SocketAddr, TcpStream};
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::time::{Duration, Instant};
 
-/// Adresse servie par le noeud. `LARUCHE_URL` permet de viser un autre port ou une
-/// autre machine (une ruche du reseau, par exemple).
-fn url_noeud() -> String {
-    std::env::var("LARUCHE_URL").unwrap_or_else(|_| "http://127.0.0.1:8419".to_string())
+/// Adresse imposee par l'utilisateur, s'il en a indique une.
+fn url_imposee() -> Option<String> {
+    std::env::var("LARUCHE_URL").ok().filter(|s| !s.is_empty())
 }
+
+/// Adresse locale par defaut.
+const URL_LOCALE: &str = "http://127.0.0.1:8419";
 
 /// Extrait `host:port` de l'URL pour la sonde TCP.
 fn adresse(url: &str) -> Option<SocketAddr> {
@@ -102,18 +113,78 @@ fn demarrer_noeud(url: &str) -> Option<Child> {
     Some(enfant)
 }
 
+/// Ecrit la page de choix a cote des donnees de l'application et rend son URL.
+fn page_choix_url(html: &str) -> tauri::Url {
+    let chemin = std::env::temp_dir().join("laruche-choix.html");
+    let _ = std::fs::write(&chemin, html);
+    tauri::Url::from_file_path(&chemin).expect("chemin temporaire absolu")
+}
+
+/// Ou pointer la fenetre, et faut-il arreter un noeud en partant.
+fn resoudre() -> (tauri::Url, Option<Child>) {
+    // 1. Choix explicite: on n'essaie rien d'autre, meme si la ruche ne repond pas
+    //    encore - c'est peut-etre une machine en train de demarrer.
+    if let Some(url) = url_imposee() {
+        let enfant = if noeud_repond(&url) {
+            None
+        } else {
+            demarrer_noeud(&url)
+        };
+        return (url.parse().expect("LARUCHE_URL n'est pas une URL valide"), enfant);
+    }
+
+    // 2. Un noeud local repond deja.
+    if noeud_repond(URL_LOCALE) {
+        return (URL_LOCALE.parse().expect("URL locale valide"), None);
+    }
+
+    // 3. Un noeud voyage avec nous: on le lance.
+    if let Some(enfant) = demarrer_noeud(URL_LOCALE) {
+        if noeud_repond(URL_LOCALE) {
+            return (URL_LOCALE.parse().expect("URL locale valide"), Some(enfant));
+        }
+        // Lance mais muet: on ne le laisse pas trainer avant de passer a la suite.
+        let mut enfant = enfant;
+        let _ = enfant.kill();
+    }
+
+    // 4. Client pur: on demande au reseau qui est la.
+    let ruches = decouverte::chercher(Duration::from_secs(3));
+    // Une seule ruche et aucune ambiguite: on y va directement plutot que d'imposer
+    // un ecran de choix a un seul bouton.
+    if ruches.len() == 1 {
+        if let Ok(u) = ruches[0].url.parse() {
+            return (u, None);
+        }
+    }
+    let html = decouverte::page_choix(&ruches, chemin_noeud().is_none());
+    (page_choix_url(&html), None)
+}
+
 fn main() {
-    let url = url_noeud();
+    // Diagnostic: « qu'est-ce que ce client voit sur le reseau ? ». Repond a la
+    // question sans ouvrir de fenetre ni demarrer quoi que ce soit - utile quand un
+    // pare-feu mange le mDNS et qu'on ne sait pas d'ou vient le silence.
+    if std::env::var("LARUCHE_DECOUVRIR").is_ok() {
+        let ruches = decouverte::chercher(Duration::from_secs(3));
+        println!("ruches vues sur le reseau local: {}", ruches.len());
+        for r in &ruches {
+            println!(
+                "  {}  {}  {}{}",
+                r.nom,
+                r.url,
+                if r.joignable {
+                    "joignable"
+                } else {
+                    "INJOIGNABLE (demarrer la ruche avec LARUCHE_BIND_LAN=1)"
+                },
+                r.modele.as_deref().map(|m| format!("  [{m}]")).unwrap_or_default()
+            );
+        }
+        return;
+    }
 
-    // Si quelque chose ecoute deja, on ne lance rien: le service Windows, un `.bat`
-    // ou un autre onglet restent maitres du port.
-    let mut enfant = if noeud_repond(&url) {
-        None
-    } else {
-        demarrer_noeud(&url)
-    };
-
-    let cible = url.parse().expect("LARUCHE_URL n'est pas une URL valide");
+    let (cible, mut enfant) = resoudre();
 
     tauri::Builder::default()
         .setup(move |app| {

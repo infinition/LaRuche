@@ -17,3 +17,10 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = [] }
+# Decouverte mDNS seule: MielListener ecoute sans annoncer, donc une coque sans
+# noeud peut lister les ruches du reseau. C'est ce qui permet un client pur - et
+# c'est le meme mecanisme qu'utilisera une application mobile.
+miel-protocol = { workspace = true }
+# Uniquement pour faire tourner la decouverte mDNS: MielListener essaime des taches
+# et exige donc un runtime. Il est cree puis rendu avant que Tauri ne demarre le sien.
+tokio = { workspace = true }
