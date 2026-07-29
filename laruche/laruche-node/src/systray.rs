@@ -70,6 +70,10 @@ pub fn run_systray(_port: u16, _shutdown_tx: tokio::sync::oneshot::Sender<()>) {
 }
 
 /// Generate a yellow hexagon on transparent background as RGBA bytes.
+// Windows seulement, comme son unique appelant `run_systray`: sans ce cfg, la
+// fonction devient du code mort sous Linux et macOS, ou `run_systray` est un no-op -
+// et `cargo clippy -D warnings` echoue la-bas alors qu'il passe ici.
+#[cfg(windows)]
 fn generate_hex_icon(width: u32, height: u32) -> Vec<u8> {
     let mut rgba = vec![0u8; (width * height * 4) as usize];
     let cx = width as f64 / 2.0;
@@ -94,6 +98,8 @@ fn generate_hex_icon(width: u32, height: u32) -> Vec<u8> {
 }
 
 /// Check if point (dx, dy) relative to center is inside a flat-top hexagon of radius r.
+// Windows seulement: appelee uniquement par `generate_hex_icon`.
+#[cfg(windows)]
 fn is_inside_hexagon(dx: f64, dy: f64, r: f64) -> bool {
     let ax = dx.abs();
     let ay = dy.abs();
