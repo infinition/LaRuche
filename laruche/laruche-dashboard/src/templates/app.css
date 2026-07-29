@@ -2543,3 +2543,47 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 .tl-inv-cartes { display:flex; flex-direction:column; gap:8px; padding:10px; }
 .tl-inv-cartes .gantt-detail { margin:0; }
 .gantt-row--actif { outline:1px solid var(--amber); outline-offset:-1px; }
+
+/* ── Accueil: the first-launch welcome ──────────────────────────────────────
+   Rides on .lr-modal (same shell, same shadow, same escape reflexes as every
+   other dialog); only the checklist below is specific. */
+.acc-modal { width:min(620px,100%); }
+.acc-etat {
+  font-size:12px; color:var(--text-dim); padding:8px 10px; margin-bottom:12px;
+  border-radius:8px; background:rgba(255,255,255,.03);
+  border-left:3px solid var(--amber);
+}
+.acc-etat--ok { border-left-color:var(--green); }
+.acc-etat strong { color:var(--text); font-family:var(--mono); }
+.acc-extras { color:var(--text-muted); }
+
+.acc-liste { list-style:none; margin:0; padding:0; }
+.acc-etape {
+  display:flex; align-items:flex-start; gap:10px;
+  padding:9px 0; border-top:1px solid var(--border);
+}
+.acc-etape:first-child { border-top:none; }
+/* A settled step steps back: the eye goes to what is left to do. */
+.acc-etape--ok { opacity:.62; }
+.acc-etape-txt { flex:1; min-width:0; }
+.acc-etape-titre { font-size:12.5px; color:var(--text); }
+.acc-etape-aide {
+  font-size:10.5px; color:var(--text-muted); line-height:1.45; margin-top:2px;
+  /* Instructions carry paths and commands: they wrap instead of stretching the modal. */
+  overflow-wrap:anywhere;
+}
+.acc-opt { font-size:10px; color:var(--text-muted); font-weight:400; }
+.acc-puce { flex:none; width:1.15em; text-align:center; line-height:1.4; font-size:13px; }
+.acc-puce--ok  { color:var(--green); }
+.acc-puce--opt { color:var(--amber); }
+.acc-puce--ko  { color:var(--red); }
+.acc-go { flex:none; align-self:center; }
+.acc-encore {
+  display:flex; align-items:center; gap:7px; margin-top:14px;
+  font-size:11px; color:var(--text-dim); cursor:pointer;
+}
+@media (max-width:520px){
+  /* Narrow: the action drops under its text rather than squeezing both. */
+  .acc-etape { flex-wrap:wrap; }
+  .acc-go { margin-left:calc(1.15em + 10px); align-self:flex-start; }
+}

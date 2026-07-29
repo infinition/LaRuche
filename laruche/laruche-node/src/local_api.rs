@@ -172,6 +172,9 @@ pub(crate) async fn api_onboarding(State(state): State<Arc<AppState>>) -> Json<s
     steps.push(serde_json::json!({
         "step": 1, "title": format!("LLM backend — {nom_backend}"),
         "done": backend_ok,
+        // Where the user goes to act. The web modal turns it into a button, the CLI
+        // prints it as a path. One source, two renderings - so they cannot drift.
+        "section": "providers",
         "instruction": match (&url_sonde, backend_ok) {
             (Some(u), true)  => format!("Connected to {u}"),
             (Some(u), false) => format!("Cannot reach {u}. {aide}"),
@@ -183,6 +186,7 @@ pub(crate) async fn api_onboarding(State(state): State<Arc<AppState>>) -> Json<s
     steps.push(serde_json::json!({
         "step": 2, "title": "LLM Model",
         "done": backend_ok,
+        "section": "providers",
         "instruction": if est_ollama {
             format!("Current model: {modele}. To install another: ollama pull <name>")
         } else {
@@ -211,6 +215,7 @@ pub(crate) async fn api_onboarding(State(state): State<Arc<AppState>>) -> Json<s
     steps.push(serde_json::json!({
         "step": 3, "title": "Embeddings Model (RAG)",
         "done": embed_ok,
+        "section": "providers",
         // Optional, not broken: say what is actually lost so nobody chases a red cross
         // for a feature they may not want.
         "optional": true,
@@ -233,6 +238,7 @@ pub(crate) async fn api_onboarding(State(state): State<Arc<AppState>>) -> Json<s
     steps.push(serde_json::json!({
         "step": 4, "title": "Voice services (STT/TTS)",
         "done": has_stt && has_tts,
+        "section": "voice",
         "optional": true,
         "instruction": if has_stt && has_tts { format!("STT ({stt_url}) and TTS ({tts_url}) responding.") }
             else { "Optional. Only needed to talk to LaRuche out loud; typing works either way. Run: cd laruche-voix && python -m src.stt_service && python -m src.tts_service".to_string() },
@@ -247,6 +253,7 @@ pub(crate) async fn api_onboarding(State(state): State<Arc<AppState>>) -> Json<s
     steps.push(serde_json::json!({
         "step": 5, "title": "Chrome/Edge (browser tools)",
         "done": has_chrome,
+        "section": "capabilities",
         "optional": true,
         "instruction": if has_chrome { "Chrome detected." } else { "Optional. Only the browser tools (navigate, screenshot) need it; everything else runs without." },
     }));

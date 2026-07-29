@@ -88,8 +88,11 @@
       if(!r.ok) throw new Error('http '+r.status);
     }).catch(function(){
       render(row, previous);
-      if(window.LaRuche && LaRuche.Utils && LaRuche.Utils.toast){
-        LaRuche.Utils.toast(t('reactions.failed','Reaction not saved'), 'error');
+      // LaRuche.Toast.show, not Utils.toast: the latter never existed, so this
+      // warning was guarded into silence and a lost reaction looked like a
+      // reaction that simply bounced back on its own.
+      if(window.LaRuche && LaRuche.Toast){
+        LaRuche.Toast.show(t('reactions.failed','Reaction not saved'), 'error');
       }
     });
   }

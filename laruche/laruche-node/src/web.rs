@@ -47,6 +47,10 @@ const APP_JS: &str = concat!(
     "\n",
     include_str!("../../laruche-dashboard/src/templates/js/watchers-graph.js"),
     "\n",
+    // After settings.js and chat.js: the welcome modal calls into both
+    // (Settings.ouvrirSection, Chat.sendMessage) as soon as it is opened.
+    include_str!("../../laruche-dashboard/src/templates/js/accueil.js"),
+    "\n",
     include_str!("../../laruche-dashboard/src/templates/js/boot.js"),
 );
 
