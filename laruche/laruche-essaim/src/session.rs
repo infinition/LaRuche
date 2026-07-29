@@ -463,6 +463,29 @@ impl Session {
         msgs
     }
 
+    /// Strips the control prefixes a first user message carries, so they never end up
+    /// in a conversation title.
+    ///
+    /// `/no_think` is injected by the server (`inject_no_think`), not typed by anyone:
+    /// with the toggle on, every single conversation was titled "/no_think ..." and the
+    /// directive also ate 9 of the 60 title characters. Exposed because titles recorded
+    /// before this fix are already stored with the prefix, and the read paths clean them
+    /// on the way out rather than migrating the files.
+    pub fn nettoyer_titre(raw: &str) -> &str {
+        let t = raw.trim_start();
+        let Some(reste) = t.strip_prefix("/no_think") else {
+            return t;
+        };
+        // Only when the directive stands alone. The injector writes a newline and a
+        // person types a space, but "/no_thinking" is an ordinary word and must survive
+        // intact - stripping on the bare prefix turned it into "ing".
+        match reste.chars().next() {
+            None => "",
+            Some(c) if c.is_whitespace() => reste.trim_start(),
+            Some(_) => t,
+        }
+    }
+
     /// Auto-generate a title from the first user message.
     pub fn auto_title(&mut self) {
         if self.title.is_some() {
@@ -478,6 +501,7 @@ impl Session {
                 _ => continue,
             };
             let clean = raw.split("\n\n[SYSTEM]").next().unwrap_or(raw).trim();
+            let clean = Self::nettoyer_titre(clean);
             if clean.is_empty() {
                 continue;
             }
@@ -632,5 +656,27 @@ impl Session {
             })
             .sum();
         total_chars / 4
+    }
+}
+
+#[cfg(test)]
+mod tests_titre {
+    use super::Session;
+
+    #[test]
+    fn retire_le_prefixe_injecte() {
+        // Ce que `inject_no_think` ecrit reellement.
+        assert_eq!(Session::nettoyer_titre("/no_think\nQue sais tu de moi ?"), "Que sais tu de moi ?");
+        // Tape a la main, avec une espace.
+        assert_eq!(Session::nettoyer_titre("/no_think liste les missions"), "liste les missions");
+        // Seul sur sa ligne, sans rien derriere.
+        assert_eq!(Session::nettoyer_titre("/no_think"), "");
+    }
+
+    #[test]
+    fn laisse_le_reste_intact() {
+        assert_eq!(Session::nettoyer_titre("meteo a cannes stp"), "meteo a cannes stp");
+        // Un mot qui commence pareil ne doit pas etre ampute.
+        assert_eq!(Session::nettoyer_titre("/no_thinking est un mot"), "/no_thinking est un mot");
     }
 }

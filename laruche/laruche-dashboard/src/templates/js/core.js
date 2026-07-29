@@ -1027,11 +1027,30 @@ LaRuche.Router = (function(){
   var pages = ['chat','dashboard','memory','missions','automations','capabilities','settings','console','login'];
   var modules = {};
 
-  function go(page) {
-    if(pages.indexOf(page) < 0) page = 'chat';
+  // A route may name a place INSIDE a page: '#settings/providers'. The router splits
+  // it and forwards the remainder to the page, which alone knows what it means. This
+  // is what makes a section addressable by URL - so the CLI's /configure, a note from
+  // the agent and the welcome modal can all point at one place the same way.
+  function _sub(page, sub){
+    if(!sub) return;
+    var m = modules[page];
+    if(m && m.deepLink) m.deepLink(sub);
+  }
+  function _hash(page, sub){
+    var cible = '#' + page + (sub ? '/' + sub : '');
+    if(location.hash !== cible) history.replaceState(null, '', cible);
+  }
+
+  function go(route) {
+    var parts = String(route == null ? '' : route).split('/');
+    var page = parts[0];
+    var sub = parts.slice(1).join('/');
+    if(pages.indexOf(page) < 0) { page = 'chat'; sub = ''; }
     // Auth guard: redirect to login if not authenticated (except login page itself)
-    if(page !== 'login' && !LaRuche.Auth.isAuthenticated()) { page = 'login'; }
-    if(currentPage === page) return;
+    if(page !== 'login' && !LaRuche.Auth.isAuthenticated()) { page = 'login'; sub = ''; }
+    // Already here: no repaint, but a sub-route still has to be honoured, otherwise
+    // a deep link only works when you happen to be on another page.
+    if(currentPage === page) { _hash(page, sub); _sub(page, sub); return; }
     // leave old page
     if(currentPage && modules[currentPage] && modules[currentPage].leave) modules[currentPage].leave();
     // hide all
@@ -1060,6 +1079,7 @@ LaRuche.Router = (function(){
     if(headerRight) headerRight.style.display = isLogin ? 'none' : '';
     // enter new page
     if(modules[page] && modules[page].enter) modules[page].enter();
+    _sub(page, sub);
     // Reposition mesh windows: the bottom bars change per tab (chat input absent
     // outside chat). go() uses replaceState (no hashchange), so we must call it explicitly.
     if(window.LaRuche && LaRuche.Mesh && LaRuche.Mesh.repositionWindows){
@@ -1067,9 +1087,7 @@ LaRuche.Router = (function(){
       requestAnimationFrame(function(){ LaRuche.Mesh.repositionWindows(); }); // after the new page reflows
     }
     // update hash without triggering hashchange
-    if(location.hash !== '#'+page) {
-      history.replaceState(null, '', '#'+page);
-    }
+    _hash(page, sub);
   }
 
   function register(name, mod) { modules[name] = mod; }

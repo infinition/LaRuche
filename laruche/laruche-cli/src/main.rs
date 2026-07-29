@@ -254,7 +254,11 @@ fn print_help() {
         "/skills".with(AMBER),
         "/sessions".with(AMBER)
     );
-    eprintln!("    {}   Message count", "/history".with(AMBER));
+    eprintln!(
+        "    {}   Message count     {} Setup checklist",
+        "/history".with(AMBER),
+        "/configure".with(AMBER)
+    );
     eprintln!();
     eprintln!(
         "  {} /server start | stop | restart | status | install | uninstall | update",
@@ -497,6 +501,10 @@ async fn cmd_chat() -> Result<()> {
                 }
                 "/doctor" | "/status" => {
                     cmd_doctor().await.ok();
+                    continue;
+                }
+                "/configure" | "/config" | "/setup" => {
+                    cmd_configure().await.ok();
                     continue;
                 }
                 "/skills" => {
@@ -749,6 +757,97 @@ async fn cmd_doctor() -> Result<()> {
             );
         }
     }
+    Ok(())
+}
+
+/// `/configure`: what is still missing, and where to go and fix it.
+///
+/// Reads the same `/api/onboarding` the web welcome modal renders. Not a second
+/// checklist maintained in Rust: the node owns the probes, this only draws them.
+/// Each step carries a `section`, which becomes `#settings/<section>` here - the
+/// URL the SPA router now resolves, so the printed link lands on the exact panel
+/// instead of the top of Settings.
+async fn cmd_configure() -> Result<()> {
+    let url = std::env::var("LARUCHE_URL").unwrap_or_else(|_| "http://127.0.0.1:8419".to_string());
+    let resp = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .build()?
+        .get(format!("{}/api/onboarding", url))
+        .send()
+        .await;
+
+    let d = match resp {
+        Ok(r) => match r.json::<serde_json::Value>().await {
+            Ok(d) => d,
+            Err(e) => {
+                eprintln!("\n  {} reponse illisible: {e}\n", "✗".red());
+                return Ok(());
+            }
+        },
+        Err(e) => {
+            eprintln!(
+                "\n  {} {}\n  {} laruche-node en marche? ({url})\n",
+                "✗".red(),
+                e,
+                "→".dark_grey()
+            );
+            return Ok(());
+        }
+    };
+
+    let complet = d["complete"].as_bool().unwrap_or(false);
+    eprintln!(
+        "\n  {} {}  {}",
+        "Configuration".with(AMBER).bold(),
+        d["progress"].as_str().unwrap_or("?").bold(),
+        if complet {
+            "tout l'essentiel est en place".green()
+        } else {
+            "il manque des reglages".yellow()
+        }
+    );
+    eprintln!("  {}", "─".repeat(58).dark_grey());
+
+    for s in d["steps"].as_array().map(|v| v.as_slice()).unwrap_or(&[]) {
+        let fait = s["done"].as_bool().unwrap_or(false);
+        let opt = s["optional"].as_bool().unwrap_or(false);
+        // An unmet OPTIONAL step is not a failure - amber circle, not a red cross.
+        // Same rule as the web, so the two never contradict each other.
+        let puce = if fait {
+            "✓".green()
+        } else if opt {
+            "○".yellow()
+        } else {
+            "✗".red()
+        };
+        eprintln!(
+            "  {} {}{}",
+            puce,
+            s["title"].as_str().unwrap_or("?").bold(),
+            if opt && !fait {
+                "  (facultatif)".dark_grey().to_string()
+            } else {
+                String::new()
+            }
+        );
+        if let Some(i) = s["instruction"].as_str().filter(|i| !i.is_empty()) {
+            eprintln!("      {}", i.dark_grey());
+        }
+        // Only unmet steps get a link. Pointing at a screen with nothing left to do
+        // is an invitation to a pointless detour.
+        if !fait {
+            if let Some(sec) = s["section"].as_str().filter(|s| !s.is_empty()) {
+                eprintln!("      {} {}", "→".dark_grey(), format!("{url}/#settings/{sec}").with(Color::Cyan));
+            }
+        }
+    }
+
+    eprintln!("  {}", "─".repeat(58).dark_grey());
+    eprintln!(
+        "  {} decris ce que tu veux en clair: l'agent dispose de la capacite\n     {} et lira l'etat reel avant de te repondre.\n",
+        "ou".dark_grey(),
+        "configure-laruche".with(AMBER),
+    );
     Ok(())
 }
 

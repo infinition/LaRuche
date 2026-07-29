@@ -22,7 +22,7 @@ pub(crate) async fn api_list_sessions(
         .map(|s| {
             serde_json::json!({
                 "id": s.id.to_string(),
-                "title": s.title,
+                "title": s.title.as_deref().map(laruche_essaim::Session::nettoyer_titre),
                 "model": s.model,
                 "messages": s.len(),
                 "estimated_tokens": s.estimated_tokens(),
@@ -310,7 +310,7 @@ pub(crate) async fn api_get_session_messages(
             let messages: Vec<serde_json::Value> = enumerer_pour_client(&session.messages);
             Ok(Json(serde_json::json!({
                 "session_id": id,
-                "title": session.title,
+                "title": session.title.as_deref().map(laruche_essaim::Session::nettoyer_titre),
                 "messages": messages,
             })))
         }
@@ -366,7 +366,7 @@ pub(crate) async fn api_search_sessions(
                 let preview: String = text.chars().take(150).collect();
                 results.push(serde_json::json!({
                     "session_id": session.id.to_string(),
-                    "session_title": session.title,
+                    "session_title": session.title.as_deref().map(laruche_essaim::Session::nettoyer_titre),
                     "role": match msg {
                         laruche_essaim::Message::User(_) | laruche_essaim::Message::UserMultimodal { .. } => "user",
                         _ => "assistant",
@@ -404,7 +404,7 @@ pub(crate) async fn api_export_session(
 
     let mut md = format!(
         "# {}\n\n*Session: {} | Model: {} | Date: {}*\n\n---\n\n",
-        session.title.as_deref().unwrap_or("Conversation"),
+        session.title.as_deref().map(laruche_essaim::Session::nettoyer_titre).unwrap_or("Conversation"),
         session.id,
         session.model,
         session.created_at.format("%Y-%m-%d %H:%M"),
