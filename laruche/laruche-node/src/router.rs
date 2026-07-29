@@ -78,6 +78,8 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         .route("/vendor/:name", get(web::vendor_js))
         .route("/manifest.json", get(web::manifest))
         .route("/icon.svg", get(web::icon_svg))
+        .route("/icones/icon-192.png", get(web::icon_png_192))
+        .route("/icones/icon-512.png", get(web::icon_png_512))
         .route("/sw.js", get(web::service_worker))
         .route("/lang/:file", get(web::lang_file))
         .route("/api/status", get(swarm_api::get_status))

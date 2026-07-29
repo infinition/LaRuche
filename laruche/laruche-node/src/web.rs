@@ -20,6 +20,10 @@ const APP_CSS: &str = include_str!("../../laruche-dashboard/src/templates/app.cs
 // PWA assets (installable web app: add-to-home-screen on iPhone/Android, offline shell).
 const MANIFEST_JSON: &str = include_str!("../../laruche-dashboard/src/templates/manifest.json");
 const ICON_SVG: &str = include_str!("../../laruche-dashboard/src/templates/icon.svg");
+// Bitmaps derives du meme SVG (cargo run -p laruche-icones). include_bytes! et non
+// include_str!: ce sont des octets binaires, pas de l'UTF-8.
+const ICON_PNG_192: &[u8] = include_bytes!("../../laruche-dashboard/src/templates/icones/icon-192.png");
+const ICON_PNG_512: &[u8] = include_bytes!("../../laruche-dashboard/src/templates/icones/icon-512.png");
 const SW_JS: &str = include_str!("../../laruche-dashboard/src/templates/sw.js");
 // app.js is split into modules under `templates/js/` (one i18n agent per module). The node
 // CONCATENATES them at compile time in dependency ORDER: one `/app.js` served, one binary.
@@ -141,6 +145,18 @@ pub async fn manifest() -> impl IntoResponse {
 /// App icon (home-screen / favicon).
 pub async fn icon_svg() -> impl IntoResponse {
     ([(header::CONTENT_TYPE, "image/svg+xml; charset=utf-8")], ICON_SVG)
+}
+
+/// Icones PWA en bitmap. Windows et Android refusent un SVG pour l'icone installee:
+/// avec le seul `icon.svg` au manifeste, « Installer LaRuche » aboutissait a une
+/// vignette generique dans la barre des taches. Generees depuis ce meme SVG par
+/// `cargo run -p laruche-icones`.
+pub async fn icon_png_192() -> impl IntoResponse {
+    ([(header::CONTENT_TYPE, "image/png")], ICON_PNG_192)
+}
+
+pub async fn icon_png_512() -> impl IntoResponse {
+    ([(header::CONTENT_TYPE, "image/png")], ICON_PNG_512)
 }
 
 /// Service worker (offline shell + installability).

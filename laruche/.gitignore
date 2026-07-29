@@ -68,3 +68,6 @@ salut.txt
 test.txt
 bee.html
 memoire-okf/
+
+# Schemas ACL regeneres par tauri-build a chaque compilation de la coque bureau.
+/laruche-bureau/gen/

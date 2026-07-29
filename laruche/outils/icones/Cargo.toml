@@ -1,0 +1,16 @@
+[package]
+name = "laruche-icones"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Genere toutes les icones PNG/ICO a partir de l'unique source icon.svg"
+publish = false
+
+[dependencies]
+# resvg lit le SVG reel: une seule definition de l'icone dans le depot, aucune
+# copie a tenir synchronisee.
+resvg = "0.44"
+tiny-skia = "0.11"
+usvg = "0.44"
+png = "0.17"
+ico = "0.3"

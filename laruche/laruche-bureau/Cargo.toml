@@ -1,0 +1,19 @@
+[package]
+name = "laruche-bureau"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "LaRuche en application de bureau: la meme interface web, dans sa propre fenetre"
+publish = false
+
+# Le binaire porte le nom du produit: c'est lui qui apparait dans le gestionnaire
+# des taches et dans le raccourci.
+[[bin]]
+name = "laruche-bureau"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
