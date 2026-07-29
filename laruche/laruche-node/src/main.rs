@@ -644,12 +644,26 @@ async fn main() -> Result<()> {
     );
 
     // Cognitive memory (laruche-memoire): env-selectable backend.
-    //   LARUCHE_MEMOIRE_BACKEND=sidecar  → real paradigm on http://127.0.0.1:8765
-    //   (default)                         → Rust in-memory NativeBackend (zero dependency)
+    //   LARUCHE_MEMOIRE_BACKEND=sidecar         → real paradigm on http://127.0.0.1:8765
+    //   LARUCHE_MEMOIRE_BACKEND=memory|native   → in-memory, volatile (tests, demos)
+    //   (default)                                → SQLite, persistent
+    //
+    // Le defaut etait la memoire vive. Conséquence: tout lancement qui ne posait pas
+    // LARUCHE_MEMOIRE_BACKEND=sqlite - double-clic sur l'exe, service, application de
+    // bureau - donnait une LaRuche qui confirme « c'est memorise » puis oublie tout en
+    // s'arretant, sans le moindre avertissement. Seul lancer_butinage.bat posait la
+    // variable, ce qui faisait dependre la persistance du chemin emprunte pour demarrer.
+    // SqliteBackend est compile dans le binaire de toute facon: le defaut ne coute rien
+    // et correspond a ce que tout le monde attend. Le mode volatile reste accessible,
+    // mais il faut desormais le demander.
     let memoire: Arc<dyn laruche_memoire::MemoireCognitive> =
         match std::env::var("LARUCHE_MEMOIRE_BACKEND").as_deref() {
             Ok("sidecar") => Arc::new(laruche_memoire::SidecarBackend::loopback()),
-            Ok("sqlite") => {
+            Ok("memory") | Ok("native") | Ok("inmemory") => {
+                warn!("memory backend: IN-MEMORY (volatile) - nothing will be persisted");
+                Arc::new(laruche_memoire::NativeBackend::new())
+            }
+            _ => {
                 // Embedder ALWAYS wired (semantic recall by default): LARUCHE_EMBED_URL
                 // (Ollama `/api/embed` OR llama.cpp/OpenAI-compat `/v1/embeddings` -
                 // format auto-detected), falling back to the local Ollama default.
@@ -670,7 +684,6 @@ async fn main() -> Result<()> {
                     .expect("opening memoire.db (SQLite+FTS5+embeddings)"),
                 )
             }
-            _ => Arc::new(laruche_memoire::NativeBackend::new()),
         };
     // Backfill: items written while the embedder was down get their embeddings
     // (semantic recall would otherwise never see them). Deferred a little so the

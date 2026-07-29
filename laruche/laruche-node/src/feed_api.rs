@@ -168,7 +168,7 @@ pub(crate) async fn api_feed(
     let mut events: Vec<serde_json::Value> = Vec::new();
 
     // 1) Memory mutations (who added/deleted/modified what).
-    if let Ok(muts) = state.memoire.mutations(Some(150)).await {
+    if let Ok(muts) = state.memoire.mutations_activite(Some(400)).await {
         if let Some(arr) = muts.get("mutations").and_then(|m| m.as_array()) {
             for m in arr {
                 let op = m.get("op").and_then(|v| v.as_str()).unwrap_or("");

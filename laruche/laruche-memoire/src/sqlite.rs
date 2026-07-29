@@ -968,6 +968,30 @@ impl MemoireCognitive for SqliteBackend {
         }))
     }
 
+    /// Le fil ne veut que l'activite: on ecarte le bruit DANS la requete, pour que la
+    /// fenetre de lecture soit remplie d'evenements reels et non de reamorcage.
+    ///
+    /// Ecarte: l'indexation des outils et la synchronisation disque<->SQL des skills
+    /// (plusieurs dizaines de lignes a chaque demarrage), ainsi que la (re)creation
+    /// des branches `system` et `capacities`, identiques a chaque fois.
+    async fn mutations_activite(&self, limit: Option<u32>) -> Result<Value> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT op, node_id, content, ts, src FROM mutations              WHERE COALESCE(src,'') NOT IN                    ('tool-registry','seed','skill-file','skill-file-sync','skill-file-watch')                AND NOT (op IN ('create_node','update_node')                         AND (node_id LIKE 'system%' OR node_id LIKE 'capacities%'))              ORDER BY id DESC LIMIT ?1",
+        )?;
+        let rows = stmt.query_map([limit.unwrap_or(50) as i64], |r| {
+            Ok(json!({
+                "op": r.get::<_, String>(0)?,
+                "node_id": r.get::<_, Option<String>>(1)?,
+                "content": r.get::<_, Option<String>>(2)?,
+                "ts": r.get::<_, i64>(3)?,
+                "src": r.get::<_, Option<String>>(4)?,
+            }))
+        })?;
+        let entries: Vec<Value> = rows.filter_map(|r| r.ok()).collect();
+        Ok(json!({ "mutations": entries }))
+    }
+
     async fn mutations(&self, limit: Option<u8>) -> Result<Value> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(

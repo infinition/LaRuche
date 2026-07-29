@@ -45,13 +45,39 @@ fn adresse(url: &str) -> Option<SocketAddr> {
     std::net::ToSocketAddrs::to_socket_addrs(&hote).ok()?.next()
 }
 
-/// Le noeud ecoute-t-il ? Une connexion TCP suffit: axum se lie au port puis sert,
-/// donc un connect qui aboutit veut dire que la page va repondre.
+/// Le noeud sert-il vraiment ?
+///
+/// Une connexion TCP ne suffit pas: le port accepte des le `bind`, avant que le
+/// serveur ne reponde. La fenetre s'ouvrait alors sur une SPA qui interrogeait des
+/// routes pas encore pretes, peignait des panneaux vides et ne reessayait jamais -
+/// d'ou le F5 necessaire sur certaines pages. On exige donc une vraie reponse HTTP.
 fn noeud_repond(url: &str) -> bool {
-    match adresse(url) {
-        Some(a) => TcpStream::connect_timeout(&a, Duration::from_millis(400)).is_ok(),
-        None => false,
+    use std::io::{Read, Write};
+    let Some(adr) = adresse(url) else { return false };
+    let Ok(mut flux) = TcpStream::connect_timeout(&adr, Duration::from_millis(500)) else {
+        return false;
+    };
+    let _ = flux.set_read_timeout(Some(Duration::from_millis(1500)));
+    let _ = flux.set_write_timeout(Some(Duration::from_millis(500)));
+    // /manifest.json plutot que / : quelques centaines d'octets, aucune
+    // authentification, et servi par le meme routeur que le reste.
+    let requete = format!(
+        "GET /manifest.json HTTP/1.1\r\nHost: {adr}\r\nConnection: close\r\nUser-Agent: laruche-bureau\r\n\r\n"
+    );
+    if flux.write_all(requete.as_bytes()).is_err() {
+        return false;
     }
+    let mut tete = [0u8; 16];
+    let mut lus = 0;
+    // Boucle: la premiere lecture peut rendre moins que la ligne de statut.
+    while lus < tete.len() {
+        match flux.read(&mut tete[lus..]) {
+            Ok(0) => break,
+            Ok(n) => lus += n,
+            Err(_) => break,
+        }
+    }
+    String::from_utf8_lossy(&tete[..lus]).starts_with("HTTP/1.1 200")
 }
 
 /// Cherche l'executable du noeud. A cote de nous une fois installe; dans
@@ -191,7 +217,10 @@ fn main() {
             tauri::WebviewWindowBuilder::new(app, "principale", tauri::WebviewUrl::External(cible))
                 .title("LaRuche")
                 .inner_size(1400.0, 900.0)
-                .min_inner_size(900.0, 600.0)
+                // 380 px de large: la SPA est deja responsive et bascule en
+                // presentation telephone sous ~640 px. Un minimum a 900 empechait
+                // simplement d'y arriver, et donc de voir cette mise en page.
+                .min_inner_size(380.0, 500.0)
                 // Meme fond que la page: sans cela la fenetre clignote en blanc le
                 // temps que la SPA peigne.
                 .background_color(tauri::window::Color(0x0f, 0x0f, 0x10, 0xff))
