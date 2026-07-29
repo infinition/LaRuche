@@ -14,6 +14,26 @@ members = [
     "laruche-compaction",
     "laruche-butinage",
     "laruche-evals",
+    "outils/icones",
+    "laruche-bureau",
+]
+# `cargo build` a la racine ne construit pas les outils ponctuels: le generateur
+# d'icones ne sert qu'a la demande, et ses dependances de rendu n'ont rien a faire
+# dans la construction courante ni dans le workflow de release.
+default-members = [
+    "miel-protocol",
+    "laruche-node",
+    "laruche-client",
+    "laruche-cli",
+    "laruche-dashboard",
+    "laruche-essaim",
+    "laruche-memoire", "laruche-watchers",
+    "laruche-skills", "laruche-kanban",
+    "laruche-events",
+    "laruche-permissions",
+    "laruche-compaction",
+    "laruche-butinage",
+    "laruche-evals",
 ]
 
 [workspace.package]

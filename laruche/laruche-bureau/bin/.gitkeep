@@ -1,0 +1,2 @@
+Le noeud compile est depose ici avant `cargo tauri build`, pour que l'installeur
+l'embarque (bundle.resources -> <installation>/bin/). Il n'est pas versionne.

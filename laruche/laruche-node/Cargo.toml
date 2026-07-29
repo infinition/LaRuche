@@ -9,6 +9,12 @@ name = "laruche-node"
 path = "src/main.rs"
 
 [dependencies]
+# Les skills et plugins livres voyagent DANS le binaire: un laruche-node.exe seul,
+# telecharge depuis les releases, doit arriver avec ses capacites.
+include_dir = "0.7"
+# Dossier de donnees standard par OS (%APPDATA%, ~/Library/Application Support,
+# ~/.local/share) pour que la ruche ait le meme foyer quel que soit le lanceur.
+dirs = "6"
 laruche-events.workspace = true
 miel-protocol.workspace = true
 tokio.workspace = true

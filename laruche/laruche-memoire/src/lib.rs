@@ -293,6 +293,24 @@ pub trait MemoireCognitive: Send + Sync {
         Err(anyhow!("memory_mutations unsupported by this backend"))
     }
 
+    /// Mutations qui relevent de l'ACTIVITE, pour le fil.
+    ///
+    /// `mutations` est un journal d'audit: il rend tout, y compris le reamorcage
+    /// des noeuds `system.*` et `capacities.*` reecrits a CHAQUE demarrage. Le fil
+    /// filtrait ce bruit apres coup, donc apres que la fenetre de lecture ait ete
+    /// consommee: quelques redemarrages suffisaient a en chasser toute activite
+    /// reelle. Sur une base observee, 129 des 150 dernieres lignes etaient du
+    /// reamorcage. Le filtre appartient a la requete.
+    ///
+    /// La limite est un `u32` et non un `u8`: plafonner a 255 etait precisement ce
+    /// qui empechait de compenser en elargissant la fenetre.
+    ///
+    /// Defaut: on delegue, quitte a laisser passer le bruit - un backend qui ne sait
+    /// pas filtrer vaut mieux qu'un fil vide.
+    async fn mutations_activite(&self, limit: Option<u32>) -> Result<Value> {
+        self.mutations(limit.map(|l| l.min(255) as u8)).await
+    }
+
     /// SUBSTRING search (case-insensitive) in the content of active items:
     /// "memory grep". Returns `[{id, node_id, content}]`. Default: unsupported.
     async fn grep(&self, _pattern: &str, _limit: Option<u8>) -> Result<Value> {

@@ -32,8 +32,13 @@ Thumbs.db
 /mesh-secret.json
 /credentials.json
 /mcp_servers.json
-# Scripts the MCP servers launch: the user's own code, like plugins/.
+# Scripts des serveurs MCP: le code de l'utilisateur, comme plugins/.
+# Deux exceptions livrees avec LaRuche et embarquees dans le binaire (include_dir!):
+# sans elles, mcp/ serait absent d'une copie fraiche du depot et la compilation
+# echouerait - et une ruche neuve n'aurait aucun exemple de serveur MCP.
 /mcp/*
+!/mcp/example_mcp.py
+!/mcp/computer_use.py
 
 # Runtime data and local user state
 /sessions/
@@ -68,3 +73,14 @@ salut.txt
 test.txt
 bee.html
 memoire-okf/
+
+# Schemas ACL regeneres par tauri-build a chaque compilation de la coque bureau.
+/laruche-bureau/gen/
+
+# Le noeud copie ici juste avant l'empaquetage de la coque bureau.
+/laruche-bureau/bin/laruche-node
+/laruche-bureau/bin/laruche-node.exe
+
+# Foyer d'avant le deplacement vers le dossier de donnees standard de l'OS.
+# Conserve le temps de verifier que la nouvelle ruche va bien, puis supprimable.
+/_ancien-foyer/
