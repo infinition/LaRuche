@@ -1519,7 +1519,7 @@ async fn evaluate_watcher(
                 format!(
                     "new log content matches '{}': {}",
                     watcher.condition,
-                    &extrait.chars().take(300).collect::<String>()
+                    extrait.chars().take(300).collect::<String>()
                 )
             } else {
                 "new log content".to_string()

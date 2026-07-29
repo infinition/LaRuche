@@ -318,7 +318,7 @@ pub(crate) async fn auth_permanent_link(
     // (phone scans enrollment QR which also resolves any open challenge)
     {
         let mut challenges = state.auth_challenges.write().await;
-        for (_, challenge) in challenges.iter_mut() {
+        for challenge in challenges.values_mut() {
             if !challenge.is_expired() && challenge.resolved_user_id.is_none() {
                 challenge.resolved_user_id = Some(user_id);
                 break; // resolve the first pending one

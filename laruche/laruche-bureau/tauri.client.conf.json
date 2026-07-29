@@ -17,11 +17,11 @@
     "active": true,
     "targets": ["nsis", "msi", "dmg", "appimage", "deb"],
     "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.ico",
-      "icons/icon.png"
+      "icons-client/32x32.png",
+      "icons-client/128x128.png",
+      "icons-client/128x128@2x.png",
+      "icons-client/icon.ico",
+      "icons-client/icon.png"
     ],
     "resources": [],
     "shortDescription": "LaRuche Client",

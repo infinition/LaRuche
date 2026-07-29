@@ -221,7 +221,7 @@ impl App {
         // Verify auth token with server if connected
         if connected && auth_token.is_some() {
             let check = reqwest::Client::new()
-                .get(format!("{}/api/auth/me", &server_url))
+                .get(format!("{}/api/auth/me", server_url))
                 .header(
                     "Cookie",
                     format!("laruche_auth={}", auth_token.as_deref().unwrap_or("")),

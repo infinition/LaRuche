@@ -549,7 +549,7 @@ pub(crate) async fn get_swarm_models(
     // Add custom services registered manually (P6)
     {
         let custom = state.custom_services.read().await;
-        for (_name, service) in custom.iter() {
+        for service in custom.values() {
             models.push(SwarmModelInfo {
                 host: service.url.clone(), // using url as host for custom
                 node_name: format!("{} (custom)", service.name),

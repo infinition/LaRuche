@@ -82,7 +82,16 @@ fn noeud_repond(url: &str) -> bool {
 
 /// Cherche l'executable du noeud. A cote de nous une fois installe; dans
 /// `target/<profil>/` pendant le developpement.
+///
+/// `LARUCHE_SANS_NOEUD=1` rend None sans rien chercher: c'est le mode client pur,
+/// qui va droit a la decouverte reseau. Une variable explicite plutot qu'une ruse
+/// de repertoire, car le chemin `target/<profil>/` est COMPILE dans le binaire -
+/// lancer la coque depuis un dossier vide ne l'empeche donc pas de retrouver le
+/// noeud du depot, et le « mode client » demarrait un serveur local malgre tout.
 fn chemin_noeud() -> Option<PathBuf> {
+    if std::env::var("LARUCHE_SANS_NOEUD").is_ok_and(|v| v != "0" && !v.is_empty()) {
+        return None;
+    }
     let nom = if cfg!(windows) {
         "laruche-node.exe"
     } else {
