@@ -27,7 +27,7 @@ pub(crate) async fn resolve_voice_urls(state: &Arc<AppState>) -> (String, String
     let mut tts_url = "http://127.0.0.1:8422".to_string();
     let listener = state.listener.read().await;
     let nodes = listener.get_nodes().await;
-    for (_id, node) in &nodes {
+    for node in nodes.values() {
         let caps: Vec<String> = node
             .manifest
             .capabilities
@@ -77,8 +77,7 @@ pub(crate) async fn ws_audio_connection(socket: ws::WebSocket, state: Arc<AppSta
     let _ = sender
         .send(ws::Message::Text(
             serde_json::json!({"type": "ready", "stt_url": &stt_url, "tts_url": &tts_url})
-                .to_string()
-                .into(),
+                .to_string(),
         ))
         .await;
 
@@ -107,14 +106,14 @@ pub(crate) async fn ws_audio_connection(socket: ws::WebSocket, state: Arc<AppSta
                         Ok(json) => json["text"].as_str().unwrap_or("").to_string(),
                         Err(e) => {
                             let _ = sender.send(ws::Message::Text(
-                                    serde_json::json!({"type":"error","message":format!("STT parse error: {}", e)}).to_string().into()
+                                    serde_json::json!({"type":"error","message":format!("STT parse error: {}", e)}).to_string()
                                 )).await;
                             continue;
                         }
                     },
                     Err(e) => {
                         let _ = sender.send(ws::Message::Text(
-                            serde_json::json!({"type":"error","message":format!("STT unavailable: {}", e)}).to_string().into()
+                            serde_json::json!({"type":"error","message":format!("STT unavailable: {}", e)}).to_string()
                         )).await;
                         continue;
                     }
@@ -128,8 +127,7 @@ pub(crate) async fn ws_audio_connection(socket: ws::WebSocket, state: Arc<AppSta
                 let _ = sender
                     .send(ws::Message::Text(
                         serde_json::json!({"type":"transcript","text":&transcript})
-                            .to_string()
-                            .into(),
+                            .to_string(),
                     ))
                     .await;
 
@@ -155,7 +153,7 @@ pub(crate) async fn ws_audio_connection(socket: ws::WebSocket, state: Arc<AppSta
                     Ok(text) => text,
                     Err(e) => {
                         let _ = sender.send(ws::Message::Text(
-                            serde_json::json!({"type":"error","message":format!("Agent error: {}", e)}).to_string().into()
+                            serde_json::json!({"type":"error","message":format!("Agent error: {}", e)}).to_string()
                         )).await;
                         continue;
                     }
@@ -165,8 +163,7 @@ pub(crate) async fn ws_audio_connection(socket: ws::WebSocket, state: Arc<AppSta
                 let _ = sender
                     .send(ws::Message::Text(
                         serde_json::json!({"type":"response","text":&response_text})
-                            .to_string()
-                            .into(),
+                            .to_string(),
                     ))
                     .await;
 
@@ -181,18 +178,18 @@ pub(crate) async fn ws_audio_connection(socket: ws::WebSocket, state: Arc<AppSta
                     Ok(resp) if resp.status().is_success() => {
                         if let Ok(audio_bytes) = resp.bytes().await {
                             let _ = sender
-                                .send(ws::Message::Binary(audio_bytes.to_vec().into()))
+                                .send(ws::Message::Binary(audio_bytes.to_vec()))
                                 .await;
                         }
                     }
                     Ok(resp) => {
                         let _ = sender.send(ws::Message::Text(
-                            serde_json::json!({"type":"error","message":format!("TTS error: {}", resp.status())}).to_string().into()
+                            serde_json::json!({"type":"error","message":format!("TTS error: {}", resp.status())}).to_string()
                         )).await;
                     }
                     Err(e) => {
                         let _ = sender.send(ws::Message::Text(
-                            serde_json::json!({"type":"error","message":format!("TTS unavailable: {}", e)}).to_string().into()
+                            serde_json::json!({"type":"error","message":format!("TTS unavailable: {}", e)}).to_string()
                         )).await;
                     }
                 }

@@ -128,7 +128,7 @@ pub fn read_codex_tokens() -> Option<CodexTokens> {
 /// Persists the Codex tokens in the LaRuche store.
 pub fn save_codex_tokens(tokens: &CodexTokens) -> Result<()> {
     let mut store = load_store();
-    let last_refresh = tokens.last_refresh.clone().unwrap_or_else(|| now_iso8601());
+    let last_refresh = tokens.last_refresh.clone().unwrap_or_else(now_iso8601);
     store.providers.insert(
         "openai-codex".to_string(),
         ProviderState {

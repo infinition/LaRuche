@@ -777,7 +777,7 @@ impl Abeille for AbeilleWatcherCreate {
             regles,
         };
 
-        let id = watcher.id.clone();
+        let id = watcher.id;
         let mut registry = self.watcher_store.write().await;
         registry.add(watcher);
         laruche_essaim::feed_journal::record(

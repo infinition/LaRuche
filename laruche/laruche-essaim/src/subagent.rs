@@ -31,7 +31,7 @@ pub enum AgentRole {
 }
 
 impl AgentRole {
-    pub fn from_str(s: &str) -> Self {
+    pub fn depuis_etiquette(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "research" | "recherche" => Self::Recherche,
             "experiment" | "experimentation" | "code" => Self::Experimentation,
@@ -118,7 +118,7 @@ impl ProviderConfig {
 
 pub fn config_sous_agent(parent: &EssaimConfig) -> EssaimConfig {
     let mut config = parent.clone();
-    config.max_iterations = config.max_iterations.min(8).max(1);
+    config.max_iterations = config.max_iterations.clamp(1, 8);
     for tool in ["delegate", "run_script", "mixture_of_agents"] {
         if !config.disabled_tools.iter().any(|name| name == tool) {
             config.disabled_tools.push(tool.to_string());
@@ -409,11 +409,11 @@ mod tests {
 
     #[test]
     fn agent_role_from_str() {
-        assert_eq!(AgentRole::from_str("research"), AgentRole::Recherche);
-        assert_eq!(AgentRole::from_str("code"), AgentRole::Experimentation);
-        assert_eq!(AgentRole::from_str("review"), AgentRole::Critique);
-        assert_eq!(AgentRole::from_str("report"), AgentRole::Synthese);
-        assert_eq!(AgentRole::from_str("filter"), AgentRole::Dispatcher);
-        assert_eq!(AgentRole::from_str("inconnu"), AgentRole::Recherche);
+        assert_eq!(AgentRole::depuis_etiquette("research"), AgentRole::Recherche);
+        assert_eq!(AgentRole::depuis_etiquette("code"), AgentRole::Experimentation);
+        assert_eq!(AgentRole::depuis_etiquette("review"), AgentRole::Critique);
+        assert_eq!(AgentRole::depuis_etiquette("report"), AgentRole::Synthese);
+        assert_eq!(AgentRole::depuis_etiquette("filter"), AgentRole::Dispatcher);
+        assert_eq!(AgentRole::depuis_etiquette("inconnu"), AgentRole::Recherche);
     }
 }

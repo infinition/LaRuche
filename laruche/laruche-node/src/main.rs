@@ -216,21 +216,6 @@ async fn serve_with_optional_tls(app: axum::Router, addr: String, tls: Option<(S
     }
 }
 
-/// Le foyer de cette ruche: ou vivent `memoire.db`, `sessions/`, `skills/`,
-/// `plugins/`, les secrets et la configuration.
-///
-/// Tout le code lit ces chemins relativement au repertoire courant. On choisit donc
-/// le foyer UNE fois, au tout debut, et on s'y place - plutot que de reecrire des
-/// dizaines de chemins et d'en oublier un.
-///
-/// L'ordre compte:
-///   1. `LARUCHE_DATA_DIR`, quand on veut decider soi-meme;
-///   2. le repertoire courant s'il EST deja une ruche - c'est ce qui fait que
-///      lancer_butinage.bat depuis le depot continue d'ouvrir la meme memoire
-///      qu'avant, sans que rien n'ait a bouger;
-///   3. sinon le dossier standard de l'utilisateur, pour que le double-clic sur
-///      l'executable, le service et l'application de bureau tombent tous les trois
-///      sur la MEME ruche, au lieu d'en fabriquer une chacun a cote de leur binaire.
 /// Skills et plugins livres avec LaRuche, embarques DANS le binaire.
 ///
 /// Sans cela, un `laruche-node.exe` telecharge depuis les releases - ou installe
@@ -280,6 +265,22 @@ fn amorcer(livre: &include_dir::Dir<'_>, cible: &str) {
     }
 }
 
+/// Le foyer de cette ruche: ou vivent `memoire.db`, `sessions/`, `skills/`,
+/// `plugins/`, les secrets et la configuration.
+///
+/// Tout le code lit ces chemins relativement au repertoire courant. On choisit donc
+/// le foyer UNE fois, au tout debut, et on s'y place - plutot que de reecrire des
+/// dizaines de chemins et d'en oublier un.
+///
+/// L'ordre compte:
+///
+///   1. `LARUCHE_DATA_DIR`, quand on veut decider soi-meme;
+///   2. le repertoire courant s'il EST deja une ruche - c'est ce qui fait que
+///      lancer_butinage.bat depuis le depot continue d'ouvrir la meme memoire
+///      qu'avant, sans que rien n'ait a bouger;
+///   3. sinon le dossier standard de l'utilisateur, pour que le double-clic sur
+///      l'executable, le service et l'application de bureau tombent tous les trois
+///      sur la MEME ruche, au lieu d'en fabriquer une chacun a cote de leur binaire.
 fn foyer() -> std::path::PathBuf {
     if let Ok(d) = std::env::var("LARUCHE_DATA_DIR") {
         if !d.is_empty() {
@@ -748,8 +749,8 @@ async fn main() -> Result<()> {
     // get the LIVE main registry instead, so they can reach and discover every tool
     // registered later (crons, watchers, memory, plugins, background-loaded MCP).
     let sub_registry = Arc::new({
-        let mut r = AbeilleRegistry::new();
-        enregistrer_abeilles_builtin(&mut r);
+        let r = AbeilleRegistry::new();
+        enregistrer_abeilles_builtin(&r);
         r
     });
     enregistrer_delegation(
@@ -1065,7 +1066,7 @@ async fn main() -> Result<()> {
     if sessions_dir.exists() {
         if let Ok(entries) = std::fs::read_dir(sessions_dir) {
             for entry in entries.flatten() {
-                if entry.path().extension().map_or(false, |e| e == "json") {
+                if entry.path().extension().is_some_and(|e| e == "json") {
                     match Session::charger(&entry.path()) {
                         Ok(session) => {
                             tracing::debug!(session_id = %session.id, title = ?session.title, "Loaded session");
@@ -1137,7 +1138,7 @@ async fn main() -> Result<()> {
             .and_then(|data| {
                 serde_json::from_str::<laruche_essaim::credential_pool::CredentialPool>(&data).ok()
             })
-            .unwrap_or_else(|| laruche_essaim::credential_pool::CredentialPool::default())
+            .unwrap_or_else(laruche_essaim::credential_pool::CredentialPool::default)
     } else {
         laruche_essaim::credential_pool::CredentialPool::default()
     };

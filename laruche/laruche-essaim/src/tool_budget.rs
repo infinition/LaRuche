@@ -17,7 +17,9 @@ pub fn tronquer_resultat(output: &str, max: usize) -> String {
     )
 }
 
-pub fn appliquer_budget_agregat(outputs: &mut Vec<String>, budget_total: usize) {
+// `&mut [String]` et non `&mut Vec<String>`: la fonction tronque des chaines en place
+// sans jamais ajouter ni retirer d'element, donc elle n'a pas besoin du vecteur.
+pub fn appliquer_budget_agregat(outputs: &mut [String], budget_total: usize) {
     if taille_totale(outputs) <= budget_total {
         return;
     }

@@ -93,7 +93,7 @@ pub(crate) async fn api_memory_write(
             let _ = state.events.write().await.emit(
                 laruche_events::EventKind::MemorySaved,
                 "api_memory",
-                &serde_json::json!({ "node_id": node_id, "content": content, "propose": propose }),
+                serde_json::json!({ "node_id": node_id, "content": content, "propose": propose }),
             );
             Ok(Json(serde_json::json!({ "status": "ok", "result": value })))
         }
@@ -447,7 +447,7 @@ pub(crate) async fn api_memory_review(
             let _ = state.events.write().await.emit(
                 laruche_events::EventKind::MemoryReviewed,
                 "api_memory",
-                &serde_json::json!({ "item_id": item_id, "action": action }),
+                serde_json::json!({ "item_id": item_id, "action": action }),
             );
             Ok(Json(serde_json::json!({ "status": "ok", "result": value })))
         }

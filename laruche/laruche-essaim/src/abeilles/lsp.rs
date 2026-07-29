@@ -44,7 +44,7 @@ impl LspClient {
                 }
                 let json_str = serde_json::to_string(&req).unwrap();
                 let message = format!("Content-Length: {}\r\n\r\n{}", json_str.len(), json_str);
-                if let Err(_) = stdin.write_all(message.as_bytes()).await {
+                if stdin.write_all(message.as_bytes()).await.is_err() {
                     break;
                 }
             }

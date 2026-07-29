@@ -28,7 +28,7 @@ pub fn run_systray(port: u16, shutdown_tx: tokio::sync::oneshot::Sender<()>) {
 
     let _tray = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
-        .with_tooltip(&format!("LaRuche - localhost:{}", port))
+        .with_tooltip(format!("LaRuche - localhost:{}", port))
         .with_icon(icon)
         .build()
         .expect("Failed to build tray icon");

@@ -115,8 +115,8 @@ impl CronScheduler {
 
     /// Replace an existing task (by id). Returns false if the id does not exist.
     pub fn replace(&mut self, task: ScheduledTask) -> bool {
-        if self.tasks.contains_key(&task.id) {
-            self.tasks.insert(task.id, task);
+        if let std::collections::hash_map::Entry::Occupied(mut e) = self.tasks.entry(task.id) {
+            e.insert(task);
             let _ = self.save();
             true
         } else {
@@ -239,7 +239,7 @@ fn cron_field_matches(field: &str, value: &str) -> bool {
     // Step: */N
     if let Some(step_str) = field.strip_prefix("*/") {
         if let Ok(step) = step_str.parse::<u32>() {
-            return step > 0 && val % step == 0;
+            return step > 0 && val.is_multiple_of(step);
         }
     }
 

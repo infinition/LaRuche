@@ -1129,7 +1129,7 @@ impl MemoireCognitive for SqliteBackend {
         // Optional scope: one node + its subtree (`id = prefix OR id LIKE prefix.%`).
         let nodes: Vec<(String, String, String)> = match prefix.map(|p| p.trim_matches('.')) {
             Some(p) if !p.is_empty() => {
-                let like = subtree_like(&p);
+                let like = subtree_like(p);
                 let mut nstmt = conn
                     .prepare("SELECT id, label, one_liner FROM nodes WHERE id=?1 OR id LIKE ?2 ESCAPE '\\'")?;
                 let v: Vec<(String, String, String)> = nstmt
@@ -1278,7 +1278,7 @@ impl MemoireCognitive for SqliteBackend {
 
         // Always relocate the whole subtree under `orphans.<base_name>_<timestamp>`
         // This avoids data loss and uniqueness conflicts (UNIQUE constraint failed: nodes.id).
-        let base_name = id.split('.').last().unwrap_or(&id);
+        let base_name = id.split('.').next_back().unwrap_or(&id);
         let ts = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -1396,7 +1396,7 @@ impl MemoireCognitive for SqliteBackend {
         if old.is_empty() || new.is_empty() {
             return Ok(0);
         }
-        let like = subtree_like(&old);
+        let like = subtree_like(old);
         let oldlen = old.len() as i64;
         let conn = self.conn.lock().unwrap();
         // Items: node_id `old(.rest)` to `new(.rest)`.
@@ -1432,7 +1432,7 @@ impl MemoireCognitive for SqliteBackend {
         if p.is_empty() {
             return Ok(0);
         }
-        let like = subtree_like(&p);
+        let like = subtree_like(p);
         let conn = self.conn.lock().unwrap();
         let _ = conn.execute(
             "DELETE FROM items_fts WHERE node_id = ?1 OR node_id LIKE ?2 ESCAPE '\\'",

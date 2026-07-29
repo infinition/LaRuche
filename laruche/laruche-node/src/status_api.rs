@@ -27,7 +27,7 @@ pub(crate) async fn api_voice_status(State(state): State<Arc<AppState>>) -> Json
     let mut stt_locked = false; // url locked by user selection
     let mut tts_locked = false;
 
-    for (_id, node) in &nodes {
+    for node in nodes.values() {
         let nid = node.manifest.node_id.map(|x| x.to_string());
         let caps: Vec<String> = node
             .manifest

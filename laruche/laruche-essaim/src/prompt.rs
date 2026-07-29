@@ -4,6 +4,7 @@
 /// 1. stable identity and behavior,
 /// 2. tool capabilities and call format,
 /// 3. dynamic/custom context.
+///
 /// Assembles the system prompt from EDITABLE sections (loaded from the cognitive map,
 /// hot-reloaded per turn) and LOCKED sections (machine-critical protocol, hardcoded).
 ///
@@ -12,6 +13,9 @@
 /// - `custom_instructions` (`system.soul` node): additional instruction layer.
 /// - Locked (never editable): tool list + `<tool_call>` format + `<plan>` format.
 ///   Editing these formats would break tool-calling, so they stay in code.
+// Dependances injectees, toutes distinctes: les regrouper dans une structure ne
+// deplacerait la liste que d un cran, en la faisant construire par chaque appelant.
+#[allow(clippy::too_many_arguments)]
 pub fn build_system_prompt(
     tools_schema: &serde_json::Value,
     protocole_texte: bool,
@@ -52,7 +56,7 @@ pub fn build_system_prompt(
             prompt.push_str(o.trim());
             prompt.push_str("\n\n");
         }
-        _ => prompt.push_str(&section_comportement()),
+        _ => prompt.push_str(section_comportement()),
     }
     jalons.push(("behavior", prompt.len()));
     // 4) Additional instructions (SOUL).

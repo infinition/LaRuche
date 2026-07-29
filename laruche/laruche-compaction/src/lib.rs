@@ -392,10 +392,17 @@ fn remplacer_blocs_tool_result(value: &mut Value) -> bool {
     };
 
     match content {
-        Value::Array(blocks) => blocks
-            .iter_mut()
-            .map(remplacer_blocs_tool_result)
-            .fold(false, |acc, touched| acc || touched),
+        // Boucle explicite et non `any`: la fonction MUTE le bloc qu'elle visite, et
+        // `any` court-circuiterait des le premier vrai en laissant les blocs suivants
+        // intacts. C'est ce que clippy signale sous unnecessary_fold sans pouvoir le
+        // savoir - la suggestion changerait le comportement.
+        Value::Array(blocks) => {
+            let mut touche = false;
+            for bloc in blocks.iter_mut() {
+                touche |= remplacer_blocs_tool_result(bloc);
+            }
+            touche
+        }
         Value::Object(_) => remplacer_blocs_tool_result(content),
         _ => false,
     }

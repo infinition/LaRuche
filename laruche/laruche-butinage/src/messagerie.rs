@@ -123,6 +123,7 @@ impl Message {
     ///   provider's VISION cost, not its byte count. We charge a bounded heuristic
     ///   (`len/8`, clamped to [2048, 16384] chars ≈ 512–4096 tokens at 4 chars/token);
     ///   the jauge's learned calibration factor absorbs the per-provider remainder.
+    ///
     /// Single source of truth for the jauge and the truncation guardrail.
     pub fn cout_chars(&self) -> usize {
         let mut n = self.contenu.len();

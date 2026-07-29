@@ -65,7 +65,7 @@ impl Abeille for SpawnSpecialist {
     ) -> Result<ResultatAbeille> {
         let role = args["role"]
             .as_str()
-            .map(AgentRole::from_str)
+            .map(AgentRole::depuis_etiquette)
             .unwrap_or(AgentRole::Recherche);
         let task = args["task"]
             .as_str()

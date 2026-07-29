@@ -49,7 +49,7 @@ impl StdoutFilter {
         }
 
         // Sliding summary every 100 rounds
-        if self.line_count % 100 == 0 {
+        if self.line_count.is_multiple_of(100) {
             let summary = format!(
                 "[Line {}] ... (100 silent lines) Last log: {}",
                 self.line_count,

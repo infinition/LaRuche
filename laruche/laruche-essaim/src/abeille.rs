@@ -365,6 +365,7 @@ fn type_json(v: &serde_json::Value) -> &'static str {
 /// - "10" -> 10 (integer/number), "true" -> true (boolean)
 /// - 10.0 -> 10 when the schema says integer
 /// - an object/array sent as an embedded JSON STRING is unwrapped
+///
 /// Lenient by design: extra keys pass, undeclared keys pass, absent optional
 /// keys pass. Only `required` presence and declared top-level types are hard.
 pub fn valider_et_normaliser_args(
@@ -418,16 +419,15 @@ pub fn valider_et_normaliser_args(
                         _ => {}
                     }
                 }
-                serde_json::Value::Number(n) => {
+                serde_json::Value::Number(n)
                     // 10.0 for an integer field: accept the round float.
-                    if attendu == "integer" && !n.is_i64() && !n.is_u64() {
+                    if attendu == "integer" && !n.is_i64() && !n.is_u64() => {
                         if let Some(f) = n.as_f64() {
                             if f.fract() == 0.0 && f.abs() < i64::MAX as f64 {
                                 *v = serde_json::json!(f as i64);
                             }
                         }
                     }
-                }
                 _ => {}
             }
         }

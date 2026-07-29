@@ -65,7 +65,7 @@ pub fn substituer(texte: &str) -> String {
     }
     let Ok(c) = coffre().read() else { return texte.to_string() };
     let mut paires: Vec<(&String, &String)> = c.iter().collect();
-    paires.sort_by(|a, b| b.0.len().cmp(&a.0.len())); // longest first
+    paires.sort_by_key(|p| std::cmp::Reverse(p.0.len())); // les plus longs d abord
     let mut out = texte.to_string();
     for (nom, val) in paires {
         out = out.replace(&format!("${{{nom}}}"), val);
@@ -88,7 +88,7 @@ pub fn masquer(texte: &str) -> String {
         return texte.to_string();
     }
     let mut paires: Vec<(&String, &String)> = c.iter().filter(|(_, v)| v.len() >= 6).collect();
-    paires.sort_by(|a, b| b.1.len().cmp(&a.1.len()));
+    paires.sort_by_key(|p| std::cmp::Reverse(p.1.len()));
     let mut out = texte.to_string();
     for (nom, val) in paires {
         if out.contains(val.as_str()) {

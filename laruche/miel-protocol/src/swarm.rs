@@ -312,7 +312,9 @@ impl SwarmState {
             .values()
             .filter(|p| matches!(p.status, PeerStatus::Active | PeerStatus::Busy))
             .collect();
-        peers.sort_by(|a, b| b.vram_mb.cmp(&a.vram_mb));
+        // Le plus de VRAM d'abord: Reverse plutot qu'un comparateur inverse, ce que
+        // clippy demande depuis rust 1.96 (unnecessary_sort_by).
+        peers.sort_by_key(|p| std::cmp::Reverse(p.vram_mb));
         peers
     }
 

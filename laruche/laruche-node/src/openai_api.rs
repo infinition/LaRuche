@@ -75,7 +75,7 @@ pub(crate) async fn api_v1_chat_completions(
     {
         let profiles = state.profiles.read().await;
         let mut found = false;
-        for (_pid, profile) in &profiles.profiles {
+        for profile in profiles.profiles.values() {
             if profile.models.contains(&req.model) {
                 provider_id = profile.provider.clone();
                 api_key = profile.api_key.clone();

@@ -187,7 +187,7 @@ pub(crate) async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde
                 entries
                     .filter(|e| {
                         e.as_ref()
-                            .map(|e| e.path().extension().map_or(false, |ext| ext == "json"))
+                            .map(|e| e.path().extension().is_some_and(|ext| ext == "json"))
                             .unwrap_or(false)
                     })
                     .count()

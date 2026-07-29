@@ -38,11 +38,9 @@ impl StatOutil {
         }
     }
     pub fn latence_moyenne_ms(&self) -> u64 {
-        if self.appels == 0 {
-            0
-        } else {
-            self.latence_totale_ms / self.appels
-        }
+        self.latence_totale_ms
+            .checked_div(self.appels)
+            .unwrap_or(0)
     }
 }
 

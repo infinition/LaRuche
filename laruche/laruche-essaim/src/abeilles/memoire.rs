@@ -714,7 +714,7 @@ impl Abeille for MemoireDoctor {
                     .collect()
             })
             .unwrap_or_default();
-        tops.sort_by(|a, b| b.1.cmp(&a.1));
+        tops.sort_by_key(|t| std::cmp::Reverse(t.1));
         tops.truncate(8);
 
         let mut out = String::from("# Memory audit\n\n");

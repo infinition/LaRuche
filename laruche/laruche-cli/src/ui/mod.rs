@@ -258,7 +258,8 @@ impl App {
             welcome
         };
 
-        let app = App {
+        
+        App {
             input: String::new(),
             cursor_pos: 0,
             messages: vec![ChatMessage {
@@ -314,8 +315,7 @@ impl App {
 
             ui_tx: None,
             sidebar_scroll: 0,
-        };
-        app
+        }
     }
 
     fn save_config(&self) {
@@ -1475,24 +1475,22 @@ pub async fn run_tui() -> anyhow::Result<()> {
                                 build_draw_tree(&app.memory_nodes, None, 0, &mut visited, &mut draw_items);
                                 match key.code {
                                     KeyCode::Up => {
-                                        if !draw_items.is_empty() {
-                                            if app.selected_node_idx > 0 {
+                                        if !draw_items.is_empty()
+                                            && app.selected_node_idx > 0 {
                                                 app.selected_node_idx -= 1;
                                                 if let Some(item) = draw_items.get(app.selected_node_idx) {
                                                     app.trigger_load_node_details(item.id.clone());
                                                 }
                                             }
-                                        }
                                     }
                                     KeyCode::Down => {
-                                        if !draw_items.is_empty() {
-                                            if app.selected_node_idx + 1 < draw_items.len() {
+                                        if !draw_items.is_empty()
+                                            && app.selected_node_idx + 1 < draw_items.len() {
                                                 app.selected_node_idx += 1;
                                                 if let Some(item) = draw_items.get(app.selected_node_idx) {
                                                     app.trigger_load_node_details(item.id.clone());
                                                 }
                                             }
-                                        }
                                     }
                                     KeyCode::Char('n') | KeyCode::Char('N') => {
                                         app.memory_input_mode = MemoryInputMode::CreateNode;
@@ -1721,7 +1719,7 @@ pub async fn run_tui() -> anyhow::Result<()> {
                 Event::Mouse(mouse) => {
                     let size = terminal.size().unwrap_or_default();
                     let area = Rect::new(0, 0, size.width, size.height);
-                    let input_lines = app.input.lines().count().max(1).min(10) as u16 + 2;
+                    let input_lines = app.input.lines().count().clamp(1, 10) as u16 + 2;
                     let chunks = Layout::default()
                         .direction(Direction::Vertical)
                         .constraints([
@@ -1752,11 +1750,10 @@ pub async fn run_tui() -> anyhow::Result<()> {
                                     } else {
                                         app.memory_details_scroll = app.memory_details_scroll.saturating_sub(3);
                                     }
-                                } else if app.current_screen == Screen::Missions {
-                                    if col >= 38 {
+                                } else if app.current_screen == Screen::Missions
+                                    && col >= 38 {
                                         app.missions_dossier_scroll = app.missions_dossier_scroll.saturating_sub(3);
                                     }
-                                }
                             }
                         }
                         crossterm::event::MouseEventKind::ScrollDown => {
@@ -1773,26 +1770,25 @@ pub async fn run_tui() -> anyhow::Result<()> {
                                     } else {
                                         app.memory_details_scroll = app.memory_details_scroll.saturating_add(3);
                                     }
-                                } else if app.current_screen == Screen::Missions {
-                                    if col >= 38 {
+                                } else if app.current_screen == Screen::Missions
+                                    && col >= 38 {
                                         app.missions_dossier_scroll = app.missions_dossier_scroll.saturating_add(3);
                                     }
-                                }
                             }
                         }
                         // ── Mouse click ──
                         crossterm::event::MouseEventKind::Down(crossterm::event::MouseButton::Left) => {
                             // 1. Header click (tabs navigation) at row 4
                             if row == 4 {
-                                if col >= 45 && col <= 51 {
+                                if (45..=51).contains(&col) {
                                     app.current_screen = Screen::Chat;
                                     app.active_panel = Panel::Input;
-                                } else if col >= 52 && col <= 61 {
+                                } else if (52..=61).contains(&col) {
                                     app.current_screen = Screen::Memory;
                                     app.active_panel = Panel::MemoryTree;
                                     app.memory_active_pane = MemoryPane::Tree;
                                     app.trigger_load_memory();
-                                } else if col >= 62 && col <= 73 {
+                                } else if (62..=73).contains(&col) {
                                     app.current_screen = Screen::Missions;
                                     app.active_panel = Panel::MissionsList;
                                     app.missions_active_pane = MissionsPane::List;
@@ -1978,13 +1974,10 @@ async fn handle_input(app: &mut App, key: KeyCode) {
                     let token = app.auth_token.clone();
                     if let Some(ref tx) = app.ui_tx {
                         let tx = tx.clone();
-                        match mode {
-                            MissionsInputMode::CreateMission => {
-                                tokio::spawn(async move {
-                                    create_mission_bg(url, text, token, tx).await;
-                                });
-                            }
-                            _ => {}
+                        if mode == MissionsInputMode::CreateMission {
+                            tokio::spawn(async move {
+                                create_mission_bg(url, text, token, tx).await;
+                            });
                         }
                     }
                 }
@@ -2662,17 +2655,14 @@ async fn handle_input(app: &mut App, key: KeyCode) {
         }
         KeyCode::Down => {
             // History: navigate down
-            match app.history_idx {
-                Some(idx) => {
-                    if idx + 1 < app.history.len() {
-                        app.history_idx = Some(idx + 1);
-                        app.input = app.history[idx + 1].clone();
-                    } else {
-                        app.history_idx = None;
-                        app.input = app.history_draft.clone();
-                    }
+            if let Some(idx) = app.history_idx {
+                if idx + 1 < app.history.len() {
+                    app.history_idx = Some(idx + 1);
+                    app.input = app.history[idx + 1].clone();
+                } else {
+                    app.history_idx = None;
+                    app.input = app.history_draft.clone();
                 }
-                None => {}
             }
             app.cursor_pos = app.input.chars().count();
             app.autocomplete_suggestion.clear();
@@ -2735,7 +2725,7 @@ fn update_autocomplete(app: &mut App) {
 }
 
 fn ui(f: &mut Frame, app: &mut App) {
-    let input_lines = app.input.lines().count().max(1).min(10) as u16 + 2;
+    let input_lines = app.input.lines().count().clamp(1, 10) as u16 + 2;
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -3171,19 +3161,19 @@ fn render_md_line(line: &str) -> Line<'static> {
     // Headers
     if trimmed.starts_with("### ") {
         return Line::from(Span::styled(
-            format!("  {}", &trimmed[4..]),
+            format!("  {}", trimmed.strip_prefix("### ").unwrap_or(trimmed)),
             Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
         ));
     }
     if trimmed.starts_with("## ") {
         return Line::from(Span::styled(
-            format!("  {}", &trimmed[3..]),
+            format!("  {}", trimmed.strip_prefix("## ").unwrap_or(trimmed)),
             Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
         ));
     }
     if trimmed.starts_with("# ") {
         return Line::from(Span::styled(
-            format!("  {}", &trimmed[2..]),
+            format!("  {}", trimmed.strip_prefix("# ").unwrap_or(trimmed)),
             Style::default().fg(AMBER).add_modifier(Modifier::BOLD),
         ));
     }
@@ -3269,7 +3259,7 @@ fn render_md_line(line: &str) -> Line<'static> {
                 current.clear();
             }
             let mut italic = String::new();
-            while let Some(nc) = chars.next() {
+            for nc in chars.by_ref() {
                 if nc == '*' {
                     break;
                 }

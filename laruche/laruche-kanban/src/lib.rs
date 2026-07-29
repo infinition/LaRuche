@@ -305,11 +305,10 @@ impl KanbanBoard {
     pub fn claim_ready_task(&mut self) -> Option<KanbanTask> {
         // Find a task in Ready (or Todo) state that has no dependencies
         let ready_id = self.tasks.iter().find_map(|(id, task)| {
-            if task.status == TaskStatus::Ready || task.status == TaskStatus::Todo {
-                if task.blocked_by.is_empty() {
+            if (task.status == TaskStatus::Ready || task.status == TaskStatus::Todo)
+                && task.blocked_by.is_empty() {
                     return Some(*id);
                 }
-            }
             None
         });
 

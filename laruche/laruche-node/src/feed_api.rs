@@ -28,8 +28,7 @@ pub(crate) fn nettoyer_reponse_feed(s: &str) -> String {
         ("<tool_call>", "</tool_call>"),
         ("<think>", "</think>"),
     ] {
-        loop {
-            let Some(i) = out.find(open) else { break };
+        while let Some(i) = out.find(open) {
             match out[i..].find(close) {
                 Some(j_rel) => {
                     let j = i + j_rel + close.len();

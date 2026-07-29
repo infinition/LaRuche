@@ -200,6 +200,12 @@ impl KnowledgeBase {
     pub fn len(&self) -> usize {
         self.entries.len()
     }
+
+    /// Une base sans entree ne fournit aucun contexte: l'appelant a besoin de le
+    /// savoir sans comparer `len()` a zero.
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
 }
 
 /// Cosine similarity between two vectors.

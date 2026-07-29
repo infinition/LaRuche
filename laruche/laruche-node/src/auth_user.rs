@@ -16,16 +16,13 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum UserRole {
     Admin,
+    #[default]
     User,
 }
 
-impl Default for UserRole {
-    fn default() -> Self {
-        Self::User
-    }
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
@@ -85,7 +82,7 @@ pub fn load_all_users(dir: &Path) -> HashMap<Uuid, User> {
     }
     if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
-            if entry.path().extension().map_or(false, |e| e == "json") {
+            if entry.path().extension().is_some_and(|e| e == "json") {
                 if let Ok(content) = std::fs::read_to_string(entry.path()) {
                     if let Ok(user) = serde_json::from_str::<User>(&content) {
                         users.insert(user.id, user);
@@ -181,7 +178,7 @@ pub fn create_user(display_name: &str, role: UserRole, password: Option<&str>) -
     rand::thread_rng().fill_bytes(&mut secret_bytes);
     let auth_secret = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(secret_bytes);
 
-    let password_hash = password.map(|pw| hash_password(pw));
+    let password_hash = password.map(hash_password);
 
     User {
         id: Uuid::new_v4(),

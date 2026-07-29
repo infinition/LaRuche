@@ -311,7 +311,7 @@ fn approx_context_tokens(text: &str) -> u32 {
     if text.is_empty() {
         0
     } else {
-        ((text.len() + 3) / 4) as u32
+        text.len().div_ceil(4) as u32
     }
 }
 

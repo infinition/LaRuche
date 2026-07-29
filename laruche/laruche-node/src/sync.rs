@@ -82,7 +82,7 @@ fn aead_key() -> Option<[u8; 32]> {
     load_mesh_code().map(|c| blake3::derive_key("laruche-mesh-aead-v1", c.as_bytes()))
 }
 fn hex_decode_var(s: &str) -> Option<Vec<u8>> {
-    if s.len() % 2 != 0 {
+    if !s.len().is_multiple_of(2) {
         return None;
     }
     (0..s.len() / 2)
@@ -530,13 +530,13 @@ pub async fn handle_user_sync(
     let user_id = user.id;
 
     let mut users = state.users.write().await;
-    if !users.contains_key(&user_id) {
+    if let std::collections::hash_map::Entry::Vacant(e) = users.entry(user_id) {
         let users_dir = std::path::Path::new("users");
         if let Err(e) = auth_user::save_user(&user, users_dir) {
             warn!(error = %e, "Failed to save synced user to disk");
         }
         debug!(user_id = %user_id, name = %user.display_name, from = %payload.origin_node_id, "User synced from peer");
-        users.insert(user_id, user);
+        e.insert(user);
     }
 
     StatusCode::OK
@@ -648,9 +648,9 @@ pub async fn fetch_bulk_from_peer(host: &str, port: u16, state: &Arc<AppState>) 
         let mut added = 0usize;
         let users_dir = std::path::Path::new("users");
         for user in bulk.users {
-            if !users.contains_key(&user.id) {
+            if let std::collections::hash_map::Entry::Vacant(e) = users.entry(user.id) {
                 let _ = auth_user::save_user(&user, users_dir);
-                users.insert(user.id, user);
+                e.insert(user);
                 added += 1;
             }
         }

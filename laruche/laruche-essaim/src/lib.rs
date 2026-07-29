@@ -19,6 +19,7 @@ pub mod blueprints;
 pub mod brain;
 pub mod budget;
 pub mod butinage_pont;
+pub mod texte_modele;
 pub mod codex_auth;
 pub mod config;
 pub mod approbation;

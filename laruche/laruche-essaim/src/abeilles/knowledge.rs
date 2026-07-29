@@ -101,7 +101,7 @@ impl Abeille for KnowledgeSearch {
         let top_k = args["top_k"].as_u64().unwrap_or(5) as usize;
 
         let kb = self.kb.read().await;
-        if kb.len() == 0 {
+        if kb.is_empty() {
             return Ok(ResultatAbeille::ok(
                 "Knowledge base is empty. Use knowledge_add to store information first.",
             ));

@@ -28,7 +28,7 @@ pub(crate) fn spawn_metrics_refresh(state: &Arc<AppState>, broadcaster: &Arc<Mie
             }
 
             // Periodic save every 60 seconds (30 ticks at 2s interval)
-            if tick_count % 30 == 0 {
+            if tick_count.is_multiple_of(30) {
                 save_persistent_state(&update_state).await;
             }
 
@@ -45,7 +45,7 @@ pub(crate) fn spawn_metrics_refresh(state: &Arc<AppState>, broadcaster: &Arc<Mie
                 manifest.performance.queue_depth = queue_depth;
 
                 // GPU/VRAM metrics via nvidia-smi (every 10 ticks = 20 seconds)
-                if tick_count % 10 == 0 {
+                if tick_count.is_multiple_of(10) {
                     if let Ok(output) = std::process::Command::new("nvidia-smi")
                         .args([
                             "--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu",
@@ -71,7 +71,7 @@ pub(crate) fn spawn_metrics_refresh(state: &Arc<AppState>, broadcaster: &Arc<Mie
             }
 
             // Collect metrics snapshot every 5 ticks (10 seconds)
-            if tick_count % 5 == 0 {
+            if tick_count.is_multiple_of(5) {
                 let manifest = update_state.manifest.read().await;
                 let sys = update_state.sys.read().await;
                 let queue_depth = update_state.queue.read().await.depth() as u32;
@@ -567,7 +567,7 @@ pub(crate) fn spawn_cron_checker(state: &Arc<AppState>) {
                 let (tx, mut rx) = broadcast::channel::<ChatEvent>(64);
 
                 // Don't drop the receiver (drain)
-                tokio::spawn(async move { while let Ok(_) = rx.recv().await {} });
+                tokio::spawn(async move { while rx.recv().await.is_ok() {} });
 
                 // Batch 10.B: injection of attached skills: loads each OKF SKILL.md
                 // from capacities.skills.<name> and assembles it at the head of the prompt (skills
@@ -1290,7 +1290,7 @@ pub(crate) fn spawn_event_notifier(state: &Arc<AppState>) {
                         );
                         let client = reqwest::Client::new();
                         let _ = client
-                            .post(&format!(
+                            .post(format!(
                                 "https://api.telegram.org/bot{}/sendMessage",
                                 token
                             ))

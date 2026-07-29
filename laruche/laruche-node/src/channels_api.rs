@@ -98,7 +98,7 @@ pub(crate) async fn api_channels_status(State(state): State<Arc<AppState>>) -> J
     Json(serde_json::json!({"running": running}))
 }
 
-//// Live approval brokers, one per Telegram chat with a run in flight: routes a
+/// Live approval brokers, one per Telegram chat with a run in flight: routes a
 /// button press back to the tool call that is waiting. Registered for the
 /// duration of a run only.
 type CourtierAppro = tokio::sync::mpsc::Sender<laruche_essaim::brain::ApprovalResponse>;
@@ -340,7 +340,7 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                                     // Default: let the model transcribe (native STT). The Settings
                                     // toggle forces the external STT service instead.
                                     let use_external_stt = crate::voice_config::charger().stt_external;
-                                    match download_telegram_file(&client, &token, fid).await {
+                                    match download_telegram_file(&client, token, fid).await {
                                         Some(bytes) => {
                                             let stt_text = if use_external_stt {
                                                 stt_transcribe_bytes(&bytes).await
@@ -1271,6 +1271,9 @@ fn split_for_voice(text: &str, max: usize) -> Vec<String> {
 }
 
 /// Synthesize one chunk and send it as a Telegram voice note.
+// Dependances injectees, toutes distinctes: les regrouper dans une structure ne
+// deplacerait la liste que d un cran, en la faisant construire par chaque appelant.
+#[allow(clippy::too_many_arguments)]
 async fn synth_and_send_voice(
     client: &reqwest::Client,
     tts: &reqwest::Client,

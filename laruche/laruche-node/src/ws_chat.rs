@@ -71,7 +71,7 @@ pub(crate) async fn ws_chat_connection(
                                 Ok(event) => {
                                     update_active_context_stats(&state, sid, &event).await;
                                     let json = event_json_avec_session(&event, sid);
-                                    if sender.send(ws::Message::Text(json.into())).await.is_err() {
+                                    if sender.send(ws::Message::Text(json)).await.is_err() {
                                         return;
                                     }
                                 }
@@ -103,8 +103,7 @@ pub(crate) async fn ws_chat_connection(
                 let _ = sender
                     .send(ws::Message::Text(
                         serde_json::json!({"type":"error","message":"Invalid JSON"})
-                            .to_string()
-                            .into(),
+                            .to_string(),
                     ))
                     .await;
                 continue;
@@ -120,18 +119,18 @@ pub(crate) async fn ws_chat_connection(
             if let Some(session_id_str) = incoming["session_id"].as_str() {
                 if let Ok(id) = Uuid::parse_str(session_id_str) {
                     // Try to load from disk if not in memory
-                    if !sessions.contains_key(&id) {
+                    if let std::collections::hash_map::Entry::Vacant(e) = sessions.entry(id) {
                         if let Ok(loaded) = laruche_essaim::Session::charger(
                             &sessions_dir.join(format!("{}.json", id)),
                         ) {
-                            sessions.insert(id, loaded);
+                            e.insert(loaded);
                         }
                     }
                     if let Some(session) = sessions.get_mut(&id) {
                         if let Some(tx) = &session.event_tx {
                             let mut rx = tx.subscribe();
                             drop(sessions);
-                            let _ = sender.send(ws::Message::Text(serde_json::json!({"type":"session","session_id": id.to_string()}).to_string().into())).await;
+                            let _ = sender.send(ws::Message::Text(serde_json::json!({"type":"session","session_id": id.to_string()}).to_string())).await;
                             // Enter the broadcast loop: relay events to the reattached client
                             let mut done = false;
                             while !done {
@@ -140,7 +139,7 @@ pub(crate) async fn ws_chat_connection(
                                         if let Ok(event) = event_result {
                                             update_active_context_stats(&state, id, &event).await;
                                             let json = event_json_avec_session(&event, id);
-                                            if sender.send(ws::Message::Text(json.into())).await.is_err() {
+                                            if sender.send(ws::Message::Text(json)).await.is_err() {
                                                 done = true;
                                             }
                                         } else {
@@ -172,8 +171,7 @@ pub(crate) async fn ws_chat_connection(
                         "text": incoming["text"].as_str().unwrap_or(""),
                         "message": "No active task: the request will be relaunched."
                     })
-                    .to_string()
-                    .into(),
+                    .to_string(),
                 ))
                 .await;
             continue;
@@ -207,11 +205,11 @@ pub(crate) async fn ws_chat_connection(
             sessions.insert(id, s);
             id
         });
-        if !sessions.contains_key(&session_id) {
+        sessions.entry(session_id).or_insert_with(|| {
             let mut s = Session::new_with_id(session_id, &current_model_ws, sessions_dir);
             s.user_id = auth_user_id;
-            sessions.insert(session_id, s);
-        }
+            s
+        });
 
         // Immediate persistence: save right after creating (before agent runs)
         if let Some(s) = sessions.get(&session_id) {
@@ -240,8 +238,7 @@ pub(crate) async fn ws_chat_connection(
         let _ = sender
             .send(ws::Message::Text(
                 serde_json::json!({"type":"session","session_id": session_id.to_string()})
-                    .to_string()
-                    .into(),
+                    .to_string(),
             ))
             .await;
 
@@ -598,7 +595,7 @@ pub(crate) async fn ws_chat_connection(
                         Ok(event) => {
                             update_active_context_stats(&state, session_id, &event).await;
                             let json = event_json_avec_session(&event, session_id);
-                            if sender.send(ws::Message::Text(json.into())).await.is_err() {
+                            if sender.send(ws::Message::Text(json)).await.is_err() {
                                 done = true;
                             }
                             match &event {
@@ -647,7 +644,7 @@ pub(crate) async fn ws_chat_connection(
                                                 }
                                                 let _ = sender
                                                     .send(ws::Message::Text(
-                                                        event_json_avec_session(&ev, session_id).into(),
+                                                        event_json_avec_session(&ev, session_id),
                                                     ))
                                                     .await;
                                             }
@@ -694,7 +691,7 @@ pub(crate) async fn ws_chat_connection(
                                                     "type": "steer_ack",
                                                     "text": steer_text,
                                                     "message": "Steering received: applied at the next step."
-                                                }).to_string().into()
+                                                }).to_string()
                                             )).await;
                                         }
                                         Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
@@ -704,7 +701,7 @@ pub(crate) async fn ws_chat_connection(
                                                     "reason": "queue_full",
                                                     "text": steer_text,
                                                     "message": "Too many pending steers: wait for the next step."
-                                                }).to_string().into()
+                                                }).to_string()
                                             )).await;
                                         }
                                         Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
@@ -714,7 +711,7 @@ pub(crate) async fn ws_chat_connection(
                                                     "reason": "run_finished",
                                                     "text": steer_text,
                                                     "message": "The task just finished: resend this message as a new request."
-                                                }).to_string().into()
+                                                }).to_string()
                                             )).await;
                                         }
                                     }
@@ -740,8 +737,7 @@ pub(crate) async fn ws_chat_connection(
                                                 "session_id": session_id.to_string(),
                                                 "message": "Generation interrupted."
                                             })
-                                            .to_string()
-                                            .into(),
+                                            .to_string(),
                                         ))
                                         .await;
                                     done = true;

@@ -180,8 +180,10 @@ async fn handle_tools_call(
 
     // Belt and braces with the check above: the guard in `executer` is the one nobody
     // can route around, so the list travels with the call.
-    let mut ctx = ContextExecution::default();
-    ctx.disabled_tools = desactives.to_vec();
+    let ctx = ContextExecution {
+        disabled_tools: desactives.to_vec(),
+        ..Default::default()
+    };
 
     match registry.executer(&name, arguments, &ctx).await {
         Ok(result) => {

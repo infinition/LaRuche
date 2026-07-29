@@ -157,7 +157,7 @@ fn reduire_sous_budget(body: &serde_json::Value, limite: usize) -> Result<serde_
                     .collect()
             })
             .unwrap_or_default();
-        par_taille.sort_by(|a, b| b.1.cmp(&a.1));
+        par_taille.sort_by_key(|p| std::cmp::Reverse(p.1));
 
         // If the mission turn is itself the whole payload (curator review, scout
         // briefing), it has to give ground too: it is that or the call fails.
@@ -1013,15 +1013,14 @@ async fn _anthropic_send_request(
                                             out_tok = Some(u);
                                         }
                                     }
-                                    "content_block_start" => {
+                                    "content_block_start"
                                         // A tool_use block opens with its id + name.
-                                        if parsed["content_block"]["type"].as_str() == Some("tool_use") {
+                                        if parsed["content_block"]["type"].as_str() == Some("tool_use") => {
                                             let idx = parsed["index"].as_u64().unwrap_or(0);
                                             let id = parsed["content_block"]["id"].as_str().unwrap_or("").to_string();
                                             let name = parsed["content_block"]["name"].as_str().unwrap_or("").to_string();
                                             tool_acc.insert(idx, (id, name, String::new()));
                                         }
-                                    }
                                     _ => {}
                                 }
                                 // tool_use arguments stream as input_json_delta on the block.

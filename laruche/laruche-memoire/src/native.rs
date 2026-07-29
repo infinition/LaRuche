@@ -176,13 +176,14 @@ impl MemoireCognitive for NativeBackend {
                 }
             }
         }
-        hits.sort_by(|a, b| b.0.cmp(&a.0));
+        // Meilleur score d'abord: Reverse plutot qu'un comparateur inverse.
+        hits.sort_by_key(|h| std::cmp::Reverse(h.0));
         hits.truncate(limit);
 
         let mut seen = HashSet::new();
         let nodes: Vec<Value> = hits
             .iter()
-            .filter_map(|(_, _, n, _)| seen.insert(n.clone()).then(|| node_json(n)))
+            .filter(|&(_, _, n, _)| seen.insert(n.clone())).map(|(_, _, n, _)| node_json(n))
             .collect();
         let items: Vec<Value> = hits
             .iter()

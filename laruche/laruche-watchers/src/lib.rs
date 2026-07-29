@@ -523,7 +523,10 @@ impl Regle {
                 Ok(())
             }
             Regle::TailleDepasseMo { mo } => {
-                if !(*mo > 0.0) {
+                // Formulation equivalente a `!(*mo > 0.0)`, NaN comprise, mais sans
+                // comparaison niee sur un type partiellement ordonne - ce que clippy
+                // refuse a juste titre parce que la negation y cache le cas NaN.
+                if mo.is_nan() || *mo <= 0.0 {
                     return Err("`taille_depasse_mo` needs `mo` greater than 0".into());
                 }
                 Ok(())

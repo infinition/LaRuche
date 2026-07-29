@@ -111,6 +111,11 @@ impl Rapport {
 /// Dispatches an éclaireuse: runs a child `butiner()` with an isolated context and its
 /// own budget, then returns its report. `fournisseur`/`outils` are the CHILD adapters
 /// (the bridge disables `delegate` there to prevent recursion).
+///
+// Huit parametres, tous des dependances injectees et distinctes: les regrouper dans
+// une structure ne ferait que deplacer la liste d'un cran, en obligeant chaque
+// appelant a la construire. Le seuil de clippy (7) est arbitraire ici.
+#[allow(clippy::too_many_arguments)]
 pub async fn depecher(
     ordre: OrdreEclaireuse,
     reglages_parent: &Reglages,

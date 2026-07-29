@@ -72,7 +72,6 @@ pub fn prompt_reine_defaut() -> &'static str {
 /// Run one judge call over `reponse`. Returns the parsed scorecard, or None on any
 /// provider or parse error. Provider/model/credentials are explicit so the caller
 /// (the node) can point the judge at LaReine's own provider.
-#[allow(clippy::too_many_arguments)]
 /// Says WHY it failed. The automatic path only needs to know there is no verdict; a
 /// hand-made call is a user waiting in front of the screen, and the three causes call for
 /// completely different fixes: write something first, check the provider, or pick a model
@@ -258,6 +257,9 @@ fn construire_contexte(session: &Session, n: usize) -> String {
     lignes.join("\n")
 }
 
+// Dependances injectees, toutes distinctes: les regrouper dans une structure ne
+// deplacerait la liste que d un cran, en la faisant construire par chaque appelant.
+#[allow(clippy::too_many_arguments)]
 pub async fn revue_et_refaire(
     juge: &ProviderCreds,
     charte: &str,

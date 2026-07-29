@@ -18,6 +18,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      # laruche-bureau (Tauri) fait partie du workspace, et `--all` l'inclut:
+      # sans la webview et GTK, glib-sys echoue a la compilation sur Linux.
+      # Installer les paquets plutot qu'exclure le crate: la coque contient de la
+      # vraie logique (decouverte mDNS, resolution de l'adresse) qui merite d'etre
+      # compilee a chaque poussee.
+      - name: Linux build deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libglib2.0-dev \
+            libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
       - run: cargo build --release
       - run: cargo test --all
 
@@ -31,4 +42,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+      - name: Linux build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libglib2.0-dev \
+            libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
       - run: cargo clippy --all -- -D warnings

@@ -173,52 +173,44 @@ fn print_help() {
     );
     eprintln!("  {}", "Commands:".bold());
     eprintln!(
-        "    {}                       {}",
-        "laruche".with(Color::Cyan),
-        "Interactive chat"
+        "    {}                       Interactive chat",
+        "laruche".with(Color::Cyan)
     );
     eprintln!(
-        "    {} {} {}",
+        "    {} {} Chat in a folder",
         "laruche".with(Color::Cyan),
-        "--cwd /path".with(AMBER),
-        "Chat in a folder"
+        "--cwd /path".with(AMBER)
     );
     eprintln!(
-        "    {} {} {}",
+        "    {} {} \"question\"    One-shot",
         "laruche".with(Color::Cyan),
-        "ask".with(AMBER),
-        "\"question\"    One-shot"
+        "ask".with(AMBER)
     );
     eprintln!(
-        "    {} {}            {}",
+        "    {} {}            Scan Miel",
         "laruche".with(Color::Cyan),
-        "discover".with(AMBER),
-        "Scan Miel"
+        "discover".with(AMBER)
     );
     eprintln!(
-        "    {} {}              {}",
+        "    {} {}              Diagnostics",
         "laruche".with(Color::Cyan),
-        "doctor".with(AMBER),
-        "Diagnostics"
+        "doctor".with(AMBER)
     );
     eprintln!(
-        "    {} {} {}  {}",
+        "    {} {} {}  Manage the server (start/stop/install/update/uninstall)",
         "laruche".with(Color::Cyan),
         "server".with(AMBER),
-        "[cmd]".dark_grey(),
-        "Manage the server (start/stop/install/update/uninstall)"
+        "[cmd]".dark_grey()
     );
     eprintln!(
-        "    {} {}                 {}",
+        "    {} {}                 MCP server (stdio, for Claude Desktop)",
         "laruche".with(Color::Cyan),
-        "mcp".with(AMBER),
-        "MCP server (stdio, for Claude Desktop)"
+        "mcp".with(AMBER)
     );
     eprintln!(
-        "    {} {}          {}",
+        "    {} {}          ChatGPT Codex login (OAuth subscription)",
         "laruche".with(Color::Cyan),
-        "auth codex".with(AMBER),
-        "ChatGPT Codex login (OAuth subscription)"
+        "auth codex".with(AMBER)
     );
     eprintln!("\n  {}", "In chat:".bold());
     eprintln!(
@@ -369,8 +361,8 @@ async fn pick_model(current: &str) -> Option<String> {
 
 async fn cmd_chat() -> Result<()> {
     print_banner();
-    let mut registry = AbeilleRegistry::new();
-    enregistrer_abeilles_builtin(&mut registry);
+    let registry = AbeilleRegistry::new();
+    enregistrer_abeilles_builtin(&registry);
     let config = EssaimConfig {
         ollama_url: get_ollama_url(),
         model: get_model(),
@@ -664,8 +656,8 @@ async fn cmd_ask(prompt: &str) -> Result<()> {
         eprintln!("{} laruche ask \"question\"", "Usage:".bold());
         std::process::exit(1);
     }
-    let mut reg = AbeilleRegistry::new();
-    enregistrer_abeilles_builtin(&mut reg);
+    let reg = AbeilleRegistry::new();
+    enregistrer_abeilles_builtin(&reg);
     let cfg = EssaimConfig {
         ollama_url: get_ollama_url(),
         model: get_model(),
@@ -940,22 +932,19 @@ async fn cmd_auth(args: &[String]) -> Result<()> {
             );
             eprintln!("  {}:", "Commands".bold());
             eprintln!(
-                "    {} {}            {}",
+                "    {} {}            ChatGPT Codex login (OAuth subscription)",
                 "laruche auth".with(Color::Cyan),
-                "codex".with(AMBER),
-                "ChatGPT Codex login (OAuth subscription)"
+                "codex".with(AMBER)
             );
             eprintln!(
-                "    {} {}   {}",
+                "    {} {}   Codex login status",
                 "laruche auth".with(Color::Cyan),
-                "codex --status".with(AMBER),
-                "Codex login status"
+                "codex --status".with(AMBER)
             );
             eprintln!(
-                "    {} {}    {}",
+                "    {} {}    Force a new login",
                 "laruche auth".with(Color::Cyan),
-                "codex --force".with(AMBER),
-                "Force a new login"
+                "codex --force".with(AMBER)
             );
             Ok(())
         }
@@ -1020,52 +1009,44 @@ async fn cmd_server(args: &[String]) -> Result<()> {
             );
             eprintln!("  {}:", "Commands".bold());
             eprintln!(
-                "    {} {}    {}",
+                "    {} {}    Start the LaRuche server",
                 "laruche server".with(Color::Cyan),
-                "start".with(AMBER),
-                "Start the LaRuche server"
+                "start".with(AMBER)
             );
             eprintln!(
-                "    {} {}     {}",
+                "    {} {}     Stop the server",
                 "laruche server".with(Color::Cyan),
-                "stop".with(AMBER),
-                "Stop the server"
+                "stop".with(AMBER)
             );
             eprintln!(
-                "    {} {}  {}",
+                "    {} {}  Restart the server",
                 "laruche server".with(Color::Cyan),
-                "restart".with(AMBER),
-                "Restart the server"
+                "restart".with(AMBER)
             );
             eprintln!(
-                "    {} {}   {}",
+                "    {} {}   Check server status",
                 "laruche server".with(Color::Cyan),
-                "status".with(AMBER),
-                "Check server status"
+                "status".with(AMBER)
             );
             eprintln!(
-                "    {} {}  {}",
+                "    {} {}  Build & install as system service",
                 "laruche server".with(Color::Cyan),
-                "install".with(AMBER),
-                "Build & install as system service"
+                "install".with(AMBER)
             );
             eprintln!(
-                "    {} {}  {}",
+                "    {} {}  Remove system service",
                 "laruche server".with(Color::Cyan),
-                "uninstall".with(AMBER),
-                "Remove system service"
+                "uninstall".with(AMBER)
             );
             eprintln!(
-                "    {} {}   {}",
+                "    {} {}   Rebuild from source (git pull + cargo build)",
                 "laruche server".with(Color::Cyan),
-                "update".with(AMBER),
-                "Rebuild from source (git pull + cargo build)"
+                "update".with(AMBER)
             );
             eprintln!(
-                "    {} {}     {}",
+                "    {} {}     Show recent server logs",
                 "laruche server".with(Color::Cyan),
-                "logs".with(AMBER),
-                "Show recent server logs"
+                "logs".with(AMBER)
             );
             eprintln!();
             Ok(())
@@ -1081,8 +1062,8 @@ async fn cmd_mcp() -> Result<()> {
     eprintln!("LaRuche MCP server starting (stdio mode)...");
 
     // Build tool registry
-    let mut registry = AbeilleRegistry::new();
-    enregistrer_abeilles_builtin(&mut registry);
+    let registry = AbeilleRegistry::new();
+    enregistrer_abeilles_builtin(&registry);
     let registry = std::sync::Arc::new(registry);
 
     eprintln!("LaRuche MCP server ready ({} tools)", registry.noms().len());

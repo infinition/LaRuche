@@ -225,17 +225,15 @@ pub(crate) async fn auth_scan_challenge(
     let user_id = match auth_user::extract_user_from_headers(&headers, &state.cookie_secret) {
         Some(uid) => uid,
         None => {
-            return axum::response::Html(format!(
-                r#"<!DOCTYPE html>
+            return axum::response::Html(r#"<!DOCTYPE html>
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>body{{background:#1a1a2e;color:#e0e0e0;font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}}
-.card{{background:#16213e;padding:2rem;border-radius:16px;text-align:center;max-width:320px}}
-h2{{color:#ffbf00}}</style></head>
+<style>body{background:#1a1a2e;color:#e0e0e0;font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
+.card{background:#16213e;padding:2rem;border-radius:16px;text-align:center;max-width:320px}
+h2{color:#ffbf00}</style></head>
 <body><div class="card">
 <h2>Not authenticated</h2>
 <p>Open your enrollment link on this phone first.</p>
-</div></body></html>"#
-            ));
+</div></body></html>"#.to_string());
         }
     };
 
@@ -243,17 +241,15 @@ h2{{color:#ffbf00}}</style></head>
     let mut challenges = state.auth_challenges.write().await;
     if let Some(challenge) = challenges.get_mut(&challenge_id) {
         if challenge.is_expired() {
-            return axum::response::Html(format!(
-                r#"<!DOCTYPE html>
+            return axum::response::Html(r#"<!DOCTYPE html>
 <html><head><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>body{{background:#1a1a2e;color:#e0e0e0;font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}}
-.card{{background:#16213e;padding:2rem;border-radius:16px;text-align:center;max-width:320px}}
-h2{{color:#ef4444}}</style></head>
+<style>body{background:#1a1a2e;color:#e0e0e0;font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0}
+.card{background:#16213e;padding:2rem;border-radius:16px;text-align:center;max-width:320px}
+h2{color:#ef4444}</style></head>
 <body><div class="card">
 <h2>QR expired</h2>
 <p>Go back to the browser and refresh the QR code.</p>
-</div></body></html>"#
-            ));
+</div></body></html>"#.to_string());
         }
         challenge.resolved_user_id = Some(user_id);
     }

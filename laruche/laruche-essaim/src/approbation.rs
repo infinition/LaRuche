@@ -296,7 +296,7 @@ impl Registre {
         let cmd = args
             .get("command")
             .and_then(|v| v.as_str())
-            .map(|c| sans_commentaires(c))
+            .map(sans_commentaires)
             .unwrap_or_default();
         let cible = format!("{nom_outil} {cmd}");
         let cible_nue = cible.replace(['"', '\'', '`'], "");

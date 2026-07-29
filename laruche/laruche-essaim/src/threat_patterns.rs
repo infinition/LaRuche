@@ -125,9 +125,7 @@ fn contient_tous(normalized: &str, fragments: &[&str]) -> bool {
 fn normaliser(texte: &str) -> String {
     texte
         .to_lowercase()
-        .replace('\n', " ")
-        .replace('\r', " ")
-        .replace('\t', " ")
+        .replace(['\n', '\r', '\t'], " ")
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")

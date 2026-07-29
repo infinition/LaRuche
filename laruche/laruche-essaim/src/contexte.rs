@@ -435,7 +435,11 @@ pub fn demande_recherche_longue(prompt: &str) -> bool {
 /// 3. Handle stop reason: end_turn -> done, tool_use -> execute + loop
 /// 4. Auto-compact context if too large
 /// 5. Failover to fallback model on error
+///
 /// Run the ReAct loop (convenience wrapper without images or approval).
+// Dependances injectees, toutes distinctes: les regrouper dans une structure ne
+// deplacerait la liste que d un cran, en la faisant construire par chaque appelant.
+#[allow(clippy::too_many_arguments)]
 pub async fn boucle_react(
     prompt_utilisateur: &str,
     session: &mut Session,
@@ -677,6 +681,9 @@ pub(crate) fn rappels_utilises(rappeles: &[(String, String)], reponse: &str) -> 
 
 /// Multimodal variant of [`boucle_react_memoire`] for the WebSocket UI:
 /// keeps images and approval requests while enabling memory.
+// Dependances injectees, toutes distinctes: les regrouper dans une structure ne
+// deplacerait la liste que d un cran, en la faisant construire par chaque appelant.
+#[allow(clippy::too_many_arguments)]
 pub async fn boucle_react_memoire_multimodal(
     prompt_utilisateur: &str,
     session: &mut Session,
@@ -1659,6 +1666,9 @@ pub async fn boucle_react_multimodal(
 /// Supports multimodal, approval, and a **trailing ephemeral context**
 /// (memory) injected AFTER the history: the system prompt (prefix) stays stable
 /// -> hot upstream prefix cache.
+// Dependances injectees, toutes distinctes: les regrouper dans une structure ne
+// deplacerait la liste que d un cran, en la faisant construire par chaque appelant.
+#[allow(clippy::too_many_arguments)]
 pub async fn boucle_react_multimodal_ext(
     prompt_utilisateur: &str,
     session: &mut Session,

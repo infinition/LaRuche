@@ -210,7 +210,7 @@ pub async fn consolider_fatigue(
         let content = format!("[confiance:{}%][{}] {}", confidence_label, fact_type, fact.content);
         let _ = memoire
             .write(MemoryItem::new(&node_id, &content)
-                .with_source(&format!("fatigue-consolidation:{task_id}")))
+                .with_source(format!("fatigue-consolidation:{task_id}")))
             .await;
         facts_stored += 1;
     }
@@ -250,7 +250,7 @@ pub async fn contexte_apres_consolidation(
             .map(|s| s.to_string()))
         .unwrap_or_default();
 
-    let resume = checkpoint.splitn(2, ':').nth(1).unwrap_or("").to_string();
+    let resume = checkpoint.split_once(':').map(|x| x.1).unwrap_or("").to_string();
 
     vec![
         serde_json::json!({

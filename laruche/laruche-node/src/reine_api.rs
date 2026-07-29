@@ -578,14 +578,14 @@ pub(crate) async fn api_reine_dataset(
         n += 1;
     }
     let nom = format!("laruche-{format}-{n}.jsonl");
-    Ok(axum::response::Response::builder()
+    axum::response::Response::builder()
         .header("Content-Type", "application/x-ndjson")
         .header(
             "Content-Disposition",
             format!("attachment; filename=\"{nom}\""),
         )
         .body(axum::body::Body::from(out))
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
 /// GET /api/reine/scorecards - aggregate view of the review journal

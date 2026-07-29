@@ -119,13 +119,13 @@ fn zip_dir_to_bytes(base: &std::path::Path) -> std::io::Result<Vec<u8>> {
                 } else if let Ok(rel) = path.strip_prefix(base) {
                     let name = rel.to_string_lossy().replace('\\', "/");
                     zw.start_file(name, opts)
-                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                        .map_err(std::io::Error::other)?;
                     zw.write_all(&std::fs::read(&path)?)?;
                 }
             }
         }
         zw.finish()
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            .map_err(std::io::Error::other)?;
     }
     Ok(buf)
 }

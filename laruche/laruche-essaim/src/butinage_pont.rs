@@ -898,7 +898,7 @@ impl but::Outils for OutilsPont<'_> {
                     par_skill
                         .entry(nom_skill)
                         .or_default()
-                        .extend(declares.into_iter());
+                        .extend(declares);
                 }
             }
         }
@@ -1982,6 +1982,21 @@ impl Drop for GardeRun {
 ///
 /// The marker is a UI signal: it must leave the text before the answer reaches the Done
 /// event, the session, the episode or an outbound channel.
+/// Remet le texte du modele dans un etat presentable, quoi qu'il arrive.
+///
+/// Appele SANS condition sur les deux chemins de sortie (reponse normale et reprise
+/// de carnet). Le placer dans `depouiller_reaction` l'aurait rendu dependant de
+/// l'option des reactions de l'agent, qui n'a aucun rapport avec l'encodage.
+fn finaliser_texte(texte: &mut String) {
+    // Certains modeles ecrivent leurs emoji en sequences UTF-16 litterales, et
+    // l'utilisateur lisait la sequence brute au lieu de l'abeille. Decode ici, donc
+    // une seule fois, pour le chat, le fil, la memoire et les canaux a la fois.
+    let decode = crate::texte_modele::decoder_echappements(texte);
+    if decode != *texte {
+        *texte = decode;
+    }
+}
+
 fn depouiller_reaction(
     texte: &mut String,
     session: Option<&mut Session>,
@@ -2006,6 +2021,9 @@ fn depouiller_reaction(
     });
 }
 
+// Dependances injectees, toutes distinctes: les regrouper dans une structure ne
+// deplacerait la liste que d un cran, en la faisant construire par chaque appelant.
+#[allow(clippy::too_many_arguments)]
 pub async fn executer_avec_bilan(
     prompt_utilisateur: &str,
     session: &mut Session,
@@ -2243,6 +2261,7 @@ pub async fn executer_avec_bilan(
     // exactly a lone known key on the first or last line stays visible rather than
     // being silently eaten.
     let mut bilan = bilan;
+    finaliser_texte(&mut bilan.texte);
     if config.reactions_agent {
         depouiller_reaction(&mut bilan.texte, Some(session), tx);
     }
@@ -2541,6 +2560,7 @@ pub async fn reprendre_carnet(
     // marker is stripped and announced but not persisted: at minimum it stops leaking
     // into the stored answer.
     let mut bilan = bilan;
+    finaliser_texte(&mut bilan.texte);
     if config.reactions_agent {
         depouiller_reaction(&mut bilan.texte, None, tx);
     }

@@ -594,8 +594,8 @@ fn lister_trie(dir: &Path, depth: usize, max_depth: usize, out: &mut Vec<String>
             fichiers.push((name, taille));
         }
     }
-    dossiers.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
-    fichiers.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+    dossiers.sort_by_key(|a| a.0.to_lowercase());
+    fichiers.sort_by_key(|a| a.0.to_lowercase());
     let indent = "  ".repeat(depth);
     for (name, p) in &dossiers {
         let ignore = DOSSIERS_IGNORES.contains(&name.as_str());

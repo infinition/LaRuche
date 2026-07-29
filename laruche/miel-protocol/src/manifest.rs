@@ -349,7 +349,7 @@ impl CognitiveManifest {
 
 /// Partial manifest reconstructed from mDNS TXT properties.
 /// Used by clients that discover nodes via mDNS.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PartialManifest {
     pub protocol_version: Option<String>,
     pub node_id: Option<Uuid>,
@@ -367,29 +367,6 @@ pub struct PartialManifest {
     pub is_coordinator: bool,
     pub model: Option<String>,
     pub host: String,
-}
-
-impl Default for PartialManifest {
-    fn default() -> Self {
-        Self {
-            protocol_version: None,
-            node_id: None,
-            node_name: None,
-            tier: None,
-            tokens_per_sec: None,
-            memory_usage_pct: None,
-            queue_depth: None,
-            port: None,
-            dashboard_port: None,
-            capabilities: Vec::new(),
-            temperature_c: None,
-            in_swarm: false,
-            peer_count: 0,
-            is_coordinator: false,
-            model: None,
-            host: String::new(),
-        }
-    }
 }
 
 impl PartialManifest {
