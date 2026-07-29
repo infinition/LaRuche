@@ -51,9 +51,13 @@ fn chemin_noeud() -> Option<PathBuf> {
     } else {
         "laruche-node"
     };
-    let voisin = std::env::current_exe().ok()?.parent()?.join(nom);
-    if voisin.exists() {
-        return Some(voisin);
+    let a_cote = std::env::current_exe().ok()?.parent()?.to_path_buf();
+    // `bin/` d'abord: c'est la ou l'installeur depose le noeud (bundle.resources).
+    // Le dossier de l'exe ensuite, pour une extraction manuelle de l'archive.
+    for candidat in [a_cote.join("bin").join(nom), a_cote.join(nom)] {
+        if candidat.exists() {
+            return Some(candidat);
+        }
     }
     // En dev, `cargo run -p laruche-bureau` produit un debug alors que le noeud est
     // souvent compile en release: on regarde les deux.
@@ -72,13 +76,19 @@ fn chemin_noeud() -> Option<PathBuf> {
 fn demarrer_noeud(url: &str) -> Option<Child> {
     let exe = chemin_noeud()?;
     let dossier = exe.parent()?.to_path_buf();
-    let enfant = Command::new(&exe)
+    let mut commande = Command::new(&exe);
+    commande
         // Sans cela le noeud ouvrirait le navigateur par-dessus notre fenetre - on
         // aurait l'interface en double.
         .env("LARUCHE_NO_BROWSER", "1")
-        .current_dir(&dossier)
-        .spawn()
-        .ok()?;
+        .current_dir(&dossier);
+    // Le port que nous allons afficher doit etre celui sur lequel il ecoute. Sans
+    // cela, un LARUCHE_URL personnalise lancait un noeud sur son port par defaut et
+    // la fenetre attendait sur un port ou personne ne repondrait jamais.
+    if let Some(p) = adresse(url).map(|a| a.port()) {
+        commande.env("LARUCHE_PORT", p.to_string());
+    }
+    let enfant = commande.spawn().ok()?;
 
     // Le noeud ouvre sa base, amorce la memoire et sonde le reseau avant d'ecouter:
     // quelques secondes sur un demarrage a froid.

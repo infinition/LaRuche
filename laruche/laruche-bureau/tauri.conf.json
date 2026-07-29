@@ -23,7 +23,7 @@
       "icons/icon.ico",
       "icons/icon.png"
     ],
-    "resources": [],
+    "resources": ["bin/*"],
     "shortDescription": "LaRuche",
     "longDescription": "LaRuche - votre ruche d'IA personnelle, entierement locale.",
     "windows": {

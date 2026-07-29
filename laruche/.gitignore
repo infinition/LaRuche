@@ -71,3 +71,7 @@ memoire-okf/
 
 # Schemas ACL regeneres par tauri-build a chaque compilation de la coque bureau.
 /laruche-bureau/gen/
+
+# Le noeud copie ici juste avant l'empaquetage de la coque bureau.
+/laruche-bureau/bin/laruche-node
+/laruche-bureau/bin/laruche-node.exe
