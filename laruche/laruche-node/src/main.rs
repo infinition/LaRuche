@@ -756,6 +756,15 @@ async fn main() -> Result<()> {
             "Editable identity / persona (empty = code default)",
         ),
         (
+            // Seeded like its siblings. It used to be created lazily, on the first save
+            // from the profile form, so the tree showed every system node EXCEPT the one
+            // about the person using it: nothing hinted that a profile could be written,
+            // and the node only appeared once you had already found the form.
+            "system.user",
+            "User",
+            "Who you are: what LaRuche should know about you (written from Profile)",
+        ),
+        (
             "system.behavior",
             "Behavior",
             "Editable behavior rules (empty = code default)",

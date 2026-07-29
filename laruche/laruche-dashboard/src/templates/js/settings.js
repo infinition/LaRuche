@@ -513,6 +513,7 @@ LaRuche.Settings = (function(){
   var SECTIONS = [
     { id:'profile',      i18n:'settings.navProfile',      icon:_ic('<circle cx="12" cy="8" r="4"/><path d="M5 20a7 7 0 0 1 14 0"/>') },
     { id:'general',      i18n:'settings.navGeneral',      icon:_ic('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>') },
+    { id:'chat',         i18n:'settings.navChat',         icon:_ic('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>') },
     { id:'generation',   i18n:'settings.navGeneration',   icon:_ic('<path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z"/>') },
     { id:'providers',    i18n:'settings.navModels',       icon:_ic('<path d="M9.5 2a4.5 4.5 0 0 0-4.4 5.6A4.5 4.5 0 0 0 4 16.5 4.5 4.5 0 0 0 12 19V4.5A2.5 2.5 0 0 0 9.5 2z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5V19a4.5 4.5 0 0 0 8-2.5 4.5 4.5 0 0 0-1.1-8.9A4.5 4.5 0 0 0 14.5 2z"/>') },
     { id:'voice',        i18n:'settings.navVoice',        icon:_ic('<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="17" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/>') },
@@ -638,6 +639,7 @@ LaRuche.Settings = (function(){
     switch(tab) {
       case 'profile': loadProfile(el); break;
       case 'general': loadGeneral(el); break;
+      case 'chat': loadChat(el); break;
       case 'generation': loadGeneration(el); break;
       case 'providers': loadProviders(el); break;
       case 'voice': loadVoice(el); break;
