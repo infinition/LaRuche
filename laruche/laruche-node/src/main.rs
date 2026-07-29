@@ -216,8 +216,115 @@ async fn serve_with_optional_tls(app: axum::Router, addr: String, tls: Option<(S
     }
 }
 
+/// Le foyer de cette ruche: ou vivent `memoire.db`, `sessions/`, `skills/`,
+/// `plugins/`, les secrets et la configuration.
+///
+/// Tout le code lit ces chemins relativement au repertoire courant. On choisit donc
+/// le foyer UNE fois, au tout debut, et on s'y place - plutot que de reecrire des
+/// dizaines de chemins et d'en oublier un.
+///
+/// L'ordre compte:
+///   1. `LARUCHE_DATA_DIR`, quand on veut decider soi-meme;
+///   2. le repertoire courant s'il EST deja une ruche - c'est ce qui fait que
+///      lancer_butinage.bat depuis le depot continue d'ouvrir la meme memoire
+///      qu'avant, sans que rien n'ait a bouger;
+///   3. sinon le dossier standard de l'utilisateur, pour que le double-clic sur
+///      l'executable, le service et l'application de bureau tombent tous les trois
+///      sur la MEME ruche, au lieu d'en fabriquer une chacun a cote de leur binaire.
+/// Skills et plugins livres avec LaRuche, embarques DANS le binaire.
+///
+/// Sans cela, un `laruche-node.exe` telecharge depuis les releases - ou installe
+/// par l'application de bureau - demarre une ruche a zero capacite, alors que le
+/// depot en contient trente-huit. Elles etaient jusqu'ici simplement « les fichiers
+/// qui se trouvaient a cote », ce qui ne marchait que depuis une copie du depot.
+///
+/// ~580 Ko de markdown dans un binaire de 33 Mo: le prix est negligeable, et il n'y
+/// a plus aucun fichier a livrer a cote de l'executable.
+static SKILLS_LIVRES: include_dir::Dir<'_> =
+    include_dir::include_dir!("$CARGO_MANIFEST_DIR/../skills");
+static PLUGINS_LIVRES: include_dir::Dir<'_> =
+    include_dir::include_dir!("$CARGO_MANIFEST_DIR/../plugins");
+static MCP_LIVRES: include_dir::Dir<'_> =
+    include_dir::include_dir!("$CARGO_MANIFEST_DIR/../mcp");
+
+/// Depose le contenu livre dans le foyer, si et seulement si le dossier n'existe pas.
+///
+/// La condition porte sur le DOSSIER, pas sur chaque fichier: quelqu'un qui supprime
+/// une capacite ne doit pas la voir revenir au redemarrage suivant. En contrepartie,
+/// les capacites ajoutees par une mise a jour n'apparaissent pas toutes seules dans
+/// un foyer deja etabli - c'est le compromis, et il penche du cote de « on ne
+/// ressuscite pas ce que l'utilisateur a efface ».
+fn amorcer(livre: &include_dir::Dir<'_>, cible: &str) {
+    let racine = std::path::Path::new(cible);
+    if racine.exists() {
+        return;
+    }
+    // Creer le dossier de base AVANT d'extraire: `extract` ne cree que les
+    // sous-dossiers, si bien qu'un fichier pose a la racine du contenu livre
+    // (skills/AUTHORING.md) n'avait nulle part ou atterrir. plugins/ s'en sortait
+    // par accident, n'ayant que des sous-dossiers.
+    if let Err(e) = std::fs::create_dir_all(racine) {
+        error!(dossier = cible, error = %e, "amorcage impossible: dossier non creable");
+        return;
+    }
+    // L'erreur est journalisee, jamais avalee: un amorcage qui echoue en silence
+    // donne une ruche sans capacites et aucune trace pour comprendre pourquoi.
+    match livre.extract(racine) {
+        Ok(()) => {
+            let n = std::fs::read_dir(racine).map(|d| d.count()).unwrap_or(0);
+            info!(dossier = cible, entrees = n, "foyer neuf: contenu livre depose");
+        }
+        Err(e) => {
+            error!(dossier = cible, error = %e, "amorcage impossible: la ruche demarrera sans");
+        }
+    }
+}
+
+fn foyer() -> std::path::PathBuf {
+    if let Ok(d) = std::env::var("LARUCHE_DATA_DIR") {
+        if !d.is_empty() {
+            return std::path::PathBuf::from(d);
+        }
+    }
+    let ici = std::env::current_dir().unwrap_or_default();
+    // Marqueurs volontairement etroits: des fichiers qui n'existent que dans une
+    // ruche deja etablie. `skills/` en ferait partie a tort - il est livre avec
+    // l'installation, y compris dans un dossier ou l'on n'a pas le droit d'ecrire.
+    // Plusieurs marqueurs, et non le seul `memoire.db`: un foyer a moitie deplace -
+    // la base partie, les missions, les watchers et les secrets restes - serait
+    // sinon abandonne d'un coup, et la ruche repartirait de zero en laissant
+    // derriere elle des fichiers que plus personne ne lit.
+    for marqueur in [
+        "memoire.db",
+        "config.json",
+        "laruche.toml",
+        "secrets.enc",
+        "missions.json",
+        "cron-tasks.json",
+    ] {
+        if ici.join(marqueur).exists() {
+            return ici;
+        }
+    }
+    // Windows : %APPDATA%\LaRuche
+    // macOS   : ~/Library/Application Support/LaRuche
+    // Linux   : ~/.local/share/laruche  (XDG_DATA_HOME), en minuscules par usage
+    let nom = if cfg!(target_os = "linux") { "laruche" } else { "LaRuche" };
+    dirs::data_dir().map(|d| d.join(nom)).unwrap_or(ici)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Avant TOUTE ouverture de fichier: la configuration, la memoire et les sessions
+    // se resolvent depuis le repertoire courant.
+    let foyer = foyer();
+    if let Err(e) = std::fs::create_dir_all(&foyer) {
+        eprintln!("impossible de creer {} : {e}", foyer.display());
+    }
+    if let Err(e) = std::env::set_current_dir(&foyer) {
+        eprintln!("impossible de se placer dans {} : {e}", foyer.display());
+    }
+
     let use_tui = !std::env::args().any(|a| a == "--no-tui");
 
     let tui_log_rx = if use_tui {
@@ -244,6 +351,15 @@ async fn main() -> Result<()> {
     };
 
     let config = load_config()?;
+
+    // Un foyer neuf doit arriver equipe: sans cela la ruche demarre sans aucune
+    // capacite et l'utilisateur n'a aucun moyen de deviner ce qui manque. Pose ICI
+    // et non au tout debut de main(): avant l'initialisation des traces, un echec
+    // d'amorcage partait dans le vide et ne laissait aucune ligne de journal.
+    amorcer(&SKILLS_LIVRES, "skills");
+    amorcer(&PLUGINS_LIVRES, "plugins");
+    amorcer(&MCP_LIVRES, "mcp");
+
 
     info!(name = %config.node_name, tier = ?config.tier, "Starting LaRuche node");
 
