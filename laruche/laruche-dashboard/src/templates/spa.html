@@ -204,6 +204,13 @@
         </div>
       </div>
       <div class="chat-main">
+        <!-- Deux onglets discrets: la conversation habituelle, et la table ronde.
+             Discrets a dessein - le chat reste le mode par defaut, la deliberation
+             est un detour qu'on choisit. -->
+        <div class="chat-onglets" id="chatOnglets">
+          <button class="chat-onglet actif" data-vue="chat">Chat</button>
+          <button class="chat-onglet" data-vue="table">Table ronde</button>
+        </div>
         <div class="chat-container" id="chatContainer">
           <div class="welcome" id="welcomeScreen">
             <div class="swarm-wrap" style="transform: scale(0.65); margin: -40px auto -30px;"><canvas class="swarm-canvas"></canvas></div>
@@ -225,6 +232,9 @@
           <span class="chat-ctx-pct" id="chatCtxPct">0%</span>
           <span class="chat-ctx-detail" id="chatCtxDetail">-</span>
         </div>
+        <!-- Table ronde: meme place que le fil de conversation, affichee a la place.
+             La zone de saisie reste commune aux deux vues. -->
+        <div class="table-ronde" id="tableRonde" style="display:none"></div>
         <div class="input-area" id="mainInputArea">
           <button class="tray-toggle-btn" id="trayToggleBtn" onclick="document.getElementById('mainInputArea').classList.toggle('show-tray'); this.classList.toggle('active')" data-i18n-title="shell.tipShowTools" title="Show tools">
             <svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="9 18 15 12 9 6"></polyline></svg>

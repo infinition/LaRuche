@@ -39,6 +39,7 @@
     // Inside the auth callback, and only when signed in: greeting the login screen
     // with a setup checklist would be both useless and a small disclosure.
     if(authenticated && LaRuche.Accueil) LaRuche.Accueil.init();
+    if(LaRuche.TableRonde) LaRuche.TableRonde.init();
 
     // iOS virtual keyboard handler - adjust layout when keyboard opens/closes
     if(window.visualViewport) {

@@ -167,104 +167,156 @@ pub(crate) async fn api_constitution(State(state): State<Arc<AppState>>) -> Json
     }))
 }
 
-/// POST /api/deliberation/run - fait deliberer la table et rend le debat complet.
+/// POST /api/deliberation/run - fait deliberer la table, en FLUX.
 ///
-/// Synchrone pour l'instant: une deliberation dure des minutes, ce qui depasse le
-/// delai d'attente d'un navigateur. L'interface passera par la WebSocket - c'est la
-/// meme mecanique que le chat, et elle permettra d'animer la table au fil des tours
-/// plutot que de faire patienter devant un ecran fige.
+/// NDJSON plutot que WebSocket: la WS du chat est couplee a une session, et une
+/// deliberation n'en est pas une. Un flux de reponse suffit, il donne le temps reel
+/// sans plomberie - et il regle au passage le delai d'attente du navigateur, qui
+/// abandonnait avant la fin d'un debat de plusieurs minutes.
+///
+/// Une ligne JSON par evenement: `debut`, `etape` (qui reflechit maintenant),
+/// `intervention` (des qu'elle arrive), `fin`.
 pub(crate) async fn api_run(
     State(state): State<Arc<AppState>>,
     Json(body): Json<serde_json::Value>,
-) -> Json<serde_json::Value> {
+) -> axum::response::Response {
+    use axum::response::IntoResponse;
+
     let question = body["question"].as_str().unwrap_or("").trim().to_string();
-    if question.is_empty() {
-        return Json(serde_json::json!({ "status": "error", "error": "question vide" }));
-    }
     let mission: delib::Mission = body
         .get("mission")
         .and_then(|m| serde_json::from_value(m.clone()).ok())
         .unwrap_or_default();
+    let tours_max = body["tours_max"].as_u64().unwrap_or(3) as u8;
+    let demandes: Option<Vec<String>> = body["participants"].as_array().map(|a| {
+        a.iter().filter_map(|v| v.as_str().map(str::to_string)).collect()
+    });
 
-    // Les participants demandes, sinon l'equipe par defaut de la mission, filtree par
-    // ce qui est reellement embauche: un specialiste mis en reserve ne doit pas
-    // reapparaitre parce qu'une mission le prevoit.
-    let pool = delib::pool();
-    let embauches: Vec<String> = pool
-        .iter()
-        .filter(|s| s.embauche)
-        .map(|s| s.id.clone())
-        .collect();
-    let demandes: Vec<String> = body["participants"]
-        .as_array()
-        .map(|a| {
-            a.iter()
-                .filter_map(|v| v.as_str().map(str::to_string))
-                .collect()
-        })
-        .unwrap_or_else(|| {
-            mission
-                .equipe_par_defaut()
-                .iter()
-                .map(|s| s.to_string())
-                .collect()
-        });
-    let participants: Vec<String> = demandes
-        .into_iter()
-        .filter(|id| embauches.contains(id))
-        .collect();
+    let (tx, rx) = tokio::sync::mpsc::channel::<Result<String, std::io::Error>>(64);
 
-    let plan = delib::Plan {
-        mission,
-        participants,
-        tours_max: body["tours_max"].as_u64().unwrap_or(3) as u8,
-        raison: body["raison"].as_str().unwrap_or("").to_string(),
-    };
+    tokio::spawn(async move {
+        let envoyer = |v: serde_json::Value| {
+            let tx = tx.clone();
+            async move {
+                let _ = tx.send(Ok(format!("{v}
+"))).await;
+            }
+        };
 
-    let constitution =
-        laruche_essaim::brain::charger_doc_systeme(&state.memoire, "system.constitution")
-            .await
-            .filter(|s| !s.trim().is_empty());
-    let constitution = delib::constitution_effective(constitution.as_deref()).to_string();
+        if question.is_empty() {
+            envoyer(serde_json::json!({ "type": "fin", "erreur": "question vide" })).await;
+            return;
+        }
 
-    let profils = ProfilsNoeud::nouveau(&state).await;
-    let mut d = delib::Deliberation::nouvelle(
-        question,
-        plan,
-        delib::Reglages::default(),
-        pool,
-    );
-    delib::deliberer(&mut d, &AppelNoeud, &profils, &constitution).await;
-
-    // La repartition, jamais un pourcentage: un accord entre modeles mesure la
-    // conformite et serait lu comme une confiance.
-    let repartition: Vec<serde_json::Value> = d
-        .repartition()
-        .into_iter()
-        .map(|(id, accord, confiance)| {
-            serde_json::json!({
-                "specialiste": id,
-                "accord": accord,
-                "symbole": accord.symbole(),
-                "confiance": confiance,
+        let pool = delib::pool();
+        let embauches: Vec<String> =
+            pool.iter().filter(|s| s.embauche).map(|s| s.id.clone()).collect();
+        let participants: Vec<String> = demandes
+            .unwrap_or_else(|| {
+                mission.equipe_par_defaut().iter().map(|s| s.to_string()).collect()
             })
-        })
-        .collect();
+            .into_iter()
+            // Un specialiste mis en reserve ne doit pas reapparaitre parce qu'une
+            // mission le prevoit: l'embauche prime sur le modele de mission.
+            .filter(|id| embauches.contains(id))
+            .collect();
 
-    Json(serde_json::json!({
-        "status": "ok",
-        "question": d.question,
-        "mission": d.plan.mission,
-        "participants": d.plan.participants,
-        "tours": d.tour_courant,
-        "jetons": d.jetons_consommes(),
-        "arret": match d.prochaine_etape() {
-            delib::Etape::Fini(a) => serde_json::to_value(a).unwrap_or(serde_json::Value::Null),
-            _ => serde_json::Value::Null,
-        },
-        "interventions": d.interventions,
-        "repartition": repartition,
-        // Le livrable qui compte: ce sur quoi la table n'est PAS d'accord.
-        "dissidents": d.dissidents(),
-    }))
+        let plan = delib::Plan {
+            mission,
+            participants: participants.clone(),
+            tours_max,
+            raison: String::new(),
+        };
+        let constitution =
+            laruche_essaim::brain::charger_doc_systeme(&state.memoire, "system.constitution")
+                .await
+                .filter(|s| !s.trim().is_empty());
+        let constitution = delib::constitution_effective(constitution.as_deref()).to_string();
+        let profils = ProfilsNoeud::nouveau(&state).await;
+
+        envoyer(serde_json::json!({
+            "type": "debut",
+            "question": question,
+            "mission": mission,
+            "participants": participants,
+        }))
+        .await;
+
+        let mut d = delib::Deliberation::nouvelle(
+            question,
+            plan,
+            delib::Reglages::default(),
+            pool,
+        );
+
+        // On pilote la boucle a la main plutot que d'appeler `deliberer`: c'est ce qui
+        // permet d'annoncer QUI reflechit avant de l'attendre. Sans cet evenement, la
+        // table s'anime en bloc et on ne voit pas la delegation se faire.
+        let mut garde = 0;
+        loop {
+            garde += 1;
+            if garde > 32 {
+                break;
+            }
+            let etape = d.prochaine_etape();
+            let (nom, acteurs) = match &etape {
+                delib::Etape::Solo(v) => ("solo", v.clone()),
+                delib::Etape::Relecture(v) => ("relecture", v.clone()),
+                delib::Etape::Contradiction(i) => ("contradiction", vec![i.clone()]),
+                delib::Etape::Reponse(v) => ("reponse", v.clone()),
+                delib::Etape::Synthese(i) => ("synthese", vec![i.clone()]),
+                delib::Etape::Fini(_) => break,
+            };
+            envoyer(serde_json::json!({
+                "type": "etape", "nom": nom, "acteurs": acteurs, "tour": d.tour_courant + 1,
+            }))
+            .await;
+
+            let lot = delib::executeur::jouer_etape(
+                &d, &etape, &AppelNoeud, &profils, &constitution,
+            )
+            .await;
+            if lot.is_empty() {
+                break;
+            }
+            d.deposer(lot.clone());
+            for iv in &d.interventions[d.interventions.len() - lot.len()..] {
+                envoyer(serde_json::json!({ "type": "intervention", "intervention": iv })).await;
+            }
+        }
+
+        let repartition: Vec<serde_json::Value> = d
+            .repartition()
+            .into_iter()
+            .map(|(id, accord, confiance)| {
+                serde_json::json!({
+                    "specialiste": id, "accord": accord,
+                    "symbole": accord.symbole(), "confiance": confiance,
+                })
+            })
+            .collect();
+        envoyer(serde_json::json!({
+            "type": "fin",
+            "tours": d.tour_courant,
+            "jetons": d.jetons_consommes(),
+            "arret": match d.prochaine_etape() {
+                delib::Etape::Fini(a) => serde_json::to_value(a).unwrap_or(serde_json::Value::Null),
+                _ => serde_json::Value::Null,
+            },
+            "repartition": repartition,
+            "dissidents": d.dissidents(),
+        }))
+        .await;
+    });
+
+    // On transforme le recepteur en flux avec futures_util, deja dependance du
+    // noeud, plutot que d'ajouter tokio-stream pour une seule ligne.
+    let flux = futures_util::stream::unfold(rx, |mut rx| async move {
+        rx.recv().await.map(|v| (v, rx))
+    });
+    (
+        [(axum::http::header::CONTENT_TYPE, "application/x-ndjson")],
+        axum::body::Body::from_stream(flux),
+    )
+        .into_response()
 }

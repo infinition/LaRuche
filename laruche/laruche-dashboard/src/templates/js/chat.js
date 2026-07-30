@@ -863,6 +863,16 @@ LaRuche.Chat = (function(){
   }
 
   async function sendMessage(text) {
+    // Sur l'onglet Table ronde, la meme zone de saisie lance une deliberation. Une
+    // seule barre pour les deux vues: dupliquer la saisie aurait double le code du
+    // micro, des pieces jointes et du glisser-deposer pour rien.
+    if(LaRuche.TableRonde && LaRuche.TableRonde.surTable()){
+      var champ = document.getElementById('userInput');
+      var q = text || (champ ? champ.value : '');
+      if(champ) champ.value = '';
+      LaRuche.TableRonde.lancer(q);
+      return;
+    }
     var msg = (text !== undefined && text !== null) ? text : document.getElementById('userInput').value.trim();
     if((!msg && pendingFiles.length === 0) || !LaRuche.WS.isOpen()) return;
 

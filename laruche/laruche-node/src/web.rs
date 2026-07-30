@@ -51,6 +51,10 @@ const APP_JS: &str = concat!(
     "\n",
     include_str!("../../laruche-dashboard/src/templates/js/watchers-graph.js"),
     "\n",
+    // Apres chat.js: la table ronde partage sa zone de saisie et bascule son
+    // conteneur.
+    include_str!("../../laruche-dashboard/src/templates/js/tableronde.js"),
+    "\n",
     // After settings.js and chat.js: the welcome modal calls into both
     // (Settings.ouvrirSection, Chat.sendMessage) as soon as it is opened.
     include_str!("../../laruche-dashboard/src/templates/js/accueil.js"),

@@ -2600,3 +2600,135 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
   color:var(--amber); border-left:2px solid var(--amber);
   padding-left:8px; line-height:1.45;
 }
+
+/* ── Table ronde ────────────────────────────────────────────────────────────
+   Deux onglets discrets: le chat reste le mode par defaut, la deliberation est
+   un detour qu'on choisit. */
+.chat-onglets { display:flex; gap:2px; padding:6px 12px 0; flex:none; }
+.chat-onglet {
+  background:none; border:none; border-bottom:2px solid transparent;
+  color:var(--text-muted); font-size:12px; font-family:inherit;
+  padding:5px 12px; cursor:pointer; transition:color .15s, border-color .15s;
+}
+.chat-onglet:hover { color:var(--text-dim); }
+.chat-onglet.actif { color:var(--amber); border-bottom-color:var(--amber); }
+
+.table-ronde { flex:1; overflow-y:auto; padding:14px 16px 8px; }
+.tr-barre { display:flex; gap:8px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
+.tr-select {
+  background:var(--bg-input); color:var(--text); border:1px solid var(--border);
+  border-radius:7px; padding:5px 9px; font-size:12px; font-family:inherit;
+}
+.tr-encours { font-size:11px; color:var(--amber); }
+
+/* La table: l'orchestrateur en haut, le cercle au milieu, l'arbitre en bas.
+   La disposition dit qui fait quoi sans avoir a le lire. */
+.tr-table { display:flex; flex-direction:column; align-items:center; gap:10px; margin-bottom:18px; }
+.tr-rang { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+.tr-rang--cercle { max-width:640px; }
+.tr-place {
+  width:96px; padding:8px 6px; border-radius:12px; text-align:center;
+  border:1px solid var(--border); background:rgba(255,255,255,.02);
+  border-top:2px solid var(--tr-couleur); transition:opacity .2s, transform .2s;
+}
+.tr-place--reserve { opacity:.35; }
+/* Pendant la deliberation, la table respire: on sait que quelque chose se passe
+   sans qu'un faux compteur de progression pretende savoir combien de temps. */
+.tr-place--actif { animation:tr-respire 1.8s ease-in-out infinite; }
+@keyframes tr-respire { 0%,100% { opacity:.55; } 50% { opacity:1; } }
+.tr-avatar { font-size:22px; line-height:1.2; }
+.tr-nom { font-size:10.5px; color:var(--text-dim); margin-top:2px;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tr-indics { display:flex; gap:4px; justify-content:center; align-items:center;
+  margin-top:4px; min-height:16px; }
+.tr-ind { font-size:12px; }
+.tr-ind--ok  { color:var(--green); }
+.tr-ind--mid { color:var(--amber); }
+.tr-ind--ko  { color:var(--red); }
+.tr-conf { font-size:9px; color:var(--text-muted); font-family:var(--mono); }
+.tr-bouge { font-size:11px; color:var(--cyan); }
+.tr-vide { font-size:12px; color:var(--text-muted); padding:14px; }
+
+/* Les desaccords AVANT la synthese: c'est ce qu'une table ronde produit et
+   qu'un modele seul ne donne jamais. */
+.tr-bloc { margin-bottom:14px; padding:10px 12px; border-radius:10px;
+  background:rgba(255,255,255,.02); border:1px solid var(--border); }
+.tr-bloc--desaccord { border-left:3px solid var(--red); }
+.tr-bloc--accord    { border-left:3px solid var(--green); }
+.tr-bloc-titre { font-size:12px; font-weight:600; color:var(--amber); margin-bottom:6px; }
+.tr-dissident { font-size:12px; line-height:1.5; margin-bottom:6px; color:var(--text-dim); }
+.tr-note { font-size:10.5px; color:var(--text-muted); }
+.tr-bilan { display:flex; gap:14px; flex-wrap:wrap; font-size:11px;
+  color:var(--text-dim); margin-bottom:14px; }
+
+.tr-tour { margin-bottom:6px; }
+.tr-tour summary { cursor:pointer; font-size:11.5px; color:var(--text-dim); padding:3px 0; }
+.tr-inter { border-left:2px solid var(--tr-couleur); padding:5px 0 5px 9px; margin:6px 0; }
+.tr-inter-tete { font-size:11.5px; display:flex; gap:7px; align-items:center; }
+.tr-change { font-size:10.5px; color:var(--cyan); margin-top:2px; }
+.tr-position { font-size:12px; line-height:1.55; color:var(--text-dim);
+  margin-top:3px; white-space:pre-wrap; overflow-wrap:anywhere; }
+
+/* Gestion de l'equipe */
+.tr-pool { width:min(680px,100%); }
+.tr-pool-liste { display:flex; flex-direction:column; gap:5px; margin-top:8px; }
+.tr-pool-ligne { display:flex; gap:6px; align-items:center; }
+.tr-pool-ligne input[type=text] {
+  background:#16161a; border:1px solid var(--border); border-radius:6px;
+  color:var(--text); font-size:12px; padding:5px 7px; font-family:inherit;
+}
+.tr-av   { width:44px; text-align:center; }
+.tr-nom-in { flex:1; min-width:80px; }
+.tr-prof { width:130px; font-family:var(--mono); font-size:11px; }
+@media (max-width:560px){
+  .tr-pool-ligne { flex-wrap:wrap; }
+  .tr-prof { width:100%; }
+  .tr-place { width:78px; }
+}
+
+/* La question reste a l'ecran pendant tout le debat: elle disparaissait a
+   l'envoi, et on voyait la table s'agiter sans plus savoir sur quoi. */
+.tr-question {
+  font-size:12.5px; line-height:1.5; color:var(--text);
+  padding:8px 12px; margin-bottom:10px; border-radius:9px;
+  background:rgba(245,158,11,.07); border-left:3px solid var(--amber);
+}
+.tr-question-eti { font-size:9.5px; color:var(--amber); display:block; margin-bottom:2px;
+  text-transform:uppercase; letter-spacing:.06em; }
+/* L'etape en cours, nommee. « Le contradicteur attaque » dit ce qui se passe;
+   un simple sablier ne dit rien. */
+.tr-etape { font-size:11.5px; color:var(--cyan); margin-bottom:10px; }
+.tr-etape::before { content:'▸ '; }
+/* Une intervention qui vient d'arriver se signale, puis se calme. */
+.tr-inter--neuf { animation:tr-arrive .45s ease-out; }
+@keyframes tr-arrive {
+  from { opacity:0; transform:translateY(-6px); }
+  to   { opacity:1; transform:none; }
+}
+
+/* Gestion de l'equipe: une ligne par specialiste, sa strategie repliee dessous. */
+.tr-av-btn {
+  width:34px; height:30px; padding:0; border-radius:6px; cursor:pointer;
+  background:#16161a; border:1px solid var(--border); color:var(--text);
+  font-size:16px; line-height:1; display:flex; align-items:center; justify-content:center;
+}
+.tr-av-btn:hover { border-color:var(--amber); }
+.tr-av-img { width:24px; height:24px; border-radius:50%; object-fit:cover; }
+.tr-place .tr-av-img { width:26px; height:26px; }
+.tr-role {
+  background:#16161a; border:1px solid var(--border); border-radius:6px;
+  color:var(--text-dim); font-size:11px; padding:5px 4px; font-family:inherit;
+}
+.tr-strat-btn, .tr-sup-btn {
+  width:28px; height:30px; padding:0; border-radius:6px; cursor:pointer;
+  background:none; border:1px solid var(--border); color:var(--text-muted); font-size:12px;
+}
+.tr-strat-btn:hover { border-color:var(--amber); color:var(--amber); }
+.tr-sup-btn:hover { border-color:var(--red); color:var(--red); }
+.tr-strat {
+  flex-basis:100%; margin-top:6px; padding:8px 10px; border-radius:7px;
+  background:#121216; border:1px solid var(--border); color:var(--text);
+  font-size:11.5px; line-height:1.5; font-family:inherit; resize:vertical;
+}
+.tr-strat:focus { outline:none; border-color:var(--amber); }
+.tr-pool-liste { max-height:52vh; overflow-y:auto; }
