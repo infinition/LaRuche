@@ -5,15 +5,35 @@
 
 use crate::*;
 
-const MDNS_REANNOUNCE_INTERVAL_SECS: u64 = 2;
+/// Cadence de rafraichissement des metriques locales (CPU, VRAM, file d'attente).
+///
+/// Rien a voir avec le mDNS, malgre le nom que portait cette constante. Elle
+/// s'appelait `MDNS_REANNOUNCE_INTERVAL_SECS` alors qu'elle pilotait cette boucle-ci,
+/// pendant que la vraie reannonce codait 30 en dur ailleurs. Le nom seul a suffi a
+/// masquer une double annonce pendant longtemps.
+const METRICS_REFRESH_INTERVAL_SECS: u64 = 2;
 
-// Background: refresh real metrics + re-announce mDNS + periodic save
+/// Cadence de reannonce mDNS. Confortablement sous `PEER_STALE_SECS` (90 s), pour
+/// qu'un pair ne soit jamais evince entre deux annonces.
+const MDNS_REANNOUNCE_INTERVAL_SECS: u64 = 30;
+
+// Background: refresh real metrics + periodic save.
+//
+// N'annonce PLUS sur le mDNS. Cette boucle appelait `broadcaster.update()` toutes les
+// deux secondes avec le manifeste BRUT, tandis que `spawn_mdns_reannounce` annonce
+// toutes les 30 s une version filtree qui n'expose que les profils explicitement
+// publics. Les deux tournaient, donc le contenu annonce alternait: les modeles
+// apparaissaient et disparaissaient au rythme des deux boucles, et les backends
+// locaux que la version filtree masque volontairement etaient reannonces malgre tout
+// toutes les deux secondes.
 pub(crate) fn spawn_metrics_refresh(state: &Arc<AppState>, broadcaster: &Arc<MielBroadcaster>) {
     let update_state = state.clone();
-    let bg_broadcaster = broadcaster.clone();
+    // Conserve pour la reannonce IMMEDIATE lors d'un changement (voir plus bas): un
+    // modele qu'on vient de rendre public doit apparaitre tout de suite, pas dans 30 s.
+    let _ = broadcaster;
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(
-            MDNS_REANNOUNCE_INTERVAL_SECS,
+            METRICS_REFRESH_INTERVAL_SECS,
         ));
         let start_time = std::time::Instant::now();
         let mut tick_count: u64 = 0;
@@ -64,10 +84,9 @@ pub(crate) fn spawn_metrics_refresh(state: &Arc<AppState>, broadcaster: &Arc<Mie
                     }
                 }
 
-                // Re-announce via mDNS so listeners refresh last_seen
-                if let Err(e) = bg_broadcaster.update(&manifest) {
-                    tracing::warn!("mDNS re-announce failed: {}", e);
-                }
+                // Pas de reannonce ici: une seule boucle annonce, et c'est celle qui
+                // filtre. `last_seen` des pairs est rafraichi par ses 30 s, largement
+                // sous le seuil d'eviction de 90 s.
             }
 
             // Collect metrics snapshot every 5 ticks (10 seconds)
@@ -864,9 +883,16 @@ pub(crate) fn spawn_mdns_reannounce(state: &Arc<AppState>, broadcaster: &Arc<Mie
     let mdns_broadcaster = broadcaster.clone();
     let mdns_state = state.clone();
     tokio::spawn(async move {
-        // Re-announce every 30s (< PEER_STALE_SECS=90) → stable presence, no more flapping.
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(30));
-        interval.tick().await; // skip the immediate tick
+        // SEULE boucle d'annonce du noeud. Sous PEER_STALE_SECS (90 s), donc un pair
+        // n'est jamais evince entre deux annonces, et assez espacee pour ne pas
+        // inonder le reseau: la version precedente annoncait toutes les 2 s.
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(
+            MDNS_REANNOUNCE_INTERVAL_SECS,
+        ));
+        // On NE saute PAS le premier tick. `register()` au demarrage annonce le
+        // manifeste brut, capacites comprises; il faut que la version filtree le
+        // remplace tout de suite, sinon les backends locaux restent exposes pendant
+        // les 30 premieres secondes de chaque demarrage.
         loop {
             interval.tick().await;
             let mut manifest = mdns_state.manifest.read().await.clone();

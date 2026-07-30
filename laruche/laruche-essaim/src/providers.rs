@@ -365,6 +365,11 @@ pub async fn provider_chat_stream_effort(
     // If it does not answer, the call falls back to the LOCAL provider rather than
     // failing: a peer is a machine that can be asleep, unplugged or rebooting, and a
     // scheduled task must not die because the box next door went off.
+    //
+    // Mais le repli est ANNONCE. Il etait muet: un `warn!` dans le journal, et la
+    // reponse arrivait comme si le pair avait repondu. Substituer un modele en silence
+    // est pire qu'un echec, parce que la reponse est alors attribuee au mauvais modele -
+    // « je selectionne le modele du voisin, il ne se passe rien » venait de la.
     if let Some(reste) = provider.strip_prefix("peer:") {
         let base = format!("http://{reste}/v1");
         match openai_chat_stream(
@@ -375,7 +380,31 @@ pub async fn provider_chat_stream_effort(
             Ok(flux) => return Ok(flux),
             Err(e) => {
                 tracing::warn!(peer = reste, error = %e, "swarm peer unreachable, falling back to local");
-                return ollama_chat_stream(ollama_url, model, messages, temperature, max_tokens, tools).await;
+                let repli =
+                    ollama_chat_stream(ollama_url, model, messages, temperature, max_tokens, tools)
+                        .await?;
+                // La cause la plus courante, de loin: la ruche visee s'annonce sur le
+                // reseau mais n'ecoute que sur 127.0.0.1. On nomme le remede tout de
+                // suite plutot que de laisser chercher.
+                let avis = OllamaChunk {
+                    text: format!(
+                        "> La ruche `{reste}` n'a pas repondu ({e}). Reponse produite en local.\n\
+                         > Si elle est allumee, elle doit etre demarree avec `LARUCHE_BIND_LAN=1` \
+                         pour accepter les connexions du reseau.\n\n"
+                    ),
+                    done: false,
+                    finish_reason: None,
+                    eval_count: None,
+                    eval_duration: None,
+                    prompt_eval_count: None,
+                    tool_calls: None,
+                };
+                // Forme qualifiee: `StreamExt` n'est pas importe ici, et l'importer
+                // entrerait en conflit avec celui de tokio_stream deja utilise.
+                return Ok(Box::pin(futures_util::StreamExt::chain(
+                    futures_util::stream::once(async move { avis }),
+                    repli,
+                )));
             }
         }
     }
