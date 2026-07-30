@@ -211,8 +211,14 @@ LaRuche.TableRonde = (function(){
     if(!el) return;
     var m = missions.map(function(mi){
       return '<option value="'+esc(mi.id)+'"'+(mi.id===missionActive?' selected':'')+'>'+
-             esc(mi.nom)+' · '+esc(mi.acces)+'</option>';
+             esc(mi.nom)+' · '+esc(mi.livrable||mi.acces)+'</option>';
     }).join('');
+    // Tant qu'aucun outil n'est ouvert, on le DIT. Annoncer « ecriture de fichiers »
+    // a quelqu'un qui demande de creer un site sur son bureau est un mensonge par
+    // omission - et il s'en apercoit seulement apres avoir paye le debat.
+    var miss = null;
+    missions.forEach(function(mi){ if(mi.id===missionActive) miss = mi; });
+    var sansOutils = miss && miss.outils === false && missionActive !== 'reponse';
     var etapes = {solo:'tr.etapeSolo', relecture:'tr.etapeRelecture',
                   contradiction:'tr.etapeContradiction', reponse:'tr.etapeReponse',
                   synthese:'tr.etapeSynthese'};
@@ -222,6 +228,7 @@ LaRuche.TableRonde = (function(){
         '<button class="tl-btn" id="trGerer">'+LaRuche.i18n.t('tr.gerer')+'</button>'+
         (enCours ? '<span class="tr-encours">'+LaRuche.i18n.t('tr.encours')+'</span>' : '')+
       '</div>'+
+      (sansOutils ? '<div class="tr-avertit">'+LaRuche.i18n.t('tr.sansOutils')+'</div>' : '')+
       // La question reste a l'ecran. Elle disparaissait a l'envoi: on voyait la
       // table s'agiter sans plus savoir sur quoi.
       (question ? '<div class="tr-question"><span class="tr-question-eti">'+
@@ -538,6 +545,8 @@ LaRuche.i18n.add({
   'tr.profilDefaut':  { fr:'profil actif', en:'active profile' },
   'tr.question':      { fr:'Question', en:'Question' },
   'tr.verdict':       { fr:'Réponse finale', en:'Final answer' },
+  'tr.sansOutils':    { fr:"Aucun outil n'est encore ouvert : les spécialistes raisonnent et rendent du texte. Ils n'écrivent aucun fichier et ne consultent aucune page.",
+                        en:'No tools are wired yet: the specialists reason and return text. They write no files and browse nothing.' },
   'tr.aucunTour':     { fr:'Aucun tour de table.', en:'No round table yet.' },
   'tr.toursCourt':    { fr:'tours', en:'rounds' },
   'tr.dissidentsCourt':{ fr:'dissident(s)', en:'dissenter(s)' },

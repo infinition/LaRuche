@@ -2765,3 +2765,23 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 .tr-nouveau-btn:hover { border-color:var(--amber); background:rgba(245,158,11,.05); }
 .tr-tour-item { display:flex; flex-direction:column; gap:1px; cursor:pointer; }
 .tr-tour-q { font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Avertissement honnete quand une mission promet plus que ce qui existe. */
+.tr-avertit {
+  font-size:11.5px; line-height:1.5; color:var(--amber);
+  border:1px solid var(--amber); border-radius:8px;
+  padding:7px 10px; margin-bottom:12px; background:rgba(245,158,11,.06);
+}
+/* La table reste visible pendant qu'on lit: elle sert de reperage permanent, et
+   remonter la chercher a chaque tour rendait le suivi penible. */
+.tr-table {
+  position:sticky; top:0; z-index:2; padding:6px 0 10px;
+  background:var(--bg); border-bottom:1px solid var(--border);
+}
+@media (max-width:640px){
+  /* Sur telephone la table prend trop de hauteur en collant: elle defile avec le
+     reste plutot que de manger la moitie de l'ecran. */
+  .tr-table { position:static; border-bottom:none; }
+  .tr-place { width:70px; padding:6px 4px; }
+  .tr-avatar { font-size:18px; }
+}

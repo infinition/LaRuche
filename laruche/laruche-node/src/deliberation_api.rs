@@ -135,10 +135,14 @@ pub(crate) async fn api_pool() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "specialistes": delib::pool(),
         "missions": [
-            { "id": "reponse", "nom": "Répondre", "acces": delib::Mission::Reponse.acces() },
-            { "id": "code", "nom": "Coder", "acces": delib::Mission::Code.acces() },
-            { "id": "recherche", "nom": "Chercher", "acces": delib::Mission::Recherche.acces() },
-            { "id": "experimentation", "nom": "Expérimenter", "acces": delib::Mission::Experimentation.acces() },
+            { "id": "reponse", "nom": "Répondre", "acces": delib::Mission::Reponse.acces(),
+              "livrable": delib::Mission::Reponse.livrable(), "outils": delib::Mission::Reponse.outils_disponibles() },
+            { "id": "code", "nom": "Coder", "acces": delib::Mission::Code.acces(),
+              "livrable": delib::Mission::Code.livrable(), "outils": delib::Mission::Code.outils_disponibles() },
+            { "id": "recherche", "nom": "Chercher", "acces": delib::Mission::Recherche.acces(),
+              "livrable": delib::Mission::Recherche.livrable(), "outils": delib::Mission::Recherche.outils_disponibles() },
+            { "id": "experimentation", "nom": "Expérimenter", "acces": delib::Mission::Experimentation.acces(),
+              "livrable": delib::Mission::Experimentation.livrable(), "outils": delib::Mission::Experimentation.outils_disponibles() },
         ],
     }))
 }
@@ -211,13 +215,31 @@ pub(crate) async fn api_run(
         let pool = delib::pool();
         let embauches: Vec<String> =
             pool.iter().filter(|s| s.embauche).map(|s| s.id.clone()).collect();
+        // Les EMBAUCHES d'abord. L'equipe par defaut de la mission n'est qu'un repli
+        // pour une installation ou personne n'a encore choisi: elle prenait le pas sur
+        // les embauches, si bien qu'embaucher l'ingenieur et l'attaquant ne changeait
+        // rien - seuls le scientifique et le contradicteur parlaient.
+        //
+        // L'orchestrateur et l'arbitre sont structurels: le premier ne debat pas, le
+        // second conclut. Ils ne comptent pas comme participants.
+        let a_la_table: Vec<String> = pool
+            .iter()
+            .filter(|s| {
+                s.embauche
+                    && s.role != delib::Role::Orchestrateur
+                    && s.role != delib::Role::Arbitre
+            })
+            .map(|s| s.id.clone())
+            .collect();
         let participants: Vec<String> = demandes
             .unwrap_or_else(|| {
-                mission.equipe_par_defaut().iter().map(|s| s.to_string()).collect()
+                if a_la_table.is_empty() {
+                    mission.equipe_par_defaut().iter().map(|s| s.to_string()).collect()
+                } else {
+                    a_la_table.clone()
+                }
             })
             .into_iter()
-            // Un specialiste mis en reserve ne doit pas reapparaitre parce qu'une
-            // mission le prevoit: l'embauche prime sur le modele de mission.
             .filter(|id| embauches.contains(id))
             .collect();
 

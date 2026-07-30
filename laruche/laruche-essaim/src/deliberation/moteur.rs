@@ -58,6 +58,27 @@ impl Mission {
             Mission::Experimentation => "execution de code",
         }
     }
+
+    /// Les outils sont-ils REELLEMENT ouverts pour cette mission ?
+    ///
+    /// Aujourd'hui: non, pour aucune. Les specialistes raisonnent et rendent du texte;
+    /// ils n'ecrivent aucun fichier et ne consultent aucune page. `acces()` decrit ce
+    /// que la mission exigera, pas ce dont elle dispose - et annoncer « ecriture de
+    /// fichiers » a quelqu'un qui demande de creer un site sur son bureau est un
+    /// mensonge par omission. L'interface doit donc le dire.
+    pub fn outils_disponibles(&self) -> bool {
+        false
+    }
+
+    /// Ce que la mission produit vraiment, aujourd'hui.
+    pub fn livrable(&self) -> &'static str {
+        match self {
+            Mission::Reponse => "une reponse et ses desaccords",
+            Mission::Code => "un plan et du code A COPIER (aucun fichier ecrit)",
+            Mission::Recherche => "un plan de recherche (aucune source consultee)",
+            Mission::Experimentation => "un protocole (aucun code execute)",
+        }
+    }
 }
 
 /// Ce que l'orchestrateur decide avant que le debat commence.
@@ -96,7 +117,10 @@ impl Default for Reglages {
             // vrai debat sans qu'une question distraite coute le prix d'une soiree.
             jetons_max: 30_000,
             tours_max: 4,
-            participants_max: 5,
+            // Sept specialistes livres, moins l'orchestrateur et l'arbitre: on plafonne
+            // au-dessus de ce que le catalogue permet, pour qu'embaucher tout le monde
+            // fonctionne. Le plafond reste la comme garde-fou contre une liste absurde.
+            participants_max: 8,
         }
     }
 }

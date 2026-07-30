@@ -141,7 +141,7 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         .route("/api/deliberation/constitution", get(deliberation_api::api_constitution))
         .route("/api/deliberation/run", post(deliberation_api::api_run))
         .route("/api/deliberation/tours", get(deliberation_api::api_tours))
-        .route("/api/deliberation/tour/{id}", get(deliberation_api::api_tour).delete(deliberation_api::api_tour_supprimer))
+        .route("/api/deliberation/tour/:id", get(deliberation_api::api_tour).delete(deliberation_api::api_tour_supprimer))
         .route("/api/mesh/whoami", get(mesh_api::api_mesh_whoami))
         .route("/api/mesh/identity", get(mesh_api::api_mesh_identity))
         .route("/api/mesh/code", get(mesh_api::api_mesh_code_get).post(mesh_api::api_mesh_code_set))
