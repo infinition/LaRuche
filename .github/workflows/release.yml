@@ -55,15 +55,21 @@ jobs:
         with:
           workspaces: laruche
 
-      # reqwest builds against the system OpenSSL on Linux.
+      # reqwest builds against the system OpenSSL; laruche-bureau contre la webview.
       - name: Linux build deps
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y pkg-config libssl-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev libwebkit2gtk-4.1-dev \
+            libglib2.0-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
 
       - name: Build
-        run: cargo build --release --target ${{ matrix.target }} -p laruche-node -p laruche-cli
+        run: cargo build --release --target ${{ matrix.target }} -p laruche-node -p laruche-cli -p laruche-bureau
 
-      # Ships both binaries: the node (server + web UI) and the CLI/TUI.
+      # Les TROIS binaires: le noeud (serveur + interface web), le CLI/TUI, et la coque
+      # de bureau. Elle manquait: quelqu'un qui telechargeait l'archive obtenait la
+      # ruche et le terminal, mais pas la fenetre - alors que c'est le seul des trois
+      # qu'on lance en double-cliquant.
       - name: Package (tar.gz)
         if: matrix.archive == 'tar.gz'
         run: |
@@ -71,6 +77,7 @@ jobs:
           mkdir -p "$staging"
           cp "target/${{ matrix.target }}/release/laruche-node" "$staging/"
           cp "target/${{ matrix.target }}/release/laruche" "$staging/"
+          cp "target/${{ matrix.target }}/release/laruche-bureau" "$staging/"
           cp ../README.md ../LICENSE "$staging/"
           tar -czf "$staging.tar.gz" "$staging"
 
@@ -82,6 +89,7 @@ jobs:
           New-Item -ItemType Directory -Force $staging | Out-Null
           Copy-Item "target/${{ matrix.target }}/release/laruche-node.exe" $staging
           Copy-Item "target/${{ matrix.target }}/release/laruche.exe" $staging
+          Copy-Item "target/${{ matrix.target }}/release/laruche-bureau.exe" $staging
           Copy-Item ../README.md, ../LICENSE $staging
           Compress-Archive -Path $staging -DestinationPath "$staging.zip"
 
@@ -154,14 +162,49 @@ jobs:
         working-directory: laruche/laruche-bureau
         run: cargo tauri build --config tauri.client.conf.json
 
+      # Mise a plat AVANT le televersement. Avec plusieurs chemins, upload-artifact
+      # conserve l'arborescence sous leur plus petit ancetre commun: les installeurs
+      # arrivaient donc dans dist/nsis/, dist/msi/... et le `files: dist/*` du job
+      # release n'y voyait que des dossiers, qu'il ignore. Quatre installeurs
+      # construits, zero attache a la release.
+      #
+      # Les noms sont aussi normalises: Tauri produit « LaRuche Client_0.2.0_x64-setup.exe »,
+      # avec une espace et un numero de version. Or les assets sont sans version par
+      # convention ici, pour que les liens /releases/latest/download/<nom> continuent
+      # de marcher d'une version a l'autre.
+      - name: Stage installers
+        shell: bash
+        run: |
+          set -eu
+          mkdir -p dist-bureau
+          B=laruche/target/release/bundle
+          copier() {  # $1 = motif, $2 = nom de sortie
+            f=$(ls $1 2>/dev/null | head -1) || true
+            if [ -n "${f:-}" ]; then
+              cp "$f" "dist-bureau/$2"
+              echo "  $2  <-  $(basename "$f")"
+            fi
+          }
+          L='${{ matrix.label }}'
+          # « Client » dans le nom distingue la variante sans noeud de la complete.
+          copier "$B/nsis/LaRuche_*-setup.exe"          "laruche-bureau-$L-setup.exe"
+          copier "$B/nsis/LaRuche?Client_*-setup.exe"   "laruche-client-$L-setup.exe"
+          copier "$B/msi/LaRuche_*.msi"                 "laruche-bureau-$L.msi"
+          copier "$B/msi/LaRuche?Client_*.msi"          "laruche-client-$L.msi"
+          copier "$B/appimage/LaRuche_*.AppImage"       "laruche-bureau-$L.AppImage"
+          copier "$B/appimage/LaRuche?Client_*.AppImage" "laruche-client-$L.AppImage"
+          copier "$B/deb/LaRuche_*.deb"                 "laruche-bureau-$L.deb"
+          copier "$B/deb/LaRuche?Client_*.deb"          "laruche-client-$L.deb"
+          echo "--- a televerser ---"
+          ls -lh dist-bureau
+          # Un dossier vide voudrait dire que les motifs ne correspondent plus a ce que
+          # Tauri produit: on echoue ici plutot que de publier une release amputee.
+          [ -n "$(ls -A dist-bureau)" ] || { echo "aucun installeur trouve"; exit 1; }
+
       - uses: actions/upload-artifact@v4
         with:
           name: laruche-bureau-${{ matrix.label }}
-          path: |
-            laruche/target/release/bundle/nsis/*.exe
-            laruche/target/release/bundle/msi/*.msi
-            laruche/target/release/bundle/appimage/*.AppImage
-            laruche/target/release/bundle/deb/*.deb
+          path: dist-bureau/*
           if-no-files-found: error
 
   release:
@@ -174,10 +217,19 @@ jobs:
           merge-multiple: true
 
       - name: List assets
-        run: ls -lh dist
+        run: |
+          ls -lhR dist
+          # Filet: on compte les fichiers attendus AVANT de creer la release. Un job
+          # amont qui reussit sans rien produire d'utile est deja arrive, et la release
+          # etait sortie avec quatre assets sur huit sans que rien ne le signale.
+          n=$(find dist -type f | wc -l)
+          echo "fichiers a attacher: $n"
+          [ "$n" -ge 8 ] || { echo "trop peu d'assets: attendu au moins 8"; exit 1; }
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          # `dist/**/*` et non `dist/*`: un asset depose dans un sous-dossier par un
+          # job amont serait sinon ignore en silence.
+          files: dist/**/*
           draft: true
           generate_release_notes: true
