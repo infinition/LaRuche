@@ -59,24 +59,22 @@ impl Mission {
         }
     }
 
-    /// Les outils sont-ils REELLEMENT ouverts pour cette mission ?
+    /// Les outils sont-ils ouverts pour cette mission ?
     ///
-    /// Aujourd'hui: non, pour aucune. Les specialistes raisonnent et rendent du texte;
-    /// ils n'ecrivent aucun fichier et ne consultent aucune page. `acces()` decrit ce
-    /// que la mission exigera, pas ce dont elle dispose - et annoncer « ecriture de
-    /// fichiers » a quelqu'un qui demande de creer un site sur son bureau est un
-    /// mensonge par omission. L'interface doit donc le dire.
+    /// Oui desormais, pour toutes: la liste blanche de [`super::outils::permis`] decide
+    /// jusqu'ou. La methode reste, parce que la reponse pourrait redevenir non - un
+    /// registre vide, une ruche verrouillee - et que l'interface doit pouvoir le dire.
     pub fn outils_disponibles(&self) -> bool {
-        false
+        !super::outils::permis(*self).is_empty()
     }
 
-    /// Ce que la mission produit vraiment, aujourd'hui.
+    /// Ce que la mission produit vraiment.
     pub fn livrable(&self) -> &'static str {
         match self {
             Mission::Reponse => "une reponse et ses desaccords",
-            Mission::Code => "un plan et du code A COPIER (aucun fichier ecrit)",
-            Mission::Recherche => "un plan de recherche (aucune source consultee)",
-            Mission::Experimentation => "un protocole (aucun code execute)",
+            Mission::Code => "un plan, du code, et les fichiers ecrits",
+            Mission::Recherche => "un rapport et ses sources",
+            Mission::Experimentation => "un resultat, code execute",
         }
     }
 }

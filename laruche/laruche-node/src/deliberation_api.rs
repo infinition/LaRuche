@@ -80,8 +80,63 @@ impl delib::Profils for ProfilsNoeud {
     }
 }
 
-/// Appelle un modele et rend son texte avec le cout.
-pub(crate) struct AppelNoeud;
+/// Appelle un modele, execute ses outils, et rend son texte avec le cout.
+///
+/// La boucle d'outils est ICI et non dans l'executeur: `laruche-essaim` ne connait pas
+/// le registre du noeud, et l'executeur doit rester testable sans reseau ni outils.
+pub(crate) struct AppelNoeud {
+    /// Le registre du noeud. Absent = aucun outil, comportement d'avant.
+    pub registre: Option<Arc<laruche_essaim::AbeilleRegistry>>,
+    /// La liste BLANCHE de la mission. Rien d'autre ne sera execute, meme si le
+    /// modele le demande - et il le demandera, puisqu'il connait les autres outils.
+    pub permis: Vec<String>,
+    /// Schemas complets, filtres pour le prompt.
+    pub schemas: serde_json::Value,
+    /// Canal pour annoncer les appels d'outils au fil de l'eau. L'utilisateur doit
+    /// voir ce que la table FAIT, pas seulement ce qu'elle dit.
+    pub trace: Option<tokio::sync::mpsc::Sender<serde_json::Value>>,
+}
+
+impl AppelNoeud {
+    async fn annoncer(&self, v: serde_json::Value) {
+        if let Some(t) = &self.trace {
+            let _ = t.send(v).await;
+        }
+    }
+
+    /// Un aller-retour avec le modele.
+    async fn tour_modele(
+        &self,
+        creds: &delib::Creds,
+        messages: &[serde_json::Value],
+    ) -> anyhow::Result<(String, u32)> {
+        let mut flux = laruche_essaim::providers::provider_chat_stream(
+            &creds.provider,
+            &creds.model,
+            messages,
+            0.6,
+            2048,
+            &creds.api_key,
+            creds.api_base.as_deref(),
+            &creds.ollama_url,
+            None,
+        )
+        .await?;
+        use futures_util::StreamExt;
+        let mut texte = String::new();
+        let mut jetons = 0u32;
+        while let Some(chunk) = flux.next().await {
+            texte.push_str(&chunk.text);
+            if let Some(n) = chunk.eval_count {
+                jetons += n as u32;
+            }
+            if let Some(n) = chunk.prompt_eval_count {
+                jetons += n as u32;
+            }
+        }
+        Ok((texte, jetons))
+    }
+}
 
 #[async_trait::async_trait]
 impl delib::Appel for AppelNoeud {
@@ -91,42 +146,80 @@ impl delib::Appel for AppelNoeud {
         systeme: &str,
         utilisateur: &str,
     ) -> anyhow::Result<(String, u32)> {
-        let messages = vec![
-            serde_json::json!({ "role": "system", "content": systeme }),
+        // La consigne d'outillage s'ajoute au prompt systeme: c'est la partie stable,
+        // identique pour tous les specialistes d'une meme mission.
+        let systeme_complet = format!(
+            "{systeme}{}",
+            delib::outils::consigne_outils(&self.permis, &self.schemas)
+        );
+        let mut messages = vec![
+            serde_json::json!({ "role": "system", "content": systeme_complet }),
             serde_json::json!({ "role": "user", "content": utilisateur }),
         ];
-        let mut flux = laruche_essaim::providers::provider_chat_stream(
-            &creds.provider,
-            &creds.model,
-            &messages,
-            0.6,
-            2048,
-            &creds.api_key,
-            creds.api_base.as_deref(),
-            &creds.ollama_url,
-            None,
-        )
-        .await?;
 
-        use futures_util::StreamExt;
+        let mut jetons_total = 0u32;
         let mut texte = String::new();
-        let mut jetons = 0u32;
-        while let Some(chunk) = flux.next().await {
-            texte.push_str(&chunk.text);
-            // Le decompte arrive sur le dernier morceau. A defaut, on estime: sans
-            // estimation, un fournisseur muet sur ses jetons rendrait le plafond
-            // inoperant, ce qui est exactement le cas ou il sert.
-            if let Some(n) = chunk.eval_count {
-                jetons += n as u32;
+
+        // Une passe de plus que d'outils autorises: la derniere sert a rediger la
+        // reponse une fois les resultats connus.
+        for passe in 0..=delib::outils::OUTILS_PAR_TOUR {
+            let (brut, jetons) = self.tour_modele(creds, &messages).await?;
+            jetons_total += jetons;
+            texte = brut.clone();
+
+            let appels = delib::outils::extraire_appels(&brut);
+            let Some(registre) = self.registre.as_ref() else { break };
+            if appels.is_empty() || passe == delib::outils::OUTILS_PAR_TOUR {
+                break;
             }
-            if let Some(n) = chunk.prompt_eval_count {
-                jetons += n as u32;
+
+            let mut observations = String::new();
+            for (nom, args) in appels.into_iter().take(delib::outils::OUTILS_PAR_TOUR) {
+                // La liste blanche tranche AVANT le registre. Le modele connait les
+                // autres outils par son entrainement et en demandera; un refus clair
+                // vaut mieux qu'une execution que personne n'a voulue.
+                if !self.permis.iter().any(|p| p == &nom) {
+                    observations.push_str(&format!(
+                        "\n<observation tool=\"{nom}\"> Outil non autorise pour cette mission.</observation>"
+                    ));
+                    self.annoncer(serde_json::json!({
+                        "type": "outil", "nom": nom, "refuse": true,
+                    }))
+                    .await;
+                    continue;
+                }
+                self.annoncer(serde_json::json!({ "type": "outil", "nom": nom, "args": args }))
+                    .await;
+                let ctx = laruche_essaim::abeille::ContextExecution::default();
+                let sortie = match registre.executer(&nom, args, &ctx).await {
+                    Ok(res) => res.output,
+                    Err(e) => format!("erreur: {e}"),
+                };
+                // Sortie bornee: un fichier de dix mille lignes rendu tel quel
+                // s'ajouterait au contexte de TOUS les tours suivants.
+                let court: String = sortie.chars().take(4000).collect();
+                self.annoncer(serde_json::json!({
+                    "type": "outil_resultat", "nom": nom,
+                    "apercu": court.chars().take(200).collect::<String>(),
+                }))
+                .await;
+                observations.push_str(&format!("\n<observation tool=\"{nom}\">{court}</observation>"));
             }
+
+            messages.push(serde_json::json!({ "role": "assistant", "content": brut }));
+            messages.push(serde_json::json!({
+                "role": "user",
+                "content": format!(
+                    "Resultats:{observations}\n\nContinue, ou rends ta reponse au format demande."
+                ),
+            }));
         }
-        if jetons == 0 {
-            jetons = ((systeme.len() + utilisateur.len() + texte.len()) / 4) as u32;
+
+        if jetons_total == 0 {
+            jetons_total = ((systeme.len() + utilisateur.len() + texte.len()) / 4) as u32;
         }
-        Ok((texte, jetons))
+        // Les blocs d'appel ne doivent pas se retrouver dans la position affichee.
+        Ok((delib::outils::nettoyer(&texte), jetons_total))
     }
 }
 
@@ -198,6 +291,20 @@ pub(crate) async fn api_run(
 
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<String, std::io::Error>>(64);
 
+    // Second canal, pour les appels d'outils: ils surviennent PENDANT qu'un
+    // specialiste reflechit, donc en dehors du rythme des etapes. On les reverse dans
+    // le meme flux pour que l'interface voie la table agir, pas seulement parler.
+    let (tx_outils, mut rx_outils) = tokio::sync::mpsc::channel::<serde_json::Value>(64);
+    {
+        let tx = tx.clone();
+        tokio::spawn(async move {
+            while let Some(v) = rx_outils.recv().await {
+                let _ = tx.send(Ok(format!("{v}
+"))).await;
+            }
+        });
+    }
+
     tokio::spawn(async move {
         let envoyer = |v: serde_json::Value| {
             let tx = tx.clone();
@@ -256,6 +363,17 @@ pub(crate) async fn api_run(
         let constitution = delib::constitution_effective(constitution.as_deref()).to_string();
         let profils = ProfilsNoeud::nouveau(&state).await;
 
+        // Les outils de la mission, et RIEN d'autre. La liste blanche est calculee ici
+        // une fois: la recalculer par appel laisserait la porte ouverte a ce qu'elle
+        // change en cours de debat.
+        let permis = delib::outils::permis(mission);
+        let appelant = AppelNoeud {
+            registre: Some(state.essaim_registry.clone()),
+            schemas: state.essaim_registry.schema_complet(),
+            permis: permis.clone(),
+            trace: Some(tx_outils),
+        };
+
         envoyer(serde_json::json!({
             "type": "debut",
             "question": question,
@@ -295,7 +413,7 @@ pub(crate) async fn api_run(
             .await;
 
             let lot = delib::executeur::jouer_etape(
-                &d, &etape, &AppelNoeud, &profils, &constitution,
+                &d, &etape, &appelant, &profils, &constitution,
             )
             .await;
             if lot.is_empty() {
