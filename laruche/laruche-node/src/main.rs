@@ -43,6 +43,7 @@ mod auth_api;
 mod events_api;
 mod credentials_api;
 mod settings_api;
+mod deliberation_api;
 mod doctor_api;
 mod kanban_api;
 mod watchers_api;
@@ -1023,6 +1024,11 @@ async fn main() -> Result<()> {
             "system.prompt_reine",
             "LaReine Prompt",
             "LaReine supervisor rubric (empty = code default, hot-reload)",
+        ),
+        (
+            "system.constitution",
+            "Constitution",
+            "Regles communes a tous les specialistes de la table ronde (vide = socle du code)",
         ),
     ] {
         let _ = memoire

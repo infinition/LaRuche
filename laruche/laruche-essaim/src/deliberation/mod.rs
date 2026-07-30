@@ -33,11 +33,13 @@
 //! seulement qui parle: il achete le debat, sous plafond.
 
 pub mod constitution;
+pub mod executeur;
 pub mod moteur;
 pub mod specialiste;
 pub mod tour;
 
 pub use constitution::{constitution_effective, prompt_specialiste, CONSTITUTION, FORMAT_TOUR};
-pub use moteur::{Deliberation, Plan, Reglages};
+pub use executeur::{deliberer, Appel, Creds, Profils};
+pub use moteur::{Arret, Deliberation, Etape, Mission, Plan, Reglages};
 pub use specialiste::{embauches, pool, Role, Specialiste};
 pub use tour::{Accord, Intervention};

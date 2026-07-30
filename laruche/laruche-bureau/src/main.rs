@@ -98,12 +98,22 @@ fn chemin_noeud() -> Option<PathBuf> {
         "laruche-node"
     };
     let a_cote = std::env::current_exe().ok()?.parent()?.to_path_buf();
-    // `bin/` d'abord: c'est la ou l'installeur depose le noeud (bundle.resources).
-    // Le dossier de l'exe ensuite, pour une extraction manuelle de l'archive.
-    for candidat in [a_cote.join("bin").join(nom), a_cote.join(nom)] {
-        if candidat.exists() {
-            return Some(candidat);
-        }
+    // `bin/` (ou l'installeur depose le noeud) et le dossier de l'exe (extraction
+    // manuelle d'une archive). On prend le PLUS RECENT des deux, et non le premier
+    // trouve: en developpement, `bin/` garde la copie du dernier empaquetage, qui
+    // gagnait en silence sur le binaire fraichement compile a cote. On testait alors
+    // une version d'il y a plusieurs heures sans le savoir - une route ajoutee dans la
+    // minute repondait 404 sans aucune trace pour l'expliquer.
+    let mut candidats: Vec<(std::time::SystemTime, PathBuf)> = [a_cote.join("bin").join(nom), a_cote.join(nom)]
+        .into_iter()
+        .filter_map(|p| {
+            let t = std::fs::metadata(&p).ok()?.modified().ok()?;
+            Some((t, p))
+        })
+        .collect();
+    if !candidats.is_empty() {
+        candidats.sort_by_key(|(t, _)| *t);
+        return candidats.pop().map(|(_, p)| p);
     }
     // En dev, `cargo run -p laruche-bureau` produit un debug alors que le noeud est
     // souvent compile en release: on regarde les deux.
