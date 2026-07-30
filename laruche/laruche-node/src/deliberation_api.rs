@@ -295,8 +295,35 @@ pub(crate) async fn api_run(
                 })
             })
             .collect();
+        // On enregistre AVANT d'annoncer la fin: si l'ecriture echoue, l'interface
+        // recevra quand meme son evenement et le debat ne sera pas perdu a l'ecran.
+        let id = format!(
+            "{}-{}",
+            chrono::Utc::now().format("%Y%m%d-%H%M%S"),
+            &uuid::Uuid::new_v4().to_string()[..8]
+        );
+        let enregistre = serde_json::json!({
+            "id": id,
+            "quand": chrono::Utc::now().timestamp(),
+            "question": d.question,
+            "mission": d.plan.mission,
+            "participants": d.plan.participants,
+            "tours": d.tour_courant,
+            "jetons": d.jetons_consommes(),
+            "interventions": d.interventions,
+            "repartition": repartition,
+            "dissidents": d.dissidents(),
+        });
+        if let Err(e) = std::fs::write(
+            dossier_tours().join(format!("{id}.json")),
+            serde_json::to_string_pretty(&enregistre).unwrap_or_default(),
+        ) {
+            tracing::warn!(error = %e, "deliberation: tour de table non enregistre");
+        }
+
         envoyer(serde_json::json!({
             "type": "fin",
+            "id": id,
             "tours": d.tour_courant,
             "jetons": d.jetons_consommes(),
             "arret": match d.prochaine_etape() {
@@ -319,4 +346,72 @@ pub(crate) async fn api_run(
         axum::body::Body::from_stream(flux),
     )
         .into_response()
+}
+
+/// Ou vivent les tours de table passes.
+///
+/// Un dossier de fichiers plutot que la memoire cognitive: un debat est une TRACE,
+/// pas un fait appris. L'y verser polluerait le rappel avec sept opinions dont six
+/// ont ete ecartees - et c'est exactement ce que la memoire ne doit pas contenir.
+fn dossier_tours() -> std::path::PathBuf {
+    let d = std::path::PathBuf::from("deliberations");
+    let _ = std::fs::create_dir_all(&d);
+    d
+}
+
+/// GET /api/deliberation/tours - la liste, du plus recent au plus ancien.
+pub(crate) async fn api_tours() -> Json<serde_json::Value> {
+    let mut tours: Vec<serde_json::Value> = std::fs::read_dir(dossier_tours())
+        .map(|rd| {
+            rd.flatten()
+                .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
+                .filter_map(|e| {
+                    let v: serde_json::Value =
+                        serde_json::from_str(&std::fs::read_to_string(e.path()).ok()?).ok()?;
+                    // On ne rend que l'entete: la liste n'a pas besoin des
+                    // interventions, et les charger toutes rendrait le volet lent
+                    // des la dixieme deliberation.
+                    Some(serde_json::json!({
+                        "id": v["id"],
+                        "question": v["question"],
+                        "quand": v["quand"],
+                        "tours": v["tours"],
+                        "dissidents": v["dissidents"],
+                    }))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    tours.sort_by(|a, b| b["quand"].as_i64().cmp(&a["quand"].as_i64()));
+    Json(serde_json::json!({ "tours": tours }))
+}
+
+/// GET /api/deliberation/tour/:id - un debat complet.
+pub(crate) async fn api_tour(
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Json<serde_json::Value> {
+    // Un identifiant venant de l'URL ne doit jamais devenir un chemin: on ne garde
+    // que ce qu'on a nous-memes produit, des caracteres de nom de fichier surs.
+    let sur: String = id
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .take(64)
+        .collect();
+    match std::fs::read_to_string(dossier_tours().join(format!("{sur}.json"))) {
+        Ok(t) => Json(serde_json::from_str(&t).unwrap_or(serde_json::json!({}))),
+        Err(_) => Json(serde_json::json!({ "error": "introuvable" })),
+    }
+}
+
+/// DELETE /api/deliberation/tour/:id
+pub(crate) async fn api_tour_supprimer(
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Json<serde_json::Value> {
+    let sur: String = id
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .take(64)
+        .collect();
+    let _ = std::fs::remove_file(dossier_tours().join(format!("{sur}.json")));
+    Json(serde_json::json!({ "status": "ok" }))
 }

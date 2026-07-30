@@ -2732,3 +2732,36 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
 }
 .tr-strat:focus { outline:none; border-color:var(--amber); }
 .tr-pool-liste { max-height:52vh; overflow-y:auto; }
+
+/* Filet: quoi qu'il arrive, une place ne deborde pas de sa case. Une data-URL
+   affichee par erreur en texte brut s'etalait sur toute la largeur de l'ecran. */
+.tr-place { overflow:hidden; }
+.tr-avatar { overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  display:flex; align-items:center; justify-content:center; min-height:26px; }
+.tr-inter-tete { overflow:hidden; }
+.tr-inter-tete .tr-av-img { width:18px; height:18px; }
+
+/* La reponse finale, en evidence. Elle etait noyee au fond du transcript, et la
+   ligne « aucun desaccord » pouvait passer pour la conclusion alors qu'elle ne
+   dit rien du fond - seulement que personne ne s'oppose. */
+.tr-verdict {
+  border:1px solid var(--amber); border-radius:12px; padding:12px 14px;
+  margin-bottom:14px; background:rgba(245,158,11,.06);
+}
+.tr-verdict-tete { display:flex; align-items:center; gap:8px; margin-bottom:7px; }
+.tr-verdict-eti { font-size:11px; font-weight:600; color:var(--amber);
+  text-transform:uppercase; letter-spacing:.06em; }
+.tr-verdict-corps { font-size:13.5px; line-height:1.65; color:var(--text);
+  white-space:pre-wrap; overflow-wrap:anywhere; }
+/* L'editeur de strategie: c'est un prompt, pas un champ. Il lui faut de la place. */
+.tr-strat { min-height:220px; font-family:var(--mono); font-size:11.5px; }
+
+/* Volet des tours de table */
+.tr-nouveau-btn {
+  display:block; width:100%; padding:6px 10px; border-radius:7px; cursor:pointer;
+  background:none; border:1px dashed var(--border); color:var(--amber);
+  font-size:11.5px; font-family:inherit; text-align:left;
+}
+.tr-nouveau-btn:hover { border-color:var(--amber); background:rgba(245,158,11,.05); }
+.tr-tour-item { display:flex; flex-direction:column; gap:1px; cursor:pointer; }
+.tr-tour-q { font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

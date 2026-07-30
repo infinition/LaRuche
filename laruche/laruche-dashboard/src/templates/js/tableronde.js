@@ -40,6 +40,14 @@ LaRuche.TableRonde = (function(){
     }catch(e){ pool=[]; missions=[]; }
   }
 
+  /* Un avatar est soit un emoji, soit une image deposee (data-URL). Les deux
+     doivent etre rendus, jamais echappes tels quels: une data-URL affichee en
+     texte brut deborde sur toute la largeur de l'ecran. */
+  function avatarHtml(v){
+    if(v && v.indexOf('data:') === 0) return '<img class="tr-av-img" src="'+esc(v)+'" alt="">';
+    return esc(v || '●');
+  }
+
   /* ── La table ────────────────────────────────────────────────────────── */
   function indicateurs(id){
     // Pendant le debat on lit le flux, une fois fini la repartition finale: les
@@ -75,7 +83,7 @@ LaRuche.TableRonde = (function(){
     var actif = actifs.indexOf(s.id) >= 0 ? ' tr-place--actif' : '';
     return '<div class="tr-place'+(s.embauche?'':' tr-place--reserve')+actif+'" data-id="'+esc(s.id)+'" '+
              'style="--tr-couleur:'+esc(s.couleur||'#f59e0b')+'" title="'+esc(s.mission||'')+'">'+
-             '<div class="tr-avatar">'+esc(s.avatar||'●')+'</div>'+
+             '<div class="tr-avatar">'+avatarHtml(s.avatar)+'</div>'+
              '<div class="tr-nom">'+esc(s.nom)+'</div>'+
              '<div class="tr-indics">'+indicateurs(s.id)+'</div>'+
            '</div>';
@@ -96,6 +104,29 @@ LaRuche.TableRonde = (function(){
   }
 
   /* ── Le resultat ─────────────────────────────────────────────────────── */
+  /* La reponse finale, en evidence. Elle etait noyee: l'arbitre apparaissait comme
+     une intervention parmi d'autres au fond du transcript, et la ligne « aucun
+     desaccord » pouvait passer pour la conclusion alors qu'elle ne dit rien du
+     fond - seulement que personne ne s'oppose. */
+  function verdictHtml(){
+    if(!dernier) return '';
+    var arb = null;
+    (dernier.interventions||[]).forEach(function(iv){
+      var sp = specDe(iv.specialiste);
+      if(sp && sp.role === 'arbitre') arb = iv;
+    });
+    if(!arb) return '';
+    var sp = specDe(arb.specialiste);
+    return '<div class="tr-verdict">'+
+      '<div class="tr-verdict-tete">'+avatarHtml(sp && sp.avatar)+
+        '<span class="tr-verdict-eti">'+LaRuche.i18n.t('tr.verdict')+'</span>'+
+        '<span class="tr-note">'+esc(nomDe(arb.specialiste))+' · '+
+          LaRuche.i18n.t('tr.confiance')+' '+arb.confiance+'</span>'+
+      '</div>'+
+      '<div class="tr-verdict-corps">'+esc(arb.position)+'</div>'+
+    '</div>';
+  }
+
   function desaccordsHtml(){
     if(!dernier) return '';
     var d = dernier.dissidents||[];
@@ -131,7 +162,7 @@ LaRuche.TableRonde = (function(){
           parTour[t].map(function(iv){
             var s = specDe(iv.specialiste);
             return '<div class="tr-inter" style="--tr-couleur:'+esc((s&&s.couleur)||'#8a8a92')+'">'+
-              '<div class="tr-inter-tete">'+esc((s&&s.avatar)||'●')+' <strong>'+esc(nomDe(iv.specialiste))+'</strong>'+
+              '<div class="tr-inter-tete">'+avatarHtml(s&&s.avatar)+' <strong>'+esc(nomDe(iv.specialiste))+'</strong>'+
                 '<span class="tr-note">confiance '+iv.confiance+'</span></div>'+
               (iv.changement && iv.changement.toLowerCase().indexOf('aucun')<0
                  ? '<div class="tr-change">↻ '+esc(iv.changement)+'</div>' : '')+
@@ -153,7 +184,7 @@ LaRuche.TableRonde = (function(){
       flux.slice().reverse().map(function(iv){
         var s = specDe(iv.specialiste);
         return '<div class="tr-inter tr-inter--neuf" style="--tr-couleur:'+esc((s&&s.couleur)||'#8a8a92')+'">'+
-          '<div class="tr-inter-tete">'+esc((s&&s.avatar)||'●')+' <strong>'+esc(nomDe(iv.specialiste))+'</strong>'+
+          '<div class="tr-inter-tete">'+avatarHtml(s&&s.avatar)+' <strong>'+esc(nomDe(iv.specialiste))+'</strong>'+
             '<span class="tr-note">'+LaRuche.i18n.t('tr.tour',{n:iv.tour})+' · confiance '+iv.confiance+'</span></div>'+
           (iv.changement && iv.changement.toLowerCase().indexOf('aucun')<0
              ? '<div class="tr-change">↻ '+esc(iv.changement)+'</div>' : '')+
@@ -202,7 +233,7 @@ LaRuche.TableRonde = (function(){
         : '')+
       tableHtml()+
       // Le flux en direct pendant le debat, le bilan complet apres.
-      (enCours ? fluxHtml() : desaccordsHtml()+bilanHtml()+transcriptHtml());
+      (enCours ? fluxHtml() : verdictHtml()+desaccordsHtml()+bilanHtml()+transcriptHtml());
 
     var sel = document.getElementById('trMission');
     if(sel) sel.onchange = function(){ missionActive = sel.value; };
@@ -246,7 +277,11 @@ LaRuche.TableRonde = (function(){
           else if(ev.type==='fin'){
             actifs = []; etapeNom = '';
             if(ev.erreur){ LaRuche.Toast.show(ev.erreur, 'error'); }
-            else { dernier = Object.assign({}, ev, { interventions: flux }); }
+            else {
+              dernier = Object.assign({}, ev, { interventions: flux });
+              // Le debat vient d'etre enregistre cote noeud: la liste doit le montrer.
+              chargerTours();
+            }
           }
           rendre();
         });
@@ -285,11 +320,6 @@ LaRuche.TableRonde = (function(){
       fr.readAsDataURL(f);
     };
     inp.click();
-  }
-
-  function avatarHtml(v){
-    if(v && v.indexOf('data:') === 0) return '<img class="tr-av-img" src="'+esc(v)+'" alt="">';
-    return esc(v || '●');
   }
 
   function ligneHtml(s){
@@ -397,6 +427,52 @@ LaRuche.TableRonde = (function(){
     };
   }
 
+  /* ── Volet lateral: les tours de table remplacent les conversations ──── */
+  async function chargerTours(){
+    var liste = document.getElementById('toursSidebarList');
+    if(!liste) return;
+    var tours = [];
+    try{
+      tours = (await fetch('/api/deliberation/tours').then(function(r){ return r.json(); })).tours||[];
+    }catch(e){}
+    if(!tours.length){
+      liste.innerHTML = '<div class="tr-note" style="padding:8px 12px">'+
+        LaRuche.i18n.t('tr.aucunTour')+'</div>';
+      return;
+    }
+    liste.innerHTML = tours.map(function(t){
+      var n = (t.dissidents||[]).length;
+      return '<div class="session-item tr-tour-item" data-id="'+esc(t.id)+'">'+
+        '<span class="tr-tour-q">'+esc(String(t.question||'').slice(0,64))+'</span>'+
+        '<span class="tr-note">'+(t.tours||0)+' '+LaRuche.i18n.t('tr.toursCourt')+
+          (n ? ' · '+n+' '+LaRuche.i18n.t('tr.dissidentsCourt') : '')+'</span>'+
+      '</div>';
+    }).join('');
+    liste.querySelectorAll('.tr-tour-item').forEach(function(el){
+      el.onclick = function(){ ouvrirTour(el.getAttribute('data-id')); };
+    });
+  }
+
+  async function ouvrirTour(id){
+    try{
+      var t = await fetch('/api/deliberation/tour/'+encodeURIComponent(id))
+                .then(function(r){ return r.json(); });
+      if(t.error){ LaRuche.Toast.show(t.error, 'error'); return; }
+      question = t.question || '';
+      flux = t.interventions || [];
+      dernier = t;
+      enCours = false; actifs = []; etapeNom = '';
+      rendre();
+    }catch(e){ LaRuche.Toast.show(LaRuche.i18n.t('toast.failed'), 'error'); }
+  }
+
+  function nouveauTour(){
+    question = ''; flux = []; dernier = null; actifs = []; etapeNom = '';
+    rendre();
+    var champ = document.getElementById('userInput');
+    if(champ) champ.focus();
+  }
+
   /* ── Onglets ─────────────────────────────────────────────────────────── */
   function basculer(vue){
     var chat = document.getElementById('chatContainer');
@@ -408,6 +484,11 @@ LaRuche.TableRonde = (function(){
     document.querySelectorAll('#chatOnglets .chat-onglet').forEach(function(b){
       b.classList.toggle('actif', b.dataset.vue === vue);
     });
+    // Le volet suit la vue: les debats passes remplacent les conversations.
+    var vConv = document.getElementById('sessionsSidebarSection');
+    var vTours = document.getElementById('toursSidebarSection');
+    if(vConv) vConv.style.display = surTable ? 'none' : '';
+    if(vTours){ vTours.style.display = surTable ? '' : 'none'; if(surTable) chargerTours(); }
     if(surTable){ if(!pool.length){ charger().then(rendre); } else { rendre(); } }
   }
 
@@ -417,6 +498,8 @@ LaRuche.TableRonde = (function(){
   }
 
   function init(){
+    var neuf = document.getElementById('trNouveau');
+    if(neuf) neuf.onclick = nouveauTour;
     var barre = document.getElementById('chatOnglets');
     if(barre){
       barre.addEventListener('click', function(e){
@@ -426,7 +509,8 @@ LaRuche.TableRonde = (function(){
     }
   }
 
-  return { init:init, basculer:basculer, lancer:lancer, surTable:surTable, ouvrirPool:ouvrirPool };
+  return { init:init, basculer:basculer, lancer:lancer, surTable:surTable,
+           ouvrirPool:ouvrirPool, nouveauTour:nouveauTour, ouvrirTour:ouvrirTour };
 })();
 
 LaRuche.i18n.add({
@@ -453,6 +537,11 @@ LaRuche.i18n.add({
                         en:'Empty provider = active profile. Varying models is the only way to get real disagreement: ten strategies on one model share its blind spots.' },
   'tr.profilDefaut':  { fr:'profil actif', en:'active profile' },
   'tr.question':      { fr:'Question', en:'Question' },
+  'tr.verdict':       { fr:'Réponse finale', en:'Final answer' },
+  'tr.aucunTour':     { fr:'Aucun tour de table.', en:'No round table yet.' },
+  'tr.toursCourt':    { fr:'tours', en:'rounds' },
+  'tr.dissidentsCourt':{ fr:'dissident(s)', en:'dissenter(s)' },
+  'tr.confiance':     { fr:'confiance', en:'confidence' },
   'tr.ajouter':       { fr:'+ Nouveau spécialiste', en:'+ New specialist' },
   'tr.nouveau':       { fr:'Sans nom', en:'Unnamed' },
   'tr.embaucher':     { fr:'Embaucher pour les délibérations', en:'Hire for deliberations' },

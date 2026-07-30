@@ -202,6 +202,18 @@
           </div>
           <div id="sessionsSidebarList"></div>
         </div>
+          <!-- Le meme volet, en mode table ronde: les debats passes remplacent les
+               conversations. Deux listes distinctes plutot qu'une melangee - un
+               debat et une conversation ne se reprennent pas de la meme facon. -->
+          <div class="sessions-list-sidebar" id="toursSidebarSection" style="display:none">
+            <div class="sidebar-header" style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+              <span>Tours de table</span>
+            </div>
+            <div style="padding:2px 8px 4px;">
+              <button id="trNouveau" class="tr-nouveau-btn">+ Nouveau tour de table</button>
+            </div>
+            <div id="toursSidebarList"></div>
+          </div>
       </div>
       <div class="chat-main">
         <!-- Deux onglets discrets: la conversation habituelle, et la table ronde.
