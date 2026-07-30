@@ -158,6 +158,30 @@ jobs:
         working-directory: laruche/laruche-bureau
         run: cargo tauri build
 
+      # Mise a l'abri IMMEDIATE, avant de construire la seconde variante: le
+      # bundler AppImage nettoie `bundle/appimage/` a chaque passage, si bien que
+      # le build client effacait l'AppImage complete. Les .deb et les installeurs
+      # Windows survivaient, eux - d'ou une release ou il manquait exactement un
+      # asset sur douze, sans que rien n'echoue.
+      - name: Stage installers (complete)
+        shell: bash
+        run: |
+          set -eu
+          mkdir -p dist-bureau
+          B=target/release/bundle
+          L='${{ matrix.label }}'
+          for m in "nsis/LaRuche_*-setup.exe:laruche-bureau-$L-setup.exe" \
+                   "msi/LaRuche_*.msi:laruche-bureau-$L.msi" \
+                   "appimage/LaRuche_*.AppImage:laruche-bureau-$L.AppImage" \
+                   "deb/LaRuche_*.deb:laruche-bureau-$L.deb"; do
+            f=$(ls $B/${m%%:*} 2>/dev/null | head -1) || true
+            # `|| true` indispensable: sous Windows les motifs AppImage et deb ne
+            # correspondent a rien, la chaine && renvoie 1, et `set -e` tuerait
+            # l'etape alors que les deux installeurs Windows sont bien la.
+            { [ -n "${f:-}" ] && cp "$f" "dist-bureau/${m##*:}" && echo "  ${m##*:}  <-  $(basename "$f")"; } || true
+          done
+          ls -lh dist-bureau
+
       - name: Bundle desktop app (client)
         working-directory: laruche/laruche-bureau
         run: cargo tauri build --config tauri.client.conf.json
@@ -172,16 +196,19 @@ jobs:
       # avec une espace et un numero de version. Or les assets sont sans version par
       # convention ici, pour que les liens /releases/latest/download/<nom> continuent
       # de marcher d'une version a l'autre.
-      - name: Stage installers
+      # Le job a `working-directory: laruche`, donc les chemins des etapes `run` sont
+      # relatifs a laruche/ - contrairement a ceux d'upload-artifact, qui partent de la
+      # racine du depot. Les deux se ressemblent et ne sont pas les memes.
+      #
+      # Les noms sont normalises: Tauri produit « LaRuche Client_0.2.0_x64-setup.exe »,
+      # avec une espace et un numero de version. Or les assets sont sans version par
+      # convention ici, pour que les liens /releases/latest/download/<nom> continuent
+      # de marcher d'une version a l'autre. Le `?` du motif attrape cette espace.
+      - name: Stage installers (client)
         shell: bash
         run: |
           set -eu
           mkdir -p dist-bureau
-          # Le job a `working-directory: laruche`, donc les chemins des etapes `run`
-          # sont relatifs a laruche/ - contrairement a ceux d'upload-artifact, qui
-          # partent de la racine du depot. Les deux se ressemblent et ne sont pas les
-          # memes: prefixer par laruche/ ici visait laruche/laruche/, et rien ne
-          # correspondait.
           B=target/release/bundle
           copier() {  # $1 = motif, $2 = nom de sortie
             f=$(ls $1 2>/dev/null | head -1) || true
@@ -191,20 +218,19 @@ jobs:
             fi
           }
           L='${{ matrix.label }}'
-          # « Client » dans le nom distingue la variante sans noeud de la complete.
-          copier "$B/nsis/LaRuche_*-setup.exe"          "laruche-bureau-$L-setup.exe"
           copier "$B/nsis/LaRuche?Client_*-setup.exe"   "laruche-client-$L-setup.exe"
-          copier "$B/msi/LaRuche_*.msi"                 "laruche-bureau-$L.msi"
           copier "$B/msi/LaRuche?Client_*.msi"          "laruche-client-$L.msi"
-          copier "$B/appimage/LaRuche_*.AppImage"       "laruche-bureau-$L.AppImage"
           copier "$B/appimage/LaRuche?Client_*.AppImage" "laruche-client-$L.AppImage"
-          copier "$B/deb/LaRuche_*.deb"                 "laruche-bureau-$L.deb"
           copier "$B/deb/LaRuche?Client_*.deb"          "laruche-client-$L.deb"
           echo "--- a televerser ---"
           ls -lh dist-bureau
-          # Un dossier vide voudrait dire que les motifs ne correspondent plus a ce que
-          # Tauri produit: on echoue ici plutot que de publier une release amputee.
-          [ -n "$(ls -A dist-bureau)" ] || { echo "aucun installeur trouve"; exit 1; }
+          # QUATRE fichiers attendus par plateforme: deux formats x deux variantes.
+          # Windows: nsis + msi. Linux: AppImage + deb. Un simple test « non vide »
+          # avait laisse passer une release ou il manquait exactement une AppImage
+          # sur douze assets, sans que rien n'echoue.
+          n=$(ls -1 dist-bureau | wc -l)
+          echo "installeurs prets: $n"
+          [ "$n" -eq 4 ] || { echo "attendu 4 installeurs, obtenu $n"; exit 1; }
 
       - uses: actions/upload-artifact@v4
         with:
@@ -231,7 +257,7 @@ jobs:
           # etait sortie avec quatre assets sur huit sans que rien ne le signale.
           n=$(find dist -type f | wc -l)
           echo "fichiers a attacher: $n"
-          [ "$n" -ge 8 ] || { echo "trop peu d'assets: attendu au moins 8"; exit 1; }
+          [ "$n" -ge 12 ] || { echo "trop peu d'assets: attendu au moins 12"; exit 1; }
 
       - uses: softprops/action-gh-release@v2
         with:
