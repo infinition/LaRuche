@@ -84,3 +84,6 @@ memoire-okf/
 # Foyer d'avant le deplacement vers le dossier de donnees standard de l'OS.
 # Conserve le temps de verifier que la nouvelle ruche va bien, puis supprimable.
 /_ancien-foyer/
+
+# Installeurs mis a plat avant televersement par le workflow de release.
+/dist-bureau/

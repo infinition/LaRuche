@@ -177,7 +177,12 @@ jobs:
         run: |
           set -eu
           mkdir -p dist-bureau
-          B=laruche/target/release/bundle
+          # Le job a `working-directory: laruche`, donc les chemins des etapes `run`
+          # sont relatifs a laruche/ - contrairement a ceux d'upload-artifact, qui
+          # partent de la racine du depot. Les deux se ressemblent et ne sont pas les
+          # memes: prefixer par laruche/ ici visait laruche/laruche/, et rien ne
+          # correspondait.
+          B=target/release/bundle
           copier() {  # $1 = motif, $2 = nom de sortie
             f=$(ls $1 2>/dev/null | head -1) || true
             if [ -n "${f:-}" ]; then
@@ -204,7 +209,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: laruche-bureau-${{ matrix.label }}
-          path: dist-bureau/*
+          # Depuis la racine du depot: upload-artifact ignore le
+          # working-directory des etapes `run`.
+          path: laruche/dist-bureau/*
           if-no-files-found: error
 
   release:
