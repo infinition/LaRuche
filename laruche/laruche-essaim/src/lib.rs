@@ -27,6 +27,7 @@ pub mod contexte;
 pub mod credential_pool;
 pub mod cron;
 pub mod curation;
+pub mod deliberation;
 pub mod error_classifier;
 pub mod i18n;
 pub mod evenements;
