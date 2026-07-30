@@ -58,6 +58,11 @@ LaRuche.i18n.add({
   'capabilities.noConversation':{ fr:'Aucune conversation.', en:'No conversations.' },
   'capabilities.peersDiscovered':{ fr:'Pairs LaRuche découverts', en:'LaRuche peers discovered' },
   'capabilities.noPeers':       { fr:'Aucun pair sur le réseau.', en:'No peers on the network.' },
+  'capabilities.peerUnreachable':    { fr:'injoignable', en:'unreachable' },
+  'capabilities.peerUnreachableWhy': { fr:"Cette ruche s'annonce sur le réseau mais n'écoute que sur elle-même. Sur sa machine, la démarrer avec LARUCHE_BIND_LAN=1.",
+                                       en:'This hive announces itself on the network but only listens to itself. On its machine, start it with LARUCHE_BIND_LAN=1.' },
+  'capabilities.selfUnreachable':    { fr:"Cette ruche n'écoute que sur 127.0.0.1 : les autres la voient mais n'obtiendront aucune réponse. Démarrer avec LARUCHE_BIND_LAN=1.",
+                                       en:'This hive only listens on 127.0.0.1: others can see it but will get no answer. Start it with LARUCHE_BIND_LAN=1.' },
   'capabilities.syncSkills':    { fr:'🔄 Synchroniser les skills du mesh', en:'🔄 Sync mesh skills' },
   'capabilities.syncing':       { fr:'⏳ Synchronisation…', en:'⏳ Syncing…' },
   'capabilities.syncFederated': { fr:' skill(s) fédéré(s)', en:' skill(s) federated' },
@@ -1102,6 +1107,9 @@ LaRuche.Mesh = (function(){
   async function renderInbox(){
     var pop=document.getElementById('meshInbox'); if(!pop) return;
     try{ var d=await fetch('/api/mesh/peers').then(function(r){return r.json();}); peers=(d&&d.peers)||[]; }catch(e){ peers=[]; }
+    // Notre propre etat: se savoir injoignable explique pourquoi personne ne repond,
+    // et c'est invisible autrement.
+    var moi=null; try{ moi=await fetch('/api/mesh/whoami').then(function(r){return r.json();}); }catch(e){}
     var cs=convs();
     var html='<div class="mesh-inbox-head">'+LaRuche.i18n.t('capabilities.conversations')+'</div>';
     if(!cs.length) html+='<div class="mesh-empty">'+LaRuche.i18n.t('capabilities.noConversation')+'</div>';
@@ -1114,8 +1122,20 @@ LaRuche.Mesh = (function(){
     html+='<div class="mesh-inbox-head">'+LaRuche.i18n.t('capabilities.peersDiscovered')+'</div>';
     if(!peers.length) html+='<div class="mesh-empty">'+LaRuche.i18n.t('capabilities.noPeers')+'</div>';
     peers.forEach(function(p){
-      html+='<div class="mesh-peer" data-peer="'+esc(p.id)+'" data-name="'+esc(p.name||p.id)+'">+ '+esc(p.name||p.id)+'</div>';
+      // Une ruche s'annonce en mDNS avec son adresse LAN meme quand elle n'ecoute que
+      // sur 127.0.0.1: elle est alors visible sans etre joignable, et lui ecrire ne
+      // donnait rien sans la moindre explication. Le noeud sonde chaque pair et le dit;
+      // on l'affiche plutot que de laisser cliquer dans le vide.
+      var sourde = p.joignable === false;
+      html+='<div class="mesh-peer'+(sourde?' mesh-peer--sourd':'')+'" data-peer="'+esc(p.id)+'" data-name="'+esc(p.name||p.id)+'"'+
+        (sourde?' title="'+esc(LaRuche.i18n.t('capabilities.peerUnreachableWhy'))+'"':'')+'>'+
+        (sourde?'':'+ ')+esc(p.name||p.id)+
+        (sourde?' <span class="mesh-peer-etiq">'+esc(LaRuche.i18n.t('capabilities.peerUnreachable'))+'</span>':'')+
+      '</div>';
     });
+    if(moi && moi.joignable_reseau === false){
+      html+='<div class="mesh-empty mesh-avertissement">'+esc(LaRuche.i18n.t('capabilities.selfUnreachable'))+'</div>';
+    }
     // Gap A: federation: pull verified skills from peers.
     html+='<div class="mesh-inbox-head">'+LaRuche.i18n.t('capabilities.essaim')+'</div>'+
       '<div class="mesh-peer" id="meshSyncSkills" style="color:var(--green,#46c46a)">'+LaRuche.i18n.t('capabilities.syncSkills')+'</div>';

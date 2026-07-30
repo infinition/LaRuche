@@ -87,3 +87,6 @@ memoire-okf/
 
 # Installeurs mis a plat avant televersement par le workflow de release.
 /dist-bureau/
+
+# Verrou du foyer: PID du noeud qui l occupe.
+/laruche.lock

@@ -120,7 +120,23 @@ pub(crate) async fn api_v1_chat_completions(
                     None => return refus("Mesh identity required/invalid for a restricted model."),
                 }
             }
-            profiles::Visibilite::PublicProxy => {} // public: any mesh member
+            // « Public » veut dire public POUR LA RUCHE, pas pour le reseau. Sans cette
+            // verification, toute machine du LAN pouvait depenser une cle d'API en
+            // pointant sur ce noeud: le garde de visibilite fermait le prive et le
+            // restreint, mais laissait le public totalement ouvert.
+            //
+            // mesh_auth_ok rend None quand AUCUN code n'est configure: on reste alors
+            // ouvert, faute de tout moyen d'authentifier. Des qu'un code existe, il est
+            // exige - et les appels sortants sont deja signes par MESH_SIGNER, donc un
+            // pair legitime passe sans rien changer chez lui.
+            profiles::Visibilite::PublicProxy => {
+                if let Some(false) = sync::mesh_auth_ok(&headers, "/v1/chat/completions") {
+                    return refus(
+                        "Mesh code required: this ruche shares its models with its own swarm, \
+                         not with the whole network. Configure the same code in Settings > Network.",
+                    );
+                }
+            }
         }
     }
 

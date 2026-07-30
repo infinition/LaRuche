@@ -60,7 +60,18 @@ pub(crate) async fn api_mesh_identity() -> Json<serde_json::Value> {
 /// GET /api/mesh/whoami - identity of THIS instance (laruche ID + name).
 pub(crate) async fn api_mesh_whoami(State(state): State<Arc<AppState>>) -> Json<serde_json::Value> {
     let m = state.manifest.read().await;
-    Json(serde_json::json!({ "id": m.node_id.to_string(), "name": m.node_name }))
+    Json(serde_json::json!({
+        "id": m.node_id.to_string(),
+        "name": m.node_name,
+        // Cette ruche accepte-t-elle les connexions venant du reseau ?
+        //
+        // Le mDNS est du multicast: elle s'annonce avec son adresse LAN meme quand
+        // l'API n'ecoute que sur 127.0.0.1. Elle est donc VISIBLE sans etre JOIGNABLE,
+        // et c'est la premiere cause de « l'autre ruche me voit mais rien ne repond ».
+        // L'interface a besoin de le savoir pour le dire, au lieu de laisser chercher.
+        "joignable_reseau": std::env::var("LARUCHE_BIND_LAN").as_deref() == Ok("1"),
+        "code_mesh": crate::sync::load_mesh_code().is_some(),
+    }))
 }
 
 /// GET /api/mesh/peers - other LaRuche instances discovered on the network (directory).
@@ -79,10 +90,48 @@ pub(crate) async fn api_mesh_peers(State(state): State<Arc<AppState>>) -> Json<s
                     "id": id.to_string(),
                     "name": n.manifest.node_name,
                     "host": n.manifest.host,
+                    "port": n.manifest.port.or(n.manifest.dashboard_port),
+                    // Vu pour la derniere fois il y a combien de secondes. L'interface
+                    // peut ainsi montrer une presence stable plutot qu'un pair qui
+                    // clignote: l'eviction n'a lieu qu'a 90 s.
+                    "vu_il_y_a_s": (chrono::Utc::now() - n.last_seen).num_seconds(),
                 })
             })
         })
         .collect();
+
+    // Sonde HTTP de chaque pair, en parallele. Une ruche s'annonce avec son adresse LAN
+    // tout en n'ecoutant peut-etre que sur 127.0.0.1: elle est alors visible sans etre
+    // joignable, et cliquer dessus ne donnait rien sans explication.
+    let sondes = peers.iter().map(|p| {
+        let hote = p["host"].as_str().unwrap_or("").to_string();
+        let port = p["port"].as_u64().unwrap_or(0);
+        async move {
+            if hote.is_empty() || port == 0 {
+                return false;
+            }
+            let url = format!("http://{hote}:{port}/manifest.json");
+            reqwest::Client::new()
+                .get(&url)
+                .timeout(std::time::Duration::from_millis(800))
+                .send()
+                .await
+                .map(|r| r.status().is_success())
+                .unwrap_or(false)
+        }
+    });
+    let joignables = futures_util::future::join_all(sondes).await;
+    let peers: Vec<serde_json::Value> = peers
+        .into_iter()
+        .zip(joignables)
+        .map(|(mut p, ok)| {
+            if let Some(o) = p.as_object_mut() {
+                o.insert("joignable".into(), serde_json::json!(ok));
+            }
+            p
+        })
+        .collect();
+
     Json(serde_json::json!({ "peers": peers }))
 }
 

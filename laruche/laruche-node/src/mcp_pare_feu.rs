@@ -365,12 +365,24 @@ impl Verrou {
                 || maintenant.duration_since(e.vu) <= FENETRE
         });
         while self.suivies.len() >= MAX_SUIVIES {
+            // Un banni n'est JAMAIS evince pour faire de la place. Sans ce filtre, il
+            // suffisait d'inonder le suivi d'adresses distinctes pour se faire oublier:
+            // `min_by_key` prenait la plus ancienne sans regarder si elle etait bannie,
+            // et quand les entrees partagent le meme horodatage - une rafale - l'ordre
+            // d'un HashMap est aleatoire, donc la victime pouvait etre le banni.
+            //
+            // C'est ce que le test `la_pulverisation_ne_libere_pas_un_banni` verifie. Il
+            // passait par chance, selon l'ordre de parcours du jour.
             let Some(plus_vieille) = self
                 .suivies
                 .iter()
+                .filter(|(_, e)| !e.banni_jusqu.map(|f| f > maintenant).unwrap_or(false))
                 .min_by_key(|(_, e)| e.vu)
                 .map(|(ip, _)| *ip)
             else {
+                // Plus rien d'evincable: tout ce qui reste est banni, et le rester est
+                // le comportement voulu. La liste des bannis est bornee par le nombre
+                // d'attaquants reels, pas par le trafic qu'ils produisent.
                 break;
             };
             self.suivies.remove(&plus_vieille);

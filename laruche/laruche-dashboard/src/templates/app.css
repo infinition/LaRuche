@@ -2587,3 +2587,16 @@ pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5p
   .acc-etape { flex-wrap:wrap; }
   .acc-go { margin-left:calc(1.15em + 10px); align-self:flex-start; }
 }
+
+/* Un pair visible mais injoignable: il s'annonce en mDNS avec son adresse LAN tout
+   en n'ecoutant que sur 127.0.0.1. On le montre eteint plutot que de laisser
+   cliquer sur un nom qui ne repondra pas. */
+.mesh-peer--sourd { opacity:.6; }
+.mesh-peer-etiq {
+  font-size:9px; color:var(--bg); background:var(--text-muted);
+  padding:1px 5px; border-radius:7px; vertical-align:middle; margin-left:4px;
+}
+.mesh-avertissement {
+  color:var(--amber); border-left:2px solid var(--amber);
+  padding-left:8px; line-height:1.45;
+}

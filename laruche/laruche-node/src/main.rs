@@ -265,6 +265,54 @@ fn amorcer(livre: &include_dir::Dir<'_>, cible: &str) {
     }
 }
 
+/// Verrouille le foyer pour ce processus, ou explique pourquoi c'est impossible.
+///
+/// Deux noeuds peuvent tres bien ouvrir le MEME foyer: il suffit de les lancer sur des
+/// ports differents. Ils partagent alors `identity.json`, donc ils s'annoncent sur le
+/// reseau avec le MEME identifiant a deux adresses - l'essaim n'y comprend rien - et
+/// ils ecrivent tous les deux dans `memoire.db`, `laruche-state.json` et `skills/`.
+///
+/// Le verrou porte le PID et le nom du processus. Un PID mort, ou reutilise par un
+/// autre programme, rend le verrou perime: un noeud tue brutalement ne se condamne
+/// donc pas lui-meme au redemarrage suivant.
+fn verrouiller_foyer() -> Result<(), String> {
+    let chemin = std::path::Path::new("laruche.lock");
+    let moi = std::process::id();
+    let mon_nom = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_string()))
+        .unwrap_or_else(|| "laruche-node".to_string());
+
+    if let Ok(contenu) = std::fs::read_to_string(chemin) {
+        let mut lignes = contenu.lines();
+        let pid = lignes.next().and_then(|l| l.trim().parse::<u32>().ok());
+        let nom = lignes.next().unwrap_or("").trim().to_string();
+        if let Some(pid) = pid {
+            if pid != moi {
+                let mut sys = System::new();
+                let cible = sysinfo::Pid::from_u32(pid);
+                sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[cible]), true);
+                // Le nom doit correspondre AUSSI: un PID est reutilisable, et refuser de
+                // demarrer parce qu'un editeur de texte a herite du numero serait absurde.
+                let vivant = sys
+                    .process(cible)
+                    .map(|p| p.name().to_string_lossy().eq_ignore_ascii_case(&nom))
+                    .unwrap_or(false);
+                if vivant {
+                    return Err(format!(
+                        "une autre LaRuche (PID {pid}) utilise deja ce foyer. Deux noeuds sur le \
+                         meme dossier partagent identity.json et memoire.db: ils s'annoncent avec \
+                         le meme identifiant et s'ecrasent mutuellement. Fermer l'autre, ou lancer \
+                         celui-ci avec LARUCHE_DATA_DIR sur un dossier a lui."
+                    ));
+                }
+            }
+        }
+    }
+    std::fs::write(chemin, format!("{moi}\n{mon_nom}\n"))
+        .map_err(|e| format!("verrou du foyer non ecrit: {e}"))
+}
+
 /// Le foyer de cette ruche: ou vivent `memoire.db`, `sessions/`, `skills/`,
 /// `plugins/`, les secrets et la configuration.
 ///
@@ -324,6 +372,12 @@ async fn main() -> Result<()> {
     }
     if let Err(e) = std::env::set_current_dir(&foyer) {
         eprintln!("impossible de se placer dans {} : {e}", foyer.display());
+    }
+    // Avant d'ouvrir quoi que ce soit: deux noeuds dans le meme foyer se marchent sur
+    // les pieds en silence, ce qui est bien pire qu'un refus de demarrer explicite.
+    if let Err(raison) = verrouiller_foyer() {
+        eprintln!("\n  LaRuche ne demarre pas: {raison}\n");
+        std::process::exit(1);
     }
 
     let use_tui = !std::env::args().any(|a| a == "--no-tui");
@@ -1265,6 +1319,20 @@ async fn main() -> Result<()> {
         warn!(
             "LARUCHE_BIND_LAN=1: API exposed on the whole LAN ({bind_ip}:{}). Ensure auth \
              is configured; anyone on the network can reach it.",
+            config.api_port
+        );
+    } else {
+        // Le noeud s'annonce en mDNS avec son adresse LAN, mais n'ecoute que sur la
+        // boucle locale: il est donc VISIBLE sans etre JOIGNABLE. Le mDNS est du
+        // multicast et traverse quand meme, alors que le message de test, la liste des
+        // pairs et l'appel d'un modele partage sont du HTTP vers l'adresse annoncee.
+        //
+        // C'etait silencieux, et c'est la premiere cause de « l'autre ruche me voit
+        // mais rien ne repond ». On le dit fort, une fois, au demarrage.
+        warn!(
+            "Ruche visible sur le reseau mais INJOIGNABLE: l'API n'ecoute que sur \
+             127.0.0.1:{}. Les autres ruches vous verront en mDNS et n'obtiendront \
+             aucune reponse. Pour un essaim, demarrer avec LARUCHE_BIND_LAN=1.",
             config.api_port
         );
     }
