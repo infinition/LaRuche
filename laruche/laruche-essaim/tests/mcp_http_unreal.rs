@@ -20,4 +20,21 @@ async fn le_serveur_unreal_expose_ses_outils() {
     // else. Zero tools is the symptom the session fix exists for.
     assert!(noms.contains(&"call_tool"), "call_tool missing, got {noms:?}");
     assert!(noms.contains(&"list_toolsets"), "list_toolsets missing, got {noms:?}");
+
+    // Listing proves the session is replayed on tools/list. Calling proves it holds for
+    // the requests that do the actual work, which is a different code path in the server.
+    let reponse = client
+        .call_tool(
+            "call_tool",
+            serde_json::json!({
+                "toolset_name": "editor_toolset.toolsets.scene.SceneTools",
+                "tool_name": "get_current_level",
+                "arguments": {}
+            }),
+        )
+        .await
+        .expect("call_tool");
+    let texte = reponse["content"][0]["text"].as_str().unwrap_or_default();
+    println!("niveau courant: {texte}");
+    assert!(texte.contains("returnValue"), "unexpected answer: {texte}");
 }
