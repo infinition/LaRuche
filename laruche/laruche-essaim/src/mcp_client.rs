@@ -137,8 +137,22 @@ impl McpClient {
     /// the only way in was `Command::spawn`, which meant a server had to live on this
     /// machine; a hosted one, or one running on another box, could not be used at all.
     ///
-    /// Each request is one POST carrying the JSON-RPC body, the shape every MCP server
-    /// speaking HTTP accepts.
+    /// Each request is one POST carrying the JSON-RPC body, plus the three things the
+    /// streamable HTTP transport requires and a bare POST does not provide:
+    ///
+    /// 1. **The session.** A server may answer `initialize` with an `Mcp-Session-Id`
+    ///    header, and then refuse every later request that does not carry it back. This
+    ///    is not optional politeness: Unreal Engine 5.8's own MCP server accepts our
+    ///    `initialize`, then answers `tools/list` with a bare 400, so the server was
+    ///    registered, listed zero tools, and the editor looked like it exposed nothing.
+    /// 2. **Both content types in `Accept`.** The spec lets a server reply as SSE, and
+    ///    several refuse a request that only announces `application/json`.
+    /// 3. **SSE bodies.** When the answer comes back as `text/event-stream`, the payload
+    ///    sits on a `data:` line, and parsing the raw body as JSON fails on it.
+    ///
+    /// The session lives in the worker task, which is the only place that speaks to the
+    /// wire, and requests are serialized through the channel, so the handshake response
+    /// is always seen before the next request goes out.
     pub async fn start_http(url: &str) -> Result<Self> {
         let (tx, mut rx) = mpsc::channel::<(Value, oneshot::Sender<Result<Value>>)>(32);
         let url = url.to_string();
@@ -148,19 +162,40 @@ impl McpClient {
             .context("http client for remote MCP")?;
 
         tokio::spawn(async move {
+            let mut session: Option<String> = None;
             while let Some((req, reply)) = rx.recv().await {
-                let envoi = http.post(&url).json(&req).send().await;
-                let resultat = match envoi {
-                    Ok(rep) => match rep.json::<Value>().await {
-                        Ok(corps) => {
-                            if let Some(err) = corps.get("error") {
-                                Err(anyhow::anyhow!("MCP Error: {err}"))
-                            } else {
-                                Ok(corps.get("result").unwrap_or(&Value::Null).clone())
-                            }
+                let mut envoi = http
+                    .post(&url)
+                    .header("Accept", "application/json, text/event-stream")
+                    .json(&req);
+                if let Some(id) = &session {
+                    envoi = envoi.header("Mcp-Session-Id", id);
+                }
+                let resultat = match envoi.send().await {
+                    Ok(rep) => {
+                        if let Some(id) = rep
+                            .headers()
+                            .get("mcp-session-id")
+                            .and_then(|v| v.to_str().ok())
+                            .filter(|v| !v.is_empty())
+                        {
+                            session = Some(id.to_string());
                         }
-                        Err(e) => Err(anyhow::anyhow!("invalid MCP response: {e}")),
-                    },
+                        let statut = rep.status();
+                        let corps = rep.text().await.unwrap_or_default();
+                        if !statut.is_success() {
+                            // The body carries the reason when there is one, and an empty
+                            // body IS the reason on a session rejection. Either way the
+                            // status must reach the log, which used to see only
+                            // "invalid MCP response".
+                            Err(anyhow::anyhow!(
+                                "remote MCP answered {statut}: {}",
+                                corps.chars().take(200).collect::<String>()
+                            ))
+                        } else {
+                            charge_utile(&corps)
+                        }
+                    }
                     Err(e) => Err(anyhow::anyhow!("remote MCP unreachable: {e}")),
                 };
                 let _ = reply.send(resultat);
@@ -292,6 +327,36 @@ impl McpClient {
     }
 }
 
+/// Read the JSON-RPC payload of an HTTP response, whether it is a plain JSON body or an
+/// SSE stream where the document sits on a `data:` line.
+///
+/// A JSON-RPC error is turned into an Err here rather than handed up as a result: every
+/// caller treated a payload carrying `error` as a success otherwise.
+fn charge_utile(corps: &str) -> Result<Value> {
+    let brut = corps.trim();
+    let document = if brut.starts_with('{') || brut.starts_with('[') {
+        brut.to_string()
+    } else {
+        brut.lines()
+            .filter_map(|l| l.strip_prefix("data:"))
+            .map(str::trim)
+            .find(|l| !l.is_empty() && *l != "[DONE]")
+            .map(str::to_string)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "unreadable MCP response: {}",
+                    brut.chars().take(200).collect::<String>()
+                )
+            })?
+    };
+    let valeur: Value = serde_json::from_str(&document)
+        .with_context(|| format!("invalid MCP response: {}", document.chars().take(200).collect::<String>()))?;
+    if let Some(err) = valeur.get("error") {
+        return Err(anyhow::anyhow!("MCP Error: {err}"));
+    }
+    Ok(valeur.get("result").unwrap_or(&Value::Null).clone())
+}
+
 use crate::abeille::AbeilleRegistry;
 use crate::abeilles::mcp_tool::McpAbeille;
 
@@ -387,4 +452,38 @@ pub async fn charger_mcp_servers(
     }
 
     (count, clients)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A server answering in SSE must be understood, and the streamable HTTP transport
+    /// lets any server choose that form at any time.
+    #[test]
+    fn une_reponse_sse_est_lue_comme_du_json() {
+        let corps = "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"tools\":[]}}\n\n";
+        let r = charge_utile(corps).expect("payload readable");
+        assert!(r["tools"].is_array());
+    }
+
+    #[test]
+    fn une_reponse_json_simple_passe_aussi() {
+        let r = charge_utile("{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"ok\":true}}").unwrap();
+        assert_eq!(r["ok"], true);
+    }
+
+    /// A JSON-RPC error used to be returned as a successful result, so a refused call
+    /// looked like an empty answer.
+    #[test]
+    fn une_erreur_jsonrpc_ne_passe_pas_pour_un_succes() {
+        let e = charge_utile("{\"jsonrpc\":\"2.0\",\"id\":1,\"error\":{\"code\":-32602,\"message\":\"Unknown tool\"}}")
+            .unwrap_err();
+        assert!(e.to_string().contains("Unknown tool"));
+    }
+
+    #[test]
+    fn un_corps_illisible_le_dit() {
+        assert!(charge_utile("<html>gateway</html>").is_err());
+    }
 }
