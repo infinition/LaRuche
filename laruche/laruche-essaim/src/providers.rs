@@ -50,6 +50,50 @@ pub fn convertir_tools_openai(tools: &[serde_json::Value]) -> Vec<serde_json::Va
     }).collect()
 }
 
+/// Last gate before the wire: refuse a `tools` entry a provider will reject outright.
+///
+/// A single malformed entry kills the whole turn, and the message comes back from the
+/// far end in a shape that says nothing about which tool produced it:
+/// `tools[3].function: missing field name` (deepseek), 400, no fallback, turn lost.
+/// Two defects have that effect and both are cheap to see from here:
+///
+/// 1. a `function` object with no usable `name`. Nothing in `convertir_tools_openai`
+///    can emit one, yet a 400 naming exactly that reached a user, so the payload is
+///    checked rather than assumed. The entry is dropped and its keys are logged, which
+///    is what a next occurrence needs in order to be traced back to its source.
+/// 2. two entries sharing a name ("Tool names must be unique"), which a registry
+///    holding a plugin or MCP tool that shadows a builtin can produce.
+///
+/// Dropping one capability costs the model one tool it probably was not about to
+/// call. Losing the turn costs everything it had done so far.
+fn assainir_tools_openai(tools: Vec<serde_json::Value>) -> Vec<serde_json::Value> {
+    let mut vus: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut propres = Vec::with_capacity(tools.len());
+    for (i, t) in tools.into_iter().enumerate() {
+        let nom = t["function"]["name"].as_str().unwrap_or("").trim().to_string();
+        if nom.is_empty() {
+            let cles: Vec<&str> = t["function"]
+                .as_object()
+                .map(|o| o.keys().map(String::as_str).collect())
+                .unwrap_or_default();
+            tracing::error!(
+                target: "provider",
+                index = i,
+                cles_function = ?cles,
+                entree = %t.to_string().chars().take(200).collect::<String>(),
+                "tool definition without a usable name: dropped before sending"
+            );
+            continue;
+        }
+        if !vus.insert(nom.clone()) {
+            tracing::warn!(target: "provider", tool = %nom, "duplicate tool definition: dropped before sending");
+            continue;
+        }
+        propres.push(t);
+    }
+    propres
+}
+
 /// Shared HTTP client for OpenAI-compatible backends, pinned to HTTP/1.1.
 ///
 /// Large request bodies were being cut in flight. The dumps settle what we emit:
@@ -228,8 +272,19 @@ fn diagnostiquer_corps(
         Err(e) => notes.push(format!("OUR OWN body is invalid JSON: {e} <-- our bug")),
     }
 
-    // On a parse complaint, keep the exact bytes so they can be inspected offline.
-    if erreur.to_lowercase().contains("parse the request body") {
+    // Keep the exact bytes whenever the far end says our PAYLOAD is at fault, so the
+    // next occurrence is decidable instead of being re-derived from a column number.
+    //
+    // The condition used to be the single phrase "parse the request body", which is one
+    // gateway's wording. A refusal reading `Failed to deserialize the JSON body into the
+    // target type: tools[3].function: missing field name` matched none of it, so nothing
+    // was written and the only evidence left was a byte count. Any complaint that names a
+    // field, a path or the deserializer now dumps.
+    let motif = erreur.to_lowercase();
+    let corps_en_cause = ["parse the request body", "deserialize", "invalid schema", "missing field", "invalid type"]
+        .iter()
+        .any(|m| motif.contains(m));
+    if corps_en_cause {
         let chemin = std::env::temp_dir().join(format!(
             "laruche-corps-refuse-{}.json",
             chrono::Utc::now().format("%Y%m%d-%H%M%S")
@@ -562,7 +617,7 @@ async fn openai_chat_stream(
     }
     // Send native tool definitions (OpenAI format)
     if let Some(tools_list) = tools {
-        let openai_tools = convertir_tools_openai(tools_list);
+        let openai_tools = assainir_tools_openai(convertir_tools_openai(tools_list));
         if !openai_tools.is_empty() {
             body["tools"] = serde_json::json!(openai_tools);
         }
@@ -642,7 +697,11 @@ async fn openai_chat_stream(
                     rejeu = rejeu.header(k, v);
                 }
             }
-            response = rejeu.body(corps_sans).send().await?;
+            // The diagnostic below must describe the bytes that ACTUALLY went out. Left
+            // pointing at the first body, it reported a size and a message count for a
+            // request the provider never saw, which is worse than no diagnostic at all.
+            response = rejeu.body(corps_sans.clone()).send().await?;
+            corps_brut = corps_sans;
         } else {
             return Err(ProviderError {
                 status: 400,
@@ -1352,6 +1411,53 @@ mod tests {
 
     /// The shape that actually breaks a research run: a SHOAL, not a whale.
     ///
+    /// A tool definition without a name must never reach the wire.
+    ///
+    /// The turn that motivated this came back as `tools[3].function: missing field
+    /// name`, 400, no fallback, 177 messages of work lost. Probing the provider showed
+    /// that wording is emitted for exactly one shape: a `function` object whose `name`
+    /// key is absent (an empty name, a null one or a dotted one each say something
+    /// else). Dropping the entry costs one capability; sending it costs the turn.
+    #[test]
+    fn un_outil_sans_nom_ne_part_jamais_sur_le_fil() {
+        let outils = vec![
+            serde_json::json!({"type": "function", "function": {"name": "web_fetch", "description": "d", "parameters": {}}}),
+            serde_json::json!({"type": "function", "function": {"description": "d", "parameters": {}}}),
+            serde_json::json!({"type": "function", "function": {"name": "   ", "description": "d"}}),
+            serde_json::json!({"type": "function", "function": {}}),
+        ];
+        let propres = assainir_tools_openai(outils);
+        assert_eq!(propres.len(), 1, "only the named tool survives");
+        assert_eq!(propres[0]["function"]["name"], "web_fetch");
+    }
+
+    /// Two tools sharing a name are refused as a block ("Tool names must be unique"),
+    /// so the second one goes rather than the turn.
+    #[test]
+    fn un_nom_en_double_ne_part_pas_deux_fois() {
+        let outils = vec![
+            serde_json::json!({"type": "function", "function": {"name": "shell_exec", "description": "builtin"}}),
+            serde_json::json!({"type": "function", "function": {"name": "shell_exec", "description": "plugin qui masque le builtin"}}),
+        ];
+        let propres = assainir_tools_openai(outils);
+        assert_eq!(propres.len(), 1);
+        assert_eq!(propres[0]["function"]["description"], "builtin", "the first one wins");
+    }
+
+    /// The registry schema goes through the converter untouched: every entry named.
+    #[test]
+    fn le_registre_converti_garde_tous_ses_noms() {
+        let schema = vec![
+            serde_json::json!({"name": "a", "description": "d", "parameters": {"type": "object"}, "origin": "builtin"}),
+            serde_json::json!({"description": "sans nom", "parameters": {}}),
+        ];
+        let convertis = convertir_tools_openai(&schema);
+        assert_eq!(convertis.len(), 1, "a nameless schema entry is already dropped here");
+        assert!(assainir_tools_openai(convertis)
+            .iter()
+            .all(|t| t["function"]["name"].as_str().is_some_and(|n| !n.is_empty())));
+    }
+
     /// The refused body carried 38 messages, 23 of them tool results of roughly 3000
     /// chars, 73 KB in total. Not one exceeded the fixed 3500-char threshold, so the
     /// first version of the guard cut nothing at all and the request went out over
