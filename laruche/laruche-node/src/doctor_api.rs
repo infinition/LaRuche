@@ -102,6 +102,14 @@ pub(crate) async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde
                 ec.api_base.as_deref().unwrap_or("http://127.0.0.1:8000")
             )),
         ),
+        // Le pont ChatGPT expose /health, qui dit aussi si le navigateur est au bout.
+        "chatgpt-bridge" | "chatgpt-web" => (
+            "ChatGPT Bridge",
+            Some(format!(
+                "{}/health",
+                ec.api_base.as_deref().unwrap_or("http://127.0.0.1:8787")
+            )),
+        ),
         // A hosted provider: reaching it costs a billable request and proves little more
         // than the key being present, so it is reported as configured without a probe.
         "anthropic" => ("Anthropic", None),
@@ -131,6 +139,41 @@ pub(crate) async fn api_doctor(State(state): State<Arc<AppState>>) -> Json<serde
             "status": "ok",
             "detail": "Remote provider, configured",
         })),
+    }
+
+    // Le pont ChatGPT depend d'un navigateur qui reste ouvert. Son serveur repond
+    // meme quand l'onglet a ete ferme, si bien que la sonde generique ci-dessus
+    // afficherait un vert trompeur. On relit /health pour dire ce qui manque
+    // vraiment: le serveur, ou le navigateur au bout du fil.
+    if matches!(ec.provider.as_str(), "chatgpt-bridge" | "chatgpt-web") {
+        let base = ec
+            .api_base
+            .as_deref()
+            .unwrap_or("http://127.0.0.1:8787")
+            .trim_end_matches('/')
+            .to_string();
+        let reponse = reqwest::Client::new()
+            .get(format!("{base}/health"))
+            .timeout(std::time::Duration::from_millis(1500))
+            .send()
+            .await;
+        let agent = match reponse {
+            Ok(r) => r
+                .json::<serde_json::Value>()
+                .await
+                .ok()
+                .and_then(|v| v["agent"].as_bool()),
+            Err(_) => None,
+        };
+        checks.push(serde_json::json!({
+            "name": "ChatGPT Bridge - browser",
+            "status": if agent == Some(true) { "ok" } else { "error" },
+            "detail": match agent {
+                Some(true) => "Chrome extension connected".to_string(),
+                Some(false) => format!("Bridge running at {base} but no browser attached: open the ChatGPT tab and check the extension popup"),
+                None => format!("No /health at {base}: the bridge server is not running"),
+            },
+        }));
     }
 
     // Check model availability

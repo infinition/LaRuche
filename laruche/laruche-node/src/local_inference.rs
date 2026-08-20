@@ -58,6 +58,10 @@ pub fn backends_openai_compat_par_defaut() -> Vec<BackendLocal> {
             label: "vllm".into(),
             base_url: "http://127.0.0.1:8000".into(),
         },
+        BackendLocal {
+            label: "chatgpt-bridge".into(),
+            base_url: "http://127.0.0.1:8787".into(),
+        },
     ]
 }
 

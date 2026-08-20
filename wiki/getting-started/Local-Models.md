@@ -12,6 +12,7 @@ around those constraints instead of pretending they do not exist.
 | Ollama | Works out of the box, also used for embeddings. |
 | Any OpenAI-compatible API | LM Studio, vLLM, TGI, OpenRouter, DeepSeek, etc. |
 | Anthropic API | Native support for the Anthropic message format and tool calling. |
+| ChatGPT Bridge (browser) | Drives an already signed-in ChatGPT web session through a local server. No API key, no per-call billing. Tools work through the text rail, since the endpoint is local; there is no native tool channel, no token accounting, and one request at a time. |
 
 Providers are configured in **Settings > Providers**, live, no restart. You can define
 several and assign a different model per channel: a big cloud model for deep missions,

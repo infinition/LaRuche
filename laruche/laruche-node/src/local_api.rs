@@ -147,6 +147,14 @@ pub(crate) async fn api_onboarding(State(state): State<Arc<AppState>>) -> Json<s
             )),
             "Start vLLM with its OpenAI-compatible server.".into(),
         ),
+        "chatgpt-bridge" | "chatgpt-web" => (
+            "ChatGPT Bridge".into(),
+            Some(format!(
+                "{}/health",
+                ec.api_base.as_deref().unwrap_or("http://127.0.0.1:8787")
+            )),
+            "Start the bridge server, then open the ChatGPT tab in the browser it drives.".into(),
+        ),
         "anthropic" => ("Anthropic".into(), None, String::new()),
         "codex" => ("ChatGPT Codex".into(), None, String::new()),
         pair if pair.starts_with("peer:") => ("Swarm node".into(), None, String::new()),

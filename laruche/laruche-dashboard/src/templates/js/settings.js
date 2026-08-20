@@ -1237,7 +1237,8 @@ LaRuche.Settings = (function(){
     // spares the user from guessing which entry to pick and which port to type.
     var defaultUrls = {ollama:'http://127.0.0.1:11434', openai:'https://api.openai.com',
       anthropic:'https://api.anthropic.com', llamacpp:'http://127.0.0.1:8001',
-      lmstudio:'http://127.0.0.1:1234', vllm:'http://127.0.0.1:8000'};
+      lmstudio:'http://127.0.0.1:1234', vllm:'http://127.0.0.1:8000',
+      'chatgpt-bridge':'http://127.0.0.1:8787'};
     container.style.display = 'block';
     container.innerHTML = '<div class="settings-card" style="margin-bottom:16px">'+
       '<div class="settings-card-title">'+(editId?LaRuche.i18n.t('settings.editProviderTitle'):LaRuche.i18n.t('settings.addProviderTitle'))+'</div>'+
@@ -1252,6 +1253,7 @@ LaRuche.Settings = (function(){
       '<option value="llamacpp"'+(provType==='llamacpp'?' selected':'')+'>llama.cpp (llama-server)</option>'+
       '<option value="lmstudio"'+(provType==='lmstudio'?' selected':'')+'>LM Studio</option>'+
       '<option value="vllm"'+(provType==='vllm'?' selected':'')+'>vLLM</option>'+
+      '<option value="chatgpt-bridge"'+(provType==='chatgpt-bridge'?' selected':'')+'>ChatGPT Bridge (browser)</option>'+
       '<option value="anthropic"'+(provType==='anthropic'?' selected':'')+'>Anthropic</option>'+
       '</select></div>'+
       '<div class="form-group"><label class="form-label">'+LaRuche.i18n.t('settings.pfBaseUrlLabel')+'</label>'+
@@ -1284,7 +1286,8 @@ LaRuche.Settings = (function(){
   function onProfileProviderChange() {
     var prov = document.getElementById('pfProvider').value;
     var urlField = document.getElementById('pfBaseUrl');
-    var defaultUrls = {ollama:'http://127.0.0.1:11434', openai:'https://api.openai.com', anthropic:'https://api.anthropic.com', llamacpp:'http://127.0.0.1:8001', lmstudio:'http://127.0.0.1:1234', vllm:'http://127.0.0.1:8000'};
+    var defaultUrls = {ollama:'http://127.0.0.1:11434', openai:'https://api.openai.com', anthropic:'https://api.anthropic.com', llamacpp:'http://127.0.0.1:8001', lmstudio:'http://127.0.0.1:1234', vllm:'http://127.0.0.1:8000',
+      'chatgpt-bridge':'http://127.0.0.1:8787'};
     if(!urlField) return;
     // Only overwrite a value that is itself a preset, so a port typed by hand survives.
     var estPreset = Object.keys(defaultUrls).some(function(k){ return urlField.value === defaultUrls[k]; });

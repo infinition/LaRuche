@@ -429,6 +429,28 @@ pub async fn provider_chat_stream_effort(
             let base = api_base.or(Some("http://127.0.0.1:8000"));
             openai_chat_stream(model, messages, temperature, max_tokens, api_key, base, tools, effort).await
         }
+        // Pont vers l'interface web de ChatGPT: un serveur local rejoue le prompt dans
+        // un onglet Chrome deja connecte et renvoie le flux au format OpenAI. Le compte
+        // fournit le modele, il n'y a donc ni cle ni facturation a l'appel.
+        //
+        // Les tools ne sont PAS transmis par le canal natif, et les outils marchent
+        // quand meme: l'adresse etant locale, `protocole_texte_pour` a deja bascule
+        // le prompt systeme sur le rail texte, qui decrit les signatures et la
+        // convention `<tool_call>`. Le parsing de `<tool_call>` n'est jamais desactive.
+        //
+        // Les envoyer en plus serait nuisible, pas seulement inutile: le modele
+        // recevrait deux protocoles contradictoires, exactement le cas decrit plus
+        // haut ou un modele confus retombe sur le gabarit memorise a l'entrainement.
+        // L'interface web ne relaie de toute facon pas le champ `tools`.
+        "chatgpt-bridge" | "chatgpt-web" => {
+            let base = api_base.or(Some("http://127.0.0.1:8787"));
+            tracing::debug!(
+                target: "provider",
+                outils = tools.map(<[serde_json::Value]>::len).unwrap_or(0),
+                "chatgpt-bridge: outils portes par le rail texte, canal natif non utilise"
+            );
+            openai_chat_stream(model, messages, temperature, max_tokens, api_key, base, None, effort).await
+        }
         "anthropic" => {
             anthropic_chat_stream(model, messages, temperature, max_tokens, api_key, api_base, tools, effort).await
         }
