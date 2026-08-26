@@ -6,6 +6,10 @@
 //!   calls instead of losing everything past a tiny cap;
 //! - **links extraction** (`include_links`): the model can crawl OUTWARD (find the
 //!   download page, the forum thread) instead of being stuck on one page;
+//! - **`focus`**: return the passages that answer the question instead of the
+//!   first N characters. Blind truncation is not just lossy, it can be a total
+//!   miss: on the 145k-char Wikipedia article for mitochondria, zero of the 12
+//!   "apoptosis" mentions fall inside the default 12k window;
 //! - anti-blocking chain: direct (1 retry) → r.jina.ai → Wayback Machine;
 //! - PDFs routed through jina (which renders them as text) instead of binary garbage;
 //! - `render=true`: headless Chrome/Edge for JS-only pages.
@@ -42,7 +46,8 @@ impl Abeille for WebFetch {
                 "offset": { "type": "integer", "description": "Character offset to continue reading a long page (from a previous call's hint). Default 0." },
                 "max_chars": { "type": "integer", "description": "Max characters returned (default 12000, max 40000)" },
                 "include_links": { "type": "boolean", "description": "Append the page's links (text + URL) to crawl further" },
-                "render": { "type": "boolean", "description": "Headless Chrome/Edge render before extraction (JS pages)" }
+                "render": { "type": "boolean", "description": "Headless Chrome/Edge render before extraction (JS pages)" },
+                "focus": { "type": "string", "description": "What you are looking for on this page (e.g. 'apoptosis', 'pricing tiers'). Returns only the passages that match, in document order, instead of the first N characters. Use it whenever you have a specific question: on a long page, blind truncation often returns none of the answer." }
             },
             "required": ["url"]
         })
@@ -75,6 +80,7 @@ impl Abeille for WebFetch {
         let max_chars = (args["max_chars"].as_u64().unwrap_or(MAX_CHARS_DEFAUT as u64) as usize)
             .clamp(1_000, 40_000);
         let avec_liens = args["include_links"].as_bool().unwrap_or(false);
+        let focus = args["focus"].as_str().unwrap_or("").to_string();
 
         if args["render"].as_bool().unwrap_or(false) {
             return match render_url_dom(url, 3).await {
@@ -83,7 +89,7 @@ impl Abeille for WebFetch {
                     let liens = if avec_liens { rendu_liens(&html, url) } else { String::new() };
                     Ok(ResultatAbeille::ok(format!(
                         "{}{liens}",
-                        paginer(&texte, offset, max_chars)
+                        presenter(&texte, &focus, offset, max_chars)
                     )))
                 }
                 Err(e) => Ok(ResultatAbeille::err(format!(
@@ -108,7 +114,7 @@ impl Abeille for WebFetch {
                 if let Some(text) = fetch_via_jina(&client, url).await {
                     return Ok(ResultatAbeille::ok(format!(
                         "[PDF converted via r.jina.ai]\n\n{}",
-                        paginer(&text, offset, max_chars)
+                        presenter(&text, &focus, offset, max_chars)
                     )));
                 }
                 Ok(ResultatAbeille::err(
@@ -123,7 +129,7 @@ impl Abeille for WebFetch {
                     if let Some(text) = fetch_via_jina(&client, url).await {
                         return Ok(ResultatAbeille::ok(format!(
                             "[via r.jina.ai - page needed rendering]\n\n{}",
-                            paginer(&text, offset, max_chars)
+                            presenter(&text, &focus, offset, max_chars)
                         )));
                     }
                     return Ok(ResultatAbeille::err(
@@ -133,11 +139,11 @@ impl Abeille for WebFetch {
                 let liens = if avec_liens { rendu_liens(&html, url) } else { String::new() };
                 Ok(ResultatAbeille::ok(format!(
                     "{}{liens}",
-                    paginer(&texte, offset, max_chars)
+                    presenter(&texte, &focus, offset, max_chars)
                 )))
             }
             Ok(Recolte::Texte(t)) if !t.trim().is_empty() => {
-                Ok(ResultatAbeille::ok(paginer(&t, offset, max_chars)))
+                Ok(ResultatAbeille::ok(presenter(&t, &focus, offset, max_chars)))
             }
             issue => {
                 let motif = match issue {
@@ -148,14 +154,14 @@ impl Abeille for WebFetch {
                 if let Some(text) = fetch_via_jina(&client, url).await {
                     return Ok(ResultatAbeille::ok(format!(
                         "[via r.jina.ai - direct fetch failed: {motif}]\n\n{}",
-                        paginer(&text, offset, max_chars)
+                        presenter(&text, &focus, offset, max_chars)
                     )));
                 }
                 // Fallback 2: Wayback Machine (archived snapshot).
                 if let Some(text) = fetch_via_wayback(&client, url).await {
                     return Ok(ResultatAbeille::ok(format!(
                         "[via Wayback Machine - direct fetch failed: {motif}]\n\n{}",
-                        paginer(&text, offset, max_chars)
+                        presenter(&text, &focus, offset, max_chars)
                     )));
                 }
                 Ok(ResultatAbeille::err(format!(
@@ -295,6 +301,157 @@ async fn render_url_dom(url: &str, wait_seconds: u64) -> Result<String> {
         );
     }
     Ok(html)
+}
+
+/// Single presentation path: focus if asked, otherwise plain pagination.
+///
+/// Blind truncation can return NONE of what was asked for. Measured on the
+/// Wikipedia article for mitochondria (145k chars): of 12 "apoptosis" mentions,
+/// zero fall inside the default 12k window. The agent spends 3k tokens on the
+/// lead section and infobox, sees nothing about apoptosis, and concludes the
+/// page does not cover it. `focus` returns the matching passages instead.
+pub(crate) fn presenter(texte: &str, focus: &str, offset: usize, max_chars: usize) -> String {
+    if focus.trim().is_empty() {
+        return paginer(texte, offset, max_chars);
+    }
+    match cibler(texte, focus, max_chars) {
+        Some(cible) => cible,
+        // Never silently return an empty result: say the focus missed and show
+        // the page linearly, so the model can decide rather than guess.
+        None => format!(
+            "[focus=\"{focus}\" matched nothing on this page. Showing it from the top instead.]\n\n{}",
+            paginer(texte, offset, max_chars)
+        ),
+    }
+}
+
+/// Keep the passages that match `focus`, in document order, within budget.
+///
+/// Returns `None` when nothing matches, so the caller can be honest about it.
+fn cibler(texte: &str, focus: &str, max_chars: usize) -> Option<String> {
+    let termes = termes_focus(focus);
+    if termes.is_empty() {
+        return None;
+    }
+
+    let blocs = decouper_en_blocs(texte);
+    let mut notes: Vec<(usize, usize)> = blocs
+        .iter()
+        .enumerate()
+        .map(|(i, b)| (i, score_bloc(b, &termes)))
+        .filter(|(_, s)| *s > 0)
+        .collect();
+    if notes.is_empty() {
+        return None;
+    }
+
+    // Best blocks first to spend the budget on them, then restore document
+    // order so the extract still reads like the page.
+    notes.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    let mut retenus: Vec<usize> = Vec::new();
+    let mut budget = max_chars;
+    for (index, _) in notes.iter() {
+        let cout = blocs[*index].chars().count();
+        if cout > budget {
+            continue;
+        }
+        budget -= cout;
+        retenus.push(*index);
+    }
+    if retenus.is_empty() {
+        return None;
+    }
+    retenus.sort_unstable();
+
+    let mut sortie = String::new();
+    let mut precedent: Option<usize> = None;
+    for index in &retenus {
+        // A gap must be visible: the model has to know the text is not contiguous.
+        if precedent.is_some_and(|p| *index > p + 1) {
+            sortie.push_str("\n\n[...]\n\n");
+        } else if precedent.is_some() {
+            sortie.push_str("\n\n");
+        }
+        sortie.push_str(blocs[*index].trim());
+        precedent = Some(*index);
+    }
+
+    let total: usize = texte.chars().count();
+    sortie.push_str(&format!(
+        "\n\n[focus=\"{focus}\": kept {} of {} passages ({} of {total} chars). Gaps marked [...]. \
+         Drop `focus` to read the page linearly.]",
+        retenus.len(),
+        blocs.len(),
+        sortie.chars().count()
+    ));
+    Some(sortie)
+}
+
+/// Focus terms: lowercase, deduplicated, stopwords dropped.
+fn termes_focus(focus: &str) -> Vec<String> {
+    const VIDES: &[&str] = &[
+        "the", "a", "an", "of", "and", "or", "in", "on", "for", "to", "is", "are", "what",
+        "how", "le", "la", "les", "de", "des", "du", "et", "ou", "un", "une", "dans", "sur",
+        "quoi", "comment", "quel", "quelle",
+    ];
+    let mut termes: Vec<String> = focus
+        .split(|c: char| !c.is_alphanumeric() && c != '-')
+        .map(|t| t.trim().to_lowercase())
+        .filter(|t| t.len() >= 2 && !VIDES.contains(&t.as_str()))
+        .collect();
+    termes.sort();
+    termes.dedup();
+    termes
+}
+
+/// Split into passages: real paragraphs when the text has them, otherwise
+/// sentence groups, because readability extraction often yields one long run.
+fn decouper_en_blocs(texte: &str) -> Vec<String> {
+    /// Target size of a synthetic block, in characters.
+    const TAILLE_BLOC: usize = 400;
+
+    let paragraphes: Vec<String> = texte
+        .split("\n\n")
+        .map(|p| p.trim().to_string())
+        .filter(|p| !p.is_empty())
+        .collect();
+    if paragraphes.len() >= 3 {
+        return paragraphes;
+    }
+
+    let mut blocs = Vec::new();
+    let mut courant = String::new();
+    for phrase in texte.split_inclusive(['.', '!', '?', '\n']) {
+        courant.push_str(phrase);
+        if courant.chars().count() >= TAILLE_BLOC {
+            blocs.push(std::mem::take(&mut courant));
+        }
+    }
+    if !courant.trim().is_empty() {
+        blocs.push(courant);
+    }
+    blocs
+}
+
+/// Relevance of one passage to the focus terms.
+///
+/// Distinct terms weigh far more than repetition: a passage covering two of the
+/// asked-about terms answers better than one repeating a single term ten times.
+fn score_bloc(bloc: &str, termes: &[String]) -> usize {
+    let bas = bloc.to_lowercase();
+    let mut distincts = 0;
+    let mut occurrences = 0;
+    for terme in termes {
+        let n = bas.matches(terme.as_str()).count();
+        if n > 0 {
+            distincts += 1;
+            occurrences += n;
+        }
+    }
+    if distincts == 0 {
+        return 0;
+    }
+    distincts * 10 + occurrences.min(10)
 }
 
 /// Char-safe pagination window over the extracted text. Tells the model the total
@@ -569,6 +726,63 @@ mod tests {
         assert!(txt.contains("Titre"));
         assert!(!txt.contains("Menu"));
         assert!(!txt.contains("Mentions legales"));
+    }
+
+    /// The measured failure: on a long page, blind truncation can return none
+    /// of what was asked for.
+    #[test]
+    fn focus_ramene_le_passage_que_la_troncature_perd() {
+        let page = format!(
+            "{}
+
+Apoptosis is triggered by cytochrome c release.",
+            "Lead section filler. ".repeat(400)
+        );
+        // Linear reading at the default budget never reaches the passage.
+        assert!(!paginer(&page, 0, 2_000).contains("Apoptosis"));
+        let cible = presenter(&page, "apoptosis", 0, 2_000);
+        assert!(cible.contains("cytochrome c"), "focus lost the answer");
+        assert!(cible.contains("kept 1 of"), "focus report missing");
+    }
+
+    #[test]
+    fn focus_qui_ne_matche_rien_le_dit_et_ne_rend_pas_le_vide() {
+        let page = "Some page about mitochondria.".to_string();
+        let sortie = presenter(&page, "quantum chromodynamics", 0, 2_000);
+        assert!(sortie.contains("matched nothing"));
+        // The page still comes through: a miss must not cost the content.
+        assert!(sortie.contains("mitochondria"));
+    }
+
+    #[test]
+    fn focus_marque_les_trous_et_garde_lordre_du_document() {
+        let page = "alpha ATP one.
+
+filler filler.
+
+beta ATP two.
+
+omega end.";
+        let sortie = presenter(page, "ATP", 0, 4_000);
+        let i_alpha = sortie.find("alpha").expect("first match kept");
+        let i_beta = sortie.find("beta").expect("second match kept");
+        assert!(i_alpha < i_beta, "document order broken");
+        assert!(sortie.contains("[...]"), "gap not marked");
+        assert!(!sortie.contains("filler"), "non-matching block kept");
+    }
+
+    #[test]
+    fn score_bloc_prefere_la_couverture_a_la_repetition() {
+        let termes = vec!["atp".to_string(), "synthase".to_string()];
+        let deux = score_bloc("ATP synthase sits in the membrane", &termes);
+        let un = score_bloc("ATP ATP ATP ATP ATP ATP", &termes);
+        assert!(deux > un, "repetition should not beat coverage");
+    }
+
+    #[test]
+    fn termes_focus_ecarte_les_mots_vides() {
+        assert_eq!(termes_focus("what is the role of apoptosis"), vec!["apoptosis", "role"]);
+        assert!(termes_focus("the of and").is_empty());
     }
 
     #[test]
