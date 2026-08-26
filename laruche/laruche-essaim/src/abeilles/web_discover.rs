@@ -975,13 +975,36 @@ const STOPWORDS: &[&str] = &[
 // URL helpers (hand-rolled: the workspace carries no `url` crate)
 // ════════════════════════════════════════════════════════════════════════
 
-/// Add a scheme when the caller passed a bare host.
+/// Add a scheme when the caller passed a bare host, and unwrap an archive URL.
 fn normaliser_entree(url: &str) -> String {
-    let t = url.trim();
+    let t = deballer_archive(url.trim());
     if t.is_empty() || t.contains("://") {
-        t.to_string()
+        t
     } else {
         format!("https://{t}")
+    }
+}
+
+/// Pull the real target out of a Wayback wrapper URL.
+///
+/// Seen in production: an agent asked for
+/// `https://web.archive.org/web/2024/https://www.nexusmods.com/dungeonsiege1/mods/`
+/// meaning "look at nexusmods through the archive". Taken literally, the host is
+/// `web.archive.org`, so the CDX channel enumerated the ARCHIVE's own URLs: 4993
+/// candidates, zero useful, one wasted call. The intent is unambiguous, so honour
+/// it rather than answering a question nobody asked.
+fn deballer_archive(url: &str) -> String {
+    let Some(reste) = url
+        .split_once("web.archive.org/web/")
+        .map(|(_, r)| r)
+        .filter(|_| url.contains("web.archive.org/web/"))
+    else {
+        return url.to_string();
+    };
+    // `<timestamp>/<real url>`; the timestamp may carry a suffix like `id_`.
+    match reste.find("http") {
+        Some(i) => reste[i..].to_string(),
+        None => url.to_string(),
     }
 }
 
@@ -1092,6 +1115,27 @@ fn extension_correspond(url: &str, extensions: &[String]) -> bool {
 // Rendering
 // ════════════════════════════════════════════════════════════════════════
 
+/// The status code, if every failed candidate answered the SAME server error.
+///
+/// Requires a handful of samples: two 503s could be coincidence, a whole sweep
+/// answering one 5xx is a host that is down.
+fn panne_generale(morts: &[&Trouvaille]) -> Option<u16> {
+    /// Below this many candidates, agreement proves nothing.
+    const MIN_ECHANTILLON: usize = 5;
+
+    if morts.len() < MIN_ECHANTILLON {
+        return None;
+    }
+    let premier = morts.first()?.statut?;
+    if !(500..600).contains(&premier) {
+        return None;
+    }
+    morts
+        .iter()
+        .all(|t| t.statut == Some(premier))
+        .then_some(premier)
+}
+
 fn taille_lisible(octets: u64) -> String {
     match octets {
         0..=1023 => format!("{octets}B"),
@@ -1143,6 +1187,22 @@ fn rendre(
     }
     if vivants.is_empty() {
         sortie.push_str("  (none)\n");
+    }
+
+    // A host that answers the same server error to EVERYTHING is down, not gone.
+    // Seen in production: siegetheday.org returned 503 across the board and the
+    // report listed 200 URLs as "GONE from the live site", 3512 characters of
+    // noise built on a wrong conclusion. 5xx means come back later; only the
+    // client codes say the resource is not there.
+    if let Some(code) = panne_generale(&morts) {
+        sortie.push_str(&format!(
+            "\nHOST DOWN: every one of the {} candidates answered {code}. That is a server \
+             error, not a missing file: the site is unavailable right now, nothing here says \
+             its content is gone. Retry later, or read it from \
+             https://web.archive.org/web/2016/<url>.\n",
+            morts.len()
+        ));
+        return sortie;
     }
 
     // Dead on the live site but seen by the archive: still retrievable, and this
@@ -1327,6 +1387,59 @@ mod tests {
             rehoter("https://ex.com", "www.ex.com").unwrap(),
             "https://www.ex.com/"
         );
+    }
+
+    /// The wasted call, from production: the agent meant "nexusmods through the
+    /// archive" and the tool enumerated archive.org's own 4993 URLs instead.
+    #[test]
+    fn une_url_wayback_est_deballee_vers_sa_vraie_cible() {
+        assert_eq!(
+            normaliser_entree("https://web.archive.org/web/2024/https://www.nexusmods.com/dungeonsiege1/mods/"),
+            "https://www.nexusmods.com/dungeonsiege1/mods/"
+        );
+        // Timestamps carry suffixes like `id_`.
+        assert_eq!(
+            normaliser_entree("https://web.archive.org/web/20160819id_/http://ds.lordtry.com/file/"),
+            "http://ds.lordtry.com/file/"
+        );
+        // The archive's own pages, with no wrapped target, stay as they are.
+        assert_eq!(
+            normaliser_entree("https://web.archive.org/about/"),
+            "https://web.archive.org/about/"
+        );
+    }
+
+    /// The misleading report, from production: siegetheday.org answered 503 to
+    /// everything and 200 URLs came back labelled "GONE from the live site".
+    #[test]
+    fn un_hote_en_panne_nest_pas_un_contenu_disparu() {
+        let morts: Vec<Trouvaille> = (0..8)
+            .map(|i| {
+                let mut t = Trouvaille::nouveau(format!("https://hs.test/p{i}"), Canal::Archive);
+                t.statut = Some(503);
+                t
+            })
+            .collect();
+        let refs: Vec<&Trouvaille> = morts.iter().collect();
+        assert_eq!(panne_generale(&refs), Some(503));
+
+        // A 404 is a real absence, not an outage.
+        let mut absents = morts.clone();
+        for t in &mut absents {
+            t.statut = Some(404);
+        }
+        let refs: Vec<&Trouvaille> = absents.iter().collect();
+        assert!(panne_generale(&refs).is_none(), "404 must stay a real absence");
+
+        // Mixed codes mean the host is answering: no blanket conclusion.
+        let mut melange = morts.clone();
+        melange[0].statut = Some(404);
+        let refs: Vec<&Trouvaille> = melange.iter().collect();
+        assert!(panne_generale(&refs).is_none());
+
+        // Too few samples to conclude anything.
+        let refs: Vec<&Trouvaille> = morts.iter().take(3).collect();
+        assert!(panne_generale(&refs).is_none());
     }
 
     #[test]
