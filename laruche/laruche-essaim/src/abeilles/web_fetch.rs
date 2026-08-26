@@ -10,6 +10,10 @@
 //!   first N characters. Blind truncation is not just lossy, it can be a total
 //!   miss: on the 145k-char Wikipedia article for mitochondria, zero of the 12
 //!   "apoptosis" mentions fall inside the default 12k window;
+//! - **`probe`**: verdict plus one quote, in ~60 tokens. Checking a claim and
+//!   reading a page are different jobs, and they should not cost the same;
+//! - **structured data**: a JS shell still serializes its content as JSON-LD for
+//!   SEO, so read THAT before paying for a renderer or a proxy;
 //! - anti-blocking chain: direct (1 retry) → r.jina.ai → Wayback Machine;
 //! - PDFs routed through jina (which renders them as text) instead of binary garbage;
 //! - `render=true`: headless Chrome/Edge for JS-only pages.
@@ -47,7 +51,8 @@ impl Abeille for WebFetch {
                 "max_chars": { "type": "integer", "description": "Max characters returned (default 12000, max 40000)" },
                 "include_links": { "type": "boolean", "description": "Append the page's links (text + URL) to crawl further" },
                 "render": { "type": "boolean", "description": "Headless Chrome/Edge render before extraction (JS pages)" },
-                "focus": { "type": "string", "description": "What you are looking for on this page (e.g. 'apoptosis', 'pricing tiers'). Returns only the passages that match, in document order, instead of the first N characters. Use it whenever you have a specific question: on a long page, blind truncation often returns none of the answer." }
+                "focus": { "type": "string", "description": "What you are looking for on this page (e.g. 'apoptosis', 'pricing tiers'). Returns only the passages that match, in document order, instead of the first N characters. Use it whenever you have a specific question: on a long page, blind truncation often returns none of the answer." },
+                "probe": { "type": "boolean", "description": "Verdict mode: answer whether `focus` appears on the page, with one short quote as evidence, in ~60 tokens instead of thousands. Requires `focus`. Use it to CHECK a claim (is this version still supported? does this page mention X?) rather than to read." }
             },
             "required": ["url"]
         })
@@ -81,6 +86,8 @@ impl Abeille for WebFetch {
             .clamp(1_000, 40_000);
         let avec_liens = args["include_links"].as_bool().unwrap_or(false);
         let focus = args["focus"].as_str().unwrap_or("").to_string();
+        // A verdict without a question is meaningless, so probe implies focus.
+        let probe = args["probe"].as_bool().unwrap_or(false) && !focus.trim().is_empty();
 
         if args["render"].as_bool().unwrap_or(false) {
             return match render_url_dom(url, 3).await {
@@ -89,7 +96,7 @@ impl Abeille for WebFetch {
                     let liens = if avec_liens { rendu_liens(&html, url) } else { String::new() };
                     Ok(ResultatAbeille::ok(format!(
                         "{}{liens}",
-                        presenter(&texte, &focus, offset, max_chars)
+                        presenter(&texte, &focus, probe, offset, max_chars)
                     )))
                 }
                 Err(e) => Ok(ResultatAbeille::err(format!(
@@ -114,7 +121,7 @@ impl Abeille for WebFetch {
                 if let Some(text) = fetch_via_jina(&client, url).await {
                     return Ok(ResultatAbeille::ok(format!(
                         "[PDF converted via r.jina.ai]\n\n{}",
-                        presenter(&text, &focus, offset, max_chars)
+                        presenter(&text, &focus, probe, offset, max_chars)
                     )));
                 }
                 Ok(ResultatAbeille::err(
@@ -132,14 +139,14 @@ impl Abeille for WebFetch {
                     if let Some(structure) = extraire_donnees_structurees(&html) {
                         return Ok(ResultatAbeille::ok(format!(
                             "[structured data extracted from the page source - no renderer needed]\n\n{}",
-                            presenter(&structure, &focus, offset, max_chars)
+                            presenter(&structure, &focus, probe, offset, max_chars)
                         )));
                     }
                     // Empty/JS shell: try jina (renders JS) before giving up.
                     if let Some(text) = fetch_via_jina(&client, url).await {
                         return Ok(ResultatAbeille::ok(format!(
                             "[via r.jina.ai - page needed rendering]\n\n{}",
-                            presenter(&text, &focus, offset, max_chars)
+                            presenter(&text, &focus, probe, offset, max_chars)
                         )));
                     }
                     return Ok(ResultatAbeille::err(
@@ -149,11 +156,11 @@ impl Abeille for WebFetch {
                 let liens = if avec_liens { rendu_liens(&html, url) } else { String::new() };
                 Ok(ResultatAbeille::ok(format!(
                     "{}{liens}",
-                    presenter(&texte, &focus, offset, max_chars)
+                    presenter(&texte, &focus, probe, offset, max_chars)
                 )))
             }
             Ok(Recolte::Texte(t)) if !t.trim().is_empty() => {
-                Ok(ResultatAbeille::ok(presenter(&t, &focus, offset, max_chars)))
+                Ok(ResultatAbeille::ok(presenter(&t, &focus, probe, offset, max_chars)))
             }
             issue => {
                 let motif = match issue {
@@ -164,14 +171,14 @@ impl Abeille for WebFetch {
                 if let Some(text) = fetch_via_jina(&client, url).await {
                     return Ok(ResultatAbeille::ok(format!(
                         "[via r.jina.ai - direct fetch failed: {motif}]\n\n{}",
-                        presenter(&text, &focus, offset, max_chars)
+                        presenter(&text, &focus, probe, offset, max_chars)
                     )));
                 }
                 // Fallback 2: Wayback Machine (archived snapshot).
                 if let Some(text) = fetch_via_wayback(&client, url).await {
                     return Ok(ResultatAbeille::ok(format!(
                         "[via Wayback Machine - direct fetch failed: {motif}]\n\n{}",
-                        presenter(&text, &focus, offset, max_chars)
+                        presenter(&text, &focus, probe, offset, max_chars)
                     )));
                 }
                 Ok(ResultatAbeille::err(format!(
@@ -320,9 +327,18 @@ async fn render_url_dom(url: &str, wait_seconds: u64) -> Result<String> {
 /// zero fall inside the default 12k window. The agent spends 3k tokens on the
 /// lead section and infobox, sees nothing about apoptosis, and concludes the
 /// page does not cover it. `focus` returns the matching passages instead.
-pub(crate) fn presenter(texte: &str, focus: &str, offset: usize, max_chars: usize) -> String {
+pub(crate) fn presenter(
+    texte: &str,
+    focus: &str,
+    probe: bool,
+    offset: usize,
+    max_chars: usize,
+) -> String {
     if focus.trim().is_empty() {
         return paginer(texte, offset, max_chars);
+    }
+    if probe {
+        return sonder(texte, focus);
     }
     match cibler(texte, focus, max_chars) {
         Some(cible) => cible,
@@ -333,6 +349,64 @@ pub(crate) fn presenter(texte: &str, focus: &str, offset: usize, max_chars: usiz
             paginer(texte, offset, max_chars)
         ),
     }
+}
+
+/// Verdict on whether `focus` is on the page, with one quote as evidence.
+///
+/// Checking a claim and reading a page are different jobs charged at the same
+/// price today: "is this version still supported?" costs the same 3000 tokens as
+/// reading the whole changelog. This answers in about 60, which is what makes it
+/// affordable to verify several claims in one turn instead of trusting memory.
+///
+/// The quote is mandatory on a hit. A bare yes is a claim the model then has to
+/// take on faith, and an unverifiable yes is worse than no answer.
+fn sonder(texte: &str, focus: &str) -> String {
+    /// Characters of context kept around the match. Enough to carry a fact,
+    /// short enough that the whole verdict stays a rounding error.
+    const CONTEXTE: usize = 160;
+
+    let termes = termes_focus(focus);
+    if termes.is_empty() {
+        return format!("PROBE \"{focus}\": no usable term in the focus.");
+    }
+    let bas = texte.to_lowercase();
+    let chars: Vec<char> = texte.chars().collect();
+    let total = chars.len();
+
+    // Report against every term: "2 of 3 present" is a far more useful answer
+    // than a single yes/no when the focus carries several conditions.
+    let mut trouves: Vec<&String> = Vec::new();
+    let mut premiere: Option<usize> = None;
+    for terme in &termes {
+        if let Some(octet) = bas.find(terme.as_str()) {
+            trouves.push(terme);
+            let index = bas[..octet].chars().count();
+            premiere = Some(premiere.map_or(index, |p: usize| p.min(index)));
+        }
+    }
+
+    let Some(index) = premiere else {
+        return format!(
+            "PROBE \"{focus}\": ABSENT. None of [{}] appears in the {total} chars of this page.",
+            termes.join(", ")
+        );
+    };
+
+    let debut = index.saturating_sub(CONTEXTE / 2);
+    let fin = (index + CONTEXTE).min(total);
+    let extrait: String = chars[debut..fin].iter().collect();
+    format!(
+        "PROBE \"{focus}\": PRESENT ({} of {} terms: {}). Evidence at char {index} of {total}:\n\
+         \"...{}...\"",
+        trouves.len(),
+        termes.len(),
+        trouves
+            .iter()
+            .map(|t| t.as_str())
+            .collect::<Vec<_>>()
+            .join(", "),
+        extrait.trim().replace('\n', " ")
+    )
 }
 
 /// Keep the passages that match `focus`, in document order, within budget.
@@ -831,6 +905,46 @@ mod tests {
     }
 
     /// A JS shell with JSON-LD must be readable WITHOUT a renderer or a proxy.
+    /// A verdict costs a rounding error next to reading the page.
+    #[test]
+    fn probe_rend_un_verdict_avec_sa_preuve() {
+        let page = format!(
+            "{} Support for version 1.4 ended in March. {}",
+            "filler ".repeat(2_000),
+            "more ".repeat(2_000)
+        );
+        let verdict = presenter(&page, "version 1.4", true, 0, 12_000);
+        assert!(verdict.starts_with("PROBE"));
+        assert!(verdict.contains("PRESENT"));
+        // Evidence is mandatory: a bare yes would have to be taken on faith.
+        assert!(verdict.contains("ended in March"), "quote missing: {verdict}");
+        // The whole point is the price.
+        assert!(verdict.len() < 400, "probe should stay tiny, got {}", verdict.len());
+    }
+
+    #[test]
+    fn probe_absent_le_dit_sans_ambiguite() {
+        let verdict = presenter("A page about cats.", "quantum tunneling", true, 0, 12_000);
+        assert!(verdict.contains("ABSENT"), "got {verdict}");
+    }
+
+    /// A partial hit must be reported as partial, not as a plain yes: the focus
+    /// often carries several conditions and "2 of 3" is the honest answer.
+    #[test]
+    fn probe_compte_les_termes_trouves() {
+        let verdict = presenter("Only apoptosis here.", "apoptosis cristae", true, 0, 12_000);
+        assert!(verdict.contains("1 of 2"), "got {verdict}");
+    }
+
+    #[test]
+    fn probe_sans_focus_retombe_sur_la_lecture_normale() {
+        // `probe` without `focus` is meaningless; executer() gates it, and
+        // presenter must not invent a verdict either.
+        let sortie = presenter("Some content here.", "", false, 0, 12_000);
+        assert!(!sortie.contains("PROBE"));
+        assert!(sortie.contains("Some content"));
+    }
+
     #[test]
     fn les_donnees_structurees_sauvent_une_coquille_js() {
         let html = r#"<html><head>
@@ -885,7 +999,7 @@ Apoptosis is triggered by cytochrome c release.",
         );
         // Linear reading at the default budget never reaches the passage.
         assert!(!paginer(&page, 0, 2_000).contains("Apoptosis"));
-        let cible = presenter(&page, "apoptosis", 0, 2_000);
+        let cible = presenter(&page, "apoptosis", false, 0, 2_000);
         assert!(cible.contains("cytochrome c"), "focus lost the answer");
         assert!(cible.contains("kept 1 of"), "focus report missing");
     }
@@ -893,7 +1007,7 @@ Apoptosis is triggered by cytochrome c release.",
     #[test]
     fn focus_qui_ne_matche_rien_le_dit_et_ne_rend_pas_le_vide() {
         let page = "Some page about mitochondria.".to_string();
-        let sortie = presenter(&page, "quantum chromodynamics", 0, 2_000);
+        let sortie = presenter(&page, "quantum chromodynamics", false, 0, 2_000);
         assert!(sortie.contains("matched nothing"));
         // The page still comes through: a miss must not cost the content.
         assert!(sortie.contains("mitochondria"));
@@ -908,7 +1022,7 @@ filler filler.
 beta ATP two.
 
 omega end.";
-        let sortie = presenter(page, "ATP", 0, 4_000);
+        let sortie = presenter(page, "ATP", false, 0, 4_000);
         let i_alpha = sortie.find("alpha").expect("first match kept");
         let i_beta = sortie.find("beta").expect("second match kept");
         assert!(i_alpha < i_beta, "document order broken");
