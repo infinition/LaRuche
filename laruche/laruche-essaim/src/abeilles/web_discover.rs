@@ -15,11 +15,18 @@
 //!   wordlist of `fichiers`/`files`/`download` misses by one word.
 //!   Five `.dsparty` files sat there, live, unreachable by every tool tried.
 //!
-//! Four orthogonal channels, fused and verified:
+//! Six orthogonal channels, fused and verified. The first two never touch the
+//! target's infrastructure at all, which is why they run first:
 //! - [`Canal::Archive`]: the Wayback CDX index. Every URL the archive ever saw
 //!   for the host, including files that are unlinked, renamed or deleted. One
 //!   request, no anti-bot, no load on the target. Highest yield by far, and
 //!   almost no agent tool uses it for DISCOVERY (only as a fetch fallback).
+//! - [`Canal::Sousdomaines`]: Certificate Transparency logs. Every public TLS
+//!   certificate is logged, so the sibling hosts of a domain are enumerable
+//!   without asking the domain: staging, api, admin, and forgotten sites. On the
+//!   reference domain this turns one fansite into sixteen.
+//! - [`Canal::Plan`]: `robots.txt`, sitemaps, feeds - the map the publisher
+//!   declared, including the `Disallow` paths they would rather not advertise.
 //! - [`Canal::Liens`]: the real link graph - `<a>`, but also `<frame>`,
 //!   `<iframe>`, `<area>`, and `location='...'` targets buried in JS menus.
 //! - [`Canal::Listing`]: open directory indexes (Apache/nginx), recursed.
@@ -30,6 +37,13 @@
 //! the JS menu read, and `archive` alone lands the five saves. No single channel
 //! wins; the union does. Every candidate is then verified live, and the verdict
 //! is honest: LIVE (confirmed 2xx), or GONE but retrievable from the archive.
+//!
+//! Deliberately NOT here: hydration payload extraction (`__NEXT_DATA__`,
+//! `self.__next_f`, `__INITIAL_STATE__`). Measured on real Next.js sites, those
+//! payloads yield build artifacts (`/_next/static/chunks/*.js`) and nothing the
+//! anchors did not already carry, so they buy no DISCOVERY. They are a content
+//! extraction technique, and they belong in `web_fetch`, which is the tool that
+//! reads a page rather than the one that finds it.
 
 use crate::abeille::{Abeille, ContextExecution, NiveauDanger, ResultatAbeille};
 use anyhow::Result;
@@ -58,11 +72,16 @@ const MAX_ARCHIVE_AFFICHEE: usize = 40;
 
 /// Where a candidate URL came from. Kept per-URL so the model can tell a
 /// confirmed link from a guess.
+///
+/// Declaration order is confidence order: the sort surfaces what a publisher
+/// declared or an index recorded before what a wordlist guessed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Canal {
     Archive,
+    Plan,
     Liens,
     Listing,
+    Sousdomaines,
     Sondage,
 }
 
@@ -70,8 +89,10 @@ impl Canal {
     fn etiquette(self) -> &'static str {
         match self {
             Canal::Archive => "archive",
+            Canal::Plan => "sitemap",
             Canal::Liens => "links",
             Canal::Listing => "listing",
+            Canal::Sousdomaines => "subdomains",
             Canal::Sondage => "probe",
         }
     }
@@ -116,12 +137,14 @@ impl Abeille for WebDiscover {
     }
 
     fn description(&self) -> &str {
-        "Find files and pages a site does NOT link to, that web_fetch and web_search cannot \
-         reach: JS-only menus, framesets, directories with no index listing, unlinked or \
-         deleted files. Fuses four channels (Wayback CDX archive index, real link graph \
-         including JS menus and frames, open directory listings, site-derived wordlist \
-         probing) and VERIFIES every hit live. Use it when a site seems to have nothing but \
-         you suspect otherwise, or to list downloadable files. Filter with `ext` ('pdf,zip')."
+        "Find files, pages and sibling hosts a site does NOT link to, that web_fetch and \
+         web_search cannot reach: JS-only menus, framesets, directories with no index \
+         listing, unlinked or deleted files, staging and forgotten subdomains. Fuses six \
+         channels (Wayback CDX index, Certificate Transparency logs, robots/sitemaps/feeds, \
+         real link graph incl. JS menus and frames, open directory listings, site-derived \
+         wordlist probing) and VERIFIES every hit live. Use it when a site seems to have \
+         nothing but you suspect otherwise, to list downloadable files, or to map a domain's \
+         hosts. Filter with `ext` ('pdf,zip')."
     }
 
     fn schema(&self) -> serde_json::Value {
@@ -131,8 +154,8 @@ impl Abeille for WebDiscover {
                 "url": { "type": "string", "description": "Site or directory URL to explore" },
                 "mode": {
                     "type": "string",
-                    "enum": ["auto", "archive", "links", "listing", "probe"],
-                    "description": "auto (all channels, default) | archive (Wayback index only: fastest, no load on target) | links (link graph incl. JS menus and frames) | listing (open directory indexes) | probe (site-derived wordlist)"
+                    "enum": ["auto", "archive", "sitemap", "links", "listing", "subdomains", "probe"],
+                    "description": "auto (all channels, default) | archive (Wayback index only: fastest, no load on target) | sitemap (robots.txt, sitemaps and feeds: what the publisher declared) | links (link graph incl. JS menus and frames) | listing (open directory indexes) | subdomains (Certificate Transparency: staging, api, forgotten hosts) | probe (site-derived wordlist)"
                 },
                 "ext": { "type": "string", "description": "Comma-separated extension filter, e.g. 'pdf,zip,dsparty'. Empty = everything." },
                 "max_results": { "type": "integer", "description": "Max URLs returned (default 200, max 2000)" },
@@ -181,10 +204,19 @@ impl Abeille for WebDiscover {
 
         let canaux: Vec<Canal> = match mode.as_str() {
             "archive" => vec![Canal::Archive],
+            "sitemap" => vec![Canal::Plan],
             "links" => vec![Canal::Liens],
             "listing" => vec![Canal::Listing],
+            "subdomains" => vec![Canal::Sousdomaines],
             "probe" => vec![Canal::Sondage],
-            _ => vec![Canal::Archive, Canal::Liens, Canal::Listing, Canal::Sondage],
+            _ => vec![
+                Canal::Archive,
+                Canal::Plan,
+                Canal::Liens,
+                Canal::Listing,
+                Canal::Sousdomaines,
+                Canal::Sondage,
+            ],
         };
 
         // ── collection ──────────────────────────────────────────────────
@@ -194,8 +226,10 @@ impl Abeille for WebDiscover {
         for canal in &canaux {
             let issue = match canal {
                 Canal::Archive => canal_archive(&client, &cible).await,
+                Canal::Plan => canal_plan(&client, &cible).await,
                 Canal::Liens => canal_liens(&client, &cible).await,
                 Canal::Listing => canal_listing(&client, &cible).await,
+                Canal::Sousdomaines => canal_sousdomaines(&client, &cible).await,
                 Canal::Sondage => canal_sondage(&client, &cible).await,
             };
             match issue {
@@ -341,6 +375,192 @@ fn rehoter(url: &str, hote: &str) -> Option<String> {
         None => "/",
     };
     Some(format!("{scheme}://{hote}{chemin}"))
+}
+
+/// What the publisher declared: `robots.txt`, sitemaps, syndication feeds.
+///
+/// This is the map the site WANTS read, so it is authoritative where it exists
+/// and free where it does not. Note it does touch the target, unlike
+/// [`canal_archive`]: robots and sitemaps live on the origin server.
+async fn canal_plan(client: &reqwest::Client, cible: &str) -> Result<Vec<String>> {
+    let racine = origine_de(cible).ok_or_else(|| anyhow::anyhow!("no origin in URL"))?;
+    let mut urls = Vec::new();
+    let mut plans: Vec<String> = Vec::new();
+
+    // robots.txt names the sitemaps, including the ones on another host.
+    if let Ok(rep) = client.get(format!("{racine}/robots.txt")).send().await {
+        if rep.status().is_success() {
+            if let Ok(texte) = rep.text().await {
+                for ligne in texte.lines() {
+                    let bas = ligne.trim().to_lowercase();
+                    if let Some(reste) = bas.strip_prefix("sitemap:") {
+                        // Re-slice the ORIGINAL line: lowercasing a URL can break
+                        // a case-sensitive path.
+                        let valeur = ligne.trim()[ligne.trim().len() - reste.trim().len()..].trim();
+                        if let Some(u) = resoudre(&racine, valeur) {
+                            plans.push(u);
+                        }
+                    }
+                    // `Disallow:` names paths the publisher would rather hide,
+                    // which makes them worth knowing about.
+                    if let Some(reste) = bas.strip_prefix("disallow:") {
+                        let chemin = reste.trim();
+                        if chemin.len() > 1 && !chemin.contains('*') {
+                            if let Some(u) = resoudre(&racine, chemin) {
+                                urls.push(u);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for defaut in EMPLACEMENTS_PLAN {
+        plans.push(format!("{racine}{defaut}"));
+    }
+    plans.dedup();
+
+    // One level of sitemap-index recursion: a `<sitemapindex>` lists sitemaps,
+    // which list the URLs. Two hops is where the content actually is.
+    let mut a_lire: Vec<String> = plans.into_iter().take(MAX_PLANS).collect();
+    let mut lus: HashSet<String> = HashSet::new();
+    let mut profondeur = 0;
+
+    while !a_lire.is_empty() && profondeur <= 1 {
+        let mut suivants = Vec::new();
+        for plan in std::mem::take(&mut a_lire) {
+            if !lus.insert(plan.clone()) {
+                continue;
+            }
+            let Ok(rep) = client.get(&plan).send().await else {
+                continue;
+            };
+            if !rep.status().is_success() {
+                continue;
+            }
+            let Ok(corps) = rep.text().await else { continue };
+            let index = corps.contains("<sitemapindex");
+            for brut in extraire_balises(&corps, &["loc", "link", "guid"]) {
+                let Some(u) = resoudre(&plan, &brut) else {
+                    continue;
+                };
+                if index {
+                    suivants.push(u);
+                } else {
+                    urls.push(u);
+                }
+            }
+        }
+        a_lire = suivants.into_iter().take(MAX_PLANS).collect();
+        profondeur += 1;
+    }
+
+    urls.sort();
+    urls.dedup();
+    Ok(urls)
+}
+
+/// Conventional locations for sitemaps and feeds, tried when robots is silent.
+const EMPLACEMENTS_PLAN: &[&str] = &[
+    "/sitemap.xml",
+    "/sitemap_index.xml",
+    "/sitemap-index.xml",
+    "/feed",
+    "/rss.xml",
+    "/atom.xml",
+    "/index.xml",
+];
+
+/// Sitemaps or feeds read per level, so a huge index cannot run away with the call.
+const MAX_PLANS: usize = 12;
+
+/// Sibling hosts, from Certificate Transparency logs.
+///
+/// Every publicly trusted TLS certificate is logged, so the CT logs enumerate a
+/// domain's hosts without touching its infrastructure: staging, api, admin, and
+/// the sites a publisher forgot. On the reference domain this turns one fansite
+/// into sixteen.
+///
+/// certspotter first (reliable JSON), crt.sh as fallback (frequently 502s).
+async fn canal_sousdomaines(client: &reqwest::Client, cible: &str) -> Result<Vec<String>> {
+    let hote = hote_de(cible).ok_or_else(|| anyhow::anyhow!("no host in URL"))?;
+    let apex = domaine_apex(&hote);
+
+    let mut noms: HashSet<String> = HashSet::new();
+
+    let certspotter = format!(
+        "https://api.certspotter.com/v1/issuances?domain={}&include_subdomains=true&expand=dns_names",
+        urlencoding::encode(&apex)
+    );
+    if let Ok(rep) = client.get(&certspotter).send().await {
+        if rep.status().is_success() {
+            if let Ok(valeur) = rep.json::<serde_json::Value>().await {
+                for entree in valeur.as_array().unwrap_or(&Vec::new()) {
+                    for nom in entree["dns_names"].as_array().unwrap_or(&Vec::new()) {
+                        if let Some(n) = nom.as_str() {
+                            noms.insert(n.to_lowercase());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if noms.is_empty() {
+        let crtsh = format!(
+            "https://crt.sh/?q={}&output=json",
+            urlencoding::encode(&format!("%.{apex}"))
+        );
+        if let Ok(rep) = client.get(&crtsh).send().await {
+            if rep.status().is_success() {
+                if let Ok(valeur) = rep.json::<serde_json::Value>().await {
+                    for entree in valeur.as_array().unwrap_or(&Vec::new()) {
+                        for n in entree["name_value"].as_str().unwrap_or("").lines() {
+                            noms.insert(n.trim().to_lowercase());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if noms.is_empty() {
+        return Err(anyhow::anyhow!("no CT log answered for {apex}"));
+    }
+
+    // A certificate carries every SAN it was issued for, and a shared hosting
+    // cert lists hundreds of UNRELATED domains. Without this filter a query for
+    // one site returns someone else's hosts.
+    let suffixe = format!(".{apex}");
+    let mut urls: Vec<String> = noms
+        .into_iter()
+        .filter(|n| *n == apex || n.ends_with(&suffixe))
+        .filter(|n| !n.starts_with('*'))
+        .map(|n| format!("https://{n}/"))
+        .collect();
+    urls.sort();
+    Ok(urls)
+}
+
+/// Registrable domain, roughly. `www.ds.lordtry.com` → `lordtry.com`.
+///
+/// Two labels, or three when the second-to-last is a known second-level TLD.
+/// Not a full public-suffix list: that would need a dependency and a periodic
+/// refresh, for a gain limited to exotic suffixes.
+fn domaine_apex(hote: &str) -> String {
+    const DEUXIEME_NIVEAU: &[&str] = &[
+        "co", "com", "net", "org", "gov", "edu", "ac", "gouv", "asso", "or", "ne",
+    ];
+    let labels: Vec<&str> = hote.split('.').filter(|l| !l.is_empty()).collect();
+    match labels.len() {
+        0..=2 => hote.to_string(),
+        n => {
+            let avant_dernier = labels[n - 2];
+            let garde = if DEUXIEME_NIVEAU.contains(&avant_dernier) && n >= 3 { 3 } else { 2 };
+            labels[n - garde..].join(".")
+        }
+    }
 }
 
 /// The real link graph: anchors, frames, and the JS menu targets a static
@@ -651,6 +871,64 @@ fn ressemble_a_un_chemin(valeur: &str) -> bool {
             if !base.is_empty()
                 && (1..=8).contains(&ext.len())
                 && ext.chars().all(|c| c.is_ascii_alphanumeric()))
+}
+
+/// Text content of the named XML elements, in document order.
+///
+/// Hand-rolled instead of an XML parser: sitemaps and feeds only need `<loc>`
+/// and `<link>`, the workspace carries no XML crate, and scraper's HTML parser
+/// mangles self-closing Atom `<link href=...>`. Handles both the element form
+/// (`<link>url</link>`, RSS) and the attribute form (`<link href="url"/>`, Atom).
+fn extraire_balises(xml: &str, balises: &[&str]) -> Vec<String> {
+    let mut sortie = Vec::new();
+    for balise in balises {
+        let ouvrante = format!("<{balise}");
+        let fermante = format!("</{balise}>");
+        let mut reste = xml;
+        while let Some(pos) = reste.find(&ouvrante) {
+            let apres = &reste[pos + ouvrante.len()..];
+            let Some(fin_attributs) = apres.find('>') else {
+                break;
+            };
+            let attributs = &apres[..fin_attributs];
+            // Atom: the URL is in `href`, the element is empty.
+            if let Some(href) = attributs.find("href=") {
+                if let Some(valeur) = premier_attribut(&attributs[href + 5..]) {
+                    sortie.push(valeur);
+                }
+            }
+            let corps_debut = fin_attributs + 1;
+            if let Some(fin) = apres[corps_debut..].find(&fermante) {
+                let texte = apres[corps_debut..corps_debut + fin].trim();
+                if !texte.is_empty() && !texte.contains('<') {
+                    sortie.push(decoder_entites(texte));
+                }
+            }
+            reste = &apres[corps_debut..];
+        }
+    }
+    sortie
+}
+
+/// Value of a quoted XML attribute at the start of `texte`.
+fn premier_attribut(texte: &str) -> Option<String> {
+    let texte = texte.trim_start();
+    let guillemet = texte.chars().next().filter(|c| *c == '"' || *c == '\'')?;
+    let apres = &texte[guillemet.len_utf8()..];
+    let fin = apres.find(guillemet)?;
+    let valeur = apres[..fin].trim();
+    (!valeur.is_empty()).then(|| decoder_entites(valeur))
+}
+
+/// The five predefined XML entities. Sitemaps escape `&` in query strings, and
+/// an unescaped `&amp;` turns a valid URL into a 404.
+fn decoder_entites(texte: &str) -> String {
+    texte
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&apos;", "'")
 }
 
 /// Apache/nginx/OVH autoindex signature.
@@ -1006,6 +1284,36 @@ mod tests {
         assert!(mots.contains(&"telechargement".to_string()));
         assert!(!mots.contains(&"href".to_string()));
         assert!(!mots.contains(&"class".to_string()));
+    }
+
+    #[test]
+    fn domaine_apex_remonte_au_domaine_enregistrable() {
+        assert_eq!(domaine_apex("www.ds.lordtry.com"), "lordtry.com");
+        assert_eq!(domaine_apex("ds.lordtry.com"), "lordtry.com");
+        assert_eq!(domaine_apex("lordtry.com"), "lordtry.com");
+        // Known second-level TLDs need the third label.
+        assert_eq!(domaine_apex("api.shop.co.uk"), "shop.co.uk");
+        assert_eq!(domaine_apex("a.b.example.com.au"), "example.com.au");
+    }
+
+    #[test]
+    fn extraire_balises_lit_sitemap_et_atom() {
+        // RSS/sitemap: the URL is the element text.
+        let sitemap = "<urlset><url><loc>https://ex.com/a?x=1&amp;y=2</loc></url>                       <url><loc>https://ex.com/b</loc></url></urlset>";
+        let locs = extraire_balises(sitemap, &["loc"]);
+        // The `&amp;` must be decoded or the URL 404s.
+        assert_eq!(locs, vec!["https://ex.com/a?x=1&y=2", "https://ex.com/b"]);
+
+        // Atom: the URL is the `href` attribute of an empty element.
+        let atom = r#"<feed><entry><link href="https://ex.com/post-1"/></entry></feed>"#;
+        assert_eq!(extraire_balises(atom, &["link"]), vec!["https://ex.com/post-1"]);
+    }
+
+    #[test]
+    fn extraire_balises_ignore_un_corps_imbrique() {
+        // A `<link>` wrapping markup is not a URL.
+        let xml = "<link><span>x</span></link>";
+        assert!(extraire_balises(xml, &["link"]).is_empty());
     }
 
     #[test]

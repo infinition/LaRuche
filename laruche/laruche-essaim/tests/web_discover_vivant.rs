@@ -107,3 +107,75 @@ async fn un_repertoire_sans_listing_livre_quand_meme_ses_liens() {
         "index.html fallback failed on a listing-less directory"
     );
 }
+
+/// Certificate Transparency turns one fansite into the whole network.
+///
+/// `ds.lordtry.com` is a Dungeon Siege site; the CT logs show its owner also
+/// runs Baldur's Gate, Dark Age of Camelot, EverQuest 2, Icewind Dale,
+/// Planescape and a dozen more, none of them linked from the page we started on.
+#[tokio::test]
+#[ignore = "hits the network"]
+async fn les_logs_ct_revelent_les_sites_voisins() {
+    let outil = WebDiscover;
+    let sortie = outil
+        .executer(
+            serde_json::json!({ "url": CIBLE, "mode": "subdomains", "max_results": 60 }),
+            &ContextExecution::default(),
+        )
+        .await
+        .expect("tool must not error out")
+        .output;
+
+    println!("{sortie}");
+    for voisin in ["bg2.lordtry.com", "daoc.lordtry.com", "planescape.lordtry.com"] {
+        assert!(sortie.contains(voisin), "missing sibling host {voisin}");
+    }
+}
+
+/// A domain with no sitemap must degrade quietly, not fail the call.
+#[tokio::test]
+#[ignore = "hits the network"]
+async fn un_site_sans_plan_ne_casse_pas_lappel() {
+    let outil = WebDiscover;
+    let resultat = outil
+        .executer(
+            serde_json::json!({ "url": CIBLE, "mode": "sitemap" }),
+            &ContextExecution::default(),
+        )
+        .await
+        .expect("tool must not error out");
+
+    println!("{}", resultat.output);
+    assert!(resultat.success, "a missing sitemap must not fail the tool");
+}
+
+/// The sitemap channel must actually PARSE a sitemap, not just survive a
+/// missing one. The reference domain has none, so this case needs its own host.
+///
+/// `blog.rust-lang.org` declares `Sitemap:` in robots.txt and serves a plain
+/// `<urlset>`: the two hops this channel is built on.
+#[tokio::test]
+#[ignore = "hits the network"]
+async fn le_canal_plan_lit_un_vrai_sitemap() {
+    let outil = WebDiscover;
+    let sortie = outil
+        .executer(
+            serde_json::json!({
+                "url": "https://blog.rust-lang.org/",
+                "mode": "sitemap",
+                "max_results": 40,
+                // The point here is the parse, and verifying 40 URLs is slow.
+                "verify": false
+            }),
+            &ContextExecution::default(),
+        )
+        .await
+        .expect("tool must not error out")
+        .output;
+
+    println!("{sortie}");
+    assert!(
+        sortie.matches("blog.rust-lang.org/20").count() >= 5,
+        "sitemap parsed but yielded almost no post URL"
+    );
+}
