@@ -250,11 +250,69 @@ pub(crate) async fn search_web_results(
         search_ddg_html(client, query),
         search_ddg_lite(client, query),
     );
-    let mut fusion: Vec<SearchResult> = Vec::new();
-    fusionner(&mut fusion, yahoo.unwrap_or_default());
-    fusionner(&mut fusion, ddg.unwrap_or_default());
-    fusionner(&mut fusion, lite.unwrap_or_default());
-    Ok(fusion)
+    Ok(classer_par_consensus(vec![
+        yahoo.unwrap_or_default(),
+        ddg.unwrap_or_default(),
+        lite.unwrap_or_default(),
+    ]))
+}
+
+/// Merge engine result lists by CONSENSUS instead of arrival order.
+///
+/// Appending whatever the first engine returned makes the ranking an accident of
+/// which scraper answered first. A URL that three independent engines put on
+/// page one is a stronger answer than one a single engine ranked fourth, and
+/// that agreement is free information we were throwing away.
+///
+/// Score = agreement first, position second. `2 * engines` dominates the rank
+/// penalty, so a URL seen by two engines outranks any single-engine hit whatever
+/// its position, while ties fall back to the best rank it earned anywhere.
+fn classer_par_consensus(par_moteur: Vec<Vec<SearchResult>>) -> Vec<SearchResult> {
+    struct Cumul {
+        resultat: SearchResult,
+        moteurs: usize,
+        meilleur_rang: usize,
+    }
+
+    let mut cumuls: Vec<(String, Cumul)> = Vec::new();
+    for liste in par_moteur {
+        for (rang, r) in liste.into_iter().enumerate() {
+            let cle = cle_url(&r.url);
+            if cle.is_empty() || !r.url.starts_with("http") {
+                continue;
+            }
+            match cumuls.iter_mut().find(|(k, _)| *k == cle) {
+                Some((_, c)) => {
+                    c.moteurs += 1;
+                    c.meilleur_rang = c.meilleur_rang.min(rang);
+                    // Keep the richest snippet: engines truncate differently, and
+                    // the longest one usually carries the actual answer.
+                    if r.snippet.len() > c.resultat.snippet.len() {
+                        c.resultat.snippet = r.snippet;
+                    }
+                    if c.resultat.title.trim().is_empty() {
+                        c.resultat.title = r.title;
+                    }
+                }
+                None => cumuls.push((
+                    cle,
+                    Cumul { resultat: r, moteurs: 1, meilleur_rang: rang },
+                )),
+            }
+        }
+    }
+
+    cumuls.sort_by_key(|(_, c)| std::cmp::Reverse(score_consensus(c.moteurs, c.meilleur_rang)));
+    cumuls.into_iter().map(|(_, c)| c.resultat).collect()
+}
+
+/// Rank score for a merged result. Kept out of the merge so it can be tested
+/// on its own, and so the weighting is one obvious line instead of a comparator.
+fn score_consensus(moteurs: usize, meilleur_rang: usize) -> usize {
+    /// Ceiling on how far a position can pull a result down, so a deep hit still
+    /// scores above nothing and agreement stays the dominant term.
+    const RANG_MAX: usize = 20;
+    moteurs * 2 * RANG_MAX + (RANG_MAX - meilleur_rang.min(RANG_MAX))
 }
 
 /// URL deduplication key: domain + path, without `www.`, query, fragment, or trailing slash.
@@ -265,19 +323,6 @@ fn cle_url(url: &str) -> String {
         .trim_start_matches("www.")
         .trim_end_matches('/')
         .to_lowercase()
-}
-
-/// Adds to `acc` the results not already present (deduplicated by [`cle_url`]).
-fn fusionner(acc: &mut Vec<SearchResult>, nouveaux: Vec<SearchResult>) {
-    for r in nouveaux {
-        let cle = cle_url(&r.url);
-        if cle.is_empty() || !r.url.starts_with("http") {
-            continue;
-        }
-        if !acc.iter().any(|x| cle_url(&x.url) == cle) {
-            acc.push(r);
-        }
-    }
 }
 
 /// Brave Search API (key `LARUCHE_BRAVE_KEY`): reliable, agent-oriented, generous free tier.
@@ -549,6 +594,60 @@ fn strip_html_tags(html: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn r(url: &str, snippet: &str) -> SearchResult {
+        SearchResult { title: "t".into(), url: url.into(), snippet: snippet.into() }
+    }
+
+    /// The point of the change: agreement between engines outranks arrival order.
+    /// Before, whichever scraper answered first dictated the ranking.
+    #[test]
+    fn le_consensus_prime_sur_lordre_darrivee() {
+        let yahoo = vec![r("https://solo.example/a", ""), r("https://commun.example/b", "")];
+        let ddg = vec![r("https://commun.example/b", "")];
+        let lite = vec![r("https://commun.example/b", "")];
+
+        let classe = classer_par_consensus(vec![yahoo, ddg, lite]);
+        assert_eq!(
+            classe[0].url, "https://commun.example/b",
+            "the URL three engines agree on must come first"
+        );
+        assert_eq!(classe.len(), 2, "deduplication still applies");
+    }
+
+    #[test]
+    fn a_egalite_de_moteurs_le_meilleur_rang_tranche() {
+        let a = vec![r("https://x.example/loin", ""); 1];
+        let mut premier = vec![r("https://y.example/tete", "")];
+        premier.extend(a);
+        let classe = classer_par_consensus(vec![premier]);
+        assert_eq!(classe[0].url, "https://y.example/tete");
+    }
+
+    #[test]
+    fn le_score_fait_dominer_laccord_sur_la_position() {
+        // Two engines agreeing at the worst position still beat one engine at the best.
+        assert!(score_consensus(2, 19) > score_consensus(1, 0));
+        // Same agreement: the better position wins.
+        assert!(score_consensus(2, 0) > score_consensus(2, 5));
+    }
+
+    #[test]
+    fn la_fusion_garde_le_snippet_le_plus_riche() {
+        let court = vec![r("https://e.example/p", "court")];
+        let long = vec![r("https://e.example/p", "un snippet bien plus complet")];
+        let classe = classer_par_consensus(vec![court, long]);
+        assert_eq!(classe.len(), 1);
+        assert_eq!(classe[0].snippet, "un snippet bien plus complet");
+    }
+
+    #[test]
+    fn la_fusion_ecarte_les_urls_non_http() {
+        let sales = vec![r("javascript:void(0)", ""), r("", ""), r("https://ok.example/", "")];
+        let classe = classer_par_consensus(vec![sales]);
+        assert_eq!(classe.len(), 1);
+        assert_eq!(classe[0].url, "https://ok.example/");
+    }
 
     #[test]
     fn compte_les_termes_significatifs() {

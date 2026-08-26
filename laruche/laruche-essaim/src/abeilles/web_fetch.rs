@@ -125,6 +125,16 @@ impl Abeille for WebFetch {
             Ok(Recolte::Html(html)) => {
                 let texte = extraire_lisible(&html);
                 if texte.trim().is_empty() || looks_like_js_shell(&texte) {
+                    // A JS shell still ships its content, serialized, for the client
+                    // to hydrate and for search engines to read. Reading THAT costs
+                    // nothing: no browser, no proxy, no round trip. Try it before
+                    // paying for jina, which is a network hop that can also fail.
+                    if let Some(structure) = extraire_donnees_structurees(&html) {
+                        return Ok(ResultatAbeille::ok(format!(
+                            "[structured data extracted from the page source - no renderer needed]\n\n{}",
+                            presenter(&structure, &focus, offset, max_chars)
+                        )));
+                    }
                     // Empty/JS shell: try jina (renders JS) before giving up.
                     if let Some(text) = fetch_via_jina(&client, url).await {
                         return Ok(ResultatAbeille::ok(format!(
@@ -477,6 +487,98 @@ pub(crate) fn paginer(texte: &str, offset: usize, max_chars: usize) -> String {
     }
 }
 
+/// Readable text from the structured data a JS page ships in its own source.
+///
+/// A page that renders client-side still has to serialize its content for SEO
+/// and for hydration. `application/ld+json` is the useful half: it is schema.org
+/// typed, so headline, author, date and body come out named, and it is present
+/// far more often than any framework-specific blob. Measured on nextjs.org and
+/// vercel.com: JSON-LD on both, `__NEXT_DATA__` on neither (that is the old
+/// Pages Router format; the App Router streams `self.__next_f` instead).
+///
+/// Returns `None` when there is nothing worth reading, so the caller falls
+/// through to the network fallbacks rather than reporting an empty success.
+pub(crate) fn extraire_donnees_structurees(html: &str) -> Option<String> {
+    /// Below this, the payload is boilerplate (an Organization stub, a
+    /// breadcrumb) and jina will do better.
+    const UTILE_MIN: usize = 200;
+
+    let mut morceaux: Vec<String> = Vec::new();
+    {
+        use scraper::{Html, Selector};
+        let doc = Html::parse_document(html);
+        if let Ok(sel) = Selector::parse(r#"script[type="application/ld+json"]"#) {
+            for element in doc.select(&sel) {
+                let brut = element.text().collect::<String>();
+                let Ok(valeur) = serde_json::from_str::<serde_json::Value>(brut.trim()) else {
+                    continue;
+                };
+                aplatir_json_ld(&valeur, &mut morceaux);
+            }
+        }
+        // The `<meta>` description and OG tags are the publisher's own summary,
+        // and they survive on pages that carry no JSON-LD at all.
+        if let Ok(sel) = Selector::parse(r#"meta[property="og:description"], meta[name="description"]"#) {
+            for element in doc.select(&sel) {
+                if let Some(c) = element.value().attr("content").map(str::trim) {
+                    if c.len() > 40 && !morceaux.iter().any(|m| m.contains(c)) {
+                        morceaux.push(c.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    let texte = morceaux.join("\n\n");
+    (texte.chars().count() >= UTILE_MIN).then_some(texte)
+}
+
+/// Pull the human-readable fields out of a JSON-LD node, recursively.
+///
+/// Only the text-bearing keys: dumping the raw JSON would spend the budget on
+/// `@context` URLs and image variants, which is the mistake that makes payload
+/// extraction look useless.
+fn aplatir_json_ld(valeur: &serde_json::Value, sortie: &mut Vec<String>) {
+    const CLES_TEXTE: &[&str] = &[
+        "headline", "name", "description", "articleBody", "text", "abstract",
+        "reviewBody", "recipeInstructions", "author", "datePublished", "price",
+        "priceCurrency", "availability", "addressLocality", "telephone",
+    ];
+    match valeur {
+        serde_json::Value::Array(items) => {
+            for item in items {
+                aplatir_json_ld(item, sortie);
+            }
+        }
+        serde_json::Value::Object(map) => {
+            // `@graph` holds the real nodes; the wrapper itself carries nothing.
+            if let Some(graphe) = map.get("@graph") {
+                aplatir_json_ld(graphe, sortie);
+            }
+            let mut champs: Vec<String> = Vec::new();
+            for cle in CLES_TEXTE {
+                match map.get(*cle) {
+                    Some(serde_json::Value::String(s)) if !s.trim().is_empty() => {
+                        champs.push(format!("{cle}: {}", s.trim()));
+                    }
+                    Some(imbrique @ (serde_json::Value::Object(_) | serde_json::Value::Array(_))) => {
+                        aplatir_json_ld(imbrique, sortie);
+                    }
+                    _ => {}
+                }
+            }
+            if !champs.is_empty() {
+                let type_ = map
+                    .get("@type")
+                    .and_then(|t| t.as_str())
+                    .unwrap_or("item");
+                sortie.push(format!("[{type_}]\n{}", champs.join("\n")));
+            }
+        }
+        _ => {}
+    }
+}
+
 /// JS shell page: nothing readable without a renderer.
 pub(crate) fn looks_like_js_shell(text: &str) -> bool {
     let lower = text.to_lowercase();
@@ -726,6 +828,49 @@ mod tests {
         assert!(txt.contains("Titre"));
         assert!(!txt.contains("Menu"));
         assert!(!txt.contains("Mentions legales"));
+    }
+
+    /// A JS shell with JSON-LD must be readable WITHOUT a renderer or a proxy.
+    #[test]
+    fn les_donnees_structurees_sauvent_une_coquille_js() {
+        let html = r#"<html><head>
+            <script type="application/ld+json">
+            {"@type":"NewsArticle","headline":"Le titre reel",
+             "description":"Un resume assez long pour depasser le seuil d utilite du bloc, avec de la substance dedans.",
+             "articleBody":"Le corps de l article, qui est exactement ce que la coquille JS ne montre pas au client sans hydratation.",
+             "author":{"@type":"Person","name":"Une autrice"}}
+            </script></head><body><div id="root"></div></body></html>"#;
+        let extrait = extraire_donnees_structurees(html).expect("JSON-LD should be readable");
+        assert!(extrait.contains("Le titre reel"));
+        assert!(extrait.contains("Le corps de l article"));
+        assert!(extrait.contains("Une autrice"), "nested author must be flattened");
+        // The noise must NOT come through: that is what makes payload extraction useful.
+        assert!(!extrait.contains("@context"));
+        assert!(!extrait.contains("NewsArticle\":"));
+    }
+
+    #[test]
+    fn un_json_ld_squelettique_ne_masque_pas_les_replis() {
+        // An Organization stub is boilerplate: jina will do better, so return None
+        // rather than reporting a hollow success.
+        let html = r#"<html><head><script type="application/ld+json">
+            {"@type":"Organization","name":"ACME"}</script></head><body></body></html>"#;
+        assert!(extraire_donnees_structurees(html).is_none());
+    }
+
+    #[test]
+    fn le_graphe_json_ld_est_parcouru() {
+        // Sized like a real product page: `@graph` nodes carry a full description,
+        // which is what puts the payload over the usefulness threshold.
+        let html = r#"<html><head><script type="application/ld+json">
+            {"@context":"https://schema.org","@graph":[
+              {"@type":"WebPage","name":"Fiche produit","description":"Une description de page suffisamment longue pour compter dans le seuil d utilite, comme en produit une vraie fiche."},
+              {"@type":"Product","name":"Objet","description":"Le detail du produit, ses matieres et ses dimensions, tel qu une boutique le publie pour les moteurs.","price":"42","priceCurrency":"EUR"}]}
+            </script></head><body></body></html>"#;
+        let extrait = extraire_donnees_structurees(html).expect("@graph should be walked");
+        assert!(extrait.contains("Objet"), "the Product node was skipped");
+        assert!(extrait.contains("42"), "the price was skipped");
+        assert!(extrait.contains("Fiche produit"), "the WebPage node was skipped");
     }
 
     /// The measured failure: on a long page, blind truncation can return none
