@@ -37,6 +37,7 @@ pub mod spawn_specialist;
 pub mod task_complete;
 pub mod todo;
 pub mod web_deep;
+pub mod web_discover;
 pub mod web_fetch;
 pub mod web_recherche;
 pub mod worktree;
@@ -76,6 +77,7 @@ pub fn enregistrer_abeilles_builtin(registry: &AbeilleRegistry) {
     registry.enregistrer(Box::new(web_recherche::WebSearch));
     registry.enregistrer(Box::new(web_fetch::WebFetch));
     registry.enregistrer(Box::new(web_deep::WebDeepSearch));
+    registry.enregistrer(Box::new(web_discover::WebDiscover));
     registry.enregistrer(Box::new(image_search::ImageSearch));
     registry.enregistrer(Box::new(media::MediaPresent));
     // Math
