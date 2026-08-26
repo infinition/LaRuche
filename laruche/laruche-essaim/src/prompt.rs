@@ -317,6 +317,22 @@ fn signatures_outils(tools: &[serde_json::Value]) -> String {
     out
 }
 
+/// Comma-separated tool names, for the native-protocol inventory.
+///
+/// The model still needs to KNOW what it has at a glance, to plan with; it does
+/// not need the parameters repeated, because the native channel carries them.
+fn noms_outils(tools: &[serde_json::Value]) -> String {
+    let noms: Vec<&str> = tools
+        .iter()
+        .filter_map(|t| {
+            t.get("name")
+                .or_else(|| t.get("function").and_then(|f| f.get("name")))
+                .and_then(|n| n.as_str())
+        })
+        .collect();
+    noms.join(", ")
+}
+
 /// Tool section. `protocole_texte` renders the `<tool_call>` XML convention.
 ///
 /// It must be OFF for a backend that carries tool calls natively. Sending both a
@@ -336,12 +352,21 @@ fn section_outils(tools_schema: &serde_json::Value, protocole_texte: bool) -> St
     };
     let sigs = signatures_outils(tools);
     if !protocole_texte {
+        // NATIVE mode: the `tools` array already carries every name, description
+        // and parameter schema. Rendering the signatures here too pays twice for
+        // the same information. Measured on a refused body: 6976 chars of
+        // signatures on top of 12085 chars of native schemas, 23% of an 84436-byte
+        // request spent saying it twice, against a gateway wall at ~80 KB.
+        //
+        // What the text block alone provides is the CALLING CONVENTION, which no
+        // schema expresses, plus a glanceable inventory. Both are kept; only the
+        // duplicated detail goes.
+        let noms = noms_outils(tools);
         return format!(
             "## Available tools\n\n\
-             Signatures (TypeScript style). `?` = optional parameter; `a|b` = allowed values; \
-             `{{…}}` = format hint.\n\n\
-             ```\n{sigs}```\n\n\
-             Call them through your native tool-calling channel. Emit ONE tool call per \
+             {noms}\n\n\
+             Their full signatures reach you through your native tool-calling channel: \
+             read the parameters there, they are authoritative. Emit ONE tool call per \
              message, except for independent read-only calls or several `delegate` scouts, \
              which may share a message and run in parallel. A mutating call (write, shell, \
              delete) always travels alone. After a call, stop and wait for its result.\n\n"
@@ -515,6 +540,38 @@ mod tests {
     /// contradictory formats. It fell back on a template memorised at training time
     /// and called a tool literally named `$TOOL_NAME` with `$PARAMETER_NAME`, in a
     /// loop, until the sentinel killed the turn.
+    /// Measured on a refused body: 6976 chars of TypeScript signatures on top of
+    /// 12085 chars of native schemas, saying the same thing twice, in a request
+    /// that a gateway cuts at ~80 KB. In native mode the schemas are
+    /// authoritative, so the prompt keeps the inventory and the calling
+    /// convention and drops the duplicated detail.
+    #[test]
+    fn le_mode_natif_ne_repete_pas_les_schemas_doutils() {
+        let outils = serde_json::json!([
+            { "name": "web_fetch",
+              "description": "Fetch a web page and return its clean text.",
+              "parameters": { "type": "object", "properties": {
+                  "url": { "type": "string", "description": "The URL to fetch" } } } },
+            { "name": "shell_exec",
+              "description": "Execute a shell command.",
+              "parameters": { "type": "object", "properties": {
+                  "command": { "type": "string", "description": "The command" } } } }
+        ]);
+        let natif = section_outils(&outils, false);
+        let texte = section_outils(&outils, true);
+
+        // The inventory survives: the model must know what it holds.
+        assert!(natif.contains("web_fetch") && natif.contains("shell_exec"));
+        // The calling convention survives: no schema expresses it.
+        assert!(natif.contains("ONE tool call per"));
+        // The duplicated detail is gone.
+        assert!(
+            !natif.contains("The URL to fetch"),
+            "parameter descriptions are still duplicated in native mode"
+        );
+        assert!(natif.len() < texte.len(), "native mode should be the cheaper one");
+    }
+
     #[test]
     fn le_protocole_texte_disparait_pour_les_backends_natifs() {
         let tools = serde_json::json!([
