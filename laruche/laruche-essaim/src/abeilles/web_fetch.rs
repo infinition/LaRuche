@@ -761,11 +761,79 @@ pub(crate) fn extraire_lisible(html: &str) -> String {
             }
         }
     }
-    if best.chars().count() >= 500 {
+    let texte = if best.chars().count() >= 500 {
         best
     } else {
         html_to_text(html)
+    };
+    decoder_entites_html(&texte)
+}
+
+/// Turn HTML entities back into the characters they stand for.
+///
+/// Measured on a real run: pcsavegames.fr reached the model as
+/// `PC Savegames - T&eacute;l&eacute;charger des fichiers de sauvegardes`. Every
+/// non-English page arrives like that, which costs eight characters per letter
+/// and makes the text harder for the model to read and to quote back.
+///
+/// Named entities are limited to the ones that actually show up in prose;
+/// numeric forms (`&#233;`, `&#xE9;`) cover the whole of Unicode, so the table
+/// does not need to be exhaustive.
+pub(crate) fn decoder_entites_html(texte: &str) -> String {
+    /// The named entities worth a table. Accented letters come through as
+    /// numeric forms often enough that listing them all would be noise.
+    const NOMMEES: &[(&str, &str)] = &[
+        ("&nbsp;", " "), ("&amp;", "&"), ("&lt;", "<"), ("&gt;", ">"),
+        ("&quot;", "\""), ("&apos;", "'"), ("&#39;", "'"), ("&hellip;", "..."),
+        ("&mdash;", "-"), ("&ndash;", "-"), ("&laquo;", "\u{ab}"), ("&raquo;", "\u{bb}"),
+        ("&eacute;", "\u{e9}"), ("&egrave;", "\u{e8}"), ("&ecirc;", "\u{ea}"),
+        ("&agrave;", "\u{e0}"), ("&acirc;", "\u{e2}"), ("&ccedil;", "\u{e7}"),
+        ("&ocirc;", "\u{f4}"), ("&ugrave;", "\u{f9}"), ("&ucirc;", "\u{fb}"),
+        ("&icirc;", "\u{ee}"), ("&iuml;", "\u{ef}"), ("&euml;", "\u{eb}"),
+        ("&uuml;", "\u{fc}"), ("&ouml;", "\u{f6}"), ("&auml;", "\u{e4}"),
+        ("&szlig;", "\u{df}"), ("&ntilde;", "\u{f1}"), ("&deg;", "\u{b0}"),
+        ("&euro;", "\u{20ac}"), ("&pound;", "\u{a3}"), ("&copy;", "\u{a9}"),
+        ("&reg;", "\u{ae}"), ("&trade;", "\u{2122}"), ("&rsquo;", "'"),
+        ("&lsquo;", "'"), ("&ldquo;", "\""), ("&rdquo;", "\""),
+    ];
+
+    if !texte.contains('&') {
+        return texte.to_string(); // the common case, untouched
     }
+
+    let mut sortie = String::with_capacity(texte.len());
+    let mut reste = texte;
+    'exterieur: while let Some(pos) = reste.find('&') {
+        sortie.push_str(&reste[..pos]);
+        let candidat = &reste[pos..];
+        for (entite, valeur) in NOMMEES {
+            if candidat.starts_with(entite) {
+                sortie.push_str(valeur);
+                reste = &candidat[entite.len()..];
+                continue 'exterieur;
+            }
+        }
+        // Numeric: `&#233;` or `&#xE9;`, terminated by `;`.
+        if let Some(fin) = candidat.find(';').filter(|f| *f <= 10) {
+            let corps = &candidat[1..fin];
+            if let Some(chiffres) = corps.strip_prefix('#') {
+                let point = match chiffres.strip_prefix(['x', 'X']) {
+                    Some(hexa) => u32::from_str_radix(hexa, 16).ok(),
+                    None => chiffres.parse::<u32>().ok(),
+                };
+                if let Some(c) = point.and_then(char::from_u32) {
+                    sortie.push(c);
+                    reste = &candidat[fin + 1..];
+                    continue;
+                }
+            }
+        }
+        // Not an entity: a bare `&` is legal text, so keep it and move on.
+        sortie.push('&');
+        reste = &candidat[1..];
+    }
+    sortie.push_str(reste);
+    sortie
 }
 
 /// Extracts the page's links (anchor text + ABSOLUTE url), deduplicated, capped.
@@ -962,6 +1030,37 @@ mod tests {
         assert!(txt.contains("Titre"));
         assert!(!txt.contains("Menu"));
         assert!(!txt.contains("Mentions legales"));
+    }
+
+    /// The exact string a real run delivered to the model.
+    #[test]
+    fn les_entites_html_ne_remontent_plus_au_modele() {
+        let recu = "PC Savegames - T&eacute;l&eacute;charger des fichiers";
+        assert_eq!(
+            decoder_entites_html(recu),
+            "PC Savegames - T\u{e9}l\u{e9}charger des fichiers"
+        );
+    }
+
+    #[test]
+    fn les_entites_numeriques_couvrent_le_reste() {
+        assert_eq!(decoder_entites_html("caf&#233; et &#x41;"), "caf\u{e9} et A");
+        assert_eq!(decoder_entites_html("&nbsp;a&amp;b"), " a&b");
+    }
+
+    /// A bare `&` is legal prose and must survive untouched, as must a `&`
+    /// followed by something that only looks like an entity.
+    #[test]
+    fn une_esperluette_nue_survit() {
+        assert_eq!(decoder_entites_html("Marks & Spencer"), "Marks & Spencer");
+        assert_eq!(decoder_entites_html("a & b &pasuneentite; c"), "a & b &pasuneentite; c");
+        assert_eq!(decoder_entites_html("fin &"), "fin &");
+    }
+
+    #[test]
+    fn un_texte_sans_esperluette_est_rendu_tel_quel() {
+        let simple = "aucune entite ici";
+        assert_eq!(decoder_entites_html(simple), simple);
     }
 
     /// A JS shell with JSON-LD must be readable WITHOUT a renderer or a proxy.
