@@ -157,14 +157,20 @@ fn json_ascii(brut: &str) -> String {
 /// The gauge reasons in tokens against the model's window. The wall we keep hitting
 /// is counted in bytes and sits far earlier: a refused body of 114497 bytes read as
 /// 15% of a 128k window, so no compaction ever triggered. Two levers, in order of
-/// how little they cost:
+/// how much they actually save:
 ///
-/// 1. the tool list, trimmed from the tail. It is ordered by relevance, so what goes
-///    is what the model was least likely to reach for.
-/// 2. the fattest tool results, largest first, keeping head and tail. One web page or
+/// 1. the fattest tool results, largest first, keeping head and tail. One web page or
 ///    file read routinely lands 16 to 24 KB, and a handful of them IS the body.
 ///    Losing the middle of one page beats losing the turn, and the marker tells the
 ///    model what happened so it can re-read a narrower range.
+/// 2. the tool list, trimmed from the tail, and only when step 1 was not enough.
+///
+/// The order used to be the reverse, and it was wrong on measurement. The 33 native
+/// tools serialize to 17911 bytes, 542 on average. Cutting them to the old floor of
+/// 4 saves 15888 bytes, a fifth of the guard, while removing seven eighths of what
+/// the agent can DO. On the bodies that actually trip the guard, 100 KB and up, that
+/// trim cannot get under the limit on its own: it just ships a crippled agent and
+/// fails anyway. Tools are now the last lever, not the first, and the floor is 12.
 ///
 /// Messages are never dropped: that would destroy work already done.
 fn reduire_sous_budget(body: &serde_json::Value, limite: usize) -> Result<serde_json::Value> {
@@ -172,14 +178,6 @@ fn reduire_sous_budget(body: &serde_json::Value, limite: usize) -> Result<serde_
     let taille = |v: &serde_json::Value| -> usize {
         serde_json::to_string(v).map(|s| json_ascii(&s).len()).unwrap_or(0)
     };
-
-    if let Some(liste) = body.get("tools").and_then(|t| t.as_array()).cloned() {
-        let mut gardes = liste.len();
-        while gardes > 4 && taille(&reduit) > limite {
-            gardes = gardes.saturating_sub(2).max(4);
-            reduit["tools"] = serde_json::json!(liste[..gardes]);
-        }
-    }
 
     if taille(&reduit) > limite {
         // EVERY message is a candidate except the system prompt and the first user
@@ -243,7 +241,49 @@ fn reduire_sous_budget(body: &serde_json::Value, limite: usize) -> Result<serde_
             }
         }
     }
+
+    // Last lever, and only if the observations were not enough. Worth little in
+    // bytes (see the header), so it runs after everything else and stops at 12
+    // tools rather than 4: below that the agent loses the web, the files and the
+    // shell at once, which costs far more than the kilobytes it buys.
+    if taille(&reduit) > limite {
+        if let Some(liste) = body.get("tools").and_then(|t| t.as_array()).cloned() {
+            let mut gardes = liste.len();
+            while gardes > PLANCHER_OUTILS && taille(&reduit) > limite {
+                gardes = gardes.saturating_sub(2).max(PLANCHER_OUTILS);
+                reduit["tools"] = serde_json::json!(liste[..gardes]);
+            }
+        }
+    }
     Ok(reduit)
+}
+
+/// Fewest tools the trim may leave. The old value was 4, which took the agent
+/// down to a fraction of its capability for a fifth of the guard in bytes.
+const PLANCHER_OUTILS: usize = 12;
+
+/// Byte budget for a request body, per provider.
+///
+/// The single 76800 value came from rejections clustered at columns 81733, 81736,
+/// 81813 and 82233, read as a size wall. Those columns all fall inside the `tools`
+/// block, which is the LAST key of the body in alphabetical order, so they were
+/// most likely complaints ABOUT the tool schemas, read as truncation. Measured
+/// against api.deepseek.com on 2026-08-20: a 200 KB body carrying all 19 real tool
+/// schemas returns 200 OK. The guard stays, because some gateways do cap a body,
+/// but it no longer amputates a healthy request on a misdiagnosis.
+fn limite_corps(base: &str) -> usize {
+    // No gateway in the middle: the only limit is what the runtime accepts.
+    if is_local_base_url(base) {
+        return 4 * 1024 * 1024;
+    }
+    let bas = base.to_lowercase();
+    // Measured good well past this point.
+    if bas.contains("deepseek") || bas.contains("openai.com") || bas.contains("openrouter") {
+        return 256 * 1024;
+    }
+    // Unknown gateway: still more than three times the old value, which no
+    // evidence ever supported.
+    256 * 1024 / 2
 }
 
 /// Append what we actually sent to a provider error, so a parse complaint can be read.
@@ -644,16 +684,16 @@ async fn openai_chat_stream(
     // relevance-ordered tool list costs a capability the model probably was not
     // going to use, whereas dropping a message loses work already done. If trimming
     // is not enough the request goes out as is, and the provider decides.
-    const LIMITE_CORPS: usize = 76_800;
-    if corps_brut.len() > LIMITE_CORPS {
+    let limite = limite_corps(base);
+    if corps_brut.len() > limite {
         let avant = corps_brut.len();
-        body = reduire_sous_budget(&body, LIMITE_CORPS)?;
+        body = reduire_sous_budget(&body, limite)?;
         corps_brut = json_ascii(&serde_json::to_string(&body)?);
         tracing::warn!(
             target: "provider",
             avant,
             apres = corps_brut.len(),
-            limite = LIMITE_CORPS,
+            limite,
             "request body over the byte guard: trimmed"
         );
     }
@@ -1382,6 +1422,75 @@ mod tests {
     /// API rejects with `Duplicate value for 'tool_call_id'`.
     /// The curator sends the whole mission transcript as ONE user message.
     ///
+    /// The reordering, locked down: trimming observations is enough, so the agent
+    /// keeps every tool it had. Before, tools were cut FIRST and an agent that had
+    /// only fat observations lost most of its capability for nothing.
+    #[test]
+    fn le_budget_garde_tous_les_outils_quand_les_observations_suffisent() {
+        let outils: Vec<serde_json::Value> = (0..33)
+            .map(|i| serde_json::json!({ "type": "function", "function": { "name": format!("t{i}") } }))
+            .collect();
+        let body = serde_json::json!({
+            "model": "m",
+            "tools": outils,
+            "messages": [
+                { "role": "system", "content": "s" },
+                { "role": "user", "content": "mission" },
+                { "role": "tool", "content": "o".repeat(60_000) },
+                { "role": "tool", "content": "p".repeat(60_000) }
+            ]
+        });
+        let apres = reduire_sous_budget(&body, 76_800).unwrap();
+        let corps = json_ascii(&serde_json::to_string(&apres).unwrap()).len();
+        assert!(corps <= 76_800, "must fit, got {corps}");
+        assert_eq!(
+            apres["tools"].as_array().unwrap().len(),
+            33,
+            "tools must survive when trimming observations was enough"
+        );
+    }
+
+    /// When observations cannot get there alone, tools give ground, but never
+    /// below the floor: under it the agent loses web, files and shell at once.
+    #[test]
+    fn le_budget_ne_descend_jamais_sous_le_plancher_doutils() {
+        let outils: Vec<serde_json::Value> = (0..33)
+            .map(|i| {
+                serde_json::json!({
+                    "type": "function",
+                    "function": { "name": format!("t{i}"), "description": "d".repeat(600) }
+                })
+            })
+            .collect();
+        // Messages already minimal: the only remaining lever is the tool list.
+        let body = serde_json::json!({
+            "model": "m",
+            "tools": outils,
+            "messages": [
+                { "role": "system", "content": "s" },
+                { "role": "user", "content": "mission" }
+            ]
+        });
+        let apres = reduire_sous_budget(&body, 8_000).unwrap();
+        let restants = apres["tools"].as_array().unwrap().len();
+        assert!(
+            restants >= PLANCHER_OUTILS,
+            "trimmed below the floor: {restants} < {PLANCHER_OUTILS}"
+        );
+    }
+
+    /// The guard is per provider now, and no provider sits at the old 76800:
+    /// that number came from a misread error column, not from a measured wall.
+    #[test]
+    fn la_limite_depend_du_fournisseur_et_depasse_lancienne_valeur() {
+        let distant = limite_corps("https://api.deepseek.com/v1");
+        let inconnu = limite_corps("https://passerelle.inconnue.example/v1");
+        let local = limite_corps("http://127.0.0.1:8080/v1");
+        assert!(distant > 76_800, "a measured-good provider must not sit at the old guard");
+        assert!(inconnu > 76_800, "even an unknown gateway gets more than the misdiagnosis");
+        assert!(local > distant, "no gateway in the middle: local should be the most generous");
+    }
+
     /// Measured at 109301 chars, in a body of two messages. A trimmer that only
     /// looked at `role == "tool"` never even saw it, and the request went out at
     /// 114 KB. When the mission turn IS the payload, it has to give ground too.
