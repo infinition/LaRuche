@@ -53,6 +53,7 @@ pub mod reine_queue;
 pub mod session;
 pub mod memoire_hotes;
 pub mod stats_outils;
+pub mod transport;
 pub mod stdout_filter;
 pub mod streaming;
 pub mod subagent;

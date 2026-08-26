@@ -135,9 +135,7 @@ impl Abeille for WebFetch {
                 if let Some(text) = texte {
                     memoire.succes(url, route);
                     return Ok(ResultatAbeille::ok(format!(
-                        "{appris}
-
-{}",
+                        "{appris}\n\n{}",
                         presenter(&text, &focus, probe, offset, max_chars)
                     )));
                 }
@@ -209,6 +207,24 @@ impl Abeille for WebFetch {
                 // The direct route did not deliver: that is the signal worth
                 // remembering, so the next fetch of this host starts elsewhere.
                 memoire.mur(url);
+                // A host with a RECORD of walling may be fingerprinting the TLS
+                // handshake, which no header can fix. Only reachable when the
+                // `tls-emulation` feature is compiled in; otherwise this is a
+                // no-op and the ordinary fallbacks run exactly as before.
+                if crate::transport::pile_pour(url) == crate::transport::Pile::Emulee {
+                    if let Some(html) = crate::transport::recuperer_emule(url).await {
+                        let texte = extraire_lisible(&html);
+                        if !texte.trim().is_empty() {
+                            memoire.succes(url, crate::memoire_hotes::Route::Directe);
+                            let note = crate::transport::note(crate::transport::Pile::Emulee)
+                                .unwrap_or_default();
+                            return Ok(ResultatAbeille::ok(format!(
+                                "{note}\n\n{}",
+                                presenter(&texte, &focus, probe, offset, max_chars)
+                            )));
+                        }
+                    }
+                }
                 // Fallback 1: r.jina.ai reader proxy (cleans, renders JS, bypasses simple 403s).
                 if let Some(text) = fetch_via_jina(&client, url).await {
                     memoire.succes(url, crate::memoire_hotes::Route::Jina);
