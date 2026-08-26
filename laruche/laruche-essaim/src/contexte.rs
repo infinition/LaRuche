@@ -51,6 +51,13 @@ const SEMANTIC_CORE: &[&str] = &[
     // Common actions - always useful (otherwise the agent can do nothing)
     "web_deep_search",
     "web_fetch",
+    // The tool for "there is nothing here". It has to be in the core, not left
+    // to semantic retrieval: an agent only reaches for it once the ordinary
+    // tools have come back empty, and by then the intent that would have
+    // retrieved it ("find files on this site") is long past. Measured on a real
+    // run: without it in the core the agent searched, fetched, gave up, and
+    // never learned the files were there.
+    "web_discover",
     "shell_exec",
     "file_read",
     "file_write",

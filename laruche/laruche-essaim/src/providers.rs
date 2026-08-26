@@ -264,26 +264,33 @@ const PLANCHER_OUTILS: usize = 12;
 
 /// Byte budget for a request body, per provider.
 ///
-/// The single 76800 value came from rejections clustered at columns 81733, 81736,
-/// 81813 and 82233, read as a size wall. Those columns all fall inside the `tools`
-/// block, which is the LAST key of the body in alphabetical order, so they were
-/// most likely complaints ABOUT the tool schemas, read as truncation. Measured
-/// against api.deepseek.com on 2026-08-20: a 200 KB body carrying all 19 real tool
-/// schemas returns 200 OK. The guard stays, because some gateways do cap a body,
-/// but it no longer amputates a healthy request on a misdiagnosis.
+/// THE WALL IS REAL, and this was established the hard way. It was briefly raised
+/// to 256 KB on the theory that the clustered rejection columns (81733, 81736,
+/// 81813, 82233) were complaints ABOUT the tool schemas rather than truncation,
+/// since they all fall inside the `tools` block, the body's last key in
+/// alphabetical order. That theory is dead: on 2026-08-26 a body of 84436 bytes
+/// was refused four times running, with a garbled path
+/// (`tools[15].function.parameters.properties.?: key must be a string`) pointing
+/// at column 84061, near the end. Our body was pure ASCII, every tool schema
+/// structurally sound, and it re-parsed locally as valid JSON. The gateway cuts
+/// the upload around 80 KB and its parser then reports nonsense at the cut.
+///
+/// The evidence, across every refused body ever dumped to `%TEMP%`: the smallest
+/// is 83451 bytes. Nothing under 80 KB has EVER been refused. So 76800 is not a
+/// misdiagnosis, it is a well-placed guard just under an observed wall.
+///
+/// What the misadventure did leave behind, and what is kept: the trim ORDER, now
+/// observations first and tools last (see [`reduire_sous_budget`]). Being under
+/// the wall is non-negotiable; arriving there with 12 tools instead of 4 is free.
 fn limite_corps(base: &str) -> usize {
-    // No gateway in the middle: the only limit is what the runtime accepts.
+    // No gateway in the middle to cut the upload: the only limit is what the
+    // local runtime accepts. This part of the per-provider split holds.
     if is_local_base_url(base) {
         return 4 * 1024 * 1024;
     }
-    let bas = base.to_lowercase();
-    // Measured good well past this point.
-    if bas.contains("deepseek") || bas.contains("openai.com") || bas.contains("openrouter") {
-        return 256 * 1024;
-    }
-    // Unknown gateway: still more than three times the old value, which no
-    // evidence ever supported.
-    256 * 1024 / 2
+    // Every remote gateway gets the measured-safe value. No provider has been
+    // shown to accept more, and a summit is no place to find out.
+    76_800
 }
 
 /// Append what we actually sent to a provider error, so a parse complaint can be read.
@@ -1479,16 +1486,28 @@ mod tests {
         );
     }
 
-    /// The guard is per provider now, and no provider sits at the old 76800:
-    /// that number came from a misread error column, not from a measured wall.
+    /// Regression guard, paid for in a broken run: on 2026-08-26 this limit was
+    /// briefly 256 KB and an 84436-byte body was refused four times. The smallest
+    /// body ever refused is 83451 bytes; nothing under 80 KB ever was. No remote
+    /// provider may sit above the measured-safe value.
     #[test]
-    fn la_limite_depend_du_fournisseur_et_depasse_lancienne_valeur() {
-        let distant = limite_corps("https://api.deepseek.com/v1");
-        let inconnu = limite_corps("https://passerelle.inconnue.example/v1");
-        let local = limite_corps("http://127.0.0.1:8080/v1");
-        assert!(distant > 76_800, "a measured-good provider must not sit at the old guard");
-        assert!(inconnu > 76_800, "even an unknown gateway gets more than the misdiagnosis");
-        assert!(local > distant, "no gateway in the middle: local should be the most generous");
+    fn aucun_fournisseur_distant_ne_depasse_le_mur_mesure() {
+        /// Smallest body a gateway has ever refused.
+        const PLUS_PETIT_REFUS: usize = 83_451;
+        for base in [
+            "https://api.deepseek.com/v1",
+            "https://api.openai.com/v1",
+            "https://openrouter.ai/api/v1",
+            "https://passerelle.inconnue.example/v1",
+        ] {
+            let limite = limite_corps(base);
+            assert!(
+                limite < PLUS_PETIT_REFUS,
+                "{base} would be allowed {limite} bytes, at or past the observed wall"
+            );
+        }
+        // Local runtimes have no gateway to cut the upload.
+        assert!(limite_corps("http://127.0.0.1:8080/v1") > PLUS_PETIT_REFUS);
     }
 
     /// Measured at 109301 chars, in a body of two messages. A trimmer that only
