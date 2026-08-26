@@ -92,6 +92,11 @@ impl Abeille for WebFetch {
         if args["render"].as_bool().unwrap_or(false) {
             return match render_url_dom(url, 3).await {
                 Ok(html) => {
+                    // A host that only ever yields under a renderer is worth
+                    // recording too: it is the most expensive route, so knowing
+                    // it is needed is what stops the cheap ones being retried.
+                    crate::memoire_hotes::globales()
+                        .succes(url, crate::memoire_hotes::Route::Rendu);
                     let texte = extraire_lisible(&html);
                     let liens = if avec_liens { rendu_liens(&html, url) } else { String::new() };
                     Ok(ResultatAbeille::ok(format!(
@@ -109,6 +114,37 @@ impl Abeille for WebFetch {
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
             .timeout(std::time::Duration::from_secs(20))
             .build()?;
+
+        // Learned shortcut. The chain below is untouched: this only decides where
+        // to START. A host we have watched wall the direct route three times gets
+        // its working route first, instead of paying the same two failures again.
+        // Doctrine (see `memoire_hotes`): reorder, never skip, never refuse.
+        let memoire = crate::memoire_hotes::globales();
+        if !probe {
+            if let Some(route) = memoire.route_preferee(url) {
+                let appris = memoire.note(url).unwrap_or_default();
+                let texte = match route {
+                    crate::memoire_hotes::Route::Jina => fetch_via_jina(&client, url).await,
+                    crate::memoire_hotes::Route::Archive => {
+                        fetch_via_wayback(&client, url).await
+                    }
+                    // The other routes are the normal path or need the HTML we do
+                    // not have yet: fall through and let the chain run as usual.
+                    _ => None,
+                };
+                if let Some(text) = texte {
+                    memoire.succes(url, route);
+                    return Ok(ResultatAbeille::ok(format!(
+                        "{appris}
+
+{}",
+                        presenter(&text, &focus, probe, offset, max_chars)
+                    )));
+                }
+                // The learned route just failed. Say nothing, try everything: a
+                // memory that could dead-end the fetch would be worse than none.
+            }
+        }
 
         // Direct fetch (1 retry on transient network error), then anti-blocking chain.
         let direct = match fetch_direct(&client, url).await {
@@ -137,6 +173,7 @@ impl Abeille for WebFetch {
                     // nothing: no browser, no proxy, no round trip. Try it before
                     // paying for jina, which is a network hop that can also fail.
                     if let Some(structure) = extraire_donnees_structurees(&html) {
+                        memoire.succes(url, crate::memoire_hotes::Route::Structuree);
                         return Ok(ResultatAbeille::ok(format!(
                             "[structured data extracted from the page source - no renderer needed]\n\n{}",
                             presenter(&structure, &focus, probe, offset, max_chars)
@@ -153,6 +190,7 @@ impl Abeille for WebFetch {
                         "Page has no readable content (JS shell). Retry with render=true.",
                     ));
                 }
+                memoire.succes(url, crate::memoire_hotes::Route::Directe);
                 let liens = if avec_liens { rendu_liens(&html, url) } else { String::new() };
                 Ok(ResultatAbeille::ok(format!(
                     "{}{liens}",
@@ -160,6 +198,7 @@ impl Abeille for WebFetch {
                 )))
             }
             Ok(Recolte::Texte(t)) if !t.trim().is_empty() => {
+                memoire.succes(url, crate::memoire_hotes::Route::Directe);
                 Ok(ResultatAbeille::ok(presenter(&t, &focus, probe, offset, max_chars)))
             }
             issue => {
@@ -167,8 +206,12 @@ impl Abeille for WebFetch {
                     Err(e) => e.to_string(),
                     _ => "empty page".to_string(),
                 };
+                // The direct route did not deliver: that is the signal worth
+                // remembering, so the next fetch of this host starts elsewhere.
+                memoire.mur(url);
                 // Fallback 1: r.jina.ai reader proxy (cleans, renders JS, bypasses simple 403s).
                 if let Some(text) = fetch_via_jina(&client, url).await {
+                    memoire.succes(url, crate::memoire_hotes::Route::Jina);
                     return Ok(ResultatAbeille::ok(format!(
                         "[via r.jina.ai - direct fetch failed: {motif}]\n\n{}",
                         presenter(&text, &focus, probe, offset, max_chars)
@@ -176,6 +219,7 @@ impl Abeille for WebFetch {
                 }
                 // Fallback 2: Wayback Machine (archived snapshot).
                 if let Some(text) = fetch_via_wayback(&client, url).await {
+                    memoire.succes(url, crate::memoire_hotes::Route::Archive);
                     return Ok(ResultatAbeille::ok(format!(
                         "[via Wayback Machine - direct fetch failed: {motif}]\n\n{}",
                         presenter(&text, &focus, probe, offset, max_chars)

@@ -51,6 +51,7 @@ pub mod reine_live;
 mod reine_tests;
 pub mod reine_queue;
 pub mod session;
+pub mod memoire_hotes;
 pub mod stats_outils;
 pub mod stdout_filter;
 pub mod streaming;
