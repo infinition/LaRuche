@@ -69,6 +69,12 @@ tokens in proportion.
 
 `type` types into whatever has focus. `key` presses one key or a chord.
 
+**Both tell you which window they went to.** Read that line. A keystroke goes to the front
+window, not to the one you have in mind, and on a multi-screen setup the window you were
+thinking of is often on the other screen with something else in front. If the reported focus
+is not what you expected, nothing you typed went where you thought: `focus_window` first,
+then type again. Typing into LaRuche's own window is refused outright.
+
 Named keys: `Enter`, `Tab`, `Escape`, `Backspace`, `Delete`, `Space`, `Home`, `End`,
 `PageUp`, `PageDown`, `Up`, `Down`, `Left`, `Right`, `F1` to `F12`, or a single character.
 Chord with `Control+c`, `Shift+Tab`, `Alt+F4`, `Meta+r`. `repeat` presses several times,

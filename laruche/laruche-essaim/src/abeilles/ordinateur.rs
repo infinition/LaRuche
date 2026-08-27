@@ -103,6 +103,83 @@ fn glisser_vers(enigo: &mut Enigo, x: f64, y: f64, facteur: f64, duree_ms: u64) 
     }
 }
 
+/// Les noms d'action que les modeles produisent naturellement.
+///
+/// `click` est le nom qu'utilise l'outil `browser`, et le meme modele passe de
+/// l'un a l'autre dans la meme conversation. Refuser sur un synonyme evident ne
+/// protege de rien, ca coute juste un tour et une chance de se tromper ailleurs.
+fn alias_action(action: &str) -> String {
+    match action {
+        "click" | "click_left" => "left_click",
+        "move" | "move_mouse" | "hover" => "mouse_move",
+        "screen_capture" | "capture" => "screenshot",
+        "list_windows" => "windows",
+        "monitors" | "displays" => "screens",
+        "press" | "key_press" => "key",
+        "write" | "type_text" => "type",
+        "drag" => "left_click_drag",
+        autre => autre,
+    }
+    .to_string()
+}
+
+/// Le point vise, quelle que soit la facon dont le modele l'a ecrit.
+///
+/// `coordinate: [x, y]` est la convention des outils de controle d'ecran les
+/// plus repandus, donc c'est ce qu'un modele ecrit spontanement. Ignorer la clef
+/// inconnue et cliquer la ou se trouvait deja le curseur est le pire des
+/// comportements: l'action reussit, au mauvais endroit, sans un mot. Observe en
+/// production, avec toute la suite de la demo qui part de travers.
+fn point_demande(args: &Value, prefixe: &str) -> Option<(f64, f64)> {
+    let cle = |suffixe: &str| {
+        if prefixe.is_empty() {
+            suffixe.to_string()
+        } else {
+            format!("{prefixe}_{suffixe}")
+        }
+    };
+    if let (Some(x), Some(y)) = (args[cle("x")].as_f64(), args[cle("y")].as_f64()) {
+        return Some((x, y));
+    }
+    for nom in [cle("coordinate"), cle("coordinates"), cle("position")] {
+        if let Some(paire) = args.get(&nom).and_then(Value::as_array) {
+            if let (Some(x), Some(y)) = (
+                paire.first().and_then(Value::as_f64),
+                paire.get(1).and_then(Value::as_f64),
+            ) {
+                return Some((x, y));
+            }
+        }
+    }
+    None
+}
+
+/// La fenetre qui a le focus, et donc celle qui recevra la frappe.
+///
+/// Le dire dans le resultat change tout pour le modele: sans cela, `type` repond
+/// "tape dans ce qui a le focus", ce qui est exact et parfaitement inutile. Un
+/// modele a ainsi ecrit trois phrases dans le navigateur en croyant remplir le
+/// Bloc-notes, et il lui a fallu quatre commandes PowerShell pour s'en rendre
+/// compte.
+fn fenetre_active() -> Option<(String, u32)> {
+    let fenetres = Window::all().ok()?;
+    let f = fenetres
+        .into_iter()
+        .find(|f| f.is_focused().unwrap_or(false))?;
+    let titre = f.title().unwrap_or_default();
+    let app = f.app_name().unwrap_or_default();
+    let nom = if titre.trim().is_empty() { app } else { titre };
+    Some((nom, f.pid().unwrap_or(0)))
+}
+
+/// Ou part la frappe, en une phrase, pour la coller au resultat.
+fn ou_part_la_frappe() -> String {
+    match fenetre_active() {
+        Some((nom, _)) => format!(" Focus: \"{nom}\"."),
+        None => String::new(),
+    }
+}
+
 /// La ligne affichee dans le panneau, ecrite AVANT le geste.
 ///
 /// Pendant les quelques centaines de millisecondes ou le curseur glisse vers sa
@@ -259,6 +336,15 @@ fn choisir_ecran<'a>(liste: &'a [Monitor], demande: Option<&Value>) -> Option<&'
                     .find(|m| m.id().ok().map(u64::from) == Some(n))
                     .or_else(|| liste.get(n.saturating_sub(1) as usize))
             } else if let Some(s) = v.as_str() {
+                // `"1"` est un rang ecrit en chaine, pas un nom d'ecran. Un
+                // modele produit l'un ou l'autre selon son humeur, et refuser
+                // sur ce detail lui coute un tour pour rien.
+                if let Ok(n) = s.trim().parse::<u64>() {
+                    return liste
+                        .iter()
+                        .find(|m| m.id().ok().map(u64::from) == Some(n))
+                        .or_else(|| liste.get(n.saturating_sub(1) as usize));
+                }
                 liste.iter().find(|m| {
                     m.name().map(|n| n.eq_ignore_ascii_case(s)).unwrap_or(false)
                         || m.friendly_name()
@@ -467,7 +553,8 @@ impl Ordinateur {
     /// l'OS: les laisser sur l'executeur async bloquerait le noeud entier
     /// pendant une capture d'ecran, qui prend des dizaines de millisecondes.
     fn executer_bloquant(args: Value) -> Result<ResultatAbeille> {
-        let action = args["action"].as_str().unwrap_or_default();
+        let action = alias_action(args["action"].as_str().unwrap_or_default());
+        let action = action.as_str();
         // Le decor suit les memes reglages que celui du navigateur, pour qu'un
         // utilisateur n'ait pas deux vocabulaires a retenir.
         let glow = args["glow"].as_bool().unwrap_or(true);
@@ -622,6 +709,19 @@ impl Ordinateur {
                 // Pas de garde de position ici: la frappe va au focus courant,
                 // pas a un point de l'ecran. La garde qui compte a deja ete
                 // passee par le clic qui a donne ce focus.
+                // Ou va la frappe, LU AVANT de taper: apres, une fenetre a pu
+                // s'ouvrir, et on rapporterait la mauvaise.
+                let ou = ou_part_la_frappe();
+                if let Some((nom, pid)) = fenetre_active() {
+                    if pid == std::process::id() {
+                        return Err(anyhow!(
+                            "Refused: the focus is on LaRuche's own window (\"{nom}\"). \
+                             Typing there would put text into your own interface. Bring the \
+                             application you were asked about to the front first, with \
+                             focus_window."
+                        ));
+                    }
+                }
                 if glisse_ms > 0 && texte.chars().count() <= 200 {
                     // Frappe progressive, comme dans le navigateur: on voit le
                     // texte apparaitre au lieu de le voir surgir. Au-dela de
@@ -640,7 +740,9 @@ impl Ordinateur {
                         .map_err(|e| anyhow!("typing failed: {e}"))?;
                 }
                 Ok(ResultatAbeille::ok(format!(
-                    "Typed {} character(s) into whatever has focus.",
+                    "Typed {} character(s).{ou} If that is not the window you meant, nothing \
+                     you typed went where you thought: bring the right one to the front with \
+                     focus_window and type again.",
                     texte.chars().count()
                 )))
             }
@@ -648,9 +750,11 @@ impl Ordinateur {
             "key" | "key_down" | "key_up" => Self::geste_clavier(action, &args, &mut enigo),
 
             autre => Err(anyhow!(
-                "Unknown action '{autre}'. Use screens, screenshot, cursor_position, \
+                "Unknown action '{autre}'. The reliable path first: windows (list them), \
+                 focus_window, read (numbered map of the controls), then click or fill with \
+                 a `ref`, plus focus. By pixels: screens, screenshot, cursor_position, \
                  mouse_move, left_click, right_click, middle_click, double_click, \
-                 left_click_drag, scroll, type, key, key_down or key_up."
+                 left_click_drag, scroll. Keyboard: type, key, key_down, key_up."
             )),
         }
     }
@@ -884,9 +988,9 @@ impl Ordinateur {
             ));
         }
 
-        let point = match (args["x"].as_f64(), args["y"].as_f64()) {
-            (Some(x), Some(y)) => Some(resoudre(x, y)?),
-            _ => None,
+        let point = match point_demande(args, "") {
+            Some((x, y)) => Some(resoudre(x, y)?),
+            None => None,
         };
 
         if let Some((px, py)) = point {
@@ -937,9 +1041,9 @@ impl Ordinateur {
                 )))
             }
             "left_click_drag" => {
-                let (tx, ty) = match (args["to_x"].as_f64(), args["to_y"].as_f64()) {
-                    (Some(x), Some(y)) => resoudre(x, y)?,
-                    _ => {
+                let (tx, ty) = match point_demande(args, "to") {
+                    Some((x, y)) => resoudre(x, y)?,
+                    None => {
                         return Err(anyhow!(
                             "left_click_drag needs 'to_x' and 'to_y', the point to drop on. \
                              'x' and 'y' are the point to grab, and default to where the \
@@ -1046,6 +1150,10 @@ impl Ordinateur {
 
         let repeat = args["repeat"].as_u64().unwrap_or(1).clamp(1, 50);
         let maintien = args["hold_ms"].as_u64().unwrap_or(0).min(MAINTIEN_MAX_MS);
+        // Un raccourci part vers la fenetre au premier plan, pas vers celle que
+        // le modele a en tete. Un Ctrl+S mal adresse enregistre la mauvaise
+        // chose, et c'est arrive.
+        let ou = ou_part_la_frappe();
 
         for m in &mods {
             enigo
@@ -1075,7 +1183,7 @@ impl Ordinateur {
             return Err(e);
         }
         Ok(ResultatAbeille::ok(format!(
-            "Pressed {spec}{}{}.",
+            "Pressed {spec}{}{}.{ou}",
             if repeat > 1 {
                 format!(" x{repeat}")
             } else {
@@ -1139,7 +1247,7 @@ impl Abeille for Ordinateur {
                 },
                 "ref": { "type": "integer", "description": "Element number from read, without the ref_ prefix. Preferred over x,y: it cannot miss, and it is the only path that works without vision." },
                 "window": { "type": "string", "description": "For read and focus_window: a piece of the window title. read defaults to the front window." },
-                "x": { "type": "number", "description": "Horizontal position, in pixels of the LAST screenshot. Only needed when read finds no control to act on." },
+                "x": { "type": "number", "description": "Horizontal position, in pixels of the LAST screenshot. Only needed when read finds no control to act on. `coordinate: [x, y]` is accepted instead." },
                 "y": { "type": "number", "description": "Vertical position, in pixels of the LAST screenshot" },
                 "to_x": { "type": "number", "description": "For left_click_drag: where to release" },
                 "to_y": { "type": "number", "description": "For left_click_drag: where to release" },
@@ -1465,6 +1573,75 @@ mod tests {
             out.output.chars().take(600).collect::<String>()
         );
         println!("Texte relu dans l'arbre: ok");
+    }
+
+    #[test]
+    fn les_synonymes_devidence_sont_acceptes() {
+        // `click` est le nom que porte la meme action sur l'outil `browser`, et
+        // un modele passe de l'un a l'autre dans la meme conversation.
+        assert_eq!(alias_action("click"), "left_click");
+        assert_eq!(alias_action("press"), "key");
+        assert_eq!(alias_action("drag"), "left_click_drag");
+        assert_eq!(alias_action("list_windows"), "windows");
+        // Ce qui est deja le bon nom n'est pas touche.
+        assert_eq!(alias_action("left_click"), "left_click");
+        assert_eq!(alias_action("read"), "read");
+        // Et l'inconnu reste inconnu, pour que le message d'erreur le nomme.
+        assert_eq!(alias_action("teleporte"), "teleporte");
+    }
+
+    /// `coordinate: [x, y]` est la convention des outils de controle d'ecran les
+    /// plus repandus. L'ignorer faisait cliquer la ou le curseur se trouvait
+    /// deja: l'action reussissait, au mauvais endroit, sans un mot.
+    #[test]
+    fn le_point_se_lit_dans_les_deux_ecritures() {
+        assert_eq!(
+            point_demande(&json!({ "x": 12, "y": 34 }), ""),
+            Some((12.0, 34.0))
+        );
+        assert_eq!(
+            point_demande(&json!({ "coordinate": [12, 34] }), ""),
+            Some((12.0, 34.0))
+        );
+        assert_eq!(
+            point_demande(&json!({ "coordinates": [12, 34] }), ""),
+            Some((12.0, 34.0))
+        );
+        // Le prefixe sert au point d'arrivee d'un glisser.
+        assert_eq!(
+            point_demande(&json!({ "to_coordinate": [7, 8] }), "to"),
+            Some((7.0, 8.0))
+        );
+        assert_eq!(
+            point_demande(&json!({ "to_x": 7, "to_y": 8 }), "to"),
+            Some((7.0, 8.0))
+        );
+        // x sans y n'est pas un point: mieux vaut rien qu'a moitie.
+        assert_eq!(point_demande(&json!({ "x": 12 }), ""), None);
+        assert_eq!(point_demande(&json!({ "coordinate": [12] }), ""), None);
+        assert_eq!(point_demande(&json!({}), ""), None);
+        // Et le prefixe ne va pas se servir dans le point de depart.
+        assert_eq!(point_demande(&json!({ "x": 1, "y": 2 }), "to"), None);
+    }
+
+    /// Le message d'erreur est le seul endroit ou un modele apprend la liste des
+    /// actions quand il s'est trompe. Il etait reste sur l'ancienne, donc il
+    /// renvoyait vers les pixels une conversation qui aurait du passer par
+    /// l'arbre d'accessibilite.
+    #[tokio::test]
+    async fn laction_inconnue_nomme_dabord_le_chemin_fiable() {
+        let out = Ordinateur
+            .executer(json!({ "action": "teleporte" }), &ContextExecution::default())
+            .await
+            .unwrap();
+        assert!(!out.success);
+        let message = out.error.unwrap_or_default();
+        for attendu in ["windows", "focus_window", "read", "fill", "focus"] {
+            assert!(
+                message.contains(attendu),
+                "`{attendu}` absent du message d'erreur: {message}"
+            );
+        }
     }
 
     #[test]
