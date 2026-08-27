@@ -2575,9 +2575,18 @@ mod tests {
         assert!(!script.contains("\nensuite"), "saut de ligne non echappe");
     }
 
+    /// `GLOW_ACTIF` et le tampon de narration sont des globales de processus, et
+    /// les tests tournent en parallele: sans ce verrou, celui qui eteint le
+    /// drapeau fait echouer celui qui narre. Vu une fois, en rouge intermittent.
+    fn verrou_narration() -> std::sync::MutexGuard<'static, ()> {
+        static V: std::sync::Mutex<()> = std::sync::Mutex::new(());
+        V.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     #[test]
     fn la_narration_ne_grandit_pas_sans_fin() {
         use crate::evenements::ChatEvent;
+        let _garde = verrou_narration();
         GLOW_ACTIF.store(true, std::sync::atomic::Ordering::Relaxed);
         // Repartir d'un tampon propre sans passer par brancher_pilotage, qui
         // toucherait au canal de pilotage d'un autre test.
@@ -2604,6 +2613,7 @@ mod tests {
     #[test]
     fn sans_page_pilotee_narrer_ne_coute_rien() {
         use crate::evenements::ChatEvent;
+        let _garde = verrou_narration();
         GLOW_ACTIF.store(false, std::sync::atomic::Ordering::Relaxed);
         *narration().lock().unwrap() = Narration::default();
         narrer(&ChatEvent::Token {

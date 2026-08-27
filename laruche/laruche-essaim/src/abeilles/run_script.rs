@@ -55,34 +55,71 @@ impl Abeille for ToolSearch {
             .map(|t| t.to_string())
             .collect();
         let schema = self.registry.schema_complet();
-        let mut lignes = Vec::new();
+        // Trouves PUIS classes, et c'est le point important. Le tri n'existait
+        // pas: on retenait tout ce qui contenait UN mot de la requete, puis on
+        // coupait a quinze dans l'ordre d'iteration d'une table de hachage,
+        // c'est-a-dire au hasard. Une recherche de six mots dont cinq tombaient
+        // sur le bon outil pouvait donc ne jamais le montrer. Observe: un
+        // modele cherchant "desktop control screenshot click mouse" sans jamais
+        // voir `computer`, et concluant qu'aucun outil n'existait.
+        let mut trouves: Vec<(u32, String)> = Vec::new();
         if let Some(tools) = schema.as_array() {
             for t in tools {
                 let name = t["name"].as_str().unwrap_or("");
                 let desc = t["description"].as_str().unwrap_or("");
                 let origin = t["origin"].as_str().unwrap_or("builtin");
-                let hay = format!("{name} {desc}").to_lowercase();
-                let hit = toks.is_empty() || toks.iter().any(|tk| hay.contains(tk.as_str()));
-                if hit {
+                let nom_bas = name.to_lowercase();
+                let desc_bas = desc.to_lowercase();
+                // Un mot present dans le NOM pese plus qu'un mot noye dans une
+                // description de six lignes: `computer` pour "computer" est une
+                // reponse, `shell_exec` qui mentionne "screen" est un hasard.
+                let score: u32 = toks
+                    .iter()
+                    .map(|tk| {
+                        if nom_bas.contains(tk.as_str()) {
+                            4
+                        } else if desc_bas.contains(tk.as_str()) {
+                            1
+                        } else {
+                            0
+                        }
+                    })
+                    .sum();
+                if score > 0 || toks.is_empty() {
                     let short: String = desc.chars().take(120).collect();
-                    lignes.push(format!("- {name} ({origin}): {short}"));
+                    trouves.push((score, format!("- {name} ({origin}): {short}")));
                 }
             }
         }
-        if lignes.is_empty() {
+        if trouves.is_empty() {
             return Ok(ResultatAbeille::ok("No matching tools."));
         }
-        lignes.truncate(limit);
+        let total = trouves.len();
+        // Tri stable a score egal sur le nom, pour que deux recherches
+        // identiques rendent deux fois la meme chose.
+        trouves.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+        trouves.truncate(limit);
+        let reste = total.saturating_sub(trouves.len());
+        let lignes: Vec<String> = trouves.into_iter().map(|(_, l)| l).collect();
+        let queue = if reste > 0 {
+            format!(
+                "\n({reste} more, less relevant, not shown: narrow the keywords or raise limit.)"
+            )
+        } else {
+            String::new()
+        };
         Ok(ResultatAbeille::ok(format!(
-            "Matching tools (call with tool_call):\n{}",
+            "Matching tools, best first. Call one with tool_call, or by name directly if it \
+             is in your list this turn:\n{}{queue}",
             lignes.join("\n")
         )))
     }
 }
 
 /// `tool_call`: executes ANY registered tool by name, even if not injected
-/// this turn (tool_call bridge). Preserves validation: refuses
-/// non-`Safe` tools (to be called directly) and recursion.
+/// this turn (tool_call bridge). La recursion reste refusee; un outil sensible
+/// passe par ici comme ailleurs, `butinage_pont` deballant l'enveloppe pour
+/// juger l'outil transporte.
 pub struct ToolCall {
     pub registry: Arc<AbeilleRegistry>,
 }
@@ -94,7 +131,8 @@ impl Abeille for ToolCall {
     }
     fn description(&self) -> &str {
         "Execute any registered tool by name, even if not listed this turn (discover via tool_search). \
-         `tool` = tool name, `args` = its arguments. Sensitive tools (requiring approval) must be called directly, not via tool_call."
+         `tool` = tool name, `args` = its arguments. A tool that needs approval works here too: \
+         the approval is asked for THAT tool, exactly as if you had called it directly."
     }
     fn schema(&self) -> serde_json::Value {
         serde_json::json!({

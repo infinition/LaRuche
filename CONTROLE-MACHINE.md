@@ -51,7 +51,9 @@ humaine.
 ### Souris, clavier, écran
 
 Natif, outil `computer`, dans `laruche-essaim/src/abeilles/ordinateur.rs`. Le serveur MCP
-Python `mcp/computer_use.py` n'a plus de raison d'être enregistré.
+Python `mcp/computer_use.py` a été supprimé, il n'avait plus de raison d'être. Et un serveur
+MCP ne peut plus reprendre le nom d'un outil natif: le registre refuse et le journalise,
+alors qu'il écrasait silencieusement jusqu'ici.
 
 Deux chemins. Par l'arbre d'accessibilité : `windows`, `focus_window`, `read`, puis `click`
 et `fill` sur un numéro de contrôle. Par les pixels : `screens`, `screenshot`, puis
