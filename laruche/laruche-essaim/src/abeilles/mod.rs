@@ -113,6 +113,11 @@ pub fn enregistrer_abeilles_builtin(registry: &AbeilleRegistry) {
     registry.enregistrer(Box::new(clarify::Clarify));
     // Deep-research self-declaration (intercepted by the butinage engine)
     registry.enregistrer(Box::new(research_mode::ResearchMode));
+    // Ecrit depuis la toute premiere version et jamais enregistre, donc jamais
+    // joignable, alors que `long-running-work` en fait un mecanisme de premier
+    // rang avec sa propre section. Un modele qui suivait le skill appelait un
+    // outil absent. Sans danger et une seule ligne de description.
+    registry.enregistrer(Box::new(plan_mode::PlanModeTool));
     // Findings ledger (intercepted by the butinage engine)
     registry.enregistrer(Box::new(finding::Finding));
     // File watch

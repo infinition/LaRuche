@@ -89,8 +89,9 @@ conclusion instead, one item at a time:
 memory_write: node_id=veille.blogs, content=<the one thing worth remembering>
 ```
 
-For the raw list, `file_write` it to disk and keep the path. For passages you may want to
-quote later, `knowledge_add`, which is the store built for text.
+For the raw list, and for any passage you may want to quote later, `file_write` it to disk
+and `memory_write` the path with one line saying what it holds. Long text never goes into
+memory itself.
 
 ## Traps
 

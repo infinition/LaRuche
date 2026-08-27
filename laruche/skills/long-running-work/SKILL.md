@@ -52,8 +52,10 @@ user would want to veto. Do not use it for a fix you were explicitly asked to ma
    For what a good plan document contains, open the `plan` skill.
 3. Present it and wait for approval. Do not start while asking.
 
-**`plan_mode` overwrites `plan.md` without warning.** If one already exists from an
-earlier plan, read it first and move it aside; the tool does not ask and does not back up.
+**An existing `plan.md` is moved aside, not overwritten.** If one is already there it is
+renamed `plan-<date>_<time>.md` and the answer names the new path. Nothing is lost, but the
+old plan is no longer where you left it: if you meant to continue it rather than start a
+fresh one, open it at the path the answer gives instead of calling `plan_mode` again.
 
 ## Kanban
 

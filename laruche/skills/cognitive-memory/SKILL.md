@@ -14,17 +14,22 @@ keep the map from rotting into a landfill.
 
 Getting this wrong is the single most common mistake.
 
-| | `memory_*` | `knowledge_*` |
+| | `memory_*` | a file on disk |
 |---|---|---|
-| Holds | facts ABOUT the user and the work: decisions, preferences, project state | reference TEXT to search later: docs, articles, transcripts |
-| Shape | a map of nodes, each holding short items | a flat vector index of passages |
-| Write | `memory_write` | `knowledge_add` |
-| Read | `memory_search` | `knowledge_search` |
+| Holds | facts ABOUT the user and the work: decisions, preferences, project state | reference TEXT you may need to quote: docs, articles, transcripts |
+| Shape | a map of nodes, each holding short items | whatever the document already is |
+| Write | `memory_write` | `file_write`, then `memory_write` the path and one line saying what it is |
+| Read | `memory_search` | `memory_search` finds the note, `file_read` or `read_extract` opens the document |
 | Ask yourself | "will I need this to act correctly next week?" | "will I need to look this passage up?" |
 
 "The user prefers Rust and refuses em dashes" is `memory_write`. A 40 page datasheet you
-may need to quote is `knowledge_add`. Never dump a document into `memory_write`: it
-poisons every future search with noise no one can prune.
+may need to quote is a file, plus one remembered line pointing at it. Never dump a
+document into `memory_write`: it poisons every future search with noise no one can prune.
+
+**There is no separate knowledge store.** A flat RAG index existed once, `knowledge_add`
+and `knowledge_search`, and it was removed on purpose: it duplicated the cognitive map and
+split every recall across two systems that never agreed. Those two tools no longer exist.
+The pairing above, a file for the text and a remembered pointer to it, replaces them.
 
 ## Node ids
 
