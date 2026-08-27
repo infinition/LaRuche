@@ -50,6 +50,26 @@ echo IMPORTANT : ferme toute instance LaRuche deja ouverte (sinon le port
 echo 8419 est pris et le .exe est verrouille au build).
 echo.
 
+REM --- Skills livres avec le depot: deposer ceux qui MANQUENT dans le foyer ---
+REM   Le noeud lit `skills/` dans son FOYER (%APPDATA%\LaRuche par defaut, ou
+REM   LARUCHE_DATA_DIR), pas dans le depot. Un skill ajoute ici restait donc
+REM   invisible jusqu'a ce qu'on pense a le copier a la main, ce que personne ne
+REM   fait: on cherche pendant une heure pourquoi l'agent ignore une procedure
+REM   qu'on vient d'ecrire.
+REM   On depose ce qui manque et RIEN d'autre: un skill edite sur place, ou cree
+REM   par le curateur, ne doit jamais etre ecrase par la copie du depot.
+set "FOYER=%LARUCHE_DATA_DIR%"
+if not defined FOYER set "FOYER=%APPDATA%\LaRuche"
+if not exist "%FOYER%\skills" mkdir "%FOYER%\skills" >nul 2>&1
+for /d %%S in ("skills\*") do (
+    if not exist "%FOYER%\skills\%%~nxS\SKILL.md" (
+        if exist "%%S\SKILL.md" (
+            echo   + skill depose dans le foyer : %%~nxS
+            xcopy /e /i /q /y "%%S" "%FOYER%\skills\%%~nxS\" >nul
+        )
+    )
+)
+
 echo === Build de laruche-node ===
 cargo build -p laruche-node
 if errorlevel 1 (

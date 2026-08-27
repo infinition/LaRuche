@@ -64,6 +64,23 @@ echo est verrouille au build.
 echo.
 
 echo === Build du noeud et de la coque ===
+REM --- Skills livres avec le depot: deposer ceux qui MANQUENT dans le foyer ---
+REM   Le noeud lit `skills/` dans son FOYER, pas dans le depot: sans ce depot
+REM   automatique, un skill ajoute au depot reste invisible pour l'agent.
+REM   On ne remplace jamais un skill deja present: une edition sur place, ou un
+REM   skill cree par le curateur, doit survivre.
+set "FOYER_SKILLS=%LARUCHE_DATA_DIR%"
+if not defined FOYER_SKILLS set "FOYER_SKILLS=%APPDATA%\LaRuche"
+if not exist "%FOYER_SKILLS%\skills" mkdir "%FOYER_SKILLS%\skills" >nul 2>&1
+for /d %%S in ("skills\*") do (
+    if not exist "%FOYER_SKILLS%\skills\%%~nxS\SKILL.md" (
+        if exist "%%S\SKILL.md" (
+            echo   + skill depose dans le foyer : %%~nxS
+            xcopy /e /i /q /y "%%S" "%FOYER_SKILLS%\skills\%%~nxS\" >nul
+        )
+    )
+)
+
 cargo build --release -p laruche-node -p laruche-bureau
 if errorlevel 1 (
     echo.
