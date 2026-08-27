@@ -132,6 +132,34 @@ pub fn decider(ctx: &ContexteApprobation) -> DecisionApprobation {
     }
 }
 
+/// Does this action only observe, or does it change something?
+///
+/// `None` for a tool we know nothing about: inventing a class for it would
+/// silently widen an approval, and the safe default is the tool-wide class the
+/// caller already had.
+///
+/// The lists name the OBSERVING actions and treat everything else as acting.
+/// That direction matters: a new action added later lands in the stricter class
+/// by default, so forgetting to update this file costs a prompt, never a
+/// silently approved click.
+fn classe_action(nom_outil: &str, action: &str) -> Option<&'static str> {
+    const LECTURE_NAVIGATEUR: &[&str] = &[
+        "read", "find", "tabs", "screenshot", "console", "network", "scroll", "wait",
+    ];
+    const LECTURE_ORDINATEUR: &[&str] = &["screens", "screenshot", "cursor_position"];
+
+    let lecture = match nom_outil {
+        "browser" => LECTURE_NAVIGATEUR,
+        "computer" => LECTURE_ORDINATEUR,
+        _ => return None,
+    };
+    Some(if lecture.contains(&action) {
+        "lecture"
+    } else {
+        "action"
+    })
+}
+
 /// Pattern **class** of a call: what approving once approves next time.
 ///
 /// For a shell command it is the binary plus, for multi-command tools (git,
@@ -141,6 +169,19 @@ pub fn decider(ctx: &ContexteApprobation) -> DecisionApprobation {
 /// different class than `git`.
 pub fn cle_pattern(nom_outil: &str, args: &serde_json::Value) -> String {
     if nom_outil != "shell_exec" {
+        // A tool whose `action` decides what it does deserves at least two
+        // classes, otherwise the first harmless call opens the door to the rest
+        // for the whole session: approving one `browser read` used to approve
+        // every later `click`, `fill` and `eval`, and approving a `computer`
+        // screenshot approved every click on the user's desktop.
+        //
+        // Two classes and not one per action: the point is to separate looking
+        // from acting, not to ask eighteen times for the same browser.
+        if let Some(action) = args.get("action").and_then(|v| v.as_str()) {
+            if let Some(classe) = classe_action(nom_outil, action) {
+                return format!("outil:{nom_outil}:{classe}");
+            }
+        }
         return format!("outil:{nom_outil}");
     }
     let cmd = args.get("command").and_then(|v| v.as_str()).unwrap_or("");
@@ -553,6 +594,34 @@ mod tests {
         assert_eq!(sh("\"git\" push"), "shell:git push");
         // Non-shell tools key on the tool name.
         assert_eq!(cle_pattern("file_write", &json!({})), "outil:file_write");
+    }
+
+    /// Looking and acting must NOT share an approval. Approving a screenshot
+    /// used to approve every later click, which is the whole hole this closes.
+    #[test]
+    fn regarder_et_agir_sont_deux_classes() {
+        let cle = |o: &str, a: &str| cle_pattern(o, &json!({ "action": a }));
+
+        assert_eq!(cle("computer", "screenshot"), "outil:computer:lecture");
+        assert_eq!(cle("computer", "left_click"), "outil:computer:action");
+        assert_ne!(cle("computer", "screenshot"), cle("computer", "left_click"));
+
+        assert_eq!(cle("browser", "read"), "outil:browser:lecture");
+        assert_eq!(cle("browser", "eval"), "outil:browser:action");
+        assert_ne!(cle("browser", "read"), cle("browser", "click"));
+
+        // Deux classes et pas dix-huit: toutes les lectures partagent la leur.
+        assert_eq!(cle("browser", "read"), cle("browser", "console"));
+        assert_eq!(cle("browser", "click"), cle("browser", "fill"));
+
+        // Une action inconnue tombe du cote strict, jamais du cote permissif.
+        assert_eq!(cle("computer", "action_future"), "outil:computer:action");
+
+        // Un outil sans notion d'action garde sa classe unique.
+        assert_eq!(
+            cle_pattern("file_write", &json!({ "action": "read" })),
+            "outil:file_write"
+        );
     }
 
     #[test]

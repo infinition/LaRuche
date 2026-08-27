@@ -632,7 +632,9 @@ impl Cdp {
 /// and therefore works identically on the user's Chrome and on a Chrome that
 /// LaRuche started itself.
 enum Canal {
-    Cdp(Cdp),
+    // Boxee: la variante CDP porte une connexion websocket entiere, l'autre
+    // rien du tout, et l'ecart de taille se paie sur chaque valeur du type.
+    Cdp(Box<Cdp>),
     /// The user's browser, reached through the extension. Stateless here: the
     /// bridge owns the socket, so nothing to hold on to.
     Extension,
@@ -839,7 +841,7 @@ impl Canal {
                 fresh.call("Page.enable", json!({})).await.ok();
                 fresh.call("Runtime.enable", json!({})).await.ok();
                 let url = target.get("url").and_then(Value::as_str).unwrap_or("").to_string();
-                *cdp = fresh;
+                **cdp = fresh;
                 Ok(json!({ "tabId": want, "url": url }))
             }
             Canal::Extension => {
@@ -1063,13 +1065,13 @@ async fn ensure_session(
                      mode \"launch\", or install the LaRuche extension."
                 ));
             }
-            Canal::Cdp(connect_cdp(port, url).await?)
+            Canal::Cdp(Box::new(connect_cdp(port, url).await?))
         }
         "launch" => {
             if !port_alive(port).await {
                 launch_chrome(port, headless).await?;
             }
-            Canal::Cdp(connect_cdp(port, url).await?)
+            Canal::Cdp(Box::new(connect_cdp(port, url).await?))
         }
         // auto: the user's own browser first, then anything already listening,
         // and only then a browser of our own.
@@ -1080,7 +1082,7 @@ async fn ensure_session(
                 if !port_alive(port).await {
                     launch_chrome(port, headless).await?;
                 }
-                Canal::Cdp(connect_cdp(port, url).await?)
+                Canal::Cdp(Box::new(connect_cdp(port, url).await?))
             }
         }
     };
