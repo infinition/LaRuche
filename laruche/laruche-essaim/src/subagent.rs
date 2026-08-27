@@ -45,9 +45,19 @@ impl AgentRole {
     pub fn system_prompt(&self) -> &'static str {
         match self {
             AgentRole::Recherche => {
+                // The tool line is here because a scout's job IS enumeration, and
+                // without it three scouts in parallel each guess paths by hand.
+                // Observed: `/file/anneaux/`, `/file/set-du-serpent/`,
+                // `/file/sets-divers/` fetched one at a time at ~2.8s each, all
+                // invented from words on the page, where one `web_discover` call
+                // sweeps the archive index, the sitemap, the JS link graph and the
+                // open directories at once and verifies every hit.
                 "You are a rigorous researcher. \
                  You formulate a falsifiable hypothesis before each search. \
                  You never conclude without at least 3 sources. \
+                 To find what a site HOLDS, call web_discover on it: never guess \
+                 paths one web_fetch at a time, and never report a site as empty \
+                 until web_discover has said so. \
                  You store every discovered fact in memory immediately \
                  via memory_write(node_id='research.<topic>')."
             }
@@ -370,6 +380,23 @@ async fn evaluer_qualite_reponse(response: &str) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A scout's job is enumeration, so the tool that enumerates has to be both
+    /// ALLOWED and NAMED. Observed without the second half: three scouts in
+    /// parallel guessing `/file/anneaux/`, `/file/set-du-serpent/` and friends one
+    /// web_fetch at a time, all invented from words on the page.
+    #[test]
+    fn leclaireuse_peut_et_doit_utiliser_web_discover() {
+        let cfg = config_agent_specialise(&EssaimConfig::default(), AgentRole::Recherche, None);
+        assert!(
+            !cfg.disabled_tools.contains(&"web_discover".to_string()),
+            "the scout must be allowed to enumerate"
+        );
+        assert!(
+            AgentRole::Recherche.system_prompt().contains("web_discover"),
+            "allowing it is not enough: the role prompt must point at it"
+        );
+    }
 
     #[test]
     fn config_sous_agent_limite_iterations_et_recursion() {
