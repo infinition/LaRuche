@@ -10,6 +10,13 @@ cd /d "%~dp0laruche"
 REM --- Moteur agentique : butinage (nouveau) au lieu de l'ancien brain.rs ---
 set "RUCHE_MOTEUR=butinage"
 
+REM --- Qui ouvre la page: CE script, et lui seul ---
+REM   Le noeud ouvre le navigateur tout seul au demarrage, et la sonde plus bas
+REM   le fait aussi: deux onglets a chaque lancement. On coupe celui du noeud et
+REM   on garde la sonde, qui attend que le serveur reponde vraiment. C'est ce que
+REM   fait deja la coque bureau quand elle demarre le noeud.
+set "LARUCHE_NO_BROWSER=1"
+
 REM --- Backend memoire : native | sqlite | sidecar ---
 set "LARUCHE_MEMOIRE_BACKEND=sqlite"
 
