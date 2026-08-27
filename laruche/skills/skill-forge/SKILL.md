@@ -97,8 +97,8 @@ run and with which arguments. It stays inert until the skill is loaded, so it co
 nothing on turns where the skill is not in play.
 
 **3. A registered tool.** When the capability is useful OUTSIDE this skill and you want
-to call it by name like any built-in, register it as a plugin with `plugin_create`, then
-`reload_plugins`. It lands in its own folder, `plugins/<name>/`, with the manifest and
+to call it by name like any built-in, register it as a plugin with `plugin_create`.
+It lands in its own folder, `plugins/<name>/`, with the manifest and
 the script side by side, and it is callable from the moment it exists, with no skill
 loaded. Full procedure in the extend-toolset skill. This is how a script you wrote today
 becomes a tool available on every future turn.

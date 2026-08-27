@@ -20,13 +20,19 @@ and call `research_mode` first. This skill is the fast, correct lookup.
 | `web_search` | `query`, `num_results` | titles, URLs, snippets | you need to SEE what exists and pick |
 | `web_deep_search` | `query`, `num_results` | snippets AND the full text of the top results | you want the answer, not a list |
 | `web_fetch` | `url` (ONE, a string) | the clean text of that page | you already know the page that holds it |
-| `browser_navigate` | `url`, `wait_seconds` | a real rendered browser | the content needs JavaScript or a session |
+| `browser` | `action`, `url` | a real browser you can drive, step by step | the content needs JavaScript, a login, or a click |
 | `web_discover` | `url`, `ext`, `mode` | the files and pages a site does NOT link to | a site looks empty, or you need to LIST what it holds |
 | `image_search` | `query`, `limit` | real image URLs | you need an illustration, instead of inventing a link |
 
 `web_deep_search` is the default for a real question. `web_search` alone returns snippets,
 and a snippet is an advertisement for a page, not evidence from it. Answering from
 snippets is the most common way to be confidently wrong.
+
+**`browser` is the last resort, and it is one tool with an `action`, not a family.** It is
+`browser` with `action: "navigate"`, then `action: "read"` to get the page as numbered
+elements. There is no `browser_navigate` and no `browser_screenshot`: those were separate
+tools once, they are gone, and calling them fails. Driving a page properly is its own
+skill, `browser-control`; open it rather than guessing the arguments from this table.
 
 `web_search` also takes `allowed_domains` and `blocked_domains`, both arrays. Use
 `allowed_domains` to pin a search to a primary source (`["docs.rust-lang.org"]`) and
@@ -144,7 +150,8 @@ the primary source it is based on: the paper, the filing, the repository, the of
 post.
 
 **The page loads but is empty.** It is JavaScript-rendered. `web_fetch` with
-`render: true`, and if that still fails, `browser_navigate`.
+`render: true`, and if that still fails, `browser` with `action: "navigate"` then
+`action: "read"`.
 
 **You cannot establish the fact.** Say so, name what you tried, and give the closest
 thing you did establish. A clear "I could not confirm this" is a correct answer. An

@@ -56,13 +56,13 @@ frozen when the mission starts. Freezing them is what keeps the cached prefix st
 the cost down. So a plugin you create mid-mission will NOT appear in your list, no matter
 how many times you reload.
 
-The registry behind `tool_search` and `tool_call` is live. A plugin registered by
-`reload_plugins` is immediately reachable through `tool_call`, in the same mission, on
+The registry behind `tool_search` and `tool_call` is live. `plugin_create` loads the new
+plugin into it on the spot, so it is reachable through `tool_call` in the same mission, on
 the next turn.
 
 | | This mission | Next mission |
 |---|---|---|
-| A plugin, after `reload_plugins` | callable via `tool_call`, absent from your list | listed normally |
+| A plugin, after `plugin_create` | callable via `tool_call`, absent from your list | listed normally |
 | A skill, after `skill_create` | openable via `skill_view` by name | listed in the catalog |
 
 So: **do not verify a new plugin by looking for it in your tool list. Verify it by
@@ -107,14 +107,13 @@ Procedure:
 
 1. `plugin_list` first, and `tool_search` on the same keyword. Do not create a duplicate
    of something already registered.
-2. `plugin_create` with all four parts.
-3. **`reload_plugins`.** This is not optional. Until it runs, the plugin exists on disk
-   and is registered nowhere.
-4. `tool_search` on the new name to confirm it entered the registry, then `tool_call` it
+2. `plugin_create` with all four parts. It loads the plugin into the live registry itself,
+   so there is no reload step to run afterwards.
+3. `tool_search` on the new name to confirm it entered the registry, then `tool_call` it
    once with a real argument to confirm it actually runs. Do NOT look for it in your tool
    list: it will not be there until the next mission, and that is normal.
 
-`plugin_delete` with `name` removes one. Run `reload_plugins` after that too.
+`plugin_delete` with `name` removes one, and reloads what remains by itself.
 
 ## Connecting an MCP server
 
@@ -130,8 +129,8 @@ Procedure:
 
 ## Traps
 
-- **Forgetting `reload_plugins`.** Created, invisible, and the failure message says the
-  tool does not exist, which sends you off creating it again.
+- **Looking for the new plugin in your tool list.** It is not there and will not be until
+  the next mission. Confirm it with `tool_search`, not with your eyes.
 - **A `{{slot}}` with no schema property.** The command runs with the placeholder left in
   it and fails in a way that looks like a script bug.
 - **Guessing an MCP URI.** They are opaque and server-specific. Always list first.
@@ -149,9 +148,10 @@ Procedure:
 frozen for the mission. Confirm with `tool_search` and use it through `tool_call`. Do not
 create it a second time.
 
-**The plugin was created but `tool_call` says unknown tool.** That one is real:
-`reload_plugins` was not run, or it ran before the write finished. Run it again, then
-`tool_search` the name.
+**The plugin was created but `tool_call` says unknown tool.** That one is real. The
+manifest did not load: a JSON dropped loose at the root of `plugins/` instead of inside
+`plugins/<name>/`, or a malformed manifest. Check the node log, fix the folder, and create
+it again.
 
 **The plugin runs but receives empty arguments.** Slot names in `command` and property
 names in `schema` disagree. They must match character for character.

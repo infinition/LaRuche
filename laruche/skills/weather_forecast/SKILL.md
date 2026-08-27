@@ -87,7 +87,7 @@ rate limiting you. Go to the search path; do not retry in a loop.
 `metoffice.gov.uk`, `weather.gov`.
 
 **The page loads but holds no numbers.** It is JavaScript-rendered. `web_fetch` with
-`render: true`, then `browser_navigate` if that still fails.
+`render: true`, then `browser` with `action: "navigate"` if that still fails.
 
 **The city is not found anywhere.** Ask the user to confirm the spelling and the country,
 rather than answering about a same-named place elsewhere.

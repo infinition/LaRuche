@@ -26,7 +26,7 @@ that is neither covered nor declared below.
 |---|---|
 | `memory_*`, `knowledge_*` | `cognitive-memory` |
 | `skill_*` | `skill-forge` |
-| `plugin_*`, `mcp_*`, `tool_search`, `tool_call`, `run_script`, `reload_plugins` | `extend-toolset` |
+| `plugin_*`, `mcp_*`, `tool_search`, `tool_call`, `run_script` | `extend-toolset` |
 | `delegate`, `spawn_specialist`, `mixture_of_agents`, `submit_job`, `check_job_status` | `delegation` |
 | `todo`, `plan_mode`, `kanban_*`, `mission_*`, `task_complete` | `long-running-work` |
 | `git_*` | `local-git` |

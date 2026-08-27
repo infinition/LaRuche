@@ -98,24 +98,27 @@ file_write(path="C:/dev/project/sketches/001-calm-editorial/README.md", content=
 **This is the step everyone skips, and it is the one that matters.** You cannot tell
 whether a layout works by reading the HTML you just wrote.
 
-```
-browser_screenshot(url="file:///C:/dev/project/sketches/001-calm-editorial/index.html",
-                   output_path="C:/dev/project/sketches/001-calm-editorial/shot.png")
-```
-
-Then read the image back with `file_read` and actually look at it.
-
-**`browser_screenshot` accepts `file://`. `browser_navigate` does not.** The two tools
-differ: `browser_navigate` validates the scheme and refuses anything that is not `http://`
-or `https://`, so a `file://` URL comes back as `URL must start with http:// or https://`.
-Only `browser_screenshot` passes the URL straight through to the browser.
-
-If you need `browser_navigate`, serve the folder first:
+**Serve the folder, then look.** There is one browser tool, `browser`, and it takes an
+`action`. It refuses anything that is not `http://` or `https://`, so a `file://` path
+comes back as `URL must start with http:// or https://`. Start a server once, at the
+sketches root, and leave it running for the whole session:
 
 ```
-shell_exec(command="cd sketches && python -m http.server 8765 &")
-browser_navigate(url="http://localhost:8765/001-calm-editorial/index.html")
+shell_exec(command="Start-Process python -ArgumentList '-m','http.server','8765' -WorkingDirectory sketches -WindowStyle Hidden")
+browser(action="navigate", url="http://localhost:8765/001-calm-editorial/index.html")
+browser(action="screenshot")
 ```
+
+**The server has to detach, or it dies with the call.** `shell_exec` kills whatever it
+started when it returns, and gives up after five minutes anyway. A plain
+`python -m http.server` therefore blocks the call and is gone before you can navigate to
+it. `Start-Process` on Windows, `nohup ... &` on Linux and macOS.
+
+`action: "screenshot"` hands the image straight back to you. There is no `output_path` and
+no second step: you do not save it and read it again, you look at what the call returned.
+
+**`browser_navigate` and `browser_screenshot` do not exist.** They were separate tools once
+and were replaced by the single `browser` tool above. Calling either one fails.
 
 Fix what the screenshot shows before moving to the next variant: collapsed flex
 containers, text over text, a font that never loaded, a card that escaped its grid. Repeat
@@ -210,8 +213,11 @@ Propose two to four, named, and let the user pick.
 path is wrong. Confirm the file exists with `file_read` first; a typo in an absolute path
 renders as an empty page rather than an error.
 
-**`browser_navigate` refuses the URL.** It was a `file://` path. See section 4: use
-`browser_screenshot`, or serve the directory over HTTP.
+**`browser` refuses the URL.** It was a `file://` path. There is no longer any way to open
+a local file directly: serve the directory over HTTP first, as in section 4.
+
+**The page is `ERR_CONNECTION_REFUSED`.** The server did not survive the call that started
+it. See section 4: it has to be detached, not run in the foreground.
 
 **The CDN did not load.** The machine is offline or filtered. Fall back to plain CSS;
 every variant here should survive without a network anyway.
