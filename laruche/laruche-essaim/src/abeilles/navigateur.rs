@@ -139,7 +139,7 @@ const SCRIPT_GLOW: &str = r##"
       .flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;}
       .flash.go{animation:lr-flash .45s ease-out;}
       .hud{position:fixed;left:14px;bottom:14px;width:270px;max-width:44vw;
-        background:rgba(18,16,12,.62);backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px);
+        background:rgba(14,12,9,.84);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
         border:1px solid rgba(245,166,35,.35);border-radius:12px;pointer-events:auto;
         box-shadow:0 8px 30px rgba(0,0,0,.45);color:#f0e6d2;overflow:hidden;
         font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;opacity:.94;}
@@ -151,11 +151,32 @@ const SCRIPT_GLOW: &str = r##"
         box-shadow:0 0 7px 2px rgba(245,166,35,.9);animation:lr-blink 1.2s ease-in-out infinite;}
       .hud .hd .sp{flex:1;}
       .hud .hd .mn{cursor:pointer;opacity:.7;padding:0 4px;}
-      .hud .bd{max-height:150px;overflow:auto;padding:6px 10px 8px;}
-      .hud.min .bd{display:none;}
-      .hud .ln{padding:2px 0;color:#cdd2d8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      .hud .bd{max-height:78px;overflow:auto;padding:6px 10px 4px;}
+      .hud.min .bd,.hud.min .na,.hud.min .io{display:none;}
+      .hud .na{max-height:118px;overflow:auto;padding:6px 10px 8px;color:#e8e0d0;
+        border-top:1px solid rgba(245,166,35,.16);white-space:pre-wrap;
+        font:12px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;}
+      .hud .na:empty{display:none;}
+      .hud .na .moi{color:#F5D18B;}
+      .hud .io{display:flex;gap:6px;padding:7px 8px;border-top:1px solid rgba(245,166,35,.2);
+        background:rgba(245,166,35,.06);}
+      .hud .io textarea{flex:1;resize:none;height:34px;border-radius:7px;padding:7px 8px;
+        border:1px solid rgba(245,166,35,.3);background:rgba(0,0,0,.35);color:#f0e6d2;
+        font:12px/1.35 ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;outline:none;}
+      .hud .io textarea:focus{border-color:rgba(245,166,35,.65);}
+      .hud .io button{border:0;border-radius:7px;padding:0 11px;cursor:pointer;
+        background:rgba(245,166,35,.85);color:#20180a;font:600 12px/1 ui-sans-serif,system-ui,sans-serif;}
+      .hud .io button:hover{background:#F5A623;}
+      .hud .ln{padding:2px 0;color:#ded6c6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
       .hud .ln:first-child{color:#F5D18B;}
-      .hud .ln .t{color:#8a7f66;margin-right:6px;}
+      .hud .ln .t{color:#a2957a;margin-right:6px;}
+      /* Les ascenseurs par defaut sont enormes et clairs: sur un panneau de
+         270px poses sur une page quelconque, ils sautent aux yeux plus que le
+         contenu. */
+      .hud .bd::-webkit-scrollbar,.hud .na::-webkit-scrollbar{width:6px;}
+      .hud .bd::-webkit-scrollbar-thumb,.hud .na::-webkit-scrollbar-thumb{
+        background:rgba(245,166,35,.35);border-radius:3px;}
+      .hud .bd::-webkit-scrollbar-track,.hud .na::-webkit-scrollbar-track{background:transparent;}
       @keyframes lr-flash{0%{opacity:0}18%{opacity:.7}100%{opacity:0}}
       @keyframes lr-breathe{0%,100%{opacity:.5}50%{opacity:1}}
       @keyframes lr-blink{0%,100%{opacity:1}50%{opacity:.25}}
@@ -169,6 +190,11 @@ const SCRIPT_GLOW: &str = r##"
     <div class="hud" id="lr-hud">
       <div class="hd" id="lr-hud-hd"><span class="d"></span><span class="sp">LaRuche</span><span class="mn" id="lr-hud-mn">–</span></div>
       <div class="bd" id="lr-hud-bd"></div>
+      <div class="na" id="lr-hud-na"></div>
+      <div class="io">
+        <textarea id="lr-hud-in" rows="1" placeholder="repondre a LaRuche..."></textarea>
+        <button id="lr-hud-go">envoyer</button>
+      </div>
     </div>
     <div class="cursor" id="lr-cur"><span class="ring"></span>
       <svg width="36" height="36" viewBox="0 0 22 22"><path d="M2 2 L2 17 L6.5 12.7 L9.4 19 L12 17.8 L9.1 11.7 L15 11.5 Z"
@@ -194,6 +220,7 @@ const SCRIPT_GLOW: &str = r##"
     if (pos) { hud.style.left = pos.x + 'px'; hud.style.top = pos.y + 'px'; hud.style.right = 'auto'; hud.style.bottom = 'auto'; }
     if (window.__lrHudMin) hud.classList.add('min');
     renderHud(root);
+    installChat(root);
 
     const hd = root.getElementById('lr-hud-hd');
     const mn = root.getElementById('lr-hud-mn');
@@ -239,6 +266,70 @@ const SCRIPT_GLOW: &str = r##"
       d.appendChild(document.createTextNode(l.m));
       bd.appendChild(d);
     }
+  };
+
+  // La narration du modele, poussee par le noeud toutes les demi-secondes. On
+  // n'affiche que la fin: le panneau est un coin d'oeil, pas un transcript, et
+  // le chat complet est a deux metres de la dans sa propre fenetre.
+  window.__larucheChat = (texte, fini) => {
+    window.__lrChat = String(texte || '');
+    window.__lrChatFini = !!fini;
+    touch();
+    renderChat(shadow());
+  };
+
+  const renderChat = (root) => {
+    const r = root || shadow();
+    const na = r && r.getElementById('lr-hud-na');
+    if (!na) return;
+    const dit = window.__lrDit || [];
+    na.textContent = '';
+    if (window.__lrChat) na.appendChild(document.createTextNode(window.__lrChat));
+    for (const m of dit) {
+      const d = document.createElement('div');
+      d.className = 'moi';
+      d.textContent = 'vous: ' + m;
+      na.appendChild(d);
+    }
+    // Coller au bas: ce qui vient d'arriver est ce qu'on veut lire.
+    na.scrollTop = na.scrollHeight;
+  };
+
+  // La reponse tapee dans la page. Elle est DEPOSEE ici, et le noeud la releve
+  // au passage suivant: pas de canal a ouvrir, pas d'evenement a router, et le
+  // meme aller-retour sert dans les deux sens.
+  const envoyer = (root) => {
+    const zone = (root || shadow()).getElementById('lr-hud-in');
+    if (!zone) return;
+    const texte = zone.value.trim();
+    if (!texte) return;
+    zone.value = '';
+    window.__lrSorties = [...(window.__lrSorties || []), texte];
+    window.__lrDit = [...(window.__lrDit || []), texte].slice(-4);
+    touch();
+    renderChat(root);
+  };
+
+  const installChat = (root) => {
+    const zone = root.getElementById('lr-hud-in');
+    const bouton = root.getElementById('lr-hud-go');
+    if (bouton) bouton.addEventListener('click', () => envoyer(root));
+    if (zone) {
+      zone.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          envoyer(root);
+        }
+        // Le shadow DOM ne cloisonne pas les evenements: sans cela, taper ici
+        // declencherait les raccourcis clavier de la page hote (Gmail, Notion,
+        // GitHub en sont pleins).
+        e.stopPropagation();
+      });
+      for (const t of ['keypress', 'keyup', 'input']) {
+        zone.addEventListener(t, (e) => e.stopPropagation());
+      }
+    }
+    renderChat(root);
   };
 
   // Called by the tool after each action. Newest first, capped, so the panel
@@ -861,6 +952,197 @@ impl Canal {
     }
 }
 
+// --------------------------- le compagnon de page ---------------------------
+//
+// Le panneau de la page ne se contente plus de nommer les actions: il porte la
+// narration du modele et une zone pour lui repondre. Deux choix expliquent la
+// forme de ce qui suit.
+//
+// Un seul aller-retour sert les deux sens. Toutes les demi-secondes, le noeud
+// evalue un script qui POUSSE la narration et REMONTE ce que l'utilisateur a
+// tape. L'alternative, `Runtime.addBinding` plus un evenement route jusqu'au
+// noeud, demandait une plomberie par transport et une pompe a evenements du
+// cote CDP, ou rien ne lit la socket entre deux appels.
+//
+// La reponse devient un STEER, pas un message. Le mecanisme existe deja, il est
+// fait pour l'intervention humaine en cours de route, et il atterrit dans la
+// session. Rien de nouveau a router.
+
+/// Ce que le modele est en train de dire, et ce qu'il faut en pousser.
+#[derive(Default)]
+struct Narration {
+    texte: String,
+    sale: bool,
+    fini: bool,
+}
+
+static NARRATION: OnceLock<std::sync::Mutex<Narration>> = OnceLock::new();
+/// Le canal de pilotage de la session en cours. Une seule, la plus recente: le
+/// panneau vit dans UNE page, et faire remonter sa reponse vers deux sessions
+/// simultanees n'aurait pas de sens.
+static STEER: OnceLock<std::sync::Mutex<Option<tokio::sync::mpsc::Sender<String>>>> =
+    OnceLock::new();
+static GLOW_ACTIF: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static RELEVE_LANCEE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Longueur de narration gardee. Le panneau montre la fin d'une phrase en
+/// cours, pas un transcript: le chat complet est dans sa propre fenetre.
+const NARRATION_MAX: usize = 700;
+
+fn narration() -> &'static std::sync::Mutex<Narration> {
+    NARRATION.get_or_init(|| std::sync::Mutex::new(Narration::default()))
+}
+
+fn steer() -> &'static std::sync::Mutex<Option<tokio::sync::mpsc::Sender<String>>> {
+    STEER.get_or_init(|| std::sync::Mutex::new(None))
+}
+
+/// Le noeud declare le canal de pilotage du tour qui commence.
+pub fn brancher_pilotage(tx: tokio::sync::mpsc::Sender<String>) {
+    if let Ok(mut g) = steer().lock() {
+        *g = Some(tx);
+    }
+    if let Ok(mut n) = narration().lock() {
+        *n = Narration::default();
+    }
+}
+
+/// Fin du tour: la page garde ce qui est affiche, mais une reponse tapee apres
+/// coup ne part plus dans le vide, elle est signalee comme non transmise.
+pub fn debrancher_pilotage() {
+    if let Ok(mut g) = steer().lock() {
+        *g = None;
+    }
+}
+
+/// Un evenement du tour en cours, pour le panneau de la page.
+///
+/// Appele a CHAQUE jeton, donc volontairement minuscule: on empile dans un
+/// tampon, et c'est la releve qui parle au navigateur, deux fois par seconde au
+/// plus. Un eval par jeton serait un aller-retour websocket par jeton.
+pub fn narrer(evenement: &crate::evenements::ChatEvent) {
+    use crate::evenements::ChatEvent;
+    if !GLOW_ACTIF.load(std::sync::atomic::Ordering::Relaxed) {
+        return;
+    }
+    let Ok(mut n) = narration().lock() else {
+        return;
+    };
+    match evenement {
+        ChatEvent::Token { text } => {
+            n.texte.push_str(text);
+            let compte = n.texte.chars().count();
+            if compte > NARRATION_MAX * 2 {
+                n.texte = n.texte.chars().skip(compte - NARRATION_MAX).collect();
+            }
+            n.sale = true;
+            n.fini = false;
+        }
+        ChatEvent::Done { full_response } => {
+            let compte = full_response.chars().count();
+            n.texte = full_response
+                .chars()
+                .skip(compte.saturating_sub(NARRATION_MAX))
+                .collect();
+            n.sale = true;
+            n.fini = true;
+        }
+        ChatEvent::Error { message } => {
+            n.texte = format!("erreur: {message}");
+            n.sale = true;
+            n.fini = true;
+        }
+        _ => {}
+    }
+    drop(n);
+    lancer_releve();
+}
+
+/// Le script d'un passage: il pousse la narration ET rapporte ce qui a ete tape.
+fn script_releve(texte: &str, fini: bool, pousser: bool) -> String {
+    format!(
+        r#"(() => {{
+             if ({pousser} && window.__larucheChat) window.__larucheChat({texte}, {fini});
+             const r = window.__lrSorties || [];
+             window.__lrSorties = [];
+             return JSON.stringify(r);
+           }})()"#,
+        texte = serde_json::to_string(texte).unwrap_or_else(|_| String::from("\"\"")),
+    )
+}
+
+/// Demarre la releve, une seule fois pour la vie du processus.
+///
+/// Sans runtime sous la main, on ne lance rien ET on ne consomme pas le drapeau:
+/// `narrer` est appele depuis la boucle d'evenements du chat, mais rien
+/// n'empeche un test ou un chemin futur de l'appeler ailleurs, et un
+/// `tokio::spawn` hors runtime panique.
+fn lancer_releve() {
+    if tokio::runtime::Handle::try_current().is_err() {
+        return;
+    }
+    if RELEVE_LANCEE.swap(true, std::sync::atomic::Ordering::SeqCst) {
+        return;
+    }
+    tokio::spawn(async move {
+        loop {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            if !GLOW_ACTIF.load(std::sync::atomic::Ordering::Relaxed) {
+                continue;
+            }
+            let (texte, fini, sale) = match narration().lock() {
+                Ok(mut n) => {
+                    let sale = n.sale;
+                    n.sale = false;
+                    (n.texte.clone(), n.fini, sale)
+                }
+                Err(_) => continue,
+            };
+            // `try_lock`: pendant qu'une action est en cours, le panneau montre
+            // deja cette action, et attendre le verrou ne ferait que retarder
+            // l'action elle-meme.
+            let recues: Vec<String> = {
+                let Ok(mut garde) = session().try_lock() else {
+                    continue;
+                };
+                let Some(canal) = garde.as_mut() else {
+                    continue;
+                };
+                match canal.eval(&script_releve(&texte, fini, sale), false).await {
+                    Ok(v) => serde_json::from_str(v.as_str().unwrap_or("[]")).unwrap_or_default(),
+                    Err(_) => continue,
+                }
+            };
+            if recues.is_empty() {
+                continue;
+            }
+            let tx = steer().lock().ok().and_then(|g| g.clone());
+            for message in recues {
+                match &tx {
+                    Some(tx) => {
+                        let _ = tx.try_send(message);
+                    }
+                    // Hors tour, il n'y a rien a piloter. Le dire dans le
+                    // panneau vaut mieux que d'avaler la phrase en silence.
+                    None => {
+                        let apercu: String = message.chars().take(40).collect();
+                        let js = format!(
+                            "window.__larucheHud && window.__larucheHud({})",
+                            serde_json::to_string(&format!("hors tour, non transmis: {apercu}"))
+                                .unwrap_or_else(|_| String::from("\"\""))
+                        );
+                        if let Ok(mut g) = session().try_lock() {
+                            if let Some(c) = g.as_mut() {
+                                c.eval(&js, false).await.ok();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
 /// The process-wide session. One browser, reused across tool calls.
 static SESSION: OnceLock<Mutex<Option<Canal>>> = OnceLock::new();
 
@@ -1037,6 +1319,7 @@ async fn ensure_session(
             _ => true,
         };
         if reusable && canal.est_vivant().await {
+            GLOW_ACTIF.store(glow, std::sync::atomic::Ordering::Relaxed);
             if glow {
                 canal.glow_on().await;
             }
@@ -1087,6 +1370,7 @@ async fn ensure_session(
         }
     };
 
+    GLOW_ACTIF.store(glow, std::sync::atomic::Ordering::Relaxed);
     if glow {
         canal.glow_on().await;
     }
@@ -1359,6 +1643,7 @@ impl Abeille for Browser {
                 None => false,
             };
             *guard = None;
+            GLOW_ACTIF.store(false, std::sync::atomic::Ordering::Relaxed);
             return Ok(ResultatAbeille::ok(if had {
                 "Browser session closed, indicator removed. The browser process itself is left running."
             } else {
@@ -2258,6 +2543,78 @@ mod tests {
         }
     }
 
+    #[test]
+    fn le_panneau_porte_le_chat_et_le_cloisonne() {
+        // Narration poussee, reponse deposee: les deux moities du compagnon.
+        assert!(SCRIPT_GLOW.contains("__larucheChat"));
+        assert!(SCRIPT_GLOW.contains("__lrSorties"));
+        // La saisie doit prendre les evenements souris ET arreter les touches:
+        // le shadow DOM ne cloisonne pas les evenements clavier, et taper ici
+        // declencherait sinon les raccourcis de la page hote.
+        assert!(SCRIPT_GLOW.contains("stopPropagation"));
+    }
+
+    #[test]
+    fn le_script_de_releve_pousse_et_ramene() {
+        let script = script_releve("bonjour", false, true);
+        // Il pousse quand il y a du neuf...
+        assert!(script.contains("__larucheChat(\"bonjour\", false)"));
+        // ...et il vide la file dans tous les cas, sinon une reponse tapee
+        // pendant un silence du modele resterait coincee dans la page.
+        assert!(script.contains("window.__lrSorties = []"));
+
+        // Rien de neuf: on ne pousse pas, mais on releve quand meme.
+        let script = script_releve("bonjour", true, false);
+        assert!(script.contains("if (false &&"));
+        assert!(script.contains("window.__lrSorties = []"));
+
+        // Le texte est encode, pas concatene: une narration avec un guillemet
+        // ou un saut de ligne casserait le script sinon.
+        let script = script_releve("il a dit \"non\"\nensuite", false, true);
+        assert!(script.contains(r#"\"non\""#), "{script}");
+        assert!(!script.contains("\nensuite"), "saut de ligne non echappe");
+    }
+
+    #[test]
+    fn la_narration_ne_grandit_pas_sans_fin() {
+        use crate::evenements::ChatEvent;
+        GLOW_ACTIF.store(true, std::sync::atomic::Ordering::Relaxed);
+        // Repartir d'un tampon propre sans passer par brancher_pilotage, qui
+        // toucherait au canal de pilotage d'un autre test.
+        *narration().lock().unwrap() = Narration::default();
+
+        for _ in 0..400 {
+            narrer(&ChatEvent::Token {
+                text: "chaque jeton compte ".into(),
+            });
+        }
+        let n = narration().lock().unwrap();
+        assert!(
+            n.texte.chars().count() <= NARRATION_MAX * 2,
+            "le tampon a enfle: {}",
+            n.texte.chars().count()
+        );
+        // Et c'est bien la FIN qui est gardee: le debut d'une reponse longue
+        // n'interesse plus personne au moment ou on la lit.
+        assert!(n.texte.ends_with("chaque jeton compte "));
+        drop(n);
+        GLOW_ACTIF.store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    #[test]
+    fn sans_page_pilotee_narrer_ne_coute_rien() {
+        use crate::evenements::ChatEvent;
+        GLOW_ACTIF.store(false, std::sync::atomic::Ordering::Relaxed);
+        *narration().lock().unwrap() = Narration::default();
+        narrer(&ChatEvent::Token {
+            text: "personne ne regarde".into(),
+        });
+        assert!(
+            narration().lock().unwrap().texte.is_empty(),
+            "un evenement doit etre ignore quand aucune page n'est pilotee"
+        );
+    }
+
     /// End-to-end against a real headless Chrome, on a page built in memory so
     /// the test needs no network. Ignored by default: CI machines have no
     /// browser, and the run leaves a Chrome process behind for a few seconds.
@@ -2520,6 +2877,162 @@ mod tests {
             .unwrap();
         assert_eq!(out.output.trim(), "gone", "indicator survived close");
 
+        Browser
+            .executer(json!({ "action": "close", "port": port }), &ctx)
+            .await
+            .ok();
+    }
+
+    /// Le compagnon de page, dans les DEUX sens, contre un vrai Chrome: la
+    /// narration descend jusqu'a la page, et ce qui y est tape remonte dans le
+    /// canal de pilotage de la session.
+    ///
+    ///   cargo test -p laruche-essaim --lib compagnon_vivant -- --ignored --nocapture
+    #[tokio::test]
+    #[ignore = "requires a local Chrome installation"]
+    async fn compagnon_vivant() {
+        use crate::evenements::ChatEvent;
+        let ctx = ContextExecution::default();
+        let port = 9334;
+
+        let out = Browser
+            .executer(
+                json!({ "action": "eval", "mode": "launch", "headless": true, "port": port,
+                        "script": "document.body.innerHTML = '<h1>compagnon</h1>'; return 'ok'" }),
+                &ctx,
+            )
+            .await
+            .unwrap();
+        assert!(out.success, "ouverture: {:?}", out.error);
+
+        // Le noeud declare le canal de pilotage du tour, puis le modele parle.
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<String>(8);
+        brancher_pilotage(tx);
+        narrer(&ChatEvent::Token {
+            text: "je regarde la page".into(),
+        });
+
+        // La releve passe deux fois par seconde: on lui laisse un tour.
+        tokio::time::sleep(Duration::from_millis(1200)).await;
+        let out = Browser
+            .executer(
+                json!({ "action": "eval", "port": port,
+                        "script": "return String(window.__lrChat || 'rien')" }),
+                &ctx,
+            )
+            .await
+            .unwrap();
+        assert!(
+            out.output.contains("je regarde la page"),
+            "la narration n'est pas descendue: {}",
+            out.output
+        );
+
+        // Puis l'humain repond dans le panneau. On depose directement dans la
+        // file, ce que fait le bouton, pour ne pas dependre du rendu.
+        Browser
+            .executer(
+                json!({ "action": "eval", "port": port,
+                        "script": "window.__lrSorties = ['arrete, mauvaise page']; return 'depose'" }),
+                &ctx,
+            )
+            .await
+            .unwrap();
+
+        let recu = tokio::time::timeout(Duration::from_secs(4), rx.recv())
+            .await
+            .expect("la reponse doit remonter avant l'expiration")
+            .expect("canal ouvert");
+        assert_eq!(recu, "arrete, mauvaise page");
+
+        // Et la file de la page doit avoir ete videe, sinon le meme message
+        // repartirait a chaque passage.
+        let out = Browser
+            .executer(
+                json!({ "action": "eval", "port": port,
+                        "script": "return String((window.__lrSorties || []).length)" }),
+                &ctx,
+            )
+            .await
+            .unwrap();
+        assert_eq!(out.output.trim(), "0", "la file n'a pas ete videe");
+
+        debrancher_pilotage();
+        Browser
+            .executer(json!({ "action": "close", "port": port }), &ctx)
+            .await
+            .ok();
+    }
+
+    /// Photographie le panneau tel qu'un utilisateur le voit, avec sa narration
+    /// et sa zone de reponse. A regarder, pas a asserter.
+    ///
+    ///   cargo test -p laruche-essaim --lib panneau_visuel -- --ignored --nocapture
+    #[tokio::test]
+    #[ignore = "requires a local Chrome installation"]
+    async fn panneau_visuel() {
+        use crate::evenements::ChatEvent;
+        use base64::Engine;
+        let ctx = ContextExecution::default();
+        let port = 9335;
+
+        let page = "document.body.style.cssText = 'margin:0;height:100vh;background:#f4f1ea;\
+                    font:16px system-ui;display:flex;align-items:center;justify-content:center'; \
+                    document.body.innerHTML = '<div>une page ordinaire, pilotee par LaRuche</div>'; \
+                    return 'prete'";
+        let out = Browser
+            .executer(
+                json!({ "action": "eval", "mode": "launch", "headless": false, "port": port,
+                        "script": page }),
+                &ctx,
+            )
+            .await
+            .unwrap();
+        assert!(out.success, "ouverture: {:?}", out.error);
+
+        // Une action, pour que la liste du haut ne soit pas vide.
+        Browser
+            .executer(json!({ "action": "read", "port": port }), &ctx)
+            .await
+            .unwrap();
+
+        let (tx, _rx) = tokio::sync::mpsc::channel::<String>(8);
+        brancher_pilotage(tx);
+        for morceau in [
+            "Je regarde la page. ",
+            "Elle ne contient qu'un titre, ",
+            "donc rien a remplir ici.",
+        ] {
+            narrer(&ChatEvent::Token {
+                text: morceau.into(),
+            });
+        }
+        tokio::time::sleep(Duration::from_millis(1200)).await;
+
+        // Une reponse deja tapee, pour montrer les deux voix dans le panneau.
+        Browser
+            .executer(
+                json!({ "action": "eval", "port": port,
+                        "script": "window.__lrDit = ['prends plutot la tab d a cote']; \
+                                   window.__larucheChat(window.__lrChat, true); return 'ok'" }),
+                &ctx,
+            )
+            .await
+            .unwrap();
+        tokio::time::sleep(Duration::from_millis(400)).await;
+
+        let out = Browser
+            .executer(json!({ "action": "screenshot", "port": port }), &ctx)
+            .await
+            .unwrap();
+        let octets = base64::engine::general_purpose::STANDARD
+            .decode(&out.images[0])
+            .expect("png");
+        let chemin = std::env::temp_dir().join("laruche-panneau.png");
+        std::fs::write(&chemin, octets).expect("ecriture");
+        println!("PANNEAU ECRIT: {}", chemin.display());
+
+        debrancher_pilotage();
         Browser
             .executer(json!({ "action": "close", "port": port }), &ctx)
             .await

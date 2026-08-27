@@ -296,6 +296,10 @@ pub(crate) async fn ws_chat_connection(
         let tx_clone = tx.clone();
 
         let (steer_tx, steer_rx) = tokio::sync::mpsc::channel::<String>(100);
+        // Le panneau flottant de la page pilotee repond dans ce meme canal: ce
+        // qui y est tape est une intervention en cours de route, exactement ce
+        // que le steering sait deja faire.
+        laruche_essaim::abeilles::navigateur::brancher_pilotage(steer_tx.clone());
         let actor_react = actor.clone();
 
         let react_handle = tokio::spawn(async move {
@@ -594,6 +598,10 @@ pub(crate) async fn ws_chat_connection(
                     match event_result {
                         Ok(event) => {
                             update_active_context_stats(&state, session_id, &event).await;
+                            // Le meme evenement nourrit le panneau de la page
+                            // quand une page est pilotee. Sans page ouverte,
+                            // c'est un test d'un booleen et rien d'autre.
+                            laruche_essaim::abeilles::navigateur::narrer(&event);
                             let json = event_json_avec_session(&event, session_id);
                             if sender.send(ws::Message::Text(json)).await.is_err() {
                                 done = true;
@@ -756,6 +764,10 @@ pub(crate) async fn ws_chat_connection(
                 }
             }
         }
+
+        // Le tour est fini: ce qui serait tape dans la page apres coup n'a plus
+        // de destination, et le panneau le dira plutot que de l'avaler.
+        laruche_essaim::abeilles::navigateur::debrancher_pilotage();
 
         // Stay tuned to this session until the next turn: LaReine sending the work back,
         // or any other background push, has somewhere to arrive.

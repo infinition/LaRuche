@@ -106,8 +106,12 @@ asked. Instead:
   profile keeps the cookies for later runs. No extension needed.
 - `attach`: an existing Chrome started with `--remote-debugging-port`.
 
-The page under control shows an amber frame, a "LaRuche" badge and a floating panel naming
-each action as it happens, which the user can drag anywhere or fold. An amber cursor glides
+The page under control shows an amber frame, a "LaRuche" badge and a floating panel the user
+can drag anywhere or fold. The panel has three parts: the actions as they happen, what you
+are saying right now, and a box where the user can answer you without leaving the page.
+What they type there arrives as steering, mid-run, exactly as if they had typed it in the
+chat window. You will see it as a user interruption; take it seriously, it usually means
+you are doing the wrong thing. An amber cursor glides
 to each target, typing appears character by character, and a screenshot triggers a brief
 flash once the capture is taken. It all fades a few seconds after LaRuche stops acting on
 the tab. Set `glow: false` for a clean screenshot, `animate: false` to act instantly on a
