@@ -1,8 +1,11 @@
 # Contrôle de la machine
 
 Deux choses dans ce document : ce que l'agent peut faire du PC aujourd'hui, tel que le code
-l'implémente, et la conception d'un outil `computer` natif pour remplacer le serveur MCP
-Python actuel.
+l'implémente, et la conception de l'outil `computer` natif.
+
+État : la partie 2 est construite. L'outil natif remplace le serveur MCP Python, l'arbre
+d'accessibilité est en place sur Windows, et le halo est à l'écran. Ce qui reste est listé
+en fin de document.
 
 ## Partie 1 : l'état des lieux
 
@@ -47,17 +50,13 @@ humaine.
 
 ### Souris, clavier, écran
 
-Pas natif aujourd'hui. Ça passe par un serveur MCP Python optionnel, `mcp/computer_use.py`,
-basé sur pyautogui, avec `FAILSAFE = False`. Actions : `key`, `type`, `mouse_move`,
-`left_click`, `left_click_drag`, `right_click`, `middle_click`, `double_click`,
-`screenshot`, `cursor_position`.
+Natif, outil `computer`, dans `laruche-essaim/src/abeilles/ordinateur.rs`. Le serveur MCP
+Python `mcp/computer_use.py` n'a plus de raison d'être enregistré.
 
-L'enregistrement est manuel, dans un `mcp_servers.json` gitignoré. La configuration est
-conservée dans `laruche/_ancien-foyer/mcp_servers.json` :
-
-```json
-{ "mcpServers": { "laruche-computer-use": { "command": "python", "args": ["mcp/computer_use.py"] } } }
-```
+Deux chemins. Par l'arbre d'accessibilité : `windows`, `focus_window`, `read`, puis `click`
+et `fill` sur un numéro de contrôle. Par les pixels : `screens`, `screenshot`, puis
+`mouse_move`, les clics, `left_click_drag`, `scroll`. Plus `type`, `key`, `key_down`,
+`key_up` pour le clavier.
 
 ### Déclenchement sans humain devant l'écran
 
@@ -89,7 +88,7 @@ Trois points à garder en tête si on évalue la surface :
    `Remove-Item -Recurse -Force C:\` ne matche aucun motif de la liste. La vraie barrière
    est le juge LLM plus le popup, pas cette liste.
 
-## Partie 2 : l'outil `computer` natif
+## Partie 2 : l'outil `computer` natif, tel qu'il est construit
 
 ### Pourquoi built-in plutôt que MCP
 
@@ -208,14 +207,33 @@ sortie de secours. Le natif doit avoir un hotkey global d'abandon, et céder la 
 l'utilisateur bouge physiquement la souris. Ça s'articule avec le halo : le halo dit "j'ai la
 main", le hotkey la reprend.
 
-### Découpage
+### Ce qui est construit
 
-1. Actionneur plus capture multi-écran, contrat de coordonnées, downscale, danger levels par
-   action, `cle_pattern` étendu. Sans overlay. C'est déjà supérieur au MCP actuel.
-2. Overlay halo plus curseur, un binaire, réutilisation du CSS du navigateur.
-3. Garde-fous : exclusion des fenêtres LaRuche, hotkey d'abandon, reprise de main.
-4. Arbre d'accessibilité : UI Automation sur Windows (crate `uiautomation`), AX sur macOS,
-   AT-SPI sur Linux. Ça donne l'équivalent desktop du `read` avec des refs numérotées, et
-   c'est ce qui rend l'outil utilisable par un modèle local, qui vise mal en pur vision. Le
-   commentaire d'en-tête de `navigateur.rs` dit exactement ça pour le web. C'est aussi ce qui
-   différencierait l'outil de tous les wrappers pyautogui existants.
+1. **Actionneur et capture.** `enigo` pour les entrées, `xcap` pour la capture multi-écran et
+   l'énumération des fenêtres, derrière le feature cargo `gui-control`, actif par défaut.
+   Contrat de coordonnées et réduction de la capture à 1280px de large.
+2. **Gating par action.** `cle_pattern` (`approbation.rs`) sépare désormais regarder et agir,
+   pour `computer` comme pour `browser`. Approuver une capture n'approuve plus un clic.
+3. **Garde-fous.** Refus d'agir sur une fenêtre de LaRuche, comparée par PID via
+   `xcap::Window`. Main rendue dès que l'humain bouge la souris de plus de 30 pixels.
+   Coupe-circuit global `LARUCHE_COMPUTER=0`.
+4. **Arbre d'accessibilité**, `ordinateur_arbre.rs`, UI Automation sur Windows. C'est ce qui
+   rend l'outil utilisable sans vision, et ce qui le distingue de tous les wrappers pyautogui.
+   Mesure sur une fenêtre Electron réelle : 36s en lecture naïve, 0,37s avec un cache request,
+   qui ramène tout l'arbre en un seul aller-retour COM.
+5. **Halo**, `ordinateur_halo.rs`, quatre fenêtres superposées Win32. Quatre barres plutôt
+   qu'une fenêtre plein écran : `UpdateLayeredWindow` reverse tout le bitmap à chaque image,
+   soit 440 Mo/s en 2560x1440 contre 60 Ko pour des barres de six pixels. Panneau flottant
+   déplaçable, anneau qui suit le curseur, flash après capture, glissement animé du curseur
+   et frappe progressive.
+
+### Ce qui reste
+
+- **macOS et Linux pour l'arbre.** AX sur macOS, AT-SPI sur Linux. Les entrées et la capture
+  y marchent déjà, seul le chemin `read` est absent.
+- **Le halo hors Windows.** Même remarque : c'est du code par plateforme, et Tauri absorberait
+  l'essentiel si on ne veut pas écrire trois fois le même dessin.
+- **Le hotkey d'abandon.** La reprise de main sur mouvement de souris couvre le cas courant,
+  mais un raccourci global reste la sortie de secours qu'on veut sous la main.
+- **Le halo par moniteur.** Aujourd'hui le cadre se dessine sur l'écran capturé, un seul à la
+  fois. Sur un montage à DPI mixtes, une fenêtre par moniteur serait plus juste.

@@ -807,9 +807,9 @@ pub(crate) fn decoder_entites_html(texte: &str) -> String {
         sortie.push_str(&reste[..pos]);
         let candidat = &reste[pos..];
         for (entite, valeur) in NOMMEES {
-            if candidat.starts_with(entite) {
+            if let Some(suite) = candidat.strip_prefix(entite) {
                 sortie.push_str(valeur);
-                reste = &candidat[entite.len()..];
+                reste = suite;
                 continue 'exterieur;
             }
         }
