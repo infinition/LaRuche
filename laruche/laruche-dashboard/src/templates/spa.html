@@ -248,6 +248,9 @@
              La zone de saisie reste commune aux deux vues. -->
         <div class="table-ronde" id="tableRonde" style="display:none"></div>
         <div class="input-area" id="mainInputArea">
+          <!-- Retour au fil. Cachee tant que l'auto-defilement suit; elle apparait
+               des qu'on remonte lire, et le clic recolle au bas. -->
+          <button class="chat-jump" id="chatJumpBtn" type="button" data-i18n-title="chat.jumpBottom" title="Revenir en bas" aria-label="Revenir en bas de la conversation"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"></path><path d="M19 12l-7 7-7-7"></path></svg></button>
           <button class="tray-toggle-btn" id="trayToggleBtn" onclick="document.getElementById('mainInputArea').classList.toggle('show-tray'); this.classList.toggle('active')" data-i18n-title="shell.tipShowTools" title="Show tools">
             <svg width="1.2em" height="1.2em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><polyline points="9 18 15 12 9 6"></polyline></svg>
           </button>

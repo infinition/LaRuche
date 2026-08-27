@@ -915,6 +915,10 @@
     "en": "Send a message…",
     "fr": "Envoyer un message…"
   },
+  "chat.jumpBottom": {
+    "en": "Back to the bottom",
+    "fr": "Revenir en bas"
+  },
   "chat.leRunEstTermine": {
     "en": "The run is finished.",
     "fr": "Le run est terminé."

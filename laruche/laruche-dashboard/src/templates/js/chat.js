@@ -1569,23 +1569,120 @@ LaRuche.Chat = (function(){
     if(LaRuche.Voice.isAutoTts()) LaRuche.Voice.finishStream(text,ttsBtn);
   }
 
-  // Auto-scroll "stuck to bottom": we only re-scroll IF the user was already at the bottom.
-  // As soon as they scroll up to read, we stop bringing them back (until they scroll down themselves).
-  // `force=true` for explicit actions (the user sends a message).
-  var _chatStick = true, _chatScrollBound = false;
+  // Auto-defilement colle au bas: on ne ramene en bas QUE si l'utilisateur y
+  // etait deja. Des qu'il remonte pour lire, on le laisse tranquille jusqu'a ce
+  // qu'il redescende lui-meme. `force=true` pour ses actions explicites (il
+  // envoie un message).
+  //
+  // Trois choses le rendaient inconfortable, et les trois sont traitees ici.
+  //
+  // Le seuil de 120px rattachait le fil alors qu'on lisait encore la fin du
+  // message precedent: on ne se recolle plus qu'une fois vraiment en bas.
+  //
+  // Le defilement lisse etait pose en CSS, donc chaque jeton relancait une
+  // animation qui n'avait pas le temps d'aboutir avant la suivante, et le fil
+  // trainait visiblement derriere le texte. Le flux se recolle desormais d'un
+  // coup; seul le retour par la fleche est lisse, parce que la c'est un geste.
+  //
+  // Et surtout, le contenu grandit APRES le calcul: une image se charge, un bloc
+  // de code se met en forme, un outil ajoute sa sortie. On defilait vers une
+  // hauteur qui n'etait pas encore la bonne, et la fin restait sous le bord.
+  // Trois guetteurs couvrent les trois cas.
+  var _chatStick = true, _chatScrollBound = false, _chatBtn = null;
+  var _chatProgJusqua = 0, _chatTickPlanifie = false;
+  // scrollHeight, scrollTop et clientHeight ne tombent pas juste au pixel (zoom,
+  // sous-pixels, barre de defilement): sans cette tolerance, "tout en bas" n'est
+  // jamais atteint et la fleche ne disparait plus jamais.
+  var TOLERANCE_BAS = 6;
+
+  function _chatAuBas(c){ return (c.scrollHeight - c.scrollTop - c.clientHeight) <= TOLERANCE_BAS; }
+
+  function _chatMajFleche(){
+    if(!_chatBtn || !_chatBtn.isConnected) _chatBtn = document.getElementById('chatJumpBtn');
+    if(_chatBtn) _chatBtn.classList.toggle('visible', !_chatStick);
+  }
+
+  // Un defilement que NOUS provoquons ne doit pas passer pour un geste humain.
+  //
+  // Seul le retour LISSE a besoin d'une garde: pendant son animation, les
+  // positions intermediaires ne sont pas le bas, et sans elle le fil se
+  // decrocherait au milieu du geste qui devait l'y ramener.
+  //
+  // Le recollage instantane, lui, n'en veut surtout pas. Il atterrit toujours
+  // en bas, donc l'evenement qu'il declenche donne le bon verdict tout seul. Une
+  // garde de temps y etait meme nuisible: pendant un flux, elle s'ouvrait a
+  // chaque jeton et finissait par avaler le defilement de l'utilisateur qui
+  // remontait lire, exactement ce qu'elle etait censee proteger.
+  function _chatColler(lisse){
+    var c=document.getElementById('chatContainer'); if(!c) return;
+    if(lisse) _chatProgJusqua = Date.now() + 800;
+    var avant = c.style.scrollBehavior;
+    c.style.scrollBehavior = lisse ? 'smooth' : 'auto';
+    c.scrollTop = c.scrollHeight;
+    if(lisse){
+      setTimeout(function(){ c.style.scrollBehavior = avant; }, 800);
+      return;
+    }
+    // Deuxieme passe apres la mise en page: entre les deux, une image ou un bloc
+    // de code a pu prendre sa hauteur definitive.
+    requestAnimationFrame(function(){
+      c.scrollTop = c.scrollHeight;
+      c.style.scrollBehavior = avant;
+    });
+  }
+
+  // Coalesce par image: pendant un flux les mutations arrivent par dizaines, et
+  // il ne sert a rien de recalculer la hauteur a chacune.
+  function _chatPlanifierColle(){
+    if(!_chatStick || _chatTickPlanifie) return;
+    _chatTickPlanifie = true;
+    requestAnimationFrame(function(){
+      _chatTickPlanifie = false;
+      if(_chatStick) _chatColler(false);
+    });
+  }
+
   function _bindChatScroll(){
     if(_chatScrollBound) return;
     var c=document.getElementById('chatContainer'); if(!c) return;
+
     c.addEventListener('scroll', function(){
-      _chatStick = (c.scrollHeight - c.scrollTop - c.clientHeight) < 120;
+      if(Date.now() < _chatProgJusqua) return;
+      var avant = _chatStick;
+      _chatStick = _chatAuBas(c);
+      if(avant !== _chatStick) _chatMajFleche();
+    }, {passive:true});
+
+    // 1. Le DOM bouge: message ajoute, jeton concatene, sortie d'outil.
+    if(window.MutationObserver){
+      new MutationObserver(_chatPlanifierColle)
+        .observe(c, {childList:true, subtree:true, characterData:true});
+    }
+    // 2. La zone change de taille: fenetre redimensionnee, ou zone de saisie qui
+    //    grandit sous le fil et lui prend de la hauteur.
+    if(window.ResizeObserver){
+      new ResizeObserver(_chatPlanifierColle).observe(c);
+    }
+    // 3. Une image finit de charger. `load` ne remonte pas la hierarchie, on
+    //    l'ecoute donc en phase de capture.
+    c.addEventListener('load', _chatPlanifierColle, true);
+
+    var btn = document.getElementById('chatJumpBtn');
+    if(btn) btn.addEventListener('click', function(){
+      _chatStick = true;
+      _chatMajFleche();
+      _chatColler(true);
     });
+
     _chatScrollBound = true;
+    _chatMajFleche();
   }
+
   function scrollToBottom(force) {
     _bindChatScroll();
-    if(force) _chatStick = true;
+    if(force){ _chatStick = true; _chatMajFleche(); }
     if(!_chatStick) return;
-    requestAnimationFrame(function(){ var c=document.getElementById('chatContainer'); if(c) c.scrollTop=c.scrollHeight; });
+    _chatPlanifierColle();
   }
 
   // \u2500\u2500 Agentic feed: collapsible step timeline \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
