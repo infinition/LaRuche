@@ -460,6 +460,17 @@ pub async fn provider_chat_stream_effort(
     tools: Option<&[serde_json::Value]>,
     effort: Effort<'_>,
 ) -> Result<Pin<Box<dyn Stream<Item = OllamaChunk> + Send>>> {
+    // Vault reference (`@@NAME` / `${NAME}`) resolved HERE, at the single door every
+    // provider call goes through. It used to be each caller's job, and callers
+    // forget: seven paths substituted, several others passed `profile.api_key`
+    // straight down. A key that resolves on one route and not another is worse
+    // than no vault at all, because it silently pushes the user back to storing
+    // the raw value in `provider-profiles.json`, which is plain text on disk.
+    //
+    // A literal key is untouched: `substituer` only rewrites what it recognises.
+    let cle = crate::secrets::substituer(api_key);
+    let api_key = cle.as_str();
+
     // A model held by another node of the swarm, written `peer:<host>:<port>`. Every
     // LaRuche exposes /v1/chat/completions, so a peer is reachable as an OpenAI-compatible
     // endpoint and needs no protocol of its own.

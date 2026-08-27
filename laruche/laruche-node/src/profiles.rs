@@ -142,12 +142,56 @@ pub struct UnifiedModel {
 }
 
 /// Load profiles from disk, creating defaults if missing.
+/// Name the profiles whose key sits in the file as a literal value.
+///
+/// `provider-profiles.json` is plain text on disk, readable by anything that can
+/// read the user's data directory, and it travels in a backup or a screenshot
+/// without anyone noticing. The vault exists precisely for this, and a key
+/// written `@@NAME` or `${NAME}` is resolved at call time and never stored here.
+///
+/// This warns, it never rewrites: moving a key is the user's call, and silently
+/// editing a credentials file would be worse than the problem.
+fn avertir_cles_en_clair(cfg: &ProfilesConfig, path: &Path) {
+    let exposes: Vec<&str> = cfg
+        .profiles
+        .iter()
+        .filter(|(_, p)| cle_en_clair(&p.api_key))
+        .map(|(nom, _)| nom.as_str())
+        .collect();
+    if exposes.is_empty() {
+        return;
+    }
+    warn!(
+        path = %path.display(),
+        profiles = %exposes.join(", "),
+        "API keys stored in plain text. Put the value in the secrets vault and write \
+         `@@NAME` in api_key instead: it is resolved at call time and never written to disk."
+    );
+}
+
+/// Does this field hold an actual secret rather than a vault reference?
+///
+/// Empty means no key at all (Ollama). A reference is safe by construction.
+/// Everything else long enough to be a credential is a literal.
+fn cle_en_clair(api_key: &str) -> bool {
+    /// Shorter than this and it is a placeholder, not a credential.
+    const LONGUEUR_CREDIBLE: usize = 12;
+
+    let k = api_key.trim();
+    !k.is_empty()
+        && k.len() >= LONGUEUR_CREDIBLE
+        && !k.contains("@@")
+        && !k.contains("${")
+        && !k.contains("{{")
+}
+
 pub fn load_profiles(path: &Path) -> ProfilesConfig {
     if path.exists() {
         match std::fs::read_to_string(path) {
             Ok(raw) => match serde_json::from_str::<ProfilesConfig>(&raw) {
                 Ok(cfg) => {
                     info!(path = %path.display(), profiles = cfg.profiles.len(), "Loaded provider profiles");
+                    avertir_cles_en_clair(&cfg, path);
                     return cfg;
                 }
                 Err(e) => {
