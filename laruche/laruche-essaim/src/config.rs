@@ -56,6 +56,16 @@ pub struct EssaimConfig {
     /// driven from Settings; env fallback `RUCHE_CURATEUR=1`. Off by default (anti-bloat).
     #[serde(default)]
     pub curateur_actif: bool,
+    /// Age au-dela duquel un episode est efface, en jours. `0` = on garde tout.
+    ///
+    /// Les episodes sont la trace de ce que l'agent a fait, un noeud par mission.
+    /// Ils s'accumulent sans fin: apres quelques mois d'usage quotidien la carte
+    /// cognitive est surtout faite de comptes rendus de missions, et le rappel
+    /// remonte des souvenirs de l'an dernier plutot que le fait qu'on cherchait.
+    /// Zero par defaut, parce qu'effacer la memoire de quelqu'un sans le lui
+    /// demander ne se fait pas.
+    #[serde(default)]
+    pub episodes_retention_jours: u32,
     /// Does LaRuche expose its OWN tools as an MCP server, so an external client can drive
     /// it? Off by default: that surface hands the whole registry to whoever reaches the
     /// port, shell_exec and file_write included, and it is not needed in order to USE
@@ -263,6 +273,7 @@ impl Default for EssaimConfig {
             disabled_tools: Vec::new(),
             disabled_skills: Vec::new(),
             curateur_actif: false,
+            episodes_retention_jours: 0,
             // Off unless the user turns it on: exposing the registry is a decision.
             mcp_server_actif: false,
             mcp_pare_feu_actif: false,

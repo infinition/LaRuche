@@ -992,12 +992,22 @@ pub async fn indexer_abeilles_memoire(
         ajoutes += 1;
     }
 
-    // Reconcile DELETIONS for VOLATILE families (plugins/mcp): pure projections
-    // of the registry. Any node `capacities.{plugins,mcp}.<name>` with no matching tool = a removed
-    // capability (e.g. deleted plugin) -> remove it. Guard: only reconcile a family IF
-    // the registry contains at least one (avoids purging everything at boot before MCPs load).
+    // Reconcile DELETIONS: the three families are pure projections of the
+    // registry, donc un noeud `capacities.<famille>.<nom>` sans outil en face
+    // designe une capacite disparue et doit partir.
+    //
+    // Les natifs en faisaient exception, et c'etait un oubli, pas un choix: un
+    // outil retire du code gardait son noeud pour toujours. `browser_navigate`
+    // et `browser_screenshot`, remplaces par `browser` il y a longtemps,
+    // s'affichaient encore dans le catalogue des outils, et un modele pouvait
+    // sincerement essayer de les appeler. La memoire annoncait des capacites que
+    // le binaire n'avait plus.
+    //
+    // Garde: on ne reconcilie une famille que si le registre en contient au
+    // moins un, sinon un demarrage purgerait tout avant que les serveurs MCP
+    // n'aient eu le temps de se charger, en tache de fond.
     let mut valides: std::collections::HashSet<String> = std::collections::HashSet::new();
-    let (mut a_plugins, mut a_mcp) = (false, false);
+    let (mut a_natifs, mut a_plugins, mut a_mcp) = (false, false, false);
     for tool in tools {
         let name = tool["name"].as_str().unwrap_or("");
         let origin = tool["origin"].as_str().unwrap_or("builtin");
@@ -1005,10 +1015,14 @@ pub async fn indexer_abeilles_memoire(
         match origin {
             "custom" => a_plugins = true,
             "mcp" => a_mcp = true,
-            _ => {}
+            _ => a_natifs = true,
         }
     }
-    for (parent, actif) in [("capacities.plugins", a_plugins), ("capacities.mcp", a_mcp)] {
+    for (parent, actif) in [
+        ("capacities.tools", a_natifs),
+        ("capacities.plugins", a_plugins),
+        ("capacities.mcp", a_mcp),
+    ] {
         if !actif {
             continue;
         }

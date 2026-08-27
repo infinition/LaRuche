@@ -37,6 +37,7 @@ mod web;
 mod slack_api;
 mod local_api;
 mod ws_chat;
+mod episodes_api;
 mod ws_navigateur;
 mod discord_api;
 mod channels_api;
@@ -749,6 +750,9 @@ async fn main() -> Result<()> {
     if let Some(th) = persistent.compaction_threshold {
         essaim_config.compaction_threshold = th;
     }
+    if let Some(j) = persistent.episodes_retention_jours {
+        essaim_config.episodes_retention_jours = j;
+    }
     if let Some(c) = persistent.curateur_actif {
         essaim_config.curateur_actif = c;
     }
@@ -1281,6 +1285,7 @@ async fn main() -> Result<()> {
     purger_carnets_au_boot();
 
     background::spawn_periodic_dream(&state);
+    episodes_api::spawn_balayage_episodes(&state);
     background::spawn_purge_corbeille(&state);
 
     background::spawn_ollama_heartbeat(&state);

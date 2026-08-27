@@ -3699,6 +3699,78 @@
     "en": "Enable All",
     "fr": "Tout Activer"
   },
+  "settings.episodes": {
+    "en": "Memory · Episodes",
+    "fr": "Mémoire · Épisodes"
+  },
+  "settings.episodes180": {
+    "en": "6 months",
+    "fr": "6 mois"
+  },
+  "settings.episodes30": {
+    "en": "30 days",
+    "fr": "30 jours"
+  },
+  "settings.episodes365": {
+    "en": "1 year",
+    "fr": "1 an"
+  },
+  "settings.episodes7": {
+    "en": "7 days",
+    "fr": "7 jours"
+  },
+  "settings.episodes90": {
+    "en": "3 months",
+    "fr": "3 mois"
+  },
+  "settings.episodesClear": {
+    "en": "Delete every episode",
+    "fr": "Effacer tous les épisodes"
+  },
+  "settings.episodesClearHint": {
+    "en": "Irreversible. Only episodes are removed: facts, people, projects and decisions stay untouched.",
+    "fr": "Irréversible. Seuls les épisodes partent : les faits, les personnes, les projets et les décisions ne sont pas touchés."
+  },
+  "settings.episodesCleared": {
+    "en": "{n} day(s) of episodes deleted",
+    "fr": "{n} jour(s) d'épisodes effacés"
+  },
+  "settings.episodesConfirm": {
+    "en": "Delete {n} day(s) of episodes? This cannot be undone. Facts, people, projects and decisions are not affected.",
+    "fr": "Effacer {n} jour(s) d'épisodes ? C'est irréversible. Les faits, les personnes, les projets et les décisions ne sont pas concernés."
+  },
+  "settings.episodesCount": {
+    "en": "{n} day(s) of episodes",
+    "fr": "{n} jour(s) d'épisodes"
+  },
+  "settings.episodesFailed": {
+    "en": "Could not change the episodes",
+    "fr": "Impossible de modifier les épisodes"
+  },
+  "settings.episodesKeepAll": {
+    "en": "Never (keep everything)",
+    "fr": "Jamais (tout garder)"
+  },
+  "settings.episodesNone": {
+    "en": "No episode recorded yet.",
+    "fr": "Aucun épisode enregistré pour l'instant."
+  },
+  "settings.episodesRetention": {
+    "en": "Delete after",
+    "fr": "Effacer au-delà de"
+  },
+  "settings.episodesSaved": {
+    "en": "Episode retention saved",
+    "fr": "Durée de vie des épisodes enregistrée"
+  },
+  "settings.episodesSince": {
+    "en": "oldest: {d}",
+    "fr": "le plus ancien : {d}"
+  },
+  "settings.episodesWhat": {
+    "en": "An episode is the report LaRuche writes after finishing a long task: one node per mission, under episodes.<date>. Nothing ever deletes them, so after months of daily use the cognitive map is mostly made of past reports, and recall brings back what the agent was doing last summer instead of the fact you were looking for.",
+    "fr": "Un épisode est le compte rendu que LaRuche écrit à la fin d'un travail un peu long : un nœud par mission, sous episodes.<date>. Rien ne les efface jamais, si bien qu'après des mois d'usage quotidien la carte cognitive est surtout faite de comptes rendus, et le rappel remonte ce que l'agent faisait l'été dernier plutôt que le fait que vous cherchiez."
+  },
   "settings.errorColon": {
     "en": "Error: ",
     "fr": "Erreur: "

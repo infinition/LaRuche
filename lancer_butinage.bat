@@ -63,17 +63,19 @@ REM   LARUCHE_DATA_DIR), pas dans le depot. Un skill ajoute ici restait donc
 REM   invisible jusqu'a ce qu'on pense a le copier a la main, ce que personne ne
 REM   fait: on cherche pendant une heure pourquoi l'agent ignore une procedure
 REM   qu'on vient d'ecrire.
-REM   On depose ce qui manque et RIEN d'autre: un skill edite sur place, ou cree
-REM   par le curateur, ne doit jamais etre ecrase par la copie du depot.
+REM   On depose ce qui manque et ce qui a ete corrige depuis, sans jamais ecraser
+REM   un skill edite sur place: xcopy /d compare les dates et tranche seul.
 set "FOYER=%LARUCHE_DATA_DIR%"
 if not defined FOYER set "FOYER=%APPDATA%\LaRuche"
 if not exist "%FOYER%\skills" mkdir "%FOYER%\skills" >nul 2>&1
 for /d %%S in ("skills\*") do (
-    if not exist "%FOYER%\skills\%%~nxS\SKILL.md" (
-        if exist "%%S\SKILL.md" (
-            echo   + skill depose dans le foyer : %%~nxS
-            xcopy /e /i /q /y "%%S" "%FOYER%\skills\%%~nxS\" >nul
-        )
+    if exist "%%S\SKILL.md" (
+        REM  /d ne recopie QUE si la version du depot est plus recente que celle du
+        REM  foyer. Un skill edite sur place, ou cree par le curateur, porte une date
+        REM  posterieure et survit donc; une version livree corrigee, elle, arrive
+        REM  enfin. Sans le /d, web-research est reste des semaines sans mentionner
+        REM  web_discover chez un utilisateur alors que le depot l'expliquait.
+        xcopy /d /e /i /q /y "%%S" "%FOYER%\skills\%%~nxS\" >nul
     )
 )
 

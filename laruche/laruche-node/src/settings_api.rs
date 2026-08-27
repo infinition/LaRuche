@@ -186,6 +186,8 @@ pub(crate) async fn api_get_curateur_config(State(state): State<Arc<AppState>>) 
         "mcp_server": ec.mcp_server_actif,
         "mcp_firewall": ec.mcp_pare_feu_actif,
         "mcp_allowlist": ec.mcp_ip_autorisees,
+        // Duree de vie des episodes, en jours. 0 = on garde tout.
+        "episodes_retention_jours": ec.episodes_retention_jours,
     }))
 }
 
@@ -210,6 +212,11 @@ pub(crate) async fn api_set_curateur_config(
         }
         if let Some(v) = body["mcp_firewall"].as_bool() {
             ec.mcp_pare_feu_actif = v;
+        }
+        if let Some(v) = body["episodes_retention_jours"].as_u64() {
+            // Plafonne a dix ans: au-dela le reglage ne veut plus rien dire, et un
+            // nombre absurde saisi par erreur ne doit pas devenir une regle.
+            ec.episodes_retention_jours = v.min(3650) as u32;
         }
         if let Some(v) = body["mcp_allowlist"].as_array() {
             // Kept as written, minus blanks: an entry that does not parse is ignored at
