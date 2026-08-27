@@ -284,11 +284,69 @@ struct Etat {
     /// Vrai quand on a deja signale une reprise humaine et qu'on attend que
     /// l'agent reformule: le refus ne doit pas devenir un blocage definitif.
     reprise_signalee: bool,
+    /// Ce qui est reste enfonce: touches, puis boutons de souris.
+    ///
+    /// Une touche ou un bouton laisse enfonce ne casse pas seulement la suite de
+    /// la mission, il casse la machine de l'utilisateur, et personne ne fera le
+    /// lien entre un Ctrl fantome et un agent qui a rendu la main il y a dix
+    /// minutes. Le skill le demandait par ecrit ("if you press a key down,
+    /// release it"), ce qui revenait a confier au modele un invariant que le
+    /// code peut tenir seul.
+    touches_enfoncees: Vec<(String, Instant)>,
+    boutons_enfonces: Vec<(String, Instant)>,
 }
+
+/// Au-dela de ce delai, un maintien n'est plus une intention, c'est un oubli.
+///
+/// Assez long pour qu'une sequence normale, tenir Shift puis cliquer trois
+/// fois, ne soit jamais interrompue. Assez court pour qu'un abandon en plein
+/// milieu ne laisse pas la machine inutilisable jusqu'au redemarrage.
+const MAINTIEN_MAX: Duration = Duration::from_secs(60);
 
 fn etat() -> &'static Mutex<Etat> {
     static ETAT: std::sync::OnceLock<Mutex<Etat>> = std::sync::OnceLock::new();
     ETAT.get_or_init(|| Mutex::new(Etat::default()))
+}
+
+/// Relache tout ce qui est enfonce et rend la liste de ce qui l'etait.
+///
+/// `perimes_seulement` ne libere que ce qui est tenu depuis plus de
+/// [`MAINTIEN_MAX`], ce qui laisse tranquille une sequence en cours.
+fn relacher_tout(enigo: &mut Enigo, perimes_seulement: bool) -> Vec<String> {
+    let (touches, boutons) = {
+        let mut e = etat().lock().unwrap();
+        let garder = |v: &mut Vec<(String, Instant)>| -> Vec<String> {
+            let (a_liberer, a_garder): (Vec<_>, Vec<_>) = std::mem::take(v)
+                .into_iter()
+                .partition(|(_, t)| !perimes_seulement || t.elapsed() > MAINTIEN_MAX);
+            *v = a_garder;
+            a_liberer.into_iter().map(|(n, _)| n).collect()
+        };
+        let t = garder(&mut e.touches_enfoncees);
+        let b = garder(&mut e.boutons_enfonces);
+        (t, b)
+    };
+
+    let mut liberes = Vec::new();
+    for nom in touches {
+        if let Some((mods, touche)) = parse_touche(&nom) {
+            let _ = enigo.key(touche, Direction::Release);
+            for m in mods {
+                let _ = enigo.key(m, Direction::Release);
+            }
+        }
+        liberes.push(nom);
+    }
+    for nom in boutons {
+        let bouton = match nom.as_str() {
+            "right" => Button::Right,
+            "middle" => Button::Middle,
+            _ => Button::Left,
+        };
+        let _ = enigo.button(bouton, Direction::Release);
+        liberes.push(format!("{nom} button"));
+    }
+    liberes
 }
 
 /// Le rapport entre l'espace de coordonnees d'enigo et les pixels physiques.
@@ -591,6 +649,16 @@ impl Ordinateur {
             .map_err(|e| anyhow!("cannot reach the input layer: {e}"))?;
         let facteur = facteur_enigo(&enigo, moniteur_principal(&liste).expect("liste non vide"));
 
+        // Le filet de securite des maintiens: ce qui traine depuis plus d'une
+        // minute est relache avant toute autre chose. Une sequence normale ne le
+        // voit jamais passer; une mission abandonnee en plein glisser ne laisse
+        // plus la machine de l'utilisateur avec un bouton enfonce.
+        let oublies = relacher_tout(&mut enigo, true);
+        if !oublies.is_empty() {
+            tracing::warn!(?oublies, "maintiens perimes relaches d'office");
+            decor::ligne(&format!("released {}", oublies.join(", ")));
+        }
+
         match action {
             "screenshot" => {
                 let ecran = choisir_ecran(&liste, args.get("screen")).ok_or_else(|| {
@@ -690,11 +758,62 @@ impl Ordinateur {
 
             "windows" => Self::lister_fenetres(),
 
-            "read" | "focus_window" | "focus" => Self::geste_arbre(action, &args),
+            "read" | "find" | "focus_window" | "focus" => Self::geste_arbre(action, &args),
 
             "mouse_move" | "left_click" | "right_click" | "middle_click" | "double_click"
-            | "left_click_drag" | "scroll" | "fill" => {
-                Self::geste_souris(action, &args, &mut enigo, facteur, glisse_ms)
+            | "triple_click" | "left_click_drag" | "mouse_down" | "mouse_up" | "scroll"
+            | "fill" => Self::geste_souris(action, &args, &mut enigo, facteur, glisse_ms),
+
+            // Le presse-papiers est la voie la plus courte pour faire entrer et
+            // sortir du texte d'une application native. Sans lui, l'agent
+            // pouvait envoyer Control+c et n'avait aucun moyen de LIRE ce qu'il
+            // venait de copier; et le refus de `type` au-dela de cinq mille
+            // caracteres conseillait de coller depuis un fichier, un conseil que
+            // l'outil ne pouvait pas suivre.
+            "read_clipboard" => {
+                let contenu = arboard::Clipboard::new()
+                    .and_then(|mut c| c.get_text())
+                    .map_err(|e| anyhow!("cannot read the clipboard: {e}"))?;
+                Ok(ResultatAbeille::ok(if contenu.is_empty() {
+                    "The clipboard holds no text.".to_string()
+                } else {
+                    format!("Clipboard ({} chars):\n{contenu}", contenu.chars().count())
+                }))
+            }
+
+            "write_clipboard" => {
+                let texte = args["text"]
+                    .as_str()
+                    .ok_or_else(|| anyhow!("write_clipboard needs 'text'."))?;
+                arboard::Clipboard::new()
+                    .and_then(|mut c| c.set_text(texte.to_string()))
+                    .map_err(|e| anyhow!("cannot write the clipboard: {e}"))?;
+                Ok(ResultatAbeille::ok(format!(
+                    "Put {} character(s) on the clipboard. Paste it with key Control+v, \
+                     which has no length limit, unlike type.",
+                    texte.chars().count()
+                )))
+            }
+
+            "release_all" => {
+                let liberes = relacher_tout(&mut enigo, false);
+                Ok(ResultatAbeille::ok(if liberes.is_empty() {
+                    "Nothing was held down.".to_string()
+                } else {
+                    format!("Released: {}.", liberes.join(", "))
+                }))
+            }
+
+            "wait" => {
+                let ms = args["ms"]
+                    .as_u64()
+                    .or_else(|| args["seconds"].as_u64().map(|s| s * 1000))
+                    .unwrap_or(1000)
+                    .clamp(50, 30_000);
+                std::thread::sleep(Duration::from_millis(ms));
+                Ok(ResultatAbeille::ok(format!(
+                    "Waited {ms}ms. Read or take a screenshot to see where things got to."
+                )))
             }
 
             "type" => {
@@ -751,10 +870,12 @@ impl Ordinateur {
 
             autre => Err(anyhow!(
                 "Unknown action '{autre}'. The reliable path first: windows (list them), \
-                 focus_window, read (numbered map of the controls), then click or fill with \
-                 a `ref`, plus focus. By pixels: screens, screenshot, cursor_position, \
-                 mouse_move, left_click, right_click, middle_click, double_click, \
-                 left_click_drag, scroll. Keyboard: type, key, key_down, key_up."
+                 focus_window, read (numbered map of the controls), find (the same, filtered), \
+                 then click, fill, scroll or hover with a `ref`, plus focus. By pixels: \
+                 screens, screenshot, cursor_position, mouse_move, left_click, right_click, \
+                 middle_click, double_click, triple_click, left_click_drag, mouse_down, \
+                 mouse_up, scroll. Keyboard: type, key, key_down, key_up, release_all. \
+                 Also: wait, read_clipboard, write_clipboard."
             )),
         }
     }
@@ -803,6 +924,41 @@ impl Ordinateur {
     #[cfg(windows)]
     fn geste_arbre(action: &str, args: &Value) -> Result<ResultatAbeille> {
         match action {
+            "find" => {
+                let quoi = args["text"]
+                    .as_str()
+                    .filter(|s| !s.trim().is_empty())
+                    .ok_or_else(|| {
+                        anyhow!("find needs 'text', the wording to look for in the controls.")
+                    })?;
+                let filtre = args["window"].as_str().filter(|s| !s.trim().is_empty());
+                let (titre, trouves, tronque) = arbre::chercher(filtre, quoi)?;
+                if trouves.is_empty() {
+                    return Ok(ResultatAbeille::ok(format!(
+                        "Nothing matching \"{quoi}\" in window \"{titre}\"{}. The wording may \
+                         differ, or the control may be scrolled out of view, which hides it \
+                         from the tree entirely: scroll a nearby ref into view and search \
+                         again, or read the whole window.",
+                        if tronque {
+                            ", and the window was too big to list whole"
+                        } else {
+                            ""
+                        }
+                    )));
+                }
+                Ok(ResultatAbeille::ok(format!(
+                    "Window: {titre}\n\n{} match(es) for \"{quoi}\":\n{}\n\nThese numbers come \
+                     from this search, which read the window: use them now, and read or \
+                     search again after acting.{}",
+                    trouves.len(),
+                    trouves.join("\n"),
+                    if tronque {
+                        " The window was too big to list whole, so a match may be missing."
+                    } else {
+                        ""
+                    }
+                )))
+            }
             "read" => {
                 let filtre = args["window"].as_str().filter(|s| !s.trim().is_empty());
                 let l = arbre::lire(filtre)?;
@@ -886,6 +1042,22 @@ impl Ordinateur {
     ) -> Result<ResultatAbeille> {
         use crate::abeilles::ordinateur_arbre::Effet;
 
+        // Ce qu'un `ref` veut dire depend de l'action, et les confondre coutait
+        // cher: tout ce qui n'etait ni fill, ni clic droit, ni double clic
+        // partait dans `actionner`, donc etait INVOQUE. `hover` sur un bouton le
+        // cliquait, `middle_click` faisait un clic gauche, `scroll` et
+        // `left_click_drag` actionnaient l'element au lieu de le faire defiler
+        // ou de le glisser. Le tout rapporte comme un succes, ce qui est le pire
+        // mode de defaillance possible: le modele n'avait aucun moyen de savoir
+        // que son geste n'avait pas eu lieu.
+        //
+        // Trois familles: celles qui ont un equivalent dans les motifs
+        // d'automatisation, celles qui n'en ont pas et visent le rectangle, et
+        // le defilement qui a son propre motif.
+        let geste_physique = matches!(
+            action,
+            "right_click" | "double_click" | "middle_click" | "mouse_move" | "left_click_drag"
+        );
         let par_motif = match action {
             "fill" => {
                 let texte = args["text"]
@@ -893,17 +1065,32 @@ impl Ordinateur {
                     .ok_or_else(|| anyhow!("fill needs 'text'."))?;
                 arbre::remplir(numero, texte)?
             }
-            // Un clic droit ou un double clic n'a pas d'equivalent dans les
-            // motifs d'automatisation: ils vont droit au repli physique.
-            "right_click" | "double_click" => (
-                arbre::cible(numero).ok_or_else(|| {
-                    anyhow!("No element ref_{numero}. Run read again.")
-                })?,
+            // Amener l'element dans la vue a son propre motif, et c'est le seul
+            // chemin vers un element hors ecran qui ne demande pas de capture.
+            "scroll" => arbre::defiler_vers(numero)?,
+            // Aucun equivalent en motif: on vise le rectangle memorise. Survoler
+            // n'est pas cliquer, et un clic milieu n'est pas une invocation.
+            _ if geste_physique => (
+                arbre::cible(numero)
+                    .ok_or_else(|| anyhow!("No element ref_{numero}. Run read again."))?,
                 Effet::ClicRequis,
             ),
             _ => arbre::actionner(numero)?,
         };
         let (cible, effet) = par_motif;
+
+        // Un controle qui porte une plage ne se clique pas, il se regle. On le
+        // dit avec ses bornes, pour que la correction tienne en un seul appel.
+        if let Effet::PlageRequise(min, max, actuel) = effet {
+            return Err(anyhow!(
+                "ref_{numero} <{}> {} holds a value on a range ({min} to {max}, currently \
+                 {actuel}), so clicking it means nothing: the click would land at the centre \
+                 of its rectangle, which is halfway along its travel. Set it instead, with \
+                 fill on ref_{numero} and the number you want.",
+                cible.genre,
+                cible.nom
+            ));
+        }
 
         if let Effet::Motif(nom) = effet {
             return Ok(ResultatAbeille::ok(format!(
@@ -918,11 +1105,69 @@ impl Ordinateur {
         let (px, py) = cible.centre();
         autoriser_geste(px, py, enigo, facteur)?;
         glisser_vers(enigo, px, py, facteur, glisse_ms);
+
+        // Survoler s'arrete ici. C'est tout l'interet du geste: ouvrir un menu
+        // ou une infobulle sans rien declencher.
+        if action == "mouse_move" {
+            decor::curseur(px as i32, py as i32, false);
+            return Ok(ResultatAbeille::ok(format!(
+                "Hovering ref_{numero} <{}> {} at ({px:.0},{py:.0}). Nothing was clicked. \
+                 Read again to see what the hover opened.",
+                cible.genre, cible.nom
+            )));
+        }
+
+        // Le defilement n'a pas trouve son motif: on tourne la molette la ou est
+        // l'element, ce qui defile son conteneur.
+        if action == "scroll" {
+            let direction = args["direction"].as_str().unwrap_or("down");
+            let crans = args["amount"].as_i64().unwrap_or(3).clamp(1, 50) as i32;
+            let (axe, signe) = match direction {
+                "down" => (Axis::Vertical, 1),
+                "up" => (Axis::Vertical, -1),
+                "right" => (Axis::Horizontal, 1),
+                "left" => (Axis::Horizontal, -1),
+                _ => return Err(anyhow!("scroll direction must be up, down, left or right.")),
+            };
+            enigo
+                .scroll(crans * signe, axe)
+                .map_err(|e| anyhow!("scroll failed: {e}"))?;
+            return Ok(ResultatAbeille::ok(format!(
+                "ref_{numero} <{}> {} exposes no scroll pattern, so the wheel was turned \
+                 {direction} {crans} notch(es) over it instead.",
+                cible.genre, cible.nom
+            )));
+        }
+
+        // Glisser DEPUIS l'element: le ref donne le point de prise, to_x et to_y
+        // le point de depose.
+        if action == "left_click_drag" {
+            let (tx, ty) = match point_demande(args, "to") {
+                Some((x, y)) => resoudre(x, y)?,
+                None => {
+                    return Err(anyhow!(
+                        "left_click_drag from ref_{numero} needs 'to_x' and 'to_y', the point \
+                         to drop on. Those are pixels of the last screenshot, so take one \
+                         first if you have not."
+                    ))
+                }
+            };
+            autoriser_geste(tx, ty, enigo, facteur)?;
+            decor::curseur(px as i32, py as i32, true);
+            let bouton = Self::bouton_demande(args)?;
+            let pose = args["hold_ms"].as_u64().unwrap_or(120).min(5000);
+            Self::glisser_bouton(enigo, bouton, tx, ty, facteur, pose)?;
+            return Ok(ResultatAbeille::ok(format!(
+                "Dragged ref_{numero} <{}> {} to ({tx:.0},{ty:.0}) on the desktop.",
+                cible.genre, cible.nom
+            )));
+        }
+
         decor::curseur(px as i32, py as i32, true);
-        let bouton = if action == "right_click" {
-            Button::Right
-        } else {
-            Button::Left
+        let bouton = match action {
+            "right_click" => Button::Right,
+            "middle_click" => Button::Middle,
+            _ => Button::Left,
         };
         let fois = if action == "double_click" { 2 } else { 1 };
         for _ in 0..fois {
@@ -968,6 +1213,58 @@ impl Ordinateur {
         ))
     }
 
+    /// Presse, deplace en paliers, relache.
+    ///
+    /// En un seul saut, beaucoup d'interfaces ne voient aucun deplacement et
+    /// annulent le glisser. Les paliers ne suffisent pas non plus partout: le
+    /// glisser-deposer HTML5, celui d'Electron et la plupart des gestionnaires
+    /// de fichiers exigent que le bouton reste enfonce un court moment AVANT
+    /// que ca bouge, sinon ils traitent le geste comme un clic. D'ou la pause
+    /// au depart, et une seconde a l'arrivee pour laisser la cible s'armer
+    /// avant le relachement.
+    fn glisser_bouton(
+        enigo: &mut Enigo,
+        bouton: Button,
+        tx: f64,
+        ty: f64,
+        facteur: f64,
+        pose_ms: u64,
+    ) -> Result<()> {
+        enigo
+            .button(bouton, Direction::Press)
+            .map_err(|e| anyhow!("cannot press the button: {e}"))?;
+        std::thread::sleep(Duration::from_millis(pose_ms));
+        let depart = enigo.location().unwrap_or((0, 0));
+        let (dx, dy) = (depart.0 as f64, depart.1 as f64);
+        let (ax, ay) = (tx * facteur, ty * facteur);
+        for i in 1..=12 {
+            let t = i as f64 / 12.0;
+            let _ = enigo.move_mouse(
+                (dx + (ax - dx) * t).round() as i32,
+                (dy + (ay - dy) * t).round() as i32,
+                Coordinate::Abs,
+            );
+            std::thread::sleep(Duration::from_millis(16));
+        }
+        std::thread::sleep(Duration::from_millis(pose_ms));
+        enigo
+            .button(bouton, Direction::Release)
+            .map_err(|e| anyhow!("cannot release the button: {e}"))?;
+        Ok(())
+    }
+
+    /// Le bouton demande, pour les gestes qui en acceptent un.
+    fn bouton_demande(args: &Value) -> Result<Button> {
+        match args["button"].as_str().unwrap_or("left") {
+            "left" => Ok(Button::Left),
+            "right" => Ok(Button::Right),
+            "middle" => Ok(Button::Middle),
+            autre => Err(anyhow!(
+                "button must be left, right or middle, not '{autre}'."
+            )),
+        }
+    }
+
     fn geste_souris(
         action: &str,
         args: &Value,
@@ -1011,21 +1308,71 @@ impl Ordinateur {
 
         match action {
             "mouse_move" => Ok(ResultatAbeille::ok(format!("Moved the mouse{ou}."))),
-            "left_click" | "right_click" | "middle_click" | "double_click" => {
+
+            // La paire symetrique de key_down et key_up, qui manquait.
+            // `left_click_drag` fait tout d'un bloc, ce qui suffit pour deplacer
+            // une icone et pour rien d'autre: dessiner sur un canevas, lire la
+            // valeur d'un curseur en cours de course, ou deposer sur une cible
+            // qui doit s'ouvrir au survol demandent de garder le bouton enfonce
+            // pendant que d'autres appels se produisent.
+            "mouse_down" | "mouse_up" => {
+                let nom = args["button"].as_str().unwrap_or("left").to_string();
+                let bouton = Self::bouton_demande(args)?;
+                let sens = if action == "mouse_down" {
+                    Direction::Press
+                } else {
+                    Direction::Release
+                };
+                enigo
+                    .button(bouton, sens)
+                    .map_err(|e| anyhow!("button failed: {e}"))?;
+                let mut e = etat().lock().unwrap();
+                e.boutons_enfonces.retain(|(n, _)| *n != nom);
+                if action == "mouse_down" {
+                    e.boutons_enfonces.push((nom.clone(), Instant::now()));
+                }
+                let tenus = e.boutons_enfonces.len();
+                drop(e);
+                Ok(ResultatAbeille::ok(format!(
+                    "{nom} button {}{ou}.{}",
+                    if action == "mouse_down" {
+                        "pressed"
+                    } else {
+                        "released"
+                    },
+                    if tenus > 0 {
+                        " Still down. Move with mouse_move, then mouse_up to drop. \
+                         It is released automatically after a minute."
+                    } else {
+                        ""
+                    }
+                )))
+            }
+
+            "left_click" | "right_click" | "middle_click" | "double_click" | "triple_click" => {
                 let bouton = match action {
                     "right_click" => Button::Right,
                     "middle_click" => Button::Middle,
                     _ => Button::Left,
                 };
-                let fois = if action == "double_click" { 2 } else { 1 };
+                let fois = match action {
+                    "double_click" => 2,
+                    "triple_click" => 3,
+                    _ => 1,
+                };
+                // Le halo se dessine UNE fois, avant la serie. Il etait redessine
+                // entre chaque clic, et `UpdateLayeredWindow` au milieu d'un
+                // double clic pouvait pousser les deux appuis au-dela de
+                // `GetDoubleClickTime` (500ms par defaut): l'interface voyait
+                // alors deux clics simples, ce qui n'ouvre rien.
+                if let Ok((cx, cy)) = enigo.location() {
+                    decor::curseur(
+                        (cx as f64 / facteur) as i32,
+                        (cy as f64 / facteur) as i32,
+                        true,
+                    );
+                }
                 for _ in 0..fois {
-                    if let Ok((cx, cy)) = enigo.location() {
-                        decor::curseur(
-                            (cx as f64 / facteur) as i32,
-                            (cy as f64 / facteur) as i32,
-                            true,
-                        );
-                    }
                     enigo
                         .button(bouton, Direction::Click)
                         .map_err(|e| anyhow!("click failed: {e}"))?;
@@ -1036,6 +1383,7 @@ impl Ordinateur {
                         "right_click" => "Right click",
                         "middle_click" => "Middle click",
                         "double_click" => "Double click",
+                        "triple_click" => "Triple click",
                         _ => "Click",
                     }
                 )))
@@ -1052,26 +1400,9 @@ impl Ordinateur {
                     }
                 };
                 autoriser_geste(tx, ty, enigo, facteur)?;
-                enigo
-                    .button(Button::Left, Direction::Press)
-                    .map_err(|e| anyhow!("cannot press the button: {e}"))?;
-                // En un seul saut, beaucoup d'interfaces ne voient pas de
-                // deplacement et annulent le glisser. On y va en paliers.
-                let depart = enigo.location().unwrap_or((0, 0));
-                let (dx, dy) = (depart.0 as f64, depart.1 as f64);
-                let (ax, ay) = (tx * facteur, ty * facteur);
-                for i in 1..=12 {
-                    let t = i as f64 / 12.0;
-                    let _ = enigo.move_mouse(
-                        (dx + (ax - dx) * t).round() as i32,
-                        (dy + (ay - dy) * t).round() as i32,
-                        Coordinate::Abs,
-                    );
-                    std::thread::sleep(Duration::from_millis(16));
-                }
-                enigo
-                    .button(Button::Left, Direction::Release)
-                    .map_err(|e| anyhow!("cannot release the button: {e}"))?;
+                let bouton = Self::bouton_demande(args)?;
+                let pose = args["hold_ms"].as_u64().unwrap_or(120).min(5000);
+                Self::glisser_bouton(enigo, bouton, tx, ty, facteur, pose)?;
                 Ok(ResultatAbeille::ok(format!(
                     "Dragged to ({tx:.0},{ty:.0}) on the desktop."
                 )))
@@ -1137,13 +1468,38 @@ impl Ordinateur {
             enigo
                 .key(touche, sens)
                 .map_err(|e| anyhow!("key failed: {e}"))?;
+            // Le registre, pour que l'oubli cesse d'etre a la charge du modele.
+            {
+                let mut e = etat().lock().unwrap();
+                e.touches_enfoncees.retain(|(n, _)| n != spec);
+                if action == "key_down" {
+                    e.touches_enfoncees.push((spec.to_string(), Instant::now()));
+                }
+            }
+            let encore = etat().lock().unwrap().touches_enfoncees.len();
             return Ok(ResultatAbeille::ok(format!(
-                "{spec} {}. Remember to release it: a key left down poisons every later \
-                 interaction, the user's own included.",
+                "{spec} {}.{}",
                 if action == "key_down" {
                     "held down"
                 } else {
                     "released"
+                },
+                if encore > 0 {
+                    format!(
+                        " Still held: {}. Release with key_up, or release_all. \
+                         Anything still down after a minute is released automatically, \
+                         because a key left down poisons the user's own machine too.",
+                        etat()
+                            .lock()
+                            .unwrap()
+                            .touches_enfoncees
+                            .iter()
+                            .map(|(n, _)| n.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                } else {
+                    String::new()
                 }
             )));
         }
@@ -1214,9 +1570,10 @@ impl Abeille for Ordinateur {
          for desktop applications, installers, native dialogs, anything that is not a web \
          page. For a web page prefer the `browser` tool, which reads the DOM and clicks by \
          element number: it is faster, cheaper and does not miss. \
-         Actions: windows, focus_window, read, focus, screens, screenshot, cursor_position, \
-         mouse_move, left_click, right_click, middle_click, double_click, left_click_drag, \
-         scroll, fill, type, key, key_down, key_up. \
+         Actions: windows, focus_window, read, find, focus, screens, screenshot, \
+         cursor_position, mouse_move, left_click, right_click, middle_click, double_click, \
+         triple_click, left_click_drag, mouse_down, mouse_up, scroll, fill, type, key, \
+         key_down, key_up, release_all, wait, read_clipboard, write_clipboard. \
          THE FAST PATH NEEDS NO SCREENSHOT AT ALL, and it is the only one that works without \
          vision: windows lists what is open, focus_window brings one to the front, read \
          returns a NUMBERED map of its controls (ref_1 <button> OK), and click or fill act \
@@ -1239,11 +1596,13 @@ impl Abeille for Ordinateur {
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["windows", "focus_window", "read", "focus", "screens", "screenshot",
-                             "cursor_position", "mouse_move", "left_click", "right_click",
-                             "middle_click", "double_click", "left_click_drag", "scroll",
-                             "fill", "type", "key", "key_down", "key_up"],
-                    "description": "windows: list the open windows. focus_window: bring one to the front by a piece of its title. read: numbered map of the controls of the front window (or of `window`), the no-screenshot path. focus: give focus to a ref without acting on it. screens: list the monitors. screenshot: capture one, and set the coordinate system for everything after it. cursor_position: where the pointer is. mouse_move: move without clicking, which is what opens hover menus. left/right/middle/double_click: act on a ref, or click at x,y, or click where the cursor already is. left_click_drag: press at x,y and release at to_x,to_y. scroll: wheel notches. fill: write into a ref. type: type text into whatever has focus. key: press a key or a chord. key_down/key_up: hold a key across other gestures, for games and drag modifiers."
+                    "enum": ["windows", "focus_window", "read", "find", "focus", "screens",
+                             "screenshot", "cursor_position", "mouse_move", "left_click",
+                             "right_click", "middle_click", "double_click", "triple_click",
+                             "left_click_drag", "mouse_down", "mouse_up", "scroll", "fill",
+                             "type", "key", "key_down", "key_up", "release_all", "wait",
+                             "read_clipboard", "write_clipboard"],
+                    "description": "windows: list the open windows. focus_window: bring one to the front by a piece of its title. read: numbered map of the controls of the front window (or of `window`), the no-screenshot path. find: the same map filtered to controls whose label contains `text`, for a window too big to read whole. focus: give focus to a ref without acting on it. screens: list the monitors. screenshot: capture one, and set the coordinate system for everything after it. cursor_position: where the pointer is. mouse_move: move onto a ref or a point WITHOUT clicking, which is what opens hover menus. left/right/middle/double/triple_click: act on a ref, or click at x,y, or click where the cursor already is. left_click_drag: grab (a ref, or x,y) and release at to_x,to_y, holding briefly at each end so HTML5 and Electron drops register. mouse_down/mouse_up: hold a button across other calls, for drawing, for reading a slider mid-drag, and for drops that need the pointer to dwell. scroll: on a ref, brings it into view through its own pattern, the only way to reach an off-screen control without a screenshot; otherwise wheel notches at a point. fill: write into a ref, including a number into a slider or a spinner. type: type text into whatever has focus. key: press a key or a chord. key_down/key_up: hold a key across other gestures. release_all: release every key and button still held. wait: pause while the interface catches up. read_clipboard/write_clipboard: text in and out, which is how you move more than a few lines."
                 },
                 "ref": { "type": "integer", "description": "Element number from read, without the ref_ prefix. Preferred over x,y: it cannot miss, and it is the only path that works without vision." },
                 "window": { "type": "string", "description": "For read and focus_window: a piece of the window title. read defaults to the front window." },
@@ -1251,9 +1610,11 @@ impl Abeille for Ordinateur {
                 "y": { "type": "number", "description": "Vertical position, in pixels of the LAST screenshot" },
                 "to_x": { "type": "number", "description": "For left_click_drag: where to release" },
                 "to_y": { "type": "number", "description": "For left_click_drag: where to release" },
+                "button": { "type": "string", "enum": ["left", "right", "middle"], "description": "For mouse_down, mouse_up and left_click_drag: which button. Default left. Right and middle drags are how CAD and 3D tools orbit and pan." },
+                "ms": { "type": "integer", "description": "For wait: how long to pause, 50 to 30000, default 1000" },
                 "screen": { "description": "For screenshot: screen id, rank (1 = first) or name. Default: the primary screen." },
                 "max_width": { "type": "integer", "description": "For screenshot: width of the returned image, default 1280. Larger is more legible and more expensive." },
-                "text": { "type": "string", "description": "For type and fill: the text to write" },
+                "text": { "type": "string", "description": "For type, fill and write_clipboard: the text to write. For fill on a slider or a spinner: the number to set. For find: the wording to look for." },
                 "key": { "type": "string", "description": "For key, key_down, key_up: Enter, Tab, Escape, Backspace, Delete, Space, Home, End, PageUp, PageDown, Up, Down, Left, Right, F1 to F12, or a single character. Chord with Control+, Shift+, Alt+, Meta+." },
                 "repeat": { "type": "integer", "description": "For key: press it this many times, default 1, max 50" },
                 "hold_ms": { "type": "integer", "description": "For key: hold it down this long each press, default 0" },
@@ -1646,33 +2007,15 @@ mod tests {
 
     #[test]
     fn le_schema_et_la_description_couvrent_toutes_les_actions() {
+        // On parcourt le schema LUI-MEME plutot qu'une liste recopiee a cote.
+        // La liste en dur ne gardait que le passe: les actions ajoutees ensuite
+        // n'etaient verifiees par personne, et une action absente de la
+        // description est une action que le modele n'utilisera jamais.
         let s = Ordinateur.schema();
         let actions = s["properties"]["action"]["enum"].as_array().unwrap();
-        for a in [
-            "windows",
-            "focus_window",
-            "read",
-            "focus",
-            "fill",
-            "screens",
-            "screenshot",
-            "cursor_position",
-            "mouse_move",
-            "left_click",
-            "right_click",
-            "middle_click",
-            "double_click",
-            "left_click_drag",
-            "scroll",
-            "type",
-            "key",
-            "key_down",
-            "key_up",
-        ] {
-            assert!(
-                actions.iter().any(|v| v.as_str() == Some(a)),
-                "action {a} absente du schema"
-            );
+        assert!(actions.len() >= 26, "le schema a maigri sans raison");
+        for a in actions {
+            let a = a.as_str().unwrap();
             assert!(
                 Ordinateur.description().contains(a),
                 "action {a} absente de la description"

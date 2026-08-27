@@ -24,7 +24,10 @@
 use anyhow::{anyhow, Result};
 use std::sync::Mutex;
 use uiautomation::controls::ControlType;
-use uiautomation::patterns::{UIInvokePattern, UISelectionItemPattern, UITogglePattern, UIValuePattern};
+use uiautomation::patterns::{
+    UIExpandCollapsePattern, UIInvokePattern, UILegacyIAccessiblePattern, UIRangeValuePattern,
+    UIScrollItemPattern, UISelectionItemPattern, UITogglePattern, UIValuePattern,
+};
 use uiautomation::types::{TreeScope, UIProperty};
 use uiautomation::core::UICacheRequest;
 use uiautomation::{UIAutomation, UIElement};
@@ -348,6 +351,29 @@ pub fn lire(filtre: Option<&str>) -> Result<Lecture> {
     })
 }
 
+/// Les elements dont le libelle contient `quoi`, sans casse.
+///
+/// `lire` peut rendre trois cents lignes plus cent vingt lignes de texte, et
+/// tronque en silence au-dela. Sur une grosse fenetre Electron ou une suite
+/// bureautique, c'est une facture de jetons a chaque lecture pour trouver un
+/// bouton dont on connait deja le nom. Le navigateur avait `find` depuis
+/// longtemps; le bureau non, sans autre raison que l'oubli.
+///
+/// Les numeros rendus sont ceux de la lecture qui vient d'avoir lieu, donc
+/// utilisables directement: la recherche EST une lecture, elle renumerote comme
+/// n'importe quelle autre.
+pub fn chercher(filtre: Option<&str>, quoi: &str) -> Result<(String, Vec<String>, bool)> {
+    let l = lire(filtre)?;
+    let besoin = quoi.to_lowercase();
+    let trouves: Vec<String> = l
+        .lignes
+        .iter()
+        .filter(|ligne| ligne.to_lowercase().contains(&besoin))
+        .cloned()
+        .collect();
+    Ok((l.titre, trouves, l.tronque))
+}
+
 /// Retrouve un element a partir de ce qu'on a memorise de lui.
 ///
 /// Le rechercher plutot que le garder est le prix a payer pour ne pas stocker
@@ -396,6 +422,14 @@ pub enum Effet {
     Motif(&'static str),
     /// Aucun motif exploitable: l'appelant doit cliquer physiquement.
     ClicRequis,
+    /// Le controle porte une valeur sur une plage: un clic dessus n'a pas de
+    /// sens, il faut dire laquelle. Porte le minimum, le maximum et la valeur
+    /// courante pour que le refus soit utilisable tel quel.
+    ///
+    /// Sans ce cas, un curseur tombait dans le repli physique et se faisait
+    /// cliquer en son centre, donc regle au milieu de sa course. Une action
+    /// fausse rapportee comme un succes est pire qu'une erreur.
+    PlageRequise(f64, f64, f64),
 }
 
 /// Actionne un element numerote, par son motif quand il en expose un.
@@ -410,6 +444,21 @@ pub fn actionner(numero: usize) -> Result<(Cible, Effet)> {
         return Ok((c, Effet::ClicRequis));
     };
     let _ = element.set_focus();
+    // Une valeur sur une plage se REGLE, elle ne se clique pas. Ce test passe
+    // avant tous les motifs d'action: un curseur expose parfois Invoke, et
+    // l'invoquer ne veut rien dire.
+    if let Ok(p) = element.get_pattern::<UIRangeValuePattern>() {
+        if !p.is_readonly().unwrap_or(true) {
+            return Ok((
+                c,
+                Effet::PlageRequise(
+                    p.get_minimum().unwrap_or(0.0),
+                    p.get_maximum().unwrap_or(0.0),
+                    p.get_value().unwrap_or(0.0),
+                ),
+            ));
+        }
+    }
     if let Ok(p) = element.get_pattern::<UIInvokePattern>() {
         if p.invoke().is_ok() {
             return Ok((c, Effet::Motif("invoke")));
@@ -425,7 +474,76 @@ pub fn actionner(numero: usize) -> Result<(Cible, Effet)> {
             return Ok((c, Effet::Motif("select")));
         }
     }
+    // Deplier une liste deroulante ou un noeud d'arbre. Beaucoup de combos
+    // n'exposent pas Invoke, et sans ce motif le seul recours etait un clic
+    // aveugle sur la fleche.
+    if let Ok(p) = element.get_pattern::<UIExpandCollapsePattern>() {
+        use uiautomation::types::ExpandCollapseState;
+        let ouvert = matches!(p.get_state(), Ok(ExpandCollapseState::Expanded));
+        let fait = if ouvert { p.collapse() } else { p.expand() };
+        if fait.is_ok() {
+            return Ok((c, Effet::Motif(if ouvert { "collapse" } else { "expand" })));
+        }
+    }
+    // Dernier recours avant de viser a la souris: l'action par defaut de la
+    // vieille interface MSAA, que beaucoup de controles Win32 anciens sont
+    // seuls a exposer.
+    if let Ok(p) = element.get_pattern::<UILegacyIAccessiblePattern>() {
+        if p.do_default_action().is_ok() {
+            return Ok((c, Effet::Motif("default action")));
+        }
+    }
     Ok((c, Effet::ClicRequis))
+}
+
+/// Amene un element numerote dans la partie visible de son conteneur.
+///
+/// C'est le pendant vision-libre du `scroll` a la molette. `lire` saute tout
+/// element hors ecran, donc ce qui est sous la ligne de flottaison n'existe
+/// pas pour le modele; sans ce chemin, le seul moyen de l'atteindre etait une
+/// capture puis une molette en pixels, c'est-a-dire sortir du chemin sans
+/// vision pour une raison purement mecanique.
+pub fn defiler_vers(numero: usize) -> Result<(Cible, Effet)> {
+    let c = cible(numero).ok_or_else(|| {
+        anyhow!("No element ref_{numero}. Run read again: refs are renumbered by every read.")
+    })?;
+    let auto = nouvelle_automation()?;
+    let Some(element) = retrouver(&auto, &c, None) else {
+        return Ok((c, Effet::ClicRequis));
+    };
+    if let Ok(p) = element.get_pattern::<UIScrollItemPattern>() {
+        if p.scroll_into_view().is_ok() {
+            return Ok((c, Effet::Motif("scroll into view")));
+        }
+    }
+    Ok((c, Effet::ClicRequis))
+}
+
+/// Regle un controle qui porte une valeur sur une plage: curseur, compteur,
+/// barre de progression modifiable.
+///
+/// Retourne la valeur reellement appliquee, que le controle ajuste souvent a
+/// son pas: demander 7 sur un curseur qui avance de cinq en cinq en pose 5, et
+/// le taire ferait croire a un reglage qui n'a pas eu lieu.
+pub fn regler_plage(numero: usize, valeur: f64) -> Result<(Cible, f64)> {
+    let c = cible(numero).ok_or_else(|| anyhow!("No element ref_{numero}. Run read again."))?;
+    let auto = nouvelle_automation()?;
+    let element = retrouver(&auto, &c, None)
+        .ok_or_else(|| anyhow!("ref_{numero} is gone from the tree: the window changed."))?;
+    let p = element
+        .get_pattern::<UIRangeValuePattern>()
+        .map_err(|_| anyhow!("ref_{numero} <{}> holds no range: it is not a slider or a spinner. Use click or fill.", c.genre))?;
+    if p.is_readonly().unwrap_or(false) {
+        return Err(anyhow!("ref_{numero} <{}> is read only.", c.genre));
+    }
+    let (min, max) = (p.get_minimum().unwrap_or(0.0), p.get_maximum().unwrap_or(0.0));
+    // Borner plutot que laisser le motif echouer: hors plage, `set_value` rend
+    // une erreur COM opaque que personne ne sait lire.
+    let borne = valeur.clamp(min.min(max), max.max(min));
+    let _ = element.set_focus();
+    p.set_value(borne)
+        .map_err(|e| anyhow!("cannot set ref_{numero}: {e}"))?;
+    Ok((c, p.get_value().unwrap_or(borne)))
 }
 
 /// Ecrit dans un champ numerote.
@@ -438,6 +556,19 @@ pub fn remplir(numero: usize, valeur: &str) -> Result<(Cible, Effet)> {
         return Ok((c, Effet::ClicRequis));
     };
     let _ = element.set_focus();
+    // Un curseur ou un compteur se remplit avec un nombre, par son motif de
+    // plage. Avant, `fill` sur un curseur ne trouvait pas de motif Value et
+    // retombait sur "cliquer puis taper", ce qui ne regle rien.
+    if let Ok(nombre) = valeur.trim().parse::<f64>() {
+        if let Ok(p) = element.get_pattern::<UIRangeValuePattern>() {
+            if !p.is_readonly().unwrap_or(true) {
+                let (min, max) = (p.get_minimum().unwrap_or(0.0), p.get_maximum().unwrap_or(0.0));
+                if p.set_value(nombre.clamp(min.min(max), max.max(min))).is_ok() {
+                    return Ok((c, Effet::Motif("rangevalue")));
+                }
+            }
+        }
+    }
     if let Ok(p) = element.get_pattern::<UIValuePattern>() {
         if p.set_value(valeur).is_ok() {
             return Ok((c, Effet::Motif("setvalue")));

@@ -48,11 +48,14 @@ lazy_static = "1.5.0"
 # build then needs neither libxdo nor X11 headers.
 enigo = { version = "0.6", optional = true }
 xcap = { version = "0.9", optional = true }
+# Presse-papiers, texte seulement: `image-data` tirerait la caisse `image`
+# entiere pour une fonction que cet outil n'expose pas.
+arboard = { version = "3.6.1", default-features = false, optional = true }
 
 [features]
 default = ["gui-control"]
 # Mouse, keyboard and screen. See `src/abeilles/ordinateur.rs`.
-gui-control = ["dep:enigo", "dep:xcap", "dep:uiautomation", "dep:windows"]
+gui-control = ["dep:enigo", "dep:xcap", "dep:uiautomation", "dep:windows", "dep:arboard"]
 # Browser-identical TLS handshake for hosts that fingerprint the connection.
 # Requires cmake, nasm and a C compiler. Build once before relying on it.
 tls-emulation = ["dep:wreq", "dep:wreq-util"]
