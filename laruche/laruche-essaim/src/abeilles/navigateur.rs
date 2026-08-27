@@ -818,6 +818,20 @@ struct Cdp {
     /// Registering it twice would not break anything, but it would stack a fresh
     /// copy on every action for the whole life of the session.
     tap_registre: bool,
+    /// Ce qu'il faut repondre au PROCHAIN dialogue, pose par l'action `dialog`.
+    ///
+    /// Un seul usage, puis oubli: une politique qui resterait armee ferait
+    /// accepter en silence un dialogue qu'on n'attendait pas, trois actions plus
+    /// loin. Repondre "oui" a une question qu'on n'a pas lue est exactement ce
+    /// qu'il ne faut pas automatiser.
+    politique_dialogue: Option<(bool, Option<String>)>,
+    /// Le dernier dialogue traite, a rapporter avec le resultat de l'action
+    /// pendant laquelle il est apparu.
+    dernier_dialogue: Option<String>,
+    /// Le dossier ou tombent les telechargements, une fois `download` appele.
+    dossier_telechargement: Option<String>,
+    /// Les noms annonces par le navigateur depuis le dernier releve.
+    telechargements: Vec<String>,
 }
 
 impl Cdp {
@@ -829,6 +843,10 @@ impl Cdp {
             port,
             glow_script: None,
             tap_registre: false,
+            politique_dialogue: None,
+            dernier_dialogue: None,
+            dossier_telechargement: None,
+            telechargements: Vec::new(),
         })
     }
 
@@ -867,6 +885,57 @@ impl Cdp {
             .ok();
     }
 
+    /// Repond au dialogue qui vient de bloquer la page, et note ce qu'il disait.
+    ///
+    /// Par defaut on ANNULE. C'est le choix conservateur: annuler laisse la page
+    /// dans l'etat ou elle etait, accepter la fait avancer, et "avancer" est
+    /// justement ce qu'un `confirm` demande la permission de faire. Un dialogue
+    /// dit "supprimer definitivement ?" aussi souvent qu'il dit "continuer ?",
+    /// et l'outil ne sait pas lequel il a sous les yeux.
+    ///
+    /// Pour accepter il faut l'avoir demande, avec l'action `dialog`, avant le
+    /// geste qui declenche le dialogue.
+    async fn repondre_au_dialogue(&mut self, evenement: &Value) {
+        let p = &evenement["params"];
+        let genre = p["type"].as_str().unwrap_or("dialog");
+        let message = p["message"].as_str().unwrap_or("");
+        let (accepter, texte) = self.politique_dialogue.take().unwrap_or((false, None));
+
+        let mut reponse = json!({ "accept": accepter });
+        // `promptText` n'a de sens que sur un prompt, et Chrome le refuse
+        // ailleurs.
+        if genre == "prompt" {
+            if let Some(t) = &texte {
+                reponse["promptText"] = json!(t);
+            }
+        }
+        // Appel direct plutot que `self.call`: on est deja dans la boucle de
+        // reception de `call`, et y rentrer une seconde fois volerait des
+        // messages a l'appel qui nous attend.
+        self.next_id += 1;
+        let payload = json!({ "id": self.next_id, "method": "Page.handleJavaScriptDialog",
+                              "params": reponse })
+        .to_string();
+        let _ = self.ws.send(Message::text(payload)).await;
+
+        self.dernier_dialogue = Some(format!(
+            "The page opened a {genre}() saying: \"{message}\". It was {} to unblock the \
+             page{}. {}",
+            if accepter { "accepted" } else { "dismissed" },
+            match (genre, &texte) {
+                ("prompt", Some(t)) => format!(", answering \"{t}\""),
+                _ => String::new(),
+            },
+            if accepter {
+                "This was the policy you set with the dialog action, and it is now cleared."
+            } else {
+                "Dismissing is the default, because accepting is what a confirm() asks \
+                 permission for. If this one had to be accepted, call dialog with \
+                 accept:true and redo the gesture that raised it."
+            }
+        ));
+    }
+
     /// Send one command and wait for the matching reply. CDP interleaves events
     /// with replies on the same socket, so anything without our id is dropped.
     async fn call(&mut self, method: &str, params: Value) -> Result<Value> {
@@ -892,7 +961,33 @@ impl Cdp {
                 Err(_) => continue,
             };
             if v.get("id").and_then(Value::as_u64) != Some(id) {
-                continue; // an event, or a reply to someone else
+                // Un evenement, ou la reponse de quelqu'un d'autre. Un seul
+                // evenement compte ici, et il compte beaucoup: le dialogue.
+                //
+                // `alert`, `confirm` et `beforeunload` BLOQUENT le fil de la
+                // page. Tant que personne ne repond, plus aucun `Runtime.evaluate`
+                // ne rend la main, donc l'appel en cours part au bout des trente
+                // secondes et rapporte "CDP timeout", qui ne dit rien de ce qui
+                // s'est reellement passe. L'agent relance, retombe sur le meme
+                // mur, et conclut que la page est cassee.
+                //
+                // On ne s'abonne a rien de plus: `Page.enable` est deja actif,
+                // donc l'evenement passait deja par ici et etait simplement
+                // jete.
+                match v.get("method").and_then(Value::as_str) {
+                    Some("Page.javascriptDialogOpening") => self.repondre_au_dialogue(&v).await,
+                    // Un telechargement ne bloque rien, mais il est invisible:
+                    // le fichier arrive sur le disque et l'agent n'a aucun moyen
+                    // d'apprendre son nom, donc il devine, ou il liste un
+                    // dossier en esperant reconnaitre le bon.
+                    Some("Browser.downloadWillBegin") => {
+                        if let Some(n) = v["params"]["suggestedFilename"].as_str() {
+                            self.telechargements.push(n.to_string());
+                        }
+                    }
+                    _ => {}
+                }
+                continue;
             }
             if let Some(err) = v.get("error") {
                 let m = err
@@ -1948,18 +2043,19 @@ impl Abeille for Browser {
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["navigate", "read", "find", "overlays", "click", "right_click", "double_click", "middle_click", "drag", "fill", "upload", "key", "hover", "scroll", "wait", "eval", "screenshot", "console", "network", "back", "forward", "tabs", "select", "resize", "close"],
-                    "description": "navigate: go to url. read: numbered map of interactive elements plus page text. find: the same map filtered to what matches text, for a page too big to read whole. overlays: what is COVERING the page, cookie banners, modals and sign-up walls, with the refs of their buttons; run it the moment a click seems to do nothing. click/fill: act on a ref from read. right_click, double_click and middle_click send REAL mouse events at the element, which el.click() cannot: a context menu, a map, an editor, or opening a link in a background tab. drag moves ref onto to_ref, pressing and stepping so HTML5 and sortable lists actually arm. upload puts a local file into a file input, which no script is allowed to do. key: press a real key (Enter, Tab, Escape, Arrow*, Control+a), optionally in a ref. hover: move the mouse onto a ref, which is what opens menus that click does not. scroll: move the page (or a ref) up/down. wait: block until text or a selector appears. eval: run JavaScript. screenshot: capture the page. console: what the page logged. network: what the page requested. back/forward: move in history. resize emulates a viewport, preset mobile, tablet or desktop, or width and height, which is the only way to actually check a responsive layout. tabs: list every open browser tab. select: drive one of those tabs by tab_id. close: end the session."
+                    "enum": ["navigate", "read", "find", "overlays", "click", "right_click", "double_click", "middle_click", "drag", "fill", "upload", "key", "hover", "scroll", "wait", "eval", "screenshot", "console", "network", "back", "forward", "cookies", "download", "tabs", "open_tab", "select", "resize", "dialog", "close"],
+                    "description": "navigate: go to url. read: numbered map of interactive elements plus page text. find: the same map filtered to what matches text, for a page too big to read whole. overlays: what is COVERING the page, cookie banners, modals and sign-up walls, with the refs of their buttons; run it the moment a click seems to do nothing. click/fill: act on a ref from read. right_click, double_click and middle_click send REAL mouse events at the element, which el.click() cannot: a context menu, a map, an editor, or opening a link in a background tab. drag moves ref onto to_ref, pressing and stepping so HTML5 and sortable lists actually arm. upload puts a local file into a file input, which no script is allowed to do. key: press a real key (Enter, Tab, Escape, Arrow*, Control+a), optionally in a ref. hover: move the mouse onto a ref, which is what opens menus that click does not. scroll: move the page (or a ref) up/down. wait: block until text or a selector appears. eval: run JavaScript. screenshot: capture the page. console: what the page logged. network: what the page requested. cookies: the names and sizes of this page's cookies, never their values. dialog: decide what to answer the NEXT alert, confirm or prompt, once. open_tab: open another tab. download: allow downloads and choose the folder they land in, then click the link; the filename comes back with the next action. back/forward: move in history. resize emulates a viewport, preset mobile, tablet or desktop, or width and height, which is the only way to actually check a responsive layout. tabs: list every open browser tab. select: drive one of those tabs by tab_id. close: end the session."
                 },
                 "url": { "type": "string", "description": "For navigate" },
                 "to_ref": { "type": "integer", "description": "For drag: the element to drop onto, a ref from read" },
-                "path": { "type": "string", "description": "For upload: an absolute path to a file on this machine" },
+                "path": { "type": "string", "description": "For upload: an absolute path to a file on this machine. For download: the folder downloads should land in, default a telechargements folder beside the node." },
+                "accept": { "type": "boolean", "description": "For dialog: accept the next dialog instead of dismissing it. Default false, because accepting is what a confirm() asks permission for." },
                 "preset": { "type": "string", "enum": ["mobile", "tablet", "desktop"], "description": "For resize: a ready-made viewport. mobile and tablet also emulate a touch device." },
                 "width": { "type": "integer", "description": "For resize: viewport width in CSS pixels, when no preset is given" },
                 "height": { "type": "integer", "description": "For resize: viewport height in CSS pixels" },
                 "mobile": { "type": "boolean", "description": "For resize with width/height: emulate a touch device as well as the size" },
                 "ref": { "type": "integer", "description": "Element number from read, without the ref_ prefix. For scroll, optional: scrolls that element into view. For key, optional: focuses that element before pressing." },
-                "text": { "type": "string", "description": "For fill: the value to put in the field. For find and wait: the wording to look for. For network: keep only URLs containing it." },
+                "text": { "type": "string", "description": "For fill: the value to put in the field, or the visible label of the option to pick in a select. For find and wait: the wording to look for. For network and cookies: keep only entries containing it. For dialog with accept: the answer to a prompt()." },
                 "key": { "type": "string", "description": "For key: Enter, Tab, Escape, Backspace, Delete, Space, Home, End, PageUp, PageDown, ArrowUp/Down/Left/Right, F1-F12, or a single character. Prefix with Control+, Shift+, Alt+ or Meta+ to chord." },
                 "repeat": { "type": "integer", "description": "For key: press it this many times, default 1, max 50" },
                 "hold_ms": { "type": "integer", "description": "For key: hold it down this long before releasing, default 0" },
@@ -2744,6 +2840,191 @@ impl Abeille for Browser {
                 )))
             }
 
+            // Ce qu'il faudra repondre au PROCHAIN dialogue. Une seule fois.
+            "dialog" => {
+                let accepter = args["accept"].as_bool().unwrap_or(false);
+                let texte = args["text"].as_str().map(str::to_string);
+                match canal {
+                    Canal::Cdp(cdp) => {
+                        cdp.politique_dialogue = Some((accepter, texte.clone()));
+                        Ok(ResultatAbeille::ok(format!(
+                            "The next alert(), confirm() or prompt() will be {}{}. This holds \
+                             for ONE dialog and is then forgotten, on purpose: a standing \
+                             policy would answer a question you never read. Now do the thing \
+                             that raises it.",
+                            if accepter { "accepted" } else { "dismissed" },
+                            match &texte {
+                                Some(t) if accepter => format!(", answering \"{t}\""),
+                                _ => String::new(),
+                            }
+                        )))
+                    }
+                    // En mode extension, le dialogue s'affiche dans le vrai
+                    // Chrome de l'utilisateur, qui est devant. C'est lui qui
+                    // repond, et c'est tres bien ainsi.
+                    Canal::Extension => Ok(ResultatAbeille::err(
+                        "Dialogs are not intercepted in extension mode: they appear in the \
+                         user's own Chrome and the user answers them. If the page seems \
+                         frozen, ask them to look at their browser."
+                            .to_string(),
+                    )),
+                }
+            }
+
+            // Ouvrir un onglet. `tabs` listait et `select` basculait, mais rien
+            // ne creait: comparer deux pages, ou garder une reference ouverte a
+            // cote, demandait de quitter celle qu'on avait.
+            "open_tab" => {
+                let cible = args["url"].as_str().unwrap_or("about:blank");
+                if cible != "about:blank"
+                    && !cible.starts_with("http://")
+                    && !cible.starts_with("https://")
+                {
+                    return Ok(ResultatAbeille::err(
+                        "URL must start with http:// or https://".to_string(),
+                    ));
+                }
+                match canal {
+                    Canal::Cdp(cdp) => {
+                        let r = cdp
+                            .call("Target.createTarget", json!({ "url": cible }))
+                            .await?;
+                        let id = r["targetId"].as_str().unwrap_or("");
+                        Ok(ResultatAbeille::ok(format!(
+                            "Opened a tab on {cible}, tabId {id}. You are still driving the \
+                             previous one: select that tabId to move over, and remember refs \
+                             belong to a page, not to you."
+                        )))
+                    }
+                    Canal::Extension => Ok(ResultatAbeille::err(
+                        "Opening a tab is not available through the extension: it would put a \
+                         window in front of the user without warning. Ask them to open it, or \
+                         navigate the tab you already have."
+                            .to_string(),
+                    )),
+                }
+            }
+
+            // Ouvrir la porte des telechargements, et dire ou ils tombent.
+            //
+            // Sans ca, un lien de telechargement est un cul-de-sac: selon le
+            // profil le navigateur refuse en silence, ou depose le fichier dans
+            // un dossier que l'agent ne connait pas et sous un nom qu'il n'a
+            // jamais vu. Il finit par lister le dossier des telechargements de
+            // l'utilisateur en esperant reconnaitre le bon, ce qui est a la fois
+            // fragile et indiscret.
+            "download" => {
+                let Canal::Cdp(cdp) = canal else {
+                    return Ok(ResultatAbeille::err(
+                        "Downloads are not steered in extension mode: the file goes wherever \
+                         the user's Chrome is configured to put it. Ask them where it landed, \
+                         or fetch the URL with web_fetch instead."
+                            .to_string(),
+                    ));
+                };
+                // Un dossier a nous, pas celui de l'utilisateur: on y sait ce
+                // qu'on a mis, et on ne fouille pas dans ses affaires.
+                let dossier = match args["path"].as_str().filter(|p| !p.trim().is_empty()) {
+                    Some(p) => std::path::PathBuf::from(p),
+                    None => std::env::current_dir()
+                        .unwrap_or_default()
+                        .join("telechargements"),
+                };
+                if let Err(e) = std::fs::create_dir_all(&dossier) {
+                    return Ok(ResultatAbeille::err(format!(
+                        "Cannot create \"{}\": {e}",
+                        dossier.display()
+                    )));
+                }
+                let chemin = dossier.to_string_lossy().to_string();
+                cdp.call(
+                    "Browser.setDownloadBehavior",
+                    // `eventsEnabled` est ce qui fait remonter le nom du fichier;
+                    // sans lui le telechargement marche mais reste anonyme.
+                    json!({ "behavior": "allow", "downloadPath": chemin,
+                            "eventsEnabled": true }),
+                )
+                .await?;
+                cdp.dossier_telechargement = Some(chemin.clone());
+
+                let vus: Vec<String> = std::mem::take(&mut cdp.telechargements);
+                Ok(ResultatAbeille::ok(format!(
+                    "Downloads are allowed and will land in \"{chemin}\".{}\n\nNow click the \
+                     link. The name arrives with the NEXT browser action, so read or wait \
+                     afterwards, then open the file with read_extract or file_read. Tell the \
+                     user what you downloaded and from where: a file arriving on their disk \
+                     is not a detail.",
+                    if vus.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" Already seen since last time: {}.", vus.join(", "))
+                    }
+                )))
+            }
+
+            // Les cookies de la page. En LECTURE seulement.
+            "cookies" => {
+                let r = canal.input("Network.getCookies", json!({})).await?;
+                let vides = Vec::new();
+                let liste = r["cookies"].as_array().unwrap_or(&vides);
+                if liste.is_empty() {
+                    return Ok(ResultatAbeille::ok(
+                        "This page has no cookies.".to_string(),
+                    ));
+                }
+                let filtre = args["text"].as_str().unwrap_or("").to_lowercase();
+                let mut lignes: Vec<String> = liste
+                    .iter()
+                    .filter(|c| {
+                        filtre.is_empty()
+                            || c["name"]
+                                .as_str()
+                                .unwrap_or("")
+                                .to_lowercase()
+                                .contains(&filtre)
+                    })
+                    .map(|c| {
+                        // La VALEUR n'est jamais rendue. Un cookie de session
+                        // EST la session: le recopier dans une reponse le fait
+                        // entrer dans un transcript, dans une memoire, et
+                        // possiblement chez un fournisseur de modele. On rend de
+                        // quoi raisonner, jamais de quoi se faire passer pour
+                        // l'utilisateur.
+                        let taille = c["value"].as_str().unwrap_or("").len();
+                        format!(
+                            "{}  {} bytes  domain {}{}{}",
+                            c["name"].as_str().unwrap_or(""),
+                            taille,
+                            c["domain"].as_str().unwrap_or(""),
+                            if c["httpOnly"].as_bool().unwrap_or(false) {
+                                "  httpOnly"
+                            } else {
+                                ""
+                            },
+                            if c["secure"].as_bool().unwrap_or(false) {
+                                "  secure"
+                            } else {
+                                ""
+                            }
+                        )
+                    })
+                    .collect();
+                lignes.sort();
+                Ok(ResultatAbeille::ok(format!(
+                    "{} cookie(s){}:\n{}\n\nValues are deliberately not returned. A session \
+                     cookie IS the session: printing one would put it in the transcript, in \
+                     memory, and possibly through a model provider. If you need to know \
+                     whether a login took, read the page, not the cookie jar.",
+                    lignes.len(),
+                    if filtre.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" matching \"{filtre}\"")
+                    },
+                    lignes.join("\n")
+                )))
+            }
+
             "overlays" => {
                 // La lecture d'abord, pour que les boutons du calque portent
                 // deja un numero: rapporter "il y a une modale" sans dire sur
@@ -3010,10 +3291,42 @@ impl Abeille for Browser {
             }
 
             other => Ok(ResultatAbeille::err(format!(
-                "Unknown action '{other}'. Use navigate, read, find, click, fill, key, hover, \
-                 scroll, wait, eval, screenshot, console, network, back, forward, tabs, select \
+                "Unknown action '{other}'. Use navigate, read, find, overlays, click, \
+                 right_click, double_click, middle_click, drag, fill, upload, key, hover, \
+                 scroll, wait, eval, screenshot, console, network, cookies, back, forward, \
+                 tabs, open_tab, select, resize, dialog, download
                  or close."
             ))),
+        };
+
+        // Un dialogue apparu PENDANT l'action se raconte avec elle. Le rapporter
+        // au coup d'apres arriverait quand le modele a deja tire ses conclusions
+        // du resultat precedent, et ce resultat serait inexplicable sans lui.
+        let note = match guard.as_mut() {
+            Some(Canal::Cdp(cdp)) => {
+                let mut bouts: Vec<String> = cdp.dernier_dialogue.take().into_iter().collect();
+                // Un fichier arrive pendant l'action se dit avec elle, et avec
+                // son chemin complet: c'est la seule chose dont l'appelant a
+                // besoin pour l'ouvrir ensuite.
+                if !cdp.telechargements.is_empty() {
+                    let noms = std::mem::take(&mut cdp.telechargements);
+                    let ou = cdp.dossier_telechargement.clone().unwrap_or_default();
+                    bouts.push(format!(
+                        "Downloaded during this action: {}. They are in \"{ou}\". Say so to \
+                         the user, naming the file and where it came from.",
+                        noms.join(", ")
+                    ));
+                }
+                (!bouts.is_empty()).then(|| bouts.join("\n\n"))
+            }
+            _ => None,
+        };
+        let outcome = match (outcome, note) {
+            (Ok(mut r), Some(n)) => {
+                r.output = format!("{}\n\n{n}", r.output);
+                Ok(r)
+            }
+            (autre, _) => autre,
         };
 
         match outcome {

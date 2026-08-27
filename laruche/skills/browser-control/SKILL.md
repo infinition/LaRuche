@@ -18,8 +18,8 @@ the rest of the session.
 
 `navigate`, `read`, `find`, `overlays`, `click`, `right_click`, `double_click`,
 `middle_click`, `drag`, `fill`, `upload`, `key`, `hover`, `scroll`, `wait`, `eval`,
-`screenshot`, `console`, `network`, `back`, `forward`, `tabs`, `select`, `resize`,
-`close`. There is no other action. If a gesture is not in this list, do it with `eval`.
+`screenshot`, `console`, `network`, `cookies`, `download`, `back`, `forward`, `tabs`,
+`open_tab`, `select`, `resize`, `dialog`, `close`. There is no other action. If a gesture is not in this list, do it with `eval`.
 Never describe an action you did not actually call: if you did not `scroll`, do not say
 you scrolled.
 
@@ -99,6 +99,53 @@ engine into touch rendering, which is what actually makes a well-built page chan
 It is an override, not a real window: it survives navigation and stays until you resize
 again. Reload before judging, because a page that decided its layout at load time will not
 re-decide on its own, then `screenshot`.
+
+## Dialogs, which freeze everything
+
+`alert()`, `confirm()` and `prompt()` stop the page's JavaScript dead. Nothing else runs
+until one is answered, so every later call would sit there until it times out and report
+"CDP timeout", which explains nothing.
+
+They are intercepted and **dismissed** by default, and the result of whatever action raised
+one tells you what it said. Dismissing is the conservative answer: it leaves the page as it
+was, where accepting makes it go ahead, and going ahead is precisely what a `confirm()` is
+asking permission for. "Delete permanently?" and "Continue?" look identical from here.
+
+To accept one deliberately, call `dialog` `{ "accept": true }` first, then do the gesture
+that raises it. Add `text` to answer a `prompt()`. The policy is used **once** and then
+forgotten, so it can never answer a question you did not read.
+
+In extension mode the dialog appears in the user's own Chrome and they answer it. If the
+page seems frozen there, ask them to look at their browser.
+
+## Downloads
+
+Call `download` first: it allows downloading, picks the folder, and turns on the reporting
+that gives you the filename. Then click the link. The name arrives attached to the next
+action's result, with the full folder path, and you open it with `read_extract` or
+`file_read`.
+
+Without that first call, a download is a dead end: the browser either refuses silently or
+drops the file somewhere you were never told, under a name you never saw.
+
+**Tell the user what you downloaded and where it came from.** A file arriving on their disk
+is not an implementation detail.
+
+## Cookies, and what is not returned
+
+`cookies` lists the names, sizes and domains of the current page's cookies. It never returns
+their values, deliberately: a session cookie *is* the session, and printing one would put it
+in the transcript, in memory, and possibly through a model provider. To check whether a
+login worked, read the page.
+
+## More than one tab
+
+`tabs` lists them, `open_tab` `{ "url": "..." }` opens one, `select` `{ "tab_id": ... }`
+moves you to it. Opening a tab does not move you into it. Refs belong to a page, so read
+again after every switch.
+
+`open_tab` is not available through the extension: putting a window in front of someone
+without warning is not the tool's call to make.
 
 ## Keys, hover, and waiting
 
