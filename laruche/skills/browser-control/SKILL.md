@@ -16,10 +16,12 @@ the rest of the session.
 
 ## The actions, and nothing else
 
-`navigate`, `read`, `find`, `click`, `fill`, `key`, `hover`, `scroll`, `wait`, `eval`,
-`screenshot`, `console`, `network`, `back`, `forward`, `tabs`, `select`, `close`. There is
-no other action. If a gesture is not in this list, do it with `eval`. Never describe an
-action you did not actually call: if you did not `scroll`, do not say you scrolled.
+`navigate`, `read`, `find`, `overlays`, `click`, `right_click`, `double_click`,
+`middle_click`, `drag`, `fill`, `upload`, `key`, `hover`, `scroll`, `wait`, `eval`,
+`screenshot`, `console`, `network`, `back`, `forward`, `tabs`, `select`, `resize`,
+`close`. There is no other action. If a gesture is not in this list, do it with `eval`.
+Never describe an action you did not actually call: if you did not `scroll`, do not say
+you scrolled.
 
 ## The loop that needs no screenshot
 
@@ -40,6 +42,63 @@ straight after it works.
 or page change throws them away. After navigating, after submitting, after anything that
 reloads or replaces content, `read` again before you `click` or `fill`. Acting on a stale
 ref returns "No element ref_N on this page. Run read again".
+
+`read` walks into shadow roots and into same-origin iframes, so a page that is a shell
+around an embedded application reads normally. An element found inside a frame is marked
+`[in frame]`. A **cross-origin** iframe is still invisible: the browser forbids reading
+across origins from a script, and that is the one blind spot left. A payment field, a
+reCAPTCHA or an embedded checkout usually lives in one; when the page clearly has a form
+that never appears in `read`, that is why.
+
+A `<select>` lists its options in the read, with `*` on the selected one. Choose with
+`fill` and the option's visible label: `fill { ref: 5, text: "France" }`. It matches the
+label first, then the value, then a fragment, and if nothing matches it tells you what was
+available rather than doing nothing.
+
+A file input cannot be filled, by any script, in any browser: that restriction is what
+stops a page from helping itself to your disk. `upload` `{ "ref": 4, "path": "C:/..." }`
+goes through the debugger instead. The path must be absolute.
+
+## When nothing happens: something is covering the page
+
+This is the failure that does not look like one. `read` returns the whole page, including
+what is behind a modal. You pick a real button, the click is sent, no error comes back,
+and nothing moves, because a layer is on top or the body is frozen.
+
+**`overlays` is the first thing to run when a click seems to do nothing.** It reports what
+is covering the page, how much of the view it takes, whether the body can still scroll, and
+the refs of the buttons inside it.
+
+**A consent banner is the user's decision, not an obstacle.** Never accept one on their
+behalf. Prefer the option that refuses everything optional: "Reject all", "Refuser tout",
+"Continue without accepting", or the equivalent behind a "Manage" or "Customise" panel,
+which is often where the real refusal is hidden. If the only way past is to accept, stop
+and ask. This runs in the user's own browser, under their own session, and the answer is
+recorded as theirs.
+
+## Real mouse gestures
+
+`click` calls the element directly, which is the reliable path and the right default. The
+following send actual mouse events at the element's position instead, for what a direct
+call cannot express:
+
+- `right_click` opens a context menu. Note that a menu drawn by the browser itself is not
+  part of the page and will not show up in `read`.
+- `double_click` for a map, an editor, a rename-in-place.
+- `middle_click` opens a link in a background tab.
+- `drag` `{ "ref": 2, "to_ref": 7 }` presses on one element and drops it on another,
+  moving in steps with a pause at each end. Sortable lists, kanban boards and HTML5 drop
+  zones only arm on a real press-and-move, so a direct call can never do this.
+
+## Checking a responsive layout
+
+`resize` `{ "preset": "mobile" }` emulates a phone viewport, `tablet` and `desktop` do the
+obvious, and `width`/`height` take an exact size. `mobile` and `tablet` also switch the
+engine into touch rendering, which is what actually makes a well-built page change.
+
+It is an override, not a real window: it survives navigation and stays until you resize
+again. Reload before judging, because a page that decided its layout at load time will not
+re-decide on its own, then `screenshot`.
 
 ## Keys, hover, and waiting
 

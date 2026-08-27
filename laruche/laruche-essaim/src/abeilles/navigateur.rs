@@ -46,14 +46,221 @@ const DEFAULT_MAX_CHARS: usize = 6000;
 /// stable `data-lr-ref` so that a later `click` or `fill` can find it again,
 /// and returns one line per element. Kept as one expression so it can be handed
 /// straight to Runtime.evaluate.
-const SCRIPT_READ: &str = r#"
+/// Retrouver un element numerote, OU QU'IL SOIT.
+///
+/// `document.querySelector` ne voit ni dans un shadow root, ni dans une iframe.
+/// Les deux sont partout: la moitie des systemes de composants modernes met
+/// tout son contenu derriere un shadow root ferme au CSS mais ouvert au script,
+/// et une page reelle est souvent une coquille avec l'application dans une
+/// iframe. Une page pareille se lisait comme presque vide, et le modele en
+/// concluait qu'il n'y avait rien a faire.
+///
+/// Duplique dans chaque script plutot que pose une fois sur `window`: un script
+/// qui dependrait d'un etat installe par un appel precedent casse des que la
+/// page navigue, et il casserait en silence.
+const JS_TROUVER: &str = r#"
+const __lrRacines = () => {
+  const out = [document];
+  const creuser = (racine) => {
+    // Les shadow roots ouverts. Un shadow root ferme est inatteignable depuis
+    // le script, par conception; il n'y a pas de contournement honnete.
+    for (const el of racine.querySelectorAll('*')) {
+      if (el.shadowRoot) { out.push(el.shadowRoot); creuser(el.shadowRoot); }
+    }
+    // Les iframes de MEME origine. Une iframe d'une autre origine leve une
+    // SecurityError a la lecture: on la saute, elle demande un autre chemin.
+    for (const f of racine.querySelectorAll('iframe, frame')) {
+      try {
+        const d = f.contentDocument;
+        if (d) { out.push(d); creuser(d); }
+      } catch (e) { /* origine differente */ }
+    }
+  };
+  creuser(document);
+  return out;
+};
+const __lrFind = (n) => {
+  for (const r of __lrRacines()) {
+    const el = r.querySelector('[data-lr-ref="' + n + '"]');
+    if (el) return el;
+  }
+  return null;
+};
+"#;
+
+/// Le script de lecture, helper de traversee inclus.
+fn script_read() -> String {
+    SCRIPT_READ_BRUT.replace("__RACINES__", JS_TROUVER)
+}
+
+/// Le script de detection des calques, helper de traversee inclus.
+fn script_calques() -> String {
+    SCRIPT_CALQUES.replace("__RACINES__", JS_TROUVER)
+}
+
+/// Met en phrases ce que la detection a rendu.
+fn decrire_calques(v: &Value) -> String {
+    let bloque = v["bloque"].as_bool().unwrap_or(false);
+    let calques = v["calques"].as_array().cloned().unwrap_or_default();
+
+    if calques.is_empty() {
+        return if bloque {
+            "No overlay found, but the page body cannot scroll: something is holding it, \
+             possibly a layer this check did not recognise. If clicks are not landing, take \
+             a screenshot and look."
+                .to_string()
+        } else {
+            "Nothing is covering the page.".to_string()
+        };
+    }
+
+    let mut out = format!(
+        "{} layer(s) covering the page{}:\n",
+        calques.len(),
+        if bloque {
+            ", and the body cannot scroll while they are there"
+        } else {
+            ""
+        }
+    );
+    for c in &calques {
+        let consent = c["consentement"].as_bool().unwrap_or(false);
+        out.push_str(&format!(
+            "\n<{}>{}{} covering {}% of the view\n  {}\n",
+            c["role"].as_str().unwrap_or("layer"),
+            if c["modal"].as_bool().unwrap_or(false) {
+                " [declares itself modal]"
+            } else {
+                ""
+            },
+            if consent { " [consent wording]" } else { "" },
+            c["couverture"].as_i64().unwrap_or(0),
+            c["texte"].as_str().unwrap_or("")
+        ));
+        let boutons = c["boutons"].as_array().cloned().unwrap_or_default();
+        if boutons.is_empty() {
+            out.push_str("  No button found inside it.\n");
+        } else {
+            out.push_str("  Buttons:\n");
+            for b in boutons {
+                out.push_str(&format!("    {}\n", b.as_str().unwrap_or("")));
+            }
+        }
+    }
+
+    // Un bandeau de consentement est un choix qui appartient a l'utilisateur, pas
+    // une gene a ecarter. L'outil le signale et s'arrete la: accepter le pistage
+    // a sa place, sur son propre navigateur et sa propre session, n'est pas une
+    // commodite, c'est une decision prise en son nom.
+    if calques
+        .iter()
+        .any(|c| c["consentement"].as_bool().unwrap_or(false))
+    {
+        out.push_str(
+            "\nOne of these asks for consent. Do not accept it on the user's behalf. Prefer \
+             the option that refuses everything optional, which is usually \"Reject all\", \
+             \"Refuser tout\", \"Continue without accepting\" or the equivalent inside a \
+             \"Manage\" panel. If the only way forward is to accept, stop and ask the user \
+             first: this runs in their browser, under their session, and the answer is \
+             recorded as theirs.",
+        );
+    } else {
+        out.push_str(
+            "\nA button that is not numbered sits in a frame or a shadow root the last read \
+             did not cover; read again, it now walks both.",
+        );
+    }
+    out
+}
+
+/// Ce qui RECOUVRE la page: modale, bandeau de consentement, mur d'inscription.
+///
+/// C'est le plus mauvais echec du pilotage de page, parce qu'il ne ressemble pas
+/// a un echec. La lecture rend la page entiere, y compris ce qui est derriere le
+/// voile; le modele choisit un bouton parfaitement reel, `el.click()` part sans
+/// erreur, et rien ne se passe, parce qu'un calque le recouvre ou parce que le
+/// defilement du corps est bloque. Il recommence, lit la meme page, reclique, et
+/// tourne. Le seul indice etait visuel, donc invisible sans capture.
+///
+/// On cherche trois signaux, dans cet ordre de fiabilite: le role declare
+/// (`dialog`, `alertdialog`, `aria-modal`), la geometrie (un element fixe qui
+/// couvre une grande part de la vue avec un empilement eleve), et enfin le
+/// vocabulaire du consentement, qui n'est qu'un indice de plus, jamais une
+/// condition.
+const SCRIPT_CALQUES: &str = r#"
 (() => {
-  const SEL = 'a[href], button, input, select, textarea, summary, [role="button"], [role="link"], [role="tab"], [role="checkbox"], [role="menuitem"], [contenteditable="true"], [onclick]';
-  document.querySelectorAll('[data-lr-ref]').forEach(e => e.removeAttribute('data-lr-ref'));
+  __RACINES__
+  const racines = __lrRacines();
+  const vue = { l: innerWidth, h: innerHeight };
+  const MOTS = /(cookie|consent|consentement|gdpr|rgpd|privacy|confidentialit|tracking|traceur|subscribe|newsletter|paywall|abonn|sign ?up|log ?in|connexion)/i;
+  const trouves = [];
+  const vus = new Set();
+  for (const r of racines) {
+    for (const el of r.querySelectorAll('*')) {
+      if (vus.has(el)) continue;
+      vus.add(el);
+      const doc = el.ownerDocument || document;
+      const w = doc.defaultView || window;
+      let s; try { s = w.getComputedStyle(el); } catch (e) { continue; }
+      if (s.display === 'none' || s.visibility === 'hidden' || s.opacity === '0') continue;
+      const fixe = s.position === 'fixed' || s.position === 'sticky';
+      const b = el.getBoundingClientRect();
+      if (b.width < 40 || b.height < 30) continue;
+      const couverture = (b.width * b.height) / (vue.l * vue.h);
+      const z = parseInt(s.zIndex, 10) || 0;
+      const role = (el.getAttribute('role') || '').toLowerCase();
+      const modal = el.getAttribute('aria-modal') === 'true'
+        || role === 'dialog' || role === 'alertdialog'
+        || el.tagName === 'DIALOG' && el.hasAttribute('open');
+      // Un calque credible: soit il se DECLARE modal, soit il est fixe, empile
+      // haut et couvre une part serieuse de la vue.
+      const calque = modal || (fixe && z >= 100 && couverture > 0.12);
+      if (!calque) continue;
+      // On ne garde pas un parent qui contient un calque deja retenu: sinon on
+      // remonte jusqu'a <body> et le rapport ne designe plus rien.
+      if (trouves.some(t => el.contains(t.el))) continue;
+      const texte = (el.innerText || '').replace(/\s+/g, ' ').trim();
+      if (!texte) continue;
+      const boutons = [];
+      for (const b2 of el.querySelectorAll('button, a[href], input[type="button"], input[type="submit"], [role="button"]')) {
+        const n = b2.getAttribute('data-lr-ref');
+        const t = (b2.innerText || b2.value || b2.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim();
+        if (t) boutons.push((n ? 'ref_' + n + ' ' : '(not numbered) ') + t.slice(0, 60));
+      }
+      trouves.push({
+        el,
+        role: role || el.tagName.toLowerCase(),
+        modal,
+        consentement: MOTS.test(texte),
+        couverture: Math.round(couverture * 100),
+        texte: texte.slice(0, 400),
+        boutons: boutons.slice(0, 12)
+      });
+    }
+  }
+  // Le defilement bloque est le second symptome, et il se voit sans calque.
+  const corps = getComputedStyle(document.body);
+  const bloque = corps.overflow === 'hidden' || corps.position === 'fixed'
+    || getComputedStyle(document.documentElement).overflow === 'hidden';
+  return JSON.stringify({
+    bloque,
+    calques: trouves.map(t => ({ role: t.role, modal: t.modal, consentement: t.consentement,
+                                couverture: t.couverture, texte: t.texte, boutons: t.boutons }))
+  });
+})()
+"#;
+
+const SCRIPT_READ_BRUT: &str = r#"
+(() => {
+  const SEL = 'a[href], button, input, select, textarea, summary, label, [role="button"], [role="link"], [role="tab"], [role="checkbox"], [role="radio"], [role="switch"], [role="combobox"], [role="textbox"], [role="option"], [role="menuitem"], [role="menuitemcheckbox"], [role="slider"], [contenteditable="true"], [onclick], [tabindex]:not([tabindex="-1"])';
+  __RACINES__
+  const racines = __lrRacines();
+  racines.forEach(r => r.querySelectorAll('[data-lr-ref]').forEach(e => e.removeAttribute('data-lr-ref')));
   const visible = el => {
     const r = el.getBoundingClientRect();
     if (r.width < 1 || r.height < 1) return false;
-    const s = getComputedStyle(el);
+    const vue = (el.ownerDocument && el.ownerDocument.defaultView) || window;
+    const s = vue.getComputedStyle(el);
     return s.visibility !== 'hidden' && s.display !== 'none' && s.opacity !== '0';
   };
   const label = el => {
@@ -67,23 +274,61 @@ const SCRIPT_READ: &str = r#"
     ].filter(Boolean);
     return (bits[0] || '').slice(0, 80);
   };
-  let n = 0;
+  // L'etat coche, et pour une liste deroulante SES OPTIONS. Sans elles, le
+  // modele voit `ref_5 <select>` et doit deviner ce qu'il peut choisir, ce qui
+  // veut dire l'inventer.
+  const etat = el => {
+    const t = (el.type || '').toLowerCase();
+    if (t === 'checkbox' || t === 'radio') return el.checked ? ' [checked]' : ' [unchecked]';
+    const aria = el.getAttribute('aria-checked');
+    if (aria === 'true') return ' [checked]';
+    if (aria === 'false') return ' [unchecked]';
+    return '';
+  };
+  const options = el => {
+    if (el.tagName !== 'SELECT') return '';
+    const noms = Array.from(el.options).slice(0, 40)
+      .map(o => (o.selected ? '*' : '') + (o.textContent || '').replace(/\s+/g, ' ').trim())
+      .filter(Boolean);
+    if (!noms.length) return '';
+    const trop = el.options.length > 40 ? ', ...' : '';
+    return ' options: ' + noms.join(' | ') + trop;
+  };
+  let n = 0, coupe = false;
   const rows = [];
-  for (const el of document.querySelectorAll(SEL)) {
-    if (!visible(el)) continue;
-    n += 1;
-    el.setAttribute('data-lr-ref', String(n));
-    const role = el.getAttribute('role') || el.tagName.toLowerCase();
-    const kind = el.type ? `${role}:${el.type}` : role;
-    const dis = el.disabled ? ' [disabled]' : '';
-    rows.push(`ref_${n} <${kind}>${dis} ${label(el)}`.trimEnd());
+  const vus = new Set();
+  for (const r of racines) {
+    for (const el of r.querySelectorAll(SEL)) {
+      // Une iframe imbriquee apparait dans plusieurs racines; sans ce garde le
+      // meme bouton recevait deux numeros differents.
+      if (vus.has(el)) continue;
+      vus.add(el);
+      if (!visible(el)) continue;
+      if (n >= 400) { coupe = true; break; }
+      n += 1;
+      el.setAttribute('data-lr-ref', String(n));
+      const role = el.getAttribute('role') || el.tagName.toLowerCase();
+      const kind = el.type ? `${role}:${el.type}` : role;
+      const dis = el.disabled ? ' [disabled]' : '';
+      const cadre = el.ownerDocument !== document ? ' [in frame]' : '';
+      rows.push(`ref_${n} <${kind}>${dis}${etat(el)}${cadre} ${label(el)}${options(el)}`.trimEnd());
+    }
+    if (coupe) break;
+  }
+  // Le texte des iframes de meme origine compte aussi: c'est souvent LE contenu.
+  let texte = (document.body ? document.body.innerText : '');
+  for (const r of racines) {
+    if (r === document || !r.body) continue;
+    const t = r.body.innerText;
+    if (t && t.trim()) texte += '\n\n' + t;
   }
   return JSON.stringify({
     url: location.href,
     title: document.title,
     count: n,
+    truncated: coupe,
     elements: rows,
-    text: (document.body ? document.body.innerText : '').replace(/\n{3,}/g, '\n\n')
+    text: texte.replace(/\n{3,}/g, '\n\n')
   });
 })()
 "#;
@@ -1550,6 +1795,125 @@ fn truncate(text: &str, max: usize) -> String {
 
 pub struct Browser;
 
+impl Browser {
+    /// Le centre d'un element numerote, en coordonnees de la vue, apres l'avoir
+    /// amene a l'ecran.
+    ///
+    /// Un evenement souris porte des coordonnees: viser un element reste hors
+    /// de la vue reviendrait a cliquer sur ce qui se trouve la, ce qui est
+    /// exactement le genre de geste qui reussit en rapportant autre chose.
+    async fn centre_du_ref(
+        canal: &mut Canal,
+        r: u64,
+        animate: bool,
+        speed: f64,
+    ) -> Result<Option<(f64, f64, String)>> {
+        let script = format!(
+            r#"{JS_TROUVER}window.__lrSpeed = {speed};
+               const el = __lrFind({r});
+               if (!el) return 'MISSING';
+               el.scrollIntoView({{block:'center', behavior:'instant'}});
+               if ({animate} && window.__larucheGlide) {{
+                 const b0 = el.getBoundingClientRect();
+                 await window.__larucheGlide(b0.left + b0.width / 2, b0.top + b0.height / 2);
+               }} else if (window.__laruchePulse) {{
+                 window.__laruchePulse(el);
+               }}
+               const b = el.getBoundingClientRect();
+               return JSON.stringify({{ x: b.left + b.width / 2, y: b.top + b.height / 2,
+                                        tag: el.tagName.toLowerCase() }});"#
+        );
+        let v = canal.eval(&script, true).await?;
+        if v.as_str() == Some("MISSING") {
+            return Ok(None);
+        }
+        let at: Value = serde_json::from_str(v.as_str().unwrap_or("{}")).unwrap_or(json!({}));
+        Ok(Some((
+            at["x"].as_f64().unwrap_or(0.0),
+            at["y"].as_f64().unwrap_or(0.0),
+            at["tag"].as_str().unwrap_or("").to_string(),
+        )))
+    }
+
+    /// Un vrai clic: press puis release au meme point, avec le compteur que
+    /// Chrome attend pour reconnaitre un double clic.
+    async fn clic_reel(
+        canal: &mut Canal,
+        x: f64,
+        y: f64,
+        bouton: &str,
+        fois: u32,
+    ) -> Result<()> {
+        // Un survol prealable: beaucoup de menus n'apparaissent qu'au passage,
+        // et un clic droit sur un element jamais survole rate son menu.
+        canal
+            .input(
+                "Input.dispatchMouseEvent",
+                json!({ "type": "mouseMoved", "x": x, "y": y, "button": "none" }),
+            )
+            .await
+            .ok();
+        for i in 1..=fois {
+            // `clickCount` cumule: c'est ce nombre, et non l'intervalle entre
+            // deux envois, qui fait qu'une page voit un double clic.
+            let params = json!({ "x": x, "y": y, "button": bouton, "clickCount": i });
+            let mut appui = params.clone();
+            appui["type"] = json!("mousePressed");
+            canal.input("Input.dispatchMouseEvent", appui).await?;
+            let mut lache = params;
+            lache["type"] = json!("mouseReleased");
+            canal.input("Input.dispatchMouseEvent", lache).await?;
+        }
+        Ok(())
+    }
+
+    /// Presse, deplace en paliers, relache.
+    ///
+    /// Les paliers ne sont pas un ornement: le glisser-deposer HTML5 et la
+    /// plupart des bibliotheques de tri ne s'amorcent qu'apres un mouvement
+    /// d'au moins quelques pixels, bouton enfonce. Un saut unique de A a B est
+    /// lu comme un clic, et le depot n'a jamais lieu.
+    async fn glisser(canal: &mut Canal, x1: f64, y1: f64, x2: f64, y2: f64) -> Result<()> {
+        canal
+            .input(
+                "Input.dispatchMouseEvent",
+                json!({ "type": "mouseMoved", "x": x1, "y": y1, "button": "none" }),
+            )
+            .await
+            .ok();
+        canal
+            .input(
+                "Input.dispatchMouseEvent",
+                json!({ "type": "mousePressed", "x": x1, "y": y1, "button": "left", "clickCount": 1 }),
+            )
+            .await?;
+        // Une pause avant le premier mouvement, pour les interfaces qui
+        // distinguent un appui long d'un clic avant d'armer le glisser.
+        tokio::time::sleep(Duration::from_millis(120)).await;
+        const PAS: i32 = 14;
+        for i in 1..=PAS {
+            let t = f64::from(i) / f64::from(PAS);
+            canal
+                .input(
+                    "Input.dispatchMouseEvent",
+                    json!({ "type": "mouseMoved", "x": x1 + (x2 - x1) * t,
+                            "y": y1 + (y2 - y1) * t, "button": "left" }),
+                )
+                .await
+                .ok();
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        tokio::time::sleep(Duration::from_millis(120)).await;
+        canal
+            .input(
+                "Input.dispatchMouseEvent",
+                json!({ "type": "mouseReleased", "x": x2, "y": y2, "button": "left", "clickCount": 1 }),
+            )
+            .await?;
+        Ok(())
+    }
+}
+
 #[async_trait]
 impl Abeille for Browser {
     fn nom(&self) -> &str {
@@ -1584,10 +1948,16 @@ impl Abeille for Browser {
             "properties": {
                 "action": {
                     "type": "string",
-                    "enum": ["navigate", "read", "find", "click", "fill", "key", "hover", "scroll", "wait", "eval", "screenshot", "console", "network", "back", "forward", "tabs", "select", "close"],
-                    "description": "navigate: go to url. read: numbered map of interactive elements plus page text. find: the same map filtered to what matches text, for a page too big to read whole. click/fill: act on a ref from read. key: press a real key (Enter, Tab, Escape, Arrow*, Control+a), optionally in a ref. hover: move the mouse onto a ref, which is what opens menus that click does not. scroll: move the page (or a ref) up/down. wait: block until text or a selector appears. eval: run JavaScript. screenshot: capture the page. console: what the page logged. network: what the page requested. back/forward: move in history. tabs: list every open browser tab. select: drive one of those tabs by tab_id. close: end the session."
+                    "enum": ["navigate", "read", "find", "overlays", "click", "right_click", "double_click", "middle_click", "drag", "fill", "upload", "key", "hover", "scroll", "wait", "eval", "screenshot", "console", "network", "back", "forward", "tabs", "select", "resize", "close"],
+                    "description": "navigate: go to url. read: numbered map of interactive elements plus page text. find: the same map filtered to what matches text, for a page too big to read whole. overlays: what is COVERING the page, cookie banners, modals and sign-up walls, with the refs of their buttons; run it the moment a click seems to do nothing. click/fill: act on a ref from read. right_click, double_click and middle_click send REAL mouse events at the element, which el.click() cannot: a context menu, a map, an editor, or opening a link in a background tab. drag moves ref onto to_ref, pressing and stepping so HTML5 and sortable lists actually arm. upload puts a local file into a file input, which no script is allowed to do. key: press a real key (Enter, Tab, Escape, Arrow*, Control+a), optionally in a ref. hover: move the mouse onto a ref, which is what opens menus that click does not. scroll: move the page (or a ref) up/down. wait: block until text or a selector appears. eval: run JavaScript. screenshot: capture the page. console: what the page logged. network: what the page requested. back/forward: move in history. resize emulates a viewport, preset mobile, tablet or desktop, or width and height, which is the only way to actually check a responsive layout. tabs: list every open browser tab. select: drive one of those tabs by tab_id. close: end the session."
                 },
                 "url": { "type": "string", "description": "For navigate" },
+                "to_ref": { "type": "integer", "description": "For drag: the element to drop onto, a ref from read" },
+                "path": { "type": "string", "description": "For upload: an absolute path to a file on this machine" },
+                "preset": { "type": "string", "enum": ["mobile", "tablet", "desktop"], "description": "For resize: a ready-made viewport. mobile and tablet also emulate a touch device." },
+                "width": { "type": "integer", "description": "For resize: viewport width in CSS pixels, when no preset is given" },
+                "height": { "type": "integer", "description": "For resize: viewport height in CSS pixels" },
+                "mobile": { "type": "boolean", "description": "For resize with width/height: emulate a touch device as well as the size" },
                 "ref": { "type": "integer", "description": "Element number from read, without the ref_ prefix. For scroll, optional: scrolls that element into view. For key, optional: focuses that element before pressing." },
                 "text": { "type": "string", "description": "For fill: the value to put in the field. For find and wait: the wording to look for. For network: keep only URLs containing it." },
                 "key": { "type": "string", "description": "For key: Enter, Tab, Escape, Backspace, Delete, Space, Home, End, PageUp, PageDown, ArrowUp/Down/Left/Right, F1-F12, or a single character. Prefix with Control+, Shift+, Alt+ or Meta+ to chord." },
@@ -1696,6 +2066,9 @@ impl Abeille for Browser {
             canal.hud(ligne.trim_end()).await;
         }
 
+        // Le helper de traversee, colle en tete de chaque script qui resout un
+        // ref: shadow roots et iframes de meme origine comprises.
+        let helper = JS_TROUVER;
         let outcome: Result<ResultatAbeille> = match action {
             "navigate" => {
                 let Some(url) = url else {
@@ -1726,7 +2099,7 @@ impl Abeille for Browser {
                 }
             }
 
-            "read" => match canal.eval(SCRIPT_READ, false).await {
+            "read" => match canal.eval(&script_read(), false).await {
                 Err(e) => Err(e),
                 Ok(v) => {
                     let raw = v.as_str().unwrap_or("{}");
@@ -1757,8 +2130,8 @@ impl Abeille for Browser {
                     return Ok(ResultatAbeille::err("click needs a 'ref' number from read."));
                 };
                 let script = format!(
-                    r#"window.__lrSpeed = {speed};
-                       const el = document.querySelector('[data-lr-ref="{r}"]');
+                    r#"{helper}window.__lrSpeed = {speed};
+                       const el = __lrFind({r});
                        if (!el) return 'MISSING';
                        el.scrollIntoView({{block:'center', behavior:'instant'}});
                        if ({animate} && window.__larucheClickAnim) {{
@@ -1790,11 +2163,48 @@ impl Abeille for Browser {
                 // friends: they listen on their own descriptor. Going through the
                 // native setter and firing the events is what actually registers.
                 let script = format!(
-                    r#"window.__lrSpeed = {speed};
-                       const el = document.querySelector('[data-lr-ref="{r}"]');
+                    r#"{helper}window.__lrSpeed = {speed};
+                       const el = __lrFind({r});
                        if (!el) return 'MISSING';
                        const v = {value};
                        el.scrollIntoView({{block:'center', behavior:'instant'}});
+                       // Une liste deroulante ne se remplit pas, elle se choisit.
+                       // Avant, on appelait le setter `value` de HTMLInputElement
+                       // sur un HTMLSelectElement, ce qui leve "Illegal
+                       // invocation": un <select> recevait bien un numero a la
+                       // lecture et TOUTE tentative de s'en servir echouait.
+                       if (el.tagName === 'SELECT') {{
+                         const cible = String(v).trim().toLowerCase();
+                         let trouve = -1;
+                         // Par libelle exact d'abord, puis par valeur, puis par
+                         // fragment: le modele lit un libelle, il ne connait pas
+                         // les valeurs internes.
+                         for (const [i, o] of Array.from(el.options).entries()) {{
+                           const t = (o.textContent || '').trim().toLowerCase();
+                           if (t === cible || String(o.value).trim().toLowerCase() === cible) {{ trouve = i; break; }}
+                         }}
+                         if (trouve < 0) {{
+                           for (const [i, o] of Array.from(el.options).entries()) {{
+                             if ((o.textContent || '').trim().toLowerCase().includes(cible)) {{ trouve = i; break; }}
+                           }}
+                         }}
+                         if (trouve < 0) {{
+                           const dispo = Array.from(el.options).slice(0, 40)
+                             .map(o => (o.textContent || '').trim()).filter(Boolean).join(' | ');
+                           return 'NOOPTION:' + dispo;
+                         }}
+                         if (window.__laruchePulse) window.__laruchePulse(el);
+                         el.focus();
+                         el.selectedIndex = trouve;
+                         el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                         el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                         return 'selected "' + el.options[trouve].textContent.trim() + '" in ref_{r}';
+                       }}
+                       // Un champ fichier ne se remplit pas non plus par script:
+                       // le navigateur l'interdit, et pour de bonnes raisons.
+                       if (el.type === 'file') {{
+                         return 'NOFILE';
+                       }}
                        if ({animate} && window.__larucheTypeAnim) {{
                          await window.__larucheTypeAnim(el, v);
                        }} else {{
@@ -1819,6 +2229,18 @@ impl Abeille for Browser {
                     Ok(v) if v.as_str() == Some("MISSING") => Ok(ResultatAbeille::err(format!(
                         "No element ref_{r} on this page. Run read again."
                     ))),
+                    Ok(v) if v.as_str() == Some("NOFILE") => Ok(ResultatAbeille::err(format!(
+                        "ref_{r} is a file input, and no browser lets a script put a file in \
+                         one: that restriction is what stops a page from stealing your disk. \
+                         Use the upload action with `path` instead, which goes through the \
+                         debugger rather than through the page."
+                    ))),
+                    Ok(v) if v.as_str().is_some_and(|s| s.starts_with("NOOPTION:")) => {
+                        let dispo = v.as_str().unwrap_or("").trim_start_matches("NOOPTION:");
+                        Ok(ResultatAbeille::err(format!(
+                            "No option matching \"{text}\" in ref_{r}. Available: {dispo}"
+                        )))
+                    }
                     Ok(v) => Ok(ResultatAbeille::ok(
                         v.as_str().unwrap_or("filled").to_string(),
                     )),
@@ -1863,7 +2285,7 @@ impl Abeille for Browser {
                 let behavior = if animate { "smooth" } else { "auto" };
                 let script = if let Some(r) = args["ref"].as_u64() {
                     format!(
-                        r#"const el = document.querySelector('[data-lr-ref="{r}"]');
+                        r#"{helper}const el = __lrFind({r});
                            if (!el) return 'MISSING';
                            el.scrollIntoView({{block:'center', behavior:'{behavior}'}});
                            if ({animate}) await new Promise(x => setTimeout(x, 500));
@@ -1894,7 +2316,7 @@ impl Abeille for Browser {
                         }
                     };
                     format!(
-                        r#"window.__lrSpeed = {speed};
+                        r#"{helper}window.__lrSpeed = {speed};
                            const target = {target};
                            if ({animate} && window.__larucheScrollAnim) {{
                              await window.__larucheScrollAnim(target);
@@ -2014,7 +2436,7 @@ impl Abeille for Browser {
                 // after a fill is usually right, and after a read is usually not.
                 if let Some(r) = args["ref"].as_u64() {
                     let focus = format!(
-                        r#"const el = document.querySelector('[data-lr-ref="{r}"]');
+                        r#"{helper}const el = __lrFind({r});
                            if (!el) return 'MISSING';
                            el.scrollIntoView({{block:'center', behavior:'instant'}});
                            el.focus();
@@ -2103,8 +2525,8 @@ impl Abeille for Browser {
                 // The real mouse move is what triggers :hover and the menus that
                 // only open on it; the animation is only there to be watchable.
                 let script = format!(
-                    r#"window.__lrSpeed = {speed};
-                       const el = document.querySelector('[data-lr-ref="{r}"]');
+                    r#"{helper}window.__lrSpeed = {speed};
+                       const el = __lrFind({r});
                        if (!el) return 'MISSING';
                        el.scrollIntoView({{block:'center', behavior:'instant'}});
                        if ({animate} && window.__larucheHoverAnim) {{
@@ -2147,6 +2569,196 @@ impl Abeille for Browser {
                 }
             }
 
+            // Un champ fichier ne se remplit pas depuis la page: le navigateur
+            // l'interdit, c'est ce qui empeche un site de se servir sur le
+            // disque. Le debogueur, lui, a le droit, et c'est le seul chemin.
+            "upload" => {
+                let Some(r) = args["ref"].as_u64() else {
+                    return Ok(ResultatAbeille::err(
+                        "upload needs a 'ref', the file input from read.".to_string(),
+                    ));
+                };
+                let Some(chemin) = args["path"].as_str().filter(|p| !p.trim().is_empty()) else {
+                    return Ok(ResultatAbeille::err(
+                        "upload needs 'path', an absolute path to a file on this machine."
+                            .to_string(),
+                    ));
+                };
+                // Verifier ICI plutot que de laisser le navigateur repondre une
+                // erreur de protocole opaque, et parce qu'un chemin relatif se
+                // resout contre le repertoire du navigateur, pas celui du noeud.
+                let p = std::path::Path::new(chemin);
+                if !p.is_absolute() {
+                    return Ok(ResultatAbeille::err(format!(
+                        "\"{chemin}\" is relative. The browser resolves it against its own \
+                         working directory, not the node's, so it would pick up the wrong \
+                         file or none. Pass an absolute path."
+                    )));
+                }
+                if !p.is_file() {
+                    return Ok(ResultatAbeille::err(format!(
+                        "No file at \"{chemin}\"."
+                    )));
+                }
+                // `returnByValue: false` pour recevoir une POIGNEE sur l'element
+                // et non sa copie: `DOM.setFileInputFiles` veut designer le noeud
+                // vivant.
+                let expr = format!("{JS_TROUVER}__lrFind({r})");
+                let poignee = canal
+                    .input(
+                        "Runtime.evaluate",
+                        json!({ "expression": expr, "returnByValue": false }),
+                    )
+                    .await?;
+                let Some(objet) = poignee["result"]["objectId"].as_str() else {
+                    return Ok(ResultatAbeille::err(format!(
+                        "No element ref_{r} on this page. Run read again."
+                    )));
+                };
+                canal
+                    .input(
+                        "DOM.setFileInputFiles",
+                        json!({ "files": [chemin], "objectId": objet }),
+                    )
+                    .await?;
+                Ok(ResultatAbeille::ok(format!(
+                    "Put \"{chemin}\" into ref_{r}. The page has had its change event, so a \
+                     form that watches the field has already reacted; read again to see."
+                )))
+            }
+
+            // Clic droit, double clic, clic milieu: de VRAIS evenements souris,
+            // avec des coordonnees, et non `el.click()`. Le clic droit ouvre un
+            // menu contextuel, que `el.click()` n'ouvre jamais; le double clic
+            // est un geste distinct pour une carte ou un editeur; le clic milieu
+            // ouvre un lien dans un onglet.
+            "right_click" | "double_click" | "middle_click" => {
+                let Some(r) = args["ref"].as_u64() else {
+                    return Ok(ResultatAbeille::err(format!(
+                        "{action} needs a 'ref' number from read."
+                    )));
+                };
+                match Self::centre_du_ref(canal, r, animate, speed).await? {
+                    None => Ok(ResultatAbeille::err(format!(
+                        "No element ref_{r} on this page. Run read again."
+                    ))),
+                    Some((x, y, tag)) => {
+                        let bouton = match action {
+                            "right_click" => "right",
+                            "middle_click" => "middle",
+                            _ => "left",
+                        };
+                        let fois = if action == "double_click" { 2 } else { 1 };
+                        Self::clic_reel(canal, x, y, bouton, fois).await?;
+                        Ok(ResultatAbeille::ok(format!(
+                            "{} on ref_{r} <{tag}>. Read again to see what it opened; a \
+                             context menu drawn by the browser itself is NOT part of the \
+                             page and will not appear in the read.",
+                            match action {
+                                "right_click" => "Right click",
+                                "middle_click" => "Middle click",
+                                _ => "Double click",
+                            }
+                        )))
+                    }
+                }
+            }
+
+            // Glisser d'un element vers un autre, en evenements souris reels.
+            // `el.click()` ne peut pas exprimer ca, et la moitie des interfaces
+            // modernes en depend: reordonner une liste, deposer sur une zone,
+            // deplacer une carte de kanban.
+            "drag" => {
+                let (Some(de), Some(vers)) = (args["ref"].as_u64(), args["to_ref"].as_u64())
+                else {
+                    return Ok(ResultatAbeille::err(
+                        "drag needs 'ref' (what to grab) and 'to_ref' (what to drop it on), \
+                         both numbers from read."
+                            .to_string(),
+                    ));
+                };
+                let Some((x1, y1, tag1)) = Self::centre_du_ref(canal, de, animate, speed).await?
+                else {
+                    return Ok(ResultatAbeille::err(format!(
+                        "No element ref_{de} on this page. Run read again."
+                    )));
+                };
+                let Some((x2, y2, _)) = Self::centre_du_ref(canal, vers, false, speed).await?
+                else {
+                    return Ok(ResultatAbeille::err(format!(
+                        "No element ref_{vers} on this page. Run read again."
+                    )));
+                };
+                Self::glisser(canal, x1, y1, x2, y2).await?;
+                Ok(ResultatAbeille::ok(format!(
+                    "Dragged ref_{de} <{tag1}> onto ref_{vers}. Read again to see whether it \
+                     took: a drop that the page refused looks exactly like one it accepted."
+                )))
+            }
+
+            // Emuler une taille d'ecran. Sans ca, une page ne pouvait etre vue
+            // qu'a la taille de la fenetre reelle, donc jamais verifiee au
+            // format telephone autrement qu'a l'oeil et de confiance.
+            "resize" => {
+                let preset = args["preset"].as_str().unwrap_or("");
+                let (l, h, mobile) = match preset {
+                    "mobile" => (390, 844, true),
+                    "tablet" => (820, 1180, true),
+                    "desktop" => (1440, 900, false),
+                    "" => (
+                        args["width"].as_i64().unwrap_or(0) as i32,
+                        args["height"].as_i64().unwrap_or(0) as i32,
+                        args["mobile"].as_bool().unwrap_or(false),
+                    ),
+                    autre => {
+                        return Ok(ResultatAbeille::err(format!(
+                            "Unknown preset '{autre}'. Use mobile, tablet, desktop, or pass \
+                             width and height."
+                        )))
+                    }
+                };
+                if l < 200 || h < 200 {
+                    return Ok(ResultatAbeille::err(
+                        "resize needs a preset (mobile, tablet, desktop) or width and height \
+                         of at least 200 each."
+                            .to_string(),
+                    ));
+                }
+                canal
+                    .input(
+                        "Emulation.setDeviceMetricsOverride",
+                        // `deviceScaleFactor: 0` garde celui de la machine.
+                        // `mobile` ne change pas que la taille: il bascule le
+                        // moteur en rendu tactile, ce qui est ce qui fait
+                        // reellement changer une page bien faite.
+                        json!({ "width": l, "height": h, "deviceScaleFactor": 0,
+                                "mobile": mobile }),
+                    )
+                    .await?;
+                Ok(ResultatAbeille::ok(format!(
+                    "Viewport is now {l}x{h}{}. This is an override on the page, not a real \
+                     window: it survives navigation and stays until you resize again. \
+                     Reload if the page decided its layout at load time, then screenshot. \
+                     Use preset desktop to get back to something ordinary.",
+                    if mobile { ", emulating a touch device" } else { "" }
+                )))
+            }
+
+            "overlays" => {
+                // La lecture d'abord, pour que les boutons du calque portent
+                // deja un numero: rapporter "il y a une modale" sans dire sur
+                // quoi cliquer laisserait le travail a moitie fait.
+                canal.eval(&script_read(), false).await.ok();
+                match canal.eval(&script_calques(), false).await {
+                    Err(e) => Err(e),
+                    Ok(v) => {
+                        let brut: Value = serde_json::from_str(v.as_str().unwrap_or("{}"))
+                            .unwrap_or_else(|_| json!({}));
+                        Ok(ResultatAbeille::ok(decrire_calques(&brut)))
+                    }
+                }
+            }
+
             "find" => {
                 let Some(query) = args["text"].as_str().filter(|q| !q.trim().is_empty()) else {
                     return Ok(ResultatAbeille::err(
@@ -2156,7 +2768,7 @@ impl Abeille for Browser {
                 // Deliberately the same mapping pass as read, filtered: refs stay
                 // consistent with what a following click expects, and a page with
                 // 200 controls comes back as the two lines that matter.
-                match canal.eval(SCRIPT_READ, false).await {
+                match canal.eval(&script_read(), false).await {
                     Err(e) => Err(e),
                     Ok(v) => {
                         let snap: Value =
@@ -2423,39 +3035,17 @@ mod tests {
 
     #[test]
     fn schema_declares_every_action() {
+        // On parcourt le schema lui-meme. La liste recopiee a cote ne gardait
+        // que le passe: une action ajoutee ensuite n'etait verifiee par
+        // personne, et une action absente de la description est une action que
+        // le modele n'utilisera jamais.
         let s = Browser.schema();
         let actions = s["properties"]["action"]["enum"].as_array().unwrap();
-        for expected in [
-            "navigate",
-            "read",
-            "find",
-            "click",
-            "fill",
-            "key",
-            "hover",
-            "scroll",
-            "wait",
-            "eval",
-            "screenshot",
-            "console",
-            "network",
-            "back",
-            "forward",
-            "tabs",
-            "select",
-            "close",
-        ] {
-            assert!(
-                actions.iter().any(|a| a.as_str() == Some(expected)),
-                "missing action {expected}"
-            );
-            // Every action must also be named in the description: a model that
-            // only reads the prose is the common case, and one that believes an
-            // action does not exist works around it with eval instead.
-            assert!(
-                Browser.description().contains(expected),
-                "action {expected} missing from the description"
-            );
+        assert!(actions.len() >= 19, "le schema a maigri sans raison");
+        let d = s["properties"]["action"]["description"].as_str().unwrap();
+        for a in actions {
+            let a = a.as_str().unwrap();
+            assert!(d.contains(a), "action {a} absente de la description");
         }
     }
 
@@ -2514,8 +3104,13 @@ mod tests {
 
     #[test]
     fn read_script_tags_refs_and_returns_json() {
-        assert!(SCRIPT_READ.contains("data-lr-ref"));
-        assert!(SCRIPT_READ.contains("JSON.stringify"));
+        let lu = script_read();
+        assert!(lu.contains("data-lr-ref"));
+        assert!(lu.contains("JSON.stringify"));
+        // Le helper doit reellement etre injecte, sinon `__lrRacines` est
+        // appele sans etre defini et TOUTE lecture leve une ReferenceError.
+        assert!(lu.contains("__lrRacines = ()"), "helper de traversee absent");
+        assert!(!lu.contains("__RACINES__"), "marqueur non substitue");
     }
 
     #[test]
