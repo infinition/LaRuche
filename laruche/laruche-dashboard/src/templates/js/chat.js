@@ -1354,6 +1354,34 @@ LaRuche.Chat = (function(){
     updateAssistantAvatars(); // animation is gone -> show the tool again on the last message
   }
 
+  // Jusqu'ou peut-on rendre le markdown sans risquer de se dedire ensuite?
+  //
+  // Reponse: jusqu'a la fin de la derniere ligne TERMINEE, en dehors d'un bloc
+  // de code et d'un tableau. La ligne en cours d'ecriture n'en fait jamais
+  // partie, puisqu'elle peut encore devenir n'importe quoi.
+  //
+  // Les deux exclusions sont celles qui changent de forme en cours de route. Un
+  // bloc de code non ferme se rendrait en paragraphe puis se replierait en bloc.
+  // Une premiere ligne de tableau se rendrait en paragraphe puis deviendrait un
+  // en-tete quand la ligne de tirets arrive. Tout le reste (titres, listes,
+  // citations, paragraphes) ne fait que s'etendre: le rendu partiel est alors un
+  // vrai prefixe du rendu final, et rien ne saute a l'ecran.
+  function _frontiereMarkdown(t){
+    var lignes = t.split('\n');
+    var dansCode = false, pos = 0, sure = 0;
+    for(var i = 0; i < lignes.length - 1; i++){
+      var l = lignes[i];
+      var barriere = /^\s{0,3}(```|~~~)/.test(l);
+      if(barriere) dansCode = !dansCode;
+      pos += l.length + 1;
+      if(dansCode) continue;
+      // Une barriere qui vient de FERMER est un point sur: le bloc est complet.
+      if(!barriere && /^\s*\|/.test(l)) continue;
+      sure = pos;
+    }
+    return sure;
+  }
+
   function streamToken(el, _text) {
     // Rebuild visible text from the full buffer every time.
     // This ensures protocol/reasoning tags are NEVER shown, even partially.
@@ -1399,14 +1427,71 @@ LaRuche.Chat = (function(){
       }
     }
 
-    // trim() (not just trimEnd): otherwise the LEADING line breaks left by a removed
-    // <think> block show up blank above the bubble during streaming (pre-wrap).
-    clean = clean.trim();
+    // Seulement en TETE: les sauts de ligne laisses par un <think> retire
+    // s'afficheraient sinon en blanc au-dessus de la bulle (pre-wrap).
+    //
+    // Surtout pas en fin: c'est le retour a la ligne final qui dit qu'une ligne
+    // est TERMINEE, donc rendable. En le coupant, la derniere ligne restait
+    // eternellement brute et le gras n'apparaissait jamais avant la fin du
+    // message. Le blanc de fin est retire plus bas, a l'affichage seulement.
+    clean = clean.replace(/^\s+/, '');
 
-    // Update DOM: clear all text nodes and re-set content
+    // Rendu progressif du markdown.
+    //
+    // Le rendu n'arrivait qu'a la toute fin: pendant tout le flux on lisait des
+    // `**gras**`, des `## titres` et des barrieres de code en clair, puis tout
+    // basculait d'un coup. Desormais la partie FIGEE du message est rendue au
+    // fur et a mesure et la ligne en cours reste brute.
+    //
+    // Pourquoi pas tout rendre a chaque jeton: un `**` a moitie ecrit
+    // s'afficherait en gras, puis se dedirait au caractere suivant, et un bloc
+    // de code non ferme repeindrait la moitie du message a chaque frappe.
     var cursor = el.querySelector('.cursor');
-    while(el.firstChild && el.firstChild !== cursor) el.removeChild(el.firstChild);
-    if(clean) el.insertBefore(document.createTextNode(clean), cursor);
+    var coupe = (typeof marked !== 'undefined') ? _frontiereMarkdown(clean) : 0;
+    var fige = clean.slice(0, coupe), queue = clean.slice(coupe);
+
+    if(el._mdFige !== fige){
+      el._mdFige = fige;
+      el._mdHtml = fige ? LaRuche.Utils.safeMarkdown(fige) : '';
+      el._mdARefaire = true;
+    }
+    var bloc = el._mdBloc;
+    if(el._mdHtml){
+      if(!bloc || !bloc.isConnected){
+        bloc = el._mdBloc = document.createElement('div');
+        bloc.className = 'md-fige';
+        el.insertBefore(bloc, el.firstChild);
+      }
+      // Reconstruit SEULEMENT quand la partie figee change: reparser a chaque
+      // jeton couterait cher et ferait clignoter le surlignage du code.
+      if(el._mdARefaire){
+        bloc.innerHTML = el._mdHtml;
+        if(window.lrEnhanceCode) window.lrEnhanceCode(bloc);
+      }
+      el.classList.add('rendered');
+    } else if(bloc && bloc.isConnected){
+      bloc.remove(); el._mdBloc = null; el.classList.remove('rendered');
+    }
+    el._mdARefaire = false;
+
+    var brut = el._mdBrut;
+    if(!brut || !brut.isConnected){
+      brut = el._mdBrut = document.createElement('span');
+      brut.className = 'md-brut';
+      el.insertBefore(brut, cursor);
+    }
+    // Le blanc de fin ne sert qu'a la frontiere, pas a l'oeil: affiche tel quel,
+    // il pousserait le curseur une ligne plus bas a chaque paragraphe fini.
+    brut.textContent = queue.replace(/\s+$/, '');
+
+    // Balayage des restes: un message restaure, ou l'ancien noeud texte d'une
+    // version precedente, n'a rien a faire entre les deux.
+    var n = el.firstChild;
+    while(n){
+      var suiv = n.nextSibling;
+      if(n !== cursor && n !== bloc && n !== brut) el.removeChild(n);
+      n = suiv;
+    }
     scrollToBottom();
     // Reverse stream to TTS: speak finished sentences as they arrive (guarded inside).
     if(LaRuche.Voice && LaRuche.Voice.feedStream) LaRuche.Voice.feedStream(el, clean);

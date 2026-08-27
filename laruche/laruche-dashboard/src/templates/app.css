@@ -863,6 +863,14 @@ body.nav-en-bas .mobile-tabs { display:flex; }
 
 /* Markdown rendered - typographie aérée (la refonte sans-bulle avait tout tassé) */
 .message.assistant.rendered { white-space:normal; line-height:1.65; }
+/* Rendu progressif pendant le flux: la partie figee est du vrai markdown, la
+   ligne en cours reste brute. `display:contents` fait participer les blocs
+   rendus a la mise en page du message exactement comme a la fin, sinon la
+   typographie sautait au moment de finaliser. */
+.md-fige { display:contents; }
+/* La bulle passe en white-space:normal des qu'elle rend du markdown: sans cela
+   la ligne en cours perdrait ses retours a la ligne et ses indentations. */
+.md-brut { white-space:pre-wrap; }
 .message.assistant h1,.message.assistant h2,.message.assistant h3,.message.assistant h4,.message.assistant h5 { margin:14px 0 6px; font-size:14.5px; font-weight:700; color:var(--amber); }
 .message.assistant h1 { font-size:19px; border-bottom:1px solid var(--border); padding-bottom:4px; }
 .message.assistant h2 { font-size:17px; }
