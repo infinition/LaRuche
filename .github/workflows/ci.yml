@@ -29,6 +29,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libglib2.0-dev \
             libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+      # Le `computer` tool (feature gui-control, active par defaut) synthetise
+      # des entrees et capture les ecrans: sur Linux cela demande X11 et xdo.
+      # Sans ces paquets, `cargo build` echoue sur enigo et xcap.
+      - name: Linux GUI deps
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y libxdo-dev libxcb1-dev libxrandr-dev libdbus-1-dev
       - run: cargo build --release
       - run: cargo test --all
 
@@ -47,4 +53,5 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libglib2.0-dev \
             libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+          sudo apt-get install -y libxdo-dev libxcb1-dev libxrandr-dev libdbus-1-dev
       - run: cargo clippy --all -- -D warnings

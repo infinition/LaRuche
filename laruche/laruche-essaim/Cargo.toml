@@ -40,12 +40,26 @@ wreq-util = { version = "3.0.0-rc.14", optional = true }
 pdf-extract = "0.10"
 base64.workspace = true
 lazy_static = "1.5.0"
+# GUI control: input synthesis (enigo) and multi-monitor capture plus window
+# enumeration (xcap). Both are OPTIONAL but ON by default: the `computer` tool is
+# the whole point of shipping one binary instead of a Python MCP server, and a
+# capability nobody can reach without a rebuild flag may as well not exist.
+# Turn it off with --no-default-features on a headless server; on Linux the
+# build then needs neither libxdo nor X11 headers.
+enigo = { version = "0.6", optional = true }
+xcap = { version = "0.9", optional = true }
 
 [features]
-default = []
+default = ["gui-control"]
+# Mouse, keyboard and screen. See `src/abeilles/ordinateur.rs`.
+gui-control = ["dep:enigo", "dep:xcap", "dep:uiautomation", "dep:windows"]
 # Browser-identical TLS handshake for hosts that fingerprint the connection.
 # Requires cmake, nasm and a C compiler. Build once before relying on it.
 tls-emulation = ["dep:wreq", "dep:wreq-util"]
 
 [dev-dependencies]
 tempfile = "3.27.0"
+
+[target."cfg(windows)".dependencies]
+uiautomation = { version = "0.25", optional = true }
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_UI_WindowsAndMessaging", "Win32_System_LibraryLoader", "Win32_UI_HiDpi"], optional = true }

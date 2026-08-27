@@ -2,6 +2,12 @@
 
 pub mod browser;
 pub mod navigateur;
+#[cfg(feature = "gui-control")]
+pub mod ordinateur;
+#[cfg(all(windows, feature = "gui-control"))]
+pub mod ordinateur_arbre;
+#[cfg(all(windows, feature = "gui-control"))]
+pub mod ordinateur_halo;
 pub mod calendrier;
 pub mod clarify;
 pub mod git;
@@ -91,6 +97,11 @@ pub fn enregistrer_abeilles_builtin(registry: &AbeilleRegistry) {
     // spawning a throwaway Chrome per call. The old module is kept compiled so
     // re-registering it stays a one-line change.
     registry.enregistrer(Box::new(navigateur::Browser));
+    // La souris, le clavier et l'ecran. Absent plutot que present et inerte
+    // quand la fonctionnalite n'est pas compilee: un outil qui repond "pas
+    // disponible" coute sa description a chaque tour pour rien.
+    #[cfg(feature = "gui-control")]
+    registry.enregistrer(Box::new(ordinateur::Ordinateur));
     // Git
     registry.enregistrer(Box::new(git::GitStatus));
     registry.enregistrer(Box::new(git::GitDiff));
