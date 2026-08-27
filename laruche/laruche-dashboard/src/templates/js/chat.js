@@ -581,7 +581,8 @@ LaRuche.Chat = (function(){
             toolResult=declaredMedia.text || (declaredMedia.items.length+LaRuche.i18n.t('chat.mediaAjoutes'));
           }
         }
-        finishToolActivity(data.name,toolResult,!!data.success,data.elapsed_ms,data.agent);
+        var toolItem=finishToolActivity(data.name,toolResult,!!data.success,data.elapsed_ms,data.agent);
+        if(data.images&&data.images.length)appendToolImages(toolItem,data.images);
         if(isStreaming)setFeedLive('thinking');
         break;
       case 'prompt_debug': onPromptDebug(data); break;
@@ -1852,6 +1853,23 @@ LaRuche.Chat = (function(){
     var stamp=item.querySelector('.act-time');if(stamp&&elapsed!=null)stamp.textContent=LaRuche.Utils.formatElapsed(elapsed);
     var body=item.querySelector('.act-body');if(!body&&result){body=document.createElement('pre');body.className='act-body';item.appendChild(body);}if(body){if(item.classList.contains('terminal'))setTerminalContent(body,item.dataset.command||'',result||LaRuche.i18n.t('chat.aucuneSortie'));else body.textContent=result||LaRuche.i18n.t('chat.aucuneSortie');}
     if(!success){item.classList.remove('cc-collapsed');}_feedPendingTools=_feedPendingTools.filter(function(candidate){return candidate!==item;});return item;
+  }
+  // Screenshots a tool returned (e.g. `browser`), shown inline under its activity
+  // card as clickable thumbnails. base64 PNG, so no network fetch and nothing
+  // leaves the machine. Click opens the shared media modal at full size.
+  function appendToolImages(item,images){
+    if(!item||!images||!images.length)return;
+    var wrap=item.querySelector('.act-shots');
+    if(!wrap){wrap=document.createElement('div');wrap.className='act-shots';item.appendChild(wrap);}
+    images.forEach(function(b64){
+      if(!b64)return;
+      var src=(String(b64).indexOf('data:')===0)?b64:('data:image/png;base64,'+b64);
+      var img=document.createElement('img');
+      img.className='act-shot';img.src=src;img.alt='screenshot';img.loading='lazy';
+      img.onclick=function(){LaRuche.Utils.openMediaModal('image',src);};
+      wrap.appendChild(img);
+    });
+    item.classList.remove('cc-collapsed');
   }
   // Prefix identifying the sub-agent that ran a tool ('' for the main agent).
   function agentBadge(agent){return agent?('🐝 '+agent+' · '):'';}

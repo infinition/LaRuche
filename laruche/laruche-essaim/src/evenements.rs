@@ -45,6 +45,11 @@ pub enum ChatEvent {
         /// Sub-agent this result belongs to (see [`ChatEvent::ToolCall::agent`]).
         #[serde(default, skip_serializing_if = "Option::is_none")]
         agent: Option<String>,
+        /// Base64 PNG images the tool produced (a `browser` screenshot, for
+        /// instance), so the chat can render them inline. Empty for the vast
+        /// majority of tools, hence skipped when empty to keep frames small.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        images: Vec<String>,
     },
 
     #[serde(rename = "approval_request")]

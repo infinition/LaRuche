@@ -1,0 +1,45 @@
+{
+  "ext_name": {
+    "message": "LaRuche",
+    "description": "Nom de l'extension"
+  },
+  "ext_description": {
+    "message": "Laisse votre ruche piloter ce navigateur : elle ouvre ses propres onglets, dans un groupe visible, et signale la page qu'elle contrôle.",
+    "description": "Description affichée dans la liste des extensions"
+  },
+  "group_title": {
+    "message": "LaRuche",
+    "description": "Titre du groupe d'onglets pilotés par l'agent"
+  },
+  "popup_enable": {
+    "message": "Autoriser le pilotage",
+    "description": "Libellé de l'interrupteur principal"
+  },
+  "popup_port": {
+    "message": "Port du noeud",
+    "description": "Libellé du champ de port"
+  },
+  "popup_note": {
+    "message": "L'extension ne se connecte qu'a votre machine, en local. Coupez l'interrupteur pour reprendre la main a tout moment.",
+    "description": "Note de bas de popup"
+  },
+  "popup_driving": {
+    "message": "Onglet pilote : $URL$",
+    "description": "Adresse de l'onglet actuellement pilote",
+    "placeholders": {
+      "url": { "content": "$1", "example": "https://exemple.fr" }
+    }
+  },
+  "state_off": {
+    "message": "Pilotage desactive",
+    "description": "Etat: interrupteur sur off"
+  },
+  "state_connecting": {
+    "message": "Connexion au noeud...",
+    "description": "Etat: actif mais pas encore connecte"
+  },
+  "state_connected": {
+    "message": "Connecte a la ruche",
+    "description": "Etat: connecte au noeud"
+  }
+}

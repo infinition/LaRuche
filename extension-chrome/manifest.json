@@ -1,0 +1,33 @@
+{
+  "manifest_version": 3,
+  "name": "__MSG_ext_name__",
+  "description": "__MSG_ext_description__",
+  "version": "0.1.0",
+  "default_locale": "fr",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "debugger",
+    "tabs",
+    "tabGroups",
+    "storage"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "__MSG_ext_name__",
+    "default_icon": {
+      "16": "icones/icon-16.png",
+      "48": "icones/icon-48.png",
+      "128": "icones/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icones/icon-16.png",
+    "48": "icones/icon-48.png",
+    "128": "icones/icon-128.png"
+  }
+}

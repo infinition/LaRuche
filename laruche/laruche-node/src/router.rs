@@ -113,6 +113,7 @@ pub(crate) fn build_router(state: Arc<AppState>) -> Router {
         .route("/control", get(web::spa_page))
         .route("/app", get(web::spa_page))
         .route("/ws/chat", get(ws_chat::ws_chat_handler))
+        .route("/ws/navigateur", get(ws_navigateur::ws_navigateur_handler))
         .route("/ws/audio", get(voice_api::ws_audio_handler))
         .route("/api/tools", get(tools_api::api_list_tools))
         .route(

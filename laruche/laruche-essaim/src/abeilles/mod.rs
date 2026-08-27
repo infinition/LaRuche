@@ -1,6 +1,7 @@
 //! Built-in Abeilles (tools) for the Essaim agent.
 
 pub mod browser;
+pub mod navigateur;
 pub mod calendrier;
 pub mod clarify;
 pub mod git;
@@ -86,8 +87,10 @@ pub fn enregistrer_abeilles_builtin(registry: &AbeilleRegistry) {
     registry.enregistrer(Box::new(calendrier::CalendarAdd));
     registry.enregistrer(Box::new(calendrier::CalendarList));
     // Browser
-    registry.enregistrer(Box::new(browser::BrowserNavigate));
-    registry.enregistrer(Box::new(browser::BrowserScreenshot));
+    // Superseded by `browser`, which keeps one CDP session open instead of
+    // spawning a throwaway Chrome per call. The old module is kept compiled so
+    // re-registering it stays a one-line change.
+    registry.enregistrer(Box::new(navigateur::Browser));
     // Git
     registry.enregistrer(Box::new(git::GitStatus));
     registry.enregistrer(Box::new(git::GitDiff));

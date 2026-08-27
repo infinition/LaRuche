@@ -29,6 +29,8 @@ hostname = "0.4"
 urlencoding = "2"
 which = "7"
 scraper = "0.20"
+# CDP transport for the `browser` tool. Same version as laruche-cli.
+tokio-tungstenite = "0.26"
 # TLS fingerprint emulation, OPTIONAL and off by default. It pulls BoringSSL,
 # which needs cmake, nasm and a C toolchain on every build machine: far too
 # heavy to impose on a default build for a capability few targets need.

@@ -503,6 +503,7 @@ impl OutilsPont<'_> {
             success: false,
             elapsed_ms: Some(0),
             agent: self.agent.clone(),
+            images: Vec::new(),
         });
         but::ResultatOutil::echec(motif)
     }
@@ -643,6 +644,7 @@ impl OutilsPont<'_> {
             success: resultat.ok,
             elapsed_ms: None,
             agent: self.agent.clone(),
+            images: Vec::new(),
         });
         resultat
     }
@@ -826,12 +828,17 @@ impl but::Outils for OutilsPont<'_> {
         });
 
         let t0 = Instant::now();
+        // Images (a browser screenshot) are carried on ResultatAbeille, which is
+        // lost in the conversion to ResultatOutil below. Capture them here so the
+        // tool_result event can hand them to the chat for inline rendering.
+        let mut images: Vec<String> = Vec::new();
         let res = match self
             .registry
             .executer(&appel.nom, appel.args.clone(), &ctx)
             .await
         {
             Ok(r) => {
+                images = r.images.clone();
                 if r.success {
                     but::ResultatOutil::ok(r.output)
                 } else {
@@ -860,6 +867,7 @@ impl but::Outils for OutilsPont<'_> {
             success: res.ok,
             elapsed_ms: Some(ms),
             agent: self.agent.clone(),
+            images,
         });
 
         // Gap D - USER HOOKS: post_tool (observation, best-effort, non-blocking).
@@ -1363,6 +1371,7 @@ impl but::Outils for OutilsCurateur {
             success: res.ok,
             elapsed_ms: None,
             agent: Some("Curateur".into()),
+            images: Vec::new(),
         });
         res
     }

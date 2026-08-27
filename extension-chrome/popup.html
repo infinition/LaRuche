@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>LaRuche</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <span class="pastille" id="pastille" aria-hidden="true"></span>
+      <h1>LaRuche</h1>
+    </header>
+
+    <p class="etat" id="etat" role="status" aria-live="polite"></p>
+
+    <label class="bascule">
+      <input type="checkbox" id="actif" />
+      <span id="libelleActif"></span>
+    </label>
+
+    <label class="champ">
+      <span id="libellePort"></span>
+      <input type="number" id="port" min="1" max="65535" inputmode="numeric" />
+    </label>
+
+    <p class="piloté" id="pilote" hidden></p>
+
+    <p class="note" id="note"></p>
+  </body>
+  <script src="popup.js"></script>
+</html>

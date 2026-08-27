@@ -37,6 +37,7 @@ mod web;
 mod slack_api;
 mod local_api;
 mod ws_chat;
+mod ws_navigateur;
 mod discord_api;
 mod channels_api;
 mod auth_api;

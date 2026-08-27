@@ -1,0 +1,45 @@
+{
+  "ext_name": {
+    "message": "LaRuche",
+    "description": "Extension name"
+  },
+  "ext_description": {
+    "message": "Lets your hive drive this browser: it opens its own tabs, in a visible group, and marks the page it controls.",
+    "description": "Description shown in the extensions list"
+  },
+  "group_title": {
+    "message": "LaRuche",
+    "description": "Title of the tab group the agent drives"
+  },
+  "popup_enable": {
+    "message": "Allow control",
+    "description": "Main switch label"
+  },
+  "popup_port": {
+    "message": "Node port",
+    "description": "Port field label"
+  },
+  "popup_note": {
+    "message": "The extension only connects to your own machine, locally. Flip the switch off to take back control at any time.",
+    "description": "Footnote in the popup"
+  },
+  "popup_driving": {
+    "message": "Driving tab: $URL$",
+    "description": "Address of the tab currently driven",
+    "placeholders": {
+      "url": { "content": "$1", "example": "https://example.com" }
+    }
+  },
+  "state_off": {
+    "message": "Control disabled",
+    "description": "State: switch is off"
+  },
+  "state_connecting": {
+    "message": "Connecting to the node...",
+    "description": "State: enabled but not connected yet"
+  },
+  "state_connected": {
+    "message": "Connected to the hive",
+    "description": "State: connected to the node"
+  }
+}

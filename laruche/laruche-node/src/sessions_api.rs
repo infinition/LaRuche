@@ -243,6 +243,7 @@ mod session_display_tests {
             success: true,
             elapsed_ms: Some(42),
             agent: None,
+            images: Vec::new(),
         });
 
         assert!(stats.messages >= 4);
@@ -287,6 +288,7 @@ mod session_display_tests {
             success: true,
             elapsed_ms: Some(10),
             agent: Some("Eclaireuse#1".into()),
+            images: Vec::new(),
         });
         assert_eq!(stats.used_tokens(), avant, "a scout's page is not the main context");
         assert!(stats.messages > 1, "but it is still counted as activity");

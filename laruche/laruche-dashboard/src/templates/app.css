@@ -215,6 +215,10 @@ body.feed-docked .status-bar { margin-right:-360px; transition:margin-right .26s
 .cc-act .act-time { font-size:10px; color:var(--text-dim); flex-shrink:0; }
 .cc-act .act-body { margin:3px 0 5px 25px; padding:8px 10px; background:rgba(0,0,0,.28); border-left:2px solid var(--border); border-radius:4px; font:11px/1.5 var(--mono); white-space:pre-wrap; word-break:break-word; max-height:360px; overflow:auto; color:#cdd2d8; }
 .cc-act.cc-collapsed .act-body { display:none; }
+.cc-act .act-shots { display:flex; flex-wrap:wrap; gap:6px; margin:3px 0 5px 25px; }
+.cc-act.cc-collapsed .act-shots { display:none; }
+.cc-act .act-shot { width:150px; max-width:44%; height:auto; border-radius:6px; border:1px solid var(--border); cursor:zoom-in; background:#0c0c0e; transition:border-color .15s; }
+.cc-act .act-shot:hover { border-color:var(--miel,#F5A623); }
 .cc-act.terminal .act-body { background:#0c0c0e; }
 .cc-act.terminal .terminal-command { color:#7dd3fc; display:block; }
 .cc-act.terminal .terminal-output { color:#cdd2d8; display:block; margin-top:4px; }

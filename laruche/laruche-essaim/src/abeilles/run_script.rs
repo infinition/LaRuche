@@ -122,25 +122,33 @@ impl Abeille for ToolCall {
                 "Recursion not allowed via tool_call: {tool}"
             )));
         }
+        let inner = args
+            .get("args")
+            .cloned()
+            .unwrap_or_else(|| serde_json::json!({}));
         match self.registry.get(tool) {
             None => Ok(ResultatAbeille::err(format!("Unknown tool: {tool}"))),
-            Some(a) if a.niveau_danger() != NiveauDanger::Safe => {
+            // A sensitive tool is blocked from tool_call so its approval dialog can
+            // fire on a direct call. But once the user has approved the class for
+            // the session, that reason is gone, and blocking only sends a weak
+            // model into a retry loop (observed with `browser`: seven rejections
+            // in a row). So: reject only while still UN-approved.
+            Some(a)
+                if a.niveau_danger() != NiveauDanger::Safe
+                    && !crate::approbation::globales()
+                        .est_approuve(&crate::approbation::cle_pattern(tool, &inner)) =>
+            {
                 Ok(ResultatAbeille::err(format!(
-                "'{tool}' requires approval: call it DIRECTLY (not via tool_call)."
-            )))
+                    "'{tool}' requires approval: call it DIRECTLY (not via tool_call) the first \
+                     time, so its approval can be granted; after that it works here too."
+                )))
             }
-            Some(_) => {
-                let inner = args
-                    .get("args")
-                    .cloned()
-                    .unwrap_or_else(|| serde_json::json!({}));
-                match self.registry.executer(tool, inner, ctx).await {
-                    Ok(result) => Ok(result),
-                    Err(err) => Ok(ResultatAbeille::err(format!(
-                        "Tool execution error '{tool}': {err}"
-                    ))),
-                }
-            }
+            Some(_) => match self.registry.executer(tool, inner, ctx).await {
+                Ok(result) => Ok(result),
+                Err(err) => Ok(ResultatAbeille::err(format!(
+                    "Tool execution error '{tool}': {err}"
+                ))),
+            },
         }
     }
 }

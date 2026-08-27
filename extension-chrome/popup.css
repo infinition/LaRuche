@@ -1,0 +1,135 @@
+/* Amber on dark, the same palette as the on-page indicator, so the popup and
+   the driven page read as one thing. Light mode follows the system. */
+
+:root {
+  --fond: #17150f;
+  --fond-champ: #221e15;
+  --texte: #f0e6d2;
+  --texte-doux: #a99a7d;
+  --miel: #f5a623;
+  --bord: rgba(245, 166, 35, 0.28);
+  --rouge: #d9534f;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --fond: #fdfaf3;
+    --fond-champ: #fff;
+    --texte: #2a2419;
+    --texte-doux: #6b6047;
+    --bord: rgba(180, 120, 20, 0.3);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 14px 16px 16px;
+  width: 268px;
+  background: var(--fond);
+  color: var(--texte);
+  font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  overscroll-behavior: contain;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.09em;
+  font-weight: 600;
+}
+
+.pastille {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--texte-doux);
+  flex: none;
+}
+
+.pastille.on {
+  background: var(--miel);
+  box-shadow: 0 0 8px 2px rgba(245, 166, 35, 0.75);
+}
+
+.pastille.erreur {
+  background: var(--rouge);
+}
+
+.etat {
+  margin: 0 0 12px;
+  color: var(--texte-doux);
+}
+
+.bascule {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 1px solid var(--bord);
+  border-radius: 9px;
+  background: var(--fond-champ);
+  cursor: pointer;
+  user-select: none;
+}
+
+.bascule input {
+  accent-color: var(--miel);
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  flex: none;
+}
+
+.champ {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  color: var(--texte-doux);
+}
+
+.champ input {
+  width: 88px;
+  padding: 6px 8px;
+  border: 1px solid var(--bord);
+  border-radius: 7px;
+  background: var(--fond-champ);
+  color: var(--texte);
+  font: inherit;
+  text-align: right;
+}
+
+.champ input:focus-visible,
+.bascule:focus-within {
+  outline: 2px solid var(--miel);
+  outline-offset: 1px;
+}
+
+.piloté {
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--fond-champ);
+  border: 1px solid var(--bord);
+  color: var(--texte-doux);
+  word-break: break-all;
+  font-size: 12px;
+}
+
+.note {
+  margin: 12px 0 0;
+  color: var(--texte-doux);
+  font-size: 11.5px;
+}

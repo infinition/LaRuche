@@ -12,6 +12,7 @@
 //! - **Streaming** (`streaming.rs`): Ollama streaming response parser
 //! - **Prompt** (`prompt.rs`): System prompt builder with tools schema injection
 
+pub mod pont_navigateur;
 pub mod abeille;
 pub mod abeilles;
 pub mod background_review;
