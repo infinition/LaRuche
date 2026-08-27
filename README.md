@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🐝 LaRuche
+#  LaRuche
 
 **Your personal AI hive. One Rust binary, fully local, genuinely yours.**
 
