@@ -56,12 +56,14 @@ jobs:
           workspaces: laruche
 
       # reqwest builds against the system OpenSSL; laruche-bureau contre la webview.
+      # L'outil ordinateur (xcap, enigo) demande aussi X11, DBus et PipeWire.
       - name: Linux build deps
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev libwebkit2gtk-4.1-dev \
-            libglib2.0-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+            libglib2.0-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev \
+            libxdo-dev libxcb1-dev libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libspa-0.2-dev clang
 
       - name: Build
         run: cargo build --release --target ${{ matrix.target }} -p laruche-node -p laruche-cli -p laruche-bureau
@@ -131,12 +133,14 @@ jobs:
           workspaces: laruche
 
       # webkit2gtk est la webview de Tauri sous Linux; libssl pour reqwest.
+      # L'outil ordinateur (xcap, enigo) demande aussi X11, DBus et PipeWire.
       - name: Linux build deps
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y pkg-config libssl-dev libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev librsvg2-dev patchelf
+            libglib2.0-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf \
+            libxdo-dev libxcb1-dev libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libspa-0.2-dev clang
 
       # Le noeud est embarque dans l'installeur (bundle.resources -> bin/), sinon
       # la fenetre s'ouvrirait sur une machine neuve avec rien a afficher.

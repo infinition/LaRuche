@@ -383,11 +383,14 @@ const SCRIPT_GLOW: &str = r##"
       .cursor.down .ring{animation:lr-press .5s ease-out;}
       .flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;}
       .flash.go{animation:lr-flash .45s ease-out;}
-      .hud{position:fixed;left:14px;bottom:14px;width:270px;max-width:44vw;
-        background:rgba(14,12,9,.84);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+      .hud{position:fixed;left:14px;bottom:14px;width:380px;height:330px;
+        min-width:260px;min-height:170px;max-width:92vw;max-height:88vh;
+        display:flex;flex-direction:column;
+        background:rgba(14,12,9,.86);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
         border:1px solid rgba(245,166,35,.35);border-radius:12px;pointer-events:auto;
         box-shadow:0 8px 30px rgba(0,0,0,.45);color:#f0e6d2;overflow:hidden;
         font:12px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;opacity:.94;}
+      .hud.min{height:auto!important;min-height:0;}
       .hud .hd{display:flex;align-items:center;gap:7px;padding:7px 10px;cursor:grab;
         background:rgba(245,166,35,.12);border-bottom:1px solid rgba(245,166,35,.2);
         user-select:none;font-weight:600;letter-spacing:.06em;color:#F5D18B;}
@@ -396,16 +399,41 @@ const SCRIPT_GLOW: &str = r##"
         box-shadow:0 0 7px 2px rgba(245,166,35,.9);animation:lr-blink 1.2s ease-in-out infinite;}
       .hud .hd .sp{flex:1;}
       .hud .hd .mn{cursor:pointer;opacity:.7;padding:0 4px;}
-      .hud .bd{max-height:78px;overflow:auto;padding:6px 10px 4px;}
-      .hud.min .bd,.hud.min .na,.hud.min .io{display:none;}
-      .hud .na{max-height:118px;overflow:auto;padding:6px 10px 8px;color:#e8e0d0;
-        border-top:1px solid rgba(245,166,35,.16);white-space:pre-wrap;
-        font:12px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;}
-      .hud .na:empty{display:none;}
-      .hud .na .moi{color:#F5D18B;}
+      .hud .bd{flex:0 0 auto;max-height:32%;overflow:auto;padding:6px 10px 4px;}
+      .hud.min .bd,.hud.min .na,.hud.min .io,.hud.min .rz{display:none;}
+      /* flex:1 plus min-height:0: sans le second, un contenu long pousse le
+         panneau au lieu de defiler, et la zone de saisie sort par le bas. */
+      .hud .na{flex:1 1 auto;min-height:0;overflow:auto;padding:7px 10px 8px;color:#e8e0d0;
+        border-top:1px solid rgba(245,166,35,.16);overflow-wrap:anywhere;
+        font:12.5px/1.55 ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;}
+      .hud .na .moi{color:#F5D18B;margin-top:6px;}
+      /* Le rendu markdown. Le panneau recoit de la prose de modele, qui arrive
+         avec des titres, des listes et du code: la montrer brute donnait un pave
+         d'asterisques. */
+      .hud .na p{margin:0 0 7px;white-space:pre-wrap;}
+      .hud .na p:last-child{margin-bottom:0;}
+      .hud .na h1,.hud .na h2,.hud .na h3{margin:9px 0 5px;font-size:13px;font-weight:700;color:#F5D18B;}
+      .hud .na ul,.hud .na ol{margin:0 0 7px;padding-left:18px;}
+      .hud .na li{margin:2px 0;}
+      .hud .na blockquote{margin:0 0 7px;padding-left:9px;color:#c9bfa8;
+        border-left:2px solid rgba(245,166,35,.4);}
+      .hud .na code{font:11.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;
+        background:rgba(245,166,35,.13);border-radius:4px;padding:1px 4px;}
+      .hud .na pre{margin:0 0 7px;padding:7px 9px;border-radius:7px;overflow:auto;
+        background:rgba(0,0,0,.42);border:1px solid rgba(245,166,35,.16);}
+      .hud .na pre code{background:none;padding:0;white-space:pre;}
+      .hud .na strong{color:#fff5e3;}
+      .hud .na hr{border:0;border-top:1px solid rgba(245,166,35,.2);margin:8px 0;}
+      /* La poignee de redimensionnement. Le resize:both du navigateur ne
+         marche pas ici: il exige un overflow non masque, et le panneau a des
+         coins arrondis qui imposent overflow:hidden. */
+      .rz{position:absolute;right:0;bottom:0;width:16px;height:16px;cursor:nwse-resize;
+        background:linear-gradient(135deg,transparent 50%,rgba(245,166,35,.55) 50%,
+          rgba(245,166,35,.55) 62%,transparent 62%,transparent 74%,rgba(245,166,35,.55) 74%,
+          rgba(245,166,35,.55) 86%,transparent 86%);}
       .hud .io{display:flex;gap:6px;padding:7px 8px;border-top:1px solid rgba(245,166,35,.2);
         background:rgba(245,166,35,.06);}
-      .hud .io textarea{flex:1;resize:none;height:34px;border-radius:7px;padding:7px 8px;
+      .hud .io textarea{flex:1;resize:none;height:38px;border-radius:7px;padding:7px 8px;
         border:1px solid rgba(245,166,35,.3);background:rgba(0,0,0,.35);color:#f0e6d2;
         font:12px/1.35 ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;outline:none;}
       .hud .io textarea:focus{border-color:rgba(245,166,35,.65);}
@@ -440,6 +468,7 @@ const SCRIPT_GLOW: &str = r##"
         <textarea id="lr-hud-in" rows="1" placeholder="repondre a LaRuche..."></textarea>
         <button id="lr-hud-go">envoyer</button>
       </div>
+      <div class="rz" id="lr-hud-rz"></div>
     </div>
     <div class="cursor" id="lr-cur"><span class="ring"></span>
       <svg width="36" height="36" viewBox="0 0 22 22"><path d="M2 2 L2 17 L6.5 12.7 L9.4 19 L12 17.8 L9.1 11.7 L15 11.5 Z"
@@ -463,9 +492,16 @@ const SCRIPT_GLOW: &str = r##"
     // be unusable.
     const pos = window.__lrHudPos;
     if (pos) { hud.style.left = pos.x + 'px'; hud.style.top = pos.y + 'px'; hud.style.right = 'auto'; hud.style.bottom = 'auto'; }
+    const dim = window.__lrHudSize;
+    if (dim) { hud.style.width = dim.w + 'px'; hud.style.height = dim.h + 'px'; }
     if (window.__lrHudMin) hud.classList.add('min');
     renderHud(root);
     installChat(root);
+    installResize(root, hud);
+    // Le survol et le focus suspendent l'effacement automatique: lire ou ecrire
+    // dans le panneau est exactement le moment ou il ne doit pas disparaitre.
+    hud.addEventListener('pointerenter', () => { window.__lrHudSurvol = true; touch(); });
+    hud.addEventListener('pointerleave', () => { window.__lrHudSurvol = false; touch(); });
 
     const hd = root.getElementById('lr-hud-hd');
     const mn = root.getElementById('lr-hud-mn');
@@ -496,6 +532,37 @@ const SCRIPT_GLOW: &str = r##"
     });
   };
 
+  // Redimensionnement par la poignee, taille gardee entre deux actions comme la
+  // position. Les bornes evitent le panneau de trois pixels et celui qui couvre
+  // la page qu'il est cense laisser voir.
+  const installResize = (root, hud) => {
+    const rz = root.getElementById('lr-hud-rz');
+    if (!rz) return;
+    rz.addEventListener('pointerdown', (e) => {
+      const r = hud.getBoundingClientRect();
+      // Ancrer en haut a gauche pendant le geste: sans cela un panneau cale en
+      // bas a droite grandit vers le haut et fuit sous le curseur.
+      hud.style.left = r.left + 'px'; hud.style.top = r.top + 'px';
+      hud.style.right = 'auto'; hud.style.bottom = 'auto';
+      window.__lrHudPos = { x: r.left, y: r.top };
+      const x0 = e.clientX, y0 = e.clientY, w0 = r.width, h0 = r.height;
+      const move = (ev) => {
+        const w = Math.max(260, Math.min(window.innerWidth - r.left - 8, w0 + ev.clientX - x0));
+        const h = Math.max(170, Math.min(window.innerHeight - r.top - 8, h0 + ev.clientY - y0));
+        hud.style.width = w + 'px'; hud.style.height = h + 'px';
+        window.__lrHudSize = { w, h };
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+      e.preventDefault();
+      e.stopPropagation();
+    });
+  };
+
   const renderHud = (root) => {
     const bd = (root || shadow()) && (root || shadow()).getElementById('lr-hud-bd');
     if (!bd) return;
@@ -523,21 +590,107 @@ const SCRIPT_GLOW: &str = r##"
     renderChat(shadow());
   };
 
+  // Rendu markdown minimal, en noeuds DOM et JAMAIS en innerHTML: ce texte vient
+  // du modele, et la page hote n'a pas a heriter d'un `<img onerror>` parce que
+  // l'agent a cite du HTML. Sous-ensemble volontaire, titres, listes, citations,
+  // code, gras, italique, liens: le panneau est un coin d'oeil, pas un lecteur.
+  const RE_INLINE = /(`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|\*[^*\n]+\*|_[^_\n]+_|\[[^\]\n]+\]\([^)\s]+\))/;
+  const inline = (texte, cible) => {
+    for (const part of String(texte).split(RE_INLINE)) {
+      if (!part) continue;
+      let m;
+      if (part.length > 1 && part[0] === '`' && part.endsWith('`')) {
+        const c = document.createElement('code');
+        c.textContent = part.slice(1, -1);
+        cible.appendChild(c);
+      } else if (part.length > 4 && ((part.startsWith('**') && part.endsWith('**')) || (part.startsWith('__') && part.endsWith('__')))) {
+        const b = document.createElement('strong');
+        b.textContent = part.slice(2, -2);
+        cible.appendChild(b);
+      } else if ((m = part.match(/^\[([^\]]+)\]\(([^)\s]+)\)$/))) {
+        // Sans href: le lien informe, il ne detourne pas la page pilotee.
+        const a = document.createElement('a');
+        a.textContent = m[1];
+        a.title = m[2];
+        cible.appendChild(a);
+      } else if (part.length > 2 && (part[0] === '*' || part[0] === '_') && part.endsWith(part[0])) {
+        const i = document.createElement('em');
+        i.textContent = part.slice(1, -1);
+        cible.appendChild(i);
+      } else {
+        cible.appendChild(document.createTextNode(part));
+      }
+    }
+  };
+
+  const md = (texte) => {
+    const frag = document.createDocumentFragment();
+    // Les blocs de code d'abord: leur contenu ne doit rien subir du reste.
+    const tranches = String(texte).split('```');
+    tranches.forEach((tranche, i) => {
+      if (i % 2) {
+        // Cloture manquante: normal en cours de flux, on rend ce qu'on a.
+        const pre = document.createElement('pre');
+        const code = document.createElement('code');
+        code.textContent = tranche.replace(/^[^\n]*\n/, '');
+        pre.appendChild(code);
+        frag.appendChild(pre);
+        return;
+      }
+      let liste = null;
+      let para = [];
+      // Les lignes consecutives font UN paragraphe, dont les sauts de ligne sont
+      // gardes par `white-space:pre-wrap`. Un paragraphe par ligne aerait le
+      // panneau au point de le rendre illisible sur trois phrases.
+      const vider = () => {
+        if (!para.length) return;
+        const p = document.createElement('p');
+        inline(para.join('\n'), p);
+        frag.appendChild(p);
+        para = [];
+      };
+      for (const brut of tranche.split('\n')) {
+        const ligne = brut.trimEnd();
+        const puce = ligne.match(/^\s*(?:[-*+]|\d+\.)\s+(.*)$/);
+        if (puce) {
+          vider();
+          if (!liste) { liste = document.createElement('ul'); frag.appendChild(liste); }
+          const li = document.createElement('li');
+          inline(puce[1], li);
+          liste.appendChild(li);
+          continue;
+        }
+        liste = null;
+        if (!ligne.trim()) { vider(); continue; }
+        if (/^\s*(---+|___+|\*\*\*+)\s*$/.test(ligne)) { vider(); frag.appendChild(document.createElement('hr')); continue; }
+        const titre = ligne.match(/^(#{1,6})\s+(.*)$/);
+        if (titre) { vider(); const h = document.createElement('h3'); inline(titre[2], h); frag.appendChild(h); continue; }
+        const cite = ligne.match(/^\s*>\s?(.*)$/);
+        if (cite) { vider(); const q = document.createElement('blockquote'); inline(cite[1], q); frag.appendChild(q); continue; }
+        para.push(ligne);
+      }
+      vider();
+    });
+    return frag;
+  };
+
   const renderChat = (root) => {
     const r = root || shadow();
     const na = r && r.getElementById('lr-hud-na');
     if (!na) return;
+    // Ne recoller au bas que si on y etait deja: sinon relire un passage plus
+    // haut est impossible, le jeton suivant ramene la vue en bas.
+    const colle = na.scrollHeight - na.scrollTop - na.clientHeight < 28;
     const dit = window.__lrDit || [];
     na.textContent = '';
-    if (window.__lrChat) na.appendChild(document.createTextNode(window.__lrChat));
+    if (window.__lrChat) na.appendChild(md(window.__lrChat));
     for (const m of dit) {
       const d = document.createElement('div');
       d.className = 'moi';
       d.textContent = 'vous: ' + m;
       na.appendChild(d);
     }
-    // Coller au bas: ce qui vient d'arriver est ce qu'on veut lire.
-    na.scrollTop = na.scrollHeight;
+    if (colle) requestAnimationFrame(() => { na.scrollTop = na.scrollHeight; });
   };
 
   // La reponse tapee dans la page. Elle est DEPOSEE ici, et le noeud la releve
@@ -699,6 +852,44 @@ const SCRIPT_GLOW: &str = r##"
     if (host) host.remove();
   };
 
+  // Efface l'overlay le temps d'une capture, puis le rend. Sans cela le
+  // screenshot montre le cadre, le panneau et le curseur de LaRuche, c'est a
+  // dire tout sauf la page que le modele croit regarder. `visibility` et non
+  // `opacity`: l'opacite sert deja au fondu d'inactivite, et les deux se
+  // marcheraient dessus si une capture tombait pendant un fondu.
+  window.__larucheOverlayVisible = (montrer) => {
+    const host = document.getElementById(ID);
+    if (host) host.style.visibility = montrer ? '' : 'hidden';
+    return !!host;
+  };
+
+  // Le noeud demande si le panneau est encore la, pour savoir s'il vaut la peine
+  // de continuer a le relever.
+  window.__larucheVivant = () => !!document.getElementById(ID);
+
+  // Le panneau ne s'efface pas sous le nez de qui le lit ou y ecrit: survol,
+  // focus dans la zone de saisie, ou brouillon non envoye le retiennent.
+  const occupe = () => {
+    if (window.__lrHudSurvol) return true;
+    const s = shadow();
+    const zone = s && s.getElementById('lr-hud-in');
+    if (!zone) return false;
+    if (zone.value.trim()) return true;
+    return s.activeElement === zone;
+  };
+
+  const armerIdle = () => {
+    clearTimeout(window.__lrIdle);
+    window.__lrIdle = setTimeout(() => {
+      const h = document.getElementById(ID);
+      if (!h) return;
+      if (occupe()) { armerIdle(); return; }
+      h.style.transition = 'opacity .6s ease';
+      h.style.opacity = '0';
+      setTimeout(() => { if (h && h.parentNode && !occupe()) h.remove(); }, 650);
+    }, IDLE_MS);
+  };
+
   // Install-or-revive the overlay and (re)arm the idle fade. Called on every run.
   const touch = () => {
     install();
@@ -706,15 +897,9 @@ const SCRIPT_GLOW: &str = r##"
     if (host) {
       host.style.transition = 'opacity .35s ease';
       host.style.opacity = '1';
+      host.style.visibility = '';
     }
-    clearTimeout(window.__lrIdle);
-    window.__lrIdle = setTimeout(() => {
-      const h = document.getElementById(ID);
-      if (!h) return;
-      h.style.transition = 'opacity .6s ease';
-      h.style.opacity = '0';
-      setTimeout(() => { if (h && h.parentNode) h.remove(); }, 650);
-    }, IDLE_MS);
+    armerIdle();
   };
 
   if (document.body) touch();
@@ -868,7 +1053,12 @@ impl Cdp {
                     .map(str::to_string);
             }
         }
-        self.eval(SCRIPT_GLOW, false).await.ok();
+        // Le seul endroit ou une erreur de SCRIPT_GLOW est visible. Sans ce
+        // journal, un script casse donne un panneau simplement absent, sans un
+        // mot nulle part, et on cherche la panne dans le CSS pendant une heure.
+        if let Err(e) = self.eval(SCRIPT_GLOW, false).await {
+            tracing::warn!("indicateur de pilotage non installe: {e}");
+        }
     }
 
     async fn glow_off(&mut self) {
@@ -1146,10 +1336,12 @@ impl Canal {
                 // The extension keeps the script and re-injects it after each
                 // navigation, the same job Page.addScriptToEvaluateOnNewDocument
                 // does on the CDP side.
-                PontNavigateur::global()
+                if let Err(e) = PontNavigateur::global()
                     .appeler("glow", json!({ "on": true, "script": SCRIPT_GLOW }))
                     .await
-                    .ok();
+                {
+                    tracing::warn!("indicateur de pilotage non installe: {e}");
+                }
             }
         }
     }
@@ -1325,6 +1517,48 @@ static STEER: OnceLock<std::sync::Mutex<Option<tokio::sync::mpsc::Sender<String>
 static GLOW_ACTIF: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 static RELEVE_LANCEE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+/// Millisecondes Unix du dernier appel de l'outil `browser`.
+///
+/// `GLOW_ACTIF` ne repond qu'a la question "une session navigateur existe-t-elle",
+/// et il ne retombe qu'a `browser close`. Il ne dit donc pas si le navigateur est
+/// l'outil du moment, et sans cette distinction la releve continuait de pousser la
+/// narration du modele dans la page pendant que l'agent travaillait ailleurs, au
+/// clavier ou a la souris. En transport extension c'etait pire qu'inesthetique:
+/// chaque `eval` de releve rattache le debogueur et reanime le minuteur
+/// d'inactivite de l'extension, donc la banniere de debogage de Chrome ne
+/// disparaissait plus jamais de l'onglet de l'utilisateur.
+static DERNIER_APPEL_MS: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
+
+/// Le panneau existe-t-il encore dans la page, d'apres la derniere releve.
+///
+/// C'est la page qui decide de sa propre duree de vie: elle s'efface apres son
+/// propre delai d'inactivite, mais un survol ou un brouillon non envoye la
+/// retiennent. Le noeud ne peut donc pas deduire cette duree, il la demande.
+static PANNEAU_VIVANT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Au-dela de ce delai sans appel `browser`, la narration cesse d'etre poussee.
+/// Cale sur `IDLE_MS` de `SCRIPT_GLOW`: le panneau commence a s'effacer au meme
+/// moment, et deux horloges differentes donneraient un panneau visible et muet.
+const FENETRE_NARRATION_MS: i64 = 12_000;
+
+const MASQUER_OVERLAY: &str =
+    "window.__larucheOverlayVisible && window.__larucheOverlayVisible(false)";
+const MONTRER_OVERLAY: &str =
+    "window.__larucheOverlayVisible && window.__larucheOverlayVisible(true)";
+
+/// Le navigateur a-t-il servi assez recemment pour que la page merite un push.
+fn navigateur_recent() -> bool {
+    let dernier = DERNIER_APPEL_MS.load(std::sync::atomic::Ordering::Relaxed);
+    dernier != 0 && chrono::Utc::now().timestamp_millis() - dernier < FENETRE_NARRATION_MS
+}
+
+fn marquer_appel_navigateur() {
+    DERNIER_APPEL_MS.store(
+        chrono::Utc::now().timestamp_millis(),
+        std::sync::atomic::Ordering::Relaxed,
+    );
+}
+
 /// Longueur de narration gardee. Le panneau montre la fin d'une phrase en
 /// cours, pas un transcript: le chat complet est dans sa propre fenetre.
 const NARRATION_MAX: usize = 700;
@@ -1405,7 +1639,8 @@ fn script_releve(texte: &str, fini: bool, pousser: bool) -> String {
              if ({pousser} && window.__larucheChat) window.__larucheChat({texte}, {fini});
              const r = window.__lrSorties || [];
              window.__lrSorties = [];
-             return JSON.stringify(r);
+             const v = !!(window.__larucheVivant && window.__larucheVivant());
+             return JSON.stringify({{ sorties: r, vivant: v }});
            }})()"#,
         texte = serde_json::to_string(texte).unwrap_or_else(|_| String::from("\"\"")),
     )
@@ -1430,6 +1665,16 @@ fn lancer_releve() {
             if !GLOW_ACTIF.load(std::sync::atomic::Ordering::Relaxed) {
                 continue;
             }
+            // Deux raisons distinctes de toucher la page, et une seule suffit:
+            // le navigateur vient de servir, donc il y a une narration a montrer;
+            // ou le panneau est encore affiche, donc l'humain peut y taper une
+            // reponse qu'il faut relever. Ni l'un ni l'autre, on ne touche a rien:
+            // c'est ce qui rend l'onglet a l'utilisateur quand l'agent est passe
+            // a autre chose.
+            let recent = navigateur_recent();
+            if !recent && !PANNEAU_VIVANT.load(std::sync::atomic::Ordering::Relaxed) {
+                continue;
+            }
             let (texte, fini, sale) = match narration().lock() {
                 Ok(mut n) => {
                     let sale = n.sale;
@@ -1438,6 +1683,8 @@ fn lancer_releve() {
                 }
                 Err(_) => continue,
             };
+            // Panneau vivant mais navigateur au repos: on releve sans pousser.
+            let pousser = sale && recent;
             // `try_lock`: pendant qu'une action est en cours, le panneau montre
             // deja cette action, et attendre le verrou ne ferait que retarder
             // l'action elle-meme.
@@ -1448,8 +1695,23 @@ fn lancer_releve() {
                 let Some(canal) = garde.as_mut() else {
                     continue;
                 };
-                match canal.eval(&script_releve(&texte, fini, sale), false).await {
-                    Ok(v) => serde_json::from_str(v.as_str().unwrap_or("[]")).unwrap_or_default(),
+                match canal.eval(&script_releve(&texte, fini, pousser), false).await {
+                    Ok(v) => {
+                        let rendu: serde_json::Value =
+                            serde_json::from_str(v.as_str().unwrap_or("{}")).unwrap_or_default();
+                        PANNEAU_VIVANT.store(
+                            rendu["vivant"].as_bool().unwrap_or(false),
+                            std::sync::atomic::Ordering::Relaxed,
+                        );
+                        rendu["sorties"]
+                            .as_array()
+                            .map(|a| {
+                                a.iter()
+                                    .filter_map(|m| m.as_str().map(str::to_string))
+                                    .collect()
+                            })
+                            .unwrap_or_default()
+                    }
                     Err(_) => continue,
                 }
             };
@@ -2073,6 +2335,7 @@ impl Abeille for Browser {
                 "glow": { "type": "boolean", "description": "Amber frame and badge shown on the page while the agent drives it, and a flash on each element touched. Default true. Set false for a clean screenshot." },
                 "animate": { "type": "boolean", "description": "Move a visible cursor to each target, type text character by character, and scroll smoothly, so a human can follow. Default true; needs glow on. Set false to act instantly." },
                 "speed": { "type": "number", "description": "Animation time multiplier, default 1. Above 1 slows the cursor, typing and scroll down so they are easier to watch." },
+                "overlay": { "type": "boolean", "description": "For screenshot: keep LaRuche's own frame, panel and cursor in the image. Default false, so what you get is the page and nothing else. Set true only to photograph the indicator itself." },
                 "max_chars": { "type": "integer", "description": "Cap on returned page text, default 6000" }
             },
             "required": ["action"]
@@ -2110,6 +2373,8 @@ impl Abeille for Browser {
             };
             *guard = None;
             GLOW_ACTIF.store(false, std::sync::atomic::Ordering::Relaxed);
+            PANNEAU_VIVANT.store(false, std::sync::atomic::Ordering::Relaxed);
+            DERNIER_APPEL_MS.store(0, std::sync::atomic::Ordering::Relaxed);
             return Ok(ResultatAbeille::ok(if had {
                 "Browser session closed, indicator removed. The browser process itself is left running."
             } else {
@@ -2122,6 +2387,12 @@ impl Abeille for Browser {
             return Ok(ResultatAbeille::err(e.to_string()));
         }
         let canal = guard.as_mut().expect("session just ensured");
+        // Le navigateur est l'outil du moment: la releve peut pousser, et le
+        // panneau est cense etre la puisque `ensure_session` vient de le poser.
+        marquer_appel_navigateur();
+        if GLOW_ACTIF.load(std::sync::atomic::Ordering::Relaxed) {
+            PANNEAU_VIVANT.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
 
         // Announce the action in the on-page panel BEFORE running it. During a
         // 600ms cursor glide the human should already know what it is aiming at;
@@ -2360,21 +2631,38 @@ impl Abeille for Browser {
                 }
             }
 
-            "screenshot" => match canal.screenshot().await {
-                Err(e) => Err(e),
-                Ok(data) => {
-                    // Flash AFTER the capture so the cue is seen but not in the image.
-                    if animate {
-                        canal
-                            .eval("window.__larucheFlash && window.__larucheFlash()", false)
-                            .await
-                            .ok();
-                    }
-                    let mut out = ResultatAbeille::ok("Screenshot of the current page.");
-                    out.images = vec![data];
-                    Ok(out)
+            "screenshot" => {
+                // L'overlay sort du cadre le temps de la prise. Sinon l'image
+                // rendue au modele montre le cadre ambre, le panneau et le
+                // curseur de LaRuche, c'est a dire tout sauf la page: il lit sa
+                // propre narration comme si elle etait dans la page, et une
+                // moitie du panneau recouvre ce qu'il voulait voir.
+                let garder = args["overlay"].as_bool().unwrap_or(false);
+                if !garder {
+                    canal.eval(MASQUER_OVERLAY, false).await.ok();
                 }
-            },
+                let prise = canal.screenshot().await;
+                // Rendu quoi qu'il arrive, capture reussie ou non: un overlay
+                // laisse invisible rendrait le pilotage muet pour l'humain.
+                if !garder {
+                    canal.eval(MONTRER_OVERLAY, false).await.ok();
+                }
+                match prise {
+                    Err(e) => Err(e),
+                    Ok(data) => {
+                        // Flash AFTER the capture so the cue is seen but not in the image.
+                        if animate {
+                            canal
+                                .eval("window.__larucheFlash && window.__larucheFlash()", false)
+                                .await
+                                .ok();
+                        }
+                        let mut out = ResultatAbeille::ok("Screenshot of the current page.");
+                        out.images = vec![data];
+                        Ok(out)
+                    }
+                }
+            }
 
             "scroll" => {
                 let direction = args["direction"].as_str().unwrap_or("down");
@@ -3426,6 +3714,45 @@ mod tests {
         assert!(!lu.contains("__RACINES__"), "marqueur non substitue");
     }
 
+    /// Les scripts de page passent `node --check`.
+    ///
+    /// Ce test existe pour une panne precise et deja vue: un accent grave dans un
+    /// commentaire CSS ferme le template literal qui porte tout le balisage du
+    /// panneau, et le script entier cesse de s'analyser. Rien ne le dit, le
+    /// panneau est juste absent. Les assertions de chaine du fichier ne voient
+    /// pas ce genre de chose, seul un analyseur JavaScript le voit.
+    ///
+    /// Ignore proprement si Node n'est pas la: c'est un filet, pas une dependance.
+    #[test]
+    fn les_scripts_de_page_sont_du_javascript_valide() {
+        let dossier = std::env::temp_dir();
+        for (nom, source) in [
+            ("laruche-check-glow.js", SCRIPT_GLOW),
+            ("laruche-check-tap.js", SCRIPT_TAP),
+            ("laruche-check-calques.js", SCRIPT_CALQUES),
+            ("laruche-check-read.js", SCRIPT_READ_BRUT),
+        ] {
+            let chemin = dossier.join(nom);
+            if std::fs::write(&chemin, source).is_err() {
+                return;
+            }
+            let sortie = std::process::Command::new("node")
+                .arg("--check")
+                .arg(&chemin)
+                .output();
+            let Ok(sortie) = sortie else {
+                return; // pas de node sur cette machine
+            };
+            let _ = std::fs::remove_file(&chemin);
+            assert!(
+                sortie.status.success(),
+                "{nom} n'est pas du JavaScript valide:
+{}",
+                String::from_utf8_lossy(&sortie.stderr)
+            );
+        }
+    }
+
     #[test]
     fn glow_script_is_isolated_and_reversible() {
         assert!(SCRIPT_GLOW.contains("attachShadow"));
@@ -3916,10 +4243,24 @@ mod tests {
 
         let (tx, _rx) = tokio::sync::mpsc::channel::<String>(8);
         brancher_pilotage(tx);
+        // Du markdown, parce que c'est ce que le modele ecrit reellement: le
+        // panneau doit le rendre, pas afficher ses asterisques.
         for morceau in [
-            "Je regarde la page. ",
-            "Elle ne contient qu'un titre, ",
-            "donc rien a remplir ici.",
+            "## Ce que je vois
+
+La page ne contient qu'un titre, ",
+            "donc **rien a remplir** ici.
+
+",
+            "- le champ `q` est absent
+- aucun bouton
+
+",
+            "```js
+document.querySelectorAll('input').length // 0
+```
+",
+            "Je passe a l'onglet suivant.",
         ] {
             narrer(&ChatEvent::Token {
                 text: morceau.into(),
@@ -3939,16 +4280,52 @@ mod tests {
             .unwrap();
         tokio::time::sleep(Duration::from_millis(400)).await;
 
-        let out = Browser
-            .executer(json!({ "action": "screenshot", "port": port }), &ctx)
+        let avec = Browser
+            .executer(
+                json!({ "action": "screenshot", "port": port, "overlay": true }),
+                &ctx,
+            )
             .await
             .unwrap();
         let octets = base64::engine::general_purpose::STANDARD
-            .decode(&out.images[0])
+            .decode(&avec.images[0])
             .expect("png");
         let chemin = std::env::temp_dir().join("laruche-panneau.png");
         std::fs::write(&chemin, octets).expect("ecriture");
         println!("PANNEAU ECRIT: {}", chemin.display());
+
+        // Et la meme page sans l'overlay, qui est ce que le modele recoit par
+        // defaut. Deux images identiques voudraient dire que le masquage n'a pas
+        // eu lieu et que le modele lit sa propre narration dans la capture.
+        let sans = Browser
+            .executer(json!({ "action": "screenshot", "port": port }), &ctx)
+            .await
+            .unwrap();
+        assert!(
+            sans.images[0] != avec.images[0],
+            "la capture par defaut montre encore l'overlay"
+        );
+        let octets = base64::engine::general_purpose::STANDARD
+            .decode(&sans.images[0])
+            .expect("png");
+        let nu = std::env::temp_dir().join("laruche-panneau-sans-overlay.png");
+        std::fs::write(&nu, octets).expect("ecriture");
+        println!("PAGE NUE ECRITE: {}", nu.display());
+
+        // Et l'overlay est revenu de lui-meme apres la capture.
+        let revenu = Browser
+            .executer(
+                json!({ "action": "eval", "port": port,
+                        "script": "const h = document.getElementById('__laruche_glow__');                                    return h ? (h.style.visibility || 'visible') : 'absent'" }),
+                &ctx,
+            )
+            .await
+            .unwrap();
+        assert_eq!(
+            revenu.output.trim(),
+            "visible",
+            "l'overlay n'a pas ete rendu apres la capture"
+        );
 
         debrancher_pilotage();
         Browser

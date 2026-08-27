@@ -1978,6 +1978,7 @@ mod tests {
         assert_eq!(ecran_du_rect(&[(0, 0, 1920, 1080)], 0, 0, 100, 100), Some(1));
     }
 
+    #[test]
     fn le_cadre_convertit_dans_les_deux_sens() {
         // Un 4K reduit a 1280 de large, sur le deuxieme ecran d'un montage.
         let c = Cadre {

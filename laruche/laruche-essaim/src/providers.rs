@@ -165,14 +165,26 @@ fn json_ascii(brut: &str) -> String {
 ///    model what happened so it can re-read a narrower range.
 /// 2. the tool list, trimmed from the tail, and only when step 1 was not enough.
 ///
+/// 3. the arguments of past tool CALLS, which lever 1 cannot see: it reads
+///    `content`, and an assistant message carrying a call has `content: null`.
+/// 4. the tool list, trimmed from the tail.
+/// 5. the oldest exchanges, dropped outright, and only when nothing else is left.
+///
 /// The order used to be the reverse, and it was wrong on measurement. The 33 native
 /// tools serialize to 17911 bytes, 542 on average. Cutting them to the old floor of
 /// 4 saves 15888 bytes, a fifth of the guard, while removing seven eighths of what
 /// the agent can DO. On the bodies that actually trip the guard, 100 KB and up, that
 /// trim cannot get under the limit on its own: it just ships a crippled agent and
-/// fails anyway. Tools are now the last lever, not the first, and the floor is 12.
+/// fails anyway. Tools are the last-but-one lever, and the floor is 12.
 ///
-/// Messages are never dropped: that would destroy work already done.
+/// Lever 5 replaces a promise this function could not keep. It used to say messages
+/// are never dropped, and it shipped whatever it had left when the levers ran out.
+/// The refused body of 2026-08-27 is what that costs: 81812 bytes for a 76800 limit,
+/// 196 messages already cut to 100 characters of head and tail, 12 tools which is
+/// the floor, and 31.5 KB of system prompts and tool schemas that no lever touches.
+/// It went out, was refused three times and killed the turn. Losing the oldest
+/// exchanges beats losing the whole turn, so they go, the newest ones and the
+/// mission always kept.
 fn reduire_sous_budget(body: &serde_json::Value, limite: usize) -> Result<serde_json::Value> {
     let mut reduit = body.clone();
     let taille = |v: &serde_json::Value| -> usize {
@@ -242,10 +254,61 @@ fn reduire_sous_budget(body: &serde_json::Value, limite: usize) -> Result<serde_
         }
     }
 
-    // Last lever, and only if the observations were not enough. Worth little in
-    // bytes (see the header), so it runs after everything else and stops at 12
-    // tools rather than 4: below that the agent loses the web, the files and the
-    // shell at once, which costs far more than the kilobytes it buys.
+    // Les arguments des appels d'outils passes, angle mort du levier precedent.
+    //
+    // Il ne regarde que `content`, et un message assistant qui porte un appel a
+    // `content: null`: toute sa masse est dans `tool_calls[].function.arguments`.
+    // Sur le corps refuse du 2026-08-27, 93 messages assistant sur 196, cela
+    // faisait 10100 caracteres parfaitement invisibles au rognage.
+    //
+    // Le remplacement reste un objet JSON valide, pas une chaine coupee au
+    // milieu: une gateway qui reparse les arguments refuserait alors le corps
+    // pour une raison bien pire que sa taille, et la reparation serait la panne.
+    if taille(&reduit) > limite {
+        let porteurs: Vec<usize> = reduit["messages"]
+            .as_array()
+            .map(|ms| {
+                ms.iter()
+                    .enumerate()
+                    .filter(|(_, m)| m["tool_calls"].is_array())
+                    .map(|(i, _)| i)
+                    .collect()
+            })
+            .unwrap_or_default();
+        for i in porteurs {
+            if taille(&reduit) <= limite {
+                break;
+            }
+            let Some(appels) = reduit["messages"][i]["tool_calls"].as_array().cloned() else {
+                continue;
+            };
+            for (j, appel) in appels.iter().enumerate() {
+                let Some(args) = appel["function"]["arguments"].as_str() else {
+                    continue;
+                };
+                let total = args.chars().count();
+                if total <= ARGUMENTS_GARDE * 2 + 200 {
+                    continue;
+                }
+                let chars: Vec<char> = args.chars().collect();
+                let tete: String = chars[..ARGUMENTS_GARDE].iter().collect();
+                let queue: String = chars[chars.len() - ARGUMENTS_GARDE..].iter().collect();
+                let coupe = serde_json::json!({
+                    "_tronque": format!(
+                        "{tete} [... {} caracteres coupes pour tenir dans le budget ...] {queue}",
+                        total - ARGUMENTS_GARDE * 2
+                    )
+                });
+                reduit["messages"][i]["tool_calls"][j]["function"]["arguments"] =
+                    serde_json::json!(coupe.to_string());
+            }
+        }
+    }
+
+    // Avant-dernier levier. Worth little in bytes (see the header), so it runs
+    // after everything else and stops at 12 tools rather than 4: below that the
+    // agent loses the web, the files and the shell at once, which costs far more
+    // than the kilobytes it buys.
     if taille(&reduit) > limite {
         if let Some(liste) = body.get("tools").and_then(|t| t.as_array()).cloned() {
             let mut gardes = liste.len();
@@ -255,7 +318,147 @@ fn reduire_sous_budget(body: &serde_json::Value, limite: usize) -> Result<serde_
             }
         }
     }
+
+    // Dernier recours, quand il ne reste plus rien a rendre.
+    if taille(&reduit) > limite {
+        elaguer_les_plus_vieux(&mut reduit, limite);
+    }
+
+    // Le corps part quand meme: la limite est un garde place SOUS un mur observe,
+    // pas le mur lui-meme, et un corps un peu au-dessus passe souvent. Mais si la
+    // requete est refusee ensuite, ce journal dit que ce n'etait pas faute d'avoir
+    // essaye, et donne le chiffre irreductible a regarder.
+    let reste = taille(&reduit);
+    if reste > limite {
+        tracing::warn!(
+            target: "provider",
+            taille = reste,
+            limite,
+            messages = reduit["messages"].as_array().map(Vec::len).unwrap_or(0),
+            outils = reduit["tools"].as_array().map(Vec::len).unwrap_or(0),
+            "budget de corps: tous les leviers epuises, le corps reste au-dessus"
+        );
+    }
     Ok(reduit)
+}
+
+/// Messages recents jamais elagues: ils portent le fil en cours, et les perdre
+/// coute plus cher que de perdre un vieil echange.
+const QUEUE_INTOUCHABLE: usize = 16;
+
+/// Tete et queue gardees d'arguments d'appel d'outil.
+const ARGUMENTS_GARDE: usize = 300;
+
+/// Retire les plus vieux echanges jusqu'a tenir dans le budget.
+///
+/// Trois choses sont protegees: les messages systeme, le premier tour utilisateur
+/// qui porte la mission, et les [`QUEUE_INTOUCHABLE`] derniers messages.
+///
+/// Un appel d'outil part avec ses reponses, et une deuxieme passe ramasse les
+/// `tool` devenus orphelins. Un `tool` sans son appel, ou un `tool_calls` sans
+/// reponse, fait refuser le corps par les gateways strictes: elaguer de travers
+/// remplacerait un refus pour taille par un refus pour structure.
+fn elaguer_les_plus_vieux(reduit: &mut serde_json::Value, limite: usize) {
+    let taille = |v: &serde_json::Value| -> usize {
+        serde_json::to_string(v)
+            .map(|s| json_ascii(&s).len())
+            .unwrap_or(0)
+    };
+    let Some(messages) = reduit["messages"].as_array().cloned() else {
+        return;
+    };
+    let premier_user = messages.iter().position(|m| m["role"] == "user");
+    let debut_queue = messages.len().saturating_sub(QUEUE_INTOUCHABLE);
+    let protege = |i: usize| -> bool {
+        i >= debut_queue || messages[i]["role"] == "system" || Some(i) == premier_user
+    };
+
+    // Le poids d'un message, plus la virgule qui le separe du suivant. Estimer
+    // ainsi evite de reserialiser le corps entier a chaque retrait, ce qui serait
+    // quadratique sur deux cents messages.
+    let poids: Vec<usize> = messages.iter().map(|m| taille(m) + 1).collect();
+    let mut total = taille(reduit);
+    let mut retire = vec![false; messages.len()];
+
+    for i in 0..messages.len() {
+        if total <= limite {
+            break;
+        }
+        if protege(i) || retire[i] {
+            continue;
+        }
+        let mut groupe = vec![i];
+        if let Some(appels) = messages[i]["tool_calls"].as_array() {
+            let ids: Vec<&str> = appels.iter().filter_map(|a| a["id"].as_str()).collect();
+            for (j, m) in messages.iter().enumerate().skip(i + 1) {
+                if m["role"] == "tool"
+                    && m["tool_call_id"].as_str().is_some_and(|id| ids.contains(&id))
+                {
+                    groupe.push(j);
+                }
+            }
+        }
+        // Un groupe dont une part est protegee reste entier: mieux vaut garder un
+        // vieil echange de trop qu'une moitie d'echange.
+        if groupe.iter().any(|j| protege(*j)) {
+            continue;
+        }
+        for j in groupe {
+            if !retire[j] {
+                retire[j] = true;
+                total = total.saturating_sub(poids[j]);
+            }
+        }
+    }
+
+    if !retire.iter().any(|r| *r) {
+        return;
+    }
+
+    let ids_vivants: std::collections::HashSet<&str> = messages
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !retire[*i])
+        .filter_map(|(_, m)| m["tool_calls"].as_array())
+        .flatten()
+        .filter_map(|a| a["id"].as_str())
+        .collect();
+    for i in 0..messages.len() {
+        if retire[i] || messages[i]["role"] != "tool" {
+            continue;
+        }
+        if let Some(id) = messages[i]["tool_call_id"].as_str() {
+            if !ids_vivants.contains(id) {
+                retire[i] = true;
+            }
+        }
+    }
+
+    let combien = retire.iter().filter(|r| **r).count();
+    let mut gardes: Vec<serde_json::Value> = messages
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !retire[*i])
+        .map(|(_, m)| m.clone())
+        .collect();
+
+    // Le dire au modele, dans le message de mission qui survit toujours: sinon il
+    // refait le travail dont il ne voit plus la trace.
+    if let Some(i) = gardes.iter().position(|m| m["role"] == "user") {
+        if let Some(texte) = gardes[i]["content"].as_str() {
+            gardes[i]["content"] = serde_json::json!(format!(
+                "{texte}\n\n[... {combien} anciens echanges retires pour tenir dans le budget de la requete: si un detail ancien te manque, relis ta memoire ou refais l'observation ...]"
+            ));
+        }
+    }
+    let restants = gardes.len();
+    reduit["messages"] = serde_json::json!(gardes);
+    tracing::warn!(
+        target: "provider",
+        retires = combien,
+        restants,
+        "budget de corps: les plus vieux echanges ont ete retires"
+    );
 }
 
 /// Fewest tools the trim may leave. The old value was 4, which took the agent
@@ -698,10 +901,10 @@ async fn openai_chat_stream(
     // own parser accepts. The gauge showed 9% of a 128k window at the time, because
     // it counts tokens while the wall is counted in bytes.
     //
-    // Tools are trimmed first, never messages: dropping the tail of a
-    // relevance-ordered tool list costs a capability the model probably was not
-    // going to use, whereas dropping a message loses work already done. If trimming
-    // is not enough the request goes out as is, and the provider decides.
+    // Order and cost of each lever live on `reduire_sous_budget`. In short: the
+    // fattest observations first, then past tool-call arguments, then the tool
+    // list down to a floor, and only then the oldest exchanges. If even that is
+    // not enough the request goes out as is, with a warning naming what is left.
     let limite = limite_corps(base);
     if corps_brut.len() > limite {
         let avant = corps_brut.len();
@@ -1466,6 +1669,160 @@ mod tests {
             33,
             "tools must survive when trimming observations was enough"
         );
+    }
+
+    /// Les arguments d'appel d'outil comptent, et le rognage ne les voyait pas.
+    ///
+    /// Un message assistant qui porte un appel a `content: null`: toute sa masse
+    /// est ailleurs. Le corps refuse du 2026-08-27 en portait 10100 caracteres
+    /// intouchables. Ce qui est ecrit en remplacement doit rester du JSON, sinon
+    /// une gateway qui reparse les arguments refuse le corps pour une raison bien
+    /// pire que celle qu'on essayait de corriger.
+    #[test]
+    fn le_budget_rabote_les_arguments_dappels_doutils() {
+        let messages: Vec<serde_json::Value> = std::iter::once(
+            serde_json::json!({ "role": "system", "content": "s" }),
+        )
+        .chain(std::iter::once(
+            serde_json::json!({ "role": "user", "content": "mission" }),
+        ))
+        .chain((0..20).map(|i| {
+            serde_json::json!({
+                "role": "assistant",
+                "content": null,
+                "tool_calls": [{
+                    "id": format!("c{i}"),
+                    "type": "function",
+                    "function": { "name": "f", "arguments": "z".repeat(5_000) }
+                }]
+            })
+        }))
+        .collect();
+        let body = serde_json::json!({ "model": "m", "messages": messages });
+
+        let apres = reduire_sous_budget(&body, 20_000).unwrap();
+        let corps = json_ascii(&serde_json::to_string(&apres).unwrap()).len();
+        assert!(corps <= 20_000, "must fit, got {corps}");
+
+        let args = apres["messages"][2]["tool_calls"][0]["function"]["arguments"]
+            .as_str()
+            .expect("arguments stay a string");
+        assert!(args.len() < 5_000, "arguments were not trimmed");
+        serde_json::from_str::<serde_json::Value>(args)
+            .expect("trimmed arguments must still parse as JSON");
+    }
+
+    /// Le dernier recours, sur la forme exacte du corps qui a tue un tour.
+    ///
+    /// 2026-08-27: 81812 octets pour une limite de 76800, deja rognes partout,
+    /// 12 outils soit le plancher, et l'essentiel du poids dans 31,5 Ko de prompts
+    /// systeme et de schemas plus deux cents petits messages qu'aucun levier ne
+    /// mordait. La fonction rendait ce corps tel quel, il partait, se faisait
+    /// refuser trois fois, et le tour mourait.
+    #[test]
+    fn le_budget_elague_les_plus_vieux_echanges_en_dernier_recours() {
+        let outils: Vec<serde_json::Value> = (0..12)
+            .map(|i| {
+                serde_json::json!({
+                    "type": "function",
+                    "function": { "name": format!("t{i}"), "description": "d".repeat(1_200) }
+                })
+            })
+            .collect();
+        // Des messages courts, tous SOUS le seuil de rognage du dernier passage:
+        // c'est le banc qui ne se laisse pas mordre, et c'est le cas reel.
+        let mut messages = vec![
+            serde_json::json!({ "role": "system", "content": "S".repeat(14_000) }),
+            serde_json::json!({ "role": "user", "content": "la mission" }),
+        ];
+        for i in 0..190 {
+            messages.push(serde_json::json!({
+                "role": if i % 2 == 0 { "assistant" } else { "user" },
+                "content": format!("m{i}-{}", "x".repeat(250))
+            }));
+        }
+        messages.push(serde_json::json!({ "role": "system", "content": "R".repeat(2_700) }));
+        let body = serde_json::json!({ "model": "m", "tools": outils, "messages": messages });
+
+        let avant = json_ascii(&serde_json::to_string(&body).unwrap()).len();
+        assert!(avant > 76_800, "le cas de test doit deborder, il fait {avant}");
+
+        let apres = reduire_sous_budget(&body, 76_800).unwrap();
+        let corps = json_ascii(&serde_json::to_string(&apres).unwrap()).len();
+        assert!(corps <= 76_800, "toujours au-dessus du budget: {corps}");
+
+        let restants = apres["messages"].as_array().unwrap();
+        assert!(
+            restants.len() < 193,
+            "aucun message n'a ete retire, le levier n'a pas joue"
+        );
+        // Les deux systemes et la mission survivent toujours.
+        assert_eq!(
+            restants.iter().filter(|m| m["role"] == "system").count(),
+            2,
+            "un message systeme a ete retire"
+        );
+        let mission = restants
+            .iter()
+            .find(|m| m["content"].as_str().is_some_and(|c| c.starts_with("la mission")))
+            .expect("la mission a ete retiree");
+        assert!(
+            mission["content"]
+                .as_str()
+                .unwrap()
+                .contains("anciens echanges retires"),
+            "le modele n'est pas prevenu de ce qui a disparu"
+        );
+        // Et la queue recente est intacte: c'est elle qui porte le fil en cours.
+        assert!(
+            restants
+                .iter()
+                .any(|m| m["content"].as_str().is_some_and(|c| c.starts_with("m189-"))),
+            "le message le plus recent a ete retire"
+        );
+    }
+
+    /// Elaguer de travers remplacerait un refus pour taille par un refus pour
+    /// structure: un `tool` sans son appel fait rejeter le corps entier.
+    #[test]
+    fn lelagage_ne_laisse_jamais_un_tool_orphelin() {
+        let mut messages = vec![
+            serde_json::json!({ "role": "system", "content": "s" }),
+            serde_json::json!({ "role": "user", "content": "la mission" }),
+        ];
+        for i in 0..90 {
+            messages.push(serde_json::json!({
+                "role": "assistant",
+                "content": null,
+                "tool_calls": [{
+                    "id": format!("c{i}"),
+                    "type": "function",
+                    "function": { "name": "f", "arguments": "{}" }
+                }]
+            }));
+            messages.push(serde_json::json!({
+                "role": "tool",
+                "tool_call_id": format!("c{i}"),
+                "content": "r".repeat(300)
+            }));
+        }
+        let body = serde_json::json!({ "model": "m", "messages": messages });
+        let apres = reduire_sous_budget(&body, 12_000).unwrap();
+        let restants = apres["messages"].as_array().unwrap();
+        assert!(restants.len() < 182, "le levier n'a pas joue");
+
+        let vivants: std::collections::HashSet<&str> = restants
+            .iter()
+            .filter_map(|m| m["tool_calls"].as_array())
+            .flatten()
+            .filter_map(|a| a["id"].as_str())
+            .collect();
+        for m in restants {
+            if m["role"] == "tool" {
+                let id = m["tool_call_id"].as_str().unwrap();
+                assert!(vivants.contains(id), "reponse orpheline pour {id}");
+            }
+        }
     }
 
     /// When observations cannot get there alone, tools give ground, but never
