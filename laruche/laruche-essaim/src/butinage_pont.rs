@@ -702,9 +702,20 @@ impl but::Outils for OutilsPont<'_> {
         }
 
         // ── SMART APPROVALS ──
+        // Un outil atteint A TRAVERS `tool_call` doit etre juge comme LUI-MEME.
+        // Sans cela la porte voyait `tool_call`, marque Safe, et laissait passer
+        // ce qu'il transportait; c'est pourquoi `tool_call` refusait de son cote
+        // tout outil sensible, ce qui rendait ces outils INJOIGNABLES pour un
+        // modele qui ne les connait que par `tool_search`: il ne peut les nommer
+        // que dans un `tool_call`, et le seul chemin restant lui etait ferme.
+        // Observe en production, un petit modele bouclant sur "call it DIRECTLY"
+        // sans jamais pouvoir le faire.
+        let (nom_juge, args_juges) = crate::approbation::appel_effectif(&appel.nom, &appel.args);
+        let (nom_juge, args_juges) = (nom_juge.to_string(), args_juges.clone());
+
         // User deny rules are the hard floor: they fire BEFORE the permission engine,
         // so `auto` mode / a Safe danger level cannot bypass what the user forbade.
-        let regle = crate::approbation::globales().regle_refus(&appel.nom, &appel.args);
+        let regle = crate::approbation::globales().regle_refus(&nom_juge, &args_juges);
         if let Some(r) = &regle {
             let ctx_refus = crate::approbation::ContexteApprobation {
                 regle_refus: Some((r.pattern.as_str(), r.motif.as_str())),
@@ -724,17 +735,17 @@ impl but::Outils for OutilsPont<'_> {
         // the smart-approval gate (allowlist -> LLM judge -> human popup).
         let danger = self
             .registry
-            .get(&appel.nom)
+            .get(&nom_juge)
             .map(|a| a.niveau_danger())
             .unwrap_or(NiveauDanger::Safe);
-        match decision_permission(self.config, &appel.nom, &appel.args, danger, &ctx) {
+        match decision_permission(self.config, &nom_juge, &args_juges, danger, &ctx) {
             PermissionBehavior::Allow => {}
             PermissionBehavior::Deny => {
                 return self.bloquer(&appel.nom, "Blocked: permission denied".into());
             }
             PermissionBehavior::Ask => {
                 let registre = crate::approbation::globales();
-                let cle = crate::approbation::cle_pattern(&appel.nom, &appel.args);
+                let cle = crate::approbation::cle_pattern(&nom_juge, &args_juges);
                 let deja = registre.est_approuve(&cle);
                 // The judge only runs when it can change the outcome (not already
                 // approved) and is enabled: one small auxiliary call per NEW class.
@@ -743,8 +754,8 @@ impl but::Outils for OutilsPont<'_> {
                 } else {
                     Some(
                         crate::approbation::juger(
-                            &appel.nom,
-                            &appel.args,
+                            &nom_juge,
+                            &args_juges,
                             &format!("{danger:?} tool requiring approval"),
                             self.config,
                         )
@@ -777,10 +788,12 @@ impl but::Outils for OutilsPont<'_> {
                                 appel.id.clone()
                             };
                             // Ask the UI (the node routes the response to this channel).
+                            // L'humain doit voir ce qu'il approuve: `computer
+                            // left_click`, pas `tool_call`.
                             let _ = self.tx.send(ChatEvent::ApprovalRequest {
                                 tool_call_id: tcid.clone(),
-                                name: appel.nom.clone(),
-                                args: appel.args.clone(),
+                                name: nom_juge.clone(),
+                                args: args_juges.clone(),
                             });
                             let mut rx = mx.lock().await;
                             // Timeout: without a response we REFUSE (fail-safe).

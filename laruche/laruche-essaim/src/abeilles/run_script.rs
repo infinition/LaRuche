@@ -128,21 +128,12 @@ impl Abeille for ToolCall {
             .unwrap_or_else(|| serde_json::json!({}));
         match self.registry.get(tool) {
             None => Ok(ResultatAbeille::err(format!("Unknown tool: {tool}"))),
-            // A sensitive tool is blocked from tool_call so its approval dialog can
-            // fire on a direct call. But once the user has approved the class for
-            // the session, that reason is gone, and blocking only sends a weak
-            // model into a retry loop (observed with `browser`: seven rejections
-            // in a row). So: reject only while still UN-approved.
-            Some(a)
-                if a.niveau_danger() != NiveauDanger::Safe
-                    && !crate::approbation::globales()
-                        .est_approuve(&crate::approbation::cle_pattern(tool, &inner)) =>
-            {
-                Ok(ResultatAbeille::err(format!(
-                    "'{tool}' requires approval: call it DIRECTLY (not via tool_call) the first \
-                     time, so its approval can be granted; after that it works here too."
-                )))
-            }
+            // Plus de refus ici. `butinage_pont` deballe desormais `tool_call` et
+            // juge l'outil transporte comme s'il avait ete appele directement:
+            // meme niveau de danger, meme classe d'approbation, meme popup. Le
+            // refus qui vivait ici rendait injoignable tout outil sensible que le
+            // modele ne connaissait que par `tool_search`, puisque `tool_call`
+            // etait alors son seul chemin.
             Some(_) => match self.registry.executer(tool, inner, ctx).await {
                 Ok(result) => Ok(result),
                 Err(err) => Ok(ResultatAbeille::err(format!(

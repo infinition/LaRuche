@@ -132,6 +132,37 @@ pub fn decider(ctx: &ContexteApprobation) -> DecisionApprobation {
     }
 }
 
+/// L'outil REELLEMENT appele, quand l'appel en enveloppe un autre.
+///
+/// `tool_call` est une enveloppe: le modele s'en sert pour atteindre un outil
+/// qu'il a trouve par `tool_search` et qui n'est pas dans la liste injectee ce
+/// tour-ci. Juger l'enveloppe plutot que son contenu revient a ne rien juger,
+/// puisque `tool_call` est lui-meme inoffensif.
+///
+/// `run_script` n'est pas deballe: il porte PLUSIEURS etapes, il n'y a donc pas
+/// d'appel effectif unique a juger. Il reste sensible en bloc, ce qui est la
+/// lecture prudente.
+pub fn appel_effectif<'a>(
+    nom_outil: &'a str,
+    args: &'a serde_json::Value,
+) -> (&'a str, &'a serde_json::Value) {
+    if nom_outil != "tool_call" {
+        return (nom_outil, args);
+    }
+    let Some(interne) = args.get("tool").and_then(|v| v.as_str()) else {
+        return (nom_outil, args);
+    };
+    // Une enveloppe qui en enveloppe une autre est deja refusee en amont; ici
+    // on ne fait que ne pas la suivre.
+    if matches!(interne, "tool_call" | "run_script" | "delegate") {
+        return (nom_outil, args);
+    }
+    match args.get("args") {
+        Some(a) => (interne, a),
+        None => (interne, args),
+    }
+}
+
 /// Does this action only observe, or does it change something?
 ///
 /// `None` for a tool we know nothing about: inventing a class for it would
@@ -594,6 +625,35 @@ mod tests {
         assert_eq!(sh("\"git\" push"), "shell:git push");
         // Non-shell tools key on the tool name.
         assert_eq!(cle_pattern("file_write", &json!({})), "outil:file_write");
+    }
+
+    /// Un outil atteint par `tool_call` doit etre juge comme lui-meme, sinon la
+    /// porte voit une enveloppe inoffensive et laisse passer son contenu.
+    #[test]
+    fn tool_call_est_deballe_avant_le_verdict() {
+        let enveloppe = json!({
+            "tool": "computer",
+            "args": { "action": "left_click", "x": 10, "y": 20 }
+        });
+        let (nom, args) = appel_effectif("tool_call", &enveloppe);
+        assert_eq!(nom, "computer");
+        assert_eq!(args["action"], "left_click");
+        // Et la classe d'approbation devient celle du vrai outil, donc approuver
+        // ici vaut approbation la, et inversement: un seul et meme verrou.
+        assert_eq!(cle_pattern(nom, args), "outil:computer:action");
+
+        // Un appel ordinaire n'est pas touche.
+        let direct = json!({ "command": "ls" });
+        let (nom, args) = appel_effectif("shell_exec", &direct);
+        assert_eq!(nom, "shell_exec");
+        assert_eq!(args["command"], "ls");
+
+        // Une enveloppe mal formee reste elle-meme plutot que de deviner.
+        let vide = json!({});
+        assert_eq!(appel_effectif("tool_call", &vide).0, "tool_call");
+        // Et l'imbrication ne se suit pas: la recursion est refusee ailleurs.
+        let gigogne = json!({ "tool": "run_script", "args": {} });
+        assert_eq!(appel_effectif("tool_call", &gigogne).0, "tool_call");
     }
 
     /// Looking and acting must NOT share an approval. Approving a screenshot
