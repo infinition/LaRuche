@@ -202,6 +202,17 @@ warn you when the target is elevated, and the window actions refuse outright. Th
 be worked around and should not be. Say that the window has to be driven by hand, or that
 LaRuche has to be restarted as administrator, and stop trying.
 
+## The abort shortcut
+
+**`Ctrl+Alt+Shift+H` stops everything, immediately.** It is registered globally as soon as
+the tool is first used, and it works whether or not the glow is on. Pressing it releases
+every held key and button, refuses the call in flight, and interrupts a long burst of
+typing part way through, reporting how many characters had already landed.
+
+If a call comes back saying the user aborted, they took the machine back on purpose. Say
+so and stop. Do not retry the gesture, and do not look for another way to do the same
+thing: that is the one response the shortcut exists to prevent.
+
 Approval comes in two classes. Approving one observing action (`screens`, `screenshot`,
 `cursor_position`) does **not** approve a click, and the first acting call is asked
 separately.

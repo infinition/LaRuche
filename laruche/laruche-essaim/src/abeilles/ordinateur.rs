@@ -46,6 +46,8 @@ use enigo::{Axis, Button, Coordinate, Direction, Enigo, Keyboard, Mouse, Setting
 use xcap::{Monitor, Window};
 
 #[cfg(windows)]
+use super::ordinateur_abandon as abandon;
+#[cfg(windows)]
 use super::ordinateur_arbre as arbre;
 
 /// Le decor, quand il existe. Sur les plateformes sans halo, ces quatre
@@ -680,6 +682,26 @@ impl Ordinateur {
             .map_err(|e| anyhow!("cannot reach the input layer: {e}"))?;
         let facteur = facteur_enigo(&enigo, moniteur_principal(&liste).expect("liste non vide"));
 
+        // Le coupe-circuit. Arme au premier appel et jamais desarme: son interet
+        // est d'exister avant qu'on en ait besoin.
+        #[cfg(windows)]
+        {
+            abandon::armer();
+            if abandon::demande() {
+                let liberes = relacher_tout(&mut enigo, false);
+                return Err(anyhow!(
+                    "Aborted: the user pressed Ctrl+Alt+Shift+H. Nothing was done.{} They took \
+                     the machine back deliberately, so stop and say so; do not retry the \
+                     gesture and do not work around it.",
+                    if liberes.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" Released what was held: {}.", liberes.join(", "))
+                    }
+                ));
+            }
+        }
+
         // Le filet de securite des maintiens: ce qui traine depuis plus d'une
         // minute est relache avant toute autre chose. Une sequence normale ne le
         // voit jamais passer; une mission abandonnee en plein glisser ne laisse
@@ -894,7 +916,18 @@ impl Ordinateur {
                     // deux cents caracteres ce serait une punition, pas une
                     // demonstration.
                     let par_char = if texte.chars().count() > 60 { 18 } else { 32 };
-                    for c in texte.chars() {
+                    for (ecrits, c) in texte.chars().enumerate() {
+                        // Le coupe-circuit se consulte a CHAQUE caractere. Une
+                        // longue frappe est precisement ce qu'on veut pouvoir
+                        // arreter, et ne la verifier qu'entre deux appels
+                        // laisserait partir le texte entier.
+                        #[cfg(windows)]
+                        if abandon::en_cours() {
+                            return Err(anyhow!(
+                                "Aborted after {ecrits} of {} characters: the user pressed                                  Ctrl+Alt+Shift+H mid-typing. What was already typed is still                                  in the window, so read it before doing anything else.",
+                                texte.chars().count()
+                            ));
+                        }
                         enigo
                             .text(&c.to_string())
                             .map_err(|e| anyhow!("typing failed: {e}"))?;
