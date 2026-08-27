@@ -388,8 +388,16 @@ body.nav-en-bas .mobile-tabs { display:flex; }
   margin:0 0 10px; padding:10px 12px;
   background:linear-gradient(180deg, rgba(245,158,11,.08), rgba(245,158,11,.02));
   border:1px solid rgba(245,158,11,.3); border-radius:8px;
+  /* Cent propositions en attente prenaient toute la hauteur et poussaient
+     l'arbre hors de l'ecran, sans aucune barre pour en voir la fin. Le panneau
+     est desormais plafonne au tiers de la zone et c'est la LISTE qui defile,
+     l'en-tete et le bouton restant sous la main. */
+  display:flex; flex-direction:column; flex-shrink:0; max-height:30%;
 }
-.mem-proposals-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; gap:8px; }
+/* `min-height:0` sans quoi un enfant de flex refuse de se laisser reduire, et
+   deborde au lieu de defiler. */
+.mem-proposals-list { overflow-y:auto; min-height:0; }
+.mem-proposals-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; gap:8px; flex-shrink:0; }
 .mem-proposals-title { font-size:12px; font-weight:600; color:var(--amber); }
 .mem-prop-count {
   display:inline-flex; align-items:center; justify-content:center;
