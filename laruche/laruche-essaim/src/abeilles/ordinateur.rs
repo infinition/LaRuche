@@ -418,6 +418,45 @@ fn choisir_ecran<'a>(liste: &'a [Monitor], demande: Option<&Value>) -> Option<&'
     }
 }
 
+/// Sur quel ecran tombe un rectangle de fenetre, en rang lisible (1, 2, ...).
+///
+/// Par recouvrement et non par coin haut gauche: une fenetre a cheval sur deux
+/// moniteurs appartient a celui qui en montre le plus, ce qui est ce que
+/// l'humain voit. Le coin haut gauche designerait l'ecran de gauche pour une
+/// fenetre dont 90% est a droite.
+/// Prend des rectangles nus plutot que des `Monitor`: la regle du recouvrement
+/// est la seule chose qui puisse se tromper ici, et on ne construit pas un
+/// moniteur dans un test.
+fn ecran_du_rect(ecrans: &[(i32, i32, i32, i32)], x: i32, y: i32, l: i32, h: i32) -> Option<usize> {
+    let (x2, y2) = (x + l, y + h);
+    let mut meilleur: Option<(i64, usize)> = None;
+    for (i, (mx, my, ml, mh)) in ecrans.iter().enumerate() {
+        let (mx2, my2) = (mx + ml, my + mh);
+        let cl = i64::from((x2.min(mx2) - x.max(*mx)).max(0));
+        let ch = i64::from((y2.min(my2) - y.max(*my)).max(0));
+        let aire = cl * ch;
+        if aire > 0 && meilleur.as_ref().map(|(a, _)| aire > *a).unwrap_or(true) {
+            meilleur = Some((aire, i + 1));
+        }
+    }
+    meilleur.map(|(_, rang)| rang)
+}
+
+fn ecran_de_la_fenetre(liste: &[Monitor], x: i32, y: i32, l: i32, h: i32) -> Option<usize> {
+    let rects: Vec<(i32, i32, i32, i32)> = liste
+        .iter()
+        .map(|m| {
+            (
+                m.x().unwrap_or(0),
+                m.y().unwrap_or(0),
+                m.width().unwrap_or(0) as i32,
+                m.height().unwrap_or(0) as i32,
+            )
+        })
+        .collect();
+    ecran_du_rect(&rects, x, y, l, h)
+}
+
 fn decrire_ecrans(liste: &[Monitor]) -> String {
     liste
         .iter()
@@ -963,6 +1002,20 @@ impl Ordinateur {
     /// Les fenetres ouvertes. Traverse les plateformes, contrairement a l'arbre
     /// d'accessibilite: xcap sait enumerer sur les trois systemes.
     fn lister_fenetres() -> Result<ResultatAbeille> {
+        let ecrans = moniteurs().unwrap_or_default();
+        // L'ecran de la derniere capture, pour dire tout de suite si le modele
+        // regarde le bon. Sans ca il devait croiser des coordonnees absolues
+        // avec la liste des moniteurs, calcul qu'il fait de tete et rate en
+        // silence: il visait une fenetre parfaitement reelle, sur l'autre ecran,
+        // avec des coordonnees lues sur celui-ci.
+        let regarde = etat().lock().unwrap().cadre.map(|c| c.ecran);
+        let rang_regarde = regarde.and_then(|id| {
+            ecrans
+                .iter()
+                .position(|m| m.id().unwrap_or(0) == id)
+                .map(|i| i + 1)
+        });
+
         let mut lignes: Vec<String> = Window::all()
             .map_err(|e| anyhow!("cannot enumerate windows: {e}"))?
             .into_iter()
@@ -975,17 +1028,26 @@ impl Ordinateur {
                 if titre.trim().is_empty() && app.trim().is_empty() {
                     return None;
                 }
+                let (x, y) = (f.x().unwrap_or(0), f.y().unwrap_or(0));
+                let (l, h) = (f.width().unwrap_or(0), f.height().unwrap_or(0));
+                let rang = ecran_de_la_fenetre(&ecrans, x, y, l as i32, h as i32);
+                let ou = match rang {
+                    Some(r) if Some(r) == rang_regarde => format!("screen {r} <- captured"),
+                    Some(r) => format!("screen {r}"),
+                    None => "off-screen".to_string(),
+                };
                 Some(format!(
-                    "{}{}x{} at ({},{})  [{}]  {}",
+                    "{}{}x{} at ({},{})  {}  [{}]  {}",
                     if f.is_focused().unwrap_or(false) {
                         "* "
                     } else {
                         "  "
                     },
-                    f.width().unwrap_or(0),
-                    f.height().unwrap_or(0),
-                    f.x().unwrap_or(0),
-                    f.y().unwrap_or(0),
+                    l,
+                    h,
+                    x,
+                    y,
+                    ou,
                     app,
                     titre
                 ))
@@ -1009,7 +1071,7 @@ impl Ordinateur {
         let reduites: Vec<String> = Vec::new();
 
         Ok(ResultatAbeille::ok(format!(
-            "{} window(s) on screen, * marks the focused one:\n{}{}\n\nUse focus_window with \
+            "{} window(s) on screen, * marks the focused one:\n{}{}\n\n{}Use focus_window with \
              a piece of the title to bring one to the front, then read it. move_window, \
              minimize_window, maximize_window, restore_window and close_window take the same \
              piece of title.",
@@ -1024,6 +1086,27 @@ impl Ordinateur {
                     reduites.len(),
                     reduites.join("\n")
                 )
+            },
+            // Le rappel n'a de sens que sur plusieurs moniteurs, et il compte
+            // surtout quand une capture a deja fige un systeme de coordonnees.
+            if ecrans.len() < 2 {
+                String::new()
+            } else {
+                match rang_regarde {
+                    Some(r) => format!(
+                        "Your last screenshot was of screen {r}, so any x,y you point at \
+                         lands there. A window marked screen {} is on another monitor: \
+                         capture that one first, or act on it by ref, which needs no \
+                         coordinates at all.\n\n",
+                        if r == 1 { 2 } else { 1 }
+                    ),
+                    None => format!(
+                        "{} screens. You have not captured one yet, so there is no \
+                         coordinate system: work by ref, or screenshot the screen holding \
+                         the window you want.\n\n",
+                        ecrans.len()
+                    ),
+                }
             }
         )))
     }
@@ -1868,6 +1951,33 @@ mod tests {
     use super::*;
 
     #[test]
+    fn une_fenetre_a_cheval_appartient_a_lecran_qui_en_montre_le_plus() {
+        // Deux 1920x1080 cote a cote, le second commencant a x=1920.
+        let ecrans = [(0, 0, 1920, 1080), (1920, 0, 1920, 1080)];
+
+        // Franchement sur le premier, puis franchement sur le second.
+        assert_eq!(ecran_du_rect(&ecrans, 100, 100, 800, 600), Some(1));
+        assert_eq!(ecran_du_rect(&ecrans, 2200, 100, 800, 600), Some(2));
+
+        // A cheval, 90% a droite. Le coin haut gauche est sur l'ecran 1 et
+        // repondre 1 serait le bug qu'on evite: l'humain voit cette fenetre
+        // sur l'ecran 2, et c'est celui-la qu'il faut capturer.
+        assert_eq!(
+            ecran_du_rect(&ecrans, 1820, 100, 1000, 600),
+            Some(2),
+            "le recouvrement doit l'emporter sur le coin haut gauche"
+        );
+
+        // Exactement a la frontiere, majorite a gauche.
+        assert_eq!(ecran_du_rect(&ecrans, 1520, 100, 800, 600), Some(1));
+
+        // Entierement hors de tout moniteur: on ne devine pas.
+        assert_eq!(ecran_du_rect(&ecrans, 5000, 5000, 200, 200), None);
+
+        // Un seul ecran: tout y tombe, et jamais None pour une fenetre visible.
+        assert_eq!(ecran_du_rect(&[(0, 0, 1920, 1080)], 0, 0, 100, 100), Some(1));
+    }
+
     fn le_cadre_convertit_dans_les_deux_sens() {
         // Un 4K reduit a 1280 de large, sur le deuxieme ecran d'un montage.
         let c = Cadre {

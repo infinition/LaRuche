@@ -17,9 +17,17 @@ so it is faster, cheaper in tokens and it does not miss.
 
 This is the one that matters, and the only one that works if you cannot see images.
 
-1. `windows` lists every open window, with its size, position and application. The focused
-   one is marked `*`. Minimised windows are listed separately, by title: they are still
-   open, and `focus_window` or `restore_window` brings one back.
+1. `windows` lists every open window, with its size, position, application **and which
+   screen it is on**. The focused one is marked `*`, and the screen your last screenshot
+   came from is marked `<- captured`. Minimised windows are listed separately, by title:
+   they are still open, and `focus_window` or `restore_window` brings one back.
+
+   On a multi-monitor setup this is the line that matters. A window on `screen 2` cannot be
+   clicked with coordinates read off a capture of `screen 1`: those numbers are valid only
+   for the screen they came from, so you would click a real point on the wrong monitor.
+   Either capture that screen first, or act by `ref`, which needs no coordinates at all and
+   does not care which monitor the window sits on. A window straddling two monitors is
+   attributed to the one showing most of it, which is the one a human would name.
 2. `focus_window` `{ "window": "Notepad" }` brings one to the front, matching a piece of its
    title.
 3. `read` returns a numbered map of that window's controls, plus the static text on it:
