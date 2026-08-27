@@ -7,6 +7,8 @@ pub mod ordinateur;
 #[cfg(all(windows, feature = "gui-control"))]
 pub mod ordinateur_arbre;
 #[cfg(all(windows, feature = "gui-control"))]
+pub mod ordinateur_fenetres;
+#[cfg(all(windows, feature = "gui-control"))]
 pub mod ordinateur_halo;
 pub mod calendrier;
 pub mod clarify;

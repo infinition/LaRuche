@@ -18,7 +18,8 @@ so it is faster, cheaper in tokens and it does not miss.
 This is the one that matters, and the only one that works if you cannot see images.
 
 1. `windows` lists every open window, with its size, position and application. The focused
-   one is marked `*`. Minimised windows are not listed.
+   one is marked `*`. Minimised windows are listed separately, by title: they are still
+   open, and `focus_window` or `restore_window` brings one back.
 2. `focus_window` `{ "window": "Notepad" }` brings one to the front, matching a piece of its
    title.
 3. `read` returns a numbered map of that window's controls, plus the static text on it:
@@ -99,6 +100,21 @@ simple setup and fail silently everywhere else.
 `max_width` raises the resolution when you genuinely cannot read what you need. It costs
 tokens in proportion.
 
+## Moving the windows themselves
+
+`move_window` takes `window` plus any of `x`, `y`, `width`, `height`, in desktop pixels.
+A maximised window is restored first, because Windows ignores a placement request on one
+and would report a success that changes nothing.
+
+`minimize_window`, `maximize_window` and `restore_window` do what they say.
+`close_window` is the cross, not a kill: the application gets the request, may put up a
+save prompt, and may refuse. Call `windows` again to see whether it actually went, and
+read the screen if a dialog appeared. To really kill a process, that is `shell_exec`.
+
+All of them take a piece of the title, like `focus_window`. An exact title wins over a
+partial match, and an ambiguous piece is refused with the list of candidates rather than
+acted on: closing the wrong window is not recoverable.
+
 ## Dragging
 
 `left_click_drag` does the whole gesture in one call: press, move in steps, release. It
@@ -176,8 +192,15 @@ Two refusals are by design, not bugs to work around:
   where the tool left it, and less than 45 seconds have passed, the next gesture is refused
   and nothing is done. Say so and wait. Repeating the same call takes control back
   deliberately, so it is not a deadlock, but do not repeat it reflexively: someone is using
-  the machine. Note that this guard only covers gestures that carry coordinates. `type` and
-  `key` go to whatever has focus and are not checked.
+  the machine. `type` is checked too, even though it aims at no point: a long burst of
+  typing is exactly what someone reaching for the mouse wants to stop.
+
+**A window running as administrator cannot be driven at all.** Windows blocks synthetic
+input across that privilege boundary, silently: the click is sent, does nothing, and
+returns no error, which is indistinguishable from aiming badly. `focus_window` and `type`
+warn you when the target is elevated, and the window actions refuse outright. This cannot
+be worked around and should not be. Say that the window has to be driven by hand, or that
+LaRuche has to be restarted as administrator, and stop trying.
 
 Approval comes in two classes. Approving one observing action (`screens`, `screenshot`,
 `cursor_position`) does **not** approve a click, and the first acting call is asked

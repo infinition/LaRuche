@@ -552,6 +552,37 @@ fn touche_nommee(nom: &str) -> Option<enigo::Key> {
 /// Le tour de vis: tout ce qui bouge la souris ou frappe le clavier passe par
 /// ici, donc les deux gardes sont impossibles a contourner par une action qui
 /// aurait oublie de les appeler.
+/// L'humain a-t-il repris la souris? Sans toucher a la position memorisee.
+///
+/// Extrait de [`autoriser_geste`] pour que les gestes SANS coordonnees puissent
+/// le consulter aussi. Une frappe ne vise aucun point, mais elle doit s'arreter
+/// quand quelqu'un se sert de la machine, et c'est meme le cas le plus utile:
+/// une longue frappe est precisement ce qu'on veut pouvoir interrompre.
+fn verifier_reprise(enigo: &Enigo, facteur: f64) -> Result<()> {
+    let mut etat = etat().lock().unwrap();
+    let Some((ax, ay, quand)) = etat.derniere_position else {
+        return Ok(());
+    };
+    if quand.elapsed() >= Duration::from_secs(45) || etat.reprise_signalee {
+        return Ok(());
+    }
+    let Ok((cx, cy)) = enigo.location() else {
+        return Ok(());
+    };
+    let (cx, cy) = (cx as f64 / facteur, cy as f64 / facteur);
+    let ecart = ((cx - ax).powi(2) + (cy - ay).powi(2)).sqrt();
+    if ecart <= SEUIL_REPRISE_PX {
+        return Ok(());
+    }
+    etat.reprise_signalee = true;
+    etat.derniere_position = None;
+    Err(anyhow!(
+        "Yielded: the mouse moved {ecart:.0}px away from where this tool left it, so the \
+         human is using the machine right now. Nothing was typed. Say so and wait, or repeat \
+         the same call to take control back deliberately."
+    ))
+}
+
 fn autoriser_geste(px: f64, py: f64, enigo: &Enigo, facteur: f64) -> Result<()> {
     if let Some(titre) = fenetre_laruche_au_point(px, py) {
         return Err(anyhow!(
@@ -760,6 +791,9 @@ impl Ordinateur {
 
             "read" | "find" | "focus_window" | "focus" => Self::geste_arbre(action, &args),
 
+            "move_window" | "minimize_window" | "maximize_window" | "restore_window"
+            | "close_window" => Self::geste_fenetre(action, &args),
+
             "mouse_move" | "left_click" | "right_click" | "middle_click" | "double_click"
             | "triple_click" | "left_click_drag" | "mouse_down" | "mouse_up" | "scroll"
             | "fill" => Self::geste_souris(action, &args, &mut enigo, facteur, glisse_ms),
@@ -825,12 +859,17 @@ impl Ordinateur {
                         "Text too long (max 5000 chars). Paste through a file instead."
                     ));
                 }
-                // Pas de garde de position ici: la frappe va au focus courant,
-                // pas a un point de l'ecran. La garde qui compte a deja ete
-                // passee par le clic qui a donne ce focus.
+                // La frappe va au focus courant, pas a un point de l'ecran, donc
+                // la garde de POSITION ne s'applique pas. Mais rendre la main
+                // quand l'humain reprend la souris, si: sans ca, un agent en
+                // train de taper ne pouvait pas etre arrete en touchant la
+                // souris, ce qui vidait le coupe-circuit de son sens exactement
+                // dans le cas ou il sert le plus, une longue frappe.
+                verifier_reprise(&enigo, facteur)?;
                 // Ou va la frappe, LU AVANT de taper: apres, une fenetre a pu
                 // s'ouvrir, et on rapporterait la mauvaise.
                 let ou = ou_part_la_frappe();
+                let mut avertissement = String::new();
                 if let Some((nom, pid)) = fenetre_active() {
                     if pid == std::process::id() {
                         return Err(anyhow!(
@@ -839,6 +878,14 @@ impl Ordinateur {
                              application you were asked about to the front first, with \
                              focus_window."
                         ));
+                    }
+                    // Une fenetre elevee avale la frappe sans rien dire. Le
+                    // rapport dirait "10 caracteres tapes" et l'ecran serait
+                    // inchange; le modele conclurait a une erreur de focus et
+                    // recommencerait.
+                    #[cfg(windows)]
+                    if let Some(p) = super::ordinateur_fenetres::hors_datteinte(pid) {
+                        avertissement = format!(" Warning: {p}");
                     }
                 }
                 if glisse_ms > 0 && texte.chars().count() <= 200 {
@@ -859,9 +906,9 @@ impl Ordinateur {
                         .map_err(|e| anyhow!("typing failed: {e}"))?;
                 }
                 Ok(ResultatAbeille::ok(format!(
-                    "Typed {} character(s).{ou} If that is not the window you meant, nothing \
-                     you typed went where you thought: bring the right one to the front with \
-                     focus_window and type again.",
+                    "Typed {} character(s).{ou}{avertissement} If that is not the window you \
+                     meant, nothing you typed went where you thought: bring the right one to \
+                     the front with focus_window and type again.",
                     texte.chars().count()
                 )))
             }
@@ -912,12 +959,114 @@ impl Ordinateur {
             })
             .collect();
         lignes.sort();
+
+        // Les reduites, a part et nommees. Elles etaient simplement absentes, ce
+        // qui faisait croire que l'application n'existait pas: l'agent cherchait
+        // un Bloc-notes ouvert et concluait qu'il fallait le lancer, alors qu'il
+        // etait la, dans la barre des taches, avec le travail de l'utilisateur
+        // dedans.
+        #[cfg(windows)]
+        let reduites: Vec<String> = super::ordinateur_fenetres::lister()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|f| f.reduite)
+            .map(|f| format!("  {}", f.titre))
+            .collect();
+        #[cfg(not(windows))]
+        let reduites: Vec<String> = Vec::new();
+
         Ok(ResultatAbeille::ok(format!(
-            "{} visible window(s), * marks the focused one:\n{}\n\nUse focus_window with a \
-             piece of the title to bring one to the front, then read it.",
+            "{} window(s) on screen, * marks the focused one:\n{}{}\n\nUse focus_window with \
+             a piece of the title to bring one to the front, then read it. move_window, \
+             minimize_window, maximize_window, restore_window and close_window take the same \
+             piece of title.",
             lignes.len(),
-            lignes.join("\n")
+            lignes.join("\n"),
+            if reduites.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    "\n\n{} minimised, not on screen but still open (focus_window or \
+                     restore_window brings one back):\n{}",
+                    reduites.len(),
+                    reduites.join("\n")
+                )
+            }
         )))
+    }
+
+    /// Deplacer, redimensionner, reduire, agrandir, restaurer, fermer.
+    #[cfg(windows)]
+    fn geste_fenetre(action: &str, args: &Value) -> Result<ResultatAbeille> {
+        use super::ordinateur_fenetres as fen;
+
+        let filtre = args["window"].as_str().unwrap_or("").trim();
+        let f = fen::trouver(filtre)?;
+
+        // Refuser d'agir sur une fenetre de LaRuche vaut ici aussi: fermer sa
+        // propre interface, ou la reduire au moment ou l'utilisateur y repond,
+        // contourne les memes garde-fous qu'un clic.
+        if f.pid == std::process::id() {
+            return Err(anyhow!(
+                "Refused: \"{}\" is one of LaRuche's own windows. Moving, hiding or closing \
+                 the interface the user answers your approval prompts in is never allowed.",
+                f.titre
+            ));
+        }
+
+        // L'elevation se dit AVANT le geste. Une fenetre elevee ignore aussi
+        // SetWindowPos et WM_CLOSE venus d'un processus ordinaire.
+        if let Some(pourquoi) = fen::hors_datteinte(f.pid) {
+            return Err(anyhow!("Cannot act on \"{}\": {pourquoi}", f.titre));
+        }
+
+        decor::ligne(&format!("{action} {}", f.titre));
+
+        match action {
+            "move_window" => {
+                let lire = |cle: &str| args[cle].as_i64().map(|v| v as i32);
+                fen::poser(
+                    &f,
+                    lire("x"),
+                    lire("y"),
+                    lire("width"),
+                    lire("height"),
+                )?;
+                let apres = fen::trouver(filtre)?;
+                Ok(ResultatAbeille::ok(format!(
+                    "\"{}\" is now {}x{} at ({},{}).",
+                    apres.titre,
+                    apres.rect.2 - apres.rect.0,
+                    apres.rect.3 - apres.rect.1,
+                    apres.rect.0,
+                    apres.rect.1
+                )))
+            }
+            "minimize_window" | "maximize_window" | "restore_window" => {
+                let quoi = action.trim_end_matches("_window");
+                let fait = fen::etat(&f, quoi)?;
+                Ok(ResultatAbeille::ok(format!("\"{}\" {fait}.", f.titre)))
+            }
+            "close_window" => {
+                fen::fermer(&f)?;
+                Ok(ResultatAbeille::ok(format!(
+                    "Asked \"{}\" to close. This is the same as clicking its cross: the \
+                     application may put up a save prompt, and may refuse. Call windows again \
+                     to see whether it actually went, and read the screen if a dialog \
+                     appeared.",
+                    f.titre
+                )))
+            }
+            autre => Err(anyhow!("unknown window action '{autre}'.")),
+        }
+    }
+
+    #[cfg(not(windows))]
+    fn geste_fenetre(_action: &str, _args: &Value) -> Result<ResultatAbeille> {
+        Err(anyhow!(
+            "Moving, resizing and closing windows is only wired for Windows today. The \
+             `windows` action still lists what is open everywhere."
+        ))
     }
 
     /// Tout ce qui passe par l'arbre d'accessibilite plutot que par les pixels.
@@ -995,10 +1144,38 @@ impl Ordinateur {
                          with the windows action."
                     ));
                 };
-                let titre = arbre::activer_fenetre(filtre)?;
+                // Une fenetre reduite n'est pas dans l'arbre d'accessibilite: la
+                // restaurer d'abord est la seule facon de la ramener, et c'est
+                // exactement ce qu'on veut dire par "mets-la devant".
+                let restauree = {
+                    let f = super::ordinateur_fenetres::trouver(filtre).ok();
+                    match f {
+                        Some(f) if f.reduite => {
+                            super::ordinateur_fenetres::activer(&f)?;
+                            // Laisser l'animation de restauration finir, sinon
+                            // l'arbre est lu sur une fenetre encore en vol.
+                            std::thread::sleep(Duration::from_millis(250));
+                            Some(f.titre)
+                        }
+                        _ => None,
+                    }
+                };
+                let titre = match restauree {
+                    Some(t) => t,
+                    None => arbre::activer_fenetre(filtre)?,
+                };
+                // Prevenir MAINTENANT plutot que de laisser le premier clic
+                // disparaitre dans le vide.
+                let eleve = super::ordinateur_fenetres::trouver(filtre)
+                    .ok()
+                    .and_then(|f| super::ordinateur_fenetres::hors_datteinte(f.pid));
                 Ok(ResultatAbeille::ok(format!(
                     "\"{titre}\" is now in front. Refs were dropped with the previous \
-                     window: read it before acting."
+                     window: read it before acting.{}",
+                    match eleve {
+                        Some(p) => format!(" Warning: {p}"),
+                        None => String::new(),
+                    }
                 )))
             }
             "focus" => {
@@ -1573,7 +1750,7 @@ impl Abeille for Ordinateur {
          Actions: windows, focus_window, read, find, focus, screens, screenshot, \
          cursor_position, mouse_move, left_click, right_click, middle_click, double_click, \
          triple_click, left_click_drag, mouse_down, mouse_up, scroll, fill, type, key, \
-         key_down, key_up, release_all, wait, read_clipboard, write_clipboard. \
+         key_down, key_up, release_all, wait, read_clipboard, write_clipboard, move_window, minimize_window, maximize_window, restore_window, close_window. \
          THE FAST PATH NEEDS NO SCREENSHOT AT ALL, and it is the only one that works without \
          vision: windows lists what is open, focus_window brings one to the front, read \
          returns a NUMBERED map of its controls (ref_1 <button> OK), and click or fill act \
@@ -1601,8 +1778,10 @@ impl Abeille for Ordinateur {
                              "right_click", "middle_click", "double_click", "triple_click",
                              "left_click_drag", "mouse_down", "mouse_up", "scroll", "fill",
                              "type", "key", "key_down", "key_up", "release_all", "wait",
-                             "read_clipboard", "write_clipboard"],
-                    "description": "windows: list the open windows. focus_window: bring one to the front by a piece of its title. read: numbered map of the controls of the front window (or of `window`), the no-screenshot path. find: the same map filtered to controls whose label contains `text`, for a window too big to read whole. focus: give focus to a ref without acting on it. screens: list the monitors. screenshot: capture one, and set the coordinate system for everything after it. cursor_position: where the pointer is. mouse_move: move onto a ref or a point WITHOUT clicking, which is what opens hover menus. left/right/middle/double/triple_click: act on a ref, or click at x,y, or click where the cursor already is. left_click_drag: grab (a ref, or x,y) and release at to_x,to_y, holding briefly at each end so HTML5 and Electron drops register. mouse_down/mouse_up: hold a button across other calls, for drawing, for reading a slider mid-drag, and for drops that need the pointer to dwell. scroll: on a ref, brings it into view through its own pattern, the only way to reach an off-screen control without a screenshot; otherwise wheel notches at a point. fill: write into a ref, including a number into a slider or a spinner. type: type text into whatever has focus. key: press a key or a chord. key_down/key_up: hold a key across other gestures. release_all: release every key and button still held. wait: pause while the interface catches up. read_clipboard/write_clipboard: text in and out, which is how you move more than a few lines."
+                             "read_clipboard", "write_clipboard", "move_window",
+                             "minimize_window", "maximize_window", "restore_window",
+                             "close_window"],
+                    "description": "windows: list the open windows. focus_window: bring one to the front by a piece of its title. read: numbered map of the controls of the front window (or of `window`), the no-screenshot path. find: the same map filtered to controls whose label contains `text`, for a window too big to read whole. focus: give focus to a ref without acting on it. screens: list the monitors. screenshot: capture one, and set the coordinate system for everything after it. cursor_position: where the pointer is. mouse_move: move onto a ref or a point WITHOUT clicking, which is what opens hover menus. left/right/middle/double/triple_click: act on a ref, or click at x,y, or click where the cursor already is. left_click_drag: grab (a ref, or x,y) and release at to_x,to_y, holding briefly at each end so HTML5 and Electron drops register. mouse_down/mouse_up: hold a button across other calls, for drawing, for reading a slider mid-drag, and for drops that need the pointer to dwell. scroll: on a ref, brings it into view through its own pattern, the only way to reach an off-screen control without a screenshot; otherwise wheel notches at a point. fill: write into a ref, including a number into a slider or a spinner. type: type text into whatever has focus. key: press a key or a chord. key_down/key_up: hold a key across other gestures. release_all: release every key and button still held. wait: pause while the interface catches up. read_clipboard/write_clipboard: text in and out, which is how you move more than a few lines. move_window places a window by x, y, width, height, any subset. minimize_window, maximize_window, restore_window and close_window take `window` like focus_window; close_window is the cross, not a kill, so the app may prompt or refuse."
                 },
                 "ref": { "type": "integer", "description": "Element number from read, without the ref_ prefix. Preferred over x,y: it cannot miss, and it is the only path that works without vision." },
                 "window": { "type": "string", "description": "For read and focus_window: a piece of the window title. read defaults to the front window." },
@@ -1612,6 +1791,8 @@ impl Abeille for Ordinateur {
                 "to_y": { "type": "number", "description": "For left_click_drag: where to release" },
                 "button": { "type": "string", "enum": ["left", "right", "middle"], "description": "For mouse_down, mouse_up and left_click_drag: which button. Default left. Right and middle drags are how CAD and 3D tools orbit and pan." },
                 "ms": { "type": "integer", "description": "For wait: how long to pause, 50 to 30000, default 1000" },
+                "width": { "type": "integer", "description": "For move_window: new width in desktop pixels" },
+                "height": { "type": "integer", "description": "For move_window: new height in desktop pixels" },
                 "screen": { "description": "For screenshot: screen id, rank (1 = first) or name. Default: the primary screen." },
                 "max_width": { "type": "integer", "description": "For screenshot: width of the returned image, default 1280. Larger is more legible and more expensive." },
                 "text": { "type": "string", "description": "For type, fill and write_clipboard: the text to write. For fill on a slider or a spinner: the number to set. For find: the wording to look for." },
