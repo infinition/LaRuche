@@ -12,14 +12,23 @@ use async_trait::async_trait;
 pub struct ResultatOutil {
     pub ok: bool,
     pub sortie: String,
+    /// Images produites par l'outil, en base64.
+    ///
+    /// Une capture d'ecran, une page, une photo de webcam. Elles etaient
+    /// remontees jusqu'a l'interface pour l'affichage et perdues ici, donc le
+    /// modele ne les a JAMAIS vues: il repondait "capture prise" sans avoir rien
+    /// regarde, et disait parfois lui-meme qu'il ne recevait pas l'image. Un
+    /// outil qui rend une image et dont l'image n'arrive pas est un outil qui
+    /// ment sur ce qu'il fait.
+    pub images: Vec<String>,
 }
 
 impl ResultatOutil {
     pub fn ok(s: impl Into<String>) -> Self {
-        Self { ok: true, sortie: s.into() }
+        Self { ok: true, sortie: s.into(), images: Vec::new() }
     }
     pub fn echec(s: impl Into<String>) -> Self {
-        Self { ok: false, sortie: s.into() }
+        Self { ok: false, sortie: s.into(), images: Vec::new() }
     }
     /// Fingerprint of the result (stagnation detection by the vigie).
     pub fn empreinte(&self) -> u64 {

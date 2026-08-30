@@ -18,7 +18,7 @@ use crate::carnet::Carnet;
 use crate::cap::vigie::{Signal, Vigie};
 use crate::evenement::{Emetteur, Evenement};
 use crate::issue::{Appel, Bilan, FinDeVol};
-use crate::messagerie::Message;
+use crate::messagerie::{Message, Piece};
 use crate::outils::{Outils, ResultatOutil};
 use crate::reglages::Reglages;
 use futures_util::future::join_all;
@@ -255,6 +255,39 @@ fn appliquer(
     carnet
         .historique
         .push(Message::observation_liee(&appel.nom, &appel.id, observation));
+
+    // L'image produite par l'outil, POSEE APRES l'observation, dans un message
+    // utilisateur.
+    //
+    // Pas dans l'observation elle-meme: OpenAI n'accepte aucune image dans un
+    // message `role: "tool"`, la requete entiere est refusee. Anthropic les
+    // accepte, mais faire deux chemins pour ca ne vaut ni le code ni le risque
+    // qu'un des deux pourrisse sans qu'on s'en apercoive. Un message utilisateur
+    // portant l'image marche partout, et c'est ainsi que le modele voit enfin ce
+    // qu'il vient de capturer.
+    //
+    // Sans ceci, `camera`, `screenshot` du navigateur et `screenshot` du bureau
+    // rendaient une image a l'interface et RIEN au modele: il annoncait "capture
+    // prise" sans avoir rien regarde.
+    if !res.images.is_empty() {
+        let pieces: Vec<Piece> = res
+            .images
+            .iter()
+            .map(|data| Piece {
+                kind: "image".into(),
+                mime: "image/png".into(),
+                data: data.clone(),
+            })
+            .collect();
+        let combien = pieces.len();
+        carnet.historique.push(Message::utilisateur_multimodal(
+            format!(
+                "[{combien} image(s) rendue(s) par {}. Decris ce que tu vois reellement, et                  dis ce qui est trop sombre ou trop flou plutot que de le deviner.]",
+                appel.nom
+            ),
+            pieces,
+        ));
+    }
 
     if let Signal::Poser(motif) = signal {
         carnet.itineraire.finaliser();
