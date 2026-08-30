@@ -2731,14 +2731,33 @@ LaRuche.Voice = (function(){
     var body={text:text, speed:ttsSpeed};
     if(ttsVoice) body.voice=ttsVoice;
     if(ttsBackend) body.backend=ttsBackend;
+    // Le repli vers la voix du navigateur etait SILENCIEUX: quand le serveur
+    // echouait, on entendait quand meme une voix, donc on croyait la synthese
+    // en marche alors qu'elle avait echoue. On cherchait ensuite du cote du
+    // moteur, du port, du reglage, sans jamais savoir que rien n'etait arrive.
+    // Chaque cause de repli se nomme maintenant en console.
     return fetch('/api/voice/tts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
       .then(function(resp){
         var ct=(resp.headers.get('content-type')||'').toLowerCase();
-        if(!resp.ok || ct.indexOf('audio')<0) return null;
+        if(!resp.ok){
+          LaRuche.Console.log('warn','TTS','serveur HTTP '+resp.status+' ('+(resp.status===401?'session non authentifiee':'voir le service sur 8422')+'), repli sur la voix du navigateur');
+          return null;
+        }
+        if(ct.indexOf('audio')<0){
+          LaRuche.Console.log('warn','TTS','reponse non audio ('+(ct||'sans type')+'), repli sur la voix du navigateur');
+          return null;
+        }
         return resp.blob();
       })
-      .then(function(blob){ return (blob && blob.size>=64) ? blob : null; })
-      .catch(function(){ return null; });
+      .then(function(blob){
+        if(blob && blob.size>=64) return blob;
+        if(blob) LaRuche.Console.log('warn','TTS','audio vide ('+blob.size+' octets), repli sur la voix du navigateur');
+        return null;
+      })
+      .catch(function(e){
+        LaRuche.Console.log('error','TTS','appel impossible: '+((e&&e.message)||e)+', repli sur la voix du navigateur');
+        return null;
+      });
   }
   // Play sentence i, prefetching i+1 so she keeps talking with no gap.
   function ttsPlayQueue(sentences, i, blob, btn, seq){
@@ -2773,6 +2792,7 @@ LaRuche.Voice = (function(){
     var first=await ttsFetchBlob(sentences[0]);
     if(seq!==_ttsSeq){ return; } // a newer call superseded this one
     if(!first){ speakBrowser(cleanText,btn); return; } // TTS unavailable: browser voice
+    LaRuche.Console.log('info','TTS','voix du serveur'+(ttsBackend?' ('+ttsBackend+')':''));
     ttsPlayQueue(sentences,0,first,btn,seq);
   }
 
