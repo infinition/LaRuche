@@ -63,6 +63,22 @@ pub struct Message {
     /// correlation for providers that support it).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub appel_id: Option<String>,
+    /// Le raisonnement d'un modele "thinking", et le modele qui l'a produit.
+    ///
+    /// Certains backends compatibles OpenAI, DeepSeek en tete, diffusent leur
+    /// chaine de pensee dans `reasoning_content` et EXIGENT de la recevoir en
+    /// retour au tour suivant. Elle etait accumulee puis jetee faute d'une case
+    /// pour la porter, et le deuxieme tour de toute conversation en mode
+    /// thinking mourait sur "The reasoning_content in the thinking mode must be
+    /// passed back to the API".
+    ///
+    /// Le modele est retenu avec, parce que ce champ ne doit repartir QU'AU
+    /// fournisseur qui l'a emis: un autre backend recevrait une cle inconnue, et
+    /// les plus stricts refusent la requete entiere.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_model: Option<String>,
 }
 
 impl Message {
@@ -75,6 +91,8 @@ impl Message {
             pieces: Vec::new(),
             appels: Vec::new(),
             appel_id: None,
+            reasoning: None,
+            reasoning_model: None,
         }
     }
 

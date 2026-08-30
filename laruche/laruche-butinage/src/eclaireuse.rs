@@ -220,8 +220,7 @@ mod tests {
                 texte: "(fin)".into(),
                 stop: StopReason::FinTour,
                 appels: vec![],
-                usage: None,
-            }))
+                usage: None, ..Default::default() }))
         }
     }
 
@@ -264,8 +263,7 @@ mod tests {
                 texte: String::new(),
                 stop: StopReason::Outils,
                 appels: vec![Appel::nouveau("task_complete", json!({"summary": "ok"}))],
-                usage: None,
-            })
+                usage: None, ..Default::default() })
         }
     }
 
@@ -323,8 +321,7 @@ mod tests {
             texte: String::new(),
             stop: StopReason::Outils,
             appels: vec![Appel::nouveau("task_complete", json!({"summary": "3 sources trouvées"}))],
-            usage: None,
-        })));
+            usage: None, ..Default::default() })));
         let ordre = OrdreEclaireuse {
             role: Role::Eclaireuse,
             tache: "trouver des sources sur X".into(),

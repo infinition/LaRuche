@@ -8,10 +8,11 @@ use serde::{Deserialize, Serialize};
 /// **Native** stop reason from the model, normalized across providers.
 /// (Fixes the hard-coded `Some("stop")` of some backends that broke
 /// truncation detection.)
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StopReason {
     /// The model finished its turn naturally.
+    #[default]
     FinTour,
     /// Cut off by the output token limit (resume possible).
     Longueur,

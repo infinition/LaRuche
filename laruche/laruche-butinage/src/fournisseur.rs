@@ -18,13 +18,19 @@ pub struct Usage {
 }
 
 /// Aggregated response of a model call.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ReponseModele {
     pub texte: String,
     pub stop: StopReason,
     /// Tool calls emitted by the model (API-native or parsed by the adapter).
     pub appels: Vec<Appel>,
     pub usage: Option<Usage>,
+    /// Le raisonnement d'un modele "thinking", a rendre au fournisseur au tour
+    /// suivant. Voir [`crate::messagerie::Message::reasoning`].
+    pub reasoning: Option<String>,
+    /// Le modele qui a produit ce raisonnement. Sans lui on ne saurait pas a qui
+    /// le rendre, et le renvoyer au mauvais fournisseur casserait la requete.
+    pub reasoning_model: Option<String>,
 }
 
 /// Error of a model call, carrying what is needed to classify it ([`crate::meteo::ClasseErreur`]).

@@ -272,7 +272,17 @@ pub async fn butiner(
         if !reponse.texte.is_empty() || !reponse.appels.is_empty() {
             carnet
                 .historique
-                .push(Message::assistant_avec_appels(reponse.texte.clone(), reponse.appels.clone()));
+                .push({
+                    let mut m = Message::assistant_avec_appels(
+                        reponse.texte.clone(),
+                        reponse.appels.clone(),
+                    );
+                    // Le raisonnement voyage avec le modele qui l'a produit: il
+                    // ne sera rejoue qu'a lui, jamais a un autre fournisseur.
+                    m.reasoning = reponse.reasoning.clone();
+                    m.reasoning_model = reponse.reasoning_model.clone();
+                    m
+                });
         }
 
         let mode_avant = carnet.mode;
@@ -1006,7 +1016,7 @@ It is Sunday.".into()),
                 texte: "(end of script)".into(),
                 stop: StopReason::FinTour,
                 appels: vec![],
-                usage: None,
+                usage: None, ..Default::default()
             }))
         }
     }
@@ -1023,13 +1033,13 @@ It is Sunday.".into()),
     }
 
     fn rep_texte(t: &str) -> ReponseModele {
-        ReponseModele { texte: t.into(), stop: StopReason::FinTour, appels: vec![], usage: None }
+        ReponseModele { texte: t.into(), stop: StopReason::FinTour, appels: vec![], usage: None, ..Default::default() }
     }
     fn rep_appel(nom: &str, args: serde_json::Value) -> ReponseModele {
-        ReponseModele { texte: String::new(), stop: StopReason::Outils, appels: vec![Appel::nouveau(nom, args)], usage: None }
+        ReponseModele { texte: String::new(), stop: StopReason::Outils, appels: vec![Appel::nouveau(nom, args)], usage: None, ..Default::default() }
     }
     fn rep_appels(appels: Vec<Appel>) -> ReponseModele {
-        ReponseModele { texte: String::new(), stop: StopReason::Outils, appels, usage: None }
+        ReponseModele { texte: String::new(), stop: StopReason::Outils, appels, usage: None, ..Default::default() }
     }
 
     #[tokio::test]
@@ -1277,7 +1287,7 @@ It is Sunday.".into()),
                 texte: String::new(),
                 stop: StopReason::Outils,
                 appels: vec![Appel::nouveau("web_search", json!({"q": "x"}))],
-                usage: Some(crate::fournisseur::Usage { entree: 900, sortie: 200 }),
+                usage: Some(crate::fournisseur::Usage { entree: 900, sortie: 200 }), ..Default::default()
             },
             rep_texte("jamais atteint"),
         ]);
@@ -1410,7 +1420,7 @@ It is Sunday.".into()),
             texte: "here is a json with \"name\" and \"arguments\" fields, purely discussed".into(),
             stop: StopReason::FinTour,
             appels: vec![],
-            usage: None,
+            usage: None, ..Default::default()
         };
         // Robuste: text heuristic active -> malformed
         if let Issue::TexteSeul(t) = analyser(&rep, &mut carnet, ProfilModele::Robuste) {
@@ -1433,7 +1443,7 @@ It is Sunday.".into()),
             texte: "…".into(),
             stop: StopReason::Outils, // provider says "tools" but nothing was parsed
             appels: vec![],
-            usage: None,
+            usage: None, ..Default::default()
         };
         if let Issue::TexteSeul(t) = analyser(&rep, &mut carnet, ProfilModele::NatifOutils) {
             assert!(t.malforme, "stop=Outils with zero calls is a strong malformed signal");

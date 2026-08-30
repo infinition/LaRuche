@@ -407,6 +407,7 @@ mod tests {
                     stop: StopReason::FinTour,
                     appels: vec![],
                     usage: None,
+                    ..Default::default()
                 })
             }
         }
