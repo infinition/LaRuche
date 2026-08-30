@@ -151,7 +151,7 @@ pub(crate) async fn api_upsert_profile(
     let provider = body["provider"].as_str().unwrap_or("ollama").to_string();
     let name = body["name"].as_str().unwrap_or(&id).to_string();
     let base_url = body["base_url"].as_str().unwrap_or("").to_string();
-    let api_key = body["api_key"].as_str().unwrap_or("").to_string();
+    let soumise = body["api_key"].as_str().unwrap_or("").to_string();
     let models: Vec<String> = body["models"]
         .as_array()
         .map(|arr| {
@@ -170,17 +170,45 @@ pub(crate) async fn api_upsert_profile(
             _ => 32768,
         });
 
+    let mut cfg = state.profiles.write().await;
+    let ancien = cfg.profiles.get(&id);
+
+    // La cle n'est JAMAIS rendue en clair par l'API: la liste la masque en
+    // `sk-1...ab42`. Le formulaire ne peut donc pas la reafficher, et il la
+    // renvoie vide quand la personne n'y a pas touche. Prendre cette valeur vide
+    // au pied de la lettre effacait la cle a chaque enregistrement: on venait
+    // ajouter un modele, et le profil se retrouvait sans identifiants, avec une
+    // erreur qui parle de configuration manquante et rien qui dise qu'on vient
+    // soi-meme de la supprimer.
+    //
+    // Donc: vide veut dire "inchangee". Pour retirer une cle, on efface le
+    // profil ou on en met une autre. Une valeur masquee renvoyee telle quelle
+    // est traitee pareil, sinon on stockerait `sk-1...ab42` comme cle.
+    let masque_renvoye = ancien
+        .map(|a| a.api_key.len() > 4 && soumise == format!("{}...{}", &a.api_key[..4], &a.api_key[a.api_key.len() - 4..]))
+        .unwrap_or(false);
+    let api_key = if soumise.is_empty() || masque_renvoye {
+        ancien.map(|a| a.api_key.clone()).unwrap_or_default()
+    } else {
+        soumise
+    };
+
+    // Meme raisonnement pour le partage sur le maillage: le formulaire ne
+    // l'expose pas, donc il ne doit pas pouvoir le remettre a zero en passant.
+    let visibilite = ancien.map(|a| a.visibilite.clone()).unwrap_or_default();
+    let allowed_peers = ancien.map(|a| a.allowed_peers.clone()).unwrap_or_default();
+
     let profile = profiles::ProviderProfile {
         provider,
         name: name.clone(),
         base_url,
         api_key,
         models,
-        visibilite: Default::default(), allowed_peers: Vec::new(),
+        visibilite,
+        allowed_peers,
         max_context_length,
     };
 
-    let mut cfg = state.profiles.write().await;
     cfg.profiles.insert(id.clone(), profile);
 
     // Auto-discover Ollama models if provider is ollama

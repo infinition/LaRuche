@@ -1553,13 +1553,67 @@ fn rendre_session_messages(messages: &[crate::Message]) -> String {
 /// old turns are NOT re-sent (only the text is kept: context savings); the system,
 /// thoughts, prompt-debug and raw tool_calls are ignored (butinage has its own system
 /// prompt and tool results live in the observations).
+/// Nombre de messages porteurs d'images dont on renvoie reellement les images.
+///
+/// Zero serait le plus economique, et c'etait le comportement: les tours passes
+/// revenaient en texte seul. Mais dans une conversation on colle une image PUIS
+/// on en parle, et des le deuxieme message le modele redevenait aveugle. Il
+/// repondait alors, tres honnetement, qu'il ne voyait pas d'image, ce qui est
+/// incomprehensible quand la vignette est affichee juste au-dessus.
+///
+/// Tout renvoyer serait l'autre exces: chaque image est refacturee a chaque
+/// tour. Deux suffisent pour "regarde cette image / et compare avec celle-ci",
+/// qui est la conversation reelle.
+const TOURS_AVEC_IMAGES: usize = 2;
+
 fn prelude_butinage(messages: &[crate::Message]) -> Vec<but::Message> {
     use crate::Message as M;
+
+    // Reperage prealable des messages dont on garde les images: les derniers.
+    // On ne peut pas le decider en avancant, puisque "les plus recents" ne se
+    // connaissent qu'a la fin.
+    let porteurs: Vec<usize> = messages
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| {
+            matches!(m, M::UserMultimodal { attachments, .. }
+                if attachments.iter().any(|a| a.kind == "image"))
+        })
+        .map(|(i, _)| i)
+        .collect();
+    let garde: std::collections::HashSet<usize> = porteurs
+        .iter()
+        .rev()
+        .take(TOURS_AVEC_IMAGES)
+        .copied()
+        .collect();
+
     let mut out = Vec::new();
-    for m in messages {
+    for (i, m) in messages.iter().enumerate() {
         match m {
             M::User(t) => out.push(but::Message::utilisateur(t.clone())),
-            M::UserMultimodal { text, .. } => out.push(but::Message::utilisateur(text.clone())),
+            M::UserMultimodal { text, attachments } => {
+                if garde.contains(&i) {
+                    let pieces: Vec<but::Piece> = attachments
+                        .iter()
+                        .map(|a| but::Piece {
+                            kind: a.kind.clone(),
+                            mime: a.mime_type.clone(),
+                            data: a.data.clone(),
+                        })
+                        .collect();
+                    out.push(but::Message::utilisateur_multimodal(text.clone(), pieces));
+                } else {
+                    // Plus ancienne: le texte reste, et on dit ce qui manque.
+                    // Sans cette mention le modele voit une conversation ou on
+                    // parle d'une image qui n'a jamais existe.
+                    let n = attachments.iter().filter(|a| a.kind == "image").count();
+                    out.push(but::Message::utilisateur(format!(
+                        "{text}\n[{n} image(s) de ce tour, non renvoyees. Demande a la personne de \
+                         la recoller si tu as besoin de la revoir.]"
+                    )));
+                }
+            }
             M::Assistant(t) if !t.is_empty() => out.push(but::Message::assistant(t.clone())),
             M::Observation { tool, result, .. } => {
                 out.push(but::Message::observation(tool.clone(), result.clone()))
@@ -2894,24 +2948,59 @@ mod tests_prelude {
         assert!(out.iter().all(|m| m["role"] != "tool"));
     }
 
-    #[test]
-    fn prelude_multimodal_garde_le_texte_sans_re_envoyer_les_images() {
-        let session = vec![crate::Message::UserMultimodal {
-            text: "décris cette image".into(),
+    fn message_avec_image(texte: &str, data: &str) -> crate::Message {
+        crate::Message::UserMultimodal {
+            text: texte.into(),
             attachments: vec![crate::session::Attachment {
                 kind: "image".into(),
                 mime_type: "image/png".into(),
-                data: "BASE64ENORME".into(),
+                data: data.into(),
                 filename: None,
             }],
-        }];
+        }
+    }
+
+    #[test]
+    fn le_prelude_renvoie_les_images_des_derniers_tours() {
+        // Le vrai usage: on colle une image, puis on en parle. Si le prelude
+        // n'emporte pas l'image, le modele redevient aveugle au deuxieme
+        // message et repond qu'il ne voit rien, alors que la vignette est
+        // affichee juste au-dessus.
+        let session = vec![
+            message_avec_image("décris cette image", "IMG1"),
+            crate::Message::Assistant("c'est un logo".into()),
+            crate::Message::User("c quoi le texte dedans ?".into()),
+        ];
         let p = prelude_butinage(&session);
-        assert_eq!(p.len(), 1);
+        assert_eq!(p.len(), 3);
         assert_eq!(p[0].contenu, "décris cette image");
+        assert_eq!(p[0].pieces.len(), 1, "l'image du tour recent revient");
+        assert_eq!(p[0].pieces[0].data, "IMG1");
+    }
+
+    #[test]
+    fn le_prelude_borne_les_images_et_signale_celles_qu_il_laisse() {
+        // Au-dela de la borne, l'image ne repart pas: elle serait refacturee a
+        // chaque tour. Mais son absence est DITE, sinon le modele lit une
+        // conversation ou l'on parle d'une image qui n'a jamais existe.
+        let session = vec![
+            message_avec_image("la premiere", "VIEILLE"),
+            message_avec_image("la deuxieme", "IMG2"),
+            message_avec_image("la troisieme", "IMG3"),
+        ];
+        let p = prelude_butinage(&session);
+        assert_eq!(p.len(), 3);
         assert!(
             p[0].pieces.is_empty(),
-            "images from old turns are not re-sent"
+            "au-dela de {TOURS_AVEC_IMAGES} tours, l'image ne repart pas"
         );
+        assert!(
+            p[0].contenu.contains("non renvoyees"),
+            "l'absence doit etre dite: {}",
+            p[0].contenu
+        );
+        assert_eq!(p[1].pieces[0].data, "IMG2");
+        assert_eq!(p[2].pieces[0].data, "IMG3");
     }
 }
 
