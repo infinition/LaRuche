@@ -330,13 +330,63 @@ LaRuche.Chat = (function(){
       for(var i=0;i<fileInput.files.length;i++) addPendingFile(fileInput.files[i]);
       fileInput.value='';
     });
-    // Drag & drop
-    var chatMain = document.querySelector('.chat-main');
-    chatMain.addEventListener('dragover', function(e){ e.preventDefault(); document.getElementById('dropZone').style.display='flex'; });
-    chatMain.addEventListener('dragleave', function(e){ if(!chatMain.contains(e.relatedTarget)) document.getElementById('dropZone').style.display='none'; });
-    chatMain.addEventListener('drop', function(e){
-      e.preventDefault(); document.getElementById('dropZone').style.display='none';
+    // Glisser-deposer, sur TOUTE la fenetre et non sur la seule zone de chat.
+    //
+    // C'etait branche sur `.chat-main`. Un fichier lache sur la zone de saisie,
+    // qui est l'endroit ou l'on vise naturellement, tombait sur un <textarea>:
+    // le navigateur y applique son comportement par defaut, coller le CHEMIN du
+    // fichier en texte, et le depot n'arrivait jamais jusqu'ici. Ecouter sur le
+    // document rattrape tous les cas, y compris la zone d'envoi.
+    var zone = function(){ return document.getElementById('dropZone'); };
+    var montrerZone = function(v){ var z = zone(); if(z) z.style.display = v ? 'flex' : 'none'; };
+    document.addEventListener('dragover', function(e){
+      if(!e.dataTransfer || Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') < 0) return;
+      e.preventDefault();
+      montrerZone(true);
+    });
+    document.addEventListener('dragleave', function(e){
+      // `relatedTarget` nul: le pointeur a quitte la fenetre.
+      if(!e.relatedTarget) montrerZone(false);
+    });
+    document.addEventListener('drop', function(e){
+      if(!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
+      e.preventDefault();
+      montrerZone(false);
       for(var i=0;i<e.dataTransfer.files.length;i++) addPendingFile(e.dataTransfer.files[i]);
+    });
+
+    // Coller, ce qui n'existait tout simplement pas.
+    //
+    // Une capture d'ecran dans le presse-papiers est la facon la plus courante
+    // de montrer quelque chose a un agent, et `Ctrl+V` ne faisait rien du tout.
+    // On ecoute sur le document pour que ca marche que le curseur soit dans la
+    // zone de saisie ou ailleurs.
+    document.addEventListener('paste', function(e){
+      var dt = e.clipboardData;
+      if(!dt) return;
+      var ajoutes = 0;
+      // `files` porte les fichiers copies depuis l'explorateur; `items` porte
+      // les images copiees depuis une application, qui n'apparaissent pas dans
+      // `files` sur tous les navigateurs. On lit les deux, sans doublon.
+      for(var i=0;i<(dt.files ? dt.files.length : 0);i++){ addPendingFile(dt.files[i]); ajoutes++; }
+      if(!ajoutes && dt.items){
+        for(var j=0;j<dt.items.length;j++){
+          if(dt.items[j].kind !== 'file') continue;
+          var f = dt.items[j].getAsFile();
+          if(!f) continue;
+          // Une image collee depuis une application n'a pas de nom: sans lui la
+          // vignette et la piece jointe s'affichent vides.
+          if(!f.name || f.name === 'image.png'){
+            var ext = (f.type.split('/')[1] || 'png').replace('jpeg','jpg');
+            try { f = new File([f], 'collage-' + Date.now() + '.' + ext, { type: f.type }); } catch(err) {}
+          }
+          addPendingFile(f);
+          ajoutes++;
+        }
+      }
+      // On ne prend la main que si on a vraiment pris quelque chose: coller du
+      // texte dans la zone de saisie doit continuer de marcher normalement.
+      if(ajoutes) e.preventDefault();
     });
     // Mic button
     var micBtn = document.getElementById('micBtn');
