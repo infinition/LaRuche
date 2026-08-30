@@ -22,19 +22,34 @@
 //! `LARUCHE_VISION=0` coupe l'envoi partout, `=1` le force malgre un refus
 //! deja retenu.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
-/// Modeles pris en flagrant delit de refus pendant cette session.
-fn aveugles() -> &'static Mutex<HashSet<String>> {
-    static S: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
-    S.get_or_init(|| Mutex::new(HashSet::new()))
+/// Duree pendant laquelle un modele reste ecarte apres un refus.
+///
+/// La premiere version n'avait pas de duree: un refus valait pour toute la
+/// session. Ca a fait exactement le degat qu'il fallait eviter. Une capture
+/// d'ecran, plus lourde qu'une image collee a la main, se faisait refuser
+/// pendant un pilotage; le modele etait range au placard; et le chat, qui
+/// marchait tres bien avec des images plus legeres, cessait de fonctionner
+/// jusqu'au redemarrage. Un seul echec sur un chemin condamnait tous les autres.
+///
+/// Dix minutes: assez pour ne pas repayer l'aller-retour a chaque message
+/// pendant qu'on travaille, assez court pour que la situation se repare seule
+/// sans que personne n'ait a redemarrer quoi que ce soit.
+const REPIT: Duration = Duration::from_secs(600);
+
+/// Modeles ecartes, avec l'heure a laquelle ils l'ont ete.
+fn aveugles() -> &'static Mutex<HashMap<String, Instant>> {
+    static S: OnceLock<Mutex<HashMap<String, Instant>>> = OnceLock::new();
+    S.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Le fournisseur vient de refuser une image: ne plus lui en envoyer.
+/// Le fournisseur vient de refuser une image: ne plus lui en envoyer, un temps.
 pub fn marquer_aveugle(modele: &str) {
     if let Ok(mut s) = aveugles().lock() {
-        s.insert(modele.to_lowercase());
+        s.insert(modele.to_lowercase(), Instant::now());
     }
 }
 
@@ -130,6 +145,18 @@ pub fn budget_serre(modele: &str) -> bool {
         .unwrap_or(false)
 }
 
+/// Rend au modele sa deuxieme chance, pour les tests.
+#[cfg(test)]
+fn oublier(modele: &str) {
+    let m = modele.to_lowercase();
+    if let Ok(mut s) = aveugles().lock() {
+        s.remove(&m);
+    }
+    if let Ok(mut s) = serres().lock() {
+        s.remove(&m);
+    }
+}
+
 /// Ce qu'il faut faire apres un refus.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Suite {
@@ -178,7 +205,11 @@ pub fn modele_voit(modele: &str) -> bool {
         _ => {}
     }
     let m = modele.to_lowercase();
-    !aveugles().lock().map(|s| s.contains(&m)).unwrap_or(false)
+    let ecarte = aveugles()
+        .lock()
+        .map(|s| s.get(&m).map(|t| t.elapsed() < REPIT).unwrap_or(false))
+        .unwrap_or(false);
+    !ecarte
 }
 
 /// Ce qu'on dit au modele a la place de l'image.
@@ -354,6 +385,25 @@ mod tests {
         // Deuxieme: ce n'etait pas la taille.
         assert_eq!(enregistrer_refus("modele-vision", corps), Suite::Renoncer);
         assert!(!modele_voit("modele-vision"));
+    }
+
+    #[test]
+    fn un_modele_ecarte_retrouve_sa_chance() {
+        let _g = verrou();
+        std::env::remove_var("LARUCHE_VISION");
+        oublier("modele-du-repit");
+        marquer_aveugle("modele-du-repit");
+        assert!(!modele_voit("modele-du-repit"));
+        // On triche sur l'horloge en reculant la date du refus: le modele doit
+        // revenir de lui-meme, sans redemarrage. C'est tout l'interet du repit,
+        // et c'est ce qui manquait quand un pilotage rate condamnait le chat.
+        if let Ok(mut s) = aveugles().lock() {
+            s.insert(
+                "modele-du-repit".into(),
+                Instant::now() - REPIT - Duration::from_secs(1),
+            );
+        }
+        assert!(modele_voit("modele-du-repit"));
     }
 
     #[test]

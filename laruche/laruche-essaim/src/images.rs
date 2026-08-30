@@ -39,23 +39,31 @@ use base64::Engine;
 ///
 /// Au-dela, les fournisseurs redimensionnent eux-memes avant de decouper en
 /// tuiles. Envoyer plus, c'est envoyer des octets qui seront jetes a l'arrivee.
-pub const COTE_MAX: u32 = 1568;
+/// 1280 est aussi la largeur a laquelle l'outil `computer` rend deja ses
+/// captures, donc le cas courant ne perd rien du tout.
+pub const COTE_MAX: u32 = 1280;
 
 /// Taille maximale de la chaine base64 d'une image.
 ///
-/// Un peu sous le megaoctet: la marge couvre le reste du corps (historique,
-/// schemas d'outils, prompt systeme), qui compte dans la meme limite.
-pub const B64_MAX: usize = 900_000;
-
-/// Gabarit reduit, applique a un fournisseur qui a deja bute sur une image.
+/// Le premier reglage etait a 900 ko, en raisonnant sur la limite annoncee par
+/// les fournisseurs. C'etait le mauvais raisonnement, et ca a coute plusieurs
+/// heures: DeepSeek documente 32 Mio par image et refuse en pratique bien plus
+/// tot. Le seul chiffre qu'on ait mesure sur cet endpoint, c'est une image de
+/// 164 ko en base64 acceptee, et des captures plus lourdes refusees.
 ///
-/// Certains passages refusent une data URL bien avant la limite qu'ils
-/// annoncent: DeepSeek documente 32 Mio par image et bloque sur 160 ko. Plutot
-/// que de declarer le modele aveugle sur ce seul indice, on reessaie petit. A
-/// 768 px un modele de vision voit encore tout ce qu'il sait voir, puisqu'il
-/// travaille de toute facon par tuiles de cet ordre.
+/// Donc on ne vise plus la limite documentee, on vise sous le seul point qu'on
+/// a vu passer. Et ca ne coute rien: DeepSeek facture 384 jetons par image
+/// quelle que soit sa resolution, et tous les modeles de vision redecoupent en
+/// tuiles de quelques centaines de pixels. Les octets economises ici sont des
+/// octets que personne ne regarde.
+pub const B64_MAX: usize = 150_000;
+
+/// Gabarit reduit, applique a un fournisseur qui a quand meme bute.
+///
+/// Deuxieme et derniere chance avant de renoncer aux images pour ce modele. A
+/// 768 px un modele de vision voit encore tout ce qu'il sait voir.
 pub const COTE_SERRE: u32 = 768;
-pub const B64_SERRE: usize = 100_000;
+pub const B64_SERRE: usize = 80_000;
 
 /// Une image prete a partir: son type MIME et sa charge base64.
 pub struct Image {
@@ -88,7 +96,7 @@ pub fn au_gabarit_borne(mime: &str, b64: &str, cote_max: u32, b64_max: usize) ->
     // descend par paliers, et on ne s'arrete qu'une fois reellement sous la
     // limite: c'est la seule facon d'avoir une promesse tenable a rendre a
     // l'appelant.
-    let paliers: Vec<u32> = [cote_max, 1120, 800, 560, 392]
+    let paliers: Vec<u32> = [cote_max, 1120, 896, 768, 560, 392]
         .into_iter()
         .filter(|c| *c <= cote_max)
         .collect();
