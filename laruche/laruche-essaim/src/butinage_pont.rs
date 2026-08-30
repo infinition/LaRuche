@@ -2961,6 +2961,46 @@ mod tests_prelude {
         assert!(out.iter().all(|m| m["role"] != "tool"));
     }
 
+    #[test]
+    fn une_capture_doutil_arrive_bien_au_modele() {
+        // La sequence exacte que produit un outil qui rend une image: appel
+        // natif, observation liee, puis le message utilisateur qui porte la
+        // capture. Le point fragile est la: l'image voyage dans un message
+        // POSE APRES une observation `role: tool`, et la fusion des messages
+        // consecutifs ne doit ni l'avaler ni la perdre.
+        let a1 = but::Appel::nouveau("computer", serde_json::json!({"action": "screenshot"}));
+        let id = a1.id.clone();
+        let msgs = vec![
+            but::Message::utilisateur("regarde mon ecran"),
+            but::Message::assistant_avec_appels("je capture", vec![a1]),
+            but::Message::observation_liee("computer", &id, "Screen captured, shown to you."),
+            but::Message::utilisateur_multimodal(
+                "[1 image(s) rendue(s) par computer]",
+                vec![but::Piece {
+                    kind: "image".into(),
+                    mime: "image/png".into(),
+                    data: "CAPTURE".into(),
+                }],
+            ),
+        ];
+        let out = convertir_messages(&msgs);
+        let dernier = out.last().expect("un dernier message");
+        assert_eq!(dernier["role"], "user");
+        let att = dernier["attachments"]
+            .as_array()
+            .expect("la capture doit voyager en piece jointe");
+        assert_eq!(att.len(), 1);
+        assert_eq!(att[0]["kind"], "image");
+        assert_eq!(att[0]["data"], "CAPTURE");
+        // Et la borne des trois dernieres ne doit pas emporter la seule image
+        // presente: c'est celle que le modele doit regarder maintenant.
+        let mut copie = out.clone();
+        assert_eq!(
+            but::vision::borner_images(&mut copie, but::vision::IMAGES_PAR_REQUETE),
+            0
+        );
+    }
+
     fn message_avec_image(texte: &str, data: &str) -> crate::Message {
         crate::Message::UserMultimodal {
             text: texte.into(),
