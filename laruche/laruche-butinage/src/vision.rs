@@ -63,20 +63,109 @@ pub fn marquer_aveugle(modele: &str) {
 /// D'ou la regle: une erreur qui designe `image_url` est un probleme d'image,
 /// pas de transport. Retenter sans elle a un sens, retenter a l'identique non.
 pub fn corps_refuse_image(corps: &str) -> bool {
+    !matches!(lire_refus(corps), Refus::Aucun)
+}
+
+/// Ce que le corps d'erreur nous apprend vraiment sur l'image.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Refus {
+    /// Rien a voir avec l'image.
+    Aucun,
+    /// "This model does not support image": le modele ne voit pas, point.
+    Certain,
+    /// Le fournisseur bute sur `image_url` sans dire pourquoi. Ca peut etre une
+    /// limite de taille de son passage plutot qu'une absence de vision.
+    Douteux,
+}
+
+/// Distingue le refus franc du refus douteux.
+///
+/// La distinction n'est pas de la finesse gratuite, c'est une erreur que j'ai
+/// commise: traiter les deux pareil revenait a declarer aveugle, pour toute la
+/// session, un modele de vision qui butait en realite sur la TAILLE de l'image.
+/// Le premier envoi echouait, le modele etait raye, et tous les suivants
+/// partaient sans image avec un message d'excuse. Impossible a diagnostiquer
+/// pour la personne en face: elle voit un modele de vision qui jure ne pas voir.
+///
+/// Donc: le refus franc raye le modele tout de suite, le refus douteux ne fait
+/// que resserrer le gabarit. On ne raye qu'apres avoir reessaye plus petit.
+pub fn lire_refus(corps: &str) -> Refus {
     let c = corps.to_lowercase();
     // Un souci de FORMAT n'est pas une absence de vision: le modele voit, c'est
-    // notre encodage qui ne lui plait pas. Confondre les deux couperait la
-    // vision d'un modele qui l'a.
+    // notre encodage qui ne lui plait pas.
     if c.contains("image format") {
-        return false;
+        return Refus::Aucun;
     }
-    c.contains("does not support image")
+    if c.contains("does not support image")
         || c.contains("not support images")
         || c.contains("does not support vision")
         || c.contains("no vision support")
         || c.contains("invalid content type: image")
-        || c.contains("image_url")
         || (c.contains("image") && c.contains("not supported"))
+    {
+        return Refus::Certain;
+    }
+    // "messages[1].content[1].image_url.url: EOF while parsing a string at
+    // line 1 column 181859", ou la colonne est la taille exacte du corps. Le
+    // fournisseur a lu la structure, donc son parseur va bien: il bute sur la
+    // valeur. Une limite de taille non documentee explique tout aussi bien
+    // qu'une absence de vision, et elle, on sait la contourner.
+    if c.contains("image_url") {
+        return Refus::Douteux;
+    }
+    Refus::Aucun
+}
+
+/// Modeles a qui l'on envoie desormais des images reduites au minimum.
+fn serres() -> &'static Mutex<HashSet<String>> {
+    static S: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    S.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+/// Faut-il envoyer a ce modele des images au gabarit reduit?
+pub fn budget_serre(modele: &str) -> bool {
+    serres()
+        .lock()
+        .map(|s| s.contains(&modele.to_lowercase()))
+        .unwrap_or(false)
+}
+
+/// Ce qu'il faut faire apres un refus.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Suite {
+    /// Rien a voir avec l'image: laisser la meteo faire son travail.
+    Ignorer,
+    /// Reessayer avec une image nettement plus petite.
+    Retrecir,
+    /// Reessayer sans image, et ne plus jamais en envoyer a ce modele.
+    Renoncer,
+}
+
+/// Enregistre un refus et dit quoi faire ensuite.
+///
+/// Un refus douteux coute un essai en gabarit reduit. Le deuxieme sur le meme
+/// modele tranche: ce n'etait pas la taille.
+pub fn enregistrer_refus(modele: &str, corps: &str) -> Suite {
+    match lire_refus(corps) {
+        Refus::Aucun => Suite::Ignorer,
+        Refus::Certain => {
+            marquer_aveugle(modele);
+            Suite::Renoncer
+        }
+        Refus::Douteux => {
+            let m = modele.to_lowercase();
+            let deja = serres().lock().map(|s| s.contains(&m)).unwrap_or(false);
+            if deja {
+                marquer_aveugle(modele);
+                Suite::Renoncer
+            } else {
+                if let Ok(mut s) = serres().lock() {
+                    s.insert(m);
+                }
+                Suite::Retrecir
+            }
+        }
+    }
 }
 
 /// Envoie-t-on les images a ce modele?
@@ -107,6 +196,42 @@ pub fn note_sans_vision(combien: usize) -> String {
     )
 }
 
+/// Nombre d'images qui accompagnent une requete, au maximum.
+///
+/// Un agent qui pilote un navigateur prend une capture a chaque etape. Sans
+/// borne, l'iteration numero vingt reexpedie les vingt captures, et le corps
+/// enfle a chaque tour alors que dix-neuf de ces images ne servent plus a rien:
+/// ce qui compte, c'est l'ecran MAINTENANT, et de quoi voir ce qui vient de
+/// changer. Trois suffisent pour ca, et evitent de payer vingt fois une image
+/// que le modele a deja utilisee.
+pub const IMAGES_PAR_REQUETE: usize = 3;
+
+/// Ne garde que les dernieres images d'une conversation deja convertie.
+///
+/// Rend le nombre d'images retirees.
+pub fn borner_images(msgs: &mut [serde_json::Value], garde: usize) -> usize {
+    // A l'envers: les plus recentes sont celles qu'on garde, et on ne sait
+    // lesquelles qu'en partant de la fin.
+    let mut vues = 0usize;
+    let mut retirees = 0usize;
+    for m in msgs.iter_mut().rev() {
+        let combien = m
+            .get("images")
+            .and_then(|v| v.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0);
+        if combien == 0 {
+            continue;
+        }
+        if vues + combien <= garde {
+            vues += combien;
+            continue;
+        }
+        retirees += depouiller(m, &note_trop_ancienne);
+    }
+    retirees
+}
+
 /// Retire les images d'une conversation deja convertie pour le fournisseur.
 ///
 /// On travaille sur le JSON sortant plutot que sur l'historique: l'historique
@@ -117,6 +242,27 @@ pub fn note_sans_vision(combien: usize) -> String {
 pub fn retirer_images(msgs: &mut [serde_json::Value]) -> usize {
     let mut total = 0usize;
     for m in msgs.iter_mut() {
+        total += depouiller(m, &note_sans_vision);
+    }
+    total
+}
+
+/// Ce qu'on dit d'une image trop ancienne pour repartir.
+///
+/// La formulation compte: dire "je ne vois pas" a un modele qui voit
+/// parfaitement les captures recentes le rendrait incoherent, et il finirait
+/// par douter de celles qu'il a sous les yeux.
+pub fn note_trop_ancienne(combien: usize) -> String {
+    format!(
+        "
+
+[{combien} image(s) from this earlier step, not re-sent to keep the request small.          You saw them at the time; rely on what you noted then, or take a fresh capture if you          need to look again.]"
+    )
+}
+
+/// Retire les images d'UN message et pose la mention a leur place.
+fn depouiller(m: &mut serde_json::Value, note: &dyn Fn(usize) -> String) -> usize {
+    {
         let combien = m
             .get("images")
             .and_then(|v| v.as_array())
@@ -140,20 +286,19 @@ pub fn retirer_images(msgs: &mut [serde_json::Value]) -> usize {
             }
         }
         if combien == 0 {
-            continue;
+            return 0;
         }
         if let Some(o) = m.as_object_mut() {
             o.remove("images");
         }
-        let note = note_sans_vision(combien);
+        let texte = note(combien);
         let neuf = match m.get("content").and_then(|v| v.as_str()) {
-            Some(c) => format!("{c}{note}"),
-            None => note.trim().to_string(),
+            Some(c) => format!("{c}{texte}"),
+            None => texte.trim().to_string(),
         };
         m["content"] = serde_json::Value::String(neuf);
-        total += combien;
+        combien
     }
-    total
 }
 
 #[cfg(test)]
@@ -196,6 +341,34 @@ mod tests {
     }
 
     #[test]
+    fn un_refus_douteux_retrecit_avant_de_renoncer() {
+        let _g = verrou();
+        std::env::remove_var("LARUCHE_VISION");
+        let corps = "Failed to parse the request body as JSON:                      messages[1].content[1].image_url.url: EOF while parsing a string";
+        // Premier refus douteux: on ne raye pas le modele, on retrecit. C'est
+        // toute la difference entre un modele de vision qu'on aide a passer et
+        // un modele de vision qu'on declare aveugle a tort.
+        assert_eq!(enregistrer_refus("modele-vision", corps), Suite::Retrecir);
+        assert!(modele_voit("modele-vision"), "pas encore raye");
+        assert!(budget_serre("modele-vision"));
+        // Deuxieme: ce n'etait pas la taille.
+        assert_eq!(enregistrer_refus("modele-vision", corps), Suite::Renoncer);
+        assert!(!modele_voit("modele-vision"));
+    }
+
+    #[test]
+    fn un_refus_franc_ne_perd_pas_de_temps() {
+        let _g = verrou();
+        std::env::remove_var("LARUCHE_VISION");
+        assert_eq!(
+            enregistrer_refus("modele-texte", "This model does not support image"),
+            Suite::Renoncer
+        );
+        assert!(!modele_voit("modele-texte"));
+        assert!(!budget_serre("modele-texte"), "inutile de retrecir pour rien");
+    }
+
+    #[test]
     fn on_reconnait_le_refus_dans_le_corps() {
         assert!(corps_refuse_image(
             r#"{"error":{"message":"This model does not support image","type":"invalid_request_error"}}"#
@@ -234,6 +407,25 @@ mod tests {
         assert_eq!(att.len(), 1);
         assert_eq!(att[0]["kind"], "audio");
         assert_eq!(msgs[1]["content"], "ok", "les autres messages intacts");
+    }
+
+    #[test]
+    fn seules_les_dernieres_images_partent() {
+        // Le cas du pilotage: une capture par etape. Les anciennes sont
+        // remplacees par la mention, pas effacees en silence, sinon le modele
+        // lit une suite d'etapes ou il n'a jamais rien regarde.
+        let mut msgs: Vec<serde_json::Value> = (0..5)
+            .map(|i| json!({"role":"user","content":format!("etape {i}"),"images":[format!("IMG{i}")]}))
+            .collect();
+        assert_eq!(borner_images(&mut msgs, 2), 3);
+        for (i, m) in msgs.iter().enumerate() {
+            if i < 3 {
+                assert!(m.get("images").is_none(), "etape {i} devait etre allegee");
+                assert!(m["content"].as_str().unwrap().contains("not re-sent"));
+            } else {
+                assert_eq!(m["images"][0], format!("IMG{i}"), "etape {i} gardee");
+            }
+        }
     }
 
     #[test]

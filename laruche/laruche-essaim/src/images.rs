@@ -47,6 +47,16 @@ pub const COTE_MAX: u32 = 1568;
 /// schemas d'outils, prompt systeme), qui compte dans la meme limite.
 pub const B64_MAX: usize = 900_000;
 
+/// Gabarit reduit, applique a un fournisseur qui a deja bute sur une image.
+///
+/// Certains passages refusent une data URL bien avant la limite qu'ils
+/// annoncent: DeepSeek documente 32 Mio par image et bloque sur 160 ko. Plutot
+/// que de declarer le modele aveugle sur ce seul indice, on reessaie petit. A
+/// 768 px un modele de vision voit encore tout ce qu'il sait voir, puisqu'il
+/// travaille de toute facon par tuiles de cet ordre.
+pub const COTE_SERRE: u32 = 768;
+pub const B64_SERRE: usize = 100_000;
+
 /// Une image prete a partir: son type MIME et sa charge base64.
 pub struct Image {
     pub mime: String,
@@ -60,7 +70,12 @@ pub struct Image {
 /// garde alors l'original, parce qu'un format qu'on ne sait pas decoder peut
 /// tres bien etre un format que le fournisseur, lui, accepte.
 pub fn au_gabarit(mime: &str, b64: &str) -> Option<Image> {
-    if b64.len() <= B64_MAX {
+    au_gabarit_borne(mime, b64, COTE_MAX, B64_MAX)
+}
+
+/// Meme chose, avec des bornes choisies par l'appelant.
+pub fn au_gabarit_borne(mime: &str, b64: &str, cote_max: u32, b64_max: usize) -> Option<Image> {
+    if b64.len() <= b64_max {
         return None;
     }
     let brut = base64::engine::general_purpose::STANDARD.decode(b64).ok()?;
@@ -73,11 +88,14 @@ pub fn au_gabarit(mime: &str, b64: &str) -> Option<Image> {
     // descend par paliers, et on ne s'arrete qu'une fois reellement sous la
     // limite: c'est la seule facon d'avoir une promesse tenable a rendre a
     // l'appelant.
-    const PALIERS: &[u32] = &[COTE_MAX, 1120, 800, 560, 392];
+    let paliers: Vec<u32> = [cote_max, 1120, 800, 560, 392]
+        .into_iter()
+        .filter(|c| *c <= cote_max)
+        .collect();
     let grand = img.width().max(img.height());
     let mut dernier: Option<Image> = None;
 
-    for &cote in PALIERS {
+    for &cote in &paliers {
         if cote > grand && dernier.is_some() {
             continue; // deja plus petite que ce palier, inutile de repasser
         }
@@ -98,7 +116,7 @@ pub fn au_gabarit(mime: &str, b64: &str) -> Option<Image> {
         // reste net. Souvent suffisant une fois la taille divisee.
         if let Some(png) = encoder(&vue, image::ImageFormat::Png) {
             let png64 = base64::engine::general_purpose::STANDARD.encode(&png);
-            if png64.len() <= B64_MAX {
+            if png64.len() <= b64_max {
                 return Some(Image {
                     mime: "image/png".into(),
                     b64: png64,
@@ -117,7 +135,7 @@ pub fn au_gabarit(mime: &str, b64: &str) -> Option<Image> {
             .is_ok()
         {
             let jpg64 = base64::engine::general_purpose::STANDARD.encode(jpg.into_inner());
-            let tient = jpg64.len() <= B64_MAX;
+            let tient = jpg64.len() <= b64_max;
             dernier = Some(Image {
                 mime: "image/jpeg".into(),
                 b64: jpg64,
@@ -143,14 +161,19 @@ fn encoder(img: &image::DynamicImage, f: image::ImageFormat) -> Option<Vec<u8>> 
 /// Applique le gabarit a une conversation deja convertie pour le fournisseur.
 ///
 /// Rend le nombre d'images reduites.
-pub fn au_gabarit_conversation(msgs: &mut [serde_json::Value]) -> usize {
+pub fn au_gabarit_conversation(msgs: &mut [serde_json::Value], serre: bool) -> usize {
+    let (cote, plafond) = if serre {
+        (COTE_SERRE, B64_SERRE)
+    } else {
+        (COTE_MAX, B64_MAX)
+    };
     let mut n = 0usize;
     for m in msgs.iter_mut() {
         // `images`: la liste base64 nue (format Ollama).
         if let Some(arr) = m.get_mut("images").and_then(|v| v.as_array_mut()) {
             for img in arr.iter_mut() {
                 let Some(b64) = img.as_str() else { continue };
-                if let Some(r) = au_gabarit("image/png", b64) {
+                if let Some(r) = au_gabarit_borne("image/png", b64, cote, plafond) {
                     *img = serde_json::Value::String(r.b64);
                     n += 1;
                 }
@@ -171,7 +194,7 @@ pub fn au_gabarit_conversation(msgs: &mut [serde_json::Value]) -> usize {
                 let Some(b64) = p.get("data").and_then(|v| v.as_str()) else {
                     continue;
                 };
-                if let Some(r) = au_gabarit(&mime, b64) {
+                if let Some(r) = au_gabarit_borne(&mime, b64, cote, plafond) {
                     p["data"] = serde_json::Value::String(r.b64);
                     p["mime_type"] = serde_json::Value::String(r.mime.clone());
                     if p.get("mime").is_some() {
@@ -266,7 +289,7 @@ mod tests {
                 {"kind": "audio", "mime_type": "audio/wav", "data": "AAAA"}
             ]
         })];
-        assert_eq!(au_gabarit_conversation(&mut msgs), 1);
+        assert_eq!(au_gabarit_conversation(&mut msgs, false), 1);
         let att = msgs[0]["attachments"].as_array().unwrap();
         assert!(att[0]["data"].as_str().unwrap().len() <= B64_MAX);
         // L'audio n'est pas une image et ne doit pas etre touche.

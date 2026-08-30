@@ -331,7 +331,77 @@ pub(crate) async fn run_telegram_bot(token: &str, allowed_chats: &str, state: &A
                             let mut text_owned =
                                 update["message"]["text"].as_str().unwrap_or("").to_string();
                             let mut tg_attachment: Vec<laruche_essaim::session::Attachment> = Vec::new();
-                            if text_owned.is_empty() && chat_id != 0 {
+
+                            // Photo. Telegram ne la met jamais dans `text`: elle
+                            // arrive dans `photo`, et sa legende dans `caption`.
+                            // Sans cette branche, une image envoyee depuis le
+                            // telephone tombait dans le vide, sans meme une
+                            // reponse disant qu'elle n'avait pas ete lue.
+                            //
+                            // `photo` est un tableau de la MEME image en
+                            // plusieurs tailles, de la vignette a l'originale.
+                            // On prend la derniere, la plus grande: le gabarit
+                            // d'envoi la reduira si besoin, alors qu'une
+                            // vignette perdue ne se recupere pas.
+                            //
+                            // Un document est accepte aussi, mais seulement si
+                            // son type dit que c'est une image: c'est ainsi
+                            // qu'arrive une capture envoyee "sans compression".
+                            let photo = update["message"]["photo"]
+                                .as_array()
+                                .and_then(|tailles| tailles.last())
+                                .and_then(|p| p["file_id"].as_str())
+                                .map(|fid| (fid, "image/jpeg".to_string()))
+                                .or_else(|| {
+                                    let d = &update["message"]["document"];
+                                    let mime = d["mime_type"].as_str()?;
+                                    if !mime.starts_with("image/") {
+                                        return None;
+                                    }
+                                    Some((d["file_id"].as_str()?, mime.to_string()))
+                                });
+                            if let Some((fid, mime)) = photo {
+                                match download_telegram_file(&client, token, fid).await {
+                                    Some(bytes) => {
+                                        use base64::Engine;
+                                        tg_attachment.push(laruche_essaim::session::Attachment {
+                                            kind: "image".to_string(),
+                                            mime_type: mime,
+                                            data: base64::engine::general_purpose::STANDARD
+                                                .encode(&bytes),
+                                            filename: None,
+                                        });
+                                        // La legende devient le message. Sans
+                                        // legende il faut quand meme un texte,
+                                        // sinon le tour est jete plus bas comme
+                                        // un message vide.
+                                        let legende = update["message"]["caption"]
+                                            .as_str()
+                                            .unwrap_or("")
+                                            .trim()
+                                            .to_string();
+                                        text_owned = if legende.is_empty() {
+                                            "[The user sent an image with no caption. Look at it                                              and say what you see, then ask what they want done                                              with it.]"
+                                                .to_string()
+                                        } else {
+                                            legende
+                                        };
+                                    }
+                                    None => {
+                                        let _ = client
+                                            .post(format!("{}/sendMessage", api))
+                                            .json(&serde_json::json!({
+                                                "chat_id": chat_id,
+                                                "text": "Could not download that image from Telegram."
+                                            }))
+                                            .send()
+                                            .await;
+                                        continue;
+                                    }
+                                }
+                            }
+
+                            if text_owned.is_empty() && tg_attachment.is_empty() && chat_id != 0 {
                                 let file_id = update["message"]["voice"]["file_id"]
                                     .as_str()
                                     .or_else(|| update["message"]["audio"]["file_id"].as_str())

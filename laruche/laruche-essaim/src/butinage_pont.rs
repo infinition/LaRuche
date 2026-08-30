@@ -121,13 +121,13 @@ impl but::Fournisseur for FournisseurPont {
             // JSON qui ne ressemble a rien. Ici, et pas a la reception: une
             // conversation rechargee, une piece jointe, une capture d'outil
             // passent toutes par ce point, et aucune ne doit pouvoir y couper.
-            let reduites = crate::images::au_gabarit_conversation(&mut msgs);
+            // Les anciennes captures partent avant la mise au gabarit: inutile
+            // de recompresser une image qu'on s'apprete a ne pas envoyer.
+            but::vision::borner_images(&mut msgs, but::vision::IMAGES_PAR_REQUETE);
+            let serre = but::vision::budget_serre(&self.model);
+            let reduites = crate::images::au_gabarit_conversation(&mut msgs, serre);
             if reduites > 0 {
-                tracing::debug!(
-                    "{reduites} image(s) ramenee(s) a {} px / {} ko avant l'envoi",
-                    crate::images::COTE_MAX,
-                    crate::images::B64_MAX / 1024
-                );
+                tracing::debug!("{reduites} image(s) ramenee(s) au gabarit (serre: {serre})");
             }
         }
         let tools = if schemas.is_empty() {
@@ -161,18 +161,31 @@ impl but::Fournisseur for FournisseurPont {
                 // le retient pour ce modele, et l'erreur repart classee comme
                 // reessayable: la tentative suivante partira sans l'image, et
                 // le tour continue au lieu de mourir sur une capture.
-                if but::vision::corps_refuse_image(&err.corps) {
-                    but::vision::marquer_aveugle(&self.model);
-                    // Dit a voix haute: sinon l'agent se met a repondre "je ne
-                    // vois pas l'image" sans que personne ne sache pourquoi, et
-                    // on cherche du cote de l'outil au lieu du modele.
-                    let _ = self.tx.send(ChatEvent::Status {
-                        message: format!(
-                            "{} refused the image ({}). Retrying without it, and no image will be                              sent to this model for the rest of the session. Set LARUCHE_VISION=1                              to override.",
-                            self.model,
-                            err.corps.chars().take(160).collect::<String>().trim()
-                        ),
-                    });
+                // Dit a voix haute, quoi qu'il arrive: sinon l'agent se met a
+                // repondre "je ne vois pas l'image" sans que personne ne sache
+                // pourquoi, et on cherche du cote de l'outil au lieu du modele.
+                let extrait = err.corps.chars().take(160).collect::<String>();
+                match but::vision::enregistrer_refus(&self.model, &err.corps) {
+                    but::vision::Suite::Ignorer => {}
+                    but::vision::Suite::Retrecir => {
+                        let _ = self.tx.send(ChatEvent::Status {
+                            message: format!(
+                                "{} refused the image ({}). Retrying with a smaller one                                  ({} px max) before giving up on images for this model.",
+                                self.model,
+                                extrait.trim(),
+                                crate::images::COTE_SERRE
+                            ),
+                        });
+                    }
+                    but::vision::Suite::Renoncer => {
+                        let _ = self.tx.send(ChatEvent::Status {
+                            message: format!(
+                                "{} refused the image again ({}). Retrying without it, and no                                  image will be sent to this model for the rest of the session.                                  Set LARUCHE_VISION=1 to override.",
+                                self.model,
+                                extrait.trim()
+                            ),
+                        });
+                    }
                 }
                 return Err(err);
             }
