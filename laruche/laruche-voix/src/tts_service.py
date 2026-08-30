@@ -46,18 +46,41 @@ VOICEBOX_URL = os.environ.get("VOICEBOX_URL", "http://127.0.0.1:17493").rstrip("
 VOICEBOX_PROFILE = os.environ.get("VOICEBOX_PROFILE", "")  # cloned voice profile name
 VOICEBOX_LANG = os.environ.get("VOICEBOX_LANG", "fr")
 
+# Voxtral TTS (Mistral AI 4B): Serveur TTS local dedie sur GPU CUDA (RTX 4070 Ti).
+# Set TTS_BACKEND=voxtral et VOXTRAL_URL (defaut: http://127.0.0.1:8425).
+VOXTRAL_URL = os.environ.get("VOXTRAL_URL", "http://127.0.0.1:8425").rstrip("/")
+VOXTRAL_VOICE = os.environ.get("VOXTRAL_VOICE", "french_female")
+
+# Tout serveur parlant le format OpenAI `/v1/audio/speech`, local ou distant.
+#
+# C'est le backend a utiliser pour brancher un nouveau moteur, et il evite d'en
+# coder un cinquieme a la main. Le format est devenu le denominateur commun:
+# OpenAI lui-meme, LM Studio, openedai-speech, Kokoro-FastAPI, et le serveur
+# Voxtral qui l'expose a cote de son endpoint propre.
+#
+# Distant ou local, c'est la meme chose: seule l'URL change, et une cle est
+# ajoutee en Bearer quand il en faut une.
+#
+#   TTS_BACKEND=openai-tts
+#   TTS_OPENAI_URL=http://127.0.0.1:8425/v1     (ou https://api.openai.com/v1)
+#   TTS_OPENAI_KEY=...                          (vide en local)
+#   TTS_OPENAI_MODEL=tts-1
+#   TTS_OPENAI_VOICE=french_female
+OPENAI_TTS_URL = os.environ.get("TTS_OPENAI_URL", "http://127.0.0.1:8425/v1").rstrip("/")
+OPENAI_TTS_KEY = os.environ.get("TTS_OPENAI_KEY", "").strip()
+OPENAI_TTS_MODEL = os.environ.get("TTS_OPENAI_MODEL", "tts-1")
+OPENAI_TTS_VOICE = os.environ.get("TTS_OPENAI_VOICE", "alloy")
+
 
 def detect_backend():
     """Detect best available TTS backend.
 
-    Set TTS_BACKEND=kokoro|edge-tts|pyttsx3 to force one (otherwise the priority
-    chain below picks the best available). Kokoro is local and free; force it to give
-    LaReine her offline voice even when edge-tts is installed.
+    Set TTS_BACKEND=openai-tts|voxtral|kokoro|edge-tts|pyttsx3|voicebox to force one.
     """
     global tts_backend
 
     forced = os.environ.get("TTS_BACKEND", "").strip().lower()
-    if forced in ("edge-tts", "kokoro", "pyttsx3", "voicebox"):
+    if forced in ("edge-tts", "kokoro", "pyttsx3", "voicebox", "voxtral", "openai-tts"):
         tts_backend = forced
         print(f"[TTS] Forced backend via TTS_BACKEND: {forced}")
         return
@@ -207,6 +230,8 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 @app.get("/health")
 async def health():
     voice = {
+        "openai-tts": OPENAI_TTS_VOICE,
+        "voxtral": VOXTRAL_VOICE,
         "kokoro": KOKORO_VOICE,
         "edge-tts": EDGE_VOICE,
         "voicebox": VOICEBOX_PROFILE or "(default)",
@@ -216,6 +241,98 @@ async def health():
         "backend": tts_backend,
         "voice": voice,
     }
+
+
+def synthesize_openai(text: str, voice: str = None, speed: float = 1.0, format: str = "mp3") -> tuple:
+    """Synthetise via un serveur parlant le format OpenAI `/v1/audio/speech`.
+
+    Un seul chemin pour tout ce qui parle ce format: OpenAI, LM Studio,
+    openedai-speech, Kokoro-FastAPI, le serveur Voxtral par son endpoint
+    compatible. Brancher un moteur de plus ne demande alors aucune ligne de
+    code, seulement une URL.
+
+    Rend (octets_audio, type_media).
+    """
+    import urllib.error
+    import urllib.request
+    import json as _json
+
+    payload = {
+        "model": OPENAI_TTS_MODEL,
+        "input": text,
+        "voice": voice or OPENAI_TTS_VOICE,
+        "response_format": format or "mp3",
+    }
+    # La vitesse n'est pas acceptee partout: certains serveurs locaux refusent
+    # la requete entiere sur un champ inconnu. On ne l'envoie que si elle sert.
+    if speed and abs(speed - 1.0) > 0.01:
+        payload["speed"] = speed
+
+    entetes = {"Content-Type": "application/json"}
+    if OPENAI_TTS_KEY:
+        entetes["Authorization"] = f"Bearer {OPENAI_TTS_KEY}"
+
+    req = urllib.request.Request(
+        f"{OPENAI_TTS_URL}/audio/speech",
+        data=_json.dumps(payload).encode("utf-8"),
+        headers=entetes,
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            ctype = (resp.headers.get("Content-Type") or "").lower()
+            body = resp.read()
+    except urllib.error.HTTPError as e:
+        # Le corps de l'erreur porte la vraie cause, modele inconnu ou voix
+        # inexistante. Sans lui on ne voit qu'un code et on cherche au hasard.
+        detail = ""
+        try:
+            detail = e.read().decode("utf-8", "replace")[:300]
+        except Exception:
+            pass
+        raise RuntimeError(f"TTS HTTP {e.code} sur {OPENAI_TTS_URL}: {detail}") from e
+
+    media = "audio/mpeg"
+    if "wav" in ctype:
+        media = "audio/wav"
+    elif "ogg" in ctype:
+        media = "audio/ogg"
+    elif "flac" in ctype:
+        media = "audio/flac"
+    return body, media
+
+
+def synthesize_voxtral(text: str, voice: str = None, speed: float = 1.0, format: str = "wav") -> tuple:
+    """Synthesize via local Voxtral TTS server (Mistral AI 4B on RTX 4070 Ti).
+
+    Calls POST {VOXTRAL_URL}/synthesize with {text, voice, speed, format}.
+    Returns (audio_bytes, media_type).
+    """
+    import urllib.request
+    import json as _json
+
+    vvoice = voice or VOXTRAL_VOICE
+    payload = {
+        "text": text,
+        "voice": vvoice,
+        "speed": speed,
+        "format": format,
+    }
+    data = _json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        f"{VOXTRAL_URL}/synthesize",
+        data=data,
+        headers={"Content-Type": "application/json"},
+    )
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        ctype = (resp.headers.get("Content-Type") or "").lower()
+        body = resp.read()
+
+    media = "audio/wav"
+    if "mpeg" in ctype or "mp3" in ctype:
+        media = "audio/mpeg"
+    elif "ogg" in ctype:
+        media = "audio/ogg"
+    return body, media
 
 
 def synthesize_voicebox(text: str, voice: str = None) -> tuple:
@@ -299,7 +416,7 @@ async def synthesize(req: SynthesizeRequest):
     # A request may override the active backend (Settings TTS-backend selector), as long as
     # it is one we know; otherwise fall back to the service default.
     active = req.backend.strip().lower()
-    if active not in ("edge-tts", "kokoro", "pyttsx3", "voicebox"):
+    if active not in ("edge-tts", "kokoro", "pyttsx3", "voicebox", "voxtral", "openai-tts"):
         active = tts_backend
     from fastapi.responses import JSONResponse
 
@@ -317,7 +434,17 @@ async def synthesize(req: SynthesizeRequest):
     req.text = text
 
     try:
-        if active == "edge-tts":
+        if active == "openai-tts":
+            vvoice = req.voice if (req.voice and req.voice != EDGE_VOICE) else None
+            audio_bytes, media_type = await asyncio.to_thread(
+                synthesize_openai, req.text, vvoice, req.speed, req.format
+            )
+        elif active == "voxtral":
+            vvoice = req.voice if (req.voice and req.voice != EDGE_VOICE) else None
+            audio_bytes, media_type = await asyncio.to_thread(
+                synthesize_voxtral, req.text, vvoice, req.speed, req.format
+            )
+        elif active == "edge-tts":
             audio_bytes = await synthesize_edge(req.text, req.voice)
             media_type = "audio/mpeg"  # edge-tts outputs MP3
         elif active == "kokoro":
